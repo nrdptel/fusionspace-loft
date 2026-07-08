@@ -42,6 +42,10 @@ describe("single-deploy fixture flight", () => {
     expect(run.validation).toBeDefined();
     expect(Number.isFinite(run.validation!.mape)).toBe(true);
     expect(run.validation!.count).toBeGreaterThanOrEqual(6);
+
+    // Regression: the per-sample acceleration must not be dead-zero (it powers the plot).
+    const peakSampleAccel = Math.max(...run.result.trajectory.map((s) => Math.abs(s.acceleration)));
+    expect(peakSampleAccel).toBeGreaterThan(20); // boost accel is tens of m/s²
   });
 });
 
