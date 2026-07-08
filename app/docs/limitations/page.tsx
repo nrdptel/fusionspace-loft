@@ -104,7 +104,9 @@ export default function Limitations() {
         always shown so you can check it. When <em>no</em> motor in a configuration resolves, there
         is no thrust to fly — Loft withholds the flight results, plots, and OpenRocket comparison
         entirely and names the motor it couldn&apos;t find, rather than showing a misleading
-        zero-altitude &ldquo;flight.&rdquo;
+        zero-altitude &ldquo;flight.&rdquo; When a cluster resolves only <em>some</em> of its
+        motors, the flight is simulated on those alone — so its thrust is under-counted and apogee
+        and velocity read low — and a prominent warning says how many motors were missing.
       </p>
 
       <h3>Bundled sample designs use estimated stored figures</h3>

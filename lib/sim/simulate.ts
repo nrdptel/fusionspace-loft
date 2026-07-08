@@ -174,7 +174,7 @@ export interface SimulateInput {
 const MAX_TIME = 1200; // s, hard cap
 
 export function simulate(input: SimulateInput): FlightResult {
-  const { rocket, motors, recovery, conditions } = input;
+  const { rocket, config, motors, recovery, conditions } = input;
   const dtBoost = input.timeStep ?? 0.01;
 
   const structure = structurePointMasses(rocket);
@@ -434,7 +434,8 @@ export function simulate(input: SimulateInput): FlightResult {
     staticMarginCal,
     railExitV,
     extrapolated,
-    motorsResolved: motors.length > 0,
+    motorInstances: config.instances.length,
+    motorsPlaced: motors.length,
     apogee: apogeeAlt,
     landed,
   });
@@ -527,15 +528,28 @@ function buildWarnings(
     staticMarginCal: number;
     railExitV: number;
     extrapolated: boolean;
-    motorsResolved: boolean;
+    /** How many motors the configuration calls for. */
+    motorInstances: number;
+    /** How many of those resolved to a real curve and were flown. */
+    motorsPlaced: number;
     apogee: number;
     landed: boolean;
   },
 ): void {
-  if (!ctx.motorsResolved) {
+  if (ctx.motorsPlaced === 0) {
     out.push({
       code: "no-motor",
       message: "No motor was resolved for this configuration — thrust could not be simulated.",
+      severity: "warning",
+    });
+  } else if (ctx.motorsPlaced < ctx.motorInstances) {
+    // A cluster where some motors resolved and others didn't: the flight runs, but on less
+    // thrust and mass than the design calls for, so apogee and velocity read low. This must be
+    // flagged loudly — the result otherwise looks like an ordinary, complete flight.
+    const missing = ctx.motorInstances - ctx.motorsPlaced;
+    out.push({
+      code: "partial-cluster",
+      message: `Only ${ctx.motorsPlaced} of ${ctx.motorInstances} motors in this configuration resolved to a thrust curve — ${missing} could not be found. The flight was simulated on the resolved motor${ctx.motorsPlaced > 1 ? "s" : ""} alone, so its thrust is under-counted and apogee and velocity read low. See the motor tags for which weren't matched.`,
       severity: "warning",
     });
   }
