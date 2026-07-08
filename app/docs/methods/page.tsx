@@ -110,17 +110,25 @@ export default function Methods() {
           wetted areas with fineness- and thickness-ratio form factors (Hoerner-style).
         </li>
         <li>
-          <strong>Base drag</strong> — the subsonic correlation <code>0.12 + 0.13·M²</code>
-          referenced to the base area, suppressed while the motor burns (exhaust fills the base).
+          <strong>Base drag</strong>, referenced to the base area and suppressed while the motor
+          burns (exhaust fills the base): the subsonic correlation <code>0.12 + 0.13·M²</code> up to
+          Mach 1, then the supersonic recovery <code>0.25/M</code> above it — the two branches meet
+          continuously at Mach 1. (Carrying the subsonic form supersonically, as a naive model does,
+          makes base drag grow without bound, which is wrong.)
         </li>
         <li>
           <strong>Pressure &amp; parasitic</strong> — fin leading-edge/thickness pressure drag and a
-          small flat interference allowance for lugs, joints, and rail buttons.
+          small flat interference allowance for lugs, joints, and rail buttons, with a bounded
+          Prandtl–Glauert amplification below the critical Mach.
         </li>
         <li>
-          <strong>Compressibility</strong> — Prandtl–Glauert scaling below the drag-divergence Mach
-          (~0.8); above it a crude transonic rise, and the flight is flagged as{" "}
-          <em>extrapolated</em>.
+          <strong>Wave (compressibility) drag</strong> — zero below the critical Mach (~0.8), a
+          smooth transonic rise to a peak near Mach 1.15, then a supersonic decline toward a
+          slender-body plateau. The peak scales with fin thickness and body bluntness. This gives
+          the total drag the published <code>C<sub>d</sub></code>–Mach shape (subsonic-flat →
+          transonic peak → supersonic decline) rather than growing without limit; any flight above
+          Mach 0.8 is still flagged <em>extrapolated</em>, as the transonic/supersonic model is a
+          bounded approximation, not a per-geometry wave-drag solution.
         </li>
       </ul>
       <p>
