@@ -13,6 +13,10 @@ export interface FlightRun {
   result: FlightResult;
   config: MotorConfiguration;
   resolutions: MotorResolution[];
+  /** True if at least one motor resolved to a real thrust curve. When false the flight has no
+   *  propulsion, so its numbers are meaningless and callers should withhold them rather than
+   *  present a zero-altitude "flight". */
+  hasPropulsion: boolean;
   validation?: ValidationReport;
 }
 
@@ -62,11 +66,14 @@ export function runFlight(rocket: Rocket, opts: RunOptions = {}): FlightRun {
   const conditions = makeConditions(opts.overrides);
   const { input, resolutions } = buildSimulateInput(rocket, config, conditions);
   const result = simulate(input);
+  const hasPropulsion = resolutions.some((r) => r.match !== null);
+  // A no-thrust run "flies" to zero apogee; comparing that to stored results yields a
+  // meaningless −100%, so skip validation entirely unless the flight actually had propulsion.
   const validation =
-    opts.validateAgainst && opts.validateAgainst.hasResults
+    hasPropulsion && opts.validateAgainst && opts.validateAgainst.hasResults
       ? compareToStored(result.summary, opts.validateAgainst.results)
       : undefined;
-  return { result, config, resolutions, validation };
+  return { result, config, resolutions, hasPropulsion, validation };
 }
 
 /** Run straight from an imported document: pick the config that matches the first stored
