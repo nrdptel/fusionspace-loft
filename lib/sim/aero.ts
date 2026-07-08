@@ -23,6 +23,7 @@ import {
 } from "../model/geometry";
 import { noseProps, transitionProps } from "./shapes";
 import type { AtmosphereState } from "./atmosphere";
+import { clamp } from "../units";
 
 // --- stability -----------------------------------------------------------------------
 
@@ -245,6 +246,8 @@ export interface DragResult {
   friction: number;
   base: number;
   pressure: number;
+  /** Compressibility (wave) drag — zero below the critical Mach. */
+  wave: number;
   /** True when Mach is beyond the validated subsonic envelope (~0.8). */
   extrapolated: boolean;
 }
@@ -292,33 +295,44 @@ export function dragCoefficient(
   const finFriction = cf * finForm * (geom.finWettedArea / geom.refArea);
   const friction = bodyFriction + finFriction;
 
-  // Base drag (subsonic correlation), referenced to base then to ref area. Suppressed
-  // while the motor burns (exhaust fills the base region).
-  const baseCoeff = 0.12 + 0.13 * mach * mach;
+  // Base drag. Subsonic it rises with the square of Mach; supersonic the base pressure
+  // recovers and it falls as ~1/M (Hoerner). The two branches meet continuously at M=1
+  // (both 0.25). Referenced to the base area, then the reference area. Suppressed while the
+  // motor burns (exhaust fills the base region). Applying the subsonic form supersonically —
+  // as a naive model does — makes base drag (and total Cd) grow without bound, which is wrong.
+  const baseCoeff = mach <= 1 ? 0.12 + 0.13 * mach * mach : 0.25 / mach;
   const base = baseCoeff * (geom.baseArea / geom.refArea) * (boosting ? 0.15 : 1);
 
-  // Fin leading-edge / thickness pressure drag, referenced via fin frontal area.
-  const finLe = 0.8 * (geom.finThicknessRatio > 0 ? geom.finThicknessRatio : 0) * (geom.finFrontalArea / geom.refArea);
-  // Interference and parasitic allowance (launch lugs, joints, rail buttons) — a small flat add.
-  const parasitic = 0.01;
-  const pressure = finLe + parasitic;
+  // Subsonic pressure/interference: fin leading-edge/thickness drag plus a small flat
+  // allowance for launch lugs, joints, and rail buttons, with a mild Prandtl–Glauert
+  // amplification (bounded below the critical Mach).
+  const finLe = 0.8 * Math.max(0, geom.finThicknessRatio) * (geom.finFrontalArea / geom.refArea);
+  const pg = 1 / Math.sqrt(Math.max(0.19, 1 - Math.min(mach, 0.9) * Math.min(mach, 0.9)));
+  const pressure = (finLe + 0.01) * pg;
 
-  let cd = friction + base + pressure;
+  // Wave (compressibility) drag — zero below the critical Mach, a transonic rise to a peak
+  // near M≈1.15, then a supersonic decline. A bounded, published-shape model (not a
+  // per-geometry CFD result): the peak scales with fin thickness and body bluntness.
+  const wave = waveDrag(geom, mach);
 
-  // Compressibility. Prandtl–Glauert below the drag-divergence Mach; a crude transonic
-  // rise above it, flagged as extrapolated.
-  const extrapolated = mach > 0.8;
-  if (mach < 0.8) {
-    cd = cd / Math.sqrt(Math.max(0.05, 1 - mach * mach));
-  } else if (mach < 1.1) {
-    const pg = cd / Math.sqrt(Math.max(0.05, 1 - 0.8 * 0.8));
-    const rise = 1 + 2.0 * (mach - 0.8); // steep, approximate transonic rise
-    cd = pg * rise;
-  } else {
-    // Supersonic: hold a raised plateau; heavily approximate.
-    const pgAt08 = cd / Math.sqrt(1 - 0.8 * 0.8);
-    cd = pgAt08 * (1.6 + 0.2 / Math.max(1, mach));
+  const cd = friction + base + pressure + wave;
+  return { cd, friction, base, pressure, wave, extrapolated: mach > 0.8 };
+}
+
+const M_CRIT = 0.8;
+const M_PEAK = 1.15;
+
+/** Transonic/supersonic wave-drag coefficient (referenced to the reference area). Zero
+ *  below M_CRIT; a smooth rise to a peak at M_PEAK whose height grows with fin thickness and
+ *  falls with body slenderness; then a supersonic decline toward a slender-body plateau. */
+function waveDrag(geom: AeroGeometry, mach: number): number {
+  if (mach <= M_CRIT) return 0;
+  const finTerm = 2.0 * Math.max(0, geom.finThicknessRatio);
+  const noseTerm = 0.35 / Math.max(1, geom.bodyFineness / 6); // slender ⇒ less wave drag
+  const peak = clamp(noseTerm + finTerm + 0.15, 0.2, 1.2);
+  if (mach <= M_PEAK) {
+    const t = (mach - M_CRIT) / (M_PEAK - M_CRIT); // 0→1
+    return peak * t * t * (3 - 2 * t); // smoothstep rise
   }
-
-  return { cd, friction, base, pressure, extrapolated };
+  return peak * Math.sqrt(M_PEAK / mach); // supersonic decline
 }
