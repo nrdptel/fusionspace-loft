@@ -60,13 +60,29 @@ export function coreDesignation(designation: string): string {
   return m ? m[1] + m[2] : normalize(designation);
 }
 
+// RASP `.eng` files identify the maker by short, inconsistent codes ("E" vs "Estes",
+// "AT" vs "AeroTech"); designs spell them out. Fold both onto one key so manufacturer
+// comparison works.
 const MFR_ALIASES: Record<string, string> = {
   AT: "aerotech",
   AEROTECH: "aerotech",
   CTI: "cesaroni",
   CESARONI: "cesaroni",
   CESARONITECHNOLOGY: "cesaroni",
+  E: "estes",
+  ES: "estes",
   ESTES: "estes",
+  Q: "quest",
+  QUEST: "quest",
+  RR: "roadrunner",
+  PP: "publicmissiles",
+  AMW: "animalmotorworks",
+  CS: "contrail",
+  H: "hypertek",
+  HT: "hypertek",
+  LOKI: "loki",
+  KBA: "klima",
+  KL: "klima",
   RASP: "",
 };
 
@@ -86,24 +102,31 @@ export function resolveMotor(spec: Pick<MotorSpec, "manufacturer" | "designation
   const qCore = coreDesignation(spec.designation);
   const qMfr = mfrKey(spec.manufacturer);
 
-  let best: MotorMatch | null = null;
-  const better = (q: MatchQuality) =>
-    !best || rank(q) > rank(best.quality);
-
+  // A designation match identifies a motor on its own ("A8" is an A8); manufacturer is a
+  // tiebreaker between same-designation motors from different makers, NOT a veto — otherwise
+  // an "E"-vs-"Estes" string difference blocks a clearly-correct match. A CORE-only match
+  // (class+thrust, e.g. "J293") is looser, so it does require the manufacturer to agree when
+  // both are known, to avoid matching a different maker's same-core motor.
+  let best: { entry: MotorDbEntry; quality: MatchQuality; score: number } | null = null;
   for (const entry of motors) {
     const eDesig = normalize(entry.curve.designation);
     const eMfr = mfrKey(entry.curve.manufacturer);
-    const mfrOk = !qMfr || !eMfr || qMfr === eMfr;
+    const mfrKnown = qMfr !== "" && eMfr !== "";
+    const mfrAgree = mfrKnown ? qMfr === eMfr : false;
 
-    if (eDesig === qDesig && mfrOk) {
-      if (better("exact")) best = { entry, quality: "exact" };
-    } else if ((eDesig.includes(qDesig) || qDesig.includes(eDesig)) && mfrOk) {
-      if (better("designation")) best = { entry, quality: "designation" };
-    } else if (entry.core === qCore && mfrOk) {
-      if (better("core")) best = { entry, quality: "core" };
-    }
+    let quality: MatchQuality = "none";
+    if (eDesig === qDesig) quality = "exact";
+    else if (eDesig.includes(qDesig) || qDesig.includes(eDesig)) quality = "designation";
+    else if (entry.core === qCore) {
+      if (mfrKnown && !mfrAgree) continue; // don't cross makers on a loose core match
+      quality = "core";
+    } else continue;
+
+    // Rank by designation quality first, then prefer an agreeing manufacturer.
+    const score = rank(quality) * 10 + (mfrAgree ? 1 : 0);
+    if (!best || score > best.score) best = { entry, quality, score };
   }
-  return best;
+  return best ? { entry: best.entry, quality: best.quality } : null;
 }
 
 function rank(q: MatchQuality): number {

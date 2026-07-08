@@ -4,11 +4,26 @@ import { allMotors, resolveMotor, coreDesignation, normalize } from "./db";
 describe("motor database", () => {
   it("parses the bundled catalog", () => {
     const motors = allMotors();
-    expect(motors.length).toBeGreaterThanOrEqual(8);
+    expect(motors.length).toBeGreaterThanOrEqual(18);
     for (const m of motors) {
       expect(m.curve.totalImpulse).toBeGreaterThan(0);
       expect(m.curve.samples.length).toBeGreaterThan(2);
     }
+  });
+
+  it("covers the common low/mid-power motors (so real model-rocket files resolve)", () => {
+    for (const d of ["A8", "B4", "B6", "C6", "C11", "D12", "E9", "E12"]) {
+      expect(resolveMotor({ designation: d })).not.toBeNull();
+    }
+  });
+
+  it("matches an Estes designation despite the abbreviated .eng manufacturer code", () => {
+    // RASP .eng files write "E" for Estes; OpenRocket designs say "Estes". A manufacturer
+    // string difference must not veto an otherwise-exact designation match.
+    const a8 = resolveMotor({ manufacturer: "Estes", designation: "A8" });
+    expect(a8?.entry.curve.designation).toBe("A8");
+    const c6 = resolveMotor({ manufacturer: "Estes", designation: "C6" });
+    expect(c6?.entry.curve.designation).toMatch(/C6/);
   });
 
   it("resolves an exact designation + manufacturer", () => {

@@ -108,5 +108,105 @@
     "class": "K",
     "diameter": 54,
     "header": "K660  54.0 572.00 7-17 1.17700 1.94900 CTI"
+  },
+  {
+    "file": "Estes_A8.eng",
+    "motorId": "5f4294d2000231000000000b",
+    "license": null,
+    "simfileId": "5f4294d20002e90000000897",
+    "designation": "A8",
+    "manufacturer": "Estes Industries",
+    "class": "A",
+    "diameter": 18
+  },
+  {
+    "file": "Estes_B4.eng",
+    "motorId": "5f4294d2000231000000000e",
+    "license": "PD",
+    "simfileId": "5f4294d20002e90000000834",
+    "designation": "B4",
+    "manufacturer": "Estes Industries",
+    "class": "B",
+    "diameter": 18
+  },
+  {
+    "file": "Estes_B6.eng",
+    "motorId": "5f4294d20002310000000010",
+    "license": null,
+    "simfileId": "5f4294d20002e90000000414",
+    "designation": "B6",
+    "manufacturer": "Estes Industries",
+    "class": "B",
+    "diameter": 18
+  },
+  {
+    "file": "Estes_C6.eng",
+    "motorId": "5f4294d20002310000000015",
+    "license": null,
+    "simfileId": "69eb2379c7d63000021d8c29",
+    "designation": "C6",
+    "manufacturer": "Estes Industries",
+    "class": "C",
+    "diameter": 18
+  },
+  {
+    "file": "Estes_C11.eng",
+    "motorId": "5f4294d2000231000000001a",
+    "license": null,
+    "simfileId": "5f4294d20002e900000004e8",
+    "designation": "C11",
+    "manufacturer": "Estes Industries",
+    "class": "C",
+    "diameter": 24
+  },
+  {
+    "file": "Estes_E9.eng",
+    "motorId": "5f4294d20002310000000028",
+    "license": null,
+    "simfileId": "5f4294d20002e90000000416",
+    "designation": "E9",
+    "manufacturer": "Estes Industries",
+    "class": "E",
+    "diameter": 24
+  },
+  {
+    "file": "Estes_A10.eng",
+    "motorId": "5f4294d2000231000000000c",
+    "license": null,
+    "simfileId": "624aff26a49a690004b83002",
+    "designation": "A10",
+    "manufacturer": "Estes Industries",
+    "class": "A",
+    "diameter": 13
+  },
+  {
+    "file": "Quest_C6.eng",
+    "motorId": "5f4294d20002310000000016",
+    "license": null,
+    "simfileId": "5f4294d20002e9000000041c",
+    "designation": "C6",
+    "manufacturer": "Quest Aerospace",
+    "class": "C",
+    "diameter": 18
+  },
+  {
+    "file": "AeroTech_D21T.eng",
+    "motorId": "5f4294d20002310000000023",
+    "license": null,
+    "simfileId": "5f4294d20002e9000000027d",
+    "designation": "D21T",
+    "manufacturer": "AeroTech",
+    "class": "D",
+    "diameter": 18
+  },
+  {
+    "file": "AeroTech_E30T.eng",
+    "motorId": "5f4294d20002310000000034",
+    "license": "PD",
+    "simfileId": "62431a34ee302a00044520da",
+    "designation": "E30T",
+    "manufacturer": "AeroTech",
+    "class": "E",
+    "diameter": 24
   }
 ]
