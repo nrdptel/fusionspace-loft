@@ -38,11 +38,12 @@ export default function Limitations() {
       <p>
         The subsonic drag buildup is defensible but simplified: pressure drag on noses and shoulders
         is approximate, fin interference and surface-protuberance drag are lumped into a small flat
-        allowance, and no boundary-layer transition point is solved. Expect Loft to sit within
-        roughly ±10–25% of a full-fidelity subsonic apogee, and generally to <em>over-predict</em>{" "}
-        apogee slightly because its drag is lower than a complete model&apos;s. Compare against your
-        own design&apos;s stored OpenRocket numbers on the <Link href="/docs/validation">Validation</Link>{" "}
-        page.
+        allowance, and no boundary-layer transition point is solved. Because its drag is lower than a
+        complete model&apos;s, Loft generally <em>over-predicts</em> apogee. Measured against
+        OpenRocket&apos;s own &ldquo;A simple model rocket&rdquo; example, Loft came out about +11% to
+        +43% high (worst on small, low-thrust, drag-dominated model rockets); larger, faster rockets
+        where drag matters less should sit tighter. Always compare against your own design&apos;s
+        stored OpenRocket numbers on the <Link href="/docs/validation">Validation</Link> page.
       </p>
 
       <h3>Transonic and supersonic drag are approximate</h3>
