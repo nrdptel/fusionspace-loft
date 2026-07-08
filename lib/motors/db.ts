@@ -1,0 +1,111 @@
+/** The bundled motor database. Parses the inlined RASP curves (catalog.ts) once and
+ *  resolves a design's motor *reference* (manufacturer + designation) to a real thrust
+ *  curve. A `.ork` never embeds the curve, so this lookup is what makes an imported design
+ *  simulable — and it runs entirely client-side, so it works offline.
+ *
+ *  Matching is deliberately forgiving: designations vary across tools ("K550W",
+ *  "K550", "AeroTech K550W", a Cesaroni "838J293-13A" whose class/thrust core is "J293").
+ *  We match on a normalized class-and-thrust core (letter + digits), preferring an exact
+ *  designation and manufacturer, and report the match quality so the UI can flag a fuzzy
+ *  or failed resolution honestly rather than silently simulating the wrong motor. */
+
+import { MOTOR_CATALOG, type CatalogSource } from "./catalog";
+import { parseEng, type MotorCurve } from "./eng";
+import type { MotorSpec } from "../model/types";
+
+export interface MotorDbEntry {
+  curve: MotorCurve;
+  source: CatalogSource;
+  /** Normalized core designation, e.g. "K550", "J293". */
+  core: string;
+}
+
+export type MatchQuality = "exact" | "designation" | "core" | "none";
+
+export interface MotorMatch {
+  entry: MotorDbEntry;
+  quality: MatchQuality;
+}
+
+let cache: MotorDbEntry[] | null = null;
+
+/** Parse the catalog once (lazily). A malformed entry is skipped, never fatal. */
+export function allMotors(): MotorDbEntry[] {
+  if (cache) return cache;
+  const out: MotorDbEntry[] = [];
+  for (const item of MOTOR_CATALOG) {
+    try {
+      const curve = parseEng(item.eng);
+      out.push({ curve, source: item.source, core: coreDesignation(curve.designation) });
+    } catch {
+      // A bad curve shouldn't take down the whole database.
+    }
+  }
+  cache = out;
+  return out;
+}
+
+/** Uppercase, strip everything but alphanumerics. */
+export function normalize(s: string): string {
+  return s.toUpperCase().replace(/[^A-Z0-9]/g, "");
+}
+
+/** The class-and-thrust core of a designation: the first letter-then-digits token, which
+ *  is stable across manufacturer prefixes/suffixes ("838J293-13A" → "J293", "K550W" →
+ *  "K550"). Falls back to the full normalized string if no such token exists. */
+export function coreDesignation(designation: string): string {
+  // Match on the raw (uppercased) string, not the separator-stripped one, so the digit run
+  // stops at the delay/case separator: "838J293-13A" → "J293", not "J29313".
+  const m = designation.toUpperCase().match(/([A-Z])(\d+)/);
+  return m ? m[1] + m[2] : normalize(designation);
+}
+
+const MFR_ALIASES: Record<string, string> = {
+  AT: "aerotech",
+  AEROTECH: "aerotech",
+  CTI: "cesaroni",
+  CESARONI: "cesaroni",
+  CESARONITECHNOLOGY: "cesaroni",
+  ESTES: "estes",
+  RASP: "",
+};
+
+function mfrKey(m?: string): string {
+  if (!m) return "";
+  const n = normalize(m);
+  return MFR_ALIASES[n] ?? n.toLowerCase();
+}
+
+/** Resolve a design's motor reference to a database entry. Returns the best match and its
+ *  quality; `quality === "none"` (with a null entry) means nothing matched. */
+export function resolveMotor(spec: Pick<MotorSpec, "manufacturer" | "designation">): MotorMatch | null {
+  const motors = allMotors();
+  if (motors.length === 0) return null;
+
+  const qDesig = normalize(spec.designation);
+  const qCore = coreDesignation(spec.designation);
+  const qMfr = mfrKey(spec.manufacturer);
+
+  let best: MotorMatch | null = null;
+  const better = (q: MatchQuality) =>
+    !best || rank(q) > rank(best.quality);
+
+  for (const entry of motors) {
+    const eDesig = normalize(entry.curve.designation);
+    const eMfr = mfrKey(entry.curve.manufacturer);
+    const mfrOk = !qMfr || !eMfr || qMfr === eMfr;
+
+    if (eDesig === qDesig && mfrOk) {
+      if (better("exact")) best = { entry, quality: "exact" };
+    } else if ((eDesig.includes(qDesig) || qDesig.includes(eDesig)) && mfrOk) {
+      if (better("designation")) best = { entry, quality: "designation" };
+    } else if (entry.core === qCore && mfrOk) {
+      if (better("core")) best = { entry, quality: "core" };
+    }
+  }
+  return best;
+}
+
+function rank(q: MatchQuality): number {
+  return q === "exact" ? 3 : q === "designation" ? 2 : q === "core" ? 1 : 0;
+}
