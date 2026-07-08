@@ -98,7 +98,8 @@ export default function Methods() {
         <li>
           <strong>Skin friction</strong> — a flat-plate coefficient (laminar{" "}
           <code>1.328/√Re</code>, turbulent Prandtl–Schlichting <code>0.455/(log₁₀Re)²·⁵⁸</code>)
-          with a surface-roughness floor from the design&apos;s finish, applied to the body and fin
+          with a surface-roughness floor from the design&apos;s finish and a compressible-turbulent
+          (reference-temperature / Frankl–Voishel) correction at speed, applied to the body and fin
           wetted areas with fineness- and thickness-ratio form factors (Hoerner-style).
         </li>
         <li>
