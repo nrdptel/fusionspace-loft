@@ -1,0 +1,42 @@
+name: Bug report
+description: Something on the site is wrong or broken
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report! A reminder up front: every result is a model
+        estimate, not an authoritative figure — an apogee or descent rate that
+        differs from a real flight or from OpenRocket is expected (see the in-app
+        limitations log), not a bug. Bugs are when the parser, the math, the units,
+        or the UI are actually wrong.
+  - type: input
+    id: where
+    attributes:
+      label: Where?
+      description: Which part of the tool is affected? If it's a parsing/sim issue, attaching the `.ork` is ideal.
+      placeholder: e.g. import, the flight plots, the OpenRocket comparison
+  - type: textarea
+    id: what
+    attributes:
+      label: What's wrong?
+      description: What did you expect, and what did you actually see?
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - A design failed to import / parsed wrong
+        - A motor didn't resolve (or resolved to the wrong one)
+        - A computed number looks wrong
+        - Plots / flight visualization
+        - Today's-weather re-run
+        - Layout / dark mode / display
+        - Something else
+  - type: input
+    id: env
+    attributes:
+      label: Browser / device (optional)
+      placeholder: e.g. Chrome on Android, Safari on iPhone

@@ -1,0 +1,54 @@
+name: Deploy to Cloudflare Pages
+
+# Builds the Next static export (out/) and deploys it to Cloudflare Pages.
+#
+# Triggers:
+#   - push to main: ship code changes.
+#   - workflow_dispatch: manual deploy from the Actions tab.
+#   - schedule (monthly): rebuild so the month's awareness observance
+#     (lib/observances.ts, fixed at build time on a static export) rolls over
+#     when the calendar does. NOTE: a schedule/workflow trigger only fires once
+#     this file is on the default branch.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    - cron: "0 6 1 * *" # 06:00 UTC on the 1st of each month
+
+# One in-flight deploy at a time; a newer build supersedes an older one.
+concurrency:
+  group: deploy-cloudflare
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install + build static export
+        run: |
+          npm ci
+          npm run build
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          # Upload the built static site (out/). public/_headers is copied into
+          # out/ and applied by Pages automatically.
+          #
+          # `--branch=main` forces a PRODUCTION deployment (main is the project's
+          # production branch) — the custom domain serves production, so an
+          # implicit/preview branch would deploy but never go live.
+          command: pages deploy out --project-name=fusionspace-loft --branch=main
