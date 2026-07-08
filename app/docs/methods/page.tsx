@@ -62,6 +62,13 @@ export default function Methods() {
         Nose-cone contours use the standard published profile equations (conical, tangent ogive,
         ellipsoid, power, parabolic, and the Haack series).
       </p>
+      <p>
+        OpenRocket marks a radius that should match a neighbour as <code>auto</code>. Loft resolves
+        those before simulating — a body tube takes its neighbour&apos;s radius, a transition end
+        takes the body it meets, and an internal part (coupler, ring, inner tube) fits inside its
+        enclosing tube. A radius that still can&apos;t be resolved is treated as zero and flagged in
+        the import warnings rather than silently guessed.
+      </p>
 
       <h2>Aerodynamic stability — Barrowman</h2>
       <p>
