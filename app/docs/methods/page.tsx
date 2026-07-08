@@ -149,7 +149,9 @@ export default function Methods() {
         depleted in proportion to delivered impulse (constant-<em>I<sub>sp</sub></em> assumption), so
         motor mass falls from loaded to casing mass over the burn. Matching prefers an exact
         designation, then a class-and-thrust core (so a Cesaroni &ldquo;838J293-13A&rdquo; still
-        resolves to &ldquo;J293&rdquo;), and the UI flags an approximate or failed match.
+        resolves to &ldquo;J293&rdquo;), and the UI flags an approximate or failed match. If a
+        cluster resolves only some of its motors, the flight runs on the resolved ones and a
+        warning reports the under-counted thrust.
       </p>
 
       <h2>Recovery &amp; drift</h2>

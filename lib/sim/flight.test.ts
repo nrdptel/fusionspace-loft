@@ -77,6 +77,34 @@ describe("unresolvable motor", () => {
   });
 });
 
+describe("partial motor cluster", () => {
+  it("flies on the resolved motor but flags the under-counted thrust", async () => {
+    const doc = await load("demo-single-deploy.ork");
+    // Turn the single-motor design into a two-motor cluster where the second motor can't be
+    // resolved: the flight still has thrust (so it flies), but on less than the design calls
+    // for — the case that otherwise reads as an ordinary, complete flight.
+    for (const cfg of doc.rocket.configurations) {
+      if (cfg.instances.length === 0) continue;
+      const base = cfg.instances[0];
+      cfg.instances.push({
+        ...base,
+        motor: { ...base.motor, manufacturer: "NoSuchMaker", designation: "ZZ9999XX" },
+      });
+    }
+    const run = runFromDocument(doc);
+
+    // One resolved, one missing — a genuine partial cluster.
+    expect(run.resolutions.some((r) => r.match !== null)).toBe(true);
+    expect(run.resolutions.some((r) => r.match === null)).toBe(true);
+    expect(run.hasPropulsion).toBe(true);
+
+    // Flagged as a partial cluster, not as "no motor", and the flight still ran.
+    expect(run.result.warnings.some((w) => w.code === "partial-cluster")).toBe(true);
+    expect(run.result.warnings.some((w) => w.code === "no-motor")).toBe(false);
+    expect(run.result.summary.apogee).toBeGreaterThan(0);
+  });
+});
+
 describe("dual-deploy fixture flight", () => {
   it("deploys a drogue at apogee and a main at altitude", async () => {
     const doc = await load("demo-dual-deploy.ork");
