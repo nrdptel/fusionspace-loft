@@ -1,0 +1,144 @@
+<?xml version='1.0' encoding='utf-8'?>
+<openrocket version="1.10" creator="Loft fixture (hand-authored, OpenRocket 1.10 schema)">
+  <rocket>
+    <name>Loft Demo 54mm — dual deploy</name>
+    <id>10f70000-0000-4000-8000-000000000101</id>
+    <designer>Fusion Space (Loft fixture)</designer>
+    <motorconfiguration configid="cfg-54-k550" default="true">
+      <stage number="0" active="true"/>
+    </motorconfiguration>
+    <referencetype>maximum</referencetype>
+    <subcomponents>
+      <stage>
+        <name>Sustainer</name>
+        <id>10f70000-0000-4000-8000-000000000102</id>
+        <subcomponents>
+          <nosecone>
+            <name>Nose cone</name>
+            <id>10f70000-0000-4000-8000-000000000103</id>
+            <finish>polished</finish>
+            <material type="bulk" density="1850.0">Fiberglass</material>
+            <length>0.36</length>
+            <thickness>0.003</thickness>
+            <shape>ogive</shape>
+            <shapeparameter>1.0</shapeparameter>
+            <aftradius>0.028</aftradius>
+          </nosecone>
+          <bodytube>
+            <name>Payload / main bay</name>
+            <id>10f70000-0000-4000-8000-000000000104</id>
+            <finish>polished</finish>
+            <material type="bulk" density="1850.0">Fiberglass</material>
+            <length>0.55</length>
+            <thickness>0.0018</thickness>
+            <radius>0.028</radius>
+            <subcomponents>
+              <masscomponent>
+                <name>Dual-deploy avionics</name>
+                <id>10f70000-0000-4000-8000-000000000105</id>
+                <axialoffset method="bottom">-0.02</axialoffset>
+                <packedlength>0.10</packedlength>
+                <packedradius>0.024</packedradius>
+                <mass>0.180</mass>
+                <masscomponenttype>flightcomputer</masscomponenttype>
+              </masscomponent>
+              <parachute>
+                <name>Main parachute</name>
+                <id>10f70000-0000-4000-8000-000000000106</id>
+                <axialoffset method="top">0.05</axialoffset>
+                <packedlength>0.14</packedlength>
+                <packedradius>0.026</packedradius>
+                <cd>0.9</cd>
+                <material type="surface" density="0.067">Ripstop nylon</material>
+                <deployevent>altitude</deployevent>
+                <deployaltitude>150.0</deployaltitude>
+                <deploydelay>0.0</deploydelay>
+                <diameter>1.22</diameter>
+                <linecount>8</linecount>
+                <linelength>1.0</linelength>
+                <linematerial type="line" density="0.0025">Tubular nylon</linematerial>
+              </parachute>
+            </subcomponents>
+          </bodytube>
+          <bodytube>
+            <name>Booster / motor bay</name>
+            <id>10f70000-0000-4000-8000-000000000107</id>
+            <finish>polished</finish>
+            <material type="bulk" density="1850.0">Fiberglass</material>
+            <length>0.70</length>
+            <thickness>0.0018</thickness>
+            <radius>0.028</radius>
+            <motormount>
+              <ignitionevent>automatic</ignitionevent>
+              <ignitiondelay>0.0</ignitiondelay>
+              <overhang>0.005</overhang>
+              <motor configid="cfg-54-k550">
+                <type>single</type>
+                <manufacturer>AeroTech</manufacturer>
+                <designation>K550W</designation>
+                <diameter>0.054</diameter>
+                <length>0.410</length>
+                <delay>none</delay>
+              </motor>
+            </motormount>
+            <subcomponents>
+              <parachute>
+                <name>Drogue parachute</name>
+                <id>10f70000-0000-4000-8000-000000000108</id>
+                <axialoffset method="top">0.05</axialoffset>
+                <packedlength>0.08</packedlength>
+                <packedradius>0.024</packedradius>
+                <cd>0.8</cd>
+                <material type="surface" density="0.067">Ripstop nylon</material>
+                <deployevent>apogee</deployevent>
+                <deploydelay>0.0</deploydelay>
+                <diameter>0.46</diameter>
+                <linecount>6</linecount>
+                <linelength>0.5</linelength>
+                <linematerial type="line" density="0.0025">Tubular nylon</linematerial>
+              </parachute>
+              <trapezoidfinset>
+                <name>Fins</name>
+                <id>10f70000-0000-4000-8000-000000000109</id>
+                <fincount>4</fincount>
+                <instancecount>4</instancecount>
+                <axialoffset method="bottom">0.0</axialoffset>
+                <finish>polished</finish>
+                <material type="bulk" density="1850.0">G10 fiberglass</material>
+                <thickness>0.005</thickness>
+                <crosssection>square</crosssection>
+                <cant>0.0</cant>
+                <rootchord>0.16</rootchord>
+                <tipchord>0.07</tipchord>
+                <sweeplength>0.09</sweeplength>
+                <height>0.07</height>
+              </trapezoidfinset>
+            </subcomponents>
+          </bodytube>
+        </subcomponents>
+      </stage>
+    </subcomponents>
+  </rocket>
+  <simulations>
+    <simulation status="loaded">
+      <name>Simulation 1</name>
+      <simulator>RK4Simulator</simulator>
+      <calculator>BarrowmanCalculator</calculator>
+      <conditions>
+        <configid>cfg-54-k550</configid>
+        <launchrodlength>2.0</launchrodlength>
+        <launchintowind>true</launchintowind>
+        <launchrodangle>0.0</launchrodangle>
+        <launchroddirection>0.0</launchroddirection>
+        <windaverage>3.0</windaverage>
+        <windturbulence>0.1</windturbulence>
+        <launchaltitude>0.0</launchaltitude>
+        <launchlatitude>40.0</launchlatitude>
+        <atmosphere model="isa"/>
+        <timestep>0.01</timestep>
+      </conditions>
+      <flightdata maxaltitude="2250.0" maxvelocity="305.0" maxacceleration="208.0" maxmach="0.89" timetoapogee="20.2" flighttime="214.0" groundhitvelocity="5.6" launchrodvelocity="26.2" deploymentvelocity="4.0" optimumdelay="17.3">
+      </flightdata>
+    </simulation>
+  </simulations>
+</openrocket>
