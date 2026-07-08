@@ -1,0 +1,28 @@
+name: Feature or method request
+description: Suggest a feature, or a correction to the physics
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Ideas welcome — especially anything that makes the numbers clearer, more
+        honest, or better validated. If you're proposing a change to a constant,
+        an equation, or the drag model, please include a published source so it
+        can be verified and cited in the methods docs.
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would you like?
+      description: Describe the feature, or the correction to the model.
+    validations:
+      required: true
+  - type: textarea
+    id: source
+    attributes:
+      label: Source (for method/constant changes)
+      description: A published reference for any proposed change to the physics or its constants.
+  - type: textarea
+    id: flight
+    attributes:
+      label: Flight data (for a validation case)
+      description: Have a real flight to contribute? Share the `.ork`, the motor, and the measured apogee/descent so it can be added as a validation case.
