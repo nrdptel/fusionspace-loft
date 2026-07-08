@@ -1,0 +1,19 @@
+# Cloudflare Pages response headers. Static export can't emit a next.config
+# headers() block, so the baseline security headers live here and apply to every
+# path: clickjacking, MIME sniffing, and referrer leakage. (No CSP — the inline
+# theme-init script would need a per-request nonce/hash, and a misconfigured CSP
+# failing closed is a worse risk than its marginal benefit on a static site.)
+/*
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  # Lock down powerful APIs the simulator never uses, and isolate the browsing context.
+  # geolocation is left enabled: the optional "today's conditions" re-run can use it to
+  # find the launch field, always behind an explicit tap.
+  Permissions-Policy: camera=(), microphone=(), payment=(), usb=(), interest-cohort=()
+  Cross-Origin-Opener-Policy: same-origin
+
+# Always revalidate the service worker so a new deploy is detected promptly instead of sitting
+# behind an HTTP cache — the update-prompt flow depends on fetching a fresh sw.js.
+/sw.js
+  Cache-Control: no-cache
