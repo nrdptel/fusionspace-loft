@@ -1,0 +1,66 @@
+<?xml version='1.0' encoding='utf-8'?>
+<openrocket version="1.8" creator="OpenRocket 22.02">
+  <rocket>
+    <name>Quirks regression — auto radii, legacy tags, boattail</name>
+    <motorconfiguration configid="cfg-t" default="true"><stage number="0" active="true"/></motorconfiguration>
+    <referencetype>maximum</referencetype>
+    <subcomponents>
+      <stage>
+        <name>Sustainer</name>
+        <subcomponents>
+          <nosecone>
+            <name>Nose</name><material type="bulk" density="1850.0">FG</material>
+            <length>0.3</length><thickness>filled</thickness><shape>ogive</shape>
+            <aftradius>auto 0.033</aftradius>
+          </nosecone>
+          <bodytube>
+            <name>Upper</name><material type="bulk" density="1850.0">FG</material>
+            <length>0.5</length><thickness>0.002</thickness><radius>auto</radius>
+            <subcomponents>
+              <tubecoupler>
+                <name>Coupler</name><material type="bulk" density="1850.0">FG</material>
+                <length>0.1</length><outerradius>auto</outerradius><thickness>0.002</thickness>
+                <subcomponents>
+                  <masscomponent><name>Av-bay</name><position type="top">0.02</position>
+                    <packedlength>0.06</packedlength><packedradius>auto 0.028</packedradius>
+                    <mass>0.15</mass><masscomponenttype>flightcomputer</masscomponenttype></masscomponent>
+                </subcomponents>
+              </tubecoupler>
+              <streamer><name>Streamer</name><position type="top">0.05</position>
+                <packedlength>0.05</packedlength><cd>0.75</cd>
+                <material type="surface" density="0.09">Mylar</material>
+                <deployevent>apogee</deployevent><striplength>1.2</striplength><stripwidth>0.1</stripwidth></streamer>
+            </subcomponents>
+          </bodytube>
+          <transition>
+            <name>Shoulder</name><material type="bulk" density="1850.0">FG</material>
+            <length>0.06</length><shape>conical</shape>
+            <foreradius>auto</foreradius><aftradius>0.022</aftradius><thickness>0.002</thickness>
+          </transition>
+          <bodytube>
+            <name>Motor mount body</name><material type="bulk" density="1850.0">FG</material>
+            <length>0.45</length><thickness>0.0018</thickness><radius>0.022</radius>
+            <motormount>
+              <ignitionevent>automatic</ignitionevent><ignitiondelay>0.0</ignitiondelay><overhang>0.0</overhang>
+              <motor configid="cfg-t"><type>reload</type><manufacturer>AeroTech</manufacturer><designation>J420R</designation><diameter>0.038</diameter><length>0.337</length><delay>none</delay></motor>
+            </motormount>
+            <subcomponents>
+              <ellipticalfinset><name>Ell fins</name><fincount>4</fincount>
+                <position type="bottom">0.0</position><rotation>0.0</rotation>
+                <material type="bulk" density="1850.0">G10</material><thickness>0.004</thickness>
+                <rootchord>0.12</rootchord><height>0.06</height>
+                <overridesubcomponents>false</overridesubcomponents></ellipticalfinset>
+            </subcomponents>
+          </bodytube>
+        </subcomponents>
+      </stage>
+      <parallelstage><name>Booster pod</name>
+        <subcomponents><bodytube><name>pod</name><length>0.2</length><radius>0.02</radius></bodytube></subcomponents>
+      </parallelstage>
+    </subcomponents>
+  </rocket>
+  <simulations><simulation status="loaded"><name>Sim 1</name>
+    <conditions><configid>cfg-t</configid><launchrodlength>1.8</launchrodlength><launchrodangle>0</launchrodangle><windaverage>2</windaverage><launchaltitude>0</launchaltitude></conditions>
+    <flightdata maxaltitude="900" maxvelocity="220" maxmach="0.65"/>
+  </simulation></simulations>
+</openrocket>
