@@ -68,9 +68,10 @@ export default function Limitations() {
 
       <h3>Single active stage</h3>
       <p>
-        This session simulates a single stage. Multi-stage / clustered-with-separation flights,
-        air-starts, and booster separation are not simulated; only the components and motors of the
-        chosen configuration fly.
+        Multi-stage flights, air-starts, booster separation, parallel (strap-on) stages, and pods
+        are not simulated; only the primary stack flies. These aren&apos;t dropped silently — a
+        design that contains them is imported with a visible warning saying so, so you know the
+        flown vehicle isn&apos;t the whole design.
       </p>
 
       <h3>Wind model</h3>

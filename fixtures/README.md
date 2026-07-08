@@ -9,6 +9,11 @@ binaries are regenerated from it (any ZIP tool works — the entry must be named
 |------|--------|-------|----------|
 | `demo-single-deploy.ork` | 38 mm fibreglass sport rocket, 29 mm mount | AeroTech H128W | single deploy at apogee |
 | `demo-dual-deploy.ork` | 54 mm fibreglass dual-deploy | AeroTech K550W | drogue at apogee, main at 150 m |
+| `demo-quirks.ork` | Parser regression: `auto` radii (bare + valued), a boattail transition, a tube coupler with a subcomponent, an elliptical fin set, legacy element names (`<position>`, `<fincount>`), and a parallel stage | AeroTech J420R | streamer at apogee |
+
+`demo-quirks.ork` isn't a realistic design — it deliberately exercises format features real
+OpenRocket exports use that the two demo designs don't, so the parser's handling of them is
+pinned by tests (its stored figures are placeholders and aren't validated against).
 
 ## Provenance and the stored results — read this
 
