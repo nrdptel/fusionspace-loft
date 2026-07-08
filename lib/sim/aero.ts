@@ -266,8 +266,10 @@ export function skinFriction(re: number, roughness: number, length: number, mach
     const cfRough = 0.032 * Math.pow(roughness / length, 0.2);
     cf = Math.max(cf, cfRough);
   }
-  // Mild compressibility correction on friction.
-  return cf * (1 - 0.1 * mach * mach);
+  // Compressibility correction for a turbulent boundary layer (reference-temperature /
+  // Frankl–Voishel approximation, adiabatic wall). Monotonically decreasing and ALWAYS
+  // positive — unlike a naive (1 − kM²) factor, which turns friction negative past ~M3.
+  return cf / Math.pow(1 + 0.144 * mach * mach, 0.65);
 }
 
 /** Zero-lift drag coefficient at a flight state. `boosting` fills the base and cuts base drag. */

@@ -92,4 +92,24 @@ describe("skinFriction", () => {
     expect(b).toBeLessThan(a);
     expect(a).toBeGreaterThan(0);
   });
+
+  it("stays strictly positive across the full Mach range (never negative supersonic)", () => {
+    // Regression: the compressibility correction must not drive friction negative — a naive
+    // (1 − 0.1·M²) factor went negative past ~Mach 3.16.
+    for (const M of [0, 0.5, 1, 2, 3.2, 4, 5]) {
+      const cf = skinFriction(5e6, 20e-6, 0.9, M);
+      expect(cf).toBeGreaterThan(0);
+      expect(Number.isFinite(cf)).toBe(true);
+    }
+  });
+
+  it("total Cd stays positive and finite from subsonic through supersonic", () => {
+    const geom = aeroGeometry(coneRocket());
+    const atm = new Atmosphere().sample(3000);
+    for (const M of [0.3, 0.8, 1.5, 2.5, 3.2, 4, 5]) {
+      const cd = dragCoefficient(geom, atm, M * atm.speedOfSound, false).cd;
+      expect(cd).toBeGreaterThan(0);
+      expect(Number.isFinite(cd)).toBe(true);
+    }
+  });
 });
