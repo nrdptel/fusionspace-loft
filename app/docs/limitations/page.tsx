@@ -45,11 +45,17 @@ export default function Limitations() {
         page.
       </p>
 
-      <h3>Transonic and supersonic drag are crude</h3>
+      <h3>Transonic and supersonic drag are approximate</h3>
       <p>
-        Above about Mach 0.8 the drag model leaves its validated envelope: the transonic drag rise is
-        a coarse multiplier and there is no proper wave-drag model. Any such flight is flagged{" "}
-        <em>extrapolated</em> in the results. Treat apogee and max velocity for fast flights as rough.
+        Above about Mach 0.8 the drag model leaves its validated envelope. It now follows the
+        correct <em>shape</em> — a transonic drag rise to a peak near Mach 1.15, then a supersonic
+        decline — with base drag switching to its supersonic form, rather than the earlier model
+        whose drag grew without bound (badly over-stating drag, and under-stating apogee, for fast
+        flights). But the wave-drag magnitude is a bounded parametric estimate scaled by fin
+        thickness and slenderness, not a per-geometry wave-drag solution: there is no shock/CFD
+        model and no shape-specific supersonic pressure distribution. Any flight above Mach 0.8 is
+        flagged <em>extrapolated</em>; treat apogee and max velocity for fast flights as rough, and
+        expect the largest differences here.
       </p>
 
       <h3>Mass of curved shells is approximated</h3>
