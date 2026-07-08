@@ -112,4 +112,28 @@ describe("skinFriction", () => {
       expect(Number.isFinite(cd)).toBe(true);
     }
   });
+
+  it("follows the published Cd–Mach shape: subsonic flat, transonic peak, supersonic decline", () => {
+    const geom = aeroGeometry(coneRocket());
+    const atm = new Atmosphere().sample(2000);
+    const cdAt = (M: number) => dragCoefficient(geom, atm, M * atm.speedOfSound, false).cd;
+
+    // Find the peak over a Mach sweep; it must sit in the transonic band, not at M5.
+    let peakM = 0;
+    let peakCd = 0;
+    for (let M = 0.2; M <= 5; M += 0.05) {
+      const cd = cdAt(M);
+      if (cd > peakCd) { peakCd = cd; peakM = M; }
+    }
+    expect(peakM).toBeGreaterThan(1.0);
+    expect(peakM).toBeLessThan(1.5);
+
+    // Subsonic is a sane rocket Cd₀; the peak is bounded; supersonic declines below it.
+    expect(cdAt(0.3)).toBeGreaterThan(0.3);
+    expect(cdAt(0.3)).toBeLessThan(0.9);
+    expect(peakCd).toBeLessThan(1.5);
+    expect(cdAt(3)).toBeLessThan(peakCd);
+    expect(cdAt(5)).toBeLessThan(cdAt(3)); // still declining, not growing
+    expect(cdAt(5)).toBeGreaterThan(0.2); // toward a physical slender-body plateau
+  });
 });
