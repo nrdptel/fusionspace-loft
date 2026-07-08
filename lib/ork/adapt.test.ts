@@ -95,3 +95,64 @@ describe("importOrk (zip → model)", () => {
     expect(doc.rocket.configurations[0].instances[0].motor.designation).toBe("H128W");
   });
 });
+
+describe("real-world quirks fixture (auto radii, legacy tags, boattail, pods)", () => {
+  const doc = adaptOrkXml(readXml("demo-quirks.ork.xml"));
+  const flat = flattenRocket(doc.rocket);
+  const byName = (n: string) => flat.find((p) => p.component.name === n)!.component;
+
+  it("resolves an auto body-tube radius from its neighbour", () => {
+    // <radius>auto</radius> on the upper tube ⇒ the nose's 33 mm base radius.
+    const upper = byName("Upper");
+    expect(upper.kind).toBe("bodytube");
+    if (upper.kind === "bodytube") expect(upper.outerRadius).toBeCloseTo(0.033, 4);
+  });
+
+  it("resolves an auto transition fore radius, keeping the explicit aft radius", () => {
+    const shoulder = byName("Shoulder");
+    expect(shoulder.kind).toBe("transition");
+    if (shoulder.kind === "transition") {
+      expect(shoulder.foreRadius).toBeCloseTo(0.033, 4); // from the upper tube
+      expect(shoulder.aftRadius).toBeCloseTo(0.022, 4); // explicit boattail end
+    }
+  });
+
+  it("fits an auto tube-coupler inside its enclosing tube", () => {
+    const coupler = byName("Coupler");
+    expect(coupler.kind).toBe("tubecoupler");
+    if (coupler.kind === "tubecoupler") {
+      expect(coupler.outerRadius).toBeGreaterThan(0.028);
+      expect(coupler.outerRadius).toBeLessThanOrEqual(0.033);
+    }
+  });
+
+  it("reads legacy element names (fincount, position) and an elliptical fin set", () => {
+    const fins = byName("Ell fins");
+    expect(fins.kind).toBe("ellipticalfinset");
+    if (fins.kind === "ellipticalfinset") {
+      expect(fins.finCount).toBe(4);
+      expect(fins.area).toBeGreaterThan(0);
+    }
+    // legacy <position> placed the fins at a positive aft station.
+    expect(flat.find((p) => p.component.name === "Ell fins")!.xFore).toBeGreaterThan(0.5);
+  });
+
+  it("parses a streamer as a recovery device", () => {
+    const streamer = byName("Streamer");
+    expect(streamer.kind).toBe("streamer");
+  });
+
+  it("warns about parallel stages rather than dropping them silently", () => {
+    expect(doc.warnings.some((w) => /parallel/i.test(w))).toBe(true);
+  });
+
+  it("simulates to a plausible, stable flight after resolution", async () => {
+    const { runFromDocument } = await import("../sim/run");
+    const run = runFromDocument(doc);
+    expect(run.result.summary.apogee).toBeGreaterThan(200);
+    expect(run.result.summary.apogee).toBeLessThan(4000);
+    expect(Number.isFinite(run.result.staticMarginCal)).toBe(true);
+    expect(run.result.staticMarginCal).toBeGreaterThan(0);
+    expect(run.resolutions[0].match?.entry.curve.designation).toBe("J420R");
+  });
+});

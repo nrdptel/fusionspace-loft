@@ -256,7 +256,7 @@ function parseComponent(node: XmlNode, ctx: WalkContext): RocketComponent | null
         ...b,
         kind: "nosecone",
         length: childNum(node, "length", 0),
-        aftRadius: childNum(node, "aftradius", 0),
+        aftRadius: childNum(node, "aftradius", NaN), // NaN ⇒ "auto"/missing; resolved from neighbours below
         thickness: childNum(node, "thickness", 0) || undefined,
         shape,
         shapeParameter: param,
@@ -270,7 +270,7 @@ function parseComponent(node: XmlNode, ctx: WalkContext): RocketComponent | null
         ...b,
         kind: "bodytube",
         length: childNum(node, "length", 0),
-        outerRadius: childNum(node, "radius", 0),
+        outerRadius: childNum(node, "radius", NaN), // NaN ⇒ "auto"/missing; resolved from neighbours below
         thickness: childNum(node, "thickness", 0) || undefined,
         children: [],
       };
@@ -284,8 +284,8 @@ function parseComponent(node: XmlNode, ctx: WalkContext): RocketComponent | null
         ...b,
         kind: "transition",
         length: childNum(node, "length", 0),
-        foreRadius: childNum(node, "foreradius", 0),
-        aftRadius: childNum(node, "aftradius", 0),
+        foreRadius: childNum(node, "foreradius", NaN), // NaN ⇒ "auto"; resolved from the fore neighbour below
+        aftRadius: childNum(node, "aftradius", NaN), // NaN ⇒ "auto"; resolved from the aft neighbour below
         thickness: childNum(node, "thickness", 0) || undefined,
         shape,
         shapeParameter: param,
@@ -335,14 +335,14 @@ function parseComponent(node: XmlNode, ctx: WalkContext): RocketComponent | null
       };
     }
     case "innertube": {
-      const outer = childNum(node, "outerradius", 0);
+      const outer = childNum(node, "outerradius", NaN); // NaN ⇒ "auto"; resolved from the enclosing tube
       const thickness = childNum(node, "thickness", 0);
       const comp: RocketComponent = {
         ...b,
         kind: "innertube",
         length: childNum(node, "length", 0),
         outerRadius: outer,
-        innerRadius: Math.max(0, outer - thickness),
+        innerRadius: Number.isFinite(outer) ? Math.max(0, outer - thickness) : NaN,
         children: [],
       };
       if (parseMotorMount(node, b.id, ctx)) comp.motorMount = { overhang: childNum(child(node, "motormount")!, "overhang", 0) };
@@ -353,9 +353,13 @@ function parseComponent(node: XmlNode, ctx: WalkContext): RocketComponent | null
     case "centeringring":
     case "bulkhead":
     case "engineblock": {
-      const outer = childNum(node, "outerradius", childNum(node, "radius", 0));
+      const outer = childNum(node, "outerradius", childNum(node, "radius", NaN)); // NaN ⇒ "auto"
       const thickness = childNum(node, "thickness", 0);
-      const inner = childNum(node, "innerradius", node.name === "bulkhead" ? 0 : Math.max(0, outer - thickness));
+      const inner = childNum(
+        node,
+        "innerradius",
+        node.name === "bulkhead" ? 0 : Number.isFinite(outer) ? Math.max(0, outer - thickness) : NaN,
+      );
       return {
         ...b,
         kind: node.name,
@@ -594,6 +598,125 @@ function numFromWind(cond: XmlNode, field: string): number | undefined {
   return Number.isFinite(v) ? v : undefined;
 }
 
+// --- auto-radius resolution ----------------------------------------------------------
+
+/** Fields the radius resolver reads/writes. The model stores real numbers; during parsing
+ *  an "auto"/missing radius is left NaN so it can be resolved from neighbours here. */
+interface RadiusFields {
+  outerRadius?: number;
+  innerRadius?: number;
+  foreRadius?: number;
+  aftRadius?: number;
+  thickness?: number;
+}
+const rf = (c: RocketComponent): RadiusFields => c as unknown as RadiusFields;
+const ok = (x: number | undefined): x is number => typeof x === "number" && Number.isFinite(x) && x > 0;
+const BODY_KINDS = new Set(["nosecone", "bodytube", "transition"]);
+
+/** Radius at a body component's fore (nose-ward) end. */
+function foreRadius(c: RocketComponent): number {
+  if (c.kind === "nosecone") return 0; // the tip
+  if (c.kind === "bodytube") return c.outerRadius;
+  if (c.kind === "transition") return c.foreRadius;
+  return NaN;
+}
+/** Radius at a body component's aft end. */
+function aftRadius(c: RocketComponent): number {
+  if (c.kind === "nosecone") return c.aftRadius;
+  if (c.kind === "bodytube") return c.outerRadius;
+  if (c.kind === "transition") return c.aftRadius;
+  return NaN;
+}
+
+/** Resolve components whose radius was "auto" (left NaN at parse). OpenRocket's "auto"
+ *  means "match the adjacent component": a body tube takes its neighbour's radius, a
+ *  transition end takes the body it meets, and an internal part (coupler, inner tube,
+ *  ring) fits inside its enclosing tube. Anything still unresolved is left at zero and
+ *  flagged, rather than silently mis-modelled. */
+function resolveAutoRadii(rocket: Rocket, warnings: string[]): void {
+  let unresolved = false;
+  for (const stage of rocket.stages) {
+    const bodies = stage.components.filter((c) => BODY_KINDS.has(c.kind));
+
+    // Forward: a fore-side auto radius matches the previous body's aft radius.
+    let prevAft = NaN;
+    for (const c of bodies) {
+      if (c.kind === "bodytube" && !ok(c.outerRadius) && ok(prevAft)) c.outerRadius = prevAft;
+      else if (c.kind === "transition" && !ok(c.foreRadius) && ok(prevAft)) c.foreRadius = prevAft;
+      prevAft = aftRadius(c);
+    }
+    // Backward: an aft-side auto radius matches the next body's fore radius.
+    let nextFore = NaN;
+    for (let i = bodies.length - 1; i >= 0; i--) {
+      const c = bodies[i];
+      if (c.kind === "bodytube" && !ok(c.outerRadius) && ok(nextFore)) c.outerRadius = nextFore;
+      else if (c.kind === "nosecone" && !ok(c.aftRadius) && ok(nextFore)) c.aftRadius = nextFore;
+      else if (c.kind === "transition" && !ok(c.aftRadius) && ok(nextFore)) c.aftRadius = nextFore;
+      nextFore = foreRadius(c);
+    }
+
+    resolveInternalRadii(stage.components, NaN);
+
+    for (const c of bodies) {
+      const f = rf(c);
+      if (c.kind === "nosecone" && !ok(f.aftRadius)) { f.aftRadius = 0; unresolved = true; }
+      if (c.kind === "bodytube" && !ok(f.outerRadius)) { f.outerRadius = 0; unresolved = true; }
+      if (c.kind === "transition") {
+        if (!ok(f.foreRadius)) { f.foreRadius = 0; unresolved = true; }
+        if (!ok(f.aftRadius)) { f.aftRadius = 0; unresolved = true; }
+      }
+    }
+  }
+  if (unresolved) {
+    warnings.push(
+      'Some component radii were marked "auto" but couldn\'t be resolved from neighbours; ' +
+        "those sections were treated as zero-radius.",
+    );
+  }
+}
+
+/** Internal parts (tube couplers, inner tubes, rings, engine blocks) with an auto outer
+ *  radius fit inside their enclosing body tube. */
+function resolveInternalRadii(components: RocketComponent[], parentInner: number): void {
+  const INTERNAL = new Set(["tubecoupler", "innertube", "centeringring", "engineblock", "bulkhead"]);
+  for (const c of components) {
+    if (INTERNAL.has(c.kind)) {
+      const f = rf(c);
+      if (!ok(f.outerRadius) && ok(parentInner)) f.outerRadius = parentInner;
+      if (c.kind !== "bulkhead" && (!Number.isFinite(f.innerRadius ?? NaN) || (f.innerRadius ?? 0) < 0)) {
+        // ~1.5 mm wall when the file didn't give us enough to compute it (minor mass part).
+        f.innerRadius = ok(f.outerRadius) ? Math.max(0, (f.outerRadius as number) - 0.0015) : 0;
+      }
+    }
+    const childInner =
+      c.kind === "bodytube" && ok(c.outerRadius)
+        ? Math.max(0, c.outerRadius - (c.thickness ?? 0))
+        : parentInner;
+    if (c.children.length) resolveInternalRadii(c.children, childInner);
+  }
+}
+
+/** Warn (once) about assembly types Loft doesn't simulate yet, so their omission is
+ *  visible rather than silent. */
+function warnUnsupportedAssemblies(node: XmlNode, warnings: string[]): void {
+  const LABELS: Record<string, string> = {
+    parallelstage: "parallel (strap-on) stages",
+    boosterset: "booster sets",
+    podset: "pods",
+  };
+  const found = new Set<string>();
+  const walk = (n: XmlNode): void => {
+    if (LABELS[n.name]) found.add(LABELS[n.name]);
+    for (const ch of n.children) walk(ch);
+  };
+  walk(node);
+  if (found.size) {
+    warnings.push(
+      `This design has ${[...found].join(", ")}, which aren't simulated yet — only the primary stack was flown.`,
+    );
+  }
+}
+
 /** Parse a decompressed `rocket.ork` XML string into the canonical document. */
 export function adaptOrkXml(xml: string): OrkDocument {
   idCounter = 0;
@@ -610,6 +733,13 @@ export function adaptOrkXml(xml: string): OrkDocument {
   const stages = parseStages(rocketNode, ctx);
   const { configs, defaultId } = parseMotorConfigs(rocketNode, ctx);
 
+  warnUnsupportedAssemblies(rocketNode, ctx.warnings);
+  if (stages.length > 1) {
+    ctx.warnings.push(
+      `This design has ${stages.length} stages; staging (separation, air-starts) isn't simulated yet — the stack was flown as one.`,
+    );
+  }
+
   const refType = childText(rocketNode, "referencetype");
   const rocket: Rocket = {
     name: childText(rocketNode, "name") || "Imported rocket",
@@ -620,6 +750,8 @@ export function adaptOrkXml(xml: string): OrkDocument {
     referenceType: refType === "nose" ? "nose" : refType === "custom" ? "custom" : "maximum",
     referenceRadius: numOrUndef(rocketNode, "customreference"),
   };
+
+  resolveAutoRadii(rocket, ctx.warnings);
 
   return {
     rocket,
