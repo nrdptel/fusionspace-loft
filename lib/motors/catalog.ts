@@ -22,6 +22,26 @@ export interface CatalogEntry {
 
 export const MOTOR_CATALOG: CatalogEntry[] = [
   {
+    "eng": ";Aerotech D21 RASP.ENG file made from NAR published data\n;File produced July 4, 2000\n;Submitted to ThrustCurve.org by Chris Kobel (3/29/07)\n;The total impulse, peak thrust, average thrust and burn time are\n;the same as the averaged static test data on the NAR web site in\n;the certification file. The curve drawn with these data points is as\n;close to the certification curve as can be with such a limited\n;number of points (32) allowed with wRASP up to v1.6.\nD21T 18 70 4-7 0.0096 0.025 AT \n   0.01   1.367\n   0.021 19.367\n   0.029 32.12\n   0.037 31.667\n   0.051 30.528\n   0.094 30.074\n   0.115 31.213\n   0.133 30.074\n   0.177 30.76\n   0.189 29.842\n   0.203 30.528\n   0.226 29.842\n   0.275 28.935\n   0.296 29.389\n   0.331 28.027\n   0.421 25.971\n   0.478 24.146\n   0.579 20.728\n   0.659 17.774\n   0.739 14.356\n   0.799  9.569\n   0.852  4.557\n   0.899  1.139\n   0.94   0\n",
+    "source": {
+      "file": "AeroTech_D21T.eng",
+      "motorId": "5f4294d20002310000000023",
+      "simfileId": "5f4294d20002e9000000027d",
+      "license": null,
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000027d/"
+    }
+  },
+  {
+    "eng": "; Aerotech E30 RASP.ENG file made from NAR published data\n; File produced Sept 30, 2010\n; The total impulse, peak thrust, average thrust and burn time are\n; the same as the averaged static test data on the NAR web site in\n; the certification file. The curve drawn with these data points is as\n; close to the certification curve as can be with such a limited\n; number of points (32) allowed with wRASP up to v1.6.\nE30 24 70 4-7 .0178 .047 A\n0.006 49.3000\n0.030 45.7010\n0.038 47.1810\n0.050 45.1800\n0.062 43.7010\n0.112 43.4020\n0.138 42.8170\n0.206 42.0730\n0.238 43.3680\n0.282 41.5750\n0.324 41.0860\n0.342 41.7330\n0.362 40.1680\n0.436 38.1580\n0.524 36.3980\n0.650 32.9720\n0.712 31.0500\n0.836 25.0770\n0.874 22.4750\n0.888 21.5080\n0.900 20.0080\n0.912 17.1760\n0.924 13.3000\n0.942 6.6500\n0.962 2.7550\n0.974 1.6370\n0.988 0.7810\n1.000 0.4290\n1.010 0.1410\n1.020 0.0000\n",
+    "source": {
+      "file": "AeroTech_E30T.eng",
+      "motorId": "5f4294d20002310000000034",
+      "simfileId": "62431a34ee302a00044520da",
+      "license": "PD",
+      "infoUrl": "https://www.thrustcurve.org/simfiles/62431a34ee302a00044520da/"
+    }
+  },
+  {
     "eng": "F67W 29 83 4-6-9 0.03 0.08 AT\n   0.002 66.662\n   0.008 71.441\n   0.016 74.505\n   0.039 77.936\n   0.068 80.632\n   0.099 82.592\n   0.148 84.43\n   0.201 85.533\n   0.257 86.146\n   0.298 86.023\n   0.399 84.185\n   0.483 82.96\n   0.499 82.347\n   0.568 80.019\n   0.601 78.794\n   0.625 77.936\n   0.654 78.058\n   0.672 75.853\n   0.687 71.073\n   0.7 67.52\n   0.714 62.005\n   0.731 53.06\n   0.748 44.482\n   0.764 35.659\n   0.778 26.836\n   0.789 20.954\n   0.797 18.013\n   0.812 12.499\n   0.832 7.107\n   0.849 3.676\n   0.87 1.225\n   0.898 0.368\n   0.92 0.0\n",
     "source": {
       "file": "AeroTech_F67W.eng",
@@ -102,6 +122,66 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
     }
   },
   {
+    "eng": ";Estes A10T RASP.ENG file made from NAR published data\n; File produced March 3, 2011\n; The total impulse, peak thrust, average thrust and burn time are\n; the same as the averaged static test data on the NAR web site in\n; the certification file. The curve drawn with these data points is as\n; close to the certification curve as can be with such a limited\n; number of points (32) allowed with wRASP up to v1.6.\nA10T 13 45 0 .0038 .00525 E\n0.016 0.492\n0.040 0.752\n0.062 0.962\n0.078 2.051\n0.096 2.858\n0.122 4.611\n0.138 6.054\n0.162 8.100\n0.180 9.502\n0.198 9.740\n0.212 8.204\n0.224 4.530\n0.238 2.054\n0.268 1.414\n0.292 1.385\n0.324 1.067\n0.364 1.099\n0.396 0.957\n0.446 0.995\n0.490 0.901\n0.574 0.909\n0.676 0.909\n0.782 1.031\n0.886 1.048\n0.980 1.029\n1.006 0.995\n1.038 1.049\n1.050 0.741\n1.060 0.000\n",
+    "source": {
+      "file": "Estes_A10.eng",
+      "motorId": "5f4294d2000231000000000c",
+      "simfileId": "624aff26a49a690004b83002",
+      "license": null,
+      "infoUrl": "https://www.thrustcurve.org/simfiles/624aff26a49a690004b83002/"
+    }
+  },
+  {
+    "eng": "; Estes A8 RASP.ENG file made from NAR published data\n; File produced March 3, 2011\n; The total impulse, peak thrust, average thrust and burn time are\n; the same as the averaged static test data on the NAR web site in\n; the certification file. The curve drawn with these data points is as\n; close to the certification curve as can be with such a limited\n; number of points (32) allowed with wRASP up to v1.6.\n A8 18 70 0 .00384 .01389 E\n0.016 1.080\n0.036 0.293\n0.050 0.259\n0.060 0.357\n0.070 0.419\n0.080 0.355\n0.102 0.781\n0.124 1.443\n0.152 2.966\n0.170 4.426\n0.202 7.160\n0.224 9.051\n0.246 9.555\n0.256 9.317\n0.276 7.958\n0.294 6.108\n0.326 4.235\n0.350 3.813\n0.376 3.997\n0.410 3.926\n0.452 3.724\n0.474 4.046\n0.502 4.092\n0.532 4.146\n0.534 0.000\n",
+    "source": {
+      "file": "Estes_A8.eng",
+      "motorId": "5f4294d2000231000000000b",
+      "simfileId": "5f4294d20002e90000000897",
+      "license": null,
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000897/"
+    }
+  },
+  {
+    "eng": "; B4-4\nB4-4 18 70 P 0.006 0.0195 E\n   0.058 2.361\n   0.102 2.921\n   0.122 3.797\n   0.15 5.866\n   0.18 8.373\n   0.199 9.882\n   0.208 10.88\n   0.216 11.367\n   0.238 11.245\n   0.245 10.832\n   0.262 8.982\n   0.293 6.134\n   0.322 5.306\n   0.357 4.917\n   0.388 4.795\n   0.416 4.746\n   0.46 4.625\n   0.502 4.576\n   0.544 4.357\n   0.575 4.503\n   0.605 4.527\n   0.674 4.552\n   0.731 4.454\n   0.88 4.454\n   0.915 4.503\n   0.96 4.406\n   1.0 4.065\n   1.047 2.556\n   1.049 0.0\n",
+    "source": {
+      "file": "Estes_B4.eng",
+      "motorId": "5f4294d2000231000000000e",
+      "simfileId": "5f4294d20002e90000000834",
+      "license": "PD",
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000834/"
+    }
+  },
+  {
+    "eng": "; Estes B6-0 from NAR data by Mark Koelsch\nB6-0 18 70 0 0.0056 0.0156 E\n   0.036 1.364\n   0.064 2.727\n   0.082 4.215\n   0.111 6.694\n   0.135 9.05\n   0.146 9.545\n   0.172 11.901\n   0.181 12.149\n   0.191 11.901\n   0.211 9.174\n   0.239 7.314\n   0.264 6.074\n   0.275 5.95\n   0.333 5.207\n   0.394 4.835\n   0.445 4.835\n   0.556 4.339\n   0.667 4.587\n   0.723 4.339\n   0.78 4.339\n   0.793 4.091\n   0.812 2.603\n   0.833 1.24\n   0.857 0.0\n",
+    "source": {
+      "file": "Estes_B6.eng",
+      "motorId": "5f4294d20002310000000010",
+      "simfileId": "5f4294d20002e90000000414",
+      "license": null,
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000414/"
+    }
+  },
+  {
+    "eng": ";\n;ESTES C11 RASP.ENG file made from NAR published data\n;File produced JANUARY 1, 2002\n;The total impulse, peak thrust, average thrust and burn time are\n;the same as the averaged static test data on the NAR web site in\n;the certification file. The curve drawn with these data points is as\n;close to the certification curve as can be with such a limited\n;number of points (32) allowed with wRASP up to v1.6.\nC11 24 70 0-3-5-7 0.012 0.0353 Estes \n0.034 1.692\n0.066 3.782\n0.107 7.566\n0.145 10.946\n0.183 14.832\n0.214 17.618\n0.226 18.213\n0.256 20.107\n0.281 21.208\n0.298 21.73\n0.306 20.206\n0.323 17.321\n0.337 14.931\n0.358 13.236\n0.385 11.947\n0.413 11.65\n0.468 10.946\n0.539 10.45\n0.619 10.648\n0.683 10.648\n0.715 10.648\n0.726 10.053\n0.74 8.163\n0.758 5.773\n0.778 3.185\n0.795 1.394\n0.81 0\n",
+    "source": {
+      "file": "Estes_C11.eng",
+      "motorId": "5f4294d2000231000000001a",
+      "simfileId": "5f4294d20002e900000004e8",
+      "license": null,
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000004e8/"
+    }
+  },
+  {
+    "eng": "; Estes C6 RASP.ENG file made from NAR published data\n; File produced October 3, 2000\n; The total impulse, peak thrust, average thrust and burn time are\n; the same as the averaged static test data on the NAR web site in\n; the certification file. The curve drawn with these data points is as\n; close to the certification curve as can be with such a limited\n; number of points (32) allowed with wRASP up to v1.6.\nC6 18 70 0-3-5-7 .0108 .0231 E\n0.031 0.946\n0.092 4.826\n0.139 9.936\n0.192 14.090\n0.209 11.446\n0.231 7.381\n0.248 6.151\n0.292 5.489\n0.370 4.921\n0.475 4.448\n0.671 4.258\n0.702 4.542\n0.723 4.164\n0.850 4.448\n1.063 4.353\n1.211 4.353\n1.242 4.069\n1.303 4.258\n1.468 4.353\n1.656 4.448\n1.821 4.448\n1.834 2.933\n1.847 1.325\n1.860 0.000\n",
+    "source": {
+      "file": "Estes_C6.eng",
+      "motorId": "5f4294d20002310000000015",
+      "simfileId": "69eb2379c7d63000021d8c29",
+      "license": null,
+      "infoUrl": "https://www.thrustcurve.org/simfiles/69eb2379c7d63000021d8c29/"
+    }
+  },
+  {
     "eng": ";\n;Estes D12 RASP.ENG file made from NAR published data\n;File produced October 3, 2000\n;The total impulse, peak thrust, average thrust and burn time are\n;the same as the averaged static test data on the NAR web site in\n;the certification file. The curve drawn with these data points is as\n;close to the certification curve as can be with such a limited\n;number of points (32) allowed with wRASP up to v1.6.\nD12 24 70 0-3-5-7 0.0211 0.0426 Estes \n0.049 2.569\n0.116 9.369\n0.184 17.275\n0.237 24.258\n0.282 29.73\n0.297 27.01\n0.311 22.589\n0.322 17.99\n0.348 14.126\n0.386 12.099\n0.442 10.808\n0.546 9.876\n0.718 9.306\n0.879 9.105\n1.066 8.901\n1.257 8.698\n1.436 8.31\n1.59 8.294\n1.612 4.613\n1.65 0\n",
     "source": {
       "file": "Estes_D12.eng",
@@ -119,6 +199,26 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "simfileId": "5f4294d20002e900000007ad",
       "license": "?",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000007ad/"
+    }
+  },
+  {
+    "eng": "; Estes E9-0 by Mark Koelsch from NAR data\nE9-0 24 95 0 0.0358 0.056799999999999996 E\n   0.046 1.913\n   0.235 16.696\n   0.273 18.435\n   0.326 14.957\n   0.38 12.174\n   0.44 10.435\n   0.835 9.043\n   1.093 8.87\n   1.496 8.696\n   1.997 8.696\n   2.498 8.696\n   3.014 9.217\n   3.037 5.043\n   3.067 1.217\n   3.09 0.0\n",
+    "source": {
+      "file": "Estes_E9.eng",
+      "motorId": "5f4294d20002310000000028",
+      "simfileId": "5f4294d20002e90000000416",
+      "license": null,
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000416/"
+    }
+  },
+  {
+    "eng": "; Quest C6-0 from NAR data\nC6-0 18 70 0 0.0083 0.0216 Q\n   0.02 0.497\n   0.057 2.539\n   0.089 5.132\n   0.129 7.947\n   0.159 9.437\n   0.171 21.247\n   0.181 23.234\n   0.194 22.958\n   0.204 22.185\n   0.218 19.592\n   0.233 17.881\n   0.258 10.486\n   0.308 2.428\n   0.338 2.539\n   0.385 2.98\n   0.412 3.091\n   0.442 3.422\n   0.459 2.98\n   0.536 3.256\n   0.732 3.311\n   0.747 2.483\n   0.78 2.98\n   1.323 3.587\n   1.365 2.815\n   1.887 3.808\n   1.974 3.256\n   2.1 3.532\n   2.227 3.201\n   2.247 0.0\n",
+    "source": {
+      "file": "Quest_C6.eng",
+      "motorId": "5f4294d20002310000000016",
+      "simfileId": "5f4294d20002e9000000041c",
+      "license": null,
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000041c/"
     }
   }
 ];
