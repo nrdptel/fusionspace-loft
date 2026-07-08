@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import type { FlightRun } from "@/lib/sim/run";
 import type { OrkDocument } from "@/lib/ork/import";
 import type { FlightResult } from "@/lib/sim/simulate";
@@ -37,6 +38,19 @@ export default function ResultsView({
   const r = run.result;
   const s = r.summary;
   const markers = eventMarkers(r);
+
+  // No propulsion ⇒ the "flight" is a zero-thrust drop and every metric is meaningless. Lead
+  // with why, name the motor(s) that didn't resolve, and withhold the misleading numbers,
+  // plots, and OpenRocket comparison. The geometry and stability below are motor-independent
+  // and stay valid.
+  if (!run.hasPropulsion) {
+    return (
+      <div className="space-y-8">
+        <NoPropulsionNotice run={run} />
+        <RocketSummary run={run} doc={doc} units={units} />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">
@@ -113,6 +127,57 @@ export default function ResultsView({
         <ValidationPanel report={run.validation} units={units} storedName={doc.simulations[0]?.name} />
       )}
     </div>
+  );
+}
+
+function NoPropulsionNotice({ run }: { run: FlightRun }) {
+  const unresolved = run.resolutions.filter((res) => !res.match);
+  const hasInstances = run.resolutions.length > 0;
+  return (
+    <section
+      aria-label="No flight simulated"
+      className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-red-800 dark:text-red-200"
+    >
+      <h2 className="text-lg font-semibold tracking-tight">No flight simulated</h2>
+      {hasInstances ? (
+        <>
+          <p className="mt-2 text-sm">
+            {unresolved.length > 1
+              ? "None of this configuration's motors"
+              : "This configuration's motor"}{" "}
+            could be matched to a thrust curve in the bundled database, so there is no thrust to
+            fly. Rather than show a misleading zero-altitude &ldquo;flight,&rdquo; the flight
+            results, plots, and OpenRocket comparison are withheld.
+          </p>
+          <ul className="mt-3 space-y-1 text-sm">
+            {unresolved.map((res, i) => (
+              <li key={i} className="font-mono">
+                {res.manufacturer ? `${res.manufacturer} ` : ""}
+                {res.designation} — not found
+              </li>
+            ))}
+          </ul>
+        </>
+      ) : (
+        <p className="mt-2 text-sm">
+          This configuration has no motor assigned, so there is no thrust to fly. The flight
+          results and plots are withheld.
+        </p>
+      )}
+      <p className="mt-3 text-sm">
+        The bundled database is a curated subset of ThrustCurve.org, not the full catalogue — see
+        the{" "}
+        <Link href="/docs/methods" className="underline underline-offset-2">
+          motor model in Methods
+        </Link>{" "}
+        and the{" "}
+        <Link href="/docs/limitations" className="underline underline-offset-2">
+          limitations log
+        </Link>
+        . Check the designation, or pick a configuration whose motor is in the set. The rocket
+        geometry and stability below are computed independently and remain valid.
+      </p>
+    </section>
   );
 }
 

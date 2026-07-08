@@ -101,7 +101,10 @@ export default function Limitations() {
         ThrustCurve.org catalogue (that would bloat the offline bundle). If your motor isn&apos;t
         found, Loft says so rather than guessing; fuzzy matching by class-and-thrust core can, in
         rare cases, match a same-core motor of a different propellant. The resolved designation is
-        always shown so you can check it.
+        always shown so you can check it. When <em>no</em> motor in a configuration resolves, there
+        is no thrust to fly — Loft withholds the flight results, plots, and OpenRocket comparison
+        entirely and names the motor it couldn&apos;t find, rather than showing a misleading
+        zero-altitude &ldquo;flight.&rdquo;
       </p>
 
       <h3>Bundled sample designs use estimated stored figures</h3>

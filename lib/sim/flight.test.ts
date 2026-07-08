@@ -49,6 +49,34 @@ describe("single-deploy fixture flight", () => {
   });
 });
 
+describe("unresolvable motor", () => {
+  it("reports no propulsion and withholds the validation comparison", async () => {
+    const doc = await load("demo-single-deploy.ork");
+    // Point every motor instance at a designation the bundled database can't match, so the
+    // resolver returns null and the flight has no thrust — the case a real file hits when its
+    // motor isn't in the curated subset.
+    for (const cfg of doc.rocket.configurations) {
+      for (const inst of cfg.instances) {
+        inst.motor.manufacturer = "NoSuchMaker";
+        inst.motor.designation = "ZZ9999XX";
+      }
+    }
+    const run = runFromDocument(doc);
+
+    // The resolution is honestly reported as a miss, and the run flags itself as unflyable.
+    expect(run.resolutions.length).toBeGreaterThan(0);
+    expect(run.resolutions.every((r) => r.match === null)).toBe(true);
+    expect(run.hasPropulsion).toBe(false);
+    expect(run.result.warnings.some((w) => w.code === "no-motor")).toBe(true);
+
+    // No bogus −100% comparison is produced even though the file carries stored results.
+    expect(run.validation).toBeUndefined();
+
+    // The degenerate "flight" never leaves the pad — which is exactly why its numbers are hidden.
+    expect(run.result.summary.apogee).toBeLessThan(1);
+  });
+});
+
 describe("dual-deploy fixture flight", () => {
   it("deploys a drogue at apogee and a main at altitude", async () => {
     const doc = await load("demo-dual-deploy.ork");
