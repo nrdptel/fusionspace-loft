@@ -1,0 +1,115 @@
+import type { Metadata } from "next";
+import Link from "next/link";
+
+export const metadata: Metadata = {
+  title: "Limitations log — Loft",
+  description:
+    "A candid, running record of where Loft's model is simplified, approximate, or unvalidated.",
+};
+
+export default function Limitations() {
+  return (
+    <>
+      <h2>Limitations log</h2>
+      <p>
+        A candid record of where the model is weak. Admitting this earns more trust than claiming
+        precision — and it&apos;s the honest thing to do for a tool people fly on. Entries are dated;
+        the list grows and shrinks as the model changes. If you hit a limitation that isn&apos;t
+        here,{" "}
+        <a href="https://github.com/nrdptel/fusionspace-loft/issues" target="_blank" rel="noopener noreferrer">
+          please add it
+        </a>
+        .
+      </p>
+
+      <h2>Known limitations (2026-07)</h2>
+
+      <h3>Flight dynamics are 3-DOF, not 6-DOF</h3>
+      <p>
+        The solver integrates translational motion in the vertical plane with thrust and drag along
+        the flight path. It does <strong>not</strong> model rotation: no weathercocking, no
+        wind-induced angle of attack, no pitch/yaw damping, no coning or rod-whip. Consequences:
+        boost-phase turning into wind is approximate, and wind &ldquo;drift&rdquo; during boost is
+        under-modelled. Apogee, max velocity/Mach, rail-exit speed, and descent are the reliable
+        outputs; horizontal drift is dominated by the (well-modelled) descent under canopy.
+      </p>
+
+      <h3>Drag is the largest error source</h3>
+      <p>
+        The subsonic drag buildup is defensible but simplified: pressure drag on noses and shoulders
+        is approximate, fin interference and surface-protuberance drag are lumped into a small flat
+        allowance, and no boundary-layer transition point is solved. Expect Loft to sit within
+        roughly ±10–25% of a full-fidelity subsonic apogee, and generally to <em>over-predict</em>{" "}
+        apogee slightly because its drag is lower than a complete model&apos;s. Compare against your
+        own design&apos;s stored OpenRocket numbers on the <Link href="/docs/validation">Validation</Link>{" "}
+        page.
+      </p>
+
+      <h3>Transonic and supersonic drag are crude</h3>
+      <p>
+        Above about Mach 0.8 the drag model leaves its validated envelope: the transonic drag rise is
+        a coarse multiplier and there is no proper wave-drag model. Any such flight is flagged{" "}
+        <em>extrapolated</em> in the results. Treat apogee and max velocity for fast flights as rough.
+      </p>
+
+      <h3>Mass of curved shells is approximated</h3>
+      <p>
+        Nose-cone and transition <em>shell</em> mass (a wall of given thickness) is computed by
+        subtracting an inward-offset inner contour — a good approximation, not an exact offset
+        surface. For designs that rely on it, prefer an explicit component mass override. Fin fillets
+        and micro-hardware are not massed individually.
+      </p>
+
+      <h3>Fin planforms beyond trapezoidal are reduced</h3>
+      <p>
+        Elliptical and freeform fin sets are reduced to an area- and span-equivalent trapezoid for
+        both aerodynamics and mass. Tube fins are not yet modelled.
+      </p>
+
+      <h3>Single active stage</h3>
+      <p>
+        This session simulates a single stage. Multi-stage / clustered-with-separation flights,
+        air-starts, and booster separation are not simulated; only the components and motors of the
+        chosen configuration fly.
+      </p>
+
+      <h3>Wind model</h3>
+      <p>
+        Wind is a steady surface value, or an interpolated winds-aloft profile with the live-weather
+        re-run. There is no turbulence, gust, or shear-layer modelling, and no correlation with the
+        (un-modelled) rotational response.
+      </p>
+
+      <h3>Override-subcomponents is partial</h3>
+      <p>
+        A component&apos;s own mass/CG override is honoured. The OpenRocket
+        &ldquo;override subcomponents&rdquo; flag (which makes an override subsume a subtree) is not
+        fully applied, so a design that relies on it may double-count some mass.
+      </p>
+
+      <h3>Motor database is a curated subset</h3>
+      <p>
+        The bundled database covers a representative set of common motors, not the entire
+        ThrustCurve.org catalogue (that would bloat the offline bundle). If your motor isn&apos;t
+        found, Loft says so rather than guessing; fuzzy matching by class-and-thrust core can, in
+        rare cases, match a same-core motor of a different propellant. The resolved designation is
+        always shown so you can check it.
+      </p>
+
+      <h3>Bundled sample designs use estimated stored figures</h3>
+      <p>
+        The two example <code>.ork</code> files ship with author-estimated stored results, not
+        genuine OpenRocket runs (Loft can&apos;t generate those here). The bundled &ldquo;OpenRocket
+        vs Loft&rdquo; comparison is therefore a demonstration; a real comparison uses your own file.
+        See <Link href="/docs/validation">Validation</Link>.
+      </p>
+
+      <h2>Changing this list</h2>
+      <p>
+        Project rule: any change that adds or alters a calculation updates this log in the same
+        change. When a limitation is fixed, its entry moves to a &ldquo;resolved&rdquo; note rather
+        than quietly disappearing.
+      </p>
+    </>
+  );
+}

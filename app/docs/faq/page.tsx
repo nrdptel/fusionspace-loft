@@ -1,0 +1,107 @@
+import type { Metadata } from "next";
+import Link from "next/link";
+
+export const metadata: Metadata = {
+  title: "FAQ — Loft",
+  description: "Common questions about Loft, the browser flight simulator for high-power rocketry.",
+};
+
+function QA({ q, children }: { q: string; children: React.ReactNode }) {
+  return (
+    <>
+      <h3>{q}</h3>
+      {children}
+    </>
+  );
+}
+
+export default function Faq() {
+  return (
+    <>
+      <h2>FAQ</h2>
+
+      <QA q="What does Loft do?">
+        <p>
+          It imports an OpenRocket <code>.ork</code> design and simulates the flight in your browser
+          — apogee, velocity, Mach, stability, and recovery — and compares against the numbers
+          OpenRocket stored in the file. No accounts, no ads, no tracking.
+        </p>
+      </QA>
+
+      <QA q="Is my design uploaded anywhere?">
+        <p>
+          No. Parsing, the motor database, and the whole simulation run on your device. Nothing about
+          your design leaves the browser. The one optional network call is the &ldquo;re-fly for
+          today&apos;s weather&rdquo; feature, which sends only a launch-site latitude/longitude to
+          Open-Meteo — never your design.
+        </p>
+      </QA>
+
+      <QA q="Can I trust it for a waiver or a cert flight?">
+        <p>
+          Treat every figure as an estimate to verify independently, not as authority. Loft shows the
+          numbers and their assumptions; it never issues a go/no-go. The motor&apos;s printed data and
+          your RSO are authoritative. See the <Link href="/docs/limitations">limitations log</Link>.
+        </p>
+      </QA>
+
+      <QA q="Why doesn't my apogee match OpenRocket exactly?">
+        <p>
+          Mostly the drag model. Loft&apos;s subsonic drag buildup is simpler than OpenRocket&apos;s,
+          so it usually predicts a slightly higher apogee. Fast (transonic) flights differ more and
+          are flagged as extrapolated. The <Link href="/docs/validation">Validation</Link> page shows
+          the comparison on your own file; <Link href="/docs/methods">Methods</Link> explains the
+          model.
+        </p>
+      </QA>
+
+      <QA q="Which motors and file formats are supported?">
+        <p>
+          Current OpenRocket <code>.ork</code> files (and gzip-wrapped or raw OpenRocket XML). A{" "}
+          <code>.ork</code> references a motor without embedding its thrust curve, so Loft resolves it
+          against a bundled set of real ThrustCurve.org curves. If your motor isn&apos;t in the set,
+          Loft tells you rather than guessing. RockSim <code>.rkt</code> and RocketPy import are
+          planned, not in yet.
+        </p>
+      </QA>
+
+      <QA q="Does it work offline?">
+        <p>
+          Yes — once loaded, install it or just revisit and it runs with no connection: the app, the
+          motor database, and the simulation are all client-side. Only the live-weather re-run needs a
+          signal.
+        </p>
+      </QA>
+
+      <QA q="What about RocketPy?">
+        <p>
+          Planned. Loft&apos;s simulation core is deliberately format-agnostic — importers are thin
+          adapters into one internal model — so a RocketPy importer is future work that plugs into the
+          same engine, not a rewrite.
+        </p>
+      </QA>
+
+      <QA q="It couldn't read my file, or a part was skipped.">
+        <p>
+          Loft degrades gracefully: unknown components are skipped with a note rather than failing the
+          whole import. If something&apos;s wrong or missing, please{" "}
+          <a href="https://github.com/nrdptel/fusionspace-loft/issues" target="_blank" rel="noopener noreferrer">
+            open an issue
+          </a>{" "}
+          with the file — it&apos;s the fastest way to get the parser improved.
+        </p>
+      </QA>
+
+      <QA q="Is it really free / open source?">
+        <p>
+          Yes. MIT-licensed, part of{" "}
+          <a href="https://fusionspace.co" target="_blank" rel="noopener noreferrer">
+            Fusion Space
+          </a>
+          . Fork it, deploy your own, no attribution required. The point of the open repo is that the
+          math is inspectable.
+        </p>
+      </QA>
+    </>
+  );
+}
