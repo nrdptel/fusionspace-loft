@@ -333,13 +333,17 @@ export function simulate(input: SimulateInput): FlightResult {
       events.push({ type: "burnout", time: state.t, altitude: state.pos.z, velocity: speed });
     }
 
+    // Tangential acceleration this step (finite difference of speed). Computed BEFORE
+    // prevSpeed is updated so both the running max and the trajectory sample see the real
+    // value — sampling it after the update would always read zero.
+    const accInst = (speed - prevSpeed) / dt;
+
     // Track maxima (after liftoff).
     if (liftedOff) {
       maxV = Math.max(maxV, speed);
       maxMach = Math.max(maxMach, mach);
       maxQ = Math.max(maxQ, q);
-      const acc = Math.abs((speed - prevSpeed) / dt);
-      maxA = Math.max(maxA, acc);
+      maxA = Math.max(maxA, Math.abs(accInst));
     }
     prevSpeed = speed;
 
@@ -386,7 +390,7 @@ export function simulate(input: SimulateInput): FlightResult {
         x: Math.hypot(state.pos.x, state.pos.y),
         velocity: speed,
         verticalVelocity: state.vel.z,
-        acceleration: (speed - prevSpeed) / dt,
+        acceleration: accInst,
         mach,
         thrust,
         drag: 0.5 * atm.density * airSpeed * airSpeed * (cdNow * geom.refArea),
