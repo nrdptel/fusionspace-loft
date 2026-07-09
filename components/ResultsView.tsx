@@ -26,6 +26,12 @@ const SEVERITY: Record<string, string> = {
   info: "border-zinc-400/30 bg-zinc-500/10 text-zinc-600 dark:text-zinc-300",
 };
 
+/** The design tool an imported document came from, for labelling the stored-results comparison
+ *  honestly (a RockSim import isn't an "OpenRocket comparison"). */
+function sourceTool(doc: OrkDocument): string {
+  return doc.formatVersion.startsWith("RockSim") ? "RockSim" : "OpenRocket";
+}
+
 export default function ResultsView({
   run,
   doc,
@@ -43,10 +49,12 @@ export default function ResultsView({
   // with why, name the motor(s) that didn't resolve, and withhold the misleading numbers,
   // plots, and OpenRocket comparison. The geometry and stability below are motor-independent
   // and stay valid.
+  const tool = sourceTool(doc);
+
   if (!run.hasPropulsion) {
     return (
       <div className="space-y-8">
-        <NoPropulsionNotice run={run} />
+        <NoPropulsionNotice run={run} tool={tool} />
         <RocketSummary run={run} doc={doc} units={units} />
       </div>
     );
@@ -124,7 +132,7 @@ export default function ResultsView({
       </section>
 
       {run.validation && run.validation.count > 0 && (
-        <ValidationPanel report={run.validation} units={units} storedName={doc.simulations[0]?.name} />
+        <ValidationPanel report={run.validation} units={units} storedName={doc.simulations[0]?.name} toolName={tool} />
       )}
 
       {doc.flownAsReduced && doc.simulations.some((s) => s.hasResults) && (
@@ -132,11 +140,11 @@ export default function ResultsView({
           aria-label="Comparison withheld"
           className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-800 dark:text-amber-200"
         >
-          <h2 className="text-base font-semibold tracking-tight">OpenRocket comparison withheld</h2>
+          <h2 className="text-base font-semibold tracking-tight">{tool} comparison withheld</h2>
           <p className="mt-1.5">
             This design contains something Loft flew in simplified form — staging, pods, parallel
             boosters, or a fin type it can&apos;t model (see the warnings above) —
-            so the stored OpenRocket results describe a different flight than the one simulated here.
+            so the stored {tool} results describe a different flight than the one simulated here.
             Comparing them would misstate the engine&apos;s accuracy, so the metric-by-metric
             comparison is withheld — import a design Loft flies complete for a like-for-like check.
           </p>
@@ -146,7 +154,7 @@ export default function ResultsView({
   );
 }
 
-function NoPropulsionNotice({ run }: { run: FlightRun }) {
+function NoPropulsionNotice({ run, tool }: { run: FlightRun; tool: string }) {
   const unresolved = run.resolutions.filter((res) => !res.match);
   const hasInstances = run.resolutions.length > 0;
   return (
@@ -163,7 +171,7 @@ function NoPropulsionNotice({ run }: { run: FlightRun }) {
               : "This configuration's motor"}{" "}
             could be matched to a thrust curve in the bundled database, so there is no thrust to
             fly. Rather than show a misleading zero-altitude &ldquo;flight,&rdquo; the flight
-            results, plots, and OpenRocket comparison are withheld.
+            results, plots, and {tool} comparison are withheld.
           </p>
           <ul className="mt-3 space-y-1 text-sm">
             {unresolved.map((res, i) => (
@@ -206,7 +214,11 @@ function RocketSummary({ run, doc, units }: { run: FlightRun; doc: OrkDocument; 
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="text-lg font-semibold tracking-tight">{doc.rocket.name}</h2>
         <span className="text-xs text-zinc-500">
-          {doc.formatVersion !== "unknown" ? `OpenRocket format ${doc.formatVersion}` : ""}
+          {doc.formatVersion === "unknown"
+            ? ""
+            : doc.formatVersion.startsWith("RockSim")
+              ? doc.formatVersion.replace("RockSim ", "RockSim format ")
+              : `OpenRocket format ${doc.formatVersion}`}
         </span>
       </div>
 

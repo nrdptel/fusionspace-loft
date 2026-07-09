@@ -57,11 +57,23 @@ export default function Faq() {
 
       <QA q="Which motors and file formats are supported?">
         <p>
-          Current OpenRocket <code>.ork</code> files (and gzip-wrapped or raw OpenRocket XML). A{" "}
-          <code>.ork</code> references a motor without embedding its thrust curve, so Loft resolves it
-          against a bundled set of real ThrustCurve.org curves. If your motor isn&apos;t in the set,
-          Loft tells you rather than guessing. RockSim <code>.rkt</code> and RocketPy import are
-          planned, not in yet.
+          OpenRocket <code>.ork</code> files (and gzip-wrapped or raw OpenRocket XML) and RockSim{" "}
+          <code>.rkt</code> files. Neither format embeds the motor&apos;s thrust curve — it&apos;s
+          referenced by manufacturer and designation — so Loft resolves it against a bundled set of
+          real ThrustCurve.org curves. If your motor isn&apos;t in the set, Loft tells you rather
+          than guessing. RocketPy import is planned, not in yet.
+        </p>
+      </QA>
+
+      <QA q="How does a RockSim .rkt import differ from an OpenRocket one?">
+        <p>
+          The flight itself is identical — both formats are translated into one internal model that
+          the simulator flies, so the physics doesn&apos;t know which tool you drew in. The one
+          difference is mass: a <code>.rkt</code> stores RockSim&apos;s own per-part masses, so Loft
+          flies those exact figures rather than recomputing them from geometry (an <code>.ork</code>{" "}
+          stores no per-part mass, so there Loft computes it). Each RockSim{" "}
+          <em>stored simulation</em> becomes a selectable motor configuration, just like an
+          OpenRocket flight configuration. See <Link href="/docs/methods">Methods</Link>.
         </p>
       </QA>
 
