@@ -334,14 +334,18 @@ function parseComponent(node: XmlNode, ctx: WalkContext): RocketComponent | null
     case "ellipticalfinset":
     case "freeformfinset": {
       const finCount = Math.round(childNum(node, "fincount", childNum(node, "instancecount", 3)));
-      const rootChord = childNum(node, "rootchord", 0);
-      const height = childNum(node, "height", 0);
+      let rootChord = childNum(node, "rootchord", 0);
+      let height = childNum(node, "height", 0);
       let area: number;
       let sweep = childNum(node, "sweeplength", 0) || 0;
       if (node.name === "freeformfinset") {
+        // A freeform fin defines its shape ONLY by <finpoints>; derive the span, root chord,
+        // area, and sweep from the outline so it isn't treated as a zero-span (degenerate) fin.
         const fp = freeformPlanform(node);
         area = fp.area;
         sweep = fp.sweep;
+        height = fp.span;
+        rootChord = fp.rootChord;
       } else {
         area = (Math.PI / 4) * rootChord * height; // quarter-ellipse fin ≈ πab/4
       }
@@ -488,12 +492,17 @@ function streamerMass(node: XmlNode): number {
   return childNum(node, "striplength", 0) * childNum(node, "stripwidth", 0) * density;
 }
 
-function freeformPlanform(node: XmlNode): { area: number; sweep: number } {
+/** Reduce a freeform fin's `<finpoints>` outline to the trapezoid-equivalent fields the model
+ *  and the aerodynamics need: planform area (shoelace), semi-span (max y), root chord (the chord
+ *  at the body, i.e. the x-extent of the y≈0 edge), and the tip leading-edge sweep. A freeform
+ *  fin carries NO `<rootchord>`/`<height>` elements — its shape is only these points — so without
+ *  deriving them here the fin reads as zero-span and contributes no normal force or drag. */
+function freeformPlanform(node: XmlNode): { area: number; sweep: number; span: number; rootChord: number } {
   const fp = child(node, "finpoints");
-  if (!fp) return { area: 0, sweep: 0 };
+  if (!fp) return { area: 0, sweep: 0, span: 0, rootChord: 0 };
   const pts = children(fp, "point").map((p) => ({ x: parseNum(p.attrs.x, 0), y: parseNum(p.attrs.y, 0) }));
-  if (pts.length < 3) return { area: 0, sweep: 0 };
-  // Shoelace area, and the LE sweep as the max x at the highest-y point.
+  if (pts.length < 3) return { area: 0, sweep: 0, span: 0, rootChord: 0 };
+  // Shoelace area, and the LE sweep as the x at the highest-y (tip) point.
   let area = 0;
   let maxY = 0;
   let sweepAtMaxY = 0;
@@ -506,7 +515,23 @@ function freeformPlanform(node: XmlNode): { area: number; sweep: number } {
       sweepAtMaxY = a.x;
     }
   }
-  return { area: Math.abs(area) / 2, sweep: sweepAtMaxY };
+  // Root chord: the x-extent of the fin edge that meets the body (y within a small band of 0).
+  const eps = Math.max(1e-4, maxY * 0.02);
+  let rootMin = Infinity;
+  let rootMax = -Infinity;
+  for (const p of pts) {
+    if (p.y <= eps) {
+      rootMin = Math.min(rootMin, p.x);
+      rootMax = Math.max(rootMax, p.x);
+    }
+  }
+  let rootChord = rootMax - rootMin;
+  if (!(rootChord > 0)) {
+    // Degenerate root band — fall back to the overall chordwise extent.
+    const xs = pts.map((p) => p.x);
+    rootChord = Math.max(...xs) - Math.min(...xs);
+  }
+  return { area: Math.abs(area) / 2, sweep: sweepAtMaxY, span: maxY, rootChord };
 }
 
 function parseStages(rocketNode: XmlNode, ctx: WalkContext): Stage[] {

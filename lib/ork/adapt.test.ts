@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import { adaptOrkXml } from "./adapt";
 import { importOrk } from "./import";
 import { flattenRocket, referenceRadius } from "../model/geometry";
+import { barrowman } from "../sim/aero";
 
 const readXml = (name: string) =>
   readFileSync(resolve(process.cwd(), "fixtures/src", name), "utf-8");
@@ -86,6 +87,51 @@ describe("graceful degradation", () => {
 
   it("rejects a non-OpenRocket root", () => {
     expect(() => adaptOrkXml("<html></html>")).toThrow(/OpenRocket/);
+  });
+
+  it("derives a freeform fin's span, root chord and area from its outline points", () => {
+    // A freeform fin carries NO <rootchord>/<height> — only <finpoints>. If those aren't
+    // derived, the fin reads as zero-span and contributes no normal force, so a design flips
+    // to wildly unstable (real regression: a competition design read as -9.5 cal). Triangle:
+    // root leading edge (0,0), tip (0.05,0.06), root trailing edge (0.09,0).
+    const finpoints =
+      "<finpoints><point x='0' y='0'/><point x='0.05' y='0.06'/><point x='0.09' y='0'/></finpoints>";
+    const xml = `<?xml version='1.0'?>
+      <openrocket version="1.10">
+        <rocket><name>FF</name>
+          <subcomponents><stage><subcomponents>
+            <nosecone><length>0.15</length><aftradius>0.025</aftradius><shape>ogive</shape></nosecone>
+            <bodytube><length>0.6</length><radius>0.025</radius><thickness>0.001</thickness><subcomponents>
+              <freeformfinset><fincount>3</fincount><thickness>0.003</thickness>${finpoints}</freeformfinset>
+            </subcomponents></bodytube>
+          </subcomponents></stage></subcomponents>
+        </rocket>
+      </openrocket>`;
+    const doc = adaptOrkXml(xml);
+    const fin = flattenRocket(doc.rocket).find((p) => p.component.kind === "freeformfinset")!.component;
+    expect(fin.kind).toBe("freeformfinset");
+    if (fin.kind === "freeformfinset") {
+      expect(fin.finCount).toBe(3);
+      expect(fin.height).toBeCloseTo(0.06, 6); // semi-span = max y
+      expect(fin.rootChord).toBeCloseTo(0.09, 6); // root edge x-extent at y≈0
+      expect(fin.area).toBeCloseTo(0.5 * 0.09 * 0.06, 6); // triangle area
+    }
+  });
+
+  it("a freeform fin set actually contributes to stability (moves CP aft)", () => {
+    const finpoints =
+      "<finpoints><point x='0' y='0'/><point x='0.05' y='0.06'/><point x='0.09' y='0'/></finpoints>";
+    const body = (fins: string) => `<?xml version='1.0'?>
+      <openrocket version="1.10"><rocket><name>x</name><subcomponents><stage><subcomponents>
+        <nosecone><length>0.15</length><aftradius>0.025</aftradius><shape>ogive</shape></nosecone>
+        <bodytube><length>0.6</length><radius>0.025</radius><thickness>0.001</thickness><subcomponents>${fins}</subcomponents></bodytube>
+      </subcomponents></stage></subcomponents></rocket></openrocket>`;
+    const finless = barrowman(adaptOrkXml(body("")).rocket);
+    const withFins = barrowman(
+      adaptOrkXml(body(`<freeformfinset><fincount>3</fincount><thickness>0.003</thickness>${finpoints}</freeformfinset>`)).rocket,
+    );
+    expect(withFins.cnAlpha).toBeGreaterThan(finless.cnAlpha + 2); // fins add real normal force
+    expect(withFins.cp).toBeGreaterThan(finless.cp); // CP moves aft — the rocket is more stable
   });
 
   it("captures launch-lug and rail-button frontal size for protuberance drag", () => {

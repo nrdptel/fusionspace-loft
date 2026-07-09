@@ -113,10 +113,13 @@ export default function Methods() {
       </p>
       <p>
         Elliptical and freeform fin sets are reduced to their area- and span-equivalent trapezoid
-        before applying the fin equation. A degenerate part — a fin set with no fins, span, or
-        chord, or a nose with no radius — contributes no normal force rather than a division by
-        zero, so a malformed or placeholder part can&apos;t leave the centre of pressure and static
-        margin undefined (which would also silently suppress the low-stability warning).
+        before applying the fin equation. A freeform fin carries no explicit chord or span — only an
+        outline of points — so its semi-span, root chord, planform area, and sweep are derived from
+        that outline first; without that step the fin would read as zero-span and add no normal
+        force. A degenerate part — a fin set with no fins, span, or chord, or a nose with no radius —
+        contributes no normal force rather than a division by zero, so a malformed or placeholder
+        part can&apos;t leave the centre of pressure and static margin undefined (which would also
+        silently suppress the low-stability warning).
       </p>
       <p>
         <em>Sources:</em> J. S. Barrowman &amp; J. A. Barrowman, &ldquo;The Practical Calculation of
