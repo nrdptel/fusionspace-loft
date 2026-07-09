@@ -141,8 +141,8 @@ export default function Limitations() {
       <h3>Motor database is a curated subset</h3>
       <p>
         The bundled database covers a representative set of common motors across classes A–M —
-        the common Estes/Quest low-power motors, AeroTech F–I reloads, and mid-to-high-power
-        Cesaroni and Loki J–M reloads — but not the entire ThrustCurve.org catalogue (that would
+        the common Estes/Quest low-power motors, AeroTech F–L single-use and reload motors, and
+        mid-to-high-power Cesaroni and Loki I–M reloads — but not the entire ThrustCurve.org catalogue (that would
         bloat the offline bundle). If your motor isn&apos;t found, Loft says so rather than
         guessing; fuzzy matching by class-and-thrust core can, in
         rare cases, match a same-core motor of a different propellant. The resolved designation is

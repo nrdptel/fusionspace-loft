@@ -64,6 +64,17 @@
     "header": "G80NBT 29 123.825 4-7-10 0.069 0.129 AT "
   },
   {
+    "file": "AeroTech_H100W.eng",
+    "motorId": "5f4294d20002310000000440",
+    "license": "free",
+    "simfileId": "5f4294d20002e90000000854",
+    "designation": "H100W",
+    "manufacturer": "AeroTech",
+    "class": "H",
+    "diameter": 38,
+    "header": "H100W 38 157.5 14 0.121 0.261 AT"
+  },
+  {
     "file": "AeroTech_H128W.eng",
     "motorId": "5f4294d20002310000000083",
     "license": "PD",
@@ -84,6 +95,17 @@
     "class": "H",
     "diameter": 38,
     "header": "H148R 38 152 0 0.14784 0.30912 AT"
+  },
+  {
+    "file": "AeroTech_H180W.eng",
+    "motorId": "5f4294d2000231000000008b",
+    "license": "PD",
+    "simfileId": "5f4294d20002e90000000013",
+    "designation": "H180W",
+    "manufacturer": "AeroTech",
+    "class": "H",
+    "diameter": 29,
+    "header": "H180W 29 238 6 0.12096 0.2464 AT"
   },
   {
     "file": "AeroTech_H669N.eng",
@@ -119,6 +141,17 @@
     "header": "I161W 38 191 0 0.189952 0.370048 AT"
   },
   {
+    "file": "AeroTech_I200W.eng",
+    "motorId": "5f4294d200023100000000b5",
+    "license": "PD",
+    "simfileId": "5f4294d20002e90000000033",
+    "designation": "I200W",
+    "manufacturer": "AeroTech",
+    "class": "I",
+    "diameter": 29,
+    "header": "I200W 29 333 0 0.181888 0.357504 AT"
+  },
+  {
     "file": "AeroTech_I211W.eng",
     "motorId": "5f4294d200023100000000b9",
     "license": "PD",
@@ -128,6 +161,28 @@
     "class": "I",
     "diameter": 38,
     "header": "I211W 38 240 0 0.247296 0.466368 AT"
+  },
+  {
+    "file": "AeroTech_I284W.eng",
+    "motorId": "5f4294d200023100000000c5",
+    "license": "PD",
+    "simfileId": "5f4294d20002e9000000003b",
+    "designation": "I284W",
+    "manufacturer": "AeroTech",
+    "class": "I",
+    "diameter": 38,
+    "header": "I284W 38 297 0 0.310016 0.555072 AT"
+  },
+  {
+    "file": "AeroTech_J350W.eng",
+    "motorId": "5f4294d2000231000000010e",
+    "license": "PD",
+    "simfileId": "5f4294d20002e900000002a7",
+    "designation": "J350W",
+    "manufacturer": "AeroTech",
+    "class": "J",
+    "diameter": 38,
+    "header": "J350W 38 337 0 0.375872 0.650944 AT"
   },
   {
     "file": "AeroTech_J420R.eng",
@@ -141,6 +196,50 @@
     "header": "J420R 38 337 0 0.37632 0.6496 AT"
   },
   {
+    "file": "AeroTech_J500G.eng",
+    "motorId": "5f4294d200023100000001e5",
+    "license": "?",
+    "simfileId": "5f4294d20002e9000000029e",
+    "designation": "J500G",
+    "manufacturer": "AeroTech",
+    "class": "J",
+    "diameter": 38,
+    "header": "J500G 38 335.407 0-6-10-14 0.3626 0.654 Aerotech"
+  },
+  {
+    "file": "AeroTech_J800T.eng",
+    "motorId": "5f4294d20002310000000129",
+    "license": "PD",
+    "simfileId": "5f4294d20002e9000000005f",
+    "designation": "J800T",
+    "manufacturer": "AeroTech",
+    "class": "J",
+    "diameter": 54,
+    "header": "J800T 54 314 0 0.613312 1.08595 AT"
+  },
+  {
+    "file": "AeroTech_K1050W.eng",
+    "motorId": "5f4294d2000231000000024e",
+    "license": "?",
+    "simfileId": "5f4294d20002e90000000564",
+    "designation": "K1050W",
+    "manufacturer": "AeroTech",
+    "class": "K",
+    "diameter": 54,
+    "header": "K1050W 54 635 1000 1.373 2.259 Aerotech"
+  },
+  {
+    "file": "AeroTech_K250W.eng",
+    "motorId": "5f4294d20002310000000132",
+    "license": "PD",
+    "simfileId": "5f4294d20002e9000000006b",
+    "designation": "K250W",
+    "manufacturer": "AeroTech",
+    "class": "K",
+    "diameter": 54,
+    "header": "K250W 54 673 0 1.52902 2.21133 AT"
+  },
+  {
     "file": "AeroTech_K550W.eng",
     "motorId": "5f4294d20002310000000146",
     "license": "PD",
@@ -150,6 +249,50 @@
     "class": "K",
     "diameter": 54,
     "header": "K550W 54 410 0 0.919744 1.48736 AT"
+  },
+  {
+    "file": "AeroTech_K700W.eng",
+    "motorId": "5f4294d2000231000000015a",
+    "license": "PD",
+    "simfileId": "5f4294d20002e90000000079",
+    "designation": "K700W",
+    "manufacturer": "AeroTech",
+    "class": "K",
+    "diameter": 54,
+    "header": "K700W 54 568 0 1.29158 2.03526 AT"
+  },
+  {
+    "file": "AeroTech_L1000.eng",
+    "motorId": "5f4294d2000231000000040b",
+    "license": "PD",
+    "simfileId": "5f4294d20002e900000007f6",
+    "designation": "L1000",
+    "manufacturer": "AeroTech",
+    "class": "L",
+    "diameter": 54,
+    "header": "L1000 54 635 18 1.4000000000000001 2.194 AT"
+  },
+  {
+    "file": "AeroTech_L952W.eng",
+    "motorId": "5f4294d20002310000000185",
+    "license": "PD",
+    "simfileId": "5f4294d20002e90000000085",
+    "designation": "L952W",
+    "manufacturer": "AeroTech",
+    "class": "L",
+    "diameter": 98,
+    "header": "L952W 98 427 0 2.73011 5.01222 AT"
+  },
+  {
+    "file": "Cesaroni_1266-J760-WT-19A.eng",
+    "motorId": "5f4294d200023100000003a8",
+    "license": "PD",
+    "simfileId": "5f4294d20002e9000000074a",
+    "designation": "1266-J760-WT-19A",
+    "manufacturer": "Cesaroni",
+    "class": "J",
+    "diameter": 54,
+    "header": "1266-J760-WT-19A 54 329 8-10-12-14-16-18-19 0.5760 1.0768 CTI"
   },
   {
     "file": "Cesaroni_2437K660-17A.eng",
@@ -174,6 +317,17 @@
     "header": "J293BS 54 237 13-12-11-10-9-8-7-6-5-4-3 0.41600000000000004 0.84 CTI"
   },
   {
+    "file": "Cesaroni_I540WT.eng",
+    "motorId": "5f4294d200023100000001fb",
+    "license": "?",
+    "simfileId": "5f4294d20002e900000002aa",
+    "designation": "I540WT",
+    "manufacturer": "Cesaroni",
+    "class": "I",
+    "diameter": 38,
+    "header": "I540WT 38 367 7-9-11-13-16 0.3288 0.5982 CTI"
+  },
+  {
     "file": "Cesaroni_K1440.eng",
     "motorId": "5f4294d20002310000000261",
     "license": "PD",
@@ -194,6 +348,17 @@
     "class": "K",
     "diameter": 54,
     "header": "2021-K261-WH_LB-P 54 488 P 1.1519 1.9317 CTI"
+  },
+  {
+    "file": "Cesaroni_K445.eng",
+    "motorId": "5f4294d2000231000000013b",
+    "license": "?",
+    "simfileId": "5f4294d20002e90000000141",
+    "designation": "K445",
+    "manufacturer": "Cesaroni",
+    "class": "K",
+    "diameter": 54,
+    "header": "K445  54.0 404.00 7-17 0.79200 1.39800 CTI"
   },
   {
     "file": "Cesaroni_K530.eng",
