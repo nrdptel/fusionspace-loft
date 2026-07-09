@@ -49,16 +49,23 @@ export interface Stability {
 export function barrowman(rocket: Rocket): Stability {
   const rRef = referenceRadius(rocket);
   const contributions: CpContribution[] = [];
+  // A rocket with no resolvable body radius has no defined reference area; every Barrowman term
+  // divides by it, so bail with a null (not NaN) result rather than poison the stability output.
+  if (!(rRef > 0)) return { cnAlpha: 0, cp: 0, refRadius: 0, contributions };
   const flat = flattenRocket(rocket);
 
   for (const p of flat) {
     const c = p.component;
     if (c.kind === "nosecone") {
       const base = c.aftRadius;
-      const V = noseProps(c.shape, c.length, base, c.shapeParameter ?? 0).volume;
-      const cnA = 2 * ((base * base) / (rRef * rRef));
-      const x = p.xFore + (c.length - V / (Math.PI * base * base));
-      contributions.push({ source: c.name || "nose", cnAlpha: cnA, x });
+      // A zero/negative-radius nose (a placeholder or malformed part) carries no normal force,
+      // and its CP term V/(π·base²) would divide by zero — skip it rather than emit a NaN.
+      if (base > 0) {
+        const V = noseProps(c.shape, c.length, base, c.shapeParameter ?? 0).volume;
+        const cnA = 2 * ((base * base) / (rRef * rRef));
+        const x = p.xFore + (c.length - V / (Math.PI * base * base));
+        contributions.push({ source: c.name || "nose", cnAlpha: cnA, x });
+      }
     } else if (c.kind === "transition") {
       const rf = c.foreRadius;
       const ra = c.aftRadius;
@@ -100,6 +107,13 @@ function finContribution(
   const rBody = radiusAtStation(rocket, p.xFore + 0.5 * (fin.rootChord || 0)) || rRef;
   const s = fin.height; // semispan
   const N = fin.finCount;
+
+  // A degenerate fin set — no fins, no span, or no root chord — has no planform, so it carries
+  // no normal force. Return a zero contribution rather than divide by (root+tip)=0 and emit a NaN
+  // that would poison the CP, the static margin, and (silently) the low-stability warning.
+  if (!(N > 0) || !(s > 0) || !(fin.rootChord > 0)) {
+    return { source: fin.name || "fins", cnAlpha: 0, x: p.xFore };
+  }
 
   let root: number;
   let tip: number;
@@ -380,9 +394,17 @@ export function dragCoefficient(
   // per-geometry CFD result): the peak scales with fin thickness and body bluntness.
   const wave = waveDrag(geom, mach);
 
-  const cd = friction + base + pressure + wave;
+  // Clamp the total to a physical ceiling. No nose-forward rocket has a zero-lift Cd anywhere
+  // near this — even a stubby, rough, big-finned design stays under ~3 — so the clamp never
+  // touches a real flight. It only engages on malformed geometry (e.g. a unit-scale import
+  // error inflating a dimension), where an astronomically large Cd would otherwise make the
+  // fixed-step integrator go unstable and report a nonsensical apogee instead of degrading.
+  const cd = Math.min(friction + base + pressure + wave, MAX_CD0);
   return { cd, friction, base, pressure, wave, extrapolated: mach > 0.8 };
 }
+
+/** Physical ceiling on the zero-lift drag coefficient — a numerical guard, not a model term. */
+const MAX_CD0 = 10;
 
 const M_CRIT = 0.8;
 const M_PEAK = 1.15;

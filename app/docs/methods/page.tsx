@@ -113,7 +113,10 @@ export default function Methods() {
       </p>
       <p>
         Elliptical and freeform fin sets are reduced to their area- and span-equivalent trapezoid
-        before applying the fin equation.
+        before applying the fin equation. A degenerate part — a fin set with no fins, span, or
+        chord, or a nose with no radius — contributes no normal force rather than a division by
+        zero, so a malformed or placeholder part can&apos;t leave the centre of pressure and static
+        margin undefined (which would also silently suppress the low-stability warning).
       </p>
       <p>
         <em>Sources:</em> J. S. Barrowman &amp; J. A. Barrowman, &ldquo;The Practical Calculation of
@@ -167,6 +170,12 @@ export default function Methods() {
           bounded parametric estimate, not a per-geometry wave-drag solution.
         </li>
       </ul>
+      <p>
+        The summed coefficient is capped at a physical ceiling well above any real nose-forward
+        rocket. That cap is a numerical guard, not a model term — it never engages on a real flight,
+        only on malformed geometry (say a unit-scale import error), where an astronomically large
+        drag would otherwise destabilise the fixed-step integrator and report a nonsensical apogee.
+      </p>
       <p>
         <em>Sources:</em> S. F. Hoerner, <em>Fluid-Dynamic Drag</em> (1965); the drag treatment in
         the OpenRocket technical documentation; standard flat-plate friction correlations; the
