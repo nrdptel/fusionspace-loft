@@ -81,9 +81,12 @@ export function runFlight(rocket: Rocket, opts: RunOptions = {}): FlightRun {
 export function runFromDocument(doc: OrkDocument, opts: RunOptions = {}): FlightRun {
   const firstSim = doc.simulations[0];
   const overrides = opts.overrides ?? (firstSim ? overridesFromStored(firstSim) : undefined);
+  // When Loft flew a simplified vehicle (staging/pods/parallel/cluster dropped), the stored
+  // results describe a different flight, so an accuracy comparison would be misleading — skip it.
+  const validateAgainst = opts.validateAgainst ?? (doc.flownAsReduced ? undefined : firstSim);
   return runFlight(doc.rocket, {
     configId: opts.configId ?? firstSim?.conditions.configId,
     overrides,
-    validateAgainst: opts.validateAgainst ?? firstSim,
+    validateAgainst,
   });
 }

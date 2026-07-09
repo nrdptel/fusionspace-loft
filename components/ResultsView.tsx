@@ -126,6 +126,22 @@ export default function ResultsView({
       {run.validation && run.validation.count > 0 && (
         <ValidationPanel report={run.validation} units={units} storedName={doc.simulations[0]?.name} />
       )}
+
+      {doc.flownAsReduced && doc.simulations.some((s) => s.hasResults) && (
+        <section
+          aria-label="Comparison withheld"
+          className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-800 dark:text-amber-200"
+        >
+          <h2 className="text-base font-semibold tracking-tight">OpenRocket comparison withheld</h2>
+          <p className="mt-1.5">
+            This design contains something Loft flew in simplified form — staging, pods, parallel
+            boosters, a motor cluster, or a fin type it can&apos;t model (see the warnings above) —
+            so the stored OpenRocket results describe a different flight than the one simulated here.
+            Comparing them would misstate the engine&apos;s accuracy, so the metric-by-metric
+            comparison is withheld — import a design Loft flies complete for a like-for-like check.
+          </p>
+        </section>
+      )}
     </div>
   );
 }

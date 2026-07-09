@@ -16,6 +16,8 @@ describe("adaptOrkXml — single deploy fixture", () => {
     expect(doc.rocket.name).toContain("Loft Demo");
     expect(doc.rocket.stages).toHaveLength(1);
     expect(doc.warnings).toEqual([]);
+    // A complete single-stage design is not flown reduced, so its comparison is shown.
+    expect(doc.flownAsReduced).toBe(false);
   });
 
   it("builds the component tree", () => {
@@ -85,6 +87,65 @@ describe("graceful degradation", () => {
   it("rejects a non-OpenRocket root", () => {
     expect(() => adaptOrkXml("<html></html>")).toThrow(/OpenRocket/);
   });
+
+  it("detects a motor cluster and flags the flight as reduced", () => {
+    const xml = `<?xml version='1.0'?>
+      <openrocket version="1.10">
+        <rocket><name>Cluster</name>
+          <subcomponents><stage><subcomponents>
+            <nosecone><length>0.1</length><aftradius>0.02</aftradius><shape>ogive</shape></nosecone>
+            <bodytube><length>0.3</length><radius>0.02</radius><subcomponents>
+              <innertube>
+                <length>0.07</length><radius>0.009</radius>
+                <clusterconfiguration>4-ring</clusterconfiguration>
+                <motormount><motor configid="c1"><designation>C6</designation></motor></motormount>
+              </innertube>
+            </subcomponents></bodytube>
+          </subcomponents></stage></subcomponents>
+        </rocket>
+      </openrocket>`;
+    const doc = adaptOrkXml(xml);
+    expect(doc.warnings.some((w) => /cluster/i.test(w))).toBe(true);
+    expect(doc.flownAsReduced).toBe(true);
+  });
+
+  it("flags a tube-fin design as flown-reduced (fins skipped)", () => {
+    const xml = `<?xml version='1.0'?>
+      <openrocket version="1.10">
+        <rocket><name>TubeFin</name>
+          <subcomponents><stage><subcomponents>
+            <nosecone><length>0.1</length><aftradius>0.02</aftradius><shape>ogive</shape></nosecone>
+            <bodytube><length>0.3</length><radius>0.02</radius><subcomponents>
+              <tubefinset><fincount>6</fincount><length>0.08</length><radius>0.02</radius></tubefinset>
+            </subcomponents></bodytube>
+          </subcomponents></stage></subcomponents>
+        </rocket>
+      </openrocket>`;
+    const doc = adaptOrkXml(xml);
+    expect(doc.flownAsReduced).toBe(true);
+    expect(doc.warnings.some((w) => /tubefinset/i.test(w))).toBe(true);
+  });
+
+  it("does not flag a plain single motor (clusterconfiguration = single) as a cluster", () => {
+    const xml = `<?xml version='1.0'?>
+      <openrocket version="1.10">
+        <rocket><name>Solo</name>
+          <subcomponents><stage><subcomponents>
+            <nosecone><length>0.1</length><aftradius>0.02</aftradius><shape>ogive</shape></nosecone>
+            <bodytube><length>0.3</length><radius>0.02</radius><subcomponents>
+              <innertube>
+                <length>0.07</length><radius>0.009</radius>
+                <clusterconfiguration>single</clusterconfiguration>
+                <motormount><motor configid="c1"><designation>C6</designation></motor></motormount>
+              </innertube>
+            </subcomponents></bodytube>
+          </subcomponents></stage></subcomponents>
+        </rocket>
+      </openrocket>`;
+    const doc = adaptOrkXml(xml);
+    expect(doc.warnings.some((w) => /cluster/i.test(w))).toBe(false);
+    expect(doc.flownAsReduced).toBe(false);
+  });
 });
 
 describe("importOrk (zip → model)", () => {
@@ -144,6 +205,10 @@ describe("real-world quirks fixture (auto radii, legacy tags, boattail, pods)", 
 
   it("warns about parallel stages rather than dropping them silently", () => {
     expect(doc.warnings.some((w) => /parallel/i.test(w))).toBe(true);
+  });
+
+  it("marks the import as flown-reduced (a parallel stage was dropped)", () => {
+    expect(doc.flownAsReduced).toBe(true);
   });
 
   it("simulates to a plausible, stable flight after resolution", async () => {

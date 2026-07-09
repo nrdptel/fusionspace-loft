@@ -143,6 +143,19 @@ describe("recovery deploy delay", () => {
   });
 });
 
+describe("validation withheld for a simplified vehicle", () => {
+  it("compares a complete design but withholds it when the flown vehicle is reduced", async () => {
+    const doc = await load("demo-single-deploy.ork");
+    // Complete single-stage design ⇒ flown whole ⇒ the stored-results comparison runs.
+    expect(doc.flownAsReduced).toBe(false);
+    expect(runFromDocument(doc).validation).toBeDefined();
+    // A staged / pod / parallel / clustered design imports with this flag set; Loft then flew a
+    // different vehicle than the stored results describe, so the comparison must be withheld.
+    (doc as { flownAsReduced: boolean }).flownAsReduced = true;
+    expect(runFromDocument(doc).validation).toBeUndefined();
+  });
+});
+
 describe("ejection-charge deployment timing", () => {
   const setEjection = (doc: OrkDocument, motorDelay: number) => {
     for (const p of flattenRocket(doc.rocket)) {
