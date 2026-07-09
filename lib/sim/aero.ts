@@ -160,6 +160,9 @@ export interface AeroGeometry {
   /** Leading-edge sweep factor cos²Λ for the fins (1 = unswept), reducing supersonic fin
    *  wave drag as the leading edge sweeps back. */
   finSweepFactor: number;
+  /** Total frontal area (m²) of external fittings — launch lugs and rail buttons — for their
+   *  parasitic/interference drag. Zero when the design carries none. */
+  protuberanceArea: number;
 }
 
 /** Transonic/supersonic wave-drag of a nose contour, relative to a Von Kármán ogive of the
@@ -209,6 +212,8 @@ export function aeroGeometry(rocket: Rocket): AeroGeometry {
   let noseShapeFactor = NOSE_WAVE_FACTOR.ogive;
   let haveNose = false;
 
+  let protuberanceArea = 0;
+
   let aftBodyEnd = 0;
   for (const p of flat) {
     const c = p.component;
@@ -257,6 +262,9 @@ export function aeroGeometry(rocket: Rocket): AeroGeometry {
       meanFinChord = c.height > 0 ? c.area / c.height : c.rootChord;
       finSpan = Math.max(finSpan, c.height);
       finSweepLength = c.sweepLength;
+    } else if ((c.kind === "launchlug" || c.kind === "railbutton") && c.radius && c.radius > 0) {
+      const count = Math.max(1, c.instanceCount ?? 1);
+      protuberanceArea += count * Math.PI * c.radius * c.radius;
     }
   }
 
@@ -287,6 +295,7 @@ export function aeroGeometry(rocket: Rocket): AeroGeometry {
     noseFineness: Math.max(0.5, noseFineness),
     noseShapeFactor,
     finSweepFactor: clamp(cosL * cosL, 0.35, 1),
+    protuberanceArea,
   };
 }
 
@@ -353,12 +362,18 @@ export function dragCoefficient(
   const baseCoeff = mach <= 1 ? 0.12 + 0.13 * mach * mach : 0.25 / mach;
   const base = baseCoeff * (geom.baseArea / geom.refArea) * (boosting ? 0.15 : 1);
 
-  // Subsonic pressure/interference: fin leading-edge/thickness drag plus a small flat
-  // allowance for launch lugs, joints, and rail buttons, with a mild Prandtl–Glauert
-  // amplification (bounded below the critical Mach).
+  // Subsonic pressure/interference: fin leading-edge/thickness drag; the parasitic drag of the
+  // external fittings (launch lugs, rail buttons) computed from their own frontal area rather
+  // than a blind allowance; and a small flat residual for un-modelled hardware (joints, screw
+  // heads). All with a mild Prandtl–Glauert amplification (bounded below the critical Mach).
+  // C_PROTUBERANCE is an axial fitting's pressure-drag coefficient on its frontal circle, reduced
+  // for sitting in the body boundary layer (Hoerner protuberance drag; the model-rocket launch-lug
+  // literature) — small on a slender HPR body, but a real contributor on a small model rocket
+  // where the lug is large relative to the airframe.
   const finLe = 0.8 * Math.max(0, geom.finThicknessRatio) * (geom.finFrontalArea / geom.refArea);
+  const protuberance = C_PROTUBERANCE * (geom.protuberanceArea / geom.refArea);
   const pg = 1 / Math.sqrt(Math.max(0.19, 1 - Math.min(mach, 0.9) * Math.min(mach, 0.9)));
-  const pressure = (finLe + 0.01) * pg;
+  const pressure = (finLe + protuberance + 0.01) * pg;
 
   // Wave (compressibility) drag — zero below the critical Mach, a transonic rise to a peak
   // near M≈1.15, then a supersonic decline. A bounded, published-shape model (not a
@@ -371,6 +386,11 @@ export function dragCoefficient(
 
 const M_CRIT = 0.8;
 const M_PEAK = 1.15;
+
+/** Pressure-drag coefficient of an axial external fitting (launch lug, rail button) referenced
+ *  to its own frontal area. A blunt rim in freestream would be ~1; halved here because the
+ *  fitting sits low in the body's boundary layer where the local dynamic pressure is reduced. */
+const C_PROTUBERANCE = 0.5;
 
 /** Transonic/supersonic wave-drag coefficient (referenced to the reference area). Zero below
  *  M_CRIT; a smooth rise to a peak at M_PEAK, then a supersonic decline toward a slender-body

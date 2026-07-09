@@ -366,11 +366,14 @@ function parseComponent(
       break;
     }
     case "LaunchLug": {
+      const od = n(node, "OD", 0) * RAD; // outer radius (m) from the lug's outer diameter
       comp = {
         ...b,
         kind: "launchlug",
         mass: fileMassKg(node, useKnownMass),
         length: n(node, "Len", 0) * MM || undefined,
+        radius: od > 0 ? od : undefined,
+        instanceCount: 1,
         children: [],
       };
       break;

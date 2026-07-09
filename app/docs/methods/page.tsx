@@ -143,9 +143,15 @@ export default function Methods() {
           makes base drag grow without bound, which is wrong.)
         </li>
         <li>
-          <strong>Pressure &amp; parasitic</strong> — fin leading-edge/thickness pressure drag and a
-          small flat interference allowance for lugs, joints, and rail buttons, with a bounded
-          Prandtl–Glauert amplification below the critical Mach.
+          <strong>Pressure &amp; parasitic</strong> — fin leading-edge/thickness pressure drag; the
+          parasitic drag of external fittings (launch lugs, rail buttons) computed from each
+          fitting&apos;s own frontal area and count rather than a blind allowance, using an axial
+          protuberance drag coefficient reduced for sitting in the body&apos;s boundary layer
+          (Hoerner; the model-rocket launch-lug literature); and a small flat residual for
+          un-modelled hardware (joints, screw heads). All with a bounded Prandtl–Glauert
+          amplification below the critical Mach. This term is negligible on a slender high-power
+          body but a real contributor on a small model rocket, where the lug is large relative to
+          the airframe — which is where Loft&apos;s apogee over-prediction was worst.
         </li>
         <li>
           <strong>Wave (compressibility) drag</strong> — zero below the critical Mach (~0.8), a

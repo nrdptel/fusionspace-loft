@@ -154,6 +154,63 @@ describe("wave drag is geometry-aware", () => {
   });
 });
 
+describe("protuberance (launch-lug / rail-button) drag", () => {
+  const atm = new Atmosphere().sample(0);
+  // A small model rocket (24 mm body) with an optional launch lug of the given outer radius.
+  function withLug(lugRadius?: number, count = 1): Rocket {
+    const R = 0.012;
+    const nose: NoseCone = {
+      id: "n", name: "n", kind: "nosecone", placement: { method: "after", offset: 0 },
+      length: 0.07, aftRadius: R, shape: "ogive", shapeParameter: 0, children: [],
+    };
+    const body: BodyTube = {
+      id: "b", name: "b", kind: "bodytube", placement: { method: "after", offset: 0 },
+      outerRadius: R, thickness: 0.0005, length: 0.3, children: [],
+    };
+    if (lugRadius) {
+      body.children.push({
+        id: "l", name: "lug", kind: "launchlug", placement: { method: "top", offset: 0.15 },
+        radius: lugRadius, instanceCount: count, children: [],
+      });
+    }
+    return { name: "r", stages: [{ name: "s", components: [nose, body] }], configurations: [], referenceType: "maximum" };
+  }
+  const cdAt = (r: Rocket, v = 60) => dragCoefficient(aeroGeometry(r), atm, v, false);
+
+  it("adds no protuberance area when the design has no fittings", () => {
+    expect(aeroGeometry(withLug()).protuberanceArea).toBe(0);
+  });
+
+  it("a launch lug raises Cd over the same rocket without one", () => {
+    const bare = cdAt(withLug());
+    const lugged = cdAt(withLug(0.003));
+    expect(lugged.cd).toBeGreaterThan(bare.cd);
+    // The extra drag lands in the pressure/parasitic term, not friction or base.
+    expect(lugged.pressure).toBeGreaterThan(bare.pressure);
+    expect(lugged.friction).toBeCloseTo(bare.friction, 6);
+    expect(lugged.base).toBeCloseTo(bare.base, 6);
+  });
+
+  it("bigger lugs and more of them add more drag (monotonic in frontal area)", () => {
+    const cds = [0.002, 0.003, 0.004].map((r) => cdAt(withLug(r)).cd);
+    expect(cds[1]).toBeGreaterThan(cds[0]);
+    expect(cds[2]).toBeGreaterThan(cds[1]);
+    // Frontal area scales with instance count.
+    expect(aeroGeometry(withLug(0.003, 2)).protuberanceArea).toBeCloseTo(
+      2 * aeroGeometry(withLug(0.003, 1)).protuberanceArea,
+      9,
+    );
+  });
+
+  it("is a small fraction on a slender HPR body but a real bite on a small rocket", () => {
+    // Same 3 mm lug: on a 24 mm model rocket it is a few percent of Cd; on a wide body it is
+    // negligible — the drag is self-targeting to the small, drag-dominated designs.
+    const modelDelta = cdAt(withLug(0.003)).cd - cdAt(withLug()).cd;
+    expect(modelDelta).toBeGreaterThan(0.01);
+    expect(modelDelta).toBeLessThan(0.1);
+  });
+});
+
 describe("skinFriction", () => {
   it("decreases with Reynolds number in the turbulent regime", () => {
     const a = skinFriction(1e6, 1e-6, 1, 0);

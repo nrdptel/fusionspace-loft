@@ -440,11 +440,23 @@ function parseComponent(node: XmlNode, ctx: WalkContext): RocketComponent | null
     case "shockcord":
     case "launchlug":
     case "railbutton": {
+      // A launch lug carries its own outer <radius>; a rail button gives an <outerdiameter>.
+      // Either is the fitting's frontal size, used for its protuberance drag.
+      const lugRadius = childNum(node, "radius", NaN);
+      const buttonRadius = childNum(node, "outerdiameter", NaN) / 2;
+      const radius = Number.isFinite(lugRadius)
+        ? lugRadius
+        : Number.isFinite(buttonRadius)
+          ? buttonRadius
+          : undefined;
+      const instanceCount = Math.max(1, Math.round(childNum(node, "instancecount", 1)));
       return {
         ...b,
         kind: node.name,
         mass: childNum(node, "mass", 0) || undefined,
         length: childNum(node, "length", childNum(node, "cordlength", 0)) || undefined,
+        radius: radius && radius > 0 ? radius : undefined,
+        instanceCount,
         children: [],
       };
     }
