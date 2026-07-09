@@ -66,6 +66,10 @@ export interface OrkDocument {
   formatVersion: string;
   creator?: string;
   warnings: string[];
+  /** True when Loft flew a *simplified* version of the design — multi-stage, parallel/strap-on
+   *  stages, pods, or a motor cluster reduced to a single motor. The stored OpenRocket results
+   *  then describe a different flight than Loft simulated, so the accuracy comparison is withheld. */
+  flownAsReduced: boolean;
 }
 
 const KNOWN_COMPONENTS = new Set([
@@ -697,8 +701,8 @@ function resolveInternalRadii(components: RocketComponent[], parentInner: number
 }
 
 /** Warn (once) about assembly types Loft doesn't simulate yet, so their omission is
- *  visible rather than silent. */
-function warnUnsupportedAssemblies(node: XmlNode, warnings: string[]): void {
+ *  visible rather than silent. Returns whether any were found (the flown vehicle is reduced). */
+function warnUnsupportedAssemblies(node: XmlNode, warnings: string[]): boolean {
   const LABELS: Record<string, string> = {
     parallelstage: "parallel (strap-on) stages",
     boosterset: "booster sets",
@@ -714,7 +718,45 @@ function warnUnsupportedAssemblies(node: XmlNode, warnings: string[]): void {
     warnings.push(
       `This design has ${[...found].join(", ")}, which aren't simulated yet — only the primary stack was flown.`,
     );
+    return true;
   }
+  return false;
+}
+
+/** Detect a motor cluster: an inner tube configured (`<clusterconfiguration>`) for more than one
+ *  motor. Loft flies a single motor, so the cluster's extra thrust and mass are under-counted;
+ *  warn rather than silently under-power the flight. Returns whether a cluster was found. */
+function warnMotorCluster(node: XmlNode, warnings: string[]): boolean {
+  let config: string | null = null;
+  const walk = (n: XmlNode): void => {
+    if (n.name === "clusterconfiguration") {
+      const v = n.text.trim();
+      if (v && v.toLowerCase() !== "single") config = v;
+    }
+    for (const ch of n.children) walk(ch);
+  };
+  walk(node);
+  if (config) {
+    warnings.push(
+      `This design clusters its motor (${config}); Loft flies a single motor, so cluster thrust and mass are under-counted.`,
+    );
+    return true;
+  }
+  return false;
+}
+
+/** A tube-fin set is a fin geometry Loft doesn't model, so it's skipped on import. A rocket
+ *  flown without its fins is a reduced (and aerodynamically very different) vehicle; return
+ *  whether one is present so its stored-results comparison is withheld too. The user-facing
+ *  "skipped unsupported component" warning is emitted during the component walk. */
+function hasTubeFins(node: XmlNode): boolean {
+  let found = false;
+  const walk = (n: XmlNode): void => {
+    if (n.name === "tubefinset") found = true;
+    for (const ch of n.children) walk(ch);
+  };
+  walk(node);
+  return found;
 }
 
 /** Parse a decompressed `rocket.ork` XML string into the canonical document. */
@@ -733,12 +775,15 @@ export function adaptOrkXml(xml: string): OrkDocument {
   const stages = parseStages(rocketNode, ctx);
   const { configs, defaultId } = parseMotorConfigs(rocketNode, ctx);
 
-  warnUnsupportedAssemblies(rocketNode, ctx.warnings);
-  if (stages.length > 1) {
+  const reducedAssemblies = warnUnsupportedAssemblies(rocketNode, ctx.warnings);
+  const clustered = warnMotorCluster(rocketNode, ctx.warnings);
+  const multiStage = stages.length > 1;
+  if (multiStage) {
     ctx.warnings.push(
       `This design has ${stages.length} stages; staging (separation, air-starts) isn't simulated yet — the stack was flown as one.`,
     );
   }
+  const flownAsReduced = reducedAssemblies || clustered || multiStage || hasTubeFins(rocketNode);
 
   const refType = childText(rocketNode, "referencetype");
   const rocket: Rocket = {
@@ -759,5 +804,6 @@ export function adaptOrkXml(xml: string): OrkDocument {
     formatVersion,
     creator,
     warnings: ctx.warnings,
+    flownAsReduced,
   };
 }

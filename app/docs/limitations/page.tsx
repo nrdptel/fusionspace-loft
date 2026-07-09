@@ -70,15 +70,21 @@ export default function Limitations() {
       <h3>Fin planforms beyond trapezoidal are reduced</h3>
       <p>
         Elliptical and freeform fin sets are reduced to an area- and span-equivalent trapezoid for
-        both aerodynamics and mass. Tube fins are not yet modelled.
+        both aerodynamics and mass. Tube fins are not yet modelled — a design that uses them is
+        flown without those fins (with a visible warning), and because that isn&apos;t the whole
+        vehicle, its OpenRocket comparison is withheld.
       </p>
 
-      <h3>Single active stage</h3>
+      <h3>Single active stage, single motor</h3>
       <p>
         Multi-stage flights, air-starts, booster separation, parallel (strap-on) stages, and pods
-        are not simulated; only the primary stack flies. These aren&apos;t dropped silently — a
-        design that contains them is imported with a visible warning saying so, so you know the
-        flown vehicle isn&apos;t the whole design.
+        are not simulated; only the primary stack flies. A motor <em>cluster</em> is likewise flown
+        as a single motor, so its thrust and mass are under-counted. None of these are dropped
+        silently — a design that contains them is imported with a visible warning saying the flown
+        vehicle isn&apos;t the whole design, and because the flown vehicle then differs from what
+        the design&apos;s stored OpenRocket results describe, the{" "}
+        <Link href="/docs/validation">OpenRocket-vs-Loft comparison</Link> is withheld for it rather
+        than reported as a misleading error.
       </p>
 
       <h3>Wind model</h3>

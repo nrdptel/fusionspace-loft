@@ -50,8 +50,10 @@ export default function LoftApp() {
       return runFlight(document.rocket, {
         configId: stored?.conditions.configId,
         overrides,
-        // Validate only when flying the design's own stored conditions unchanged.
-        validateAgainst: edited ? undefined : stored,
+        // Validate only when flying the design's own stored conditions unchanged, and only when
+        // Loft flew the complete design — a simplified vehicle (staging/pods/parallel/cluster)
+        // wouldn't match the stored results, so the comparison would be misleading.
+        validateAgainst: edited || document.flownAsReduced ? undefined : stored,
       });
     },
     [],

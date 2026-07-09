@@ -79,6 +79,14 @@ export default async function Validation() {
         mean absolute percentage error (MAPE). That comparison appears right in the results, and the
         method is in <code>lib/validation/compare.ts</code>.
       </p>
+      <p>
+        The comparison is shown only when Loft flew the <em>complete</em> design. If the design
+        includes something Loft simplifies — staging, pods, parallel boosters, a motor cluster
+        flown as a single motor, or a fin type it can&apos;t model (tube fins) — the stored results
+        describe a different flight than the one simulated, so the comparison is withheld rather
+        than reported as a misleading error. A single-stage, standard-fin design gives the honest,
+        like-for-like check.
+      </p>
       <blockquote>
         The honest oracle is <strong>your own design</strong>. The two bundled samples below ship
         with author-estimated stored figures (Loft can&apos;t run OpenRocket here), so their
