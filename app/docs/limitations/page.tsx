@@ -88,6 +88,17 @@ export default function Limitations() {
         (un-modelled) rotational response.
       </p>
 
+      <h3>Recovery deployment is idealised</h3>
+      <p>
+        A device deploys on its event and honours its deploy delay — the vehicle free-falls on body
+        drag until the canopy opens — but the canopy is then modelled as opening{" "}
+        <em>instantly</em> to its full drag area: there is no inflation transient, no opening-shock
+        load, and no reefing. Motor-ejection deployments are triggered at apogee rather than at the
+        exact ejection-charge time, so a badly mistimed ejection delay isn&apos;t modelled as an
+        early or late opening. The deployment velocity Loft reports is the speed at canopy open,
+        which sets the opening-shock severity — but the shock force itself is not computed.
+      </p>
+
       <h3>Override-subcomponents is partial</h3>
       <p>
         A component&apos;s own mass/CG override is honoured. The OpenRocket

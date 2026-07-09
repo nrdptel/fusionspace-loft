@@ -156,10 +156,12 @@ export default function Methods() {
 
       <h2>Recovery &amp; drift</h2>
       <p>
-        Each recovery device deploys on its event — apogee, a set altitude, or ejection — and
-        descent uses the summed deployed drag areas (<code>C<sub>d</sub>·A</code>). Descent drift is
-        the canopy drifting with the wind; with the &ldquo;today&apos;s conditions&rdquo; re-run,
-        the wind varies with altitude from the winds-aloft profile.
+        Each recovery device deploys on its event — apogee, a set altitude, or ejection — plus any
+        deploy delay it specifies: the vehicle free-falls on body drag until the delay elapses and
+        the canopy opens, so a delayed deployment reports the higher speed reached at line-stretch.
+        Descent then uses the summed deployed drag areas (<code>C<sub>d</sub>·A</code>). Descent
+        drift is the canopy drifting with the wind; with the &ldquo;today&apos;s conditions&rdquo;
+        re-run, the wind varies with altitude from the winds-aloft profile.
       </p>
 
       <h2>Live weather (optional)</h2>

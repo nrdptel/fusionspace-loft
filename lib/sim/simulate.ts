@@ -47,8 +47,11 @@ export interface RecoveryDeviceSim {
   event: "apogee" | "altitude" | "ejection" | "launch" | "never";
   deployAltitude?: number; // m AGL
   deployDelay: number; // s
-  /** Filled at runtime: time it deployed. */
+  /** Filled at runtime: time the trigger fired plus the deploy delay — i.e. when the canopy
+   *  opens and starts to drag. Undefined until the trigger event occurs. */
   deployedAt?: number;
+  /** Filled at runtime: set once the canopy has actually opened (t ≥ deployedAt). */
+  opened?: boolean;
 }
 
 export interface LaunchConditions {
@@ -264,8 +267,8 @@ export function simulate(input: SimulateInput): FlightResult {
     if (airSpeed > 0.01) {
       const isDescent = apogeePassed;
       let cdA: number;
-      if (isDescent && anyDeployed(recovery)) {
-        cdA = deployedCdA(recovery) + geom.refArea * 0.5; // chutes + a little body
+      if (isDescent && anyDeployed(recovery, s.t)) {
+        cdA = deployedCdA(recovery, s.t) + geom.refArea * 0.5; // chutes + a little body
       } else {
         const dr = dragCoefficient(geom, atm, airSpeed, boosting);
         if (dr.extrapolated) extrapolated = true;
@@ -356,21 +359,26 @@ export function simulate(input: SimulateInput): FlightResult {
     }
     if (state.pos.z > apogeeAlt && !apogeePassed) apogeeAlt = state.pos.z;
 
-    // Recovery deployment.
+    // Recovery: a trigger event schedules the device; the canopy actually opens (and begins
+    // to drag) only once its deploy delay has elapsed. During the delay the vehicle keeps
+    // falling on body drag alone, so the deploy marker and the reported deployment velocity
+    // are taken at canopy open — not at the charge — which matters for a delayed deployment.
     for (const dev of recovery) {
-      if (dev.deployedAt !== undefined || dev.event === "never") continue;
-      let trigger = false;
-      if (dev.event === "apogee" && apogeePassed) trigger = true;
-      else if (dev.event === "ejection" && apogeePassed) trigger = true;
-      else if (dev.event === "altitude" && apogeePassed && state.pos.z <= (dev.deployAltitude ?? 0)) trigger = true;
-      else if (dev.event === "launch" && liftedOff) trigger = true;
-      if (trigger) {
-        // Respect the deploy delay by scheduling; simple model deploys after delay elapsed.
-        dev.deployedAt = state.t + (dev.deployDelay ?? 0);
+      if (dev.event === "never") continue;
+      if (dev.deployedAt === undefined) {
+        let trigger = false;
+        if (dev.event === "apogee" && apogeePassed) trigger = true;
+        else if (dev.event === "ejection" && apogeePassed) trigger = true;
+        else if (dev.event === "altitude" && apogeePassed && state.pos.z <= (dev.deployAltitude ?? 0)) trigger = true;
+        else if (dev.event === "launch" && liftedOff) trigger = true;
+        if (trigger) dev.deployedAt = state.t + (dev.deployDelay ?? 0);
+      }
+      if (dev.deployedAt !== undefined && !dev.opened && state.t >= dev.deployedAt) {
+        dev.opened = true;
         if (deploymentV === 0) deploymentV = speed;
         events.push({
           type: "deploy",
-          time: dev.deployedAt,
+          time: state.t,
           altitude: state.pos.z,
           velocity: speed,
           label: dev.name,
@@ -380,7 +388,7 @@ export function simulate(input: SimulateInput): FlightResult {
 
     // Sample the trajectory (thin it during long descent).
     const cdNow =
-      apogeePassed && anyDeployed(recovery)
+      apogeePassed && anyDeployed(recovery, state.t)
         ? 0
         : dragCoefficient(geom, atm, airSpeed, thrust > 0).cd;
     if (shouldSample(trajectory, state.t, phase)) {
@@ -504,13 +512,15 @@ function burnoutTime(motors: ResolvedMotor[]): number {
   return t;
 }
 
-function anyDeployed(recovery: RecoveryDeviceSim[]): boolean {
-  return recovery.some((d) => d.deployedAt !== undefined);
+/** A device contributes drag only once its canopy has opened — i.e. the trigger has fired AND
+ *  its deploy delay has elapsed (t ≥ deployedAt). Before then the vehicle falls on body drag. */
+function anyDeployed(recovery: RecoveryDeviceSim[], t: number): boolean {
+  return recovery.some((d) => d.deployedAt !== undefined && t >= d.deployedAt);
 }
 
-function deployedCdA(recovery: RecoveryDeviceSim[]): number {
+function deployedCdA(recovery: RecoveryDeviceSim[], t: number): number {
   let s = 0;
-  for (const d of recovery) if (d.deployedAt !== undefined) s += d.cdA;
+  for (const d of recovery) if (d.deployedAt !== undefined && t >= d.deployedAt) s += d.cdA;
   return s;
 }
 

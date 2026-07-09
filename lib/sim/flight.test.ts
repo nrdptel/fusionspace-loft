@@ -3,6 +3,8 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { importOrk } from "../ork/import";
 import { runFromDocument } from "./run";
+import { flattenRocket } from "../model/geometry";
+import type { OrkDocument } from "../ork/adapt";
 
 /** End-to-end: import each committed fixture, fly it, and check the results are physically
  *  plausible and stable. The exact numbers are Loft's own engine output (a regression guard),
@@ -102,6 +104,42 @@ describe("partial motor cluster", () => {
     expect(run.result.warnings.some((w) => w.code === "partial-cluster")).toBe(true);
     expect(run.result.warnings.some((w) => w.code === "no-motor")).toBe(false);
     expect(run.result.summary.apogee).toBeGreaterThan(0);
+  });
+});
+
+describe("recovery deploy delay", () => {
+  const setDelay = (doc: OrkDocument, delay: number) => {
+    for (const p of flattenRocket(doc.rocket)) {
+      if (p.component.kind === "parachute" || p.component.kind === "streamer") {
+        p.component.deployDelay = delay;
+      }
+    }
+  };
+
+  it("free-falls on body drag until the canopy opens, then reports the higher deploy speed", async () => {
+    const immediate = await load("demo-single-deploy.ork");
+    setDelay(immediate, 0);
+    const runNow = runFromDocument(immediate);
+
+    const delayed = await load("demo-single-deploy.ork");
+    setDelay(delayed, 6);
+    const runDelayed = runFromDocument(delayed);
+
+    // Same vehicle, same ascent, same apogee — only the recovery delay differs.
+    expect(runDelayed.result.summary.apogee).toBeCloseTo(runNow.result.summary.apogee, 0);
+
+    // With a 6 s delay the vehicle free-falls before the canopy opens, so the deployment
+    // velocity is far higher than an immediate deploy near apogee. Before the fix the delay
+    // was ignored (the canopy dragged from the charge instant) and these were equal.
+    expect(runDelayed.result.summary.deploymentVelocity).toBeGreaterThan(
+      runNow.result.summary.deploymentVelocity + 20,
+    );
+
+    // The deploy marker lands ~6 s after apogee (within a couple of integration steps).
+    const apo = runDelayed.result.events.find((e) => e.type === "apogee")!;
+    const dep = runDelayed.result.events.find((e) => e.type === "deploy")!;
+    expect(dep.time - apo.time).toBeGreaterThan(5.5);
+    expect(dep.time - apo.time).toBeLessThan(6.5);
   });
 });
 
