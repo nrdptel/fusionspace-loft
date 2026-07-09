@@ -21,6 +21,8 @@ export interface MotorResolution {
   designation: string;
   manufacturer?: string;
   match: MotorMatch | null;
+  /** How many identical motors this mount flies (a cluster is >1); 1 for a single motor. */
+  count: number;
 }
 
 export interface Buildup {
@@ -40,27 +42,35 @@ export function buildRocketDynamics(rocket: Rocket, config: MotorConfiguration):
 
   for (const inst of config.instances) {
     const match = resolveMotor(inst.motor);
+    const mount = byId.get(inst.mountId);
+    const mm = mount?.component && "motorMount" in mount.component ? mount.component.motorMount : undefined;
+    // A clustered mount flies N identical motors. Modelled as N coaxial motors: N× thrust and
+    // N× propellant/casing mass, all at the mount's centreline (radial offset isn't modelled —
+    // it doesn't affect the vertical-plane apogee/velocity solve). The clustered tube's own
+    // structural mass is scaled by N in lib/sim/mass.ts.
+    const count = Math.max(1, Math.round(mm?.clusterCount ?? 1));
     resolutions.push({
       mountId: inst.mountId,
       designation: inst.motor.designation,
       manufacturer: inst.motor.manufacturer,
       match,
+      count,
     });
     if (!match) continue;
-    const mount = byId.get(inst.mountId);
     const mountAft = mount ? mount.xFore + mount.length : 0;
-    const overhang = mount?.component && "motorMount" in mount.component ? mount.component.motorMount?.overhang ?? 0 : 0;
+    const overhang = mm?.overhang ?? 0;
     const motorLen = inst.motor.length || match.entry.curve.lengthMm / 1000;
     const aftX = mountAft + overhang;
     const cg = aftX - motorLen / 2;
     const ignitionTime = inst.ignitionDelay ?? 0;
     const delay = Number.isFinite(inst.motor.delay ?? NaN) ? (inst.motor.delay as number) : NaN;
-    motors.push({
+    const resolved: ResolvedMotor = {
       curve: match.entry.curve,
       cg,
       ignitionTime,
       ejectionTime: Number.isFinite(delay) ? ignitionTime + match.entry.curve.burnTime + delay : undefined,
-    });
+    };
+    for (let i = 0; i < count; i++) motors.push(resolved);
   }
 
   const recovery: RecoveryDeviceSim[] = [];

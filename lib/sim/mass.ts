@@ -177,6 +177,16 @@ function componentPointMass(p: Positioned): PointMass | null {
   }
 
   if (overrideMass !== undefined) mass = overrideMass;
+
+  // A clustered motor mount is N motor tubes, not one; scale the tube's own structural mass to
+  // match (the motors themselves are added N times by the simulator). Modelled coaxially, so
+  // the extra tubes sit on the centreline — fine for the vertical-plane mass/CG the solver uses.
+  const cluster = "motorMount" in c ? c.motorMount?.clusterCount ?? 1 : 1;
+  if (cluster > 1) {
+    mass *= cluster;
+    ownInertia *= cluster;
+  }
+
   const cg = overrideCg !== undefined ? p.xFore + overrideCg : p.xFore + cgLocal;
   if (mass <= 0) return null;
   return { mass, cg, ownInertia, source: c.name || c.kind };

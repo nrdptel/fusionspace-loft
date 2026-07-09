@@ -251,6 +251,25 @@ function parseMotorMount(node: XmlNode, mountId: string, ctx: WalkContext): bool
   return true;
 }
 
+/** OpenRocket's cluster configuration for an inner/body tube → the number of motors it holds.
+ *  The preset names carry the count as a leading number ("3-tower", "4-ring", "4-square", …),
+ *  plus the two non-numeric singles. Anything unrecognised is a single motor. */
+function clusterCountOf(node: XmlNode): number {
+  const s = (childText(node, "clusterconfiguration") ?? "").trim().toLowerCase();
+  if (s === "" || s === "single") return 1;
+  if (s === "double") return 2;
+  const m = s.match(/^(\d+)/);
+  return m ? Math.max(1, parseInt(m[1], 10)) : 1;
+}
+
+/** Build a mount's model role, carrying the cluster count when the tube holds more than one. */
+function motorMountFrom(node: XmlNode): { overhang: number; clusterCount?: number } {
+  const mm = child(node, "motormount");
+  const overhang = mm ? childNum(mm, "overhang", 0) : 0;
+  const n = clusterCountOf(node);
+  return n > 1 ? { overhang, clusterCount: n } : { overhang };
+}
+
 function parseComponent(node: XmlNode, ctx: WalkContext): RocketComponent | null {
   const b = base(node);
   switch (node.name) {
@@ -278,7 +297,7 @@ function parseComponent(node: XmlNode, ctx: WalkContext): RocketComponent | null
         thickness: childNum(node, "thickness", 0) || undefined,
         children: [],
       };
-      if (parseMotorMount(node, b.id, ctx)) comp.motorMount = { overhang: childNum(child(node, "motormount")!, "overhang", 0) };
+      if (parseMotorMount(node, b.id, ctx)) comp.motorMount = motorMountFrom(node);
       comp.children = parseSubcomponents(node, ctx);
       return comp;
     }
@@ -349,7 +368,7 @@ function parseComponent(node: XmlNode, ctx: WalkContext): RocketComponent | null
         innerRadius: Number.isFinite(outer) ? Math.max(0, outer - thickness) : NaN,
         children: [],
       };
-      if (parseMotorMount(node, b.id, ctx)) comp.motorMount = { overhang: childNum(child(node, "motormount")!, "overhang", 0) };
+      if (parseMotorMount(node, b.id, ctx)) comp.motorMount = motorMountFrom(node);
       comp.children = parseSubcomponents(node, ctx);
       return comp;
     }
@@ -747,28 +766,6 @@ function warnUnsupportedAssemblies(node: XmlNode, warnings: string[]): boolean {
   return false;
 }
 
-/** Detect a motor cluster: an inner tube configured (`<clusterconfiguration>`) for more than one
- *  motor. Loft flies a single motor, so the cluster's extra thrust and mass are under-counted;
- *  warn rather than silently under-power the flight. Returns whether a cluster was found. */
-function warnMotorCluster(node: XmlNode, warnings: string[]): boolean {
-  let config: string | null = null;
-  const walk = (n: XmlNode): void => {
-    if (n.name === "clusterconfiguration") {
-      const v = n.text.trim();
-      if (v && v.toLowerCase() !== "single") config = v;
-    }
-    for (const ch of n.children) walk(ch);
-  };
-  walk(node);
-  if (config) {
-    warnings.push(
-      `This design clusters its motor (${config}); Loft flies a single motor, so cluster thrust and mass are under-counted.`,
-    );
-    return true;
-  }
-  return false;
-}
-
 /** A tube-fin set is a fin geometry Loft doesn't model, so it's skipped on import. A rocket
  *  flown without its fins is a reduced (and aerodynamically very different) vehicle; return
  *  whether one is present so its stored-results comparison is withheld too. The user-facing
@@ -800,14 +797,13 @@ export function adaptOrkXml(xml: string): OrkDocument {
   const { configs, defaultId } = parseMotorConfigs(rocketNode, ctx);
 
   const reducedAssemblies = warnUnsupportedAssemblies(rocketNode, ctx.warnings);
-  const clustered = warnMotorCluster(rocketNode, ctx.warnings);
   const multiStage = stages.length > 1;
   if (multiStage) {
     ctx.warnings.push(
       `This design has ${stages.length} stages; staging (separation, air-starts) isn't simulated yet — the stack was flown as one.`,
     );
   }
-  const flownAsReduced = reducedAssemblies || clustered || multiStage || hasTubeFins(rocketNode);
+  const flownAsReduced = reducedAssemblies || multiStage || hasTubeFins(rocketNode);
 
   const refType = childText(rocketNode, "referencetype");
   const rocket: Rocket = {

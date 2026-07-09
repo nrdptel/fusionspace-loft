@@ -143,6 +143,30 @@ describe("recovery deploy delay", () => {
   });
 });
 
+describe("motor cluster simulation", () => {
+  it("flies a cluster on more thrust and mass than a single motor", async () => {
+    const single = await load("demo-single-deploy.ork");
+    const singleRun = runFromDocument(single);
+
+    const clustered = await load("demo-single-deploy.ork");
+    for (const p of flattenRocket(clustered.rocket)) {
+      const c = p.component;
+      if ("motorMount" in c && c.motorMount) c.motorMount.clusterCount = 3;
+    }
+    const run = runFromDocument(clustered);
+
+    // Three identical motors fire: the resolution records the count, and liftoff mass rises
+    // (two extra loaded motors plus the tripled motor-tube mass).
+    expect(run.resolutions[0].count).toBe(3);
+    expect(run.result.liftoffMass).toBeGreaterThan(singleRun.result.liftoffMass);
+    // 3× total impulse for only a little more mass ⇒ a higher, finite, plausible apogee.
+    expect(run.result.summary.apogee).toBeGreaterThan(singleRun.result.summary.apogee);
+    expect(Number.isFinite(run.result.summary.apogee)).toBe(true);
+    // A cluster is simulated, not simplified, so the comparison isn't withheld.
+    expect(clustered.flownAsReduced).toBe(false);
+  });
+});
+
 describe("validation withheld for a simplified vehicle", () => {
   it("compares a complete design but withholds it when the flown vehicle is reduced", async () => {
     const doc = await load("demo-single-deploy.ork");

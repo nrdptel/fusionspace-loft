@@ -81,11 +81,11 @@ export default async function Validation() {
       </p>
       <p>
         The comparison is shown only when Loft flew the <em>complete</em> design. If the design
-        includes something Loft simplifies — staging, pods, parallel boosters, a motor cluster
-        flown as a single motor, or a fin type it can&apos;t model (tube fins) — the stored results
-        describe a different flight than the one simulated, so the comparison is withheld rather
-        than reported as a misleading error. A single-stage, standard-fin design gives the honest,
-        like-for-like check.
+        includes something Loft simplifies — staging, pods, parallel boosters, or a fin type it
+        can&apos;t model (tube fins) — the stored results describe a different flight than the one
+        simulated, so the comparison is withheld rather than reported as a misleading error. (A
+        motor cluster <em>is</em> simulated, as coaxial motors, so it still gets a comparison.) A
+        single-stage, standard-fin design gives the honest, like-for-like check.
       </p>
       <blockquote>
         The honest oracle is <strong>your own design</strong>. The two bundled samples below ship

@@ -247,6 +247,9 @@ export type RocketComponent =
 export interface MotorMount {
   /** How far the motor sticks out past the aft end of the mount (m). */
   overhang: number;
+  /** Motors held, from OpenRocket's cluster configuration (e.g. "4-ring" ⇒ 4). 1, or absent,
+   *  is a single motor. A cluster is flown as this many identical coaxial motors. */
+  clusterCount?: number;
 }
 
 export type MotorType = "single-use" | "reload" | "hybrid" | "unknown";

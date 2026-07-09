@@ -75,16 +75,26 @@ export default function Limitations() {
         vehicle, its OpenRocket comparison is withheld.
       </p>
 
-      <h3>Single active stage, single motor</h3>
+      <h3>Single active stage</h3>
       <p>
         Multi-stage flights, air-starts, booster separation, parallel (strap-on) stages, and pods
-        are not simulated; only the primary stack flies. A motor <em>cluster</em> is likewise flown
-        as a single motor, so its thrust and mass are under-counted. None of these are dropped
-        silently — a design that contains them is imported with a visible warning saying the flown
-        vehicle isn&apos;t the whole design, and because the flown vehicle then differs from what
-        the design&apos;s stored OpenRocket results describe, the{" "}
+        are not simulated; only the primary stack flies. These aren&apos;t dropped silently — a
+        design that contains them is imported with a visible warning saying the flown vehicle
+        isn&apos;t the whole design, and because the flown vehicle then differs from what the
+        design&apos;s stored OpenRocket results describe, the{" "}
         <Link href="/docs/validation">OpenRocket-vs-Loft comparison</Link> is withheld for it rather
         than reported as a misleading error.
+      </p>
+
+      <h3>Motor clusters are modelled coaxially</h3>
+      <p>
+        A motor cluster is simulated as its full complement of identical motors — an
+        OpenRocket &ldquo;4-ring,&rdquo; for example, flies four motors, with the thrust,
+        propellant, and motor-tube mass all counted. They are placed on the centreline rather than
+        at their true radial offsets: for the vertical-plane apogee, velocity, and mass this makes
+        no difference, but the roll/pitch inertia contribution of the offset motors isn&apos;t
+        modelled (and rotation isn&apos;t solved anyway — see above). A staggered-ignition or
+        partial-cluster failure isn&apos;t modelled; all motors in the cluster light together.
       </p>
 
       <h3>Wind model</h3>
@@ -127,9 +137,10 @@ export default function Limitations() {
         always shown so you can check it. When <em>no</em> motor in a configuration resolves, there
         is no thrust to fly — Loft withholds the flight results, plots, and OpenRocket comparison
         entirely and names the motor it couldn&apos;t find, rather than showing a misleading
-        zero-altitude &ldquo;flight.&rdquo; When a cluster resolves only <em>some</em> of its
-        motors, the flight is simulated on those alone — so its thrust is under-counted and apogee
-        and velocity read low — and a prominent warning says how many motors were missing.
+        zero-altitude &ldquo;flight.&rdquo; When a configuration resolves only <em>some</em> of its
+        motors (for example a design with different motors in separate mounts), the flight is
+        simulated on those alone — so its thrust is under-counted and apogee and velocity read low —
+        and a prominent warning says how many motors were missing.
       </p>
 
       <h3>Bundled sample designs use estimated stored figures</h3>
