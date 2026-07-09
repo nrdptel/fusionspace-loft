@@ -600,6 +600,22 @@ function buildWarnings(
       severity: fast ? "warning" : "caution",
     });
   }
+  // A recovery device opened but the descent is still fast — an undersized canopy. Distinct from
+  // the ballistic case above (there nothing opened); here the rocket lands harder than the
+  // ~3–6 m/s (10–20 ft/s) most designs aim for. Above ~25 ft/s a landing gets firm; past ~35 ft/s
+  // it risks damage on all but the toughest airframes. A rule of thumb, not a verdict.
+  if (ctx.anyRecoveryOpened && ctx.landed && ctx.groundHitVelocity > 7.6) {
+    const hard = ctx.groundHitVelocity > 10.7;
+    out.push({
+      code: "hard-landing",
+      message:
+        `The rocket lands at about ${ctx.groundHitVelocity.toFixed(1)} m/s under its recovery ` +
+        `device — ${hard ? "a hard landing that can damage the airframe" : "a firm landing"}. ` +
+        "Most designs aim for ~3–6 m/s (10–20 ft/s); a larger canopy lands softer. Verify it's " +
+        "acceptable for your airframe's mass and construction.",
+      severity: hard ? "warning" : "caution",
+    });
+  }
   if (ctx.motorsPlaced === 0) {
     out.push({
       code: "no-motor",
