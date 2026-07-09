@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { adaptOrkXml } from "./adapt";
 import { importOrk } from "./import";
-import { flattenRocket } from "../model/geometry";
+import { flattenRocket, referenceRadius } from "../model/geometry";
 
 const readXml = (name: string) =>
   readFileSync(resolve(process.cwd(), "fixtures/src", name), "utf-8");
@@ -86,6 +86,53 @@ describe("graceful degradation", () => {
 
   it("rejects a non-OpenRocket root", () => {
     expect(() => adaptOrkXml("<html></html>")).toThrow(/OpenRocket/);
+  });
+
+  it("resolves an internal part nested in a coupler, so one auto radius can't poison the model", () => {
+    // A bulkhead with no radius, nested inside a tube coupler (not directly in the tube). It
+    // must inherit the coupler's radius; if it stayed NaN it would poison the total mass and
+    // the reference radius, collapsing the whole flight to zero.
+    const xml = `<?xml version='1.0'?>
+      <openrocket version="1.10">
+        <rocket><name>Nested</name>
+          <subcomponents><stage><subcomponents>
+            <nosecone><length>0.1</length><aftradius>0.025</aftradius><shape>ogive</shape></nosecone>
+            <bodytube><length>0.4</length><radius>0.025</radius><thickness>0.001</thickness><subcomponents>
+              <tubecoupler><length>0.05</length><outerradius>0.024</outerradius><thickness>0.001</thickness><subcomponents>
+                <bulkhead><length>0.002</length></bulkhead>
+              </subcomponents></tubecoupler>
+            </subcomponents></bodytube>
+          </subcomponents></stage></subcomponents>
+        </rocket>
+      </openrocket>`;
+    const doc = adaptOrkXml(xml);
+    const bulkhead = flattenRocket(doc.rocket).find((p) => p.component.kind === "bulkhead")!.component;
+    expect(bulkhead.kind).toBe("bulkhead");
+    if (bulkhead.kind === "bulkhead") {
+      expect(Number.isFinite(bulkhead.outerRadius)).toBe(true);
+      expect(bulkhead.outerRadius).toBeGreaterThan(0);
+    }
+    // The reference radius (and hence the whole simulation) stays finite.
+    expect(Number.isFinite(referenceRadius(doc.rocket))).toBe(true);
+  });
+
+  it("zeroes a truly unresolvable internal radius rather than leaving it NaN", () => {
+    // A bulkhead floating directly in the stage with nothing to fit inside: it can't be
+    // resolved, but must be zeroed (and flagged), never left NaN to poison the flight.
+    const xml = `<?xml version='1.0'?>
+      <openrocket version="1.10">
+        <rocket><name>Orphan</name>
+          <subcomponents><stage><subcomponents>
+            <nosecone><length>0.1</length><aftradius>0.025</aftradius><shape>ogive</shape></nosecone>
+            <bulkhead><length>0.002</length></bulkhead>
+          </subcomponents></stage></subcomponents>
+        </rocket>
+      </openrocket>`;
+    const doc = adaptOrkXml(xml);
+    const bulkhead = flattenRocket(doc.rocket).find((p) => p.component.kind === "bulkhead")!.component;
+    if (bulkhead.kind === "bulkhead") expect(bulkhead.outerRadius).toBe(0);
+    expect(Number.isFinite(referenceRadius(doc.rocket))).toBe(true);
+    expect(doc.warnings.some((w) => /auto|resolve/i.test(w))).toBe(true);
   });
 
   it("detects a motor cluster and flags the flight as reduced", () => {

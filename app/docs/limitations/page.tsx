@@ -118,9 +118,11 @@ export default function Limitations() {
 
       <h3>Motor database is a curated subset</h3>
       <p>
-        The bundled database covers a representative set of common motors, not the entire
-        ThrustCurve.org catalogue (that would bloat the offline bundle). If your motor isn&apos;t
-        found, Loft says so rather than guessing; fuzzy matching by class-and-thrust core can, in
+        The bundled database covers a representative set of common motors across classes A–K —
+        including the common Estes/Quest low-power motors and AeroTech F–K reloads — but not the
+        entire ThrustCurve.org catalogue (that would bloat the offline bundle). If your motor
+        isn&apos;t found, Loft says so rather than guessing; fuzzy matching by class-and-thrust core
+        can, in
         rare cases, match a same-core motor of a different propellant. The resolved designation is
         always shown so you can check it. When <em>no</em> motor in a configuration resolves, there
         is no thrust to fly — Loft withholds the flight results, plots, and OpenRocket comparison

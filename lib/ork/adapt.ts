@@ -616,6 +616,7 @@ interface RadiusFields {
 const rf = (c: RocketComponent): RadiusFields => c as unknown as RadiusFields;
 const ok = (x: number | undefined): x is number => typeof x === "number" && Number.isFinite(x) && x > 0;
 const BODY_KINDS = new Set(["nosecone", "bodytube", "transition"]);
+const INTERNAL_KINDS = new Set(["tubecoupler", "innertube", "centeringring", "engineblock", "bulkhead"]);
 
 /** Radius at a body component's fore (nose-ward) end. */
 function foreRadius(c: RocketComponent): number {
@@ -670,6 +671,23 @@ function resolveAutoRadii(rocket: Rocket, warnings: string[]): void {
         if (!ok(f.aftRadius)) { f.aftRadius = 0; unresolved = true; }
       }
     }
+
+    // Backstop: any internal part (bulkhead, ring, coupler…) still unresolved after the
+    // above is zeroed rather than left NaN — a single NaN radius otherwise propagates into
+    // the total mass and the reference area and silently collapses the whole flight to zero.
+    // Internal parts nest (a bulkhead inside a coupler), so this recurses.
+    const zeroUnresolvedInternal = (comps: RocketComponent[]): void => {
+      for (const c of comps) {
+        if (INTERNAL_KINDS.has(c.kind) && !ok(rf(c).outerRadius)) {
+          const f = rf(c);
+          f.outerRadius = 0;
+          if (!Number.isFinite(f.innerRadius ?? NaN)) f.innerRadius = 0;
+          unresolved = true;
+        }
+        if (c.children.length) zeroUnresolvedInternal(c.children);
+      }
+    };
+    zeroUnresolvedInternal(stage.components);
   }
   if (unresolved) {
     warnings.push(
@@ -682,9 +700,8 @@ function resolveAutoRadii(rocket: Rocket, warnings: string[]): void {
 /** Internal parts (tube couplers, inner tubes, rings, engine blocks) with an auto outer
  *  radius fit inside their enclosing body tube. */
 function resolveInternalRadii(components: RocketComponent[], parentInner: number): void {
-  const INTERNAL = new Set(["tubecoupler", "innertube", "centeringring", "engineblock", "bulkhead"]);
   for (const c of components) {
-    if (INTERNAL.has(c.kind)) {
+    if (INTERNAL_KINDS.has(c.kind)) {
       const f = rf(c);
       if (!ok(f.outerRadius) && ok(parentInner)) f.outerRadius = parentInner;
       if (c.kind !== "bulkhead" && (!Number.isFinite(f.innerRadius ?? NaN) || (f.innerRadius ?? 0) < 0)) {
@@ -692,10 +709,17 @@ function resolveInternalRadii(components: RocketComponent[], parentInner: number
         f.innerRadius = ok(f.outerRadius) ? Math.max(0, (f.outerRadius as number) - 0.0015) : 0;
       }
     }
-    const childInner =
-      c.kind === "bodytube" && ok(c.outerRadius)
-        ? Math.max(0, c.outerRadius - (c.thickness ?? 0))
-        : parentInner;
+    // The enclosing inner radius handed to nested parts. A body tube encloses at its bore
+    // (outer − wall); a coupler, inner tube, nose cone, or transition encloses at its radius.
+    // Without propagating through non-tube containers, a bulkhead or ring nested inside a
+    // coupler (rather than directly in a tube) never resolved and stayed NaN, which then
+    // poisoned the total mass and the reference area for the whole flight.
+    const g = rf(c);
+    let childInner = parentInner;
+    if (c.kind === "bodytube" && ok(g.outerRadius)) childInner = Math.max(0, g.outerRadius - (g.thickness ?? 0));
+    else if (ok(g.outerRadius)) childInner = g.outerRadius;
+    else if (c.kind === "nosecone" && ok(g.aftRadius)) childInner = g.aftRadius as number;
+    else if (c.kind === "transition" && ok(g.aftRadius)) childInner = g.aftRadius as number;
     if (c.children.length) resolveInternalRadii(c.children, childInner);
   }
 }
