@@ -151,8 +151,11 @@ export default function Methods() {
         depleted in proportion to delivered impulse (constant-<em>I<sub>sp</sub></em> assumption), so
         motor mass falls from loaded to casing mass over the burn. Matching prefers an exact
         designation, then a class-and-thrust core (so a Cesaroni &ldquo;838J293-13A&rdquo; still
-        resolves to &ldquo;J293&rdquo;), and the UI flags an approximate or failed match. If a
-        cluster resolves only some of its motors, the flight runs on the resolved ones and a
+        resolves to &ldquo;J293&rdquo;), and the UI flags an approximate or failed match. A motor{" "}
+        <em>cluster</em> (OpenRocket&apos;s cluster configuration, e.g. a &ldquo;4-ring&rdquo;) is
+        flown as that many identical motors on the centreline — full thrust, propellant, and
+        motor-tube mass — with the count shown on the motor tag. Where a design assigns different
+        motors to separate mounts and only some resolve, the flight runs on the resolved ones and a
         warning reports the under-counted thrust.
       </p>
 

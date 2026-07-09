@@ -135,7 +135,7 @@ describe("graceful degradation", () => {
     expect(doc.warnings.some((w) => /auto|resolve/i.test(w))).toBe(true);
   });
 
-  it("detects a motor cluster and flags the flight as reduced", () => {
+  it("reads a motor cluster count onto the mount and does not treat it as reduced", () => {
     const xml = `<?xml version='1.0'?>
       <openrocket version="1.10">
         <rocket><name>Cluster</name>
@@ -152,8 +152,10 @@ describe("graceful degradation", () => {
         </rocket>
       </openrocket>`;
     const doc = adaptOrkXml(xml);
-    expect(doc.warnings.some((w) => /cluster/i.test(w))).toBe(true);
-    expect(doc.flownAsReduced).toBe(true);
+    const inner = flattenRocket(doc.rocket).find((p) => p.component.kind === "innertube")!.component;
+    if (inner.kind === "innertube") expect(inner.motorMount?.clusterCount).toBe(4);
+    // A cluster is simulated (not simplified), so it isn't flagged reduced.
+    expect(doc.flownAsReduced).toBe(false);
   });
 
   it("flags a tube-fin design as flown-reduced (fins skipped)", () => {
@@ -190,7 +192,9 @@ describe("graceful degradation", () => {
         </rocket>
       </openrocket>`;
     const doc = adaptOrkXml(xml);
-    expect(doc.warnings.some((w) => /cluster/i.test(w))).toBe(false);
+    const inner = flattenRocket(doc.rocket).find((p) => p.component.kind === "innertube")!.component;
+    // "single" is not a cluster: no count set, and the flight isn't flagged reduced.
+    if (inner.kind === "innertube") expect(inner.motorMount?.clusterCount).toBeUndefined();
     expect(doc.flownAsReduced).toBe(false);
   });
 });

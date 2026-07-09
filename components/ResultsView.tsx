@@ -135,7 +135,7 @@ export default function ResultsView({
           <h2 className="text-base font-semibold tracking-tight">OpenRocket comparison withheld</h2>
           <p className="mt-1.5">
             This design contains something Loft flew in simplified form — staging, pods, parallel
-            boosters, a motor cluster, or a fin type it can&apos;t model (see the warnings above) —
+            boosters, or a fin type it can&apos;t model (see the warnings above) —
             so the stored OpenRocket results describe a different flight than the one simulated here.
             Comparing them would misstate the engine&apos;s accuracy, so the metric-by-metric
             comparison is withheld — import a design Loft flies complete for a like-for-like check.
@@ -222,8 +222,13 @@ function RocketSummary({ run, doc, units }: { run: FlightRun; doc: OrkDocument; 
                   : "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300"
                 : "border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-300")
             }
-            title={res.match ? `Matched ${res.match.entry.curve.designation} (${res.match.quality})` : "No thrust curve found"}
+            title={
+              res.match
+                ? `Matched ${res.match.entry.curve.designation} (${res.match.quality})${res.count > 1 ? ` — cluster of ${res.count}` : ""}`
+                : "No thrust curve found"
+            }
           >
+            {res.count > 1 ? `${res.count}× ` : ""}
             {res.designation}
             {res.match && res.match.quality !== "exact" ? ` → ${res.match.entry.curve.designation}` : ""}
             {!res.match ? " · not found" : res.match.quality !== "exact" ? " · approx" : ""}
@@ -300,9 +305,12 @@ function accelSeries(r: FlightResult): Series {
   return { color: COLORS.accel, label: "acceleration", points: r.trajectory.map((p) => ({ x: p.t, y: p.acceleration / 9.80665 })) };
 }
 function thrustSeries(run: FlightRun): Series | null {
-  const m = run.resolutions.find((x) => x.match)?.match?.entry.curve;
+  const res = run.resolutions.find((x) => x.match);
+  const m = res?.match?.entry.curve;
   if (!m) return null;
-  return { color: COLORS.thrust, label: "thrust", points: m.samples.map((p) => ({ x: p.t, y: p.thrust })) };
+  // A cluster fires N identical motors, so the delivered thrust is N× the single-motor curve.
+  const n = Math.max(1, res?.count ?? 1);
+  return { color: COLORS.thrust, label: "thrust", points: m.samples.map((p) => ({ x: p.t, y: p.thrust * n })) };
 }
 
 function eventMarkers(r: FlightResult): Marker[] {
