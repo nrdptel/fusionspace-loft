@@ -174,6 +174,94 @@
     "header": "J293BS 54 237 13-12-11-10-9-8-7-6-5-4-3 0.41600000000000004 0.84 CTI"
   },
   {
+    "file": "Cesaroni_K1440.eng",
+    "motorId": "5f4294d20002310000000261",
+    "license": "PD",
+    "simfileId": "5f4294d20002e90000000852",
+    "designation": "K1440",
+    "manufacturer": "Cesaroni",
+    "class": "K",
+    "diameter": 54,
+    "header": "K1440WT 54 572 8-11-14-17 1.129 1.893 Ces"
+  },
+  {
+    "file": "Cesaroni_K261.eng",
+    "motorId": "5f4294d200023100000003a6",
+    "license": "PD",
+    "simfileId": "5f4294d20002e9000000074e",
+    "designation": "K261",
+    "manufacturer": "Cesaroni",
+    "class": "K",
+    "diameter": 54,
+    "header": "2021-K261-WH_LB-P 54 488 P 1.1519 1.9317 CTI"
+  },
+  {
+    "file": "Cesaroni_K530.eng",
+    "motorId": "5f4294d20002310000000145",
+    "license": "?",
+    "simfileId": "5f4294d20002e90000000147",
+    "designation": "K530",
+    "manufacturer": "Cesaroni",
+    "class": "K",
+    "diameter": 54,
+    "header": "K530SS  54.0 404.00 6-16 1.02500 1.63980 CTI"
+  },
+  {
+    "file": "Cesaroni_L1350.eng",
+    "motorId": "5f4294d200023100000003dc",
+    "license": "PD",
+    "simfileId": "5f4294d20002e900000007c6",
+    "designation": "L1350",
+    "manufacturer": "Cesaroni",
+    "class": "L",
+    "diameter": 75,
+    "header": "4263-L1350-CS-P 75 486 P 2.0245 3.5707 CTI"
+  },
+  {
+    "file": "Cesaroni_L730.eng",
+    "motorId": "5f4294d2000231000000017c",
+    "license": "?",
+    "simfileId": "5f4294d20002e90000000144",
+    "designation": "L730",
+    "manufacturer": "Cesaroni",
+    "class": "L",
+    "diameter": 54,
+    "header": "L730  54.0 649.00 0 1.35100 2.24700 CTI"
+  },
+  {
+    "file": "Cesaroni_M1670.eng",
+    "motorId": "5f4294d20002310000000296",
+    "license": "?",
+    "simfileId": "5f4294d20002e9000000062c",
+    "designation": "M1670",
+    "manufacturer": "Cesaroni",
+    "class": "M",
+    "diameter": 75,
+    "header": "M1670-BS 75 757 0 3.101 5.231 CTI"
+  },
+  {
+    "file": "Cesaroni_M2245.eng",
+    "motorId": "5f4294d200023100000003e9",
+    "license": "PD",
+    "simfileId": "5f4294d20002e900000007b5",
+    "designation": "M2245",
+    "manufacturer": "Cesaroni",
+    "class": "M",
+    "diameter": 75,
+    "header": "9977-M2245-IM-P 75 1025 P 5.309 8.182 CTI"
+  },
+  {
+    "file": "Cesaroni_M3400.eng",
+    "motorId": "5f4294d20002310000000318",
+    "license": "?",
+    "simfileId": "5f4294d20002e900000006f9",
+    "designation": "M3400",
+    "manufacturer": "Cesaroni",
+    "class": "M",
+    "diameter": 98,
+    "header": "M3400-WT 98 702 P 4.766 8.108 CTI"
+  },
+  {
     "file": "Estes_A10.eng",
     "motorId": "5f4294d2000231000000000c",
     "license": null,
@@ -264,6 +352,61 @@
     "manufacturer": "Estes Industries",
     "class": "E",
     "diameter": 24
+  },
+  {
+    "file": "Loki_J528.eng",
+    "motorId": "5f4294d20002310000000123",
+    "license": "?",
+    "simfileId": "5f4294d20002e90000000127",
+    "designation": "J528",
+    "manufacturer": "Loki",
+    "class": "J",
+    "diameter": 38,
+    "header": "J528 38 406 5-8-10-13-17 0.372 0.752 Loki"
+  },
+  {
+    "file": "Loki_K627.eng",
+    "motorId": "5f4294d20002310000000446",
+    "license": "PD",
+    "simfileId": "5f4294d20002e90000000861",
+    "designation": "K627",
+    "manufacturer": "Loki",
+    "class": "K",
+    "diameter": 38,
+    "header": "K627LR 38 625.5 5-7-11-14 0.6880000000000001 1.236 Loki"
+  },
+  {
+    "file": "Loki_L1400.eng",
+    "motorId": "5f4294d20002310000000193",
+    "license": "?",
+    "simfileId": "5f4294d20002e9000000012c",
+    "designation": "L1400",
+    "manufacturer": "Loki",
+    "class": "L",
+    "diameter": 54,
+    "header": "L1400 54 726 0 1.4 2.54 Loki"
+  },
+  {
+    "file": "Loki_M1882.eng",
+    "motorId": "5f4294d200023100000001ae",
+    "license": "?",
+    "simfileId": "5f4294d20002e9000000012b",
+    "designation": "M1882",
+    "manufacturer": "Loki",
+    "class": "M",
+    "diameter": 75,
+    "header": "M1882 75 785 0 3.12979 5.53383 Loki"
+  },
+  {
+    "file": "Loki_M2550.eng",
+    "motorId": "5f4294d2000231000000024f",
+    "license": "?",
+    "simfileId": "5f4294d20002e900000005df",
+    "designation": "M2550",
+    "manufacturer": "Loki",
+    "class": "M",
+    "diameter": 76,
+    "header": "M2550-LB 76 785 0 3.13 5.53 Loki"
   },
   {
     "file": "Quest_C6.eng",

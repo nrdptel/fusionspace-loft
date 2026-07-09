@@ -4,10 +4,25 @@ import { allMotors, resolveMotor, coreDesignation, normalize } from "./db";
 describe("motor database", () => {
   it("parses the bundled catalog", () => {
     const motors = allMotors();
-    expect(motors.length).toBeGreaterThanOrEqual(26);
+    expect(motors.length).toBeGreaterThanOrEqual(39);
     for (const m of motors) {
       expect(m.curve.totalImpulse).toBeGreaterThan(0);
       expect(m.curve.samples.length).toBeGreaterThan(2);
+    }
+  });
+
+  it("covers common mid/high-power Cesaroni and Loki reloads (J–M)", () => {
+    const cases: Array<[string, string]> = [
+      ["K261", "Cesaroni"], ["K530", "Cesaroni"], ["L730", "Cesaroni"],
+      ["L1350", "Cesaroni"], ["M1670", "Cesaroni"], ["M2245", "Cesaroni"], ["M3400", "Cesaroni"],
+      ["J528", "Loki"], ["K627", "Loki"], ["L1400", "Loki"], ["M1882", "Loki"], ["M2550", "Loki"],
+    ];
+    for (const [designation, manufacturer] of cases) {
+      const m = resolveMotor({ manufacturer, designation });
+      expect(m).not.toBeNull();
+      // The resolved curve is in the right impulse class (letter matches).
+      expect(coreDesignation(m!.entry.curve.designation)[0]).toBe(designation[0]);
+      expect(m!.entry.curve.totalImpulse).toBeGreaterThan(0);
     }
   });
 
