@@ -96,6 +96,11 @@ describe("adaptRktXml — demo-rocksim fixture", () => {
     expect(choices[0].storedApogeeM).toBeCloseTo(1244, 0);
   });
 
+  it("captures the launch lug's outer radius for protuberance drag", () => {
+    const lug = flattenRocket(doc.rocket).find((p) => p.component.kind === "launchlug")!.component;
+    expect("radius" in lug && lug.radius).toBeCloseTo(0.006, 6); // OD 12 mm → r 6 mm
+  });
+
   it("resolves the motor and flies a validated flight", () => {
     const run = runFromDocument(doc);
     expect(run.hasPropulsion).toBe(true);

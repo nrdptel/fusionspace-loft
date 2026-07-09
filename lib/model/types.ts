@@ -225,6 +225,10 @@ export interface MinorComponent extends ComponentBase {
   kind: "shockcord" | "launchlug" | "railbutton";
   mass?: number;
   length?: number;
+  /** Outer radius (m) of a launch lug or rail button — its frontal size, for protuberance drag. */
+  radius?: number;
+  /** How many of this fitting are on the airframe (a pair of rail buttons, twin lugs). */
+  instanceCount?: number;
 }
 
 export type RocketComponent =

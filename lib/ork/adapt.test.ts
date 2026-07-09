@@ -88,6 +88,28 @@ describe("graceful degradation", () => {
     expect(() => adaptOrkXml("<html></html>")).toThrow(/OpenRocket/);
   });
 
+  it("captures launch-lug and rail-button frontal size for protuberance drag", () => {
+    const xml = `<?xml version='1.0'?>
+      <openrocket version="1.10">
+        <rocket><name>Lugged</name>
+          <subcomponents><stage><subcomponents>
+            <nosecone><length>0.1</length><aftradius>0.025</aftradius><shape>ogive</shape></nosecone>
+            <bodytube><length>0.4</length><radius>0.025</radius><thickness>0.001</thickness><subcomponents>
+              <launchlug><radius>0.004</radius><length>0.03</length><thickness>0.0005</thickness></launchlug>
+              <railbutton><outerdiameter>0.01</outerdiameter><height>0.006</height><instancecount>2</instancecount></railbutton>
+            </subcomponents></bodytube>
+          </subcomponents></stage></subcomponents>
+        </rocket>
+      </openrocket>`;
+    const doc = adaptOrkXml(xml);
+    const flat = flattenRocket(doc.rocket);
+    const lug = flat.find((p) => p.component.kind === "launchlug")!.component;
+    const button = flat.find((p) => p.component.kind === "railbutton")!.component;
+    expect("radius" in lug && lug.radius).toBeCloseTo(0.004, 6);
+    expect("radius" in button && button.radius).toBeCloseTo(0.005, 6); // OD 10 mm → r 5 mm
+    expect("instanceCount" in button && button.instanceCount).toBe(2);
+  });
+
   it("resolves an internal part nested in a coupler, so one auto radius can't poison the model", () => {
     // A bulkhead with no radius, nested inside a tube coupler (not directly in the tube). It
     // must inherit the coupler's radius; if it stayed NaN it would poison the total mass and
