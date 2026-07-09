@@ -48,13 +48,18 @@ export default function Limitations() {
 
       <h3>Transonic and supersonic drag are approximate</h3>
       <p>
-        Above about Mach 0.8 the drag model leaves its validated envelope. It now follows the
+        Above about Mach 0.8 the drag model leaves its validated envelope. It follows the
         correct <em>shape</em> — a transonic drag rise to a peak near Mach 1.15, then a supersonic
         decline — with base drag switching to its supersonic form, rather than the earlier model
         whose drag grew without bound (badly over-stating drag, and under-stating apogee, for fast
-        flights). But the wave-drag magnitude is a bounded parametric estimate scaled by fin
-        thickness and slenderness, not a per-geometry wave-drag solution: there is no shock/CFD
-        model and no shape-specific supersonic pressure distribution. Any flight above Mach 0.8 is
+        flights). The peak now responds to geometry — the nose&apos;s fineness and contour (a Von
+        Kármán ogive lowest, a blunt cone highest) and the fins&apos; thickness and leading-edge
+        sweep — so changing a nose or fin for a Mach shot moves the wave drag the right way. But it
+        remains a bounded parametric estimate, not a per-geometry wave-drag solution: there is no
+        shock/CFD model and no shape-specific supersonic pressure distribution, and the drag-rise
+        Mach is fixed rather than derived. Note too that at low supersonic speeds a nose&apos;s wave
+        drag is only part of the story — its wetted area and mass matter as much — so the fastest,
+        highest flight isn&apos;t always the lowest-wave-drag nose. Any flight above Mach 0.8 is
         flagged <em>extrapolated</em>; treat apogee and max velocity for fast flights as rough, and
         expect the largest differences here.
       </p>

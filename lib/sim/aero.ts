@@ -9,9 +9,11 @@
  *
  *  Drag — a subsonic component buildup: turbulent skin friction with a fineness/thickness
  *  form factor (Hoerner-style), base drag from the standard subsonic correlation, and
- *  modest pressure/interference terms. Beyond ~M0.8 the result is flagged as extrapolated;
- *  the transonic/supersonic rise here is crude by design and its error is reported by the
- *  validation harness, not hidden. See the in-app methods section and limitations log.
+ *  modest pressure/interference terms. Above ~M0.8 a transonic/supersonic wave-drag term is
+ *  added whose peak is geometry-driven — the nose's own fineness and contour shape, and the
+ *  fins' thickness reduced by leading-edge sweep — but it remains a bounded parametric
+ *  estimate, not a per-geometry wave-drag solution, and every such flight is flagged
+ *  extrapolated. See the in-app methods section and limitations log.
  */
 
 import type { Rocket, TrapezoidFinSet, GenericFinSet } from "../model/types";
@@ -151,7 +153,28 @@ export interface AeroGeometry {
   finFrontalArea: number;
   /** Roughness height (m) from the roughest surface finish present. */
   roughness: number;
+  /** Forebody (nose) fineness ratio, length / diameter — the primary wave-drag driver. */
+  noseFineness: number;
+  /** Nose-contour wave-drag factor relative to a Von Kármán ogive (= 1.0, the minimum). */
+  noseShapeFactor: number;
+  /** Leading-edge sweep factor cos²Λ for the fins (1 = unswept), reducing supersonic fin
+   *  wave drag as the leading edge sweeps back. */
+  finSweepFactor: number;
 }
+
+/** Transonic/supersonic wave-drag of a nose contour, relative to a Von Kármán ogive of the
+ *  same fineness (the minimum-drag body of revolution, = 1.0). The ordering — Haack/Von Kármán
+ *  lowest, then parabolic, power, tangent-ogive, ellipsoid, conical highest — follows the
+ *  published nose-shape drag comparisons (Hoerner, *Fluid-Dynamic Drag*; the Sears–Haack /
+ *  Von Kármán minimum-drag result). It is a bounded relative estimate, not a CFD solution. */
+const NOSE_WAVE_FACTOR: Record<string, number> = {
+  haack: 1.0, // Von Kármán / LD-Haack — minimum wave drag by construction
+  parabolic: 1.1,
+  power: 1.15,
+  ogive: 1.2,
+  ellipsoid: 1.3,
+  conical: 1.4,
+};
 
 const FINISH_ROUGHNESS: Record<string, number> = {
   rough: 500e-6,
@@ -177,6 +200,14 @@ export function aeroGeometry(rocket: Rocket): AeroGeometry {
   let finThickness = 0;
   let meanFinChord = 0;
   let finSpan = 0;
+  let finSweepLength = 0;
+
+  // Forebody (nose) geometry — the dominant wave-drag driver. Captured from the frontmost
+  // nose cone; a design with none keeps a neutral default (a mid-fineness ogive).
+  let noseLength = 0;
+  let noseBaseRadius = 0;
+  let noseShapeFactor = NOSE_WAVE_FACTOR.ogive;
+  let haveNose = false;
 
   let aftBodyEnd = 0;
   for (const p of flat) {
@@ -190,6 +221,12 @@ export function aeroGeometry(rocket: Rocket): AeroGeometry {
       if (p.xFore + c.length > aftBodyEnd) {
         aftBodyEnd = p.xFore + c.length;
         baseRadius = c.aftRadius;
+      }
+      if (!haveNose) {
+        haveNose = true;
+        noseLength = c.length;
+        noseBaseRadius = c.aftRadius;
+        noseShapeFactor = NOSE_WAVE_FACTOR[c.shape] ?? NOSE_WAVE_FACTOR.ogive;
       }
     } else if (c.kind === "bodytube") {
       bodyLength += c.length;
@@ -212,16 +249,26 @@ export function aeroGeometry(rocket: Rocket): AeroGeometry {
       finThickness = Math.max(finThickness, c.thickness);
       meanFinChord = (c.rootChord + c.tipChord) / 2;
       finSpan = Math.max(finSpan, c.height);
+      finSweepLength = c.sweepLength;
     } else if (c.kind === "ellipticalfinset" || c.kind === "freeformfinset") {
       finWetted += 2 * c.area * c.finCount;
       finCount = Math.max(finCount, c.finCount);
       finThickness = Math.max(finThickness, c.thickness);
       meanFinChord = c.height > 0 ? c.area / c.height : c.rootChord;
       finSpan = Math.max(finSpan, c.height);
+      finSweepLength = c.sweepLength;
     }
   }
 
   const refArea = Math.PI * rRef * rRef;
+  // Nose fineness = length / diameter; slender ⇒ far less wave drag. Default to a moderate
+  // ogive when the design has no nose cone (a reduced or tube-only vehicle).
+  const noseDiameter = 2 * (noseBaseRadius > 0 ? noseBaseRadius : rRef);
+  const noseFineness = haveNose && noseDiameter > 0 ? noseLength / noseDiameter : 3;
+  // Fin leading-edge sweep Λ (from the tip's aft offset over the span): supersonic fin wave
+  // drag falls with cos²Λ as the leading edge sweeps back behind the Mach cone.
+  const sweepAngle = finSpan > 0 ? Math.atan2(finSweepLength, finSpan) : 0;
+  const cosL = Math.cos(sweepAngle);
   return {
     refRadius: rRef,
     refArea,
@@ -237,6 +284,9 @@ export function aeroGeometry(rocket: Rocket): AeroGeometry {
     finThickness,
     finFrontalArea: finCount * finThickness * finSpan,
     roughness: roughness || FINISH_ROUGHNESS.unfinished,
+    noseFineness: Math.max(0.5, noseFineness),
+    noseShapeFactor,
+    finSweepFactor: clamp(cosL * cosL, 0.35, 1),
   };
 }
 
@@ -322,14 +372,19 @@ export function dragCoefficient(
 const M_CRIT = 0.8;
 const M_PEAK = 1.15;
 
-/** Transonic/supersonic wave-drag coefficient (referenced to the reference area). Zero
- *  below M_CRIT; a smooth rise to a peak at M_PEAK whose height grows with fin thickness and
- *  falls with body slenderness; then a supersonic decline toward a slender-body plateau. */
+/** Transonic/supersonic wave-drag coefficient (referenced to the reference area). Zero below
+ *  M_CRIT; a smooth rise to a peak at M_PEAK, then a supersonic decline toward a slender-body
+ *  plateau. The peak height is geometry-driven: the forebody term scales with the nose's own
+ *  fineness (slender ⇒ less) and its contour shape (Von Kármán lowest, cone highest), and the
+ *  fin term with fin thickness ratio reduced by leading-edge sweep (cos²Λ). This is a bounded
+ *  parametric estimate of the transonic hump, not a per-geometry wave-drag solution. */
 function waveDrag(geom: AeroGeometry, mach: number): number {
   if (mach <= M_CRIT) return 0;
-  const finTerm = 2.0 * Math.max(0, geom.finThicknessRatio);
-  const noseTerm = 0.35 / Math.max(1, geom.bodyFineness / 6); // slender ⇒ less wave drag
-  const peak = clamp(noseTerm + finTerm + 0.15, 0.2, 1.2);
+  // Forebody wave drag falls with nose fineness (~1/fn transonic trend) and rises with the
+  // contour's shape factor; fins add their thickness drag, cut by leading-edge sweep.
+  const noseTerm = (geom.noseShapeFactor * 0.6) / geom.noseFineness;
+  const finTerm = 2.0 * Math.max(0, geom.finThicknessRatio) * geom.finSweepFactor;
+  const peak = clamp(noseTerm + finTerm + 0.05, 0.12, 1.2);
   if (mach <= M_PEAK) {
     const t = (mach - M_CRIT) / (M_PEAK - M_CRIT); // 0→1
     return peak * t * t * (3 - 2 * t); // smoothstep rise
