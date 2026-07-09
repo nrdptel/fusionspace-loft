@@ -277,3 +277,50 @@ describe("dual-deploy fixture flight", () => {
     expect(run.result.warnings.some((w) => w.code === "transonic")).toBe(true);
   });
 });
+
+describe("hard-landing (undersized recovery) warning", () => {
+  const chuteOf = (doc: OrkDocument) =>
+    flattenRocket(doc.rocket).find((p) => p.component.kind === "parachute")?.component;
+
+  it("does not warn when the canopy brings it in at a sane descent rate", async () => {
+    // The bundled demos land at ~6–7 m/s — a normal descent, no caution.
+    for (const f of ["demo-single-deploy.ork", "demo-dual-deploy.ork"]) {
+      const run = runFromDocument(await load(f));
+      expect(run.result.summary.groundHitVelocity).toBeLessThan(7.6);
+      expect(run.result.warnings.some((w) => w.code === "hard-landing")).toBe(false);
+    }
+  });
+
+  it("warns when a chute is far too small for the airframe", async () => {
+    const doc = await load("demo-single-deploy.ork");
+    const chute = chuteOf(doc);
+    expect(chute?.kind).toBe("parachute");
+    if (chute?.kind === "parachute") {
+      chute.diameter = 0.15; // shrink the canopy drastically
+      chute.area = undefined;
+    }
+    const run = runFromDocument(doc);
+    const w = run.result.warnings.find((x) => x.code === "hard-landing");
+    expect(run.result.summary.groundHitVelocity).toBeGreaterThan(10.7);
+    expect(w).toBeDefined();
+    expect(w!.severity).toBe("warning"); // very hard landing
+    // A recovery device DID open, so this is the hard-landing case, not the ballistic one.
+    expect(run.result.warnings.some((x) => x.code === "ballistic-descent")).toBe(false);
+  });
+
+  it("cautions (not warns) at a merely firm landing between the thresholds", async () => {
+    const doc = await load("demo-single-deploy.ork");
+    const chute = chuteOf(doc);
+    if (chute?.kind === "parachute") {
+      chute.diameter = 0.35; // firm but not catastrophic
+      chute.area = undefined;
+    }
+    const run = runFromDocument(doc);
+    const v = run.result.summary.groundHitVelocity;
+    const w = run.result.warnings.find((x) => x.code === "hard-landing");
+    if (v > 7.6 && v <= 10.7) {
+      expect(w?.severity).toBe("caution");
+    }
+    expect(v).toBeGreaterThan(7.6);
+  });
+});

@@ -205,9 +205,11 @@ export default function Methods() {
         ascending, and a too-long delay opens it late at speed — or, if the charge would fire after
         the rocket is already down, not at all. Both a pre-apogee opening and a ballistic (no-deploy)
         descent are flagged. Descent then uses the summed deployed drag areas
-        (<code>C<sub>d</sub>·A</code>). Descent drift is the canopy drifting with the wind; with the
-        &ldquo;today&apos;s conditions&rdquo; re-run, the wind varies with altitude from the
-        winds-aloft profile.
+        (<code>C<sub>d</sub>·A</code>); the steady descent rate this gives is checked against the
+        ~3–6 m/s (10–20 ft/s) most designs aim for, and a firm (&gt;25 ft/s) or hard (&gt;35 ft/s)
+        landing under a too-small canopy is flagged as a caution or warning — a rule of thumb, not a
+        verdict. Descent drift is the canopy drifting with the wind; with the &ldquo;today&apos;s
+        conditions&rdquo; re-run, the wind varies with altitude from the winds-aloft profile.
       </p>
 
       <h2>Live weather (optional)</h2>

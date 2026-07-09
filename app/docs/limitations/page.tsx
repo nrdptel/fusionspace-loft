@@ -124,7 +124,11 @@ export default function Limitations() {
         is already down (flagged as a ballistic descent). The deployment velocity Loft reports is the
         speed at canopy open, which sets the opening-shock severity — but the shock force itself is
         not computed. Where no ejection charge is modelled for the motor, an ejection-triggered
-        device falls back to deploying at apogee.
+        device falls back to deploying at apogee. The steady descent rate is compared against the
+        ~3–6 m/s most designs aim for, and a firm or hard landing under an undersized canopy is
+        flagged — but that check is on descent <em>rate</em> alone; it doesn&apos;t weigh the
+        airframe&apos;s mass or fragility, so treat it as a prompt to check your recovery sizing, not
+        a verdict.
       </p>
 
       <h3>Override-subcomponents is partial</h3>
