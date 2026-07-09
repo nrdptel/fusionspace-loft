@@ -143,6 +143,54 @@ describe("recovery deploy delay", () => {
   });
 });
 
+describe("ejection-charge deployment timing", () => {
+  const setEjection = (doc: OrkDocument, motorDelay: number) => {
+    for (const p of flattenRocket(doc.rocket)) {
+      if (p.component.kind === "parachute") p.component.deployEvent = "ejection";
+    }
+    for (const cfg of doc.rocket.configurations) {
+      for (const inst of cfg.instances) inst.motor.delay = motorDelay;
+    }
+  };
+
+  it("fires at the motor's ejection charge — a too-short delay deploys before apogee", async () => {
+    const doc = await load("demo-single-deploy.ork");
+    setEjection(doc, 1); // 1 s after burnout — well before this rocket's natural apogee
+    const run = runFromDocument(doc);
+    const apogee = run.result.events.find((e) => e.type === "apogee")!;
+    const deploy = run.result.events.find((e) => e.type === "deploy")!;
+    expect(deploy.time).toBeLessThan(apogee.time); // opened while still ascending
+    expect(run.result.warnings.some((w) => w.code === "early-deployment")).toBe(true);
+  });
+
+  it("deploys after apogee for a long delay — timing tracks the charge, not apogee", async () => {
+    const short = await load("demo-single-deploy.ork");
+    setEjection(short, 1);
+    const shortDeploy = runFromDocument(short).result.events.find((e) => e.type === "deploy")!;
+
+    const long = await load("demo-single-deploy.ork");
+    setEjection(long, 20); // fires well after apogee
+    const longRun = runFromDocument(long);
+    const apogee = longRun.result.events.find((e) => e.type === "apogee")!;
+    const deploy = longRun.result.events.find((e) => e.type === "deploy")!;
+    expect(deploy.time).toBeGreaterThan(apogee.time); // opened while descending
+    expect(longRun.result.warnings.some((w) => w.code === "early-deployment")).toBe(false);
+    // Same rocket, different delay ⇒ different deploy time: timing is the charge, not apogee.
+    expect(Math.abs(shortDeploy.time - deploy.time)).toBeGreaterThan(2);
+    // Still recovers under canopy despite the free-fall before it opens.
+    expect(longRun.result.summary.groundHitVelocity).toBeLessThan(15);
+  });
+
+  it("flags a ballistic descent when the charge would fire after the rocket is already down", async () => {
+    const doc = await load("demo-single-deploy.ork");
+    setEjection(doc, 60); // far longer than the whole flight
+    const run = runFromDocument(doc);
+    expect(run.result.events.some((e) => e.type === "deploy")).toBe(false);
+    expect(run.result.warnings.some((w) => w.code === "ballistic-descent")).toBe(true);
+    expect(run.result.summary.groundHitVelocity).toBeGreaterThan(50); // comes in ballistic
+  });
+});
+
 describe("dual-deploy fixture flight", () => {
   it("deploys a drogue at apogee and a main at altitude", async () => {
     const doc = await load("demo-dual-deploy.ork");

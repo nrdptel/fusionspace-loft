@@ -93,10 +93,14 @@ export default function Limitations() {
         A device deploys on its event and honours its deploy delay — the vehicle free-falls on body
         drag until the canopy opens — but the canopy is then modelled as opening{" "}
         <em>instantly</em> to its full drag area: there is no inflation transient, no opening-shock
-        load, and no reefing. Motor-ejection deployments are triggered at apogee rather than at the
-        exact ejection-charge time, so a badly mistimed ejection delay isn&apos;t modelled as an
-        early or late opening. The deployment velocity Loft reports is the speed at canopy open,
-        which sets the opening-shock severity — but the shock force itself is not computed.
+        load, and no reefing. A motor-ejection deployment fires at the motor&apos;s actual ejection
+        charge (burnout plus the design&apos;s delay), so a mistimed delay shows up honestly — an
+        early, still-ascending deployment (flagged, since it can zipper or shred), or a late one that
+        opens at speed after a free-fall, or a delay so long the charge would fire after the rocket
+        is already down (flagged as a ballistic descent). The deployment velocity Loft reports is the
+        speed at canopy open, which sets the opening-shock severity — but the shock force itself is
+        not computed. Where no ejection charge is modelled for the motor, an ejection-triggered
+        device falls back to deploying at apogee.
       </p>
 
       <h3>Override-subcomponents is partial</h3>

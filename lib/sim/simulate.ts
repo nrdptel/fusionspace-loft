@@ -210,6 +210,10 @@ export function simulate(input: SimulateInput): FlightResult {
   };
 
   const burnout = burnoutTime(motors);
+  // The first ejection charge to fire (burnout + the design's delay). A device set to deploy
+  // "at ejection" opens at this time — which may be before or after apogee, depending on the
+  // delay — rather than always at apogee, so a mistimed delay shows as an early or late deploy.
+  const ejectionChargeTime = firstEjectionTime(motors);
 
   // Recovery deploy times resolved during integration.
   const events: FlightEvent[] = [];
@@ -232,6 +236,7 @@ export function simulate(input: SimulateInput): FlightResult {
   let prevSpeed = 0;
   let liftedOff = false;
   let apogeePassed = false;
+  let deployedBeforeApogee = false;
   let landed = false;
 
   events.push({ type: "ignition", time: 0, altitude: 0, velocity: 0 });
@@ -265,9 +270,9 @@ export function simulate(input: SimulateInput): FlightResult {
 
     // Drag — opposes the air-relative velocity.
     if (airSpeed > 0.01) {
-      const isDescent = apogeePassed;
       let cdA: number;
-      if (isDescent && anyDeployed(recovery, s.t)) {
+      if (anyDeployed(recovery, s.t)) {
+        // An open canopy drags whenever it is open — including a too-early (pre-apogee) deploy.
         cdA = deployedCdA(recovery, s.t) + geom.refArea * 0.5; // chutes + a little body
       } else {
         const dr = dragCoefficient(geom, atm, airSpeed, boosting);
@@ -367,14 +372,17 @@ export function simulate(input: SimulateInput): FlightResult {
       if (dev.event === "never") continue;
       if (dev.deployedAt === undefined) {
         let trigger = false;
-        if (dev.event === "apogee" && apogeePassed) trigger = true;
-        else if (dev.event === "ejection" && apogeePassed) trigger = true;
-        else if (dev.event === "altitude" && apogeePassed && state.pos.z <= (dev.deployAltitude ?? 0)) trigger = true;
-        else if (dev.event === "launch" && liftedOff) trigger = true;
+        if (dev.event === "apogee") trigger = apogeePassed;
+        else if (dev.event === "ejection")
+          // Fire at the motor's ejection charge if one is modelled; else fall back to apogee.
+          trigger = ejectionChargeTime !== undefined ? state.t >= ejectionChargeTime : apogeePassed;
+        else if (dev.event === "altitude") trigger = apogeePassed && state.pos.z <= (dev.deployAltitude ?? 0);
+        else if (dev.event === "launch") trigger = liftedOff;
         if (trigger) dev.deployedAt = state.t + (dev.deployDelay ?? 0);
       }
       if (dev.deployedAt !== undefined && !dev.opened && state.t >= dev.deployedAt) {
         dev.opened = true;
+        if (!apogeePassed) deployedBeforeApogee = true;
         if (deploymentV === 0) deploymentV = speed;
         events.push({
           type: "deploy",
@@ -387,10 +395,9 @@ export function simulate(input: SimulateInput): FlightResult {
     }
 
     // Sample the trajectory (thin it during long descent).
-    const cdNow =
-      apogeePassed && anyDeployed(recovery, state.t)
-        ? 0
-        : dragCoefficient(geom, atm, airSpeed, thrust > 0).cd;
+    const cdNow = anyDeployed(recovery, state.t)
+      ? 0
+      : dragCoefficient(geom, atm, airSpeed, thrust > 0).cd;
     if (shouldSample(trajectory, state.t, phase)) {
       trajectory.push({
         t: state.t,
@@ -446,6 +453,11 @@ export function simulate(input: SimulateInput): FlightResult {
     motorsPlaced: motors.length,
     apogee: apogeeAlt,
     landed,
+    deployedBeforeApogee,
+    deploymentVelocity: deploymentV,
+    recoveryExpected: recovery.length > 0,
+    anyRecoveryOpened: recovery.some((d) => d.opened),
+    groundHitVelocity,
   });
 
   return {
@@ -512,6 +524,15 @@ function burnoutTime(motors: ResolvedMotor[]): number {
   return t;
 }
 
+/** The earliest ejection-charge time across the motors (burnout + the design's delay), or
+ *  undefined if no motor carries a modelled ejection charge (e.g. a plugged motor). A device
+ *  set to deploy at ejection opens at this time. */
+function firstEjectionTime(motors: ResolvedMotor[]): number | undefined {
+  let t = Infinity;
+  for (const m of motors) if (m.ejectionTime !== undefined && m.ejectionTime < t) t = m.ejectionTime;
+  return Number.isFinite(t) ? t : undefined;
+}
+
 /** A device contributes drag only once its canopy has opened — i.e. the trigger has fired AND
  *  its deploy delay has elapsed (t ≥ deployedAt). Before then the vehicle falls on body drag. */
 function anyDeployed(recovery: RecoveryDeviceSim[], t: number): boolean {
@@ -544,8 +565,41 @@ function buildWarnings(
     motorsPlaced: number;
     apogee: number;
     landed: boolean;
+    /** A recovery device opened before apogee (likely a too-short ejection delay). */
+    deployedBeforeApogee: boolean;
+    deploymentVelocity: number;
+    /** The design carries at least one recovery device. */
+    recoveryExpected: boolean;
+    /** At least one recovery device actually opened during the flight. */
+    anyRecoveryOpened: boolean;
+    groundHitVelocity: number;
   },
 ): void {
+  // A recovery device configured but never deployed before the ground = ballistic impact. This
+  // is the too-long-delay / plugged-motor case, and it's the most serious thing Loft can flag.
+  if (ctx.recoveryExpected && ctx.landed && !ctx.anyRecoveryOpened) {
+    out.push({
+      code: "ballistic-descent",
+      message:
+        `No recovery device deployed before the rocket reached the ground — it comes in ballistic ` +
+        `at about ${ctx.groundHitVelocity.toFixed(0)} m/s. The ejection charge fires after the rocket ` +
+        "is already down (delay too long), or no ejection is modelled for the motor. Verify the recovery timing.",
+      severity: "warning",
+    });
+  } else if (ctx.deployedBeforeApogee) {
+    // Deployed before apogee — while still ascending. Severity scales with speed: a fast early
+    // deployment risks a zipper or shredded canopy; barely early and slow is only marginal.
+    const fast = ctx.deploymentVelocity > 30;
+    out.push({
+      code: "early-deployment",
+      message:
+        `A recovery device opens before apogee, while the rocket is still ascending` +
+        `${ctx.deploymentVelocity > 0 ? ` at about ${ctx.deploymentVelocity.toFixed(0)} m/s` : ""}. ` +
+        `The motor's ejection delay looks short for this flight${fast ? "; an early deployment at this speed can zipper the airframe or shred the parachute" : ""}. ` +
+        "Verify the delay against the motor's printed data.",
+      severity: fast ? "warning" : "caution",
+    });
+  }
   if (ctx.motorsPlaced === 0) {
     out.push({
       code: "no-motor",
