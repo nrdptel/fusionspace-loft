@@ -65,6 +65,17 @@ export default function Faq() {
         </p>
       </QA>
 
+      <QA q="My design has several motor configurations — can I compare them?">
+        <p>
+          Yes. When a <code>.ork</code> carries more than one flight configuration (OpenRocket&apos;s
+          stored simulations — say the same airframe on an H128W and a G40W), Loft shows a{" "}
+          <em>motor configuration</em> picker above the results. Each entry is labelled with its
+          motor(s) and the apogee OpenRocket stored for it; choosing one re-flies that configuration
+          and compares against its own stored numbers, so you can see how each motor changes the
+          flight. The bundled &ldquo;Motor comparison&rdquo; example shows it.
+        </p>
+      </QA>
+
       <QA q="Does it work offline?">
         <p>
           Yes — once loaded, install it or just revisit and it runs with no connection: the app, the

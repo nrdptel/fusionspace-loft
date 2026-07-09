@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { importOrk } from "../ork/import";
-import { runFromDocument } from "./run";
+import { runFromDocument, configChoices } from "./run";
 import { flattenRocket } from "../model/geometry";
 import type { OrkDocument } from "../ork/adapt";
 
@@ -140,6 +140,36 @@ describe("recovery deploy delay", () => {
     const dep = runDelayed.result.events.find((e) => e.type === "deploy")!;
     expect(dep.time - apo.time).toBeGreaterThan(5.5);
     expect(dep.time - apo.time).toBeLessThan(6.5);
+  });
+});
+
+describe("multi-configuration selection", () => {
+  it("offers each stored simulation as a labelled configuration choice", async () => {
+    const doc = await load("demo-multi-config.ork");
+    const choices = configChoices(doc);
+    expect(choices).toHaveLength(2);
+    expect(choices[0].motors).toEqual(["H128W"]);
+    expect(choices[1].motors).toEqual(["G40W"]);
+    expect(choices[0].storedApogeeM).toBe(980);
+    expect(choices[1].storedApogeeM).toBe(520);
+  });
+
+  it("flies the chosen configuration's motor and compares to its own stored results", async () => {
+    const doc = await load("demo-multi-config.ork");
+    const forSim = (i: number) =>
+      runFromDocument(doc, {
+        configId: doc.simulations[i].conditions.configId,
+        validateAgainst: doc.simulations[i],
+      });
+    const h = forSim(0);
+    const g = forSim(1);
+    expect(h.resolutions[0].match?.entry.curve.designation).toBe("H128W");
+    expect(g.resolutions[0].match?.entry.curve.designation).toBe("G40W");
+    // The larger motor flies higher, and each is compared against its own stored numbers.
+    expect(h.result.summary.apogee).toBeGreaterThan(g.result.summary.apogee);
+    expect(h.validation).toBeDefined();
+    expect(g.validation).toBeDefined();
+    expect(doc.flownAsReduced).toBe(false);
   });
 });
 

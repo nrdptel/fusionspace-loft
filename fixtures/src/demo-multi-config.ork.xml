@@ -1,0 +1,175 @@
+<?xml version='1.0' encoding='utf-8'?>
+<openrocket version="1.10" creator="Loft fixture (hand-authored, OpenRocket 1.10 schema)">
+  <rocket>
+    <name>Loft Demo 38mm — motor comparison</name>
+    <id>10f70000-0000-4000-8000-0000000000c1</id>
+    <designer>Fusion Space (Loft fixture)</designer>
+    <motorconfiguration configid="cfg-38-h128" default="true">
+      <stage number="0" active="true"/>
+    </motorconfiguration>
+    <motorconfiguration configid="cfg-38-g40">
+      <stage number="0" active="true"/>
+    </motorconfiguration>
+    <referencetype>maximum</referencetype>
+    <subcomponents>
+      <stage>
+        <name>Sustainer</name>
+        <id>10f70000-0000-4000-8000-0000000000c2</id>
+        <subcomponents>
+          <nosecone>
+            <name>Nose cone</name>
+            <id>10f70000-0000-4000-8000-0000000000c3</id>
+            <finish>smooth</finish>
+            <material type="bulk" density="1850.0">Fiberglass</material>
+            <length>0.25</length>
+            <thickness>0.003</thickness>
+            <shape>ogive</shape>
+            <shapeparameter>1.0</shapeparameter>
+            <aftradius>0.019</aftradius>
+          </nosecone>
+          <bodytube>
+            <name>Body tube</name>
+            <id>10f70000-0000-4000-8000-0000000000c4</id>
+            <finish>smooth</finish>
+            <material type="bulk" density="1850.0">Fiberglass</material>
+            <length>0.70</length>
+            <thickness>0.002</thickness>
+            <radius>0.019</radius>
+            <subcomponents>
+              <masscomponent>
+                <name>Altimeter + battery</name>
+                <id>10f70000-0000-4000-8000-0000000000c5</id>
+                <axialoffset method="top">0.15</axialoffset>
+                <packedlength>0.06</packedlength>
+                <packedradius>0.015</packedradius>
+                <mass>0.070</mass>
+                <masscomponenttype>altimeter</masscomponenttype>
+              </masscomponent>
+              <parachute>
+                <name>Main parachute</name>
+                <id>10f70000-0000-4000-8000-0000000000c6</id>
+                <axialoffset method="top">0.05</axialoffset>
+                <packedlength>0.09</packedlength>
+                <packedradius>0.018</packedradius>
+                <cd>0.8</cd>
+                <material type="surface" density="0.067">Ripstop nylon</material>
+                <deployevent>apogee</deployevent>
+                <deploydelay>0.0</deploydelay>
+                <diameter>0.61</diameter>
+                <linecount>6</linecount>
+                <linelength>0.6</linelength>
+                <linematerial type="line" density="0.0018">Braided nylon</linematerial>
+              </parachute>
+              <innertube>
+                <name>Motor mount tube</name>
+                <id>10f70000-0000-4000-8000-0000000000c8</id>
+                <axialoffset method="bottom">0.0</axialoffset>
+                <material type="bulk" density="680.0">Kraft phenolic</material>
+                <length>0.20</length>
+                <outerradius>0.0145</outerradius>
+                <thickness>0.0005</thickness>
+                <motormount>
+                  <ignitionevent>automatic</ignitionevent>
+                  <ignitiondelay>0.0</ignitiondelay>
+                  <overhang>0.0</overhang>
+                  <motor configid="cfg-38-h128">
+                    <type>single</type>
+                    <manufacturer>AeroTech</manufacturer>
+                    <designation>H128W</designation>
+                    <diameter>0.029</diameter>
+                    <length>0.194</length>
+                    <delay>6.0</delay>
+                  </motor>
+                  <motor configid="cfg-38-g40">
+                    <type>reload</type>
+                    <manufacturer>AeroTech</manufacturer>
+                    <designation>G40W</designation>
+                    <diameter>0.029</diameter>
+                    <length>0.124</length>
+                    <delay>6.0</delay>
+                  </motor>
+                </motormount>
+              </innertube>
+              <centeringring>
+                <name>Centering ring fore</name>
+                <id>10f70000-0000-4000-8000-0000000000c9</id>
+                <axialoffset method="bottom">-0.18</axialoffset>
+                <material type="bulk" density="630.0">Aircraft plywood</material>
+                <length>0.004</length>
+                <outerradius>0.017</outerradius>
+                <innerradius>0.0145</innerradius>
+              </centeringring>
+              <centeringring>
+                <name>Centering ring aft</name>
+                <id>10f70000-0000-4000-8000-0000000000ca</id>
+                <axialoffset method="bottom">-0.005</axialoffset>
+                <material type="bulk" density="630.0">Aircraft plywood</material>
+                <length>0.004</length>
+                <outerradius>0.017</outerradius>
+                <innerradius>0.0145</innerradius>
+              </centeringring>
+              <trapezoidfinset>
+                <name>Fins</name>
+                <id>10f70000-0000-4000-8000-0000000000c7</id>
+                <fincount>3</fincount>
+                <instancecount>3</instancecount>
+                <axialoffset method="bottom">0.0</axialoffset>
+                <finish>smooth</finish>
+                <material type="bulk" density="1850.0">G10 fiberglass</material>
+                <thickness>0.004</thickness>
+                <crosssection>square</crosssection>
+                <cant>0.0</cant>
+                <rootchord>0.12</rootchord>
+                <tipchord>0.06</tipchord>
+                <sweeplength>0.06</sweeplength>
+                <height>0.06</height>
+              </trapezoidfinset>
+            </subcomponents>
+          </bodytube>
+        </subcomponents>
+      </stage>
+    </subcomponents>
+  </rocket>
+  <simulations>
+    <simulation status="loaded">
+      <name>H128W</name>
+      <simulator>RK4Simulator</simulator>
+      <calculator>BarrowmanCalculator</calculator>
+      <conditions>
+        <configid>cfg-38-h128</configid>
+        <launchrodlength>1.2</launchrodlength>
+        <launchintowind>true</launchintowind>
+        <launchrodangle>0.0</launchrodangle>
+        <launchroddirection>0.0</launchroddirection>
+        <windaverage>2.0</windaverage>
+        <windturbulence>0.1</windturbulence>
+        <launchaltitude>0.0</launchaltitude>
+        <launchlatitude>40.0</launchlatitude>
+        <atmosphere model="isa"/>
+        <timestep>0.01</timestep>
+      </conditions>
+      <flightdata maxaltitude="980.0" maxvelocity="190.0" maxacceleration="238.0" maxmach="0.55" timetoapogee="12.4" flighttime="122.0" groundhitvelocity="4.7" launchrodvelocity="19.4" deploymentvelocity="3.2" optimumdelay="11.1">
+      </flightdata>
+    </simulation>
+    <simulation status="loaded">
+      <name>G40W</name>
+      <simulator>RK4Simulator</simulator>
+      <calculator>BarrowmanCalculator</calculator>
+      <conditions>
+        <configid>cfg-38-g40</configid>
+        <launchrodlength>1.2</launchrodlength>
+        <launchintowind>true</launchintowind>
+        <launchrodangle>0.0</launchrodangle>
+        <launchroddirection>0.0</launchroddirection>
+        <windaverage>2.0</windaverage>
+        <windturbulence>0.1</windturbulence>
+        <launchaltitude>0.0</launchaltitude>
+        <launchlatitude>40.0</launchlatitude>
+        <atmosphere model="isa"/>
+        <timestep>0.01</timestep>
+      </conditions>
+      <flightdata maxaltitude="520.0" maxvelocity="105.0" maxacceleration="82.0" maxmach="0.31" timetoapogee="10.7" flighttime="93.0" groundhitvelocity="4.7" launchrodvelocity="13.3" deploymentvelocity="2.6" optimumdelay="8.7">
+      </flightdata>
+    </simulation>
+  </simulations>
+</openrocket>

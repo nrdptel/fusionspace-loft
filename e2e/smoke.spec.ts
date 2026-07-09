@@ -38,6 +38,24 @@ test.describe("Loft", () => {
     await expect(page.getByText(/transonic|supersonic/i).first()).toBeVisible();
   });
 
+  test("multi-config sample lets you switch motor configuration", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: /Motor comparison/ }).click();
+    await expect(page.getByRole("heading", { name: /Loft Demo/ })).toBeVisible();
+
+    // The picker appears and the default configuration (H128W) is flown.
+    const picker = page.getByLabel("Motor configuration");
+    await expect(picker).toBeVisible();
+    await expect(page.getByText("H128W", { exact: false }).first()).toBeVisible();
+
+    // Switching to the G40W configuration re-flies and shows that motor.
+    await picker.selectOption("1");
+    await expect(page.getByText("G40W", { exact: false }).first()).toBeVisible();
+
+    // Each configuration compares against its own stored OpenRocket results.
+    await expect(page.getByRole("heading", { name: "OpenRocket vs Loft" })).toBeVisible();
+  });
+
   test("unit toggle switches to imperial", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
