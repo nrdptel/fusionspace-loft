@@ -1,5 +1,31 @@
 import { describe, it, expect } from "vitest";
-import { noseRadius, noseProps } from "./shapes";
+import { noseRadius, noseProps, transitionProps } from "./shapes";
+import type { NoseShape } from "../model/types";
+
+const SHAPES: NoseShape[] = ["conical", "ogive", "ellipsoid", "power", "parabolic", "haack"];
+
+describe("degenerate radius yields finite zero props (never NaN)", () => {
+  // Real files whose "auto" radii can't be resolved end up zeroed. A zero base radius must not
+  // poison volume/mass — the ogive contour in particular divides by R (rho = (R²+L²)/2R), so
+  // R=0 would otherwise give Infinity → NaN and a NaN liftoff mass. Regression for a real
+  // OpenRocket 15.03 template import that reported "NaN kg".
+  for (const s of SHAPES) {
+    it(`${s} nose with zero base radius`, () => {
+      const p = noseProps(s, 0.15, 0);
+      expect(Number.isFinite(p.volume)).toBe(true);
+      expect(Number.isFinite(p.centroid)).toBe(true);
+      expect(Number.isFinite(p.wettedArea)).toBe(true);
+      expect(p.volume).toBe(0);
+      expect(noseRadius(s, 0.05, 0.15, 0)).toBe(0);
+    });
+  }
+
+  it("transition with zero radii is finite and empty", () => {
+    const p = transitionProps("conical", 0.05, 0, 0);
+    expect(Number.isFinite(p.volume)).toBe(true);
+    expect(p.volume).toBe(0);
+  });
+});
 
 describe("nose shapes", () => {
   it("cone radius is linear and volume is πr²L/3", () => {
