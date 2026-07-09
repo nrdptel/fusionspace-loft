@@ -150,17 +150,23 @@ export default function Methods() {
         <li>
           <strong>Wave (compressibility) drag</strong> — zero below the critical Mach (~0.8), a
           smooth transonic rise to a peak near Mach 1.15, then a supersonic decline toward a
-          slender-body plateau. The peak scales with fin thickness and body bluntness. This gives
-          the total drag the published <code>C<sub>d</sub></code>–Mach shape (subsonic-flat →
-          transonic peak → supersonic decline) rather than growing without limit; any flight above
-          Mach 0.8 is still flagged <em>extrapolated</em>, as the transonic/supersonic model is a
-          bounded approximation, not a per-geometry wave-drag solution.
+          slender-body plateau. The peak is <em>geometry-driven</em>: the forebody term scales with
+          the nose&apos;s own fineness ratio (slender ⇒ less) and its contour shape — a Von Kármán
+          (LD-Haack) ogive is the minimum-wave-drag body, with parabolic, power, tangent-ogive,
+          ellipsoid, and conical noses ranked progressively higher, after the published nose-shape
+          drag comparisons — and the fin term with fin thickness ratio reduced by leading-edge sweep
+          (<code>cos²Λ</code>). This gives the total drag the published <code>C<sub>d</sub></code>–Mach
+          shape (subsonic-flat → transonic peak → supersonic decline) rather than growing without
+          limit; any flight above Mach 0.8 is still flagged <em>extrapolated</em>, as the peak is a
+          bounded parametric estimate, not a per-geometry wave-drag solution.
         </li>
       </ul>
       <p>
         <em>Sources:</em> S. F. Hoerner, <em>Fluid-Dynamic Drag</em> (1965); the drag treatment in
-        the OpenRocket technical documentation; standard flat-plate friction correlations. The drag
-        model is the largest source of error — see <Link href="/docs/limitations">limitations</Link>.
+        the OpenRocket technical documentation; standard flat-plate friction correlations; the
+        Sears–Haack / Von Kármán minimum-drag-body result and the published nose-cone drag
+        comparisons for the wave-drag shape ranking. The drag model is the largest source of error —
+        see <Link href="/docs/limitations">limitations</Link>.
       </p>
 
       <h2>Motors</h2>

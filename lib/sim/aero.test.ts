@@ -1,7 +1,29 @@
 import { describe, it, expect } from "vitest";
 import { barrowman, aeroGeometry, dragCoefficient, skinFriction } from "./aero";
 import { Atmosphere } from "./atmosphere";
-import type { Rocket, NoseCone, BodyTube, TrapezoidFinSet } from "../model/types";
+import type { Rocket, NoseCone, BodyTube, TrapezoidFinSet, NoseShape } from "../model/types";
+
+/** A slender rocket whose nose shape/length and fin sweep can be varied, to probe how the
+ *  transonic/supersonic wave drag responds to forebody and fin geometry. */
+function shapedRocket(opts: { shape?: NoseShape; noseLength?: number; sweep?: number; fins?: boolean }): Rocket {
+  const R = 0.05;
+  const nose: NoseCone = {
+    id: "n", name: "nose", kind: "nosecone", placement: { method: "after", offset: 0 },
+    length: opts.noseLength ?? 0.4, aftRadius: R, shape: opts.shape ?? "ogive", shapeParameter: 0, children: [],
+  };
+  const body: BodyTube = {
+    id: "b", name: "body", kind: "bodytube", placement: { method: "after", offset: 0 },
+    outerRadius: R, thickness: 0.002, length: 1.2, children: [],
+  };
+  if (opts.fins) {
+    const fins: TrapezoidFinSet = {
+      id: "f", name: "fins", kind: "trapezoidfinset", placement: { method: "bottom", offset: 0 },
+      finCount: 3, rootChord: 0.15, tipChord: 0.07, height: 0.08, sweepLength: opts.sweep ?? 0, thickness: 0.005, children: [],
+    };
+    body.children.push(fins);
+  }
+  return { name: "r", stages: [{ name: "s", components: [nose, body] }], configurations: [], referenceType: "maximum" };
+}
 
 function coneRocket(): Rocket {
   const nose: NoseCone = {
@@ -82,6 +104,53 @@ describe("dragCoefficient", () => {
     const coasting = dragCoefficient(geom, atm, 80, false);
     const boosting = dragCoefficient(geom, atm, 80, true);
     expect(boosting.base).toBeLessThan(coasting.base);
+  });
+});
+
+describe("wave drag is geometry-aware", () => {
+  const atm = new Atmosphere().sample(2000);
+  const waveAt = (r: Rocket, M: number) =>
+    dragCoefficient(aeroGeometry(r), atm, M * atm.speedOfSound, false).wave;
+
+  it("ranks nose contours by published wave-drag order (Von Kármán lowest, cone highest)", () => {
+    // Same fineness, only the contour differs. Ordering follows the published nose-shape drag
+    // comparison: Haack/Von Kármán < parabolic < power < ogive < ellipsoid < conical.
+    const order: NoseShape[] = ["haack", "parabolic", "power", "ogive", "ellipsoid", "conical"];
+    for (const M of [1.15, 2]) {
+      const waves = order.map((shape) => waveAt(shapedRocket({ shape, noseLength: 0.4 }), M));
+      for (let i = 1; i < waves.length; i++) {
+        expect(waves[i]).toBeGreaterThan(waves[i - 1]);
+      }
+    }
+  });
+
+  it("falls as the nose gets more slender (higher fineness)", () => {
+    let prev = Infinity;
+    for (const noseLength of [0.2, 0.3, 0.4, 0.6, 0.8]) {
+      const w = waveAt(shapedRocket({ shape: "ogive", noseLength }), 1.15);
+      expect(w).toBeLessThan(prev);
+      prev = w;
+    }
+    // A stubby (fineness 2) nose has markedly more wave drag than a slender (fineness 8) one.
+    expect(waveAt(shapedRocket({ shape: "ogive", noseLength: 0.2 }), 1.15)).toBeGreaterThan(
+      1.8 * waveAt(shapedRocket({ shape: "ogive", noseLength: 0.8 }), 1.15),
+    );
+  });
+
+  it("reduces fin wave drag as the leading edge sweeps back", () => {
+    const straight = waveAt(shapedRocket({ fins: true, sweep: 0 }), 1.15);
+    const swept = waveAt(shapedRocket({ fins: true, sweep: 0.15 }), 1.15);
+    expect(swept).toBeLessThan(straight);
+  });
+
+  it("stays zero below the critical Mach and bounded through supersonic", () => {
+    const r = shapedRocket({ shape: "conical", noseLength: 0.2, fins: true, sweep: 0 });
+    expect(waveAt(r, 0.7)).toBe(0);
+    for (const M of [0.85, 1.15, 2, 3.5, 5]) {
+      const w = waveAt(r, M);
+      expect(w).toBeGreaterThan(0);
+      expect(w).toBeLessThanOrEqual(1.2);
+    }
   });
 });
 
