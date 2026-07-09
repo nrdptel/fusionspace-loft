@@ -9,6 +9,7 @@ binaries are regenerated from it (any ZIP tool works — the entry must be named
 |------|--------|-------|----------|
 | `demo-single-deploy.ork` | 38 mm fibreglass sport rocket, 29 mm mount | AeroTech H128W | single deploy at apogee |
 | `demo-dual-deploy.ork` | 54 mm fibreglass dual-deploy | AeroTech K550W | drogue at apogee, main at 150 m |
+| `demo-multi-config.ork` | Same 38 mm airframe with two motor configurations (stored simulations), so the app's motor-configuration picker has something to switch between | AeroTech H128W and G40W | single deploy at apogee |
 | `demo-quirks.ork` | Parser regression: `auto` radii (bare + valued), a boattail transition, a tube coupler with a subcomponent, an elliptical fin set, legacy element names (`<position>`, `<fincount>`), and a parallel stage | AeroTech J420R | streamer at apogee |
 
 `demo-quirks.ork` isn't a realistic design — it deliberately exercises format features real

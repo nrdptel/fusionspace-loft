@@ -6,10 +6,11 @@ import ImportPanel from "./ImportPanel";
 import ResultsView from "./ResultsView";
 import { Segmented } from "./ui";
 import { importOrkFile, importOrk, type OrkDocument } from "@/lib/ork/import";
-import { runFlight, overridesFromStored, type FlightRun } from "@/lib/sim/run";
+import { runFlight, overridesFromStored, configChoices, type FlightRun, type ConfigChoice } from "@/lib/sim/run";
 import type { ConditionOverrides } from "@/lib/sim/setup";
 import { fetchConditions, geocode, type WeatherConditions } from "@/lib/weather";
 import { mToFt, ftToM, mpsToMph, mphToMps } from "@/lib/units";
+import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
 
 interface Edits {
@@ -29,10 +30,11 @@ export default function LoftApp() {
   const [edits, setEdits] = useState<Edits>({});
   const [weather, setWeather] = useState<WeatherConditions | null>(null);
   const [scenario, setScenario] = useState<"design" | "today">("design");
+  const [simIndex, setSimIndex] = useState(0);
 
   const compute = useCallback(
-    (document: OrkDocument, e: Edits, wx: WeatherConditions | null, scen: "design" | "today"): FlightRun => {
-      const stored = document.simulations[0];
+    (document: OrkDocument, e: Edits, wx: WeatherConditions | null, scen: "design" | "today", idx: number): FlightRun => {
+      const stored = document.simulations[idx] ?? document.simulations[0];
       const base: ConditionOverrides = stored ? overridesFromStored(stored) : {};
       const overrides: ConditionOverrides = { ...base };
       if (e.rodLength !== undefined) overrides.rodLength = e.rodLength;
@@ -66,9 +68,10 @@ export default function LoftApp() {
       setEdits({});
       setWeather(null);
       setScenario("design");
+      setSimIndex(0);
       setError(null);
       try {
-        setRun(compute(document, {}, null, "design"));
+        setRun(compute(document, {}, null, "design", 0));
       } catch (err) {
         setError(err instanceof Error ? err.message : "Could not simulate this design.");
         setRun(null);
@@ -117,19 +120,30 @@ export default function LoftApp() {
     (e: Edits, wx: WeatherConditions | null, scen: "design" | "today") => {
       if (!doc) return;
       try {
-        setRun(compute(doc, e, wx, scen));
+        setRun(compute(doc, e, wx, scen, simIndex));
         setError(null);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Could not simulate.");
       }
     },
-    [doc, compute],
+    [doc, compute, simIndex],
   );
 
   const applyEdit = (patch: Edits) => {
     const next = { ...edits, ...patch };
     setEdits(next);
     rerun(next, weather, scenario);
+  };
+
+  const selectConfig = (idx: number) => {
+    setSimIndex(idx);
+    if (!doc) return;
+    try {
+      setRun(compute(doc, edits, weather, scenario, idx));
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not simulate.");
+    }
   };
 
   const reset = () => {
@@ -140,7 +154,10 @@ export default function LoftApp() {
     setEdits({});
     setWeather(null);
     setScenario("design");
+    setSimIndex(0);
   };
+
+  const choices = doc ? configChoices(doc) : [];
 
   return (
     <div className="mt-8">
@@ -199,6 +216,10 @@ export default function LoftApp() {
             />
           </div>
 
+          {choices.length > 1 && (
+            <ConfigPicker choices={choices} selected={simIndex} onSelect={selectConfig} units={units} />
+          )}
+
           {doc.warnings.length > 0 && (
             <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-300">
               <p className="font-medium">Some parts of this design weren&apos;t fully understood:</p>
@@ -232,6 +253,50 @@ export default function LoftApp() {
         </div>
       )}
     </div>
+  );
+}
+
+// --- motor-configuration picker ------------------------------------------------------
+
+/** When a design carries more than one flight configuration (OpenRocket's stored simulations —
+ *  e.g. the same airframe on an H128W and a G40W), let the flyer choose which to simulate. Each
+ *  option shows the motor(s) and the apogee OpenRocket stored for it, so motors can be compared. */
+function ConfigPicker({
+  choices,
+  selected,
+  onSelect,
+  units,
+}: {
+  choices: ConfigChoice[];
+  selected: number;
+  onSelect: (simIndex: number) => void;
+  units: UnitSystem;
+}) {
+  const optionLabel = (c: ConfigChoice): string => {
+    const motors = c.motors.length ? c.motors.join(" + ") : c.name || "Configuration";
+    if (c.storedApogeeM === undefined) return motors;
+    const a = d.altitude(c.storedApogeeM, units);
+    return `${motors} · ${a.value} ${a.unit}`;
+  };
+  return (
+    <label className="flex flex-wrap items-center gap-2 rounded-lg border border-zinc-200 bg-white px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900/40">
+      <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Motor configuration</span>
+      <select
+        aria-label="Motor configuration"
+        value={selected}
+        onChange={(e) => onSelect(Number(e.target.value))}
+        className="min-w-0 flex-1 rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+      >
+        {choices.map((c) => (
+          <option key={c.simIndex} value={c.simIndex} title={c.name}>
+            {optionLabel(c)}
+          </option>
+        ))}
+      </select>
+      <span className="w-full text-xs text-zinc-500 dark:text-zinc-400 sm:w-auto">
+        {choices.length} configurations in this design — the apogee shown is OpenRocket&apos;s stored value.
+      </span>
+    </label>
   );
 }
 

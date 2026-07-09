@@ -92,6 +92,14 @@ export default function ImportPanel({
           >
             54 mm dual-deploy · K550W
           </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => onSample("/samples/demo-multi-config.ork", "Motor comparison (H128W / G40W)")}
+            className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-700 transition hover:border-indigo-400 hover:text-zinc-900 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:text-zinc-100"
+          >
+            Motor comparison · H128W / G40W
+          </button>
         </div>
       </div>
     </section>

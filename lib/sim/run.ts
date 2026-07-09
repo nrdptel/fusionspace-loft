@@ -76,6 +76,37 @@ export function runFlight(rocket: Rocket, opts: RunOptions = {}): FlightRun {
   return { result, config, resolutions, hasPropulsion, validation };
 }
 
+/** A stored simulation offered as a selectable flight configuration in the UI. */
+export interface ConfigChoice {
+  /** Index into `doc.simulations`. */
+  simIndex: number;
+  /** Unique motor designations for this configuration, e.g. ["H128W"] or ["K550W", "I211W"]. */
+  motors: string[];
+  /** OpenRocket's stored apogee (m AGL) for this simulation, if it carries results. */
+  storedApogeeM?: number;
+  /** The simulation's name (e.g. "H128W", "Simulation 3 - too short delay"). */
+  name: string;
+}
+
+/** The design's stored simulations as selectable configurations, each labelled by its motor(s)
+ *  and OpenRocket's stored apogee. A design with two or more lets the UI offer a picker; with
+ *  one (or none) there is nothing to choose. Order matches `doc.simulations`. */
+export function configChoices(doc: OrkDocument): ConfigChoice[] {
+  return doc.simulations.map((sim, simIndex) => {
+    const cfg = doc.rocket.configurations.find((c) => c.id === sim.conditions.configId);
+    const motors = cfg
+      ? [...new Set(cfg.instances.map((i) => i.motor.designation).filter(Boolean))]
+      : [];
+    const apo = sim.results.maxAltitude;
+    return {
+      simIndex,
+      motors,
+      storedApogeeM: sim.hasResults && Number.isFinite(apo) ? apo : undefined,
+      name: sim.name,
+    };
+  });
+}
+
 /** Run straight from an imported document: pick the config that matches the first stored
  *  sim (or the default), fly under the stored conditions, and validate. */
 export function runFromDocument(doc: OrkDocument, opts: RunOptions = {}): FlightRun {
