@@ -4,7 +4,7 @@ import { allMotors, resolveMotor, coreDesignation, normalize } from "./db";
 describe("motor database", () => {
   it("parses the bundled catalog", () => {
     const motors = allMotors();
-    expect(motors.length).toBeGreaterThanOrEqual(39);
+    expect(motors.length).toBeGreaterThanOrEqual(54);
     for (const m of motors) {
       expect(m.curve.totalImpulse).toBeGreaterThan(0);
       expect(m.curve.samples.length).toBeGreaterThan(2);
@@ -40,6 +40,33 @@ describe("motor database", () => {
       expect(m?.quality).toBe("exact");
       expect(m?.entry.curve.designation).toBe(d);
       expect(m?.entry.curve.totalImpulse).toBeGreaterThan(0);
+    }
+  });
+
+  it("covers the AeroTech H–L workhorse single-use motors", () => {
+    // Common composite reloads/single-use across the H–L range that HPR designs reference.
+    // AeroTech previously had no L-class curve at all; these fill the mid/high-power span so
+    // more imported designs resolve their motor to an exact curve rather than nothing.
+    for (const d of ["H100W", "H180W", "I200W", "I284W", "J350W", "J500G", "J800T",
+                     "K250W", "K700W", "K1050W", "L952W", "L1000"]) {
+      const m = resolveMotor({ manufacturer: "AeroTech", designation: d });
+      expect(m?.quality).toBe("exact");
+      expect(m?.entry.curve.designation).toBe(d);
+      // The resolved curve is in the right impulse class.
+      expect(m?.entry.curve.designation[0]).toBe(d[0]);
+      expect(m?.entry.curve.totalImpulse).toBeGreaterThan(0);
+    }
+  });
+
+  it("resolves a Cesaroni common name against a full ThrustCurve designation", () => {
+    // Cesaroni curves are stored under their full ThrustCurve designation
+    // (e.g. "1266-J760-WT-19A"); a design typically references just "J760". The
+    // substring/core match must still find it and land in the right impulse class.
+    for (const [designation, core] of [["J760", "J760"], ["I540", "I540"]] as const) {
+      const m = resolveMotor({ manufacturer: "Cesaroni", designation });
+      expect(m).not.toBeNull();
+      expect(coreDesignation(m!.entry.curve.designation)).toBe(core);
+      expect(m!.entry.curve.totalImpulse).toBeGreaterThan(0);
     }
   });
 

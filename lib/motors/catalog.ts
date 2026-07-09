@@ -82,6 +82,16 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
     }
   },
   {
+    "eng": "; H100W DMS\r\nH100W 38 157.5 14 0.121 0.261 AT\r\n   0.004 46.916\r\n   0.031 66.29\r\n   0.047 97.334\r\n   0.096 109.005\r\n   0.193 116.474\r\n   0.302 124.877\r\n   0.391 123.01\r\n   0.498 127.911\r\n   0.604 128.845\r\n   0.696 130.245\r\n   0.798 128.612\r\n   0.902 128.845\r\n   0.998 127.445\r\n   1.098 126.511\r\n   1.2 116.941\r\n   1.3 114.607\r\n   1.4 110.172\r\n   1.5 98.268\r\n   1.6 90.798\r\n   1.7 80.061\r\n   1.802 68.624\r\n   1.9 65.356\r\n   2.0 56.953\r\n   2.1 49.484\r\n   2.202 25.209\r\n   2.298 5.135\r\n   2.398 0.0",
+    "source": {
+      "file": "AeroTech_H100W.eng",
+      "motorId": "5f4294d20002310000000440",
+      "simfileId": "5f4294d20002e90000000854",
+      "license": "free",
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000854/"
+    }
+  },
+  {
     "eng": "; AeroTech H128W\n; converted from TMT test stand data 1997 (www.tripoli.org)\n; provided by ThrustCurve.org (www.thrustcurve.org)\nH128W 29 194 14 0.09408 0.2016 AT\n   0.024 102.423\n   0.074 175.203\n   0.125 181.379\n   0.176 179.281\n   0.226 181.423\n   0.277 186.074\n   0.328 190.483\n   0.378 189.509\n   0.429 186.162\n   0.480 184.114\n   0.530 180.300\n   0.581 174.144\n   0.632 172.019\n   0.683 169.360\n   0.734 166.017\n   0.784 161.882\n   0.835 157.331\n   0.886 153.073\n   0.936 151.985\n   0.988 139.902\n   1.039 87.865\n   1.089 40.857\n   1.140 14.328\n   1.191 4.330\n   1.242 1.550\n   1.293 0.000\n",
     "source": {
       "file": "AeroTech_H128W.eng",
@@ -99,6 +109,16 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "simfileId": "5f4294d20002e9000000000f",
       "license": "PD",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000000f/"
+    }
+  },
+  {
+    "eng": "; AeroTech H180W\n; converted from TMT test stand data 1997 (www.tripoli.org)\n; provided by ThrustCurve.org (www.thrustcurve.org)\nH180W 29 238 6 0.12096 0.2464 AT\n   0.024 149.374\n   0.075 222.273\n   0.127 222.339\n   0.178 227.835\n   0.229 234.963\n   0.281 238.162\n   0.333 240.252\n   0.384 243.126\n   0.435 240.757\n   0.487 240.724\n   0.539 236.311\n   0.590 236.799\n   0.642 234.897\n   0.694 232.763\n   0.745 229.198\n   0.796 228.816\n   0.848 231.906\n   0.899 225.853\n   0.950 188.285\n   1.002 134.679\n   1.054 78.940\n   1.105 34.557\n   1.156 15.482\n   1.208 7.279\n   1.260 3.585\n   1.313 0.000",
+    "source": {
+      "file": "AeroTech_H180W.eng",
+      "motorId": "5f4294d2000231000000008b",
+      "simfileId": "5f4294d20002e90000000013",
+      "license": "PD",
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000013/"
     }
   },
   {
@@ -132,6 +152,16 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
     }
   },
   {
+    "eng": "; AeroTech I200W\n; converted from TMT test stand data 1999 (www.tripoli.org)\n; provided by ThrustCurve.org (www.thrustcurve.org)\nI200W 29 333 0 0.181888 0.357504 AT\n   0.033 303.951\n   0.103 273.452\n   0.174 276.061\n   0.245 271.625\n   0.316 268.233\n   0.386 258.449\n   0.457 252.480\n   0.528 246.642\n   0.599 242.304\n   0.670 237.737\n   0.741 234.769\n   0.811 233.171\n   0.882 230.660\n   0.953 224.985\n   1.024 221.658\n   1.095 214.548\n   1.166 177.365\n   1.236 154.208\n   1.307 119.146\n   1.378 91.586\n   1.449 65.330\n   1.520 32.877\n   1.591 28.702\n   1.661 22.211\n   1.732 15.558\n   1.803 0.000",
+    "source": {
+      "file": "AeroTech_I200W.eng",
+      "motorId": "5f4294d200023100000000b5",
+      "simfileId": "5f4294d20002e90000000033",
+      "license": "PD",
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000033/"
+    }
+  },
+  {
     "eng": "; AeroTech I211W\n; converted from TMT test stand data 1999 (www.tripoli.org)\n; provided by ThrustCurve.org (www.thrustcurve.org)\nI211W 38 240 0 0.247296 0.466368 AT\n   0.044 257.326\n   0.134 295.533\n   0.226 296.087\n   0.318 298.204\n   0.408 295.082\n   0.499 287.669\n   0.591 282.578\n   0.682 272.875\n   0.773 266.997\n   0.864 257.602\n   0.955 250.495\n   1.047 238.574\n   1.138 228.571\n   1.228 215.135\n   1.320 198.047\n   1.411 180.631\n   1.502 161.261\n   1.593 146.708\n   1.684 134.484\n   1.776 101.241\n   1.867 52.688\n   1.957 35.461\n   2.049 24.321\n   2.141 11.165\n   2.232 4.587\n   2.324 0.000\n",
     "source": {
       "file": "AeroTech_I211W.eng",
@@ -139,6 +169,26 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "simfileId": "5f4294d20002e90000000035",
       "license": "PD",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000035/"
+    }
+  },
+  {
+    "eng": "; AeroTech I284W\n; converted from TMT test stand data 1999 (www.tripoli.org)\n; provided by ThrustCurve.org (www.thrustcurve.org)\nI284W 38 297 0 0.310016 0.555072 AT\n   0.041 422.031\n   0.125 448.597\n   0.210 459.029\n   0.295 451.940\n   0.379 439.556\n   0.465 427.370\n   0.549 407.558\n   0.633 399.734\n   0.719 380.049\n   0.803 368.042\n   0.887 352.020\n   0.973 342.102\n   1.057 325.767\n   1.142 306.936\n   1.227 292.029\n   1.311 267.283\n   1.396 251.784\n   1.481 227.534\n   1.566 210.504\n   1.650 168.299\n   1.735 110.789\n   1.820 71.036\n   1.904 32.505\n   1.990 17.537\n   2.075 7.317\n   2.160 0.000",
+    "source": {
+      "file": "AeroTech_I284W.eng",
+      "motorId": "5f4294d200023100000000c5",
+      "simfileId": "5f4294d20002e9000000003b",
+      "license": "PD",
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000003b/"
+    }
+  },
+  {
+    "eng": "; AeroTech J350W\r\n; converted from TMT test stand data 1998 (www.tripoli.org)\r\n; provided by ThrustCurve.org (www.thrustcurve.org)\r\nJ350W 38 337 0 0.375872 0.650944 AT\r\n   0.038 706.781\r\n   0.115 669.055\r\n   0.192 602.539\r\n   0.270 565.084\r\n   0.348 539.143\r\n   0.425 514.910\r\n   0.503 483.098\r\n   0.581 449.128\r\n   0.658 437.256\r\n   0.736 424.199\r\n   0.815 414.461\r\n   0.892 402.956\r\n   0.970 393.604\r\n   1.048 377.837\r\n   1.125 359.785\r\n   1.203 341.916\r\n   1.281 324.721\r\n   1.358 305.935\r\n   1.436 264.279\r\n   1.515 175.471\r\n   1.592 110.912\r\n   1.670 77.100\r\n   1.748 55.472\r\n   1.825 39.990\r\n   1.903 26.276\r\n   1.981 0.000\r\n;",
+    "source": {
+      "file": "AeroTech_J350W.eng",
+      "motorId": "5f4294d2000231000000010e",
+      "simfileId": "5f4294d20002e900000002a7",
+      "license": "PD",
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000002a7/"
     }
   },
   {
@@ -152,6 +202,46 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
     }
   },
   {
+    "eng": ";Delays are speculation.\r\n;Taken from Aerotech curves, not cert docs.\r\n;Jim Yehle 15 Nov 07\r\nJ500G 38 335.407 0-6-10-14 0.3626 0.654 Aerotech \r\n0.0134378 40.2458\r\n0.0335946 724.425\r\n0.0403135 781.616\r\n0.0604703 787.971\r\n0.0895857 711.716\r\n0.134378 686.297\r\n0.394177 637.578\r\n0.575588 588.86\r\n0.606943 622.751\r\n0.633819 620.633\r\n1.20045 360.094\r\n1.24076 345.267\r\n1.31019 182.165\r\n1.38186 65.6642\r\n1.43337 23.3002\r\n1.45 0\r\n;",
+    "source": {
+      "file": "AeroTech_J500G.eng",
+      "motorId": "5f4294d200023100000001e5",
+      "simfileId": "5f4294d20002e9000000029e",
+      "license": "?",
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000029e/"
+    }
+  },
+  {
+    "eng": "; AeroTech J800T\n; converted from TMT test stand data 1998 (www.tripoli.org)\n; provided by ThrustCurve.org (www.thrustcurve.org)\nJ800T 54 314 0 0.613312 1.08595 AT\n   0.040 841.341\n   0.121 818.497\n   0.203 776.386\n   0.285 784.308\n   0.367 785.314\n   0.449 783.315\n   0.531 782.539\n   0.612 779.977\n   0.695 773.680\n   0.777 765.307\n   0.858 755.517\n   0.941 744.777\n   1.023 733.131\n   1.105 719.947\n   1.187 702.235\n   1.269 685.369\n   1.351 668.265\n   1.433 650.327\n   1.515 630.472\n   1.597 615.483\n   1.679 470.262\n   1.760 256.617\n   1.843 108.716\n   1.925 15.005\n   2.007 1.249\n   2.090 0.000",
+    "source": {
+      "file": "AeroTech_J800T.eng",
+      "motorId": "5f4294d20002310000000129",
+      "simfileId": "5f4294d20002e9000000005f",
+      "license": "PD",
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000005f/"
+    }
+  },
+  {
+    "eng": "K1050W 54 635 1000 1.373 2.259 Aerotech \r\n0 934.5\r\n0.05 1468.5\r\n0.1 1335\r\n0.15 1290.5\r\n0.25 1246\r\n0.75 1246\r\n1.25 1201.5\r\n1.5 1157\r\n1.65 1157\r\n1.75 1246\r\n1.9 890\r\n2.1 578.5\r\n2.2 222.5\r\n2.46 0",
+    "source": {
+      "file": "AeroTech_K1050W.eng",
+      "motorId": "5f4294d2000231000000024e",
+      "simfileId": "5f4294d20002e90000000564",
+      "license": "?",
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000564/"
+    }
+  },
+  {
+    "eng": "; AeroTech K250W\n; converted from TMT test stand data 1998 (www.tripoli.org)\n; provided by ThrustCurve.org (www.thrustcurve.org)\nK250W 54 673 0 1.52902 2.21133 AT\n   0.199 365.330\n   0.599 403.324\n   0.999 418.669\n   1.400 409.813\n   1.801 408.949\n   2.201 412.146\n   2.602 411.952\n   3.003 409.488\n   3.403 393.214\n   3.804 373.599\n   4.205 348.913\n   4.605 328.463\n   5.006 307.163\n   5.407 281.467\n   5.807 249.011\n   6.208 217.159\n   6.609 185.908\n   7.009 149.190\n   7.410 119.808\n   7.811 92.096\n   8.211 69.726\n   8.613 52.613\n   9.014 35.876\n   9.414 16.727\n   9.815 4.086\n   10.216 0.000",
+    "source": {
+      "file": "AeroTech_K250W.eng",
+      "motorId": "5f4294d20002310000000132",
+      "simfileId": "5f4294d20002e9000000006b",
+      "license": "PD",
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000006b/"
+    }
+  },
+  {
     "eng": "; AeroTech K550W\n; converted from TMT test stand data 1998 (www.tripoli.org)\n; provided by ThrustCurve.org (www.thrustcurve.org)\nK550W 54 410 0 0.919744 1.48736 AT\n   0.065 604.264\n   0.196 642.625\n   0.327 682.197\n   0.458 732.995\n   0.591 758.236\n   0.723 780.289\n   0.854 794.452\n   0.985 797.939\n   1.117 797.601\n   1.249 773.842\n   1.381 711.608\n   1.512 646.522\n   1.644 590.724\n   1.775 537.505\n   1.907 491.012\n   2.040 445.836\n   2.171 401.461\n   2.302 364.291\n   2.433 319.614\n   2.566 255.577\n   2.698 172.573\n   2.829 103.501\n   2.960 51.795\n   3.092 26.814\n   3.224 15.203\n   3.356 0.000\n",
     "source": {
       "file": "AeroTech_K550W.eng",
@@ -159,6 +249,46 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "simfileId": "5f4294d20002e90000000071",
       "license": "PD",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000071/"
+    }
+  },
+  {
+    "eng": "; AeroTech K700W\n; converted from TMT test stand data 1998 (www.tripoli.org)\n; provided by ThrustCurve.org (www.thrustcurve.org)\nK700W 54 568 0 1.29158 2.03526 AT\n   0.069 1005.472\n   0.209 1018.916\n   0.350 1026.610\n   0.491 1028.637\n   0.632 1029.337\n   0.773 1004.203\n   0.914 970.694\n   1.055 946.516\n   1.196 918.437\n   1.336 873.783\n   1.478 821.276\n   1.619 773.270\n   1.759 735.553\n   1.900 692.732\n   2.041 658.984\n   2.182 626.737\n   2.323 591.431\n   2.464 508.666\n   2.605 420.175\n   2.746 328.309\n   2.886 202.409\n   3.028 121.672\n   3.169 80.453\n   3.309 50.873\n   3.451 31.548\n   3.593 0.000",
+    "source": {
+      "file": "AeroTech_K700W.eng",
+      "motorId": "5f4294d2000231000000015a",
+      "simfileId": "5f4294d20002e90000000079",
+      "license": "PD",
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000079/"
+    }
+  },
+  {
+    "eng": "; per AT announcement 5/8/14\r\nL1000 54 635 18 1.4000000000000001 2.194 AT\r\n   0.004 10.664\r\n   0.011 1268.961\r\n   0.04 1322.279\r\n   0.195 1226.307\r\n   0.249 1268.961\r\n   0.296 1242.303\r\n   0.372 1252.966\r\n   0.416 1215.644\r\n   0.6 1226.307\r\n   0.788 1215.644\r\n   1.066 1183.653\r\n   1.261 1167.658\r\n   1.507 1125.004\r\n   1.746 1087.681\r\n   1.865 1050.359\r\n   1.995 1045.027\r\n   2.093 911.733\r\n   2.158 746.448\r\n   2.263 554.504\r\n   2.389 405.215\r\n   2.577 191.944\r\n   2.693 85.308\r\n   2.761 42.654\r\n   3.0 0.0",
+    "source": {
+      "file": "AeroTech_L1000.eng",
+      "motorId": "5f4294d2000231000000040b",
+      "simfileId": "5f4294d20002e900000007f6",
+      "license": "PD",
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000007f6/"
+    }
+  },
+  {
+    "eng": "; AeroTech L952W\n; converted from TMT test stand data 1998 (www.tripoli.org)\n; provided by ThrustCurve.org (www.thrustcurve.org)\nL952W 98 427 0 2.73011 5.01222 AT\n   0.141 679.073\n   0.425 801.562\n   0.709 848.474\n   0.994 913.345\n   1.278 981.614\n   1.562 1043.690\n   1.847 1088.114\n   2.131 1112.556\n   2.416 1121.541\n   2.700 1118.573\n   2.984 1100.665\n   3.269 1039.140\n   3.553 965.784\n   3.837 876.793\n   4.122 780.693\n   4.406 693.903\n   4.691 608.030\n   4.975 528.335\n   5.259 463.528\n   5.544 405.769\n   5.828 358.367\n   6.112 279.009\n   6.397 99.897\n   6.681 20.108\n   6.967 3.317\n   7.252 0.000",
+    "source": {
+      "file": "AeroTech_L952W.eng",
+      "motorId": "5f4294d20002310000000185",
+      "simfileId": "5f4294d20002e90000000085",
+      "license": "PD",
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000085/"
+    }
+  },
+  {
+    "eng": "; Pro-54-3G White Thunder\r\n1266-J760-WT-19A 54 329 8-10-12-14-16-18-19 0.5760 1.0768 CTI\r\n   0.012 600.251\r\n   0.019 833.333\r\n   0.026 938.596\r\n   0.04 794.486\r\n   0.054 756.892\r\n   0.094 778.195\r\n   0.129 800.752\r\n   0.165 813.283\r\n   0.218 825.815\r\n   0.279 830.827\r\n   0.377 835.84\r\n   0.496 837.093\r\n   0.617 829.574\r\n   0.709 819.549\r\n   0.811 802.005\r\n   0.917 785.714\r\n   1.041 764.411\r\n   1.201 750.627\r\n   1.331 741.855\r\n   1.455 729.323\r\n   1.488 729.323\r\n   1.514 735.589\r\n   1.556 749.373\r\n   1.568 729.323\r\n   1.575 665.414\r\n   1.589 533.835\r\n   1.616 327.068\r\n   1.646 122.807\r\n   1.659 72.682\r\n   1.681 30.075\r\n   1.713 6.266\r\n   1.731 0.0",
+    "source": {
+      "file": "Cesaroni_1266-J760-WT-19A.eng",
+      "motorId": "5f4294d200023100000003a8",
+      "simfileId": "5f4294d20002e9000000074a",
+      "license": "PD",
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000074a/"
     }
   },
   {
@@ -182,6 +312,16 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
     }
   },
   {
+    "eng": ";\n;\nI540WT 38 367 7-9-11-13-16 0.3288 0.5982 CTI \n0.03 597.86\n0.04 611.31\n0.06 605.64\n0.12 612.36\n0.24 624.54\n0.36 626\n0.48 623.63\n0.6 616.42\n0.72 598.14\n0.84 583.16\n0.95 568.92\n0.96 558.53\n0.98 533.45\n1.02 436.53\n1.06 303.15\n1.09 184.92\n1.13 74.27\n1.18 0",
+    "source": {
+      "file": "Cesaroni_I540WT.eng",
+      "motorId": "5f4294d200023100000001fb",
+      "simfileId": "5f4294d20002e900000002aa",
+      "license": "?",
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000002aa/"
+    }
+  },
+  {
     "eng": "; From Cesaroni WebPage by C. Kobel 4/23/15\nK1440WT 54 572 8-11-14-17 1.129 1.893 Ces\n   0.015 893.963\n   0.026 1563.355\n   0.030 1671.321\n   0.035 1718.827\n   0.047 1667.003\n   0.063 1628.135\n   0.100 1671.321\n   0.200 1701.552\n   0.300 1705.871\n   0.400 1710.189\n   0.500 1705.871\n   0.600 1701.552\n   0.700 1684.277\n   0.800 1658.366\n   0.900 1619.498\n   1.000 1597.904\n   1.100 1546.080\n   1.221 1498.575\n   1.300 1144.445\n   1.337 1062.39\n   1.400 1058.072\n   1.447 1053.753\n   1.500 716.898\n   1.543 578.700\n   1.600 306.625\n   1.644 125.241\n   1.700 0.0\n",
     "source": {
       "file": "Cesaroni_K1440.eng",
@@ -199,6 +339,16 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "simfileId": "5f4294d20002e9000000074e",
       "license": "PD",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000074e/"
+    }
+  },
+  {
+    "eng": ";\n;\nK445  54.0 404.00 7-17 0.79200 1.39800 CTI\n   0.05     664.83 \n   0.19     640.68 \n   0.48     622.98 \n   1.00     576.29 \n   1.51     515.12 \n   2.00     442.68 \n   2.50     392.26 \n   3.02     350.93 \n   3.13     339.66 \n   3.31     210.88 \n   3.47      78.88 \n   3.67       0.00",
+    "source": {
+      "file": "Cesaroni_K445.eng",
+      "motorId": "5f4294d2000231000000013b",
+      "simfileId": "5f4294d20002e90000000141",
+      "license": "?",
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000141/"
     }
   },
   {
