@@ -4,7 +4,7 @@ import { allMotors, resolveMotor, coreDesignation, normalize } from "./db";
 describe("motor database", () => {
   it("parses the bundled catalog", () => {
     const motors = allMotors();
-    expect(motors.length).toBeGreaterThanOrEqual(18);
+    expect(motors.length).toBeGreaterThanOrEqual(26);
     for (const m of motors) {
       expect(m.curve.totalImpulse).toBeGreaterThan(0);
       expect(m.curve.samples.length).toBeGreaterThan(2);
@@ -14,6 +14,17 @@ describe("motor database", () => {
   it("covers the common low/mid-power motors (so real model-rocket files resolve)", () => {
     for (const d of ["A8", "B4", "B6", "C6", "C11", "D12", "E9", "E12"]) {
       expect(resolveMotor({ designation: d })).not.toBeNull();
+    }
+  });
+
+  it("covers the common AeroTech F–I motors real HPR files reference", () => {
+    // These are the motors the OpenRocket example designs used that Loft previously couldn't
+    // resolve, so those files flew to nothing. Each must now resolve to its exact curve.
+    for (const d of ["F50T", "G40W", "H148R", "H669N", "I115W", "I211W"]) {
+      const m = resolveMotor({ manufacturer: "AeroTech", designation: d });
+      expect(m?.quality).toBe("exact");
+      expect(m?.entry.curve.designation).toBe(d);
+      expect(m?.entry.curve.totalImpulse).toBeGreaterThan(0);
     }
   });
 

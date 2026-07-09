@@ -65,9 +65,11 @@ export default function Methods() {
       <p>
         OpenRocket marks a radius that should match a neighbour as <code>auto</code>. Loft resolves
         those before simulating — a body tube takes its neighbour&apos;s radius, a transition end
-        takes the body it meets, and an internal part (coupler, ring, inner tube) fits inside its
-        enclosing tube. A radius that still can&apos;t be resolved is treated as zero and flagged in
-        the import warnings rather than silently guessed.
+        takes the body it meets, and an internal part (coupler, ring, inner tube, bulkhead) fits
+        inside its enclosing part, whether that&apos;s a tube, a coupler, or the nose. A radius that
+        still can&apos;t be resolved is treated as zero and flagged in the import warnings rather
+        than silently guessed — importantly, it is never left undefined, so one unresolved internal
+        part can&apos;t poison the total mass and reference area and collapse the whole flight.
       </p>
 
       <h2>Aerodynamic stability — Barrowman</h2>

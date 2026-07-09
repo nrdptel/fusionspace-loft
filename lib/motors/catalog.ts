@@ -42,6 +42,16 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
     }
   },
   {
+    "eng": ";\n;Aerotech F50 RASP.ENG file made by Tim Van Milligan\n;For RockSim www.RockSim.com\n;File Created March 2, 2005\n;Thrust curve supplied by Aerotech for the molded case F50T motors.\nF50T 29 98 4-6-9 0.0336 0.0898 AeroTech\n0.013 73.762\n0.0326 70.383\n0.267 69.82\n0.518 67.005\n0.792 56.87\n0.906 50.676\n1 44.482\n1.036 39.978\n1.107 23.649\n1.199 6.194\n1.316 1.126\n1.43 0\n",
+    "source": {
+      "file": "AeroTech_F50T.eng",
+      "motorId": "5f4294d20002310000000049",
+      "simfileId": "5f4294d20002e9000000045b",
+      "license": "?",
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000045b/"
+    }
+  },
+  {
     "eng": "F67W 29 83 4-6-9 0.03 0.08 AT\n   0.002 66.662\n   0.008 71.441\n   0.016 74.505\n   0.039 77.936\n   0.068 80.632\n   0.099 82.592\n   0.148 84.43\n   0.201 85.533\n   0.257 86.146\n   0.298 86.023\n   0.399 84.185\n   0.483 82.96\n   0.499 82.347\n   0.568 80.019\n   0.601 78.794\n   0.625 77.936\n   0.654 78.058\n   0.672 75.853\n   0.687 71.073\n   0.7 67.52\n   0.714 62.005\n   0.731 53.06\n   0.748 44.482\n   0.764 35.659\n   0.778 26.836\n   0.789 20.954\n   0.797 18.013\n   0.812 12.499\n   0.832 7.107\n   0.849 3.676\n   0.87 1.225\n   0.898 0.368\n   0.92 0.0\n",
     "source": {
       "file": "AeroTech_F67W.eng",
@@ -49,6 +59,16 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "simfileId": "5f4294d20002e9000000088a",
       "license": "?",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000088a/"
+    }
+  },
+  {
+    "eng": ";\n;Aerotech G40W RASP.ENG file made by Tim Van Milligan\n;For RockSim www.RockSim.com\n;File Created March 2, 2005\n;Thrust curve supplied by Aerotech for the molded case G40W motors.\nG40W 29 124 4-7-10 0.0538 0.123 AeroTech\n0.024 74.325\n0.057 67.005\n0.252 65.879\n0.5 63.063\n0.765 60.248\n1 54.054\n1.25 47.298\n1.502 36.599\n1.751 25.338\n1.999 12.951\n2.121 3.941\n2.3 0\n",
+    "source": {
+      "file": "AeroTech_G40W.eng",
+      "motorId": "5f4294d20002310000000059",
+      "simfileId": "5f4294d20002e90000000463",
+      "license": "?",
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000463/"
     }
   },
   {
@@ -72,6 +92,36 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
     }
   },
   {
+    "eng": "; AeroTech H148R\n; provided by ThrustCurve.org (www.thrustcurve.org)\nH148R 38 152 0 0.14784 0.30912 AT\n   0.027 77.232\n   0.088 174.296\n   0.148 185.046\n   0.208 190.458\n   0.268 192.497\n   0.327 191.996\n   0.388 188.790\n   0.448 187.548\n   0.509 182.697\n   0.570 178.151\n   0.630 172.906\n   0.690 169.607\n   0.750 164.510\n   0.810 158.375\n   0.870 153.019\n   0.930 146.810\n   0.991 139.443\n   1.053 132.001\n   1.112 123.271\n   1.173 112.559\n   1.233 104.737\n   1.292 97.657\n   1.353 94.932\n   1.413 60.644\n   1.474 13.007\n   1.535 0.000\n",
+    "source": {
+      "file": "AeroTech_H148R.eng",
+      "motorId": "5f4294d20002310000000087",
+      "simfileId": "5f4294d20002e9000000000f",
+      "license": "PD",
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000000f/"
+    }
+  },
+  {
+    "eng": ";\n; 38-240\n;  Greg Gardner - 09/15/06\nH669N  38 152  0  0.096  0.252  AT\n0.003  141\n0.006  523\n0.009  934\n0.012  1178\n0.016  926\n0.019  684\n0.022  487\n0.025  415\n0.028  622\n0.031  801\n0.0325  906\n0.034  866\n0.037  755\n0.04   737\n0.043  666\n0.047  737\n0.0485  802\n0.05   755\n0.053  791\n0.056  765\n0.059  755\n0.062  747\n0.069  737\n0.075  761\n0.082  755\n0.088  729\n0.093  741\n0.1    751\n0.2    703\n0.25   640\n0.3    586\n0.306  584\n0.309  576\n0.312  506\n0.318  292\n0.325  93\n0.329  0\n;\n",
+    "source": {
+      "file": "AeroTech_H669N.eng",
+      "motorId": "5f4294d2000231000000009b",
+      "simfileId": "5f4294d20002e9000000026a",
+      "license": "?",
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000026a/"
+    }
+  },
+  {
+    "eng": "; Aerotech I115W from TRA Cert Data\nI115W 54 156 6-10-14-P 0.229 0.58 AT\n   0.034 12.095\n   0.177 105.225\n   0.206 113.087\n   1.017 163.281\n   1.166 161.466\n   1.257 162.676\n   1.343 166.909\n   1.417 160.862\n   1.514 162.676\n   1.617 163.885\n   1.686 160.257\n   1.977 142.719\n   2.497 106.435\n   2.68 91.316\n   2.994 72.569\n   3.103 67.126\n   3.189 65.917\n   3.24 59.265\n   3.291 42.937\n   3.331 30.237\n   3.377 20.561\n   3.429 12.7\n   3.491 7.257\n   3.514 0.0\n",
+    "source": {
+      "file": "AeroTech_I115W.eng",
+      "motorId": "5f4294d200023100000001e7",
+      "simfileId": "5f4294d20002e90000000423",
+      "license": "?",
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000423/"
+    }
+  },
+  {
     "eng": "; AeroTech I161W\n; converted from TMT test stand data 1998 (www.tripoli.org)\n; provided by ThrustCurve.org (www.thrustcurve.org)\nI161W 38 191 0 0.189952 0.370048 AT\n   0.043 178.900\n   0.131 206.770\n   0.221 206.101\n   0.310 205.175\n   0.400 206.924\n   0.490 210.603\n   0.579 210.475\n   0.669 211.555\n   0.758 212.379\n   0.848 212.096\n   0.938 209.060\n   1.027 202.345\n   1.116 192.439\n   1.204 179.499\n   1.294 162.159\n   1.383 148.446\n   1.473 135.222\n   1.563 120.095\n   1.652 104.041\n   1.742 87.962\n   1.831 74.789\n   1.921 54.362\n   2.010 23.386\n   2.100 7.332\n   2.190 5.171\n   2.279 0.000\n",
     "source": {
       "file": "AeroTech_I161W.eng",
@@ -79,6 +129,16 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "simfileId": "5f4294d20002e9000000002d",
       "license": "PD",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000002d/"
+    }
+  },
+  {
+    "eng": "; AeroTech I211W\n; converted from TMT test stand data 1999 (www.tripoli.org)\n; provided by ThrustCurve.org (www.thrustcurve.org)\nI211W 38 240 0 0.247296 0.466368 AT\n   0.044 257.326\n   0.134 295.533\n   0.226 296.087\n   0.318 298.204\n   0.408 295.082\n   0.499 287.669\n   0.591 282.578\n   0.682 272.875\n   0.773 266.997\n   0.864 257.602\n   0.955 250.495\n   1.047 238.574\n   1.138 228.571\n   1.228 215.135\n   1.320 198.047\n   1.411 180.631\n   1.502 161.261\n   1.593 146.708\n   1.684 134.484\n   1.776 101.241\n   1.867 52.688\n   1.957 35.461\n   2.049 24.321\n   2.141 11.165\n   2.232 4.587\n   2.324 0.000\n",
+    "source": {
+      "file": "AeroTech_I211W.eng",
+      "motorId": "5f4294d200023100000000b9",
+      "simfileId": "5f4294d20002e90000000035",
+      "license": "PD",
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000035/"
     }
   },
   {
