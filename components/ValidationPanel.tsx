@@ -6,10 +6,11 @@ import type { UnitSystem } from "@/lib/display";
 import { fmt } from "@/lib/display";
 import { mToFt, mpsToFtps } from "@/lib/units";
 
-/** Shows Loft's engine against the OpenRocket results stored in the imported design, metric
- *  by metric. This is the honest accuracy record: the numbers are what they are, the mean
- *  error is stated plainly, and nothing is hidden. For the bundled samples the stored figures
- *  are author estimates (see the Validation docs), so this reads as a demonstration there. */
+/** Shows Loft's engine against the results the design tool (OpenRocket or RockSim) stored in
+ *  the imported design, metric by metric. This is the honest accuracy record: the numbers are
+ *  what they are, the mean error is stated plainly, and nothing is hidden. For the bundled
+ *  samples the stored figures are author estimates (see the Validation docs), so this reads as
+ *  a demonstration there. */
 
 const IMPERIAL_LEN = new Set(["Apogee"]);
 const IMPERIAL_SPD = new Set(["Max velocity", "Ground-hit velocity", "Rail-exit velocity", "Deployment velocity"]);
@@ -25,15 +26,17 @@ export default function ValidationPanel({
   report,
   units,
   storedName,
+  toolName = "OpenRocket",
 }: {
   report: ValidationReport;
   units: UnitSystem;
   storedName?: string;
+  toolName?: string;
 }) {
   return (
     <section aria-label="Validation" className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900/40">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="text-lg font-semibold tracking-tight">OpenRocket vs Loft</h2>
+        <h2 className="text-lg font-semibold tracking-tight">{toolName} vs Loft</h2>
         <span className="text-xs text-zinc-500">
           mean abs. error{" "}
           <span className="font-mono text-zinc-700 dark:text-zinc-300">{fmt(report.mape, 1)}%</span>

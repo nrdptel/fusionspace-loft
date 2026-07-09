@@ -31,6 +31,23 @@ test.describe("Loft", () => {
     await expect(page.getByRole("heading", { name: "OpenRocket vs Loft" })).toBeVisible();
   });
 
+  test("imports the RockSim .rkt sample and simulates the flight", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: /RockSim · 54 mm sport/ }).click();
+
+    // The RockSim design imports and flies through the same engine.
+    await expect(page.getByRole("heading", { name: /54 mm sport/ })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+    await expect(page.getByLabel("Results").getByText("Apogee", { exact: true })).toBeVisible();
+
+    // The J420R resolved from the EngineSet, and the footer names the RockSim format.
+    await expect(page.getByText("J420R", { exact: false }).first()).toBeVisible();
+    await expect(page.getByText(/RockSim format/).first()).toBeVisible();
+
+    // The comparison is labelled for RockSim, not OpenRocket.
+    await expect(page.getByRole("heading", { name: "RockSim vs Loft" })).toBeVisible();
+  });
+
   test("dual-deploy sample flags transonic and shows two deploy markers", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: /54 mm dual-deploy/ }).click();

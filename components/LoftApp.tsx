@@ -5,7 +5,7 @@ import Link from "next/link";
 import ImportPanel from "./ImportPanel";
 import ResultsView from "./ResultsView";
 import { Segmented } from "./ui";
-import { importOrkFile, importOrk, type OrkDocument } from "@/lib/ork/import";
+import { importDesignFile, importDesign, type OrkDocument } from "@/lib/ork/import";
 import { runFlight, overridesFromStored, configChoices, type FlightRun, type ConfigChoice } from "@/lib/sim/run";
 import type { ConditionOverrides } from "@/lib/sim/setup";
 import { fetchConditions, geocode, type WeatherConditions } from "@/lib/weather";
@@ -85,7 +85,7 @@ export default function LoftApp() {
       setBusy(true);
       setError(null);
       try {
-        const document = await importOrkFile(file);
+        const document = await importDesignFile(file);
         loadDoc(document, file.name);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Could not read that file.");
@@ -105,7 +105,7 @@ export default function LoftApp() {
       try {
         const res = await fetch(path);
         const bytes = new Uint8Array(await res.arrayBuffer());
-        const document = await importOrk(bytes);
+        const document = await importDesign(bytes);
         loadDoc(document, label);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Could not load the sample.");
@@ -164,10 +164,11 @@ export default function LoftApp() {
       {!doc && (
         <>
           <p className="mb-6 max-w-2xl text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
-            Import an OpenRocket <code className="font-mono">.ork</code> design and Loft simulates
-            the flight in your browser — apogee, speed, stability, and recovery — and compares
-            against the numbers OpenRocket stored in the file. It runs on a phone, offline once
-            loaded. Results are estimates from a model;{" "}
+            Import an OpenRocket <code className="font-mono">.ork</code> or RockSim{" "}
+            <code className="font-mono">.rkt</code> design and Loft simulates the flight in your
+            browser — apogee, speed, stability, and recovery — and compares against the numbers
+            the design tool stored in the file. It runs on a phone, offline once loaded. Results
+            are estimates from a model;{" "}
             <Link href="/docs/methods" className="text-indigo-600 underline underline-offset-2 dark:text-indigo-400">
               see how they&apos;re computed
             </Link>{" "}

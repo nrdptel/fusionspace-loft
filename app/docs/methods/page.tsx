@@ -18,6 +18,21 @@ export default function Methods() {
         is in the open repository, file paths noted below.
       </p>
 
+      <h2>Importing designs</h2>
+      <p>
+        Loft reads two design formats: OpenRocket <code>.ork</code> (a ZIP, gzip, or raw XML with an{" "}
+        <code>&lt;openrocket&gt;</code> root; <code>lib/ork/</code>) and RockSim <code>.rkt</code>{" "}
+        (XML with a <code>&lt;RockSimDocument&gt;</code> root; <code>lib/rkt/</code>). The importer
+        sniffs the root element and picks the adapter. Each adapter is a <em>thin</em> translator
+        into one internal rocket model — the simulator only ever sees that model, never a file
+        format — so the same physics flies either format and a future importer (RocketPy) is another
+        adapter, not a second engine. The RockSim adapter is implemented clean-room from RockSim&apos;s
+        published file specification (its <code>RockSim_Xml_Doc.txt</code>, the RockSim engine-file
+        format, and the documented shape/finish codes); RockSim stores lengths in millimetres, masses
+        in grams, and diameters as diameters, all converted to SI on import. Unknown parts are
+        skipped with a warning rather than failing the whole file.
+      </p>
+
       <h2>Coordinate model &amp; integrator</h2>
       <p>
         The flight is integrated with a fixed-step 4th-order Runge–Kutta scheme
@@ -57,6 +72,15 @@ export default function Methods() {
         design always wins. The centre of gravity is mass-weighted; pitch inertia is the sum of each
         part&apos;s own inertia plus a parallel-axis term. Propellant burns off over the flight, so
         mass and CG are time-varying.
+      </p>
+      <p>
+        A RockSim <code>.rkt</code> is the exception to the &ldquo;compute from geometry&rdquo; rule:
+        it stores RockSim&apos;s own per-part mass — the calculated value, or the measured
+        (&ldquo;known&rdquo;) value when the design is set to use it — so Loft honours those as
+        per-part overrides and flies the exact masses the design specifies. That keeps a RockSim
+        import faithful to its source and keeps the stored-results comparison about the aerodynamics
+        and integration rather than a mass-model difference. (An <code>.ork</code> stores no per-part
+        mass, so there Loft computes it as above.)
       </p>
       <p>
         Nose-cone contours use the standard published profile equations (conical, tangent ogive,
@@ -141,7 +165,7 @@ export default function Methods() {
 
       <h2>Motors</h2>
       <p>
-        A <code>.ork</code> references a motor by manufacturer and designation but does not embed its
+        A design references a motor by manufacturer and designation but does not embed its
         thrust curve, so Loft resolves the motor against a bundled database of real RASP{" "}
         <code>.eng</code> curves from{" "}
         <a href="https://www.thrustcurve.org" target="_blank" rel="noopener noreferrer">

@@ -143,12 +143,29 @@ export default function Limitations() {
         and a prominent warning says how many motors were missing.
       </p>
 
+      <h3>RockSim import is a common-subset adapter</h3>
+      <p>
+        RockSim <code>.rkt</code> files import through the same internal model as OpenRocket, so the
+        flight is computed identically. The adapter covers the parts real designs use — nose cones,
+        body and inner tubes, transitions, trapezoidal fin sets, rings and couplers, mass objects,
+        recovery devices, launch lugs — and reads the motor(s) and stored results from each RockSim
+        <em>simulation</em>. What it does <strong>not</strong> yet cover: tube fins and ring tails
+        (flown without them, with a warning), pods and sub-assemblies (only the primary stack flies),
+        and elliptical/custom RockSim fin shapes (treated as their trapezoidal equivalent). A
+        RockSim design tree also doesn&apos;t pin a recovery device&apos;s deploy event the way
+        OpenRocket does, so an imported chute defaults to apogee deployment. Unlike an{" "}
+        <code>.ork</code>, a <code>.rkt</code> carries RockSim&apos;s own per-part masses; Loft flies
+        those directly (see <Link href="/docs/methods">Methods</Link>), so component CG comes from
+        geometry while total mass is exactly as the file states.
+      </p>
+
       <h3>Bundled sample designs use estimated stored figures</h3>
       <p>
-        The two example <code>.ork</code> files ship with author-estimated stored results, not
-        genuine OpenRocket runs (Loft can&apos;t generate those here). The bundled &ldquo;OpenRocket
-        vs Loft&rdquo; comparison is therefore a demonstration; a real comparison uses your own file.
-        See <Link href="/docs/validation">Validation</Link>.
+        The bundled example designs (two <code>.ork</code> files and one RockSim <code>.rkt</code>)
+        ship with author-estimated stored results, not genuine OpenRocket or RockSim runs (Loft
+        can&apos;t generate those here). The bundled &ldquo;design tool vs Loft&rdquo; comparison is
+        therefore a demonstration; a real comparison uses your own file. See{" "}
+        <Link href="/docs/validation">Validation</Link>.
       </p>
 
       <h2>Changing this list</h2>

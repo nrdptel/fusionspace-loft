@@ -2,9 +2,9 @@
 
 import { useRef, useState } from "react";
 
-/** The import surface: a large drop zone / file picker for a `.ork`, plus one-tap buttons
- *  to load the bundled sample designs so the tool is usable before you have a file. Mobile
- *  first — the whole thing is tap-friendly and one-handed. */
+/** The import surface: a large drop zone / file picker for an OpenRocket `.ork` or RockSim
+ *  `.rkt`, plus one-tap buttons to load the bundled sample designs so the tool is usable before
+ *  you have a file. Mobile first — the whole thing is tap-friendly and one-handed. */
 export default function ImportPanel({
   onFile,
   onSample,
@@ -41,11 +41,12 @@ export default function ImportPanel({
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/brand/fusion-space-mark.svg" alt="" aria-hidden width={880} height={815} className="mx-auto h-9 w-auto opacity-80" />
         <p className="mt-4 text-base font-medium text-zinc-800 dark:text-zinc-100">
-          Import an OpenRocket design
+          Import an OpenRocket or RockSim design
         </p>
         <p className="mx-auto mt-1 max-w-md text-sm text-zinc-500 dark:text-zinc-400">
-          Drop a <code className="font-mono">.ork</code> file here, or choose one. Everything
-          runs in your browser — your design is never uploaded.
+          Drop an OpenRocket <code className="font-mono">.ork</code> or RockSim{" "}
+          <code className="font-mono">.rkt</code> file here, or choose one. Everything runs in
+          your browser — your design is never uploaded.
         </p>
         <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
           <button
@@ -54,12 +55,12 @@ export default function ImportPanel({
             onClick={() => inputRef.current?.click()}
             className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-indigo-500 disabled:opacity-60"
           >
-            {busy ? "Working…" : "Choose a .ork file"}
+            {busy ? "Working…" : "Choose a file"}
           </button>
           <input
             ref={inputRef}
             type="file"
-            aria-label="Choose an OpenRocket .ork file"
+            aria-label="Choose an OpenRocket .ork or RockSim .rkt file"
             accept=".ork,.ork.gz,.rkt,application/zip"
             className="sr-only"
             onChange={(e) => {
@@ -99,6 +100,14 @@ export default function ImportPanel({
             className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-700 transition hover:border-indigo-400 hover:text-zinc-900 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:text-zinc-100"
           >
             Motor comparison · H128W / G40W
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => onSample("/samples/demo-rocksim.rkt", "RockSim 54 mm sport (J420R)")}
+            className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-700 transition hover:border-indigo-400 hover:text-zinc-900 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:text-zinc-100"
+          >
+            RockSim · 54 mm sport · J420R
           </button>
         </div>
       </div>
