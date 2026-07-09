@@ -19,6 +19,10 @@ export function noseRadius(
   R: number,
   param = 0,
 ): number {
+  // A non-positive base radius has no contour. Guard first: the ogive form below divides by R
+  // (rho = (R²+L²)/2R), so R=0 would otherwise yield Infinity → NaN and poison volume/mass — as
+  // seen on real files whose "auto" radii couldn't be resolved and were zeroed.
+  if (R <= 0) return 0;
   if (L <= 0) return R;
   const f = clamp(x / L, 0, 1);
   switch (shape) {
