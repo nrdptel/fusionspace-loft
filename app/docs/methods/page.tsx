@@ -90,10 +90,16 @@ export default function Methods() {
         OpenRocket marks a radius that should match a neighbour as <code>auto</code>. Loft resolves
         those before simulating — a body tube takes its neighbour&apos;s radius, a transition end
         takes the body it meets, and an internal part (coupler, ring, inner tube, bulkhead) fits
-        inside its enclosing part, whether that&apos;s a tube, a coupler, or the nose. A radius that
-        still can&apos;t be resolved is treated as zero and flagged in the import warnings rather
-        than silently guessed — importantly, it is never left undefined, so one unresolved internal
-        part can&apos;t poison the total mass and reference area and collapse the whole flight.
+        inside its enclosing part, whether that&apos;s a tube, a coupler, or the nose. When a body
+        radius still can&apos;t be matched to a neighbour — a whole airframe left <code>auto</code>,
+        anchored only by a boat-tail end or an internal part — it falls back to the rocket&apos;s
+        largest known radius (the same value the aerodynamic reference is taken from) so the
+        airframe keeps a defined, self-consistent size instead of collapsing to a drag-free,
+        near-massless needle flown against a borrowed reference area. This mirrors OpenRocket, whose
+        <code>auto</code> radius searches fore and aft for a dimensioned section and only then uses a
+        default. The substitution is flagged in the import warnings, never silent; only when nothing
+        anywhere resolves is a section finally treated as zero — and even then it is never left
+        undefined, so one unresolved part can&apos;t poison the total mass and reference area.
       </p>
 
       <h2>Aerodynamic stability — Barrowman</h2>

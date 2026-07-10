@@ -692,10 +692,12 @@ function aftRadius(c: RocketComponent): number {
 /** Resolve components whose radius was "auto" (left NaN at parse). OpenRocket's "auto"
  *  means "match the adjacent component": a body tube takes its neighbour's radius, a
  *  transition end takes the body it meets, and an internal part (coupler, inner tube,
- *  ring) fits inside its enclosing tube. Anything still unresolved is left at zero and
- *  flagged, rather than silently mis-modelled. */
+ *  ring) fits inside its enclosing tube. A body radius no neighbour can supply falls back to
+ *  the rocket's largest known radius; only when nothing resolves at all is a section left at
+ *  zero. Either substitution is flagged, rather than silently mis-modelled. */
 function resolveAutoRadii(rocket: Rocket, warnings: string[]): void {
   let unresolved = false;
+  let filledFromFallback = false;
   for (const stage of rocket.stages) {
     const bodies = stage.components.filter((c) => BODY_KINDS.has(c.kind));
 
@@ -716,17 +718,32 @@ function resolveAutoRadii(rocket: Rocket, warnings: string[]): void {
       nextFore = foreRadius(c);
     }
 
-    resolveInternalRadii(stage.components, NaN);
-
+    // A body radius still "auto" after neighbour propagation gets a last-resort value rather
+    // than being left to collapse the airframe. OpenRocket's auto radius searches fore and aft
+    // for a dimensioned symmetric component and only then falls back to a default; we use the
+    // rocket's largest already-resolved radius — the same value the aerodynamic reference radius
+    // is taken from (maxBodyRadius) — so the airframe stays consistent with the reference area
+    // instead of flying as a zero-diameter needle with a borrowed reference. Only when nothing
+    // anywhere resolved (the fallback is itself zero) is a section genuinely left at zero. This
+    // runs before internal resolution so a coupler/ring inside a fallback-filled tube can still
+    // fit against it rather than being zeroed in turn.
+    const fallbackR = maxResolvedRadius(stage.components);
+    const fill = (assign: (r: number) => void): void => {
+      assign(fallbackR);
+      if (fallbackR > 0) filledFromFallback = true;
+      else unresolved = true;
+    };
     for (const c of bodies) {
       const f = rf(c);
-      if (c.kind === "nosecone" && !ok(f.aftRadius)) { f.aftRadius = 0; unresolved = true; }
-      if (c.kind === "bodytube" && !ok(f.outerRadius)) { f.outerRadius = 0; unresolved = true; }
-      if (c.kind === "transition") {
-        if (!ok(f.foreRadius)) { f.foreRadius = 0; unresolved = true; }
-        if (!ok(f.aftRadius)) { f.aftRadius = 0; unresolved = true; }
+      if (c.kind === "nosecone" && !ok(f.aftRadius)) fill((r) => (f.aftRadius = r));
+      else if (c.kind === "bodytube" && !ok(f.outerRadius)) fill((r) => (f.outerRadius = r));
+      else if (c.kind === "transition") {
+        if (!ok(f.foreRadius)) fill((r) => (f.foreRadius = r));
+        if (!ok(f.aftRadius)) fill((r) => (f.aftRadius = r));
       }
     }
+
+    resolveInternalRadii(stage.components, NaN);
 
     // Backstop: any internal part (bulkhead, ring, coupler…) still unresolved after the
     // above is zeroed rather than left NaN — a single NaN radius otherwise propagates into
@@ -745,12 +762,38 @@ function resolveAutoRadii(rocket: Rocket, warnings: string[]): void {
     };
     zeroUnresolvedInternal(stage.components);
   }
-  if (unresolved) {
+  if (filledFromFallback) {
     warnings.push(
-      'Some component radii were marked "auto" but couldn\'t be resolved from neighbours; ' +
-        "those sections were treated as zero-radius.",
+      'Some component radii were marked "auto" but no neighbour could supply one; they were set ' +
+        "to the rocket's largest known radius so the airframe keeps a defined size. Check the " +
+        "affected diameters against the design.",
     );
   }
+  if (unresolved) {
+    warnings.push(
+      'Some component radii were marked "auto" but couldn\'t be resolved from neighbours, and the ' +
+        "rocket has no other radius to fall back on; those sections were treated as zero-radius.",
+    );
+  }
+}
+
+/** Largest already-resolved outer radius anywhere in the stage (body or internal parts) — the
+ *  best proxy for the airframe's scale, used as the last-resort fallback for an "auto" radius no
+ *  neighbour could supply. Matches the value the aerodynamic reference radius is taken from, so a
+ *  fallback-filled airframe stays consistent with its reference area. */
+function maxResolvedRadius(components: RocketComponent[]): number {
+  let max = 0;
+  const visit = (list: RocketComponent[]): void => {
+    for (const c of list) {
+      const f = rf(c);
+      for (const r of [f.outerRadius, f.foreRadius, f.aftRadius]) {
+        if (ok(r)) max = Math.max(max, r);
+      }
+      if (c.children.length) visit(c.children);
+    }
+  };
+  visit(components);
+  return max;
 }
 
 /** Internal parts (tube couplers, inner tubes, rings, engine blocks) with an auto outer
