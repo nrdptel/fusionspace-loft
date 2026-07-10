@@ -231,6 +231,51 @@ describe("graceful degradation", () => {
     expect(doc.warnings.some((w) => /largest known radius/i.test(w))).toBe(true);
   });
 
+  it("gives a shock cord and launch lug their material mass (OpenRocket stores no explicit mass)", () => {
+    // The shock cord's line material is kg/m ⇒ mass = density × cord length; the lug's bulk
+    // material is kg/m³ ⇒ mass over its tube-wall volume. Both are stored as material+geometry,
+    // not an explicit <mass>, so dropping them would silently lose real (CG-shifting) mass.
+    const xml = `<?xml version='1.0'?>
+      <openrocket version="1.10">
+        <rocket><name>Harness</name>
+          <subcomponents><stage><subcomponents>
+            <nosecone><length>0.1</length><aftradius>0.025</aftradius><shape>ogive</shape></nosecone>
+            <bodytube><length>0.4</length><radius>0.025</radius><subcomponents>
+              <shockcord><cordlength>5.0</cordlength><packedlength>0.06</packedlength>
+                <material type="line" density="0.02">Tubular nylon</material></shockcord>
+              <launchlug><length>0.05</length><radius>0.006</radius><thickness>0.001</thickness>
+                <material type="bulk" density="1200">Plastic</material></launchlug>
+            </subcomponents></bodytube>
+          </subcomponents></stage></subcomponents>
+        </rocket>
+      </openrocket>`;
+    const doc = adaptOrkXml(xml);
+    const flat = flattenRocket(doc.rocket);
+    const cord = flat.find((p) => p.component.kind === "shockcord")!.component;
+    const lug = flat.find((p) => p.component.kind === "launchlug")!.component;
+    // 5 m of 0.02 kg/m line = 100 g — a real high-power harness mass, not a rounding error.
+    if (cord.kind === "shockcord") expect(cord.mass).toBeCloseTo(0.1, 4);
+    // π(0.006² − 0.005²) × 0.05 × 1200 ≈ 2.07 g.
+    if (lug.kind === "launchlug") expect(lug.mass!).toBeCloseTo(Math.PI * (0.006 ** 2 - 0.005 ** 2) * 0.05 * 1200, 5);
+  });
+
+  it("lets an explicit shock-cord mass override the material computation", () => {
+    const xml = `<?xml version='1.0'?>
+      <openrocket version="1.10">
+        <rocket><name>Explicit</name>
+          <subcomponents><stage><subcomponents>
+            <nosecone><length>0.1</length><aftradius>0.025</aftradius><shape>ogive</shape></nosecone>
+            <bodytube><length>0.4</length><radius>0.025</radius><subcomponents>
+              <shockcord><cordlength>5.0</cordlength><mass>0.03</mass>
+                <material type="line" density="0.02">Tubular nylon</material></shockcord>
+            </subcomponents></bodytube>
+          </subcomponents></stage></subcomponents>
+        </rocket>
+      </openrocket>`;
+    const cord = flattenRocket(adaptOrkXml(xml).rocket).find((p) => p.component.kind === "shockcord")!.component;
+    if (cord.kind === "shockcord") expect(cord.mass).toBeCloseTo(0.03, 4);
+  });
+
   it("reads the fin edge cross-section", () => {
     const xml = `<?xml version='1.0'?>
       <openrocket version="1.10">

@@ -68,10 +68,16 @@ export default function Methods() {
         component&apos;s dimensions and its material density. Bodies of revolution (nose cones,
         transitions) are integrated numerically along the contour for volume and centroid
         (<code>lib/sim/shapes.ts</code>), with a shell subtracted when a wall thickness is given.
-        An explicit <code>&lt;overridemass&gt;</code> or <code>&lt;overridecg&gt;</code> in the
-        design always wins. The centre of gravity is mass-weighted; pitch inertia is the sum of each
-        part&apos;s own inertia plus a parallel-axis term. Propellant burns off over the flight, so
-        mass and CG are time-varying.
+        Recovery and fitting parts are stored the same way — as a material plus geometry, not an
+        explicit mass — so their mass is computed too: a parachute or streamer from its canopy area
+        and areal density, a shock cord from its line density times cord length, and a launch lug or
+        rail button from its bulk material over its tube wall. On a small model rocket these are
+        grams; on a high-power rocket a long tubular-nylon harness is a real, CG-shifting mass that
+        would otherwise be silently dropped. An explicit
+        <code>&lt;overridemass&gt;</code> or <code>&lt;overridecg&gt;</code> in the design always
+        wins. The centre of gravity is mass-weighted; pitch inertia is the sum of each part&apos;s
+        own inertia plus a parallel-axis term. Propellant burns off over the flight, so mass and CG
+        are time-varying.
       </p>
       <p>
         A RockSim <code>.rkt</code> is the exception to the &ldquo;compute from geometry&rdquo; rule:
