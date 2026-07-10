@@ -482,13 +482,13 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
     }
   },
   {
-    "eng": "; Estes A8 RASP.ENG file made from NAR published data\n; File produced March 3, 2011\n; The total impulse, peak thrust, average thrust and burn time are\n; the same as the averaged static test data on the NAR web site in\n; the certification file. The curve drawn with these data points is as\n; close to the certification curve as can be with such a limited\n; number of points (32) allowed with wRASP up to v1.6.\n A8 18 70 0 .00384 .01389 E\n0.016 1.080\n0.036 0.293\n0.050 0.259\n0.060 0.357\n0.070 0.419\n0.080 0.355\n0.102 0.781\n0.124 1.443\n0.152 2.966\n0.170 4.426\n0.202 7.160\n0.224 9.051\n0.246 9.555\n0.256 9.317\n0.276 7.958\n0.294 6.108\n0.326 4.235\n0.350 3.813\n0.376 3.997\n0.410 3.926\n0.452 3.724\n0.474 4.046\n0.502 4.092\n0.532 4.146\n0.534 0.000\n",
+    "eng": ";\r\n;Estes A8 RASP.ENG file made from NAR published data\r\n;File produced October 3, 2000\r\n;The total impulse, peak thrust, average thrust and burn time are\r\n;the same as the averaged static test data on the NAR web site in\r\n;the certification file. The curve drawn with these data points is as\r\n;close to the certification curve as can be with such a limited\r\n;number of points (32) allowed with wRASP up to v1.6.\r\nA8 18 70 3-5 0.0033 0.01635 Estes \r\n0.041 0.512\r\n0.084 2.115\r\n0.127 4.358\r\n0.166 6.794\r\n0.192 8.588\r\n0.206 9.294\r\n0.226 9.73\r\n0.236 8.845\r\n0.247 7.179\r\n0.261 5.063\r\n0.277 3.717\r\n0.306 3.205\r\n0.351 2.884\r\n0.405 2.499\r\n0.467 2.371\r\n0.532 2.307\r\n0.589 2.371\r\n0.632 2.371\r\n0.652 2.243\r\n0.668 1.794\r\n0.684 1.153\r\n0.703 0.448\r\n0.73 0",
     "source": {
       "file": "Estes_A8.eng",
       "motorId": "5f4294d2000231000000000b",
-      "simfileId": "5f4294d20002e90000000897",
+      "simfileId": "5f4294d20002e900000004e3",
       "license": null,
-      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000897/"
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000004e3/"
     }
   },
   {
