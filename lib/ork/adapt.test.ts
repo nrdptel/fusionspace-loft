@@ -203,6 +203,34 @@ describe("graceful degradation", () => {
     expect(doc.warnings.some((w) => /auto|resolve/i.test(w))).toBe(true);
   });
 
+  it("falls back to the largest known radius when a whole airframe is auto", () => {
+    // A body whose only dimensioned radius is a boat-tail's aft end (its fore is auto, so it
+    // can't seed the tubes ahead of it): every tube and the nose base are "auto" with no
+    // neighbour to inherit from. Rather than collapse the airframe to zero — which would fly it
+    // as a drag-free, near-massless needle with a borrowed reference area — the tubes take the
+    // rocket's largest known radius so the model stays self-consistent and is flagged.
+    const xml = `<?xml version='1.0'?>
+      <openrocket version="1.10">
+        <rocket><name>AllAuto</name>
+          <subcomponents><stage><subcomponents>
+            <nosecone><length>0.15</length><aftradius>auto</aftradius><shape>ogive</shape></nosecone>
+            <bodytube><length>0.3</length><radius>auto</radius></bodytube>
+            <transition><length>0.05</length><foreradius>auto</foreradius><aftradius>0.02</aftradius><shape>conical</shape></transition>
+          </subcomponents></stage></subcomponents>
+        </rocket>
+      </openrocket>`;
+    const doc = adaptOrkXml(xml);
+    const flat = flattenRocket(doc.rocket);
+    const tube = flat.find((p) => p.component.kind === "bodytube")!.component;
+    const nose = flat.find((p) => p.component.kind === "nosecone")!.component;
+    // The 20 mm boat-tail aft is the only dimensioned radius, so it becomes the airframe's size.
+    if (tube.kind === "bodytube") expect(tube.outerRadius).toBeCloseTo(0.02, 4);
+    if (nose.kind === "nosecone") expect(nose.aftRadius).toBeCloseTo(0.02, 4);
+    expect(referenceRadius(doc.rocket)).toBeCloseTo(0.02, 4);
+    // The substitution is surfaced, not silent.
+    expect(doc.warnings.some((w) => /largest known radius/i.test(w))).toBe(true);
+  });
+
   it("reads a motor cluster count onto the mount and does not treat it as reduced", () => {
     const xml = `<?xml version='1.0'?>
       <openrocket version="1.10">

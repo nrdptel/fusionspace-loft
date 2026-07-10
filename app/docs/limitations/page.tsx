@@ -138,6 +138,16 @@ export default function Limitations() {
         fully applied, so a design that relies on it may double-count some mass.
       </p>
 
+      <h3>Under-specified airframe diameters are inferred</h3>
+      <p>
+        When a design leaves its whole airframe at <code>auto</code> radius with no dimensioned
+        section for the tubes to inherit from — anchored only by, say, a boat-tail end or an
+        internal part — Loft sizes the airframe to the rocket&apos;s largest known radius rather than
+        flying it as a zero-diameter needle. That keeps drag, mass, and stability self-consistent,
+        but the inferred diameter is a best guess: an import warning names it, and you should
+        confirm the airframe diameters against the design before trusting apogee or velocity.
+      </p>
+
       <h3>Motor database is a curated subset</h3>
       <p>
         The bundled database covers a representative set of common motors across classes A–M —
