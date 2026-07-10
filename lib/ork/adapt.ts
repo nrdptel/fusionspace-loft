@@ -18,6 +18,7 @@ import type {
   AxialMethod,
   NoseShape,
   SurfaceFinish,
+  FinCrossSection,
   MotorConfiguration,
   MotorInstance,
   MotorSpec,
@@ -119,6 +120,22 @@ function parseFinish(node: XmlNode): SurfaceFinish | undefined {
       return "polished";
     default:
       return "regular-paint";
+  }
+}
+
+/** Fin edge cross-section from an OpenRocket `<crosssection>` element. Absent ⇒ undefined,
+ *  which the drag model treats as square (OpenRocket's own default). */
+function parseFinCrossSection(node: XmlNode): FinCrossSection | undefined {
+  const s = childText(node, "crosssection");
+  switch (s) {
+    case "square":
+      return "square";
+    case "rounded":
+      return "rounded";
+    case "airfoil":
+      return "airfoil";
+    default:
+      return undefined;
   }
 }
 
@@ -327,6 +344,7 @@ function parseComponent(node: XmlNode, ctx: WalkContext): RocketComponent | null
         height: childNum(node, "height", 0),
         sweepLength: childNum(node, "sweeplength", 0),
         thickness: childNum(node, "thickness", 0.003),
+        crossSection: parseFinCrossSection(node),
         cantAngle: degToRad(childNum(node, "cant", 0) || 0),
         children: parseSubcomponents(node, ctx),
       };
@@ -358,6 +376,7 @@ function parseComponent(node: XmlNode, ctx: WalkContext): RocketComponent | null
         height,
         sweepLength: sweep,
         thickness: childNum(node, "thickness", 0.003),
+        crossSection: parseFinCrossSection(node),
         children: parseSubcomponents(node, ctx),
       };
     }

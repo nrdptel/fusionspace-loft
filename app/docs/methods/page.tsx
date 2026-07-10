@@ -155,15 +155,26 @@ export default function Methods() {
           makes base drag grow without bound, which is wrong.)
         </li>
         <li>
-          <strong>Pressure &amp; parasitic</strong> — fin leading-edge/thickness pressure drag; the
-          parasitic drag of external fittings (launch lugs, rail buttons) computed from each
-          fitting&apos;s own frontal area and count rather than a blind allowance, using an axial
-          protuberance drag coefficient reduced for sitting in the body&apos;s boundary layer
-          (Hoerner; the model-rocket launch-lug literature); and a small flat residual for
-          un-modelled hardware (joints, screw heads). All with a bounded Prandtl–Glauert
-          amplification below the critical Mach. This term is negligible on a slender high-power
-          body but a real contributor on a small model rocket, where the lug is large relative to
-          the airframe — which is where Loft&apos;s apogee over-prediction was worst.
+          <strong>Fin pressure drag</strong> — set by the fin&apos;s edge <em>cross-section</em>. A
+          square edge stagnates the flow head-on (stagnation-pressure coefficient ≈ 0.85 subsonic,
+          reduced by leading-edge sweep as <code>cos²Λ</code>) and leaves a blunt trailing-edge base;
+          a rounded edge roughly halves both; an airfoil is streamlined, leaving only the small
+          transonic compressibility rise. Referenced to the fins&apos; frontal area
+          (<code>N·thickness·span</code>) over the reference area, after the OpenRocket technical
+          documentation and Hoerner. This is the dominant pressure term for a finned model rocket —
+          a thickness-only estimate under-counts it several-fold — and reading the design&apos;s
+          stated cross-section is what brought Loft&apos;s drag on the reference &ldquo;simple model
+          rocket&rdquo; into line with OpenRocket&apos;s. A design that names no cross-section is
+          treated as square, OpenRocket&apos;s own default.
+        </li>
+        <li>
+          <strong>Parasitic</strong> — the drag of external fittings (launch lugs, rail buttons)
+          computed from each fitting&apos;s own frontal area and count rather than a blind allowance,
+          using an axial protuberance drag coefficient reduced for sitting in the body&apos;s
+          boundary layer (Hoerner; the model-rocket launch-lug literature); and a small flat residual
+          for un-modelled hardware (joints, screw heads), with a bounded Prandtl–Glauert
+          amplification below the critical Mach. Negligible on a slender high-power body but a real
+          contributor on a small model rocket where the lug is large relative to the airframe.
         </li>
         <li>
           <strong>Wave (compressibility) drag</strong> — zero below the critical Mach (~0.8), a

@@ -16,7 +16,7 @@
  *  extrapolated. See the in-app methods section and limitations log.
  */
 
-import type { Rocket, TrapezoidFinSet, GenericFinSet } from "../model/types";
+import type { Rocket, TrapezoidFinSet, GenericFinSet, FinCrossSection } from "../model/types";
 import {
   flattenRocket,
   referenceRadius,
@@ -165,6 +165,9 @@ export interface AeroGeometry {
   finThickness: number;
   /** Total exposed fin frontal area (m²) = N · thickness · span. */
   finFrontalArea: number;
+  /** Draggiest fin edge cross-section present (square > rounded > airfoil), setting the fin
+   *  leading-edge pressure drag. Square when the design has fins but names no cross-section. */
+  finCrossSection: FinCrossSection;
   /** Roughness height (m) from the roughest surface finish present. */
   roughness: number;
   /** Forebody (nose) fineness ratio, length / diameter — the primary wave-drag driver. */
@@ -218,6 +221,13 @@ export function aeroGeometry(rocket: Rocket): AeroGeometry {
   let meanFinChord = 0;
   let finSpan = 0;
   let finSweepLength = 0;
+  // The draggiest cross-section present drives the fin leading-edge pressure drag. Rank
+  // square > rounded > airfoil; a fin set that names none is square (the OpenRocket default).
+  let finEdgeRank = -1;
+  const EDGE_RANK: Record<FinCrossSection, number> = { airfoil: 0, rounded: 1, square: 2 };
+  const noteFinEdge = (cs: FinCrossSection | undefined): void => {
+    finEdgeRank = Math.max(finEdgeRank, EDGE_RANK[cs ?? "square"]);
+  };
 
   // Forebody (nose) geometry — the dominant wave-drag driver. Captured from the frontmost
   // nose cone; a design with none keeps a neutral default (a mid-fineness ogive).
@@ -269,6 +279,7 @@ export function aeroGeometry(rocket: Rocket): AeroGeometry {
       meanFinChord = (c.rootChord + c.tipChord) / 2;
       finSpan = Math.max(finSpan, c.height);
       finSweepLength = c.sweepLength;
+      noteFinEdge(c.crossSection);
     } else if (c.kind === "ellipticalfinset" || c.kind === "freeformfinset") {
       finWetted += 2 * c.area * c.finCount;
       finCount = Math.max(finCount, c.finCount);
@@ -276,6 +287,7 @@ export function aeroGeometry(rocket: Rocket): AeroGeometry {
       meanFinChord = c.height > 0 ? c.area / c.height : c.rootChord;
       finSpan = Math.max(finSpan, c.height);
       finSweepLength = c.sweepLength;
+      noteFinEdge(c.crossSection);
     } else if ((c.kind === "launchlug" || c.kind === "railbutton") && c.radius && c.radius > 0) {
       const count = Math.max(1, c.instanceCount ?? 1);
       protuberanceArea += count * Math.PI * c.radius * c.radius;
@@ -305,6 +317,7 @@ export function aeroGeometry(rocket: Rocket): AeroGeometry {
     finCount,
     finThickness,
     finFrontalArea: finCount * finThickness * finSpan,
+    finCrossSection: finEdgeRank < 0 ? "square" : (["airfoil", "rounded", "square"] as const)[finEdgeRank],
     roughness: roughness || FINISH_ROUGHNESS.unfinished,
     noseFineness: Math.max(0.5, noseFineness),
     noseShapeFactor,
@@ -376,18 +389,43 @@ export function dragCoefficient(
   const baseCoeff = mach <= 1 ? 0.12 + 0.13 * mach * mach : 0.25 / mach;
   const base = baseCoeff * (geom.baseArea / geom.refArea) * (boosting ? 0.15 : 1);
 
-  // Subsonic pressure/interference: fin leading-edge/thickness drag; the parasitic drag of the
-  // external fittings (launch lugs, rail buttons) computed from their own frontal area rather
-  // than a blind allowance; and a small flat residual for un-modelled hardware (joints, screw
-  // heads). All with a mild Prandtl–Glauert amplification (bounded below the critical Mach).
+  // Fin edge pressure drag, set by the fin's edge cross-section — the term that dominates a finned
+  // model rocket's pressure drag and that a thickness-only model badly under-counts. A SQUARE edge
+  // stagnates the flow head-on at the leading edge (stagnation-pressure Cd ≈ 0.85 subsonic, reduced
+  // by LE sweep as cos²Λ) and leaves a blunt trailing-edge base (base-drag Cd, no sweep); a ROUNDED
+  // edge halves both; an AIRFOIL is streamlined, leaving only the small transonic compressibility
+  // rise. Referenced to the fin frontal area (N · thickness · span) over the reference area. Model
+  // and coefficients from the OpenRocket technical documentation (Niskanen), after Hoerner,
+  // *Fluid-Dynamic Drag*.
+  const finEdge = geom.finFrontalArea / geom.refArea;
+  const leCompress = Math.pow(Math.max(0.01, 1 - Math.min(mach, 0.99) ** 2), -0.417) - 1;
+  let finLeCoeff: number; // leading-edge stagnation
+  let finTeCoeff: number; // trailing-edge base
+  switch (geom.finCrossSection) {
+    case "airfoil":
+      finLeCoeff = leCompress;
+      finTeCoeff = 0;
+      break;
+    case "rounded":
+      finLeCoeff = 0.5 * stagnationCd(mach);
+      finTeCoeff = 0.5 * baseCoeff;
+      break;
+    default: // square (also the default when no cross-section is named)
+      finLeCoeff = stagnationCd(mach);
+      finTeCoeff = baseCoeff;
+  }
+  const finPressure = (finLeCoeff * geom.finSweepFactor + finTeCoeff) * finEdge;
+
+  // Parasitic drag of the external fittings (launch lugs, rail buttons) from their own frontal
+  // area rather than a blind allowance, plus a small flat residual for un-modelled hardware
+  // (joints, screw heads), with a mild Prandtl–Glauert amplification (bounded below M_crit).
   // C_PROTUBERANCE is an axial fitting's pressure-drag coefficient on its frontal circle, reduced
   // for sitting in the body boundary layer (Hoerner protuberance drag; the model-rocket launch-lug
   // literature) — small on a slender HPR body, but a real contributor on a small model rocket
   // where the lug is large relative to the airframe.
-  const finLe = 0.8 * Math.max(0, geom.finThicknessRatio) * (geom.finFrontalArea / geom.refArea);
   const protuberance = C_PROTUBERANCE * (geom.protuberanceArea / geom.refArea);
   const pg = 1 / Math.sqrt(Math.max(0.19, 1 - Math.min(mach, 0.9) * Math.min(mach, 0.9)));
-  const pressure = (finLe + protuberance + 0.01) * pg;
+  const pressure = finPressure + (protuberance + 0.01) * pg;
 
   // Wave (compressibility) drag — zero below the critical Mach, a transonic rise to a peak
   // near M≈1.15, then a supersonic decline. A bounded, published-shape model (not a
@@ -401,6 +439,14 @@ export function dragCoefficient(
   // fixed-step integrator go unstable and report a nonsensical apogee instead of degrading.
   const cd = Math.min(friction + base + pressure + wave, MAX_CD0);
   return { cd, friction, base, pressure, wave, extrapolated: mach > 0.8 };
+}
+
+/** Stagnation-pressure drag coefficient of a blunt (square) edge facing the flow, after base-
+ *  pressure recovery: ≈ 0.85 in incompressible flow, rising toward transonic. From the OpenRocket
+ *  technical documentation (Niskanen), after Hoerner. Used for a square fin leading edge. */
+function stagnationCd(mach: number): number {
+  const m = Math.min(mach, 1);
+  return 0.85 * (1 + (m * m) / 4 + (m * m * m * m) / 40);
 }
 
 /** Physical ceiling on the zero-lift drag coefficient — a numerical guard, not a model term. */
