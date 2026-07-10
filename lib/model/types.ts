@@ -127,6 +127,12 @@ export interface Transition extends ComponentBase {
   aftShoulderLength?: number;
 }
 
+/** Fin edge cross-section, which sets the leading-edge pressure drag. A square edge stagnates
+ *  the flow head-on; a rounded edge roughly halves that; an airfoil is streamlined (almost no
+ *  subsonic pressure drag). Matches the OpenRocket categories. Absent ⇒ treated as square, the
+ *  OpenRocket default. */
+export type FinCrossSection = "square" | "rounded" | "airfoil";
+
 export interface TrapezoidFinSet extends ComponentBase {
   kind: "trapezoidfinset";
   finCount: number;
@@ -137,6 +143,7 @@ export interface TrapezoidFinSet extends ComponentBase {
   /** Distance the leading edge of the tip is swept aft of the root leading edge (m). */
   sweepLength: number;
   thickness: number;
+  crossSection?: FinCrossSection;
   cantAngle?: number;
 }
 
@@ -152,6 +159,7 @@ export interface GenericFinSet extends ComponentBase {
   /** Spanwise distance from root LE to the area centroid's chord LE (m). */
   sweepLength: number;
   thickness: number;
+  crossSection?: FinCrossSection;
 }
 
 export interface InnerTube extends ComponentBase {

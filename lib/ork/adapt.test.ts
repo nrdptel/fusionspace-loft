@@ -231,6 +231,24 @@ describe("graceful degradation", () => {
     expect(doc.warnings.some((w) => /largest known radius/i.test(w))).toBe(true);
   });
 
+  it("reads the fin edge cross-section", () => {
+    const xml = `<?xml version='1.0'?>
+      <openrocket version="1.10">
+        <rocket><name>Fins</name>
+          <subcomponents><stage><subcomponents>
+            <nosecone><length>0.1</length><aftradius>0.02</aftradius><shape>ogive</shape></nosecone>
+            <bodytube><length>0.3</length><radius>0.02</radius><subcomponents>
+              <trapezoidfinset><fincount>3</fincount><rootchord>0.05</rootchord><tipchord>0.03</tipchord>
+                <height>0.04</height><thickness>0.003</thickness><crosssection>airfoil</crosssection></trapezoidfinset>
+            </subcomponents></bodytube>
+          </subcomponents></stage></subcomponents>
+        </rocket>
+      </openrocket>`;
+    const doc = adaptOrkXml(xml);
+    const fins = flattenRocket(doc.rocket).find((p) => p.component.kind === "trapezoidfinset")!.component;
+    if (fins.kind === "trapezoidfinset") expect(fins.crossSection).toBe("airfoil");
+  });
+
   it("reads a motor cluster count onto the mount and does not treat it as reduced", () => {
     const xml = `<?xml version='1.0'?>
       <openrocket version="1.10">

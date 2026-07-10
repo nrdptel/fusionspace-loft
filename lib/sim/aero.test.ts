@@ -107,6 +107,40 @@ describe("dragCoefficient", () => {
   });
 });
 
+describe("fin cross-section pressure drag", () => {
+  const atm = new Atmosphere().sample(0);
+  const finned = (cs?: "square" | "rounded" | "airfoil"): Rocket => {
+    const r = shapedRocket({ fins: true, sweep: 0.02 });
+    const fins = r.stages[0].components[1].children[0] as TrapezoidFinSet;
+    fins.crossSection = cs;
+    return r;
+  };
+
+  it("defaults an unspecified fin cross-section to square", () => {
+    expect(aeroGeometry(finned(undefined)).finCrossSection).toBe("square");
+  });
+
+  it("orders pressure drag square > rounded > airfoil for the same fin", () => {
+    const cd = (cs?: "square" | "rounded" | "airfoil") =>
+      dragCoefficient(aeroGeometry(finned(cs)), atm, 0.25 * atm.speedOfSound, false).pressure;
+    const square = cd("square");
+    const rounded = cd("rounded");
+    const airfoil = cd("airfoil");
+    expect(square).toBeGreaterThan(rounded);
+    expect(rounded).toBeGreaterThan(airfoil);
+    // A square edge is a first-order pressure-drag contributor, not a rounding error: it should
+    // add well more than the airfoil case, which has only the small transonic rise (≈0 here).
+    expect(square - airfoil).toBeGreaterThan(0.05);
+  });
+
+  it("a swept leading edge reduces square-fin pressure drag (cos²Λ)", () => {
+    const straight = shapedRocket({ fins: true, sweep: 0 });
+    const swept = shapedRocket({ fins: true, sweep: 0.08 });
+    const p = (r: Rocket) => dragCoefficient(aeroGeometry(r), atm, 0.25 * atm.speedOfSound, false).pressure;
+    expect(p(swept)).toBeLessThan(p(straight));
+  });
+});
+
 describe("wave drag is geometry-aware", () => {
   const atm = new Atmosphere().sample(2000);
   const waveAt = (r: Rocket, M: number) =>

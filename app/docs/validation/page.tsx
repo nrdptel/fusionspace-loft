@@ -138,15 +138,20 @@ export default async function Validation() {
       <h2>Cross-checks against real OpenRocket files</h2>
       <p>
         Beyond the bundled samples, Loft has been run against genuine OpenRocket files (which
-        carry real stored results). One you can reproduce yourself: open OpenRocket&apos;s own
-        bundled example <em>&ldquo;A simple model rocket&rdquo;</em> (v24.12) and import it here.
-        Across its A8, B4, and C6 configurations, Loft predicts apogee{" "}
-        <strong>about +11% to +43% higher</strong> than OpenRocket (roughly +20% on average),
-        with the largest gap on the low-thrust B4. That is the expected direction and magnitude:
-        Loft&apos;s simpler drag buildup under-predicts drag, so it over-predicts apogee — most on
-        small, drag-dominated model rockets. To reproduce: import the file, pick each simulation&apos;s
-        configuration, and read the OpenRocket-vs-Loft panel. (The file isn&apos;t bundled — it ships
-        with OpenRocket, which is GPL.)
+        carry real stored results, including OpenRocket&apos;s own per-step drag coefficient). One
+        you can reproduce yourself: open OpenRocket&apos;s own bundled example{" "}
+        <em>&ldquo;A simple model rocket&rdquo;</em> (v24.12) and import it here. On its coast, Loft
+        now reproduces OpenRocket&apos;s total drag coefficient almost exactly (Cd ≈ 0.855, split
+        friction/pressure/base within a few percent each), after Loft was taught to read the fins&apos;
+        square edge cross-section and count its leading-edge stagnation and trailing-edge base
+        pressure drag. Across the A8, B4, and C6 configurations Loft predicts apogee{" "}
+        <strong>about +8% to +14% higher</strong> than OpenRocket on the A8 and C6 flights; the
+        low-thrust <strong>B4 remains an outlier (~+37%)</strong>. The remaining bias is a low-speed,
+        low-Reynolds effect (the slow flights spend longer where skin-friction drag is highest), not
+        the fin pressure drag — the same Cd curve fits all three, so the fast C6 flights land within
+        ~9%. The direction is still conservative for altitude: Loft reads a little high. To reproduce:
+        import the file, pick each simulation&apos;s configuration, and read the OpenRocket-vs-Loft
+        panel. (The file isn&apos;t bundled — it ships with OpenRocket, which is GPL.)
       </p>
 
       <h2>Community validation cases</h2>
