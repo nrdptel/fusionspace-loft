@@ -123,6 +123,20 @@ describe("motor database", () => {
     expect(resolveMotor({ designation: "Z9999XX" })).toBeNull();
   });
 
+  it("does not cross manufacturers on a loose (substring/core) match", () => {
+    // Cesaroni makes no "K550"; it must not resolve to AeroTech's K550W just because the
+    // string is a substring. Silently flying the wrong maker's motor is false precision — the
+    // honest result is "not found". (A genuinely custom motor sharing a class with some other
+    // maker's motor stays unresolved for the same reason.)
+    expect(resolveMotor({ manufacturer: "Cesaroni", designation: "K550" })).toBeNull();
+    expect(resolveMotor({ manufacturer: "Loki", designation: "H128" })).toBeNull();
+    // But the same designation with the right (or unknown) manufacturer still resolves, and an
+    // exact designation matches regardless of a maker-string difference.
+    expect(resolveMotor({ manufacturer: "AeroTech", designation: "K550" })?.entry.curve.designation).toBe("K550W");
+    expect(resolveMotor({ designation: "K550" })?.entry.curve.designation).toBe("K550W");
+    expect(resolveMotor({ manufacturer: "Cesaroni", designation: "K550W" })?.quality).toBe("exact");
+  });
+
   it("normalizes and extracts cores", () => {
     expect(normalize("K550-W")).toBe("K550W");
     expect(coreDesignation("838J293-13A")).toBe("J293");
