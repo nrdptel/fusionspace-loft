@@ -167,6 +167,20 @@ export default async function Validation() {
         data-provenance check, not a tuning knob.
       </p>
 
+      <h2>Staged flights</h2>
+      <p>
+        Serial staging is checked the same way — against OpenRocket&apos;s own stored results for
+        its bundled multi-stage examples. On the <em>&ldquo;Two stage high power rocket&rdquo;</em>
+        (a booster and sustainer, each on an AeroTech H148R, with a drogue at apogee and a main at
+        152&nbsp;m), Loft reaches <strong>691&nbsp;m against OpenRocket&apos;s 675&nbsp;m
+        (+2%)</strong>, with the burnout velocity matching to about 1% and the separation, drogue,
+        and main all firing in the right order. On the <em>&ldquo;Three stage low power
+        rocket&rdquo;</em> Loft lands <strong>within ~1%</strong> of OpenRocket&apos;s apogee across
+        all three configurations. The small residual is the same slight drag under-prediction seen
+        on single-stage designs. To reproduce, import either OpenRocket example (they ship with
+        OpenRocket, which is GPL, so they aren&apos;t bundled here).
+      </p>
+
       <h2>Community validation cases</h2>
       <p>
         The most valuable record is predicted-vs-<em>actual</em>: Loft&apos;s prediction against a

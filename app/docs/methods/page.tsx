@@ -234,6 +234,23 @@ export default function Methods() {
         warning reports the under-counted thrust.
       </p>
 
+      <h2>Staging</h2>
+      <p>
+        In-line (serial) stages fly in sequence. The bottom stage lights at launch; each stage
+        above air-starts when the stage below burns out, plus any ignition delay it specifies —
+        so a boosted-dart coast between separation and the sustainer&apos;s air-start is honoured.
+        At that burnout the spent stage <em>separates</em>: its structure and empty casing leave
+        the vehicle, and the flight continues on the stages still attached. The simulator recomputes
+        mass, the reference area, and the drag buildup for the attached stack at each separation
+        (each phase&apos;s vehicle is the top-most stages, evaluated with the same mass and aero
+        code as a single stage), so a dead booster is no longer lofted to apogee. Because the
+        vertical-plane solve is a point mass, only the total mass, thrust, and reference drag change
+        across a separation — the trajectory doesn&apos;t depend on where the centre of gravity sits
+        within the vehicle. Only the final (sustainer) stage&apos;s descent is tracked; a separated
+        booster&apos;s own recovery isn&apos;t. Parallel and strap-on staging is not modelled (see
+        the <Link href="/docs/limitations">limitations</Link>).
+      </p>
+
       <h2>Recovery &amp; drift</h2>
       <p>
         Each recovery device deploys on its event — apogee, a set altitude, or the motor&apos;s

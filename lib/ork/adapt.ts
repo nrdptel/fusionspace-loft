@@ -24,6 +24,7 @@ import type {
   MotorSpec,
   MotorType,
   DeployEvent,
+  DeploySetting,
 } from "../model/types";
 import { degToRad } from "../units";
 import { parseXml, child, children, childText, childNum, parseNum, type XmlNode } from "./xml";
@@ -198,6 +199,23 @@ function mapDeployEvent(s: string | undefined): DeployEvent {
     default:
       return "apogee";
   }
+}
+
+/** Per-configuration deployment overrides: OpenRocket writes a `<deploymentconfiguration
+ *  configid=…>` for each motor config a recovery device deploys differently in (e.g. drogue at
+ *  apogee in one config, main at a set altitude in another). Keyed by configuration id. */
+function parseDeployConfigs(node: XmlNode): Record<string, DeploySetting> | undefined {
+  const out: Record<string, DeploySetting> = {};
+  for (const dc of children(node, "deploymentconfiguration")) {
+    const cid = dc.attrs.configid;
+    if (!cid) continue;
+    out[cid] = {
+      event: mapDeployEvent(childText(dc, "deployevent")),
+      altitude: childNum(dc, "deployaltitude", 0) || undefined,
+      delay: childNum(dc, "deploydelay", 0) || 0,
+    };
+  }
+  return Object.keys(out).length ? out : undefined;
 }
 
 interface WalkContext {
@@ -440,6 +458,7 @@ function parseComponent(node: XmlNode, ctx: WalkContext): RocketComponent | null
         deployEvent: mapDeployEvent(childText(node, "deployevent")),
         deployAltitude: childNum(node, "deployaltitude", 0) || undefined,
         deployDelay: childNum(node, "deploydelay", 0) || 0,
+        deployConfigs: parseDeployConfigs(node),
         packedLength: childNum(node, "packedlength", 0) || undefined,
         packedRadius: childNum(node, "packedradius", 0) || undefined,
         children: [],
@@ -456,6 +475,7 @@ function parseComponent(node: XmlNode, ctx: WalkContext): RocketComponent | null
         deployEvent: mapDeployEvent(childText(node, "deployevent")),
         deployAltitude: childNum(node, "deployaltitude", 0) || undefined,
         deployDelay: childNum(node, "deploydelay", 0) || 0,
+        deployConfigs: parseDeployConfigs(node),
         packedLength: childNum(node, "packedlength", 0) || undefined,
         children: [],
       };
@@ -939,13 +959,16 @@ export function adaptOrkXml(xml: string): OrkDocument {
   const { configs, defaultId } = parseMotorConfigs(rocketNode, ctx);
 
   const reducedAssemblies = warnUnsupportedAssemblies(rocketNode, ctx.warnings);
-  const multiStage = stages.length > 1;
-  if (multiStage) {
+  if (stages.length > 1) {
     ctx.warnings.push(
-      `This design has ${stages.length} stages; staging (separation, air-starts) isn't simulated yet — the stack was flown as one.`,
+      `This design has ${stages.length} stages, flown serially: the booster lights at launch, ` +
+        `each stage above air-starts when the one below burns out and separates. The separated ` +
+        `stages' own descent isn't tracked — only the sustainer is flown to the ground.`,
     );
   }
-  const flownAsReduced = reducedAssemblies || multiStage || hasTubeFins(rocketNode);
+  // Serial staging is now simulated, so a multi-stage stack isn't "reduced". Parallel/strap-on
+  // stages and pods still are (warnUnsupportedAssemblies), as are tube fins.
+  const flownAsReduced = reducedAssemblies || hasTubeFins(rocketNode);
 
   const refType = childText(rocketNode, "referencetype");
   const rocket: Rocket = {

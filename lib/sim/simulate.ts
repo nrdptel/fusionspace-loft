@@ -38,6 +38,20 @@ export interface ResolvedMotor {
   ignitionTime: number;
   /** Ejection-charge fire time (s) if a delay is set (burnout + delay). */
   ejectionTime?: number;
+  /** Time (s) the motor's stage separates and drops away, taking the spent casing with it.
+   *  `Infinity` (the default) for the final stage, which flies to apogee. */
+  detachTime?: number;
+}
+
+/** One segment of a staged flight: which stages are still attached, and from when. Serial
+ *  staging drops the bottom-most stage at each separation, so the attached set is always the
+ *  top `stageCount` stages (`rocket.stages[0 … stageCount-1]`). A single-stage flight is one
+ *  phase with every stage attached the whole time. */
+export interface StagePhase {
+  /** Time (s) this phase becomes active — a separation instant, or 0 for the first phase. */
+  startTime: number;
+  /** Stages still attached, counted from the top (nose): `stages[0 … stageCount-1]`. */
+  stageCount: number;
 }
 
 export interface RecoveryDeviceSim {
@@ -92,6 +106,7 @@ export interface FlightEvent {
     | "ignition"
     | "liftoff"
     | "rail-exit"
+    | "separation"
     | "burnout"
     | "apogee"
     | "deploy"
@@ -148,19 +163,29 @@ interface SimState {
   vel: Vec3;
 }
 
-/** Total motor mass point at time t (dry casing + remaining propellant). */
+/** Motor mass points at time t (dry casing + remaining propellant), for motors whose stage is
+ *  still attached. A motor not yet ignited carries its full loaded mass (dead weight lofted by
+ *  the stage below); one whose stage has separated is gone, casing and all. */
 function motorMassPoints(motors: ResolvedMotor[], t: number): PointMass[] {
-  return motors.map((m) => ({
-    mass: motorMassAt(m.curve, t - m.ignitionTime),
-    cg: m.cg,
-    ownInertia: 0,
-    source: m.curve.designation,
-  }));
+  const pts: PointMass[] = [];
+  for (const m of motors) {
+    if (t >= (m.detachTime ?? Infinity)) continue;
+    pts.push({
+      mass: motorMassAt(m.curve, t - m.ignitionTime),
+      cg: m.cg,
+      ownInertia: 0,
+      source: m.curve.designation,
+    });
+  }
+  return pts;
 }
 
 function totalThrust(motors: ResolvedMotor[], t: number): number {
   let f = 0;
-  for (const m of motors) f += thrustAt(m.curve, t - m.ignitionTime);
+  for (const m of motors) {
+    if (t >= (m.detachTime ?? Infinity)) continue;
+    f += thrustAt(m.curve, t - m.ignitionTime);
+  }
   return f;
 }
 
@@ -170,6 +195,9 @@ export interface SimulateInput {
   motors: ResolvedMotor[];
   recovery: RecoveryDeviceSim[];
   conditions: LaunchConditions;
+  /** Staging timeline (from `buildRocketDynamics`). One phase ⇒ ordinary single-stage flight;
+   *  more ⇒ spent stages drop away at each separation. Absent ⇒ single-stage. */
+  phases?: StagePhase[];
   /** Fixed step during boost/coast (s). Descent uses a coarser step. */
   timeStep?: number;
 }
@@ -184,8 +212,31 @@ export function simulate(input: SimulateInput): FlightResult {
   const geom = aeroGeometry(rocket);
   const stability = barrowman(rocket);
 
+  // A staged flight is a sequence of phases, each with a different set of attached stages.
+  // Precompute the structural mass points and aerodynamic geometry of each phase's vehicle from
+  // a sub-rocket of the attached (top-most) stages — reusing the same mass and aero code as a
+  // single stage. The full stack is phase 0, so a single-stage flight is unchanged.
+  const nStages = rocket.stages.length;
+  const phases: StagePhase[] =
+    input.phases && input.phases.length > 0 ? input.phases : [{ startTime: 0, stageCount: nStages || 1 }];
+  const phaseData = phases.map((ph) => {
+    const sub =
+      ph.stageCount >= nStages ? rocket : { ...rocket, stages: rocket.stages.slice(0, ph.stageCount) };
+    return {
+      startTime: ph.startTime,
+      structure: ph.stageCount >= nStages ? structure : structurePointMasses(sub),
+      geom: ph.stageCount >= nStages ? geom : aeroGeometry(sub),
+    };
+  });
+  const phaseIndexAt = (t: number): number => {
+    let idx = 0;
+    for (let i = 1; i < phaseData.length; i++) if (t >= phaseData[i].startTime - 1e-9) idx = i;
+    return idx;
+  };
+  const geomAt = (t: number) => phaseData[phaseIndexAt(t)].geom;
+
   const massAt = (t: number): MassProperties =>
-    combine([...structure, ...motorMassPoints(motors, t)]);
+    combine([...phaseData[phaseIndexAt(t)].structure, ...motorMassPoints(motors, t)]);
 
   const cgDry = combine(structure).cg;
   const loaded = massAt(0);
@@ -238,6 +289,7 @@ export function simulate(input: SimulateInput): FlightResult {
   let apogeePassed = false;
   let deployedBeforeApogee = false;
   let landed = false;
+  let separationsLogged = 0;
 
   events.push({ type: "ignition", time: 0, altitude: 0, velocity: 0 });
 
@@ -268,16 +320,18 @@ export function simulate(input: SimulateInput): FlightResult {
     }
     f = add(f, scale(thrustDir, thrust));
 
-    // Drag — opposes the air-relative velocity.
+    // Drag — opposes the air-relative velocity. Uses the geometry of whichever stages are still
+    // attached at this instant (after a separation the spent booster's body is gone).
     if (airSpeed > 0.01) {
+      const g = geomAt(s.t);
       let cdA: number;
       if (anyDeployed(recovery, s.t)) {
         // An open canopy drags whenever it is open — including a too-early (pre-apogee) deploy.
-        cdA = deployedCdA(recovery, s.t) + geom.refArea * 0.5; // chutes + a little body
+        cdA = deployedCdA(recovery, s.t) + g.refArea * 0.5; // chutes + a little body
       } else {
-        const dr = dragCoefficient(geom, atm, airSpeed, boosting);
+        const dr = dragCoefficient(g, atm, airSpeed, boosting);
         if (dr.extrapolated) extrapolated = true;
-        cdA = dr.cd * geom.refArea;
+        cdA = dr.cd * g.refArea;
       }
       const dragMag = 0.5 * atm.density * airSpeed * airSpeed * cdA;
       const dir = scale(airVel, -1 / airSpeed);
@@ -333,6 +387,22 @@ export function simulate(input: SimulateInput): FlightResult {
     else if (thrust > 0) phase = "boost";
     else if (!apogeePassed) phase = "coast";
     else phase = "descent";
+
+    // Stage separation(s): a spent lower stage drops away as this phase begins. Log each one
+    // crossed this step so a staged flight shows where mass and drag stepped down.
+    while (
+      separationsLogged < phaseData.length - 1 &&
+      state.t >= phaseData[separationsLogged + 1].startTime
+    ) {
+      separationsLogged++;
+      events.push({
+        type: "separation",
+        time: phaseData[separationsLogged].startTime,
+        altitude: state.pos.z,
+        velocity: speed,
+        label: `Stage separation`,
+      });
+    }
 
     // Burnout (first time thrust hits zero after having thrust).
     if (burnoutV === 0 && thrust <= 0 && state.t >= burnout && burnout > 0 && liftedOff) {
@@ -395,9 +465,10 @@ export function simulate(input: SimulateInput): FlightResult {
     }
 
     // Sample the trajectory (thin it during long descent).
+    const gNow = geomAt(state.t);
     const cdNow = anyDeployed(recovery, state.t)
       ? 0
-      : dragCoefficient(geom, atm, airSpeed, thrust > 0).cd;
+      : dragCoefficient(gNow, atm, airSpeed, thrust > 0).cd;
     if (shouldSample(trajectory, state.t, phase)) {
       trajectory.push({
         t: state.t,
@@ -408,7 +479,7 @@ export function simulate(input: SimulateInput): FlightResult {
         acceleration: accInst,
         mach,
         thrust,
-        drag: 0.5 * atm.density * airSpeed * airSpeed * (cdNow * geom.refArea),
+        drag: 0.5 * atm.density * airSpeed * airSpeed * (cdNow * gNow.refArea),
         mass: mp.mass,
         cd: cdNow,
         dynamicPressure: q,
@@ -529,7 +600,12 @@ function burnoutTime(motors: ResolvedMotor[]): number {
  *  set to deploy at ejection opens at this time. */
 function firstEjectionTime(motors: ResolvedMotor[]): number | undefined {
   let t = Infinity;
-  for (const m of motors) if (m.ejectionTime !== undefined && m.ejectionTime < t) t = m.ejectionTime;
+  for (const m of motors) {
+    // Only the final stage's motor(s) eject the tracked recovery. A lower stage's ejection
+    // charge is a staging/separation charge — it must not fire the sustainer's parachute.
+    if ((m.detachTime ?? Infinity) !== Infinity) continue;
+    if (m.ejectionTime !== undefined && m.ejectionTime < t) t = m.ejectionTime;
+  }
   return Number.isFinite(t) ? t : undefined;
 }
 
