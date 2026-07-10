@@ -144,14 +144,27 @@ export default async function Validation() {
         now reproduces OpenRocket&apos;s total drag coefficient almost exactly (Cd ≈ 0.855, split
         friction/pressure/base within a few percent each), after Loft was taught to read the fins&apos;
         square edge cross-section and count its leading-edge stagnation and trailing-edge base
-        pressure drag. Across the A8, B4, and C6 configurations Loft predicts apogee{" "}
-        <strong>about +8% to +11% higher</strong> than OpenRocket on the A8 and C6 flights; the
-        low-thrust <strong>B4 remains an outlier (~+35%)</strong>. The remaining bias is a low-speed,
-        low-Reynolds effect (the slow flights spend longer where skin-friction drag is highest), not
-        the fin pressure drag — the same Cd curve fits all three, so the fast C6 flights land within
-        ~9%. The direction is still conservative for altitude: Loft reads a little high. To reproduce:
-        import the file, pick each simulation&apos;s configuration, and read the OpenRocket-vs-Loft
-        panel. (The file isn&apos;t bundled — it ships with OpenRocket, which is GPL.)
+        pressure drag. Across the A8, B4, and C6 configurations the fast <strong>C6 flights land
+        within ~8%</strong>; the low-thrust <strong>A8 (~+18%) and B4 (~+35%)</strong> read higher.
+        Those two are motor-<em>data</em> differences, not the aerodynamics — Loft flies the A8 on
+        the NAR-certified curve (a realistic ~72&nbsp;s specific impulse and Estes&apos; published
+        loaded mass), which delivers a little more than OpenRocket&apos;s bundled A8, and its B4
+        curve likewise differs; the shared drag model fits all three. The direction is conservative
+        for altitude: Loft reads a little high. To reproduce: import the file, pick each
+        simulation&apos;s configuration, and read the OpenRocket-vs-Loft panel. (The file isn&apos;t
+        bundled — it ships with OpenRocket, which is GPL.)
+      </p>
+
+      <h2>Motor curves vs certification</h2>
+      <p>
+        Every bundled thrust curve is authentic ThrustCurve.org data. As a standing check, each
+        curve&apos;s integrated total impulse is compared against the motor&apos;s ThrustCurve
+        certified value, and the published curve closest to certification is the one bundled: all of
+        the sixty-plus curves land within about 8% (most within 2%). The one exception is the
+        AeroTech F50T, whose only published RASP curve integrates ~11% below its certified total
+        impulse — it under-states (the conservative direction for altitude), and no closer curve is
+        published to bundle in its place. Thrust-vs-time is factual test-stand data, so this is a
+        data-provenance check, not a tuning knob.
       </p>
 
       <h2>Community validation cases</h2>
