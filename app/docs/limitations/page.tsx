@@ -150,13 +150,17 @@ export default function Limitations() {
 
       <h3>Motor database is a curated subset</h3>
       <p>
-        The bundled database covers a representative set of common motors across classes A–M —
-        the common Estes/Quest low-power motors, AeroTech F–L single-use and reload motors, and
-        mid-to-high-power Cesaroni and Loki I–M reloads — but not the entire ThrustCurve.org catalogue (that would
-        bloat the offline bundle). If your motor isn&apos;t found, Loft says so rather than
-        guessing; fuzzy matching by class-and-thrust core can, in
-        rare cases, match a same-core motor of a different propellant. The resolved designation is
-        always shown so you can check it. When <em>no</em> motor in a configuration resolves, there
+        The bundled database covers a representative set of common motors across classes A–N —
+        the common Estes/Quest low-power motors, AeroTech F–N single-use and reload motors, and
+        mid-to-high-power Cesaroni, Loki and Animal Motor Works G–N reloads, up to the 98&nbsp;mm
+        Cesaroni and AeroTech N-class research motors — but not the entire ThrustCurve.org catalogue
+        (that would bloat the offline bundle). Every curve is authentic ThrustCurve.org data,
+        matched to its published certified total impulse. If your motor isn&apos;t found, Loft says
+        so rather than guessing; fuzzy matching by class-and-thrust core can, in rare cases, match a
+        same-core motor of a different propellant. The resolved designation is always shown so you
+        can check it. Genuinely custom or experimental motors — an amateur or research motor with no
+        published certification data — have no curve to bundle, so they stay unresolved rather than
+        being matched to an unrelated maker&apos;s motor of the same class. When <em>no</em> motor in a configuration resolves, there
         is no thrust to fly — Loft withholds the flight results, plots, and OpenRocket comparison
         entirely and names the motor it couldn&apos;t find, rather than showing a misleading
         zero-altitude &ldquo;flight.&rdquo; When a configuration resolves only <em>some</em> of its

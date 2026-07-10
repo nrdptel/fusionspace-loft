@@ -1,5 +1,16 @@
 [
   {
+    "file": "AMW_L1100.eng",
+    "motorId": "5f4294d2000231000000018b",
+    "license": null,
+    "simfileId": "5f4294d20002e90000000482",
+    "designation": "L1100RR",
+    "manufacturer": "Animal Motor Works",
+    "class": "L",
+    "diameter": 75,
+    "header": "L1100RR 75 728 100 1.346 2.5881 Animal_Motor_Works"
+  },
+  {
     "file": "AeroTech_D21T.eng",
     "motorId": "5f4294d20002310000000023",
     "license": null,
@@ -284,6 +295,17 @@
     "header": "L952W 98 427 0 2.73011 5.01222 AT"
   },
   {
+    "file": "AeroTech_N3300.eng",
+    "motorId": "5f4294d2000231000000030d",
+    "license": "PD",
+    "simfileId": "5f4294d20002e90000000884",
+    "designation": "N3300R-P",
+    "manufacturer": "AeroTech",
+    "class": "N",
+    "diameter": 98,
+    "header": "N3300R-P 98 1060 P 7.5120000000000005 12.269 AT"
+  },
+  {
     "file": "Cesaroni_1266-J760-WT-19A.eng",
     "motorId": "5f4294d200023100000003a8",
     "license": "PD",
@@ -317,6 +339,17 @@
     "header": "J293BS 54 237 13-12-11-10-9-8-7-6-5-4-3 0.41600000000000004 0.84 CTI"
   },
   {
+    "file": "Cesaroni_I216.eng",
+    "motorId": "5f4294d200023100000002cc",
+    "license": null,
+    "simfileId": "5f4294d20002e90000000654",
+    "designation": "I216-CL(I)",
+    "manufacturer": "Cesaroni",
+    "class": "I",
+    "diameter": 38,
+    "header": "I216-CL(I) 38 367 5-7-9-11-14 0.3125 0.601 CTI"
+  },
+  {
     "file": "Cesaroni_I540WT.eng",
     "motorId": "5f4294d200023100000001fb",
     "license": "?",
@@ -326,6 +359,17 @@
     "class": "I",
     "diameter": 38,
     "header": "I540WT 38 367 7-9-11-13-16 0.3288 0.5982 CTI"
+  },
+  {
+    "file": "Cesaroni_J94.eng",
+    "motorId": "5f4294d20002310000000416",
+    "license": null,
+    "simfileId": "5f4294d20002e90000000810",
+    "designation": "644-J94-MY-P",
+    "manufacturer": "Cesaroni",
+    "class": "J",
+    "diameter": 38,
+    "header": "644-J94-MY-P 38 367 0 0.3930 0.6600 CTI"
   },
   {
     "file": "Cesaroni_K1440.eng",
@@ -427,6 +471,28 @@
     "header": "M3400-WT 98 702 P 4.766 8.108 CTI"
   },
   {
+    "file": "Cesaroni_N3400.eng",
+    "motorId": "5f4294d200023100000002f9",
+    "license": null,
+    "simfileId": "5f4294d20002e900000006c2",
+    "designation": "N3400-SK",
+    "manufacturer": "Cesaroni",
+    "class": "N",
+    "diameter": 98,
+    "header": "N3400-SK 98 1239 P 8.471 13.972 CTI"
+  },
+  {
+    "file": "Cesaroni_N3800.eng",
+    "motorId": "5f4294d20002310000000319",
+    "license": null,
+    "simfileId": "5f4294d20002e900000006fb",
+    "designation": "N3800-BS",
+    "manufacturer": "Cesaroni",
+    "class": "N",
+    "diameter": 98,
+    "header": "N3800-BS 98 1239 P 8.71 14.261000000000001 CTI"
+  },
+  {
     "file": "Estes_A10.eng",
     "motorId": "5f4294d2000231000000000c",
     "license": null,
@@ -519,6 +585,17 @@
     "diameter": 24
   },
   {
+    "file": "Loki_G66.eng",
+    "motorId": "5f4294d20002310000000449",
+    "license": "PD",
+    "simfileId": "5f4294d20002e90000000864",
+    "designation": "G66LR",
+    "manufacturer": "Loki",
+    "class": "G",
+    "diameter": 38,
+    "header": "G66LR 38 122.2 5-15 0.07200000000000001 0.25 Loki"
+  },
+  {
     "file": "Loki_J528.eng",
     "motorId": "5f4294d20002310000000123",
     "license": "?",
@@ -528,6 +605,17 @@
     "class": "J",
     "diameter": 38,
     "header": "J528 38 406 5-8-10-13-17 0.372 0.752 Loki"
+  },
+  {
+    "file": "Loki_K1127.eng",
+    "motorId": "5f4294d2000231000000043a",
+    "license": "free",
+    "simfileId": "5f4294d20002e90000000836",
+    "designation": "K1127LB",
+    "manufacturer": "Loki",
+    "class": "K",
+    "diameter": 38,
+    "header": "K1127LB 38 625.5 P 0.624 1.172 Loki"
   },
   {
     "file": "Loki_K627.eng",

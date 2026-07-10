@@ -4,7 +4,7 @@ import { allMotors, resolveMotor, coreDesignation, normalize } from "./db";
 describe("motor database", () => {
   it("parses the bundled catalog", () => {
     const motors = allMotors();
-    expect(motors.length).toBeGreaterThanOrEqual(54);
+    expect(motors.length).toBeGreaterThanOrEqual(62);
     for (const m of motors) {
       expect(m.curve.totalImpulse).toBeGreaterThan(0);
       expect(m.curve.samples.length).toBeGreaterThan(2);
@@ -55,6 +55,28 @@ describe("motor database", () => {
       // The resolved curve is in the right impulse class.
       expect(m?.entry.curve.designation[0]).toBe(d[0]);
       expect(m?.entry.curve.totalImpulse).toBeGreaterThan(0);
+    }
+  });
+
+  it("resolves the in-the-wild HPR motors real design files reference", () => {
+    // The exact manufacturer + designation strings the corpus designs carry, including the
+    // propellant suffixes OpenRocket writes (…-CL(I), 644-J94-MY, N3800-BS, N3300, L1100SM).
+    // Each must now resolve to its authentic curve in the right impulse class.
+    const cases: Array<[string, string, string]> = [
+      ["Cesaroni", "I216-CL(I)", "I"],
+      ["Cesaroni", "644-J94-MY", "J"],
+      ["Cesaroni", "N3800-BS", "N"],
+      ["Cesaroni", "N3400-SK", "N"],
+      ["AeroTech", "N3300", "N"],
+      ["Loki", "K1127LB", "K"],
+      ["Loki", "G66-LR", "G"],
+      ["Animal Motor Works", "L1100SM", "L"],
+    ];
+    for (const [manufacturer, designation, cls] of cases) {
+      const m = resolveMotor({ manufacturer, designation });
+      expect(m).not.toBeNull();
+      expect(coreDesignation(m!.entry.curve.designation)[0]).toBe(cls);
+      expect(m!.entry.curve.totalImpulse).toBeGreaterThan(0);
     }
   });
 

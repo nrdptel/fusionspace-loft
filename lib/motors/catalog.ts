@@ -22,6 +22,16 @@ export interface CatalogEntry {
 
 export const MOTOR_CATALOG: CatalogEntry[] = [
   {
+    "eng": ";\n;AMW L1100 RASP.ENG file made from NAR published data\n;File produced April 19, 2004\n;The total impulse, peak thrust, average thrust and burn time are\n;the same as the averaged static test data on the NAR web site in\n;the certification file. The curve drawn with these data points is as\n;close to the certification curve as can be with such a limited\n;number of points (32) allowed with wRASP up to v1.6.\nL1100RR 75 728 100 1.346 2.5881 Animal_Motor_Works \n0.013 681.489\n0.029 1116.88\n0.041 1196.3\n0.079 1210.38\n0.147 1203.34\n0.257 1218.42\n0.366 1225.45\n0.567 1254.61\n0.824 1282.76\n1.059 1311.91\n1.267 1340.23\n1.459 1311.91\n1.622 1297.84\n1.713 1290.8\n1.785 1268.68\n1.83 1218.42\n1.886 1080.69\n1.969 819.214\n2.048 558.24\n2.108 376.985\n2.156 246.498\n2.205 144.963\n2.269 72.501\n2.35 0",
+    "source": {
+      "file": "AMW_L1100.eng",
+      "motorId": "5f4294d2000231000000018b",
+      "simfileId": "5f4294d20002e90000000482",
+      "license": null,
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000482/"
+    }
+  },
+  {
     "eng": ";Aerotech D21 RASP.ENG file made from NAR published data\n;File produced July 4, 2000\n;Submitted to ThrustCurve.org by Chris Kobel (3/29/07)\n;The total impulse, peak thrust, average thrust and burn time are\n;the same as the averaged static test data on the NAR web site in\n;the certification file. The curve drawn with these data points is as\n;close to the certification curve as can be with such a limited\n;number of points (32) allowed with wRASP up to v1.6.\nD21T 18 70 4-7 0.0096 0.025 AT \n   0.01   1.367\n   0.021 19.367\n   0.029 32.12\n   0.037 31.667\n   0.051 30.528\n   0.094 30.074\n   0.115 31.213\n   0.133 30.074\n   0.177 30.76\n   0.189 29.842\n   0.203 30.528\n   0.226 29.842\n   0.275 28.935\n   0.296 29.389\n   0.331 28.027\n   0.421 25.971\n   0.478 24.146\n   0.579 20.728\n   0.659 17.774\n   0.739 14.356\n   0.799  9.569\n   0.852  4.557\n   0.899  1.139\n   0.94   0\n",
     "source": {
       "file": "AeroTech_D21T.eng",
@@ -282,6 +292,16 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
     }
   },
   {
+    "eng": "N3300R-P 98 1060 P 7.5120000000000005 12.269 AT\r\n   0.036 40.168\r\n   0.078 2887.624\r\n   0.125 3775.78\r\n   0.157 3628.498\r\n   0.2 3534.773\r\n   0.417 3597.256\r\n   0.666 3628.498\r\n   0.962 3668.666\r\n   1.197 3664.203\r\n   1.507 3655.276\r\n   1.9 3619.572\r\n   2.206 3570.478\r\n   2.423 3530.31\r\n   2.637 3423.195\r\n   3.008 3208.967\r\n   3.318 3025.98\r\n   3.617 2820.677\r\n   3.86 2646.617\r\n   3.963 2597.522\r\n   4.024 2468.093\r\n   4.091 2267.253\r\n   4.163 1896.816\r\n   4.284 1124.7\r\n   4.394 343.658\r\n   4.455 129.43\r\n   4.519 0.0",
+    "source": {
+      "file": "AeroTech_N3300.eng",
+      "motorId": "5f4294d2000231000000030d",
+      "simfileId": "5f4294d20002e90000000884",
+      "license": "PD",
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000884/"
+    }
+  },
+  {
     "eng": "; Pro-54-3G White Thunder\r\n1266-J760-WT-19A 54 329 8-10-12-14-16-18-19 0.5760 1.0768 CTI\r\n   0.012 600.251\r\n   0.019 833.333\r\n   0.026 938.596\r\n   0.04 794.486\r\n   0.054 756.892\r\n   0.094 778.195\r\n   0.129 800.752\r\n   0.165 813.283\r\n   0.218 825.815\r\n   0.279 830.827\r\n   0.377 835.84\r\n   0.496 837.093\r\n   0.617 829.574\r\n   0.709 819.549\r\n   0.811 802.005\r\n   0.917 785.714\r\n   1.041 764.411\r\n   1.201 750.627\r\n   1.331 741.855\r\n   1.455 729.323\r\n   1.488 729.323\r\n   1.514 735.589\r\n   1.556 749.373\r\n   1.568 729.323\r\n   1.575 665.414\r\n   1.589 533.835\r\n   1.616 327.068\r\n   1.646 122.807\r\n   1.659 72.682\r\n   1.681 30.075\r\n   1.713 6.266\r\n   1.731 0.0",
     "source": {
       "file": "Cesaroni_1266-J760-WT-19A.eng",
@@ -312,6 +332,16 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
     }
   },
   {
+    "eng": "I216-CL(I) 38 367 5-7-9-11-14 0.3125 0.601 CTI\r\n0.017 35\r\n0.03 300\r\n0.035 345\r\n0.05 325\r\n0.07 275\r\n0.14 292\r\n0.26 296\r\n0.8 280\r\n1.1 280.4\r\n1.62 255\r\n1.8 226\r\n2.105 210\r\n2.2 195\r\n2.45 80\r\n2.75 36\r\n3.1 0",
+    "source": {
+      "file": "Cesaroni_I216.eng",
+      "motorId": "5f4294d200023100000002cc",
+      "simfileId": "5f4294d20002e90000000654",
+      "license": null,
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000654/"
+    }
+  },
+  {
     "eng": ";\n;\nI540WT 38 367 7-9-11-13-16 0.3288 0.5982 CTI \n0.03 597.86\n0.04 611.31\n0.06 605.64\n0.12 612.36\n0.24 624.54\n0.36 626\n0.48 623.63\n0.6 616.42\n0.72 598.14\n0.84 583.16\n0.95 568.92\n0.96 558.53\n0.98 533.45\n1.02 436.53\n1.06 303.15\n1.09 184.92\n1.13 74.27\n1.18 0",
     "source": {
       "file": "Cesaroni_I540WT.eng",
@@ -319,6 +349,16 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "simfileId": "5f4294d20002e900000002aa",
       "license": "?",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000002aa/"
+    }
+  },
+  {
+    "eng": "; 644-J94-MY  Cesaroni Pro38\n; converted from the ThrustCurve.org RockSim simfile (no RASP file is published)\n644-J94-MY-P 38 367 0 0.3930 0.6600 CTI\n   0.0000 0.000\n   0.0050 19.477\n   0.0140 168.646\n   0.0500 133.967\n   0.1130 133.967\n   0.2030 146.081\n   0.7520 133.967\n   1.7870 116.865\n   3.0750 110.451\n   4.2360 108.314\n   4.8030 77.672\n   5.4740 56.295\n   6.3750 17.577\n   6.8790 6.413\n   6.9280 0.000\n",
+    "source": {
+      "file": "Cesaroni_J94.eng",
+      "motorId": "5f4294d20002310000000416",
+      "simfileId": "5f4294d20002e90000000810",
+      "license": null,
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000810/"
     }
   },
   {
@@ -412,6 +452,26 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
     }
   },
   {
+    "eng": "; Pro98-6GXL 14263N3400-SK P\r\nN3400-SK 98 1239 P 8.471 13.972 CTI\r\n   0.055 3602.205\r\n   0.177 3060.167\r\n   0.608 3397.34\r\n   1.537 3811.337\r\n   2.252 3973.522\r\n   2.86 3760.121\r\n   3.152 3597.937\r\n   3.545 3346.124\r\n   3.71 3627.813\r\n   3.837 2868.106\r\n   3.884 1907.803\r\n   3.999 1510.877\r\n   4.188 273.153\r\n   4.28 81.092\r\n   4.3 0.0",
+    "source": {
+      "file": "Cesaroni_N3400.eng",
+      "motorId": "5f4294d200023100000002f9",
+      "simfileId": "5f4294d20002e900000006c2",
+      "license": null,
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000006c2/"
+    }
+  },
+  {
+    "eng": "; Pro98-6GXL 17631N3800-BS P\r\nN3800-BS 98 1239 P 8.71 14.261000000000001 CTI\r\n   0.016 2671.724\r\n   0.069 4632.012\r\n   0.159 4360.745\r\n   0.293 4355.626\r\n   1.11 4591.066\r\n   1.48 4703.667\r\n   1.847 4729.258\r\n   2.384 4683.194\r\n   2.628 4550.12\r\n   3.141 4135.542\r\n   3.343 4043.413\r\n   3.434 4022.94\r\n   3.497 3787.501\r\n   3.582 3204.021\r\n   3.681 2809.916\r\n   3.853 2385.102\r\n   4.042 1458.7\r\n   4.198 972.467\r\n   4.338 946.875\r\n   4.401 864.983\r\n   4.604 378.75\r\n   4.673 230.321\r\n   4.7 0.0",
+    "source": {
+      "file": "Cesaroni_N3800.eng",
+      "motorId": "5f4294d20002310000000319",
+      "simfileId": "5f4294d20002e900000006fb",
+      "license": null,
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000006fb/"
+    }
+  },
+  {
     "eng": ";Estes A10T RASP.ENG file made from NAR published data\n; File produced March 3, 2011\n; The total impulse, peak thrust, average thrust and burn time are\n; the same as the averaged static test data on the NAR web site in\n; the certification file. The curve drawn with these data points is as\n; close to the certification curve as can be with such a limited\n; number of points (32) allowed with wRASP up to v1.6.\nA10T 13 45 0 .0038 .00525 E\n0.016 0.492\n0.040 0.752\n0.062 0.962\n0.078 2.051\n0.096 2.858\n0.122 4.611\n0.138 6.054\n0.162 8.100\n0.180 9.502\n0.198 9.740\n0.212 8.204\n0.224 4.530\n0.238 2.054\n0.268 1.414\n0.292 1.385\n0.324 1.067\n0.364 1.099\n0.396 0.957\n0.446 0.995\n0.490 0.901\n0.574 0.909\n0.676 0.909\n0.782 1.031\n0.886 1.048\n0.980 1.029\n1.006 0.995\n1.038 1.049\n1.050 0.741\n1.060 0.000\n",
     "source": {
       "file": "Estes_A10.eng",
@@ -502,6 +562,16 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
     }
   },
   {
+    "eng": "G66LR 38 122.2 5-15 0.07200000000000001 0.25 Loki\r\n   0.01 4.448\r\n   0.027 3.14\r\n   0.051 12.298\r\n   0.07 22.764\r\n   0.092 45.006\r\n   0.104 66.723\r\n   0.111 80.068\r\n   0.13 89.488\r\n   0.145 97.861\r\n   0.176 106.496\r\n   0.21 112.252\r\n   0.246 114.607\r\n   0.287 115.654\r\n   0.359 113.299\r\n   0.506 106.757\r\n   0.598 102.571\r\n   0.757 94.721\r\n   1.006 80.853\r\n   1.196 66.462\r\n   1.473 44.482\r\n   1.51 41.081\r\n   1.691 26.428\r\n   1.763 21.456\r\n   1.823 16.746\r\n   1.879 14.13\r\n   2.016 7.326\r\n   2.091 4.448\r\n   2.117 4.71\r\n   2.129 0.0",
+    "source": {
+      "file": "Loki_G66.eng",
+      "motorId": "5f4294d20002310000000449",
+      "simfileId": "5f4294d20002e90000000864",
+      "license": "PD",
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000864/"
+    }
+  },
+  {
     "eng": ";\nJ528 38 406 5-8-10-13-17 0.372 0.752 Loki \n0.01 704.2\n0.02 1019\n0.03 983.9\n0.05 881.1\n0.1 797.5\n0.15 771.7\n0.17 765.72\n0.21 765.72\n0.25 778.2\n0.42 789.28\n0.51 771.61\n0.6 756.89\n0.66 751\n0.71 762.78\n0.76 697.99\n0.8 665.59\n0.84 612.58\n0.92 488.88\n0.95 385.81\n1.02 282.73\n1.06 179.65\n1.14 53.01\n1.19 35.34\n1.23 32.2\n1.25 0\n",
     "source": {
       "file": "Loki_J528.eng",
@@ -509,6 +579,16 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "simfileId": "5f4294d20002e90000000127",
       "license": "?",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000127/"
+    }
+  },
+  {
+    "eng": "K1127LB 38 625.5 P 0.624 1.172 Loki\r\n   0.009 77.978\r\n   0.021 1002.962\r\n   0.033 1368.654\r\n   0.045 1210.008\r\n   0.058 1365.965\r\n   0.067 1263.786\r\n   0.08 1360.587\r\n   0.092 1255.719\r\n   0.105 1331.009\r\n   0.117 1242.275\r\n   0.13 1312.186\r\n   0.142 1261.097\r\n   0.155 1304.12\r\n   0.167 1261.097\r\n   0.218 1290.675\r\n   0.395 1325.631\r\n   0.542 1368.654\r\n   0.689 1392.854\r\n   0.726 1382.098\r\n   0.755 1344.453\r\n   0.814 1110.518\r\n   0.867 949.184\r\n   0.874 1099.763\r\n   0.883 962.629\r\n   0.908 847.006\r\n   0.989 548.537\r\n   0.997 363.002\r\n   1.003 715.249\r\n   1.014 494.759\r\n   1.048 406.025\r\n   1.091 352.247\r\n   1.152 228.557\r\n   1.198 158.645\r\n   1.244 69.912\r\n   1.286 32.267\r\n   1.37 0.0",
+    "source": {
+      "file": "Loki_K1127.eng",
+      "motorId": "5f4294d2000231000000043a",
+      "simfileId": "5f4294d20002e90000000836",
+      "license": "free",
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000836/"
     }
   },
   {
