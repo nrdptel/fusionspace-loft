@@ -145,8 +145,8 @@ export default async function Validation() {
         friction/pressure/base within a few percent each), after Loft was taught to read the fins&apos;
         square edge cross-section and count its leading-edge stagnation and trailing-edge base
         pressure drag. Across the A8, B4, and C6 configurations Loft predicts apogee{" "}
-        <strong>about +8% to +14% higher</strong> than OpenRocket on the A8 and C6 flights; the
-        low-thrust <strong>B4 remains an outlier (~+37%)</strong>. The remaining bias is a low-speed,
+        <strong>about +8% to +11% higher</strong> than OpenRocket on the A8 and C6 flights; the
+        low-thrust <strong>B4 remains an outlier (~+35%)</strong>. The remaining bias is a low-speed,
         low-Reynolds effect (the slow flights spend longer where skin-friction drag is highest), not
         the fin pressure drag — the same Cd curve fits all three, so the fast C6 flights land within
         ~9%. The direction is still conservative for altitude: Loft reads a little high. To reproduce:

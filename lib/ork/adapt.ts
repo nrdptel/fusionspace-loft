@@ -473,11 +473,25 @@ function parseComponent(node: XmlNode, ctx: WalkContext): RocketComponent | null
           ? buttonRadius
           : undefined;
       const instanceCount = Math.max(1, Math.round(childNum(node, "instancecount", 1)));
+      // OpenRocket stores these parts' material and geometry, not a mass, so their mass has to
+      // be computed or it silently drops out of the total. A shock cord is deliberately a mass
+      // component (a long tubular-nylon harness on a high-power rocket is far from negligible);
+      // a lug/button is small but still real. An explicit <mass>, if present, still wins.
+      const mass =
+        node.name === "shockcord"
+          ? shockcordMass(node)
+          : lugMass(node, radius, childNum(node, "length", 0)) * instanceCount;
+      // A shock cord's mass sits packed at its mount over the packed length, not stretched to
+      // the full cord length, so place it by the packed extent.
+      const length =
+        node.name === "shockcord"
+          ? childNum(node, "packedlength", 0) || undefined
+          : childNum(node, "length", 0) || undefined;
       return {
         ...b,
         kind: node.name,
-        mass: childNum(node, "mass", 0) || undefined,
-        length: childNum(node, "length", childNum(node, "cordlength", 0)) || undefined,
+        mass: mass > 0 ? mass : childNum(node, "mass", 0) || undefined,
+        length,
         radius: radius && radius > 0 ? radius : undefined,
         instanceCount,
         children: [],
@@ -509,6 +523,35 @@ function streamerMass(node: XmlNode): number {
   const mat = child(node, "material");
   const density = mat ? parseNum(mat.attrs.density, 0) : 0;
   return childNum(node, "striplength", 0) * childNum(node, "stripwidth", 0) * density;
+}
+
+/** Shock-cord mass from its line material (density in kg/m) times the cord length. OpenRocket
+ *  stores the material, not a mass, for a shock cord — which it treats purely as a mass
+ *  component — so without this the cord drops out of the total. On a high-power rocket a long
+ *  tubular-nylon harness is a real, CG-shifting mass. An explicit <mass> still wins. */
+function shockcordMass(node: XmlNode): number {
+  const explicit = childText(node, "mass");
+  if (explicit !== undefined) return parseNum(explicit, 0);
+  const mat = child(node, "material");
+  const lineDensity = mat ? parseNum(mat.attrs.density, 0) : 0; // kg/m for a "line" material
+  const cordLength = childNum(node, "cordlength", childNum(node, "length", 0));
+  return Math.max(0, lineDensity * cordLength);
+}
+
+/** Launch-lug / rail-button structural mass: bulk material (kg/m³) over the tube-wall volume
+ *  (outer radius, wall thickness, length). Small on its own, but like the shock cord it is
+ *  stored as material + geometry, not an explicit mass, so it would otherwise be dropped. When
+ *  no wall thickness is given the volume is indeterminate, so the mass is left to any explicit
+ *  <mass> rather than guessed. */
+function lugMass(node: XmlNode, outerRadius: number | undefined, length: number): number {
+  const explicit = childText(node, "mass");
+  if (explicit !== undefined) return parseNum(explicit, 0);
+  const mat = child(node, "material");
+  const density = mat ? parseNum(mat.attrs.density, 0) : 0; // kg/m³ for a "bulk" material
+  const t = childNum(node, "thickness", 0);
+  if (!outerRadius || outerRadius <= 0 || length <= 0 || density <= 0 || t <= 0) return 0;
+  const ri = Math.max(0, outerRadius - t);
+  return Math.PI * (outerRadius * outerRadius - ri * ri) * length * density;
 }
 
 /** Reduce a freeform fin's `<finpoints>` outline to the trapezoid-equivalent fields the model
