@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { buildRocketDynamics } from "./setup";
 import { runFlight } from "./run";
+import { flattenRocket } from "../model/geometry";
 import type {
   Rocket,
   NoseCone,
@@ -149,5 +150,56 @@ describe("serial staging plan", () => {
     const bd = buildRocketDynamics(single, rocket.configurations[0]);
     expect(bd.phases).toEqual([{ startTime: 0, stageCount: 1 }]);
     for (const m of bd.motors) expect(m.detachTime).toBe(Infinity);
+  });
+});
+
+describe("multi-stage stability", () => {
+  it("stacks the booster below the sustainer rather than overlapping it at the nose", () => {
+    const { rocket } = twoStage();
+    const tubes = flattenRocket(rocket).filter((p) => p.component.kind === "bodytube");
+    expect(tubes.length).toBe(2);
+    const [sust, boost] = tubes;
+    // The booster body begins at the aft end of the sustainer body — not back at x=0. (The bug
+    // this guards against put every stage at 0, piling the whole stack onto the nose.)
+    expect(boost.xFore).toBeGreaterThanOrEqual(sust.xFore + sust.length - 1e-6);
+  });
+
+  it("flags an upper stage that is stable on the pad but unstable once it flies alone", () => {
+    const { rocket } = twoStage();
+    // Strip the sustainer's fins and give the booster large ones: the big aft fins keep the whole
+    // stack stable off the pad, but the sustainer alone — nose + tube + a motor at the tail, no
+    // fins — is unstable after it separates. A hazard the liftoff margin can't see.
+    const sustTube = rocket.stages[0].components[1] as BodyTube;
+    sustTube.children = sustTube.children.filter((c) => c.kind !== "trapezoidfinset");
+    const boostFins = rocket.stages[1].components[0].children.find(
+      (c) => c.kind === "trapezoidfinset",
+    ) as TrapezoidFinSet;
+    boostFins.finCount = 4;
+    boostFins.rootChord = 0.2;
+    boostFins.tipChord = 0.1;
+    boostFins.height = 0.14;
+
+    const run = runFlight(rocket, { configId: "cfg" });
+    expect(run.result.staticMarginCal).toBeGreaterThan(1); // stable on the pad
+    expect(run.result.upperStageMarginCal!).toBeLessThan(1); // not once it flies alone
+    expect(run.result.warnings.some((w) => w.code === "upper-stage-stability")).toBe(true);
+    expect(run.result.warnings.some((w) => w.code === "low-stability")).toBe(false);
+  });
+
+  it("keys the upper-stage warning to the sustainer's own margin, not the liftoff margin", () => {
+    // The contract: the warning fires exactly when the post-separation margin is below 1 cal,
+    // independent of how stable the loaded stack was on the pad.
+    const { rocket } = twoStage();
+    const run = runFlight(rocket, { configId: "cfg" });
+    const warned = run.result.warnings.some((w) => w.code === "upper-stage-stability");
+    expect(warned).toBe((run.result.upperStageMarginCal ?? Infinity) < 1);
+  });
+
+  it("reports no upper-stage margin for a single-stage flight", () => {
+    const { rocket } = twoStage();
+    const single: Rocket = { ...rocket, stages: rocket.stages.slice(0, 1) };
+    single.configurations = rocket.configurations;
+    const run = runFlight(single, { configId: "cfg" });
+    expect(run.result.upperStageMarginCal).toBeUndefined();
   });
 });

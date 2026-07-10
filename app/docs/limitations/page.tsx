@@ -94,9 +94,10 @@ export default function Limitations() {
         (strap-on) stages and pods are still not simulated; a design that contains them is imported
         with a visible warning and its{" "}
         <Link href="/docs/validation">OpenRocket-vs-Loft comparison</Link> is withheld, since the
-        flown vehicle then differs from what the design&apos;s stored results describe. Per-stage
-        static stability after separation isn&apos;t yet checked — the reported margin is the loaded
-        stack at liftoff.
+        flown vehicle then differs from what the design&apos;s stored results describe. Stability is
+        evaluated for the attached stack <em>and</em> for the sustainer alone after separation (a
+        stage can be stable in the stack yet unstable flying solo), but it is still a static-margin
+        estimate, not a 6-DOF turning solve.
       </p>
 
       <h3>Motor clusters are modelled coaxially</h3>

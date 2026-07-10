@@ -246,9 +246,14 @@ export default function Methods() {
         code as a single stage), so a dead booster is no longer lofted to apogee. Because the
         vertical-plane solve is a point mass, only the total mass, thrust, and reference drag change
         across a separation — the trajectory doesn&apos;t depend on where the centre of gravity sits
-        within the vehicle. Only the final (sustainer) stage&apos;s descent is tracked; a separated
-        booster&apos;s own recovery isn&apos;t. Parallel and strap-on staging is not modelled (see
-        the <Link href="/docs/limitations">limitations</Link>).
+        within the vehicle. Stability <em>does</em> depend on it: the stages stack nose-to-tail into
+        one continuous airframe, so the centre of gravity and Barrowman centre of pressure are
+        computed for whichever stages are attached. Because an upper stage can be stable inside the
+        loaded stack yet unstable once it flies alone, the sustainer&apos;s own static margin —
+        evaluated loaded, right after separation, its worst case — is checked separately and flagged
+        if it drops below 1 cal. Only the final (sustainer) stage&apos;s descent is tracked; a
+        separated booster&apos;s own recovery isn&apos;t. Parallel and strap-on staging is not
+        modelled (see the <Link href="/docs/limitations">limitations</Link>).
       </p>
 
       <h2>Recovery &amp; drift</h2>

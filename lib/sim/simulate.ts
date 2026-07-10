@@ -150,6 +150,10 @@ export interface FlightResult {
   stability: Stability;
   /** Static margin in calibers at liftoff (loaded). */
   staticMarginCal: number;
+  /** For a staged flight, the lowest static margin (cal) any upper stage has at the moment it
+   *  starts flying alone (loaded, just after separation) — the worst-case for a separated stage.
+   *  Undefined for a single-stage flight. */
+  upperStageMarginCal?: number;
   cgLoaded: number;
   cgDry: number;
   liftoffMass: number;
@@ -242,6 +246,26 @@ export function simulate(input: SimulateInput): FlightResult {
   const loaded = massAt(0);
   const staticMarginCal =
     geom.refDiameter > 0 ? (stability.cp - loaded.cg) / geom.refDiameter : 0;
+
+  // Upper-stage stability. After each separation the newly-exposed vehicle flies alone; its
+  // margin is lowest right at ignition, when the freshly-lit motor pulls the CG aft, so evaluate
+  // it there. A stack can be comfortably stable off the pad yet have an unstable sustainer once
+  // the booster drops — a distinct hazard worth flagging on its own. The top stages keep their
+  // nose-forward stations in the sub-rocket, so CP and CG stay in the same frame as the motors'.
+  let upperStageMarginCal: number | undefined;
+  let worstUpperStageName = "";
+  for (let p = 1; p < phaseData.length; p++) {
+    const stageCount = phases[p].stageCount;
+    const sub = { ...rocket, stages: rocket.stages.slice(0, stageCount) };
+    const cp = barrowman(sub).cp;
+    const g = phaseData[p].geom;
+    const cg = combine([...phaseData[p].structure, ...motorMassPoints(motors, phaseData[p].startTime)]).cg;
+    const margin = g.refDiameter > 0 ? (cp - cg) / g.refDiameter : 0;
+    if (upperStageMarginCal === undefined || margin < upperStageMarginCal) {
+      upperStageMarginCal = margin;
+      worstUpperStageName = rocket.stages[stageCount - 1]?.name || "upper stage";
+    }
+  }
 
   // Rail unit vector (tilt from vertical toward azimuth).
   const sa = Math.sin(conditions.rodAngleFromVertical);
@@ -518,6 +542,8 @@ export function simulate(input: SimulateInput): FlightResult {
 
   buildWarnings(warnings, {
     staticMarginCal,
+    upperStageMarginCal,
+    upperStageName: worstUpperStageName,
     railExitV,
     extrapolated,
     motorInstances: config.instances.length,
@@ -554,6 +580,7 @@ export function simulate(input: SimulateInput): FlightResult {
     warnings,
     stability,
     staticMarginCal,
+    upperStageMarginCal,
     cgLoaded: loaded.cg,
     cgDry,
     liftoffMass: loaded.mass,
@@ -633,6 +660,10 @@ function buildWarnings(
   out: FlightWarning[],
   ctx: {
     staticMarginCal: number;
+    /** Lowest upper-stage margin (cal) after a separation; undefined if single-stage. */
+    upperStageMarginCal?: number;
+    /** Name of the stage with that lowest post-separation margin. */
+    upperStageName?: string;
     railExitV: number;
     extrapolated: boolean;
     /** How many motors the configuration calls for. */
@@ -723,6 +754,19 @@ function buildWarnings(
       code: "over-stable",
       message: `Static margin is ${ctx.staticMarginCal.toFixed(2)} cal — high, which can make the rocket weathercock strongly into wind.`,
       severity: "caution",
+    });
+  }
+  // A staged upper stage flies alone after separation, and can be unstable then even when the
+  // full stack was stable on the pad (or vice-versa). Flag it separately from the liftoff margin.
+  if (ctx.upperStageMarginCal !== undefined && ctx.upperStageMarginCal < 1.0) {
+    const name = ctx.upperStageName || "upper stage";
+    out.push({
+      code: "upper-stage-stability",
+      message:
+        ctx.upperStageMarginCal < 0
+          ? `After separation the ${name} is statically unstable as modelled (centre of pressure ahead of centre of gravity) once it flies alone — a staged stage can be stable on the pad yet unstable after staging. Verify independently.`
+          : `After separation the ${name}'s static margin is ${ctx.upperStageMarginCal.toFixed(2)} cal — below the 1 cal rule of thumb once it flies alone. Verify independently.`,
+      severity: "warning",
     });
   }
   if (ctx.railExitV > 0 && ctx.railExitV < 15.24) {

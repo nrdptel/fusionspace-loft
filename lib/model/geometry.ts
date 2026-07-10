@@ -103,7 +103,7 @@ export function flattenRocket(rocket: Rocket): Positioned[] {
     components: RocketComponent[],
     parentFore: number,
     parentLength: number,
-  ): void => {
+  ): number => {
     let cursor = parentFore; // aft end of the previous sibling (start = parent fore)
     for (const c of components) {
       const len = axialLength(c);
@@ -112,10 +112,16 @@ export function flattenRocket(rocket: Rocket): Positioned[] {
       cursor = xFore + len;
       if (c.children.length > 0) walk(c.children, xFore, len);
     }
+    return cursor;
   };
 
+  // Stages stack nose→tail: each begins at the aft end of the one above, so a multi-stage stack
+  // is one continuous airframe (a single stage just starts at the nose, x=0). Without this the
+  // stages would overlap at x=0 — total mass and reference area (and so apogee) survive that, but
+  // the centre of gravity, centre of pressure, and stability margin would be badly wrong.
+  let stageFore = 0;
   for (const stage of rocket.stages) {
-    walk(stage.components, 0, 0);
+    stageFore = walk(stage.components, stageFore, 0);
   }
   return out;
 }

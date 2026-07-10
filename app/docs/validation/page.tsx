@@ -177,8 +177,12 @@ export default async function Validation() {
         and main all firing in the right order. On the <em>&ldquo;Three stage low power
         rocket&rdquo;</em> Loft lands <strong>within ~1%</strong> of OpenRocket&apos;s apogee across
         all three configurations. The small residual is the same slight drag under-prediction seen
-        on single-stage designs. To reproduce, import either OpenRocket example (they ship with
-        OpenRocket, which is GPL, so they aren&apos;t bundled here).
+        on single-stage designs. Stability tracks too, now that the stages stack into one airframe:
+        the loaded centre of gravity matches OpenRocket&apos;s stored value — <strong>1.33&nbsp;m vs
+        1.33&nbsp;m</strong> on the two-stage, within ~3% on the three-stage — and the sustainer&apos;s
+        own post-separation margin is reported and flagged if it falls below 1 cal. To reproduce,
+        import either OpenRocket example (they ship with OpenRocket, which is GPL, so they
+        aren&apos;t bundled here).
       </p>
 
       <h2>Community validation cases</h2>
