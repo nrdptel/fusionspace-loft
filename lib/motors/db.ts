@@ -104,11 +104,12 @@ export function resolveMotor(spec: Pick<MotorSpec, "manufacturer" | "designation
   const qCore = coreDesignation(spec.designation);
   const qMfr = mfrKey(spec.manufacturer);
 
-  // A designation match identifies a motor on its own ("A8" is an A8); manufacturer is a
-  // tiebreaker between same-designation motors from different makers, NOT a veto — otherwise
-  // an "E"-vs-"Estes" string difference blocks a clearly-correct match. A CORE-only match
-  // (class+thrust, e.g. "J293") is looser, so it does require the manufacturer to agree when
-  // both are known, to avoid matching a different maker's same-core motor.
+  // An EXACT designation identifies a motor on its own ("A8" is an A8, and only one motor is
+  // called "K550W"), so it matches maker-agnostically — otherwise an "E"-vs-"Estes" string
+  // difference would block a clearly-correct match. The looser tiers are the danger: a substring
+  // match ("K550" ⊂ a different maker's "K550W") or a class-and-thrust core match ("J293") can
+  // land on the wrong maker's motor, so both require the manufacturer to agree when it's known on
+  // both sides. An unknown maker on either side never vetoes.
   let best: { entry: MotorDbEntry; quality: MatchQuality; score: number } | null = null;
   for (const entry of motors) {
     const eDesig = normalize(entry.curve.designation);
@@ -118,9 +119,11 @@ export function resolveMotor(spec: Pick<MotorSpec, "manufacturer" | "designation
 
     let quality: MatchQuality = "none";
     if (eDesig === qDesig) quality = "exact";
-    else if (eDesig.includes(qDesig) || qDesig.includes(eDesig)) quality = "designation";
-    else if (entry.core === qCore) {
-      if (mfrKnown && !mfrAgree) continue; // don't cross makers on a loose core match
+    else if (eDesig.includes(qDesig) || qDesig.includes(eDesig)) {
+      if (mfrKnown && !mfrAgree) continue; // a substring match must not cross makers
+      quality = "designation";
+    } else if (entry.core === qCore) {
+      if (mfrKnown && !mfrAgree) continue; // nor a loose core match
       quality = "core";
     } else continue;
 

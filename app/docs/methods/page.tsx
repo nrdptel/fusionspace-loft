@@ -221,8 +221,12 @@ export default function Methods() {
         (<code>lib/motors/</code>). Thrust is linearly interpolated in time; propellant mass is
         depleted in proportion to delivered impulse (constant-<em>I<sub>sp</sub></em> assumption), so
         motor mass falls from loaded to casing mass over the burn. Matching prefers an exact
-        designation, then a class-and-thrust core (so a Cesaroni &ldquo;838J293-13A&rdquo; still
-        resolves to &ldquo;J293&rdquo;), and the UI flags an approximate or failed match. A motor{" "}
+        designation, then a looser substring or class-and-thrust core (so a Cesaroni
+        &ldquo;838J293-13A&rdquo; still resolves to &ldquo;J293&rdquo;); an exact designation matches
+        regardless of a maker-string difference, but a <em>loose</em> match never crosses
+        manufacturers — a design&apos;s &ldquo;K550&rdquo; is left unresolved rather than silently
+        matched to a different maker&apos;s &ldquo;K550W&rdquo;. The UI flags an approximate or failed
+        match. A motor{" "}
         <em>cluster</em> (OpenRocket&apos;s cluster configuration, e.g. a &ldquo;4-ring&rdquo;) is
         flown as that many identical motors on the centreline — full thrust, propellant, and
         motor-tube mass — with the count shown on the motor tag. Where a design assigns different
