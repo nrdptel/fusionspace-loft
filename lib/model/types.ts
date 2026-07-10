@@ -197,6 +197,16 @@ export type DeployEvent =
   | "never"
   | "lowerstage-separation";
 
+/** A recovery-deployment setting: the trigger event, the altitude for an altitude trigger, and
+ *  the delay after the trigger before the canopy opens. OpenRocket lets these differ per motor
+ *  configuration — the same design can drogue-at-apogee on one motor and deploy at a set
+ *  altitude on another — so devices carry per-config overrides keyed by configuration id. */
+export interface DeploySetting {
+  event: DeployEvent;
+  altitude?: number;
+  delay: number;
+}
+
 export interface Parachute extends ComponentBase {
   kind: "parachute";
   /** Drag coefficient of the canopy. */
@@ -211,6 +221,9 @@ export interface Parachute extends ComponentBase {
   deployAltitude?: number;
   /** Delay after the trigger event (s). */
   deployDelay?: number;
+  /** Per-motor-configuration deployment overrides, keyed by config id; the flown config's
+   *  override wins over the default event above. */
+  deployConfigs?: Record<string, DeploySetting>;
   packedLength?: number;
   packedRadius?: number;
 }
@@ -224,6 +237,7 @@ export interface Streamer extends ComponentBase {
   deployEvent: DeployEvent;
   deployAltitude?: number;
   deployDelay?: number;
+  deployConfigs?: Record<string, DeploySetting>;
   packedLength?: number;
 }
 

@@ -83,15 +83,20 @@ export default function Limitations() {
         vehicle, its OpenRocket comparison is withheld.
       </p>
 
-      <h3>Single active stage</h3>
+      <h3>Serial staging is simulated; parallel and strap-on staging isn&apos;t</h3>
       <p>
-        Multi-stage flights, air-starts, booster separation, parallel (strap-on) stages, and pods
-        are not simulated; only the primary stack flies. These aren&apos;t dropped silently — a
-        design that contains them is imported with a visible warning saying the flown vehicle
-        isn&apos;t the whole design, and because the flown vehicle then differs from what the
-        design&apos;s stored OpenRocket results describe, the{" "}
-        <Link href="/docs/validation">OpenRocket-vs-Loft comparison</Link> is withheld for it rather
-        than reported as a misleading error.
+        In-line (serial) multi-stage flights are simulated: the booster lights at launch, each
+        stage above air-starts when the one below burns out (plus any ignition delay for a boosted
+        coast), and the spent stage separates and drops away — its structure and empty casing leave
+        the flight, so mass and drag step down and the sustainer climbs on its own. What is
+        <em>not</em> tracked is the separated stage&apos;s own descent: only the sustainer is flown
+        to the ground, so a booster&apos;s drift and landing aren&apos;t reported. Parallel
+        (strap-on) stages and pods are still not simulated; a design that contains them is imported
+        with a visible warning and its{" "}
+        <Link href="/docs/validation">OpenRocket-vs-Loft comparison</Link> is withheld, since the
+        flown vehicle then differs from what the design&apos;s stored results describe. Per-stage
+        static stability after separation isn&apos;t yet checked — the reported margin is the loaded
+        stack at liftoff.
       </p>
 
       <h3>Motor clusters are modelled coaxially</h3>
