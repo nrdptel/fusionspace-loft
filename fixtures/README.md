@@ -39,3 +39,15 @@ carries OpenRocket's genuine stored results, and Loft diffs its engine against t
 See the in-app **Docs → Validation** page and the **limitations log** for the full, candid
 account. Loft's engine is separately checked against first-principles physics
 (hand-calculated coast, energy/impulse sanity, conservation) in the test suite.
+
+## `rocketpy-cross-check.json` — the independent-engine reference
+
+Unlike the author-estimated stored figures, this file holds **genuine** independent-simulator
+output: the ballistic apogee, velocity, Mach, time-to-apogee, and static margin that
+[RocketPy](https://github.com/RocketPy-Team/RocketPy) (a mature open-source 6-DOF engine) produces
+for the bundled demo designs when fed Loft's own drag curve. It's generated offline by
+[`scripts/rocketpy`](../scripts/rocketpy) — RocketPy is Python and doesn't run in the browser — and
+the **Docs → Validation** page renders a live Loft-vs-RocketPy comparison from it. `lib/validation/
+rocketpy-cross-check.test.ts` guards it in CI: if the engine drifts from these numbers, regenerate
+the file (see the harness README). It cross-checks the integrator, mass model, and centre of
+pressure — not drag, which is held equal on both sides.
