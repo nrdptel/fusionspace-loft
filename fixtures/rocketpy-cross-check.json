@@ -1,0 +1,38 @@
+{
+  "engine": "RocketPy",
+  "engineVersion": "1.12.1",
+  "method": "Ballistic ascent to apogee (recovery stripped, wind zeroed). RocketPy is fed Loft's own Cd(Mach) curve \u2014 it does not derive drag from geometry \u2014 so this cross-checks the trajectory integrator, the mass model, and RocketPy's independent Barrowman centre of pressure, holding drag equal. It is not an independent drag oracle.",
+  "generatedBy": "scripts/rocketpy (offline; RocketPy is not bundled and does not run in the browser)",
+  "designs": [
+    {
+      "key": "demo-multi-config",
+      "config": "G40W",
+      "name": "Loft Demo 38mm \u2014 motor comparison",
+      "apogee": 557.4,
+      "maxVelocity": 110.3,
+      "maxMach": 0.325,
+      "timeToApogee": 10.65,
+      "staticMargin": 4.51
+    },
+    {
+      "key": "demo-single-deploy",
+      "config": "H128W",
+      "name": "Loft Demo 38mm \u2014 single deploy",
+      "apogee": 1007.5,
+      "maxVelocity": 207.3,
+      "maxMach": 0.61,
+      "timeToApogee": 12.86,
+      "staticMargin": 4.07
+    },
+    {
+      "key": "demo-dual-deploy",
+      "config": "K550W",
+      "name": "Loft Demo 54mm \u2014 dual deploy",
+      "apogee": 3101.7,
+      "maxVelocity": 456.4,
+      "maxMach": 1.353,
+      "timeToApogee": 20.62,
+      "staticMargin": 3.06
+    }
+  ]
+}

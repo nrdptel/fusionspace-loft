@@ -55,6 +55,12 @@ export interface RunOptions {
   overrides?: ConditionOverrides;
   /** If provided, validate against this stored simulation's results. */
   validateAgainst?: StoredSimulation;
+  /** Fly to the true *ballistic* apogee: strip recovery and zero the wind. The rocket coasts
+   *  unimpeded to the top instead of having its climb capped by an early ejection, and the
+   *  vertical apogee isn't nudged by a crosswind. Used by the RocketPy cross-check so an
+   *  independent engine (which flies ballistic to apogee) is compared like-for-like; not for
+   *  ordinary flights, whose recovery and wind are part of the real trajectory. */
+  ballistic?: boolean;
 }
 
 /** Run a flight for a canonical rocket. */
@@ -63,14 +69,22 @@ export function runFlight(rocket: Rocket, opts: RunOptions = {}): FlightRun {
   if (!config) {
     throw new Error("This design has no motor configuration to simulate.");
   }
-  const conditions = makeConditions(opts.overrides);
-  const { input, resolutions } = buildSimulateInput(rocket, config, conditions);
+  let conditions = makeConditions(opts.overrides);
+  if (opts.ballistic) {
+    conditions = { ...conditions, windSpeed: 0, windTo: 0, windProfile: undefined };
+  }
+  const built = buildSimulateInput(rocket, config, conditions);
+  const resolutions = built.resolutions;
+  // A ballistic run drops every recovery device so the coast runs to the true apogee.
+  const input = opts.ballistic ? { ...built.input, recovery: [] } : built.input;
   const result = simulate(input);
   const hasPropulsion = resolutions.some((r) => r.match !== null);
   // A no-thrust run "flies" to zero apogee; comparing that to stored results yields a
   // meaningless −100%, so skip validation entirely unless the flight actually had propulsion.
+  // A ballistic run flew a different (recovery-stripped) trajectory than the stored one describes,
+  // so its stored comparison would be misleading — skip it there too.
   const validation =
-    hasPropulsion && opts.validateAgainst && opts.validateAgainst.hasResults
+    !opts.ballistic && hasPropulsion && opts.validateAgainst && opts.validateAgainst.hasResults
       ? compareToStored(result.summary, opts.validateAgainst.results)
       : undefined;
   return { result, config, resolutions, hasPropulsion, validation };

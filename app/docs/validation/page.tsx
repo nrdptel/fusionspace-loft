@@ -3,7 +3,7 @@ import Link from "next/link";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { importOrk } from "@/lib/ork/import";
-import { runFromDocument } from "@/lib/sim/run";
+import { runFromDocument, runFlight, configChoices, overridesFromStored } from "@/lib/sim/run";
 import { fmt } from "@/lib/display";
 
 export const metadata: Metadata = {
@@ -36,15 +36,79 @@ async function fixtureRuns() {
   return out;
 }
 
+interface RpDesign {
+  key: string;
+  config: string;
+  name: string;
+  apogee: number;
+  maxVelocity: number;
+  maxMach: number;
+  timeToApogee: number;
+  staticMargin: number;
+}
+interface RpReference {
+  engine: string;
+  engineVersion: string;
+  method: string;
+  designs: RpDesign[];
+}
+
+// The RocketPy cross-check, shown to users. RocketPy is Python and runs offline (not bundled, not
+// in the browser); its numbers are committed in fixtures/rocketpy-cross-check.json. The Loft column
+// here is computed live at build time from the same fixtures — flown ballistically to match the way
+// RocketPy flew them — so the gap on the page is always current with the engine.
+async function rocketpyRuns() {
+  const ref: RpReference = JSON.parse(
+    readFileSync(resolve(process.cwd(), "fixtures", "rocketpy-cross-check.json"), "utf-8"),
+  );
+  const runs: {
+    key: string;
+    name: string;
+    config: string;
+    maxAbsPct: number;
+    rows: { label: string; unit: string; rp: number; loft: number; dp: number; pct: number }[];
+  }[] = [];
+  for (const d of ref.designs) {
+    const bytes = new Uint8Array(readFileSync(resolve(process.cwd(), "fixtures", `${d.key}.ork`)));
+    const doc = await importOrk(bytes);
+    const choices = configChoices(doc);
+    const choice = choices.find((c) => c.motors.some((m) => m.includes(d.config))) ?? choices[0];
+    const sim = doc.simulations[choice.simIndex];
+    const run = runFlight(doc.rocket, {
+      configId: sim.conditions.configId,
+      overrides: overridesFromStored(sim),
+      ballistic: true,
+    });
+    const s = run.result.summary;
+    const rows = [
+      { label: "Apogee", unit: "m", rp: d.apogee, loft: s.apogee, dp: 0 },
+      { label: "Max velocity", unit: "m/s", rp: d.maxVelocity, loft: s.maxVelocity, dp: 0 },
+      { label: "Max Mach", unit: "", rp: d.maxMach, loft: s.maxMach, dp: 2 },
+      { label: "Time to apogee", unit: "s", rp: d.timeToApogee, loft: s.timeToApogee, dp: 1 },
+      { label: "Static margin", unit: "cal", rp: d.staticMargin, loft: run.result.staticMarginCal, dp: 2 },
+    ].map((r) => ({ ...r, pct: r.rp ? ((r.loft - r.rp) / r.rp) * 100 : 0 }));
+    runs.push({
+      key: d.key,
+      name: d.name,
+      config: d.config,
+      maxAbsPct: Math.max(...rows.map((r) => Math.abs(r.pct))),
+      rows,
+    });
+  }
+  return { ref, runs };
+}
+
 export default async function Validation() {
   const runs = await fixtureRuns();
+  const { ref: rpRef, runs: rpRuns } = await rocketpyRuns();
   return (
     <>
       <h2>Validation</h2>
       <p>
         Trust in a simulator comes from checkable outputs, not from who wrote it. Loft is validated
-        two ways: against <strong>first-principles physics</strong>, and against{" "}
-        <strong>OpenRocket&apos;s own stored results</strong>.
+        three ways: against <strong>first-principles physics</strong>, against{" "}
+        <strong>OpenRocket&apos;s own stored results</strong>, and against an{" "}
+        <strong>independent flight simulator</strong> (RocketPy).
       </p>
 
       <h2>Against physics (the test suite)</h2>
@@ -127,6 +191,70 @@ export default async function Validation() {
                   <td>
                     {row.pct >= 0 ? "+" : ""}
                     {fmt(row.pct, 0)}%
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ))}
+
+      <h2>Against RocketPy (an independent engine)</h2>
+      <p>
+        Loft is also cross-checked against{" "}
+        <a href="https://github.com/RocketPy-Team/RocketPy" target="_blank" rel="noopener noreferrer">
+          RocketPy
+        </a>
+        , a mature, open-source 6-DOF flight simulator independently validated against real flight
+        data to about 1%. It shares none of Loft&apos;s code. For each bundled design, RocketPy flies
+        the same rocket and the two engines are compared metric by metric. RocketPy takes a drag
+        coefficient rather than deriving it from the shape, so it is fed <em>Loft&apos;s own</em> drag
+        curve.
+      </p>
+      <p>
+        Because the drag is held equal, this is an independent check of the{" "}
+        <strong>trajectory integrator</strong>, the <strong>mass model</strong>, and — from
+        RocketPy&apos;s own Barrowman solver — the <strong>centre of pressure</strong> and static
+        margin. It is <em>not</em> an independent drag check; that is what OpenRocket&apos;s stored
+        per-step drag (above) provides. The two oracles are complementary: RocketPy pins the flight
+        mechanics, OpenRocket pins the drag.
+      </p>
+      <p>
+        The comparison is ballistic — recovery and wind removed on both sides — so the coast runs to
+        the true apogee with nothing to confound the physics. RocketPy is written in Python and runs{" "}
+        <em>offline</em> (it isn&apos;t bundled and doesn&apos;t run in your browser); the figures
+        below are its committed output (v{rpRef.engineVersion}), while the Loft column is computed
+        live in this build — so the gap you see is always current with the engine. And unlike the
+        author-estimated &ldquo;stored&rdquo; figures above, these RocketPy numbers are a genuine
+        independent simulation.
+      </p>
+      {rpRuns.map((r) => (
+        <div key={r.key}>
+          <h3>
+            {r.name} ({r.config}) — largest difference {fmt(r.maxAbsPct, 1)}%
+          </h3>
+          <table>
+            <thead>
+              <tr>
+                <th>Metric</th>
+                <th>RocketPy</th>
+                <th>Loft</th>
+                <th>Δ</th>
+              </tr>
+            </thead>
+            <tbody>
+              {r.rows.map((row) => (
+                <tr key={row.label}>
+                  <td>{row.label}</td>
+                  <td>
+                    {fmt(row.rp, row.dp)} {row.unit}
+                  </td>
+                  <td>
+                    {fmt(row.loft, row.dp)} {row.unit}
+                  </td>
+                  <td>
+                    {row.pct >= 0 ? "+" : ""}
+                    {fmt(row.pct, 1)}%
                   </td>
                 </tr>
               ))}

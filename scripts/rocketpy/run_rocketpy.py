@@ -12,11 +12,21 @@ Barrowman CP, holding drag equal. It is NOT an independent drag oracle (that's O
 
 import json
 import sys
+from importlib.metadata import version, PackageNotFoundError
 from pathlib import Path
 
 from rocketpy import Environment, GenericMotor, Rocket, Flight
 
 OUT = Path(__file__).parent / "out"
+# The committed reference the app's Validation page reads. Only the bundled demo designs go in it.
+REFERENCE = Path(__file__).parent / "../../fixtures/rocketpy-cross-check.json"
+
+
+def rocketpy_version():
+    try:
+        return version("rocketpy")
+    except PackageNotFoundError:
+        return "unknown"
 
 
 def fly(spec):
@@ -89,6 +99,7 @@ def main():
         print("no specs in", OUT, "— run emit.ts first"); sys.exit(1)
     print(f"{'design':<22}{'metric':<16}{'Loft':>10}{'RocketPy':>10}{'OR stored':>11}{'L−RPy':>8}")
     print("-" * 79)
+    reference_designs = []
     for base in bases:
         spec = json.load(open(OUT / f"{base}.spec.json"))
         ld = json.load(open(OUT / f"{base}.loft.json"))
@@ -117,6 +128,37 @@ def main():
         if real_apogee is not None and abs(real_apogee - loft["apogee"]) > 0.5:
             print(f"{'':<22}{'  (real w/ chute)':<16}{real_apogee:>10.2f}{'':>10}{'':>11}   early deploy")
         print("-" * 79)
+
+        # Bundled demo designs become the committed reference the Validation page shows to users.
+        if ld.get("bundled"):
+            reference_designs.append({
+                "key": ld["key"],
+                "config": ld.get("config", ""),
+                "name": ld.get("name", ""),
+                "apogee": round(rp["apogee"], 1),
+                "maxVelocity": round(rp["maxVelocity"], 1),
+                "maxMach": round(rp["maxMach"], 3),
+                "timeToApogee": round(rp["timeToApogee"], 2),
+                "staticMargin": round(rp["staticMarginLiftoff"], 2),
+            })
+
+    if reference_designs:
+        reference_designs.sort(key=lambda d: d["apogee"])
+        out = {
+            "engine": "RocketPy",
+            "engineVersion": rocketpy_version(),
+            "method": (
+                "Ballistic ascent to apogee (recovery stripped, wind zeroed). RocketPy is fed "
+                "Loft's own Cd(Mach) curve — it does not derive drag from geometry — so this "
+                "cross-checks the trajectory integrator, the mass model, and RocketPy's "
+                "independent Barrowman centre of pressure, holding drag equal. It is not an "
+                "independent drag oracle."
+            ),
+            "generatedBy": "scripts/rocketpy (offline; RocketPy is not bundled and does not run in the browser)",
+            "designs": reference_designs,
+        }
+        REFERENCE.resolve().write_text(json.dumps(out, indent=2) + "\n")
+        print(f"wrote {len(reference_designs)} design(s) to {REFERENCE.resolve()}")
 
 
 if __name__ == "__main__":

@@ -1,14 +1,32 @@
-# RocketPy cross-validation harness (dev-only)
+# RocketPy cross-validation harness
 
-An independent check on Loft's flight engine while we build it. It flies the **same designs**
-through [RocketPy](https://github.com/RocketPy-Team/RocketPy) — a mature, MIT-licensed, pure-Python
-6-DOF trajectory simulator validated against real flight data — and diffs its ascent metrics
-against Loft's own TypeScript sim.
+An independent check on Loft's flight engine. It flies the **same designs** through
+[RocketPy](https://github.com/RocketPy-Team/RocketPy) — a mature, MIT-licensed, pure-Python 6-DOF
+trajectory simulator validated against real flight data — and diffs its ascent metrics against
+Loft's own TypeScript sim.
 
-This is **development tooling**. It is **not shipped**, **not part of CI**, and needs Python +
-RocketPy in a virtualenv. Nothing in `app/` or `lib/` imports it; the engine has no dependency on
-it. It exists so a change to the sim core can be sanity-checked against a second, independent
-engine before we trust it.
+It has **two roles**:
+
+1. **Dev cross-check** — sanity-check a change to the sim core against a second, independent engine
+   before trusting it. Point it at any design (including OpenRocket's own GPL examples).
+2. **Generate the committed reference the users see.** For the bundled demo designs it writes
+   `fixtures/rocketpy-cross-check.json`, and the app's **Validation** page renders a Loft-vs-RocketPy
+   panel from it. Loft is computed live at build time; RocketPy's numbers are this committed
+   reference.
+
+**RocketPy itself never ships and never runs in the browser** — it's Python, and running it live
+would need the heavy Pyodide payload. Only the pre-computed reference numbers ship. The harness
+needs Python + RocketPy in a virtualenv; nothing in `app/` or `lib/` imports it.
+
+## Keeping it honest (the CI drift guard)
+
+`lib/validation/rocketpy-cross-check.test.ts` runs in CI. It flies each bundled design ballistically
+in Loft and asserts it still agrees with the committed RocketPy reference. **If that test fails after
+a change to the drag, mass, motor, or integration code, Loft has drifted from the independent
+reference — regenerate it (below) and commit the new `fixtures/rocketpy-cross-check.json`.** That's
+the intended workflow: a calculation change updates its validation artifact in the same change, the
+same discipline the limitations log follows. It keeps the numbers the Validation page shows current
+and honest.
 
 ## What it does and doesn't validate
 
@@ -53,32 +71,22 @@ Two halves, bridged by a JSON "spec" (which is also the adapter surface a future
 RocketPy engine would use):
 
 1. **`emit.ts`** — a Vitest test that reuses the real library (importers, mass, aero, motor DB,
-   sim). For each design it writes `out/<name>.spec.json` (everything RocketPy needs: geometry,
-   motor thrust curve, sampled `Cd(Mach)`, environment) and `out/<name>.loft.json` (Loft's own
-   ballistic result + the real apogee + OpenRocket's stored figure).
+   sim). For each design it writes `out/<key>.spec.json` (everything RocketPy needs: geometry,
+   motor thrust curve, sampled `Cd(Mach)`, environment) and `out/<key>.loft.json` (Loft's own
+   ballistic result + the real apogee + OpenRocket's stored figure). The `DESIGNS` list holds both
+   the **bundled demo fixtures** (from `fixtures/src/*.ork.xml`, marked `bundled`) and any external
+   dev-only designs from `LOFT_ORK_DIR`.
 2. **`run_rocketpy.py`** — reads each spec, builds a RocketPy `Environment` / `GenericMotor` /
-   `Rocket` / `Flight`, and prints the 3-way table.
+   `Rocket` / `Flight`, prints the 3-way table, and writes the `bundled` designs' RocketPy numbers
+   to **`fixtures/rocketpy-cross-check.json`** — the committed reference the Validation page reads.
+
+Loft's ballistic run reuses the engine's own code path: `runFlight(rocket, { ballistic: true })`
+(strips recovery, zeroes wind), the same call the Validation page and the CI drift-guard use, so
+"ballistic" means one thing everywhere.
 
 ## Running it
 
-**1. Designs.** Put design XML files (OpenRocket's own bundled examples, unpacked from their `.ork`
-— they ship with OpenRocket, which is GPL, so they aren't committed here) in a directory, and point
-the emitter at it:
-
-```sh
-export LOFT_ORK_DIR=/path/to/ork-xml   # defaults to /tmp/orkxml
-```
-
-Edit the `DESIGNS` list in `emit.ts` to match the filenames you have.
-
-**2. Emit specs + Loft results** (uses a one-off Vitest config so it runs outside the normal
-`lib/**` test glob):
-
-```sh
-npx vitest run --config scripts/rocketpy/vitest.config.ts scripts/rocketpy/emit.ts
-```
-
-**3. Set up RocketPy** (once) in a virtualenv — a fresh venv avoids the system-setuptools quirk
+**1. Set up RocketPy** (once) in a virtualenv — a fresh venv avoids the system-setuptools quirk
 that breaks `pip install rocketpy` on some Debian/Ubuntu boxes:
 
 ```sh
@@ -87,40 +95,62 @@ python3 -m venv .venv-rocketpy
 .venv-rocketpy/bin/pip install rocketpy
 ```
 
-**4. Run the cross-check:**
+**2. Emit specs + Loft results** (uses a one-off Vitest config so it runs outside the normal
+`lib/**` test glob). The bundled demo fixtures are in-repo, so this works with no extra setup:
+
+```sh
+npx vitest run --config scripts/rocketpy/vitest.config.ts scripts/rocketpy/emit.ts
+```
+
+To also cross-check external designs (e.g. OpenRocket's own GPL examples — they ship with
+OpenRocket, so they aren't committed here), unpack their `.ork` to XML, point the emitter at the
+directory, and add them to the `DESIGNS` list in `emit.ts`:
+
+```sh
+export LOFT_ORK_DIR=/path/to/ork-xml   # defaults to /tmp/orkxml
+```
+
+**3. Run the cross-check** (prints the table and regenerates `fixtures/rocketpy-cross-check.json`):
 
 ```sh
 .venv-rocketpy/bin/python scripts/rocketpy/run_rocketpy.py
 ```
 
+Then run the drift guard to confirm the app agrees with the freshly-generated reference:
+
+```sh
+npm test -- rocketpy-cross-check
+```
+
 ## Current results
 
-Ballistic ascent, Loft vs RocketPy (both fed Loft's Cd), across a slow low-power model, a
-mid-power design, and a transonic high-power design:
+Ballistic ascent, Loft vs RocketPy (both fed Loft's Cd). The **bundled demo designs** (committed to
+the reference and shown on the Validation page) span a subsonic G, a mid-power H, and a transonic K;
+the external OpenRocket examples are dev-only:
 
 ```
 design                metric                Loft  RocketPy  OR stored   L−RPy
 -------------------------------------------------------------------------------
-APEX_v1.6             apogee (m)         2868.17   2871.05     2881.3   -0.1%
-                      max vel (m/s)       362.35    362.34      364.9   +0.0%
-                      max Mach              1.07      1.07          -   -0.0%
-                      t apogee (s)         21.44     21.48          -   -0.2%
-                      margin (cal)          2.26      2.32          -
-                        (real w/ chute)   2813.23                        early deploy
-elliptical_v1.9       apogee (m)          673.72    674.22      662.0   -0.1%
-                      max vel (m/s)       187.08    187.10      181.9   -0.0%
-                      margin (cal)          1.80      1.95          -
+demo-multi-config     apogee (m)          556.27    557.38      520.0   -0.2%   [bundled]
+                      max vel (m/s)       110.26    110.29      105.0   -0.0%
+                      margin (cal)          4.51      4.51          -
+demo-single-deploy    apogee (m)         1006.21   1007.49      980.0   -0.1%   [bundled]
+                      max vel (m/s)       207.28    207.29      190.0   -0.0%
+                      margin (cal)          4.07      4.07          -
+demo-dual-deploy      apogee (m)         3083.58   3101.70     2250.0   -0.6%   [bundled]
+                      max vel (m/s)       456.21    456.44      305.0   -0.1%
+                      max Mach              1.35      1.35          -   -0.1%
+                      margin (cal)          3.06      3.06          -
 simple_v1.0           apogee (m)          293.01    293.45      248.4   -0.1%
                       max vel (m/s)        97.65     97.70       89.0   -0.0%
-                      t apogee (s)          7.20      7.20          -   +0.0%
                       margin (cal)          1.94      1.94          -
                         (real w/ chute)    268.48                        early deploy
 ```
 
-Apogee, velocity, Mach, and time-to-apogee all land within ~0.2% of the independent engine; the
-independently-computed Barrowman static margin agrees to a fraction of a caliber. The gap to
-OpenRocket's stored apogee (a *real* flight, with its own higher per-step drag and the early
-recovery deployment) is the honest accuracy story tracked on the app's Validation page.
+Apogee, velocity, Mach, and time-to-apogee all land within ~0.6% of the independent engine; the
+independently-computed Barrowman static margin agrees to a fraction of a caliber. (Note the
+OpenRocket "stored" column for the demo designs is an author estimate, not a real run — RocketPy is
+the *real* independent check for them; see `fixtures/README.md`.)
 
 **Known residual:** rail-exit velocity reads a few percent higher in Loft than in RocketPy. That's
 a rail-clearance *convention* difference (Loft marks exit when the CG passes the rail length;
@@ -136,5 +166,6 @@ definitional gap, not a physics error.
 ## Licensing
 
 Clean-room: RocketPy is used as an **external** oracle in a separate venv — it is not vendored,
-copied, or linked into Loft, and none of its (MIT) code enters the bundle. Loft stays MIT and
-client-side.
+copied, or linked into Loft, and none of its (MIT) code enters the bundle. What ships is only
+`fixtures/rocketpy-cross-check.json`: a handful of scalar results for Loft's **own** demo designs.
+Loft stays MIT and client-side.
