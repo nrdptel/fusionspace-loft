@@ -12,44 +12,10 @@
  *  figures the Validation page shows honest and current.
  */
 
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { describe, it, expect } from "vitest";
-import { importOrk } from "../ork/import";
-import { runFlight, configChoices, overridesFromStored } from "../sim/run";
+import { loadRocketpyReference, flyReferenceDesign } from "./rocketpy-reference";
 
-interface RpDesign {
-  key: string;
-  config: string;
-  name: string;
-  apogee: number;
-  maxVelocity: number;
-  maxMach: number;
-  timeToApogee: number;
-  staticMargin: number;
-}
-interface RpReference {
-  engine: string;
-  engineVersion: string;
-  designs: RpDesign[];
-}
-
-const ref: RpReference = JSON.parse(
-  readFileSync(resolve(process.cwd(), "fixtures", "rocketpy-cross-check.json"), "utf-8"),
-);
-
-async function flyBallistic(d: RpDesign) {
-  const bytes = new Uint8Array(readFileSync(resolve(process.cwd(), "fixtures", `${d.key}.ork`)));
-  const doc = await importOrk(bytes);
-  const choices = configChoices(doc);
-  const choice = choices.find((c) => c.motors.some((m) => m.includes(d.config))) ?? choices[0];
-  const sim = doc.simulations[choice.simIndex];
-  return runFlight(doc.rocket, {
-    configId: sim.conditions.configId,
-    overrides: overridesFromStored(sim),
-    ballistic: true,
-  });
-}
+const ref = loadRocketpyReference();
 
 describe("RocketPy cross-check (drift guard)", () => {
   it("is the RocketPy reference over the bundled demo designs", () => {
@@ -61,7 +27,7 @@ describe("RocketPy cross-check (drift guard)", () => {
     // The gap is ~0.6% at most in practice; these bands are wide enough to tolerate small
     // integrator/drag evolution but catch a real regression in the flight mechanics.
     it(`${d.key} (${d.config}) agrees with RocketPy`, async () => {
-      const run = await flyBallistic(d);
+      const run = await flyReferenceDesign(d);
       const s = run.result.summary;
       const near = (loft: number, rp: number, rel: number, label: string) =>
         expect(
