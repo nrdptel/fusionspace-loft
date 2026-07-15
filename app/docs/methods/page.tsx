@@ -159,10 +159,13 @@ export default function Methods() {
           fin wetted areas with fineness- and thickness-ratio form factors (Hoerner-style).
         </li>
         <li>
-          <strong>Base drag</strong>, referenced to the base area and suppressed while the motor
-          burns (exhaust fills the base): the subsonic correlation <code>0.12 + 0.13·M²</code> up to
-          Mach 1, then the supersonic recovery <code>0.25/M</code> above it — the two branches meet
-          continuously at Mach 1. (Carrying the subsonic form supersonically, as a naive model does,
+          <strong>Base drag</strong>, referenced to the base area: the subsonic correlation{" "}
+          <code>0.12 + 0.13·M²</code> up to Mach 1, then the supersonic recovery <code>0.25/M</code>{" "}
+          above it — the two branches meet continuously at Mach 1. It is applied in full whether the
+          motor is burning or not, matching OpenRocket&apos;s stored per-step drag (which carries the
+          full base drag throughout boost); a blanket thrust-phase discount badly under-drags a body
+          much wider than its motor, where the exhaust fills only a small part of the base. (Carrying
+          the subsonic form supersonically, as a naive model does,
           makes base drag grow without bound, which is wrong.)
         </li>
         <li>

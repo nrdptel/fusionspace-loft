@@ -90,20 +90,25 @@ describe("dragCoefficient", () => {
   it("produces a sane subsonic Cd₀ and flags transonic", () => {
     const geom = aeroGeometry(coneRocket());
     const atm = new Atmosphere().sample(0);
-    const sub = dragCoefficient(geom, atm, 100, false);
+    const sub = dragCoefficient(geom, atm, 100);
     expect(sub.cd).toBeGreaterThan(0.2);
     expect(sub.cd).toBeLessThan(1.2);
     expect(sub.extrapolated).toBe(false);
-    const trans = dragCoefficient(geom, atm, 340, false);
+    const trans = dragCoefficient(geom, atm, 340);
     expect(trans.extrapolated).toBe(true);
   });
 
-  it("base drag is suppressed while boosting", () => {
+  it("applies the full base drag (not reduced during boost), matching OpenRocket's stored drag", () => {
+    // OpenRocket's stored per-step drag carries the full 0.12 + 0.13·M² base drag throughout the
+    // flight, powered or coasting; a blanket boost reduction under-drags a large-body / small-motor
+    // design ~6× (a 195 mm body flying a 54 mm motor). Base drag is the full coefficient referenced
+    // to the base area over the reference area, with no thrust-phase discount.
     const geom = aeroGeometry(coneRocket());
     const atm = new Atmosphere().sample(0);
-    const coasting = dragCoefficient(geom, atm, 80, false);
-    const boosting = dragCoefficient(geom, atm, 80, true);
-    expect(boosting.base).toBeLessThan(coasting.base);
+    const mach = 80 / atm.speedOfSound;
+    const base = dragCoefficient(geom, atm, 80).base;
+    expect(base).toBeCloseTo((0.12 + 0.13 * mach * mach) * (geom.baseArea / geom.refArea), 6);
+    expect(base).toBeGreaterThan(0);
   });
 });
 
@@ -122,7 +127,7 @@ describe("fin cross-section pressure drag", () => {
 
   it("orders pressure drag square > rounded > airfoil for the same fin", () => {
     const cd = (cs?: "square" | "rounded" | "airfoil") =>
-      dragCoefficient(aeroGeometry(finned(cs)), atm, 0.25 * atm.speedOfSound, false).pressure;
+      dragCoefficient(aeroGeometry(finned(cs)), atm, 0.25 * atm.speedOfSound).pressure;
     const square = cd("square");
     const rounded = cd("rounded");
     const airfoil = cd("airfoil");
@@ -136,7 +141,7 @@ describe("fin cross-section pressure drag", () => {
   it("a swept leading edge reduces square-fin pressure drag (cos²Λ)", () => {
     const straight = shapedRocket({ fins: true, sweep: 0 });
     const swept = shapedRocket({ fins: true, sweep: 0.08 });
-    const p = (r: Rocket) => dragCoefficient(aeroGeometry(r), atm, 0.25 * atm.speedOfSound, false).pressure;
+    const p = (r: Rocket) => dragCoefficient(aeroGeometry(r), atm, 0.25 * atm.speedOfSound).pressure;
     expect(p(swept)).toBeLessThan(p(straight));
   });
 });
@@ -144,7 +149,7 @@ describe("fin cross-section pressure drag", () => {
 describe("wave drag is geometry-aware", () => {
   const atm = new Atmosphere().sample(2000);
   const waveAt = (r: Rocket, M: number) =>
-    dragCoefficient(aeroGeometry(r), atm, M * atm.speedOfSound, false).wave;
+    dragCoefficient(aeroGeometry(r), atm, M * atm.speedOfSound).wave;
 
   it("ranks nose contours by published wave-drag order (Von Kármán lowest, cone highest)", () => {
     // Same fineness, only the contour differs. Ordering follows the published nose-shape drag
@@ -209,7 +214,7 @@ describe("protuberance (launch-lug / rail-button) drag", () => {
     }
     return { name: "r", stages: [{ name: "s", components: [nose, body] }], configurations: [], referenceType: "maximum" };
   }
-  const cdAt = (r: Rocket, v = 60) => dragCoefficient(aeroGeometry(r), atm, v, false);
+  const cdAt = (r: Rocket, v = 60) => dragCoefficient(aeroGeometry(r), atm, v);
 
   it("adds no protuberance area when the design has no fittings", () => {
     expect(aeroGeometry(withLug()).protuberanceArea).toBe(0);
@@ -290,7 +295,7 @@ describe("skinFriction", () => {
     const geom = aeroGeometry(coneRocket());
     const atm = new Atmosphere().sample(3000);
     for (const M of [0.3, 0.8, 1.5, 2.5, 3.2, 4, 5]) {
-      const cd = dragCoefficient(geom, atm, M * atm.speedOfSound, false).cd;
+      const cd = dragCoefficient(geom, atm, M * atm.speedOfSound).cd;
       expect(cd).toBeGreaterThan(0);
       expect(Number.isFinite(cd)).toBe(true);
     }
@@ -299,7 +304,7 @@ describe("skinFriction", () => {
   it("follows the published Cd–Mach shape: subsonic flat, transonic peak, supersonic decline", () => {
     const geom = aeroGeometry(coneRocket());
     const atm = new Atmosphere().sample(2000);
-    const cdAt = (M: number) => dragCoefficient(geom, atm, M * atm.speedOfSound, false).cd;
+    const cdAt = (M: number) => dragCoefficient(geom, atm, M * atm.speedOfSound).cd;
 
     // Find the peak over a Mach sweep; it must sit in the transonic band, not at M5.
     let peakM = 0;

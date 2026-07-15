@@ -41,19 +41,23 @@ export default function Limitations() {
         drag is still approximate and fin-junction interference is lumped into a small flat
         allowance. The boundary layer is treated as <em>fully turbulent</em> — the standard rocketry
         assumption, since it trips near the nose — so there is no laminar run to solve (and no
-        laminar-drag credit for an unusually smooth, slow flight). Because its drag is generally a
-        little lower than a complete model&apos;s, Loft tends to slightly <em>over-predict</em>
-        apogee. Measured against OpenRocket&apos;s own &ldquo;A simple model rocket&rdquo; example
-        (which stores its per-step drag), Loft now reproduces the coast-phase drag coefficient
-        closely across the whole speed range — including the low-Reynolds rise as the rocket slows
-        toward apogee, which an earlier laminar branch under-stated. On that example the C6 flight
-        lands about +8% high; the A8 (~+19%) and B4 (~+34%) read higher, but that gap is a
-        motor-<em>data</em> difference, not the aerodynamics — Loft flies both on authentic certified
-        thrust curves that deliver a little more than OpenRocket&apos;s bundled A8/B4, while the
-        shared drag matches OpenRocket&apos;s stored coefficient to within about a percent across
-        their speed range. Larger, faster rockets where drag matters less sit tighter — the
-        corpus&apos;s high-power designs land within a few percent. Always compare against your own
-        design&apos;s stored OpenRocket numbers on the <Link href="/docs/validation">Validation</Link>{" "}
+        laminar-drag credit for an unusually smooth, slow flight). Base drag is applied in full
+        whether the motor is burning or not — matching OpenRocket&apos;s stored per-step drag, which
+        carries the full base drag throughout boost — rather than the blanket thrust-phase discount
+        an earlier model used, which under-dragged a wide body flying a small motor severalfold (the
+        exhaust fills only a little of a large base). Measured against OpenRocket&apos;s own
+        &ldquo;A simple model rocket&rdquo; example (which stores its per-step drag), Loft reproduces
+        the drag coefficient closely across the whole flight — friction, pressure, and base each
+        within a few percent, boosting and coasting. On that example the C6 flight now lands about
+        +6% high; the A8 (~+17%) and B4 (~+33%) read higher, but that gap is a motor-<em>data</em>{" "}
+        difference, not the aerodynamics — Loft flies both on authentic certified thrust curves that
+        deliver a little more than OpenRocket&apos;s bundled A8/B4, while the shared drag matches
+        OpenRocket&apos;s stored coefficient to within about a percent. Across the wider corpus most
+        designs now land within a few percent of OpenRocket, and the residual runs in both
+        directions rather than the consistent over-prediction the earlier base-drag discount used to
+        produce — a transonic design can read a few percent low, where the wave-drag estimate is
+        roughest. Always compare against your own design&apos;s stored OpenRocket numbers on the{" "}
+        <Link href="/docs/validation">Validation</Link>{" "}
         page.
       </p>
 

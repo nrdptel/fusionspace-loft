@@ -365,12 +365,11 @@ export function skinFriction(re: number, roughness: number, length: number, mach
   return cfWithFloor / Math.pow(1 + 0.144 * mach * mach, 0.65);
 }
 
-/** Zero-lift drag coefficient at a flight state. `boosting` fills the base and cuts base drag. */
+/** Zero-lift drag coefficient at a flight state. */
 export function dragCoefficient(
   geom: AeroGeometry,
   atm: AtmosphereState,
   velocity: number,
-  boosting: boolean,
 ): DragResult {
   const mach = velocity / atm.speedOfSound;
   const re = (atm.density * velocity * geom.bodyLength) / atm.dynamicViscosity;
@@ -385,13 +384,17 @@ export function dragCoefficient(
   const finFriction = cf * finForm * (geom.finWettedArea / geom.refArea);
   const friction = bodyFriction + finFriction;
 
-  // Base drag. Subsonic it rises with the square of Mach; supersonic the base pressure
-  // recovers and it falls as ~1/M (Hoerner). The two branches meet continuously at M=1
-  // (both 0.25). Referenced to the base area, then the reference area. Suppressed while the
-  // motor burns (exhaust fills the base region). Applying the subsonic form supersonically —
-  // as a naive model does — makes base drag (and total Cd) grow without bound, which is wrong.
+  // Base drag. Subsonic it rises with the square of Mach; supersonic the base pressure recovers
+  // and it falls as ~1/M (Hoerner). The two branches meet continuously at M=1 (both 0.25).
+  // Referenced to the base area, then the reference area. It is NOT reduced while the motor burns:
+  // OpenRocket's stored per-step drag shows the full base drag throughout boost (the Niskanen model
+  // applies it to the whole base regardless of thrust), and for a body much wider than its motor
+  // the exhaust fills only a small part of the base — so a blanket boost reduction badly
+  // under-drags a large-body / small-motor design (it read ~6× low on a 195 mm body flying a 54 mm
+  // motor). Applying the subsonic form supersonically — as a naive model does — makes base drag
+  // (and total Cd) grow without bound, which is wrong; the 1/M branch avoids that.
   const baseCoeff = mach <= 1 ? 0.12 + 0.13 * mach * mach : 0.25 / mach;
-  const base = baseCoeff * (geom.baseArea / geom.refArea) * (boosting ? 0.15 : 1);
+  const base = baseCoeff * (geom.baseArea / geom.refArea);
 
   // Fin edge pressure drag, set by the fin's edge cross-section — the term that dominates a finned
   // model rocket's pressure drag and that a thickness-only model badly under-counts. A SQUARE edge

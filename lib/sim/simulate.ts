@@ -327,7 +327,6 @@ export function simulate(input: SimulateInput): FlightResult {
     const airVel = { x: s.vel.x - wind.x, y: s.vel.y - wind.y, z: s.vel.z - wind.z };
     const airSpeed = mag(airVel);
     const thrust = totalThrust(motors, s.t);
-    const boosting = thrust > 0;
 
     // Gravity.
     let f: Vec3 = vec(0, 0, -G0 * mass);
@@ -353,7 +352,7 @@ export function simulate(input: SimulateInput): FlightResult {
         // An open canopy drags whenever it is open — including a too-early (pre-apogee) deploy.
         cdA = deployedCdA(recovery, s.t) + g.refArea * 0.5; // chutes + a little body
       } else {
-        const dr = dragCoefficient(g, atm, airSpeed, boosting);
+        const dr = dragCoefficient(g, atm, airSpeed);
         if (dr.extrapolated) extrapolated = true;
         cdA = dr.cd * g.refArea;
       }
@@ -492,7 +491,7 @@ export function simulate(input: SimulateInput): FlightResult {
     const gNow = geomAt(state.t);
     const cdNow = anyDeployed(recovery, state.t)
       ? 0
-      : dragCoefficient(gNow, atm, airSpeed, thrust > 0).cd;
+      : dragCoefficient(gNow, atm, airSpeed).cd;
     if (shouldSample(trajectory, state.t, phase)) {
       trajectory.push({
         t: state.t,

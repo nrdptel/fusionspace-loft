@@ -75,13 +75,13 @@ const NOSE_KIND: Record<string, string> = {
   haack: "lvhaack",
 };
 
-function sampleCd(rocket: Parameters<typeof aeroGeometry>[0], boosting: boolean): number[][] {
+function sampleCd(rocket: Parameters<typeof aeroGeometry>[0]): number[][] {
   const geom = aeroGeometry(rocket);
   const atm = new Atmosphere().sample(0);
   const out: number[][] = [];
   for (let m = 0; m <= 3.0001; m += 0.05) {
     const v = m * atm.speedOfSound;
-    const cd = m === 0 ? dragCoefficient(geom, atm, 0.01, boosting).cd : dragCoefficient(geom, atm, v, boosting).cd;
+    const cd = m === 0 ? dragCoefficient(geom, atm, 0.01).cd : dragCoefficient(geom, atm, v).cd;
     out.push([Number(m.toFixed(3)), Number(cd.toFixed(4))]);
   }
   return out;
@@ -170,8 +170,8 @@ function buildSpec(doc: OrkDocument, config: MotorConfiguration, simIndex: numbe
       cgNoMotor: dry.cg,
       inertia: [dry.inertia, dry.inertia, rollInertia],
       cp: barrowman(rocket).cp,
-      cdPowerOff: sampleCd(rocket, false),
-      cdPowerOn: sampleCd(rocket, true),
+      cdPowerOff: sampleCd(rocket),
+      cdPowerOn: sampleCd(rocket),
       nose,
       tails,
       fins,

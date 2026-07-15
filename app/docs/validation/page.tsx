@@ -242,20 +242,23 @@ export default async function Validation() {
         carry real stored results, including OpenRocket&apos;s own per-step drag coefficient). One
         you can reproduce yourself: open OpenRocket&apos;s own bundled example{" "}
         <em>&ldquo;A simple model rocket&rdquo;</em> (v24.12) and import it here. On its coast, Loft
-        now reproduces OpenRocket&apos;s total drag coefficient closely across the whole speed range
-        (Cd ≈ 0.855 near burnout, split friction/pressure/base within a few percent each), after
-        Loft was taught to read the fins&apos; square edge cross-section and count its leading-edge
-        stagnation and trailing-edge base pressure drag. It also now tracks the coast-drag{" "}
-        <em>rise</em> as the rocket slows toward apogee — where OpenRocket&apos;s Cd climbs to ~0.97
-        at a few m/s, Loft was earlier stuck near 0.85 (a ~13% under-count) but now lands within
-        ~2%, having been corrected to a fully-turbulent boundary layer whose friction climbs at low
-        Reynolds number rather than an inappropriate laminar branch. Across the A8, B4, and C6 configurations the fast <strong>C6 flights land
-        within ~8%</strong>; the low-thrust <strong>A8 (~+18%) and B4 (~+35%)</strong> read higher.
-        Those two are motor-<em>data</em> differences, not the aerodynamics — Loft flies the A8 on
-        the NAR-certified curve (a realistic ~72&nbsp;s specific impulse and Estes&apos; published
-        loaded mass), which delivers a little more than OpenRocket&apos;s bundled A8, and its B4
-        curve likewise differs; the shared drag model fits all three. The direction is conservative
-        for altitude: Loft reads a little high. To reproduce: import the file, pick each
+        now reproduces OpenRocket&apos;s total drag coefficient closely across the whole flight —
+        boosting and coasting, friction/pressure/base each within a few percent (Cd ≈ 0.855 near
+        burnout) — after Loft was taught to read the fins&apos; square edge cross-section and count
+        its leading-edge stagnation and trailing-edge base pressure drag. It also tracks the
+        coast-drag <em>rise</em> as the rocket slows toward apogee — where OpenRocket&apos;s Cd climbs
+        to ~0.97 at a few m/s, Loft was earlier stuck near 0.85 (a ~13% under-count) but now lands
+        within ~2%, having been corrected to a fully-turbulent boundary layer whose friction climbs
+        at low Reynolds number rather than an inappropriate laminar branch. And the base drag now
+        carries in full through boost (as OpenRocket&apos;s does), which had been discounted — a fix
+        that most matters for a body much wider than its motor, where the exhaust fills little of the
+        base. Across the A8, B4, and C6 configurations the fast <strong>C6 flights land within
+        ~6%</strong>; the low-thrust <strong>A8 (~+17%) and B4 (~+33%)</strong> read higher. Those
+        two are motor-<em>data</em> differences, not the aerodynamics — Loft flies the A8 on the
+        NAR-certified curve (a realistic ~72&nbsp;s specific impulse and Estes&apos; published loaded
+        mass), which delivers a little more than OpenRocket&apos;s bundled A8, and its B4 curve
+        likewise differs; the shared drag model fits all three. To reproduce: import the file, pick
+        each
         simulation&apos;s configuration, and read the OpenRocket-vs-Loft panel. (The file isn&apos;t
         bundled — it ships with OpenRocket, which is GPL.)
       </p>
@@ -277,16 +280,14 @@ export default async function Validation() {
         Serial staging is checked the same way — against OpenRocket&apos;s own stored results for
         its bundled multi-stage examples. On the <em>&ldquo;Two stage high power rocket&rdquo;</em>
         (a booster and sustainer, each on an AeroTech H148R, with a drogue at apogee and a main at
-        152&nbsp;m), Loft reaches <strong>691&nbsp;m against OpenRocket&apos;s 675&nbsp;m
-        (+2%)</strong>, with the burnout velocity matching to about 1% and the separation, drogue,
+        152&nbsp;m), Loft reaches <strong>663&nbsp;m against OpenRocket&apos;s 675&nbsp;m
+        (−2%)</strong>, with the burnout velocity matching to about 1% and the separation, drogue,
         and main all firing in the right order. That example&apos;s second configuration — a
         long-burn AeroTech I59WN booster staging to a fast I357T sustainer — now flies too (both
-        curves are authentic ThrustCurve.org data), landing about <strong>+10%</strong> high against
-        OpenRocket&apos;s stored figure, with the sustainer&apos;s certified curve reading a few
-        percent hot. On the <em>&ldquo;Three stage low power
-        rocket&rdquo;</em> Loft lands <strong>within ~1%</strong> of OpenRocket&apos;s apogee across
-        all three configurations. The small residual is the same slight drag under-prediction seen
-        on single-stage designs. Stability tracks too, now that the stages stack into one airframe:
+        curves are authentic ThrustCurve.org data), landing <strong>within ~1%</strong> of
+        OpenRocket&apos;s stored figure. On the <em>&ldquo;Three stage low power rocket&rdquo;</em>{" "}
+        Loft lands <strong>within ~4%</strong> of OpenRocket&apos;s apogee across all three
+        configurations, reading a little low. Stability tracks too, now that the stages stack into one airframe:
         the loaded centre of gravity matches OpenRocket&apos;s stored value — <strong>1.33&nbsp;m vs
         1.33&nbsp;m</strong> on the two-stage, within ~3% on the three-stage — and the sustainer&apos;s
         own post-separation margin is reported and flagged if it falls below 1 cal. To reproduce,
