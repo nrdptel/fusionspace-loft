@@ -153,6 +153,66 @@ describe("serial staging plan", () => {
   });
 });
 
+/** Single stage with two motor mounts: a main motor and a second that airstarts after a delay. */
+function airstart(delay: number): { rocket: Rocket; config: MotorConfiguration } {
+  uid = 0;
+  const mainMount = "m-main";
+  const airMount = "m-air";
+  const body: BodyTube = {
+    id: nextId(),
+    name: "body",
+    kind: "bodytube",
+    placement: { method: "after", offset: 0 },
+    outerRadius: 0.025,
+    thickness: 0.001,
+    length: 0.6,
+    children: [mount(mainMount), mount(airMount), fins()],
+  };
+  const rocket: Rocket = {
+    name: "Airstart test",
+    stages: [{ name: "Stage", components: [nose(), body] }],
+    configurations: [],
+    referenceType: "maximum",
+  };
+  const config: MotorConfiguration = {
+    id: "cfg",
+    instances: [
+      { mountId: mainMount, motor: { designation: "H128W", manufacturer: "AeroTech", type: "reload", diameter: 0.038, length: 0.2 }, ignitionEvent: "automatic", ignitionDelay: 0 },
+      { mountId: airMount, motor: { designation: "F50T", manufacturer: "AeroTech", type: "single-use", diameter: 0.029, length: 0.2 }, ignitionEvent: "automatic", ignitionDelay: delay },
+    ],
+  };
+  rocket.configurations = [config];
+  return { rocket, config };
+}
+
+describe("within-stage airstart", () => {
+  it("ignites a second motor at its own delay while the first lights at launch", () => {
+    const { rocket, config } = airstart(2);
+    const bd = buildRocketDynamics(rocket, config);
+    const main = bd.motors.find((m) => m.curve.designation === "H128W")!;
+    const air = bd.motors.find((m) => m.curve.designation === "F50T")!;
+    expect(main.ignitionTime).toBe(0);
+    expect(air.ignitionTime).toBeCloseTo(2, 6);
+    // Single stage: neither motor's stage detaches.
+    expect(main.detachTime).toBe(Infinity);
+    expect(air.detachTime).toBe(Infinity);
+  });
+
+  it("lights both at launch when the second has no delay (unchanged behaviour)", () => {
+    const { rocket, config } = airstart(0);
+    const bd = buildRocketDynamics(rocket, config);
+    for (const m of bd.motors) expect(m.ignitionTime).toBe(0);
+  });
+
+  it("actually changes the flight — the airstart timing is modelled, not ignored", () => {
+    const together = runFlight(airstart(0).rocket, { configId: "cfg" }).result.summary.apogee;
+    const delayed = runFlight(airstart(5).rocket, { configId: "cfg" }).result.summary.apogee;
+    expect(together).toBeGreaterThan(0);
+    expect(delayed).toBeGreaterThan(0);
+    expect(Math.abs(delayed - together)).toBeGreaterThan(1); // not invariant to the delay
+  });
+});
+
 describe("multi-stage stability", () => {
   it("stacks the booster below the sustainer rather than overlapping it at the nose", () => {
     const { rocket } = twoStage();

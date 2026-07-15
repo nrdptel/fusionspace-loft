@@ -255,6 +255,14 @@ export default function Methods() {
         separated booster&apos;s own recovery isn&apos;t. Parallel and strap-on staging is not
         modelled (see the <Link href="/docs/limitations">limitations</Link>).
       </p>
+      <p>
+        Ignition timing is resolved <em>per motor</em>, not just per stage, so a second motor
+        <em> within one stage</em> can be air-started after its own delay while the first burns from
+        launch — the delay is read from the flown configuration, so a design that sets a different
+        air-start time in each of its stored simulations flies each one distinctly. The airstarted
+        motor rides as dead weight until it lights, then adds its thrust; the vehicle&apos;s peak
+        speed and apogee shift with the timing, exactly as a staged air-start does.
+      </p>
 
       <h2>Recovery &amp; drift</h2>
       <p>

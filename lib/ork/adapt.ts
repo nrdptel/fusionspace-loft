@@ -259,8 +259,23 @@ function parseMotorMount(node: XmlNode, mountId: string, ctx: WalkContext): bool
   const mm = child(node, "motormount");
   if (!mm) return false;
   const overhang = childNum(mm, "overhang", 0) || 0;
+  // Mount-level default ignition, used when a configuration carries no override.
   const defaultIgnEvent = childText(mm, "ignitionevent");
   const defaultIgnDelay = childNum(mm, "ignitiondelay", 0);
+  // Per-configuration ignition overrides. A design can airstart a mount's motor at a different
+  // delay in each configuration (one <ignitionconfiguration configid=…> block per config), which
+  // is exactly how a staggered/airstart study is set up. Read them so the airstart timing is
+  // honoured per configuration instead of being flattened to the mount default.
+  const ignByConfig = new Map<string, { event?: string; delay: number }>();
+  for (const ic of children(mm, "ignitionconfiguration")) {
+    const cid = ic.attrs.configid;
+    if (!cid) continue;
+    const delay = childNum(ic, "ignitiondelay", 0);
+    ignByConfig.set(cid, {
+      event: childText(ic, "ignitionevent") || defaultIgnEvent,
+      delay: Number.isFinite(delay) ? delay : 0,
+    });
+  }
   for (const motor of children(mm, "motor")) {
     const configId = motor.attrs.configid || "default";
     const spec: MotorSpec = {
@@ -273,12 +288,13 @@ function parseMotorMount(node: XmlNode, mountId: string, ctx: WalkContext): bool
       delay: parseNum(childText(motor, "delay"), NaN),
     };
     if (spec.designation) {
+      const ign = ignByConfig.get(configId);
       ctx.motorInstances.push({
         mountId,
         configId,
         spec,
-        ignitionEvent: defaultIgnEvent,
-        ignitionDelay: Number.isFinite(defaultIgnDelay) ? defaultIgnDelay : 0,
+        ignitionEvent: ign?.event ?? defaultIgnEvent,
+        ignitionDelay: ign ? ign.delay : Number.isFinite(defaultIgnDelay) ? defaultIgnDelay : 0,
       });
     }
   }

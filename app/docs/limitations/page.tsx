@@ -107,8 +107,21 @@ export default function Limitations() {
         propellant, and motor-tube mass all counted. They are placed on the centreline rather than
         at their true radial offsets: for the vertical-plane apogee, velocity, and mass this makes
         no difference, but the roll/pitch inertia contribution of the offset motors isn&apos;t
-        modelled (and rotation isn&apos;t solved anyway — see above). A staggered-ignition or
-        partial-cluster failure isn&apos;t modelled; all motors in the cluster light together.
+        modelled (and rotation isn&apos;t solved anyway — see above). Within a single cluster the
+        motors always light together — a staggered ignition or a partial-cluster failure across the
+        identical motors of one mount isn&apos;t modelled. (A motor on a <em>separate</em> mount with
+        its own ignition delay <em>is</em> air-started at that delay; see the air-start note below.)
+      </p>
+
+      <h3>Air-start ignition is timed but not event-triggered</h3>
+      <p>
+        A second motor on its own mount can be timed to air-start after an <em>ignition delay</em>,
+        and Loft honours that delay (read from the flown configuration), so within-stage air-start
+        studies fly with the right timing rather than lighting everything at launch. What is
+        <em> not</em> yet modelled is an air-start keyed to a flight <em>event</em> other than a
+        fixed delay — for example ignition at a target altitude or triggered by an accelerometer.
+        Such a motor is treated as its delay-from-activation, which is exact when the design uses a
+        plain delay and an approximation otherwise.
       </p>
 
       <h3>Wind model</h3>

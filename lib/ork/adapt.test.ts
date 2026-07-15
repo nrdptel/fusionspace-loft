@@ -431,3 +431,58 @@ describe("real-world quirks fixture (auto radii, legacy tags, boattail, pods)", 
     expect(run.resolutions[0].match?.entry.curve.designation).toBe("J420R");
   });
 });
+
+describe("adaptOrkXml — per-configuration airstart ignition", () => {
+  // A single mount that carries the same motor in two configurations, one lit at launch and one
+  // airstarted 3 s later via a per-config <ignitionconfiguration> override. The mount-level
+  // default alone would flatten both to 0; the override must win per configuration.
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<openrocket version="1.10" creator="test">
+  <rocket>
+    <name>Airstart</name>
+    <motorconfiguration configid="cfgA"/>
+    <motorconfiguration configid="cfgB" default="true"/>
+    <subcomponents>
+      <stage>
+        <name>Stage</name>
+        <subcomponents>
+          <bodytube>
+            <name>Body</name><length>0.6</length><radius>0.025</radius><thickness>0.001</thickness>
+            <subcomponents>
+              <innertube>
+                <name>Mount</name><length>0.2</length><radius>0.019</radius><thickness>0.001</thickness>
+                <motormount>
+                  <ignitionevent>automatic</ignitionevent>
+                  <ignitiondelay>0.0</ignitiondelay>
+                  <motor configid="cfgA">
+                    <type>reload</type><manufacturer>AeroTech</manufacturer><designation>H128W</designation>
+                    <diameter>0.038</diameter><length>0.2</length><delay>none</delay>
+                  </motor>
+                  <ignitionconfiguration configid="cfgA">
+                    <ignitionevent>automatic</ignitionevent><ignitiondelay>0.0</ignitiondelay>
+                  </ignitionconfiguration>
+                  <motor configid="cfgB">
+                    <type>reload</type><manufacturer>AeroTech</manufacturer><designation>H128W</designation>
+                    <diameter>0.038</diameter><length>0.2</length><delay>none</delay>
+                  </motor>
+                  <ignitionconfiguration configid="cfgB">
+                    <ignitionevent>automatic</ignitionevent><ignitiondelay>3.0</ignitiondelay>
+                  </ignitionconfiguration>
+                </motormount>
+              </innertube>
+            </subcomponents>
+          </bodytube>
+        </subcomponents>
+      </stage>
+    </subcomponents>
+  </rocket>
+</openrocket>`;
+
+  it("reads each configuration's own ignition delay, not just the mount default", () => {
+    const doc = adaptOrkXml(xml);
+    const cfgA = doc.rocket.configurations.find((c) => c.id === "cfgA")!;
+    const cfgB = doc.rocket.configurations.find((c) => c.id === "cfgB")!;
+    expect(cfgA.instances[0].ignitionDelay).toBe(0);
+    expect(cfgB.instances[0].ignitionDelay).toBe(3);
+  });
+});

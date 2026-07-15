@@ -67,19 +67,24 @@ export function buildRocketDynamics(rocket: Rocket, config: MotorConfiguration):
   const stageOf = stageOfComponent(rocket);
   const nStages = Math.max(1, rocket.stages.length);
 
-  // First pass: resolve each motor, place it, and note which stage it belongs to. Accumulate,
-  // per stage, the longest motor burn time and the stage's ignition delay.
+  // First pass: resolve each motor, place it, note its stage and its own ignition delay, and
+  // accumulate how long each stage burns from activation to its last motor's burnout.
   interface Placed {
     curve: ResolvedMotor["curve"];
     cg: number;
     count: number;
     ejectionDelay: number;
+    /** This motor's ignition delay from its stage becoming active — 0 for a normal motor, or the
+     *  airstart delay for a second motor timed to light after liftoff/staging. */
+    ignitionDelay: number;
     stageIndex: number;
   }
   const placed: Placed[] = [];
   const resolutions: MotorResolution[] = [];
-  const stageBurnTime = new Array(nStages).fill(0);
-  const stageIgnitionDelay = new Array(nStages).fill(0);
+  // How long each stage takes from becoming active to its LAST motor's burnout: the max over its
+  // motors of (that motor's ignition delay + its burn time). A within-stage airstart keeps the
+  // stage "burning" until the airstarted motor finishes, which is when a spent lower stage drops.
+  const stageBurnDuration = new Array(nStages).fill(0);
 
   for (const inst of config.instances) {
     const match = resolveMotor(inst.motor);
@@ -104,25 +109,26 @@ export function buildRocketDynamics(rocket: Rocket, config: MotorConfiguration):
     const motorLen = inst.motor.length || match.entry.curve.lengthMm / 1000;
     const cg = mountAft + overhang - motorLen / 2;
     const ejectionDelay = Number.isFinite(inst.motor.delay ?? NaN) ? (inst.motor.delay as number) : NaN;
-    placed.push({ curve: match.entry.curve, cg, count, ejectionDelay, stageIndex });
-    stageBurnTime[stageIndex] = Math.max(stageBurnTime[stageIndex], match.entry.curve.burnTime);
-    stageIgnitionDelay[stageIndex] = inst.ignitionDelay ?? 0;
+    const ignitionDelay = Number.isFinite(inst.ignitionDelay ?? NaN) ? (inst.ignitionDelay as number) : 0;
+    placed.push({ curve: match.entry.curve, cg, count, ejectionDelay, ignitionDelay, stageIndex });
+    stageBurnDuration[stageIndex] = Math.max(stageBurnDuration[stageIndex], ignitionDelay + match.entry.curve.burnTime);
   }
 
-  // Stage ignition times (firing order: the bottom stage — last in list order — lights first).
-  // Each stage above ignites when the stage below burns out, plus its own ignition delay.
-  const ignT = new Array(nStages).fill(0);
-  ignT[nStages - 1] = stageIgnitionDelay[nStages - 1];
+  // Stage activation times (firing order: the bottom stage — last in list order — is active at
+  // launch; each stage above becomes active when the stage below finishes burning). Each motor
+  // then ignites at its stage's activation PLUS its own ignition delay, so two motors in one
+  // stage can airstart at different times (the second lights after the first).
+  const stageActivation = new Array(nStages).fill(0);
   for (let i = nStages - 2; i >= 0; i--) {
-    ignT[i] = ignT[i + 1] + stageBurnTime[i + 1] + stageIgnitionDelay[i];
+    stageActivation[i] = stageActivation[i + 1] + stageBurnDuration[i + 1];
   }
-  // A stage separates and drops away at its own burnout; the final (top) stage never does.
+  // A spent lower stage separates and drops away when it finishes burning; the top stage never does.
   const detachT = new Array(nStages).fill(Infinity);
-  for (let i = 1; i < nStages; i++) detachT[i] = ignT[i] + stageBurnTime[i];
+  for (let i = 1; i < nStages; i++) detachT[i] = stageActivation[i] + stageBurnDuration[i];
 
   const motors: ResolvedMotor[] = [];
   for (const p of placed) {
-    const ignitionTime = ignT[p.stageIndex];
+    const ignitionTime = stageActivation[p.stageIndex] + p.ignitionDelay;
     const resolved: ResolvedMotor = {
       curve: p.curve,
       cg: p.cg,
