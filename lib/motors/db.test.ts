@@ -71,6 +71,10 @@ describe("motor database", () => {
       ["Loki", "K1127LB", "K"],
       ["Loki", "G66-LR", "G"],
       ["Animal Motor Works", "L1100SM", "L"],
+      // The two-stage example's second config: a long-burn I59WN booster (whose certified curve is
+      // the plugged I59WN-P) and a fast I357T sustainer.
+      ["AeroTech", "I59WN", "I"],
+      ["AeroTech", "I357T", "I"],
     ];
     for (const [manufacturer, designation, cls] of cases) {
       const m = resolveMotor({ manufacturer, designation });

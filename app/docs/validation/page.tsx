@@ -279,7 +279,11 @@ export default async function Validation() {
         (a booster and sustainer, each on an AeroTech H148R, with a drogue at apogee and a main at
         152&nbsp;m), Loft reaches <strong>691&nbsp;m against OpenRocket&apos;s 675&nbsp;m
         (+2%)</strong>, with the burnout velocity matching to about 1% and the separation, drogue,
-        and main all firing in the right order. On the <em>&ldquo;Three stage low power
+        and main all firing in the right order. That example&apos;s second configuration — a
+        long-burn AeroTech I59WN booster staging to a fast I357T sustainer — now flies too (both
+        curves are authentic ThrustCurve.org data), landing about <strong>+10%</strong> high against
+        OpenRocket&apos;s stored figure, with the sustainer&apos;s certified curve reading a few
+        percent hot. On the <em>&ldquo;Three stage low power
         rocket&rdquo;</em> Loft lands <strong>within ~1%</strong> of OpenRocket&apos;s apogee across
         all three configurations. The small residual is the same slight drag under-prediction seen
         on single-stage designs. Stability tracks too, now that the stages stack into one airframe:

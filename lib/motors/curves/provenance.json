@@ -670,5 +670,27 @@
     "manufacturer": "Quest Aerospace",
     "class": "C",
     "diameter": 18
+  },
+  {
+    "file": "AeroTech_I59WN.eng",
+    "motorId": "5f4294d200023100000002d0",
+    "license": "PD",
+    "simfileId": "5f4294d20002e90000000660",
+    "designation": "I59WN",
+    "manufacturer": "AeroTech",
+    "class": "I",
+    "diameter": 38,
+    "header": "I59WN-P 38 232 P 0.272 0.487 AT"
+  },
+  {
+    "file": "AeroTech_I357T.eng",
+    "motorId": "5f4294d200023100000000d3",
+    "license": "PD",
+    "simfileId": "5f4294d20002e9000000003f",
+    "designation": "I357T",
+    "manufacturer": "AeroTech",
+    "class": "I",
+    "diameter": 38,
+    "header": "I357T 38 203 14 0.1792 0.34944 AT"
   }
 ]
