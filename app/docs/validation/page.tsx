@@ -3,7 +3,8 @@ import Link from "next/link";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { importOrk } from "@/lib/ork/import";
-import { runFromDocument, runFlight, configChoices, overridesFromStored } from "@/lib/sim/run";
+import { runFromDocument } from "@/lib/sim/run";
+import { loadRocketpyReference, flyReferenceDesign } from "@/lib/validation/rocketpy-reference";
 import { fmt } from "@/lib/display";
 
 export const metadata: Metadata = {
@@ -36,31 +37,12 @@ async function fixtureRuns() {
   return out;
 }
 
-interface RpDesign {
-  key: string;
-  config: string;
-  name: string;
-  apogee: number;
-  maxVelocity: number;
-  maxMach: number;
-  timeToApogee: number;
-  staticMargin: number;
-}
-interface RpReference {
-  engine: string;
-  engineVersion: string;
-  method: string;
-  designs: RpDesign[];
-}
-
 // The RocketPy cross-check, shown to users. RocketPy is Python and runs offline (not bundled, not
 // in the browser); its numbers are committed in fixtures/rocketpy-cross-check.json. The Loft column
 // here is computed live at build time from the same fixtures — flown ballistically to match the way
 // RocketPy flew them — so the gap on the page is always current with the engine.
 async function rocketpyRuns() {
-  const ref: RpReference = JSON.parse(
-    readFileSync(resolve(process.cwd(), "fixtures", "rocketpy-cross-check.json"), "utf-8"),
-  );
+  const ref = loadRocketpyReference();
   const runs: {
     key: string;
     name: string;
@@ -69,16 +51,7 @@ async function rocketpyRuns() {
     rows: { label: string; unit: string; rp: number; loft: number; dp: number; pct: number }[];
   }[] = [];
   for (const d of ref.designs) {
-    const bytes = new Uint8Array(readFileSync(resolve(process.cwd(), "fixtures", `${d.key}.ork`)));
-    const doc = await importOrk(bytes);
-    const choices = configChoices(doc);
-    const choice = choices.find((c) => c.motors.some((m) => m.includes(d.config))) ?? choices[0];
-    const sim = doc.simulations[choice.simIndex];
-    const run = runFlight(doc.rocket, {
-      configId: sim.conditions.configId,
-      overrides: overridesFromStored(sim),
-      ballistic: true,
-    });
+    const run = await flyReferenceDesign(d);
     const s = run.result.summary;
     const rows = [
       { label: "Apogee", unit: "m", rp: d.apogee, loft: s.apogee, dp: 0 },
@@ -205,8 +178,8 @@ export default async function Validation() {
         <a href="https://github.com/RocketPy-Team/RocketPy" target="_blank" rel="noopener noreferrer">
           RocketPy
         </a>
-        , a mature, open-source 6-DOF flight simulator independently validated against real flight
-        data to about 1%. It shares none of Loft&apos;s code. For each bundled design, RocketPy flies
+        , a mature, open-source 6-DOF flight simulator independently validated against real recorded
+        flights to within a few percent. It shares none of Loft&apos;s code. For each bundled design, RocketPy flies
         the same rocket and the two engines are compared metric by metric. RocketPy takes a drag
         coefficient rather than deriving it from the shape, so it is fed <em>Loft&apos;s own</em> drag
         curve.
@@ -253,7 +226,7 @@ export default async function Validation() {
                     {fmt(row.loft, row.dp)} {row.unit}
                   </td>
                   <td>
-                    {row.pct >= 0 ? "+" : ""}
+                    {row.pct >= 0.05 ? "+" : ""}
                     {fmt(row.pct, 1)}%
                   </td>
                 </tr>
