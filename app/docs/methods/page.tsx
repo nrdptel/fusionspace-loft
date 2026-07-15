@@ -147,11 +147,16 @@ export default function Methods() {
       </p>
       <ul>
         <li>
-          <strong>Skin friction</strong> — a flat-plate coefficient (laminar{" "}
-          <code>1.328/√Re</code>, turbulent Prandtl–Schlichting <code>0.455/(log₁₀Re)²·⁵⁸</code>)
-          with a surface-roughness floor from the design&apos;s finish and a compressible-turbulent
-          (reference-temperature / Frankl–Voishel) correction at speed, applied to the body and fin
-          wetted areas with fineness- and thickness-ratio form factors (Hoerner-style).
+          <strong>Skin friction</strong> — a <em>fully turbulent</em> flat-plate coefficient
+          (Prandtl–Schlichting <code>0.455/(log₁₀Re)²·⁵⁸</code>) across the whole Reynolds range,
+          because a rocket&apos;s boundary layer is tripped turbulent near the nose; a laminar
+          <code> 1.328/√Re</code> branch would under-state friction at the low Reynolds numbers a
+          small, slow rocket sees near apogee. A surface-roughness floor from the design&apos;s
+          finish holds friction flat at high Reynolds number where roughness dominates, while the
+          smooth turbulent value climbs above it as the rocket slows — so coast drag rises toward
+          apogee, matching OpenRocket&apos;s stored per-step drag. A compressible-turbulent
+          (reference-temperature / Frankl–Voishel) correction is applied at speed, over the body and
+          fin wetted areas with fineness- and thickness-ratio form factors (Hoerner-style).
         </li>
         <li>
           <strong>Base drag</strong>, referenced to the base area and suppressed while the motor

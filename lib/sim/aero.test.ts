@@ -253,6 +253,29 @@ describe("skinFriction", () => {
     expect(a).toBeGreaterThan(0);
   });
 
+  it("rises at low Reynolds number — a rocket boundary layer is turbulent, not laminar", () => {
+    // A small, slow rocket's coast friction climbs as it slows. With a realistic painted finish the
+    // smooth turbulent Cf overtakes the roughness floor at low Re, so friction there is materially
+    // higher than at high speed — matching OpenRocket's stored per-step drag. (The removed laminar
+    // 1.328/√Re branch would instead dip below the floor and wrongly pin friction flat.)
+    const rough = 60e-6;
+    const L = 0.4;
+    const cfLowRe = skinFriction(1.3e5, rough, L, 0);
+    const cfHighRe = skinFriction(2e6, rough, L, 0);
+    expect(cfLowRe).toBeGreaterThan(cfHighRe * 1.15);
+  });
+
+  it("never dips as Reynolds falls (no laminar branch)", () => {
+    // Regression against the old laminar branch, which made Cf non-monotonic — a drop below the
+    // roughness floor around Re 5e5. Near-smooth so the floor doesn't mask the shape.
+    let prev = 0;
+    for (const re of [5e6, 1e6, 5e5, 2e5, 1e5, 5e4, 2e4]) {
+      const cf = skinFriction(re, 1e-7, 0.4, 0);
+      expect(cf).toBeGreaterThanOrEqual(prev - 1e-9); // non-decreasing as Re drops
+      prev = cf;
+    }
+  });
+
   it("stays strictly positive across the full Mach range (never negative supersonic)", () => {
     // Regression: the compressibility correction must not drive friction negative — a naive
     // (1 − 0.1·M²) factor went negative past ~Mach 3.16.

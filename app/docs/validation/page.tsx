@@ -242,10 +242,14 @@ export default async function Validation() {
         carry real stored results, including OpenRocket&apos;s own per-step drag coefficient). One
         you can reproduce yourself: open OpenRocket&apos;s own bundled example{" "}
         <em>&ldquo;A simple model rocket&rdquo;</em> (v24.12) and import it here. On its coast, Loft
-        now reproduces OpenRocket&apos;s total drag coefficient almost exactly (Cd ≈ 0.855, split
-        friction/pressure/base within a few percent each), after Loft was taught to read the fins&apos;
-        square edge cross-section and count its leading-edge stagnation and trailing-edge base
-        pressure drag. Across the A8, B4, and C6 configurations the fast <strong>C6 flights land
+        now reproduces OpenRocket&apos;s total drag coefficient closely across the whole speed range
+        (Cd ≈ 0.855 near burnout, split friction/pressure/base within a few percent each), after
+        Loft was taught to read the fins&apos; square edge cross-section and count its leading-edge
+        stagnation and trailing-edge base pressure drag. It also now tracks the coast-drag{" "}
+        <em>rise</em> as the rocket slows toward apogee — where OpenRocket&apos;s Cd climbs to ~0.97
+        at a few m/s, Loft was earlier stuck near 0.85 (a ~13% under-count) but now lands within
+        ~2%, having been corrected to a fully-turbulent boundary layer whose friction climbs at low
+        Reynolds number rather than an inappropriate laminar branch. Across the A8, B4, and C6 configurations the fast <strong>C6 flights land
         within ~8%</strong>; the low-thrust <strong>A8 (~+18%) and B4 (~+35%)</strong> read higher.
         Those two are motor-<em>data</em> differences, not the aerodynamics — Loft flies the A8 on
         the NAR-certified curve (a realistic ~72&nbsp;s specific impulse and Estes&apos; published

@@ -338,27 +338,31 @@ export interface DragResult {
   extrapolated: boolean;
 }
 
-/** Skin-friction coefficient of a flat plate at Reynolds number Re with a roughness floor. */
+/** Skin-friction coefficient of a flat plate at Reynolds number Re with a roughness floor. A
+ *  rocket's boundary layer is treated as fully turbulent — tripped near the nose by the surface
+ *  finish, joints, and fins — so a fully-turbulent flat-plate correlation is used across the whole
+ *  Reynolds range. A laminar 1.328/√Re branch (valid only for an idealised smooth plate below the
+ *  transition Reynolds) would UNDER-state friction at the low Reynolds numbers a small, slow rocket
+ *  sees for much of its flight, which is where the coast-drag error showed up against OpenRocket's
+ *  stored per-step drag. The turbulent assumption is the standard one for rocket drag (Barrowman;
+ *  the OpenRocket technical documentation, Niskanen). */
 export function skinFriction(re: number, roughness: number, length: number, mach: number): number {
-  let cf: number;
-  if (re < 1) {
-    cf = 0.01;
-  } else if (re < 1e4) {
-    cf = 1.48e-2; // very low Re floor
-  } else if (re < 5e5) {
-    cf = 1.328 / Math.sqrt(re); // laminar
-  } else {
-    cf = 0.455 / Math.pow(Math.log10(re), 2.58); // turbulent (Prandtl–Schlichting)
-  }
-  // Roughness floor: beyond a critical Re a rough surface can't drop below this.
+  // Fully-turbulent flat plate (Prandtl–Schlichting), with a constant floor below Re 1e4 (which is
+  // only ~0.5 m/s — a negligible dynamic pressure). No laminar branch, by design.
+  const cf = re < 1e4 ? 1.48e-2 : 0.455 / Math.pow(Math.log10(re), 2.58);
+  // Roughness floor: past a critical Reynolds number a rough surface's friction stops falling. This
+  // holds friction flat at high Re where it exceeds the smooth value, while the smooth turbulent
+  // value climbs above it at low Re — the crossover that makes a small rocket's coast drag rise as
+  // it slows, matching OpenRocket. (Referenced to the wetted area by the caller.)
+  let cfWithFloor = cf;
   if (roughness > 0 && length > 0) {
     const cfRough = 0.032 * Math.pow(roughness / length, 0.2);
-    cf = Math.max(cf, cfRough);
+    cfWithFloor = Math.max(cf, cfRough);
   }
   // Compressibility correction for a turbulent boundary layer (reference-temperature /
   // Frankl–Voishel approximation, adiabatic wall). Monotonically decreasing and ALWAYS
   // positive — unlike a naive (1 − kM²) factor, which turns friction negative past ~M3.
-  return cf / Math.pow(1 + 0.144 * mach * mach, 0.65);
+  return cfWithFloor / Math.pow(1 + 0.144 * mach * mach, 0.65);
 }
 
 /** Zero-lift drag coefficient at a flight state. `boosting` fills the base and cuts base drag. */

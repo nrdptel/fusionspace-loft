@@ -36,17 +36,25 @@ export default function Limitations() {
 
       <h3>Drag is the largest error source</h3>
       <p>
-        The subsonic drag buildup is defensible but simplified: fin pressure drag now follows the
+        The subsonic drag buildup is defensible but simplified: fin pressure drag follows the
         fins&apos; edge cross-section (square / rounded / airfoil), but nose and shoulder pressure
-        drag is still approximate, fin-junction interference is lumped into a small flat allowance,
-        and no boundary-layer transition point is solved. Because its drag is generally a little
-        lower than a complete model&apos;s, Loft tends to <em>over-predict</em> apogee. Measured
-        against OpenRocket&apos;s own &ldquo;A simple model rocket&rdquo; example, Loft now reproduces
-        the coast-phase drag coefficient almost exactly and comes out about +8% to +14% high on the
-        A8/C6 flights; the low-thrust B4 stays higher (~+37%), a low-speed / low-Reynolds skin-friction
-        effect rather than a pressure-drag one. Larger, faster rockets where drag matters less should
-        sit tighter. Always compare against your own design&apos;s stored OpenRocket numbers on the{" "}
-        <Link href="/docs/validation">Validation</Link> page.
+        drag is still approximate and fin-junction interference is lumped into a small flat
+        allowance. The boundary layer is treated as <em>fully turbulent</em> — the standard rocketry
+        assumption, since it trips near the nose — so there is no laminar run to solve (and no
+        laminar-drag credit for an unusually smooth, slow flight). Because its drag is generally a
+        little lower than a complete model&apos;s, Loft tends to slightly <em>over-predict</em>
+        apogee. Measured against OpenRocket&apos;s own &ldquo;A simple model rocket&rdquo; example
+        (which stores its per-step drag), Loft now reproduces the coast-phase drag coefficient
+        closely across the whole speed range — including the low-Reynolds rise as the rocket slows
+        toward apogee, which an earlier laminar branch under-stated. On that example the C6 flight
+        lands about +8% high; the A8 (~+19%) and B4 (~+34%) read higher, but that gap is a
+        motor-<em>data</em> difference, not the aerodynamics — Loft flies both on authentic certified
+        thrust curves that deliver a little more than OpenRocket&apos;s bundled A8/B4, while the
+        shared drag matches OpenRocket&apos;s stored coefficient to within about a percent across
+        their speed range. Larger, faster rockets where drag matters less sit tighter — the
+        corpus&apos;s high-power designs land within a few percent. Always compare against your own
+        design&apos;s stored OpenRocket numbers on the <Link href="/docs/validation">Validation</Link>{" "}
+        page.
       </p>
 
       <h3>Transonic and supersonic drag are approximate</h3>
