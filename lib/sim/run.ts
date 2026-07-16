@@ -78,6 +78,15 @@ export function runFlight(rocket: Rocket, opts: RunOptions = {}): FlightRun {
   // A ballistic run drops every recovery device so the coast runs to the true apogee.
   const input = opts.ballistic ? { ...built.input, recovery: [] } : built.input;
   const result = simulate(input);
+  // Optimum ejection delay must reflect the true (ballistic) apogee — a stable property of the
+  // rocket, motor, and launch conditions, not the delay actually flown. When a too-short delay
+  // opens the canopy before apogee, the primary run's coast is cut short, so its apogee time (and
+  // the optimum delay derived from it) reads low — which would recommend an even shorter delay,
+  // compounding the mistake. Recompute it from a recovery-free coast under the same conditions.
+  if (!opts.ballistic && result.deployedBeforeApogee && built.input.recovery.length > 0) {
+    const freeCoast = simulate({ ...built.input, recovery: [] });
+    result.summary.optimumDelay = freeCoast.summary.optimumDelay;
+  }
   const hasPropulsion = resolutions.some((r) => r.match !== null);
   // A no-thrust run "flies" to zero apogee; comparing that to stored results yields a
   // meaningless −100%, so skip validation entirely unless the flight actually had propulsion.

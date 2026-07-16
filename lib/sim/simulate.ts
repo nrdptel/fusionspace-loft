@@ -162,6 +162,9 @@ export interface FlightResult {
   liftoffMass: number;
   burnoutMass: number;
   extrapolatedTransonic: boolean;
+  /** A recovery device opened before apogee, so the coast (and thus the reported apogee time) was
+   *  cut short. The orchestrator uses this to recompute the optimum delay from a free coast. */
+  deployedBeforeApogee: boolean;
 }
 
 interface SimState {
@@ -620,6 +623,7 @@ export function simulate(input: SimulateInput): FlightResult {
     liftoffMass: loaded.mass,
     burnoutMass,
     extrapolatedTransonic: extrapolated,
+    deployedBeforeApogee,
   };
 }
 

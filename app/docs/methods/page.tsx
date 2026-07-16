@@ -314,6 +314,14 @@ export default function Methods() {
         verdict. Descent drift is the canopy drifting with the wind; with the &ldquo;today&apos;s
         conditions&rdquo; re-run, the wind varies with altitude from the winds-aloft profile.
       </p>
+      <p>
+        The <strong>optimum ejection delay</strong> Loft reports is the delay (from burnout) that
+        would deploy the recovery at apogee — a property of the airframe, motor, and launch
+        conditions, not of the delay actually flown. It is measured from a free coast to the true
+        apogee with recovery suppressed, so a design flown with a <em>too-short</em> delay — whose
+        canopy opens early and cuts the climb short — still gets a sound recommendation rather than
+        an even shorter one that would compound the mistake.
+      </p>
 
       <h2>Live weather (optional)</h2>
       <p>

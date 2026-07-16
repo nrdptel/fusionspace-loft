@@ -256,6 +256,26 @@ describe("ejection-charge deployment timing", () => {
     expect(run.result.warnings.some((w) => w.code === "ballistic-descent")).toBe(true);
     expect(run.result.summary.groundHitVelocity).toBeGreaterThan(50); // comes in ballistic
   });
+
+  it("reports a recovery-independent optimum delay even when the flown delay opens early", async () => {
+    // The optimum ejection delay is the delay that deploys AT apogee — a property of the rocket,
+    // motor, and conditions, not of the (possibly wrong) delay actually flown. A too-short delay
+    // opens the canopy before apogee and truncates the coast; the recommended optimum must not be
+    // dragged down with it (that would advise an even shorter delay, compounding the mistake).
+    const early = await load("demo-single-deploy.ork");
+    setEjection(early, 1); // too short — deploys while ascending
+    const earlyRun = runFromDocument(early);
+    expect(earlyRun.result.deployedBeforeApogee).toBe(true);
+
+    const late = await load("demo-single-deploy.ork");
+    setEjection(late, 20); // deploys after apogee — coast runs to the true top
+    const lateRun = runFromDocument(late);
+    expect(lateRun.result.deployedBeforeApogee).toBe(false);
+
+    // Same airframe + motor ⇒ same optimum delay regardless of the delay flown (within a step).
+    expect(earlyRun.result.summary.optimumDelay).toBeGreaterThan(0);
+    expect(earlyRun.result.summary.optimumDelay).toBeCloseTo(lateRun.result.summary.optimumDelay, 1);
+  });
 });
 
 describe("dual-deploy fixture flight", () => {
