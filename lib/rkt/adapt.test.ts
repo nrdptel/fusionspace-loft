@@ -201,4 +201,13 @@ describe("adaptRktXml — degradation and edge cases", () => {
     // Body starts at 0.1 m; 200 mm from its front ⇒ 0.30 m.
     expect(massAt(0, 200)).toBeCloseTo(0.3, 3);
   });
+
+  it("reads LocationMode=2 as a forward offset from the parent rear", () => {
+    // Body ends at 0.5 m. A positive Xb of 100 mm measures FORWARD from the rear ⇒ 0.40 m, inside
+    // the tube — the RockSim convention motor-mount rings and bulkheads use. Added aft it would be
+    // 0.60 m, a tenth of a metre behind the airframe. Xb = 0 keeps a part flush at the rear.
+    expect(massAt(2, 100)).toBeCloseTo(0.4, 3);
+    expect(massAt(2, 100)).toBeLessThan(0.5);
+    expect(massAt(2, 0)).toBeCloseTo(0.5, 3);
+  });
 });

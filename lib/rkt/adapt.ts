@@ -131,20 +131,25 @@ interface Ctx {
 type BodyMount = Extract<RocketComponent, { motorMount?: MotorMount }>;
 
 /** RockSim `LocationMode` for a sub-component's axial offset `Xb`:
- *   0 = measured from the front of the parent (Loft's parent-relative "top");
- *   1 = measured from the tip of the nose — an absolute station on the airframe, independent of
- *       the parent (Loft's "absolute"); a payload/trim mass in a rear tube commonly uses this, and
- *       reading it as parent-relative places the part far behind the airframe, wrecking the CG;
- *   2 = measured from the rear of the parent (Loft's "bottom", a negative offset moving forward).
+ *   0 = measured aft from the front of the parent (Loft's parent-relative "top");
+ *   1 = measured aft from the tip of the nose — an absolute station on the airframe, independent
+ *       of the parent (Loft's "absolute"); a payload/trim mass in a rear tube commonly uses this,
+ *       and reading it as parent-relative places the part far behind the airframe, wrecking the CG;
+ *   2 = measured FORWARD from the rear of the parent, so a positive `Xb` moves toward the nose.
+ *       Loft's "bottom" places a positive offset aft (matching OpenRocket), so the sign is flipped
+ *       here — motor-mount rings and bulkheads carry a positive `Xb` and belong inside the tube,
+ *       not stacked out behind it.
  *  A top-level body part ignores the mode and stacks after the previous one (the airframe is a
  *  nose→tail run). */
 function placement(node: XmlNode, topLevel: boolean): Placement {
-  const offset = n(node, "Xb", 0) * MM;
+  const xb = n(node, "Xb", 0) * MM;
   const radial = n(node, "RadialLoc", 0) * MM;
   const radialOffset = radial > 0 ? radial : undefined;
-  if (topLevel) return { method: "after", offset, radialOffset };
+  if (topLevel) return { method: "after", offset: xb, radialOffset };
   const mode = Math.round(n(node, "LocationMode", 0));
   const method: AxialMethod = mode === 2 ? "bottom" : mode === 1 ? "absolute" : "top";
+  // Mode 2 measures forward from the rear; "bottom" measures aft — flip the sign.
+  const offset = mode === 2 ? -xb : xb;
   return { method, offset, radialOffset };
 }
 
