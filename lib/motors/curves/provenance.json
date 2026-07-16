@@ -692,5 +692,27 @@
     "class": "I",
     "diameter": 38,
     "header": "I357T 38 203 14 0.1792 0.34944 AT"
+  },
+  {
+    "file": "AeroTech_K1275R.eng",
+    "motorId": "5f4294d20002310000000167",
+    "license": "PD",
+    "simfileId": "5f4294d20002e90000000067",
+    "designation": "K1275R",
+    "manufacturer": "AeroTech",
+    "class": "K",
+    "diameter": 54,
+    "header": "K1275R 54 569 0 1.29024 2.03392 AT"
+  },
+  {
+    "file": "AeroTech_M2400T.eng",
+    "motorId": "5f4294d200023100000001b6",
+    "license": "PD",
+    "simfileId": "5f4294d20002e90000000093",
+    "designation": "M2400T",
+    "manufacturer": "AeroTech",
+    "class": "M",
+    "diameter": 98,
+    "header": "M2400T 98 597 0 3.65254 6.4512 AT"
   }
 ]

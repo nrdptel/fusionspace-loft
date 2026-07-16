@@ -58,6 +58,25 @@ describe("motor database", () => {
     }
   });
 
+  it("resolves the AeroTech K1275R and M2400T a real RockSim design flies", () => {
+    // A real .rkt (a 22 kg dual-deploy) references these two; without them it flew to nothing.
+    // Each must resolve to its exact certified curve, and the parsed RASP impulse must land near
+    // the ThrustCurve.org certified total impulse (trapezoidal integration of the sampled curve
+    // runs a few percent under the published figure).
+    const cases: Array<[string, string, number]> = [
+      ["K1275R", "K", 2224.9],
+      ["M2400T", "M", 7716.5],
+    ];
+    for (const [designation, cls, certNs] of cases) {
+      const m = resolveMotor({ manufacturer: "AeroTech", designation });
+      expect(m?.quality).toBe("exact");
+      expect(m?.entry.curve.designation).toBe(designation);
+      expect(m?.entry.curve.motorClass).toBe(cls);
+      expect(m!.entry.curve.totalImpulse).toBeGreaterThan(certNs * 0.92);
+      expect(m!.entry.curve.totalImpulse).toBeLessThan(certNs * 1.02);
+    }
+  });
+
   it("resolves the in-the-wild HPR motors real design files reference", () => {
     // The exact manufacturer + designation strings the corpus designs carry, including the
     // propellant suffixes OpenRocket writes (…-CL(I), 644-J94-MY, N3800-BS, N3300, L1100SM).

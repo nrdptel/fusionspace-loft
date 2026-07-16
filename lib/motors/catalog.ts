@@ -262,6 +262,16 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
     }
   },
   {
+    "eng": "; AeroTech K1275R\n; provided by ThrustCurve.org (www.thrustcurve.org)\nK1275R 54 569 0 1.29024 2.03392 AT\n   0.039 1282.616\n   0.119 1557.989\n   0.199 1540.196\n   0.279 1526.782\n   0.359 1500.693\n   0.440 1456.584\n   0.520 1425.794\n   0.600 1390.416\n   0.680 1355.109\n   0.761 1323.311\n   0.841 1282.825\n   0.921 1247.795\n   1.001 1194.417\n   1.081 1150.977\n   1.162 1108.223\n   1.242 1068.754\n   1.322 1036.922\n   1.403 997.444\n   1.482 964.569\n   1.563 933.305\n   1.644 889.992\n   1.724 599.467\n   1.804 134.559\n   1.884 5.630\n   1.964 0.205\n   2.045 0.000\n",
+    "source": {
+      "file": "AeroTech_K1275R.eng",
+      "motorId": "5f4294d20002310000000167",
+      "simfileId": "5f4294d20002e90000000067",
+      "license": "PD",
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000067/"
+    }
+  },
+  {
     "eng": "; AeroTech K250W\n; converted from TMT test stand data 1998 (www.tripoli.org)\n; provided by ThrustCurve.org (www.thrustcurve.org)\nK250W 54 673 0 1.52902 2.21133 AT\n   0.199 365.330\n   0.599 403.324\n   0.999 418.669\n   1.400 409.813\n   1.801 408.949\n   2.201 412.146\n   2.602 411.952\n   3.003 409.488\n   3.403 393.214\n   3.804 373.599\n   4.205 348.913\n   4.605 328.463\n   5.006 307.163\n   5.407 281.467\n   5.807 249.011\n   6.208 217.159\n   6.609 185.908\n   7.009 149.190\n   7.410 119.808\n   7.811 92.096\n   8.211 69.726\n   8.613 52.613\n   9.014 35.876\n   9.414 16.727\n   9.815 4.086\n   10.216 0.000",
     "source": {
       "file": "AeroTech_K250W.eng",
@@ -309,6 +319,16 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "simfileId": "5f4294d20002e90000000085",
       "license": "PD",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000085/"
+    }
+  },
+  {
+    "eng": "; AeroTech M2400T\n; converted from TMT test stand data 1998 (www.tripoli.org)\n; provided by ThrustCurve.org (www.thrustcurve.org)\nM2400T 98 597 0 3.65254 6.4512 AT\n   0.070 2441.945\n   0.211 2495.460\n   0.353 2556.133\n   0.495 2601.596\n   0.636 2637.660\n   0.778 2660.804\n   0.920 2676.486\n   1.061 2687.081\n   1.203 2695.807\n   1.345 2694.493\n   1.486 2684.268\n   1.628 2667.289\n   1.771 2629.961\n   1.914 2578.923\n   2.055 2522.074\n   2.197 2461.704\n   2.339 2393.518\n   2.480 2303.939\n   2.622 2201.610\n   2.764 2097.461\n   2.905 2010.409\n   3.047 1275.776\n   3.189 418.836\n   3.330 17.586\n   3.473 3.669\n   3.616 0.000\n",
+    "source": {
+      "file": "AeroTech_M2400T.eng",
+      "motorId": "5f4294d200023100000001b6",
+      "simfileId": "5f4294d20002e90000000093",
+      "license": "PD",
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000093/"
     }
   },
   {
