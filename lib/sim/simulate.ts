@@ -131,6 +131,9 @@ export interface FlightSummary {
   timeToApogee: number;
   flightTime: number;
   railExitVelocity: number;
+  /** Liftoff thrust-to-weight ratio: peak thrust while clearing the rail ÷ loaded weight. The
+   *  standard HPR launch-safety check — below 1 the rocket cannot leave the pad. */
+  thrustToWeight: number;
   burnoutVelocity: number;
   burnoutAltitude: number;
   maxDynamicPressure: number;
@@ -318,6 +321,7 @@ export function simulate(input: SimulateInput): FlightResult {
   let apogeeAlt = 0;
   let apogeeTime = 0;
   let railExitV = 0;
+  let liftoffTWR = 0; // peak thrust-to-weight ratio while establishing flight (through rail exit)
   let burnoutV = 0;
   let burnoutAlt = 0;
   let deploymentV = 0;
@@ -407,11 +411,25 @@ export function simulate(input: SimulateInput): FlightResult {
     const mach = airSpeed / atm.speedOfSound;
     const q = 0.5 * atm.density * airSpeed * airSpeed;
 
+    // Liftoff thrust-to-weight: the peak thrust-to-weight ratio while still establishing flight
+    // (up to rail exit) — the launch-safety number flyers check against the 5:1 rule of thumb.
+    // Uses the current (near-loaded) mass, so it reflects the push actually available to break
+    // free of the pad. On a staged flight the rail is cleared early, so this stays a booster-
+    // liftoff quantity and isn't inflated by a lighter sustainer firing at altitude.
+    if (railExitV === 0 && thrust > 0) {
+      liftoffTWR = Math.max(liftoffTWR, thrust / (Math.max(1e-6, mp.mass) * G0));
+    }
+
     // Liftoff.
     if (!liftedOff && speed > 0.1 && thrust > mp.mass * G0) {
       liftedOff = true;
       events.push({ type: "liftoff", time: state.t, altitude: state.pos.z, velocity: speed });
     }
+
+    // Under-powered: if every motor has burned out and the rocket never developed enough thrust
+    // to leave the pad, it never will — stop integrating a stationary rocket rather than run to
+    // the time cap. The no-liftoff warning below explains the near-zero apogee.
+    if (!liftedOff && thrust <= 0 && burnout > 0 && state.t > burnout) break;
 
     // Rail exit.
     if (railExitV === 0 && !onRail(state, conditions.rodLength, rail) && liftedOff) {
@@ -558,6 +576,8 @@ export function simulate(input: SimulateInput): FlightResult {
     upperStageMarginCal,
     upperStageName: worstUpperStageName,
     railExitV,
+    liftedOff,
+    liftoffTWR,
     extrapolated,
     motorInstances: config.instances.length,
     motorsPlaced: motors.length,
@@ -579,6 +599,7 @@ export function simulate(input: SimulateInput): FlightResult {
       timeToApogee: apogeeTime,
       flightTime: state.t,
       railExitVelocity: railExitV,
+      thrustToWeight: liftoffTWR,
       burnoutVelocity: burnoutV,
       burnoutAltitude: burnoutAlt,
       maxDynamicPressure: maxQ,
@@ -678,6 +699,10 @@ function buildWarnings(
     /** Name of the stage with that lowest post-separation margin. */
     upperStageName?: string;
     railExitV: number;
+    /** The rocket developed enough thrust to leave the pad. */
+    liftedOff: boolean;
+    /** Peak thrust-to-weight ratio while clearing the rail. */
+    liftoffTWR: number;
     extrapolated: boolean;
     /** How many motors the configuration calls for. */
     motorInstances: number;
@@ -782,6 +807,30 @@ function buildWarnings(
       severity: "warning",
     });
   }
+  // Liftoff thrust-to-weight — the most basic launch-safety check, and (unlike rail-exit
+  // velocity) independent of how long the rail is. Only meaningful when a motor was flown; the
+  // no-motor case is covered above. Below 1:1 the rocket cannot leave the pad at all, which
+  // otherwise reads as a silent near-zero apogee.
+  if (ctx.motorsPlaced > 0 && !ctx.liftedOff) {
+    out.push({
+      code: "no-liftoff",
+      message:
+        `The rocket does not lift off the pad as modelled — the motor's thrust is too low for the ` +
+        `loaded weight (peak thrust-to-weight ratio only ${ctx.liftoffTWR.toFixed(1)}:1, and it must ` +
+        `exceed 1:1 to climb). The reported apogee is essentially zero; check the motor choice against ` +
+        "the rocket's mass.",
+      severity: "warning",
+    });
+  } else if (ctx.motorsPlaced > 0 && ctx.liftoffTWR > 0 && ctx.liftoffTWR < 5) {
+    out.push({
+      code: "low-thrust-to-weight",
+      message:
+        `Liftoff thrust-to-weight ratio is ${ctx.liftoffTWR.toFixed(1)}:1 — below the 5:1 minimum ` +
+        "commonly taught for high-power rockets. A low ratio gives a slow, wind-sensitive departure; " +
+        "make sure the launch rail is long enough to reach a stable speed, or choose a higher-thrust motor.",
+      severity: "caution",
+    });
+  }
   if (ctx.railExitV > 0 && ctx.railExitV < 15.24) {
     out.push({
       code: "low-rail-exit",
@@ -797,7 +846,7 @@ function buildWarnings(
       severity: "caution",
     });
   }
-  if (!ctx.landed) {
+  if (!ctx.landed && ctx.liftedOff) {
     out.push({
       code: "no-landing",
       message: "The simulation hit its time cap before landing — descent figures may be incomplete.",

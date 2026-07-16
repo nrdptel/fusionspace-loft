@@ -68,6 +68,11 @@ export function calibers(cal: number): Quantity {
   return { value: fmt(cal, 2), unit: "cal" };
 }
 
+/** A dimensionless ratio, shown as "6.2 : 1" — the form flyers read thrust-to-weight in. */
+export function ratio(x: number): Quantity {
+  return { value: fmt(x, 1), unit: ": 1" };
+}
+
 /** One string like "1,234 ft" for inline use. */
 export function q(quantity: Quantity): string {
   return `${quantity.value} ${quantity.unit}`.trim();

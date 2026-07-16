@@ -13,8 +13,9 @@ export default function DocsOverview() {
       <h2>What Loft is</h2>
       <p>
         Loft imports an OpenRocket <code>.ork</code> design and simulates its flight in your
-        browser: apogee, velocity and Mach, stability margin, rail-exit speed, and recovery
-        descent and drift. It runs entirely client-side — your design is never uploaded — and
+        browser: apogee, velocity and Mach, stability margin, rail-exit speed, liftoff
+        thrust-to-weight, and recovery descent and drift. It runs entirely client-side — your
+        design is never uploaded — and
         works offline once loaded.
       </p>
       <p>
@@ -49,7 +50,8 @@ export default function DocsOverview() {
         Loft follows the same rule as the rest of Fusion Space: surface the numbers honestly and
         let the flyer and the RSO decide. It shows stability margin, rail-exit velocity, apogee,
         and descent and drift, and it <strong>warns when a flight leaves the validated envelope</strong>{" "}
-        (transonic/supersonic, marginal stability, low rail exit) — but it never tells you whether
+        (transonic/supersonic, marginal stability, low rail exit, too little thrust to leave the
+        pad) — but it never tells you whether
         to fly. The motor&apos;s printed data and the range safety officer are always authoritative.
       </p>
 

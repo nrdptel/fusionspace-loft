@@ -82,6 +82,7 @@ export default function ResultsView({
           <Stat label="Max velocity" q={d.speed(s.maxVelocity, units)} sub={d.q(d.mach(s.maxMach))} />
           <Stat label="Max acceleration" q={d.accel(s.maxAcceleration)} />
           <Stat label="Rail-exit velocity" q={d.speed(s.railExitVelocity, units)} />
+          <Stat label="Thrust-to-weight" q={d.ratio(s.thrustToWeight)} sub="liftoff" />
           <Stat label="Time to apogee" q={d.seconds(s.timeToApogee)} />
           <Stat label="Burnout velocity" q={d.speed(s.burnoutVelocity, units)} />
           <Stat label="Descent rate" q={d.speed(s.descentRate, units)} />

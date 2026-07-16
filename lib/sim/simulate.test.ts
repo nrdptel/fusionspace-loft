@@ -115,6 +115,54 @@ describe("simulate — monotonicity", () => {
   });
 });
 
+describe("simulate — liftoff thrust-to-weight", () => {
+  // Sea-level launch off a 1 m rail, so the ratio (not just rail length) governs departure.
+  const railConditions = (): LaunchConditions => ({
+    rodLength: 1.0,
+    rodAngleFromVertical: 0,
+    rodAzimuth: 0,
+    windSpeed: 0,
+    windTo: 0,
+    launchAltitude: 0,
+    atmosphere: new Atmosphere(),
+  });
+  const fly = (payloadKg: number, thrustN: number) =>
+    simulate({
+      rocket: testRocket(payloadKg),
+      config: CONFIG,
+      motors: [{ curve: constMotor(thrustN, 2.0, 0.1), cg: 0.4, ignitionTime: 0 }],
+      recovery: [],
+      conditions: railConditions(),
+    });
+
+  it("reports the ratio and stays quiet for a healthy T/W (≫ 5:1)", () => {
+    const { summary, warnings } = fly(0.9, 100); // 1.0 kg loaded, weight ~9.8 N → T/W ~10
+    expect(summary.thrustToWeight).toBeGreaterThan(9);
+    expect(summary.thrustToWeight).toBeLessThan(11);
+    expect(warnings.some((w) => w.code === "no-liftoff")).toBe(false);
+    expect(warnings.some((w) => w.code === "low-thrust-to-weight")).toBe(false);
+  });
+
+  it("warns that an under-powered rocket cannot leave the pad (T/W < 1)", () => {
+    const { summary, warnings } = fly(5.0, 30); // ~5.1 kg loaded, weight ~50 N → T/W ~0.6
+    expect(summary.thrustToWeight).toBeLessThan(1);
+    expect(summary.apogee).toBeLessThan(1); // never climbs
+    const w = warnings.find((x) => x.code === "no-liftoff");
+    expect(w?.severity).toBe("warning");
+    // The misleading "hit the time cap before landing" note is suppressed when it never flew.
+    expect(warnings.some((x) => x.code === "no-landing")).toBe(false);
+  });
+
+  it("cautions on a marginal T/W below the 5:1 rule of thumb", () => {
+    const { summary, warnings } = fly(1.0, 30); // ~1.1 kg loaded, weight ~10.8 N → T/W ~2.8
+    expect(summary.thrustToWeight).toBeGreaterThan(1);
+    expect(summary.thrustToWeight).toBeLessThan(5);
+    const w = warnings.find((x) => x.code === "low-thrust-to-weight");
+    expect(w?.severity).toBe("caution");
+    expect(warnings.some((x) => x.code === "no-liftoff")).toBe(false);
+  });
+});
+
 describe("simulate — recovery terminal velocity", () => {
   it("descends near the parachute's terminal velocity", () => {
     const chute: Parachute = {

@@ -10,12 +10,14 @@ const summary: FlightSummary = {
   timeToApogee: 12,
   flightTime: 120,
   railExitVelocity: 20,
+  thrustToWeight: 8,
   burnoutVelocity: 195,
   burnoutAltitude: 120,
   maxDynamicPressure: 20000,
   groundHitVelocity: 5,
   optimumDelay: 10,
   deploymentVelocity: 3,
+  driftDistance: 40,
   descentRate: 6,
 };
 

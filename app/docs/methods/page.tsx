@@ -45,6 +45,32 @@ export default function Methods() {
         additive, not a rewrite.
       </p>
 
+      <h2>Launch rail &amp; thrust-to-weight</h2>
+      <p>
+        While the rocket is still on the launch rail (position along the rail ≤ the guide length)
+        its motion is constrained to the rail axis: thrust and gravity act along the rail and any
+        lateral acceleration is reacted by the rail, so it cannot pitch until it clears the guide.
+        The speed at which it leaves the rail — the <strong>rail-exit velocity</strong> — is the
+        speed the fins first have to stabilise the airframe; below about <code>15&nbsp;m/s</code>
+        (50&nbsp;ft/s) that is flagged, as a stable departure is not assured.
+      </p>
+      <p>
+        The <strong>liftoff thrust-to-weight ratio</strong> is the peak thrust developed while
+        clearing the rail divided by the loaded weight (<code>F / m·g</code>) — the most basic
+        launch-safety check, and, unlike rail-exit velocity, independent of how long the rail is.
+        Below <code>1&nbsp;:&nbsp;1</code> the rocket cannot leave the pad at all, which Loft flags
+        as a warning (the apogee it would otherwise report is essentially zero and meaningless);
+        below the <code>5&nbsp;:&nbsp;1</code> figure commonly taught for high-power rockets it is
+        flagged as a caution to verify the rail is long enough. These are rules of thumb, not
+        verdicts.
+      </p>
+      <p>
+        <em>Sources:</em> minimum rail-departure velocity and the 5:1 thrust-to-weight guideline as
+        given in the NAR/Tripoli high-power safety guidance and standard model-rocketry texts
+        (e.g. Stine &amp; Stine, <em>Handbook of Model Rocketry</em>); the rail-constraint and
+        thrust-to-weight formulation follows Niskanen&apos;s OpenRocket technical documentation.
+      </p>
+
       <h2>Atmosphere</h2>
       <p>
         Temperature, pressure, and density follow the{" "}
