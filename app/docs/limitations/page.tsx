@@ -37,9 +37,11 @@ export default function Limitations() {
       <h3>Drag is the largest error source</h3>
       <p>
         The subsonic drag buildup is defensible but simplified: fin pressure drag follows the
-        fins&apos; edge cross-section (square / rounded / airfoil), but nose and shoulder pressure
-        drag is still approximate and fin-junction interference is lumped into a small flat
-        allowance. The boundary layer is treated as <em>fully turbulent</em> — the standard rocketry
+        fins&apos; edge cross-section (square / rounded / airfoil) and a diameter-increasing
+        transition (shoulder) now carries its own pressure drag, but nose pressure drag is still
+        lumped into a small flat allowance (it is near zero for the streamlined ogive noses most
+        designs use) along with fin-junction interference, and a boattail is modelled only through
+        its reduced base area, not the second-order pressure drag of its slope. The boundary layer is treated as <em>fully turbulent</em> — the standard rocketry
         assumption, since it trips near the nose — so there is no laminar run to solve (and no
         laminar-drag credit for an unusually smooth, slow flight). Base drag is applied in full
         whether the motor is burning or not — matching OpenRocket&apos;s stored per-step drag, which

@@ -208,6 +208,17 @@ export default function Methods() {
           treated as square, OpenRocket&apos;s own default.
         </li>
         <li>
+          <strong>Shoulder pressure drag</strong> — a diameter-<em>increasing</em> transition
+          (a shoulder) forces the flow outward, adding a stagnation-like pressure drag
+          <code>C<sub>d</sub> = 0.8·sin²φ</code> over the frontal-area increase, where{" "}
+          <code>φ</code> is the conical joint angle: a gentle shoulder drags little, an abrupt step
+          approaches the <code>0.8</code> stagnation value. After the OpenRocket technical
+          documentation (Niskanen, eq. 3.86), following Hoerner. It is a low-subsonic separation
+          effect, so it is not compressibility-corrected. A diameter-<em>decreasing</em> transition
+          (a boattail) is not given a separate pressure term — its dominant effect is the reduced
+          base area, which the base-drag term already captures from the aft diameter.
+        </li>
+        <li>
           <strong>Parasitic</strong> — the drag of external fittings (launch lugs, rail buttons)
           computed from each fitting&apos;s own frontal area and count rather than a blind allowance,
           using an axial protuberance drag coefficient reduced for sitting in the body&apos;s

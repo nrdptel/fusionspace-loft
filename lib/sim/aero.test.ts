@@ -214,6 +214,42 @@ describe("fin cross-section pressure drag", () => {
   });
 });
 
+describe("shoulder pressure drag (Niskanen eq. 3.86)", () => {
+  const atm = new Atmosphere().sample(0);
+  // Cd·A = 0.8·sin²φ·(A_aft − A_fore), φ = atan((r_aft − r_fore)/L), over an expanding transition.
+  it("matches the hand-computed 0.8·sin²φ·ΔA for a shoulder", () => {
+    const geom = aeroGeometry(transitionRocket(0.02, 0.04, 0.1)); // fore 0.02 → aft 0.04 over 0.1 m
+    const phi = Math.atan2(0.04 - 0.02, 0.1);
+    const dA = Math.PI * (0.04 ** 2 - 0.02 ** 2);
+    expect(geom.shoulderPressureCdA).toBeCloseTo(0.8 * Math.sin(phi) ** 2 * dA, 8);
+  });
+
+  it("adds nothing for a boattail (contracting transition)", () => {
+    // A boattail's drag effect is the reduced base area, handled separately — no shoulder term.
+    expect(aeroGeometry(transitionRocket(0.04, 0.02, 0.1)).shoulderPressureCdA).toBe(0);
+  });
+
+  it("grows as the shoulder gets steeper (shorter for the same rise)", () => {
+    const gentle = aeroGeometry(transitionRocket(0.02, 0.04, 0.2)).shoulderPressureCdA;
+    const steep = aeroGeometry(transitionRocket(0.02, 0.04, 0.05)).shoulderPressureCdA;
+    expect(steep).toBeGreaterThan(gentle);
+  });
+
+  it("approaches the 0.8·ΔA stagnation limit for a near-flat step", () => {
+    // φ → 90° (a step) ⇒ sin²φ → 1 ⇒ Cd·A → 0.8·ΔA.
+    const geom = aeroGeometry(transitionRocket(0.02, 0.04, 0.001));
+    const dA = Math.PI * (0.04 ** 2 - 0.02 ** 2);
+    expect(geom.shoulderPressureCdA).toBeCloseTo(0.8 * dA, 4);
+  });
+
+  it("raises total Cd for a shouldered body over an equivalent boattailed one", () => {
+    const cd = (r: Rocket) => dragCoefficient(aeroGeometry(r), atm, 0.3 * atm.speedOfSound);
+    const shoulder = cd(transitionRocket(0.02, 0.04, 0.1));
+    const boattail = cd(transitionRocket(0.04, 0.02, 0.1));
+    expect(shoulder.pressure).toBeGreaterThan(boattail.pressure);
+  });
+});
+
 describe("wave drag is geometry-aware", () => {
   const atm = new Atmosphere().sample(2000);
   const waveAt = (r: Rocket, M: number) =>

@@ -180,6 +180,10 @@ export interface AeroGeometry {
   /** Total frontal area (m²) of external fittings — launch lugs and rail buttons — for their
    *  parasitic/interference drag. Zero when the design carries none. */
   protuberanceArea: number;
+  /** Summed shoulder (diameter-increasing transition) pressure-drag C_d·A (m²): 0.8·sin²φ over
+   *  each expanding transition's frontal-area increase. Divide by refArea for the coefficient.
+   *  Zero for a plain or boattailed airframe. */
+  shoulderPressureCdA: number;
 }
 
 /** Transonic/supersonic wave-drag of a nose contour, relative to a Von Kármán ogive of the
@@ -237,6 +241,7 @@ export function aeroGeometry(rocket: Rocket): AeroGeometry {
   let haveNose = false;
 
   let protuberanceArea = 0;
+  let shoulderPressureCdA = 0;
 
   let aftBodyEnd = 0;
   for (const p of flat) {
@@ -270,6 +275,18 @@ export function aeroGeometry(rocket: Rocket): AeroGeometry {
       if (p.xFore + c.length > aftBodyEnd) {
         aftBodyEnd = p.xFore + c.length;
         baseRadius = c.aftRadius;
+      }
+      // Shoulder (diameter-increasing transition) pressure drag, after Niskanen (OpenRocket
+      // technical documentation eq. 3.86, following Hoerner): Cd = 0.8·sin²φ referenced to the
+      // frontal-area *increase*, where φ is the conical joint angle. A smooth/gentle shoulder
+      // (small φ) drags little; an abrupt step (φ→90°) approaches the 0.8 stagnation value. A
+      // contracting transition (boattail) is not added here — its dominant effect is the reduced
+      // base area, already captured above. Not compressibility-corrected (valid at low subsonic,
+      // per the source); transonic flights are already flagged as extrapolated.
+      if (c.length > 0 && c.foreRadius >= 0 && c.aftRadius > c.foreRadius) {
+        const phi = Math.atan2(c.aftRadius - c.foreRadius, c.length);
+        const dA = Math.PI * (c.aftRadius * c.aftRadius - c.foreRadius * c.foreRadius);
+        shoulderPressureCdA += 0.8 * Math.sin(phi) ** 2 * dA;
       }
     } else if (c.kind === "trapezoidfinset") {
       const area = ((c.rootChord + c.tipChord) / 2) * c.height;
@@ -323,6 +340,7 @@ export function aeroGeometry(rocket: Rocket): AeroGeometry {
     noseShapeFactor,
     finSweepFactor: clamp(cosL * cosL, 0.35, 1),
     protuberanceArea,
+    shoulderPressureCdA,
   };
 }
 
@@ -432,7 +450,10 @@ export function dragCoefficient(
   // where the lug is large relative to the airframe.
   const protuberance = C_PROTUBERANCE * (geom.protuberanceArea / geom.refArea);
   const pg = 1 / Math.sqrt(Math.max(0.19, 1 - Math.min(mach, 0.9) * Math.min(mach, 0.9)));
-  const pressure = finPressure + (protuberance + 0.01) * pg;
+  // Shoulder pressure drag is a low-subsonic stagnation effect (flow separation at the step), so
+  // it is NOT Prandtl-corrected — added flat, per the source. Zero for a plain/boattailed body.
+  const shoulderPressure = geom.shoulderPressureCdA / geom.refArea;
+  const pressure = finPressure + shoulderPressure + (protuberance + 0.01) * pg;
 
   // Wave (compressibility) drag — zero below the critical Mach, a transonic rise to a peak
   // near M≈1.15, then a supersonic decline. A bounded, published-shape model (not a
