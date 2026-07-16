@@ -100,7 +100,10 @@ export default async function Validation() {
         </li>
         <li>
           A cone nose gives Barrowman&apos;s exact <code>C_Nα = 2</code> and centre of pressure at
-          two-thirds of its length; a hollow tube&apos;s mass matches its geometry exactly.
+          two-thirds of its length; a hollow tube&apos;s mass matches its geometry exactly. A
+          conical transition reproduces its hand-computed Barrowman normal force and CP — negative
+          (destabilizing) for a boattail — and a point-to-radius transition recovers the cone-nose
+          result exactly, cross-checking the two body terms against each other.
         </li>
         <li>
           The standard atmosphere matches published sea-level and 11 km values; higher impulse

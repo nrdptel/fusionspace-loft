@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { barrowman, aeroGeometry, dragCoefficient, skinFriction } from "./aero";
 import { Atmosphere } from "./atmosphere";
-import type { Rocket, NoseCone, BodyTube, TrapezoidFinSet, NoseShape } from "../model/types";
+import type { Rocket, NoseCone, BodyTube, Transition, TrapezoidFinSet, NoseShape } from "../model/types";
 
 /** A slender rocket whose nose shape/length and fin sweep can be varied, to probe how the
  *  transonic/supersonic wave drag responds to forebody and fin geometry. */
@@ -83,6 +83,74 @@ describe("barrowman", () => {
     const st = barrowman(rocket);
     expect(st.cnAlpha).toBeGreaterThan(2);
     expect(st.cp).toBeGreaterThan(0.4); // well aft of the nose
+  });
+});
+
+/** A body-of-revolution segment: nose (fore radius) → transition → aft body (aft radius). The
+ *  transition is the piece under test; the tubes carry no normal force so the whole-rocket CNα
+ *  and the transition's own contribution coincide. */
+function transitionRocket(foreR: number, aftR: number, transLen: number): Rocket {
+  const noseLen = 0.1;
+  const nose: NoseCone = {
+    id: "n", name: "nose", kind: "nosecone", placement: { method: "after", offset: 0 },
+    length: noseLen, aftRadius: foreR, shape: "conical", shapeParameter: 0, children: [],
+  };
+  const trans: Transition = {
+    id: "t", name: "trans", kind: "transition", placement: { method: "after", offset: 0 },
+    length: transLen, foreRadius: foreR, aftRadius: aftR, shape: "conical", shapeParameter: 0, children: [],
+  };
+  const body: BodyTube = {
+    id: "b", name: "body", kind: "bodytube", placement: { method: "after", offset: 0 },
+    outerRadius: Math.max(foreR, aftR), thickness: 0.001, length: 0.5, children: [],
+  };
+  return { name: "trans", stages: [{ name: "s", components: [nose, trans, body] }], configurations: [], referenceType: "maximum" };
+}
+
+describe("barrowman — conical transition (Barrowman body-of-revolution term)", () => {
+  // CNα = 2·(r_aft² − r_fore²)/r_ref²; CP from the transition fore end =
+  // (L/3)·[1 + (1 − f)/(1 − f²)] with f = r_fore/r_aft. (Barrowman 1967.)
+  const contrib = (r: Rocket) => barrowman(r).contributions.find((c) => c.source === "trans")!;
+
+  it("a shoulder (expanding) matches the hand-computed CNα and CP", () => {
+    // fore 0.02 → aft 0.04 over 0.1 m; r_ref = 0.04 (the max radius).
+    const c = contrib(transitionRocket(0.02, 0.04, 0.1));
+    // CNα = 2·(0.04² − 0.02²)/0.04² = 2·0.75 = 1.5.
+    expect(c.cnAlpha).toBeCloseTo(1.5, 4);
+    // f = 0.5: x̄ = (0.1/3)·(1 + 0.5/0.75) = 0.05556 from the fore end; +0.1 nose ⇒ 0.15556 from tip.
+    expect(c.x).toBeCloseTo(0.1 + (0.1 / 3) * (1 + 0.5 / 0.75), 5);
+  });
+
+  it("a boattail (contracting) contributes a negative (destabilizing) normal force", () => {
+    // fore 0.04 → aft 0.02: CNα = 2·(0.02² − 0.04²)/0.04² = −1.5.
+    const c = contrib(transitionRocket(0.04, 0.02, 0.1));
+    expect(c.cnAlpha).toBeCloseTo(-1.5, 4);
+  });
+
+  it("a fore-radius-zero transition reproduces the cone-nose result (2, 2/3·L)", () => {
+    // A transition from a point (r_fore = 0) to R is geometrically a cone — the transition branch
+    // must agree with the independently-checked cone-nose term: CNα = 2, CP at 2/3·L from its tip.
+    const c = contrib(transitionRocket(0, 0.04, 0.2));
+    expect(c.cnAlpha).toBeCloseTo(2, 4);
+    expect(c.x).toBeCloseTo(0.1 + (2 / 3) * 0.2, 5); // fore end sits 0.1 behind the tip
+  });
+
+  it("a boattail shifts the whole-rocket CP forward — the safety-relevant effect", () => {
+    // Same finned rocket, with and without a tail boattail. The boattail's negative normal force
+    // at the rear pulls the centre of pressure forward, reducing the static margin.
+    const plain = coneRocket();
+    const withBoat = coneRocket();
+    const boat: Transition = {
+      id: "bt", name: "boat", kind: "transition", placement: { method: "after", offset: 0 },
+      length: 0.05, foreRadius: 0.025, aftRadius: 0.015, shape: "conical", shapeParameter: 0, children: [],
+    };
+    const fins: TrapezoidFinSet = {
+      id: "f", name: "fins", kind: "trapezoidfinset", placement: { method: "bottom", offset: 0 },
+      finCount: 3, rootChord: 0.08, tipChord: 0.04, height: 0.05, sweepLength: 0.03, thickness: 0.003, children: [],
+    };
+    plain.stages[0].components[1].children.push(fins);
+    withBoat.stages[0].components[1].children.push({ ...fins });
+    withBoat.stages[0].components.push(boat);
+    expect(barrowman(withBoat).cp).toBeLessThan(barrowman(plain).cp);
   });
 });
 
