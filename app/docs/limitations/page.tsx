@@ -176,7 +176,11 @@ export default function Limitations() {
         internal part — Loft sizes the airframe to the rocket&apos;s largest known radius rather than
         flying it as a zero-diameter needle. That keeps drag, mass, and stability self-consistent,
         but the inferred diameter is a best guess: an import warning names it, and you should
-        confirm the airframe diameters against the design before trusting apogee or velocity.
+        confirm the airframe diameters against the design before trusting apogee or velocity. At the
+        other extreme, an <em>implausibly large</em> diameter — a unit error (millimetres entered as
+        metres) or a corrupt file — is refused outright rather than flown: the enormous reference
+        area would otherwise send the fixed-step solver divergent and report a nonsensical altitude,
+        so Loft stops with a clear message asking you to check the dimensions instead.
       </p>
 
       <h3>Motor database is a curated subset</h3>

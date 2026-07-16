@@ -216,6 +216,20 @@ export function simulate(input: SimulateInput): FlightResult {
   const geom = aeroGeometry(rocket);
   const stability = barrowman(rocket);
 
+  // Guard against a non-physical airframe. A unit error (millimetres entered as metres, say) or a
+  // corrupt import can inflate the reference diameter far beyond any real rocket; the enormous
+  // reference area then makes drag astronomical and the fixed-step integrator diverges to a
+  // nonsensical altitude. Refuse to report a garbage number — fail with a clear, actionable message
+  // instead (the UI surfaces it the same way it does a missing motor).
+  const MAX_REF_RADIUS = 1.0; // m — a 2 m airframe, larger than any hobby or amateur rocket.
+  if (!Number.isFinite(geom.refRadius) || geom.refRadius > MAX_REF_RADIUS) {
+    throw new Error(
+      `The airframe's reference diameter is ${(geom.refRadius * 2).toFixed(1)} m — implausibly ` +
+        "large for a rocket, most likely a unit error in the design or a corrupt file. Check the " +
+        "airframe dimensions.",
+    );
+  }
+
   // A staged flight is a sequence of phases, each with a different set of attached stages.
   // Precompute the structural mass points and aerodynamic geometry of each phase's vehicle from
   // a sub-rocket of the attached (top-most) stages — reusing the same mass and aero code as a

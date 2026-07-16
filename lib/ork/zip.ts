@@ -13,10 +13,16 @@ async function inflate(bytes: Uint8Array, format: "deflate-raw" | "gzip"): Promi
   // `DecompressionStream` is a web-streams global (browser + Node ≥ 18).
   const DS = (globalThis as { DecompressionStream?: typeof DecompressionStream }).DecompressionStream;
   if (!DS) throw new Error("zip: DecompressionStream unavailable in this environment");
-  const ds = new DS(format);
-  const stream = new Response(bytes as unknown as BodyInit).body!.pipeThrough(ds);
-  const buf = await new Response(stream).arrayBuffer();
-  return new Uint8Array(buf);
+  try {
+    const ds = new DS(format);
+    const stream = new Response(bytes as unknown as BodyInit).body!.pipeThrough(ds);
+    const buf = await new Response(stream).arrayBuffer();
+    return new Uint8Array(buf);
+  } catch {
+    // A truncated or corrupt compressed stream rejects with an unhelpful (often empty-message)
+    // native error; replace it with a clear, actionable one.
+    throw new Error("Could not decompress the file — it may be corrupt or not a valid design file.");
+  }
 }
 
 /** Find the End-Of-Central-Directory record (scans back from the end). */
