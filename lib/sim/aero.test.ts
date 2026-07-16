@@ -242,11 +242,61 @@ describe("shoulder pressure drag (Niskanen eq. 3.86)", () => {
     expect(geom.shoulderPressureCdA).toBeCloseTo(0.8 * dA, 4);
   });
 
-  it("raises total Cd for a shouldered body over an equivalent boattailed one", () => {
-    const cd = (r: Rocket) => dragCoefficient(aeroGeometry(r), atm, 0.3 * atm.speedOfSound);
+  it("raises total pressure drag for a shoulder over a plain (transition-free) body", () => {
+    const cd = (r: Rocket) => dragCoefficient(aeroGeometry(r), atm, 0.3 * atm.speedOfSound).pressure;
+    const plain = cd(shapedRocket({})); // nose + body, no transition
     const shoulder = cd(transitionRocket(0.02, 0.04, 0.1));
-    const boattail = cd(transitionRocket(0.04, 0.02, 0.1));
-    expect(shoulder.pressure).toBeGreaterThan(boattail.pressure);
+    expect(shoulder).toBeGreaterThan(plain);
+  });
+});
+
+describe("boattail pressure drag (Niskanen eq. 3.88)", () => {
+  const atm = new Atmosphere().sample(0);
+  // A boattail at the tail: nose → body(R) → contracting transition(R → aftR) over L. Omitting
+  // the transition (L = 0) gives the plain body it collapses to.
+  const boattailTail = (bodyR: number, aftR: number, L: number): Rocket => {
+    const nose: NoseCone = { id: "n", name: "n", kind: "nosecone", placement: { method: "after", offset: 0 }, length: 0.1, aftRadius: bodyR, shape: "ogive", shapeParameter: 0, children: [] };
+    const body: BodyTube = { id: "b", name: "b", kind: "bodytube", placement: { method: "after", offset: 0 }, outerRadius: bodyR, thickness: 0.001, length: 0.4, children: [] };
+    const boat: Transition = { id: "t", name: "boat", kind: "transition", placement: { method: "after", offset: 0 }, length: L, foreRadius: bodyR, aftRadius: aftR, shape: "conical", shapeParameter: 0, children: [] };
+    const components = L > 0 ? [nose, body, boat] : [nose, body];
+    return { name: "bt", stages: [{ name: "s", components }], configurations: [], referenceType: "maximum" };
+  };
+
+  it("matches the hand-computed f(γ)·ΔA geometry factor", () => {
+    // fore 0.04 → aft 0.02 over 0.1 m: γ = L/(d_fore − d_aft) = 0.1/0.04 = 2.5 ⇒ f = (3−2.5)/2 = 0.25.
+    const geom = aeroGeometry(boattailTail(0.04, 0.02, 0.1));
+    const dA = Math.PI * (0.04 ** 2 - 0.02 ** 2);
+    expect(geom.boattailPressureArea).toBeCloseTo(0.25 * dA, 8);
+  });
+
+  it("adds nothing for a shoulder, or for a gentle boattail (γ ≥ 3)", () => {
+    expect(aeroGeometry(transitionRocket(0.02, 0.04, 0.1)).boattailPressureArea).toBe(0); // shoulder
+    // γ = 0.2/0.04 = 5 ≥ 3 ⇒ f = 0.
+    expect(aeroGeometry(boattailTail(0.04, 0.02, 0.2)).boattailPressureArea).toBe(0);
+  });
+
+  it("grows as the boattail gets steeper (shorter for the same reduction)", () => {
+    const gentle = aeroGeometry(boattailTail(0.04, 0.02, 0.1)).boattailPressureArea; // γ=2.5, f=0.25
+    const steep = aeroGeometry(boattailTail(0.04, 0.02, 0.02)).boattailPressureArea; // γ=0.5, f=1
+    expect(steep).toBeGreaterThan(gentle);
+  });
+
+  it("a vanishingly short boattail nets to no base+pressure change (the eq. 3.88 limit)", () => {
+    // At L → 0 the boattail pressure drag exactly recovers the base drag the contraction removes,
+    // so base + pressure matches the plain full-width body. (γ → 0 ⇒ f = 1.) Only the slant
+    // surface's own skin friction — a separate term — distinguishes them, so compare base+pressure.
+    const bp = (r: Rocket) => {
+      const d = dragCoefficient(aeroGeometry(r), atm, 0.3 * atm.speedOfSound);
+      return d.base + d.pressure;
+    };
+    const plain = bp(boattailTail(0.04, 0.02, 0)); // no transition — base on the full 0.04 body
+    const shortBoat = bp(boattailTail(0.04, 0.02, 1e-4)); // base shrinks to 0.02, boattail makes it up
+    expect(shortBoat).toBeCloseTo(plain, 4);
+  });
+
+  it("a moderate boattail raises Cd over a gentle (drag-free) one of the same reduction", () => {
+    const cd = (r: Rocket) => dragCoefficient(aeroGeometry(r), atm, 0.3 * atm.speedOfSound).pressure;
+    expect(cd(boattailTail(0.04, 0.02, 0.05))).toBeGreaterThan(cd(boattailTail(0.04, 0.02, 0.2)));
   });
 });
 

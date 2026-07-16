@@ -214,9 +214,19 @@ export default function Methods() {
           <code>φ</code> is the conical joint angle: a gentle shoulder drags little, an abrupt step
           approaches the <code>0.8</code> stagnation value. After the OpenRocket technical
           documentation (Niskanen, eq. 3.86), following Hoerner. It is a low-subsonic separation
-          effect, so it is not compressibility-corrected. A diameter-<em>decreasing</em> transition
-          (a boattail) is not given a separate pressure term — its dominant effect is the reduced
-          base area, which the base-drag term already captures from the aft diameter.
+          effect, so it is not compressibility-corrected.
+        </li>
+        <li>
+          <strong>Boattail pressure drag</strong> — a diameter-<em>decreasing</em> transition
+          reduces the base area (captured by the base-drag term, which follows the aft diameter),
+          but its sloped surface still carries a pressure drag. It is estimated as the base-drag
+          coefficient acting over the frontal-area reduction, scaled by the boattail&apos;s
+          length-to-height ratio <code>γ</code>: full base drag for an abrupt contraction
+          (<code>γ ≤ 1</code>, about a 27° cone), fading to nothing for a gentle one
+          (<code>γ ≥ 3</code>, about 9°). By construction a zero-length boattail then adds back
+          exactly the base drag its contraction removed, so it nets to no change. After the
+          OpenRocket technical documentation (Niskanen, eq. 3.88); its Mach dependence rides on the
+          base-drag coefficient.
         </li>
         <li>
           <strong>Parasitic</strong> — the drag of external fittings (launch lugs, rail buttons)

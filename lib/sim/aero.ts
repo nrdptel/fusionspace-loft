@@ -184,6 +184,11 @@ export interface AeroGeometry {
    *  each expanding transition's frontal-area increase. Divide by refArea for the coefficient.
    *  Zero for a plain or boattailed airframe. */
   shoulderPressureCdA: number;
+  /** Summed boattail (diameter-decreasing transition) geometry factor (m²): f(γ)·ΔA over each
+   *  contracting transition's frontal-area reduction. Multiply by the (Mach-dependent) base-drag
+   *  coefficient, then divide by refArea, for the pressure-drag coefficient. Zero for a plain or
+   *  shouldered airframe. */
+  boattailPressureArea: number;
 }
 
 /** Transonic/supersonic wave-drag of a nose contour, relative to a Von Kármán ogive of the
@@ -242,6 +247,7 @@ export function aeroGeometry(rocket: Rocket): AeroGeometry {
 
   let protuberanceArea = 0;
   let shoulderPressureCdA = 0;
+  let boattailPressureArea = 0;
 
   let aftBodyEnd = 0;
   for (const p of flat) {
@@ -287,6 +293,18 @@ export function aeroGeometry(rocket: Rocket): AeroGeometry {
         const phi = Math.atan2(c.aftRadius - c.foreRadius, c.length);
         const dA = Math.PI * (c.aftRadius * c.aftRadius - c.foreRadius * c.foreRadius);
         shoulderPressureCdA += 0.8 * Math.sin(phi) ** 2 * dA;
+      }
+      // Boattail (diameter-decreasing transition) pressure drag, after Niskanen (eq. 3.88): the
+      // base-drag coefficient acting over the frontal-area *reduction*, scaled by a length-to-
+      // height interpolation — full base drag for an abrupt contraction (γ ≤ 1, ≈ a 27° cone),
+      // fading to nothing for a gentle one (γ ≥ 3, ≈ 9°). The base-area reduction itself is
+      // already in the base-drag term (baseRadius follows the aft end); this adds only the slope's
+      // own pressure drag, so a zero-length boattail nets to no change. The base coefficient is
+      // Mach-dependent, so only the geometry factor f·ΔA is precomputed here.
+      if (c.length > 0 && c.aftRadius >= 0 && c.foreRadius > c.aftRadius) {
+        const gamma = c.length / (2 * (c.foreRadius - c.aftRadius));
+        const f = gamma <= 1 ? 1 : gamma >= 3 ? 0 : (3 - gamma) / 2;
+        boattailPressureArea += f * Math.PI * (c.foreRadius * c.foreRadius - c.aftRadius * c.aftRadius);
       }
     } else if (c.kind === "trapezoidfinset") {
       const area = ((c.rootChord + c.tipChord) / 2) * c.height;
@@ -341,6 +359,7 @@ export function aeroGeometry(rocket: Rocket): AeroGeometry {
     finSweepFactor: clamp(cosL * cosL, 0.35, 1),
     protuberanceArea,
     shoulderPressureCdA,
+    boattailPressureArea,
   };
 }
 
@@ -453,7 +472,11 @@ export function dragCoefficient(
   // Shoulder pressure drag is a low-subsonic stagnation effect (flow separation at the step), so
   // it is NOT Prandtl-corrected — added flat, per the source. Zero for a plain/boattailed body.
   const shoulderPressure = geom.shoulderPressureCdA / geom.refArea;
-  const pressure = finPressure + shoulderPressure + (protuberance + 0.01) * pg;
+  // Boattail pressure drag rides on the base-drag coefficient (its Mach dependence, sub- and
+  // supersonic, is carried by baseCoeff), scaled by the precomputed slope geometry factor. Zero
+  // for a plain/shouldered body.
+  const boattailPressure = (baseCoeff * geom.boattailPressureArea) / geom.refArea;
+  const pressure = finPressure + shoulderPressure + boattailPressure + (protuberance + 0.01) * pg;
 
   // Wave (compressibility) drag — zero below the critical Mach, a transonic rise to a peak
   // near M≈1.15, then a supersonic decline. A bounded, published-shape model (not a
