@@ -175,4 +175,30 @@ describe("adaptRktXml — degradation and edge cases", () => {
     expect(doc.flownAsReduced).toBe(true);
     expect(doc.warnings.some((w) => /stages/.test(w))).toBe(true);
   });
+
+  // LocationMode 1 places a sub-component from the nose tip (an absolute airframe station),
+  // not from the front of its parent. A rear-tube trim/payload mass commonly uses it, and
+  // reading it as parent-relative pushes the part far behind the airframe — which silently
+  // drags the CG aft and can flip a stable rocket to "unstable". (Found driving a real .rkt.)
+  const massAt = (mode: number, xbMm: number) => {
+    const xml = `<RockSimDocument><DesignInformation><RocketDesign><Name>t</Name>` +
+      `<Stage3Parts><NoseCone><Name>n</Name><Len>100.</Len><BaseDia>50.</BaseDia><ShapeCode>1</ShapeCode><CalcMass>10.</CalcMass></NoseCone>` +
+      `<BodyTube><Name>b</Name><Len>400.</Len><OD>50.</OD><ID>48.</ID><SerialNo>2</SerialNo><CalcMass>50.</CalcMass>` +
+      `<AttachedParts><MassObject><Name>trim</Name><LocationMode>${mode}</LocationMode><Xb>${xbMm}.</Xb><KnownMass>500.</KnownMass><Len>0.</Len></MassObject></AttachedParts>` +
+      `</BodyTube></Stage3Parts></RocketDesign></DesignInformation></RockSimDocument>`;
+    const flat = flattenRocket(adaptRktXml(xml).rocket);
+    return flat.find((p) => p.component.kind === "masscomponent")!.xFore;
+  };
+
+  it("places a LocationMode=1 mass from the nose tip (absolute), not from the parent front", () => {
+    // Nose 0–0.1 m; body 0.1–0.5 m. Xb = 450 mm from the nose tip ⇒ 0.45 m, inside the body tube.
+    // Read parent-relative it would be 0.1 + 0.45 = 0.55 m, a tenth of a metre past the airframe.
+    expect(massAt(1, 450)).toBeCloseTo(0.45, 3);
+    expect(massAt(1, 450)).toBeLessThan(0.5); // stays on the airframe, not behind it
+  });
+
+  it("still reads LocationMode=0 as an offset from the parent front", () => {
+    // Body starts at 0.1 m; 200 mm from its front ⇒ 0.30 m.
+    expect(massAt(0, 200)).toBeCloseTo(0.3, 3);
+  });
 });

@@ -130,16 +130,21 @@ interface Ctx {
 /** A mounted tube whose motor-mount role is filled in once an EngineSet references it. */
 type BodyMount = Extract<RocketComponent, { motorMount?: MotorMount }>;
 
-/** RockSim `LocationMode`: 0 = measured from the front of the parent, 2 = from its rear (with a
- *  negative offset moving the part forward). Both map onto Loft's parent-relative placement; a
- *  top-level body part instead stacks after the previous one (the airframe is a nose→tail run). */
+/** RockSim `LocationMode` for a sub-component's axial offset `Xb`:
+ *   0 = measured from the front of the parent (Loft's parent-relative "top");
+ *   1 = measured from the tip of the nose — an absolute station on the airframe, independent of
+ *       the parent (Loft's "absolute"); a payload/trim mass in a rear tube commonly uses this, and
+ *       reading it as parent-relative places the part far behind the airframe, wrecking the CG;
+ *   2 = measured from the rear of the parent (Loft's "bottom", a negative offset moving forward).
+ *  A top-level body part ignores the mode and stacks after the previous one (the airframe is a
+ *  nose→tail run). */
 function placement(node: XmlNode, topLevel: boolean): Placement {
   const offset = n(node, "Xb", 0) * MM;
   const radial = n(node, "RadialLoc", 0) * MM;
   const radialOffset = radial > 0 ? radial : undefined;
   if (topLevel) return { method: "after", offset, radialOffset };
   const mode = Math.round(n(node, "LocationMode", 0));
-  const method: AxialMethod = mode === 2 ? "bottom" : "top";
+  const method: AxialMethod = mode === 2 ? "bottom" : mode === 1 ? "absolute" : "top";
   return { method, offset, radialOffset };
 }
 
