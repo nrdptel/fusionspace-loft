@@ -97,6 +97,41 @@ test.describe("Loft", () => {
     await expect.poll(apogee).toBeLessThan(before);
   });
 
+  test("swapping the motor re-flies the design on a different motor", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+
+    const apogee = async () => {
+      const txt = await page
+        .getByLabel("Results")
+        .getByText("Apogee", { exact: true })
+        .locator("xpath=following-sibling::div")
+        .innerText();
+      return parseFloat(txt.replace(/[^\d.]/g, ""));
+    };
+    const before = await apogee();
+
+    await page.locator("summary", { hasText: "Conditions" }).click();
+    const select = page.getByLabel("Swap motor");
+    await expect(select).toBeVisible();
+    // Pick a fitting motor that isn't the design's own H128W (the largest same-diameter option).
+    const value = await select
+      .locator("option")
+      .evaluateAll(
+        (opts) =>
+          (opts as HTMLOptionElement[])
+            .map((o) => o.value)
+            .filter((v) => v && !v.includes("H128W"))
+            .pop() ?? "",
+      );
+    expect(value).not.toEqual("");
+    await select.selectOption(value);
+
+    // Re-flies on the swapped motor — a different apogee.
+    await expect.poll(apogee).not.toBe(before);
+  });
+
   test("unit toggle switches to imperial", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();

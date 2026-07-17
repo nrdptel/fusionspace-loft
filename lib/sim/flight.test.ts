@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { importOrk } from "../ork/import";
 import { runFromDocument, runFlight, configChoices, overridesFromStored } from "./run";
+import { allMotors } from "../motors/db";
 import { flattenRocket } from "../model/geometry";
 import type { OrkDocument } from "../ork/adapt";
 
@@ -90,6 +91,43 @@ describe("nose ballast (what-if trim)", () => {
     // Zero ballast changes nothing.
     const zero = runFlight(doc.rocket, { configId: cfg, overrides: ov, ballastKg: 0 });
     expect(zero.result.liftoffMass).toBeCloseTo(base.result.liftoffMass, 9);
+  });
+});
+
+describe("motor swap (what-if)", () => {
+  it("flies the design on a different bundled motor and resolves it", async () => {
+    const doc = await load("demo-single-deploy.ork");
+    const choice = configChoices(doc).find((c) => c.motors.some((m) => m.includes("H128W")))!;
+    const cfg = doc.simulations[choice.simIndex].conditions.configId;
+    const ov = overridesFromStored(doc.simulations[choice.simIndex]);
+
+    const base = runFlight(doc.rocket, { configId: cfg, overrides: ov });
+    const baseDesig = base.resolutions[0].match!.entry.curve.designation;
+    const baseDiaMm = base.resolutions[0].match!.entry.curve.diameterMm;
+
+    // Pick a bundled motor of the same casing diameter (so it fits the mount) but a different one.
+    const alt = allMotors().find(
+      (m) => Math.round(m.curve.diameterMm) === Math.round(baseDiaMm) && m.curve.designation !== baseDesig,
+    );
+    expect(alt, "a second bundled motor of the same diameter exists").toBeDefined();
+
+    const swapped = runFlight(doc.rocket, {
+      configId: cfg,
+      overrides: ov,
+      motorSwap: {
+        manufacturer: alt!.curve.manufacturer,
+        designation: alt!.curve.designation,
+        diameter: alt!.curve.diameterMm / 1000,
+      },
+    });
+    // It flew the chosen motor and produced a different (still finite, positive) apogee.
+    expect(swapped.resolutions[0].match!.entry.curve.designation).toBe(alt!.curve.designation);
+    expect(swapped.result.summary.apogee).toBeGreaterThan(0);
+    expect(Math.abs(swapped.result.summary.apogee - base.result.summary.apogee)).toBeGreaterThan(1);
+
+    // No swap flies the design's own motor.
+    const unchanged = runFlight(doc.rocket, { configId: cfg, overrides: ov });
+    expect(unchanged.resolutions[0].match!.entry.curve.designation).toBe(baseDesig);
   });
 });
 

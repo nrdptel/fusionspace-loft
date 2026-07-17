@@ -1,12 +1,13 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import Link from "next/link";
 import ImportPanel from "./ImportPanel";
 import ResultsView from "./ResultsView";
 import { Segmented } from "./ui";
 import { importDesignFile, importDesign, type OrkDocument } from "@/lib/ork/import";
 import { runFlight, overridesFromStored, configChoices, type FlightRun, type ConfigChoice } from "@/lib/sim/run";
+import { allMotors } from "@/lib/motors/db";
 import type { ConditionOverrides } from "@/lib/sim/setup";
 import { fetchConditions, geocode, type WeatherConditions } from "@/lib/weather";
 import { mToFt, ftToM, mpsToMph, mphToMps } from "@/lib/units";
@@ -19,6 +20,14 @@ interface Edits {
   windSpeed?: number; // m/s
   launchAltitude?: number; // m
   ballastKg?: number; // "what-if" nose ballast
+  motorSwap?: { manufacturer?: string; designation: string; diameter?: number }; // "what-if" motor
+}
+
+/** Same-diameter bundled motors the design could fly, with the design's own motor as the default.
+ *  Built once per design/config so the picker offers a fitting alternative without editing the file. */
+interface SwapInfo {
+  designMotor: string;
+  options: { designation: string; manufacturer: string; diameter: number; motorClass: string }[];
 }
 
 export default function LoftApp() {
@@ -54,6 +63,7 @@ export default function LoftApp() {
         configId: stored?.conditions.configId,
         overrides,
         ballastKg: e.ballastKg,
+        motorSwap: e.motorSwap,
         // Validate only when flying the design's own stored conditions unchanged, and only when
         // Loft flew the complete design — a simplified vehicle (staging/pods/parallel/cluster)
         // wouldn't match the stored results, so the comparison would be misleading. Any edit —
@@ -163,6 +173,27 @@ export default function LoftApp() {
 
   const choices = doc ? configChoices(doc) : [];
 
+  // Bundled motors of the same casing diameter as the design's own — the fitting swaps the picker
+  // offers. Recomputed only when the design or its selected configuration changes.
+  const swapInfo = useMemo<SwapInfo | null>(() => {
+    if (!doc) return null;
+    const sim = doc.simulations[simIndex] ?? doc.simulations[0];
+    const motor = doc.rocket.configurations.find((c) => c.id === sim?.conditions.configId)?.instances[0]?.motor;
+    if (!motor?.designation) return null;
+    const diaMm = Math.round((motor.diameter ?? 0) * 1000);
+    if (!(diaMm > 0)) return null;
+    const options = allMotors()
+      .filter((m) => Math.round(m.curve.diameterMm) === diaMm)
+      .sort((a, b) => a.curve.totalImpulse - b.curve.totalImpulse)
+      .map((m) => ({
+        designation: m.curve.designation,
+        manufacturer: m.curve.manufacturer,
+        diameter: m.curve.diameterMm / 1000,
+        motorClass: m.curve.motorClass,
+      }));
+    return { designMotor: motor.designation, options };
+  }, [doc, simIndex]);
+
   return (
     <div className="mt-8">
       {!doc && (
@@ -240,6 +271,7 @@ export default function LoftApp() {
             units={units}
             edits={edits}
             onEdit={applyEdit}
+            swap={swapInfo}
             weather={weather}
             scenario={scenario}
             setScenario={(s) => {
@@ -311,6 +343,7 @@ function ConditionsControls({
   units,
   edits,
   onEdit,
+  swap,
   weather,
   scenario,
   setScenario,
@@ -320,6 +353,7 @@ function ConditionsControls({
   units: UnitSystem;
   edits: Edits;
   onEdit: (patch: Edits) => void;
+  swap: SwapInfo | null;
   weather: WeatherConditions | null;
   scenario: "design" | "today";
   setScenario: (s: "design" | "today") => void;
@@ -385,6 +419,43 @@ function ConditionsControls({
           <p className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
             Design what-if
           </p>
+          {swap && swap.options.length > 1 && (
+            <label className="mt-2 block">
+              <span className="block text-[11px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                Motor
+              </span>
+              <select
+                aria-label="Swap motor"
+                value={edits.motorSwap ? `${edits.motorSwap.manufacturer ?? ""}|${edits.motorSwap.designation}` : ""}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  const opt = v ? swap.options.find((o) => `${o.manufacturer}|${o.designation}` === v) : undefined;
+                  onEdit({
+                    motorSwap: opt
+                      ? { manufacturer: opt.manufacturer, designation: opt.designation, diameter: opt.diameter }
+                      : undefined,
+                  });
+                }}
+                className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+              >
+                <option value="">Design motor ({swap.designMotor})</option>
+                {Object.entries(
+                  swap.options.reduce<Record<string, SwapInfo["options"]>>((acc, o) => {
+                    (acc[o.motorClass] ??= []).push(o);
+                    return acc;
+                  }, {}),
+                ).map(([cls, opts]) => (
+                  <optgroup key={cls} label={`${cls} class`}>
+                    {opts.map((o) => (
+                      <option key={`${o.manufacturer}|${o.designation}`} value={`${o.manufacturer}|${o.designation}`}>
+                        {o.designation} · {o.manufacturer}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+            </label>
+          )}
           <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-4">
             <Num
               label={`Nose ballast (${massU})`}
@@ -394,9 +465,9 @@ function ConditionsControls({
             />
           </div>
           <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-            Nose weight you&apos;re considering — added at the nose cone to trim stability or apogee.
-            It flies the design heavier with the centre of gravity forward; the OpenRocket comparison
-            is hidden while it&apos;s set.
+            Fly a different motor or add nose weight to trim stability or apogee — a hypothetical
+            change to the design, so the OpenRocket comparison is hidden while either is set. Only
+            motors that fit this airframe&apos;s diameter are offered.
           </p>
         </div>
 

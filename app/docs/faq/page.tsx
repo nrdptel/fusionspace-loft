@@ -88,6 +88,18 @@ export default function Faq() {
         </p>
       </QA>
 
+      <QA q="Can I try the design on a different motor?">
+        <p>
+          Yes. Under <em>Conditions → Design what-if</em>, the <em>Motor</em> picker lists the
+          bundled motors that fit this airframe&apos;s mount diameter, grouped by class. Choose one
+          and Loft re-flies the same rocket on it, so you can compare apogee, speed, rail-exit
+          velocity, and stability across motors without editing the file — the classic &ldquo;what
+          would a J do here?&rdquo; A cluster keeps its motor count. Because it&apos;s a hypothetical
+          change, the OpenRocket comparison is hidden while a swapped motor is selected; pick
+          &ldquo;Design motor&rdquo; to fly the original again.
+        </p>
+      </QA>
+
       <QA q="Can I see what adding nose weight would do?">
         <p>
           Yes. Under <em>Conditions → Design what-if</em>, enter a nose-ballast mass and Loft re-flies

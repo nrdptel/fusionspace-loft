@@ -70,6 +70,27 @@ export interface RunOptions {
    *  stability or apogee. Modelled as a point mass at the nose cone, so it shifts the CG forward
    *  and the whole vehicle heavier. 0/undefined leaves the design unchanged. */
   ballastKg?: number;
+  /** "What-if" motor swap: fly the design on a different motor than the one it carries. Replaces
+   *  the motor in every instance of the flown configuration (a cluster keeps its count), so the
+   *  flyer can compare motors without editing the file. Undefined flies the design's own motor. */
+  motorSwap?: { manufacturer?: string; designation: string; diameter?: number };
+}
+
+/** Apply a what-if motor swap to a configuration: every instance flies the chosen motor, keeping
+ *  its mount, cluster count, ignition timing, and (for recovery) ejection delay. */
+function swapMotor(config: MotorConfiguration, swap: NonNullable<RunOptions["motorSwap"]>): MotorConfiguration {
+  return {
+    ...config,
+    instances: config.instances.map((i) => ({
+      ...i,
+      motor: {
+        ...i.motor,
+        manufacturer: swap.manufacturer,
+        designation: swap.designation,
+        diameter: swap.diameter ?? i.motor.diameter,
+      },
+    })),
+  };
 }
 
 /** Where nose ballast sits: inside the frontmost nose cone (its mid-length), or the very front of
@@ -81,10 +102,11 @@ function noseBallastStation(rocket: Rocket): number {
 
 /** Run a flight for a canonical rocket. */
 export function runFlight(rocket: Rocket, opts: RunOptions = {}): FlightRun {
-  const config = pickConfig(rocket, opts.configId);
-  if (!config) {
+  const picked = pickConfig(rocket, opts.configId);
+  if (!picked) {
     throw new Error("This design has no motor configuration to simulate.");
   }
+  const config = opts.motorSwap ? swapMotor(picked, opts.motorSwap) : picked;
   let conditions = makeConditions(opts.overrides);
   if (opts.ballistic) {
     conditions = { ...conditions, windSpeed: 0, windTo: 0, windProfile: undefined };
