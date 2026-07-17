@@ -47,4 +47,25 @@ test.describe("in-browser RocketPy second solver (self-hosted Pyodide)", () => {
     expect(loftApogee).toBeGreaterThan(985);
     expect(loftApogee).toBeLessThan(1005);
   });
+
+  test("resets the RocketPy panel when the motor configuration changes", async ({ page }) => {
+    test.setTimeout(200_000);
+
+    await page.goto("/");
+    await page.getByRole("button", { name: /Motor comparison/ }).click();
+    await expect(page.getByRole("heading", { name: /Loft Demo/ })).toBeVisible();
+
+    const panel = page.getByRole("region", { name: "RocketPy cross-check" });
+    await panel.getByRole("button", { name: /Run RocketPy/ }).click();
+
+    // A result table appears for the current configuration.
+    await expect(panel.getByRole("row", { name: /^Apogee\b/ })).toBeVisible({ timeout: 180_000 });
+
+    // Switching motor configuration must drop that stale result: the panel remounts back to idle,
+    // so the comparison table is gone and the "Run RocketPy" button is offered again for the new
+    // configuration (rather than showing the previous config's numbers).
+    await page.getByLabel("Motor configuration").selectOption("1");
+    await expect(panel.getByRole("button", { name: /Run RocketPy/ })).toBeVisible();
+    await expect(panel.getByRole("row", { name: /^Apogee\b/ })).toHaveCount(0);
+  });
 });

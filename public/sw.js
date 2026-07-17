@@ -77,7 +77,32 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   const req = event.request;
   if (req.method !== "GET") return;
-  if (new URL(req.url).origin !== self.location.origin) return;
+  const url = new URL(req.url);
+  if (url.origin !== self.location.origin) return;
+
+  // The self-hosted RocketPy runtime (~40 MB of Pyodide + wheels) is immutable and version-pinned,
+  // and it's fetched only when a flyer opts in to the second solver. Serve it cache-first: once
+  // downloaded it works offline at the pad, and — unlike stale-while-revalidate — repeat runs don't
+  // re-download tens of MB in the background to "refresh" bytes that never change. A new deploy's
+  // fresh build cache (and the activate cleanup below) re-fetches it, so it can't go stale.
+  if (url.pathname.startsWith("/pyodide/")) {
+    event.respondWith(
+      caches.match(req).then(
+        (cached) =>
+          cached ||
+          fetch(req)
+            .then((res) => {
+              if (res && res.status === 200) {
+                const copy = res.clone();
+                caches.open(CACHE).then((c) => c.put(req, copy)).catch(() => {});
+              }
+              return res;
+            })
+            .catch(() => new Response("", { status: 504, statusText: "Offline" })),
+      ),
+    );
+    return;
+  }
 
   if (req.mode === "navigate") {
     event.respondWith(

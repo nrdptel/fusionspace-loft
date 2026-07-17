@@ -29,7 +29,11 @@ NODE_EXTRA_CA_CERTS=/root/.ccr/ca-bundle.crt node scripts/pyodide/vendor.mjs
 ```
 
 The service worker never precaches `/pyodide/` (it globs only `_next/static/**`), so the base
-offline app stays lean; the RocketPy runtime is fetched only on opt-in.
+offline app stays lean; the RocketPy runtime is fetched only on opt-in. Once fetched, the worker
+serves `/pyodide/` **cache-first** — the assets are immutable and version-pinned, so a returning
+flyer can re-run RocketPy offline (at the pad), and repeat runs don't re-download tens of MB to
+"revalidate" bytes that never change. A new deploy's fresh build cache re-fetches it, so it can't
+go stale.
 
 ## Verify it end-to-end (real browser)
 

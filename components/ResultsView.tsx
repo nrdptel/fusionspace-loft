@@ -146,9 +146,17 @@ export default function ResultsView({
       )}
 
       {/* An independent second solver on the flyer's own design — RocketPy's flight is single-stage,
-          so offer it only for single-stage designs that actually have propulsion (guaranteed here). */}
+          so offer it only for single-stage designs that actually have propulsion (guaranteed here).
+          Key on the design + configuration so switching motor configuration remounts the panel
+          (back to idle) instead of leaving a stale RocketPy result from the previous config on screen. */}
       {(doc.rocket.stages?.length ?? 1) === 1 && (
-        <RocketpyCrossCheck doc={doc} config={run.config} simIndex={simIndex} units={units} />
+        <RocketpyCrossCheck
+          key={`${doc.rocket.name}:${run.config.id}:${simIndex}`}
+          doc={doc}
+          config={run.config}
+          simIndex={simIndex}
+          units={units}
+        />
       )}
 
       {doc.flownAsReduced && doc.simulations.some((s) => s.hasResults) && (
