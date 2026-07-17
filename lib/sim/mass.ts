@@ -204,11 +204,49 @@ export function finChordCentroid(root: number, tip: number, sweep: number): numb
   return leTerm + chordTerm / 1; // aft of root LE
 }
 
+/** True when a component carries a mass override that OpenRocket applies to its whole
+ *  subtree (`<overridemass>` together with the "override mass of all subcomponents" flag).
+ *  Such an override replaces the combined mass of the component AND every descendant with
+ *  the single stated figure — the design's own measured weight for the assembly. */
+function overridesSubtreeMass(c: RocketComponent): boolean {
+  const overrideMass = "overrideMass" in c ? c.overrideMass : undefined;
+  const subtree = "overrideSubcomponents" in c ? c.overrideSubcomponents : undefined;
+  return overrideMass !== undefined && subtree === true;
+}
+
 /** The dry structural point masses of the rocket (everything except the motor). Computed
- *  once per design; the motor is layered on per time step by the simulator. */
+ *  once per design; the motor is layered on per time step by the simulator.
+ *
+ *  Honours OpenRocket's "override mass of all subcomponents": when a component states a
+ *  measured mass for its whole assembly, that figure stands in for the component and every
+ *  part inside it, so the descendants' own masses are NOT added on top (adding them would
+ *  double-count — the bug this guards against). The override component itself is still
+ *  emitted normally: `componentPointMass` already applies its override mass at its own CG,
+ *  matching OpenRocket, which places the lumped mass there and contributes nothing from the
+ *  subsumed children. A motor is unaffected — it is layered on separately by the simulator,
+ *  exactly as OpenRocket keeps motor mass outside a structural override. */
 export function structurePointMasses(rocket: Rocket): PointMass[] {
+  // Collect every component subsumed by an ancestor that overrides its whole subtree's mass.
+  // A pre-order walk visits ancestors before descendants, so the outermost override wins and
+  // a nested override inside an already-subsumed subtree is simply ignored (as OpenRocket does).
+  const subsumed = new Set<RocketComponent>();
+  const markSubtree = (c: RocketComponent) => {
+    for (const ch of c.children) {
+      subsumed.add(ch);
+      markSubtree(ch);
+    }
+  };
+  const scan = (components: RocketComponent[]) => {
+    for (const c of components) {
+      if (!subsumed.has(c) && overridesSubtreeMass(c)) markSubtree(c);
+      scan(c.children);
+    }
+  };
+  for (const stage of rocket.stages) scan(stage.components);
+
   const out: PointMass[] = [];
   for (const p of flattenRocket(rocket)) {
+    if (subsumed.has(p.component)) continue; // mass folded into an ancestor's subtree override
     const pm = componentPointMass(p);
     if (pm) out.push(pm);
   }

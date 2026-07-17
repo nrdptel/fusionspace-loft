@@ -16,6 +16,7 @@
           <bodytube>
             <name>Upper</name><material type="bulk" density="1850.0">FG</material>
             <length>0.5</length><thickness>0.002</thickness><radius>auto</radius>
+            <overridemass>0.6</overridemass><overridesubcomponentsmass>true</overridesubcomponentsmass>
             <subcomponents>
               <tubecoupler>
                 <name>Coupler</name><material type="bulk" density="1850.0">FG</material>

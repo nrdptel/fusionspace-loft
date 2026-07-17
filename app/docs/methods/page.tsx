@@ -101,9 +101,11 @@ export default function Methods() {
         grams; on a high-power rocket a long tubular-nylon harness is a real, CG-shifting mass that
         would otherwise be silently dropped. An explicit
         <code>&lt;overridemass&gt;</code> or <code>&lt;overridecg&gt;</code> in the design always
-        wins. The centre of gravity is mass-weighted; pitch inertia is the sum of each part&apos;s
-        own inertia plus a parallel-axis term. Propellant burns off over the flight, so mass and CG
-        are time-varying.
+        wins; when it is flagged to override <em>all subcomponents</em> — a section weighed as a
+        whole — that one figure stands in for the section and everything inside it, rather than
+        being added to the parts&apos; own computed masses. The centre of gravity is mass-weighted;
+        pitch inertia is the sum of each part&apos;s own inertia plus a parallel-axis term.
+        Propellant burns off over the flight, so mass and CG are time-varying.
       </p>
       <p>
         A RockSim <code>.rkt</code> is the exception to the &ldquo;compute from geometry&rdquo; rule:

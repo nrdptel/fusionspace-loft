@@ -5,6 +5,7 @@ import { adaptOrkXml } from "./adapt";
 import { importOrk } from "./import";
 import { flattenRocket, referenceRadius } from "../model/geometry";
 import { barrowman } from "../sim/aero";
+import { structurePointMasses } from "../sim/mass";
 
 const readXml = (name: string) =>
   readFileSync(resolve(process.cwd(), "fixtures/src", name), "utf-8");
@@ -419,6 +420,19 @@ describe("real-world quirks fixture (auto radii, legacy tags, boattail, pods)", 
 
   it("marks the import as flown-reduced (a parallel stage was dropped)", () => {
     expect(doc.flownAsReduced).toBe(true);
+  });
+
+  it("weighs the Upper section as a whole and doesn't double-count its internals", () => {
+    // The Upper tube carries <overridemass>0.6</overridemass> with the subcomponents flag: the
+    // whole section was weighed at 0.6 kg. Its coupler, av-bay (0.15 kg) and streamer must be
+    // folded into that figure, not added on top.
+    const pts = structurePointMasses(doc.rocket);
+    const upper = pts.find((p) => p.source === "Upper");
+    expect(upper?.mass).toBeCloseTo(0.6, 6);
+    // None of the subsumed internals appear as their own point masses.
+    for (const inside of ["Coupler", "Av-bay", "Streamer"]) {
+      expect(pts.some((p) => p.source === inside)).toBe(false);
+    }
   });
 
   it("simulates to a plausible, stable flight after resolution", async () => {

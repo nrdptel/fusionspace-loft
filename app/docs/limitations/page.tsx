@@ -164,11 +164,18 @@ export default function Limitations() {
         a verdict.
       </p>
 
-      <h3>Override-subcomponents is partial</h3>
+      <h3>Override-subcomponents (resolved for mass)</h3>
       <p>
-        A component&apos;s own mass/CG override is honoured. The OpenRocket
-        &ldquo;override subcomponents&rdquo; flag (which makes an override subsume a subtree) is not
-        fully applied, so a design that relies on it may double-count some mass.
+        A component&apos;s own mass/CG override is honoured, and OpenRocket&apos;s &ldquo;override
+        mass of all subcomponents&rdquo; flag is now applied too: when a section states a measured
+        mass for its whole assembly, that figure stands in for the section <em>and everything
+        inside it</em>, so the internals are no longer added on top (the old behaviour
+        double-counted them, inflating dry mass and shifting the CG). The lumped mass sits at the
+        overriding component&apos;s CG, matching OpenRocket, and the outermost override wins over any
+        nested one. Still partial: a subcomponents override of <em>CG alone</em> (with no mass
+        override) isn&apos;t propagated to the subtree, and the lumped assembly&apos;s rotational
+        inertia is the overriding component&apos;s own — immaterial to the 3-DOF flight, which uses
+        mass and CG.
       </p>
 
       <h3>Under-specified airframe diameters are inferred</h3>

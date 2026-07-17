@@ -144,7 +144,7 @@ test.describe("Loft", () => {
         if (!navigator.serviceWorker?.controller) return false;
         const referenced = [...document.querySelectorAll("script[src], link[href]")]
           .map((n) => n.getAttribute("src") || n.getAttribute("href"))
-          .filter((u) => u && u.includes("/_next/"));
+          .filter((u): u is string => u != null && u.includes("/_next/"));
         const needed = [...referenced, "/samples/demo-single-deploy.ork"];
         for (const u of needed) {
           if (!(await caches.match(new URL(u, location.origin).pathname))) return false;
