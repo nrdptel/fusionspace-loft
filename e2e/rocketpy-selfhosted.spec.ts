@@ -48,24 +48,39 @@ test.describe("in-browser RocketPy second solver (self-hosted Pyodide)", () => {
     expect(loftApogee).toBeLessThan(1005);
   });
 
-  test("resets the RocketPy panel when the motor configuration changes", async ({ page }) => {
-    test.setTimeout(200_000);
+  test("resets on config change and reuses the warm worker for the next run", async ({ page }) => {
+    test.setTimeout(240_000);
 
     await page.goto("/");
     await page.getByRole("button", { name: /Motor comparison/ }).click();
     await expect(page.getByRole("heading", { name: /Loft Demo/ })).toBeVisible();
 
     const panel = page.getByRole("region", { name: "RocketPy cross-check" });
-    await panel.getByRole("button", { name: /Run RocketPy/ }).click();
+    const rpApogee = async () =>
+      parseFloat(
+        (await panel.getByRole("row", { name: /^Apogee\b/ }).locator("td").nth(1).innerText()).replace(/[^\d.]/g, ""),
+      );
 
-    // A result table appears for the current configuration.
+    // First run: cold boot on the default configuration (the more powerful H128W).
+    await panel.getByRole("button", { name: /Run RocketPy/ }).click();
     await expect(panel.getByRole("row", { name: /^Apogee\b/ })).toBeVisible({ timeout: 180_000 });
+    const apogeeDefault = await rpApogee();
+    expect(apogeeDefault).toBeGreaterThan(0);
 
     // Switching motor configuration must drop that stale result: the panel remounts back to idle,
-    // so the comparison table is gone and the "Run RocketPy" button is offered again for the new
-    // configuration (rather than showing the previous config's numbers).
+    // so the table is gone and "Run RocketPy" is offered again for the new configuration.
     await page.getByLabel("Motor configuration").selectOption("1");
     await expect(panel.getByRole("button", { name: /Run RocketPy/ })).toBeVisible();
     await expect(panel.getByRole("row", { name: /^Apogee\b/ })).toHaveCount(0);
+
+    // Second run reuses the WARM worker — no ~10 s reboot — and flies the newly selected G40W
+    // configuration: its apogee lands on the committed reference (~548 m) and differs clearly from
+    // the H128W run above, proving the warm worker flew the right (switched) config.
+    await panel.getByRole("button", { name: /Run RocketPy/ }).click();
+    await expect(panel.getByRole("row", { name: /^Apogee\b/ })).toBeVisible({ timeout: 60_000 });
+    const apogeeG40 = await rpApogee();
+    expect(apogeeG40).toBeGreaterThan(510);
+    expect(apogeeG40).toBeLessThan(590);
+    expect(Math.abs(apogeeDefault - apogeeG40)).toBeGreaterThan(30);
   });
 });
