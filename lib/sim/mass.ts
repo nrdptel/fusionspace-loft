@@ -149,7 +149,13 @@ function componentPointMass(p: Positioned): PointMass | null {
     case "freeformfinset": {
       const vol = c.area * c.thickness * c.finCount;
       mass = vol * density(c);
-      cgLocal = c.rootChord * 0.42; // area centroid ≈ 0.42·chord for these planforms
+      // Chordwise area centroid (the fin's mass CG), from the root leading edge. A half-ellipse fin
+      // is symmetric about its mid-chord — every spanwise strip is centred at c_root/2 — so its area
+      // centroid is exactly 0.5·c_root (the same symmetric shape whose aerodynamic centre the aero
+      // pass puts at 0.288·c_root, and where OpenRocket places the elliptical fin's CG). A freeform
+      // planform has no closed form and its outline isn't retained past import, so it keeps a
+      // mid-planform estimate — a small error on a light part.
+      cgLocal = c.kind === "ellipticalfinset" ? 0.5 * c.rootChord : 0.42 * c.rootChord;
       break;
     }
     case "masscomponent": {

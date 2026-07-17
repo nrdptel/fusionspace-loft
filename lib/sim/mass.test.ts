@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { combine, dryMassProperties, finChordCentroid } from "./mass";
-import type { Rocket, BodyTube, MassComponent } from "../model/types";
+import { combine, dryMassProperties, finChordCentroid, structurePointMasses } from "./mass";
+import { flattenRocket } from "../model/geometry";
+import type { Rocket, BodyTube, MassComponent, GenericFinSet } from "../model/types";
 
 const MAT = { name: "x", density: 1000, type: "bulk" as const };
 
@@ -90,6 +91,26 @@ describe("dryMassProperties", () => {
     const mp = dryMassProperties(rocket);
     expect(mp.mass).toBeCloseTo(expected, 5);
     expect(mp.cg).toBeCloseTo(0.5, 3); // mid-length
+  });
+});
+
+describe("elliptical fin mass CG", () => {
+  it("places the CG at the symmetric half-ellipse area centroid, 0.5·root chord", () => {
+    // Every spanwise strip of a symmetric half-ellipse fin is centred at c_root/2, so the whole
+    // fin's chordwise area centroid is exactly 0.5·c_root — not the ~0.42·c_root the fin set once
+    // shared with freeform planforms.
+    const CR = 0.12;
+    const fin: GenericFinSet = {
+      id: "f", name: "ellip", kind: "ellipticalfinset", placement: { method: "bottom", offset: 0 },
+      material: MAT, finCount: 3, rootChord: CR, height: 0.06, area: (Math.PI * CR * 0.06) / 4,
+      sweepLength: 0, thickness: 0.004, children: [],
+    };
+    const body = tube({});
+    body.children = [fin];
+    const rocket = rocketOf(body);
+    const finXFore = flattenRocket(rocket).find((p) => p.component.name === "ellip")!.xFore;
+    const finPt = structurePointMasses(rocket).find((p) => p.source === "ellip")!;
+    expect(finPt.cg - finXFore).toBeCloseTo(0.5 * CR, 6);
   });
 });
 
