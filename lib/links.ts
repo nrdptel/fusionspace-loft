@@ -8,11 +8,12 @@ export const KOFI_URL = "https://ko-fi.com/nrdptel";
 
 // Sibling Fusion Space tools, linked inline in the footer the way the live siblings do.
 // The LIVE tools only — Debrief is still in development, so it isn't linked from a
-// launch-ready tool. Loft is omitted (you're already here).
+// launch-ready tool. Loft is omitted (you're already here). Ordered as on the hub.
 export const SIBLING_TOOLS = [
   { name: "Motor Finder", href: "https://motor.fusionspace.co", blurb: "Live motor stock & pricing" },
   { name: "Charge", href: "https://charge.fusionspace.co", blurb: "Ejection-charge calculator" },
   { name: "Window", href: "https://window.fusionspace.co", blurb: "Launch weather" },
+  { name: "Muster", href: "https://muster.fusionspace.co", blurb: "Motor-hardware compatibility" },
 ] as const;
 
 // Data providers — credited in the footer and the methods docs.
