@@ -67,18 +67,24 @@ OpenRocket's stored apogee is a *real* flight (recovery + wind), shown for refer
 
 ## How it works
 
-Two halves, bridged by a JSON "spec" (which is also the adapter surface a future in-browser
-RocketPy engine would use):
+Two halves, bridged by a JSON "spec". The spec is **the shared hand-off**, not a throwaway: both
+the spec-builder and the flight routine are library modules the in-browser RocketPy second solver
+reuses verbatim, so what the browser flies is exactly what this harness flies.
 
 1. **`emit.ts`** — a Vitest test that reuses the real library (importers, mass, aero, motor DB,
-   sim). For each design it writes `out/<key>.spec.json` (everything RocketPy needs: geometry,
-   motor thrust curve, sampled `Cd(Mach)`, environment) and `out/<key>.loft.json` (Loft's own
-   ballistic result + the real apogee + OpenRocket's stored figure). The `DESIGNS` list holds both
-   the **bundled demo fixtures** (from `fixtures/src/*.ork.xml`, marked `bundled`) and any external
-   dev-only designs from `LOFT_ORK_DIR`.
-2. **`run_rocketpy.py`** — reads each spec, builds a RocketPy `Environment` / `GenericMotor` /
-   `Rocket` / `Flight`, prints the 3-way table, and writes the `bundled` designs' RocketPy numbers
-   to **`fixtures/rocketpy-cross-check.json`** — the committed reference the Validation page reads.
+   sim). It builds each spec with **`lib/validation/rocketpy-spec.ts`** (`buildRocketpySpec` — a
+   pure, browser-safe module, *not* local to this harness) and writes `out/<key>.spec.json`
+   (everything RocketPy needs: geometry, motor thrust curve, sampled `Cd(Mach)`, environment) plus
+   `out/<key>.loft.json` (Loft's own ballistic result + the real apogee + OpenRocket's stored
+   figure). The `DESIGNS` list holds both the **bundled demo fixtures** (from
+   `fixtures/src/*.ork.xml`, marked `bundled`) and any external dev-only designs from `LOFT_ORK_DIR`.
+2. **`run_rocketpy.py`** — reads each spec and flies it via **`fly.py`** (`fly(spec)` — the shared
+   flight routine, also loaded into WASM by the Pyodide runner), prints the 3-way table, and writes
+   the `bundled` designs' RocketPy numbers to **`fixtures/rocketpy-cross-check.json`** — the
+   committed reference the Validation page reads.
+
+The **`pyodide/`** subdirectory runs that same `fly.py` under Pyodide (CPython-in-WASM) — the proof
+and seed for the in-browser second solver. See `pyodide/README.md`.
 
 Loft's ballistic run reuses the engine's own code path: `runFlight(rocket, { ballistic: true })`
 (strips recovery, zeroes wind), the same call the Validation page and the CI drift-guard use, so
