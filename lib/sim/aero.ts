@@ -23,7 +23,7 @@ import {
   radiusAtStation,
   type Positioned,
 } from "../model/geometry";
-import { noseProps, transitionProps } from "./shapes";
+import { noseProps, transitionProps, noseRadius } from "./shapes";
 import type { AtmosphereState } from "./atmosphere";
 import { clamp } from "../units";
 
@@ -189,6 +189,10 @@ export interface AeroGeometry {
    *  coefficient, then divide by refArea, for the pressure-drag coefficient. Zero for a plain or
    *  shouldered airframe. */
   boattailPressureArea: number;
+  /** Nose pressure-drag C_d·A (m²): 0.8·sin²φ over the nose base area, φ the contour's joint angle
+   *  at the base. Divide by refArea for the coefficient. Zero for a tangent (ogive/ellipsoid/Haack)
+   *  nose; non-zero for a cone or blunt shape. */
+  nosePressureCdA: number;
 }
 
 /** Transonic/supersonic wave-drag of a nose contour, relative to a Von Kármán ogive of the
@@ -248,6 +252,7 @@ export function aeroGeometry(rocket: Rocket): AeroGeometry {
   let protuberanceArea = 0;
   let shoulderPressureCdA = 0;
   let boattailPressureArea = 0;
+  let nosePressureCdA = 0;
 
   let aftBodyEnd = 0;
   for (const p of flat) {
@@ -267,6 +272,18 @@ export function aeroGeometry(rocket: Rocket): AeroGeometry {
         noseLength = c.length;
         noseBaseRadius = c.aftRadius;
         noseShapeFactor = NOSE_WAVE_FACTOR[c.shape] ?? NOSE_WAVE_FACTOR.ogive;
+        // Nose pressure drag (Niskanen eq. 3.86, following Hoerner): 0.8·sin²φ over the nose base
+        // area, φ = the contour's joint angle where the nose meets the body. A tangent shape (ogive,
+        // ellipsoid, Haack) meets it smoothly (φ ≈ 0, essentially no drag); a cone or blunt shape
+        // has a real joint angle and a small pressure drag. The base slope is read numerically from
+        // the contour so every shape is handled uniformly. Not compressibility-corrected — a low-
+        // subsonic separation effect, like the shoulder term (transonic flights are flagged rough).
+        if (c.length > 0 && c.aftRadius > 0) {
+          const eps = c.length * 1e-4;
+          const rNear = noseRadius(c.shape, c.length - eps, c.length, c.aftRadius, c.shapeParameter ?? 0);
+          const phi = Math.atan2(c.aftRadius - rNear, eps);
+          nosePressureCdA += 0.8 * Math.sin(phi) ** 2 * Math.PI * c.aftRadius * c.aftRadius;
+        }
       }
     } else if (c.kind === "bodytube") {
       bodyLength += c.length;
@@ -360,6 +377,7 @@ export function aeroGeometry(rocket: Rocket): AeroGeometry {
     protuberanceArea,
     shoulderPressureCdA,
     boattailPressureArea,
+    nosePressureCdA,
   };
 }
 
@@ -476,7 +494,11 @@ export function dragCoefficient(
   // supersonic, is carried by baseCoeff), scaled by the precomputed slope geometry factor. Zero
   // for a plain/shouldered body.
   const boattailPressure = (baseCoeff * geom.boattailPressureArea) / geom.refArea;
-  const pressure = finPressure + shoulderPressure + boattailPressure + (protuberance + 0.01) * pg;
+  // Nose pressure drag — same low-subsonic separation effect as the shoulder, so added flat. Zero
+  // for a tangent (ogive/ellipsoid/Haack) nose; small for a cone or blunt shape.
+  const nosePressure = geom.nosePressureCdA / geom.refArea;
+  const pressure =
+    finPressure + shoulderPressure + boattailPressure + nosePressure + (protuberance + 0.01) * pg;
 
   // Wave (compressibility) drag — zero below the critical Mach, a transonic rise to a peak
   // near M≈1.15, then a supersonic decline. A bounded, published-shape model (not a

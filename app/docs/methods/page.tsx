@@ -229,6 +229,15 @@ export default function Methods() {
           base-drag coefficient.
         </li>
         <li>
+          <strong>Nose pressure drag</strong> — the same <code>0.8·sin²φ</code> stagnation estimate
+          as the shoulder, applied over the nose base area, with <code>φ</code> the contour&apos;s
+          joint angle where the nose meets the body (read numerically from the shape). A tangent
+          nose — an ogive, ellipsoid or Haack — meets the body smoothly (<code>φ ≈ 0</code>) and
+          carries essentially none; a cone or blunt shape has a real joint angle and a small
+          pressure drag. After the OpenRocket technical documentation (Niskanen, eq. 3.86); not
+          compressibility-corrected.
+        </li>
+        <li>
           <strong>Parasitic</strong> — the drag of external fittings (launch lugs, rail buttons)
           computed from each fitting&apos;s own frontal area and count rather than a blind allowance,
           using an axial protuberance drag coefficient reduced for sitting in the body&apos;s

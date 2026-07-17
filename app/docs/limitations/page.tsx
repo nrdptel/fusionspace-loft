@@ -39,9 +39,9 @@ export default function Limitations() {
         The subsonic drag buildup is defensible but simplified: fin pressure drag follows the
         fins&apos; edge cross-section (square / rounded / airfoil), and both a diameter-increasing
         transition (shoulder) and a diameter-decreasing one (boattail) now carry their own pressure
-        drag on top of the boattail&apos;s base-area effect. Nose pressure drag is still lumped into
-        a small flat allowance (it is near zero for the streamlined ogive noses most designs use)
-        along with fin-junction interference. The boundary layer is treated as <em>fully turbulent</em> — the standard rocketry
+        drag on top of the boattail&apos;s base-area effect, and a cone or blunt nose carries its
+        own joint-angle pressure drag (near zero for the streamlined ogive noses most designs use).
+        Fin-junction interference is still lumped into a small flat allowance. The boundary layer is treated as <em>fully turbulent</em> — the standard rocketry
         assumption, since it trips near the nose — so there is no laminar run to solve (and no
         laminar-drag credit for an unusually smooth, slow flight). Base drag is applied in full
         whether the motor is burning or not — matching OpenRocket&apos;s stored per-step drag, which

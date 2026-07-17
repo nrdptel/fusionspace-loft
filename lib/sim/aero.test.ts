@@ -300,6 +300,38 @@ describe("boattail pressure drag (Niskanen eq. 3.88)", () => {
   });
 });
 
+describe("nose pressure drag (Niskanen eq. 3.86)", () => {
+  const atm = new Atmosphere().sample(0);
+  // shapedRocket uses a base radius of 0.05 m; noseLength varies the fineness.
+  const R = 0.05;
+
+  it("is zero for a tangent nose (ogive, ellipsoid, Haack)", () => {
+    for (const shape of ["ogive", "ellipsoid", "haack"] as const) {
+      expect(aeroGeometry(shapedRocket({ shape, noseLength: 0.2 })).nosePressureCdA).toBeCloseTo(0, 6);
+    }
+  });
+
+  it("matches 0.8·sin²φ·A_base for a cone, φ = atan(R/L)", () => {
+    const L = 0.2;
+    const geom = aeroGeometry(shapedRocket({ shape: "conical", noseLength: L }));
+    const s = R / L; // tan φ
+    const expected = 0.8 * ((s * s) / (1 + s * s)) * Math.PI * R * R;
+    expect(geom.nosePressureCdA).toBeCloseTo(expected, 7);
+  });
+
+  it("grows as a cone gets blunter (shorter for the same base)", () => {
+    const slender = aeroGeometry(shapedRocket({ shape: "conical", noseLength: 0.4 })).nosePressureCdA;
+    const blunt = aeroGeometry(shapedRocket({ shape: "conical", noseLength: 0.1 })).nosePressureCdA;
+    expect(blunt).toBeGreaterThan(slender);
+  });
+
+  it("raises total pressure drag for a cone nose over an ogive of the same size", () => {
+    const p = (shape: "conical" | "ogive") =>
+      dragCoefficient(aeroGeometry(shapedRocket({ shape, noseLength: 0.2 })), atm, 0.3 * atm.speedOfSound).pressure;
+    expect(p("conical")).toBeGreaterThan(p("ogive"));
+  });
+});
+
 describe("wave drag is geometry-aware", () => {
   const atm = new Atmosphere().sample(2000);
   const waveAt = (r: Rocket, M: number) =>
