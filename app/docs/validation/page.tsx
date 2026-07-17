@@ -196,6 +196,13 @@ export default async function Validation() {
         mechanics, OpenRocket pins the drag.
       </p>
       <p>
+        The designs below span the geometry the centre-of-pressure model has to get right: a
+        constant-radius airframe on trapezoidal fins, a transonic flight, and a design with a{" "}
+        <strong>boattail</strong> and <strong>elliptical fins</strong> — the two Barrowman terms most
+        easily gotten wrong. The two engines agree on the static margin of every one to within a few
+        hundredths of a caliber.
+      </p>
+      <p>
         The comparison is ballistic — recovery and wind removed on both sides — so the coast runs to
         the true apogee with nothing to confound the physics. RocketPy is written in Python and runs{" "}
         <em>offline</em> (it isn&apos;t bundled and doesn&apos;t run in your browser); the figures

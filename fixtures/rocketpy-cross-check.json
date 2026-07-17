@@ -15,6 +15,16 @@
       "staticMargin": 4.51
     },
     {
+      "key": "demo-boattail",
+      "config": "H128W",
+      "name": "Loft Demo 38mm \u2014 boattail + elliptical fins",
+      "apogee": 801.2,
+      "maxVelocity": 183.8,
+      "maxMach": 0.541,
+      "timeToApogee": 11.48,
+      "staticMargin": 3.89
+    },
+    {
       "key": "demo-single-deploy",
       "config": "H128W",
       "name": "Loft Demo 38mm \u2014 single deploy",

@@ -59,6 +59,10 @@ const DESIGNS: Design[] = [
   { key: "demo-multi-config", fixture: "demo-multi-config.ork.xml", motor: "G40", bundled: true },
   { key: "demo-single-deploy", fixture: "demo-single-deploy.ork.xml", bundled: true },
   { key: "demo-dual-deploy", fixture: "demo-dual-deploy.ork.xml", bundled: true },
+  // A boattail (contracting transition) + elliptical fins — geometry the constant-radius,
+  // trapezoidal-finned demos above don't exercise. Cross-checks the transition and elliptical-fin
+  // centre of pressure against RocketPy's independent Barrowman.
+  { key: "demo-boattail", fixture: "demo-boattail.ork.xml", bundled: true },
   // External OpenRocket GPL examples (dev-only; provide via LOFT_ORK_DIR). Not committed.
   { key: "simple_v1.0", file: "simple_v1.0.xml", motor: "C6" },
   { key: "APEX_v1.6", file: "APEX_v1.6.xml" },
