@@ -133,10 +133,19 @@ test.describe("Loft", () => {
   }) => {
     // The pad has no cell signal; once Loft has loaded online it must run with the network cut.
     await page.goto("/", { waitUntil: "networkidle" });
-    // Wait for the service worker to control the page, so cached responses are served offline.
-    await page.waitForFunction(() => navigator.serviceWorker?.controller != null, null, {
-      timeout: 10000,
-    });
+    // Wait for the real readiness signal, not a proxy: the worker must control the page (so the
+    // offline reload is intercepted) AND the sample must actually be in CacheStorage (so the
+    // offline click resolves from cache). A bare "controller != null" wait assumed the precache
+    // had finished by the time control was taken — true on most builds, but raced on the CI
+    // Chromium — so assert the cached artifact directly.
+    await page.waitForFunction(
+      async () => {
+        if (!navigator.serviceWorker?.controller) return false;
+        return !!(await caches.match("/samples/demo-single-deploy.ork"));
+      },
+      null,
+      { timeout: 15000 },
+    );
 
     await context.setOffline(true);
     await page.reload({ waitUntil: "domcontentloaded" });
