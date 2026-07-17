@@ -309,7 +309,17 @@ export default function LoftApp() {
             busy={busy}
           />
 
-          {run && <ResultsView run={run} doc={doc} units={units} baseline={baseline} simIndex={simIndex} />}
+          {run && (
+            <ResultsView
+              run={run}
+              doc={doc}
+              units={units}
+              baseline={baseline}
+              simIndex={simIndex}
+              ballastKg={edits.ballastKg}
+              motorSwap={edits.motorSwap}
+            />
+          )}
         </div>
       )}
     </div>

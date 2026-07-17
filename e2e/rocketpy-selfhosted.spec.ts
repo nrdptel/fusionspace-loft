@@ -83,4 +83,34 @@ test.describe("in-browser RocketPy second solver (self-hosted Pyodide)", () => {
     expect(apogeeG40).toBeLessThan(590);
     expect(Math.abs(apogeeDefault - apogeeG40)).toBeGreaterThan(30);
   });
+
+  test("honors an active nose-ballast what-if in both engines", async ({ page }) => {
+    test.setTimeout(200_000);
+
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+
+    // Add a heavy nose ballast before running the cross-check.
+    await page.locator("summary", { hasText: "Conditions" }).click();
+    await page.getByLabel(/Nose ballast/).fill("500");
+
+    const panel = page.getByRole("region", { name: "RocketPy cross-check" });
+    await panel.getByRole("button", { name: /Run RocketPy/ }).click();
+
+    const apogeeRow = panel.getByRole("row", { name: /^Apogee\b/ });
+    await expect(apogeeRow).toBeVisible({ timeout: 180_000 });
+    const cell = async (i: number) =>
+      parseFloat((await apogeeRow.locator("td").nth(i).innerText()).replace(/[^\d.]/g, ""));
+    const loftApogee = await cell(0);
+    const rpApogee = await cell(1);
+
+    // The base (unballasted) design apogees ~994 m; 500 g of nose ballast drops it well below that
+    // in BOTH engines — proving the RocketPy spec and Loft's baseline both fly the ballasted design.
+    // And the two independent engines still agree closely on that ballasted flight.
+    expect(rpApogee).toBeGreaterThan(300);
+    expect(rpApogee).toBeLessThan(950);
+    expect(loftApogee).toBeLessThan(950);
+    expect(Math.abs(rpApogee - loftApogee) / loftApogee).toBeLessThan(0.05);
+  });
 });

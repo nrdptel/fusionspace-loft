@@ -39,6 +39,8 @@ export default function ResultsView({
   units,
   baseline,
   simIndex = 0,
+  ballastKg,
+  motorSwap,
 }: {
   run: FlightRun;
   doc: OrkDocument;
@@ -48,6 +50,9 @@ export default function ResultsView({
   baseline?: FlightRun | null;
   /** The stored-simulation index being flown, for building the RocketPy cross-check spec. */
   simIndex?: number;
+  /** Active "what-if" edits, so the RocketPy cross-check flies the same hypothetical shown above. */
+  ballastKg?: number;
+  motorSwap?: { manufacturer?: string; designation: string; diameter?: number };
 }) {
   const r = run.result;
   const s = r.summary;
@@ -147,15 +152,17 @@ export default function ResultsView({
 
       {/* An independent second solver on the flyer's own design — RocketPy's flight is single-stage,
           so offer it only for single-stage designs that actually have propulsion (guaranteed here).
-          Key on the design + configuration so switching motor configuration remounts the panel
-          (back to idle) instead of leaving a stale RocketPy result from the previous config on screen. */}
+          Key on the design + configuration + active what-if so any change (config switch, ballast,
+          motor swap) remounts the panel to idle instead of leaving a stale RocketPy result on screen. */}
       {(doc.rocket.stages?.length ?? 1) === 1 && (
         <RocketpyCrossCheck
-          key={`${doc.rocket.name}:${run.config.id}:${simIndex}`}
+          key={`${doc.rocket.name}:${run.config.id}:${simIndex}:${ballastKg ?? 0}:${motorSwap?.designation ?? ""}`}
           doc={doc}
           config={run.config}
           simIndex={simIndex}
           units={units}
+          ballastKg={ballastKg}
+          motorSwap={motorSwap}
         />
       )}
 

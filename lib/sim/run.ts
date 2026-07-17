@@ -95,7 +95,7 @@ function swapMotor(config: MotorConfiguration, swap: NonNullable<RunOptions["mot
 
 /** Where nose ballast sits: inside the frontmost nose cone (its mid-length), or the very front of
  *  the airframe if the design somehow has no nose. Returns the station from the nose tip (m). */
-function noseBallastStation(rocket: Rocket): number {
+export function noseBallastStation(rocket: Rocket): number {
   const nose = flattenRocket(rocket).find((p) => p.component.kind === "nosecone");
   return nose ? nose.xFore + nose.length / 2 : 0;
 }

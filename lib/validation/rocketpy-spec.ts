@@ -17,7 +17,7 @@
 import type { OrkDocument } from "../ork/import";
 import type { Rocket, MotorConfiguration } from "../model/types";
 import { aeroGeometry, dragCoefficient, barrowman } from "../sim/aero";
-import { dryMassProperties } from "../sim/mass";
+import { dryMassProperties, combine, type PointMass } from "../sim/mass";
 import { buildRocketDynamics } from "../sim/setup";
 import { flattenRocket, referenceRadius, radiusAtStation } from "../model/geometry";
 import { Atmosphere } from "../sim/atmosphere";
@@ -120,14 +120,24 @@ export function sampleCd(rocket: Rocket): CdSample[] {
   return out;
 }
 
-/** Assemble the RocketPy spec for a design's chosen configuration and stored-simulation index. */
+/** Assemble the RocketPy spec for a design's chosen configuration and stored-simulation index.
+ *  `extraMasses` are "what-if" point masses added to the dry vehicle (e.g. nose ballast) — folded
+ *  into the mass/CG/inertia exactly as the sim folds them, so a RocketPy run reflects the same
+ *  hypothetical the flyer is looking at. Pass a motor-swapped config to fly a different motor. */
 export function buildRocketpySpec(
   doc: OrkDocument,
   config: MotorConfiguration,
   simIndex: number,
+  extraMasses: PointMass[] = [],
 ): RocketpySpec {
   const rocket = doc.rocket;
-  const dry = dryMassProperties(rocket);
+  const baseDry = dryMassProperties(rocket);
+  // Fold any what-if masses into the dry properties. Combining the aggregate dry body (as one point
+  // mass at its CG with its own inertia) with the extras is identical, by the parallel-axis theorem,
+  // to combining every component individually — which is exactly what the sim does.
+  const dry = extraMasses.length
+    ? combine([{ mass: baseDry.mass, cg: baseDry.cg, ownInertia: baseDry.inertia, source: "dry" }, ...extraMasses])
+    : baseDry;
   const refR = referenceRadius(rocket);
   const flat = flattenRocket(rocket);
   const { motors } = buildRocketDynamics(rocket, config);

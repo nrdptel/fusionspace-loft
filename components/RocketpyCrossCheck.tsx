@@ -35,27 +35,36 @@ export default function RocketpyCrossCheck({
   config,
   simIndex,
   units,
+  ballastKg,
+  motorSwap,
 }: {
   doc: OrkDocument;
   config: MotorConfiguration;
   simIndex: number;
   units: UnitSystem;
+  /** Active "what-if" nose ballast (kg), so the cross-check flies what the flyer is looking at. */
+  ballastKg?: number;
+  /** Active "what-if" motor swap. `config` is already the swapped configuration; this is only
+   *  needed to reproduce the swap in Loft's independently-picked ballistic baseline. */
+  motorSwap?: { manufacturer?: string; designation: string; diameter?: number };
 }) {
   const [state, setState] = useState<State>({ phase: "idle" });
 
   const run = useCallback(async () => {
     setState({ phase: "running", stage: "Preparing…" });
     try {
-      const [{ buildRocketpySpec }, { runRocketpy }, { runFlight, overridesFromStored }] = await Promise.all([
-        import("@/lib/validation/rocketpy-spec"),
-        import("@/lib/validation/rocketpy-engine"),
-        import("@/lib/sim/run"),
-      ]);
+      const [{ buildRocketpySpec }, { runRocketpy }, { runFlight, overridesFromStored, noseBallastStation }] =
+        await Promise.all([
+          import("@/lib/validation/rocketpy-spec"),
+          import("@/lib/validation/rocketpy-engine"),
+          import("@/lib/sim/run"),
+        ]);
       // Loft's like-for-like number: the same design flown ballistic to apogee under the stored
-      // launch conditions — exactly what RocketPy's terminate_on_apogee run computes.
+      // launch conditions — exactly what RocketPy's terminate_on_apogee run computes. Honour the
+      // active what-ifs so both engines fly the design the flyer sees above (not the original).
       const sim = doc.simulations[simIndex] ?? doc.simulations[0];
       const overrides = sim ? overridesFromStored(sim) : undefined;
-      const loftRun = runFlight(doc.rocket, { configId: config.id, overrides, ballistic: true });
+      const loftRun = runFlight(doc.rocket, { configId: config.id, overrides, ballistic: true, ballastKg, motorSwap });
       const s = loftRun.result.summary;
       const loft: LoftBallistic = {
         apogee: s.apogee,
@@ -65,13 +74,19 @@ export default function RocketpyCrossCheck({
         railExitVelocity: s.railExitVelocity,
         staticMarginCal: loftRun.result.staticMarginCal,
       };
-      const spec = buildRocketpySpec(doc, config, simIndex);
+      // `config` is already the swapped configuration (runFlight returns it), so the motor is right;
+      // add nose ballast as an extra point mass so the RocketPy spec carries the same weight too.
+      const extras =
+        ballastKg && ballastKg > 0
+          ? [{ mass: ballastKg, cg: noseBallastStation(doc.rocket), ownInertia: 0, source: "Nose ballast" }]
+          : [];
+      const spec = buildRocketpySpec(doc, config, simIndex, extras);
       const rp = await runRocketpy(spec, { onProgress: (stage) => setState({ phase: "running", stage }) });
       setState({ phase: "done", loft, rp });
     } catch (e) {
       setState({ phase: "error", message: e instanceof Error ? e.message : String(e) });
     }
-  }, [doc, config, simIndex]);
+  }, [doc, config, simIndex, ballastKg, motorSwap]);
 
   return (
     <section

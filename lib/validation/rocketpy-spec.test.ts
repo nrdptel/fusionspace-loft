@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { importOrk } from "../ork/import";
-import { configChoices } from "../sim/run";
+import { configChoices, noseBallastStation } from "../sim/run";
 import { buildRocketpySpec, NOSE_KIND } from "./rocketpy-spec";
 
 async function load(name: string) {
@@ -76,6 +76,27 @@ describe("buildRocketpySpec", () => {
     expect(e.inclinationDeg).toBeLessThanOrEqual(90);
     expect(Number.isFinite(e.temperatureK)).toBe(true);
     expect(e.windMps).toBe(0); // the cross-check is a zero-wind ascent-physics diff
+  });
+
+  it("folds nose ballast into the dry mass — heavier, CG forward, more inertia", async () => {
+    const doc = await load("demo-single-deploy.ork");
+    const choice = configChoices(doc)[0];
+    const sim = doc.simulations[choice.simIndex];
+    const config = doc.rocket.configurations.find((c) => c.id === sim.conditions.configId)!;
+
+    const base = buildRocketpySpec(doc, config, choice.simIndex);
+    const ballast = 0.25; // +250 g at the nose
+    const withBallast = buildRocketpySpec(doc, config, choice.simIndex, [
+      { mass: ballast, cg: noseBallastStation(doc.rocket), ownInertia: 0, source: "Nose ballast" },
+    ]);
+
+    // Heavier by exactly the ballast; CG moves forward (toward the nose, smaller station); the extra
+    // mass off-axis raises the pitch inertia. The motor and aero surfaces are untouched.
+    expect(withBallast.rocket.mass).toBeCloseTo(base.rocket.mass + ballast, 6);
+    expect(withBallast.rocket.cgNoMotor).toBeLessThan(base.rocket.cgNoMotor);
+    expect(withBallast.rocket.inertia[0]).toBeGreaterThan(base.rocket.inertia[0]);
+    expect(withBallast.motor?.designation).toBe(base.motor?.designation);
+    expect(withBallast.rocket.cp).toBeCloseTo(base.rocket.cp, 6);
   });
 
   it("handles a boattail + elliptical-fin design: a tail and an elliptical fin appear", async () => {
