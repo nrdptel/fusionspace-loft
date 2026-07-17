@@ -4,6 +4,8 @@
 
 import type { Rocket, MotorConfiguration } from "../model/types";
 import type { OrkDocument, StoredSimulation } from "../ork/adapt";
+import { flattenRocket } from "../model/geometry";
+import type { PointMass } from "./mass";
 import { simulate, type FlightResult } from "./simulate";
 import { buildSimulateInput, makeConditions, type MotorResolution, type ConditionOverrides } from "./setup";
 import { Atmosphere, atmosphereForGround } from "./atmosphere";
@@ -64,6 +66,17 @@ export interface RunOptions {
   /** Override the boost/coast integration step (s). Defaults to the solver's own step; used by
    *  convergence checks that need to vary it. */
   timeStep?: number;
+  /** "What-if" ballast added to the nose (kg): extra weight the flyer is considering to trim
+   *  stability or apogee. Modelled as a point mass at the nose cone, so it shifts the CG forward
+   *  and the whole vehicle heavier. 0/undefined leaves the design unchanged. */
+  ballastKg?: number;
+}
+
+/** Where nose ballast sits: inside the frontmost nose cone (its mid-length), or the very front of
+ *  the airframe if the design somehow has no nose. Returns the station from the nose tip (m). */
+function noseBallastStation(rocket: Rocket): number {
+  const nose = flattenRocket(rocket).find((p) => p.component.kind === "nosecone");
+  return nose ? nose.xFore + nose.length / 2 : 0;
 }
 
 /** Run a flight for a canonical rocket. */
@@ -79,7 +92,12 @@ export function runFlight(rocket: Rocket, opts: RunOptions = {}): FlightRun {
   const built = buildSimulateInput(rocket, config, conditions);
   const resolutions = built.resolutions;
   // A ballistic run drops every recovery device so the coast runs to the true apogee.
-  const base = opts.timeStep ? { ...built.input, timeStep: opts.timeStep } : built.input;
+  const extraMasses: PointMass[] =
+    opts.ballastKg && opts.ballastKg > 0
+      ? [{ mass: opts.ballastKg, cg: noseBallastStation(rocket), ownInertia: 0, source: "Nose ballast" }]
+      : [];
+  const withExtras = extraMasses.length ? { ...built.input, extraMasses } : built.input;
+  const base = opts.timeStep ? { ...withExtras, timeStep: opts.timeStep } : withExtras;
   const input = opts.ballistic ? { ...base, recovery: [] } : base;
   const result = simulate(input);
   // Optimum ejection delay must reflect the true (ballistic) apogee — a stable property of the

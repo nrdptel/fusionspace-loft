@@ -18,6 +18,7 @@ interface Edits {
   rodAngleDeg?: number;
   windSpeed?: number; // m/s
   launchAltitude?: number; // m
+  ballastKg?: number; // "what-if" nose ballast
 }
 
 export default function LoftApp() {
@@ -52,9 +53,12 @@ export default function LoftApp() {
       return runFlight(document.rocket, {
         configId: stored?.conditions.configId,
         overrides,
+        ballastKg: e.ballastKg,
         // Validate only when flying the design's own stored conditions unchanged, and only when
         // Loft flew the complete design — a simplified vehicle (staging/pods/parallel/cluster)
-        // wouldn't match the stored results, so the comparison would be misleading.
+        // wouldn't match the stored results, so the comparison would be misleading. Any edit —
+        // including "what-if" ballast — makes the flight hypothetical, so the stored comparison
+        // is withheld.
         validateAgainst: edited || document.flownAsReduced ? undefined : stored,
       });
     },
@@ -333,6 +337,11 @@ function ConditionsControls({
   const toDispSpd = (mps: number | undefined) => (mps === undefined ? "" : imperial ? mpsToMph(mps).toFixed(0) : mps.toFixed(1));
   const fromLen = (v: string) => (v === "" ? undefined : imperial ? ftToM(Number(v)) : Number(v));
   const fromSpd = (v: string) => (v === "" ? undefined : imperial ? mphToMps(Number(v)) : Number(v));
+  const massU = imperial ? "oz" : "g";
+  const toDispMass = (kg: number | undefined) =>
+    kg === undefined ? "" : imperial ? (kg * 35.274).toFixed(1) : (kg * 1000).toFixed(0);
+  const fromMass = (v: string) =>
+    v === "" || Number(v) === 0 ? undefined : imperial ? Number(v) / 35.274 : Number(v) / 1000;
 
   const findWeather = async () => {
     if (!place.trim()) return;
@@ -371,6 +380,25 @@ function ConditionsControls({
           Blank fields use the design&apos;s stored launch conditions. Changing any field re-flies
           the design and hides the OpenRocket comparison (the conditions no longer match).
         </p>
+
+        <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-900/60">
+          <p className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+            Design what-if
+          </p>
+          <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <Num
+              label={`Nose ballast (${massU})`}
+              value={toDispMass(edits.ballastKg)}
+              placeholder="0"
+              onChange={(v) => onEdit({ ballastKg: fromMass(v) })}
+            />
+          </div>
+          <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+            Nose weight you&apos;re considering — added at the nose cone to trim stability or apogee.
+            It flies the design heavier with the centre of gravity forward; the OpenRocket comparison
+            is hidden while it&apos;s set.
+          </p>
+        </div>
 
         <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-900/60">
           <p className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">

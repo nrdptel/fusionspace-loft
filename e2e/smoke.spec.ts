@@ -73,6 +73,30 @@ test.describe("Loft", () => {
     await expect(page.getByRole("heading", { name: "OpenRocket vs Loft" })).toBeVisible();
   });
 
+  test("nose ballast re-flies the design heavier — a lower apogee", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+
+    const apogee = async () => {
+      const txt = await page
+        .getByLabel("Results")
+        .getByText("Apogee", { exact: true })
+        .locator("xpath=following-sibling::div")
+        .innerText();
+      return parseFloat(txt.replace(/[^\d.]/g, ""));
+    };
+    const before = await apogee();
+    expect(before).toBeGreaterThan(0);
+
+    // Open the edit panel and add a heavy nose ballast — a "what-if" design change.
+    await page.locator("summary", { hasText: "Conditions" }).click();
+    await page.getByLabel(/Nose ballast/).fill("500");
+
+    // Re-flies on change: the heavier rocket doesn't reach as high.
+    await expect.poll(apogee).toBeLessThan(before);
+  });
+
   test("unit toggle switches to imperial", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();

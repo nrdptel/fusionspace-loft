@@ -71,6 +71,28 @@ describe("rail-exit velocity is resolved at the exact rod-length crossing", () =
   });
 });
 
+describe("nose ballast (what-if trim)", () => {
+  it("adds nose weight: heavier by the ballast, CG forward, more stable, lower apogee", async () => {
+    const doc = await load("demo-single-deploy.ork");
+    const choice = configChoices(doc).find((c) => c.motors.some((m) => m.includes("H128W")))!;
+    const cfg = doc.simulations[choice.simIndex].conditions.configId;
+    const ov = overridesFromStored(doc.simulations[choice.simIndex]);
+    const base = runFlight(doc.rocket, { configId: cfg, overrides: ov });
+    const ballasted = runFlight(doc.rocket, { configId: cfg, overrides: ov, ballastKg: 0.1 }); // +100 g
+
+    // Heavier by exactly the added ballast.
+    expect(ballasted.result.liftoffMass - base.result.liftoffMass).toBeCloseTo(0.1, 6);
+    // CG moves forward (a smaller station is nearer the nose tip).
+    expect(ballasted.result.cgDry).toBeLessThan(base.result.cgDry);
+    // Nose weight is stabilising, and the heavier rocket doesn't fly as high.
+    expect(ballasted.result.staticMarginCal).toBeGreaterThan(base.result.staticMarginCal);
+    expect(ballasted.result.summary.apogee).toBeLessThan(base.result.summary.apogee);
+    // Zero ballast changes nothing.
+    const zero = runFlight(doc.rocket, { configId: cfg, overrides: ov, ballastKg: 0 });
+    expect(zero.result.liftoffMass).toBeCloseTo(base.result.liftoffMass, 9);
+  });
+});
+
 describe("unresolvable motor", () => {
   it("reports no propulsion and withholds the validation comparison", async () => {
     const doc = await load("demo-single-deploy.ork");

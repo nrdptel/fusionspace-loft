@@ -210,6 +210,11 @@ export interface SimulateInput {
   phases?: StagePhase[];
   /** Fixed step during boost/coast (s). Descent uses a coarser step. */
   timeStep?: number;
+  /** Extra structural point masses layered onto the airframe for every phase — the "what-if"
+   *  ballast trim (added nose weight, say). They ride the flown vehicle throughout, so they shift
+   *  mass and CG (and thus apogee and stability) exactly as a real added mass would. Empty/absent
+   *  for an unmodified design. */
+  extraMasses?: PointMass[];
 }
 
 const MAX_TIME = 1200; // s, hard cap
@@ -243,12 +248,16 @@ export function simulate(input: SimulateInput): FlightResult {
   const nStages = rocket.stages.length;
   const phases: StagePhase[] =
     input.phases && input.phases.length > 0 ? input.phases : [{ startTime: 0, stageCount: nStages || 1 }];
+  // Ballast/what-if masses ride the flown vehicle in every phase (added nose weight stays with the
+  // sustainer through staging), so layer them onto each phase's structural points.
+  const extra = input.extraMasses ?? [];
   const phaseData = phases.map((ph) => {
     const sub =
       ph.stageCount >= nStages ? rocket : { ...rocket, stages: rocket.stages.slice(0, ph.stageCount) };
+    const baseStructure = ph.stageCount >= nStages ? structure : structurePointMasses(sub);
     return {
       startTime: ph.startTime,
-      structure: ph.stageCount >= nStages ? structure : structurePointMasses(sub),
+      structure: extra.length ? [...baseStructure, ...extra] : baseStructure,
       geom: ph.stageCount >= nStages ? geom : aeroGeometry(sub),
     };
   });
@@ -262,7 +271,7 @@ export function simulate(input: SimulateInput): FlightResult {
   const massAt = (t: number): MassProperties =>
     combine([...phaseData[phaseIndexAt(t)].structure, ...motorMassPoints(motors, t)]);
 
-  const cgDry = combine(structure).cg;
+  const cgDry = combine(phaseData[0].structure).cg;
   const loaded = massAt(0);
   const staticMarginCal =
     geom.refDiameter > 0 ? (stability.cp - loaded.cg) / geom.refDiameter : 0;

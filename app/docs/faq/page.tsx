@@ -88,6 +88,18 @@ export default function Faq() {
         </p>
       </QA>
 
+      <QA q="Can I see what adding nose weight would do?">
+        <p>
+          Yes. Under <em>Conditions → Design what-if</em>, enter a nose-ballast mass and Loft re-flies
+          the design with that weight added at the nose cone — the classic trim for a marginally
+          stable rocket. You&apos;ll see the centre of gravity move forward, the stability margin
+          rise, and the apogee drop as the rocket flies heavier, so you can find how much weight buys
+          the stability you want. Because it&apos;s a hypothetical change to the design, the
+          OpenRocket comparison is hidden while ballast is set — the stored numbers describe the
+          original rocket, not the ballasted one.
+        </p>
+      </QA>
+
       <QA q="Does it work offline?">
         <p>
           Yes — once loaded, install it or just revisit and it runs with no connection: the app, the
