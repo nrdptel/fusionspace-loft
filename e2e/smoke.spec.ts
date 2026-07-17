@@ -126,4 +126,32 @@ test.describe("Loft", () => {
     );
     expect(serious).toEqual([]);
   });
+
+  test("works offline after an online visit — shell, sample import, and sim", async ({
+    page,
+    context,
+  }) => {
+    // The pad has no cell signal; once Loft has loaded online it must run with the network cut.
+    await page.goto("/", { waitUntil: "networkidle" });
+    // Wait for the service worker to control the page, so cached responses are served offline.
+    await page.waitForFunction(() => navigator.serviceWorker?.controller != null, null, {
+      timeout: 10000,
+    });
+
+    await context.setOffline(true);
+    await page.reload({ waitUntil: "domcontentloaded" });
+
+    // The app shell loads from cache.
+    await expect(page.getByRole("button", { name: /38 mm single-deploy/ })).toBeVisible();
+
+    // A bundled sample — fetched on demand, never clicked while online — still imports and
+    // simulates with no connection, because the service worker precached the sample designs.
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({
+      timeout: 10000,
+    });
+    await expect(page.getByLabel("Results").getByText("Apogee", { exact: true })).toBeVisible();
+
+    await context.setOffline(false);
+  });
 });

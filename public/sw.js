@@ -8,23 +8,35 @@
 //     back to the cached app shell when offline.
 //   - other same-origin GETs (JS/CSS/fonts/icons): stale-while-revalidate, so assets
 //     load instantly and refresh in the background.
+//   - install precaches the app shell AND the bundled sample designs, which are fetched
+//     on demand (not on first paint) — so the "try a sample" buttons work offline even
+//     if the visitor never clicked one while online.
 // The cache name is versioned; old caches are cleared on activate.
 //
 // The one thing that needs a connection is the optional "today's conditions" re-run
 // (live weather); everything else is offline by design.
 
-const CACHE = "loft-v1";
+const CACHE = "loft-v2";
 const SHELL = "/";
+// Assets loaded on demand rather than on first paint, so stale-while-revalidate wouldn't
+// have them cached before a user goes offline. The samples ship in the bundle; precache them.
+const PRECACHE = [
+  SHELL,
+  "/samples/demo-single-deploy.ork",
+  "/samples/demo-dual-deploy.ork",
+  "/samples/demo-multi-config.ork",
+  "/samples/demo-rocksim.rkt",
+];
 
 self.addEventListener("install", (event) => {
   // Note: no skipWaiting() here. When a controller is already running (an updated
   // visit), the new worker waits so it can't swap assets out from under an open tab;
   // the page shows a "refresh" prompt and calls skipWaiting() via the message below.
   // On a first-ever visit there's no controller, so the browser activates immediately.
-  // Best-effort: a transient failure fetching the shell must not fail the whole install
-  // (the shell is re-cached on the first online navigation anyway).
+  // Best-effort and per-asset (allSettled): a transient failure fetching one entry must
+  // not fail the whole install — anything missed is re-cached on first online use anyway.
   event.waitUntil(
-    caches.open(CACHE).then((c) => c.add(SHELL)).catch(() => {}),
+    caches.open(CACHE).then((c) => Promise.allSettled(PRECACHE.map((u) => c.add(u)))).catch(() => {}),
   );
 });
 

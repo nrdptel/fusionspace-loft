@@ -91,8 +91,8 @@ export default function Faq() {
       <QA q="Does it work offline?">
         <p>
           Yes — once loaded, install it or just revisit and it runs with no connection: the app, the
-          motor database, and the simulation are all client-side. Only the live-weather re-run needs a
-          signal.
+          motor database, the simulation, and the bundled sample designs are all client-side, cached
+          for the pad. Only the live-weather re-run needs a signal.
         </p>
       </QA>
 
