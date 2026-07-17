@@ -133,15 +133,23 @@ test.describe("Loft", () => {
   }) => {
     // The pad has no cell signal; once Loft has loaded online it must run with the network cut.
     await page.goto("/", { waitUntil: "networkidle" });
-    // Wait for the real readiness signal, not a proxy: the worker must control the page (so the
-    // offline reload is intercepted) AND the sample must actually be in CacheStorage (so the
-    // offline click resolves from cache). A bare "controller != null" wait assumed the precache
-    // had finished by the time control was taken — true on most builds, but raced on the CI
-    // Chromium — so assert the cached artifact directly.
+    // Wait for the real readiness signal, not a proxy: the worker controls the page AND
+    // everything needed to run offline is actually in CacheStorage — every /_next/ build asset
+    // the shell references (so the app can hydrate after an offline reload) plus the sample (so
+    // the offline click resolves from cache). Asserting the cached artifacts directly makes this
+    // independent of the HTTP disk cache, which is the only reason a shell-only precache appeared
+    // to work locally while failing on the CI Chromium.
     await page.waitForFunction(
       async () => {
         if (!navigator.serviceWorker?.controller) return false;
-        return !!(await caches.match("/samples/demo-single-deploy.ork"));
+        const referenced = [...document.querySelectorAll("script[src], link[href]")]
+          .map((n) => n.getAttribute("src") || n.getAttribute("href"))
+          .filter((u) => u && u.includes("/_next/"));
+        const needed = [...referenced, "/samples/demo-single-deploy.ork"];
+        for (const u of needed) {
+          if (!(await caches.match(new URL(u, location.origin).pathname))) return false;
+        }
+        return true;
       },
       null,
       { timeout: 15000 },

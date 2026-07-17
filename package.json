@@ -6,6 +6,7 @@
     "dev": "next dev",
     "prebuild": "node scripts/gen-og.mjs",
     "build": "next build",
+    "postbuild": "node scripts/gen-sw-precache.mjs",
     "start": "next start",
     "lint": "eslint .",
     "test": "vitest run",

@@ -1,32 +1,49 @@
 // Service worker for offline use. High-power launches happen where there's no cell
 // signal, and Loft's simulation runs entirely client-side — so once it's been loaded
 // online, it should work at the pad with no connection: import a design, run the sim,
-// and read the plots. The bundled motor database and the app shell are all that's needed.
+// and read the plots.
 //
 // Strategy:
 //   - navigations: network-first (an online visitor always gets fresh HTML), falling
 //     back to the cached app shell when offline.
 //   - other same-origin GETs (JS/CSS/fonts/icons): stale-while-revalidate, so assets
 //     load instantly and refresh in the background.
-//   - install precaches the app shell AND the bundled sample designs, which are fetched
-//     on demand (not on first paint) — so the "try a sample" buttons work offline even
-//     if the visitor never clicked one while online.
-// The cache name is versioned; old caches are cleared on activate.
+//   - install PRECACHES everything needed to run offline: the app shell, the hashed
+//     JS/CSS/font build output, and the bundled sample designs. Precaching the build
+//     output is essential, not just an optimisation — on a first visit the script/style
+//     chunks load via <script>/<link> tags BEFORE this worker is installed and in
+//     control, so stale-while-revalidate never sees them and they'd otherwise never be
+//     cached. Without them a returning offline visitor gets the shell HTML but no way to
+//     hydrate, i.e. a dead page.
+// The cache name carries a per-build id (injected below), so a new deploy lands in a
+// fresh cache and the old one is cleared on activate — and the worker's bytes change
+// every build that changes an asset, so the update prompt fires reliably.
 //
 // The one thing that needs a connection is the optional "today's conditions" re-run
 // (live weather); everything else is offline by design.
 
-const CACHE = "loft-v2";
+// Replaced at build time by scripts/gen-sw-precache.mjs with a hash of the shipped
+// assets; "dev" in the source and in `next dev` (where no service worker is registered).
+const BUILD_ID = "dev"; // __BUILD_ID__
+const CACHE = `loft-${BUILD_ID}`;
 const SHELL = "/";
-// Assets loaded on demand rather than on first paint, so stale-while-revalidate wouldn't
-// have them cached before a user goes offline. The samples ship in the bundle; precache them.
-const PRECACHE = [
-  SHELL,
+// The bundled sample designs, fetched on demand (on a "try a sample" click) rather than
+// on first paint — so stale-while-revalidate wouldn't have them cached before a user goes
+// offline. They ship in the bundle; precache them.
+const SAMPLES = [
   "/samples/demo-single-deploy.ork",
   "/samples/demo-dual-deploy.ork",
   "/samples/demo-multi-config.ork",
   "/samples/demo-rocksim.rkt",
 ];
+// The exported JS/CSS/font assets that make the app run. Each carries a per-build content
+// hash, so they can't be listed statically here — scripts/gen-sw-precache.mjs enumerates
+// out/_next/static/** at build time and injects the list in place of the marker below.
+// Empty in the source (and in dev, where the worker isn't registered).
+const BUILD_ASSETS = [
+  // __BUILD_ASSETS__
+];
+const PRECACHE = [SHELL, ...SAMPLES, ...BUILD_ASSETS];
 
 self.addEventListener("install", (event) => {
   // Note: no skipWaiting() here. When a controller is already running (an updated
