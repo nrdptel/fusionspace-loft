@@ -12,6 +12,7 @@
       "maxVelocity": 109.1,
       "maxMach": 0.321,
       "timeToApogee": 10.57,
+      "railExitVelocity": 14.1,
       "staticMargin": 4.51
     },
     {
@@ -22,7 +23,8 @@
       "maxVelocity": 183.8,
       "maxMach": 0.541,
       "timeToApogee": 11.48,
-      "staticMargin": 3.89
+      "railExitVelocity": 21.3,
+      "staticMargin": 3.84
     },
     {
       "key": "demo-single-deploy",
@@ -32,6 +34,7 @@
       "maxVelocity": 205.2,
       "maxMach": 0.604,
       "timeToApogee": 12.79,
+      "railExitVelocity": 22.2,
       "staticMargin": 4.07
     },
     {
@@ -42,6 +45,7 @@
       "maxVelocity": 436.5,
       "maxMach": 1.293,
       "timeToApogee": 20.29,
+      "railExitVelocity": 28.2,
       "staticMargin": 3.06
     }
   ]

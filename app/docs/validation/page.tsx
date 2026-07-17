@@ -58,6 +58,7 @@ async function rocketpyRuns() {
       { label: "Max velocity", unit: "m/s", rp: d.maxVelocity, loft: s.maxVelocity, dp: 0 },
       { label: "Max Mach", unit: "", rp: d.maxMach, loft: s.maxMach, dp: 2 },
       { label: "Time to apogee", unit: "s", rp: d.timeToApogee, loft: s.timeToApogee, dp: 1 },
+      { label: "Rail-exit velocity", unit: "m/s", rp: d.railExitVelocity, loft: s.railExitVelocity, dp: 1 },
       { label: "Static margin", unit: "cal", rp: d.staticMargin, loft: run.result.staticMarginCal, dp: 2 },
     ].map((r) => ({ ...r, pct: r.rp ? ((r.loft - r.rp) / r.rp) * 100 : 0 }));
     runs.push({
@@ -189,11 +190,12 @@ export default async function Validation() {
       </p>
       <p>
         Because the drag is held equal, this is an independent check of the{" "}
-        <strong>trajectory integrator</strong>, the <strong>mass model</strong>, and — from
-        RocketPy&apos;s own Barrowman solver — the <strong>centre of pressure</strong> and static
-        margin. It is <em>not</em> an independent drag check; that is what OpenRocket&apos;s stored
-        per-step drag (above) provides. The two oracles are complementary: RocketPy pins the flight
-        mechanics, OpenRocket pins the drag.
+        <strong>trajectory integrator</strong>, the <strong>mass model</strong>, the{" "}
+        <strong>off-the-rail velocity</strong> (the safety-relevant departure speed, resolved at the
+        exact rod-length crossing), and — from RocketPy&apos;s own Barrowman solver — the{" "}
+        <strong>centre of pressure</strong> and static margin. It is <em>not</em> an independent drag
+        check; that is what OpenRocket&apos;s stored per-step drag (above) provides. The two oracles
+        are complementary: RocketPy pins the flight mechanics, OpenRocket pins the drag.
       </p>
       <p>
         The designs below span the geometry the centre-of-pressure model has to get right: a

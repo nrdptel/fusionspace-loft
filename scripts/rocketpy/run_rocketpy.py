@@ -139,6 +139,7 @@ def main():
                 "maxVelocity": round(rp["maxVelocity"], 1),
                 "maxMach": round(rp["maxMach"], 3),
                 "timeToApogee": round(rp["timeToApogee"], 2),
+                "railExitVelocity": round(rp["railExitVelocity"], 1),
                 "staticMargin": round(rp["staticMarginLiftoff"], 2),
             })
 

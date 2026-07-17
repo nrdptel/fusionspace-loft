@@ -19,6 +19,7 @@ export interface RocketpyDesign {
   maxVelocity: number;
   maxMach: number;
   timeToApogee: number;
+  railExitVelocity: number;
   staticMargin: number;
 }
 

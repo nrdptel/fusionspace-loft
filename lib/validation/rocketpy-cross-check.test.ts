@@ -38,6 +38,9 @@ describe("RocketPy cross-check (drift guard)", () => {
       near(s.maxVelocity, d.maxVelocity, 0.02, "max velocity");
       near(s.maxMach, d.maxMach, 0.03, "max Mach");
       near(s.timeToApogee, d.timeToApogee, 0.03, "time to apogee");
+      // Off-the-rail velocity — a safety number, resolved at the exact rod-length crossing. Both
+      // engines fly the full rail length, so this pins the rail-phase integration.
+      near(s.railExitVelocity, d.railExitVelocity, 0.03, "rail-exit velocity");
       // RocketPy's independent Barrowman CP vs ours, within a fraction of a caliber.
       expect(Math.abs(run.result.staticMarginCal - d.staticMargin)).toBeLessThanOrEqual(0.25);
     });
