@@ -73,7 +73,7 @@ export default function ImportPanel({
       </div>
 
       <div className="mt-4 rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900/40">
-        <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+        <p className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
           Or try a bundled example
         </p>
         <div className="mt-2 flex flex-wrap gap-2">

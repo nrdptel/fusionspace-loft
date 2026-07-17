@@ -37,7 +37,7 @@ export default function ValidationPanel({
     <section aria-label="Validation" className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900/40">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="text-lg font-semibold tracking-tight">{toolName} vs Loft</h2>
-        <span className="text-xs text-zinc-500">
+        <span className="text-xs text-zinc-500 dark:text-zinc-400">
           mean abs. error{" "}
           <span className="font-mono text-zinc-700 dark:text-zinc-300">{fmt(report.mape, 1)}%</span>
         </span>
@@ -55,7 +55,7 @@ export default function ValidationPanel({
       <div className="mt-3 overflow-x-auto">
         <table className="w-full min-w-[30rem] border-collapse text-sm">
           <thead>
-            <tr className="text-left text-[11px] uppercase tracking-wide text-zinc-500">
+            <tr className="text-left text-[11px] uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
               <th className="py-1 pr-3 font-medium">Metric</th>
               <th className="py-1 pr-3 text-right font-medium">Stored</th>
               <th className="py-1 pr-3 text-right font-medium">Loft</th>
@@ -70,13 +70,13 @@ export default function ValidationPanel({
               return (
                 <tr key={c.key} className="border-t border-zinc-100 dark:border-zinc-800">
                   <td className="py-1.5 pr-3 font-sans text-zinc-700 dark:text-zinc-300">{c.label}</td>
-                  <td className="py-1.5 pr-3 text-right text-zinc-500">
+                  <td className="py-1.5 pr-3 text-right text-zinc-500 dark:text-zinc-400">
                     {fmt(st.v, st.u === "" ? 2 : 1)} <span className="text-[10px]">{st.u}</span>
                   </td>
                   <td className="py-1.5 pr-3 text-right text-zinc-800 dark:text-zinc-200">
                     {fmt(si.v, si.u === "" ? 2 : 1)} <span className="text-[10px]">{si.u}</span>
                   </td>
-                  <td className={"py-1.5 text-right " + (big ? "text-amber-600 dark:text-amber-400" : "text-zinc-500")}>
+                  <td className={"py-1.5 text-right " + (big ? "text-amber-700 dark:text-amber-400" : "text-zinc-500 dark:text-zinc-400")}>
                     {c.pctError >= 0 ? "+" : ""}
                     {fmt(c.pctError, 0)}%
                   </td>

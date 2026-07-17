@@ -200,7 +200,7 @@ export default function LoftApp() {
                 <span aria-hidden>←</span> Import another
               </button>
               {fileName && (
-                <span className="hidden truncate text-xs text-zinc-400 sm:inline" title={fileName}>
+                <span className="hidden truncate text-xs text-zinc-500 dark:text-zinc-400 sm:inline" title={fileName}>
                   {fileName}
                 </span>
               )}
@@ -373,7 +373,7 @@ function ConditionsControls({
         </p>
 
         <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-900/60">
-          <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+          <p className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
             Re-fly for today&apos;s weather
           </p>
           <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
@@ -440,7 +440,7 @@ function Num({
 }) {
   return (
     <label className="block">
-      <span className="block text-[11px] font-medium uppercase tracking-wide text-zinc-500">{label}</span>
+      <span className="block text-[11px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">{label}</span>
       <input
         type="number"
         inputMode="decimal"

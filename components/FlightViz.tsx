@@ -97,7 +97,7 @@ export default function FlightViz({ result, units }: { result: FlightResult; uni
           altitude ({unit})
         </text>
       </svg>
-      <figcaption className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-zinc-500">
+      <figcaption className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-zinc-500 dark:text-zinc-400">
         <Legend color="#ef4444" label="boost" />
         <Legend color="#6366f1" label="coast" />
         <Legend color="#10b981" label="descent" />

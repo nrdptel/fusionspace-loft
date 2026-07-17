@@ -91,4 +91,39 @@ test.describe("Loft", () => {
     );
     expect(serious).toEqual([]);
   });
+
+  test("has no serious accessibility violations on the results view", async ({ page }) => {
+    // Audit the full results state — stat grid, warnings, plots, and the design-tool comparison
+    // table — not just the empty landing page. The comparison table renders deviation values in a
+    // semantic caution colour, exactly the honesty-relevant numbers that must stay readable.
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await page.getByRole("heading", { name: "Flight", exact: true }).waitFor();
+    await expect(page.getByRole("heading", { name: "OpenRocket vs Loft" })).toBeVisible();
+    const results = await new AxeBuilder({ page })
+      .withTags(["wcag2a", "wcag2aa"])
+      .analyze();
+    const serious = results.violations.filter(
+      (v) => v.impact === "serious" || v.impact === "critical",
+    );
+    expect(serious).toEqual([]);
+  });
+
+  test("has no serious accessibility violations on the results view in dark mode", async ({
+    page,
+  }) => {
+    // Muted labels on the dark background are the easiest contrast trap; audit dark explicitly.
+    await page.addInitScript(() => localStorage.setItem("loft.theme", "dark"));
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await page.getByRole("heading", { name: "Flight", exact: true }).waitFor();
+    await expect(page.getByRole("heading", { name: "OpenRocket vs Loft" })).toBeVisible();
+    const results = await new AxeBuilder({ page })
+      .withTags(["wcag2a", "wcag2aa"])
+      .analyze();
+    const serious = results.violations.filter(
+      (v) => v.impact === "serious" || v.impact === "critical",
+    );
+    expect(serious).toEqual([]);
+  });
 });

@@ -43,7 +43,7 @@ export default function LineChart({
 
   const all = series.flatMap((s) => s.points);
   if (all.length === 0) {
-    return <p className="text-sm text-zinc-500">No data.</p>;
+    return <p className="text-sm text-zinc-500 dark:text-zinc-400">No data.</p>;
   }
   const xs = all.map((p) => p.x);
   const ys = all.map((p) => p.y);
@@ -162,7 +162,7 @@ export default function LineChart({
         </text>
       </svg>
       {series.length > 1 && (
-        <figcaption className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-zinc-500">
+        <figcaption className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-zinc-500 dark:text-zinc-400">
           {series.map((s, i) => (
             <span key={`l${uid}${i}`} className="inline-flex items-center gap-1.5">
               <span className="inline-block h-2 w-3 rounded-sm" style={{ background: s.color }} />
