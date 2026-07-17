@@ -714,5 +714,38 @@
     "class": "M",
     "diameter": 98,
     "header": "M2400T 98 597 0 3.65254 6.4512 AT"
+  },
+  {
+    "file": "AeroTech_H242T.eng",
+    "motorId": "5f4294d20002310000000091",
+    "license": "PD",
+    "simfileId": "5f4294d20002e90000000019",
+    "designation": "H242T",
+    "manufacturer": "AeroTech",
+    "class": "H",
+    "diameter": 38,
+    "header": "H242T 38 152 10 0.11648 0.2688 AT"
+  },
+  {
+    "file": "AeroTech_J570W.eng",
+    "motorId": "5f4294d20002310000000126",
+    "license": "PD",
+    "simfileId": "5f4294d20002e9000000005d",
+    "designation": "J570W",
+    "manufacturer": "AeroTech",
+    "class": "J",
+    "diameter": 38,
+    "header": "J570W 38 479 0 0.547904 0.886144 AT"
+  },
+  {
+    "file": "AeroTech_H999N.eng",
+    "motorId": "5f4294d2000231000000009c",
+    "license": "PD",
+    "simfileId": "685351934a21c50002d2dec9",
+    "designation": "H999N",
+    "manufacturer": "AeroTech",
+    "class": "H",
+    "diameter": 38,
+    "header": "H999 38 203 P 0.147 0.3311207 AT"
   }
 ]

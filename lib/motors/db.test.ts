@@ -77,6 +77,26 @@ describe("motor database", () => {
     }
   });
 
+  it("resolves the AeroTech H242T / J570W / H999N an OpenRocket dual-deploy design flies", () => {
+    // OpenRocket's "Dual parachute deployment" example offers these three configs; without the
+    // curves each flew to a zero apogee. Impulse must land near the certified value; H999N's only
+    // published RASP curve is labelled "H999" (no propellant suffix), so it resolves by core match
+    // rather than an exact-string hit.
+    const cases: Array<[string, string, number, boolean]> = [
+      ["H242T", "H", 231.7, true],
+      ["J570W", "J", 973.1, true],
+      ["H999N", "H", 319.9, false],
+    ];
+    for (const [designation, cls, certNs, exact] of cases) {
+      const m = resolveMotor({ manufacturer: "AeroTech", designation });
+      expect(m).not.toBeNull();
+      if (exact) expect(m?.quality).toBe("exact");
+      expect(coreDesignation(m!.entry.curve.designation)[0]).toBe(cls);
+      expect(m!.entry.curve.totalImpulse).toBeGreaterThan(certNs * 0.92);
+      expect(m!.entry.curve.totalImpulse).toBeLessThan(certNs * 1.08);
+    }
+  });
+
   it("resolves the in-the-wild HPR motors real design files reference", () => {
     // The exact manufacturer + designation strings the corpus designs carry, including the
     // propellant suffixes OpenRocket writes (…-CL(I), 644-J94-MY, N3800-BS, N3300, L1100SM).
