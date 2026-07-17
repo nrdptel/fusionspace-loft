@@ -434,10 +434,30 @@ export function simulate(input: SimulateInput): FlightResult {
     // the time cap. The no-liftoff warning below explains the near-zero apogee.
     if (!liftedOff && thrust <= 0 && burnout > 0 && state.t > burnout) break;
 
-    // Rail exit.
+    // Rail exit. Interpolate the crossing to the exact moment the rocket has travelled the rod
+    // length, rather than recording the step-end speed. A fixed step overshoots the crossing by up
+    // to one step, so the step-end speed reads high — and the off-the-rail velocity is a safety
+    // number (fin authority against weathercocking), where an optimistic reading is the wrong error.
+    // Linear interpolation across the step matches an event-root-finding 6-DOF engine (RocketPy) to
+    // a fraction of a percent, versus several percent high uninterpolated.
     if (railExitV === 0 && !onRail(state, conditions.rodLength, rail) && liftedOff) {
-      railExitV = speed;
-      events.push({ type: "rail-exit", time: state.t, altitude: state.pos.z, velocity: speed });
+      const alongPrev = prev.pos.x * rail.x + prev.pos.y * rail.y + prev.pos.z * rail.z;
+      const alongNow = state.pos.x * rail.x + state.pos.y * rail.y + state.pos.z * rail.z;
+      const f =
+        alongNow > alongPrev
+          ? Math.min(1, Math.max(0, (conditions.rodLength - alongPrev) / (alongNow - alongPrev)))
+          : 1;
+      const velExit = add(
+        prev.vel,
+        scale(vec(state.vel.x - prev.vel.x, state.vel.y - prev.vel.y, state.vel.z - prev.vel.z), f),
+      );
+      railExitV = mag(velExit);
+      events.push({
+        type: "rail-exit",
+        time: prev.t + f * (state.t - prev.t),
+        altitude: prev.pos.z + f * (state.pos.z - prev.pos.z),
+        velocity: railExitV,
+      });
     }
 
     // Determine phase.

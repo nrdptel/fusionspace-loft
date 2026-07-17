@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { importOrk } from "../ork/import";
-import { runFromDocument, configChoices } from "./run";
+import { runFromDocument, runFlight, configChoices, overridesFromStored } from "./run";
 import { flattenRocket } from "../model/geometry";
 import type { OrkDocument } from "../ork/adapt";
 
@@ -48,6 +48,26 @@ describe("single-deploy fixture flight", () => {
     // Regression: the per-sample acceleration must not be dead-zero (it powers the plot).
     const peakSampleAccel = Math.max(...run.result.trajectory.map((s) => Math.abs(s.acceleration)));
     expect(peakSampleAccel).toBeGreaterThan(20); // boost accel is tens of m/s²
+  });
+});
+
+describe("rail-exit velocity is resolved at the exact rod-length crossing", () => {
+  it("is step-size independent — interpolated, not the overshooting step-end speed", async () => {
+    // The off-the-rail velocity is a safety number (fin authority against weathercocking), so an
+    // optimistic reading is the wrong error. The crossing is interpolated to the exact rod length,
+    // so a coarse fixed step no longer overshoots it: coarse and fine steps now agree (they differed
+    // by several percent when the step-end speed was taken raw), and both sit below that raw value.
+    const doc = await load("demo-single-deploy.ork");
+    const choice = configChoices(doc).find((c) => c.motors.some((m) => m.includes("H128W")))!;
+    const cfg = doc.simulations[choice.simIndex].conditions.configId;
+    const ov = overridesFromStored(doc.simulations[choice.simIndex]);
+    const at = (dt: number) =>
+      runFlight(doc.rocket, { configId: cfg, overrides: ov, ballistic: true, timeStep: dt }).result
+        .summary.railExitVelocity;
+    const coarse = at(0.01); // the production step
+    const fine = at(0.001);
+    expect(fine).toBeGreaterThan(10);
+    expect(Math.abs(coarse - fine) / fine).toBeLessThan(0.01); // within 1% (was ~6% uninterpolated)
   });
 });
 

@@ -61,6 +61,9 @@ export interface RunOptions {
    *  independent engine (which flies ballistic to apogee) is compared like-for-like; not for
    *  ordinary flights, whose recovery and wind are part of the real trajectory. */
   ballistic?: boolean;
+  /** Override the boost/coast integration step (s). Defaults to the solver's own step; used by
+   *  convergence checks that need to vary it. */
+  timeStep?: number;
 }
 
 /** Run a flight for a canonical rocket. */
@@ -76,7 +79,8 @@ export function runFlight(rocket: Rocket, opts: RunOptions = {}): FlightRun {
   const built = buildSimulateInput(rocket, config, conditions);
   const resolutions = built.resolutions;
   // A ballistic run drops every recovery device so the coast runs to the true apogee.
-  const input = opts.ballistic ? { ...built.input, recovery: [] } : built.input;
+  const base = opts.timeStep ? { ...built.input, timeStep: opts.timeStep } : built.input;
+  const input = opts.ballistic ? { ...base, recovery: [] } : base;
   const result = simulate(input);
   // Optimum ejection delay must reflect the true (ballistic) apogee — a stable property of the
   // rocket, motor, and launch conditions, not the delay actually flown. When a too-short delay

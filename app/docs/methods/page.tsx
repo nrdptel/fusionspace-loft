@@ -52,7 +52,11 @@ export default function Methods() {
         lateral acceleration is reacted by the rail, so it cannot pitch until it clears the guide.
         The speed at which it leaves the rail — the <strong>rail-exit velocity</strong> — is the
         speed the fins first have to stabilise the airframe; below about <code>15&nbsp;m/s</code>
-        (50&nbsp;ft/s) that is flagged, as a stable departure is not assured.
+        (50&nbsp;ft/s) that is flagged, as a stable departure is not assured. It is read at the exact
+        instant the rocket has travelled the rail length — interpolated within the integration step
+        rather than sampled at the step&apos;s end — so a coarse step doesn&apos;t overshoot the
+        crossing and report an optimistically high departure speed; the figure matches an independent
+        6-DOF engine (RocketPy) to a fraction of a percent.
       </p>
       <p>
         The <strong>liftoff thrust-to-weight ratio</strong> is the peak thrust developed while
