@@ -152,11 +152,15 @@ export default function Methods() {
         static margin (cal) = (X_cp − X_cg) / d_ref
       </p>
       <p>
-        Elliptical and freeform fin sets are reduced to their area- and span-equivalent trapezoid
-        before applying the fin equation. A freeform fin carries no explicit chord or span — only an
-        outline of points — so its semi-span, root chord, planform area, and sweep are derived from
-        that outline first; without that step the fin would read as zero-span and add no normal
-        force. A degenerate part — a fin set with no fins, span, or chord, or a nose with no radius —
+        Elliptical and freeform fin sets use their area- and span-equivalent trapezoid for the
+        normal-force slope. An elliptical fin&apos;s <em>centre of pressure</em>, though, is taken
+        exactly for its planform: integrating the quarter-chord aerodynamic centre over the
+        elliptical chord <code>c(y)=c_root·√(1−(y/s)²)</code> gives{" "}
+        <code>X_cp = (½ − 2/3π)·c_root ≈ 0.288·c_root</code> aft of the root leading edge — further
+        aft than the equivalent trapezoid, so it no longer under-predicts the margin. A freeform fin
+        carries no explicit chord or span — only an outline of points — so its semi-span, root chord,
+        planform area, and sweep are derived from that outline first; without that step the fin would
+        read as zero-span and add no normal force. A degenerate part — a fin set with no fins, span, or chord, or a nose with no radius —
         contributes no normal force rather than a division by zero, so a malformed or placeholder
         part can&apos;t leave the centre of pressure and static margin undefined (which would also
         silently suppress the low-stability warning).

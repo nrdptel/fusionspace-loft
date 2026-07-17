@@ -1,7 +1,16 @@
 import { describe, it, expect } from "vitest";
 import { barrowman, aeroGeometry, dragCoefficient, skinFriction } from "./aero";
 import { Atmosphere } from "./atmosphere";
-import type { Rocket, NoseCone, BodyTube, Transition, TrapezoidFinSet, NoseShape } from "../model/types";
+import { flattenRocket } from "../model/geometry";
+import type {
+  Rocket,
+  NoseCone,
+  BodyTube,
+  Transition,
+  TrapezoidFinSet,
+  GenericFinSet,
+  NoseShape,
+} from "../model/types";
 
 /** A slender rocket whose nose shape/length and fin sweep can be varied, to probe how the
  *  transonic/supersonic wave drag responds to forebody and fin geometry. */
@@ -83,6 +92,77 @@ describe("barrowman", () => {
     const st = barrowman(rocket);
     expect(st.cnAlpha).toBeGreaterThan(2);
     expect(st.cp).toBeGreaterThan(0.4); // well aft of the nose
+  });
+});
+
+describe("barrowman — elliptical fin CP (integrated over the elliptical planform)", () => {
+  // A half-ellipse fin's chordwise centre of pressure is NOT the equal-area trapezoid's. Integrating
+  // the Barrowman quarter-chord aerodynamic centre over the elliptical chord c(y)=cr·√(1−(y/s)²)
+  // gives x̄ = (½ − 2/3π)·cr ≈ 0.288·cr from the root leading edge — the value an independent 6-DOF
+  // engine (RocketPy) also uses. Reducing the planform to a trapezoid put it near 0.20·cr, too far
+  // forward, which under-predicted stability.
+  const CR = 0.1;
+  const EXPECTED = (0.5 - 2 / (3 * Math.PI)) * CR; // ≈ 0.02878 m
+
+  function ellipticalOnBody(): { rocket: Rocket; finXFore: number } {
+    const nose: NoseCone = {
+      id: "n", name: "nose", kind: "nosecone", placement: { method: "after", offset: 0 },
+      length: 0.2, aftRadius: 0.025, shape: "conical", shapeParameter: 0, children: [],
+    };
+    const fins: GenericFinSet = {
+      id: "f", name: "ellip", kind: "ellipticalfinset", placement: { method: "bottom", offset: 0 },
+      finCount: 4, rootChord: CR, height: 0.06, area: (Math.PI * CR * 0.06) / 4,
+      sweepLength: 0, thickness: 0.003, children: [],
+    };
+    const body: BodyTube = {
+      id: "b", name: "body", kind: "bodytube", placement: { method: "after", offset: 0 },
+      outerRadius: 0.025, thickness: 0.001, length: 0.6, children: [fins],
+    };
+    const rocket: Rocket = {
+      name: "e", stages: [{ name: "s", components: [nose, body] }], configurations: [], referenceType: "maximum",
+    };
+    const finXFore = flattenRocket(rocket).find((p) => p.component.name === "ellip")!.xFore;
+    return { rocket, finXFore };
+  }
+
+  it("places the elliptical fin CP at (½ − 2/3π)·cr ≈ 0.288·cr from the root leading edge", () => {
+    const { rocket, finXFore } = ellipticalOnBody();
+    const fin = barrowman(rocket).contributions.find((c) => c.source === "ellip")!;
+    expect(fin.x - finXFore).toBeCloseTo(EXPECTED, 5);
+  });
+
+  it("sits aft of the equal-area trapezoid reduction (the old, too-forward estimate)", () => {
+    const { rocket, finXFore } = ellipticalOnBody();
+    const fin = barrowman(rocket).contributions.find((c) => c.source === "ellip")!;
+    // Equal-area/equal-span trapezoid CP (unswept): tip = 2·meanChord − cr, xf via the trapezoid
+    // formula — ≈ 0.20·cr. The elliptical value must be further aft (more stabilizing).
+    const meanChord = ((Math.PI * CR * 0.06) / 4) / 0.06;
+    const tip = 2 * meanChord - CR;
+    const trapXf = (1 / 6) * (CR + tip - (CR * tip) / (CR + tip));
+    expect(fin.x - finXFore).toBeGreaterThan(trapXf);
+    expect(trapXf).toBeCloseTo(0.201 * CR, 2); // sanity on the old reduction value
+  });
+
+  it("still uses the trapezoid formula for a rectangular trapezoidal fin (CP at quarter chord)", () => {
+    // Control: the change is scoped to elliptical fins. A rectangular fin's CP stays at 0.25·chord.
+    const nose: NoseCone = {
+      id: "n", name: "nose", kind: "nosecone", placement: { method: "after", offset: 0 },
+      length: 0.2, aftRadius: 0.025, shape: "conical", shapeParameter: 0, children: [],
+    };
+    const fins: TrapezoidFinSet = {
+      id: "f", name: "rect", kind: "trapezoidfinset", placement: { method: "bottom", offset: 0 },
+      finCount: 3, rootChord: 0.1, tipChord: 0.1, height: 0.05, sweepLength: 0, thickness: 0.003, children: [],
+    };
+    const body: BodyTube = {
+      id: "b", name: "body", kind: "bodytube", placement: { method: "after", offset: 0 },
+      outerRadius: 0.025, thickness: 0.001, length: 0.6, children: [fins],
+    };
+    const rocket: Rocket = {
+      name: "t", stages: [{ name: "s", components: [nose, body] }], configurations: [], referenceType: "maximum",
+    };
+    const finXFore = flattenRocket(rocket).find((p) => p.component.name === "rect")!.xFore;
+    const fin = barrowman(rocket).contributions.find((c) => c.source === "rect")!;
+    expect(fin.x - finXFore).toBeCloseTo(0.25 * 0.1, 5);
   });
 });
 

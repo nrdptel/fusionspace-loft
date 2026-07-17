@@ -89,12 +89,17 @@ export default function Limitations() {
         and micro-hardware are not massed individually.
       </p>
 
-      <h3>Fin planforms beyond trapezoidal are reduced</h3>
+      <h3>Fin planforms beyond trapezoidal are partly reduced</h3>
       <p>
-        Elliptical and freeform fin sets are reduced to an area- and span-equivalent trapezoid for
-        both aerodynamics and mass. Tube fins are not yet modelled — a design that uses them is
-        flown without those fins (with a visible warning), and because that isn&apos;t the whole
-        vehicle, its OpenRocket comparison is withheld.
+        An elliptical fin&apos;s centre of pressure is now computed exactly for its planform — the
+        Barrowman quarter-chord aerodynamic centre integrated over the elliptical chord gives{" "}
+        <code>(½ − 2/3π)·c<sub>root</sub> ≈ 0.288·c<sub>root</sub></code> from the root leading edge,
+        which an independent 6-DOF engine (RocketPy) agrees with to within 0.01 caliber of static
+        margin. Its normal-force slope and mass still come from an area- and span-equivalent
+        trapezoid, and freeform fin sets are still reduced to that trapezoid for both aerodynamics
+        and mass (no closed-form aerodynamic centre for an arbitrary planform). Tube fins are not
+        yet modelled — a design that uses them is flown without those fins (with a visible warning),
+        and because that isn&apos;t the whole vehicle, its OpenRocket comparison is withheld.
       </p>
 
       <h3>Serial staging is simulated; parallel and strap-on staging isn&apos;t</h3>

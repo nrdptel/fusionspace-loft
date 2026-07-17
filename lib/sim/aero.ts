@@ -123,7 +123,8 @@ function finContribution(
     tip = fin.tipChord;
     sweep = fin.sweepLength;
   } else {
-    // Reduce the elliptical/freeform planform to an equivalent trapezoid (same area & span).
+    // Reduce the elliptical/freeform planform to an equivalent trapezoid (same area & span) for
+    // the normal-force slope. The chordwise CP is handled exactly for the elliptical case below.
     root = fin.rootChord;
     const meanChord = fin.height > 0 ? fin.area / fin.height : fin.rootChord;
     tip = Math.max(0, 2 * meanChord - root);
@@ -137,13 +138,25 @@ function finContribution(
   const interference = 1 + rBody / (s + rBody);
   const cnA = interference * cnaOne;
 
-  // Barrowman fin CP from the fin root leading edge.
-  const denom = root + tip;
-  const xf =
-    denom > 0
-      ? (sweep / 3) * ((root + 2 * tip) / denom) +
-        (1 / 6) * (root + tip - (root * tip) / denom)
-      : fin.rootChord / 2;
+  // Chordwise CP from the fin root leading edge.
+  let xf: number;
+  if (fin.kind === "ellipticalfinset") {
+    // A half-ellipse fin's CP is not the equal-area trapezoid's. Integrating the Barrowman
+    // quarter-chord aerodynamic centre over the elliptical chord distribution c(y)=cr·√(1−(y/s)²)
+    // — with each section's AC at its own quarter-chord and the local lift ∝ chord — gives
+    //   x̄ = cr/2 − ¼·(8/3π)·cr = (½ − 2/3π)·cr ≈ 0.288·cr  from the root leading edge.
+    // That is further aft than reducing the planform to an equal-area trapezoid (≈0.20·cr), which
+    // placed the CP too far forward and so under-predicted stability. Barrowman (integrated for the
+    // elliptical planform); the same 0.288·cr an independent 6-DOF engine (RocketPy) uses.
+    xf = (0.5 - 2 / (3 * Math.PI)) * root;
+  } else {
+    const denom = root + tip;
+    xf =
+      denom > 0
+        ? (sweep / 3) * ((root + 2 * tip) / denom) +
+          (1 / 6) * (root + tip - (root * tip) / denom)
+        : fin.rootChord / 2;
+  }
   return { source: fin.name || "fins", cnAlpha: cnA, x: p.xFore + xf };
 }
 
