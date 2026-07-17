@@ -124,11 +124,20 @@ export default function Faq() {
         </p>
       </QA>
 
-      <QA q="What about RocketPy?">
+      <QA q="Can I get a second opinion from RocketPy?">
         <p>
-          Planned. Loft&apos;s simulation core is deliberately format-agnostic — importers are thin
-          adapters into one internal model — so a RocketPy importer is future work that plugs into the
-          same engine, not a rewrite.
+          Yes. Under the results, <em>Second opinion: RocketPy</em> flies your design in{" "}
+          <a href="https://github.com/RocketPy-Team/RocketPy" target="_blank" rel="noopener noreferrer">
+            RocketPy
+          </a>{" "}
+          — a separate, independent 6-DOF engine — and shows its apogee, speed, and stability beside
+          Loft&apos;s. RocketPy is Python, so it runs in your browser through a WebAssembly build
+          (Pyodide) that downloads the first time you tap the button (~40 MB) and then runs entirely
+          on your device — your design never leaves the browser. Both engines fly a ballistic ascent
+          and share Loft&apos;s drag curve, so the comparison is a clean cross-check of the
+          trajectory, mass, and stability model (the same method the{" "}
+          <Link href="/docs/validation">Validation</Link> page uses on the bundled designs). Close
+          agreement is reassuring; a gap is worth a look, not proof either engine is right.
         </p>
       </QA>
 

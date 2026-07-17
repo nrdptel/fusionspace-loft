@@ -309,7 +309,7 @@ export default function LoftApp() {
             busy={busy}
           />
 
-          {run && <ResultsView run={run} doc={doc} units={units} baseline={baseline} />}
+          {run && <ResultsView run={run} doc={doc} units={units} baseline={baseline} simIndex={simIndex} />}
         </div>
       )}
     </div>

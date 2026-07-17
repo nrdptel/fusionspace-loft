@@ -7,6 +7,7 @@ import type { FlightResult } from "@/lib/sim/simulate";
 import LineChart, { type Series, type Marker } from "./LineChart";
 import FlightViz from "./FlightViz";
 import ValidationPanel from "./ValidationPanel";
+import RocketpyCrossCheck from "./RocketpyCrossCheck";
 import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
 import { overallLength } from "@/lib/model/geometry";
@@ -37,6 +38,7 @@ export default function ResultsView({
   doc,
   units,
   baseline,
+  simIndex = 0,
 }: {
   run: FlightRun;
   doc: OrkDocument;
@@ -44,6 +46,8 @@ export default function ResultsView({
   /** When a design what-if (nose ballast / motor swap) is active, the same flight without that
    *  change under identical conditions — so the results can show what the change bought. */
   baseline?: FlightRun | null;
+  /** The stored-simulation index being flown, for building the RocketPy cross-check spec. */
+  simIndex?: number;
 }) {
   const r = run.result;
   const s = r.summary;
@@ -139,6 +143,12 @@ export default function ResultsView({
 
       {run.validation && run.validation.count > 0 && (
         <ValidationPanel report={run.validation} units={units} storedName={doc.simulations[0]?.name} toolName={tool} />
+      )}
+
+      {/* An independent second solver on the flyer's own design — RocketPy's flight is single-stage,
+          so offer it only for single-stage designs that actually have propulsion (guaranteed here). */}
+      {(doc.rocket.stages?.length ?? 1) === 1 && (
+        <RocketpyCrossCheck doc={doc} config={run.config} simIndex={simIndex} units={units} />
       )}
 
       {doc.flownAsReduced && doc.simulations.some((s) => s.hasResults) && (

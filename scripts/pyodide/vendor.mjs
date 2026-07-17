@@ -2,28 +2,30 @@
  *
  *  The in-browser RocketPy second solver must not touch a CDN at runtime — Loft is private and
  *  offline-first, so every byte the worker loads is served from Loft's own origin. This script
- *  assembles that byte set once, from pinned sources:
+ *  assembles that byte set from pinned sources:
  *    - the Pyodide runtime + the compiled science wheels (numpy/scipy/matplotlib/cftime + deps),
  *      resolved as the dependency closure of a small set of roots from Pyodide's own lock file,
  *      fetched from the pinned Pyodide CDN;
- *    - RocketPy's three pure-python wheels that Pyodide doesn't carry (rocketpy, simplekml, dill),
- *      fetched from PyPI;
+ *    - RocketPy + dill (pure-python wheels Pyodide doesn't distribute), fetched from PyPI;
+ *    - simplekml (PyPI ships it as an sdist only, with no wheel), from a committed pre-built wheel
+ *      in scripts/pyodide/wheels/ — so this whole step needs only Node + network, never Python/pip
+ *      (the production build image can't be assumed to have them);
  *    - the shared flight routine (scripts/rocketpy/fly.py), copied verbatim so the browser flies
  *      exactly what the dev harness flies;
  *    - a manifest.json the worker reads to know the PyPI wheel filenames.
  *
- *  Output is git-ignored (~40 MB). Re-run to refresh:  node scripts/pyodide/vendor.mjs
- *  Network is needed once (Pyodide CDN + PyPI). Behind Loft's agent proxy, run with
+ *  Runs in the production build (prebuild) as well as by hand. Output is git-ignored (~40 MB);
+ *  it is fetched fresh each build. Behind Loft's agent proxy, run with
  *  NODE_EXTRA_CA_CERTS=/root/.ccr/ca-bundle.crt.
  */
-import { mkdirSync, writeFileSync, copyFileSync, existsSync, statSync, readdirSync } from "node:fs";
+import { mkdirSync, writeFileSync, copyFileSync, existsSync, statSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { execFileSync } from "node:child_process";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, "../..");
 const OUT = resolve(REPO, "public/pyodide");
+const WHEELS = resolve(HERE, "wheels"); // committed pre-built wheels (simplekml)
 
 // Pinned runtime. Bump deliberately (and re-validate RocketPy) — the browser engine is only as
 // reproducible as these pins. 314.0.2 ships Python 3.14 + numpy 2.x (RocketPy 1.12 needs
@@ -34,18 +36,29 @@ const CORE_FILES = ["pyodide.mjs", "pyodide.asm.mjs", "pyodide.asm.wasm", "pytho
 // The Pyodide packages the worker asks for by name; their full dependency closure is resolved from
 // the lock so every transitive wheel is vendored too.
 const DIST_ROOTS = ["numpy", "scipy", "matplotlib", "cftime", "micropip", "requests", "pytz"];
-// RocketPy's pure-python deps Pyodide doesn't distribute. rocketpy 1.12.1 is the version the
-// cross-check reference was generated with; simplekml ships an sdist only, so `pip wheel` builds
-// it. All three are pure-python (py3-none-any), so a host-built wheel runs unchanged under WASM.
-const PIP_SPECS = ["rocketpy==1.12.1", "simplekml", "dill"];
+// RocketPy's pure-python deps Pyodide doesn't distribute, from PyPI wheels. rocketpy is pinned to
+// the version the cross-check reference was generated with.
+const PYPI = [
+  { name: "rocketpy", version: "1.12.1" },
+  { name: "dill", version: null },
+];
+// simplekml has no PyPI wheel (sdist only), so its wheel is pre-built and committed here.
+const COMMITTED_WHEELS = ["simplekml-1.3.6-py3-none-any.whl"];
 
-async function fetchBuf(url) {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`fetch ${url} → HTTP ${res.status}`);
-  return Buffer.from(await res.arrayBuffer());
+async function fetchBuf(url, tries = 4) {
+  for (let i = 1; ; i++) {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return Buffer.from(await res.arrayBuffer());
+    } catch (e) {
+      if (i >= tries) throw new Error(`fetch ${url} → ${e.message}`);
+      await new Promise((r) => setTimeout(r, 500 * 2 ** (i - 1))); // 0.5s, 1s, 2s
+    }
+  }
 }
 
-/** Fetch → save, skipping a file already present (idempotent; re-runs don't re-download ~40 MB). */
+/** Fetch → save, skipping a file already present (idempotent for by-hand re-runs). */
 async function fetchInto(name, url) {
   const dest = resolve(OUT, name);
   if (existsSync(dest) && statSync(dest).size > 0) return statSync(dest).size;
@@ -74,15 +87,15 @@ function distClosure(lock) {
   return [...seen.values()];
 }
 
-/** Build/download the pure-python PyPI wheels with pip (handles simplekml's sdist-only release),
- *  returning their filenames. Idempotent: skips if all three are already present. */
-function pipWheels() {
-  const existing = readdirSync(OUT).filter((f) => f.endsWith(".whl"));
-  const want = PIP_SPECS.map((s) => s.split("==")[0].replace(/-/g, "_"));
-  const found = want.map((n) => existing.find((f) => f.toLowerCase().startsWith(n + "-")));
-  if (found.every(Boolean)) return found;
-  execFileSync("python3", ["-m", "pip", "wheel", "--no-deps", "-w", OUT, ...PIP_SPECS], { stdio: "inherit" });
-  return want.map((n) => readdirSync(OUT).find((f) => f.toLowerCase().startsWith(n + "-") && f.endsWith(".whl")));
+/** The py3-none-any wheel for a PyPI project (requested version, or newest). */
+async function pypiWheel({ name, version }) {
+  const meta = JSON.parse((await fetchBuf(`https://pypi.org/pypi/${name}/json`)).toString());
+  const ver = version ?? meta.info.version;
+  const files = meta.releases[ver];
+  if (!files) throw new Error(`${name} ${ver} not found on PyPI`);
+  const wheel = files.find((f) => f.packagetype === "bdist_wheel" && f.filename.endsWith("-none-any.whl"));
+  if (!wheel) throw new Error(`${name} ${ver} has no pure-python wheel`);
+  return { filename: wheel.filename, url: wheel.url };
 }
 
 async function main() {
@@ -102,10 +115,19 @@ async function main() {
     console.log(`  wheel  ${p.file_name}`);
   }
 
-  const pypiWheels = pipWheels();
-  for (const w of pypiWheels) {
+  const pypiWheels = [];
+  for (const spec of PYPI) {
+    const w = await pypiWheel(spec);
+    total += await fetchInto(w.filename, w.url);
+    pypiWheels.push(w.filename);
+    console.log(`  pypi   ${w.filename}`);
+  }
+  for (const w of COMMITTED_WHEELS) {
+    if (!existsSync(resolve(WHEELS, w))) throw new Error(`committed wheel missing: scripts/pyodide/wheels/${w}`);
+    copyFileSync(resolve(WHEELS, w), resolve(OUT, w));
     total += statSync(resolve(OUT, w)).size;
-    console.log(`  pypi   ${w}`);
+    pypiWheels.push(w);
+    console.log(`  local  ${w}`);
   }
 
   // The shared flight routine, verbatim — the browser flies exactly what run_rocketpy.py flies.
@@ -125,7 +147,8 @@ async function main() {
   writeFileSync(resolve(OUT, "manifest.json"), JSON.stringify(manifest, null, 2) + "\n");
   console.log(`  write  manifest.json`);
 
-  console.log(`Done: ${CORE_FILES.length} core + ${dist.length} wheels + ${pypiWheels.length} PyPI, ${mb(total)} total.`);
+  const wheelCount = dist.length + pypiWheels.length;
+  console.log(`Done: ${CORE_FILES.length} core + ${wheelCount} wheels, ${mb(total)} total.`);
   if (!existsSync(resolve(OUT, "manifest.json"))) throw new Error("manifest not written");
 }
 
