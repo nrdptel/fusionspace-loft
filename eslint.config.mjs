@@ -13,7 +13,8 @@ const config = [
       "react-hooks/set-state-in-effect": "off",
     },
   },
-  { ignores: ["out/**", ".next/**", "node_modules/**", "next-env.d.ts", "public/sw.js"] },
+  // public/pyodide/** is the vendored Pyodide runtime (git-ignored, minified) — never our code.
+  { ignores: ["out/**", ".next/**", "node_modules/**", "next-env.d.ts", "public/sw.js", "public/pyodide/**"] },
 ];
 
 export default config;
