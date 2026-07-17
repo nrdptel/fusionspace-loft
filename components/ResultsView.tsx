@@ -41,6 +41,7 @@ export default function ResultsView({
   simIndex = 0,
   ballastKg,
   motorSwap,
+  finSpan,
 }: {
   run: FlightRun;
   doc: OrkDocument;
@@ -53,6 +54,7 @@ export default function ResultsView({
   /** Active "what-if" edits, so the RocketPy cross-check flies the same hypothetical shown above. */
   ballastKg?: number;
   motorSwap?: { manufacturer?: string; designation: string; diameter?: number };
+  finSpan?: number;
 }) {
   const r = run.result;
   const s = r.summary;
@@ -156,13 +158,14 @@ export default function ResultsView({
           motor swap) remounts the panel to idle instead of leaving a stale RocketPy result on screen. */}
       {(doc.rocket.stages?.length ?? 1) === 1 && (
         <RocketpyCrossCheck
-          key={`${doc.rocket.name}:${run.config.id}:${simIndex}:${ballastKg ?? 0}:${motorSwap?.designation ?? ""}`}
+          key={`${doc.rocket.name}:${run.config.id}:${simIndex}:${ballastKg ?? 0}:${motorSwap?.designation ?? ""}:${finSpan ?? 0}`}
           doc={doc}
           config={run.config}
           simIndex={simIndex}
           units={units}
           ballastKg={ballastKg}
           motorSwap={motorSwap}
+          finSpan={finSpan}
         />
       )}
 

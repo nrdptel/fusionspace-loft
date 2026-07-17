@@ -5,6 +5,7 @@ import { importOrk } from "../ork/import";
 import { runFromDocument, runFlight, configChoices, overridesFromStored } from "./run";
 import { allMotors } from "../motors/db";
 import { flattenRocket } from "../model/geometry";
+import { primaryFinSpan } from "../model/edit";
 import type { OrkDocument } from "../ork/adapt";
 
 /** End-to-end: import each committed fixture, fly it, and check the results are physically
@@ -128,6 +129,30 @@ describe("motor swap (what-if)", () => {
     // No swap flies the design's own motor.
     const unchanged = runFlight(doc.rocket, { configId: cfg, overrides: ov });
     expect(unchanged.resolutions[0].match!.entry.curve.designation).toBe(baseDesig);
+  });
+});
+
+describe("fin span (builder edit)", () => {
+  it("bigger fins move the CP aft and raise the static margin", async () => {
+    const doc = await load("demo-single-deploy.ork");
+    const cfg = doc.simulations[0].conditions.configId;
+    const ov = overridesFromStored(doc.simulations[0]);
+
+    const base = runFlight(doc.rocket, { configId: cfg, overrides: ov });
+    const baseSpan = primaryFinSpan(doc.rocket)!;
+    expect(baseSpan).toBeGreaterThan(0);
+
+    const bigger = runFlight(doc.rocket, { configId: cfg, overrides: ov, finSpan: baseSpan * 1.5 });
+    // Larger fins → centre of pressure moves aft → the static margin grows (more stable).
+    expect(bigger.result.stability.cp).toBeGreaterThan(base.result.stability.cp);
+    expect(bigger.result.staticMarginCal).toBeGreaterThan(base.result.staticMarginCal);
+    // Still a finite, sane flight.
+    expect(Number.isFinite(bigger.result.summary.apogee)).toBe(true);
+    expect(bigger.result.summary.apogee).toBeGreaterThan(0);
+
+    // No fin-span edit changes nothing.
+    const same = runFlight(doc.rocket, { configId: cfg, overrides: ov, finSpan: 0 });
+    expect(same.result.staticMarginCal).toBeCloseTo(base.result.staticMarginCal, 9);
   });
 });
 

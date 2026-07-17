@@ -148,6 +148,34 @@ test.describe("Loft", () => {
     await expect(panel.getByText(/design flew/)).toBeVisible();
   });
 
+  test("resizing the fins rebuilds the design and changes the stability margin", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+
+    const staticMargin = async () => {
+      const txt = await page
+        .getByText("Static margin", { exact: true })
+        .locator("xpath=following-sibling::dd")
+        .innerText();
+      return parseFloat(txt.replace(/[^\d.]/g, ""));
+    };
+    const before = await staticMargin();
+    expect(before).toBeGreaterThan(0);
+
+    // Open the edit panel and enlarge the fins — a builder geometry edit. The field starts from the
+    // design's own span (its placeholder), so read that and grow it.
+    await page.locator("summary", { hasText: "Conditions" }).click();
+    const finSpan = page.getByLabel(/Fin span/);
+    await expect(finSpan).toBeVisible();
+    const designSpan = parseFloat((await finSpan.getAttribute("placeholder")) ?? "0");
+    expect(designSpan).toBeGreaterThan(0);
+    await finSpan.fill(String(Math.round(designSpan * 1.6)));
+
+    // Bigger fins move the centre of pressure aft, so the rocket flies more stable.
+    await expect.poll(staticMargin).toBeGreaterThan(before);
+  });
+
   test("unit toggle switches to imperial", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();

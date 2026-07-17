@@ -116,6 +116,20 @@ export default function Faq() {
         </p>
       </QA>
 
+      <QA q="Can I change the fins and see what happens?">
+        <p>
+          Starting to. Under <em>Conditions → Design what-if</em>, the <em>Fin span</em> field starts
+          from the design&apos;s own fin height; change it and Loft rebuilds the rocket with the
+          resized fins and re-flies it — mass, drag, and (most visibly) the centre of pressure and
+          stability all update. Bigger fins move the CP aft and raise the stability margin, the
+          classic trade against nose weight; the results, the <em>What-if vs design</em> delta, and
+          the RocketPy second opinion all reflect the edited fins. It&apos;s the first step toward a
+          full in-browser builder — editing a component&apos;s dimensions and re-simulating live.
+          Because it&apos;s a change to the design, the OpenRocket comparison is hidden while it&apos;s
+          set.
+        </p>
+      </QA>
+
       <QA q="Does it work offline?">
         <p>
           Yes — once loaded, install it or just revisit and it runs with no connection: the app, the
