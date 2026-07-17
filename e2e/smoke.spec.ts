@@ -95,6 +95,17 @@ test.describe("Loft", () => {
 
     // Re-flies on change: the heavier rocket doesn't reach as high.
     await expect.poll(apogee).toBeLessThan(before);
+
+    // A "what-if vs design" delta appears, spelling out the trade against the unballasted design:
+    // added nose weight raises stability (a positive caliber delta) and costs apogee (a negative %).
+    const panel = page.getByRole("group", { name: "What-if vs design" });
+    await expect(panel).toBeVisible();
+    await expect(panel.getByText(/vs the design under the same conditions/)).toBeVisible();
+    // Stability rose: a positive caliber delta (only the banner shows a signed "+… cal").
+    await expect(panel.getByText(/\+[\d.]+ cal/)).toBeVisible();
+    // Apogee fell: its row shows a negative percentage change (U+2212 minus).
+    const apogeeRow = panel.locator("div", { hasText: /^Apogee/ });
+    await expect(apogeeRow.getByText(/−[\d.]+%/)).toBeVisible();
   });
 
   test("swapping the motor re-flies the design on a different motor", async ({ page }) => {
@@ -130,6 +141,11 @@ test.describe("Loft", () => {
 
     // Re-flies on the swapped motor — a different apogee.
     await expect.poll(apogee).not.toBe(before);
+
+    // The "what-if vs design" delta appears and names the motor change against the design's own.
+    const panel = page.getByRole("group", { name: "What-if vs design" });
+    await expect(panel).toBeVisible();
+    await expect(panel.getByText(/design flew/)).toBeVisible();
   });
 
   test("unit toggle switches to imperial", async ({ page }) => {

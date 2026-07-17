@@ -94,9 +94,11 @@ export default function Faq() {
           bundled motors that fit this airframe&apos;s mount diameter, grouped by class. Choose one
           and Loft re-flies the same rocket on it, so you can compare apogee, speed, rail-exit
           velocity, and stability across motors without editing the file — the classic &ldquo;what
-          would a J do here?&rdquo; A cluster keeps its motor count. Because it&apos;s a hypothetical
-          change, the OpenRocket comparison is hidden while a swapped motor is selected; pick
-          &ldquo;Design motor&rdquo; to fly the original again.
+          would a J do here?&rdquo; A cluster keeps its motor count. A compact{" "}
+          <em>What-if vs design</em> panel above the results shows each figure as the design&apos;s
+          own value → the swapped value with the change, so the effect is legible at a glance.
+          Because it&apos;s a hypothetical change, the OpenRocket comparison is hidden while a
+          swapped motor is selected; pick &ldquo;Design motor&rdquo; to fly the original again.
         </p>
       </QA>
 
@@ -106,7 +108,9 @@ export default function Faq() {
           the design with that weight added at the nose cone — the classic trim for a marginally
           stable rocket. You&apos;ll see the centre of gravity move forward, the stability margin
           rise, and the apogee drop as the rocket flies heavier, so you can find how much weight buys
-          the stability you want. Because it&apos;s a hypothetical change to the design, the
+          the stability you want. A <em>What-if vs design</em> panel above the results spells out the
+          trade — how many calibers of stability you gained and how much apogee it cost. Because
+          it&apos;s a hypothetical change to the design, the
           OpenRocket comparison is hidden while ballast is set — the stored numbers describe the
           original rocket, not the ballasted one.
         </p>

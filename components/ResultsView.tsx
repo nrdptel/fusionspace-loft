@@ -36,10 +36,14 @@ export default function ResultsView({
   run,
   doc,
   units,
+  baseline,
 }: {
   run: FlightRun;
   doc: OrkDocument;
   units: UnitSystem;
+  /** When a design what-if (nose ballast / motor swap) is active, the same flight without that
+   *  change under identical conditions — so the results can show what the change bought. */
+  baseline?: FlightRun | null;
 }) {
   const r = run.result;
   const s = r.summary;
@@ -77,6 +81,7 @@ export default function ResultsView({
       {/* Key results */}
       <section aria-label="Results">
         <h2 className="text-lg font-semibold tracking-tight">Flight</h2>
+        {baseline && baseline.hasPropulsion && <WhatIfDelta run={run} baseline={baseline} units={units} />}
         <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
           <Stat label="Apogee" q={d.altitude(s.apogee, units)} accent />
           <Stat label="Max velocity" q={d.speed(s.maxVelocity, units)} sub={d.q(d.mach(s.maxMach))} />
@@ -288,6 +293,86 @@ function Stat({ label, q, sub, accent }: { label: string; q: d.Quantity; sub?: s
         <span className="ml-1 text-xs font-normal text-zinc-500 dark:text-zinc-400">{q.unit}</span>
       </div>
       {sub && <div className="mt-0.5 text-[11px] text-zinc-500 dark:text-zinc-400">{sub}</div>}
+    </div>
+  );
+}
+
+/** A compact "what-if vs design" readout: after the flyer applies a design what-if (nose ballast
+ *  or a motor swap), the results change but the original numbers are gone. This shows, for the key
+ *  flight metrics, the design's own figure → the what-if figure and the signed change — so the
+ *  effect of the change is legible at a glance instead of remembered. Both runs share identical
+ *  launch conditions, so every delta is the design change alone. Directions are shown by sign, not
+ *  colour: a lower apogee from added ballast isn't "bad", it's the trade the flyer is weighing. */
+function WhatIfDelta({ run, baseline, units }: { run: FlightRun; baseline: FlightRun; units: UnitSystem }) {
+  const cur = run.result.summary;
+  const base = baseline.result.summary;
+
+  // Name the motor change when the swap flew a different motor than the design's own. Designation
+  // comes from the resolutions, so it's correct regardless of any mass difference between motors.
+  const curMotor = run.resolutions.find((x) => x.match)?.match?.entry.curve.designation;
+  const baseMotor = baseline.resolutions.find((x) => x.match)?.match?.entry.curve.designation;
+  const motorNote = curMotor && baseMotor && curMotor !== baseMotor ? { from: baseMotor, to: curMotor } : null;
+
+  const rows = [
+    {
+      label: "Apogee",
+      base: d.altitude(base.apogee, units),
+      cur: d.altitude(cur.apogee, units),
+      change: d.changePercent(base.apogee, cur.apogee),
+    },
+    {
+      label: "Max speed",
+      base: d.speed(base.maxVelocity, units),
+      cur: d.speed(cur.maxVelocity, units),
+      change: d.changePercent(base.maxVelocity, cur.maxVelocity),
+    },
+    {
+      label: "Rail exit",
+      base: d.speed(base.railExitVelocity, units),
+      cur: d.speed(cur.railExitVelocity, units),
+      change: d.changePercent(base.railExitVelocity, cur.railExitVelocity),
+    },
+    {
+      label: "Stability",
+      base: d.calibers(baseline.result.staticMarginCal),
+      cur: d.calibers(run.result.staticMarginCal),
+      change: d.changeAbsolute(baseline.result.staticMarginCal, run.result.staticMarginCal, "cal"),
+    },
+  ];
+
+  return (
+    <div
+      role="group"
+      aria-label="What-if vs design"
+      className="mt-3 rounded-xl border border-indigo-500/30 bg-indigo-500/5 p-4 dark:bg-indigo-500/10"
+    >
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+        <h3 className="text-sm font-semibold tracking-tight text-zinc-800 dark:text-zinc-100">
+          What-if vs design
+        </h3>
+        {motorNote ? (
+          <p className="text-xs text-zinc-600 dark:text-zinc-300">
+            Flying <span className="font-mono">{motorNote.to}</span> — design flew{" "}
+            <span className="font-mono">{motorNote.from}</span>
+          </p>
+        ) : (
+          <p className="text-xs text-zinc-500 dark:text-zinc-400">vs the design under the same conditions</p>
+        )}
+      </div>
+      <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-4">
+        {rows.map((row) => (
+          <div key={row.label}>
+            <dt className="text-[11px] uppercase tracking-wide text-zinc-500 dark:text-zinc-400">{row.label}</dt>
+            <dd className="mt-0.5 font-mono text-sm tabular-nums text-zinc-700 dark:text-zinc-200">
+              {row.base.value} <span aria-hidden>→</span>
+              <span className="sr-only"> to </span>{" "}
+              <span className="text-zinc-900 dark:text-zinc-100">{row.cur.value}</span>{" "}
+              <span className="text-xs font-normal text-zinc-500 dark:text-zinc-400">{row.cur.unit}</span>
+            </dd>
+            <dd className="font-mono text-xs tabular-nums text-indigo-600 dark:text-indigo-400">{row.change.text}</dd>
+          </div>
+        ))}
+      </dl>
     </div>
   );
 }

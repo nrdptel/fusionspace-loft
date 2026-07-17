@@ -77,3 +77,37 @@ export function ratio(x: number): Quantity {
 export function q(quantity: Quantity): string {
   return `${quantity.value} ${quantity.unit}`.trim();
 }
+
+/** A signed change from a baseline to a new value, for "what-if vs design" readouts. `dir` is
+ *  the direction (−1 down, +1 up, 0 none/undefined) so callers can style it without re-parsing. */
+export interface Change {
+  text: string;
+  dir: -1 | 0 | 1;
+}
+
+/** Percentage change from `base` to `cur`, formatted for display — fewer decimals as the
+ *  magnitude grows (18%, not 18.3%; 4.2%, not 4%). Returns "—"/dir 0 when the baseline is ~0,
+ *  where a percentage is undefined. Uses a true minus sign so the sign reads cleanly. */
+export function changePercent(base: number, cur: number): Change {
+  if (!Number.isFinite(base) || !Number.isFinite(cur) || Math.abs(base) < 1e-9) {
+    return { text: "—", dir: 0 };
+  }
+  const p = ((cur - base) / base) * 100;
+  const mag = fmt(Math.abs(p), Math.abs(p) >= 10 ? 0 : 1);
+  // Sign follows the rounded magnitude, so a change that rounds to 0 reads as "0%", not "+0%".
+  const rounded = Number(mag.replace(/,/g, ""));
+  const dir = rounded === 0 ? 0 : p > 0 ? 1 : -1;
+  const sign = dir > 0 ? "+" : dir < 0 ? "−" : "";
+  return { text: `${sign}${mag}%`, dir };
+}
+
+/** Signed absolute change in the value's own unit, e.g. a static-margin shift "+0.90 cal". */
+export function changeAbsolute(base: number, cur: number, unit: string, decimals = 2): Change {
+  if (!Number.isFinite(base) || !Number.isFinite(cur)) return { text: "—", dir: 0 };
+  const diff = cur - base;
+  const mag = fmt(Math.abs(diff), decimals);
+  const rounded = Number(mag.replace(/,/g, ""));
+  const dir = rounded === 0 ? 0 : diff > 0 ? 1 : -1;
+  const sign = dir > 0 ? "+" : dir < 0 ? "−" : "";
+  return { text: `${sign}${mag}${unit ? " " + unit : ""}`, dir };
+}

@@ -35,6 +35,7 @@ export default function LoftApp() {
   const [doc, setDoc] = useState<OrkDocument | null>(null);
   const [fileName, setFileName] = useState<string>("");
   const [run, setRun] = useState<FlightRun | null>(null);
+  const [baseline, setBaseline] = useState<FlightRun | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [edits, setEdits] = useState<Edits>({});
@@ -43,7 +44,13 @@ export default function LoftApp() {
   const [simIndex, setSimIndex] = useState(0);
 
   const compute = useCallback(
-    (document: OrkDocument, e: Edits, wx: WeatherConditions | null, scen: "design" | "today", idx: number): FlightRun => {
+    (
+      document: OrkDocument,
+      e: Edits,
+      wx: WeatherConditions | null,
+      scen: "design" | "today",
+      idx: number,
+    ): { run: FlightRun; baseline: FlightRun | null } => {
       const stored = document.simulations[idx] ?? document.simulations[0];
       const base: ConditionOverrides = stored ? overridesFromStored(stored) : {};
       const overrides: ConditionOverrides = { ...base };
@@ -59,8 +66,9 @@ export default function LoftApp() {
         overrides.windSpeed = wx.surfaceWindMps;
       }
       const edited = Object.keys(e).length > 0 || scen === "today";
-      return runFlight(document.rocket, {
-        configId: stored?.conditions.configId,
+      const configId = stored?.conditions.configId;
+      const run = runFlight(document.rocket, {
+        configId,
         overrides,
         ballastKg: e.ballastKg,
         motorSwap: e.motorSwap,
@@ -71,6 +79,13 @@ export default function LoftApp() {
         // is withheld.
         validateAgainst: edited || document.flownAsReduced ? undefined : stored,
       });
+      // A *design* what-if (nose ballast or a motor swap) changes the rocket itself. Fly the same
+      // design WITHOUT that change under the very same conditions, so the results can show what the
+      // change bought — apogee, speed, and stability deltas — instead of numbers in isolation.
+      // Condition edits alone (rod, wind, weather) don't alter the design, so they get no baseline.
+      const hasWhatIf = e.ballastKg !== undefined || e.motorSwap !== undefined;
+      const baseline = hasWhatIf ? runFlight(document.rocket, { configId, overrides }) : null;
+      return { run, baseline };
     },
     [],
   );
@@ -85,10 +100,13 @@ export default function LoftApp() {
       setSimIndex(0);
       setError(null);
       try {
-        setRun(compute(document, {}, null, "design", 0));
+        const { run: r, baseline: b } = compute(document, {}, null, "design", 0);
+        setRun(r);
+        setBaseline(b);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Could not simulate this design.");
         setRun(null);
+        setBaseline(null);
       }
     },
     [compute],
@@ -134,7 +152,9 @@ export default function LoftApp() {
     (e: Edits, wx: WeatherConditions | null, scen: "design" | "today") => {
       if (!doc) return;
       try {
-        setRun(compute(doc, e, wx, scen, simIndex));
+        const { run: r, baseline: b } = compute(doc, e, wx, scen, simIndex);
+        setRun(r);
+        setBaseline(b);
         setError(null);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Could not simulate.");
@@ -153,7 +173,9 @@ export default function LoftApp() {
     setSimIndex(idx);
     if (!doc) return;
     try {
-      setRun(compute(doc, edits, weather, scenario, idx));
+      const { run: r, baseline: b } = compute(doc, edits, weather, scenario, idx);
+      setRun(r);
+      setBaseline(b);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not simulate.");
@@ -163,6 +185,7 @@ export default function LoftApp() {
   const reset = () => {
     setDoc(null);
     setRun(null);
+    setBaseline(null);
     setError(null);
     setFileName("");
     setEdits({});
@@ -286,7 +309,7 @@ export default function LoftApp() {
             busy={busy}
           />
 
-          {run && <ResultsView run={run} doc={doc} units={units} />}
+          {run && <ResultsView run={run} doc={doc} units={units} baseline={baseline} />}
         </div>
       )}
     </div>
