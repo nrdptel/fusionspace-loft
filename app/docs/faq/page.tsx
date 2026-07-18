@@ -170,7 +170,8 @@ export default function Faq() {
           <em>Fin count</em>, <em>Fin root</em>, <em>Fin tip</em> and <em>Fin sweep</em> (the
           trapezoidal fin&apos;s chords and leading-edge sweep), <em>Fin thickness</em>,{" "}
           <em>Nose length</em>, <em>Nose shape</em> (ogive, conical, ellipsoid, or a low-drag Haack /
-          Von Kármán), and <em>Body length</em> fields start from the design&apos;s own
+          Von Kármán), <em>Body length</em>, and <em>Body diameter</em> fields start from the
+          design&apos;s own
           dimensions; change any and Loft rebuilds the rocket and re-flies it — mass, drag, and the
           centre of pressure and stability all update, and a longer nose or body stretches the whole
           airframe (everything downstream shifts). Bigger fins — or more of them — move the CP aft
@@ -181,7 +182,10 @@ export default function Faq() {
           the first knob to reach for when the <em>Fin flutter</em> estimate warns; a finer nose (a
           cone, or a Von Kármán) trims drag — a little subsonically through wetted area, more
           noticeably as the flight nears the speed of sound where nose shape drives the wave drag; a
-          longer body adds material and weight. A <em>Surface finish</em> picker sets the whole airframe from
+          longer body adds material and weight; and widening the <em>Body diameter</em> scales the
+          whole airframe to a new caliber (keeping the same fins, nose profile, and motor) — a fatter
+          tube has more frontal area and skin, so it drags more and flies lower, and the fixed fins
+          are proportionally smaller, trimming the stability margin. A <em>Surface finish</em> picker sets the whole airframe from
           mirror-smooth to rough — skin friction is a big share of subsonic drag, so &ldquo;what does
           a good paint job buy?&rdquo; can move the apogee noticeably. The results, the <em>What-if vs design</em> delta,
           and the RocketPy second opinion all reflect the edited geometry. It&apos;s the first step

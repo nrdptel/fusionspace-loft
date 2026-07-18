@@ -57,6 +57,11 @@ export interface GeometryEdits {
   noseShape?: NoseShape;
   /** Absolute length (m) for the design's primary (longest) body tube. Undefined leaves it. */
   bodyLength?: number;
+  /** Target outer diameter (m) of the design's primary body tube. The whole outer airframe (nose
+   *  base, every body tube, transitions and their shoulders) scales by the same factor to hit it,
+   *  keeping the mould line faired — the "same design in a wider/narrower tube" what-if. Fins, the
+   *  nose profile, the motor, and internal fittings keep their size. Undefined leaves it. */
+  bodyDiameter?: number;
   /** Surface finish applied to the whole airframe (drives skin-friction drag). Undefined leaves
    *  each component's own finish. */
   finish?: SurfaceFinish;
@@ -74,6 +79,7 @@ export function hasGeometryEdits(e: GeometryEdits): boolean {
     (e.noseLength !== undefined && e.noseLength > 0) ||
     e.noseShape !== undefined ||
     (e.bodyLength !== undefined && e.bodyLength > 0) ||
+    (e.bodyDiameter !== undefined && e.bodyDiameter > 0) ||
     e.finish !== undefined
   );
 }
@@ -96,6 +102,13 @@ export function primaryBodyTube(rocket: Rocket): BodyTube | undefined {
     .map((p) => p.component)
     .filter((c): c is BodyTube => c.kind === "bodytube");
   return tubes.length ? tubes.reduce((a, b) => (b.length > a.length ? b : a)) : undefined;
+}
+
+/** The design's primary body-tube outer diameter (m) — the caliber a flyer reads the rocket by, and
+ *  the value the diameter what-if scales from. Undefined for a tubeless design. */
+export function primaryBodyDiameter(rocket: Rocket): number | undefined {
+  const tube = primaryBodyTube(rocket);
+  return tube ? tube.outerRadius * 2 : undefined;
 }
 
 /** The design's primary (frontmost) fin set, if any. */
@@ -215,6 +228,42 @@ function withFinish(c: RocketComponent, finish: SurfaceFinish): RocketComponent 
   return { ...c, finish, children };
 }
 
+/** Scale the outer airframe radially by `f` — every body tube, the nose base, and each transition
+ *  (with their shoulders) — so the mould line stays faired at a new caliber. This is the "same
+ *  design in a wider/narrower tube" what-if: the aerodynamic outer surface (which sets the
+ *  reference area, and so the drag and the stability caliber) scales, while fins, the nose profile,
+ *  the motor, and internal fittings (couplers, rings, mounts) keep their size. */
+function scaleAirframeRadii(c: RocketComponent, f: number): RocketComponent {
+  const children = c.children.length ? c.children.map((ch) => scaleAirframeRadii(ch, f)) : c.children;
+  if (c.kind === "nosecone") {
+    return {
+      ...c,
+      aftRadius: c.aftRadius * f,
+      aftShoulderRadius: c.aftShoulderRadius !== undefined ? c.aftShoulderRadius * f : c.aftShoulderRadius,
+      children,
+    };
+  }
+  if (c.kind === "bodytube") {
+    return { ...c, outerRadius: c.outerRadius * f, children };
+  }
+  if (c.kind === "transition") {
+    return { ...c, foreRadius: c.foreRadius * f, aftRadius: c.aftRadius * f, children };
+  }
+  // Internal tubes and rings scale with the caliber too, so they stay inside the airframe and a
+  // narrowed tube doesn't leave a coupler or centring ring as the widest (reference) part. The
+  // motor keeps its own diameter, so a scaled mount just changes the annular gap around it.
+  if (
+    c.kind === "innertube" ||
+    c.kind === "tubecoupler" ||
+    c.kind === "centeringring" ||
+    c.kind === "bulkhead" ||
+    c.kind === "engineblock"
+  ) {
+    return { ...c, outerRadius: c.outerRadius * f, innerRadius: c.innerRadius * f, children };
+  }
+  return children === c.children ? c : { ...c, children };
+}
+
 /** The design's representative surface finish — the roughest one present, since that is what drives
  *  the skin-friction drag. Defaults to "unfinished" when no component names a finish. */
 export function primaryFinish(rocket: Rocket): SurfaceFinish {
@@ -245,9 +294,18 @@ export function applyGeometryEdits(rocket: Rocket, edits: GeometryEdits): Rocket
     if (tube) lengths.set(tube.id, edits.bodyLength);
   }
   const finish = edits.finish;
+  // Diameter what-if: the factor that takes the pristine primary tube to the target diameter, then
+  // applied to the whole outer airframe so it stays faired. 1 (no scaling) when unset or degenerate.
+  let radiusScale = 1;
+  if (edits.bodyDiameter !== undefined && edits.bodyDiameter > 0) {
+    const tube = primaryBodyTube(rocket);
+    if (tube && tube.outerRadius > 0) radiusScale = edits.bodyDiameter / 2 / tube.outerRadius;
+  }
   const editOne = (c: RocketComponent): RocketComponent => {
-    const geo = editComponent(c, edits, lengths);
-    return finish ? withFinish(geo, finish) : geo;
+    let geo = editComponent(c, edits, lengths);
+    if (finish) geo = withFinish(geo, finish);
+    if (radiusScale !== 1) geo = scaleAirframeRadii(geo, radiusScale);
+    return geo;
   };
   return {
     ...rocket,

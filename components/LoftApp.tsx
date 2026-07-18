@@ -17,6 +17,7 @@ import {
   primaryNose,
   primaryNoseShape,
   primaryBodyTube,
+  primaryBodyDiameter,
   primaryFinish,
   SURFACE_FINISHES,
   NOSE_SHAPES,
@@ -65,6 +66,7 @@ interface Edits {
   noseLength?: number; // builder edit: nose-cone length (m)
   noseShape?: NoseShape; // builder edit: nose-cone contour
   bodyLength?: number; // builder edit: primary body-tube length (m)
+  bodyDiameter?: number; // builder edit: primary body-tube outer diameter (m); scales the airframe
   finish?: SurfaceFinish; // builder edit: whole-airframe surface finish
 }
 
@@ -127,6 +129,7 @@ export default function LoftApp() {
           noseLength: e.noseLength,
           noseShape: e.noseShape,
           bodyLength: e.bodyLength,
+          bodyDiameter: e.bodyDiameter,
           finish: e.finish,
         },
         // Validate only when flying the design's own stored conditions unchanged, and only when
@@ -153,6 +156,7 @@ export default function LoftApp() {
         e.noseLength !== undefined ||
         e.noseShape !== undefined ||
         e.bodyLength !== undefined ||
+        e.bodyDiameter !== undefined ||
         e.finish !== undefined;
       const baseline = hasWhatIf ? runFlight(document.rocket, { configId, overrides }) : null;
       return { run, baseline };
@@ -301,6 +305,7 @@ export default function LoftApp() {
             noseLength: primaryNose(doc.rocket)?.length,
             noseShape: primaryNoseShape(doc.rocket),
             bodyLength: primaryBodyTube(doc.rocket)?.length,
+            bodyDiameter: primaryBodyDiameter(doc.rocket),
             finish: primaryFinish(doc.rocket),
           }
         : {
@@ -313,6 +318,7 @@ export default function LoftApp() {
             noseLength: undefined,
             noseShape: undefined,
             bodyLength: undefined,
+            bodyDiameter: undefined,
             finish: undefined,
           },
     [doc],
@@ -430,6 +436,7 @@ export default function LoftApp() {
                 noseLength: edits.noseLength,
                 noseShape: edits.noseShape,
                 bodyLength: edits.bodyLength,
+                bodyDiameter: edits.bodyDiameter,
                 finish: edits.finish,
               }}
               swapOptions={swapInfo?.options}
@@ -515,6 +522,7 @@ function ConditionsControls({
     noseLength?: number;
     noseShape?: NoseShape;
     bodyLength?: number;
+    bodyDiameter?: number;
     finish?: SurfaceFinish;
   };
   weather: WeatherConditions | null;
@@ -720,6 +728,14 @@ function ConditionsControls({
                 value={toDispSpan(edits.bodyLength)}
                 placeholder={toDispSpan(designDims.bodyLength)}
                 onChange={(v) => onEdit({ bodyLength: fromSpan(v) })}
+              />
+            )}
+            {designDims.bodyDiameter !== undefined && (
+              <Num
+                label={`Body diameter (${spanU})`}
+                value={toDispSpan(edits.bodyDiameter)}
+                placeholder={toDispSpan(designDims.bodyDiameter)}
+                onChange={(v) => onEdit({ bodyDiameter: fromSpan(v) })}
               />
             )}
             {designDims.finish !== undefined && (

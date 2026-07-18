@@ -5,7 +5,7 @@ import { importOrk } from "../ork/import";
 import { runFromDocument, runFlight, configChoices, overridesFromStored } from "./run";
 import { allMotors } from "../motors/db";
 import { flattenRocket } from "../model/geometry";
-import { primaryFinSpan, primaryFinCount, primaryFinRootChord, primaryFinTipChord, primaryFinSweep, primaryFinThickness, primaryNose, primaryNoseShape, primaryBodyTube } from "../model/edit";
+import { primaryFinSpan, primaryFinCount, primaryFinRootChord, primaryFinTipChord, primaryFinSweep, primaryFinThickness, primaryNose, primaryNoseShape, primaryBodyTube, primaryBodyDiameter } from "../model/edit";
 import type { OrkDocument } from "../ork/adapt";
 
 /** End-to-end: import each committed fixture, fly it, and check the results are physically
@@ -331,6 +331,36 @@ describe("geometry edits (builder)", () => {
     expect(stretched.result.liftoffMass).toBeGreaterThan(base.result.liftoffMass);
     expect(stretched.result.summary.apogee).toBeGreaterThan(0);
     expect(Number.isFinite(stretched.result.staticMarginCal)).toBe(true);
+  });
+
+  it("a wider airframe drags and weighs more (lower apogee) and is less stable in calibers", async () => {
+    const doc = await load("demo-single-deploy.ork");
+    const cfg = doc.simulations[0].conditions.configId;
+    const ov = overridesFromStored(doc.simulations[0]);
+
+    const base = runFlight(doc.rocket, { configId: cfg, overrides: ov });
+    const d0 = primaryBodyDiameter(doc.rocket)!;
+    expect(d0).toBeGreaterThan(0);
+
+    // Same design in a wider tube: the reference diameter follows the target exactly (the internal
+    // rings scale too, so nothing internal is left as the widest part), the bigger frontal area
+    // drags more and the extra tube material weighs more — so it flies lower — and the fixed fins
+    // are proportionally smaller, so the static margin (in calibers) drops.
+    const wider = runFlight(doc.rocket, { configId: cfg, overrides: ov, geometry: { bodyDiameter: d0 * 1.4 } });
+    expect(wider.result.stability.refRadius * 2).toBeCloseTo(d0 * 1.4, 6);
+    expect(wider.result.summary.apogee).toBeLessThan(base.result.summary.apogee);
+    expect(wider.result.liftoffMass).toBeGreaterThan(base.result.liftoffMass);
+    expect(wider.result.staticMarginCal).toBeLessThan(base.result.staticMarginCal);
+
+    // A narrower tube does the opposite — higher, lighter, more stable in calibers.
+    const narrower = runFlight(doc.rocket, { configId: cfg, overrides: ov, geometry: { bodyDiameter: d0 * 0.75 } });
+    expect(narrower.result.stability.refRadius * 2).toBeCloseTo(d0 * 0.75, 6);
+    expect(narrower.result.summary.apogee).toBeGreaterThan(base.result.summary.apogee);
+    expect(narrower.result.staticMarginCal).toBeGreaterThan(base.result.staticMarginCal);
+
+    // A zero/empty diameter edit changes nothing.
+    const same = runFlight(doc.rocket, { configId: cfg, overrides: ov, geometry: { bodyDiameter: 0 } });
+    expect(same.result.summary.apogee).toBeCloseTo(base.result.summary.apogee, 6);
   });
 
   it("a longer nose cone adds nose material and re-flies sanely", async () => {

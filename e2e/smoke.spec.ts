@@ -484,6 +484,34 @@ test.describe("Loft", () => {
     await expect.poll(apogee).toBeLessThan(before);
   });
 
+  test("widening the airframe diameter re-flies a draggier, lower-flying rocket", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+
+    const apogee = async () => {
+      const txt = await page
+        .getByLabel("Results")
+        .getByText("Apogee", { exact: true })
+        .locator("xpath=following-sibling::div")
+        .innerText();
+      return parseFloat(txt.replace(/[^\d.]/g, ""));
+    };
+    const before = await apogee();
+    expect(before).toBeGreaterThan(0);
+
+    // Widen the whole airframe — a builder geometry edit. The field starts from the design's caliber.
+    await page.locator("summary", { hasText: "Conditions" }).click();
+    const bodyDia = page.getByLabel(/Body diameter/);
+    await expect(bodyDia).toBeVisible();
+    const designDia = parseFloat((await bodyDia.getAttribute("placeholder")) ?? "0");
+    expect(designDia).toBeGreaterThan(0);
+    await bodyDia.fill(String(Math.round(designDia * 1.5)));
+
+    // A fatter airframe has a bigger frontal area (more drag) and more tube material, so it flies lower.
+    await expect.poll(apogee).toBeLessThan(before);
+  });
+
   test("unit toggle switches to imperial", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();

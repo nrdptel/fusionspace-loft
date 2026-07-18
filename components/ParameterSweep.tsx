@@ -5,7 +5,7 @@ import type { OrkDocument } from "@/lib/ork/import";
 import { runFlight, overridesFromStored } from "@/lib/sim/run";
 import { linRange, type SweepAxis, type ParamSweepPoint } from "@/lib/sim/sweep";
 import { runParameterSweep } from "@/lib/sim/sweep-client";
-import { primaryFinSpan, primaryFinThickness, primaryNose, primaryBodyTube, type GeometryEdits } from "@/lib/model/edit";
+import { primaryFinSpan, primaryFinThickness, primaryNose, primaryBodyTube, primaryBodyDiameter, type GeometryEdits } from "@/lib/model/edit";
 import { mToFt, mToIn, mpsToFtps, kgToG, G_PER_OZ } from "@/lib/units";
 import type { CsvCell } from "@/lib/csv";
 import LineChart from "./LineChart";
@@ -99,6 +99,8 @@ export default function ParameterSweep({
     if (nose && nose > 0) list.push(geometryAxis("noseLength", "Nose length", nose));
     const body = primaryBodyTube(doc.rocket)?.length;
     if (body && body > 0) list.push(geometryAxis("bodyLength", "Body length", body));
+    const dia = primaryBodyDiameter(doc.rocket);
+    if (dia && dia > 0) list.push(geometryAxis("bodyDiameter", "Body diameter", dia));
     // Nose ballast: range 0 → ~40% of the design's liftoff mass, sized from one baseline flight so
     // the trim sweep spans a sensible amount of weight for this particular rocket.
     const sim = doc.simulations[simIndex] ?? doc.simulations[0];

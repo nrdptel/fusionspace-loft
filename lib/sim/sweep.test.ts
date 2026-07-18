@@ -192,6 +192,21 @@ describe("parameterSweep", () => {
     expect(pts[pts.length - 1].staticMarginCal).toBeGreaterThan(pts[0].staticMarginCal);
   });
 
+  it("sweeps body diameter: a wider airframe drags more (lower apogee) and is less stable in calibers", async () => {
+    const doc = await load("demo-single-deploy.ork");
+    const sim = doc.simulations[0];
+    const d0 = 0.038; // the demo's 38 mm airframe
+    const pts = parameterSweep(doc.rocket, "bodyDiameter", linRange(d0 * 0.6, d0 * 1.6, 12), {
+      configId: sim.conditions.configId,
+      overrides: overridesFromStored(sim),
+    });
+    expect(pts.length).toBeGreaterThan(2);
+    // Wider ⇒ more reference area and mass (lower apogee) and proportionally smaller fins (less
+    // stable in calibers).
+    expect(pts[pts.length - 1].apogee).toBeLessThan(pts[0].apogee);
+    expect(pts[pts.length - 1].staticMarginCal).toBeLessThan(pts[0].staticMarginCal);
+  });
+
   it("holds other what-ifs fixed while sweeping — active nose ballast still applies at every point", async () => {
     const doc = await load("demo-single-deploy.ork");
     const sim = doc.simulations[0];

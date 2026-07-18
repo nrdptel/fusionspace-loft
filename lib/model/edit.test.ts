@@ -13,6 +13,7 @@ import {
   primaryFinThickness,
   primaryNose,
   primaryNoseShape,
+  primaryBodyDiameter,
   primaryBodyTube,
   primaryFinish,
 } from "./edit";
@@ -269,5 +270,46 @@ describe("applyGeometryEdits — nose shape", () => {
     const edited = applyGeometryEdits(rocket, { noseShape: "conical", noseLength: len0 * 1.4 });
     expect(primaryNoseShape(edited)).toBe("conical");
     expect(primaryNose(edited)!.length).toBeCloseTo(len0 * 1.4, 9);
+  });
+});
+
+describe("applyGeometryEdits — airframe diameter", () => {
+  it("scales the whole outer airframe to the target caliber, keeping the mould line faired", async () => {
+    const rocket = await load("demo-single-deploy.ork");
+    const d0 = primaryBodyDiameter(rocket)!;
+    const noseAft0 = primaryNose(rocket)!.aftRadius;
+    const target = d0 * 1.4;
+
+    const edited = applyGeometryEdits(rocket, { bodyDiameter: target });
+    // The primary tube hits the target, and the nose base scales by the same factor so it still
+    // fairs into the tube.
+    expect(primaryBodyDiameter(edited)).toBeCloseTo(target, 9);
+    expect(primaryNose(edited)!.aftRadius).toBeCloseTo(noseAft0 * 1.4, 9);
+    // Original untouched; a fresh tree returned.
+    expect(primaryBodyDiameter(rocket)).toBeCloseTo(d0, 9);
+    expect(edited).not.toBe(rocket);
+  });
+
+  it("keeps the fins' planform (a 'same fins, wider tube' what-if)", async () => {
+    const rocket = await load("demo-single-deploy.ork");
+    const edited = applyGeometryEdits(rocket, { bodyDiameter: primaryBodyDiameter(rocket)! * 1.5 });
+    // Fins are unchanged — the flyer re-uses the same fins on a wider airframe.
+    expect(primaryFinSpan(edited)).toBeCloseTo(primaryFinSpan(rocket)!, 9);
+    expect(primaryFinRootChord(edited)).toBeCloseTo(primaryFinRootChord(rocket)!, 9);
+  });
+
+  it("scales internal tubes and rings too, so a narrowed tube stays the widest part", async () => {
+    const rocket = await load("demo-single-deploy.ork");
+    const ringR = (r: typeof rocket) =>
+      flattenRocket(r)
+        .map((p) => p.component)
+        .filter((c) => c.kind === "centeringring")
+        .map((c) => (c as { outerRadius: number }).outerRadius);
+    const before = ringR(rocket);
+    expect(before.length).toBeGreaterThan(0);
+    const edited = applyGeometryEdits(rocket, { bodyDiameter: primaryBodyDiameter(rocket)! * 0.75 });
+    const after = ringR(edited);
+    // Every centring ring narrowed by the same 0.75 factor — none is left poking past the tube.
+    for (let i = 0; i < before.length; i++) expect(after[i]).toBeCloseTo(before[i] * 0.75, 9);
   });
 });
