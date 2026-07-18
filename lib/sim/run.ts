@@ -82,6 +82,9 @@ export interface RunOptions {
   /** Scale every motor's thrust (and total impulse) — a motor's lot-to-lot impulse tolerance.
    *  Defaults to 1 (the design's rated curve); used by the Monte-Carlo dispersion. */
   thrustScale?: number;
+  /** Scale the airframe's dry structural mass — build-to-build mass variation. Defaults to 1;
+   *  used by the Monte-Carlo dispersion. */
+  massScale?: number;
 }
 
 /** Apply a what-if motor swap to a configuration: every instance flies the chosen motor, keeping
@@ -131,8 +134,13 @@ export function runFlight(rocket: Rocket, opts: RunOptions = {}): FlightRun {
       : [];
   const withExtras = extraMasses.length ? { ...built.input, extraMasses } : built.input;
   const scaled =
-    opts.thrustScale !== undefined && opts.thrustScale !== 1
-      ? { ...withExtras, thrustScale: opts.thrustScale }
+    (opts.thrustScale !== undefined && opts.thrustScale !== 1) ||
+    (opts.massScale !== undefined && opts.massScale !== 1)
+      ? {
+          ...withExtras,
+          ...(opts.thrustScale !== undefined && opts.thrustScale !== 1 ? { thrustScale: opts.thrustScale } : {}),
+          ...(opts.massScale !== undefined && opts.massScale !== 1 ? { massScale: opts.massScale } : {}),
+        }
       : withExtras;
   const base = opts.timeStep ? { ...scaled, timeStep: opts.timeStep } : scaled;
   const input = opts.ballistic ? { ...base, recovery: [] } : base;

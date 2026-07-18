@@ -27,6 +27,10 @@ export interface Dispersions {
    *  Hobby single-use motors are certified to a total-impulse band; ~5% (1σ) is a common planning
    *  figure. The dominant driver of apogee spread. */
   impulseFrac?: number;
+  /** Dry-mass build tolerance as a fraction, 1σ (e.g. 0.03 = ±3%). Scales the airframe's structural
+   *  mass — a built rocket rarely hits its CAD mass exactly (epoxy, layup, hardware). Together with
+   *  impulse, one of the two main drivers of apogee spread. */
+  massFrac?: number;
   /** Launch-rod angle from vertical, 1σ (deg). A rail is never perfectly plumb; the lean is added
    *  to the nominal rod angle and its bearing is random. Drives both a small apogee loss and the
    *  downrange landing spread. */
@@ -148,6 +152,7 @@ export function* monteCarloSamples(rocket: Rocket, opts: MonteCarloOptions): Gen
     // Draw every random for this sample up front so the PRNG stream is a stable function of the
     // sample index (adding a dispersion source later doesn't reshuffle the earlier ones).
     const gImpulse = gaussian(rand);
+    const gMass = gaussian(rand);
     const gAngle = gaussian(rand);
     const gWind = gaussian(rand);
     const railBearing = rand() * 360; // rail-lean direction — arbitrary
@@ -156,6 +161,9 @@ export function* monteCarloSamples(rocket: Rocket, opts: MonteCarloOptions): Gen
     // Impulse: a motor never delivers below ~a tenth of its rating, so clamp the tail off zero to
     // keep a physical (and integrable) flight; the clamp only bites at absurd σ.
     const thrustScale = d.impulseFrac ? Math.max(0.1, 1 + gImpulse * d.impulseFrac) : 1;
+    // Dry mass: a build can't lose more than its whole structure, so clamp the low tail well off
+    // zero; the clamp only bites at absurd σ.
+    const massScale = d.massFrac ? Math.max(0.2, 1 + gMass * d.massFrac) : 1;
     // Rod angle: nominal lean plus jitter, magnitude ≥ 0 (a negative "angle from vertical" is just
     // a lean the other way, already covered by the random bearing).
     const rodAngleDeg = d.rodAngleDeg ? Math.abs(nomAngle + gAngle * d.rodAngleDeg) : nomAngle;
@@ -177,6 +185,7 @@ export function* monteCarloSamples(rocket: Rocket, opts: MonteCarloOptions): Gen
         motorSwap: opts.motorSwap,
         geometry: opts.geometry,
         thrustScale,
+        massScale,
       });
       if (!run.hasPropulsion) continue;
       const s = run.result.summary;

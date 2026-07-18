@@ -179,12 +179,12 @@ export default function Limitations() {
 
       <h3>Monte-Carlo dispersion propagates only the inputs you set</h3>
       <p>
-        The dispersion tool jitters three inputs — motor total impulse, rail angle, and wind speed —
-        around their nominal values and flies each sample through the same solver. It is not a full
-        uncertainty budget: dry-mass build tolerance, drag-coefficient uncertainty, thrust-curve
-        <em>shape</em> variation (only the overall scale is varied), and ejection-timing scatter are
-        not dispersed, and every sample inherits the model&apos;s own systematic errors (notably the
-        drag bias above). Because the flight is 3-DOF with a steady wind and no rotational dynamics,
+        The dispersion tool jitters four inputs — motor total impulse, dry mass, rail angle, and wind
+        speed — around their nominal values and flies each sample through the same solver. It is not a
+        full uncertainty budget: drag-coefficient uncertainty, thrust-curve <em>shape</em> variation
+        (only the overall scale is varied), centre-of-gravity shift (the dry mass is scaled uniformly,
+        so the CG holds), and ejection-timing scatter are not dispersed, and every sample inherits the
+        model&apos;s own systematic errors (notably the drag bias above). Because the flight is 3-DOF with a steady wind and no rotational dynamics,
         the landing scatter captures the drift response to wind and rail lean but not weathercocking,
         gust response, or wind-shear turbulence. Read the bands as the spread <em>due to the inputs
         you dispersed</em>, layered on top of the single-flight limitations — not an absolute

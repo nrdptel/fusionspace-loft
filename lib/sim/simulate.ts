@@ -242,6 +242,11 @@ export interface SimulateInput {
    *  motor, so the variation is in average thrust, which is what this scales. Used by the
    *  Monte-Carlo dispersion; an ordinary flight leaves it at 1. */
   thrustScale?: number;
+  /** Scale factor on the airframe's dry structural mass (not the motor, not what-if ballast),
+   *  default 1. Models build-to-build variation — epoxy, layup, and hardware rarely hit the CAD
+   *  mass exactly. Scales each structural point mass and its inertia uniformly, so the CG is
+   *  unchanged and only the total mass moves. Used by the Monte-Carlo dispersion. */
+  massScale?: number;
 }
 
 const MAX_TIME = 1200; // s, hard cap
@@ -250,8 +255,14 @@ export function simulate(input: SimulateInput): FlightResult {
   const { rocket, config, motors, recovery, conditions } = input;
   const dtBoost = input.timeStep ?? 0.01;
   const thrustScale = input.thrustScale ?? 1;
+  const massScale = input.massScale ?? 1;
+  // Scale the dry structural masses uniformly (mass and its own inertia); the CG is unchanged
+  // because every point scales together. Motor mass and what-if ballast are layered on separately
+  // and are not scaled. A unit scale returns the points untouched.
+  const scaleStructure = (pts: PointMass[]): PointMass[] =>
+    massScale === 1 ? pts : pts.map((p) => ({ ...p, mass: p.mass * massScale, ownInertia: p.ownInertia * massScale }));
 
-  const structure = structurePointMasses(rocket);
+  const structure = scaleStructure(structurePointMasses(rocket));
   const geom = aeroGeometry(rocket);
   const stability = barrowman(rocket);
 
@@ -282,7 +293,7 @@ export function simulate(input: SimulateInput): FlightResult {
   const phaseData = phases.map((ph) => {
     const sub =
       ph.stageCount >= nStages ? rocket : { ...rocket, stages: rocket.stages.slice(0, ph.stageCount) };
-    const baseStructure = ph.stageCount >= nStages ? structure : structurePointMasses(sub);
+    const baseStructure = ph.stageCount >= nStages ? structure : scaleStructure(structurePointMasses(sub));
     const phaseStructure = extra.length ? [...baseStructure, ...extra] : baseStructure;
     return {
       startTime: ph.startTime,

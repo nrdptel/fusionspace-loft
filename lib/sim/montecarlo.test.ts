@@ -120,6 +120,31 @@ describe("monteCarlo", () => {
   );
 
   it(
+    "massScale lowers apogee and more mass spread widens the band",
+    async () => {
+      const doc = await load("demo-single-deploy.ork");
+      const sim = doc.simulations[0];
+      const fly = (massScale: number) =>
+        runFlight(doc.rocket, {
+          configId: sim.conditions.configId,
+          overrides: overridesFromStored(sim),
+          ballistic: true,
+          massScale,
+        }).result.summary;
+      // A heavier-than-CAD build flies lower; a lighter one flies higher.
+      expect(fly(1.15).apogee).toBeLessThan(fly(1).apogee);
+      expect(fly(0.85).apogee).toBeGreaterThan(fly(1).apogee);
+
+      // As a dispersion source, more mass spread widens the apogee band.
+      const { rocket, opts } = await baseOpts();
+      const tight = monteCarlo(rocket, { ...opts, dispersions: { massFrac: 0.01 } });
+      const wide = monteCarlo(rocket, { ...opts, dispersions: { massFrac: 0.1 } });
+      expect(wide.apogee.sd).toBeGreaterThan(tight.apogee.sd * 2);
+    },
+    T,
+  );
+
+  it(
     "wind spread drives the landing scatter and recovery radius",
     async () => {
       const { rocket, opts } = await baseOpts();

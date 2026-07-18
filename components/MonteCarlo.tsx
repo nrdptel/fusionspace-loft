@@ -47,6 +47,7 @@ export default function MonteCarlo({
   // Dispersion 1σ inputs, with common planning defaults: a ~5% motor total-impulse band, a couple
   // of degrees of rail lean, and a couple of m/s of wind variability. All editable.
   const [impulsePct, setImpulsePct] = useState(5);
+  const [massPct, setMassPct] = useState(3);
   const [rodAngleDeg, setRodAngleDeg] = useState(2);
   const [windSpeedMps, setWindSpeedMps] = useState(2);
   const [result, setResult] = useState<MonteCarloResult | null>(null);
@@ -56,17 +57,18 @@ export default function MonteCarlo({
   const dispersions = useMemo<Dispersions>(
     () => ({
       impulseFrac: Math.max(0, impulsePct) / 100,
+      massFrac: Math.max(0, massPct) / 100,
       rodAngleDeg: Math.max(0, rodAngleDeg),
       windSpeedMps: Math.max(0, windSpeedMps),
     }),
-    [impulsePct, rodAngleDeg, windSpeedMps],
+    [impulsePct, massPct, rodAngleDeg, windSpeedMps],
   );
 
   // Debounce the dispersion inputs so typing in a field doesn't kick off a fresh 300-flight run on
   // every keystroke — the run waits until the value settles. (Serialised as the effect dependency so
   // a new object identity from an unchanged value doesn't re-trigger it.)
   const [settled, setSettled] = useState(dispersions);
-  const dispKey = `${dispersions.impulseFrac}|${dispersions.rodAngleDeg}|${dispersions.windSpeedMps}`;
+  const dispKey = `${dispersions.impulseFrac}|${dispersions.massFrac}|${dispersions.rodAngleDeg}|${dispersions.windSpeedMps}`;
   useEffect(() => {
     const id = setTimeout(() => setSettled(dispersions), 350);
     return () => clearTimeout(id);
@@ -138,7 +140,7 @@ export default function MonteCarlo({
 
       {open && (
         <>
-          <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <NumberField
               label="Motor impulse ±1σ"
               value={impulsePct}
@@ -146,6 +148,14 @@ export default function MonteCarlo({
               unit="%"
               step={1}
               hint="Total-impulse tolerance"
+            />
+            <NumberField
+              label="Dry mass ±1σ"
+              value={massPct}
+              onChange={setMassPct}
+              unit="%"
+              step={1}
+              hint="Build-mass tolerance"
             />
             <NumberField
               label="Rail angle ±1σ"

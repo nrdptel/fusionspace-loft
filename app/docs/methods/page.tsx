@@ -412,20 +412,23 @@ export default function Methods() {
       <h2>Monte-Carlo dispersion</h2>
       <p>
         A single flight is one draw from an uncertain reality: a rail is never perfectly plumb, wind
-        gusts and shifts, and a motor&apos;s total impulse varies from one unit to the next. The{" "}
-        <strong>dispersion</strong> tool flies the design a few hundred times with those inputs
-        jittered around their nominal values and reports the <em>spread</em> of the outcomes — the
-        apogee band to expect, and the radius from the pad that contains 95% of the landings (the
-        recovery area to plan for). Every sample runs through the same solver as the main flight;
-        nothing about the physics changes. The uncertainty is entirely in the inputs, which are your
-        own stated assumptions, so the result is an honest propagation of that spread — not a claim of
-        new precision.
+        gusts and shifts, a motor&apos;s total impulse varies from one unit to the next, and a built
+        airframe rarely hits its CAD mass exactly. The <strong>dispersion</strong> tool flies the
+        design a few hundred times with those inputs jittered around their nominal values and reports
+        the <em>spread</em> of the outcomes — the apogee band to expect, and the radius from the pad
+        that contains 95% of the landings (the recovery area to plan for). Every sample runs through
+        the same solver as the main flight; nothing about the physics changes. The uncertainty is
+        entirely in the inputs, which are your own stated assumptions, so the result is an honest
+        propagation of that spread — not a claim of new precision.
       </p>
       <p>
         Each input is drawn from a normal distribution about its nominal value at the one-sigma spread
         you set: the motor impulse scales the thrust curve (a motor&apos;s propellant mass is
-        essentially fixed, so its lot-to-lot variation is in average thrust); the rail angle adds a
-        lean to the launch rod; and the wind speed varies around the design&apos;s nominal. The
+        essentially fixed, so its lot-to-lot variation is in average thrust); the dry mass scales the
+        airframe&apos;s structure uniformly (so the centre of gravity holds and only the total mass
+        moves); the rail angle adds a lean to the launch rod; and the wind speed varies around the
+        design&apos;s nominal. Impulse and dry mass are the two main drivers of the apogee band; rail
+        angle and wind drive the landing scatter. The
         rail-lean and wind <em>directions</em> are sampled uniformly from all bearings, so the landing
         scatter maps the recovery area regardless of the day&apos;s wind heading. The whole run is
         driven by a fixed-seed pseudo-random generator, so the same design and the same dispersions
