@@ -11,6 +11,7 @@ import ValidationPanel from "./ValidationPanel";
 import RocketpyCrossCheck from "./RocketpyCrossCheck";
 import MotorSweep from "./MotorSweep";
 import ParameterSweep from "./ParameterSweep";
+import MassBreakdown from "./MassBreakdown";
 import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
 import { overallLength } from "@/lib/model/geometry";
@@ -160,6 +161,9 @@ export default function ResultsView({
       {run.validation && run.validation.count > 0 && (
         <ValidationPanel report={run.validation} units={units} storedName={doc.simulations[0]?.name} toolName={tool} />
       )}
+
+      {/* Where the dry mass comes from, part by part — transparency into the parsed structure. */}
+      <MassBreakdown rocket={doc.rocket} units={units} />
 
       {/* An independent second solver on the flyer's own design — RocketPy's flight is single-stage,
           so offer it only for single-stage designs that actually have propulsion (guaranteed here).

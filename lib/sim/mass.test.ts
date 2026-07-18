@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
 import { combine, dryMassProperties, finChordCentroid, structurePointMasses } from "./mass";
 import { flattenRocket } from "../model/geometry";
+import { importOrk } from "../ork/import";
 import type { Rocket, BodyTube, MassComponent, GenericFinSet } from "../model/types";
 
 const MAT = { name: "x", density: 1000, type: "bulk" as const };
@@ -148,4 +150,25 @@ describe("override-subcomponents mass (OpenRocket assembly weight)", () => {
     const mp = dryMassProperties(rocketOf(root));
     expect(mp.mass).toBeCloseTo(1, 6);
   });
+});
+
+describe("mass breakdown invariant (per-component sums to the dry total)", () => {
+  // The Mass & balance panel lists structurePointMasses and shows combine() of them as the total.
+  // That total must equal dryMassProperties for the rows to honestly add up to what's displayed.
+  for (const f of ["demo-single-deploy.ork", "demo-boattail.ork", "demo-dual-deploy.ork"]) {
+    it(`${f}: structure point masses combine to the dry mass and CG`, async () => {
+      const doc = await importOrk(new Uint8Array(readFileSync(new URL(`../../fixtures/${f}`, import.meta.url))));
+      const points = structurePointMasses(doc.rocket);
+      expect(points.length).toBeGreaterThan(0);
+      const summed = combine(points);
+      const dry = dryMassProperties(doc.rocket);
+      expect(summed.mass).toBeCloseTo(dry.mass, 9);
+      expect(summed.cg).toBeCloseTo(dry.cg, 9);
+      // Every listed part carries real mass and a finite station.
+      for (const p of points) {
+        expect(p.mass).toBeGreaterThan(0);
+        expect(Number.isFinite(p.cg)).toBe(true);
+      }
+    });
+  }
 });

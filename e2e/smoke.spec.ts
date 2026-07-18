@@ -170,6 +170,24 @@ test.describe("Loft", () => {
     expect(nums[0]).toBeGreaterThan(nums[nums.length - 1]);
   });
 
+  test("mass breakdown lists parts that sum to the dry total", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+
+    // Expand the Mass & balance disclosure.
+    const summary = page.locator("summary", { hasText: "Mass & balance" });
+    await expect(summary).toBeVisible();
+    await summary.click();
+
+    // Several component rows and a dry total appear.
+    const table = page.locator("table", { has: page.getByText("Dry total") });
+    await expect(table.getByText("Dry total")).toBeVisible();
+    await expect(table.getByRole("row").filter({ hasText: /g|kg/ })).not.toHaveCount(0);
+    // The heaviest structural part of this sample is the body tube.
+    await expect(table.getByText("Body tube", { exact: true })).toBeVisible();
+  });
+
   test("parameter sweep plots a response curve and switches metric", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();

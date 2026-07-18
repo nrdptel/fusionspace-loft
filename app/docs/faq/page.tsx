@@ -163,6 +163,19 @@ export default function Faq() {
         </p>
       </QA>
 
+      <QA q="Can I see where my rocket's mass comes from?">
+        <p>
+          Yes. Under the results, expand <em>Mass &amp; balance</em> for a part-by-part breakdown of
+          the design&apos;s dry mass — every structural component with its weight, its share of the
+          total, and its centre of gravity from the nose, heaviest first, adding up to the dry total
+          and CG. These are the exact per-part masses the simulator flies, so it&apos;s the fastest
+          way to sanity-check an import: a mistyped wall thickness or the wrong material shows up as a
+          row that&apos;s obviously too heavy or too light. It&apos;s dry structure only — the motor
+          and any what-if add their mass at launch. Where a section states a measured weight for its
+          whole assembly, that figure stands in for everything inside it.
+        </p>
+      </QA>
+
       <QA q="Does it work offline?">
         <p>
           Yes — once loaded, install it or just revisit and it runs with no connection: the app, the
