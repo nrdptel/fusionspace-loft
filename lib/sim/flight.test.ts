@@ -51,6 +51,21 @@ describe("single-deploy fixture flight", () => {
     const peakSampleAccel = Math.max(...run.result.trajectory.map((s) => Math.abs(s.acceleration)));
     expect(peakSampleAccel).toBeGreaterThan(20); // boost accel is tens of m/s²
   });
+
+  it("the hot-loop scalar mass agrees with the full mass model and tracks propellant burn", async () => {
+    // The integrator uses a scalar total-mass path (structure sum + motor mass at t) instead of the
+    // full CG/inertia combine, for speed. This pins it to the authoritative model: the heaviest
+    // trajectory sample (at liftoff, tanks full) must equal the loaded mass combine() reports, and
+    // the mass must fall as propellant burns.
+    const doc = await load("demo-single-deploy.ork");
+    const run = runFromDocument(doc);
+    const masses = run.result.trajectory.map((s) => s.mass);
+    const maxMass = Math.max(...masses);
+    const minMass = Math.min(...masses);
+    expect(maxMass).toBeCloseTo(run.result.liftoffMass, 3); // scalar path == full combine at liftoff
+    expect(minMass).toBeLessThan(run.result.liftoffMass); // propellant burns off over the flight
+    expect(minMass).toBeGreaterThan(0);
+  });
 });
 
 describe("rail-exit velocity is resolved at the exact rod-length crossing", () => {

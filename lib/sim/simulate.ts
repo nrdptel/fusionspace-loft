@@ -199,6 +199,18 @@ function totalThrust(motors: ResolvedMotor[], t: number): number {
   return f;
 }
 
+/** Total attached-motor mass at t (dry casing + remaining propellant). The scalar counterpart of
+ *  motorMassPoints, for the hot integration loop, which needs only the total mass — not the CG or
+ *  inertia — so it avoids allocating point-mass objects thousands of times per flight. */
+function motorMassSumAt(motors: ResolvedMotor[], t: number): number {
+  let m = 0;
+  for (const mo of motors) {
+    if (t >= (mo.detachTime ?? Infinity)) continue;
+    m += motorMassAt(mo.curve, t - mo.ignitionTime);
+  }
+  return m;
+}
+
 export interface SimulateInput {
   rocket: Rocket;
   config: MotorConfiguration;
@@ -255,9 +267,12 @@ export function simulate(input: SimulateInput): FlightResult {
     const sub =
       ph.stageCount >= nStages ? rocket : { ...rocket, stages: rocket.stages.slice(0, ph.stageCount) };
     const baseStructure = ph.stageCount >= nStages ? structure : structurePointMasses(sub);
+    const phaseStructure = extra.length ? [...baseStructure, ...extra] : baseStructure;
     return {
       startTime: ph.startTime,
-      structure: extra.length ? [...baseStructure, ...extra] : baseStructure,
+      structure: phaseStructure,
+      // The phase's constant structural mass, summed once so the hot loop needn't re-add it.
+      structureMass: phaseStructure.reduce((s, p) => s + p.mass, 0),
       geom: ph.stageCount >= nStages ? geom : aeroGeometry(sub),
     };
   });
@@ -270,6 +285,11 @@ export function simulate(input: SimulateInput): FlightResult {
 
   const massAt = (t: number): MassProperties =>
     combine([...phaseData[phaseIndexAt(t)].structure, ...motorMassPoints(motors, t)]);
+
+  // Total mass only (structure + attached motors) — the hot-loop path, avoiding the point-array
+  // build and the two-pass CG/inertia combine that massAt does. The 3-DOF accel uses only mass.
+  const massSumAt = (t: number): number =>
+    phaseData[phaseIndexAt(t)].structureMass + motorMassSumAt(motors, t);
 
   const cgDry = combine(phaseData[0].structure).cg;
   const loaded = massAt(0);
@@ -349,8 +369,7 @@ export function simulate(input: SimulateInput): FlightResult {
 
   // Acceleration (m/s²) at a sub-state, plus scalar diagnostics for the current step.
   const accel = (s: SimState): Vec3 => {
-    const mp = massAt(s.t);
-    const mass = Math.max(1e-6, mp.mass);
+    const mass = Math.max(1e-6, massSumAt(s.t));
     const altMsl = conditions.launchAltitude + s.pos.z;
     const atm = conditions.atmosphere.sample(altMsl);
     const wind = windAt(s.pos.z);
@@ -412,7 +431,7 @@ export function simulate(input: SimulateInput): FlightResult {
     const prev = state;
     state = rk4Step(state, dt, accel);
 
-    const mp = massAt(state.t);
+    const massNow = massSumAt(state.t);
     const altMsl = conditions.launchAltitude + state.pos.z;
     const atm = conditions.atmosphere.sample(altMsl);
     const wind = windAt(state.pos.z);
@@ -429,11 +448,11 @@ export function simulate(input: SimulateInput): FlightResult {
     // free of the pad. On a staged flight the rail is cleared early, so this stays a booster-
     // liftoff quantity and isn't inflated by a lighter sustainer firing at altitude.
     if (railExitV === 0 && thrust > 0) {
-      liftoffTWR = Math.max(liftoffTWR, thrust / (Math.max(1e-6, mp.mass) * G0));
+      liftoffTWR = Math.max(liftoffTWR, thrust / (Math.max(1e-6, massNow) * G0));
     }
 
     // Liftoff.
-    if (!liftedOff && speed > 0.1 && thrust > mp.mass * G0) {
+    if (!liftedOff && speed > 0.1 && thrust > massNow * G0) {
       liftedOff = true;
       events.push({ type: "liftoff", time: state.t, altitude: state.pos.z, velocity: speed });
     }
@@ -567,7 +586,7 @@ export function simulate(input: SimulateInput): FlightResult {
         mach,
         thrust,
         drag: 0.5 * atm.density * airSpeed * airSpeed * (cdNow * gNow.refArea),
-        mass: mp.mass,
+        mass: massNow,
         cd: cdNow,
         dynamicPressure: q,
         phase,
