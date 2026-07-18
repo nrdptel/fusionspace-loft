@@ -201,8 +201,10 @@ export default function Limitations() {
         early, still-ascending deployment (flagged, since it can zipper or shred), or a late one that
         opens at speed after a free-fall, or a delay so long the charge would fire after the rocket
         is already down (flagged as a ballistic descent). The deployment velocity Loft reports is the
-        speed at canopy open, which sets the opening-shock severity — but the shock force itself is
-        not computed. Where no ejection charge is modelled for the motor, an ejection-triggered
+        worst-case speed at canopy open across every device — so on a dual-deploy design it is the
+        main&apos;s under-drogue opening speed, not the drogue&apos;s near-zero apogee deployment,
+        which is the shock that actually matters (and lets the fast-deployment caution fire on a hard
+        main). The shock force itself is not computed. Where no ejection charge is modelled for the motor, an ejection-triggered
         device falls back to deploying at apogee. The steady descent rate is compared against the
         ~3–6 m/s most designs aim for, and a firm or hard landing under an undersized canopy is
         flagged — but that check is on descent <em>rate</em> alone; it doesn&apos;t weigh the

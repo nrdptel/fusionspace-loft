@@ -537,6 +537,25 @@ describe("recovery deploy delay", () => {
   });
 });
 
+describe("dual-deploy reports the worst-case (main) deployment velocity", () => {
+  it("takes the faster main deploy, not the near-zero drogue at apogee", async () => {
+    const doc = await load("demo-dual-deploy.ork");
+    const run = runFromDocument(doc);
+    // The fixture is a true dual-deploy: a drogue at apogee (near-stationary) and a main at a set
+    // altitude on the way down (faster, under drogue). There should be two deploy events.
+    const deploys = run.result.events.filter((e) => e.type === "deploy");
+    expect(deploys.length).toBe(2);
+    const [drogue, main] = deploys;
+    // Drogue opens at (or just past) apogee, almost stationary; the main opens later and faster.
+    expect(main.velocity).toBeGreaterThan(drogue.velocity + 5);
+    // The reported deployment velocity is the worst-case opening speed — the MAIN's, not the
+    // drogue's near-zero. Before the fix this reported the first (drogue) deploy and so read ~0,
+    // which also meant the fast-deployment warning could never fire on a hard main deployment.
+    expect(run.result.summary.deploymentVelocity).toBeCloseTo(main.velocity, 5);
+    expect(run.result.summary.deploymentVelocity).toBeGreaterThan(drogue.velocity);
+  });
+});
+
 describe("multi-configuration selection", () => {
   it("offers each stored simulation as a labelled configuration choice", async () => {
     const doc = await load("demo-multi-config.ork");

@@ -600,7 +600,12 @@ export function simulate(input: SimulateInput): FlightResult {
       if (dev.deployedAt !== undefined && !dev.opened && state.t >= dev.deployedAt) {
         dev.opened = true;
         if (!apogeePassed) deployedBeforeApogee = true;
-        if (deploymentV === 0) deploymentV = speed;
+        // Report the worst-case opening speed across every recovery deployment — the number that
+        // sets the opening-shock load. On a dual-deploy design the drogue opens near apogee (almost
+        // stationary) and the MAIN opens later at the faster under-drogue descent speed, so taking
+        // the maximum (not the first) captures the shock that actually matters — and lets the
+        // fast-deployment warning fire on a hard main deployment it otherwise missed.
+        deploymentV = Math.max(deploymentV, speed);
         events.push({
           type: "deploy",
           time: state.t,
