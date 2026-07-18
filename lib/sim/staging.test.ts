@@ -355,4 +355,13 @@ describe("stage separation event + recovery on lower-stage separation", () => {
     expect(bd.phases.length).toBe(1); // nothing ever detaches
     for (const m of bd.motors) expect(m.detachTime).toBe(Infinity);
   });
+
+  it("doesn't flag the finless payload as an unstable upper stage — it recovers at separation", () => {
+    const run = runFlight(payload("ejection", 6).rocket, { configId: "cfg" });
+    // The payload pops its chute ON the lower-stage separation, so it's under canopy from that
+    // instant and never flies ballistically — no upper-stage-stability warning, and no upper-stage
+    // margin is reported for a section that isn't flown ballistically.
+    expect(run.result.upperStageMarginCal).toBeUndefined();
+    expect(run.result.warnings.some((w) => w.code === "upper-stage-stability")).toBe(false);
+  });
 });

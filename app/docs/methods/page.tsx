@@ -335,7 +335,10 @@ export default function Methods() {
         computed for whichever stages are attached. Because an upper stage can be stable inside the
         loaded stack yet unstable once it flies alone, the sustainer&apos;s own static margin —
         evaluated loaded, right after separation, its worst case — is checked separately and flagged
-        if it drops below 1 cal. Only the final (sustainer) stage&apos;s descent is tracked; a
+        if it drops below 1 cal. The exception is a payload section that pops its chute <em>on</em>
+        the separation (a lower-stage-separation recovery): it is under canopy from that instant and
+        never flies ballistically, so a finless payload isn&apos;t flagged as an unstable upper
+        stage. Only the final (sustainer) stage&apos;s descent is tracked; a
         separated booster&apos;s own recovery isn&apos;t. Parallel and strap-on staging is not
         modelled (see the <Link href="/docs/limitations">limitations</Link>).
       </p>

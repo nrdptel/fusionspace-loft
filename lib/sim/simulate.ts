@@ -306,9 +306,15 @@ export function simulate(input: SimulateInput): FlightResult {
   // it there. A stack can be comfortably stable off the pad yet have an unstable sustainer once
   // the booster drops — a distinct hazard worth flagging on its own. The top stages keep their
   // nose-forward stations in the sub-rocket, so CP and CG stay in the same frame as the motors'.
+  // A payload/dual-section rocket is the exception: its final stage pops a chute ON the separation
+  // (a lower-stage-separation recovery), so it is under canopy from that instant and never flies
+  // ballistically — a finless payload section then isn't an unstable-upper-stage hazard, so the
+  // final phase is skipped when a separation-triggered recovery opens it.
+  const finalStageRecoversAtSeparation = recovery.some((d) => d.event === "separation");
   let upperStageMarginCal: number | undefined;
   let worstUpperStageName = "";
   for (let p = 1; p < phaseData.length; p++) {
+    if (p === phaseData.length - 1 && finalStageRecoversAtSeparation) continue;
     const stageCount = phases[p].stageCount;
     const sub = { ...rocket, stages: rocket.stages.slice(0, stageCount) };
     const cp = barrowman(sub).cp;
