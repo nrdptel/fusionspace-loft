@@ -390,14 +390,17 @@ function parseComponent(node: XmlNode, ctx: WalkContext): RocketComponent | null
       let height = childNum(node, "height", 0);
       let area: number;
       let sweep = childNum(node, "sweeplength", 0) || 0;
+      let cpChord: number | undefined;
       if (node.name === "freeformfinset") {
         // A freeform fin defines its shape ONLY by <finpoints>; derive the span, root chord,
-        // area, and sweep from the outline so it isn't treated as a zero-span (degenerate) fin.
+        // area, and sweep from the outline so it isn't treated as a zero-span (degenerate) fin,
+        // and the exact chordwise CP so the aero doesn't have to reduce it to a trapezoid.
         const fp = freeformPlanform(node);
         area = fp.area;
         sweep = fp.sweep;
         height = fp.span;
         rootChord = fp.rootChord;
+        if (fp.cpChord > 0) cpChord = fp.cpChord;
       } else {
         area = (Math.PI / 4) * rootChord * height; // quarter-ellipse fin ≈ πab/4
       }
@@ -411,6 +414,7 @@ function parseComponent(node: XmlNode, ctx: WalkContext): RocketComponent | null
         sweepLength: sweep,
         thickness: childNum(node, "thickness", 0.003),
         crossSection: parseFinCrossSection(node),
+        ...(cpChord !== undefined ? { cpChord } : {}),
         children: parseSubcomponents(node, ctx),
       };
     }
@@ -595,11 +599,45 @@ function lugMass(node: XmlNode, outerRadius: number | undefined, length: number)
  *  at the body, i.e. the x-extent of the y≈0 edge), and the tip leading-edge sweep. A freeform
  *  fin carries NO `<rootchord>`/`<height>` elements — its shape is only these points — so without
  *  deriving them here the fin reads as zero-span and contributes no normal force or drag. */
-function freeformPlanform(node: XmlNode): { area: number; sweep: number; span: number; rootChord: number } {
+/** Exact chordwise centre of pressure of a freeform fin, measured aft of the root leading edge (m).
+ *  Barrowman strip theory: each spanwise strip contributes lift proportional to its local chord with
+ *  its aerodynamic centre at its own quarter-chord, so the fin's chordwise CP is the chord-weighted
+ *  mean of the local quarter-chord line, x̄ = ∫(x_LE(y)+¼c(y))·c(y)dy / ∫c(y)dy. Reduces to the
+ *  trapezoid CP formula for a trapezoid outline; for the odd freeform shape it's more faithful than
+ *  the equal-area trapezoid the aero would otherwise assume. `rootLe` is the root leading edge's x,
+ *  so the result is referenced to it (matching how the trapezoid CP is measured). */
+export function freeformChordwiseCp(pts: { x: number; y: number }[], span: number, rootLe: number): number {
+  if (pts.length < 3 || !(span > 0)) return 0;
+  const N = 200; // strips; the CP is computed once per design, so this is negligible.
+  let num = 0;
+  let den = 0;
+  for (let i = 0; i < N; i++) {
+    const y = ((i + 0.5) / N) * span;
+    let lo = Infinity;
+    let hi = -Infinity;
+    for (let j = 0; j < pts.length; j++) {
+      const a = pts[j];
+      const b = pts[(j + 1) % pts.length];
+      // Half-open span test so a vertex shared by two edges is counted once.
+      if ((a.y <= y && y < b.y) || (b.y <= y && y < a.y)) {
+        const x = a.x + ((b.x - a.x) * (y - a.y)) / (b.y - a.y);
+        if (x < lo) lo = x;
+        if (x > hi) hi = x;
+      }
+    }
+    if (hi <= lo) continue;
+    const c = hi - lo;
+    num += (lo + 0.25 * c) * c; // dy is constant, so it cancels in the ratio
+    den += c;
+  }
+  return den > 0 ? num / den - rootLe : 0;
+}
+
+function freeformPlanform(node: XmlNode): { area: number; sweep: number; span: number; rootChord: number; cpChord: number } {
   const fp = child(node, "finpoints");
-  if (!fp) return { area: 0, sweep: 0, span: 0, rootChord: 0 };
+  if (!fp) return { area: 0, sweep: 0, span: 0, rootChord: 0, cpChord: 0 };
   const pts = children(fp, "point").map((p) => ({ x: parseNum(p.attrs.x, 0), y: parseNum(p.attrs.y, 0) }));
-  if (pts.length < 3) return { area: 0, sweep: 0, span: 0, rootChord: 0 };
+  if (pts.length < 3) return { area: 0, sweep: 0, span: 0, rootChord: 0, cpChord: 0 };
   // Shoelace area, and the LE sweep as the x at the highest-y (tip) point.
   let area = 0;
   let maxY = 0;
@@ -629,7 +667,9 @@ function freeformPlanform(node: XmlNode): { area: number; sweep: number; span: n
     const xs = pts.map((p) => p.x);
     rootChord = Math.max(...xs) - Math.min(...xs);
   }
-  return { area: Math.abs(area) / 2, sweep: sweepAtMaxY, span: maxY, rootChord };
+  const rootLe = Number.isFinite(rootMin) ? rootMin : Math.min(...pts.map((p) => p.x));
+  const cpChord = freeformChordwiseCp(pts, maxY, rootLe);
+  return { area: Math.abs(area) / 2, sweep: sweepAtMaxY, span: maxY, rootChord, cpChord };
 }
 
 function parseStages(rocketNode: XmlNode, ctx: WalkContext): Stage[] {

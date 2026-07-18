@@ -164,7 +164,13 @@ export default function Methods() {
         aft than the equivalent trapezoid, so it no longer under-predicts the margin. A freeform fin
         carries no explicit chord or span — only an outline of points — so its semi-span, root chord,
         planform area, and sweep are derived from that outline first; without that step the fin would
-        read as zero-span and add no normal force. A degenerate part — a fin set with no fins, span, or chord, or a nose with no radius —
+        read as zero-span and add no normal force. Its centre of pressure is then taken exactly from
+        the same outline by strip theory — <code>X_cp = ∫(x_LE + ¼c)·c dy / ∫c dy</code> over the
+        polygon, the chord-weighted mean of the local quarter-chord line — which reduces to the
+        trapezoid formula for a trapezoidal outline and to <code>0.288·c_root</code> for an
+        elliptical one, so an unusual planform is no longer flattened to an equal-area trapezoid for
+        stability. Being a fraction of the chord, it is invariant when a geometry edit stretches the
+        fin spanwise. A degenerate part — a fin set with no fins, span, or chord, or a nose with no radius —
         contributes no normal force rather than a division by zero, so a malformed or placeholder
         part can&apos;t leave the centre of pressure and static margin undefined (which would also
         silently suppress the low-stability warning).

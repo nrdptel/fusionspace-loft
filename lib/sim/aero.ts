@@ -140,7 +140,11 @@ function finContribution(
 
   // Chordwise CP from the fin root leading edge.
   let xf: number;
-  if (fin.kind === "ellipticalfinset") {
+  if (fin.kind !== "trapezoidfinset" && fin.cpChord !== undefined && fin.cpChord > 0) {
+    // A freeform fin carries the exact chordwise CP measured from its actual outline at import
+    // (Barrowman strip theory), so use it rather than the equal-area trapezoid below.
+    xf = fin.cpChord;
+  } else if (fin.kind === "ellipticalfinset") {
     // A half-ellipse fin's CP is not the equal-area trapezoid's. Integrating the Barrowman
     // quarter-chord aerodynamic centre over the elliptical chord distribution c(y)=cr·√(1−(y/s)²)
     // — with each section's AC at its own quarter-chord and the local lift ∝ chord — gives

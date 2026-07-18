@@ -97,12 +97,18 @@ export default function Limitations() {
         which an independent 6-DOF engine (RocketPy) agrees with to within 0.01 caliber of static
         margin. Its <em>mass</em> CG is likewise exact — a half-ellipse is symmetric about its
         mid-chord, so its area centroid is <code>0.5·c<sub>root</sub></code>. Only the elliptical
-        fin&apos;s normal-force slope still comes from an area- and span-equivalent trapezoid.
-        Freeform fin sets are still reduced to that trapezoid for aerodynamics, and their mass CG is
-        a mid-planform estimate (no closed-form centre for an arbitrary outline, which isn&apos;t
-        retained past import). Tube fins are not yet modelled — a design that uses them is flown
-        without those fins (with a visible warning), and because that isn&apos;t the whole vehicle,
-        its OpenRocket comparison is withheld.
+        fin&apos;s normal-force slope still comes from an area- and span-equivalent trapezoid. A
+        freeform fin&apos;s <em>centre of pressure</em> is now computed exactly from its actual
+        outline — the Barrowman strip-theory quarter-chord centroid{" "}
+        <code>x̄ = ∫(x<sub>LE</sub> + ¼c)·c dy / ∫c dy</code> over the polygon, which reduces to the
+        trapezoid formula for a trapezoidal outline and to <code>0.288·c<sub>root</sub></code> for an
+        elliptical one — so an odd planform is no longer flattened to an equal-area trapezoid for
+        stability. It is computed at import and is span-scale invariant, so it stays valid when a
+        geometry edit stretches the fin. Still reduced for a freeform fin: its normal-force slope
+        (the equal-area trapezoid) and its mass CG (a mid-planform estimate — no closed-form area
+        centroid for an arbitrary outline). Tube fins are not yet modelled — a design that uses them
+        is flown without those fins (with a visible warning), and because that isn&apos;t the whole
+        vehicle, its OpenRocket comparison is withheld.
       </p>
 
       <h3>Serial staging is simulated; parallel and strap-on staging isn&apos;t</h3>

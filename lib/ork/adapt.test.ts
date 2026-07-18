@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { adaptOrkXml } from "./adapt";
+import { adaptOrkXml, freeformChordwiseCp } from "./adapt";
 import { importOrk } from "./import";
 import { flattenRocket, referenceRadius } from "../model/geometry";
 import { barrowman } from "../sim/aero";
@@ -498,5 +498,77 @@ describe("adaptOrkXml — per-configuration airstart ignition", () => {
     const cfgB = doc.rocket.configurations.find((c) => c.id === "cfgB")!;
     expect(cfgA.instances[0].ignitionDelay).toBe(0);
     expect(cfgB.instances[0].ignitionDelay).toBe(3);
+  });
+});
+
+describe("freeform fin exact chordwise CP (Barrowman strip theory)", () => {
+  // The trapezoid CP formula the aero uses for a trapezoidal fin, for cross-checking.
+  const trapCp = (root: number, tip: number, sweep: number) =>
+    (sweep / 3) * ((root + 2 * tip) / (root + tip)) + (1 / 6) * (root + tip - (root * tip) / (root + tip));
+
+  it("reduces to the trapezoid CP formula for a trapezoid outline", () => {
+    const root = 0.15, tip = 0.07, sweep = 0.05, span = 0.08;
+    // Root LE at origin, going root TE → tip TE → tip LE.
+    const pts = [
+      { x: 0, y: 0 },
+      { x: root, y: 0 },
+      { x: sweep + tip, y: span },
+      { x: sweep, y: span },
+    ];
+    expect(freeformChordwiseCp(pts, span, 0)).toBeCloseTo(trapCp(root, tip, sweep), 4);
+  });
+
+  it("gives the elliptical fin's 0.288·root chord for a half-ellipse outline", () => {
+    const cr = 0.13, s = 0.07;
+    const M = 64;
+    const pts: { x: number; y: number }[] = [];
+    for (let i = 0; i <= M; i++) {
+      const y = (i / M) * s;
+      const h = (cr / 2) * Math.sqrt(Math.max(0, 1 - (y / s) ** 2));
+      pts.push({ x: cr / 2 - h, y }); // leading edge
+    }
+    for (let i = M; i >= 0; i--) {
+      const y = (i / M) * s;
+      const h = (cr / 2) * Math.sqrt(Math.max(0, 1 - (y / s) ** 2));
+      pts.push({ x: cr / 2 + h, y }); // trailing edge
+    }
+    // Exact half-ellipse chordwise CP is (½ − 2/3π)·cr ≈ 0.2887·cr; polygon sampling lands within ~1%.
+    expect(freeformChordwiseCp(pts, s, 0)).toBeCloseTo((0.5 - 2 / (3 * Math.PI)) * cr, 3);
+  });
+
+  it("is referenced to the root leading edge, not the points' origin", () => {
+    // Same trapezoid, shifted +0.2 m in x: the CP shifts with it, but referenced to the root LE it
+    // is unchanged.
+    const root = 0.15, tip = 0.07, sweep = 0.05, span = 0.08, off = 0.2;
+    const pts = [
+      { x: off, y: 0 },
+      { x: off + root, y: 0 },
+      { x: off + sweep + tip, y: span },
+      { x: off + sweep, y: span },
+    ];
+    expect(freeformChordwiseCp(pts, span, off)).toBeCloseTo(trapCp(root, tip, sweep), 4);
+  });
+
+  it("imports a freeform fin with its exact CP, and the aero uses it", () => {
+    const finpoints =
+      "<finpoints><point x='0' y='0'/><point x='0.05' y='0.06'/><point x='0.09' y='0'/></finpoints>";
+    const xml = `<?xml version='1.0'?>
+      <openrocket version="1.10"><rocket><name>x</name><subcomponents><stage><subcomponents>
+        <nosecone><length>0.15</length><aftradius>0.025</aftradius><shape>ogive</shape></nosecone>
+        <bodytube><length>0.6</length><radius>0.025</radius><thickness>0.001</thickness><subcomponents>
+          <freeformfinset><name>ff</name><fincount>3</fincount><thickness>0.003</thickness>${finpoints}</freeformfinset>
+        </subcomponents></bodytube>
+      </subcomponents></stage></subcomponents></rocket></openrocket>`;
+    const rocket = adaptOrkXml(xml).rocket;
+    const finPos = flattenRocket(rocket).find((p) => p.component.kind === "freeformfinset")!;
+    const fin = finPos.component;
+    expect(fin.kind).toBe("freeformfinset");
+    if (fin.kind !== "freeformfinset") return;
+    expect(fin.cpChord).toBeGreaterThan(0);
+    // The whole-rocket Barrowman CP places the fin's contribution at the fin's fore station plus its
+    // stored chordwise CP — proof the aero flew the exact value, not an equal-area-trapezoid guess.
+    const st = barrowman(rocket);
+    const finContribution = st.contributions.find((c) => c.source === "ff")!;
+    expect(finContribution.x - finPos.xFore).toBeCloseTo(fin.cpChord!, 6);
   });
 });

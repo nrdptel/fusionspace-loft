@@ -160,6 +160,11 @@ export interface GenericFinSet extends ComponentBase {
   sweepLength: number;
   thickness: number;
   crossSection?: FinCrossSection;
+  /** Exact chordwise centre of pressure from the root leading edge (m), computed from a freeform
+   *  planform's actual outline at import (Barrowman strip-theory quarter-chord centroid). When set,
+   *  the aero uses it instead of reducing the planform to an equal-area trapezoid. Span-scale
+   *  invariant, so it stays valid when the fin is stretched by a geometry edit. */
+  cpChord?: number;
 }
 
 export interface InnerTube extends ComponentBase {
