@@ -319,7 +319,11 @@ export default function Methods() {
         In-line (serial) stages fly in sequence. The bottom stage lights at launch; each stage
         above air-starts when the stage below burns out, plus any ignition delay it specifies —
         so a boosted-dart coast between separation and the sustainer&apos;s air-start is honoured.
-        At that burnout the spent stage <em>separates</em>: its structure and empty casing leave
+        A stage <em>separates</em> on the event the design specifies: by default (and for the usual
+        boosted staging) when it finishes burning, but a stage set to separate at its own
+        <em> ejection charge</em> hangs on until that charge fires — often a long delay, so a
+        payload or dual-section rocket stays whole until near apogee and only then parts, rather
+        than splitting at burnout. When it separates its structure and empty casing leave
         the vehicle, and the flight continues on the stages still attached. The simulator recomputes
         mass, the reference area, and the drag buildup for the attached stack at each separation
         (each phase&apos;s vehicle is the top-most stages, evaluated with the same mass and aero
@@ -346,10 +350,11 @@ export default function Methods() {
 
       <h2>Recovery &amp; drift</h2>
       <p>
-        Each recovery device deploys on its event — apogee, a set altitude, or the motor&apos;s
-        ejection charge — plus any deploy delay it specifies: the vehicle free-falls on body drag
-        until the canopy opens, so a delayed deployment reports the higher speed reached at
-        line-stretch. An <em>ejection</em> deployment fires at the real charge time (burnout plus
+        Each recovery device deploys on its event — apogee, a set altitude, the motor&apos;s
+        ejection charge, or the separation of the stage below it (the payload/dual-section charge
+        that both parts the sections and pops the chute) — plus any deploy delay it specifies: the
+        vehicle free-falls on body drag until the canopy opens, so a delayed deployment reports the
+        higher speed reached at line-stretch. An <em>ejection</em> deployment fires at the real charge time (burnout plus
         the design&apos;s delay), so a too-short delay opens the canopy before apogee while still
         ascending, and a too-long delay opens it late at speed — or, if the charge would fire after
         the rocket is already down, not at all. Both a pre-apogee opening and a ballistic (no-deploy)

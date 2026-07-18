@@ -90,6 +90,33 @@ describe("graceful degradation", () => {
     expect(() => adaptOrkXml("<html></html>")).toThrow(/OpenRocket/);
   });
 
+  it("reads each stage's separation event and delay", () => {
+    // A payload rocket: the booster (bottom) separates at its own ejection charge; the top stage
+    // (unspecified) keeps Loft's serial-staging default.
+    const xml = `<?xml version='1.0'?>
+      <openrocket version="1.10">
+        <rocket><name>Sep</name>
+          <subcomponents>
+            <stage><name>Payload</name><subcomponents>
+              <nosecone><length>0.1</length><aftradius>0.02</aftradius><shape>ogive</shape></nosecone>
+            </subcomponents></stage>
+            <stage><name>Booster</name>
+              <separationevent>ejection</separationevent>
+              <separationdelay>1.5</separationdelay>
+              <subcomponents>
+                <bodytube><length>0.3</length><radius>0.02</radius><thickness>0.001</thickness></bodytube>
+              </subcomponents>
+            </stage>
+          </subcomponents>
+        </rocket>
+      </openrocket>`;
+    const doc = adaptOrkXml(xml);
+    expect(doc.rocket.stages).toHaveLength(2);
+    expect(doc.rocket.stages[0].separationEvent).toBeUndefined(); // top stage: default
+    expect(doc.rocket.stages[1].separationEvent).toBe("ejection");
+    expect(doc.rocket.stages[1].separationDelay).toBeCloseTo(1.5, 6);
+  });
+
   it("derives a freeform fin's span, root chord and area from its outline points", () => {
     // A freeform fin carries NO <rootchord>/<height> — only <finpoints>. If those aren't
     // derived, the fin reads as zero-span and contributes no normal force, so a design flips

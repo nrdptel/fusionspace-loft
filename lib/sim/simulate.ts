@@ -59,7 +59,7 @@ export interface RecoveryDeviceSim {
   name: string;
   /** Drag area Cd·A (m²). */
   cdA: number;
-  event: "apogee" | "altitude" | "ejection" | "launch" | "never";
+  event: "apogee" | "altitude" | "ejection" | "launch" | "separation" | "never";
   deployAltitude?: number; // m AGL
   deployDelay: number; // s
   /** Filled at runtime: time the trigger fired plus the deploy delay — i.e. when the canopy
@@ -343,6 +343,11 @@ export function simulate(input: SimulateInput): FlightResult {
   // "at ejection" opens at this time — which may be before or after apogee, depending on the
   // delay — rather than always at apogee, so a mistimed delay shows as an early or late deploy.
   const ejectionChargeTime = firstEjectionTime(motors);
+  // The final stage separation — when the tracked (top) stage is left flying alone. A recovery
+  // device set to deploy on lower-stage separation opens then (the classic payload/dual-section
+  // charge that both parts the sections and pops the chute). Undefined for a single-stage flight.
+  const lastSeparationTime =
+    phaseData.length > 1 ? phaseData[phaseData.length - 1].startTime : undefined;
 
   // Recovery deploy times resolved during integration.
   const events: FlightEvent[] = [];
@@ -559,6 +564,9 @@ export function simulate(input: SimulateInput): FlightResult {
           trigger = ejectionChargeTime !== undefined ? state.t >= ejectionChargeTime : apogeePassed;
         else if (dev.event === "altitude") trigger = apogeePassed && state.pos.z <= (dev.deployAltitude ?? 0);
         else if (dev.event === "launch") trigger = liftedOff;
+        else if (dev.event === "separation")
+          // Deploy when the stage below separates; a device with nothing below it never fires.
+          trigger = lastSeparationTime !== undefined && state.t >= lastSeparationTime;
         if (trigger) dev.deployedAt = state.t + (dev.deployDelay ?? 0);
       }
       if (dev.deployedAt !== undefined && !dev.opened && state.t >= dev.deployedAt) {

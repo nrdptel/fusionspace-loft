@@ -129,10 +129,14 @@ export default function Limitations() {
       <p>
         In-line (serial) multi-stage flights are simulated: the booster lights at launch, each
         stage above air-starts when the one below burns out (plus any ignition delay for a boosted
-        coast), and the spent stage separates and drops away — its structure and empty casing leave
-        the flight, so mass and drag step down and the sustainer climbs on its own. What is
-        <em>not</em> tracked is the separated stage&apos;s own descent: only the sustainer is flown
-        to the ground, so a booster&apos;s drift and landing aren&apos;t reported. Parallel
+        coast), and the spent stage separates on the event the design specifies — at burnout for
+        ordinary staging, or at its own ejection charge for a payload/dual-section rocket that stays
+        whole until near apogee, with the recovery deploying on that separation. Its structure and
+        empty casing then leave the flight, so mass and drag step down and the sustainer climbs on
+        its own. Two things are <em>not</em> yet modelled: a separated stage&apos;s own descent
+        (only the top stage is flown to the ground, so a booster&apos;s drift and landing
+        aren&apos;t reported), and an <em>apogee</em>- or <em>altitude</em>-triggered separation,
+        which falls back to the burnout default. Parallel
         (strap-on) stages and pods are still not simulated; a design that contains them is imported
         with a visible warning and its{" "}
         <Link href="/docs/validation">OpenRocket-vs-Loft comparison</Link> is withheld, since the

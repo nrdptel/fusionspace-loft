@@ -317,9 +317,27 @@ export interface MotorConfiguration {
 
 // --- rocket ---------------------------------------------------------------------------
 
+/** When a (booster) stage separates from the stack above it, following OpenRocket's convention.
+ *  `ejection` is the stage's own motor ejection charge (the common payload/dual-section case, often
+ *  a long delay so separation falls near apogee); `upperignition`/`burnout`/unspecified all reduce
+ *  to the stage finishing its burn (Loft's serial-staging default). */
+export type SeparationEvent =
+  | "burnout"
+  | "ejection"
+  | "apogee"
+  | "launch"
+  | "upperignition"
+  | "altitude"
+  | "never";
+
 export interface Stage {
   name: string;
   components: RocketComponent[];
+  /** How this stage separates from the stack above it. Undefined ⇒ the serial-staging default
+   *  (separate when the stage finishes burning). */
+  separationEvent?: SeparationEvent;
+  /** Delay (s) added after the separation event fires. Usually 0. */
+  separationDelay?: number;
 }
 
 /** How the aerodynamic reference area/diameter is chosen (OpenRocket's convention). */

@@ -12,6 +12,7 @@ import type {
   Rocket,
   RocketComponent,
   Stage,
+  SeparationEvent,
   Material,
   MaterialType,
   Placement,
@@ -179,6 +180,28 @@ function overrides(node: XmlNode): Partial<RocketComponent> {
   const subMass = childText(node, "overridesubcomponentsmass") ?? childText(node, "overridesubcomponents");
   if (subMass === "true") (out as { overrideSubcomponents?: boolean }).overrideSubcomponents = true;
   return out;
+}
+
+function mapSeparationEvent(s: string | undefined): SeparationEvent | undefined {
+  switch (s) {
+    case "burnout":
+      return "burnout";
+    case "ejection":
+      return "ejection";
+    case "apogee":
+      return "apogee";
+    case "launch":
+    case "ignition":
+      return "launch";
+    case "upperignition":
+      return "upperignition";
+    case "altitude":
+      return "altitude";
+    case "never":
+      return "never";
+    default:
+      return undefined; // unknown / absent ⇒ Loft's serial-staging default
+  }
 }
 
 function mapDeployEvent(s: string | undefined): DeployEvent {
@@ -677,9 +700,12 @@ function parseStages(rocketNode: XmlNode, ctx: WalkContext): Stage[] {
   if (!sub) return [];
   const stages: Stage[] = [];
   for (const st of children(sub, "stage")) {
+    const sepDelay = Number(childText(st, "separationdelay"));
     stages.push({
       name: childText(st, "name") || "Stage",
       components: parseSubcomponents(st, ctx),
+      separationEvent: mapSeparationEvent(childText(st, "separationevent")),
+      separationDelay: Number.isFinite(sepDelay) ? sepDelay : undefined,
     });
   }
   // Some files (older) put components directly under the rocket without a <stage>.

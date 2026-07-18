@@ -122,9 +122,29 @@ export function buildRocketDynamics(rocket: Rocket, config: MotorConfiguration):
   for (let i = nStages - 2; i >= 0; i--) {
     stageActivation[i] = stageActivation[i + 1] + stageBurnDuration[i + 1];
   }
-  // A spent lower stage separates and drops away when it finishes burning; the top stage never does.
+  // Each stage's own motor ejection-charge time (earliest, if any) — for a stage set to separate at
+  // ejection. Matches the per-motor ejectionTime formula below (ignition + burn + ejection delay).
+  const stageEjectionTime = new Array(nStages).fill(Infinity);
+  for (const p of placed) {
+    if (!Number.isFinite(p.ejectionDelay)) continue;
+    const ej = stageActivation[p.stageIndex] + p.ignitionDelay + p.curve.burnTime + p.ejectionDelay;
+    stageEjectionTime[p.stageIndex] = Math.min(stageEjectionTime[p.stageIndex], ej);
+  }
+  // When a spent lower stage separates and drops away, following the design's separation event.
+  // The default (unspecified / burnout / upper-stage ignition) is Loft's serial-staging behaviour:
+  // the stage drops when it finishes burning. `ejection` separates it at its own ejection charge —
+  // often a long delay, so a payload/dual-section rocket parts near apogee, not at burnout — and
+  // `never` keeps it attached. (apogee/altitude separation isn't yet resolved in-flight; it falls
+  // back to the burnout default.) The top stage never separates.
   const detachT = new Array(nStages).fill(Infinity);
-  for (let i = 1; i < nStages; i++) detachT[i] = stageActivation[i] + stageBurnDuration[i];
+  for (let i = 1; i < nStages; i++) {
+    const ev = rocket.stages[i]?.separationEvent;
+    const sepDelay = rocket.stages[i]?.separationDelay ?? 0;
+    const burnoutSep = stageActivation[i] + stageBurnDuration[i];
+    if (ev === "never") detachT[i] = Infinity;
+    else if (ev === "ejection" && Number.isFinite(stageEjectionTime[i])) detachT[i] = stageEjectionTime[i] + sepDelay;
+    else detachT[i] = burnoutSep + sepDelay;
+  }
 
   const motors: ResolvedMotor[] = [];
   for (const p of placed) {
@@ -189,6 +209,8 @@ function mapEvent(e: Parachute["deployEvent"]): RecoveryDeviceSim["event"] {
       return "altitude";
     case "launch":
       return "launch";
+    case "lowerstage-separation":
+      return "separation";
     default:
       return "never";
   }

@@ -8,6 +8,7 @@ import type {
   BodyTube,
   InnerTube,
   TrapezoidFinSet,
+  Parachute,
   MotorConfiguration,
   Stage,
 } from "../model/types";
@@ -261,5 +262,97 @@ describe("multi-stage stability", () => {
     single.configurations = rocket.configurations;
     const run = runFlight(single, { configId: "cfg" });
     expect(run.result.upperStageMarginCal).toBeUndefined();
+  });
+});
+
+/** A payload/dual-section rocket: a motorised booster (bottom) carries a motorless payload (top).
+ *  The booster separates at its own ejection charge, and the payload's parachute deploys on that
+ *  lower-stage separation — the common single-motor "separate and recover near apogee" pattern
+ *  (OpenRocket's own ARC-payload and deployable-payload examples are built this way). */
+function payload(sepEvent: Stage["separationEvent"], ejectionDelay: number): { rocket: Rocket; config: MotorConfiguration } {
+  uid = 0;
+  const boostMount = "m-boost";
+  const chute: Parachute = {
+    id: nextId(),
+    name: "Payload chute",
+    kind: "parachute",
+    placement: { method: "top", offset: 0 },
+    cd: 0.8,
+    diameter: 0.6,
+    mass: 0.03,
+    deployEvent: "lowerstage-separation",
+    deployDelay: 0,
+    children: [],
+  };
+  const payloadTube: BodyTube = {
+    id: nextId(),
+    name: "payload body",
+    kind: "bodytube",
+    placement: { method: "after", offset: 0 },
+    outerRadius: 0.025,
+    thickness: 0.001,
+    length: 0.4,
+    children: [chute],
+  };
+  const rocket: Rocket = {
+    name: "Payload test",
+    stages: [
+      { name: "Payload", components: [nose(), payloadTube] },
+      { name: "Booster", components: [tube(0.5, boostMount)], separationEvent: sepEvent, separationDelay: 0 },
+    ],
+    configurations: [],
+    referenceType: "maximum",
+  };
+  const config: MotorConfiguration = {
+    id: "cfg",
+    instances: [
+      {
+        mountId: boostMount,
+        motor: { designation: "H128W", manufacturer: "AeroTech", type: "reload", diameter: 0.038, length: 0.2, delay: ejectionDelay },
+        ignitionEvent: "automatic",
+        ignitionDelay: 0,
+      },
+    ],
+  };
+  rocket.configurations = [config];
+  return { rocket, config };
+}
+
+describe("stage separation event + recovery on lower-stage separation", () => {
+  it("separates at the booster's ejection charge, not at burnout, when the event is ejection", () => {
+    const { rocket, config } = payload("ejection", 6); // 6 s ejection delay ⇒ separation well after burnout
+    const bd = buildRocketDynamics(rocket, config);
+    const booster = bd.motors.find((m) => m.curve.designation === "H128W")!;
+    const burnout = booster.ignitionTime + booster.curve.burnTime;
+    // The booster hangs on until its ejection charge (burnout + 6 s), not dropping at burnout.
+    expect(booster.detachTime).toBeCloseTo(burnout + 6, 3);
+    expect(bd.phases.at(-1)!.startTime).toBeCloseTo(burnout + 6, 3);
+  });
+
+  it("deploys the payload chute on separation and comes in under canopy (not ballistic)", () => {
+    const run = runFlight(payload("ejection", 6).rocket, { configId: "cfg" });
+    const sep = run.result.events.find((e) => e.type === "separation")!;
+    const deploy = run.result.events.find((e) => e.type === "deploy")!;
+    expect(sep).toBeDefined();
+    expect(deploy).toBeDefined();
+    // The chute opens at the separation instant, not never.
+    expect(deploy.time).toBeCloseTo(sep.time, 1);
+    // A real canopy descent, and specifically NOT the ballistic case the old model produced.
+    expect(run.result.summary.descentRate).toBeLessThan(15);
+    expect(run.result.warnings.some((w) => w.code === "ballistic-descent")).toBe(false);
+  });
+
+  it("the separation event controls the timing — a burnout separation parts (and deploys) far earlier", () => {
+    const ejection = runFlight(payload("ejection", 6).rocket, { configId: "cfg" }).result.events.find((e) => e.type === "separation")!;
+    // Same airframe, separating at burnout instead: the split happens much sooner.
+    const burnout = runFlight(payload("burnout", 6).rocket, { configId: "cfg" }).result.events.find((e) => e.type === "separation")!;
+    expect(ejection.time - burnout.time).toBeGreaterThan(4); // the 6 s ejection delay, less the burn already elapsed
+  });
+
+  it("keeps the stage attached for a 'never' separation event", () => {
+    const { rocket, config } = payload("never", 6);
+    const bd = buildRocketDynamics(rocket, config);
+    expect(bd.phases.length).toBe(1); // nothing ever detaches
+    for (const m of bd.motors) expect(m.detachTime).toBe(Infinity);
   });
 });
