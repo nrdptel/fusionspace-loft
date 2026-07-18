@@ -303,6 +303,12 @@ test.describe("Loft", () => {
     await wind.fill("10");
     await expect(panel.getByRole("img", { name: /Apogee distribution histogram/i })).toBeVisible({ timeout: 15000 });
     await expect.poll(radius, { timeout: 15000 }).toBeGreaterThan(before);
+
+    // A waiver ceiling well below the design's apogee reports (nearly) every flight over it — a
+    // post-hoc check that doesn't re-fly.
+    await panel.getByLabel(/Waiver ceiling/).fill("100");
+    await expect(panel.getByText("Chance over ceiling")).toBeVisible();
+    await expect(panel.getByText("100%", { exact: true })).toBeVisible();
   });
 
   test("resizing the fins rebuilds the design and changes the stability margin", async ({ page }) => {

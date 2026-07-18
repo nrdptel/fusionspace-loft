@@ -4,9 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 import type { OrkDocument } from "@/lib/ork/import";
 import { overridesFromStored } from "@/lib/sim/run";
 import { runMonteCarlo } from "@/lib/sim/montecarlo-client";
-import type { Dispersions, MonteCarloResult, Stat } from "@/lib/sim/montecarlo";
+import { exceedanceProbability, type Dispersions, type MonteCarloResult, type Stat } from "@/lib/sim/montecarlo";
 import type { GeometryEdits } from "@/lib/model/edit";
-import { mToFt, mpsToFtps } from "@/lib/units";
+import { mToFt, ftToM, mpsToFtps } from "@/lib/units";
 import type { CsvCell } from "@/lib/csv";
 import { NumberField } from "./ui";
 import DownloadCsv from "./DownloadCsv";
@@ -14,6 +14,15 @@ import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
 
 const round = (n: number, dp: number) => (Number.isFinite(n) ? Math.round(n * 10 ** dp) / 10 ** dp : "");
+
+/** A probability in [0,1] as a compact, honest percentage: an exact 0/100 reads plainly, a small
+ *  non-zero tail reads "<1%" rather than rounding to a falsely reassuring 0%. */
+function formatChance(p: number): string {
+  if (p <= 0) return "0%";
+  if (p >= 1) return "100%";
+  if (p < 0.01) return "<1%";
+  return `${Math.round(p * 100)}%`;
+}
 
 /** Flights per run — enough for stable 5th/95th percentiles, cheap enough to finish in a second or
  *  two on the device. */
@@ -53,6 +62,9 @@ export default function MonteCarlo({
   const [result, setResult] = useState<MonteCarloResult | null>(null);
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState(0);
+  // Waiver/altitude ceiling to check the apogee band against (display units; 0 = off). Post-hoc on
+  // the existing samples, so changing it never re-flies — it only re-reads the results.
+  const [ceiling, setCeiling] = useState(0);
 
   const dispersions = useMemo<Dispersions>(
     () => ({
@@ -188,7 +200,13 @@ export default function MonteCarlo({
               None of the dispersed flights could be flown on this design.
             </div>
           ) : (
-            <Report result={result} units={units} name={doc.rocket.name} />
+            <Report
+              result={result}
+              units={units}
+              name={doc.rocket.name}
+              ceiling={ceiling}
+              onCeiling={setCeiling}
+            />
           )}
         </>
       )}
@@ -196,7 +214,23 @@ export default function MonteCarlo({
   );
 }
 
-function Report({ result, units, name }: { result: MonteCarloResult; units: UnitSystem; name: string }) {
+function Report({
+  result,
+  units,
+  name,
+  ceiling,
+  onCeiling,
+}: {
+  result: MonteCarloResult;
+  units: UnitSystem;
+  name: string;
+  ceiling: number;
+  onCeiling: (v: number) => void;
+}) {
+  // The ceiling is entered in the chosen unit system; convert to metres to compare with the
+  // (SI) sample apogees. 0/blank means "no ceiling set".
+  const ceilingM = ceiling > 0 ? (units === "imperial" ? ftToM(ceiling) : ceiling) : 0;
+  const exceed = ceilingM > 0 ? exceedanceProbability(result, ceilingM) : NaN;
   return (
     <div className="mt-4">
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -213,6 +247,35 @@ function Report({ result, units, name }: { result: MonteCarloResult; units: Unit
         <RadiusCard radius={result.landingRadiusP95} drift={result.driftDistance} units={units} />
       </div>
 
+      <div className="mt-3 flex flex-wrap items-end gap-3 rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-900/60">
+        <div className="w-40">
+          <NumberField
+            label="Waiver ceiling"
+            value={ceiling}
+            onChange={onCeiling}
+            unit={units === "imperial" ? "ft" : "m"}
+            step={units === "imperial" ? 500 : 100}
+            placeholder="optional"
+            hint="Altitude limit to check"
+          />
+        </div>
+        {Number.isFinite(exceed) && (
+          <div className="pb-1">
+            <div className="text-[11px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+              Chance over ceiling
+            </div>
+            <div
+              className={
+                "mt-0.5 text-lg font-semibold tabular-nums " +
+                (exceed > 0.05 ? "text-amber-700 dark:text-amber-300" : "text-zinc-900 dark:text-zinc-100")
+              }
+            >
+              {formatChance(exceed)}
+            </div>
+          </div>
+        )}
+      </div>
+
       <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
         <div>
           <h3 className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
@@ -225,6 +288,7 @@ function Report({ result, units, name }: { result: MonteCarloResult; units: Unit
             p5={result.apogee.p5}
             p95={result.apogee.p95}
             median={result.apogee.p50}
+            ceiling={ceilingM > 0 ? ceilingM : undefined}
           />
         </div>
         <div>
@@ -243,8 +307,11 @@ function Report({ result, units, name }: { result: MonteCarloResult; units: Unit
       <p className="mt-3 text-xs text-zinc-500 dark:text-zinc-400">
         {result.n} flights; the bands are 5th–95th percentiles. Rail-lean and wind directions are
         sampled from all bearings, so the scatter maps the recovery area to plan for regardless of the
-        day&apos;s wind heading. These are estimates that propagate the input spread you set — verify
-        against your own margins, never a go/no-go.
+        day&apos;s wind heading.{" "}
+        {Number.isFinite(exceed) &&
+          `The chance over the ceiling is the fraction of these flights that topped it — it still carries the model's own apogee error, so keep real margin. `}
+        These are estimates that propagate the input spread you set — verify against your own margins,
+        never a go/no-go.
       </p>
       <div className="mt-2">
         <DownloadCsv rows={csvRows(result, units)} name={name} suffix="dispersion" />
@@ -290,6 +357,7 @@ function Histogram({
   p5,
   p95,
   median,
+  ceiling,
 }: {
   values: number[];
   toNumber: (v: number) => number;
@@ -297,6 +365,9 @@ function Histogram({
   p5: number;
   p95: number;
   median: number;
+  /** Optional waiver-ceiling value (same raw units as the samples) to mark; flights to its right
+   *  are over the limit. */
+  ceiling?: number;
 }) {
   const W = 320;
   const H = 150;
@@ -352,6 +423,24 @@ function Histogram({
         strokeWidth={1.5}
         strokeDasharray="3 2"
       />
+      {/* waiver ceiling: shade the over-limit region and mark the line (clamped into the plot) */}
+      {ceiling !== undefined &&
+        (() => {
+          const cx = Math.max(padL, Math.min(padL + plotW, xAt(ceiling)));
+          return (
+            <g>
+              <rect x={cx} y={padT} width={padL + plotW - cx} height={plotH} className="fill-amber-500/15" />
+              <line
+                x1={cx}
+                x2={cx}
+                y1={padT}
+                y2={padT + plotH}
+                className="stroke-amber-600 dark:stroke-amber-400"
+                strokeWidth={1.5}
+              />
+            </g>
+          );
+        })()}
       {/* axis min / max labels */}
       <text x={padL} y={H - 6} className="fill-zinc-500 text-[10px]" style={{ fontSize: 10 }}>
         {Math.round(lo).toLocaleString()} {unit}

@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { importOrk } from "../ork/import";
 import { overridesFromStored, runFlight } from "./run";
-import { monteCarlo, type MonteCarloOptions } from "./montecarlo";
+import { monteCarlo, exceedanceProbability, type MonteCarloOptions } from "./montecarlo";
 
 async function load(name: string) {
   const buf = readFileSync(new URL(`../../fixtures/${name}`, import.meta.url));
@@ -155,6 +155,26 @@ describe("monteCarlo", () => {
       const spread = (v: number[]) => Math.max(...v) - Math.min(...v);
       expect(spread(gusty.samples.map((s) => s.landingX))).toBeGreaterThan(0);
       expect(spread(gusty.samples.map((s) => s.landingY))).toBeGreaterThan(0);
+    },
+    T,
+  );
+
+  it(
+    "exceedance probability tracks the apogee band against a ceiling",
+    async () => {
+      const { rocket, opts } = await baseOpts();
+      const r = monteCarlo(rocket, opts);
+      // A ceiling below every flight is certainly busted; above every flight, never.
+      expect(exceedanceProbability(r, r.apogee.min - 1)).toBe(1);
+      expect(exceedanceProbability(r, r.apogee.max + 1)).toBe(0);
+      // At the median, roughly half the flights are over (within sampling noise).
+      const pMedian = exceedanceProbability(r, r.apogee.p50);
+      expect(pMedian).toBeGreaterThan(0.3);
+      expect(pMedian).toBeLessThan(0.7);
+      // Raising the ceiling can only lower the chance of exceeding it (monotonic).
+      expect(exceedanceProbability(r, r.apogee.p95)).toBeLessThanOrEqual(exceedanceProbability(r, r.apogee.p5));
+      // A degenerate ceiling is not a number.
+      expect(exceedanceProbability(r, 0)).toBeNaN();
     },
     T,
   );

@@ -435,6 +435,13 @@ export default function Methods() {
         reproduce the same cloud — a dispersion is a stable property of the design, not wall-clock
         noise. The reported bands are 5th-to-95th percentiles of the flown samples.
       </p>
+      <p>
+        If you enter a <strong>waiver ceiling</strong>, Loft reports the fraction of the dispersed
+        flights whose apogee topped it — the &ldquo;chance of busting the ceiling&rdquo; a high-power
+        flyer weighs against an altitude limit. It is read from the samples already flown (changing it
+        doesn&apos;t re-fly), and it inherits the model&apos;s own systematic apogee error, so it is a
+        planning cue to keep real margin against — never a guarantee.
+      </p>
 
       <h2>Live weather (optional)</h2>
       <p>

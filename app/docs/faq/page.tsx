@@ -163,10 +163,12 @@ export default function Faq() {
           answer reflects your own conditions. The physics is the same trusted flight each time; the
           only thing that varies is the inputs, so it&apos;s an honest way to see how much your apogee
           and landing point move under real-world variability — a good gut-check against a waiver
-          ceiling or a field boundary. It runs entirely on your device, and the same design with the
-          same spreads reproduces the same result. It propagates only the inputs you set, layered on
-          top of the model&apos;s own limitations (see the drag note), so read the bands as a spread,
-          not an absolute guarantee.
+          ceiling or a field boundary. Enter your altitude limit and it tells you the fraction of the
+          dispersed flights that topped it — the chance of busting your ceiling — so you can size your
+          margin. It runs entirely on your device, and the same design with the same spreads
+          reproduces the same result. It propagates only the inputs you set, layered on top of the
+          model&apos;s own limitations (see the drag note), so read the bands as a spread, not an
+          absolute guarantee.
         </p>
       </QA>
 

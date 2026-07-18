@@ -222,3 +222,13 @@ export function summarizeSamples(samples: MonteCarloSample[]): MonteCarloResult 
 export function monteCarlo(rocket: Rocket, opts: MonteCarloOptions): MonteCarloResult {
   return summarizeSamples([...monteCarloSamples(rocket, opts)]);
 }
+
+/** Fraction of dispersed flights whose apogee exceeds `ceilingM` (metres) — the "chance of busting
+ *  a waiver ceiling" a high-power flyer checks their altitude limit against. In [0,1]; NaN when
+ *  there are no samples or the ceiling isn't a positive number. It carries the model's own
+ *  systematic error (the apogee bias), so it's a planning cue, not a guarantee. */
+export function exceedanceProbability(result: MonteCarloResult, ceilingM: number): number {
+  if (result.n === 0 || !(ceilingM > 0)) return NaN;
+  const over = result.samples.reduce((c, s) => c + (s.apogee > ceilingM ? 1 : 0), 0);
+  return over / result.n;
+}
