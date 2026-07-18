@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { OrkDocument } from "@/lib/ork/import";
 import { runFlight, overridesFromStored } from "@/lib/sim/run";
-import { parameterSweep, linRange, type SweepAxis, type ParamSweepPoint } from "@/lib/sim/sweep";
+import { linRange, type SweepAxis, type ParamSweepPoint } from "@/lib/sim/sweep";
+import { runParameterSweep } from "@/lib/sim/sweep-client";
 import { primaryFinSpan, primaryNose, primaryBodyTube, type GeometryEdits } from "@/lib/model/edit";
 import { mToFt, mToIn, mpsToFtps, kgToG, G_PER_OZ } from "@/lib/units";
 import type { CsvCell } from "@/lib/csv";
@@ -126,23 +127,44 @@ export default function ParameterSweep({
   const [open, setOpen] = useState(false);
   const [axisKey, setAxisKey] = useState<SweepAxis>(axes[0]?.axis ?? "finSpan");
   const [metricKey, setMetricKey] = useState<MetricDef["key"]>("apogee");
+  const [points, setPoints] = useState<ParamSweepPoint[] | null>(null);
+  const [running, setRunning] = useState(false);
 
   const axisDef = axes.find((a) => a.axis === axisKey) ?? axes[0];
   const metric = METRICS.find((m) => m.key === metricKey) ?? METRICS[0];
 
-  // Fly the sweep for the selected variable. Switching the plotted METRIC re-reads these points
-  // without re-flying; only changing the variable (or a held-fixed what-if) re-runs the flights.
-  const points = useMemo<ParamSweepPoint[] | null>(() => {
-    if (!open || !axisDef) return null;
+  // Fly the sweep for the selected variable, in the background so the UI stays responsive. Switching
+  // the plotted METRIC re-reads these points without re-flying; only changing the variable (or a
+  // held-fixed what-if) re-runs the flights. A stale run is abandoned between batches.
+  useEffect(() => {
+    if (!open || !axisDef) {
+      setPoints(null);
+      return;
+    }
+    let live = true;
+    setRunning(true);
     const sim = doc.simulations[simIndex] ?? doc.simulations[0];
     const values = linRange(axisDef.lo, axisDef.hi, STEPS);
-    return parameterSweep(doc.rocket, axisDef.axis, values, {
-      configId: sim?.conditions.configId,
-      overrides: sim ? overridesFromStored(sim) : undefined,
-      ballastKg,
-      motorSwap,
-      baseGeometry: geometry,
+    runParameterSweep(
+      doc.rocket,
+      axisDef.axis,
+      values,
+      {
+        configId: sim?.conditions.configId,
+        overrides: sim ? overridesFromStored(sim) : undefined,
+        ballastKg,
+        motorSwap,
+        baseGeometry: geometry,
+      },
+      () => !live,
+    ).then((pts) => {
+      if (!live) return;
+      setPoints(pts);
+      setRunning(false);
     });
+    return () => {
+      live = false;
+    };
   }, [open, doc, simIndex, axisDef, ballastKg, motorSwap, geometry]);
 
   // A design with no editable dimension (no fins, nose, or body tube) has nothing to sweep.
@@ -163,7 +185,7 @@ export default function ParameterSweep({
         Every other active what-if is held fixed, so the curve isolates the one variable.
       </p>
 
-      {points === null && (
+      {!open && (
         <div className="mt-3">
           <button
             type="button"
@@ -175,7 +197,7 @@ export default function ParameterSweep({
         </div>
       )}
 
-      {points !== null && axisDef && (
+      {open && axisDef && (
         <>
           <div className="mt-3 flex flex-wrap gap-3">
             <label className="block">
@@ -214,7 +236,12 @@ export default function ParameterSweep({
             </label>
           </div>
 
-          {points.length > 1 ? (
+          {running || points === null ? (
+            <div className="mt-3 flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-300" role="status">
+              <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent" />
+              <span>Flying {STEPS} points…</span>
+            </div>
+          ) : points.length > 1 ? (
             <SweepChart points={points} axis={axisDef} metric={metric} units={units} name={doc.rocket.name} />
           ) : (
             <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-300">

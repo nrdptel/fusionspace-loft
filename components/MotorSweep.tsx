@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import type { OrkDocument } from "@/lib/ork/import";
 import { overridesFromStored } from "@/lib/sim/run";
-import { motorSweep, type SweepMotor, type MotorSweepRow } from "@/lib/sim/sweep";
+import { type SweepMotor, type MotorSweepRow } from "@/lib/sim/sweep";
+import { runMotorSweep } from "@/lib/sim/sweep-client";
 import type { GeometryEdits } from "@/lib/model/edit";
 import { mToFt, mpsToFtps } from "@/lib/units";
 import type { CsvCell } from "@/lib/csv";
@@ -47,17 +48,38 @@ export default function MotorSweep({
   geometry?: GeometryEdits;
 }) {
   const [open, setOpen] = useState(false);
+  const [rows, setRows] = useState<MotorSweepRow[] | null>(null);
+  const [running, setRunning] = useState(false);
 
-  const rows = useMemo<MotorSweepRow[] | null>(() => {
-    if (!open) return null;
+  // Run the sweep off the main thread (falls back to synchronous if no worker), so a design's
+  // dozens of flights don't freeze the UI. A stale run (inputs changed mid-flight) is ignored.
+  useEffect(() => {
+    if (!open) {
+      setRows(null);
+      return;
+    }
+    let live = true;
+    setRunning(true);
     const sim = doc.simulations[simIndex] ?? doc.simulations[0];
-    return motorSweep(doc.rocket, options, {
-      configId: sim?.conditions.configId,
-      overrides: sim ? overridesFromStored(sim) : undefined,
-      ballastKg,
-      geometry,
-      designMotor,
+    runMotorSweep(
+      doc.rocket,
+      options,
+      {
+        configId: sim?.conditions.configId,
+        overrides: sim ? overridesFromStored(sim) : undefined,
+        ballastKg,
+        geometry,
+        designMotor,
+      },
+      () => !live,
+    ).then((r) => {
+      if (!live) return;
+      setRows(r);
+      setRunning(false);
     });
+    return () => {
+      live = false;
+    };
   }, [open, doc, simIndex, options, designMotor, ballastKg, geometry]);
 
   return (
@@ -75,7 +97,7 @@ export default function MotorSweep({
         &ldquo;which motor gets me to my target?&rdquo; sweep, run entirely on your device.
       </p>
 
-      {rows === null && (
+      {!open && (
         <div className="mt-3">
           <button
             type="button"
@@ -87,13 +109,22 @@ export default function MotorSweep({
         </div>
       )}
 
-      {rows !== null && rows.length === 0 && (
+      {open && running && (
+        <div className="mt-3 flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-300" role="status">
+          <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent" />
+          <span>Flying {options.length} motors…</span>
+        </div>
+      )}
+
+      {open && !running && rows !== null && rows.length === 0 && (
         <div className="mt-3 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900/60 dark:text-zinc-300">
           None of the fitting motors could be flown on this airframe.
         </div>
       )}
 
-      {rows !== null && rows.length > 0 && <SweepTable rows={rows} units={units} name={doc.rocket.name} />}
+      {open && !running && rows !== null && rows.length > 0 && (
+        <SweepTable rows={rows} units={units} name={doc.rocket.name} />
+      )}
     </section>
   );
 }
