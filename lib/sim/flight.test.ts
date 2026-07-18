@@ -225,6 +225,24 @@ describe("geometry edits (builder)", () => {
     expect(ellEdited.result.summary.apogee).toBeCloseTo(ellBase.result.summary.apogee, 6);
   });
 
+  it("a rougher surface finish drags more and flies lower; a smoother one flies higher", async () => {
+    const doc = await load("demo-single-deploy.ork");
+    const cfg = doc.simulations[0].conditions.configId;
+    const ov = overridesFromStored(doc.simulations[0]);
+
+    const base = runFlight(doc.rocket, { configId: cfg, overrides: ov });
+    const rough = runFlight(doc.rocket, { configId: cfg, overrides: ov, geometry: { finish: "rough" } });
+    const polished = runFlight(doc.rocket, { configId: cfg, overrides: ov, geometry: { finish: "polished" } });
+
+    // Skin friction dominates subsonic drag: a rough skin lowers apogee, a polished one raises it,
+    // and the effect is monotonic through the design's own finish in between.
+    expect(rough.result.summary.apogee).toBeLessThan(base.result.summary.apogee);
+    expect(polished.result.summary.apogee).toBeGreaterThan(base.result.summary.apogee);
+    expect(polished.result.summary.apogee).toBeGreaterThan(rough.result.summary.apogee);
+    // Stability is unchanged by finish (drag only, no geometry shift).
+    expect(rough.result.staticMarginCal).toBeCloseTo(base.result.staticMarginCal, 6);
+  });
+
   it("a longer body tube stretches the airframe and adds mass", async () => {
     const doc = await load("demo-single-deploy.ork");
     const cfg = doc.simulations[0].conditions.configId;

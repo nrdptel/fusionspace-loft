@@ -11,6 +11,7 @@ import {
   primaryFinTipChord,
   primaryNose,
   primaryBodyTube,
+  primaryFinish,
 } from "./edit";
 import type { GenericFinSet } from "./types";
 import { overallLength } from "./geometry";
@@ -126,6 +127,33 @@ describe("applyGeometryEdits — fin chords", () => {
   it("no-ops for a non-positive chord", async () => {
     const rocket = await load("demo-single-deploy.ork");
     expect(applyGeometryEdits(rocket, { finRootChord: 0, finTipChord: 0 })).toBe(rocket);
+  });
+});
+
+describe("applyGeometryEdits — surface finish", () => {
+  it("sets the chosen finish on every component of the airframe", async () => {
+    const rocket = await load("demo-single-deploy.ork");
+    const edited = applyGeometryEdits(rocket, { finish: "polished" });
+    const finishes = new Set(flattenRocket(edited).map((p) => p.component.finish));
+    expect(finishes).toEqual(new Set(["polished"]));
+    // The original design is untouched.
+    expect(flattenRocket(rocket).every((p) => p.component.finish === "polished")).toBe(false);
+  });
+
+  it("primaryFinish reports the roughest finish present (what drives the drag)", async () => {
+    const rocket = await load("demo-single-deploy.ork");
+    // Force a mix: most smooth, one rough — the rough one should win.
+    const mixed = applyGeometryEdits(rocket, { finish: "polished" });
+    const roughed = {
+      ...mixed,
+      stages: mixed.stages.map((s, i) =>
+        i === 0
+          ? { ...s, components: s.components.map((c, j) => (j === 0 ? { ...c, finish: "rough" as const } : c)) }
+          : s,
+      ),
+    };
+    expect(primaryFinish(roughed)).toBe("rough");
+    expect(primaryFinish(mixed)).toBe("polished");
   });
 });
 

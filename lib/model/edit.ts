@@ -7,8 +7,19 @@
  *  nose cone or body tube automatically shifts everything downstream and recomputes mass, drag,
  *  centre of pressure, and motor position. Fin span moves the centre of pressure (stability). */
 
-import type { Rocket, RocketComponent, NoseCone, BodyTube } from "./types";
+import type { Rocket, RocketComponent, NoseCone, BodyTube, SurfaceFinish } from "./types";
 import { flattenRocket } from "./geometry";
+
+/** Surface finishes ordered smoothest → roughest, for choosing the representative one and for the
+ *  edit UI. The roughest present is what drives skin-friction drag (see aeroGeometry). */
+export const SURFACE_FINISHES: SurfaceFinish[] = [
+  "mirror",
+  "polished",
+  "smooth-paint",
+  "regular-paint",
+  "unfinished",
+  "rough",
+];
 
 export interface GeometryEdits {
   /** Absolute fin semi-span (root→tip height, m) for every fin set. Undefined leaves fins as-is. */
@@ -23,6 +34,9 @@ export interface GeometryEdits {
   noseLength?: number;
   /** Absolute length (m) for the design's primary (longest) body tube. Undefined leaves it. */
   bodyLength?: number;
+  /** Surface finish applied to the whole airframe (drives skin-friction drag). Undefined leaves
+   *  each component's own finish. */
+  finish?: SurfaceFinish;
 }
 
 /** True when at least one edit actually changes something. */
@@ -33,7 +47,8 @@ export function hasGeometryEdits(e: GeometryEdits): boolean {
     (e.finRootChord !== undefined && e.finRootChord > 0) ||
     (e.finTipChord !== undefined && e.finTipChord > 0) ||
     (e.noseLength !== undefined && e.noseLength > 0) ||
-    (e.bodyLength !== undefined && e.bodyLength > 0)
+    (e.bodyLength !== undefined && e.bodyLength > 0) ||
+    e.finish !== undefined
   );
 }
 
@@ -124,6 +139,29 @@ function editComponent(c: RocketComponent, e: GeometryEdits, lengths: Map<string
   return children === c.children ? c : { ...c, children };
 }
 
+/** Set one surface finish on a component and its whole subtree — the "what if the whole airframe
+ *  were polished / left rough?" edit. Uniform, so the roughest-present rule the aero uses just
+ *  reduces to the chosen finish. */
+function withFinish(c: RocketComponent, finish: SurfaceFinish): RocketComponent {
+  const children = c.children.length ? c.children.map((ch) => withFinish(ch, finish)) : c.children;
+  return { ...c, finish, children };
+}
+
+/** The design's representative surface finish — the roughest one present, since that is what drives
+ *  the skin-friction drag. Defaults to "unfinished" when no component names a finish. */
+export function primaryFinish(rocket: Rocket): SurfaceFinish {
+  const present = new Set(
+    flattenRocket(rocket)
+      .map((p) => p.component.finish)
+      .filter((f): f is SurfaceFinish => f !== undefined),
+  );
+  // SURFACE_FINISHES is smoothest→roughest; the last present one is the roughest.
+  for (let i = SURFACE_FINISHES.length - 1; i >= 0; i--) {
+    if (present.has(SURFACE_FINISHES[i])) return SURFACE_FINISHES[i];
+  }
+  return "unfinished";
+}
+
 /** Return a design with the geometry edits applied. The original rocket is untouched (a fresh tree
  *  is returned only where something changed), so callers can keep the imported model pristine. */
 export function applyGeometryEdits(rocket: Rocket, edits: GeometryEdits): Rocket {
@@ -138,8 +176,13 @@ export function applyGeometryEdits(rocket: Rocket, edits: GeometryEdits): Rocket
     const tube = primaryBodyTube(rocket);
     if (tube) lengths.set(tube.id, edits.bodyLength);
   }
+  const finish = edits.finish;
+  const editOne = (c: RocketComponent): RocketComponent => {
+    const geo = editComponent(c, edits, lengths);
+    return finish ? withFinish(geo, finish) : geo;
+  };
   return {
     ...rocket,
-    stages: rocket.stages.map((s) => ({ ...s, components: s.components.map((c) => editComponent(c, edits, lengths)) })),
+    stages: rocket.stages.map((s) => ({ ...s, components: s.components.map(editOne) })),
   };
 }

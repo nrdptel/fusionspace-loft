@@ -157,7 +157,9 @@ export default function Faq() {
           airframe (everything downstream shifts). Bigger fins — or more of them — move the CP aft
           and raise the stability margin (the classic trade against nose weight); reshaping the fin
           chords changes its planform area (and so its drag and centre of pressure); a longer body
-          adds material and weight. The results, the <em>What-if vs design</em> delta,
+          adds material and weight. A <em>Surface finish</em> picker sets the whole airframe from
+          mirror-smooth to rough — skin friction is a big share of subsonic drag, so &ldquo;what does
+          a good paint job buy?&rdquo; can move the apogee noticeably. The results, the <em>What-if vs design</em> delta,
           and the RocketPy second opinion all reflect the edited geometry. It&apos;s the first step
           toward a full in-browser builder — editing a component&apos;s dimensions and re-simulating
           live. Because it&apos;s a change to the design, the OpenRocket comparison is hidden while

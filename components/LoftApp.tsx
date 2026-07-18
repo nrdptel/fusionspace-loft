@@ -14,13 +14,26 @@ import {
   primaryFinTipChord,
   primaryNose,
   primaryBodyTube,
+  primaryFinish,
+  SURFACE_FINISHES,
 } from "@/lib/model/edit";
+import type { SurfaceFinish } from "@/lib/model/types";
 import { allMotors } from "@/lib/motors/db";
 import type { ConditionOverrides } from "@/lib/sim/setup";
 import { fetchConditions, geocode, type WeatherConditions } from "@/lib/weather";
 import { mToFt, ftToM, mpsToMph, mphToMps } from "@/lib/units";
 import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
+
+/** Friendly labels for the surface-finish picker (smoothest → roughest). */
+const FINISH_LABELS: Record<SurfaceFinish, string> = {
+  mirror: "Mirror",
+  polished: "Polished",
+  "smooth-paint": "Smooth paint",
+  "regular-paint": "Regular paint",
+  unfinished: "Unfinished",
+  rough: "Rough",
+};
 
 interface Edits {
   rodLength?: number; // m
@@ -35,6 +48,7 @@ interface Edits {
   finTipChord?: number; // builder edit: fin tip chord (m, trapezoidal)
   noseLength?: number; // builder edit: nose-cone length (m)
   bodyLength?: number; // builder edit: primary body-tube length (m)
+  finish?: SurfaceFinish; // builder edit: whole-airframe surface finish
 }
 
 /** Same-diameter bundled motors the design could fly, with the design's own motor as the default.
@@ -93,6 +107,7 @@ export default function LoftApp() {
           finTipChord: e.finTipChord,
           noseLength: e.noseLength,
           bodyLength: e.bodyLength,
+          finish: e.finish,
         },
         // Validate only when flying the design's own stored conditions unchanged, and only when
         // Loft flew the complete design — a simplified vehicle (staging/pods/parallel/cluster)
@@ -114,7 +129,8 @@ export default function LoftApp() {
         e.finRootChord !== undefined ||
         e.finTipChord !== undefined ||
         e.noseLength !== undefined ||
-        e.bodyLength !== undefined;
+        e.bodyLength !== undefined ||
+        e.finish !== undefined;
       const baseline = hasWhatIf ? runFlight(document.rocket, { configId, overrides }) : null;
       return { run, baseline };
     },
@@ -259,6 +275,7 @@ export default function LoftApp() {
             finTipChord: primaryFinTipChord(doc.rocket),
             noseLength: primaryNose(doc.rocket)?.length,
             bodyLength: primaryBodyTube(doc.rocket)?.length,
+            finish: primaryFinish(doc.rocket),
           }
         : {
             finSpan: undefined,
@@ -267,6 +284,7 @@ export default function LoftApp() {
             finTipChord: undefined,
             noseLength: undefined,
             bodyLength: undefined,
+            finish: undefined,
           },
     [doc],
   );
@@ -380,6 +398,7 @@ export default function LoftApp() {
                 finTipChord: edits.finTipChord,
                 noseLength: edits.noseLength,
                 bodyLength: edits.bodyLength,
+                finish: edits.finish,
               }}
               swapOptions={swapInfo?.options}
               designMotor={swapInfo?.designMotor}
@@ -461,6 +480,7 @@ function ConditionsControls({
     finTipChord?: number;
     noseLength?: number;
     bodyLength?: number;
+    finish?: SurfaceFinish;
   };
   weather: WeatherConditions | null;
   scenario: "design" | "today";
@@ -627,6 +647,26 @@ function ConditionsControls({
                 placeholder={toDispSpan(designDims.bodyLength)}
                 onChange={(v) => onEdit({ bodyLength: fromSpan(v) })}
               />
+            )}
+            {designDims.finish !== undefined && (
+              <label className="block">
+                <span className="block text-[11px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                  Surface finish
+                </span>
+                <select
+                  aria-label="Surface finish"
+                  value={edits.finish ?? ""}
+                  onChange={(e) => onEdit({ finish: e.target.value ? (e.target.value as SurfaceFinish) : undefined })}
+                  className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                >
+                  <option value="">As designed ({FINISH_LABELS[designDims.finish]})</option>
+                  {SURFACE_FINISHES.map((f) => (
+                    <option key={f} value={f}>
+                      {FINISH_LABELS[f]}
+                    </option>
+                  ))}
+                </select>
+              </label>
             )}
           </div>
           <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
