@@ -148,6 +148,28 @@ test.describe("Loft", () => {
     await expect(panel.getByText(/design flew/)).toBeVisible();
   });
 
+  test("motor sweep flies every fitting motor and marks the design's own", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+
+    // The sweep panel offers to fly every fitting bundled motor at once.
+    const panel = page.getByRole("region", { name: "Motor sweep" });
+    await expect(panel).toBeVisible();
+    await panel.getByRole("button", { name: /Run motor sweep/ }).click();
+
+    // A results table appears with several motors and the design's own marked.
+    const rows = panel.locator("tbody tr");
+    await expect.poll(async () => rows.count()).toBeGreaterThan(2);
+    await expect(panel.getByText("Design", { exact: true })).toBeVisible();
+
+    // Apogees are laid out highest-first: the top row out-flies the bottom row.
+    const apogeeCells = await panel.locator("tbody tr td:nth-child(3)").allInnerTexts();
+    const nums = apogeeCells.map((t) => parseFloat(t.replace(/[^\d.]/g, "")));
+    expect(nums.length).toBeGreaterThan(2);
+    expect(nums[0]).toBeGreaterThan(nums[nums.length - 1]);
+  });
+
   test("resizing the fins rebuilds the design and changes the stability margin", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();

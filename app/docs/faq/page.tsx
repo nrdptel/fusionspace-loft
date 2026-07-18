@@ -102,6 +102,22 @@ export default function Faq() {
         </p>
       </QA>
 
+      <QA q="Can I compare all the motors that fit at once?">
+        <p>
+          Yes. Under the results, <em>Compare fitting motors</em> flies your airframe on every
+          bundled motor that fits its mount diameter — all at once, on your device — and lays them
+          out highest-apogee first: apogee, max speed, rail-exit velocity, thrust-to-weight, and
+          stability margin for each, with your design&apos;s own motor marked. It&apos;s the fast way
+          to answer &ldquo;which motor gets me to my target?&rdquo; and to see the trade — a bigger
+          motor climbs higher but sits heavier at the tail, trimming the stability margin, while
+          rail-exit velocity and thrust-to-weight show which motors clear the rail cleanly. Any
+          active nose-ballast or geometry what-if is applied to every motor, so you&apos;re comparing
+          the design you&apos;re actually looking at. Each row is a ballistic ascent under the
+          design&apos;s stored conditions — estimates to check against the motor&apos;s printed data
+          and your rail, never a go/no-go.
+        </p>
+      </QA>
+
       <QA q="Can I see what adding nose weight would do?">
         <p>
           Yes. Under <em>Conditions → Design what-if</em>, enter a nose-ballast mass and Loft re-flies

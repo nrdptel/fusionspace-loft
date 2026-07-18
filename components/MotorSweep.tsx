@@ -1,0 +1,163 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import type { OrkDocument } from "@/lib/ork/import";
+import { overridesFromStored } from "@/lib/sim/run";
+import { motorSweep, type SweepMotor, type MotorSweepRow } from "@/lib/sim/sweep";
+import type { GeometryEdits } from "@/lib/model/edit";
+import * as d from "@/lib/display";
+import type { UnitSystem } from "@/lib/display";
+
+/** Below this liftoff thrust-to-weight the rocket is at or under the common HPR rule of thumb for
+ *  clean rail clearance — worth flagging (softly, never as a verdict). */
+const TW_RULE_OF_THUMB = 5;
+
+/** Motor sweep: fly this airframe on every bundled motor that fits its mount, all under one clean
+ *  ballistic baseline, and lay the results side by side — the "which motor gets me to my target?"
+ *  question answered at a glance, in the browser. Reuses the same motor-swap the what-if picker
+ *  uses, so each row is exactly the flight that picking that motor would produce. It honours the
+ *  active nose-ballast and geometry what-ifs, so the sweep is over the design the flyer is looking
+ *  at. Because it's a like-for-like comparison, every motor flies ballistic to apogee under the
+ *  design's stored launch conditions (recovery and wind removed), matching the RocketPy
+ *  cross-check's methodology. */
+export default function MotorSweep({
+  doc,
+  simIndex,
+  units,
+  options,
+  designMotor,
+  ballastKg,
+  geometry,
+}: {
+  doc: OrkDocument;
+  simIndex: number;
+  units: UnitSystem;
+  /** Bundled motors of the design's mount diameter — the same list the swap picker offers. */
+  options: SweepMotor[];
+  /** The design's own motor designation, to mark its row. */
+  designMotor: string;
+  /** Active "what-if" nose ballast (kg), applied to every motor in the sweep. */
+  ballastKg?: number;
+  /** Active builder geometry edits, applied to every motor in the sweep. */
+  geometry?: GeometryEdits;
+}) {
+  const [open, setOpen] = useState(false);
+
+  const rows = useMemo<MotorSweepRow[] | null>(() => {
+    if (!open) return null;
+    const sim = doc.simulations[simIndex] ?? doc.simulations[0];
+    return motorSweep(doc.rocket, options, {
+      configId: sim?.conditions.configId,
+      overrides: sim ? overridesFromStored(sim) : undefined,
+      ballastKg,
+      geometry,
+      designMotor,
+    });
+  }, [open, doc, simIndex, options, designMotor, ballastKg, geometry]);
+
+  return (
+    <section
+      aria-label="Motor sweep"
+      className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900/40"
+    >
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 className="text-lg font-semibold tracking-tight">Compare fitting motors</h2>
+        <span className="text-xs text-zinc-500 dark:text-zinc-400">{options.length} motors fit this mount</span>
+      </div>
+      <p className="mt-1.5 text-sm text-zinc-600 dark:text-zinc-300">
+        Fly this airframe on every bundled motor that fits its mount diameter, all at once, and see
+        how apogee, speed, rail-exit velocity, and stability change across them — the classic
+        &ldquo;which motor gets me to my target?&rdquo; sweep, run entirely on your device.
+      </p>
+
+      {rows === null && (
+        <div className="mt-3">
+          <button
+            type="button"
+            onClick={() => setOpen(true)}
+            className="rounded-lg bg-indigo-600 px-3.5 py-2 text-sm font-medium text-white transition hover:bg-indigo-500"
+          >
+            Run motor sweep
+          </button>
+        </div>
+      )}
+
+      {rows !== null && rows.length === 0 && (
+        <div className="mt-3 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900/60 dark:text-zinc-300">
+          None of the fitting motors could be flown on this airframe.
+        </div>
+      )}
+
+      {rows !== null && rows.length > 0 && <SweepTable rows={rows} units={units} />}
+    </section>
+  );
+}
+
+function SweepTable({ rows, units }: { rows: MotorSweepRow[]; units: UnitSystem }) {
+  return (
+    <div className="mt-3">
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm tabular-nums">
+          <thead>
+            <tr className="text-left text-[11px] uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+              <th className="py-1 pr-4 font-medium">Motor</th>
+              <th className="py-1 pr-4 font-medium">Class</th>
+              <th className="py-1 pr-4 font-medium">Apogee</th>
+              <th className="py-1 pr-4 font-medium">Max&nbsp;V</th>
+              <th className="py-1 pr-4 font-medium">Rail&nbsp;exit</th>
+              <th className="py-1 pr-4 font-medium">T:W</th>
+              <th className="py-1 font-medium">Margin</th>
+            </tr>
+          </thead>
+          <tbody className="font-mono">
+            {rows.map((r) => {
+              const lowTW = r.thrustToWeight < TW_RULE_OF_THUMB;
+              return (
+                <tr
+                  key={`${r.manufacturer}|${r.designation}`}
+                  className={
+                    "border-t border-zinc-100 dark:border-zinc-800 " +
+                    (r.isDesign ? "bg-indigo-50/70 dark:bg-indigo-500/10" : "")
+                  }
+                >
+                  <th
+                    scope="row"
+                    className="py-1.5 pr-4 text-left font-sans font-normal text-zinc-700 dark:text-zinc-200"
+                  >
+                    <span className="font-medium text-zinc-800 dark:text-zinc-100">{r.designation}</span>{" "}
+                    <span className="text-zinc-500 dark:text-zinc-400">· {r.manufacturer}</span>
+                    {r.isDesign && (
+                      <span className="ml-1.5 rounded bg-indigo-600 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-white">
+                        Design
+                      </span>
+                    )}
+                  </th>
+                  <td className="py-1.5 pr-4 text-zinc-600 dark:text-zinc-300">{r.motorClass}</td>
+                  <td className="py-1.5 pr-4 text-zinc-800 dark:text-zinc-100">{d.q(d.altitude(r.apogee, units))}</td>
+                  <td className="py-1.5 pr-4 text-zinc-800 dark:text-zinc-100">{d.q(d.speed(r.maxVelocity, units))}</td>
+                  <td className="py-1.5 pr-4 text-zinc-800 dark:text-zinc-100">{d.q(d.speed(r.railExitVelocity, units))}</td>
+                  <td
+                    className={
+                      "py-1.5 pr-4 " +
+                      (lowTW ? "text-amber-700 dark:text-amber-300" : "text-zinc-800 dark:text-zinc-100")
+                    }
+                    title={lowTW ? `Below the ~${TW_RULE_OF_THUMB}:1 rule of thumb for clean rail clearance` : undefined}
+                  >
+                    {d.fmt(r.thrustToWeight, 1)}
+                  </td>
+                  <td className="py-1.5 text-zinc-800 dark:text-zinc-100">{d.q(d.calibers(r.staticMarginCal))}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
+        Each motor flies a ballistic ascent to apogee under the design&apos;s stored launch
+        conditions — a like-for-like comparison, not the full recovery flight. Rail-exit velocity and
+        thrust-to-weight are the launch-safety numbers to check against your rail and the ~5:1 and
+        ~15&nbsp;m/s (≈50&nbsp;ft/s) rules of thumb; these are estimates to verify, never a go/no-go.
+      </p>
+    </div>
+  );
+}

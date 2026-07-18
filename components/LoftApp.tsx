@@ -347,6 +347,8 @@ export default function LoftApp() {
               ballastKg={edits.ballastKg}
               motorSwap={edits.motorSwap}
               geometry={{ finSpan: edits.finSpan, finCount: edits.finCount, noseLength: edits.noseLength, bodyLength: edits.bodyLength }}
+              swapOptions={swapInfo?.options}
+              designMotor={swapInfo?.designMotor}
             />
           )}
         </div>

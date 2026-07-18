@@ -9,6 +9,7 @@ import LineChart, { type Series, type Marker } from "./LineChart";
 import FlightViz from "./FlightViz";
 import ValidationPanel from "./ValidationPanel";
 import RocketpyCrossCheck from "./RocketpyCrossCheck";
+import MotorSweep from "./MotorSweep";
 import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
 import { overallLength } from "@/lib/model/geometry";
@@ -43,6 +44,8 @@ export default function ResultsView({
   ballastKg,
   motorSwap,
   geometry,
+  swapOptions,
+  designMotor,
 }: {
   run: FlightRun;
   doc: OrkDocument;
@@ -56,6 +59,10 @@ export default function ResultsView({
   ballastKg?: number;
   motorSwap?: { manufacturer?: string; designation: string; diameter?: number };
   geometry?: GeometryEdits;
+  /** Bundled motors that fit this airframe's mount, for the motor-sweep comparison. */
+  swapOptions?: { designation: string; manufacturer: string; diameter: number; motorClass: string }[];
+  /** The design's own motor designation, to mark its row in the sweep. */
+  designMotor?: string;
 }) {
   const r = run.result;
   const s = r.summary;
@@ -166,6 +173,23 @@ export default function ResultsView({
           units={units}
           ballastKg={ballastKg}
           motorSwap={motorSwap}
+          geometry={geometry}
+        />
+      )}
+
+      {/* Motor sweep: only when there's a real choice (more than one fitting bundled motor) and a
+          single-stage vehicle, so each swept flight is a like-for-like whole-rocket comparison.
+          Keyed on the design + config + active geometry/ballast what-if so it resets when the design
+          the sweep is over changes. */}
+      {(doc.rocket.stages?.length ?? 1) === 1 && swapOptions && swapOptions.length > 1 && (
+        <MotorSweep
+          key={`${doc.rocket.name}:${simIndex}:${ballastKg ?? 0}:${geometry?.finSpan ?? 0}:${geometry?.finCount ?? 0}:${geometry?.noseLength ?? 0}:${geometry?.bodyLength ?? 0}`}
+          doc={doc}
+          simIndex={simIndex}
+          units={units}
+          options={swapOptions}
+          designMotor={designMotor ?? ""}
+          ballastKg={ballastKg}
           geometry={geometry}
         />
       )}
