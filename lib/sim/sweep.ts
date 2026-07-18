@@ -87,10 +87,10 @@ export function motorSweep(rocket: Rocket, motors: SweepMotor[], opts: MotorSwee
 /** A continuous variable the sweep can vary. The geometry axes map to a field of GeometryEdits
  *  (reusing the builder's "edit → rebuild → re-fly" path); `ballastKg` varies added nose weight
  *  instead — the classic stability-trim sweep. */
-export type SweepAxis = "finSpan" | "noseLength" | "bodyLength" | "ballastKg";
+export type SweepAxis = "finSpan" | "finThickness" | "noseLength" | "bodyLength" | "ballastKg";
 
 /** The geometry (length) axes, distinct from the ballast (mass) axis for how a value is applied. */
-const GEOMETRY_AXES: readonly SweepAxis[] = ["finSpan", "noseLength", "bodyLength"];
+const GEOMETRY_AXES: readonly SweepAxis[] = ["finSpan", "finThickness", "noseLength", "bodyLength"];
 
 /** One flight in a parameter sweep: the swept value and the metrics that respond to it. */
 export interface ParamSweepPoint {
@@ -100,6 +100,9 @@ export interface ParamSweepPoint {
   maxVelocity: number;
   railExitVelocity: number;
   staticMarginCal: number;
+  /** Worst-case fin-flutter margin over the ascent (flutter speed ÷ peak airspeed). NaN when the
+   *  design has no fins to estimate. */
+  flutterMargin: number;
 }
 
 export interface ParamSweepOptions {
@@ -159,6 +162,7 @@ export function parameterSweep(
         maxVelocity: s.maxVelocity,
         railExitVelocity: s.railExitVelocity,
         staticMarginCal: run.result.staticMarginCal,
+        flutterMargin: run.result.flutter ? run.result.flutter.worst.margin : Number.NaN,
       });
     } catch {
       // A value that can't be flown is simply left out of the curve.

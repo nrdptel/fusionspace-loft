@@ -4,7 +4,7 @@ import { importOrk } from "../ork/import";
 import { runFlight, overridesFromStored } from "./run";
 import { motorSweep, parameterSweep, linRange, type SweepMotor } from "./sweep";
 import { allMotors } from "../motors/db";
-import { primaryFinSpan, primaryBodyTube } from "../model/edit";
+import { primaryFinSpan, primaryFinThickness, primaryBodyTube } from "../model/edit";
 
 async function load(name: string) {
   const buf = readFileSync(new URL(`../../fixtures/${name}`, import.meta.url));
@@ -144,6 +144,39 @@ describe("parameterSweep", () => {
     // Bigger fins: CP aft ⇒ higher static margin; more fin drag + mass ⇒ lower apogee.
     expect(last.staticMarginCal).toBeGreaterThan(first.staticMarginCal);
     expect(last.apogee).toBeLessThan(first.apogee);
+  });
+
+  it("sweeps fin thickness: the flutter margin climbs steeply while drag rises (apogee falls)", async () => {
+    const doc = await load("demo-dual-deploy.ork"); // a fast flight where flutter is a real concern
+    const sim = doc.simulations[0];
+    const t0 = primaryFinThickness(doc.rocket)!;
+    const pts = parameterSweep(doc.rocket, "finThickness", linRange(t0 * 0.5, t0 * 1.75, 14), {
+      configId: sim.conditions.configId,
+      overrides: overridesFromStored(sim),
+    });
+    expect(pts).toHaveLength(14);
+    // Every point has a finite flutter margin (the design has fins).
+    for (const p of pts) expect(Number.isFinite(p.flutterMargin)).toBe(true);
+    const first = pts[0];
+    const last = pts[pts.length - 1];
+    // Thicker fins are much stiffer (flutter speed ∝ (t/c)^1.5) — the margin rises sharply — but
+    // present more drag, so the apogee falls across the range.
+    expect(last.flutterMargin).toBeGreaterThan(first.flutterMargin);
+    expect(last.flutterMargin).toBeGreaterThan(first.flutterMargin * 2); // the (t/c)³ steepness
+    expect(last.apogee).toBeLessThan(first.apogee);
+  });
+
+  it("reports a flutter margin on a fin-span sweep (bigger fins → thinner flutter margin)", async () => {
+    const doc = await load("demo-dual-deploy.ork");
+    const sim = doc.simulations[0];
+    const span = primaryFinSpan(doc.rocket)!;
+    const pts = parameterSweep(doc.rocket, "finSpan", linRange(span * 0.6, span * 1.6, 10), {
+      configId: sim.conditions.configId,
+      overrides: overridesFromStored(sim),
+    });
+    // A larger span raises the aspect ratio, which lowers the flutter speed: the margin shrinks.
+    expect(pts[pts.length - 1].flutterMargin).toBeLessThan(pts[0].flutterMargin);
+    expect(pts.every((p) => Number.isFinite(p.flutterMargin))).toBe(true);
   });
 
   it("sweeps body length: a longer airframe flies heavier (lower apogee) and more stable", async () => {

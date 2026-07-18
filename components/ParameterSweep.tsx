@@ -5,7 +5,7 @@ import type { OrkDocument } from "@/lib/ork/import";
 import { runFlight, overridesFromStored } from "@/lib/sim/run";
 import { linRange, type SweepAxis, type ParamSweepPoint } from "@/lib/sim/sweep";
 import { runParameterSweep } from "@/lib/sim/sweep-client";
-import { primaryFinSpan, primaryNose, primaryBodyTube, type GeometryEdits } from "@/lib/model/edit";
+import { primaryFinSpan, primaryFinThickness, primaryNose, primaryBodyTube, type GeometryEdits } from "@/lib/model/edit";
 import { mToFt, mToIn, mpsToFtps, kgToG, G_PER_OZ } from "@/lib/units";
 import type { CsvCell } from "@/lib/csv";
 import LineChart from "./LineChart";
@@ -34,7 +34,7 @@ interface AxisDef {
 }
 
 interface MetricDef {
-  key: "apogee" | "maxVelocity" | "railExitVelocity" | "staticMarginCal";
+  key: "apogee" | "maxVelocity" | "railExitVelocity" | "staticMarginCal" | "flutterMargin";
   label: string;
   /** Convert the SI metric value to the chosen unit system's number for plotting. */
   toNumber: (v: number, units: UnitSystem) => number;
@@ -46,6 +46,8 @@ const METRICS: MetricDef[] = [
   { key: "maxVelocity", label: "Max velocity", toNumber: (v, u) => (u === "imperial" ? mpsToFtps(v) : v), unit: (u) => (u === "imperial" ? "ft/s" : "m/s") },
   { key: "railExitVelocity", label: "Rail-exit velocity", toNumber: (v, u) => (u === "imperial" ? mpsToFtps(v) : v), unit: (u) => (u === "imperial" ? "ft/s" : "m/s") },
   { key: "staticMarginCal", label: "Static margin", toNumber: (v) => v, unit: () => "cal" },
+  // Unitless ratio (flutter speed ÷ peak airspeed); keep ≥ 1.5. Only offered for a finned design.
+  { key: "flutterMargin", label: "Fin flutter margin", toNumber: (v) => v, unit: () => "×" },
 ];
 
 /** The design's small lengths (fin span, tube lengths) read best in mm / in; ballast in g / oz. */
@@ -91,6 +93,8 @@ export default function ParameterSweep({
     const list: AxisDef[] = [];
     const span = primaryFinSpan(doc.rocket);
     if (span && span > 0) list.push(geometryAxis("finSpan", "Fin span", span));
+    const thickness = primaryFinThickness(doc.rocket);
+    if (thickness && thickness > 0) list.push(geometryAxis("finThickness", "Fin thickness", thickness));
     const nose = primaryNose(doc.rocket)?.length;
     if (nose && nose > 0) list.push(geometryAxis("noseLength", "Nose length", nose));
     const body = primaryBodyTube(doc.rocket)?.length;
@@ -124,6 +128,12 @@ export default function ParameterSweep({
     return list;
   }, [doc, simIndex, motorSwap, geometry]);
 
+  // The flutter-margin metric is only meaningful for a design with fins; a finless design drops it.
+  const metrics = useMemo(
+    () => (primaryFinThickness(doc.rocket) !== undefined ? METRICS : METRICS.filter((m) => m.key !== "flutterMargin")),
+    [doc],
+  );
+
   const [open, setOpen] = useState(false);
   const [axisKey, setAxisKey] = useState<SweepAxis>(axes[0]?.axis ?? "finSpan");
   const [metricKey, setMetricKey] = useState<MetricDef["key"]>("apogee");
@@ -131,7 +141,7 @@ export default function ParameterSweep({
   const [running, setRunning] = useState(false);
 
   const axisDef = axes.find((a) => a.axis === axisKey) ?? axes[0];
-  const metric = METRICS.find((m) => m.key === metricKey) ?? METRICS[0];
+  const metric = metrics.find((m) => m.key === metricKey) ?? metrics[0];
 
   // Fly the sweep for the selected variable, in the background so the UI stays responsive. Switching
   // the plotted METRIC re-reads these points without re-flying; only changing the variable (or a
@@ -180,9 +190,9 @@ export default function ParameterSweep({
         <span className="text-xs text-zinc-500 dark:text-zinc-400">how one dimension changes the flight</span>
       </div>
       <p className="mt-1.5 text-sm text-zinc-600 dark:text-zinc-300">
-        Vary one of the design&apos;s dimensions across a range and see how apogee, speed, or
-        stability responds — the response curve behind a single edit, run entirely on your device.
-        Every other active what-if is held fixed, so the curve isolates the one variable.
+        Vary one of the design&apos;s dimensions across a range and see how apogee, speed, stability,
+        or fin-flutter margin responds — the response curve behind a single edit, run entirely on your
+        device. Every other active what-if is held fixed, so the curve isolates the one variable.
       </p>
 
       {!open && (
@@ -227,7 +237,7 @@ export default function ParameterSweep({
                 onChange={(e) => setMetricKey(e.target.value as MetricDef["key"])}
                 className="mt-1 rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
               >
-                {METRICS.map((m) => (
+                {metrics.map((m) => (
                   <option key={m.key} value={m.key}>
                     {m.label}
                   </option>
@@ -242,7 +252,7 @@ export default function ParameterSweep({
               <span>Flying {STEPS} points…</span>
             </div>
           ) : points.length > 1 ? (
-            <SweepChart points={points} axis={axisDef} metric={metric} units={units} name={doc.rocket.name} />
+            <SweepChart points={points} axis={axisDef} metric={metric} metrics={metrics} units={units} name={doc.rocket.name} />
           ) : (
             <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-300">
               Not enough of the range could be flown to draw a curve.
@@ -258,22 +268,24 @@ function SweepChart({
   points,
   axis,
   metric,
+  metrics,
   units,
   name,
 }: {
   points: ParamSweepPoint[];
   axis: AxisDef;
   metric: MetricDef;
+  metrics: MetricDef[];
   units: UnitSystem;
   name: string;
 }) {
   // X in this axis's own display units (mm/in for a dimension, g/oz for ballast); Y in the metric's.
   const xUnit = axis.xUnit(units);
   const yUnit = metric.unit(units);
-  // The CSV carries every metric across the swept range, not just the one currently plotted.
+  // The CSV carries every available metric across the swept range, not just the one currently plotted.
   const csv: CsvCell[][] = [
-    [`${axis.label} (${xUnit})`, ...METRICS.map((m) => `${m.label} (${m.unit(units)})`)],
-    ...points.map((p) => [round(axis.xToNumber(p.x, units), 3), ...METRICS.map((m) => round(m.toNumber(p[m.key], units), 3))]),
+    [`${axis.label} (${xUnit})`, ...metrics.map((m) => `${m.label} (${m.unit(units)})`)],
+    ...points.map((p) => [round(axis.xToNumber(p.x, units), 3), ...metrics.map((m) => round(m.toNumber(p[m.key], units), 3))]),
   ];
   const series = [
     {

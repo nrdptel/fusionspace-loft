@@ -136,13 +136,14 @@ export default function Faq() {
 
       <QA q="Can I see a whole range at once — a response curve?">
         <p>
-          Yes. Under the results, <em>Sweep a parameter</em> varies one variable — fin span, nose
-          length, body length, or nose ballast — across a range and plots how a metric responds:
-          apogee, max speed, rail-exit velocity, or stability margin, switchable on the y-axis. A
-          marker shows the design&apos;s own value, so you can see at a glance where more span buys
-          stability (and what it costs in apogee), how a longer body trades altitude for margin, or —
-          the classic trim question — exactly how much nose weight buys the margin you want and what
-          apogee it costs. It&apos;s the response curve behind a single edit — every other active
+          Yes. Under the results, <em>Sweep a parameter</em> varies one variable — fin span, fin
+          thickness, nose length, body length, or nose ballast — across a range and plots how a metric
+          responds: apogee, max speed, rail-exit velocity, stability margin, or fin-flutter margin,
+          switchable on the y-axis. A marker shows the design&apos;s own value, so you can see at a
+          glance where more span buys stability (and what it costs in apogee), how a longer body trades
+          altitude for margin, exactly how much nose weight buys the margin you want — or, sweeping fin
+          thickness against the flutter margin, the thinnest fin that still clears the flutter boundary
+          with room to spare. It&apos;s the response curve behind a single edit — every other active
           what-if (a swapped motor, the other dimensions) is held fixed, so the curve isolates the
           one variable. Every point is a real ballistic flight run on your device; read them as
           estimates to verify, not a go/no-go.

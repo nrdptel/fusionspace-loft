@@ -263,6 +263,12 @@ test.describe("Loft", () => {
     // Nose ballast is a sweep axis too — the classic stability-trim curve.
     await panel.getByLabel("Sweep variable").selectOption("ballastKg");
     await expect(panel.getByRole("img", { name: /Static margin.*versus.*Nose ballast/i })).toBeVisible();
+
+    // Fin thickness is a sweep axis and fin-flutter margin a metric — the flutter design tool:
+    // sweep thickness and read where the margin clears the safe line.
+    await panel.getByLabel("Sweep variable").selectOption("finThickness");
+    await panel.getByLabel("Sweep metric").selectOption("flutterMargin");
+    await expect(panel.getByRole("img", { name: /Fin flutter margin.*versus.*Fin thickness/i })).toBeVisible();
   });
 
   test("resizing the fins rebuilds the design and changes the stability margin", async ({ page }) => {

@@ -425,6 +425,18 @@ function WhatIfDelta({ run, baseline, units }: { run: FlightRun; baseline: Fligh
       cur: d.calibers(run.result.staticMarginCal),
       change: d.changeAbsolute(baseline.result.staticMarginCal, run.result.staticMarginCal, "cal"),
     },
+    // Fin-flutter margin, when both flights estimate one (a finned design) — so a fin edit shows its
+    // effect on the flutter headroom right alongside the stability trade.
+    ...(run.result.flutter && baseline.result.flutter
+      ? [
+          {
+            label: "Flutter margin",
+            base: { value: d.fmt(baseline.result.flutter.worst.margin, 1), unit: "×" },
+            cur: { value: d.fmt(run.result.flutter.worst.margin, 1), unit: "×" },
+            change: d.changeAbsolute(baseline.result.flutter.worst.margin, run.result.flutter.worst.margin, "×", 1),
+          },
+        ]
+      : []),
   ];
 
   return (
