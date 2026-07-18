@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { importOrk } from "../ork/import";
 import { flattenRocket } from "./geometry";
-import { applyGeometryEdits, primaryFinSpan, primaryNose, primaryBodyTube } from "./edit";
+import { applyGeometryEdits, primaryFinSpan, primaryFinCount, primaryNose, primaryBodyTube } from "./edit";
 import type { GenericFinSet } from "./types";
 import { overallLength } from "./geometry";
 
@@ -49,6 +49,46 @@ describe("applyGeometryEdits — fin span", () => {
     expect(applyGeometryEdits(rocket, {})).toBe(rocket);
     expect(applyGeometryEdits(rocket, { finSpan: 0 })).toBe(rocket);
     expect(applyGeometryEdits(rocket, { noseLength: 0, bodyLength: 0 })).toBe(rocket);
+  });
+});
+
+describe("applyGeometryEdits — fin count", () => {
+  it("changes the fin count, rounding to a whole number, non-destructively", async () => {
+    const rocket = await load("demo-single-deploy.ork");
+    const before = primaryFinCount(rocket)!;
+    expect(before).toBeGreaterThanOrEqual(3);
+
+    const edited = applyGeometryEdits(rocket, { finCount: before + 1.4 });
+    // Fractional counts round to a whole number of fins.
+    expect(primaryFinCount(edited)).toBe(before + 1);
+    // The imported design is untouched.
+    expect(primaryFinCount(rocket)).toBe(before);
+    expect(edited).not.toBe(rocket);
+  });
+
+  it("changes the count without touching the span", async () => {
+    const rocket = await load("demo-single-deploy.ork");
+    const span0 = primaryFinSpan(rocket)!;
+    const n0 = primaryFinCount(rocket)!;
+
+    const edited = applyGeometryEdits(rocket, { finCount: n0 + 2 });
+    expect(primaryFinCount(edited)).toBe(n0 + 2);
+    expect(primaryFinSpan(edited)).toBeCloseTo(span0, 9);
+  });
+
+  it("applies span and count together in one edit", async () => {
+    const rocket = await load("demo-single-deploy.ork");
+    const span0 = primaryFinSpan(rocket)!;
+    const n0 = primaryFinCount(rocket)!;
+
+    const edited = applyGeometryEdits(rocket, { finSpan: span0 * 1.5, finCount: n0 + 1 });
+    expect(primaryFinSpan(edited)).toBeCloseTo(span0 * 1.5, 9);
+    expect(primaryFinCount(edited)).toBe(n0 + 1);
+  });
+
+  it("no-ops for a count below one", async () => {
+    const rocket = await load("demo-single-deploy.ork");
+    expect(applyGeometryEdits(rocket, { finCount: 0 })).toBe(rocket);
   });
 });
 

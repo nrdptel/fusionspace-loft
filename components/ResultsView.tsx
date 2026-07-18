@@ -159,7 +159,7 @@ export default function ResultsView({
           motor swap) remounts the panel to idle instead of leaving a stale RocketPy result on screen. */}
       {(doc.rocket.stages?.length ?? 1) === 1 && (
         <RocketpyCrossCheck
-          key={`${doc.rocket.name}:${run.config.id}:${simIndex}:${ballastKg ?? 0}:${motorSwap?.designation ?? ""}:${geometry?.finSpan ?? 0}:${geometry?.noseLength ?? 0}:${geometry?.bodyLength ?? 0}`}
+          key={`${doc.rocket.name}:${run.config.id}:${simIndex}:${ballastKg ?? 0}:${motorSwap?.designation ?? ""}:${geometry?.finSpan ?? 0}:${geometry?.finCount ?? 0}:${geometry?.noseLength ?? 0}:${geometry?.bodyLength ?? 0}`}
           doc={doc}
           config={run.config}
           simIndex={simIndex}

@@ -176,6 +176,34 @@ test.describe("Loft", () => {
     await expect.poll(staticMargin).toBeGreaterThan(before);
   });
 
+  test("adding fins rebuilds the design and raises the stability margin", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+
+    const staticMargin = async () => {
+      const txt = await page
+        .getByText("Static margin", { exact: true })
+        .locator("xpath=following-sibling::dd")
+        .innerText();
+      return parseFloat(txt.replace(/[^\d.]/g, ""));
+    };
+    const before = await staticMargin();
+    expect(before).toBeGreaterThan(0);
+
+    // Open the edit panel and add fins — a builder geometry edit. The field starts from the
+    // design's own fin count (its placeholder), so read that and add two.
+    await page.locator("summary", { hasText: "Conditions" }).click();
+    const finCount = page.getByLabel("Fin count", { exact: true });
+    await expect(finCount).toBeVisible();
+    const designCount = parseInt((await finCount.getAttribute("placeholder")) ?? "0", 10);
+    expect(designCount).toBeGreaterThanOrEqual(3);
+    await finCount.fill(String(designCount + 2));
+
+    // More fins add normal-force surface aft, moving the CP aft, so the rocket flies more stable.
+    await expect.poll(staticMargin).toBeGreaterThan(before);
+  });
+
   test("lengthening the body tube re-flies a heavier, lower-flying rocket", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();

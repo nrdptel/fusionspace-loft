@@ -5,7 +5,7 @@ import { importOrk } from "../ork/import";
 import { runFromDocument, runFlight, configChoices, overridesFromStored } from "./run";
 import { allMotors } from "../motors/db";
 import { flattenRocket } from "../model/geometry";
-import { primaryFinSpan, primaryNose, primaryBodyTube } from "../model/edit";
+import { primaryFinSpan, primaryFinCount, primaryNose, primaryBodyTube } from "../model/edit";
 import type { OrkDocument } from "../ork/adapt";
 
 /** End-to-end: import each committed fixture, fly it, and check the results are physically
@@ -153,6 +153,30 @@ describe("geometry edits (builder)", () => {
     // No/empty geometry edit changes nothing.
     const same = runFlight(doc.rocket, { configId: cfg, overrides: ov, geometry: { finSpan: 0 } });
     expect(same.result.staticMarginCal).toBeCloseTo(base.result.staticMarginCal, 9);
+  });
+
+  it("more fins raise CNα, move the CP aft, and raise the static margin", async () => {
+    const doc = await load("demo-single-deploy.ork");
+    const cfg = doc.simulations[0].conditions.configId;
+    const ov = overridesFromStored(doc.simulations[0]);
+
+    const base = runFlight(doc.rocket, { configId: cfg, overrides: ov });
+    const n = primaryFinCount(doc.rocket)!;
+    expect(n).toBeGreaterThanOrEqual(3);
+
+    // Adding fins adds normal-force-generating surface aft of the CG, so the fin set's CNα rises,
+    // the whole-rocket CP moves aft, and the static margin grows (more stable).
+    const more = runFlight(doc.rocket, { configId: cfg, overrides: ov, geometry: { finCount: n + 2 } });
+    expect(more.result.stability.cnAlpha).toBeGreaterThan(base.result.stability.cnAlpha);
+    expect(more.result.stability.cp).toBeGreaterThan(base.result.stability.cp);
+    expect(more.result.staticMarginCal).toBeGreaterThan(base.result.staticMarginCal);
+    // Still a finite, sane flight.
+    expect(more.result.summary.apogee).toBeGreaterThan(0);
+
+    // Fewer fins do the opposite — the CP moves forward and the margin shrinks.
+    const fewer = runFlight(doc.rocket, { configId: cfg, overrides: ov, geometry: { finCount: n - 1 } });
+    expect(fewer.result.stability.cp).toBeLessThan(base.result.stability.cp);
+    expect(fewer.result.staticMarginCal).toBeLessThan(base.result.staticMarginCal);
   });
 
   it("a longer body tube stretches the airframe and adds mass", async () => {
