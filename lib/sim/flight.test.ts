@@ -5,7 +5,7 @@ import { importOrk } from "../ork/import";
 import { runFromDocument, runFlight, configChoices, overridesFromStored } from "./run";
 import { allMotors } from "../motors/db";
 import { flattenRocket } from "../model/geometry";
-import { primaryFinSpan, primaryFinCount, primaryFinRootChord, primaryFinTipChord, primaryFinSweep, primaryFinThickness, primaryNose, primaryBodyTube } from "../model/edit";
+import { primaryFinSpan, primaryFinCount, primaryFinRootChord, primaryFinTipChord, primaryFinSweep, primaryFinThickness, primaryNose, primaryNoseShape, primaryBodyTube } from "../model/edit";
 import type { OrkDocument } from "../ork/adapt";
 
 /** End-to-end: import each committed fixture, fly it, and check the results are physically
@@ -349,6 +349,39 @@ describe("geometry edits (builder)", () => {
     expect(pointier.result.summary.apogee).toBeGreaterThan(0);
     expect(Math.abs(pointier.result.summary.apogee - base.result.summary.apogee)).toBeGreaterThan(0.5);
     expect(Number.isFinite(pointier.result.staticMarginCal)).toBe(true);
+  });
+
+  it("the nose contour changes the drag: a blunt nose flies lower than a fine one", async () => {
+    const doc = await load("demo-single-deploy.ork"); // subsonic — skin friction and nose pressure
+    const cfg = doc.simulations[0].conditions.configId;
+    const ov = overridesFromStored(doc.simulations[0]);
+    expect(primaryNoseShape(doc.rocket)).toBeTruthy();
+
+    const conical = runFlight(doc.rocket, { configId: cfg, overrides: ov, geometry: { noseShape: "conical" } });
+    const ellipsoid = runFlight(doc.rocket, { configId: cfg, overrides: ov, geometry: { noseShape: "ellipsoid" } });
+    // Subsonic, a fine conical nose has less wetted area (less skin friction) than a blunt
+    // ellipsoid, so it flies higher; both are finite, sane flights.
+    expect(conical.result.summary.apogee).toBeGreaterThan(ellipsoid.result.summary.apogee);
+    expect(ellipsoid.result.summary.apogee).toBeGreaterThan(0);
+
+    // Re-selecting the design's own shape (an ogive here, which ignores the shape parameter) leaves
+    // the flight unchanged — a no-op edit.
+    const base = runFlight(doc.rocket, { configId: cfg, overrides: ov });
+    const same = runFlight(doc.rocket, { configId: cfg, overrides: ov, geometry: { noseShape: primaryNoseShape(doc.rocket) } });
+    expect(same.result.summary.apogee).toBeCloseTo(base.result.summary.apogee, 6);
+  });
+
+  it("a Von Kármán (Haack) nose cuts transonic wave drag below a conical one", async () => {
+    const doc = await load("demo-dual-deploy.ork"); // transonic — wave drag separates the shapes
+    const cfg = doc.simulations[0].conditions.configId;
+    const ov = overridesFromStored(doc.simulations[0]);
+
+    const haack = runFlight(doc.rocket, { configId: cfg, overrides: ov, geometry: { noseShape: "haack" } });
+    const conical = runFlight(doc.rocket, { configId: cfg, overrides: ov, geometry: { noseShape: "conical" } });
+    // Through the transonic peak, the minimum-wave-drag Von Kármán nose reaches higher than the
+    // blunter-shouldered conical one.
+    expect(haack.result.summary.maxMach).toBeGreaterThan(1);
+    expect(haack.result.summary.apogee).toBeGreaterThan(conical.result.summary.apogee);
   });
 });
 

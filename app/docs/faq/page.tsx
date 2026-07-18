@@ -169,7 +169,8 @@ export default function Faq() {
           Starting to. Under <em>Conditions → Design what-if</em>, the <em>Fin span</em>,{" "}
           <em>Fin count</em>, <em>Fin root</em>, <em>Fin tip</em> and <em>Fin sweep</em> (the
           trapezoidal fin&apos;s chords and leading-edge sweep), <em>Fin thickness</em>,{" "}
-          <em>Nose length</em>, and <em>Body length</em> fields start from the design&apos;s own
+          <em>Nose length</em>, <em>Nose shape</em> (ogive, conical, ellipsoid, or a low-drag Haack /
+          Von Kármán), and <em>Body length</em> fields start from the design&apos;s own
           dimensions; change any and Loft rebuilds the rocket and re-flies it — mass, drag, and the
           centre of pressure and stability all update, and a longer nose or body stretches the whole
           airframe (everything downstream shifts). Bigger fins — or more of them — move the CP aft
@@ -177,8 +178,10 @@ export default function Faq() {
           chords changes its planform area (and so its drag and centre of pressure); sweeping the fins
           back carries their lift aft, adding stability without any extra area; thicker fins drag more
           but raise the flutter margin sharply (it climbs with the cube of thickness), so it&apos;s
-          the first knob to reach for when the <em>Fin flutter</em> estimate warns; a longer body
-          adds material and weight. A <em>Surface finish</em> picker sets the whole airframe from
+          the first knob to reach for when the <em>Fin flutter</em> estimate warns; a finer nose (a
+          cone, or a Von Kármán) trims drag — a little subsonically through wetted area, more
+          noticeably as the flight nears the speed of sound where nose shape drives the wave drag; a
+          longer body adds material and weight. A <em>Surface finish</em> picker sets the whole airframe from
           mirror-smooth to rough — skin friction is a big share of subsonic drag, so &ldquo;what does
           a good paint job buy?&rdquo; can move the apogee noticeably. The results, the <em>What-if vs design</em> delta,
           and the RocketPy second opinion all reflect the edited geometry. It&apos;s the first step

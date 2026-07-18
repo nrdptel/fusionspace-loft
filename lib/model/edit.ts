@@ -7,8 +7,22 @@
  *  nose cone or body tube automatically shifts everything downstream and recomputes mass, drag,
  *  centre of pressure, and motor position. Fin span moves the centre of pressure (stability). */
 
-import type { Rocket, RocketComponent, NoseCone, BodyTube, SurfaceFinish } from "./types";
+import type { Rocket, RocketComponent, NoseCone, BodyTube, SurfaceFinish, NoseShape } from "./types";
 import { flattenRocket } from "./geometry";
+
+/** Selectable nose-cone shapes, for the builder's nose picker. Ordered by how a flyer thinks of
+ *  them (sharp → blunt, then the parametrised low-drag families). */
+export const NOSE_SHAPES: NoseShape[] = ["ogive", "conical", "ellipsoid", "parabolic", "power", "haack"];
+
+/** The canonical shape parameter to give each nose shape when it's chosen from the picker, so the
+ *  result is one well-defined nose. `ogive`/`conical`/`ellipsoid` ignore it; the parametrised
+ *  families take their common representative — a ½-power and ½-parabola, and the C=0 Haack, i.e. the
+ *  minimum-drag Sears–Haack / Von Kármán ogive (the reason a flyer reaches for a Haack nose). */
+const NOSE_SHAPE_PARAM: Partial<Record<NoseShape, number>> = {
+  power: 0.5,
+  parabolic: 0.5,
+  haack: 0,
+};
 
 /** Surface finishes ordered smoothest → roughest, for choosing the representative one and for the
  *  edit UI. The roughest present is what drives skin-friction drag (see aeroGeometry). */
@@ -38,6 +52,9 @@ export interface GeometryEdits {
   finThickness?: number;
   /** Absolute nose-cone length (m) for the design's nose. Undefined leaves it. */
   noseLength?: number;
+  /** Nose-cone contour for the design's nose (drives nose pressure and wave drag). Chosen from the
+   *  picker as a canonical instance of the shape. Undefined leaves it. */
+  noseShape?: NoseShape;
   /** Absolute length (m) for the design's primary (longest) body tube. Undefined leaves it. */
   bodyLength?: number;
   /** Surface finish applied to the whole airframe (drives skin-friction drag). Undefined leaves
@@ -55,6 +72,7 @@ export function hasGeometryEdits(e: GeometryEdits): boolean {
     (e.finSweepLength !== undefined && e.finSweepLength >= 0) ||
     (e.finThickness !== undefined && e.finThickness > 0) ||
     (e.noseLength !== undefined && e.noseLength > 0) ||
+    e.noseShape !== undefined ||
     (e.bodyLength !== undefined && e.bodyLength > 0) ||
     e.finish !== undefined
   );
@@ -65,6 +83,11 @@ export function primaryNose(rocket: Rocket): NoseCone | undefined {
   return flattenRocket(rocket)
     .map((p) => p.component)
     .find((c): c is NoseCone => c.kind === "nosecone");
+}
+
+/** The design's nose-cone contour, for showing the flyer the current shape to edit from. */
+export function primaryNoseShape(rocket: Rocket): NoseShape | undefined {
+  return primaryNose(rocket)?.shape;
 }
 
 /** The design's primary body tube — the longest, i.e. the main airframe. */
@@ -129,6 +152,18 @@ function editComponent(c: RocketComponent, e: GeometryEdits, lengths: Map<string
   const children = c.children.length ? c.children.map((child) => editComponent(child, e, lengths)) : c.children;
 
   const newLen = lengths.get(c.id);
+  // The nose cone takes both a length override and a shape change (the aero reads both), so handle it
+  // before the generic length branch. A shape change installs that shape's canonical parameter.
+  if (c.kind === "nosecone" && (newLen !== undefined || e.noseShape !== undefined)) {
+    const shape = e.noseShape ?? c.shape;
+    return {
+      ...c,
+      length: newLen ?? c.length,
+      shape,
+      shapeParameter: e.noseShape !== undefined ? NOSE_SHAPE_PARAM[e.noseShape] : c.shapeParameter,
+      children,
+    };
+  }
   if (newLen !== undefined && "length" in c) {
     return { ...c, length: newLen, children };
   }

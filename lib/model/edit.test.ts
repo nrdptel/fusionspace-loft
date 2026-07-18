@@ -12,6 +12,7 @@ import {
   primaryFinSweep,
   primaryFinThickness,
   primaryNose,
+  primaryNoseShape,
   primaryBodyTube,
   primaryFinish,
 } from "./edit";
@@ -242,5 +243,31 @@ describe("applyGeometryEdits — length", () => {
     const edited = applyGeometryEdits(rocket, { noseLength: len0 * 1.5 });
     expect(primaryNose(edited)!.length).toBeCloseTo(len0 * 1.5, 9);
     expect(primaryNose(rocket)!.length).toBeCloseTo(len0, 9);
+  });
+});
+
+describe("applyGeometryEdits — nose shape", () => {
+  it("changes the nose contour and installs the shape's canonical parameter, non-destructively", async () => {
+    const rocket = await load("demo-single-deploy.ork");
+    const shape0 = primaryNoseShape(rocket)!;
+    expect(shape0).toBeTruthy();
+
+    // A Haack nose is the C=0 Sears–Haack / Von Kármán minimum-drag ogive.
+    const edited = applyGeometryEdits(rocket, { noseShape: "haack" });
+    expect(primaryNoseShape(edited)).toBe("haack");
+    expect(primaryNose(edited)!.shapeParameter).toBe(0);
+    // Conical/ellipsoid ignore the parameter, so choosing one clears it.
+    expect(primaryNose(applyGeometryEdits(rocket, { noseShape: "conical" }))!.shapeParameter).toBeUndefined();
+    // The original design is untouched.
+    expect(primaryNoseShape(rocket)).toBe(shape0);
+    expect(edited).not.toBe(rocket);
+  });
+
+  it("changes the nose shape and length together in one edit", async () => {
+    const rocket = await load("demo-single-deploy.ork");
+    const len0 = primaryNose(rocket)!.length;
+    const edited = applyGeometryEdits(rocket, { noseShape: "conical", noseLength: len0 * 1.4 });
+    expect(primaryNoseShape(edited)).toBe("conical");
+    expect(primaryNose(edited)!.length).toBeCloseTo(len0 * 1.4, 9);
   });
 });

@@ -405,6 +405,29 @@ test.describe("Loft", () => {
     await expect.poll(apogee).toBeLessThan(before);
   });
 
+  test("changing the nose shape rebuilds the design and changes the apogee", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+
+    const apogee = async () => {
+      const txt = await page
+        .getByLabel("Results")
+        .getByText("Apogee", { exact: true })
+        .locator("xpath=following-sibling::div")
+        .innerText();
+      return parseFloat(txt.replace(/[^\d.]/g, ""));
+    };
+    const before = await apogee();
+    expect(before).toBeGreaterThan(0);
+
+    // Swap the ogive nose for a blunt ellipsoid — more wetted area and nose pressure, so it flies
+    // a touch lower.
+    await page.locator("summary", { hasText: "Conditions" }).click();
+    await page.getByLabel("Nose shape").selectOption("ellipsoid");
+    await expect.poll(apogee).toBeLessThan(before);
+  });
+
   test("adding fins rebuilds the design and raises the stability margin", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();

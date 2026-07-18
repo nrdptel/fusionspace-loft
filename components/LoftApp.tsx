@@ -15,11 +15,13 @@ import {
   primaryFinSweep,
   primaryFinThickness,
   primaryNose,
+  primaryNoseShape,
   primaryBodyTube,
   primaryFinish,
   SURFACE_FINISHES,
+  NOSE_SHAPES,
 } from "@/lib/model/edit";
-import type { SurfaceFinish } from "@/lib/model/types";
+import type { SurfaceFinish, NoseShape } from "@/lib/model/types";
 import { allMotors } from "@/lib/motors/db";
 import type { ConditionOverrides } from "@/lib/sim/setup";
 import { fetchConditions, geocode, type WeatherConditions } from "@/lib/weather";
@@ -37,6 +39,16 @@ const FINISH_LABELS: Record<SurfaceFinish, string> = {
   rough: "Rough",
 };
 
+/** Friendly labels for the nose-shape picker. */
+const NOSE_SHAPE_LABELS: Record<NoseShape, string> = {
+  ogive: "Ogive",
+  conical: "Conical",
+  ellipsoid: "Ellipsoid",
+  parabolic: "Parabolic",
+  power: "Power series",
+  haack: "Haack (Von Kármán)",
+};
+
 interface Edits {
   rodLength?: number; // m
   rodAngleDeg?: number;
@@ -51,6 +63,7 @@ interface Edits {
   finSweepLength?: number; // builder edit: fin LE sweep (m, trapezoidal)
   finThickness?: number; // builder edit: fin thickness (m, any fin kind)
   noseLength?: number; // builder edit: nose-cone length (m)
+  noseShape?: NoseShape; // builder edit: nose-cone contour
   bodyLength?: number; // builder edit: primary body-tube length (m)
   finish?: SurfaceFinish; // builder edit: whole-airframe surface finish
 }
@@ -112,6 +125,7 @@ export default function LoftApp() {
           finSweepLength: e.finSweepLength,
           finThickness: e.finThickness,
           noseLength: e.noseLength,
+          noseShape: e.noseShape,
           bodyLength: e.bodyLength,
           finish: e.finish,
         },
@@ -137,6 +151,7 @@ export default function LoftApp() {
         e.finSweepLength !== undefined ||
         e.finThickness !== undefined ||
         e.noseLength !== undefined ||
+        e.noseShape !== undefined ||
         e.bodyLength !== undefined ||
         e.finish !== undefined;
       const baseline = hasWhatIf ? runFlight(document.rocket, { configId, overrides }) : null;
@@ -284,6 +299,7 @@ export default function LoftApp() {
             finSweepLength: primaryFinSweep(doc.rocket),
             finThickness: primaryFinThickness(doc.rocket),
             noseLength: primaryNose(doc.rocket)?.length,
+            noseShape: primaryNoseShape(doc.rocket),
             bodyLength: primaryBodyTube(doc.rocket)?.length,
             finish: primaryFinish(doc.rocket),
           }
@@ -295,6 +311,7 @@ export default function LoftApp() {
             finSweepLength: undefined,
             finThickness: undefined,
             noseLength: undefined,
+            noseShape: undefined,
             bodyLength: undefined,
             finish: undefined,
           },
@@ -411,6 +428,7 @@ export default function LoftApp() {
                 finSweepLength: edits.finSweepLength,
                 finThickness: edits.finThickness,
                 noseLength: edits.noseLength,
+                noseShape: edits.noseShape,
                 bodyLength: edits.bodyLength,
                 finish: edits.finish,
               }}
@@ -495,6 +513,7 @@ function ConditionsControls({
     finSweepLength?: number;
     finThickness?: number;
     noseLength?: number;
+    noseShape?: NoseShape;
     bodyLength?: number;
     finish?: SurfaceFinish;
   };
@@ -674,6 +693,26 @@ function ConditionsControls({
                 placeholder={toDispSpan(designDims.noseLength)}
                 onChange={(v) => onEdit({ noseLength: fromSpan(v) })}
               />
+            )}
+            {designDims.noseShape !== undefined && (
+              <label className="block">
+                <span className="block text-[11px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                  Nose shape
+                </span>
+                <select
+                  aria-label="Nose shape"
+                  value={edits.noseShape ?? ""}
+                  onChange={(e) => onEdit({ noseShape: e.target.value ? (e.target.value as NoseShape) : undefined })}
+                  className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                >
+                  <option value="">As designed ({NOSE_SHAPE_LABELS[designDims.noseShape]})</option>
+                  {NOSE_SHAPES.map((s) => (
+                    <option key={s} value={s}>
+                      {NOSE_SHAPE_LABELS[s]}
+                    </option>
+                  ))}
+                </select>
+              </label>
             )}
             {designDims.bodyLength !== undefined && (
               <Num
