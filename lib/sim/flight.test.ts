@@ -5,7 +5,7 @@ import { importOrk } from "../ork/import";
 import { runFromDocument, runFlight, configChoices, overridesFromStored } from "./run";
 import { allMotors } from "../motors/db";
 import { flattenRocket } from "../model/geometry";
-import { primaryFinSpan, primaryFinCount, primaryFinRootChord, primaryFinTipChord, primaryFinSweep, primaryNose, primaryBodyTube } from "../model/edit";
+import { primaryFinSpan, primaryFinCount, primaryFinRootChord, primaryFinTipChord, primaryFinSweep, primaryFinThickness, primaryNose, primaryBodyTube } from "../model/edit";
 import type { OrkDocument } from "../ork/adapt";
 
 /** End-to-end: import each committed fixture, fly it, and check the results are physically
@@ -254,6 +254,49 @@ describe("geometry edits (builder)", () => {
     const ellBase = runFlight(ell.rocket, { configId: ecfg, overrides: eov });
     const ellEdited = runFlight(ell.rocket, { configId: ecfg, overrides: eov, geometry: { finSweepLength: 0.05 } });
     expect(ellEdited.result.summary.apogee).toBeCloseTo(ellBase.result.summary.apogee, 6);
+  });
+
+  it("thicker fins raise the flutter margin but drag more and fly lower", async () => {
+    const doc = await load("demo-dual-deploy.ork"); // a fast, transonic flight — flutter matters
+    const cfg = doc.simulations[0].conditions.configId;
+    const ov = overridesFromStored(doc.simulations[0]);
+
+    const base = runFlight(doc.rocket, { configId: cfg, overrides: ov });
+    const t0 = primaryFinThickness(doc.rocket)!;
+    expect(t0).toBeGreaterThan(0);
+    expect(base.result.flutter).toBeDefined();
+
+    // Thicker fins are stiffer (flutter speed ∝ (t/c)^1.5, so the margin climbs) but present more
+    // frontal area and a bigger form factor — more drag, so a lower apogee.
+    const thick = runFlight(doc.rocket, { configId: cfg, overrides: ov, geometry: { finThickness: t0 * 2 } });
+    expect(thick.result.flutter!.worst.margin).toBeGreaterThan(base.result.flutter!.worst.margin);
+    expect(thick.result.summary.apogee).toBeLessThan(base.result.summary.apogee);
+
+    // Thinner fins do the opposite — the flutter margin drops (and here crosses into a warning).
+    const thin = runFlight(doc.rocket, { configId: cfg, overrides: ov, geometry: { finThickness: t0 * 0.5 } });
+    expect(thin.result.flutter!.worst.margin).toBeLessThan(base.result.flutter!.worst.margin);
+    expect(thin.result.summary.apogee).toBeGreaterThan(base.result.summary.apogee);
+
+    // A zero/empty thickness edit changes nothing.
+    const same = runFlight(doc.rocket, { configId: cfg, overrides: ov, geometry: { finThickness: 0 } });
+    expect(same.result.summary.apogee).toBeCloseTo(base.result.summary.apogee, 6);
+  });
+
+  it("fin thickness applies to an elliptical-fin design too (drag changes, flight stays sane)", async () => {
+    const doc = await load("demo-boattail.ork"); // elliptical fins
+    const cfg = doc.simulations[0].conditions.configId;
+    const ov = overridesFromStored(doc.simulations[0]);
+
+    const base = runFlight(doc.rocket, { configId: cfg, overrides: ov });
+    const t0 = primaryFinThickness(doc.rocket)!;
+    expect(t0).toBeGreaterThan(0);
+
+    // Unlike a chord edit (a no-op on an elliptical set), a thickness edit takes effect: thicker
+    // fins drag more and fly lower, and the flutter margin rises.
+    const thick = runFlight(doc.rocket, { configId: cfg, overrides: ov, geometry: { finThickness: t0 * 2 } });
+    expect(thick.result.summary.apogee).toBeLessThan(base.result.summary.apogee);
+    expect(thick.result.flutter!.worst.margin).toBeGreaterThan(base.result.flutter!.worst.margin);
+    expect(Number.isFinite(thick.result.summary.apogee)).toBe(true);
   });
 
   it("a rougher surface finish drags more and flies lower; a smoother one flies higher", async () => {

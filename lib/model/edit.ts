@@ -33,6 +33,9 @@ export interface GeometryEdits {
   /** Fin leading-edge sweep (m the tip LE is aft of the root LE) for a trapezoidal fin set.
    *  Undefined leaves it. */
   finSweepLength?: number;
+  /** Fin thickness (m) for every fin set — drives the fin drag (skin-friction form factor, edge
+   *  pressure, wave) and the flutter margin (∝ (t/c)³). Undefined leaves it. */
+  finThickness?: number;
   /** Absolute nose-cone length (m) for the design's nose. Undefined leaves it. */
   noseLength?: number;
   /** Absolute length (m) for the design's primary (longest) body tube. Undefined leaves it. */
@@ -50,6 +53,7 @@ export function hasGeometryEdits(e: GeometryEdits): boolean {
     (e.finRootChord !== undefined && e.finRootChord > 0) ||
     (e.finTipChord !== undefined && e.finTipChord > 0) ||
     (e.finSweepLength !== undefined && e.finSweepLength >= 0) ||
+    (e.finThickness !== undefined && e.finThickness > 0) ||
     (e.noseLength !== undefined && e.noseLength > 0) ||
     (e.bodyLength !== undefined && e.bodyLength > 0) ||
     e.finish !== undefined
@@ -110,6 +114,13 @@ export function primaryFinSweep(rocket: Rocket): number | undefined {
   return fin?.kind === "trapezoidfinset" ? fin.sweepLength : undefined;
 }
 
+/** The primary fin set's thickness (m). Defined for every fin kind (all carry a thickness), so a
+ *  finless design is the only undefined case. */
+export function primaryFinThickness(rocket: Rocket): number | undefined {
+  const fin = primaryFinSet(rocket);
+  return fin && "thickness" in fin ? fin.thickness : undefined;
+}
+
 /** Apply the edits to one component (and its subtree). Trapezoid fins derive their area from
  *  dimensions downstream, so only the height changes; a generic (elliptical/freeform) set stores
  *  its planform area, so it's scaled with the span to keep the shape. Length overrides are keyed by
@@ -127,11 +138,19 @@ function editComponent(c: RocketComponent, e: GeometryEdits, lengths: Map<string
   const root = e.finRootChord !== undefined && e.finRootChord > 0 ? e.finRootChord : undefined;
   const tip = e.finTipChord !== undefined && e.finTipChord > 0 ? e.finTipChord : undefined;
   const sweep = e.finSweepLength !== undefined && e.finSweepLength >= 0 ? e.finSweepLength : undefined;
-  if (span !== undefined || count !== undefined || root !== undefined || tip !== undefined || sweep !== undefined) {
+  const thick = e.finThickness !== undefined && e.finThickness > 0 ? e.finThickness : undefined;
+  if (
+    span !== undefined ||
+    count !== undefined ||
+    root !== undefined ||
+    tip !== undefined ||
+    sweep !== undefined ||
+    thick !== undefined
+  ) {
     if (c.kind === "trapezoidfinset") {
       // Root/tip chord and sweep reshape the trapezoid directly; the aero and mass read them, so
       // area and CP follow. Only trapezoidal sets take a chord/sweep edit (a generic set's chord is
-      // a reduction).
+      // a reduction). Thickness drives the fin drag and flutter and applies to every fin kind.
       return {
         ...c,
         height: span ?? c.height,
@@ -139,6 +158,7 @@ function editComponent(c: RocketComponent, e: GeometryEdits, lengths: Map<string
         rootChord: root ?? c.rootChord,
         tipChord: tip ?? c.tipChord,
         sweepLength: sweep ?? c.sweepLength,
+        thickness: thick ?? c.thickness,
         children,
       };
     }
@@ -146,7 +166,7 @@ function editComponent(c: RocketComponent, e: GeometryEdits, lengths: Map<string
       const height = span ?? c.height;
       // A generic set stores its planform area; scale it with any span change to keep the shape.
       const area = span !== undefined && c.height > 0 ? c.area * (span / c.height) : c.area;
-      return { ...c, height, area, finCount: count ?? c.finCount, children };
+      return { ...c, height, area, finCount: count ?? c.finCount, thickness: thick ?? c.thickness, children };
     }
   }
   return children === c.children ? c : { ...c, children };

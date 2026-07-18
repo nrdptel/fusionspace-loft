@@ -10,6 +10,7 @@ import {
   primaryFinRootChord,
   primaryFinTipChord,
   primaryFinSweep,
+  primaryFinThickness,
   primaryNose,
   primaryBodyTube,
   primaryFinish,
@@ -158,6 +159,36 @@ describe("applyGeometryEdits — fin sweep", () => {
     const rocket = await load("demo-boattail.ork"); // elliptical fins
     expect(primaryFinSweep(rocket)).toBeUndefined();
     expect(applyGeometryEdits(rocket, { finSweepLength: 0.05 })).toStrictEqual(rocket);
+  });
+});
+
+describe("applyGeometryEdits — fin thickness", () => {
+  it("resets a trapezoidal fin's thickness, non-destructively", async () => {
+    const rocket = await load("demo-single-deploy.ork");
+    const t0 = primaryFinThickness(rocket)!;
+    expect(t0).toBeGreaterThan(0);
+
+    const edited = applyGeometryEdits(rocket, { finThickness: t0 * 2 });
+    expect(primaryFinThickness(edited)).toBeCloseTo(t0 * 2, 9);
+    // The planform (span, chords) is untouched, and the original design is pristine.
+    expect(primaryFinSpan(edited)).toBeCloseTo(primaryFinSpan(rocket)!, 9);
+    expect(primaryFinRootChord(edited)).toBeCloseTo(primaryFinRootChord(rocket)!, 9);
+    expect(primaryFinThickness(rocket)).toBeCloseTo(t0, 9);
+    expect(edited).not.toBe(rocket);
+  });
+
+  it("applies to an elliptical fin set too (unlike a chord edit, thickness is universal)", async () => {
+    const rocket = await load("demo-boattail.ork"); // elliptical fins
+    const t0 = primaryFinThickness(rocket)!;
+    expect(t0).toBeGreaterThan(0);
+    // A chord edit is ignored on an elliptical set, but a thickness edit takes effect.
+    const edited = applyGeometryEdits(rocket, { finThickness: t0 * 1.5 });
+    expect(primaryFinThickness(edited)).toBeCloseTo(t0 * 1.5, 9);
+  });
+
+  it("no-ops for a non-positive thickness", async () => {
+    const rocket = await load("demo-single-deploy.ork");
+    expect(applyGeometryEdits(rocket, { finThickness: 0 })).toBe(rocket);
   });
 });
 

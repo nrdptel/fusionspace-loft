@@ -321,6 +321,35 @@ test.describe("Loft", () => {
     await expect.poll(apogee).toBeLessThan(before);
   });
 
+  test("thickening the fins rebuilds the design and lowers the apogee", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+
+    const apogee = async () => {
+      const txt = await page
+        .getByLabel("Results")
+        .getByText("Apogee", { exact: true })
+        .locator("xpath=following-sibling::div")
+        .innerText();
+      return parseFloat(txt.replace(/[^\d.]/g, ""));
+    };
+    const before = await apogee();
+    expect(before).toBeGreaterThan(0);
+
+    // Thicken the fins — more frontal area and form-factor drag. The field starts from the design's
+    // own thickness (a decimal millimetre value).
+    await page.locator("summary", { hasText: "Conditions" }).click();
+    const finThickness = page.getByLabel(/Fin thickness/);
+    await expect(finThickness).toBeVisible();
+    const designThickness = parseFloat((await finThickness.getAttribute("placeholder")) ?? "0");
+    expect(designThickness).toBeGreaterThan(0);
+    await finThickness.fill((designThickness * 2).toFixed(1));
+
+    // Thicker fins drag more, so the rocket doesn't climb as high.
+    await expect.poll(apogee).toBeLessThan(before);
+  });
+
   test("sweeping the fins back rebuilds the design and raises the stability margin", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();

@@ -13,6 +13,7 @@ import {
   primaryFinRootChord,
   primaryFinTipChord,
   primaryFinSweep,
+  primaryFinThickness,
   primaryNose,
   primaryBodyTube,
   primaryFinish,
@@ -48,6 +49,7 @@ interface Edits {
   finRootChord?: number; // builder edit: fin root chord (m, trapezoidal)
   finTipChord?: number; // builder edit: fin tip chord (m, trapezoidal)
   finSweepLength?: number; // builder edit: fin LE sweep (m, trapezoidal)
+  finThickness?: number; // builder edit: fin thickness (m, any fin kind)
   noseLength?: number; // builder edit: nose-cone length (m)
   bodyLength?: number; // builder edit: primary body-tube length (m)
   finish?: SurfaceFinish; // builder edit: whole-airframe surface finish
@@ -108,6 +110,7 @@ export default function LoftApp() {
           finRootChord: e.finRootChord,
           finTipChord: e.finTipChord,
           finSweepLength: e.finSweepLength,
+          finThickness: e.finThickness,
           noseLength: e.noseLength,
           bodyLength: e.bodyLength,
           finish: e.finish,
@@ -132,6 +135,7 @@ export default function LoftApp() {
         e.finRootChord !== undefined ||
         e.finTipChord !== undefined ||
         e.finSweepLength !== undefined ||
+        e.finThickness !== undefined ||
         e.noseLength !== undefined ||
         e.bodyLength !== undefined ||
         e.finish !== undefined;
@@ -278,6 +282,7 @@ export default function LoftApp() {
             finRootChord: primaryFinRootChord(doc.rocket),
             finTipChord: primaryFinTipChord(doc.rocket),
             finSweepLength: primaryFinSweep(doc.rocket),
+            finThickness: primaryFinThickness(doc.rocket),
             noseLength: primaryNose(doc.rocket)?.length,
             bodyLength: primaryBodyTube(doc.rocket)?.length,
             finish: primaryFinish(doc.rocket),
@@ -288,6 +293,7 @@ export default function LoftApp() {
             finRootChord: undefined,
             finTipChord: undefined,
             finSweepLength: undefined,
+            finThickness: undefined,
             noseLength: undefined,
             bodyLength: undefined,
             finish: undefined,
@@ -403,6 +409,7 @@ export default function LoftApp() {
                 finRootChord: edits.finRootChord,
                 finTipChord: edits.finTipChord,
                 finSweepLength: edits.finSweepLength,
+                finThickness: edits.finThickness,
                 noseLength: edits.noseLength,
                 bodyLength: edits.bodyLength,
                 finish: edits.finish,
@@ -486,6 +493,7 @@ function ConditionsControls({
     finRootChord?: number;
     finTipChord?: number;
     finSweepLength?: number;
+    finThickness?: number;
     noseLength?: number;
     bodyLength?: number;
     finish?: SurfaceFinish;
@@ -518,6 +526,9 @@ function ConditionsControls({
     m === undefined ? "" : imperial ? (m * 39.3701).toFixed(2) : (m * 1000).toFixed(0);
   const fromSpan = (v: string) =>
     v === "" || Number(v) === 0 ? undefined : imperial ? Number(v) / 39.3701 : Number(v) / 1000;
+  // Fin thickness is a few mm, where a round millimetre is too coarse — show a decimal.
+  const toDispThick = (m: number | undefined) =>
+    m === undefined ? "" : imperial ? (m * 39.3701).toFixed(3) : (m * 1000).toFixed(1);
 
   const findWeather = async () => {
     if (!place.trim()) return;
@@ -646,6 +657,14 @@ function ConditionsControls({
                 value={toDispSpan(edits.finSweepLength)}
                 placeholder={toDispSpan(designDims.finSweepLength)}
                 onChange={(v) => onEdit({ finSweepLength: fromSpan(v) })}
+              />
+            )}
+            {designDims.finThickness !== undefined && (
+              <Num
+                label={`Fin thickness (${spanU})`}
+                value={toDispThick(edits.finThickness)}
+                placeholder={toDispThick(designDims.finThickness)}
+                onChange={(v) => onEdit({ finThickness: fromSpan(v) })}
               />
             )}
             {designDims.noseLength !== undefined && (
