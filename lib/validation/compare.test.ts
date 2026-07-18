@@ -18,6 +18,8 @@ const summary: FlightSummary = {
   optimumDelay: 10,
   deploymentVelocity: 3,
   driftDistance: 40,
+  landingX: 40,
+  landingY: 0,
   descentRate: 6,
 };
 

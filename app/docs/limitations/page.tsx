@@ -177,6 +177,20 @@ export default function Limitations() {
         (un-modelled) rotational response.
       </p>
 
+      <h3>Monte-Carlo dispersion propagates only the inputs you set</h3>
+      <p>
+        The dispersion tool jitters three inputs — motor total impulse, rail angle, and wind speed —
+        around their nominal values and flies each sample through the same solver. It is not a full
+        uncertainty budget: dry-mass build tolerance, drag-coefficient uncertainty, thrust-curve
+        <em>shape</em> variation (only the overall scale is varied), and ejection-timing scatter are
+        not dispersed, and every sample inherits the model&apos;s own systematic errors (notably the
+        drag bias above). Because the flight is 3-DOF with a steady wind and no rotational dynamics,
+        the landing scatter captures the drift response to wind and rail lean but not weathercocking,
+        gust response, or wind-shear turbulence. Read the bands as the spread <em>due to the inputs
+        you dispersed</em>, layered on top of the single-flight limitations — not an absolute
+        confidence interval.
+      </p>
+
       <h3>Recovery deployment is idealised</h3>
       <p>
         A device deploys on its event and honours its deploy delay — the vehicle free-falls on body

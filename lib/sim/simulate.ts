@@ -143,6 +143,11 @@ export interface FlightSummary {
   optimumDelay: number;
   deploymentVelocity: number;
   driftDistance: number;
+  /** Landing point relative to the pad (m): downrange (+x) and crossrange (+y) components of the
+   *  drift, so a set of flights (e.g. a Monte-Carlo) can be plotted as a 2D scatter. Their
+   *  magnitude is `driftDistance`. */
+  landingX: number;
+  landingY: number;
   descentRate: number; // final (main) descent rate (m/s)
 }
 
@@ -195,13 +200,13 @@ function motorMassPoints(motors: ResolvedMotor[], t: number): PointMass[] {
   return pts;
 }
 
-function totalThrust(motors: ResolvedMotor[], t: number): number {
+function totalThrust(motors: ResolvedMotor[], t: number, scale = 1): number {
   let f = 0;
   for (const m of motors) {
     if (t >= (m.detachTime ?? Infinity)) continue;
     f += thrustAt(m.curve, t - m.ignitionTime);
   }
-  return f;
+  return f * scale;
 }
 
 /** Total attached-motor mass at t (dry casing + remaining propellant). The scalar counterpart of
@@ -232,6 +237,11 @@ export interface SimulateInput {
    *  mass and CG (and thus apogee and stability) exactly as a real added mass would. Empty/absent
    *  for an unmodified design. */
   extraMasses?: PointMass[];
+  /** Scale factor on every motor's thrust (and thus total impulse), default 1. Models a motor's
+   *  lot-to-lot total-impulse tolerance — the propellant mass is essentially fixed for a given
+   *  motor, so the variation is in average thrust, which is what this scales. Used by the
+   *  Monte-Carlo dispersion; an ordinary flight leaves it at 1. */
+  thrustScale?: number;
 }
 
 const MAX_TIME = 1200; // s, hard cap
@@ -239,6 +249,7 @@ const MAX_TIME = 1200; // s, hard cap
 export function simulate(input: SimulateInput): FlightResult {
   const { rocket, config, motors, recovery, conditions } = input;
   const dtBoost = input.timeStep ?? 0.01;
+  const thrustScale = input.thrustScale ?? 1;
 
   const structure = structurePointMasses(rocket);
   const geom = aeroGeometry(rocket);
@@ -391,7 +402,7 @@ export function simulate(input: SimulateInput): FlightResult {
     const wind = windAt(s.pos.z);
     const airVel = { x: s.vel.x - wind.x, y: s.vel.y - wind.y, z: s.vel.z - wind.z };
     const airSpeed = mag(airVel);
-    const thrust = totalThrust(motors, s.t);
+    const thrust = totalThrust(motors, s.t, thrustScale);
 
     // Gravity.
     let f: Vec3 = vec(0, 0, -G0 * mass);
@@ -454,7 +465,7 @@ export function simulate(input: SimulateInput): FlightResult {
     const airVel = { x: state.vel.x - wind.x, y: state.vel.y - wind.y, z: state.vel.z - wind.z };
     const airSpeed = mag(airVel);
     const speed = mag(state.vel);
-    const thrust = totalThrust(motors, state.t);
+    const thrust = totalThrust(motors, state.t, thrustScale);
     const mach = airSpeed / atm.speedOfSound;
     const q = 0.5 * atm.density * airSpeed * airSpeed;
 
@@ -706,6 +717,8 @@ export function simulate(input: SimulateInput): FlightResult {
       optimumDelay,
       deploymentVelocity: deploymentV,
       driftDistance,
+      landingX: state.pos.x,
+      landingY: state.pos.y,
       descentRate,
     },
     trajectory,

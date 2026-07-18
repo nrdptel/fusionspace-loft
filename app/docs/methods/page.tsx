@@ -409,6 +409,30 @@ export default function Methods() {
         popularised for rocketry by Apogee Components&apos; <em>Peak of Flight</em> newsletter #291.
       </p>
 
+      <h2>Monte-Carlo dispersion</h2>
+      <p>
+        A single flight is one draw from an uncertain reality: a rail is never perfectly plumb, wind
+        gusts and shifts, and a motor&apos;s total impulse varies from one unit to the next. The{" "}
+        <strong>dispersion</strong> tool flies the design a few hundred times with those inputs
+        jittered around their nominal values and reports the <em>spread</em> of the outcomes — the
+        apogee band to expect, and the radius from the pad that contains 95% of the landings (the
+        recovery area to plan for). Every sample runs through the same solver as the main flight;
+        nothing about the physics changes. The uncertainty is entirely in the inputs, which are your
+        own stated assumptions, so the result is an honest propagation of that spread — not a claim of
+        new precision.
+      </p>
+      <p>
+        Each input is drawn from a normal distribution about its nominal value at the one-sigma spread
+        you set: the motor impulse scales the thrust curve (a motor&apos;s propellant mass is
+        essentially fixed, so its lot-to-lot variation is in average thrust); the rail angle adds a
+        lean to the launch rod; and the wind speed varies around the design&apos;s nominal. The
+        rail-lean and wind <em>directions</em> are sampled uniformly from all bearings, so the landing
+        scatter maps the recovery area regardless of the day&apos;s wind heading. The whole run is
+        driven by a fixed-seed pseudo-random generator, so the same design and the same dispersions
+        reproduce the same cloud — a dispersion is a stable property of the design, not wall-clock
+        noise. The reported bands are 5th-to-95th percentiles of the flown samples.
+      </p>
+
       <h2>Live weather (optional)</h2>
       <p>
         The &ldquo;re-fly for today&rdquo; feature fetches current surface conditions and a

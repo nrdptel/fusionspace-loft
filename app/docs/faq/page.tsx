@@ -152,6 +152,23 @@ export default function Faq() {
         </p>
       </QA>
 
+      <QA q="How high will it really go, and where will it land?">
+        <p>
+          Under the results, <em>Flight dispersion (Monte-Carlo)</em> flies the design a few hundred
+          times with the motor impulse, rail angle, and wind jittered around their nominal values, and
+          shows the <em>spread</em> instead of a single number: the apogee band you can expect (5th to
+          95th percentile), the peak-speed band, and the radius from the pad that contains 95% of the
+          landings — the recovery area to plan for. You set the one-sigma spread on each input, so the
+          answer reflects your own conditions. The physics is the same trusted flight each time; the
+          only thing that varies is the inputs, so it&apos;s an honest way to see how much your apogee
+          and landing point move under real-world variability — a good gut-check against a waiver
+          ceiling or a field boundary. It runs entirely on your device, and the same design with the
+          same spreads reproduces the same result. It propagates only the inputs you set, layered on
+          top of the model&apos;s own limitations (see the drag note), so read the bands as a spread,
+          not an absolute guarantee.
+        </p>
+      </QA>
+
       <QA q="Can I see what adding nose weight would do?">
         <p>
           Yes. Under <em>Conditions → Design what-if</em>, enter a nose-ballast mass and Loft re-flies

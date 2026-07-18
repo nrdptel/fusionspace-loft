@@ -278,6 +278,33 @@ test.describe("Loft", () => {
     await expect(panel.getByRole("img", { name: /Fin flutter margin.*versus.*Fin thickness/i })).toBeVisible();
   });
 
+  test("Monte-Carlo dispersion flies the design and reports the spread", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+
+    const panel = page.getByRole("region", { name: "Monte-Carlo dispersion" });
+    await expect(panel).toBeVisible();
+    await panel.getByRole("button", { name: /Run dispersion/ }).click();
+
+    // The distribution appears: a percentile card, an apogee histogram, and a landing scatter.
+    await expect(panel.getByText("Recovery radius (95%)")).toBeVisible({ timeout: 15000 });
+    await expect(panel.getByRole("img", { name: /Apogee distribution histogram/i })).toBeVisible();
+    await expect(panel.getByRole("img", { name: /Landing scatter/i })).toBeVisible();
+
+    // Widening the wind spread re-runs and grows the recovery radius.
+    const radius = async () => {
+      const txt = await panel.getByText("Recovery radius (95%)").locator("xpath=following-sibling::div[1]").innerText();
+      return parseFloat(txt.replace(/[^\d.]/g, ""));
+    };
+    const before = await radius();
+    expect(before).toBeGreaterThan(0);
+    const wind = panel.getByLabel(/Wind speed/);
+    await wind.fill("10");
+    await expect(panel.getByRole("img", { name: /Apogee distribution histogram/i })).toBeVisible({ timeout: 15000 });
+    await expect.poll(radius, { timeout: 15000 }).toBeGreaterThan(before);
+  });
+
   test("resizing the fins rebuilds the design and changes the stability margin", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();

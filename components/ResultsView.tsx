@@ -12,6 +12,7 @@ import ValidationPanel from "./ValidationPanel";
 import RocketpyCrossCheck from "./RocketpyCrossCheck";
 import MotorSweep from "./MotorSweep";
 import ParameterSweep from "./ParameterSweep";
+import MonteCarlo from "./MonteCarlo";
 import MassBreakdown from "./MassBreakdown";
 import GeometryInspector from "./GeometryInspector";
 import * as d from "@/lib/display";
@@ -209,6 +210,22 @@ export default function ResultsView({
           it resets when the design the sweep is over changes. */}
       {(doc.rocket.stages?.length ?? 1) === 1 && (
         <ParameterSweep
+          key={`${doc.rocket.name}:${simIndex}:${ballastKg ?? 0}:${motorSwap?.designation ?? ""}:${geometry?.finSpan ?? 0}:${geometry?.finCount ?? 0}:${geometry?.finRootChord ?? 0}:${geometry?.finTipChord ?? 0}:${geometry?.finSweepLength ?? 0}:${geometry?.finThickness ?? 0}:${geometry?.noseLength ?? 0}:${geometry?.noseShape ?? ""}:${geometry?.bodyLength ?? 0}:${geometry?.bodyDiameter ?? 0}:${geometry?.finish ?? ""}`}
+          doc={doc}
+          simIndex={simIndex}
+          units={units}
+          ballastKg={ballastKg}
+          motorSwap={motorSwap}
+          geometry={geometry}
+        />
+      )}
+
+      {/* Monte-Carlo dispersion: fly the design hundreds of times with jittered impulse, rail angle,
+          and wind, and show the outcome spread (apogee band + recovery-area radius). Offered for any
+          design that develops thrust — including multi-stage — since the dispersion is over the whole
+          flight. Keyed on design + config + active what-ifs so it resets when the flown design changes. */}
+      {run.hasPropulsion && (
+        <MonteCarlo
           key={`${doc.rocket.name}:${simIndex}:${ballastKg ?? 0}:${motorSwap?.designation ?? ""}:${geometry?.finSpan ?? 0}:${geometry?.finCount ?? 0}:${geometry?.finRootChord ?? 0}:${geometry?.finTipChord ?? 0}:${geometry?.finSweepLength ?? 0}:${geometry?.finThickness ?? 0}:${geometry?.noseLength ?? 0}:${geometry?.noseShape ?? ""}:${geometry?.bodyLength ?? 0}:${geometry?.bodyDiameter ?? 0}:${geometry?.finish ?? ""}`}
           doc={doc}
           simIndex={simIndex}

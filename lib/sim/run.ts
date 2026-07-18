@@ -79,6 +79,9 @@ export interface RunOptions {
    *  vehicle before flight, so mass, aerodynamics (centre of pressure, stability), and drag all
    *  reflect the change. Undefined/empty flies the design's own geometry. */
   geometry?: GeometryEdits;
+  /** Scale every motor's thrust (and total impulse) — a motor's lot-to-lot impulse tolerance.
+   *  Defaults to 1 (the design's rated curve); used by the Monte-Carlo dispersion. */
+  thrustScale?: number;
 }
 
 /** Apply a what-if motor swap to a configuration: every instance flies the chosen motor, keeping
@@ -127,7 +130,11 @@ export function runFlight(rocket: Rocket, opts: RunOptions = {}): FlightRun {
       ? [{ mass: opts.ballastKg, cg: noseBallastStation(design), ownInertia: 0, source: "Nose ballast" }]
       : [];
   const withExtras = extraMasses.length ? { ...built.input, extraMasses } : built.input;
-  const base = opts.timeStep ? { ...withExtras, timeStep: opts.timeStep } : withExtras;
+  const scaled =
+    opts.thrustScale !== undefined && opts.thrustScale !== 1
+      ? { ...withExtras, thrustScale: opts.thrustScale }
+      : withExtras;
+  const base = opts.timeStep ? { ...scaled, timeStep: opts.timeStep } : scaled;
   const input = opts.ballistic ? { ...base, recovery: [] } : base;
   const result = simulate(input);
   // Optimum ejection delay must reflect the true (ballistic) apogee — a stable property of the
