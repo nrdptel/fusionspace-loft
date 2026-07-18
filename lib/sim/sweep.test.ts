@@ -48,7 +48,12 @@ describe("motorSweep", () => {
       expect(Number.isFinite(r.railExitVelocity)).toBe(true);
       expect(Number.isFinite(r.thrustToWeight)).toBe(true);
       expect(Number.isFinite(r.staticMarginCal)).toBe(true);
+      expect(Number.isFinite(r.flutterMargin)).toBe(true); // the design has fins
     }
+    // A faster motor pushes the fins closer to flutter — the highest-speed row has a thinner margin
+    // than the lowest-speed row.
+    const bySpeed = [...rows].sort((a, b) => a.maxVelocity - b.maxVelocity);
+    expect(bySpeed[bySpeed.length - 1].flutterMargin).toBeLessThan(bySpeed[0].flutterMargin);
     // Sorted by apogee, descending.
     for (let i = 1; i < rows.length; i++) {
       expect(rows[i - 1].apogee).toBeGreaterThanOrEqual(rows[i].apogee);

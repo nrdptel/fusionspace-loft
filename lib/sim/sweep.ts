@@ -28,6 +28,10 @@ export interface MotorSweepRow {
   railExitVelocity: number;
   thrustToWeight: number;
   staticMarginCal: number;
+  /** Worst-case fin-flutter margin over the ascent (flutter speed ÷ peak airspeed) — a faster motor
+   *  pushes the fins closer to flutter, so this is a motor-selection safety cue. NaN for a finless
+   *  design. */
+  flutterMargin: number;
   /** True for the design's own motor, so the UI can mark its row. */
   isDesign: boolean;
 }
@@ -72,6 +76,7 @@ export function motorSweep(rocket: Rocket, motors: SweepMotor[], opts: MotorSwee
         railExitVelocity: s.railExitVelocity,
         thrustToWeight: s.thrustToWeight,
         staticMarginCal: run.result.staticMarginCal,
+        flutterMargin: run.result.flutter ? run.result.flutter.worst.margin : Number.NaN,
         isDesign: m.designation === opts.designMotor,
       });
     } catch {

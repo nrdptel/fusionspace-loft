@@ -169,6 +169,13 @@ test.describe("Loft", () => {
     const nums = apogeeCells.map((t) => parseFloat(t.replace(/[^\d.]/g, "")));
     expect(nums.length).toBeGreaterThan(2);
     expect(nums[0]).toBeGreaterThan(nums[nums.length - 1]);
+
+    // A fin-flutter margin column is present: the faster (top-apogee) motor has a thinner margin
+    // than the slower (bottom) one — the motor-selection flutter cue.
+    await expect(panel.getByRole("columnheader", { name: "Flutter" })).toBeVisible();
+    const flutterCells = await panel.locator("tbody tr td:last-child").allInnerTexts();
+    const fl = flutterCells.map((t) => parseFloat(t.replace(/[^\d.]/g, "")));
+    expect(fl[0]).toBeLessThan(fl[fl.length - 1]);
   });
 
   test("mass breakdown lists parts that sum to the dry total", async ({ page }) => {

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import type { OrkDocument } from "@/lib/ork/import";
 import { overridesFromStored } from "@/lib/sim/run";
 import { type SweepMotor, type MotorSweepRow } from "@/lib/sim/sweep";
+import { RECOMMENDED_FLUTTER_MARGIN } from "@/lib/sim/flutter";
 import { runMotorSweep } from "@/lib/sim/sweep-client";
 import type { GeometryEdits } from "@/lib/model/edit";
 import { mToFt, mpsToFtps } from "@/lib/units";
@@ -93,8 +94,9 @@ export default function MotorSweep({
       </div>
       <p className="mt-1.5 text-sm text-zinc-600 dark:text-zinc-300">
         Fly this airframe on every bundled motor that fits its mount diameter, all at once, and see
-        how apogee, speed, rail-exit velocity, and stability change across them — the classic
-        &ldquo;which motor gets me to my target?&rdquo; sweep, run entirely on your device.
+        how apogee, speed, rail-exit velocity, stability, and fin-flutter margin change across them —
+        the classic &ldquo;which motor gets me to my target?&rdquo; sweep (and whether a punchier one
+        pushes the fins toward flutter), run entirely on your device.
       </p>
 
       {!open && (
@@ -134,7 +136,7 @@ function sweepCsv(rows: MotorSweepRow[], units: UnitSystem): CsvCell[][] {
   const alt = units === "imperial" ? "ft" : "m";
   const toAlt = (m: number) => (units === "imperial" ? mToFt(m) : m);
   const toSpd = (mps: number) => (units === "imperial" ? mpsToFtps(mps) : mps);
-  const header: CsvCell[] = ["Motor", "Manufacturer", "Class", `Apogee (${alt})`, `Max velocity (${spd})`, `Rail-exit (${spd})`, "Thrust-to-weight", "Static margin (cal)", "Design"];
+  const header: CsvCell[] = ["Motor", "Manufacturer", "Class", `Apogee (${alt})`, `Max velocity (${spd})`, `Rail-exit (${spd})`, "Thrust-to-weight", "Static margin (cal)", "Fin flutter margin (x)", "Design"];
   const body: CsvCell[][] = rows.map((r) => [
     r.designation,
     r.manufacturer,
@@ -144,6 +146,7 @@ function sweepCsv(rows: MotorSweepRow[], units: UnitSystem): CsvCell[][] {
     round(toSpd(r.railExitVelocity), 1),
     round(r.thrustToWeight, 2),
     round(r.staticMarginCal, 2),
+    round(r.flutterMargin, 2),
     r.isDesign ? "yes" : "",
   ]);
   return [header, ...body];
@@ -162,12 +165,14 @@ function SweepTable({ rows, units, name }: { rows: MotorSweepRow[]; units: UnitS
               <th className="py-1 pr-4 font-medium">Max&nbsp;V</th>
               <th className="py-1 pr-4 font-medium">Rail&nbsp;exit</th>
               <th className="py-1 pr-4 font-medium">T:W</th>
-              <th className="py-1 font-medium">Margin</th>
+              <th className="py-1 pr-4 font-medium">Margin</th>
+              <th className="py-1 font-medium">Flutter</th>
             </tr>
           </thead>
           <tbody className="font-mono">
             {rows.map((r) => {
               const lowTW = r.thrustToWeight < TW_RULE_OF_THUMB;
+              const thinFlutter = Number.isFinite(r.flutterMargin) && r.flutterMargin < RECOMMENDED_FLUTTER_MARGIN;
               return (
                 <tr
                   key={`${r.manufacturer}|${r.designation}`}
@@ -201,7 +206,20 @@ function SweepTable({ rows, units, name }: { rows: MotorSweepRow[]; units: UnitS
                   >
                     {d.fmt(r.thrustToWeight, 1)}
                   </td>
-                  <td className="py-1.5 text-zinc-800 dark:text-zinc-100">{d.q(d.calibers(r.staticMarginCal))}</td>
+                  <td className="py-1.5 pr-4 text-zinc-800 dark:text-zinc-100">{d.q(d.calibers(r.staticMarginCal))}</td>
+                  <td
+                    className={
+                      "py-1.5 " +
+                      (thinFlutter ? "text-amber-700 dark:text-amber-300" : "text-zinc-800 dark:text-zinc-100")
+                    }
+                    title={
+                      thinFlutter
+                        ? `Below the recommended ${RECOMMENDED_FLUTTER_MARGIN}× fin-flutter margin at this speed`
+                        : undefined
+                    }
+                  >
+                    {Number.isFinite(r.flutterMargin) ? `${d.fmt(r.flutterMargin, 1)}×` : "—"}
+                  </td>
                 </tr>
               );
             })}
