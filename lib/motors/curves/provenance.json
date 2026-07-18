@@ -747,5 +747,55 @@
     "class": "H",
     "diameter": 38,
     "header": "H999 38 203 P 0.147 0.3311207 AT"
+  },
+  {
+    "file": "Estes_F15.eng",
+    "motorId": "5f4294d200023100000003f2",
+    "license": null,
+    "simfileId": "5f4294d20002e900000007e5",
+    "designation": "F15",
+    "manufacturer": "Estes",
+    "class": "F",
+    "diameter": 29
+  },
+  {
+    "file": "Estes_E16.eng",
+    "motorId": "5f4294d200023100000003f8",
+    "license": null,
+    "simfileId": "5f4294d20002e900000007e6",
+    "designation": "E16",
+    "manufacturer": "Estes",
+    "class": "E",
+    "diameter": 29
+  },
+  {
+    "file": "AeroTech_F52T.eng",
+    "motorId": "5f4294d2000231000000004b",
+    "license": null,
+    "simfileId": "5f4294d20002e9000000045c",
+    "designation": "F52",
+    "manufacturer": "AeroTech",
+    "class": "F",
+    "diameter": 29
+  },
+  {
+    "file": "AeroTech_G77R.eng",
+    "motorId": "5f4294d20002310000000065",
+    "license": null,
+    "simfileId": "5f4294d20002e90000000120",
+    "designation": "G77R",
+    "manufacturer": "AeroTech",
+    "class": "G",
+    "diameter": 29
+  },
+  {
+    "file": "Quest_D5.eng",
+    "motorId": "5f4294d20002310000000376",
+    "license": null,
+    "simfileId": "5f4294d20002e900000006fd",
+    "designation": "D5",
+    "manufacturer": "Quest",
+    "class": "D",
+    "diameter": 20
   }
 ]

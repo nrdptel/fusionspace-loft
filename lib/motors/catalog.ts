@@ -62,6 +62,16 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
     }
   },
   {
+    "eng": ";\n;Aerotech F52 RASP.ENG file made from NAR published data\n;File produced July 4, 2000\n;The total impulse, peak thrust, average thrust and burn time are\n;the same as the averaged static test data on the NAR web site in\n;the certification file. The curve drawn with these data points is as\n;close to the certification curve as can be with such a limited\n;number of points (32) allowed with wRASP up to v1.6.\nF52 29 124 5-8-11 0.0366 0.1214 AT\n0.012 46.899\n0.033 61.778\n0.056 69.441\n0.097 73.483\n0.115 76.636\n0.13 74.381\n0.153 74.82\n0.168 78.422\n0.182 78.95\n0.206 77.963\n0.238 77.504\n0.258 73.892\n0.314 72.974\n0.39 72.046\n0.428 70.679\n0.501 65.699\n0.565 62.975\n0.688 58.874\n0.749 56.15\n0.837 52.517\n0.901 49.793\n0.971 46.161\n1.088 39.365\n1.144 34.386\n1.173 29.417\n1.222 20.376\n1.275 13.151\n1.339 5.461\n1.389 1.838\n1.42 0",
+    "source": {
+      "file": "AeroTech_F52T.eng",
+      "motorId": "5f4294d2000231000000004b",
+      "simfileId": "5f4294d20002e9000000045c",
+      "license": null,
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000045c/"
+    }
+  },
+  {
     "eng": "F67W 29 83 4-6-9 0.03 0.08 AT\n   0.002 66.662\n   0.008 71.441\n   0.016 74.505\n   0.039 77.936\n   0.068 80.632\n   0.099 82.592\n   0.148 84.43\n   0.201 85.533\n   0.257 86.146\n   0.298 86.023\n   0.399 84.185\n   0.483 82.96\n   0.499 82.347\n   0.568 80.019\n   0.601 78.794\n   0.625 77.936\n   0.654 78.058\n   0.672 75.853\n   0.687 71.073\n   0.7 67.52\n   0.714 62.005\n   0.731 53.06\n   0.748 44.482\n   0.764 35.659\n   0.778 26.836\n   0.789 20.954\n   0.797 18.013\n   0.812 12.499\n   0.832 7.107\n   0.849 3.676\n   0.87 1.225\n   0.898 0.368\n   0.92 0.0\n",
     "source": {
       "file": "AeroTech_F67W.eng",
@@ -79,6 +89,16 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "simfileId": "5f4294d20002e90000000463",
       "license": "?",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000463/"
+    }
+  },
+  {
+    "eng": ";\n; Aerotech G77R (Redline)\n;\n; AeroTech RMS-29/120 EZ Access Reloadable Motors (New! Hardware).\n; New AeroTech Redline Motor. Just announced on AeroTech's Website!\n; File produced 28 Feb 2005.\n;\n; The file was produced by scaling data points off the\n; thrust curve in the manufacturers catalog sheet.\n;\n; The motor is not yet on www.thrustcurve.org.\n; Hence the amateur file production.\n; The file was created by Stan Hemphill.\n; Contact at stanley_hemphill@hotmail.com.\n;\n; Motor Dia  Len  Delay Prop Gross Mfg\nG77R 29 150 4-6-8-9-10-12-13-15-17 0.0554 0.155 AT\n0.0132 014.8333\n0.0243 032.4479\n0.0331 046.3542\n0.0375 052.8438\n0.0463 056.5521\n0.0617 059.3333\n0.2580 073.2396\n0.6548 087.1458\n0.8709 089.0000\n0.8885 085.2917\n1.0252 086.2188\n1.0472 084.3646\n1.0715 086.2188\n1.1002 084.3646\n1.1332 085.2917\n1.1950 076.9479\n1.2104 076.0208\n1.2369 065.8229\n1.2611 043.5729\n1.2898 027.8125\n1.3317 012.0521\n1.3625 004.6354\n1.4000 000.0000",
+    "source": {
+      "file": "AeroTech_G77R.eng",
+      "motorId": "5f4294d20002310000000065",
+      "simfileId": "5f4294d20002e90000000120",
+      "license": null,
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000120/"
     }
   },
   {
@@ -622,6 +642,16 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
     }
   },
   {
+    "eng": "; File produced, 2013\r\n; The total impulse, peak thrust, average thrust and burn time are\r\n; the same as the averaged static test data on the NAR web site in\r\n; the certification file. The curve drawn with these data points is as\r\n; close to the certification curve as can be with such a limited\r\n; number of points (32) allowed with wRASP up to v1.6.\r\nE16 29 114 0-4-6-8 .0400 .08200 E\r\n0.150 1.371\r\n0.186 1.920\r\n0.206 3.387\r\n0.242 5.587\r\n0.252 7.422\r\n0.277 8.705\r\n0.333 13.474\r\n0.359 15.858\r\n0.374 16.592\r\n0.394 18.609\r\n0.435 21.544\r\n0.476 24.661\r\n0.521 26.440\r\n0.643 21.720\r\n0.725 20.432\r\n0.821 19.511\r\n0.898 18.958\r\n1.025 18.219\r\n1.142 18.032\r\n1.259 17.844\r\n1.396 17.472\r\n1.569 17.282\r\n1.757 17.275\r\n1.895 17.086\r\n2.027 17.816\r\n2.042 12.494\r\n2.052 8.457\r\n2.063 4.970\r\n2.090 0.000",
+    "source": {
+      "file": "Estes_E16.eng",
+      "motorId": "5f4294d200023100000003f8",
+      "simfileId": "5f4294d20002e900000007e6",
+      "license": null,
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000007e6/"
+    }
+  },
+  {
     "eng": "; Estes E9-0 by Mark Koelsch from NAR data\nE9-0 24 95 0 0.0358 0.056799999999999996 E\n   0.046 1.913\n   0.235 16.696\n   0.273 18.435\n   0.326 14.957\n   0.38 12.174\n   0.44 10.435\n   0.835 9.043\n   1.093 8.87\n   1.496 8.696\n   1.997 8.696\n   2.498 8.696\n   3.014 9.217\n   3.037 5.043\n   3.067 1.217\n   3.09 0.0\n",
     "source": {
       "file": "Estes_E9.eng",
@@ -629,6 +659,16 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "simfileId": "5f4294d20002e90000000416",
       "license": null,
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000416/"
+    }
+  },
+  {
+    "eng": "; Estes F15 RASP.ENG file made from NAR published data\r\n; File produced, 2013\r\n; The total impulse, peak thrust, average thrust and burn time are\r\n; the same as the averaged static test data on the NAR web site in\r\n; the certification file. The curve drawn with these data points is as\r\n; close to the certification curve as can be with such a limited\r\n; number of points (32) allowed with wRASP up to v1.6.\r\nF15 29 114 0-4-6-8 .0600 .10300 E\r\n0.148 7.638\r\n0.228 12.253\r\n0.294 16.391\r\n0.353 20.210\r\n0.382 22.756\r\n0.419 25.260\r\n0.477 23.074\r\n0.520 20.845\r\n0.593 19.093\r\n0.688 17.500\r\n0.855 16.225\r\n1.037 15.427\r\n1.205 14.948\r\n1.423 14.627\r\n1.452 15.741\r\n1.503 14.785\r\n1.736 14.623\r\n1.955 14.303\r\n2.210 14.141\r\n2.494 13.819\r\n2.763 13.338\r\n3.120 13.334\r\n3.382 13.013\r\n3.404 9.352\r\n3.418 4.895\r\n3.450 0.000",
+    "source": {
+      "file": "Estes_F15.eng",
+      "motorId": "5f4294d200023100000003f2",
+      "simfileId": "5f4294d20002e900000007e5",
+      "license": null,
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000007e5/"
     }
   },
   {
@@ -709,6 +749,16 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "simfileId": "5f4294d20002e9000000041c",
       "license": null,
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000041c/"
+    }
+  },
+  {
+    "eng": "; QUEST D5 RASP.ENG FILE\r\n; The total impulse, peak thrust, average thrust and burn time are\r\n; the same as the averaged static test data on the NAR web site in\r\n; the certification file. The curve drawn with these data points is as\r\n; close to the certification curve as can be with such a limited\r\n; number of points (32) allowed with wRASP up to v1.6.\r\nD5 20 96 4-6 0.0240 0.0451 QUEST\r\n0.010 1.014\r\n0.122 2.652\r\n0.172 4.836\r\n0.273 7.723\r\n0.331 10.610\r\n0.390 13.809\r\n0.448 16.800\r\n0.480 12.403\r\n0.484 8.266\r\n0.517 5.221\r\n0.713 4.125\r\n0.974 4.121\r\n1.135 3.338\r\n1.324 3.101\r\n1.550 3.254\r\n1.971 3.169\r\n2.393 3.162\r\n2.752 3.391\r\n3.069 3.386\r\n3.547 3.301\r\n3.694 3.064\r\n3.948 3.294\r\n4.215 3.290\r\n4.412 3.287\r\n4.496 2.505\r\n4.586 1.801\r\n4.610 0.000\r\n;",
+    "source": {
+      "file": "Quest_D5.eng",
+      "motorId": "5f4294d20002310000000376",
+      "simfileId": "5f4294d20002e900000006fd",
+      "license": null,
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000006fd/"
     }
   }
 ];

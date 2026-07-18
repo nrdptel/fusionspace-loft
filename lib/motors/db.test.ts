@@ -32,6 +32,24 @@ describe("motor database", () => {
     }
   });
 
+  it("covers common mid-power gap-fillers (Estes F15/E16, AeroTech F52/G77, Quest D5)", () => {
+    // Common D–G motors real beginner/mid-power files reference, added from authentic ThrustCurve
+    // curves. Each resolves in the right impulse class with a curve carrying real total impulse.
+    const cases: [string, string, string][] = [
+      ["Estes", "F15", "F"],
+      ["Estes", "E16", "E"],
+      ["AeroTech", "F52T", "F"],
+      ["AeroTech", "G77R", "G"],
+      ["Quest", "D5", "D"],
+    ];
+    for (const [manufacturer, designation, cls] of cases) {
+      const m = resolveMotor({ manufacturer, designation });
+      expect(m, `${designation} should resolve`).not.toBeNull();
+      expect(m!.entry.curve.motorClass).toBe(cls);
+      expect(m!.entry.curve.totalImpulse).toBeGreaterThan(0);
+    }
+  });
+
   it("covers the common AeroTech F–I motors real HPR files reference", () => {
     // These are the motors the OpenRocket example designs used that Loft previously couldn't
     // resolve, so those files flew to nothing. Each must now resolve to its exact curve.
