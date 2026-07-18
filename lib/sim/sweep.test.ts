@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { importOrk } from "../ork/import";
-import { overridesFromStored } from "./run";
+import { runFlight, overridesFromStored } from "./run";
 import { motorSweep, parameterSweep, linRange, type SweepMotor } from "./sweep";
 import { allMotors } from "../motors/db";
 import { primaryFinSpan, primaryBodyTube } from "../model/edit";
@@ -178,6 +178,29 @@ describe("parameterSweep", () => {
       expect(ballasted[i].staticMarginCal).toBeGreaterThan(plain[i].staticMarginCal);
       expect(ballasted[i].apogee).toBeLessThan(plain[i].apogee);
     }
+  });
+
+  it("sweeps nose ballast: more weight raises the margin and lowers apogee, from a zero-ballast start", async () => {
+    const doc = await load("demo-single-deploy.ork");
+    const sim = doc.simulations[0];
+    // 0 → 200 g of nose weight.
+    const pts = parameterSweep(doc.rocket, "ballastKg", linRange(0, 0.2, 11), {
+      configId: sim.conditions.configId,
+      overrides: overridesFromStored(sim),
+    });
+    expect(pts).toHaveLength(11);
+    // Ballast starts at zero (no added weight) and increases.
+    expect(pts[0].x).toBe(0);
+    expect(pts[pts.length - 1].x).toBeCloseTo(0.2, 9);
+    // Nose weight moves the CG forward (margin up monotonically) and flies heavier (apogee down).
+    for (let i = 1; i < pts.length; i++) {
+      expect(pts[i].staticMarginCal).toBeGreaterThan(pts[i - 1].staticMarginCal);
+      expect(pts[i].apogee).toBeLessThan(pts[i - 1].apogee);
+    }
+    // The zero-ballast point is the plain design.
+    const plain = runFlight(doc.rocket, { configId: sim.conditions.configId, overrides: overridesFromStored(sim), ballistic: true });
+    expect(pts[0].apogee).toBeCloseTo(plain.result.summary.apogee, 5);
+    expect(pts[0].staticMarginCal).toBeCloseTo(plain.result.staticMarginCal, 5);
   });
 
   it("skips non-positive values rather than flying a degenerate rocket", async () => {

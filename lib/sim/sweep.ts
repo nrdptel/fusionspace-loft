@@ -84,9 +84,13 @@ export function motorSweep(rocket: Rocket, motors: SweepMotor[], opts: MotorSwee
 
 // --- parameter sweep -----------------------------------------------------------------
 
-/** A continuous design variable the sweep can vary. Each maps to a field of GeometryEdits, so the
- *  sweep reuses the same "edit → rebuild → re-fly" path the builder what-ifs use. */
-export type SweepAxis = "finSpan" | "noseLength" | "bodyLength";
+/** A continuous variable the sweep can vary. The geometry axes map to a field of GeometryEdits
+ *  (reusing the builder's "edit → rebuild → re-fly" path); `ballastKg` varies added nose weight
+ *  instead — the classic stability-trim sweep. */
+export type SweepAxis = "finSpan" | "noseLength" | "bodyLength" | "ballastKg";
+
+/** The geometry (length) axes, distinct from the ballast (mass) axis for how a value is applied. */
+const GEOMETRY_AXES: readonly SweepAxis[] = ["finSpan", "noseLength", "bodyLength"];
 
 /** One flight in a parameter sweep: the swept value and the metrics that respond to it. */
 export interface ParamSweepPoint {
@@ -129,15 +133,20 @@ export function parameterSweep(
   opts: ParamSweepOptions = {},
 ): ParamSweepPoint[] {
   const out: ParamSweepPoint[] = [];
+  const isGeometry = GEOMETRY_AXES.includes(axis);
   for (const v of values) {
-    if (!(v > 0)) continue;
-    const geometry: GeometryEdits = { ...opts.baseGeometry, [axis]: v };
+    // A geometry dimension must be positive; ballast may be zero (no added weight).
+    if (isGeometry ? !(v > 0) : !(v >= 0)) continue;
+    // A geometry axis overrides that one field of the held-fixed edits; the ballast axis leaves the
+    // geometry alone and varies the added nose weight instead.
+    const geometry: GeometryEdits = isGeometry ? { ...opts.baseGeometry, [axis]: v } : { ...opts.baseGeometry };
+    const ballastKg = isGeometry ? opts.ballastKg : v;
     try {
       const run = runFlight(rocket, {
         configId: opts.configId,
         overrides: opts.overrides,
         ballistic: true,
-        ballastKg: opts.ballastKg,
+        ballastKg,
         motorSwap: opts.motorSwap,
         geometry,
       });

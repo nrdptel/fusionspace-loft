@@ -189,6 +189,10 @@ test.describe("Loft", () => {
     // Switching the variable sweeps a different dimension.
     await panel.getByLabel("Sweep variable").selectOption("bodyLength");
     await expect(panel.getByRole("img", { name: /Static margin.*versus.*Body length/i })).toBeVisible();
+
+    // Nose ballast is a sweep axis too — the classic stability-trim curve.
+    await panel.getByLabel("Sweep variable").selectOption("ballastKg");
+    await expect(panel.getByRole("img", { name: /Static margin.*versus.*Nose ballast/i })).toBeVisible();
   });
 
   test("resizing the fins rebuilds the design and changes the stability margin", async ({ page }) => {

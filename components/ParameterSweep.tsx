@@ -2,10 +2,10 @@
 
 import { useMemo, useState } from "react";
 import type { OrkDocument } from "@/lib/ork/import";
-import { overridesFromStored } from "@/lib/sim/run";
+import { runFlight, overridesFromStored } from "@/lib/sim/run";
 import { parameterSweep, linRange, type SweepAxis, type ParamSweepPoint } from "@/lib/sim/sweep";
 import { primaryFinSpan, primaryNose, primaryBodyTube, type GeometryEdits } from "@/lib/model/edit";
-import { mToFt, mToIn, mpsToFtps } from "@/lib/units";
+import { mToFt, mToIn, mpsToFtps, kgToG, G_PER_OZ } from "@/lib/units";
 import LineChart from "./LineChart";
 import type { UnitSystem } from "@/lib/display";
 
@@ -18,8 +18,14 @@ const RANGE_HI = 1.75;
 interface AxisDef {
   axis: SweepAxis;
   label: string;
-  /** The design's own value for this variable (m), the centre of the swept range. */
+  /** The design's own value for this variable (SI): the geometry dimension, or 0 for ballast. */
   base: number;
+  /** The swept range in SI units. */
+  lo: number;
+  hi: number;
+  /** Convert an SI value on this axis to the chosen unit system's number for the x-axis. */
+  xToNumber: (v: number, units: UnitSystem) => number;
+  xUnit: (units: UnitSystem) => string;
 }
 
 interface MetricDef {
@@ -37,9 +43,21 @@ const METRICS: MetricDef[] = [
   { key: "staticMarginCal", label: "Static margin", toNumber: (v) => v, unit: () => "cal" },
 ];
 
-/** The design's small lengths (fin span, tube lengths) read best in mm / in. */
-const xNumber = (m: number, units: UnitSystem) => (units === "imperial" ? mToIn(m) : m * 1000);
-const xUnitOf = (units: UnitSystem) => (units === "imperial" ? "in" : "mm");
+/** The design's small lengths (fin span, tube lengths) read best in mm / in; ballast in g / oz. */
+const lengthX = (m: number, units: UnitSystem) => (units === "imperial" ? mToIn(m) : m * 1000);
+const lengthUnit = (units: UnitSystem) => (units === "imperial" ? "in" : "mm");
+const massX = (kg: number, units: UnitSystem) => (units === "imperial" ? kgToG(kg) / G_PER_OZ : kgToG(kg));
+const massUnit = (units: UnitSystem) => (units === "imperial" ? "oz" : "g");
+
+const geometryAxis = (axis: SweepAxis, label: string, base: number): AxisDef => ({
+  axis,
+  label,
+  base,
+  lo: base * RANGE_LO,
+  hi: base * RANGE_HI,
+  xToNumber: lengthX,
+  xUnit: lengthUnit,
+});
 
 /** Parameter sweep: vary one of the design's dimensions across a range and plot how a chosen flight
  *  metric responds — the response curve behind a single what-if. Reuses the builder's geometry-edit
@@ -62,17 +80,44 @@ export default function ParameterSweep({
   motorSwap?: { manufacturer?: string; designation: string; diameter?: number };
   geometry?: GeometryEdits;
 }) {
-  // The design variables this design actually has, each ranged around its own value.
+  // The variables this design can sweep: its geometry (each ranged around its own value) plus nose
+  // ballast (0 → a mass-relative max), which any flyable design can take.
   const axes = useMemo<AxisDef[]>(() => {
     const list: AxisDef[] = [];
     const span = primaryFinSpan(doc.rocket);
-    if (span && span > 0) list.push({ axis: "finSpan", label: "Fin span", base: span });
+    if (span && span > 0) list.push(geometryAxis("finSpan", "Fin span", span));
     const nose = primaryNose(doc.rocket)?.length;
-    if (nose && nose > 0) list.push({ axis: "noseLength", label: "Nose length", base: nose });
+    if (nose && nose > 0) list.push(geometryAxis("noseLength", "Nose length", nose));
     const body = primaryBodyTube(doc.rocket)?.length;
-    if (body && body > 0) list.push({ axis: "bodyLength", label: "Body length", base: body });
+    if (body && body > 0) list.push(geometryAxis("bodyLength", "Body length", body));
+    // Nose ballast: range 0 → ~40% of the design's liftoff mass, sized from one baseline flight so
+    // the trim sweep spans a sensible amount of weight for this particular rocket.
+    const sim = doc.simulations[simIndex] ?? doc.simulations[0];
+    try {
+      const b = runFlight(doc.rocket, {
+        configId: sim?.conditions.configId,
+        overrides: sim ? overridesFromStored(sim) : undefined,
+        ballistic: true,
+        motorSwap,
+        geometry,
+      });
+      const m = b.result.liftoffMass;
+      if (b.hasPropulsion && Number.isFinite(m) && m > 0) {
+        list.push({
+          axis: "ballastKg",
+          label: "Nose ballast",
+          base: 0,
+          lo: 0,
+          hi: Math.max(0.05, 0.4 * m),
+          xToNumber: massX,
+          xUnit: massUnit,
+        });
+      }
+    } catch {
+      // No ballast axis if the design won't fly a baseline.
+    }
     return list;
-  }, [doc]);
+  }, [doc, simIndex, motorSwap, geometry]);
 
   const [open, setOpen] = useState(false);
   const [axisKey, setAxisKey] = useState<SweepAxis>(axes[0]?.axis ?? "finSpan");
@@ -86,7 +131,7 @@ export default function ParameterSweep({
   const points = useMemo<ParamSweepPoint[] | null>(() => {
     if (!open || !axisDef) return null;
     const sim = doc.simulations[simIndex] ?? doc.simulations[0];
-    const values = linRange(axisDef.base * RANGE_LO, axisDef.base * RANGE_HI, STEPS);
+    const values = linRange(axisDef.lo, axisDef.hi, STEPS);
     return parameterSweep(doc.rocket, axisDef.axis, values, {
       configId: sim?.conditions.configId,
       overrides: sim ? overridesFromStored(sim) : undefined,
@@ -189,20 +234,20 @@ function SweepChart({
   metric: MetricDef;
   units: UnitSystem;
 }) {
-  // X in the design's small-length units (mm / in); Y in the metric's display units.
-  const xUnit = xUnitOf(units);
+  // X in this axis's own display units (mm/in for a dimension, g/oz for ballast); Y in the metric's.
+  const xUnit = axis.xUnit(units);
   const yUnit = metric.unit(units);
   const series = [
     {
       color: "#6366f1",
       label: metric.label,
       points: points.map((p) => ({
-        x: xNumber(p.x, units),
+        x: axis.xToNumber(p.x, units),
         y: metric.toNumber(p[metric.key], units),
       })),
     },
   ];
-  const designX = xNumber(axis.base, units);
+  const designX = axis.xToNumber(axis.base, units);
   return (
     <div className="mt-3">
       <LineChart
@@ -214,8 +259,9 @@ function SweepChart({
       />
       <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
         Ballistic ascent to apogee under the design&apos;s stored conditions, {STEPS} flights across
-        the range; the marker is the design&apos;s own value. A bigger fin or a longer body shifts the
-        centre of pressure and adds material — read these as estimates to verify, not a go/no-go.
+        the range; the marker is the design&apos;s own value (no added ballast for that axis). Each
+        variable shifts the centre of pressure and the mass its own way — read these as estimates to
+        verify, not a go/no-go.
       </p>
     </div>
   );
