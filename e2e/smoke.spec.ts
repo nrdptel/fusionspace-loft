@@ -210,6 +210,19 @@ test.describe("Loft", () => {
     expect(csv).toContain("H128W");
   });
 
+  test("reports a fin-flutter estimate in the stability readout", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+
+    // The stability panel carries a fin-flutter estimate: a speed and a margin.
+    const term = page.getByText("Fin flutter (est.)", { exact: true });
+    await expect(term).toBeVisible();
+    const value = await term.locator("xpath=following-sibling::dd").innerText();
+    expect(value).toMatch(/\d/); // e.g. "1074 m/s"
+    await expect(page.getByText(/× margin/).first()).toBeVisible();
+  });
+
   test("design geometry inspector lists parsed components with dimensions", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();

@@ -5,6 +5,7 @@ import type { FlightRun } from "@/lib/sim/run";
 import type { GeometryEdits } from "@/lib/model/edit";
 import type { OrkDocument } from "@/lib/ork/import";
 import type { FlightResult } from "@/lib/sim/simulate";
+import { RECOMMENDED_FLUTTER_MARGIN } from "@/lib/sim/flutter";
 import LineChart, { type Series, type Marker } from "./LineChart";
 import FlightViz from "./FlightViz";
 import ValidationPanel from "./ValidationPanel";
@@ -344,18 +345,27 @@ function RocketSummary({ run, doc, units }: { run: FlightRun; doc: OrkDocument; 
           hint={r.staticMarginCal < 1 ? "low" : r.staticMarginCal > 3 ? "high" : undefined}
         />
         <Field term="CNα" value={d.fmt(r.stability.cnAlpha, 2) + " /rad"} />
+        {r.flutter && (
+          <Field
+            term="Fin flutter (est.)"
+            value={d.q(d.speed(r.flutter.worst.flutterVelocity, units))}
+            hint={r.flutter.worst.margin < RECOMMENDED_FLUTTER_MARGIN ? "thin" : undefined}
+            sub={`${d.fmt(r.flutter.worst.margin, 1)}× margin`}
+          />
+        )}
       </dl>
     </section>
   );
 }
 
-function Field({ term, value, hint }: { term: string; value: string; hint?: string }) {
+function Field({ term, value, hint, sub }: { term: string; value: string; hint?: string; sub?: string }) {
   return (
     <div>
       <dt className="text-[11px] uppercase tracking-wide text-zinc-500 dark:text-zinc-400">{term}</dt>
       <dd className="font-mono text-sm tabular-nums text-zinc-800 dark:text-zinc-200">
         {value}
         {hint && <span className="ml-1 text-[10px] uppercase text-amber-700 dark:text-amber-400">{hint}</span>}
+        {sub && <div className="text-[10px] tabular-nums text-zinc-500 dark:text-zinc-400">{sub}</div>}
       </dd>
     </div>
   );

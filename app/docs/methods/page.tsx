@@ -369,6 +369,38 @@ export default function Methods() {
         an even shorter one that would compound the mistake.
       </p>
 
+      <h2>Fin flutter</h2>
+      <p>
+        Fins have their own elasticity, and above a critical airspeed — the <em>flutter
+        boundary</em> — a bending-and-twisting oscillation stops damping out and diverges, shredding
+        the fin (and often the rocket). Loft estimates each fin set&apos;s flutter speed along the
+        ascent and reports the worst-case <em>margin</em> — the flutter speed divided by the peak
+        airspeed the fin actually sees — sampling the real ambient pressure and speed of sound at
+        every altitude the vehicle passes through, since the boundary rises as the air thins. Neither
+        OpenRocket nor RockSim reports this, so it is Loft&apos;s own safety heuristic.
+      </p>
+      <p>
+        The estimate is the simplified flutter-boundary closed form,{" "}
+        <code>
+          V<sub>f</sub> = a·√( G / [ 1.337·A³·P·(λ+1) / (2·(A+2)·(t/c)³) ] )
+        </code>
+        , with <code>a</code> the local speed of sound, <code>G</code> the fin material&apos;s shear
+        modulus, <code>A</code> the exposed-fin aspect ratio, <code>λ</code> the taper ratio, and{" "}
+        <code>t/c</code> the thickness ratio on the root chord — so flutter speed climbs with the
+        cube of the thickness ratio and the square root of stiffness, and falls with aspect ratio
+        (thin, high-aspect fins flutter first). The shear modulus is taken from the design&apos;s own
+        fin material (G10 fibreglass is assumed, and said so, when the material is missing or
+        unrecognised). This is a <em>preliminary-design estimate</em>, method-dependent to roughly
+        ±20% — the fuller NACA method, which adds a chordwise mass-balance term, tends to sit a little
+        lower — so Loft keeps a recommended margin of {"≥ 1.5×"} and cautions (never reassures) when
+        it is thin; it never certifies a fin as flutter-safe.
+      </p>
+      <p>
+        <em>Sources:</em> D. J. Martin, NACA TN 4197, <em>Summary of Flutter Experiences as a Guide
+        to the Preliminary Design of Lifting Surfaces on Missiles</em> (1958); the closed form as
+        popularised for rocketry by Apogee Components&apos; <em>Peak of Flight</em> newsletter #291.
+      </p>
+
       <h2>Live weather (optional)</h2>
       <p>
         The &ldquo;re-fly for today&rdquo; feature fetches current surface conditions and a

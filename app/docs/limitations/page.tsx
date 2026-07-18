@@ -111,6 +111,20 @@ export default function Limitations() {
         vehicle, its OpenRocket comparison is withheld.
       </p>
 
+      <h3>Fin flutter is an estimate, not a certification</h3>
+      <p>
+        The fin-flutter speed Loft reports is the simplified NACA TN 4197 closed form (see{" "}
+        <Link href="/docs/methods">Methods</Link>). It is a preliminary-design figure, method-dependent
+        to roughly ±20% — the fuller method, with a chordwise mass-balance term, tends to sit lower —
+        and it assumes a uniform, isotropic fin of the design&apos;s stated material stiffness. A real
+        fin&apos;s construction (tip-to-tip lamination, a spar, a bonded-on airfoil, grain direction
+        in wood) changes its stiffness and so its true flutter speed. The shear modulus comes from
+        matching the design&apos;s material name to a representative value, and G10 fibreglass is
+        assumed (and labelled as such) when the material is missing or unrecognised. Loft therefore
+        keeps a recommended margin and cautions when it is thin; it never reports a fin as
+        flutter-safe. Treat it as a reason to add thickness or reduce span, not as a pass/fail.
+      </p>
+
       <h3>Serial staging is simulated; parallel and strap-on staging isn&apos;t</h3>
       <p>
         In-line (serial) multi-stage flights are simulated: the booster lights at launch, each

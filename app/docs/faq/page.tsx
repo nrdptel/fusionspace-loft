@@ -45,6 +45,22 @@ export default function Faq() {
         </p>
       </QA>
 
+      <QA q="Will my fins flutter?">
+        <p>
+          Loft estimates it. Fins have their own stiffness, and past a critical airspeed — the
+          flutter boundary — they start to oscillate and can tear off, a leading cause of lost fins
+          on fast flights. The stability panel shows a <em>Fin flutter (est.)</em> speed and the
+          margin — how much headroom there is between that speed and the fastest the fins actually
+          go — and Loft cautions when the margin is thin (keep it ≥ 1.5×) or warns outright when the
+          peak airspeed is past the estimate. It uses the fin&apos;s planform, thickness, and
+          material stiffness, checked against the real air density at every altitude the rocket
+          climbs through. It&apos;s a preliminary-design estimate (the simplified NACA TN 4197
+          method), good to roughly ±20% — so treat it as a &ldquo;design your fins with room to
+          spare&rdquo; heuristic, not a guarantee. Neither OpenRocket nor RockSim reports it. See{" "}
+          <Link href="/docs/methods">Methods</Link>.
+        </p>
+      </QA>
+
       <QA q="Why doesn't my apogee match OpenRocket exactly?">
         <p>
           Mostly the drag model. Loft&apos;s subsonic drag buildup is simpler than OpenRocket&apos;s,

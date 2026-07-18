@@ -19,6 +19,7 @@
 import type { Rocket, MotorConfiguration } from "../model/types";
 import { Atmosphere } from "./atmosphere";
 import { aeroGeometry, barrowman, dragCoefficient, type Stability } from "./aero";
+import { analyzeFlutter, RECOMMENDED_FLUTTER_MARGIN, type FlutterReport } from "./flutter";
 import {
   structurePointMasses,
   combine,
@@ -165,6 +166,10 @@ export interface FlightResult {
   /** A recovery device opened before apogee, so the coast (and thus the reported apogee time) was
    *  cut short. The orchestrator uses this to recompute the optimum delay from a free coast. */
   deployedBeforeApogee: boolean;
+  /** Fin-flutter estimate over the ascent (worst-case margin per fin set). Undefined when the
+   *  design has no fins with a usable thickness. A safety heuristic, not a guarantee — see
+   *  flutter.ts. */
+  flutter?: FlutterReport;
 }
 
 interface SimState {
@@ -641,6 +646,35 @@ export function simulate(input: SimulateInput): FlightResult {
     groundHitVelocity,
   });
 
+  // Fin-flutter safety estimate over the ascent. Below the recommended margin the fins are
+  // cautioned; below 1 the peak airspeed is past the estimated flutter boundary (a warning). The
+  // number is a preliminary-design estimate (see flutter.ts), so it is never used to certify a fin
+  // as safe — only to flag a thin margin.
+  const flutter = analyzeFlutter(rocket, trajectory, conditions.atmosphere, conditions.launchAltitude);
+  if (flutter && Number.isFinite(flutter.worst.margin) && flutter.worst.margin < RECOMMENDED_FLUTTER_MARGIN) {
+    const w = flutter.worst;
+    const attrib = w.assumedMaterial ? ` (assuming ${w.material})` : ` (${w.material})`;
+    warnings.push(
+      w.margin < 1
+        ? {
+            code: "fin-flutter",
+            severity: "warning",
+            message:
+              `Fins may flutter: the estimated flutter speed (~${Math.round(w.flutterVelocity)} m/s${attrib}) ` +
+              `is below the ${Math.round(w.velocity)} m/s peak airspeed. Thicken the fins, shorten the span, ` +
+              `or use a stiffer material.`,
+          }
+        : {
+            code: "fin-flutter",
+            severity: "caution",
+            message:
+              `Thin fin-flutter margin: the estimated flutter speed (~${Math.round(w.flutterVelocity)} m/s${attrib}) ` +
+              `is only ${w.margin.toFixed(1)}× the ${Math.round(w.velocity)} m/s peak airspeed ` +
+              `(keep ≥ ${RECOMMENDED_FLUTTER_MARGIN}×).`,
+          },
+    );
+  }
+
   return {
     summary: {
       apogee: apogeeAlt,
@@ -672,6 +706,7 @@ export function simulate(input: SimulateInput): FlightResult {
     burnoutMass,
     extrapolatedTransonic: extrapolated,
     deployedBeforeApogee,
+    flutter,
   };
 }
 
