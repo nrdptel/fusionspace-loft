@@ -150,6 +150,38 @@ describe("override-subcomponents mass (OpenRocket assembly weight)", () => {
     const mp = dryMassProperties(rocketOf(root));
     expect(mp.mass).toBeCloseTo(1, 6);
   });
+
+  it("honours a mass override placed on the STAGE assembly (not a component)", () => {
+    // A stage is a component assembly in OpenRocket, so it can state a measured weight for the
+    // whole stage. Here the stage carries a 2 kg tube and a 3 kg ballast (5 kg of parts) but is
+    // overridden to weigh 1.5 kg for the assembly — the parts must not be added on top.
+    const root = tube({}, [ballast(3.0, 0.2)]); // ~heavy parts inside
+    const rocket: Rocket = {
+      name: "t",
+      stages: [{ name: "s", components: [root], overrideMass: 1.5, overrideSubcomponents: true }],
+      configurations: [],
+      referenceType: "maximum",
+    };
+    const mp = dryMassProperties(rocket);
+    expect(mp.mass).toBeCloseTo(1.5, 6);
+    // The CG stays at the parts' natural centroid (the override replaces only the total mass).
+    const natural = combine(structurePointMasses({ ...rocket, stages: [{ name: "s", components: [root] }] }));
+    expect(mp.cg).toBeCloseTo(natural.cg, 6);
+  });
+
+  it("a stage override CG relocates the lumped mass when the design gives one", () => {
+    const root = tube({}, [ballast(3.0, 0.2)]);
+    const rocket: Rocket = {
+      name: "t",
+      stages: [{ name: "s", components: [root], overrideMass: 1.5, overrideCGx: 0.25, overrideSubcomponents: true }],
+      configurations: [],
+      referenceType: "maximum",
+    };
+    const mp = dryMassProperties(rocket);
+    expect(mp.mass).toBeCloseTo(1.5, 6);
+    // Override CG is measured from the stage's fore station (here the nose tip, x=0).
+    expect(mp.cg).toBeCloseTo(0.25, 6);
+  });
 });
 
 describe("mass breakdown invariant (per-component sums to the dry total)", () => {

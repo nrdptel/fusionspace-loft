@@ -8,7 +8,7 @@
  *  Everything is SI. The CG is measured from the nose tip. The motor's contribution is
  *  time-varying (propellant burns off) and is added by the simulator via `combine`. */
 
-import type { Rocket, RocketComponent } from "../model/types";
+import type { Rocket, RocketComponent, Stage } from "../model/types";
 import { flattenRocket, type Positioned } from "../model/geometry";
 import { noseProps, transitionProps } from "./shapes";
 
@@ -220,6 +220,25 @@ function overridesSubtreeMass(c: RocketComponent): boolean {
   return overrideMass !== undefined && subtree === true;
 }
 
+/** True when a stage carries a whole-assembly mass override — the same "override mass of all
+ *  subcomponents" rule OpenRocket applies to any component assembly, here at the stage level. */
+function stageOverridesSubtreeMass(s: Stage): boolean {
+  return s.overrideMass !== undefined && s.overrideSubcomponents === true;
+}
+
+/** Every component under `roots`, including the roots themselves. */
+function collectSubtree(roots: RocketComponent[]): Set<RocketComponent> {
+  const set = new Set<RocketComponent>();
+  const walk = (cs: RocketComponent[]) => {
+    for (const c of cs) {
+      set.add(c);
+      walk(c.children);
+    }
+  };
+  walk(roots);
+  return set;
+}
+
 /** The dry structural point masses of the rocket (everything except the motor). Computed
  *  once per design; the motor is layered on per time step by the simulator.
  *
@@ -248,13 +267,51 @@ export function structurePointMasses(rocket: Rocket): PointMass[] {
       scan(c.children);
     }
   };
-  for (const stage of rocket.stages) scan(stage.components);
+  // A stage-level subtree override subsumes every component in the stage; otherwise scan its
+  // components for their own overrides. Collect the overridden stages to emit a lumped mass below.
+  const overriddenStages: Stage[] = [];
+  for (const stage of rocket.stages) {
+    if (stageOverridesSubtreeMass(stage)) {
+      overriddenStages.push(stage);
+      for (const c of collectSubtree(stage.components)) subsumed.add(c);
+    } else {
+      scan(stage.components);
+    }
+  }
 
+  const positioned = flattenRocket(rocket);
   const out: PointMass[] = [];
-  for (const p of flattenRocket(rocket)) {
-    if (subsumed.has(p.component)) continue; // mass folded into an ancestor's subtree override
+  for (const p of positioned) {
+    if (subsumed.has(p.component)) continue; // mass folded into a subtree override
     const pm = componentPointMass(p);
     if (pm) out.push(pm);
+  }
+
+  // For each stage that overrides its whole mass, emit one lumped point mass: the measured stage
+  // weight, at the stage's natural centre of gravity (the mass-weighted centroid of its own parts),
+  // or the override CG when the design gives one. OpenRocket keeps the CG at the natural centroid
+  // unless overridden and only replaces the total — so the stage's stability is preserved while its
+  // mass reflects the measured figure. The natural inertia is scaled by the mass ratio to stay
+  // consistent (6-DOF-ready), and the motor is layered on separately as always.
+  for (const stage of overriddenStages) {
+    const comps = collectSubtree(stage.components);
+    const natural: PointMass[] = [];
+    let foreX = Infinity;
+    for (const p of positioned) {
+      if (!comps.has(p.component)) continue;
+      foreX = Math.min(foreX, p.xFore);
+      const pm = componentPointMass(p);
+      if (pm) natural.push(pm);
+    }
+    const nat = combine(natural);
+    const mass = stage.overrideMass ?? 0;
+    if (mass <= 0) continue;
+    const cg =
+      stage.overrideCGx !== undefined
+        ? (Number.isFinite(foreX) ? foreX : 0) + stage.overrideCGx
+        : nat.cg;
+    const ownInertia = nat.mass > 0 ? nat.inertia * (mass / nat.mass) : 0;
+    out.push({ mass, cg, ownInertia, source: stage.name || "stage" });
   }
   return out;
 }

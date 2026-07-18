@@ -216,12 +216,16 @@ export default function Limitations() {
         mass of all subcomponents&rdquo; flag is now applied too: when a section states a measured
         mass for its whole assembly, that figure stands in for the section <em>and everything
         inside it</em>, so the internals are no longer added on top (the old behaviour
-        double-counted them, inflating dry mass and shifting the CG). The lumped mass sits at the
-        overriding component&apos;s CG, matching OpenRocket, and the outermost override wins over any
-        nested one. Still partial: a subcomponents override of <em>CG alone</em> (with no mass
-        override) isn&apos;t propagated to the subtree, and the lumped assembly&apos;s rotational
-        inertia is the overriding component&apos;s own — immaterial to the 3-DOF flight, which uses
-        mass and CG.
+        double-counted them, inflating dry mass and shifting the CG). This now applies when the
+        override sits on the <em>stage</em> itself, not only on a component — a stage is a component
+        assembly in OpenRocket, and a whole-stage measured weight is the common way a builder records
+        a finished rocket&apos;s mass. A stage override lumps the measured mass at the stage&apos;s
+        natural centre of gravity (or its override CG), leaving stability intact while the mass
+        reflects the real figure. The lumped mass otherwise sits at the overriding component&apos;s
+        CG, matching OpenRocket, and the outermost override wins over any nested one. Still partial: a
+        subcomponents override of <em>CG alone</em> (with no mass override) isn&apos;t propagated to
+        the subtree, and the lumped assembly&apos;s rotational inertia is a scaled estimate —
+        immaterial to the 3-DOF flight, which uses mass and CG.
       </p>
 
       <h3>Under-specified airframe diameters are inferred</h3>

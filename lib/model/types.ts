@@ -338,6 +338,14 @@ export interface Stage {
   separationEvent?: SeparationEvent;
   /** Delay (s) added after the separation event fires. Usually 0. */
   separationDelay?: number;
+  /** A stage is a component assembly in OpenRocket, so it too can carry a mass/CG override. When
+   *  set together with `overrideSubcomponents`, this measured figure replaces the combined mass of
+   *  every component in the stage (the design's own weight for the whole section). */
+  overrideMass?: number;
+  /** CG override (m from the stage's fore station), applied when the stage overrides its mass. */
+  overrideCGx?: number;
+  /** True when the stage's `overrideMass` stands in for the whole assembly (self + all parts). */
+  overrideSubcomponents?: boolean;
 }
 
 /** How the aerodynamic reference area/diameter is chosen (OpenRocket's convention). */

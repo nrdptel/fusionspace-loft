@@ -701,11 +701,17 @@ function parseStages(rocketNode: XmlNode, ctx: WalkContext): Stage[] {
   const stages: Stage[] = [];
   for (const st of children(sub, "stage")) {
     const sepDelay = Number(childText(st, "separationdelay"));
+    // A stage is a component assembly, so read its own mass/CG override too (OpenRocket lets you
+    // state a measured weight for a whole stage). Reuses the component override reader.
+    const ov = overrides(st) as { overrideMass?: number; overrideCGx?: number; overrideSubcomponents?: boolean };
     stages.push({
       name: childText(st, "name") || "Stage",
       components: parseSubcomponents(st, ctx),
       separationEvent: mapSeparationEvent(childText(st, "separationevent")),
       separationDelay: Number.isFinite(sepDelay) ? sepDelay : undefined,
+      overrideMass: ov.overrideMass,
+      overrideCGx: ov.overrideCGx,
+      overrideSubcomponents: ov.overrideSubcomponents,
     });
   }
   // Some files (older) put components directly under the rocket without a <stage>.
