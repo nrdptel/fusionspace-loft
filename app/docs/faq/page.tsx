@@ -176,6 +176,16 @@ export default function Faq() {
         </p>
       </QA>
 
+      <QA q="Can I export the numbers?">
+        <p>
+          Yes. The motor sweep, the parameter sweep, and the mass &amp; balance breakdown each have a{" "}
+          <em>Download CSV</em> button that saves the table to a file in your chosen units — the motor
+          comparison, the full response curve (every metric across the swept range), or the
+          part-by-part masses — ready to open in a spreadsheet. The file is built in your browser and
+          saved straight to your device; nothing is uploaded.
+        </p>
+      </QA>
+
       <QA q="Does it work offline?">
         <p>
           Yes — once loaded, install it or just revisit and it runs with no connection: the app, the

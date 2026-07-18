@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
+import { readFileSync } from "node:fs";
 
 test.describe("Loft", () => {
   test("loads with a clean hydration and the heading", async ({ page }) => {
@@ -186,6 +187,27 @@ test.describe("Loft", () => {
     await expect(table.getByRole("row").filter({ hasText: /g|kg/ })).not.toHaveCount(0);
     // The heaviest structural part of this sample is the body tube.
     await expect(table.getByText("Body tube", { exact: true })).toBeVisible();
+  });
+
+  test("motor sweep exports the comparison as a CSV", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+
+    const panel = page.getByRole("region", { name: "Motor sweep" });
+    await panel.getByRole("button", { name: /Run motor sweep/ }).click();
+    await expect(panel.locator("tbody tr").first()).toBeVisible();
+
+    const [download] = await Promise.all([
+      page.waitForEvent("download"),
+      panel.getByRole("button", { name: /Download CSV/ }).click(),
+    ]);
+    expect(download.suggestedFilename()).toMatch(/motor-sweep\.csv$/);
+    const path = await download.path();
+    const csv = readFileSync(path, "utf8");
+    // Header names the columns, and the design's own motor is a row.
+    expect(csv.split(/\r?\n/)[0]).toContain("Apogee");
+    expect(csv).toContain("H128W");
   });
 
   test("parameter sweep plots a response curve and switches metric", async ({ page }) => {

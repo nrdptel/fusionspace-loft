@@ -2,8 +2,13 @@
 
 import type { Rocket } from "@/lib/model/types";
 import { structurePointMasses, combine } from "@/lib/sim/mass";
+import { kgToLb, mToIn } from "@/lib/units";
+import type { CsvCell } from "@/lib/csv";
+import DownloadCsv from "./DownloadCsv";
 import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
+
+const round = (n: number, dp: number) => (Number.isFinite(n) ? Math.round(n * 10 ** dp) / 10 ** dp : "");
 
 /** Mass & balance breakdown: where the design's dry structural mass comes from, part by part, and
  *  how it balances. Pure transparency into what Loft parsed — the same per-component point masses the
@@ -17,6 +22,21 @@ export default function MassBreakdown({ rocket, units }: { rocket: Rocket; units
   const total = combine(points);
   // Heaviest first — the parts that dominate the dry mass lead.
   const rows = [...points].sort((a, b) => b.mass - a.mass);
+
+  const massUnit = units === "imperial" ? "lb" : "kg";
+  const lenUnit = units === "imperial" ? "in" : "mm";
+  const toMass = (kg: number) => (units === "imperial" ? kgToLb(kg) : kg);
+  const toLen = (m: number) => (units === "imperial" ? mToIn(m) : m * 1000);
+  const csv: CsvCell[][] = [
+    ["Component", `Mass (${massUnit})`, "% dry", `CG from nose (${lenUnit})`],
+    ...rows.map((p): CsvCell[] => [
+      p.source,
+      round(toMass(p.mass), 4),
+      total.mass > 0 ? round((p.mass / total.mass) * 100, 1) : "",
+      round(toLen(p.cg), 1),
+    ]),
+    ["Dry total", round(toMass(total.mass), 4), 100, round(toLen(total.cg), 1)],
+  ];
 
   return (
     <details className="group rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900/40">
@@ -72,6 +92,9 @@ export default function MassBreakdown({ rocket, units }: { rocket: Rocket; units
           per-part masses the simulator flies; a wrong row usually means a mistyped dimension or
           material in the design file.
         </p>
+        <div className="mt-2">
+          <DownloadCsv rows={csv} name={rocket.name} suffix="mass-breakdown" />
+        </div>
       </div>
     </details>
   );

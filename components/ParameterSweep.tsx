@@ -6,8 +6,12 @@ import { runFlight, overridesFromStored } from "@/lib/sim/run";
 import { parameterSweep, linRange, type SweepAxis, type ParamSweepPoint } from "@/lib/sim/sweep";
 import { primaryFinSpan, primaryNose, primaryBodyTube, type GeometryEdits } from "@/lib/model/edit";
 import { mToFt, mToIn, mpsToFtps, kgToG, G_PER_OZ } from "@/lib/units";
+import type { CsvCell } from "@/lib/csv";
 import LineChart from "./LineChart";
+import DownloadCsv from "./DownloadCsv";
 import type { UnitSystem } from "@/lib/display";
+
+const round = (n: number, dp: number) => (Number.isFinite(n) ? Math.round(n * 10 ** dp) / 10 ** dp : "");
 
 /** Number of flights across the range — dense enough for a smooth curve, cheap enough to be instant. */
 const STEPS = 25;
@@ -211,7 +215,7 @@ export default function ParameterSweep({
           </div>
 
           {points.length > 1 ? (
-            <SweepChart points={points} axis={axisDef} metric={metric} units={units} />
+            <SweepChart points={points} axis={axisDef} metric={metric} units={units} name={doc.rocket.name} />
           ) : (
             <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-300">
               Not enough of the range could be flown to draw a curve.
@@ -228,15 +232,22 @@ function SweepChart({
   axis,
   metric,
   units,
+  name,
 }: {
   points: ParamSweepPoint[];
   axis: AxisDef;
   metric: MetricDef;
   units: UnitSystem;
+  name: string;
 }) {
   // X in this axis's own display units (mm/in for a dimension, g/oz for ballast); Y in the metric's.
   const xUnit = axis.xUnit(units);
   const yUnit = metric.unit(units);
+  // The CSV carries every metric across the swept range, not just the one currently plotted.
+  const csv: CsvCell[][] = [
+    [`${axis.label} (${xUnit})`, ...METRICS.map((m) => `${m.label} (${m.unit(units)})`)],
+    ...points.map((p) => [round(axis.xToNumber(p.x, units), 3), ...METRICS.map((m) => round(m.toNumber(p[m.key], units), 3))]),
+  ];
   const series = [
     {
       color: "#6366f1",
@@ -263,6 +274,9 @@ function SweepChart({
         variable shifts the centre of pressure and the mass its own way — read these as estimates to
         verify, not a go/no-go.
       </p>
+      <div className="mt-2">
+        <DownloadCsv rows={csv} name={name} suffix={`sweep-${axis.axis}`} />
+      </div>
     </div>
   );
 }

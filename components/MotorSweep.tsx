@@ -5,8 +5,13 @@ import type { OrkDocument } from "@/lib/ork/import";
 import { overridesFromStored } from "@/lib/sim/run";
 import { motorSweep, type SweepMotor, type MotorSweepRow } from "@/lib/sim/sweep";
 import type { GeometryEdits } from "@/lib/model/edit";
+import { mToFt, mpsToFtps } from "@/lib/units";
+import type { CsvCell } from "@/lib/csv";
+import DownloadCsv from "./DownloadCsv";
 import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
+
+const round = (n: number, dp: number) => (Number.isFinite(n) ? Math.round(n * 10 ** dp) / 10 ** dp : "");
 
 /** Below this liftoff thrust-to-weight the rocket is at or under the common HPR rule of thumb for
  *  clean rail clearance — worth flagging (softly, never as a verdict). */
@@ -88,12 +93,32 @@ export default function MotorSweep({
         </div>
       )}
 
-      {rows !== null && rows.length > 0 && <SweepTable rows={rows} units={units} />}
+      {rows !== null && rows.length > 0 && <SweepTable rows={rows} units={units} name={doc.rocket.name} />}
     </section>
   );
 }
 
-function SweepTable({ rows, units }: { rows: MotorSweepRow[]; units: UnitSystem }) {
+function sweepCsv(rows: MotorSweepRow[], units: UnitSystem): CsvCell[][] {
+  const spd = units === "imperial" ? "ft/s" : "m/s";
+  const alt = units === "imperial" ? "ft" : "m";
+  const toAlt = (m: number) => (units === "imperial" ? mToFt(m) : m);
+  const toSpd = (mps: number) => (units === "imperial" ? mpsToFtps(mps) : mps);
+  const header: CsvCell[] = ["Motor", "Manufacturer", "Class", `Apogee (${alt})`, `Max velocity (${spd})`, `Rail-exit (${spd})`, "Thrust-to-weight", "Static margin (cal)", "Design"];
+  const body: CsvCell[][] = rows.map((r) => [
+    r.designation,
+    r.manufacturer,
+    r.motorClass,
+    round(toAlt(r.apogee), 1),
+    round(toSpd(r.maxVelocity), 1),
+    round(toSpd(r.railExitVelocity), 1),
+    round(r.thrustToWeight, 2),
+    round(r.staticMarginCal, 2),
+    r.isDesign ? "yes" : "",
+  ]);
+  return [header, ...body];
+}
+
+function SweepTable({ rows, units, name }: { rows: MotorSweepRow[]; units: UnitSystem; name: string }) {
   return (
     <div className="mt-3">
       <div className="overflow-x-auto">
@@ -158,6 +183,9 @@ function SweepTable({ rows, units }: { rows: MotorSweepRow[]; units: UnitSystem 
         thrust-to-weight are the launch-safety numbers to check against your rail and the ~5:1 and
         ~15&nbsp;m/s (≈50&nbsp;ft/s) rules of thumb; these are estimates to verify, never a go/no-go.
       </p>
+      <div className="mt-2">
+        <DownloadCsv rows={sweepCsv(rows, units)} name={name} suffix="motor-sweep" />
+      </div>
     </div>
   );
 }
