@@ -13,6 +13,7 @@ exactly like a file RockSim writes. The human-readable source lives in [`src/`](
 | `demo-dual-deploy.ork` | 54 mm fibreglass dual-deploy | AeroTech K550W | drogue at apogee, main at 150 m |
 | `demo-multi-config.ork` | Same 38 mm airframe with two motor configurations (stored simulations), so the app's motor-configuration picker has something to switch between | AeroTech H128W and G40W | single deploy at apogee |
 | `demo-quirks.ork` | Parser regression: `auto` radii (bare + valued), a boattail transition, a tube coupler with a subcomponent, an elliptical fin set, legacy element names (`<position>`, `<fincount>`), and a parallel stage | AeroTech J420R | streamer at apogee |
+| `demo-payload-separation.ork` | Two-stage payload rocket: a motorless payload section rides a booster that separates at its own ejection charge (a long delay, so the split falls near apogee); the payload chute deploys on that lower-stage separation. Exercises the stage separation event and separation-triggered recovery | AeroTech F50T (6 s delay) | payload chute on lower-stage separation |
 | `src/demo-rocksim.rkt` | RockSim import: a 54 mm minimum-diameter fibreglass sport rocket with a payload mass object, exercising the `.rkt` adapter — mm/gram units, `LocationMode` placement, RockSim shape/finish codes, per-part masses, an `EngineSet` motor, and a stored `SimulationResults` | AeroTech J420R | single deploy at apogee |
 
 `demo-quirks.ork` isn't a realistic design — it deliberately exercises format features real

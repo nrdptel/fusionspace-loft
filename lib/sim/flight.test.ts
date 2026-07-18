@@ -415,6 +415,36 @@ describe("geometry edits (builder)", () => {
   });
 });
 
+describe("payload-separation fixture flight", () => {
+  it("separates at the booster's ejection charge and recovers the payload on that separation", async () => {
+    const doc = await load("demo-payload-separation.ork");
+    expect(doc.rocket.stages[1].separationEvent).toBe("ejection");
+    const run = runFromDocument(doc);
+
+    const events = run.result.events;
+    const burnout = events.find((e) => e.type === "burnout")!;
+    const apogee = events.find((e) => e.type === "apogee")!;
+    const separation = events.find((e) => e.type === "separation")!;
+    const deploy = events.find((e) => e.type === "deploy")!;
+    expect(separation).toBeDefined();
+    expect(deploy).toBeDefined();
+
+    // The booster hangs on well past burnout — until its ejection charge (an 8 s delay), which
+    // falls just after apogee — rather than dropping at burnout.
+    expect(separation.time).toBeGreaterThan(burnout.time + 4);
+    expect(separation.time).toBeGreaterThan(apogee.time);
+    // The payload's parachute opens on that lower-stage separation…
+    expect(deploy.time).toBeCloseTo(separation.time, 1);
+    // …so it comes in under canopy, NOT ballistic (the bug this whole path guards against).
+    expect(run.result.summary.descentRate).toBeLessThan(10);
+    expect(run.result.warnings.some((w) => w.code === "ballistic-descent")).toBe(false);
+
+    // A complete, un-reduced flight, so its stored-figure comparison is shown and lands close.
+    expect(doc.flownAsReduced).toBe(false);
+    expect(run.validation!.mape).toBeLessThan(15);
+  });
+});
+
 describe("unresolvable motor", () => {
   it("reports no propulsion and withholds the validation comparison", async () => {
     const doc = await load("demo-single-deploy.ork");
