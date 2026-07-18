@@ -150,12 +150,14 @@ export default function Faq() {
       <QA q="Can I change the design's geometry and see what happens?">
         <p>
           Starting to. Under <em>Conditions → Design what-if</em>, the <em>Fin span</em>,{" "}
-          <em>Fin count</em>, <em>Nose length</em>, and <em>Body length</em> fields start from the
-          design&apos;s own dimensions; change any and Loft rebuilds the rocket and re-flies it —
-          mass, drag, and the centre of pressure and stability all update, and a longer nose or body
-          stretches the whole airframe (everything downstream shifts). Bigger fins — or more of them
-          — move the CP aft and raise the stability margin (the classic trade against nose weight);
-          a longer body adds material and weight. The results, the <em>What-if vs design</em> delta,
+          <em>Fin count</em>, <em>Fin root</em> and <em>Fin tip</em> (chords, for a trapezoidal fin),{" "}
+          <em>Nose length</em>, and <em>Body length</em> fields start from the design&apos;s own
+          dimensions; change any and Loft rebuilds the rocket and re-flies it — mass, drag, and the
+          centre of pressure and stability all update, and a longer nose or body stretches the whole
+          airframe (everything downstream shifts). Bigger fins — or more of them — move the CP aft
+          and raise the stability margin (the classic trade against nose weight); reshaping the fin
+          chords changes its planform area (and so its drag and centre of pressure); a longer body
+          adds material and weight. The results, the <em>What-if vs design</em> delta,
           and the RocketPy second opinion all reflect the edited geometry. It&apos;s the first step
           toward a full in-browser builder — editing a component&apos;s dimensions and re-simulating
           live. Because it&apos;s a change to the design, the OpenRocket comparison is hidden while

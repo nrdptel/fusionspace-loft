@@ -263,6 +263,34 @@ test.describe("Loft", () => {
     await expect.poll(staticMargin).toBeGreaterThan(before);
   });
 
+  test("reshaping the fin root chord rebuilds the design and changes the apogee", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+
+    const apogee = async () => {
+      const txt = await page
+        .getByLabel("Results")
+        .getByText("Apogee", { exact: true })
+        .locator("xpath=following-sibling::div")
+        .innerText();
+      return parseFloat(txt.replace(/[^\d.]/g, ""));
+    };
+    const before = await apogee();
+    expect(before).toBeGreaterThan(0);
+
+    // Widen the fin root chord — more planform, more drag. The field starts from the design's root.
+    await page.locator("summary", { hasText: "Conditions" }).click();
+    const finRoot = page.getByLabel(/Fin root/);
+    await expect(finRoot).toBeVisible();
+    const designRoot = parseFloat((await finRoot.getAttribute("placeholder")) ?? "0");
+    expect(designRoot).toBeGreaterThan(0);
+    await finRoot.fill(String(Math.round(designRoot * 1.6)));
+
+    // A bigger fin planform drags more, so the rocket doesn't reach as high.
+    await expect.poll(apogee).toBeLessThan(before);
+  });
+
   test("adding fins rebuilds the design and raises the stability margin", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();

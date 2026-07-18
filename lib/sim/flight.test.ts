@@ -5,7 +5,7 @@ import { importOrk } from "../ork/import";
 import { runFromDocument, runFlight, configChoices, overridesFromStored } from "./run";
 import { allMotors } from "../motors/db";
 import { flattenRocket } from "../model/geometry";
-import { primaryFinSpan, primaryFinCount, primaryNose, primaryBodyTube } from "../model/edit";
+import { primaryFinSpan, primaryFinCount, primaryFinRootChord, primaryFinTipChord, primaryNose, primaryBodyTube } from "../model/edit";
 import type { OrkDocument } from "../ork/adapt";
 
 /** End-to-end: import each committed fixture, fly it, and check the results are physically
@@ -192,6 +192,37 @@ describe("geometry edits (builder)", () => {
     const fewer = runFlight(doc.rocket, { configId: cfg, overrides: ov, geometry: { finCount: n - 1 } });
     expect(fewer.result.stability.cp).toBeLessThan(base.result.stability.cp);
     expect(fewer.result.staticMarginCal).toBeLessThan(base.result.staticMarginCal);
+  });
+
+  it("wider fin chords add planform area and drag, lowering apogee and shifting stability", async () => {
+    const doc = await load("demo-single-deploy.ork");
+    const cfg = doc.simulations[0].conditions.configId;
+    const ov = overridesFromStored(doc.simulations[0]);
+
+    const base = runFlight(doc.rocket, { configId: cfg, overrides: ov });
+    const root = primaryFinRootChord(doc.rocket)!;
+    const tip = primaryFinTipChord(doc.rocket)!;
+    expect(root).toBeGreaterThan(0);
+
+    // A bigger root chord is more fin planform — more drag, so a lower apogee — and it measurably
+    // moves the centre of pressure (the reshape takes effect through the aero, not just the mass).
+    const biggerRoot = runFlight(doc.rocket, { configId: cfg, overrides: ov, geometry: { finRootChord: root * 1.6 } });
+    expect(biggerRoot.result.summary.apogee).toBeLessThan(base.result.summary.apogee);
+    expect(biggerRoot.result.summary.apogee).toBeGreaterThan(0);
+    expect(Math.abs(biggerRoot.result.stability.cp - base.result.stability.cp)).toBeGreaterThan(0.005);
+
+    // A bigger tip chord likewise adds area and drag → lower apogee, still a finite, sane flight.
+    const biggerTip = runFlight(doc.rocket, { configId: cfg, overrides: ov, geometry: { finTipChord: tip * 2 } });
+    expect(biggerTip.result.summary.apogee).toBeLessThan(base.result.summary.apogee);
+    expect(Number.isFinite(biggerTip.result.staticMarginCal)).toBe(true);
+
+    // A chord edit on an elliptical-fin design (no trapezoid) is a no-op — same flight.
+    const ell = await load("demo-boattail.ork");
+    const ecfg = ell.simulations[0].conditions.configId;
+    const eov = overridesFromStored(ell.simulations[0]);
+    const ellBase = runFlight(ell.rocket, { configId: ecfg, overrides: eov });
+    const ellEdited = runFlight(ell.rocket, { configId: ecfg, overrides: eov, geometry: { finRootChord: 0.2 } });
+    expect(ellEdited.result.summary.apogee).toBeCloseTo(ellBase.result.summary.apogee, 6);
   });
 
   it("a longer body tube stretches the airframe and adds mass", async () => {

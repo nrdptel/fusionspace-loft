@@ -3,7 +3,15 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { importOrk } from "../ork/import";
 import { flattenRocket } from "./geometry";
-import { applyGeometryEdits, primaryFinSpan, primaryFinCount, primaryNose, primaryBodyTube } from "./edit";
+import {
+  applyGeometryEdits,
+  primaryFinSpan,
+  primaryFinCount,
+  primaryFinRootChord,
+  primaryFinTipChord,
+  primaryNose,
+  primaryBodyTube,
+} from "./edit";
 import type { GenericFinSet } from "./types";
 import { overallLength } from "./geometry";
 
@@ -89,6 +97,35 @@ describe("applyGeometryEdits — fin count", () => {
   it("no-ops for a count below one", async () => {
     const rocket = await load("demo-single-deploy.ork");
     expect(applyGeometryEdits(rocket, { finCount: 0 })).toBe(rocket);
+  });
+});
+
+describe("applyGeometryEdits — fin chords", () => {
+  it("reshapes a trapezoidal fin's root and tip chords, non-destructively", async () => {
+    const rocket = await load("demo-single-deploy.ork");
+    const root0 = primaryFinRootChord(rocket)!;
+    const tip0 = primaryFinTipChord(rocket)!;
+    expect(root0).toBeGreaterThan(0);
+
+    const edited = applyGeometryEdits(rocket, { finRootChord: root0 * 1.5, finTipChord: tip0 * 0.5 });
+    expect(primaryFinRootChord(edited)).toBeCloseTo(root0 * 1.5, 9);
+    expect(primaryFinTipChord(edited)).toBeCloseTo(tip0 * 0.5, 9);
+    // Span and count are untouched, and the original design is pristine.
+    expect(primaryFinSpan(edited)).toBeCloseTo(primaryFinSpan(rocket)!, 9);
+    expect(primaryFinRootChord(rocket)).toBe(root0);
+  });
+
+  it("ignores a chord edit on an elliptical fin set (its chord is a reduction, not a dimension)", async () => {
+    const rocket = await load("demo-boattail.ork"); // elliptical fins
+    expect(primaryFinRootChord(rocket)).toBeUndefined();
+    // No trapezoidal fin to reshape ⇒ a chord-only edit leaves the design structurally unchanged
+    // (the elliptical fin's dimensions are untouched).
+    expect(applyGeometryEdits(rocket, { finRootChord: 0.2 })).toStrictEqual(rocket);
+  });
+
+  it("no-ops for a non-positive chord", async () => {
+    const rocket = await load("demo-single-deploy.ork");
+    expect(applyGeometryEdits(rocket, { finRootChord: 0, finTipChord: 0 })).toBe(rocket);
   });
 });
 

@@ -7,7 +7,14 @@ import ResultsView from "./ResultsView";
 import { Segmented } from "./ui";
 import { importDesignFile, importDesign, type OrkDocument } from "@/lib/ork/import";
 import { runFlight, overridesFromStored, configChoices, type FlightRun, type ConfigChoice } from "@/lib/sim/run";
-import { primaryFinSpan, primaryFinCount, primaryNose, primaryBodyTube } from "@/lib/model/edit";
+import {
+  primaryFinSpan,
+  primaryFinCount,
+  primaryFinRootChord,
+  primaryFinTipChord,
+  primaryNose,
+  primaryBodyTube,
+} from "@/lib/model/edit";
 import { allMotors } from "@/lib/motors/db";
 import type { ConditionOverrides } from "@/lib/sim/setup";
 import { fetchConditions, geocode, type WeatherConditions } from "@/lib/weather";
@@ -24,6 +31,8 @@ interface Edits {
   motorSwap?: { manufacturer?: string; designation: string; diameter?: number }; // "what-if" motor
   finSpan?: number; // builder edit: fin semi-span (m)
   finCount?: number; // builder edit: fins per set
+  finRootChord?: number; // builder edit: fin root chord (m, trapezoidal)
+  finTipChord?: number; // builder edit: fin tip chord (m, trapezoidal)
   noseLength?: number; // builder edit: nose-cone length (m)
   bodyLength?: number; // builder edit: primary body-tube length (m)
 }
@@ -77,7 +86,14 @@ export default function LoftApp() {
         overrides,
         ballastKg: e.ballastKg,
         motorSwap: e.motorSwap,
-        geometry: { finSpan: e.finSpan, finCount: e.finCount, noseLength: e.noseLength, bodyLength: e.bodyLength },
+        geometry: {
+          finSpan: e.finSpan,
+          finCount: e.finCount,
+          finRootChord: e.finRootChord,
+          finTipChord: e.finTipChord,
+          noseLength: e.noseLength,
+          bodyLength: e.bodyLength,
+        },
         // Validate only when flying the design's own stored conditions unchanged, and only when
         // Loft flew the complete design — a simplified vehicle (staging/pods/parallel/cluster)
         // wouldn't match the stored results, so the comparison would be misleading. Any edit —
@@ -95,6 +111,8 @@ export default function LoftApp() {
         e.motorSwap !== undefined ||
         e.finSpan !== undefined ||
         e.finCount !== undefined ||
+        e.finRootChord !== undefined ||
+        e.finTipChord !== undefined ||
         e.noseLength !== undefined ||
         e.bodyLength !== undefined;
       const baseline = hasWhatIf ? runFlight(document.rocket, { configId, overrides }) : null;
@@ -237,10 +255,19 @@ export default function LoftApp() {
         ? {
             finSpan: primaryFinSpan(doc.rocket),
             finCount: primaryFinCount(doc.rocket),
+            finRootChord: primaryFinRootChord(doc.rocket),
+            finTipChord: primaryFinTipChord(doc.rocket),
             noseLength: primaryNose(doc.rocket)?.length,
             bodyLength: primaryBodyTube(doc.rocket)?.length,
           }
-        : { finSpan: undefined, finCount: undefined, noseLength: undefined, bodyLength: undefined },
+        : {
+            finSpan: undefined,
+            finCount: undefined,
+            finRootChord: undefined,
+            finTipChord: undefined,
+            noseLength: undefined,
+            bodyLength: undefined,
+          },
     [doc],
   );
 
@@ -346,7 +373,14 @@ export default function LoftApp() {
               simIndex={simIndex}
               ballastKg={edits.ballastKg}
               motorSwap={edits.motorSwap}
-              geometry={{ finSpan: edits.finSpan, finCount: edits.finCount, noseLength: edits.noseLength, bodyLength: edits.bodyLength }}
+              geometry={{
+                finSpan: edits.finSpan,
+                finCount: edits.finCount,
+                finRootChord: edits.finRootChord,
+                finTipChord: edits.finTipChord,
+                noseLength: edits.noseLength,
+                bodyLength: edits.bodyLength,
+              }}
               swapOptions={swapInfo?.options}
               designMotor={swapInfo?.designMotor}
             />
@@ -420,7 +454,14 @@ function ConditionsControls({
   onEdit: (patch: Edits) => void;
   swap: SwapInfo | null;
   /** The design's own dimensions (m; fin count is a plain number), shown as the builder fields' placeholders. */
-  designDims: { finSpan?: number; finCount?: number; noseLength?: number; bodyLength?: number };
+  designDims: {
+    finSpan?: number;
+    finCount?: number;
+    finRootChord?: number;
+    finTipChord?: number;
+    noseLength?: number;
+    bodyLength?: number;
+  };
   weather: WeatherConditions | null;
   scenario: "design" | "today";
   setScenario: (s: "design" | "today") => void;
@@ -553,6 +594,22 @@ function ConditionsControls({
                   const n = v === "" ? undefined : Math.round(Number(v));
                   onEdit({ finCount: n !== undefined && n >= 1 ? n : undefined });
                 }}
+              />
+            )}
+            {designDims.finRootChord !== undefined && (
+              <Num
+                label={`Fin root (${spanU})`}
+                value={toDispSpan(edits.finRootChord)}
+                placeholder={toDispSpan(designDims.finRootChord)}
+                onChange={(v) => onEdit({ finRootChord: fromSpan(v) })}
+              />
+            )}
+            {designDims.finTipChord !== undefined && (
+              <Num
+                label={`Fin tip (${spanU})`}
+                value={toDispSpan(edits.finTipChord)}
+                placeholder={toDispSpan(designDims.finTipChord)}
+                onChange={(v) => onEdit({ finTipChord: fromSpan(v) })}
               />
             )}
             {designDims.noseLength !== undefined && (
