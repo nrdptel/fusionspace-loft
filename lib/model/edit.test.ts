@@ -3,8 +3,9 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { importOrk } from "../ork/import";
 import { flattenRocket } from "./geometry";
-import { applyGeometryEdits, primaryFinSpan } from "./edit";
+import { applyGeometryEdits, primaryFinSpan, primaryNose, primaryBodyTube } from "./edit";
 import type { GenericFinSet } from "./types";
+import { overallLength } from "./geometry";
 
 async function load(name: string) {
   const bytes = new Uint8Array(readFileSync(resolve(process.cwd(), "fixtures", name)));
@@ -47,5 +48,32 @@ describe("applyGeometryEdits — fin span", () => {
     const rocket = await load("demo-single-deploy.ork");
     expect(applyGeometryEdits(rocket, {})).toBe(rocket);
     expect(applyGeometryEdits(rocket, { finSpan: 0 })).toBe(rocket);
+    expect(applyGeometryEdits(rocket, { noseLength: 0, bodyLength: 0 })).toBe(rocket);
+  });
+});
+
+describe("applyGeometryEdits — length", () => {
+  it("resizes the primary body tube and stretches the overall airframe", async () => {
+    const rocket = await load("demo-single-deploy.ork");
+    const tube = primaryBodyTube(rocket)!;
+    const len0 = tube.length;
+    const overall0 = overallLength(rocket);
+
+    const edited = applyGeometryEdits(rocket, { bodyLength: len0 + 0.1 });
+    expect(primaryBodyTube(edited)!.length).toBeCloseTo(len0 + 0.1, 9);
+    // A longer main tube makes the whole airframe ~0.1 m longer (downstream parts shift aft).
+    expect(overallLength(edited)).toBeCloseTo(overall0 + 0.1, 6);
+    // Non-destructive.
+    expect(primaryBodyTube(rocket)!.length).toBeCloseTo(len0, 9);
+  });
+
+  it("resizes the nose cone", async () => {
+    const rocket = await load("demo-single-deploy.ork");
+    const nose = primaryNose(rocket)!;
+    const len0 = nose.length;
+
+    const edited = applyGeometryEdits(rocket, { noseLength: len0 * 1.5 });
+    expect(primaryNose(edited)!.length).toBeCloseTo(len0 * 1.5, 9);
+    expect(primaryNose(rocket)!.length).toBeCloseTo(len0, 9);
   });
 });

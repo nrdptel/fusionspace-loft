@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import type { FlightRun } from "@/lib/sim/run";
+import type { GeometryEdits } from "@/lib/model/edit";
 import type { OrkDocument } from "@/lib/ork/import";
 import type { FlightResult } from "@/lib/sim/simulate";
 import LineChart, { type Series, type Marker } from "./LineChart";
@@ -41,7 +42,7 @@ export default function ResultsView({
   simIndex = 0,
   ballastKg,
   motorSwap,
-  finSpan,
+  geometry,
 }: {
   run: FlightRun;
   doc: OrkDocument;
@@ -54,7 +55,7 @@ export default function ResultsView({
   /** Active "what-if" edits, so the RocketPy cross-check flies the same hypothetical shown above. */
   ballastKg?: number;
   motorSwap?: { manufacturer?: string; designation: string; diameter?: number };
-  finSpan?: number;
+  geometry?: GeometryEdits;
 }) {
   const r = run.result;
   const s = r.summary;
@@ -158,14 +159,14 @@ export default function ResultsView({
           motor swap) remounts the panel to idle instead of leaving a stale RocketPy result on screen. */}
       {(doc.rocket.stages?.length ?? 1) === 1 && (
         <RocketpyCrossCheck
-          key={`${doc.rocket.name}:${run.config.id}:${simIndex}:${ballastKg ?? 0}:${motorSwap?.designation ?? ""}:${finSpan ?? 0}`}
+          key={`${doc.rocket.name}:${run.config.id}:${simIndex}:${ballastKg ?? 0}:${motorSwap?.designation ?? ""}:${geometry?.finSpan ?? 0}:${geometry?.noseLength ?? 0}:${geometry?.bodyLength ?? 0}`}
           doc={doc}
           config={run.config}
           simIndex={simIndex}
           units={units}
           ballastKg={ballastKg}
           motorSwap={motorSwap}
-          finSpan={finSpan}
+          geometry={geometry}
         />
       )}
 

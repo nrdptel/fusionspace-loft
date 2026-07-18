@@ -6,6 +6,7 @@ import type { MotorConfiguration } from "@/lib/model/types";
 import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
 import type { RocketpyFlightResult } from "@/lib/validation/rocketpy-engine";
+import type { GeometryEdits } from "@/lib/model/edit";
 
 /** Loft's own ballistic ascent, for a like-for-like comparison against RocketPy. */
 interface LoftBallistic {
@@ -37,7 +38,7 @@ export default function RocketpyCrossCheck({
   units,
   ballastKg,
   motorSwap,
-  finSpan,
+  geometry,
 }: {
   doc: OrkDocument;
   config: MotorConfiguration;
@@ -48,8 +49,9 @@ export default function RocketpyCrossCheck({
   /** Active "what-if" motor swap. `config` is already the swapped configuration; this is only
    *  needed to reproduce the swap in Loft's independently-picked ballistic baseline. */
   motorSwap?: { manufacturer?: string; designation: string; diameter?: number };
-  /** Active builder edit: fin semi-span (m). Applied to both the RocketPy spec and Loft's baseline. */
-  finSpan?: number;
+  /** Active builder geometry edits (fin span, nose/body length). Applied to both the RocketPy spec
+   *  and Loft's baseline, so both engines fly the edited design. */
+  geometry?: GeometryEdits;
 }) {
   const [state, setState] = useState<State>({ phase: "idle" });
 
@@ -60,7 +62,7 @@ export default function RocketpyCrossCheck({
         { buildRocketpySpec },
         { runRocketpy },
         { runFlight, overridesFromStored, noseBallastStation },
-        { applyGeometryEdits },
+        { applyGeometryEdits, hasGeometryEdits },
       ] = await Promise.all([
         import("@/lib/validation/rocketpy-spec"),
         import("@/lib/validation/rocketpy-engine"),
@@ -78,7 +80,7 @@ export default function RocketpyCrossCheck({
         ballistic: true,
         ballastKg,
         motorSwap,
-        finSpan,
+        geometry,
       });
       const s = loftRun.result.summary;
       const loft: LoftBallistic = {
@@ -90,9 +92,10 @@ export default function RocketpyCrossCheck({
         staticMarginCal: loftRun.result.staticMarginCal,
       };
       // `config` is already the swapped configuration (runFlight returns it), so the motor is right;
-      // apply the fin-span edit to the rocket the spec is built from, and add nose ballast as an
+      // apply the geometry edits to the rocket the spec is built from, and add nose ballast as an
       // extra point mass — so the RocketPy spec matches the flown design exactly.
-      const editedRocket = finSpan ? applyGeometryEdits(doc.rocket, { finSpan }) : doc.rocket;
+      const editedRocket =
+        geometry && hasGeometryEdits(geometry) ? applyGeometryEdits(doc.rocket, geometry) : doc.rocket;
       const extras =
         ballastKg && ballastKg > 0
           ? [{ mass: ballastKg, cg: noseBallastStation(editedRocket), ownInertia: 0, source: "Nose ballast" }]
@@ -103,7 +106,7 @@ export default function RocketpyCrossCheck({
     } catch (e) {
       setState({ phase: "error", message: e instanceof Error ? e.message : String(e) });
     }
-  }, [doc, config, simIndex, ballastKg, motorSwap, finSpan]);
+  }, [doc, config, simIndex, ballastKg, motorSwap, geometry]);
 
   return (
     <section

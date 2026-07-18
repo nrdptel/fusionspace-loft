@@ -5,7 +5,7 @@
 import type { Rocket, MotorConfiguration } from "../model/types";
 import type { OrkDocument, StoredSimulation } from "../ork/adapt";
 import { flattenRocket } from "../model/geometry";
-import { applyGeometryEdits } from "../model/edit";
+import { applyGeometryEdits, hasGeometryEdits, type GeometryEdits } from "../model/edit";
 import type { PointMass } from "./mass";
 import { simulate, type FlightResult } from "./simulate";
 import { buildSimulateInput, makeConditions, type MotorResolution, type ConditionOverrides } from "./setup";
@@ -75,10 +75,10 @@ export interface RunOptions {
    *  the motor in every instance of the flown configuration (a cluster keeps its count), so the
    *  flyer can compare motors without editing the file. Undefined flies the design's own motor. */
   motorSwap?: { manufacturer?: string; designation: string; diameter?: number };
-  /** Builder edit: fly the design with its fin set(s) resized to this semi-span (m). Changes the
-   *  aerodynamics (centre of pressure, stability), drag, and mass. Undefined flies the design's
-   *  own fins. */
-  finSpan?: number;
+  /** Builder edits: fly the design with resized geometry (fin span, nose/body length). Rebuilds the
+   *  vehicle before flight, so mass, aerodynamics (centre of pressure, stability), and drag all
+   *  reflect the change. Undefined/empty flies the design's own geometry. */
+  geometry?: GeometryEdits;
 }
 
 /** Apply a what-if motor swap to a configuration: every instance flies the chosen motor, keeping
@@ -107,9 +107,9 @@ export function noseBallastStation(rocket: Rocket): number {
 
 /** Run a flight for a canonical rocket. */
 export function runFlight(rocket: Rocket, opts: RunOptions = {}): FlightRun {
-  // Builder geometry edits (e.g. resized fins) rebuild the model before anything else, so mass,
-  // aerodynamics, and the flight all see the edited design.
-  const design = opts.finSpan ? applyGeometryEdits(rocket, { finSpan: opts.finSpan }) : rocket;
+  // Builder geometry edits (resized fins, nose, or body) rebuild the model before anything else, so
+  // mass, aerodynamics, and the flight all see the edited design.
+  const design = opts.geometry && hasGeometryEdits(opts.geometry) ? applyGeometryEdits(rocket, opts.geometry) : rocket;
   const picked = pickConfig(design, opts.configId);
   if (!picked) {
     throw new Error("This design has no motor configuration to simulate.");

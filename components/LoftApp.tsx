@@ -7,7 +7,7 @@ import ResultsView from "./ResultsView";
 import { Segmented } from "./ui";
 import { importDesignFile, importDesign, type OrkDocument } from "@/lib/ork/import";
 import { runFlight, overridesFromStored, configChoices, type FlightRun, type ConfigChoice } from "@/lib/sim/run";
-import { primaryFinSpan } from "@/lib/model/edit";
+import { primaryFinSpan, primaryNose, primaryBodyTube } from "@/lib/model/edit";
 import { allMotors } from "@/lib/motors/db";
 import type { ConditionOverrides } from "@/lib/sim/setup";
 import { fetchConditions, geocode, type WeatherConditions } from "@/lib/weather";
@@ -23,6 +23,8 @@ interface Edits {
   ballastKg?: number; // "what-if" nose ballast
   motorSwap?: { manufacturer?: string; designation: string; diameter?: number }; // "what-if" motor
   finSpan?: number; // builder edit: fin semi-span (m)
+  noseLength?: number; // builder edit: nose-cone length (m)
+  bodyLength?: number; // builder edit: primary body-tube length (m)
 }
 
 /** Same-diameter bundled motors the design could fly, with the design's own motor as the default.
@@ -74,7 +76,7 @@ export default function LoftApp() {
         overrides,
         ballastKg: e.ballastKg,
         motorSwap: e.motorSwap,
-        finSpan: e.finSpan,
+        geometry: { finSpan: e.finSpan, noseLength: e.noseLength, bodyLength: e.bodyLength },
         // Validate only when flying the design's own stored conditions unchanged, and only when
         // Loft flew the complete design — a simplified vehicle (staging/pods/parallel/cluster)
         // wouldn't match the stored results, so the comparison would be misleading. Any edit —
@@ -87,7 +89,12 @@ export default function LoftApp() {
       // so the results can show what the change bought — apogee, speed, and stability deltas —
       // instead of numbers in isolation. Condition edits alone (rod, wind, weather) don't alter the
       // design, so they get no baseline.
-      const hasWhatIf = e.ballastKg !== undefined || e.motorSwap !== undefined || e.finSpan !== undefined;
+      const hasWhatIf =
+        e.ballastKg !== undefined ||
+        e.motorSwap !== undefined ||
+        e.finSpan !== undefined ||
+        e.noseLength !== undefined ||
+        e.bodyLength !== undefined;
       const baseline = hasWhatIf ? runFlight(document.rocket, { configId, overrides }) : null;
       return { run, baseline };
     },
@@ -221,8 +228,18 @@ export default function LoftApp() {
     return { designMotor: motor.designation, options };
   }, [doc, simIndex]);
 
-  // The design's own fin semi-span, shown as the starting point for the fin-span builder edit.
-  const designFinSpan = useMemo(() => (doc ? primaryFinSpan(doc.rocket) : undefined), [doc]);
+  // The design's own dimensions, shown as the starting points for the builder edits.
+  const designDims = useMemo(
+    () =>
+      doc
+        ? {
+            finSpan: primaryFinSpan(doc.rocket),
+            noseLength: primaryNose(doc.rocket)?.length,
+            bodyLength: primaryBodyTube(doc.rocket)?.length,
+          }
+        : { finSpan: undefined, noseLength: undefined, bodyLength: undefined },
+    [doc],
+  );
 
   return (
     <div className="mt-8">
@@ -302,7 +319,7 @@ export default function LoftApp() {
             edits={edits}
             onEdit={applyEdit}
             swap={swapInfo}
-            designFinSpan={designFinSpan}
+            designDims={designDims}
             weather={weather}
             scenario={scenario}
             setScenario={(s) => {
@@ -326,7 +343,7 @@ export default function LoftApp() {
               simIndex={simIndex}
               ballastKg={edits.ballastKg}
               motorSwap={edits.motorSwap}
-              finSpan={edits.finSpan}
+              geometry={{ finSpan: edits.finSpan, noseLength: edits.noseLength, bodyLength: edits.bodyLength }}
             />
           )}
         </div>
@@ -386,7 +403,7 @@ function ConditionsControls({
   edits,
   onEdit,
   swap,
-  designFinSpan,
+  designDims,
   weather,
   scenario,
   setScenario,
@@ -397,8 +414,8 @@ function ConditionsControls({
   edits: Edits;
   onEdit: (patch: Edits) => void;
   swap: SwapInfo | null;
-  /** The design's own fin semi-span (m), shown as the fin-span field's placeholder. */
-  designFinSpan?: number;
+  /** The design's own dimensions (m), shown as the builder fields' placeholders. */
+  designDims: { finSpan?: number; noseLength?: number; bodyLength?: number };
   weather: WeatherConditions | null;
   scenario: "design" | "today";
   setScenario: (s: "design" | "today") => void;
@@ -514,20 +531,36 @@ function ConditionsControls({
               placeholder="0"
               onChange={(v) => onEdit({ ballastKg: fromMass(v) })}
             />
-            {designFinSpan !== undefined && (
+            {designDims.finSpan !== undefined && (
               <Num
                 label={`Fin span (${spanU})`}
                 value={toDispSpan(edits.finSpan)}
-                placeholder={toDispSpan(designFinSpan)}
+                placeholder={toDispSpan(designDims.finSpan)}
                 onChange={(v) => onEdit({ finSpan: fromSpan(v) })}
+              />
+            )}
+            {designDims.noseLength !== undefined && (
+              <Num
+                label={`Nose length (${spanU})`}
+                value={toDispSpan(edits.noseLength)}
+                placeholder={toDispSpan(designDims.noseLength)}
+                onChange={(v) => onEdit({ noseLength: fromSpan(v) })}
+              />
+            )}
+            {designDims.bodyLength !== undefined && (
+              <Num
+                label={`Body length (${spanU})`}
+                value={toDispSpan(edits.bodyLength)}
+                placeholder={toDispSpan(designDims.bodyLength)}
+                onChange={(v) => onEdit({ bodyLength: fromSpan(v) })}
               />
             )}
           </div>
           <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-            Fly a different motor, add nose weight, or resize the fins to trim stability or apogee —
-            a hypothetical change to the design, so the OpenRocket comparison is hidden while any is
-            set. The fin-span field starts from the design&apos;s own span; only motors that fit this
-            airframe&apos;s diameter are offered.
+            Fly a different motor, add nose weight, or resize the fins, nose, or body to trim
+            stability, drag, or apogee — a hypothetical change to the design, so the OpenRocket
+            comparison is hidden while any is set. The geometry fields start from the design&apos;s
+            own dimensions; only motors that fit this airframe&apos;s diameter are offered.
           </p>
         </div>
 

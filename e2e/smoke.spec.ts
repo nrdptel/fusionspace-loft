@@ -176,6 +176,34 @@ test.describe("Loft", () => {
     await expect.poll(staticMargin).toBeGreaterThan(before);
   });
 
+  test("lengthening the body tube re-flies a heavier, lower-flying rocket", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+
+    const apogee = async () => {
+      const txt = await page
+        .getByLabel("Results")
+        .getByText("Apogee", { exact: true })
+        .locator("xpath=following-sibling::div")
+        .innerText();
+      return parseFloat(txt.replace(/[^\d.]/g, ""));
+    };
+    const before = await apogee();
+    expect(before).toBeGreaterThan(0);
+
+    // Stretch the main body tube — a builder geometry edit. The field starts from the design's span.
+    await page.locator("summary", { hasText: "Conditions" }).click();
+    const bodyLength = page.getByLabel(/Body length/);
+    await expect(bodyLength).toBeVisible();
+    const designBody = parseFloat((await bodyLength.getAttribute("placeholder")) ?? "0");
+    expect(designBody).toBeGreaterThan(0);
+    await bodyLength.fill(String(Math.round(designBody * 1.5)));
+
+    // A longer tube is heavier and has more drag, so it doesn't reach as high.
+    await expect.poll(apogee).toBeLessThan(before);
+  });
+
   test("unit toggle switches to imperial", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();

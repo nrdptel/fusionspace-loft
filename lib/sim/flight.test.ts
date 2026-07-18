@@ -5,7 +5,7 @@ import { importOrk } from "../ork/import";
 import { runFromDocument, runFlight, configChoices, overridesFromStored } from "./run";
 import { allMotors } from "../motors/db";
 import { flattenRocket } from "../model/geometry";
-import { primaryFinSpan } from "../model/edit";
+import { primaryFinSpan, primaryNose, primaryBodyTube } from "../model/edit";
 import type { OrkDocument } from "../ork/adapt";
 
 /** End-to-end: import each committed fixture, fly it, and check the results are physically
@@ -132,7 +132,7 @@ describe("motor swap (what-if)", () => {
   });
 });
 
-describe("fin span (builder edit)", () => {
+describe("geometry edits (builder)", () => {
   it("bigger fins move the CP aft and raise the static margin", async () => {
     const doc = await load("demo-single-deploy.ork");
     const cfg = doc.simulations[0].conditions.configId;
@@ -142,7 +142,7 @@ describe("fin span (builder edit)", () => {
     const baseSpan = primaryFinSpan(doc.rocket)!;
     expect(baseSpan).toBeGreaterThan(0);
 
-    const bigger = runFlight(doc.rocket, { configId: cfg, overrides: ov, finSpan: baseSpan * 1.5 });
+    const bigger = runFlight(doc.rocket, { configId: cfg, overrides: ov, geometry: { finSpan: baseSpan * 1.5 } });
     // Larger fins → centre of pressure moves aft → the static margin grows (more stable).
     expect(bigger.result.stability.cp).toBeGreaterThan(base.result.stability.cp);
     expect(bigger.result.staticMarginCal).toBeGreaterThan(base.result.staticMarginCal);
@@ -150,9 +150,43 @@ describe("fin span (builder edit)", () => {
     expect(Number.isFinite(bigger.result.summary.apogee)).toBe(true);
     expect(bigger.result.summary.apogee).toBeGreaterThan(0);
 
-    // No fin-span edit changes nothing.
-    const same = runFlight(doc.rocket, { configId: cfg, overrides: ov, finSpan: 0 });
+    // No/empty geometry edit changes nothing.
+    const same = runFlight(doc.rocket, { configId: cfg, overrides: ov, geometry: { finSpan: 0 } });
     expect(same.result.staticMarginCal).toBeCloseTo(base.result.staticMarginCal, 9);
+  });
+
+  it("a longer body tube stretches the airframe and adds mass", async () => {
+    const doc = await load("demo-single-deploy.ork");
+    const cfg = doc.simulations[0].conditions.configId;
+    const ov = overridesFromStored(doc.simulations[0]);
+
+    const base = runFlight(doc.rocket, { configId: cfg, overrides: ov });
+    const bodyLen = primaryBodyTube(doc.rocket)!.length;
+    expect(bodyLen).toBeGreaterThan(0);
+
+    const stretched = runFlight(doc.rocket, { configId: cfg, overrides: ov, geometry: { bodyLength: bodyLen * 1.4 } });
+    // A longer main tube is heavier (more material) and a finite, sane flight.
+    expect(stretched.result.liftoffMass).toBeGreaterThan(base.result.liftoffMass);
+    expect(stretched.result.summary.apogee).toBeGreaterThan(0);
+    expect(Number.isFinite(stretched.result.staticMarginCal)).toBe(true);
+  });
+
+  it("a longer nose cone adds nose material and re-flies sanely", async () => {
+    const doc = await load("demo-single-deploy.ork");
+    const cfg = doc.simulations[0].conditions.configId;
+    const ov = overridesFromStored(doc.simulations[0]);
+
+    const base = runFlight(doc.rocket, { configId: cfg, overrides: ov });
+    const noseLen = primaryNose(doc.rocket)!.length;
+    expect(noseLen).toBeGreaterThan(0);
+
+    // A longer nose cone has more surface (more material), so it's heavier; the flight stays finite
+    // and sane, and the edit measurably changes the trajectory.
+    const pointier = runFlight(doc.rocket, { configId: cfg, overrides: ov, geometry: { noseLength: noseLen * 2 } });
+    expect(pointier.result.liftoffMass).toBeGreaterThan(base.result.liftoffMass);
+    expect(pointier.result.summary.apogee).toBeGreaterThan(0);
+    expect(Math.abs(pointier.result.summary.apogee - base.result.summary.apogee)).toBeGreaterThan(0.5);
+    expect(Number.isFinite(pointier.result.staticMarginCal)).toBe(true);
   });
 });
 
