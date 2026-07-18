@@ -210,6 +210,23 @@ test.describe("Loft", () => {
     expect(csv).toContain("H128W");
   });
 
+  test("design geometry inspector lists parsed components with dimensions", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+
+    const summary = page.locator("summary", { hasText: "Design geometry" });
+    await expect(summary).toBeVisible();
+    await summary.click();
+
+    const table = page.locator("table", { has: page.getByText("Station") });
+    // The parsed nose cone and body tube appear as rows.
+    await expect(table.getByText("Nose cone", { exact: true }).first()).toBeVisible();
+    await expect(table.getByText("Body tube", { exact: true }).first()).toBeVisible();
+    // A diameter is spelled out (the ⌀ marker), proving dimensions render.
+    await expect(table.getByText(/⌀/).first()).toBeVisible();
+  });
+
   test("parameter sweep plots a response curve and switches metric", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();

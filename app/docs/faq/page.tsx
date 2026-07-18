@@ -188,6 +188,18 @@ export default function Faq() {
         </p>
       </QA>
 
+      <QA q="Can I check how Loft read my design?">
+        <p>
+          Yes. Under the results, expand <em>Design geometry</em> to see the component tree exactly as
+          Loft parsed it — every part with its type, its station measured from the nose tip, and its
+          key dimensions (lengths, diameters, and a fin set&apos;s chords and span). It&apos;s the
+          fastest way to confirm the import matches what you drew: a wrong diameter, a missing part,
+          or a fin in the wrong place stands out at a glance. Pair it with the <em>Mass &amp;
+          balance</em> panel (which shows each part&apos;s weight) for the full picture of what the
+          simulator is flying.
+        </p>
+      </QA>
+
       <QA q="Does it work offline?">
         <p>
           Yes — once loaded, install it or just revisit and it runs with no connection: the app, the

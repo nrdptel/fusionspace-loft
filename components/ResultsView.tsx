@@ -12,6 +12,7 @@ import RocketpyCrossCheck from "./RocketpyCrossCheck";
 import MotorSweep from "./MotorSweep";
 import ParameterSweep from "./ParameterSweep";
 import MassBreakdown from "./MassBreakdown";
+import GeometryInspector from "./GeometryInspector";
 import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
 import { overallLength } from "@/lib/model/geometry";
@@ -164,6 +165,9 @@ export default function ResultsView({
 
       {/* Where the dry mass comes from, part by part — transparency into the parsed structure. */}
       <MassBreakdown rocket={doc.rocket} units={units} />
+
+      {/* The parsed component tree with each part's dimensions and station — import verification. */}
+      <GeometryInspector rocket={doc.rocket} units={units} />
 
       {/* An independent second solver on the flyer's own design — RocketPy's flight is single-stage,
           so offer it only for single-stage designs that actually have propulsion (guaranteed here).
