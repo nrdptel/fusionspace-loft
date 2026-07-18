@@ -12,6 +12,7 @@ import {
   primaryFinCount,
   primaryFinRootChord,
   primaryFinTipChord,
+  primaryFinSweep,
   primaryNose,
   primaryBodyTube,
   primaryFinish,
@@ -46,6 +47,7 @@ interface Edits {
   finCount?: number; // builder edit: fins per set
   finRootChord?: number; // builder edit: fin root chord (m, trapezoidal)
   finTipChord?: number; // builder edit: fin tip chord (m, trapezoidal)
+  finSweepLength?: number; // builder edit: fin LE sweep (m, trapezoidal)
   noseLength?: number; // builder edit: nose-cone length (m)
   bodyLength?: number; // builder edit: primary body-tube length (m)
   finish?: SurfaceFinish; // builder edit: whole-airframe surface finish
@@ -105,6 +107,7 @@ export default function LoftApp() {
           finCount: e.finCount,
           finRootChord: e.finRootChord,
           finTipChord: e.finTipChord,
+          finSweepLength: e.finSweepLength,
           noseLength: e.noseLength,
           bodyLength: e.bodyLength,
           finish: e.finish,
@@ -128,6 +131,7 @@ export default function LoftApp() {
         e.finCount !== undefined ||
         e.finRootChord !== undefined ||
         e.finTipChord !== undefined ||
+        e.finSweepLength !== undefined ||
         e.noseLength !== undefined ||
         e.bodyLength !== undefined ||
         e.finish !== undefined;
@@ -273,6 +277,7 @@ export default function LoftApp() {
             finCount: primaryFinCount(doc.rocket),
             finRootChord: primaryFinRootChord(doc.rocket),
             finTipChord: primaryFinTipChord(doc.rocket),
+            finSweepLength: primaryFinSweep(doc.rocket),
             noseLength: primaryNose(doc.rocket)?.length,
             bodyLength: primaryBodyTube(doc.rocket)?.length,
             finish: primaryFinish(doc.rocket),
@@ -282,6 +287,7 @@ export default function LoftApp() {
             finCount: undefined,
             finRootChord: undefined,
             finTipChord: undefined,
+            finSweepLength: undefined,
             noseLength: undefined,
             bodyLength: undefined,
             finish: undefined,
@@ -396,6 +402,7 @@ export default function LoftApp() {
                 finCount: edits.finCount,
                 finRootChord: edits.finRootChord,
                 finTipChord: edits.finTipChord,
+                finSweepLength: edits.finSweepLength,
                 noseLength: edits.noseLength,
                 bodyLength: edits.bodyLength,
                 finish: edits.finish,
@@ -478,6 +485,7 @@ function ConditionsControls({
     finCount?: number;
     finRootChord?: number;
     finTipChord?: number;
+    finSweepLength?: number;
     noseLength?: number;
     bodyLength?: number;
     finish?: SurfaceFinish;
@@ -630,6 +638,14 @@ function ConditionsControls({
                 value={toDispSpan(edits.finTipChord)}
                 placeholder={toDispSpan(designDims.finTipChord)}
                 onChange={(v) => onEdit({ finTipChord: fromSpan(v) })}
+              />
+            )}
+            {designDims.finSweepLength !== undefined && (
+              <Num
+                label={`Fin sweep (${spanU})`}
+                value={toDispSpan(edits.finSweepLength)}
+                placeholder={toDispSpan(designDims.finSweepLength)}
+                onChange={(v) => onEdit({ finSweepLength: fromSpan(v) })}
               />
             )}
             {designDims.noseLength !== undefined && (

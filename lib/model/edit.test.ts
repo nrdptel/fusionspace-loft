@@ -9,6 +9,7 @@ import {
   primaryFinCount,
   primaryFinRootChord,
   primaryFinTipChord,
+  primaryFinSweep,
   primaryNose,
   primaryBodyTube,
   primaryFinish,
@@ -127,6 +128,36 @@ describe("applyGeometryEdits — fin chords", () => {
   it("no-ops for a non-positive chord", async () => {
     const rocket = await load("demo-single-deploy.ork");
     expect(applyGeometryEdits(rocket, { finRootChord: 0, finTipChord: 0 })).toBe(rocket);
+  });
+});
+
+describe("applyGeometryEdits — fin sweep", () => {
+  it("reshapes a trapezoidal fin's leading-edge sweep, non-destructively", async () => {
+    const rocket = await load("demo-single-deploy.ork");
+    const sweep0 = primaryFinSweep(rocket)!;
+    expect(sweep0).toBeGreaterThanOrEqual(0);
+
+    const edited = applyGeometryEdits(rocket, { finSweepLength: sweep0 + 0.03 });
+    expect(primaryFinSweep(edited)).toBeCloseTo(sweep0 + 0.03, 9);
+    // Span, count and chords are untouched, and the original design is pristine.
+    expect(primaryFinSpan(edited)).toBeCloseTo(primaryFinSpan(rocket)!, 9);
+    expect(primaryFinRootChord(edited)).toBeCloseTo(primaryFinRootChord(rocket)!, 9);
+    expect(primaryFinSweep(rocket)).toBeCloseTo(sweep0, 9);
+    expect(edited).not.toBe(rocket);
+  });
+
+  it("accepts a zero sweep (an unswept, square leading edge)", async () => {
+    const rocket = await load("demo-single-deploy.ork");
+    const edited = applyGeometryEdits(rocket, { finSweepLength: 0 });
+    expect(primaryFinSweep(edited)).toBe(0);
+    // A zero sweep is a real edit (unlike a zero span), so a fresh tree is returned.
+    expect(edited).not.toBe(rocket);
+  });
+
+  it("ignores a sweep edit on an elliptical fin set (it has no leading-edge sweep dimension)", async () => {
+    const rocket = await load("demo-boattail.ork"); // elliptical fins
+    expect(primaryFinSweep(rocket)).toBeUndefined();
+    expect(applyGeometryEdits(rocket, { finSweepLength: 0.05 })).toStrictEqual(rocket);
   });
 });
 

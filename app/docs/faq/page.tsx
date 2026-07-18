@@ -150,13 +150,15 @@ export default function Faq() {
       <QA q="Can I change the design's geometry and see what happens?">
         <p>
           Starting to. Under <em>Conditions → Design what-if</em>, the <em>Fin span</em>,{" "}
-          <em>Fin count</em>, <em>Fin root</em> and <em>Fin tip</em> (chords, for a trapezoidal fin),{" "}
+          <em>Fin count</em>, <em>Fin root</em>, <em>Fin tip</em> and <em>Fin sweep</em> (the
+          trapezoidal fin&apos;s chords and leading-edge sweep),{" "}
           <em>Nose length</em>, and <em>Body length</em> fields start from the design&apos;s own
           dimensions; change any and Loft rebuilds the rocket and re-flies it — mass, drag, and the
           centre of pressure and stability all update, and a longer nose or body stretches the whole
           airframe (everything downstream shifts). Bigger fins — or more of them — move the CP aft
           and raise the stability margin (the classic trade against nose weight); reshaping the fin
-          chords changes its planform area (and so its drag and centre of pressure); a longer body
+          chords changes its planform area (and so its drag and centre of pressure); sweeping the fins
+          back carries their lift aft, adding stability without any extra area; a longer body
           adds material and weight. A <em>Surface finish</em> picker sets the whole airframe from
           mirror-smooth to rough — skin friction is a big share of subsonic drag, so &ldquo;what does
           a good paint job buy?&rdquo; can move the apogee noticeably. The results, the <em>What-if vs design</em> delta,

@@ -30,6 +30,9 @@ export interface GeometryEdits {
   finRootChord?: number;
   /** Absolute fin tip chord (m) for a trapezoidal fin set (0 ⇒ a delta). Undefined leaves it. */
   finTipChord?: number;
+  /** Fin leading-edge sweep (m the tip LE is aft of the root LE) for a trapezoidal fin set.
+   *  Undefined leaves it. */
+  finSweepLength?: number;
   /** Absolute nose-cone length (m) for the design's nose. Undefined leaves it. */
   noseLength?: number;
   /** Absolute length (m) for the design's primary (longest) body tube. Undefined leaves it. */
@@ -46,6 +49,7 @@ export function hasGeometryEdits(e: GeometryEdits): boolean {
     (e.finCount !== undefined && e.finCount >= 1) ||
     (e.finRootChord !== undefined && e.finRootChord > 0) ||
     (e.finTipChord !== undefined && e.finTipChord > 0) ||
+    (e.finSweepLength !== undefined && e.finSweepLength >= 0) ||
     (e.noseLength !== undefined && e.noseLength > 0) ||
     (e.bodyLength !== undefined && e.bodyLength > 0) ||
     e.finish !== undefined
@@ -100,6 +104,12 @@ export function primaryFinTipChord(rocket: Rocket): number | undefined {
   return fin?.kind === "trapezoidfinset" ? fin.tipChord : undefined;
 }
 
+/** The primary fin set's leading-edge sweep (m), only when it's trapezoidal. Undefined otherwise. */
+export function primaryFinSweep(rocket: Rocket): number | undefined {
+  const fin = primaryFinSet(rocket);
+  return fin?.kind === "trapezoidfinset" ? fin.sweepLength : undefined;
+}
+
 /** Apply the edits to one component (and its subtree). Trapezoid fins derive their area from
  *  dimensions downstream, so only the height changes; a generic (elliptical/freeform) set stores
  *  its planform area, so it's scaled with the span to keep the shape. Length overrides are keyed by
@@ -116,16 +126,19 @@ function editComponent(c: RocketComponent, e: GeometryEdits, lengths: Map<string
   const count = e.finCount !== undefined && e.finCount >= 1 ? Math.round(e.finCount) : undefined;
   const root = e.finRootChord !== undefined && e.finRootChord > 0 ? e.finRootChord : undefined;
   const tip = e.finTipChord !== undefined && e.finTipChord > 0 ? e.finTipChord : undefined;
-  if (span !== undefined || count !== undefined || root !== undefined || tip !== undefined) {
+  const sweep = e.finSweepLength !== undefined && e.finSweepLength >= 0 ? e.finSweepLength : undefined;
+  if (span !== undefined || count !== undefined || root !== undefined || tip !== undefined || sweep !== undefined) {
     if (c.kind === "trapezoidfinset") {
-      // Root/tip chord reshape the trapezoid directly; the aero and mass read them, so area and CP
-      // follow. Only trapezoidal sets take a chord edit (a generic set's chord is a reduction).
+      // Root/tip chord and sweep reshape the trapezoid directly; the aero and mass read them, so
+      // area and CP follow. Only trapezoidal sets take a chord/sweep edit (a generic set's chord is
+      // a reduction).
       return {
         ...c,
         height: span ?? c.height,
         finCount: count ?? c.finCount,
         rootChord: root ?? c.rootChord,
         tipChord: tip ?? c.tipChord,
+        sweepLength: sweep ?? c.sweepLength,
         children,
       };
     }

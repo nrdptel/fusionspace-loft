@@ -308,6 +308,33 @@ test.describe("Loft", () => {
     await expect.poll(apogee).toBeLessThan(before);
   });
 
+  test("sweeping the fins back rebuilds the design and raises the stability margin", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+
+    const staticMargin = async () => {
+      const txt = await page
+        .getByText("Static margin", { exact: true })
+        .locator("xpath=following-sibling::dd")
+        .innerText();
+      return parseFloat(txt.replace(/[^\d.]/g, ""));
+    };
+    const before = await staticMargin();
+    expect(before).toBeGreaterThan(0);
+
+    // Sweep the fin leading edge further aft — the field starts from the design's own sweep.
+    await page.locator("summary", { hasText: "Conditions" }).click();
+    const finSweep = page.getByLabel(/Fin sweep/);
+    await expect(finSweep).toBeVisible();
+    const designSweep = parseFloat((await finSweep.getAttribute("placeholder")) ?? "0");
+    expect(designSweep).toBeGreaterThan(0);
+    await finSweep.fill(String(Math.round(designSweep * 1.8)));
+
+    // A more swept fin carries its CP aft, moving the rocket's CP aft, so it flies more stable.
+    await expect.poll(staticMargin).toBeGreaterThan(before);
+  });
+
   test("a rougher surface finish drags more and lowers the apogee", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();

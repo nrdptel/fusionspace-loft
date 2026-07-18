@@ -5,7 +5,7 @@ import { importOrk } from "../ork/import";
 import { runFromDocument, runFlight, configChoices, overridesFromStored } from "./run";
 import { allMotors } from "../motors/db";
 import { flattenRocket } from "../model/geometry";
-import { primaryFinSpan, primaryFinCount, primaryFinRootChord, primaryFinTipChord, primaryNose, primaryBodyTube } from "../model/edit";
+import { primaryFinSpan, primaryFinCount, primaryFinRootChord, primaryFinTipChord, primaryFinSweep, primaryNose, primaryBodyTube } from "../model/edit";
 import type { OrkDocument } from "../ork/adapt";
 
 /** End-to-end: import each committed fixture, fly it, and check the results are physically
@@ -222,6 +222,37 @@ describe("geometry edits (builder)", () => {
     const eov = overridesFromStored(ell.simulations[0]);
     const ellBase = runFlight(ell.rocket, { configId: ecfg, overrides: eov });
     const ellEdited = runFlight(ell.rocket, { configId: ecfg, overrides: eov, geometry: { finRootChord: 0.2 } });
+    expect(ellEdited.result.summary.apogee).toBeCloseTo(ellBase.result.summary.apogee, 6);
+  });
+
+  it("sweeping the fins back moves the CP aft and raises the static margin", async () => {
+    const doc = await load("demo-single-deploy.ork");
+    const cfg = doc.simulations[0].conditions.configId;
+    const ov = overridesFromStored(doc.simulations[0]);
+
+    const base = runFlight(doc.rocket, { configId: cfg, overrides: ov });
+    const sweep0 = primaryFinSweep(doc.rocket)!;
+    expect(sweep0).toBeGreaterThanOrEqual(0);
+
+    // Sweeping the fin's leading edge aft carries the fin's own centre of pressure aft (the mean
+    // aerodynamic chord's quarter-chord point moves back), so the whole-rocket CP moves aft and the
+    // static margin grows — without adding any planform area.
+    const swept = runFlight(doc.rocket, { configId: cfg, overrides: ov, geometry: { finSweepLength: sweep0 + 0.05 } });
+    expect(swept.result.stability.cp).toBeGreaterThan(base.result.stability.cp);
+    expect(swept.result.staticMarginCal).toBeGreaterThan(base.result.staticMarginCal);
+    expect(swept.result.summary.apogee).toBeGreaterThan(0);
+
+    // Squaring the leading edge (zero sweep) does the opposite — CP forward, margin shrinks.
+    const unswept = runFlight(doc.rocket, { configId: cfg, overrides: ov, geometry: { finSweepLength: 0 } });
+    expect(unswept.result.stability.cp).toBeLessThan(base.result.stability.cp);
+    expect(unswept.result.staticMarginCal).toBeLessThan(base.result.staticMarginCal);
+
+    // A sweep edit on an elliptical-fin design (no trapezoid) is a no-op — same flight.
+    const ell = await load("demo-boattail.ork");
+    const ecfg = ell.simulations[0].conditions.configId;
+    const eov = overridesFromStored(ell.simulations[0]);
+    const ellBase = runFlight(ell.rocket, { configId: ecfg, overrides: eov });
+    const ellEdited = runFlight(ell.rocket, { configId: ecfg, overrides: eov, geometry: { finSweepLength: 0.05 } });
     expect(ellEdited.result.summary.apogee).toBeCloseTo(ellBase.result.summary.apogee, 6);
   });
 
