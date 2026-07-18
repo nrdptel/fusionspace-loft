@@ -170,6 +170,27 @@ test.describe("Loft", () => {
     expect(nums[0]).toBeGreaterThan(nums[nums.length - 1]);
   });
 
+  test("parameter sweep plots a response curve and switches metric", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+
+    const panel = page.getByRole("region", { name: "Parameter sweep" });
+    await expect(panel).toBeVisible();
+    await panel.getByRole("button", { name: /Run parameter sweep/ }).click();
+
+    // A response curve appears — default is apogee vs fin span.
+    await expect(panel.getByRole("img", { name: /Apogee.*versus.*Fin span/i })).toBeVisible();
+
+    // Switching the Y-axis metric re-labels the same chart without re-running.
+    await panel.getByLabel("Sweep metric").selectOption("staticMarginCal");
+    await expect(panel.getByRole("img", { name: /Static margin.*versus.*Fin span/i })).toBeVisible();
+
+    // Switching the variable sweeps a different dimension.
+    await panel.getByLabel("Sweep variable").selectOption("bodyLength");
+    await expect(panel.getByRole("img", { name: /Static margin.*versus.*Body length/i })).toBeVisible();
+  });
+
   test("resizing the fins rebuilds the design and changes the stability margin", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();

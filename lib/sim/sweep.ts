@@ -81,3 +81,79 @@ export function motorSweep(rocket: Rocket, motors: SweepMotor[], opts: MotorSwee
   rows.sort((a, b) => b.apogee - a.apogee);
   return rows;
 }
+
+// --- parameter sweep -----------------------------------------------------------------
+
+/** A continuous design variable the sweep can vary. Each maps to a field of GeometryEdits, so the
+ *  sweep reuses the same "edit → rebuild → re-fly" path the builder what-ifs use. */
+export type SweepAxis = "finSpan" | "noseLength" | "bodyLength";
+
+/** One flight in a parameter sweep: the swept value and the metrics that respond to it. */
+export interface ParamSweepPoint {
+  /** The swept parameter's value (m). */
+  x: number;
+  apogee: number;
+  maxVelocity: number;
+  railExitVelocity: number;
+  staticMarginCal: number;
+}
+
+export interface ParamSweepOptions {
+  configId?: string;
+  overrides?: ConditionOverrides;
+  /** Active nose-ballast what-if (kg), held fixed across the sweep. */
+  ballastKg?: number;
+  /** Active motor-swap what-if, held fixed across the sweep. */
+  motorSwap?: { manufacturer?: string; designation: string; diameter?: number };
+  /** Other active geometry edits, held fixed while the swept axis varies over them. */
+  baseGeometry?: GeometryEdits;
+}
+
+/** Evenly-spaced values from a to b inclusive (n ≥ 2). */
+export function linRange(a: number, b: number, n: number): number[] {
+  if (n < 2) return [a];
+  const out: number[] = [];
+  for (let i = 0; i < n; i++) out.push(a + ((b - a) * i) / (n - 1));
+  return out;
+}
+
+/** Fly `rocket` across a range of one design variable and return one point per value, in the order
+ *  given (ascending x for a plot). Each flight rebuilds the design with the swept axis set to the
+ *  value — every OTHER active what-if (ballast, motor swap, other geometry edits) held fixed — and
+ *  flies ballistic to apogee under the shared conditions, so the curve isolates the swept variable's
+ *  effect. A value the airframe can't fly is dropped rather than plotted as a pad-drop. */
+export function parameterSweep(
+  rocket: Rocket,
+  axis: SweepAxis,
+  values: number[],
+  opts: ParamSweepOptions = {},
+): ParamSweepPoint[] {
+  const out: ParamSweepPoint[] = [];
+  for (const v of values) {
+    if (!(v > 0)) continue;
+    const geometry: GeometryEdits = { ...opts.baseGeometry, [axis]: v };
+    try {
+      const run = runFlight(rocket, {
+        configId: opts.configId,
+        overrides: opts.overrides,
+        ballistic: true,
+        ballastKg: opts.ballastKg,
+        motorSwap: opts.motorSwap,
+        geometry,
+      });
+      if (!run.hasPropulsion) continue;
+      const s = run.result.summary;
+      if (!Number.isFinite(s.apogee) || !Number.isFinite(run.result.staticMarginCal)) continue;
+      out.push({
+        x: v,
+        apogee: s.apogee,
+        maxVelocity: s.maxVelocity,
+        railExitVelocity: s.railExitVelocity,
+        staticMarginCal: run.result.staticMarginCal,
+      });
+    } catch {
+      // A value that can't be flown is simply left out of the curve.
+    }
+  }
+  return out;
+}

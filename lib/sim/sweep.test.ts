@@ -2,8 +2,9 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { importOrk } from "../ork/import";
 import { overridesFromStored } from "./run";
-import { motorSweep, type SweepMotor } from "./sweep";
+import { motorSweep, parameterSweep, linRange, type SweepMotor } from "./sweep";
 import { allMotors } from "../motors/db";
+import { primaryFinSpan, primaryBodyTube } from "../model/edit";
 
 async function load(name: string) {
   const buf = readFileSync(new URL(`../../fixtures/${name}`, import.meta.url));
@@ -108,5 +109,86 @@ describe("motorSweep", () => {
     });
     expect(rows.some((r) => r.designation === "ZZ9999XX")).toBe(false);
     expect(rows.length).toBe(good.length);
+  });
+});
+
+describe("linRange", () => {
+  it("returns n evenly-spaced values, endpoints inclusive", () => {
+    expect(linRange(0, 10, 5)).toEqual([0, 2.5, 5, 7.5, 10]);
+    expect(linRange(2, 2, 1)).toEqual([2]);
+    const r = linRange(1, 4, 4);
+    expect(r[0]).toBe(1);
+    expect(r[r.length - 1]).toBe(4);
+    expect(r).toHaveLength(4);
+  });
+});
+
+describe("parameterSweep", () => {
+  it("sweeps fin span: bigger fins move the CP aft (more stable) and add drag (lower apogee)", async () => {
+    const doc = await load("demo-single-deploy.ork");
+    const sim = doc.simulations[0];
+    const span = primaryFinSpan(doc.rocket)!;
+    const pts = parameterSweep(doc.rocket, "finSpan", linRange(span * 0.5, span * 1.75, 15), {
+      configId: sim.conditions.configId,
+      overrides: overridesFromStored(sim),
+    });
+    expect(pts).toHaveLength(15);
+    // x ascends across the range, every flight finite and positive.
+    for (let i = 0; i < pts.length; i++) {
+      expect(pts[i].apogee).toBeGreaterThan(0);
+      expect(Number.isFinite(pts[i].staticMarginCal)).toBe(true);
+      if (i > 0) expect(pts[i].x).toBeGreaterThan(pts[i - 1].x);
+    }
+    const first = pts[0];
+    const last = pts[pts.length - 1];
+    // Bigger fins: CP aft ⇒ higher static margin; more fin drag + mass ⇒ lower apogee.
+    expect(last.staticMarginCal).toBeGreaterThan(first.staticMarginCal);
+    expect(last.apogee).toBeLessThan(first.apogee);
+  });
+
+  it("sweeps body length: a longer airframe flies heavier (lower apogee) and more stable", async () => {
+    const doc = await load("demo-single-deploy.ork");
+    const sim = doc.simulations[0];
+    const body = primaryBodyTube(doc.rocket)!.length;
+    const pts = parameterSweep(doc.rocket, "bodyLength", linRange(body * 0.6, body * 1.6, 12), {
+      configId: sim.conditions.configId,
+      overrides: overridesFromStored(sim),
+    });
+    expect(pts.length).toBeGreaterThan(2);
+    expect(pts[pts.length - 1].apogee).toBeLessThan(pts[0].apogee);
+    expect(pts[pts.length - 1].staticMarginCal).toBeGreaterThan(pts[0].staticMarginCal);
+  });
+
+  it("holds other what-ifs fixed while sweeping — active nose ballast still applies at every point", async () => {
+    const doc = await load("demo-single-deploy.ork");
+    const sim = doc.simulations[0];
+    const span = primaryFinSpan(doc.rocket)!;
+    const base = {
+      configId: sim.conditions.configId,
+      overrides: overridesFromStored(sim),
+    };
+    const values = linRange(span * 0.5, span * 1.5, 8);
+    const plain = parameterSweep(doc.rocket, "finSpan", values, base);
+    // Nose ballast is held fixed across the span sweep; it moves the CG forward and adds mass, so
+    // every point is more stable and flies lower than the un-ballasted sweep — proving the other
+    // what-if carries through untouched while only fin span varies.
+    const ballasted = parameterSweep(doc.rocket, "finSpan", values, { ...base, ballastKg: 0.2 });
+    expect(ballasted).toHaveLength(plain.length);
+    for (let i = 0; i < plain.length; i++) {
+      expect(ballasted[i].staticMarginCal).toBeGreaterThan(plain[i].staticMarginCal);
+      expect(ballasted[i].apogee).toBeLessThan(plain[i].apogee);
+    }
+  });
+
+  it("skips non-positive values rather than flying a degenerate rocket", async () => {
+    const doc = await load("demo-single-deploy.ork");
+    const sim = doc.simulations[0];
+    const span = primaryFinSpan(doc.rocket)!;
+    const pts = parameterSweep(doc.rocket, "finSpan", [0, -span, span], {
+      configId: sim.conditions.configId,
+      overrides: overridesFromStored(sim),
+    });
+    expect(pts).toHaveLength(1);
+    expect(pts[0].x).toBeCloseTo(span, 9);
   });
 });

@@ -10,6 +10,7 @@ import FlightViz from "./FlightViz";
 import ValidationPanel from "./ValidationPanel";
 import RocketpyCrossCheck from "./RocketpyCrossCheck";
 import MotorSweep from "./MotorSweep";
+import ParameterSweep from "./ParameterSweep";
 import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
 import { overallLength } from "@/lib/model/geometry";
@@ -190,6 +191,21 @@ export default function ResultsView({
           options={swapOptions}
           designMotor={designMotor ?? ""}
           ballastKg={ballastKg}
+          geometry={geometry}
+        />
+      )}
+
+      {/* Parameter sweep: vary one design dimension and plot the response. Single-stage only, so the
+          swept "primary" nose/body/fin is unambiguous. Keyed on design + config + active what-ifs so
+          it resets when the design the sweep is over changes. */}
+      {(doc.rocket.stages?.length ?? 1) === 1 && (
+        <ParameterSweep
+          key={`${doc.rocket.name}:${simIndex}:${ballastKg ?? 0}:${motorSwap?.designation ?? ""}:${geometry?.finSpan ?? 0}:${geometry?.finCount ?? 0}:${geometry?.noseLength ?? 0}:${geometry?.bodyLength ?? 0}`}
+          doc={doc}
+          simIndex={simIndex}
+          units={units}
+          ballastKg={ballastKg}
+          motorSwap={motorSwap}
           geometry={geometry}
         />
       )}
