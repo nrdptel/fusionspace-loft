@@ -9,6 +9,7 @@ import { RECOMMENDED_FLUTTER_MARGIN, thicknessForFlutterMargin } from "@/lib/sim
 import LineChart, { type Series, type Marker } from "./LineChart";
 import FlightViz from "./FlightViz";
 import ValidationPanel from "./ValidationPanel";
+import DragCrossCheck from "./DragCrossCheck";
 import RocketpyCrossCheck from "./RocketpyCrossCheck";
 import MotorSweep from "./MotorSweep";
 import ParameterSweep from "./ParameterSweep";
@@ -179,6 +180,20 @@ export default function ResultsView({
 
       {run.validation && run.validation.count > 0 && (
         <ValidationPanel report={run.validation} units={units} storedName={doc.simulations[0]?.name} toolName={tool} />
+      )}
+
+      {/* Per-step cross-check: when the file carries the design tool's own step-by-step flight and
+          Loft flew the design as stored (run.validation present ⇒ no what-if edits, not reduced),
+          overlay Loft's trajectory and drag against it — an independent per-step oracle beyond the
+          summary numbers above. */}
+      {run.validation && doc.simulations[simIndex]?.flightData && (
+        <DragCrossCheck
+          result={r}
+          flightData={doc.simulations[simIndex]!.flightData!}
+          toolName={tool}
+          storedName={doc.simulations[simIndex]?.name}
+          units={units}
+        />
       )}
 
       {/* Where the dry mass comes from, part by part — transparency into the parsed structure. */}

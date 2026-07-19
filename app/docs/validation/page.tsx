@@ -128,6 +128,19 @@ export default async function Validation() {
         motor cluster <em>is</em> simulated, as coaxial motors, so it still gets a comparison.) A
         single-stage, standard-fin design gives the honest, like-for-like check.
       </p>
+      <p>
+        Many <code>.ork</code> files store more than summary numbers — they carry OpenRocket&apos;s{" "}
+        <em>per-step</em> flight log, the whole trajectory and drag coefficient it computed step by
+        step. When that log is present, Loft overlays its own solver on it directly: altitude versus
+        time, and — the interesting one — drag coefficient versus time through the ascent, Loft&apos;s
+        curve against OpenRocket&apos;s. That drag curve is a genuinely <em>independent</em> per-step
+        oracle from a different engine, not just an endpoint diff, so where the two curves sit apart
+        you can see exactly when and where the drag models diverge, rather than inferring it from an
+        apogee gap. A deployed parachute&apos;s coefficient (referenced to the body it runs into the
+        tens) is left off the drag curve, which is about the airframe&apos;s own drag on the way up.
+        The overlay appears in the results whenever an imported file carries the log and Loft flew
+        the design as stored; the series are built in <code>lib/validation/crosscheck.ts</code>.
+      </p>
       <blockquote>
         The honest oracle is <strong>your own design</strong>. The two bundled samples below ship
         with author-estimated stored figures (Loft can&apos;t run OpenRocket here), so their
