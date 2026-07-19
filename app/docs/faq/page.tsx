@@ -184,6 +184,14 @@ export default function Faq() {
           OpenRocket comparison is hidden while ballast is set — the stored numbers describe the
           original rocket, not the ballasted one.
         </p>
+        <p>
+          You don&apos;t have to hunt for the number: when the static margin is thin, the stability
+          panel names the nose ballast that would trim it to a healthy 1.5 calibers directly — a
+          closed-form goal-seek, the inverse of reading it off the sweep. And if the fins are too
+          small or too far forward for ballast to ever reach that margin, it tells you so rather than
+          suggesting an impossible amount of weight — the honest fix there is bigger fins or moving
+          them aft, not more lead.
+        </p>
       </QA>
 
       <QA q="Can I change the design's geometry and see what happens?">

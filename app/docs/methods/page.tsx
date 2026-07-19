@@ -185,6 +185,22 @@ export default function Methods() {
         the public Apogee <em>Peak of Flight</em> newsletters (#149, #150, #157) and the OpenRocket
         technical documentation.
       </p>
+      <p>
+        <strong>Stability trim (nose-ballast goal-seek).</strong> When a design&apos;s margin is thin,
+        Loft solves the nose ballast that would bring it to a healthy value directly, rather than making
+        you read it off a sweep (<code>lib/sim/trim.ts</code>). The margin is measured at the loaded
+        centre of gravity, and ballast of mass <code>b</code> at the nose station <code>x_n</code> moves
+        the loaded CG to the mass-weighted blend{" "}
+        <code>x_cg(b) = (M·x_cg₀ + b·x_n)/(M + b)</code> while the aerodynamic CP does not move with
+        mass — so the ballast for a target margin is closed-form,{" "}
+        <code>b = M·(x_cg,target − x_cg₀)/(x_n − x_cg,target)</code> with{" "}
+        <code>x_cg,target = X_cp − margin·d_ref</code>. As <code>b → ∞</code> the CG asymptotes to the
+        nose station, so nose ballast can make a design no stiffer than{" "}
+        <code>(X_cp − x_n)/d_ref</code>; a target above that ceiling is unreachable by weight alone
+        (the fins are too small or too far forward), which Loft says plainly instead of prescribing an
+        ever-growing lump of lead. It is the inverse of the ballast parameter sweep, sharing the same
+        mass and CG model the flight uses.
+      </p>
 
       <h2>Drag</h2>
       <p>

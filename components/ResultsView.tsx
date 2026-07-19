@@ -18,6 +18,12 @@ import GeometryInspector from "./GeometryInspector";
 import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
 import { overallLength } from "@/lib/model/geometry";
+import { noseBallastStation } from "@/lib/sim/run";
+import { marginTrim } from "@/lib/sim/trim";
+
+/** A healthy static margin to trim toward — comfortably above the 1-caliber rule of thumb, below
+ *  the ~3-caliber point where over-stability starts to weathercock. */
+const TRIM_TARGET_CAL = 1.5;
 
 const COLORS = {
   altitude: "#6366f1",
@@ -371,7 +377,49 @@ function RocketSummary({ run, doc, units }: { run: FlightRun; doc: OrkDocument; 
           />
         )}
       </dl>
+
+      <StabilityTrimHint run={run} doc={doc} units={units} />
     </section>
+  );
+}
+
+/** When the static margin is below a healthy value, say plainly how much nose ballast would trim it
+ *  there — or that ballast alone can't, when the fins are too small or too far forward to reach it
+ *  no matter the weight. A closed-form goal-seek (lib/sim/trim.ts), the inverse of the ballast
+ *  sweep: the sweep plots the whole curve, this answers the one question a flyer actually asks. */
+function StabilityTrimHint({ run, doc, units }: { run: FlightRun; doc: OrkDocument; units: UnitSystem }) {
+  const r = run.result;
+  const trim = marginTrim(
+    {
+      cp: r.stability.cp,
+      cgLoaded: r.cgLoaded,
+      loadedMass: r.liftoffMass,
+      refDiameter: r.stability.refRadius * 2,
+      noseStation: noseBallastStation(doc.rocket),
+    },
+    TRIM_TARGET_CAL,
+  );
+  // Only worth surfacing when the margin is actually thin; a comfortably-stable design needs nothing.
+  // A degenerate airframe (no resolvable diameter) has no meaningful margin to trim — say nothing.
+  if (!(r.stability.refRadius > 0) || trim.alreadyMet || !Number.isFinite(trim.currentMarginCal)) return null;
+
+  return (
+    <p className="mt-3 border-t border-zinc-100 pt-3 text-xs text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
+      {trim.feasible ? (
+        <>
+          <span className="font-medium text-zinc-600 dark:text-zinc-300">Stability trim:</span> adding
+          about {d.q(d.mass(trim.ballastKg, units))} of nose ballast would bring the static margin to{" "}
+          {d.fmt(TRIM_TARGET_CAL, 1)} cal (from {d.fmt(trim.currentMarginCal, 2)} cal). Nose weight
+          trades a little apogee for stability — set it under Conditions → Design what-if to see the cost.
+        </>
+      ) : (
+        <>
+          <span className="font-medium text-zinc-600 dark:text-zinc-300">Stability trim:</span> nose
+          ballast alone tops out near {d.fmt(trim.maxMarginCal, 2)} cal — short of {d.fmt(TRIM_TARGET_CAL, 1)} cal —
+          so no amount of nose weight makes this design comfortably stable. Enlarge the fins or move them aft.
+        </>
+      )}
+    </p>
   );
 }
 
