@@ -170,6 +170,24 @@ describe("geometry edits (builder)", () => {
     expect(same.result.staticMarginCal).toBeCloseTo(base.result.staticMarginCal, 9);
   });
 
+  it("cleaner fin edges cut drag, so airfoil flies higher than rounded than square", async () => {
+    const doc = await load("demo-single-deploy.ork");
+    const cfg = doc.simulations[0].conditions.configId;
+    const ov = overridesFromStored(doc.simulations[0]);
+    const apogee = (finCrossSection: "square" | "rounded" | "airfoil") =>
+      runFlight(doc.rocket, { configId: cfg, overrides: ov, ballistic: true, geometry: { finCrossSection } }).result.summary.apogee;
+    const square = apogee("square");
+    const rounded = apogee("rounded");
+    const airfoil = apogee("airfoil");
+    // Square edges stagnate the flow (most fin pressure drag); an airfoil is streamlined (least).
+    expect(rounded).toBeGreaterThan(square);
+    expect(airfoil).toBeGreaterThan(rounded);
+    // The edit only touches the fin drag, not the stability geometry.
+    const sq = runFlight(doc.rocket, { configId: cfg, overrides: ov, geometry: { finCrossSection: "square" } });
+    const af = runFlight(doc.rocket, { configId: cfg, overrides: ov, geometry: { finCrossSection: "airfoil" } });
+    expect(af.result.staticMarginCal).toBeCloseTo(sq.result.staticMarginCal, 9);
+  });
+
   it("more fins raise CNα, move the CP aft, and raise the static margin", async () => {
     const doc = await load("demo-single-deploy.ork");
     const cfg = doc.simulations[0].conditions.configId;

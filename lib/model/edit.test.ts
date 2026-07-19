@@ -11,6 +11,7 @@ import {
   primaryFinTipChord,
   primaryFinSweep,
   primaryFinThickness,
+  primaryFinCrossSection,
   primaryNose,
   primaryNoseShape,
   primaryBodyDiameter,
@@ -62,6 +63,29 @@ describe("applyGeometryEdits — fin span", () => {
     expect(applyGeometryEdits(rocket, {})).toBe(rocket);
     expect(applyGeometryEdits(rocket, { finSpan: 0 })).toBe(rocket);
     expect(applyGeometryEdits(rocket, { noseLength: 0, bodyLength: 0 })).toBe(rocket);
+  });
+});
+
+describe("applyGeometryEdits — fin cross-section", () => {
+  it("sets every fin set's edge profile, non-destructively", async () => {
+    const rocket = await load("demo-single-deploy.ork");
+    // A finned demo defaults to square when it names no profile.
+    expect(primaryFinCrossSection(rocket)).toBe("square");
+    const edited = applyGeometryEdits(rocket, { finCrossSection: "airfoil" });
+    expect(primaryFinCrossSection(edited)).toBe("airfoil");
+    // Original untouched.
+    expect(primaryFinCrossSection(rocket)).toBe("square");
+    // Every fin set took it (a design can have more than one).
+    for (const p of flattenRocket(edited)) {
+      if (p.component.kind.endsWith("finset")) {
+        expect((p.component as GenericFinSet).crossSection).toBe("airfoil");
+      }
+    }
+  });
+
+  it("is a no-op when undefined", async () => {
+    const rocket = await load("demo-single-deploy.ork");
+    expect(applyGeometryEdits(rocket, { finCrossSection: undefined })).toBe(rocket);
   });
 });
 

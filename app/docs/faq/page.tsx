@@ -191,7 +191,8 @@ export default function Faq() {
           Starting to. Under <em>Conditions → Design what-if</em>, the <em>Fin span</em>,{" "}
           <em>Fin count</em>, <em>Fin root</em>, <em>Fin tip</em> and <em>Fin sweep</em> (the
           trapezoidal fin&apos;s chords and leading-edge sweep), <em>Fin thickness</em>,{" "}
-          <em>Nose length</em>, <em>Nose shape</em> (ogive, conical, ellipsoid, or a low-drag Haack /
+          <em>Fin edge</em> (square, rounded, or airfoil profile), <em>Nose length</em>,{" "}
+          <em>Nose shape</em> (ogive, conical, ellipsoid, or a low-drag Haack /
           Von Kármán), <em>Body length</em>, and <em>Body diameter</em> fields start from the
           design&apos;s own
           dimensions; change any and Loft rebuilds the rocket and re-flies it — mass, drag, and the
@@ -201,7 +202,9 @@ export default function Faq() {
           chords changes its planform area (and so its drag and centre of pressure); sweeping the fins
           back carries their lift aft, adding stability without any extra area; thicker fins drag more
           but raise the flutter margin sharply (it climbs with the cube of thickness), so it&apos;s
-          the first knob to reach for when the <em>Fin flutter</em> estimate warns; a finer nose (a
+          the first knob to reach for when the <em>Fin flutter</em> estimate warns; streamlining the
+          fin edge from square to rounded to airfoil sheds the head-on edge pressure drag, a real
+          apogee gain for the cost of some sanding; a finer nose (a
           cone, or a Von Kármán) trims drag — a little subsonically through wetted area, more
           noticeably as the flight nears the speed of sound where nose shape drives the wave drag; a
           longer body adds material and weight; and widening the <em>Body diameter</em> scales the

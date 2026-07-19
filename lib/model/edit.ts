@@ -7,12 +7,16 @@
  *  nose cone or body tube automatically shifts everything downstream and recomputes mass, drag,
  *  centre of pressure, and motor position. Fin span moves the centre of pressure (stability). */
 
-import type { Rocket, RocketComponent, NoseCone, BodyTube, SurfaceFinish, NoseShape } from "./types";
+import type { Rocket, RocketComponent, NoseCone, BodyTube, SurfaceFinish, NoseShape, FinCrossSection } from "./types";
 import { flattenRocket } from "./geometry";
 
 /** Selectable nose-cone shapes, for the builder's nose picker. Ordered by how a flyer thinks of
  *  them (sharp → blunt, then the parametrised low-drag families). */
 export const NOSE_SHAPES: NoseShape[] = ["ogive", "conical", "ellipsoid", "parabolic", "power", "haack"];
+
+/** Selectable fin edge cross-sections, for the builder's fin-profile picker. Ordered draggiest →
+ *  cleanest (square stagnates the flow, rounded halves that, airfoil is streamlined). */
+export const FIN_CROSS_SECTIONS: FinCrossSection[] = ["square", "rounded", "airfoil"];
 
 /** The canonical shape parameter to give each nose shape when it's chosen from the picker, so the
  *  result is one well-defined nose. `ogive`/`conical`/`ellipsoid` ignore it; the parametrised
@@ -50,6 +54,11 @@ export interface GeometryEdits {
   /** Fin thickness (m) for every fin set — drives the fin drag (skin-friction form factor, edge
    *  pressure, wave) and the flutter margin (∝ (t/c)³). Undefined leaves it. */
   finThickness?: number;
+  /** Fin edge cross-section for every fin set — square, rounded, or airfoil. Sets the fin edge
+   *  pressure drag: a square edge stagnates the flow head-on, a rounded edge roughly halves that,
+   *  an airfoil is streamlined. The "what would airfoiling my fins buy?" what-if. Undefined leaves
+   *  each set's own profile. */
+  finCrossSection?: FinCrossSection;
   /** Absolute nose-cone length (m) for the design's nose. Undefined leaves it. */
   noseLength?: number;
   /** Nose-cone contour for the design's nose (drives nose pressure and wave drag). Chosen from the
@@ -76,6 +85,7 @@ export function hasGeometryEdits(e: GeometryEdits): boolean {
     (e.finTipChord !== undefined && e.finTipChord > 0) ||
     (e.finSweepLength !== undefined && e.finSweepLength >= 0) ||
     (e.finThickness !== undefined && e.finThickness > 0) ||
+    e.finCrossSection !== undefined ||
     (e.noseLength !== undefined && e.noseLength > 0) ||
     e.noseShape !== undefined ||
     (e.bodyLength !== undefined && e.bodyLength > 0) ||
@@ -157,6 +167,14 @@ export function primaryFinThickness(rocket: Rocket): number | undefined {
   return fin && "thickness" in fin ? fin.thickness : undefined;
 }
 
+/** The primary fin set's edge cross-section, defaulting to square (the OpenRocket default) when a
+ *  finned design names none — so the picker shows the profile the aero is actually using. Undefined
+ *  for a finless design. */
+export function primaryFinCrossSection(rocket: Rocket): FinCrossSection | undefined {
+  const fin = primaryFinSet(rocket);
+  return fin ? (("crossSection" in fin && fin.crossSection) || "square") : undefined;
+}
+
 /** Apply the edits to one component (and its subtree). Trapezoid fins derive their area from
  *  dimensions downstream, so only the height changes; a generic (elliptical/freeform) set stores
  *  its planform area, so it's scaled with the span to keep the shape. Length overrides are keyed by
@@ -187,18 +205,20 @@ function editComponent(c: RocketComponent, e: GeometryEdits, lengths: Map<string
   const tip = e.finTipChord !== undefined && e.finTipChord > 0 ? e.finTipChord : undefined;
   const sweep = e.finSweepLength !== undefined && e.finSweepLength >= 0 ? e.finSweepLength : undefined;
   const thick = e.finThickness !== undefined && e.finThickness > 0 ? e.finThickness : undefined;
+  const cross = e.finCrossSection;
   if (
     span !== undefined ||
     count !== undefined ||
     root !== undefined ||
     tip !== undefined ||
     sweep !== undefined ||
-    thick !== undefined
+    thick !== undefined ||
+    cross !== undefined
   ) {
     if (c.kind === "trapezoidfinset") {
       // Root/tip chord and sweep reshape the trapezoid directly; the aero and mass read them, so
       // area and CP follow. Only trapezoidal sets take a chord/sweep edit (a generic set's chord is
-      // a reduction). Thickness drives the fin drag and flutter and applies to every fin kind.
+      // a reduction). Thickness and edge cross-section drive the fin drag and apply to every kind.
       return {
         ...c,
         height: span ?? c.height,
@@ -207,6 +227,7 @@ function editComponent(c: RocketComponent, e: GeometryEdits, lengths: Map<string
         tipChord: tip ?? c.tipChord,
         sweepLength: sweep ?? c.sweepLength,
         thickness: thick ?? c.thickness,
+        crossSection: cross ?? c.crossSection,
         children,
       };
     }
@@ -214,7 +235,15 @@ function editComponent(c: RocketComponent, e: GeometryEdits, lengths: Map<string
       const height = span ?? c.height;
       // A generic set stores its planform area; scale it with any span change to keep the shape.
       const area = span !== undefined && c.height > 0 ? c.area * (span / c.height) : c.area;
-      return { ...c, height, area, finCount: count ?? c.finCount, thickness: thick ?? c.thickness, children };
+      return {
+        ...c,
+        height,
+        area,
+        finCount: count ?? c.finCount,
+        thickness: thick ?? c.thickness,
+        crossSection: cross ?? c.crossSection,
+        children,
+      };
     }
   }
   return children === c.children ? c : { ...c, children };

@@ -14,6 +14,7 @@ import {
   primaryFinTipChord,
   primaryFinSweep,
   primaryFinThickness,
+  primaryFinCrossSection,
   primaryNose,
   primaryNoseShape,
   primaryBodyTube,
@@ -21,8 +22,9 @@ import {
   primaryFinish,
   SURFACE_FINISHES,
   NOSE_SHAPES,
+  FIN_CROSS_SECTIONS,
 } from "@/lib/model/edit";
-import type { SurfaceFinish, NoseShape } from "@/lib/model/types";
+import type { SurfaceFinish, NoseShape, FinCrossSection } from "@/lib/model/types";
 import { allMotors } from "@/lib/motors/db";
 import type { ConditionOverrides } from "@/lib/sim/setup";
 import { fetchConditions, geocode, type WeatherConditions } from "@/lib/weather";
@@ -50,6 +52,13 @@ const NOSE_SHAPE_LABELS: Record<NoseShape, string> = {
   haack: "Haack (Von Kármán)",
 };
 
+/** Friendly labels for the fin edge-profile picker (draggiest → cleanest). */
+const FIN_CROSS_SECTION_LABELS: Record<FinCrossSection, string> = {
+  square: "Square",
+  rounded: "Rounded",
+  airfoil: "Airfoil",
+};
+
 interface Edits {
   rodLength?: number; // m
   rodAngleDeg?: number;
@@ -63,6 +72,7 @@ interface Edits {
   finTipChord?: number; // builder edit: fin tip chord (m, trapezoidal)
   finSweepLength?: number; // builder edit: fin LE sweep (m, trapezoidal)
   finThickness?: number; // builder edit: fin thickness (m, any fin kind)
+  finCrossSection?: FinCrossSection; // builder edit: fin edge cross-section (any fin kind)
   noseLength?: number; // builder edit: nose-cone length (m)
   noseShape?: NoseShape; // builder edit: nose-cone contour
   bodyLength?: number; // builder edit: primary body-tube length (m)
@@ -126,6 +136,7 @@ export default function LoftApp() {
           finTipChord: e.finTipChord,
           finSweepLength: e.finSweepLength,
           finThickness: e.finThickness,
+          finCrossSection: e.finCrossSection,
           noseLength: e.noseLength,
           noseShape: e.noseShape,
           bodyLength: e.bodyLength,
@@ -153,6 +164,7 @@ export default function LoftApp() {
         e.finTipChord !== undefined ||
         e.finSweepLength !== undefined ||
         e.finThickness !== undefined ||
+        e.finCrossSection !== undefined ||
         e.noseLength !== undefined ||
         e.noseShape !== undefined ||
         e.bodyLength !== undefined ||
@@ -302,6 +314,7 @@ export default function LoftApp() {
             finTipChord: primaryFinTipChord(doc.rocket),
             finSweepLength: primaryFinSweep(doc.rocket),
             finThickness: primaryFinThickness(doc.rocket),
+            finCrossSection: primaryFinCrossSection(doc.rocket),
             noseLength: primaryNose(doc.rocket)?.length,
             noseShape: primaryNoseShape(doc.rocket),
             bodyLength: primaryBodyTube(doc.rocket)?.length,
@@ -315,6 +328,7 @@ export default function LoftApp() {
             finTipChord: undefined,
             finSweepLength: undefined,
             finThickness: undefined,
+            finCrossSection: undefined,
             noseLength: undefined,
             noseShape: undefined,
             bodyLength: undefined,
@@ -433,6 +447,7 @@ export default function LoftApp() {
                 finTipChord: edits.finTipChord,
                 finSweepLength: edits.finSweepLength,
                 finThickness: edits.finThickness,
+                finCrossSection: edits.finCrossSection,
                 noseLength: edits.noseLength,
                 noseShape: edits.noseShape,
                 bodyLength: edits.bodyLength,
@@ -519,6 +534,7 @@ function ConditionsControls({
     finTipChord?: number;
     finSweepLength?: number;
     finThickness?: number;
+    finCrossSection?: FinCrossSection;
     noseLength?: number;
     noseShape?: NoseShape;
     bodyLength?: number;
@@ -693,6 +709,28 @@ function ConditionsControls({
                 placeholder={toDispThick(designDims.finThickness)}
                 onChange={(v) => onEdit({ finThickness: fromSpan(v) })}
               />
+            )}
+            {designDims.finCrossSection !== undefined && (
+              <label className="block">
+                <span className="block text-[11px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                  Fin edge
+                </span>
+                <select
+                  aria-label="Fin edge cross-section"
+                  value={edits.finCrossSection ?? ""}
+                  onChange={(e) =>
+                    onEdit({ finCrossSection: e.target.value ? (e.target.value as FinCrossSection) : undefined })
+                  }
+                  className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                >
+                  <option value="">As designed ({FIN_CROSS_SECTION_LABELS[designDims.finCrossSection]})</option>
+                  {FIN_CROSS_SECTIONS.map((s) => (
+                    <option key={s} value={s}>
+                      {FIN_CROSS_SECTION_LABELS[s]}
+                    </option>
+                  ))}
+                </select>
+              </label>
             )}
             {designDims.noseLength !== undefined && (
               <Num
