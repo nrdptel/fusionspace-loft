@@ -479,6 +479,31 @@ describe("payload-separation fixture flight", () => {
   });
 });
 
+describe("recovery-size what-if", () => {
+  it("a bigger canopy descends slower and lands softer; a smaller one the reverse; ascent unchanged", async () => {
+    const doc = await load("demo-single-deploy.ork");
+    const sim = doc.simulations[0];
+    const fly = (recoveryCdScale?: number) =>
+      runFlight(doc.rocket, {
+        configId: sim.conditions.configId,
+        overrides: { ...overridesFromStored(sim), windSpeed: 5 },
+        recoveryCdScale,
+      }).result.summary;
+    const base = fly();
+    const big = fly(2); // double the deployed drag area
+    const small = fly(0.5);
+
+    // Descent rate and ground-hit speed fall under a bigger canopy, rise under a smaller one.
+    expect(big.descentRate).toBeLessThan(base.descentRate);
+    expect(small.descentRate).toBeGreaterThan(base.descentRate);
+    expect(big.groundHitVelocity).toBeLessThan(base.groundHitVelocity);
+    // A slower descent rides the wind longer, so it drifts farther from the pad.
+    expect(big.driftDistance).toBeGreaterThan(base.driftDistance);
+    // The recovery size touches only the descent — the ascent (apogee) is unchanged.
+    expect(big.apogee).toBeCloseTo(base.apogee, 3);
+  }, 20000);
+});
+
 describe("unresolvable motor", () => {
   it("reports no propulsion and withholds the validation comparison", async () => {
     const doc = await load("demo-single-deploy.ork");

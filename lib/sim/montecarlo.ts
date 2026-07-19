@@ -61,6 +61,9 @@ export interface MonteCarloOptions {
   ballastKg?: number;
   motorSwap?: { manufacturer?: string; designation: string; diameter?: number };
   geometry?: GeometryEdits;
+  /** Active recovery-size what-if (scale on deployed drag area), held fixed across every sample —
+   *  so the landing scatter reflects the resized canopy the flyer is looking at. */
+  recoveryCdScale?: number;
 }
 
 /** One dispersed flight's headline outcomes. */
@@ -195,6 +198,7 @@ export function* monteCarloSamples(rocket: Rocket, opts: MonteCarloOptions): Gen
         ballastKg: opts.ballastKg,
         motorSwap: opts.motorSwap,
         geometry: opts.geometry,
+        recoveryCdScale: opts.recoveryCdScale,
         thrustScale,
         massScale,
         dragScale,

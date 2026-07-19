@@ -42,6 +42,7 @@ export default function MonteCarlo({
   simIndex,
   units,
   ballastKg,
+  recoveryCdScale,
   motorSwap,
   geometry,
 }: {
@@ -49,6 +50,7 @@ export default function MonteCarlo({
   simIndex: number;
   units: UnitSystem;
   ballastKg?: number;
+  recoveryCdScale?: number;
   motorSwap?: { manufacturer?: string; designation: string; diameter?: number };
   geometry?: GeometryEdits;
 }) {
@@ -109,6 +111,7 @@ export default function MonteCarlo({
         configId: sim?.conditions.configId,
         overrides: sim ? overridesFromStored(sim) : undefined,
         ballastKg,
+        recoveryCdScale,
         motorSwap,
         geometry,
       },
@@ -122,7 +125,7 @@ export default function MonteCarlo({
     return () => {
       live = false;
     };
-  }, [open, doc, simIndex, settled, ballastKg, motorSwap, geometry]);
+  }, [open, doc, simIndex, settled, ballastKg, recoveryCdScale, motorSwap, geometry]);
 
   return (
     <section

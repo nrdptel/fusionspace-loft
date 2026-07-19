@@ -58,6 +58,7 @@ export default function ResultsView({
   baseline,
   simIndex = 0,
   ballastKg,
+  recoveryCdScale,
   motorSwap,
   geometry,
   swapOptions,
@@ -73,6 +74,9 @@ export default function ResultsView({
   simIndex?: number;
   /** Active "what-if" edits, so the RocketPy cross-check flies the same hypothetical shown above. */
   ballastKg?: number;
+  /** Active recovery-size what-if (scale on deployed drag area) — affects the descent, so the
+   *  Monte-Carlo (landing scatter) honours it. */
+  recoveryCdScale?: number;
   motorSwap?: { manufacturer?: string; designation: string; diameter?: number };
   geometry?: GeometryEdits;
   /** Bundled motors that fit this airframe's mount, for the motor-sweep comparison. */
@@ -238,11 +242,12 @@ export default function ResultsView({
           flight. Keyed on design + config + active what-ifs so it resets when the flown design changes. */}
       {run.hasPropulsion && (
         <MonteCarlo
-          key={`${doc.rocket.name}:${simIndex}:${ballastKg ?? 0}:${motorSwap?.designation ?? ""}:${geometry?.finSpan ?? 0}:${geometry?.finCount ?? 0}:${geometry?.finRootChord ?? 0}:${geometry?.finTipChord ?? 0}:${geometry?.finSweepLength ?? 0}:${geometry?.finThickness ?? 0}:${geometry?.finCrossSection ?? ""}:${geometry?.finMaterial ?? ""}:${geometry?.noseLength ?? 0}:${geometry?.noseShape ?? ""}:${geometry?.bodyLength ?? 0}:${geometry?.bodyDiameter ?? 0}:${geometry?.finish ?? ""}`}
+          key={`${doc.rocket.name}:${simIndex}:${ballastKg ?? 0}:${recoveryCdScale ?? 1}:${motorSwap?.designation ?? ""}:${geometry?.finSpan ?? 0}:${geometry?.finCount ?? 0}:${geometry?.finRootChord ?? 0}:${geometry?.finTipChord ?? 0}:${geometry?.finSweepLength ?? 0}:${geometry?.finThickness ?? 0}:${geometry?.finCrossSection ?? ""}:${geometry?.finMaterial ?? ""}:${geometry?.noseLength ?? 0}:${geometry?.noseShape ?? ""}:${geometry?.bodyLength ?? 0}:${geometry?.bodyDiameter ?? 0}:${geometry?.finish ?? ""}`}
           doc={doc}
           simIndex={simIndex}
           units={units}
           ballastKg={ballastKg}
+          recoveryCdScale={recoveryCdScale}
           motorSwap={motorSwap}
           geometry={geometry}
         />

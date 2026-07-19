@@ -423,7 +423,13 @@ export default function Methods() {
         <code>C<sub>d</sub>A<sub>chute</sub> = 2·m·g/(ρ·v²) − ½·A<sub>ref</sub></code>, reported as a
         drag area and an equivalent diameter. Because it uses the flight&apos;s own descent model, a
         canopy sized this way, flown, lands at the target speed — checked against a real flight in{" "}
-        <code>lib/sim/recovery.test.ts</code>.
+        <code>lib/sim/recovery.test.ts</code>. The goal-seek names one size; the{" "}
+        <strong>recovery-size what-if</strong> (<em>Conditions → Design what-if</em>) is its
+        open-ended companion — a multiplier on every deployed device&apos;s drag area that re-flies
+        the design with a bigger or smaller canopy, so you can watch the descent rate, drift, and
+        deployment speed move together (a bigger canopy lands softer but drifts farther and snaps
+        open harder). It scales only the recovery, never the ascent, so apogee and stability are
+        untouched; the Monte-Carlo landing scatter honours it.
       </p>
       <p>
         The <strong>optimum ejection delay</strong> Loft reports is the delay (from burnout) that

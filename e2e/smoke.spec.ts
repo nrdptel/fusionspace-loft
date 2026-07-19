@@ -109,6 +109,37 @@ test.describe("Loft", () => {
     await expect(apogeeRow.getByText(/−[\d.]+%/)).toBeVisible();
   });
 
+  test("a bigger recovery canopy re-flies the design — a slower, softer descent, same apogee", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+
+    const stat = async (label: string) => {
+      const txt = await page
+        .getByLabel("Results")
+        .getByText(label, { exact: true })
+        .locator("xpath=following-sibling::div")
+        .innerText();
+      return parseFloat(txt.replace(/[^\d.]/g, ""));
+    };
+    const apogeeBefore = await stat("Apogee");
+    const descentBefore = await stat("Descent rate");
+    const groundHitBefore = await stat("Ground-hit speed");
+    expect(descentBefore).toBeGreaterThan(0);
+
+    // Open the edit panel and double the recovery drag area — a bigger canopy, a "what-if".
+    await page.locator("summary", { hasText: "Conditions" }).click();
+    await page.getByLabel(/Recovery size/).fill("2");
+
+    // Re-flies on change: the bigger canopy brings it down slower and lands softer...
+    await expect.poll(() => stat("Descent rate")).toBeLessThan(descentBefore);
+    await expect.poll(() => stat("Ground-hit speed")).toBeLessThan(groundHitBefore);
+    // ...while the ascent is untouched — same apogee (recovery scales only the descent).
+    expect(Math.abs((await stat("Apogee")) - apogeeBefore)).toBeLessThan(1);
+  });
+
   test("swapping the motor re-flies the design on a different motor", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();

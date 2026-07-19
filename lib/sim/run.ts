@@ -88,6 +88,13 @@ export interface RunOptions {
   /** Scale the aerodynamic drag coefficient — the drag model's own uncertainty. Defaults to 1;
    *  used by the Monte-Carlo dispersion. */
   dragScale?: number;
+  /** "What-if" scale on every deployed recovery device's drag area (Cd·A). A flyer sizing recovery
+   *  can try a bigger or smaller canopy — >1 slows the descent and drifts farther, <1 the reverse —
+   *  without editing the file, and see the effect on descent rate, drift, deployment speed, and
+   *  landing. 1/undefined flies the design's own recovery. Ignored on a ballistic run (which strips
+   *  recovery entirely). Pairs with the recovery-sizing readout, which names the size for a target
+   *  landing speed. */
+  recoveryCdScale?: number;
 }
 
 /** Apply a what-if motor swap to a configuration: every instance flies the chosen motor, keeping
@@ -130,6 +137,12 @@ export function runFlight(rocket: Rocket, opts: RunOptions = {}): FlightRun {
   }
   const built = buildSimulateInput(design, config, conditions);
   const resolutions = built.resolutions;
+  // Recovery-size what-if: scale every deployed device's drag area. Applied to the built recovery
+  // before the flight, so descent rate, drift, and deployment speed all reflect the resized canopy.
+  // (A ballistic run strips recovery below, so this only affects a real flight.)
+  if (opts.recoveryCdScale !== undefined && opts.recoveryCdScale > 0 && opts.recoveryCdScale !== 1) {
+    built.input.recovery = built.input.recovery.map((d) => ({ ...d, cdA: d.cdA * opts.recoveryCdScale! }));
+  }
   // A ballistic run drops every recovery device so the coast runs to the true apogee.
   const extraMasses: PointMass[] =
     opts.ballastKg && opts.ballastKg > 0

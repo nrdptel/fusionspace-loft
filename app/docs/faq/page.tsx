@@ -188,6 +188,15 @@ export default function Faq() {
           typical flat-canopy drag coefficient (0.8), so match it to your own chute&apos;s rating. A
           bigger canopy lands softer but drifts farther — the Monte-Carlo above shows how far.
         </p>
+        <p>
+          To try a size yourself, use the <em>Recovery size (×)</em> what-if under{" "}
+          <em>Conditions → Design what-if</em>: it multiplies every deployed chute&apos;s drag area,
+          so <em>2</em> flies a canopy twice as draggy and <em>0.5</em> one half the size. Loft
+          re-flies the descent, and the descent rate, ground-hit speed, and drift all move with it —
+          as does the Monte-Carlo landing scatter — while the ascent and apogee stay put. It&apos;s
+          the open-ended companion to the sizing readout: the readout names the size for a gentle
+          landing; the what-if lets you explore the trade against drift and deployment speed.
+        </p>
       </QA>
 
       <QA q="Can I see what adding nose weight would do?">

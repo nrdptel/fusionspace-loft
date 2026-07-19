@@ -67,6 +67,7 @@ interface Edits {
   windSpeed?: number; // m/s
   launchAltitude?: number; // m
   ballastKg?: number; // "what-if" nose ballast
+  recoveryCdScale?: number; // "what-if" scale on deployed recovery drag area
   motorSwap?: { manufacturer?: string; designation: string; diameter?: number }; // "what-if" motor
   finSpan?: number; // builder edit: fin semi-span (m)
   finCount?: number; // builder edit: fins per set
@@ -131,6 +132,7 @@ export default function LoftApp() {
         configId,
         overrides,
         ballastKg: e.ballastKg,
+        recoveryCdScale: e.recoveryCdScale,
         motorSwap: e.motorSwap,
         geometry: {
           finSpan: e.finSpan,
@@ -446,6 +448,7 @@ export default function LoftApp() {
               baseline={baseline}
               simIndex={simIndex}
               ballastKg={edits.ballastKg}
+              recoveryCdScale={edits.recoveryCdScale}
               motorSwap={edits.motorSwap}
               geometry={{
                 finSpan: edits.finSpan,
@@ -667,6 +670,15 @@ function ConditionsControls({
               value={toDispMass(edits.ballastKg)}
               placeholder="0"
               onChange={(v) => onEdit({ ballastKg: fromMass(v) })}
+            />
+            <Num
+              label="Recovery size (×)"
+              value={edits.recoveryCdScale ?? ""}
+              placeholder="1"
+              onChange={(v) => {
+                const n = v === "" ? undefined : Number(v);
+                onEdit({ recoveryCdScale: n !== undefined && n > 0 ? n : undefined });
+              }}
             />
             {designDims.finSpan !== undefined && (
               <Num
