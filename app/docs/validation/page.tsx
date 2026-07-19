@@ -138,8 +138,12 @@ export default async function Validation() {
         you can see exactly when and where the drag models diverge, rather than inferring it from an
         apogee gap. A deployed parachute&apos;s coefficient (referenced to the body it runs into the
         tens) is left off the drag curve, which is about the airframe&apos;s own drag on the way up.
-        The overlay appears in the results whenever an imported file carries the log and Loft flew
-        the design as stored; the series are built in <code>lib/validation/crosscheck.ts</code>.
+        The overlay is quantified too: Loft&apos;s ascent drag curve is interpolated onto each stored
+        sample and the mean gap reported as a single figure (both a percentage and an absolute{" "}
+        <code>C<sub>d</sub></code>), so &ldquo;the two engines&apos; drag agree to about X%&rdquo; is a
+        number you can read, not an eyeball. The overlay appears in the results whenever an imported
+        file carries the log and Loft flew the design as stored; the series and the agreement figure
+        are built in <code>lib/validation/crosscheck.ts</code>.
       </p>
       <blockquote>
         The honest oracle is <strong>your own design</strong>. The two bundled samples below ship

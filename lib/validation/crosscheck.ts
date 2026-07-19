@@ -47,3 +47,52 @@ export function crossCheckSeries(result: FlightResult, data: StoredFlightData): 
     haveDrag: storedCd.length > 1 && loftCd.length > 1,
   };
 }
+
+/** How closely the two ascent drag curves agree — an honest number for the visual overlay. */
+export interface DragAgreement {
+  /** Mean absolute drag-coefficient difference over the compared points. */
+  meanAbsCd: number;
+  /** Mean of |ΔCd| / stored Cd, as a percentage. */
+  meanPct: number;
+  /** Points compared (stored ascent samples that fall within Loft's ascent time span). */
+  n: number;
+}
+
+/** Linear interpolation of a time-sorted {x,y} series at time t, clamped to its ends. */
+function interpolateAt(series: XYPoint[], t: number): number {
+  if (t <= series[0].x) return series[0].y;
+  const last = series[series.length - 1];
+  if (t >= last.x) return last.y;
+  for (let i = 1; i < series.length; i++) {
+    if (series[i].x >= t) {
+      const a = series[i - 1];
+      const b = series[i];
+      const span = b.x - a.x;
+      return span > 0 ? a.y + ((b.y - a.y) * (t - a.x)) / span : a.y;
+    }
+  }
+  return last.y;
+}
+
+/** Quantify how closely Loft's ascent drag curve tracks the file's stored one: interpolate Loft's
+ *  Cd onto each stored ascent sample's time and average the difference. This turns the visual
+ *  overlay into a concrete figure — the honest basis for "the two engines' drag agree to about
+ *  X%". Undefined when there is no overlapping drag curve to compare. */
+export function dragAgreement(cc: CrossCheckSeries): DragAgreement | undefined {
+  if (!cc.haveDrag) return undefined;
+  const loft = cc.loftCd;
+  const tMin = loft[0].x;
+  const tMax = loft[loft.length - 1].x;
+  let sumAbs = 0;
+  let sumPct = 0;
+  let n = 0;
+  for (const p of cc.storedCd) {
+    if (p.x < tMin || p.x > tMax) continue; // only where Loft's ascent actually overlaps
+    const diff = Math.abs(interpolateAt(loft, p.x) - p.y);
+    sumAbs += diff;
+    if (p.y > 0) sumPct += diff / p.y;
+    n++;
+  }
+  if (n === 0) return undefined;
+  return { meanAbsCd: sumAbs / n, meanPct: (sumPct / n) * 100, n };
+}

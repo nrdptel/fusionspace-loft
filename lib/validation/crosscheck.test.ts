@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { crossCheckSeries, RECOVERY_CD_CEILING } from "./crosscheck";
+import { crossCheckSeries, dragAgreement, RECOVERY_CD_CEILING } from "./crosscheck";
 import type { FlightResult, TrajectorySample, FlightPhase } from "../sim/simulate";
 import type { StoredFlightData } from "../ork/adapt";
 
@@ -69,5 +69,41 @@ describe("crossCheckSeries", () => {
     const data = stored([[0, 0, 0.6], [1, 100, 0.55], [2, 150, 0.5]]);
     const cc = crossCheckSeries(result([sample(0, 0, 0.6, "boost"), sample(1, 100, 0.55, "coast")]), data);
     expect(cc.haveDrag).toBe(true);
+  });
+});
+
+describe("dragAgreement", () => {
+  const cc = (loft: TrajectorySample[], stored_: Array<[number, number, number]>) =>
+    crossCheckSeries(result(loft), stored(stored_));
+
+  it("reports zero difference for identical curves", () => {
+    const loft = [sample(0, 0, 0.6, "boost"), sample(1, 100, 0.5, "coast"), sample(2, 150, 0.45, "coast")];
+    const a = dragAgreement(cc(loft, [[0, 0, 0.6], [1, 100, 0.5], [2, 150, 0.45]]))!;
+    expect(a.meanAbsCd).toBeCloseTo(0, 10);
+    expect(a.meanPct).toBeCloseTo(0, 10);
+    expect(a.n).toBe(3);
+  });
+
+  it("interpolates Loft onto stored times and averages the gap", () => {
+    // Loft holds Cd 0.50 across t=0..2; stored is 0.40 at t=0.5 and 0.60 at t=1.5 → |Δ| = 0.10 each.
+    const loft = [sample(0, 0, 0.5, "boost"), sample(2, 100, 0.5, "coast")];
+    const a = dragAgreement(cc(loft, [[0.5, 20, 0.4], [1.5, 90, 0.6]]))!;
+    expect(a.n).toBe(2);
+    expect(a.meanAbsCd).toBeCloseTo(0.1, 10);
+    // mean of 0.10/0.40 and 0.10/0.60 = (0.25 + 0.1667)/2 = 0.2083 → ~20.8%
+    expect(a.meanPct).toBeCloseTo(20.83, 1);
+  });
+
+  it("compares only stored points inside Loft's ascent time span", () => {
+    // Loft ascent spans t=0..1; the stored point at t=5 is outside and must be ignored.
+    const loft = [sample(0, 0, 0.5, "boost"), sample(1, 80, 0.5, "coast")];
+    const a = dragAgreement(cc(loft, [[0.5, 40, 0.5], [5, 200, 0.9]]))!;
+    expect(a.n).toBe(1);
+    expect(a.meanAbsCd).toBeCloseTo(0, 10);
+  });
+
+  it("is undefined when there is no drag overlay", () => {
+    const loft = [sample(0, 0, 0.5, "boost"), sample(1, 80, 0.5, "coast")];
+    expect(dragAgreement(cc(loft, [[0, 0, NaN], [1, 80, NaN]]))).toBeUndefined();
   });
 });
