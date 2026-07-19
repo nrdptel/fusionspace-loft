@@ -341,6 +341,44 @@ describe("fin cross-section pressure drag", () => {
   });
 });
 
+describe("fins split across single-fin sets (real-file pattern)", () => {
+  const atm = new Atmosphere().sample(0);
+  // Some designs model N fins as N separate one-fin sets rather than one N-fin set (e.g. the
+  // OpenRocket "ARC payload" example: three trapezoid sets, fincount 1 each). Their fin frontal
+  // area — hence fin pressure drag — must match the equivalent single N-fin set. Deriving it from
+  // the largest single set alone (the old max·thickness·span) under-counted such a design ~N×,
+  // reading ~60% low on the ARC design's coast pressure against OpenRocket's stored per-step Cd.
+  const oneSet = shapedRocket({ fins: true });
+  const threeSets = shapedRocket({ fins: true });
+  {
+    const body = threeSets.stages[0].components[1] as BodyTube;
+    const one = body.children[0] as TrapezoidFinSet;
+    body.children = [0, 1, 2].map((i) => ({ ...one, id: `f${i}`, finCount: 1 }));
+  }
+
+  it("sums fin frontal area over sets, matching one N-fin set", () => {
+    expect(aeroGeometry(threeSets).finFrontalArea).toBeCloseTo(aeroGeometry(oneSet).finFrontalArea, 10);
+  });
+
+  it("gives the same fin wetted area and pressure drag as one N-fin set", () => {
+    expect(aeroGeometry(threeSets).finWettedArea).toBeCloseTo(aeroGeometry(oneSet).finWettedArea, 10);
+    const p = (r: Rocket) => dragCoefficient(aeroGeometry(r), atm, 0.25 * atm.speedOfSound).pressure;
+    expect(p(threeSets)).toBeCloseTo(p(oneSet), 10);
+  });
+
+  it("counts more than the single largest set (guards the old max-only bug)", () => {
+    // Each split set has one fin; the frontal area must exceed a single fin's, i.e. it is summed.
+    const oneFin = shapedRocket({ fins: true });
+    (oneFin.stages[0].components[1] as BodyTube).children[0] = {
+      ...(oneFin.stages[0].components[1] as BodyTube).children[0],
+      finCount: 1,
+    } as TrapezoidFinSet;
+    expect(aeroGeometry(threeSets).finFrontalArea).toBeGreaterThan(
+      aeroGeometry(oneFin).finFrontalArea * 2.5,
+    );
+  });
+});
+
 describe("shoulder pressure drag (Niskanen eq. 3.86)", () => {
   const atm = new Atmosphere().sample(0);
   // Cd·A = 0.8·sin²φ·(A_aft − A_fore), φ = atan((r_aft − r_fore)/L), over an expanding transition.

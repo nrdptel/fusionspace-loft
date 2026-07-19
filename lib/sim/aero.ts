@@ -177,10 +177,13 @@ export interface AeroGeometry {
   baseArea: number;
   finWettedArea: number;
   finThicknessRatio: number;
+  /** Fins in the largest single fin set (a representative count; not the design's total when fins
+   *  are split across sets). Fin frontal and wetted areas are summed over all sets separately. */
   finCount: number;
   /** Fin thickness (m), for leading-edge pressure drag. */
   finThickness: number;
-  /** Total exposed fin frontal area (m²) = N · thickness · span. */
+  /** Total exposed fin frontal area (m²), summed over every fin set as Σ (fins · thickness · span)
+   *  — so a design that splits its fins across several single-fin sets is counted in full. */
   finFrontalArea: number;
   /** Draggiest fin edge cross-section present (square > rounded > airfoil), setting the fin
    *  leading-edge pressure drag. Square when the design has fins but names no cross-section. */
@@ -251,6 +254,11 @@ export function aeroGeometry(rocket: Rocket): AeroGeometry {
   let meanFinChord = 0;
   let finSpan = 0;
   let finSweepLength = 0;
+  // Fin edge frontal area (Σ fins · thickness · span), summed per set rather than derived from a
+  // single representative set. A design that models its N fins as N separate single-fin sets — a
+  // common OpenRocket pattern — would otherwise have its fin pressure drag counted from just one
+  // fin (see the multi-set note below).
+  let finFrontal = 0;
   // The draggiest cross-section present drives the fin leading-edge pressure drag. Rank
   // square > rounded > airfoil; a fin set that names none is square (the OpenRocket default).
   let finEdgeRank = -1;
@@ -343,6 +351,7 @@ export function aeroGeometry(rocket: Rocket): AeroGeometry {
     } else if (c.kind === "trapezoidfinset") {
       const area = ((c.rootChord + c.tipChord) / 2) * c.height;
       finWetted += 2 * area * c.finCount;
+      finFrontal += c.finCount * c.thickness * c.height;
       finCount = Math.max(finCount, c.finCount);
       finThickness = Math.max(finThickness, c.thickness);
       meanFinChord = (c.rootChord + c.tipChord) / 2;
@@ -351,6 +360,7 @@ export function aeroGeometry(rocket: Rocket): AeroGeometry {
       noteFinEdge(c.crossSection);
     } else if (c.kind === "ellipticalfinset" || c.kind === "freeformfinset") {
       finWetted += 2 * c.area * c.finCount;
+      finFrontal += c.finCount * c.thickness * c.height;
       finCount = Math.max(finCount, c.finCount);
       finThickness = Math.max(finThickness, c.thickness);
       meanFinChord = c.height > 0 ? c.area / c.height : c.rootChord;
@@ -391,7 +401,9 @@ export function aeroGeometry(rocket: Rocket): AeroGeometry {
     finThicknessRatio: meanFinChord > 0 ? finThickness / meanFinChord : 0,
     finCount,
     finThickness,
-    finFrontalArea: finCount * finThickness * finSpan,
+    // Summed per set (finFrontal), so N fins split across N single-fin sets are counted in full.
+    // For a design with one fin set this equals finCount·finThickness·finSpan, unchanged.
+    finFrontalArea: finFrontal,
     finCrossSection: finEdgeRank < 0 ? "square" : (["airfoil", "rounded", "square"] as const)[finEdgeRank],
     roughness: roughness || FINISH_ROUGHNESS.unfinished,
     noseFineness: Math.max(0.5, noseFineness),

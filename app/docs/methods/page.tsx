@@ -253,7 +253,9 @@ export default function Methods() {
           reduced by leading-edge sweep as <code>cos²Λ</code>) and leaves a blunt trailing-edge base;
           a rounded edge roughly halves both; an airfoil is streamlined, leaving only the small
           transonic compressibility rise. Referenced to the fins&apos; frontal area
-          (<code>N·thickness·span</code>) over the reference area, after the OpenRocket technical
+          (<code>N·thickness·span</code>, summed over every fin set — so a design that models its
+          fins as several separate single-fin sets, a common OpenRocket pattern, is counted in full
+          rather than from one set alone) over the reference area, after the OpenRocket technical
           documentation and Hoerner. This is the dominant pressure term for a finned model rocket —
           a thickness-only estimate under-counts it several-fold — and reading the design&apos;s
           stated cross-section is what brought Loft&apos;s drag on the reference &ldquo;simple model
