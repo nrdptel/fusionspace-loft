@@ -455,6 +455,17 @@ export default function Methods() {
         it is thin; it never certifies a fin as flutter-safe.
       </p>
       <p>
+        When the margin <em>is</em> thin, Loft names the fix rather than just saying &ldquo;thicken the
+        fins&rdquo;: since the flutter speed rises with the 1.5 power of the thickness ratio and the
+        peak airspeed the margin is taken against barely moves with thickness, the thickness for a
+        target margin is closed-form, <code>t<sub>target</sub> = t<sub>now</sub>·(margin<sub>target</sub>/margin<sub>now</sub>)^(2/3)</code>.
+        It errs a touch thick — a thicker fin also drags a little more and lowers the peak airspeed,
+        so the flown margin comes out just above the target — which is the safe direction for a fin
+        caution. Shortening the span or a stiffer material reaches the same margin; the suggestion is a
+        starting point to check with the fin-thickness what-if, not a substitute for a real
+        structural design.
+      </p>
+      <p>
         <em>Sources:</em> D. J. Martin, NACA TN 4197, <em>Summary of Flutter Experiences as a Guide
         to the Preliminary Design of Lifting Surfaces on Missiles</em> (1958); the closed form as
         popularised for rocketry by Apogee Components&apos; <em>Peak of Flight</em> newsletter #291.

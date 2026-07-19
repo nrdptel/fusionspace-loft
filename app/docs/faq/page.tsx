@@ -56,8 +56,12 @@ export default function Faq() {
           material stiffness, checked against the real air density at every altitude the rocket
           climbs through. It&apos;s a preliminary-design estimate (the simplified NACA TN 4197
           method), good to roughly ±20% — so treat it as a &ldquo;design your fins with room to
-          spare&rdquo; heuristic, not a guarantee. Neither OpenRocket nor RockSim reports it. See{" "}
-          <Link href="/docs/methods">Methods</Link>.
+          spare&rdquo; heuristic, not a guarantee. When the margin is thin, Loft doesn&apos;t just say
+          &ldquo;thicken the fins&rdquo; — it names the thickness that would reach a healthy 1.5×
+          margin (the flutter speed rises with the 1.5 power of thickness, so it&apos;s a direct
+          calculation), erring a touch thick so the flown result lands just above the target; a
+          shorter span or a stiffer material gets there too. Neither OpenRocket nor RockSim reports
+          any of this. See <Link href="/docs/methods">Methods</Link>.
         </p>
       </QA>
 

@@ -101,6 +101,25 @@ export function finFlutterVelocity(p: {
   return a * Math.sqrt(g / denom);
 }
 
+/** The fin thickness (m) that would lift a fin set from its current flutter margin to a target one —
+ *  the actionable answer behind the "thicken the fins" caution. Closed-form: the flutter speed rises
+ *  with the 1.5 power of the thickness ratio (Vf ∝ (t/c)^1.5), and the peak airspeed the margin is
+ *  taken against barely moves with thickness, so margin ∝ t^1.5 and
+ *      t_target = t_now · (margin_target / margin_now)^(2/3).
+ *  It errs slightly thick — a thicker fin also drags a little more and lowers the peak airspeed, so
+ *  the true margin comes out a touch above the target — which is the safe direction for a fin caution.
+ *  Returns t_now unchanged when the margin already meets the target or the inputs are degenerate. */
+export function thicknessForFlutterMargin(
+  currentThickness: number,
+  currentMargin: number,
+  targetMargin: number,
+): number {
+  if (!(currentThickness > 0) || !(currentMargin > 0) || !(targetMargin > currentMargin)) {
+    return currentThickness;
+  }
+  return currentThickness * Math.pow(targetMargin / currentMargin, 2 / 3);
+}
+
 /** The root chord, tip chord, span, and thickness a fin set presents to the flutter estimate.
  *  A generic (elliptical/freeform) set is reduced to its equal-area, equal-span trapezoid — the
  *  same reduction the aerodynamics uses for the normal-force slope. */
@@ -122,6 +141,8 @@ function finDims(
 export interface FinFlutter {
   /** The fin set's name (or "fins"). */
   finName: string;
+  /** The fin set's thickness (m) — the design lever the flutter fix works on. */
+  thickness: number;
   /** Estimated flutter speed at the worst-case (lowest-margin) point of the ascent (m/s). */
   flutterVelocity: number;
   /** The airspeed at that worst-case point (m/s). */
@@ -189,6 +210,7 @@ export function analyzeFlutter(
       if (!worst || margin < worst.margin) {
         worst = {
           finName: fin.name || "fins",
+          thickness: dims.t,
           flutterVelocity: vf,
           velocity: s.velocity,
           altitude: s.altitude,

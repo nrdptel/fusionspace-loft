@@ -5,7 +5,7 @@ import type { FlightRun } from "@/lib/sim/run";
 import type { GeometryEdits } from "@/lib/model/edit";
 import type { OrkDocument } from "@/lib/ork/import";
 import type { FlightResult } from "@/lib/sim/simulate";
-import { RECOMMENDED_FLUTTER_MARGIN } from "@/lib/sim/flutter";
+import { RECOMMENDED_FLUTTER_MARGIN, thicknessForFlutterMargin } from "@/lib/sim/flutter";
 import LineChart, { type Series, type Marker } from "./LineChart";
 import FlightViz from "./FlightViz";
 import ValidationPanel from "./ValidationPanel";
@@ -385,7 +385,30 @@ function RocketSummary({ run, doc, units }: { run: FlightRun; doc: OrkDocument; 
       </dl>
 
       <StabilityTrimHint run={run} doc={doc} units={units} />
+      <FlutterFixHint run={run} units={units} />
     </section>
+  );
+}
+
+/** When the fin-flutter margin is thin, say plainly how thick the fins would need to be to reach a
+ *  healthy margin — the number behind the "thicken the fins" caution, so it's actionable rather than
+ *  a vague direction. Completes the actionable-safety trio (stability trim, recovery sizing, this).
+ *  Closed-form (lib/sim/flutter.ts) and conservative (errs slightly thick). */
+function FlutterFixHint({ run, units }: { run: FlightRun; units: UnitSystem }) {
+  const f = run.result.flutter;
+  if (!f || !Number.isFinite(f.worst.margin) || f.worst.margin >= RECOMMENDED_FLUTTER_MARGIN) return null;
+  if (!(f.worst.thickness > 0)) return null;
+  const tFix = thicknessForFlutterMargin(f.worst.thickness, f.worst.margin, RECOMMENDED_FLUTTER_MARGIN);
+  if (!(tFix > f.worst.thickness)) return null;
+
+  return (
+    <p className="mt-3 text-xs text-zinc-500 dark:text-zinc-400">
+      <span className="font-medium text-zinc-600 dark:text-zinc-300">Fin-flutter fix:</span>{" "}
+      thickening the {f.worst.finName} from {d.q(d.lengthMm(f.worst.thickness, units))} to about{" "}
+      {d.q(d.lengthMm(tFix, units))} would lift the flutter margin to {d.fmt(RECOMMENDED_FLUTTER_MARGIN, 1)}×
+      (from {d.fmt(f.worst.margin, 1)}×). Shortening the span or a stiffer material does the same —
+      set the fin thickness under Conditions → Design what-if to check the apogee cost.
+    </p>
   );
 }
 

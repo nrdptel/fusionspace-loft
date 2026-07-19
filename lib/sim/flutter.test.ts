@@ -5,11 +5,12 @@ import {
   finFlutterVelocity,
   shearModulusFor,
   analyzeFlutter,
+  thicknessForFlutterMargin,
   RECOMMENDED_FLUTTER_MARGIN,
 } from "./flutter";
 import { Atmosphere } from "./atmosphere";
 import { importOrk } from "../ork/import";
-import { runFromDocument } from "./run";
+import { runFromDocument, runFlight } from "./run";
 import { flattenRocket } from "../model/geometry";
 
 async function load(name: string) {
@@ -147,6 +148,37 @@ describe("analyzeFlutter — worst-case margin over the ascent", () => {
     expect(rep).toBeDefined();
     expect(rep!.worst.velocity).toBe(50);
   });
+
+  it("thicknessForFlutterMargin solves t ∝ margin^(2/3), and no-ops when already met", () => {
+    // margin ∝ t^1.5, so to triple the margin, thickness grows by 3^(2/3).
+    expect(thicknessForFlutterMargin(0.002, 0.5, 1.5)).toBeCloseTo(0.002 * Math.pow(3, 2 / 3), 9);
+    // Already at/above the target ⇒ leave the thickness alone.
+    expect(thicknessForFlutterMargin(0.003, 2.0, 1.5)).toBe(0.003);
+    // Degenerate inputs return the input unchanged.
+    expect(thicknessForFlutterMargin(0, 0.5, 1.5)).toBe(0);
+  });
+
+  it("the fix thickness, flown, actually reaches the target margin (conservatively)", async () => {
+    const doc = await load("demo-dual-deploy.ork"); // a fast, transonic flight
+    for (const p of flattenRocket(doc.rocket)) {
+      const c = p.component;
+      if (c.kind === "trapezoidfinset" || c.kind === "ellipticalfinset" || c.kind === "freeformfinset") {
+        (c as { thickness: number }).thickness = 0.0008; // 0.8 mm — flutters
+      }
+    }
+    const thin = runFromDocument(doc).result.flutter!.worst;
+    expect(thin.margin).toBeLessThan(RECOMMENDED_FLUTTER_MARGIN);
+
+    const tFix = thicknessForFlutterMargin(thin.thickness, thin.margin, RECOMMENDED_FLUTTER_MARGIN);
+    expect(tFix).toBeGreaterThan(thin.thickness);
+
+    // Re-fly the design with the fins thickened to the fix via the same what-if the UI uses.
+    const fixed = runFlight(doc.rocket, { geometry: { finThickness: tFix } }).result.flutter!.worst;
+    // It reaches the target and, because a thicker fin also drags a little more (lower peak speed),
+    // errs a touch above it — never below. Not wildly over, either.
+    expect(fixed.margin).toBeGreaterThanOrEqual(RECOMMENDED_FLUTTER_MARGIN * 0.99);
+    expect(fixed.margin).toBeLessThan(RECOMMENDED_FLUTTER_MARGIN * 1.35);
+  }, 20000);
 
   it("returns undefined for a finless design", async () => {
     const doc = await load("demo-single-deploy.ork");

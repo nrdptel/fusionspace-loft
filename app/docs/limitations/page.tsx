@@ -125,7 +125,11 @@ export default function Limitations() {
         matching the design&apos;s material name to a representative value, and G10 fibreglass is
         assumed (and labelled as such) when the material is missing or unrecognised. Loft therefore
         keeps a recommended margin and cautions when it is thin; it never reports a fin as
-        flutter-safe. Treat it as a reason to add thickness or reduce span, not as a pass/fail.
+        flutter-safe. Treat it as a reason to add thickness or reduce span, not as a pass/fail. When
+        the margin is thin Loft also names the thickness that would reach the recommended margin
+        (a closed-form inverse of the same estimate, erring a touch thick) — but it inherits the
+        estimate&apos;s ±20% method spread and its uniform-isotropic-fin assumption, so it is a
+        starting point for a real structural design, not a substitute for one.
       </p>
 
       <h3>Serial staging is simulated; parallel and strap-on staging isn&apos;t</h3>
