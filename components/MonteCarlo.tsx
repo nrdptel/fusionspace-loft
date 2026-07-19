@@ -57,6 +57,7 @@ export default function MonteCarlo({
   // of degrees of rail lean, and a couple of m/s of wind variability. All editable.
   const [impulsePct, setImpulsePct] = useState(5);
   const [massPct, setMassPct] = useState(3);
+  const [dragPct, setDragPct] = useState(10);
   const [rodAngleDeg, setRodAngleDeg] = useState(2);
   const [windSpeedMps, setWindSpeedMps] = useState(2);
   const [result, setResult] = useState<MonteCarloResult | null>(null);
@@ -70,17 +71,18 @@ export default function MonteCarlo({
     () => ({
       impulseFrac: Math.max(0, impulsePct) / 100,
       massFrac: Math.max(0, massPct) / 100,
+      dragFrac: Math.max(0, dragPct) / 100,
       rodAngleDeg: Math.max(0, rodAngleDeg),
       windSpeedMps: Math.max(0, windSpeedMps),
     }),
-    [impulsePct, massPct, rodAngleDeg, windSpeedMps],
+    [impulsePct, massPct, dragPct, rodAngleDeg, windSpeedMps],
   );
 
   // Debounce the dispersion inputs so typing in a field doesn't kick off a fresh 300-flight run on
   // every keystroke — the run waits until the value settles. (Serialised as the effect dependency so
   // a new object identity from an unchanged value doesn't re-trigger it.)
   const [settled, setSettled] = useState(dispersions);
-  const dispKey = `${dispersions.impulseFrac}|${dispersions.massFrac}|${dispersions.rodAngleDeg}|${dispersions.windSpeedMps}`;
+  const dispKey = `${dispersions.impulseFrac}|${dispersions.massFrac}|${dispersions.dragFrac}|${dispersions.rodAngleDeg}|${dispersions.windSpeedMps}`;
   useEffect(() => {
     const id = setTimeout(() => setSettled(dispersions), 350);
     return () => clearTimeout(id);
@@ -132,8 +134,9 @@ export default function MonteCarlo({
         <span className="text-xs text-zinc-500 dark:text-zinc-400">{SAMPLES} flights on your device</span>
       </div>
       <p className="mt-1.5 text-sm text-zinc-600 dark:text-zinc-300">
-        Fly this design hundreds of times with the motor impulse, rail angle, and wind jittered around
-        their nominal values, and see the <em>spread</em> of the outcomes — the apogee band to expect
+        Fly this design hundreds of times with the motor impulse, dry mass, aerodynamic drag, rail
+        angle, and wind jittered around their nominal values, and see the <em>spread</em> of the
+        outcomes — the apogee band to expect
         and how big a recovery area to plan for. The physics is the same each flight; the uncertainty
         is your own stated assumptions carried through it, not new precision.
       </p>
@@ -152,7 +155,7 @@ export default function MonteCarlo({
 
       {open && (
         <>
-          <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
             <NumberField
               label="Motor impulse ±1σ"
               value={impulsePct}
@@ -168,6 +171,14 @@ export default function MonteCarlo({
               unit="%"
               step={1}
               hint="Build-mass tolerance"
+            />
+            <NumberField
+              label="Aero drag ±1σ"
+              value={dragPct}
+              onChange={setDragPct}
+              unit="%"
+              step={1}
+              hint="Drag-coefficient uncertainty"
             />
             <NumberField
               label="Rail angle ±1σ"

@@ -477,9 +477,12 @@ export default function Methods() {
         you set: the motor impulse scales the thrust curve (a motor&apos;s propellant mass is
         essentially fixed, so its lot-to-lot variation is in average thrust); the dry mass scales the
         airframe&apos;s structure uniformly (so the centre of gravity holds and only the total mass
-        moves); the rail angle adds a lean to the launch rod; and the wind speed varies around the
-        design&apos;s nominal. Impulse and dry mass are the two main drivers of the apogee band; rail
-        angle and wind drive the landing scatter. The
+        moves); the aerodynamic drag scales the zero-lift drag coefficient (the drag model&apos;s own
+        uncertainty — the single largest error source, so its spread belongs in the band rather than
+        being treated as exact; it does not touch a deployed canopy&apos;s drag area); the rail angle
+        adds a lean to the launch rod; and the wind speed varies around the design&apos;s nominal.
+        Impulse, dry mass, and drag are the main drivers of the apogee band; rail angle and wind drive
+        the landing scatter. The
         rail-lean and wind <em>directions</em> are sampled uniformly from all bearings, so the landing
         scatter maps the recovery area regardless of the day&apos;s wind heading. The whole run is
         driven by a fixed-seed pseudo-random generator, so the same design and the same dispersions

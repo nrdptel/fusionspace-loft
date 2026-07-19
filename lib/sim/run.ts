@@ -85,6 +85,9 @@ export interface RunOptions {
   /** Scale the airframe's dry structural mass — build-to-build mass variation. Defaults to 1;
    *  used by the Monte-Carlo dispersion. */
   massScale?: number;
+  /** Scale the aerodynamic drag coefficient — the drag model's own uncertainty. Defaults to 1;
+   *  used by the Monte-Carlo dispersion. */
+  dragScale?: number;
 }
 
 /** Apply a what-if motor swap to a configuration: every instance flies the chosen motor, keeping
@@ -135,11 +138,13 @@ export function runFlight(rocket: Rocket, opts: RunOptions = {}): FlightRun {
   const withExtras = extraMasses.length ? { ...built.input, extraMasses } : built.input;
   const scaled =
     (opts.thrustScale !== undefined && opts.thrustScale !== 1) ||
-    (opts.massScale !== undefined && opts.massScale !== 1)
+    (opts.massScale !== undefined && opts.massScale !== 1) ||
+    (opts.dragScale !== undefined && opts.dragScale !== 1)
       ? {
           ...withExtras,
           ...(opts.thrustScale !== undefined && opts.thrustScale !== 1 ? { thrustScale: opts.thrustScale } : {}),
           ...(opts.massScale !== undefined && opts.massScale !== 1 ? { massScale: opts.massScale } : {}),
+          ...(opts.dragScale !== undefined && opts.dragScale !== 1 ? { dragScale: opts.dragScale } : {}),
         }
       : withExtras;
   const base = opts.timeStep ? { ...scaled, timeStep: opts.timeStep } : scaled;

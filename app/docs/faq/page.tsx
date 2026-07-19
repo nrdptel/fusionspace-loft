@@ -155,9 +155,9 @@ export default function Faq() {
       <QA q="How high will it really go, and where will it land?">
         <p>
           Under the results, <em>Flight dispersion (Monte-Carlo)</em> flies the design a few hundred
-          times with the motor impulse, dry mass, rail angle, and wind jittered around their nominal
-          values, and shows the <em>spread</em> instead of a single number: the apogee band you can
-          expect (5th to
+          times with the motor impulse, dry mass, aerodynamic drag, rail angle, and wind jittered
+          around their nominal values, and shows the <em>spread</em> instead of a single number: the
+          apogee band you can expect (5th to
           95th percentile), the peak-speed band, and the radius from the pad that contains 95% of the
           landings — the recovery area to plan for. You set the one-sigma spread on each input, so the
           answer reflects your own conditions. The physics is the same trusted flight each time; the

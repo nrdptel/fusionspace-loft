@@ -1,8 +1,9 @@
-/** Monte-Carlo flight dispersion: fly the design many times with the launch conditions and motor
- *  impulse jittered around their nominal values, and report the spread of the outcomes — how high
- *  it reaches, how fast it goes, and how far from the pad it comes down. This turns a single
- *  deterministic flight into a *distribution*, which is what a flyer actually needs to size a
- *  recovery area or gauge whether a waiver ceiling is safe under real-world variability.
+/** Monte-Carlo flight dispersion: fly the design many times with the motor total impulse, dry mass,
+ *  aerodynamic drag, and launch conditions (rail lean, wind) jittered around their nominal values,
+ *  and report the spread of the outcomes — how high it reaches, how fast it goes, and how far from
+ *  the pad it comes down. This turns a single deterministic flight into a *distribution*, which is
+ *  what a flyer actually needs to size a recovery area or gauge whether a waiver ceiling is safe
+ *  under real-world variability.
  *
  *  Every sample is an ordinary Loft flight through the same trusted solver — nothing about the
  *  physics changes. The uncertainty is entirely in the INPUTS, which are the flyer's own stated
@@ -38,6 +39,12 @@ export interface Dispersions {
   /** Wind-speed spread around the nominal, 1σ (m/s), truncated at zero. The main driver of how far
    *  and how variably the rocket drifts under canopy. */
   windSpeedMps?: number;
+  /** Drag-coefficient uncertainty as a fraction, 1σ (e.g. 0.1 = ±10%). Scales the aerodynamic
+   *  (zero-lift) drag. Drag is the single largest error source in a preliminary sim (see the
+   *  limitations log), so its uncertainty belongs in the apogee band alongside impulse and mass —
+   *  without it the spread reads tighter than the physics warrants. Does not touch a deployed
+   *  canopy's drag area. */
+  dragFrac?: number;
 }
 
 export interface MonteCarloOptions {
@@ -157,6 +164,7 @@ export function* monteCarloSamples(rocket: Rocket, opts: MonteCarloOptions): Gen
     const gWind = gaussian(rand);
     const railBearing = rand() * 360; // rail-lean direction — arbitrary
     const windBearing = rand() * 360; // wind heading — arbitrary
+    const gDrag = gaussian(rand); // drawn last so adding it doesn't reshuffle the earlier draws
 
     // Impulse: a motor never delivers below ~a tenth of its rating, so clamp the tail off zero to
     // keep a physical (and integrable) flight; the clamp only bites at absurd σ.
@@ -168,6 +176,9 @@ export function* monteCarloSamples(rocket: Rocket, opts: MonteCarloOptions): Gen
     // a lean the other way, already covered by the random bearing).
     const rodAngleDeg = d.rodAngleDeg ? Math.abs(nomAngle + gAngle * d.rodAngleDeg) : nomAngle;
     const windSpeed = d.windSpeedMps ? Math.max(0, nomWind + gWind * d.windSpeedMps) : nomWind;
+    // Drag scale: a physical drag is positive, so clamp the low tail well off zero (only bites at
+    // absurd σ). Nominal 1 when no drag spread is set.
+    const dragScale = d.dragFrac ? Math.max(0.2, 1 + gDrag * d.dragFrac) : 1;
 
     const overrides: ConditionOverrides = {
       ...base,
@@ -186,6 +197,7 @@ export function* monteCarloSamples(rocket: Rocket, opts: MonteCarloOptions): Gen
         geometry: opts.geometry,
         thrustScale,
         massScale,
+        dragScale,
       });
       if (!run.hasPropulsion) continue;
       const s = run.result.summary;

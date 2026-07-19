@@ -182,12 +182,16 @@ export default function Limitations() {
 
       <h3>Monte-Carlo dispersion propagates only the inputs you set</h3>
       <p>
-        The dispersion tool jitters four inputs — motor total impulse, dry mass, rail angle, and wind
-        speed — around their nominal values and flies each sample through the same solver. It is not a
-        full uncertainty budget: drag-coefficient uncertainty, thrust-curve <em>shape</em> variation
-        (only the overall scale is varied), centre-of-gravity shift (the dry mass is scaled uniformly,
-        so the CG holds), and ejection-timing scatter are not dispersed, and every sample inherits the
-        model&apos;s own systematic errors (notably the drag bias above). Because the flight is 3-DOF with a steady wind and no rotational dynamics,
+        The dispersion tool jitters five inputs — motor total impulse, dry mass, aerodynamic drag,
+        rail angle, and wind speed — around their nominal values and flies each sample through the
+        same solver. Dispersing the drag coefficient matters because drag is the single largest error
+        source, so its uncertainty (a scale on the zero-lift Cd, ±10% 1σ by default) belongs in the
+        apogee band; without it the spread reads tighter than the physics warrants. It is still not a
+        full uncertainty budget: thrust-curve <em>shape</em> variation (only the overall scale is
+        varied), centre-of-gravity shift (the dry mass is scaled uniformly, so the CG holds), and
+        ejection-timing scatter are not dispersed, and every sample inherits the model&apos;s own
+        systematic errors (a bias the scale can&apos;t remove — it widens the band around the nominal,
+        it doesn&apos;t re-centre it). Because the flight is 3-DOF with a steady wind and no rotational dynamics,
         the landing scatter captures the drift response to wind and rail lean but not weathercocking,
         gust response, or wind-shear turbulence. Read the bands as the spread <em>due to the inputs
         you dispersed</em>, layered on top of the single-flight limitations — not an absolute

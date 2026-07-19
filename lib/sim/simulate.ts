@@ -254,6 +254,12 @@ export interface SimulateInput {
    *  mass exactly. Scales each structural point mass and its inertia uniformly, so the CG is
    *  unchanged and only the total mass moves. Used by the Monte-Carlo dispersion. */
   massScale?: number;
+  /** Scale factor on the aerodynamic (zero-lift) drag coefficient, default 1. Models the drag
+   *  model's own uncertainty — the single largest error source (see the limitations log) — which a
+   *  build-and-conditions Monte-Carlo should propagate too. Multiplies the body/fin drag only, NOT a
+   *  deployed canopy's drag area (that is set by the chute, not the aero model). Used by the
+   *  Monte-Carlo dispersion; an ordinary flight leaves it at 1. */
+  dragScale?: number;
 }
 
 const MAX_TIME = 1200; // s, hard cap
@@ -282,6 +288,7 @@ export function simulate(input: SimulateInput): FlightResult {
   const dtDescent = input.descentTimeStep ?? DESCENT_STEP;
   const thrustScale = input.thrustScale ?? 1;
   const massScale = input.massScale ?? 1;
+  const dragScale = input.dragScale ?? 1;
   // Scale the dry structural masses uniformly (mass and its own inertia); the CG is unchanged
   // because every point scales together. Motor mass and what-if ballast are layered on separately
   // and are not scaled. A unit scale returns the points untouched.
@@ -467,7 +474,7 @@ export function simulate(input: SimulateInput): FlightResult {
       } else {
         const dr = dragCoefficient(g, atm, airSpeed);
         if (dr.extrapolated) extrapolated = true;
-        cdA = dr.cd * g.refArea;
+        cdA = dr.cd * dragScale * g.refArea;
       }
       const dragMag = 0.5 * atm.density * airSpeed * airSpeed * cdA;
       const dir = scale(airVel, -1 / airSpeed);

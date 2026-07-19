@@ -145,6 +145,33 @@ describe("monteCarlo", () => {
   );
 
   it(
+    "dragScale lowers apogee and more drag spread widens the band",
+    async () => {
+      const doc = await load("demo-single-deploy.ork");
+      const sim = doc.simulations[0];
+      const fly = (dragScale: number) =>
+        runFlight(doc.rocket, {
+          configId: sim.conditions.configId,
+          overrides: overridesFromStored(sim),
+          ballistic: true,
+          dragScale,
+        }).result.summary;
+      // More drag than the model's nominal flies lower; less drag flies higher.
+      expect(fly(1.2).apogee).toBeLessThan(fly(1).apogee);
+      expect(fly(0.8).apogee).toBeGreaterThan(fly(1).apogee);
+
+      // As a dispersion source, more drag-coefficient spread widens the apogee band around a
+      // roughly unchanged median.
+      const { rocket, opts } = await baseOpts();
+      const tight = monteCarlo(rocket, { ...opts, dispersions: { dragFrac: 0.02 } });
+      const wide = monteCarlo(rocket, { ...opts, dispersions: { dragFrac: 0.2 } });
+      expect(wide.apogee.sd).toBeGreaterThan(tight.apogee.sd * 2);
+      expect(Math.abs(wide.apogee.p50 - tight.apogee.p50) / tight.apogee.p50).toBeLessThan(0.05);
+    },
+    T,
+  );
+
+  it(
     "wind spread drives the landing scatter and recovery radius",
     async () => {
       const { rocket, opts } = await baseOpts();
