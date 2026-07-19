@@ -232,6 +232,9 @@ export interface SimulateInput {
   phases?: StagePhase[];
   /** Fixed step during boost/coast (s). Descent uses a coarser step. */
   timeStep?: number;
+  /** Fixed step during descent under recovery (s). Defaults to `DESCENT_STEP`. Exposed mainly so a
+   *  convergence check can vary it; ordinary flights use the default. */
+  descentTimeStep?: number;
   /** Extra structural point masses layered onto the airframe for every phase — the "what-if"
    *  ballast trim (added nose weight, say). They ride the flown vehicle throughout, so they shift
    *  mass and CG (and thus apogee and stability) exactly as a real added mass would. Empty/absent
@@ -251,9 +254,28 @@ export interface SimulateInput {
 
 const MAX_TIME = 1200; // s, hard cap
 
+/** Integration step ceiling under recovery. Once a canopy is open the vehicle settles to terminal
+ *  velocity within a second or two and then descends at a near-constant speed — an all-but-linear
+ *  trajectory that a large step integrates as accurately as a small one. This ceiling is set from a
+ *  convergence study (lib/sim/descent-convergence.test.ts): halving it moves the landing point and
+ *  flight time by well under a tenth of a percent, so it is comfortably converged while keeping the
+ *  long descent — the bulk of a full flight's steps, and thus of a Monte-Carlo's cost — cheap. */
+const DESCENT_STEP = 0.1;
+/** Floor on the descent step. Small enough to stay stable through the opening-shock transient of a
+ *  realistic (even a mistimed high-speed) deployment; only reached briefly, since the drag pulls the
+ *  speed back to terminal within a few steps. */
+const DESCENT_STEP_MIN = 0.002;
+/** Target for (step × drag-response-rate) through an open canopy. An open parachute's quadratic
+ *  drag is a stiff decay: the explicit RK4 step is stable only while dt·λ stays inside its stability
+ *  region (~2.78 on the real axis), where λ = ρ·(Cd·A)·v/m is the linearised response rate. Holding
+ *  dt·λ at this value keeps a comfortable margin, so a fast deployment cannot make the descent
+ *  diverge into a nonsensical speed (it once did, at a fixed coarse step). */
+const DESCENT_STABILITY = 1.0;
+
 export function simulate(input: SimulateInput): FlightResult {
   const { rocket, config, motors, recovery, conditions } = input;
   const dtBoost = input.timeStep ?? 0.01;
+  const dtDescent = input.descentTimeStep ?? DESCENT_STEP;
   const thrustScale = input.thrustScale ?? 1;
   const massScale = input.massScale ?? 1;
   // Scale the dry structural masses uniformly (mass and its own inertia); the CG is unchanged
@@ -457,14 +479,31 @@ export function simulate(input: SimulateInput): FlightResult {
     return a;
   };
 
+  // Descent step: capped at the (converged) ceiling, but shortened through an open canopy's stiff
+  // opening transient so a fast deployment cannot make the explicit integrator diverge. Before the
+  // canopy opens the fall is a smooth free-fall (small drag, not stiff), so it runs at the ceiling.
+  const descentStep = (s: SimState): number => {
+    if (!anyDeployed(recovery, s.t)) return dtDescent;
+    const mass = Math.max(1e-6, massSumAt(s.t));
+    const rho = conditions.atmosphere.sample(conditions.launchAltitude + s.pos.z).density;
+    const wind = windAt(s.pos.z);
+    const airSpeed = Math.hypot(s.vel.x - wind.x, s.vel.y - wind.y, s.vel.z - wind.z);
+    const cdA = deployedCdA(recovery, s.t) + geomAt(s.t).refArea * 0.5;
+    const rate = (rho * cdA * airSpeed) / mass; // linearised drag response rate λ (1/s)
+    if (!(rate > 0)) return dtDescent;
+    return Math.min(dtDescent, Math.max(DESCENT_STEP_MIN, DESCENT_STABILITY / rate));
+  };
+
   let dt = dtBoost;
   let steps = 0;
-  const maxSteps = Math.ceil(MAX_TIME / 0.02) + 10;
+  // Backstop against a runaway loop, generous enough that a real flight (a few thousand steps, even
+  // with brief sub-ms transients) never trips it — the shortened descent steps are only transient.
+  const maxSteps = Math.ceil(MAX_TIME / DESCENT_STEP_MIN) + 10;
 
   while (!landed && state.t < MAX_TIME && steps < maxSteps) {
     steps++;
-    // Phase-adaptive step: fine during powered/near-apogee, coarse during descent.
-    dt = phase === "descent" ? 0.05 : dtBoost;
+    // Phase-adaptive step: fine during powered/near-apogee, adaptive (stability-bounded) descent.
+    dt = phase === "descent" ? descentStep(state) : dtBoost;
 
     const prev = state;
     state = rk4Step(state, dt, accel);
@@ -616,12 +655,15 @@ export function simulate(input: SimulateInput): FlightResult {
       }
     }
 
-    // Sample the trajectory (thin it during long descent).
-    const gNow = geomAt(state.t);
-    const cdNow = anyDeployed(recovery, state.t)
-      ? 0
-      : dragCoefficient(gNow, atm, airSpeed).cd;
+    // Sample the trajectory (thin it during long descent). The per-sample drag coefficient is the
+    // one genuinely expensive quantity here (the drag buildup — logs and powers), and it feeds only
+    // the sample, so compute it only on steps actually kept, not on every integration step. The
+    // integrator's own drag is computed separately inside accel(); this changes nothing it sees.
     if (shouldSample(trajectory, state.t, phase)) {
+      const gNow = geomAt(state.t);
+      const cdNow = anyDeployed(recovery, state.t)
+        ? 0
+        : dragCoefficient(gNow, atm, airSpeed).cd;
       trajectory.push({
         t: state.t,
         altitude: state.pos.z,

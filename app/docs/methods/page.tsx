@@ -44,6 +44,23 @@ export default function Methods() {
         separately. The vector-shaped state is deliberate: extending to a full 6-DOF solve is
         additive, not a rewrite.
       </p>
+      <p>
+        The step is <strong>phase-adaptive</strong>. Boost and coast — where thrust and drag change
+        quickly — use a fine fixed step (<code>0.01&nbsp;s</code>). The long descent under recovery
+        is different: once a canopy is open the vehicle settles to a near-constant terminal velocity,
+        an all-but-linear fall that a much coarser step integrates just as accurately, so the descent
+        runs at a <code>0.1&nbsp;s</code> ceiling — set from a convergence study
+        (<code>lib/sim/descent-convergence.test.ts</code>: halving it moves the landing point and
+        flight time by under a tenth of a percent) and the bulk of a full flight&apos;s cost, which
+        matters most for the hundreds of flights a Monte-Carlo runs. An open parachute&apos;s
+        quadratic drag is a <em>stiff</em> decay, though, and a fast deployment (a mistimed early
+        ejection, a payload popping its chute at separation speed) can push an explicit step past its
+        stability limit and diverge. So through the opening transient the descent step is shortened to
+        hold <code>dt·λ</code> within the RK4 stability region, where <code>λ = ρ·(C<sub>d</sub>·A)·v/m</code>
+        is the linearised drag-response rate — small while the speed is high, relaxing back to the
+        ceiling as the canopy brings the rocket to terminal. The result is stable for any deploy speed
+        without paying for a fine step over the whole descent.
+      </p>
 
       <h2>Launch rail &amp; thrust-to-weight</h2>
       <p>

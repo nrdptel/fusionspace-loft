@@ -466,8 +466,9 @@ describe("payload-separation fixture flight", () => {
     // falls just after apogee — rather than dropping at burnout.
     expect(separation.time).toBeGreaterThan(burnout.time + 4);
     expect(separation.time).toBeGreaterThan(apogee.time);
-    // The payload's parachute opens on that lower-stage separation…
-    expect(deploy.time).toBeCloseTo(separation.time, 1);
+    // The payload's parachute opens on that lower-stage separation — detected at the first descent
+    // step past the separation instant, so within one such step (≤ the descent-step ceiling).
+    expect(Math.abs(deploy.time - separation.time)).toBeLessThanOrEqual(0.12);
     // …so it comes in under canopy, NOT ballistic (the bug this whole path guards against).
     expect(run.result.summary.descentRate).toBeLessThan(10);
     expect(run.result.warnings.some((w) => w.code === "ballistic-descent")).toBe(false);
