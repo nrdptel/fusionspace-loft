@@ -166,6 +166,53 @@ describe("barrowman — elliptical fin CP (integrated over the elliptical planfo
   });
 });
 
+describe("elliptical fin leading-edge sweep (drag)", () => {
+  // A half-ellipse fin's tip sits at mid-root-chord, so its leading edge sweeps back ~cr/2 over the
+  // span. Treating it as unswept (its stored sweepLength is 0) over-counts the leading-edge
+  // stagnation pressure drag — measured ~+22% on the fins of a real minimum-diameter design
+  // (OpenRocket's elliptical_v1.9) against that file's stored per-step Cd. The drag sweep factor
+  // must reflect the cr/2 leading-edge sweep.
+  const CR = 0.09;
+  const SPAN = 0.08;
+  function withFin(fin: GenericFinSet | TrapezoidFinSet): Rocket {
+    const nose: NoseCone = {
+      id: "n", name: "nose", kind: "nosecone", placement: { method: "after", offset: 0 },
+      length: 0.2, aftRadius: 0.025, shape: "ogive", shapeParameter: 0, children: [],
+    };
+    const body: BodyTube = {
+      id: "b", name: "body", kind: "bodytube", placement: { method: "after", offset: 0 },
+      outerRadius: 0.025, thickness: 0.001, length: 0.6, children: [fin],
+    };
+    return { name: "x", stages: [{ name: "s", components: [nose, body] }], configurations: [], referenceType: "maximum" };
+  }
+  const ellip: GenericFinSet = {
+    id: "f", name: "e", kind: "ellipticalfinset", placement: { method: "bottom", offset: 0 },
+    finCount: 4, rootChord: CR, height: SPAN, area: (Math.PI * CR * SPAN) / 4,
+    sweepLength: 0, thickness: 0.003, crossSection: "square", children: [],
+  };
+
+  it("applies the cr/2 leading-edge sweep to the drag sweep factor (not unswept)", () => {
+    const f = aeroGeometry(withFin(ellip)).finSweepFactor;
+    const cosL = Math.cos(Math.atan2(CR / 2, SPAN));
+    expect(f).toBeCloseTo(cosL * cosL, 6);
+    expect(f).toBeLessThan(1); // NOT treated as an unswept perpendicular edge
+  });
+
+  it("drags less than the same fin modelled as an unswept rectangle of equal frontal area", () => {
+    const atm = new Atmosphere().sample(0);
+    const v = 0.25 * atm.speedOfSound;
+    // A rectangular fin of the SAME frontal area (thickness × span) but a genuinely unswept LE.
+    const rect: TrapezoidFinSet = {
+      id: "f", name: "r", kind: "trapezoidfinset", placement: { method: "bottom", offset: 0 },
+      finCount: 4, rootChord: CR, tipChord: CR, height: SPAN, sweepLength: 0, thickness: 0.003,
+      crossSection: "square", children: [],
+    };
+    const ellipP = dragCoefficient(aeroGeometry(withFin(ellip)), atm, v).pressure;
+    const rectP = dragCoefficient(aeroGeometry(withFin(rect)), atm, v).pressure;
+    expect(ellipP).toBeLessThan(rectP); // the swept elliptical LE stagnates less
+  });
+});
+
 /** A body-of-revolution segment: nose (fore radius) → transition → aft body (aft radius). The
  *  transition is the piece under test; the tubes carry no normal force so the whole-rocket CNα
  *  and the transition's own contribution coincide. */

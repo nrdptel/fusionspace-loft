@@ -137,26 +137,34 @@ the external OpenRocket examples are dev-only:
 ```
 design                metric                Loft  RocketPy  OR stored   L−RPy
 -------------------------------------------------------------------------------
-demo-multi-config     apogee (m)          556.27    557.38      520.0   -0.2%   [bundled]
-                      max vel (m/s)       110.26    110.29      105.0   -0.0%
+demo-multi-config     apogee (m)          547.40    548.41      520.0   -0.2%   [bundled]
+                      max vel (m/s)       109.10    109.13      105.0   -0.0%
                       margin (cal)          4.51      4.51          -
-demo-single-deploy    apogee (m)         1006.21   1007.49      980.0   -0.1%   [bundled]
-                      max vel (m/s)       207.28    207.29      190.0   -0.0%
+demo-single-deploy    apogee (m)          992.79    994.12      980.0   -0.1%   [bundled]
+                      max vel (m/s)       205.22    205.24      190.0   -0.0%
                       margin (cal)          4.07      4.07          -
-demo-dual-deploy      apogee (m)         3083.58   3101.70     2250.0   -0.6%   [bundled]
-                      max vel (m/s)       456.21    456.44      305.0   -0.1%
-                      max Mach              1.35      1.35          -   -0.1%
+demo-dual-deploy      apogee (m)         2940.52   2957.12     2250.0   -0.6%   [bundled]
+                      max vel (m/s)       436.28    436.48      305.0   -0.0%
+                      max Mach              1.29      1.29          -   -0.1%
                       margin (cal)          3.06      3.06          -
-simple_v1.0           apogee (m)          293.01    293.45      248.4   -0.1%
-                      max vel (m/s)        97.65     97.70       89.0   -0.0%
-                      margin (cal)          1.94      1.94          -
-                        (real w/ chute)    268.48                        early deploy
+demo-boattail         apogee (m)          905.36    906.64     1015.0   -0.1%   [bundled]
+                      max vel (m/s)       187.34    187.36      196.0   -0.0%
+                      margin (cal)          3.82      3.84          -
+elliptical_v1.9       apogee (m)          657.88    658.38      662.0   -0.1%
+                      max vel (m/s)       182.09    182.10      181.9   -0.0%
+                      margin (cal)          1.93      1.94          -
+simple_v1.0           apogee (m)          279.92    280.33      248.4   -0.1%
+                      max vel (m/s)        91.42     91.47       89.0   -0.0%
+                      margin (cal)          2.25      2.25          -
 ```
 
 Apogee, velocity, Mach, and time-to-apogee all land within ~0.6% of the independent engine; the
-independently-computed Barrowman static margin agrees to a fraction of a caliber. (Note the
-OpenRocket "stored" column for the demo designs is an author estimate, not a real run — RocketPy is
-the *real* independent check for them; see `fixtures/README.md`.)
+independently-computed Barrowman static margin agrees to a fraction of a caliber. The
+`elliptical_v1.9` row is a real OpenRocket example whose *stored* column is a genuine OpenRocket run
+(not an author estimate): reading the elliptical fin's leading-edge sweep into the drag brought
+Loft's apogee there from −6.5% to −0.6% of OpenRocket's own figure. (For the bundled demo designs the
+OpenRocket "stored" column is an author estimate, not a real run — RocketPy is the *real* independent
+check for them; see `fixtures/README.md`.)
 
 **Known residual:** rail-exit velocity reads a few percent higher in Loft than in RocketPy. That's
 a rail-clearance *convention* difference (Loft marks exit when the CG passes the rail length;

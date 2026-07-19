@@ -355,7 +355,13 @@ export function aeroGeometry(rocket: Rocket): AeroGeometry {
       finThickness = Math.max(finThickness, c.thickness);
       meanFinChord = c.height > 0 ? c.area / c.height : c.rootChord;
       finSpan = Math.max(finSpan, c.height);
-      finSweepLength = c.sweepLength;
+      // Leading-edge sweep for the drag sweep factor. An elliptical fin is a half-ellipse whose tip
+      // sits at mid-root-chord, so its leading edge sweeps back ~half the root chord over the span;
+      // its stored sweepLength is 0, and treating that as an unswept (perpendicular) leading edge
+      // over-counts the stagnation pressure drag — measured ~+22% on the fins of a heavily-finned
+      // minimum-diameter design against OpenRocket's stored per-step Cd. A freeform fin's stored
+      // sweepLength already reflects its actual outline, so use that.
+      finSweepLength = c.kind === "ellipticalfinset" ? c.rootChord / 2 : c.sweepLength;
       noteFinEdge(c.crossSection);
     } else if ((c.kind === "launchlug" || c.kind === "railbutton") && c.radius && c.radius > 0) {
       const count = Math.max(1, c.instanceCount ?? 1);

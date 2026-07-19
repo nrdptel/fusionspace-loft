@@ -258,7 +258,13 @@ export default function Methods() {
           a thickness-only estimate under-counts it several-fold — and reading the design&apos;s
           stated cross-section is what brought Loft&apos;s drag on the reference &ldquo;simple model
           rocket&rdquo; into line with OpenRocket&apos;s. A design that names no cross-section is
-          treated as square, OpenRocket&apos;s own default.
+          treated as square, OpenRocket&apos;s own default. The leading-edge <code>cos²Λ</code>
+          reduction uses each fin&apos;s actual leading-edge sweep — including an{" "}
+          <em>elliptical</em> fin&apos;s, whose tip sits at mid-root-chord so its edge sweeps back
+          about half the root chord over the span. Treating that curved edge as unswept (its stored
+          sweep is zero) over-counted its stagnation drag by ~22% on a real minimum-diameter design;
+          reading the sweep from the planform brought Loft&apos;s per-step drag on OpenRocket&apos;s
+          <em> elliptical_v1.9</em> example to within ~1% of its stored curve.
         </li>
         <li>
           <strong>Shoulder pressure drag</strong> — a diameter-<em>increasing</em> transition

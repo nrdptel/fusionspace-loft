@@ -99,8 +99,12 @@ export default function Limitations() {
         <code>(½ − 2/3π)·c<sub>root</sub> ≈ 0.288·c<sub>root</sub></code> from the root leading edge,
         which an independent 6-DOF engine (RocketPy) agrees with to within 0.01 caliber of static
         margin. Its <em>mass</em> CG is likewise exact — a half-ellipse is symmetric about its
-        mid-chord, so its area centroid is <code>0.5·c<sub>root</sub></code>. Only the elliptical
-        fin&apos;s normal-force slope still comes from an area- and span-equivalent trapezoid. A
+        mid-chord, so its area centroid is <code>0.5·c<sub>root</sub></code>. Its <em>drag</em> now
+        reflects the leading edge&apos;s sweep too: the half-ellipse tip sits at mid-root-chord, so
+        the edge sweeps back about half the root chord — previously treated as unswept, which
+        over-counted its stagnation pressure drag by ~22% on a heavily-finned minimum-diameter design
+        (measured against OpenRocket&apos;s stored per-step Cd). Only the elliptical fin&apos;s
+        normal-force slope still comes from an area- and span-equivalent trapezoid. A
         freeform fin&apos;s <em>centre of pressure</em> is now computed exactly from its actual
         outline — the Barrowman strip-theory quarter-chord centroid{" "}
         <code>x̄ = ∫(x<sub>LE</sub> + ¼c)·c dy / ∫c dy</code> over the polygon, which reduces to the
