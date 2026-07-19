@@ -58,7 +58,12 @@ export default function Limitations() {
         designs now land within a few percent of OpenRocket, and the residual runs in both
         directions rather than the consistent over-prediction the earlier base-drag discount used to
         produce — a transonic design can read a few percent low, where the wave-drag estimate is
-        roughest. Always compare against your own design&apos;s stored OpenRocket numbers on the{" "}
+        roughest. The one shape whose residual is one-sided is a very <em>short, wide</em> body —
+        a fineness ratio below about six, more a deliberate base-drag stunt than a typical airframe:
+        its skin-friction form factor reads high, so Loft over-states that friction (about twofold on
+        OpenRocket&apos;s own short-wide &ldquo;base drag hack&rdquo; example). A slender airframe —
+        the usual case, and the one the corpus above validates — is unaffected. Always compare
+        against your own design&apos;s stored OpenRocket numbers on the{" "}
         <Link href="/docs/validation">Validation</Link>{" "}
         page.
       </p>
