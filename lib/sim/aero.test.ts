@@ -339,6 +339,21 @@ describe("fin cross-section pressure drag", () => {
     const p = (r: Rocket) => dragCoefficient(aeroGeometry(r), atm, 0.25 * atm.speedOfSound).pressure;
     expect(p(swept)).toBeLessThan(p(straight));
   });
+
+  it("a rounded leading edge carries no stagnation drag, only its trailing-edge base wake", () => {
+    // A radiused leading edge attaches the flow (no stagnation face), so rounded and airfoil share
+    // the same leading-edge term; the rounded fin's only extra pressure is its trailing-edge base
+    // wake, half a square edge's base drag. Treating the rounded leading edge as half a square one
+    // over-counted a rounded fin's pressure drag ~2× against OpenRocket's stored per-step Cd.
+    const M = 0.25;
+    const round = aeroGeometry(finned("rounded"));
+    const foil = aeroGeometry(finned("airfoil"));
+    const pr = dragCoefficient(round, atm, M * atm.speedOfSound).pressure;
+    const pf = dragCoefficient(foil, atm, M * atm.speedOfSound).pressure;
+    const baseCoeff = 0.12 + 0.13 * M * M;
+    const finEdge = round.finFrontalArea / round.refArea;
+    expect(pr - pf).toBeCloseTo(0.5 * baseCoeff * finEdge, 6);
+  });
 });
 
 describe("fins split across single-fin sets (real-file pattern)", () => {

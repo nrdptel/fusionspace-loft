@@ -251,8 +251,12 @@ export default function Methods() {
           <strong>Fin pressure drag</strong> — set by the fin&apos;s edge <em>cross-section</em>. A
           square edge stagnates the flow head-on (stagnation-pressure coefficient ≈ 0.85 subsonic,
           reduced by leading-edge sweep as <code>cos²Λ</code>) and leaves a blunt trailing-edge base;
-          a rounded edge roughly halves both; an airfoil is streamlined, leaving only the small
-          transonic compressibility rise. Referenced to the fins&apos; frontal area
+          a rounded edge attaches the flow at the leading edge — no stagnation face, so only the
+          small compressibility rise there, like an airfoil — while its rounded trailing edge still
+          sheds a wake at about half a square base; an airfoil is streamlined at both edges, leaving
+          only the compressibility rise. Modelling a rounded leading edge as half a square one (a
+          coarser earlier heuristic) over-counted a rounded fin&apos;s pressure drag about twofold
+          against OpenRocket&apos;s stored per-step Cd on its rounded-fin examples. Referenced to the fins&apos; frontal area
           (<code>N·thickness·span</code>, summed over every fin set — so a design that models its
           fins as several separate single-fin sets, a common OpenRocket pattern, is counted in full
           rather than from one set alone) over the reference area, after the OpenRocket technical

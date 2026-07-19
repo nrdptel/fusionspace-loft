@@ -274,6 +274,19 @@ export default async function Validation() {
         simulation&apos;s configuration, and read the OpenRocket-vs-Loft panel. (The file isn&apos;t
         bundled — it ships with OpenRocket, which is GPL.)
       </p>
+      <p>
+        Driving more of OpenRocket&apos;s own example files the same way turned up two drag fixes.
+        Its <em>rounded-fin</em> examples (the <em>&ldquo;deployable payload&rdquo;</em> and
+        <em> &ldquo;3D-printable&rdquo;</em> designs) coasted ~18–20% draggier in Loft than in their
+        stored curves, because a rounded fin leading edge was modelled as half a square one; a
+        radiused edge in fact attaches the flow with no stagnation face, so its leading edge now
+        carries only the compressibility term (like an airfoil), bringing those coasts to within
+        ~4–9% of OpenRocket&apos;s Cd. And a design that models its fins as several separate one-fin
+        sets (the <em>&ldquo;ARC payload&rdquo;</em> example: three sets, one fin each) had its fin
+        frontal area — hence pressure drag — counted from a single set, reading ~14% low on total Cd;
+        summing over sets brings it within ~4%. Both are reproducible by importing the file and
+        reading the per-step panel; neither file is bundled (GPL).
+      </p>
 
       <h2>Motor curves vs certification</h2>
       <p>

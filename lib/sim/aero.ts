@@ -504,7 +504,13 @@ export function dragCoefficient(
       finTeCoeff = 0;
       break;
     case "rounded":
-      finLeCoeff = 0.5 * stagnationCd(mach);
+      // A radiused leading edge attaches the flow — there is no flat stagnation face — so subsonically
+      // it carries no stagnation pressure drag, only the compressibility rise, the same leading-edge
+      // term as an airfoil (Hoerner, edge/bluff-edge drag). Its rounded trailing edge still sheds a
+      // wake, taken at half a square edge's base drag. (The earlier half-stagnation leading edge
+      // over-counted a rounded fin's pressure drag ~2× against OpenRocket's stored per-step Cd on its
+      // rounded-fin examples.)
+      finLeCoeff = leCompress;
       finTeCoeff = 0.5 * baseCoeff;
       break;
     default: // square (also the default when no cross-section is named)
