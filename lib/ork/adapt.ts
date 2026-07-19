@@ -43,6 +43,26 @@ export interface StoredResults {
   optimumDelay?: number;
 }
 
+/** One row of a design tool's stored per-step flight log — the values it recorded at one instant
+ *  of its own simulation. Used to cross-check Loft's solver against the numbers the file already
+ *  carries; the drag coefficient in particular is an independent per-step drag oracle. */
+export interface StoredFlightPoint {
+  time: number; // s
+  altitude: number; // m AGL
+  velocity: number; // m/s, total
+  mach: number;
+  /** Total (zero-lift) drag coefficient the design tool computed at this step. NaN if not stored. */
+  cd: number;
+}
+
+/** The per-step flight log a design file stores from its own simulation, if any. A single branch
+ *  (OpenRocket stores one per stage on a staged flight); the primary/longest one is taken. */
+export interface StoredFlightData {
+  /** Branch name as stored (e.g. "Main", "Sustainer"). */
+  branch: string;
+  points: StoredFlightPoint[];
+}
+
 export interface StoredConditions {
   configId?: string;
   rodLength?: number;
@@ -61,6 +81,10 @@ export interface StoredSimulation {
   conditions: StoredConditions;
   results: StoredResults;
   hasResults: boolean;
+  /** The design tool's own per-step flight log, when the file stores one — for cross-checking
+   *  Loft's solver against the trajectory and drag the file already carries. Undefined when the
+   *  file saved only summary results (or none). */
+  flightData?: StoredFlightData;
 }
 
 export interface OrkDocument {
@@ -819,9 +843,59 @@ function parseSimulations(root: XmlNode): StoredSimulation[] {
       conditions,
       results,
       hasResults,
+      flightData: fd ? parseFlightData(fd) : undefined,
     });
   }
   return out;
+}
+
+/** Columns of a databranch we surface, keyed to the display names OpenRocket writes in the
+ *  `types` attribute. Mapped by name because the column ORDER varies between file-format versions. */
+const FLIGHT_COLUMNS: Record<keyof StoredFlightPoint, string> = {
+  time: "Time",
+  altitude: "Altitude",
+  velocity: "Total velocity",
+  mach: "Mach number",
+  cd: "Drag coefficient",
+};
+
+/** Read a design tool's stored per-step flight log from a <flightdata> node. OpenRocket stores it
+ *  as one <databranch> per stage, each a `types="Time,Altitude,…"` header plus comma-separated
+ *  <datapoint> rows. Columns are located by name (order differs across versions); the longest
+ *  branch — the primary flight — is taken. Returns undefined when no usable series is present, so
+ *  a file that saved only summary results (or none) simply carries no flight log. */
+function parseFlightData(fd: XmlNode): StoredFlightData | undefined {
+  let best: StoredFlightData | undefined;
+  for (const branch of children(fd, "databranch")) {
+    const types = branch.attrs.types;
+    if (!types) continue;
+    const names = types.split(",");
+    const idx = {} as Record<keyof StoredFlightPoint, number>;
+    let usable = true;
+    for (const key of Object.keys(FLIGHT_COLUMNS) as (keyof StoredFlightPoint)[]) {
+      const i = names.indexOf(FLIGHT_COLUMNS[key]);
+      // Time, altitude and Mach are the minimum needed to plot a trajectory or a drag curve; a
+      // branch missing any of them is not a usable log. A missing Cd/velocity column stays NaN.
+      if (i < 0 && (key === "time" || key === "altitude" || key === "mach")) usable = false;
+      idx[key] = i;
+    }
+    if (!usable) continue;
+    const points: StoredFlightPoint[] = [];
+    for (const dp of children(branch, "datapoint")) {
+      const f = dp.text.split(",");
+      const at = (i: number) => (i >= 0 ? parseNum(f[i], NaN) : NaN);
+      const time = at(idx.time);
+      const altitude = at(idx.altitude);
+      const mach = at(idx.mach);
+      // A row whose core fields are unreadable is dropped (some tools emit a blank trailer row).
+      if (!Number.isFinite(time) || !Number.isFinite(altitude) || !Number.isFinite(mach)) continue;
+      points.push({ time, altitude, mach, velocity: at(idx.velocity), cd: at(idx.cd) });
+    }
+    if (points.length > 1 && (!best || points.length > best.points.length)) {
+      best = { branch: branch.attrs.name || "flight", points };
+    }
+  }
+  return best;
 }
 
 function numOrUndef(node: XmlNode, name: string): number | undefined {

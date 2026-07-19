@@ -599,3 +599,72 @@ describe("freeform fin exact chordwise CP (Barrowman strip theory)", () => {
     expect(finContribution.x - finPos.xFore).toBeCloseTo(fin.cpChord!, 6);
   });
 });
+
+describe("stored per-step flight data", () => {
+  // A minimal logged design: a nose + body in one stage, plus a stored simulation whose flight log
+  // is the given databranch markup. Enough to exercise the per-step parser without a real GPL file.
+  const withBranches = (branches: string) => `<?xml version='1.0'?>
+    <openrocket version="1.10">
+      <rocket><name>Logged</name><subcomponents><stage><subcomponents>
+        <nosecone><length>0.1</length><aftradius>0.02</aftradius><shape>ogive</shape></nosecone>
+        <bodytube><length>0.3</length><radius>0.02</radius><thickness>0.001</thickness></bodytube>
+      </subcomponents></stage></subcomponents></rocket>
+      <simulations><simulation status="loaded">
+        <name>Sim 1</name>
+        <flightdata maxaltitude="100">${branches}</flightdata>
+      </simulation></simulations>
+    </openrocket>`;
+
+  it("parses the per-step series, mapping columns by name regardless of order", () => {
+    // Column order deliberately scrambled (Cd first, Mach before Altitude) to prove name-based lookup.
+    const branch = `<databranch name="Main" types="Drag coefficient,Time,Mach number,Total velocity,Altitude">
+      <datapoint>0.55,0.0,0.30,100.0,0.0</datapoint>
+      <datapoint>0.50,1.0,0.25,85.0,80.0</datapoint>
+      <datapoint>0.48,2.0,0.20,70.0,150.0</datapoint>
+    </databranch>`;
+    const fd = adaptOrkXml(withBranches(branch)).simulations[0].flightData;
+    expect(fd).toBeDefined();
+    expect(fd!.branch).toBe("Main");
+    expect(fd!.points).toHaveLength(3);
+    expect(fd!.points[0]).toMatchObject({ time: 0, altitude: 0, mach: 0.3, velocity: 100, cd: 0.55 });
+    expect(fd!.points[2].cd).toBeCloseTo(0.48, 6);
+    expect(fd!.points[1].altitude).toBeCloseTo(80, 6);
+  });
+
+  it("takes the longest branch (the primary flight) on a staged log", () => {
+    const booster = `<databranch name="Booster" types="Time,Altitude,Mach number">
+      <datapoint>0,0,0.1</datapoint><datapoint>0.5,10,0.2</datapoint></databranch>`;
+    const sustainer = `<databranch name="Sustainer" types="Time,Altitude,Mach number">
+      <datapoint>0,0,0.1</datapoint><datapoint>1,50,0.3</datapoint><datapoint>2,120,0.25</datapoint><datapoint>3,150,0.1</datapoint></databranch>`;
+    const fd = adaptOrkXml(withBranches(booster + sustainer)).simulations[0].flightData;
+    expect(fd!.branch).toBe("Sustainer");
+    expect(fd!.points).toHaveLength(4);
+  });
+
+  it("leaves an absent Cd column NaN but still reads the trajectory", () => {
+    const branch = `<databranch name="Main" types="Time,Altitude,Mach number">
+      <datapoint>0,0,0.1</datapoint><datapoint>1,50,0.3</datapoint></databranch>`;
+    const p = adaptOrkXml(withBranches(branch)).simulations[0].flightData!.points;
+    expect(p).toHaveLength(2);
+    expect(Number.isNaN(p[0].cd)).toBe(true);
+    expect(p[1].altitude).toBeCloseTo(50, 6);
+  });
+
+  it("drops rows whose core fields are unreadable", () => {
+    const branch = `<databranch name="Main" types="Time,Altitude,Mach number">
+      <datapoint>0,0,0.1</datapoint><datapoint>NaN,NaN,NaN</datapoint><datapoint>2,120,0.25</datapoint></databranch>`;
+    expect(adaptOrkXml(withBranches(branch)).simulations[0].flightData!.points).toHaveLength(2);
+  });
+
+  it("carries no flight log when the file stores only summary results", () => {
+    const doc = adaptOrkXml(withBranches(""));
+    expect(doc.simulations[0].flightData).toBeUndefined();
+    expect(doc.simulations[0].results.maxAltitude).toBeCloseTo(100, 6);
+  });
+
+  it("ignores a branch missing a required column (no Mach)", () => {
+    const branch = `<databranch name="Main" types="Time,Altitude,Total velocity">
+      <datapoint>0,0,0</datapoint><datapoint>1,50,40</datapoint></databranch>`;
+    expect(adaptOrkXml(withBranches(branch)).simulations[0].flightData).toBeUndefined();
+  });
+});

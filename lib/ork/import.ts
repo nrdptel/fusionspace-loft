@@ -8,7 +8,14 @@ import { readOrkXml } from "./zip";
 import { adaptOrkXml, type OrkDocument } from "./adapt";
 import { adaptRktXml } from "../rkt/adapt";
 
-export type { OrkDocument, StoredSimulation, StoredResults, StoredConditions } from "./adapt";
+export type {
+  OrkDocument,
+  StoredSimulation,
+  StoredResults,
+  StoredConditions,
+  StoredFlightData,
+  StoredFlightPoint,
+} from "./adapt";
 
 /** Adapt design XML to the canonical document, choosing the importer by the XML root element. */
 export function adaptDesignXml(xml: string): OrkDocument {
