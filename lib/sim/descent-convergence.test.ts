@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { importOrk } from "../ork/import";
 import { pickConfig } from "./run";
@@ -31,16 +31,7 @@ describe("descent-step convergence", () => {
 
     const steps = [0.025, 0.05, 0.1, 0.2];
     const runs = steps.map((s) => ({ s, ...flyAtDescentStep(input, s) }));
-    const finest = runs[0];
     const rel = (a: number, b: number) => (Math.abs(b) > 1e-9 ? Math.abs(a - b) / Math.abs(b) : Math.abs(a - b));
-    const lines = runs.map(
-      (r) =>
-        `dt=${r.s}: t=${r.flightTime.toFixed(2)}s drift=${r.drift.toFixed(2)}m land=(${r.landingX.toFixed(2)},${r.landingY.toFixed(2)}) vhit=${r.groundHit.toFixed(3)} | Δdrift=${(rel(r.drift, finest.drift) * 100).toFixed(3)}% Δt=${(rel(r.flightTime, finest.flightTime) * 100).toFixed(3)}%`,
-    );
-    writeFileSync(
-      "/tmp/claude-0/-home-user-fusionspace-loft/355810ed-510d-50b6-8900-e8b95b0c81ef/scratchpad/converge.txt",
-      lines.join("\n"),
-    );
 
     // The production step (0.1) vs half its size (0.05): landing, flight time, and ground-hit speed
     // agree to a fraction of a percent — the descent is well past converged at the production step.
