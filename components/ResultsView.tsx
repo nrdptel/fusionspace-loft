@@ -20,6 +20,11 @@ import type { UnitSystem } from "@/lib/display";
 import { overallLength } from "@/lib/model/geometry";
 import { noseBallastStation } from "@/lib/sim/run";
 import { marginTrim } from "@/lib/sim/trim";
+import { recoverySizing } from "@/lib/sim/recovery";
+
+/** A gentle target landing speed to size recovery toward — the middle of the ~3–6 m/s (10–20 ft/s)
+ *  band most designs aim for, the same range the hard-landing warning is written against. */
+const SOFT_LANDING_TARGET = 5;
 
 /** A healthy static margin to trim toward — comfortably above the 1-caliber rule of thumb, below
  *  the ~3-caliber point where over-stability starts to weathercock. */
@@ -127,6 +132,7 @@ export default function ResultsView({
           <Stat label="Flight time" q={d.seconds(s.flightTime)} />
           <Stat label="Max dynamic pressure" q={{ value: d.fmt(s.maxDynamicPressure / 1000, 1), unit: "kPa" }} />
         </div>
+        <RecoverySizingHint run={run} units={units} />
       </section>
 
       {/* Flight path */}
@@ -419,6 +425,35 @@ function StabilityTrimHint({ run, doc, units }: { run: FlightRun; doc: OrkDocume
           so no amount of nose weight makes this design comfortably stable. Enlarge the fins or move them aft.
         </>
       )}
+    </p>
+  );
+}
+
+/** When the design lands firm or hard under its recovery, say plainly how big a canopy would bring
+ *  it down to a gentle speed — the recovery-side goal-seek (lib/sim/recovery.ts), the companion to
+ *  the stability trim. Tied to the hard-landing warning: it appears exactly when that fix is the
+ *  actionable one, so it doesn't clutter a design that already lands softly. */
+function RecoverySizingHint({ run, units }: { run: FlightRun; units: UnitSystem }) {
+  const r = run.result;
+  // Only for an actual too-fast-under-canopy landing — the case the hard-landing warning flags.
+  // A ballistic descent (nothing opened) is a timing problem, not a sizing one, and is warned
+  // separately; skip it here (its ground-hit speed is far higher than any canopy landing).
+  const firmLanding = r.warnings.some((w) => w.code === "hard-landing");
+  if (!firmLanding) return null;
+
+  const refArea = Math.PI * r.stability.refRadius * r.stability.refRadius;
+  const sizing = recoverySizing(
+    { descentMass: r.burnoutMass, refArea, airDensity: r.descentAirDensity },
+    SOFT_LANDING_TARGET,
+  );
+  if (!(sizing.cdA > 0) || !Number.isFinite(sizing.diameter)) return null;
+
+  return (
+    <p className="mt-3 text-xs text-zinc-500 dark:text-zinc-400">
+      <span className="font-medium text-zinc-600 dark:text-zinc-300">Recovery sizing:</span> to land
+      at about {d.q(d.speed(SOFT_LANDING_TARGET, units))} instead, the main needs a drag area of
+      roughly {d.fmt(sizing.cdA, 2)} m² Cd·A — about a {d.q(d.lengthMm(sizing.diameter, units))}{" "}
+      canopy at Cd {d.fmt(sizing.cd, 1)}. A bigger canopy lands softer (and drifts farther).
     </p>
   );
 }

@@ -172,6 +172,20 @@ export default function Faq() {
         </p>
       </QA>
 
+      <QA q="Will it land too hard — and how big a parachute do I need?">
+        <p>
+          Loft reports the descent rate and ground-hit speed, and flags a firm (&gt;25 ft/s) or hard
+          (&gt;35 ft/s) landing under an undersized canopy. When it does, it also names the fix: the
+          canopy drag area (<code>C<sub>d</sub>·A</code>) — and an equivalent diameter — that would
+          bring the rocket down to a gentle ~5 m/s. It&apos;s a closed-form goal-seek (the terminal
+          velocity where drag balances weight) using the descent mass, the air density at your field,
+          and the same body-drag term the flight itself descends with, so a canopy sized this way
+          actually lands at that speed. The drag area is the unambiguous answer; the diameter assumes a
+          typical flat-canopy drag coefficient (0.8), so match it to your own chute&apos;s rating. A
+          bigger canopy lands softer but drifts farther — the Monte-Carlo above shows how far.
+        </p>
+      </QA>
+
       <QA q="Can I see what adding nose weight would do?">
         <p>
           Yes. Under <em>Conditions → Design what-if</em>, enter a nose-ballast mass and Loft re-flies

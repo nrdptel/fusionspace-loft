@@ -406,6 +406,20 @@ export default function Methods() {
         conditions&rdquo; re-run, the wind varies with altitude from the winds-aloft profile.
       </p>
       <p>
+        <strong>Recovery sizing (goal-seek).</strong> When a design lands harder than it should, Loft
+        solves the canopy that would bring it down gently rather than leaving you to guess and re-fly
+        (<code>lib/sim/recovery.ts</code>). It is the recovery-side companion to the stability trim,
+        and closed-form: at terminal velocity drag balances weight,{" "}
+        <code>v = √(2·m·g / (ρ·C<sub>d</sub>A<sub>total</sub>))</code>, with <code>m</code> the burnout
+        (descent) mass, <code>ρ</code> the air density at the field, and{" "}
+        <code>C<sub>d</sub>A<sub>total</sub> = C<sub>d</sub>A<sub>chute</sub> + ½·A<sub>ref</sub></code>{" "}
+        — the same airframe body-drag term the descent integrates — so the canopy for a target speed is{" "}
+        <code>C<sub>d</sub>A<sub>chute</sub> = 2·m·g/(ρ·v²) − ½·A<sub>ref</sub></code>, reported as a
+        drag area and an equivalent diameter. Because it uses the flight&apos;s own descent model, a
+        canopy sized this way, flown, lands at the target speed — checked against a real flight in{" "}
+        <code>lib/sim/recovery.test.ts</code>.
+      </p>
+      <p>
         The <strong>optimum ejection delay</strong> Loft reports is the delay (from burnout) that
         would deploy the recovery at apogee — a property of the airframe, motor, and launch
         conditions, not of the delay actually flown. It is measured from a free coast to the true

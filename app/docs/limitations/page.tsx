@@ -212,7 +212,11 @@ export default function Limitations() {
         ~3–6 m/s most designs aim for, and a firm or hard landing under an undersized canopy is
         flagged — but that check is on descent <em>rate</em> alone; it doesn&apos;t weigh the
         airframe&apos;s mass or fragility, so treat it as a prompt to check your recovery sizing, not
-        a verdict.
+        a verdict. When a landing is flagged firm or hard, Loft names the canopy drag area (and an
+        equivalent diameter) that would bring it down to a gentle ~5 m/s — a closed-form goal-seek
+        consistent with the flown descent, so a canopy sized that way actually lands at that speed —
+        but the shock force, the airframe&apos;s tolerance for it, and the real canopy&apos;s drag
+        coefficient are still yours to judge.
       </p>
 
       <h3>Override-subcomponents (resolved for mass)</h3>

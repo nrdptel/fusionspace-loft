@@ -167,6 +167,10 @@ export interface FlightResult {
   cgDry: number;
   liftoffMass: number;
   burnoutMass: number;
+  /** Air density (kg/m³) at the landing field (z = 0, i.e. the launch altitude) — the density the
+   *  final descent settles to terminal velocity in. Exposed so recovery sizing (lib/sim/recovery.ts)
+   *  can be computed consistently with the flown descent. */
+  descentAirDensity: number;
   extrapolatedTransonic: boolean;
   /** A recovery device opened before apogee, so the coast (and thus the reported apogee time) was
    *  cut short. The orchestrator uses this to recompute the optimum delay from a free coast. */
@@ -789,6 +793,7 @@ export function simulate(input: SimulateInput): FlightResult {
     cgDry,
     liftoffMass: loaded.mass,
     burnoutMass,
+    descentAirDensity: conditions.atmosphere.sample(conditions.launchAltitude).density,
     extrapolatedTransonic: extrapolated,
     deployedBeforeApogee,
     flutter,
