@@ -170,6 +170,21 @@ describe("geometry edits (builder)", () => {
     expect(same.result.staticMarginCal).toBeCloseTo(base.result.staticMarginCal, 9);
   });
 
+  it("a stiffer fin material raises the flutter margin (and a denser one adds mass)", async () => {
+    const doc = await load("demo-single-deploy.ork");
+    const cfg = doc.simulations[0].conditions.configId;
+    const ov = overridesFromStored(doc.simulations[0]);
+    const fly = (finMaterial: string) => runFlight(doc.rocket, { configId: cfg, overrides: ov, geometry: { finMaterial } }).result;
+    const balsa = fly("balsa");
+    const g10 = fly("g10");
+    // Shear modulus climbs balsa → G10, so the flutter margin does too (the actionable flutter fix).
+    expect(g10.flutter!.worst.margin).toBeGreaterThan(balsa.flutter!.worst.margin);
+    // The flutter estimate resolves each stock by name, not the default.
+    expect(g10.flutter!.worst.material).toMatch(/G10/i);
+    // Denser G10 fins mass more than balsa, so the loaded mass rises.
+    expect(g10.liftoffMass).toBeGreaterThan(balsa.liftoffMass);
+  });
+
   it("cleaner fin edges cut drag, so airfoil flies higher than rounded than square", async () => {
     const doc = await load("demo-single-deploy.ork");
     const cfg = doc.simulations[0].conditions.configId;

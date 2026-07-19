@@ -12,6 +12,8 @@ import {
   primaryFinSweep,
   primaryFinThickness,
   primaryFinCrossSection,
+  primaryFinMaterial,
+  FIN_MATERIALS,
   primaryNose,
   primaryNoseShape,
   primaryBodyDiameter,
@@ -86,6 +88,29 @@ describe("applyGeometryEdits — fin cross-section", () => {
   it("is a no-op when undefined", async () => {
     const rocket = await load("demo-single-deploy.ork");
     expect(applyGeometryEdits(rocket, { finCrossSection: undefined })).toBe(rocket);
+  });
+});
+
+describe("applyGeometryEdits — fin material", () => {
+  it("swaps every fin set's material density and name, non-destructively", async () => {
+    const rocket = await load("demo-single-deploy.ork");
+    const g10 = FIN_MATERIALS.find((m) => m.key === "g10")!;
+    const edited = applyGeometryEdits(rocket, { finMaterial: "g10" });
+    expect(primaryFinMaterial(edited)).toBe(g10.name);
+    for (const p of flattenRocket(edited)) {
+      if (p.component.kind.endsWith("finset")) {
+        expect((p.component as GenericFinSet).material?.density).toBe(g10.density);
+        expect((p.component as GenericFinSet).material?.name).toBe(g10.name);
+      }
+    }
+    // Original untouched.
+    expect(primaryFinMaterial(rocket)).not.toBe(g10.name);
+  });
+
+  it("is a no-op for an unknown or missing material key", async () => {
+    const rocket = await load("demo-single-deploy.ork");
+    expect(applyGeometryEdits(rocket, { finMaterial: undefined })).toBe(rocket);
+    expect(applyGeometryEdits(rocket, { finMaterial: "unobtainium" })).toBe(rocket);
   });
 });
 

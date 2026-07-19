@@ -15,6 +15,7 @@ import {
   primaryFinSweep,
   primaryFinThickness,
   primaryFinCrossSection,
+  primaryFinMaterial,
   primaryNose,
   primaryNoseShape,
   primaryBodyTube,
@@ -23,6 +24,7 @@ import {
   SURFACE_FINISHES,
   NOSE_SHAPES,
   FIN_CROSS_SECTIONS,
+  FIN_MATERIALS,
 } from "@/lib/model/edit";
 import type { SurfaceFinish, NoseShape, FinCrossSection } from "@/lib/model/types";
 import { allMotors } from "@/lib/motors/db";
@@ -73,6 +75,7 @@ interface Edits {
   finSweepLength?: number; // builder edit: fin LE sweep (m, trapezoidal)
   finThickness?: number; // builder edit: fin thickness (m, any fin kind)
   finCrossSection?: FinCrossSection; // builder edit: fin edge cross-section (any fin kind)
+  finMaterial?: string; // builder edit: fin material key (FIN_MATERIALS) — density + flutter stiffness
   noseLength?: number; // builder edit: nose-cone length (m)
   noseShape?: NoseShape; // builder edit: nose-cone contour
   bodyLength?: number; // builder edit: primary body-tube length (m)
@@ -137,6 +140,7 @@ export default function LoftApp() {
           finSweepLength: e.finSweepLength,
           finThickness: e.finThickness,
           finCrossSection: e.finCrossSection,
+          finMaterial: e.finMaterial,
           noseLength: e.noseLength,
           noseShape: e.noseShape,
           bodyLength: e.bodyLength,
@@ -165,6 +169,7 @@ export default function LoftApp() {
         e.finSweepLength !== undefined ||
         e.finThickness !== undefined ||
         e.finCrossSection !== undefined ||
+        e.finMaterial !== undefined ||
         e.noseLength !== undefined ||
         e.noseShape !== undefined ||
         e.bodyLength !== undefined ||
@@ -315,6 +320,7 @@ export default function LoftApp() {
             finSweepLength: primaryFinSweep(doc.rocket),
             finThickness: primaryFinThickness(doc.rocket),
             finCrossSection: primaryFinCrossSection(doc.rocket),
+            finMaterial: primaryFinMaterial(doc.rocket),
             noseLength: primaryNose(doc.rocket)?.length,
             noseShape: primaryNoseShape(doc.rocket),
             bodyLength: primaryBodyTube(doc.rocket)?.length,
@@ -329,6 +335,7 @@ export default function LoftApp() {
             finSweepLength: undefined,
             finThickness: undefined,
             finCrossSection: undefined,
+            finMaterial: undefined,
             noseLength: undefined,
             noseShape: undefined,
             bodyLength: undefined,
@@ -448,6 +455,7 @@ export default function LoftApp() {
                 finSweepLength: edits.finSweepLength,
                 finThickness: edits.finThickness,
                 finCrossSection: edits.finCrossSection,
+                finMaterial: edits.finMaterial,
                 noseLength: edits.noseLength,
                 noseShape: edits.noseShape,
                 bodyLength: edits.bodyLength,
@@ -535,6 +543,7 @@ function ConditionsControls({
     finSweepLength?: number;
     finThickness?: number;
     finCrossSection?: FinCrossSection;
+    finMaterial?: string;
     noseLength?: number;
     noseShape?: NoseShape;
     bodyLength?: number;
@@ -727,6 +736,28 @@ function ConditionsControls({
                   {FIN_CROSS_SECTIONS.map((s) => (
                     <option key={s} value={s}>
                       {FIN_CROSS_SECTION_LABELS[s]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            {designDims.finCrossSection !== undefined && (
+              <label className="block">
+                <span className="block text-[11px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                  Fin material
+                </span>
+                <select
+                  aria-label="Fin material"
+                  value={edits.finMaterial ?? ""}
+                  onChange={(e) => onEdit({ finMaterial: e.target.value || undefined })}
+                  className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                >
+                  <option value="">
+                    As designed{designDims.finMaterial ? ` (${designDims.finMaterial})` : ""}
+                  </option>
+                  {FIN_MATERIALS.map((m) => (
+                    <option key={m.key} value={m.key}>
+                      {m.label}
                     </option>
                   ))}
                 </select>

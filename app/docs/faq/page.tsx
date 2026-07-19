@@ -204,7 +204,10 @@ export default function Faq() {
           but raise the flutter margin sharply (it climbs with the cube of thickness), so it&apos;s
           the first knob to reach for when the <em>Fin flutter</em> estimate warns; streamlining the
           fin edge from square to rounded to airfoil sheds the head-on edge pressure drag, a real
-          apogee gain for the cost of some sanding; a finer nose (a
+          apogee gain for the cost of some sanding; and the <em>Fin material</em> picker swaps the
+          stock (balsa, basswood, plywood, G10, carbon, or aluminium), which sets both the fin mass
+          and the stiffness the flutter estimate reads — so if the <em>Fin flutter</em> tool warns,
+          you can see directly what stepping up to a stiffer stock buys; a finer nose (a
           cone, or a Von Kármán) trims drag — a little subsonically through wetted area, more
           noticeably as the flight nears the speed of sound where nose shape drives the wave drag; a
           longer body adds material and weight; and widening the <em>Body diameter</em> scales the

@@ -491,6 +491,29 @@ test.describe("Loft", () => {
     await expect.poll(apogee).toBeGreaterThan(before);
   });
 
+  test("swapping the fin material to a heavier stock rebuilds and lowers the apogee", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+
+    const apogee = async () => {
+      const txt = await page
+        .getByLabel("Results")
+        .getByText("Apogee", { exact: true })
+        .locator("xpath=following-sibling::div")
+        .innerText();
+      return parseFloat(txt.replace(/[^\d.]/g, ""));
+    };
+    const before = await apogee();
+    expect(before).toBeGreaterThan(0);
+
+    // Aluminium fins are far denser than the demo's stock, so the rocket flies heavier and lower —
+    // and the fin-flutter margin (which reads the material's stiffness) jumps.
+    await page.locator("summary", { hasText: "Conditions" }).click();
+    await page.getByLabel("Fin material").selectOption("aluminium");
+    await expect.poll(apogee).toBeLessThan(before);
+  });
+
   test("adding fins rebuilds the design and raises the stability margin", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();

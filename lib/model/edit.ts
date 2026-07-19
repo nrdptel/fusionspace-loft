@@ -18,6 +18,27 @@ export const NOSE_SHAPES: NoseShape[] = ["ogive", "conical", "ellipsoid", "parab
  *  cleanest (square stagnates the flow, rounded halves that, airfoil is streamlined). */
 export const FIN_CROSS_SECTIONS: FinCrossSection[] = ["square", "rounded", "airfoil"];
 
+/** A selectable fin stock for the builder's material picker: a display label, the bulk density
+ *  that sets the fin mass, and a material name the flutter estimate recognises for its shear
+ *  modulus. Densities are representative engineering figures for the common fin stocks; ordered
+ *  lightest/floppiest → heaviest/stiffest, which is also roughly the flutter-resistance order. */
+export interface FinMaterialOption {
+  key: string;
+  label: string;
+  /** Stored as the fin's material name so the flutter estimate resolves its shear modulus. */
+  name: string;
+  /** Bulk density (kg/m³). */
+  density: number;
+}
+export const FIN_MATERIALS: FinMaterialOption[] = [
+  { key: "balsa", label: "Balsa", name: "balsa", density: 130 },
+  { key: "basswood", label: "Basswood", name: "basswood", density: 420 },
+  { key: "plywood", label: "Birch plywood", name: "birch plywood", density: 680 },
+  { key: "g10", label: "G10 fibreglass", name: "G10 fibreglass", density: 1850 },
+  { key: "carbon", label: "Carbon fibre", name: "carbon fibre", density: 1550 },
+  { key: "aluminium", label: "Aluminium", name: "aluminium", density: 2700 },
+];
+
 /** The canonical shape parameter to give each nose shape when it's chosen from the picker, so the
  *  result is one well-defined nose. `ogive`/`conical`/`ellipsoid` ignore it; the parametrised
  *  families take their common representative — a ½-power and ½-parabola, and the C=0 Haack, i.e. the
@@ -59,6 +80,11 @@ export interface GeometryEdits {
    *  an airfoil is streamlined. The "what would airfoiling my fins buy?" what-if. Undefined leaves
    *  each set's own profile. */
   finCrossSection?: FinCrossSection;
+  /** Fin material for every fin set, as a `FIN_MATERIALS` key — sets the fin density (so mass, CG
+   *  and stability follow) and the material the flutter estimate reads for its shear modulus, so
+   *  a stiffer stock visibly raises the flutter margin. The "would G10 fix my flutter?" what-if.
+   *  Undefined (or an unknown key) leaves each set's own material. */
+  finMaterial?: string;
   /** Absolute nose-cone length (m) for the design's nose. Undefined leaves it. */
   noseLength?: number;
   /** Nose-cone contour for the design's nose (drives nose pressure and wave drag). Chosen from the
@@ -86,6 +112,7 @@ export function hasGeometryEdits(e: GeometryEdits): boolean {
     (e.finSweepLength !== undefined && e.finSweepLength >= 0) ||
     (e.finThickness !== undefined && e.finThickness > 0) ||
     e.finCrossSection !== undefined ||
+    (e.finMaterial !== undefined && FIN_MATERIALS.some((m) => m.key === e.finMaterial)) ||
     (e.noseLength !== undefined && e.noseLength > 0) ||
     e.noseShape !== undefined ||
     (e.bodyLength !== undefined && e.bodyLength > 0) ||
@@ -175,6 +202,13 @@ export function primaryFinCrossSection(rocket: Rocket): FinCrossSection | undefi
   return fin ? (("crossSection" in fin && fin.crossSection) || "square") : undefined;
 }
 
+/** The primary fin set's material name (the design's own, for the picker's "as designed" label).
+ *  Undefined for a finless design or a fin set with no named material. */
+export function primaryFinMaterial(rocket: Rocket): string | undefined {
+  const fin = primaryFinSet(rocket);
+  return fin?.material?.name;
+}
+
 /** Apply the edits to one component (and its subtree). Trapezoid fins derive their area from
  *  dimensions downstream, so only the height changes; a generic (elliptical/freeform) set stores
  *  its planform area, so it's scaled with the span to keep the shape. Length overrides are keyed by
@@ -206,6 +240,9 @@ function editComponent(c: RocketComponent, e: GeometryEdits, lengths: Map<string
   const sweep = e.finSweepLength !== undefined && e.finSweepLength >= 0 ? e.finSweepLength : undefined;
   const thick = e.finThickness !== undefined && e.finThickness > 0 ? e.finThickness : undefined;
   const cross = e.finCrossSection;
+  // Fin material: swap the whole fin stock (density + a name the flutter estimate recognises).
+  const matOpt = e.finMaterial !== undefined ? FIN_MATERIALS.find((m) => m.key === e.finMaterial) : undefined;
+  const material = matOpt ? { name: matOpt.name, density: matOpt.density, type: "bulk" as const } : undefined;
   if (
     span !== undefined ||
     count !== undefined ||
@@ -213,12 +250,13 @@ function editComponent(c: RocketComponent, e: GeometryEdits, lengths: Map<string
     tip !== undefined ||
     sweep !== undefined ||
     thick !== undefined ||
-    cross !== undefined
+    cross !== undefined ||
+    material !== undefined
   ) {
     if (c.kind === "trapezoidfinset") {
       // Root/tip chord and sweep reshape the trapezoid directly; the aero and mass read them, so
       // area and CP follow. Only trapezoidal sets take a chord/sweep edit (a generic set's chord is
-      // a reduction). Thickness and edge cross-section drive the fin drag and apply to every kind.
+      // a reduction). Thickness, edge cross-section, and material apply to every fin kind.
       return {
         ...c,
         height: span ?? c.height,
@@ -228,6 +266,7 @@ function editComponent(c: RocketComponent, e: GeometryEdits, lengths: Map<string
         sweepLength: sweep ?? c.sweepLength,
         thickness: thick ?? c.thickness,
         crossSection: cross ?? c.crossSection,
+        material: material ?? c.material,
         children,
       };
     }
@@ -242,6 +281,7 @@ function editComponent(c: RocketComponent, e: GeometryEdits, lengths: Map<string
         finCount: count ?? c.finCount,
         thickness: thick ?? c.thickness,
         crossSection: cross ?? c.crossSection,
+        material: material ?? c.material,
         children,
       };
     }
