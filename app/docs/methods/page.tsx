@@ -98,7 +98,11 @@ export default function Methods() {
         component&apos;s dimensions and its material density. Bodies of revolution (nose cones,
         transitions) are integrated numerically along the contour for volume and centroid
         (<code>lib/sim/shapes.ts</code>), with a shell subtracted when a wall thickness is given.
-        Recovery and fitting parts are stored the same way — as a material plus geometry, not an
+        A nose cone or transition also carries a <strong>shoulder</strong> — the collar that plugs
+        into the neighbouring tube — whose material (a tube of the shoulder&apos;s own wall, plus a
+        bulkhead disc when it is capped) is massed too and placed at its own station, so it shifts
+        the CG the way the real part does; on a small model rocket the nose shoulder alone can be
+        several grams that would otherwise be dropped. Recovery and fitting parts are stored the same way — as a material plus geometry, not an
         explicit mass — so their mass is computed too: a parachute or streamer from its canopy area
         and areal density, a shock cord from its line density times cord length, and a launch lug or
         rail button from its bulk material over its tube wall. On a small model rocket these are

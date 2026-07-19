@@ -8,7 +8,7 @@
  *  Everything is SI. The CG is measured from the nose tip. The motor's contribution is
  *  time-varying (propellant burns off) and is added by the simulator via `combine`. */
 
-import type { Rocket, RocketComponent, Stage } from "../model/types";
+import type { Rocket, RocketComponent, Stage, NoseCone, Transition } from "../model/types";
 import { flattenRocket, type Positioned } from "../model/geometry";
 import { noseProps, transitionProps } from "./shapes";
 
@@ -182,6 +182,18 @@ function componentPointMass(p: Positioned): PointMass | null {
     }
   }
 
+  // Shoulder mass: the collar of a nose cone or transition that plugs into the neighbouring tube
+  // is real material a bare body-of-revolution volume misses (OpenRocket counts it). Add it before
+  // the override check, since a stated component mass already includes it.
+  let shoulderMass = 0;
+  let shoulderMoment = 0;
+  if (overrideMass === undefined && (c.kind === "nosecone" || c.kind === "transition")) {
+    for (const s of shoulderContribs(c, p.xFore)) {
+      shoulderMass += s.mass;
+      shoulderMoment += s.mass * s.cg;
+    }
+  }
+
   if (overrideMass !== undefined) mass = overrideMass;
 
   // A clustered motor mount is N motor tubes, not one; scale the tube's own structural mass to
@@ -193,9 +205,50 @@ function componentPointMass(p: Positioned): PointMass | null {
     ownInertia *= cluster;
   }
 
-  const cg = overrideCg !== undefined ? p.xFore + overrideCg : p.xFore + cgLocal;
-  if (mass <= 0) return null;
-  return { mass, cg, ownInertia, source: c.name || c.kind };
+  const bodyCg = overrideCg !== undefined ? p.xFore + overrideCg : p.xFore + cgLocal;
+  const totalMass = mass + shoulderMass;
+  if (totalMass <= 0) return null;
+  // Mass-weighted CG of the body and its shoulder(s), which sit fore/aft of the body proper.
+  const cg = (mass * bodyCg + shoulderMoment) / totalMass;
+  return { mass: totalMass, cg, ownInertia, source: c.name || c.kind };
+}
+
+/** Mass and CG of each shoulder of a nose cone or transition — the collar that plugs into the
+ *  neighbouring tube. Modelled as a tube of the shoulder's radius and wall (falling back to the
+ *  component's own wall, then solid) plus an end-cap disc when the shoulder is capped, placed at
+ *  its own centre: a nose's (and a transition's aft) shoulder sits just below the component, a
+ *  transition's fore shoulder just above it. Empty when no shoulder is stated or the material has
+ *  no density. Same geometry-times-density method as the rest of the mass model. */
+function shoulderContribs(c: NoseCone | Transition, xFore: number): { mass: number; cg: number }[] {
+  const rho = density(c);
+  if (rho <= 0) return [];
+  const wall = c.thickness && c.thickness > 0 ? c.thickness : 0;
+  const out: { mass: number; cg: number }[] = [];
+  const add = (
+    radius: number | undefined,
+    length: number | undefined,
+    thickness: number | undefined,
+    capped: boolean | undefined,
+    cg: number,
+  ): void => {
+    if (!(radius && radius > 0) || !(length && length > 0)) return;
+    // Solid shoulder when neither the shoulder nor the component states a wall thickness.
+    const t = thickness && thickness > 0 ? thickness : wall > 0 ? wall : radius;
+    const ri = Math.max(0, radius - t);
+    let vol = Math.PI * (radius * radius - ri * ri) * length;
+    if (capped && ri > 0) vol += Math.PI * ri * ri * Math.min(t, length); // end-cap bulkhead
+    const mass = vol * rho;
+    if (mass > 0) out.push({ mass, cg });
+  };
+  const aftLen = c.aftShoulderLength ?? 0;
+  if (c.kind === "nosecone") {
+    add(c.aftShoulderRadius, c.aftShoulderLength, c.aftShoulderThickness, c.aftShoulderCapped, xFore + c.length + aftLen / 2);
+  } else {
+    const foreLen = c.foreShoulderLength ?? 0;
+    add(c.foreShoulderRadius, c.foreShoulderLength, c.foreShoulderThickness, c.foreShoulderCapped, xFore - foreLen / 2);
+    add(c.aftShoulderRadius, c.aftShoulderLength, c.aftShoulderThickness, c.aftShoulderCapped, xFore + c.length + aftLen / 2);
+  }
+  return out;
 }
 
 /** Chordwise centroid of a trapezoidal fin, measured aft of the root leading edge (m). */

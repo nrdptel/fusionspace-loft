@@ -104,6 +104,10 @@ export interface NoseCone extends ComponentBase {
   shapeParameter?: number;
   aftShoulderLength?: number;
   aftShoulderRadius?: number;
+  /** Aft shoulder wall thickness (m); 0/undefined ⇒ the nose's own wall thickness, else solid. */
+  aftShoulderThickness?: number;
+  /** Aft shoulder is closed by an end cap (a bulkhead disc), adding its material. */
+  aftShoulderCapped?: boolean;
 }
 
 export interface BodyTube extends ComponentBase {
@@ -124,7 +128,13 @@ export interface Transition extends ComponentBase {
   shape: NoseShape;
   shapeParameter?: number;
   foreShoulderLength?: number;
+  foreShoulderRadius?: number;
+  foreShoulderThickness?: number;
+  foreShoulderCapped?: boolean;
   aftShoulderLength?: number;
+  aftShoulderRadius?: number;
+  aftShoulderThickness?: number;
+  aftShoulderCapped?: boolean;
 }
 
 /** Fin edge cross-section, which sets the leading-edge pressure drag. A square edge stagnates

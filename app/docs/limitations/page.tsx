@@ -85,8 +85,11 @@ export default function Limitations() {
       <p>
         Nose-cone and transition <em>shell</em> mass (a wall of given thickness) is computed by
         subtracting an inward-offset inner contour — a good approximation, not an exact offset
-        surface. For designs that rely on it, prefer an explicit component mass override. Fin fillets
-        and micro-hardware are not massed individually.
+        surface. Their <em>shoulders</em> (the collars that plug into the neighbouring tube) are now
+        massed too — a real several-gram contribution on a small model that used to be dropped — as a
+        tube of the shoulder&apos;s own wall plus a bulkhead when it is capped. Still not massed
+        individually: fin fillets and micro-hardware. For designs that rely on an exact figure, prefer
+        an explicit component mass override.
       </p>
 
       <h3>Fin planforms beyond trapezoidal are partly reduced</h3>

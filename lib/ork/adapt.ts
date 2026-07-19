@@ -359,6 +359,8 @@ function parseComponent(node: XmlNode, ctx: WalkContext): RocketComponent | null
         shapeParameter: param,
         aftShoulderLength: childNum(node, "aftshoulderlength", 0) || undefined,
         aftShoulderRadius: childNum(node, "aftshoulderradius", 0) || undefined,
+        aftShoulderThickness: childNum(node, "aftshoulderthickness", 0) || undefined,
+        aftShoulderCapped: childText(node, "aftshouldercapped") === "true",
         children: parseSubcomponents(node, ctx),
       };
     }
@@ -387,7 +389,13 @@ function parseComponent(node: XmlNode, ctx: WalkContext): RocketComponent | null
         shape,
         shapeParameter: param,
         foreShoulderLength: childNum(node, "foreshoulderlength", 0) || undefined,
+        foreShoulderRadius: childNum(node, "foreshoulderradius", 0) || undefined,
+        foreShoulderThickness: childNum(node, "foreshoulderthickness", 0) || undefined,
+        foreShoulderCapped: childText(node, "foreshouldercapped") === "true",
         aftShoulderLength: childNum(node, "aftshoulderlength", 0) || undefined,
+        aftShoulderRadius: childNum(node, "aftshoulderradius", 0) || undefined,
+        aftShoulderThickness: childNum(node, "aftshoulderthickness", 0) || undefined,
+        aftShoulderCapped: childText(node, "aftshouldercapped") === "true",
         children: parseSubcomponents(node, ctx),
       };
     }

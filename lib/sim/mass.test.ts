@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { combine, dryMassProperties, finChordCentroid, structurePointMasses } from "./mass";
 import { flattenRocket } from "../model/geometry";
 import { importOrk } from "../ork/import";
-import type { Rocket, BodyTube, MassComponent, GenericFinSet } from "../model/types";
+import type { Rocket, BodyTube, MassComponent, GenericFinSet, NoseCone } from "../model/types";
 
 const MAT = { name: "x", density: 1000, type: "bulk" as const };
 
@@ -93,6 +93,62 @@ describe("dryMassProperties", () => {
     const mp = dryMassProperties(rocket);
     expect(mp.mass).toBeCloseTo(expected, 5);
     expect(mp.cg).toBeCloseTo(0.5, 3); // mid-length
+  });
+});
+
+describe("nose/transition shoulder mass", () => {
+  const MAT2 = { name: "x", density: 1200, type: "bulk" as const };
+  const noseBase = (over: Partial<NoseCone> = {}): NoseCone => ({
+    id: "n",
+    name: "nose",
+    kind: "nosecone",
+    placement: { method: "top", offset: 0 },
+    material: MAT2,
+    length: 0.1,
+    aftRadius: 0.0125,
+    thickness: 0.002,
+    shape: "ogive",
+    children: [],
+    ...over,
+  });
+  const massOf = (n: NoseCone) =>
+    dryMassProperties({ name: "t", stages: [{ name: "s", components: [n] }], configurations: [], referenceType: "maximum" }).mass;
+
+  it("adds a shoulder's tube mass, isolated as the delta from the same nose without one", () => {
+    const r = 0.0119, len = 0.02, t = 0.0022;
+    const ri = r - t;
+    const expected = Math.PI * (r * r - ri * ri) * len * MAT2.density; // hollow collar
+    const delta = massOf(noseBase({ aftShoulderRadius: r, aftShoulderLength: len, aftShoulderThickness: t })) - massOf(noseBase());
+    expect(delta).toBeCloseTo(expected, 6);
+  });
+
+  it("a capped shoulder adds the bulkhead disc", () => {
+    const r = 0.0119, len = 0.02, t = 0.0022;
+    const open = massOf(noseBase({ aftShoulderRadius: r, aftShoulderLength: len, aftShoulderThickness: t }));
+    const capped = massOf(noseBase({ aftShoulderRadius: r, aftShoulderLength: len, aftShoulderThickness: t, aftShoulderCapped: true }));
+    const ri = r - t;
+    const expectedCap = Math.PI * ri * ri * Math.min(t, len) * MAT2.density;
+    expect(capped - open).toBeCloseTo(expectedCap, 6);
+  });
+
+  it("shifts the CG aft (the collar sits below the nose base)", () => {
+    const withS = dryMassProperties({
+      name: "t",
+      stages: [{ name: "s", components: [noseBase({ aftShoulderRadius: 0.0119, aftShoulderLength: 0.02, aftShoulderThickness: 0.0022 })] }],
+      configurations: [],
+      referenceType: "maximum",
+    });
+    const without = dryMassProperties({
+      name: "t",
+      stages: [{ name: "s", components: [noseBase()] }],
+      configurations: [],
+      referenceType: "maximum",
+    });
+    expect(withS.cg).toBeGreaterThan(without.cg);
+  });
+
+  it("no shoulder ⇒ no change", () => {
+    expect(massOf(noseBase({ aftShoulderLength: 0 }))).toBeCloseTo(massOf(noseBase()), 9);
   });
 });
 
