@@ -6,6 +6,7 @@ import ImportPanel from "./ImportPanel";
 import ResultsView from "./ResultsView";
 import { Segmented } from "./ui";
 import { importDesignFile, importDesign, type OrkDocument } from "@/lib/ork/import";
+import { newDesign } from "@/lib/model/starter";
 import { runFlight, overridesFromStored, configChoices, type FlightRun, type ConfigChoice } from "@/lib/sim/run";
 import {
   primaryFinSpan,
@@ -241,6 +242,11 @@ export default function LoftApp() {
     [loadDoc],
   );
 
+  // Start a fresh design from scratch — the builder path. A starter model (not parsed from any
+  // file) enters the exact same pipeline an import does, so every edit, sweep, and flight works on
+  // it immediately; the flyer tweaks a real, stable flight rather than staring at a blank slate.
+  const onNew = useCallback(() => loadDoc(newDesign(), "New design"), [loadDoc]);
+
   const rerun = useCallback(
     (e: Edits, wx: WeatherConditions | null, scen: "design" | "today") => {
       if (!doc) return;
@@ -366,7 +372,7 @@ export default function LoftApp() {
             </Link>
             .
           </p>
-          <ImportPanel onFile={onFile} onSample={onSample} busy={busy} />
+          <ImportPanel onFile={onFile} onSample={onSample} onNew={onNew} busy={busy} />
         </>
       )}
 

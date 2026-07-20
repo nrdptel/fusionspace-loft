@@ -33,6 +33,28 @@ test.describe("Loft", () => {
     await expect(page.getByRole("heading", { name: "OpenRocket vs Loft" })).toBeVisible();
   });
 
+  test("starts a new design from scratch and flies it (builder)", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: "Start a new design" }).click();
+
+    // A from-scratch design enters the same pipeline: it names itself, resolves a motor, and flies.
+    await expect(page.getByRole("heading", { name: "New design", exact: true })).toBeVisible();
+    await expect(page.getByText("H128W", { exact: false }).first()).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+
+    // It is stable and reaches a real apogee out of the box.
+    await expect(page.getByText("Static margin", { exact: false })).toBeVisible();
+    const apogee = await page
+      .getByLabel("Results")
+      .getByText("Apogee", { exact: true })
+      .locator("xpath=following-sibling::div")
+      .innerText();
+    expect(parseFloat(apogee.replace(/[^\d.]/g, ""))).toBeGreaterThan(100);
+
+    // No stored source, so it is not mislabelled with an OpenRocket/RockSim comparison.
+    await expect(page.getByRole("heading", { name: "OpenRocket vs Loft" })).toHaveCount(0);
+  });
+
   test("imports the RockSim .rkt sample and simulates the flight", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: /RockSim · 54 mm sport/ }).click();

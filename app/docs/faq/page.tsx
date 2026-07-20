@@ -28,6 +28,20 @@ export default function Faq() {
         </p>
       </QA>
 
+      <QA q="Can I build a rocket from scratch, without a file?">
+        <p>
+          Yes — press <em>Start a new design</em>. Loft opens a stable 54&nbsp;mm sport rocket on a
+          common 38&nbsp;mm H motor, already flying: a healthy ~1.5-caliber static margin, a real
+          apogee, mass, and recovery. From there the same edits an imported design gets — nose shape
+          and length, body length and diameter, fin size, count, sweep, thickness, cross-section and
+          material, nose ballast, motor swap, parachute size — reshape it and re-fly instantly. A
+          design you build enters the exact same internal model and solver an import does, so every
+          tool (sweeps, Monte-Carlo, the second-opinion engine) works on it just the same. The
+          from-scratch builder grows from here; today it starts you from a sound baseline to tailor
+          rather than a blank slate.
+        </p>
+      </QA>
+
       <QA q="Is my design uploaded anywhere?">
         <p>
           No. Parsing, the motor database, and the whole simulation run on your device. Nothing about
