@@ -64,6 +64,16 @@ export function seconds(s: number): Quantity {
   return { value: fmt(s, 1), unit: "s" };
 }
 
+/** Kinetic energy: joules (SI) or foot-pounds-force (imperial, the unit US flying fields quote a
+ *  landing-energy limit in). 1 J = 0.737562 ft·lbf. Shows a decimal only for small values. */
+export function energy(joules: number, sys: UnitSystem): Quantity {
+  if (sys === "imperial") {
+    const ftlbf = joules * 0.737562;
+    return { value: fmt(ftlbf, ftlbf < 10 ? 1 : 0), unit: "ft·lbf" };
+  }
+  return { value: fmt(joules, joules < 10 ? 1 : 0), unit: "J" };
+}
+
 export function calibers(cal: number): Quantity {
   return { value: fmt(cal, 2), unit: "cal" };
 }

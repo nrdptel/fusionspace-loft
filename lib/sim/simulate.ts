@@ -149,6 +149,12 @@ export interface FlightSummary {
   landingX: number;
   landingY: number;
   descentRate: number; // final (main) descent rate (m/s)
+  /** Kinetic energy the vehicle carries at ground impact (J): ½·m·v², from the descent (burnout)
+   *  mass and the ground-hit speed. Many flying fields and waivers reference a per-section landing
+   *  energy as their recovery-adequacy check, so it's reported alongside the descent rate. Loft
+   *  flies the whole (top) vehicle down, so this is that vehicle's energy as one piece — a design
+   *  that lands in separated sections would divide it among them. 0 when it doesn't reach the ground. */
+  landingEnergy: number;
 }
 
 export interface FlightResult {
@@ -724,6 +730,10 @@ export function simulate(input: SimulateInput): FlightResult {
   const groundHitVelocity = landed ? mag(state.vel) : 0;
   const driftDistance = Math.hypot(state.pos.x, state.pos.y);
   const burnoutMass = massAt(Math.max(burnout, 0)).mass;
+  // Kinetic energy at impact (½·m·v²) from the descent mass and the ground-hit speed — the
+  // recovery-adequacy figure many fields and waivers cite. 0 when the vehicle never reaches the
+  // ground (groundHitVelocity is 0 there).
+  const landingEnergy = 0.5 * burnoutMass * groundHitVelocity * groundHitVelocity;
 
   // Final (main) descent rate: the descent speed in the last tenth of the flight.
   let descentRate = 0;
@@ -834,6 +844,7 @@ export function simulate(input: SimulateInput): FlightResult {
       landingX: state.pos.x,
       landingY: state.pos.y,
       descentRate,
+      landingEnergy,
     },
     trajectory,
     events,

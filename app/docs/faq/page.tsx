@@ -200,7 +200,9 @@ export default function Faq() {
 
       <QA q="Will it land too hard — and how big a parachute do I need?">
         <p>
-          Loft reports the descent rate and ground-hit speed, and flags a firm (&gt;25 ft/s) or hard
+          Loft reports the descent rate, ground-hit speed, and the landing kinetic energy
+          (<code>½·m·v²</code> — the recovery-adequacy figure many flying fields and waivers quote a
+          limit for, in joules or foot-pounds-force), and flags a firm (&gt;25 ft/s) or hard
           (&gt;35 ft/s) landing under an undersized canopy. When it does, it also names the fix: the
           canopy drag area (<code>C<sub>d</sub>·A</code>) — and an equivalent diameter — that would
           bring the rocket down to a gentle ~5 m/s. It&apos;s a closed-form goal-seek (the terminal

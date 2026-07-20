@@ -23,6 +23,14 @@ test.describe("Loft", () => {
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
     await expect(page.getByLabel("Results").getByText("Apogee", { exact: true })).toBeVisible();
 
+    // The recovery-adequacy readout is present and a real positive energy (½·m·v²).
+    const landing = page
+      .getByLabel("Results")
+      .getByText("Landing energy", { exact: true })
+      .locator("xpath=following-sibling::div[1]");
+    await expect(landing).toBeVisible();
+    expect(parseFloat((await landing.innerText()).replace(/[^\d.]/g, ""))).toBeGreaterThan(0);
+
     // The motor resolved exactly (pill with the designation).
     await expect(page.getByText("H128W", { exact: false }).first()).toBeVisible();
 

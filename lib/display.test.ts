@@ -1,5 +1,18 @@
 import { describe, it, expect } from "vitest";
-import { changePercent, changeAbsolute } from "./display";
+import { changePercent, changeAbsolute, energy } from "./display";
+
+describe("energy", () => {
+  it("shows joules in metric and foot-pounds-force in imperial", () => {
+    // 100 J → 100 J metric; ×0.737562 → ~74 ft·lbf imperial.
+    expect(energy(100, "metric")).toEqual({ value: "100", unit: "J" });
+    expect(energy(100, "imperial")).toEqual({ value: "74", unit: "ft·lbf" });
+  });
+  it("keeps a decimal only for small values", () => {
+    expect(energy(4.5, "metric")).toEqual({ value: "4.5", unit: "J" });
+    // 5 J ≈ 3.7 ft·lbf — still small, so a decimal is kept in imperial too.
+    expect(energy(5, "imperial")).toEqual({ value: "3.7", unit: "ft·lbf" });
+  });
+});
 
 describe("changePercent", () => {
   it("computes a signed percentage from baseline to current", () => {

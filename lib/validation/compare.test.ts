@@ -21,6 +21,7 @@ const summary: FlightSummary = {
   landingX: 40,
   landingY: 0,
   descentRate: 6,
+  landingEnergy: 18,
 };
 
 describe("compareToStored", () => {

@@ -37,6 +37,10 @@ describe("single-deploy fixture flight", () => {
     expect(s.descentRate).toBeGreaterThan(3);
     expect(s.descentRate).toBeLessThan(20);
     expect(s.groundHitVelocity).toBeLessThan(20);
+    // Landing energy is ½·m·v² from the descent (burnout) mass and the ground-hit speed — a real
+    // positive figure that matches its definition (the recovery-adequacy number fields cite).
+    expect(s.landingEnergy).toBeGreaterThan(0);
+    expect(s.landingEnergy).toBeCloseTo(0.5 * run.result.burnoutMass * s.groundHitVelocity ** 2, 6);
 
     // Stability sane and positive.
     expect(run.result.staticMarginCal).toBeGreaterThan(1);

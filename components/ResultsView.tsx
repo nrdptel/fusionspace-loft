@@ -133,6 +133,7 @@ export default function ResultsView({
           <Stat label="Descent rate" q={d.speed(s.descentRate, units)} />
           <Stat label="Drift from pad" q={d.distance(s.driftDistance, units)} />
           <Stat label="Ground-hit speed" q={d.speed(s.groundHitVelocity, units)} />
+          <Stat label="Landing energy" q={d.energy(s.landingEnergy, units)} sub="whole vehicle" />
           <Stat label="Optimum delay" q={d.seconds(s.optimumDelay)} sub="burnout → apogee" />
           <Stat label="Flight time" q={d.seconds(s.flightTime)} />
           <Stat label="Max dynamic pressure" q={{ value: d.fmt(s.maxDynamicPressure / 1000, 1), unit: "kPa" }} />
