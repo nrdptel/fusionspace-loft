@@ -20,8 +20,10 @@ import {
   primaryBodyTube,
   primaryFinish,
 } from "./edit";
-import type { GenericFinSet } from "./types";
+import type { GenericFinSet, Transition } from "./types";
 import { overallLength } from "./geometry";
+import { newDesign } from "./starter";
+import { runFlight } from "../sim/run";
 
 async function load(name: string) {
   const bytes = new Uint8Array(readFileSync(resolve(process.cwd(), "fixtures", name)));
@@ -360,5 +362,58 @@ describe("applyGeometryEdits — airframe diameter", () => {
     const after = ringR(edited);
     // Every centring ring narrowed by the same 0.75 factor — none is left poking past the tube.
     for (let i = 0; i < before.length; i++) expect(after[i]).toBeCloseTo(before[i] * 0.75, 9);
+  });
+});
+
+describe("applyGeometryEdits — add a boattail (structural add)", () => {
+  const boattailOf = (r: ReturnType<typeof newDesign>["rocket"]) =>
+    flattenRocket(r)
+      .map((p) => p.component)
+      .find((c): c is Transition => c.kind === "transition");
+
+  it("appends a conical boattail after the primary body tube, non-destructively", () => {
+    const rocket = newDesign().rocket;
+    expect(boattailOf(rocket)).toBeUndefined(); // the starter has no boattail
+    const tube = primaryBodyTube(rocket)!;
+
+    const edited = applyGeometryEdits(rocket, { boattailLength: 0.05, boattailAftDiameter: 0.04 });
+    const bt = boattailOf(edited)!;
+    expect(bt).toBeTruthy();
+    expect(bt.shape).toBe("conical");
+    expect(bt.length).toBeCloseTo(0.05, 9);
+    // It fairs to the body: fore radius = tube radius, exit = half the requested diameter.
+    expect(bt.foreRadius).toBeCloseTo(tube.outerRadius, 9);
+    expect(bt.aftRadius).toBeCloseTo(0.02, 9);
+    // Non-destructive: the original design still has no boattail.
+    expect(boattailOf(rocket)).toBeUndefined();
+  });
+
+  it("fairs the boattail to the edited diameter when a caliber what-if is also active", () => {
+    const rocket = newDesign().rocket;
+    const dia0 = primaryBodyDiameter(rocket)!;
+    const edited = applyGeometryEdits(rocket, {
+      bodyDiameter: dia0 * 0.5, // halve the airframe…
+      boattailLength: 0.05,
+      boattailAftDiameter: dia0 * 0.4, // …exit still narrower than the halved body
+    });
+    const bt = boattailOf(edited)!;
+    // Fore radius tracks the halved tube, not the original — the boattail fairs to the final mould line.
+    expect(bt.foreRadius).toBeCloseTo((dia0 * 0.5) / 2, 9);
+  });
+
+  it("skips a boattail that wouldn't contract (exit ≥ body), keeping a valid design", () => {
+    const rocket = newDesign().rocket;
+    const dia0 = primaryBodyDiameter(rocket)!;
+    const edited = applyGeometryEdits(rocket, { boattailLength: 0.05, boattailAftDiameter: dia0 * 1.2 });
+    expect(boattailOf(edited)).toBeUndefined(); // no flared "boattail" is added
+  });
+
+  it("raises apogee by cutting base drag — the design lever it exists for", () => {
+    const doc = newDesign();
+    const base = runFlight(doc.rocket, { configId: "cfg-1" }).result.summary.apogee;
+    const withBt = applyGeometryEdits(doc.rocket, { boattailLength: 0.06, boattailAftDiameter: 0.03 });
+    const flown = runFlight(withBt, { configId: "cfg-1" }).result.summary.apogee;
+    // Contracting the base removes most of the base drag, so the same motor flies higher.
+    expect(flown).toBeGreaterThan(base);
   });
 });

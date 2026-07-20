@@ -34,9 +34,12 @@ export default function Faq() {
           common 29&nbsp;mm H motor, already flying: a healthy ~1.5-caliber static margin, a real
           apogee, mass, and recovery. From there the same edits an imported design gets — nose shape
           and length, body length and diameter, fin size, count, sweep, thickness, cross-section and
-          material, nose ballast, motor swap, parachute size — reshape it and re-fly instantly. Give
-          it a name in the field beside <em>Import another</em>, and that name becomes the results
-          title and the saved <code>.ork</code> filename. A design you build enters the exact same
+          material, nose ballast, motor swap, parachute size — reshape it and re-fly instantly. You
+          can also <em>add</em> a boattail (a tail cone: set a length and an exit diameter narrower
+          than the body) to cut the base drag, the single largest drag source on a blunt-based
+          rocket. Give it a name in the field beside <em>Import another</em>, and that name becomes
+          the results title and the saved <code>.ork</code> filename. A design you build enters the
+          exact same
           internal model and solver an import does, so every tool (sweeps, Monte-Carlo, the
           second-opinion engine) works on it just the same. The from-scratch builder grows from here;
           today it starts you from a sound baseline to tailor rather than a blank slate.

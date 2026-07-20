@@ -86,6 +86,8 @@ interface Edits {
   bodyLength?: number; // builder edit: primary body-tube length (m)
   bodyDiameter?: number; // builder edit: primary body-tube outer diameter (m); scales the airframe
   finish?: SurfaceFinish; // builder edit: whole-airframe surface finish
+  boattailLength?: number; // builder edit: add a conical boattail of this length (m) at the aft
+  boattailAftDiameter?: number; // builder edit: the added boattail's exit diameter (m)
 }
 
 /** Same-diameter bundled motors the design could fly, with the design's own motor as the default.
@@ -152,6 +154,8 @@ export default function LoftApp() {
           bodyLength: e.bodyLength,
           bodyDiameter: e.bodyDiameter,
           finish: e.finish,
+          boattailLength: e.boattailLength,
+          boattailAftDiameter: e.boattailAftDiameter,
         },
         // Validate only when flying the design's own stored conditions unchanged, and only when
         // Loft flew the complete design — a simplified vehicle (staging/pods/parallel/cluster)
@@ -180,7 +184,8 @@ export default function LoftApp() {
         e.noseShape !== undefined ||
         e.bodyLength !== undefined ||
         e.bodyDiameter !== undefined ||
-        e.finish !== undefined;
+        e.finish !== undefined ||
+        (e.boattailLength !== undefined && e.boattailAftDiameter !== undefined);
       const baseline = hasWhatIf ? runFlight(document.rocket, { configId, overrides }) : null;
       return { run, baseline };
     },
@@ -280,6 +285,8 @@ export default function LoftApp() {
       bodyLength: edits.bodyLength,
       bodyDiameter: edits.bodyDiameter,
       finish: edits.finish,
+      boattailLength: edits.boattailLength,
+      boattailAftDiameter: edits.boattailAftDiameter,
     };
     const rocket = hasGeometryEdits(geometry) ? applyGeometryEdits(doc.rocket, geometry) : doc.rocket;
     const bytes = exportOrk({ ...doc, rocket });
@@ -533,6 +540,8 @@ export default function LoftApp() {
                 bodyLength: edits.bodyLength,
                 bodyDiameter: edits.bodyDiameter,
                 finish: edits.finish,
+                boattailLength: edits.boattailLength,
+                boattailAftDiameter: edits.boattailAftDiameter,
               }}
               swapOptions={swapInfo?.options}
               designMotor={swapInfo?.designMotor}
@@ -888,6 +897,22 @@ function ConditionsControls({
                 onChange={(v) => onEdit({ bodyDiameter: fromSpan(v) })}
               />
             )}
+            {designDims.bodyDiameter !== undefined && (
+              <Num
+                label={`Boattail length (${spanU})`}
+                value={toDispSpan(edits.boattailLength)}
+                placeholder="0"
+                onChange={(v) => onEdit({ boattailLength: fromSpan(v) })}
+              />
+            )}
+            {designDims.bodyDiameter !== undefined && (
+              <Num
+                label={`Boattail exit (${spanU})`}
+                value={toDispSpan(edits.boattailAftDiameter)}
+                placeholder={`< ${toDispSpan(designDims.bodyDiameter)}`}
+                onChange={(v) => onEdit({ boattailAftDiameter: fromSpan(v) })}
+              />
+            )}
             {designDims.finish !== undefined && (
               <label className="block">
                 <span className="block text-[11px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
@@ -910,10 +935,11 @@ function ConditionsControls({
             )}
           </div>
           <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-            Fly a different motor, add nose weight, or resize the fins, nose, or body to trim
-            stability, drag, or apogee — a hypothetical change to the design, so the OpenRocket
-            comparison is hidden while any is set. The geometry fields start from the design&apos;s
-            own dimensions; only motors that fit this airframe&apos;s diameter are offered.
+            Fly a different motor, add nose weight, resize the fins, nose, or body, or add a boattail
+            (set both a length and an exit narrower than the body) to trim stability, drag, or apogee
+            — a hypothetical change to the design, so the OpenRocket comparison is hidden while any is
+            set. The geometry fields start from the design&apos;s own dimensions; only motors that fit
+            this airframe&apos;s diameter are offered.
           </p>
         </div>
 

@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import { importOrk } from "./import";
 import { exportOrk, serializeRocketXml } from "./export";
 import { newDesign } from "../model/starter";
+import { applyGeometryEdits } from "../model/edit";
 import { runFlight } from "../sim/run";
 import { structurePointMasses } from "../sim/mass";
 import type { OrkDocument } from "./adapt";
@@ -122,6 +123,23 @@ describe("exportOrk — real-design features round-trip (regression)", () => {
     const back = await roundtrip(doc);
     expect(parts(back).nose.aftShoulderLength).toBeCloseTo(0.06, 6);
     expect(structurePointMasses(back.rocket).reduce((a, m) => a + m.mass, 0)).toBeCloseTo(before, 4);
+  });
+
+  it("round-trips a builder-added boattail with its base-drag benefit", async () => {
+    // Add a boattail (the builder's first structural add), save, and re-open: the transition must
+    // survive so the saved design keeps flying with the reduced base drag.
+    const doc = newDesign();
+    const rocket = applyGeometryEdits(doc.rocket, { boattailLength: 0.06, boattailAftDiameter: 0.03 });
+    const before = flight({ ...doc, rocket });
+    const back = await importOrk(exportOrk({ ...doc, rocket }));
+    const bt = back.rocket.stages.flatMap((s) => s.components).find((c) => c.kind === "transition") as
+      | { shape: string; foreRadius: number; aftRadius: number }
+      | undefined;
+    expect(bt).toBeTruthy();
+    expect(bt!.shape).toBe("conical");
+    expect(bt!.aftRadius).toBeLessThan(bt!.foreRadius);
+    const after = flight(back);
+    expect(after.apogee).toBeCloseTo(before.apogee, 0);
   });
 
   it("preserves a per-configuration stage-separation override", async () => {

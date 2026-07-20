@@ -7,7 +7,7 @@
  *  nose cone or body tube automatically shifts everything downstream and recomputes mass, drag,
  *  centre of pressure, and motor position. Fin span moves the centre of pressure (stability). */
 
-import type { Rocket, RocketComponent, NoseCone, BodyTube, SurfaceFinish, NoseShape, FinCrossSection } from "./types";
+import type { Rocket, RocketComponent, NoseCone, BodyTube, Transition, SurfaceFinish, NoseShape, FinCrossSection } from "./types";
 import { flattenRocket } from "./geometry";
 
 /** Selectable nose-cone shapes, for the builder's nose picker. Ordered by how a flyer thinks of
@@ -100,6 +100,14 @@ export interface GeometryEdits {
   /** Surface finish applied to the whole airframe (drives skin-friction drag). Undefined leaves
    *  each component's own finish. */
   finish?: SurfaceFinish;
+  /** Add a conical boattail (tail cone) of this axial length (m) at the aft of the airframe. The
+   *  first structural *add* in the builder: it contracts the base, so most of the base drag — the
+   *  single largest drag source on a blunt-based rocket — goes away, at the cost of a little
+   *  boattail pressure drag and mass. Needs `boattailAftDiameter` too; both must be set (and the
+   *  exit narrower than the body) to add one. Undefined adds nothing. */
+  boattailLength?: number;
+  /** The added boattail's exit (aft) diameter (m). Must be > 0 and < the body diameter. */
+  boattailAftDiameter?: number;
 }
 
 /** True when at least one edit actually changes something. */
@@ -117,7 +125,9 @@ export function hasGeometryEdits(e: GeometryEdits): boolean {
     e.noseShape !== undefined ||
     (e.bodyLength !== undefined && e.bodyLength > 0) ||
     (e.bodyDiameter !== undefined && e.bodyDiameter > 0) ||
-    e.finish !== undefined
+    e.finish !== undefined ||
+    (e.boattailLength !== undefined && e.boattailLength > 0 &&
+      e.boattailAftDiameter !== undefined && e.boattailAftDiameter > 0)
   );
 }
 
@@ -348,6 +358,41 @@ export function primaryFinish(rocket: Rocket): SurfaceFinish {
   return "unfinished";
 }
 
+/** Append a conical boattail after the design's primary body tube. Sized from the *edited* tube, so
+ *  it fairs to whatever diameter the other what-ifs left (e.g. after a caliber change), and its exit
+ *  is clamped just inside the body so it can only contract, never flare. Skips silently when there's
+ *  no top-level body tube to attach to, or the requested exit isn't a valid contraction — the caller
+ *  keeps the un-boattailed design rather than a malformed one. */
+function addBoattail(rocket: Rocket, length: number, aftRadius: number): Rocket {
+  const tube = primaryBodyTube(rocket);
+  if (!tube || !(length > 0) || !(aftRadius > 0) || !(aftRadius < tube.outerRadius)) return rocket;
+  const boattail: Transition = {
+    id: `${tube.id}-boattail`,
+    name: "Boattail",
+    kind: "transition",
+    placement: { method: "after", offset: 0 },
+    length,
+    foreRadius: tube.outerRadius,
+    aftRadius,
+    thickness: tube.thickness,
+    shape: "conical",
+    material: tube.material,
+    finish: tube.finish,
+    children: [],
+  };
+  // Insert immediately after the primary tube in whichever stage's top-level list holds it, so the
+  // boattail stacks onto the aft of the airframe. A nested body tube (unusual) has no obvious aft
+  // slot, so the boattail is skipped there rather than placed ambiguously.
+  let inserted = false;
+  const stages = rocket.stages.map((s) => {
+    const idx = s.components.findIndex((c) => c.id === tube.id);
+    if (idx === -1) return s;
+    inserted = true;
+    return { ...s, components: [...s.components.slice(0, idx + 1), boattail, ...s.components.slice(idx + 1)] };
+  });
+  return inserted ? { ...rocket, stages } : rocket;
+}
+
 /** Return a design with the geometry edits applied. The original rocket is untouched (a fresh tree
  *  is returned only where something changed), so callers can keep the imported model pristine. */
 export function applyGeometryEdits(rocket: Rocket, edits: GeometryEdits): Rocket {
@@ -376,8 +421,14 @@ export function applyGeometryEdits(rocket: Rocket, edits: GeometryEdits): Rocket
     if (radiusScale !== 1) geo = scaleAirframeRadii(geo, radiusScale);
     return geo;
   };
-  return {
+  const edited: Rocket = {
     ...rocket,
     stages: rocket.stages.map((s) => ({ ...s, components: s.components.map(editOne) })),
   };
+  // Structural add: a boattail is appended after the (already-edited) primary tube, so it fairs to
+  // the tube's final diameter.
+  if (edits.boattailLength !== undefined && edits.boattailAftDiameter !== undefined) {
+    return addBoattail(edited, edits.boattailLength, edits.boattailAftDiameter / 2);
+  }
+  return edited;
 }

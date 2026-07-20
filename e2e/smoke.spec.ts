@@ -502,6 +502,31 @@ test.describe("Loft", () => {
     await expect.poll(apogee).toBeLessThan(before);
   });
 
+  test("adding a boattail cuts base drag and raises the apogee (structural add)", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: "Start a new design" }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+
+    const apogee = async () => {
+      const txt = await page
+        .getByLabel("Results")
+        .getByText("Apogee", { exact: true })
+        .locator("xpath=following-sibling::div")
+        .innerText();
+      return parseFloat(txt.replace(/[^\d.]/g, ""));
+    };
+    const before = await apogee();
+    expect(before).toBeGreaterThan(0);
+
+    // Add a boattail: a length and an exit narrower than the 54 mm body. Both are needed to build one.
+    await page.locator("summary", { hasText: "Conditions" }).click();
+    await page.getByLabel(/Boattail length/).fill("60");
+    await page.getByLabel(/Boattail exit/).fill("30");
+
+    // Contracting the base removes most of the base drag, so the same motor flies higher.
+    await expect.poll(apogee).toBeGreaterThan(before);
+  });
+
   test("sweeping the fins back rebuilds the design and raises the stability margin", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
