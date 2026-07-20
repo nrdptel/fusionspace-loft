@@ -498,7 +498,9 @@ export default function Methods() {
         the <em>spread</em> of the outcomes — the apogee band to expect, the radius from the pad
         that contains 95% of the landings (the recovery area to plan for), and the landing-speed band
         (its 95th percentile is the hardest landing to size recovery against, which a heavier-than-CAD
-        build pushes up). Every sample runs through
+        build pushes up) — with, when some flights land firm, the fraction that land firm (over
+        7.6&nbsp;m/s) or hard (over 10.7&nbsp;m/s), the same rule-of-thumb thresholds the flight&apos;s
+        own hard-landing warning uses. Every sample runs through
         the same solver as the main flight; nothing about the physics changes. The uncertainty is
         entirely in the inputs, which are your own stated assumptions, so the result is an honest
         propagation of that spread — not a claim of new precision.

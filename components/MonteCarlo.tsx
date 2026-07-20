@@ -4,7 +4,15 @@ import { useEffect, useMemo, useState } from "react";
 import type { OrkDocument } from "@/lib/ork/import";
 import { overridesFromStored } from "@/lib/sim/run";
 import { runMonteCarlo } from "@/lib/sim/montecarlo-client";
-import { exceedanceProbability, type Dispersions, type MonteCarloResult, type Stat } from "@/lib/sim/montecarlo";
+import {
+  exceedanceProbability,
+  landingSpeedExceedance,
+  FIRM_LANDING_MPS,
+  HARD_LANDING_MPS,
+  type Dispersions,
+  type MonteCarloResult,
+  type Stat,
+} from "@/lib/sim/montecarlo";
 import type { GeometryEdits } from "@/lib/model/edit";
 import { mToFt, ftToM, mpsToFtps } from "@/lib/units";
 import type { CsvCell } from "@/lib/csv";
@@ -268,6 +276,11 @@ function Report({
   // (SI) sample apogees. 0/blank means "no ceiling set".
   const ceilingM = ceiling > 0 ? (units === "imperial" ? ftToM(ceiling) : ceiling) : 0;
   const exceed = ceilingM > 0 ? exceedanceProbability(result, ceilingM) : NaN;
+  // How often the dispersed flights land firm (>7.6 m/s) or hard (>10.7 m/s) — the recovery-adequacy
+  // question the landing-speed band alone doesn't answer: not just the worst case, but how likely.
+  // Only surfaced when some flights actually land firm, so a comfortably-soft design stays uncluttered.
+  const firmChance = landingSpeedExceedance(result, FIRM_LANDING_MPS);
+  const hardChance = landingSpeedExceedance(result, HARD_LANDING_MPS);
   return (
     <div className="mt-4">
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -288,6 +301,26 @@ function Report({
         />
         <RadiusCard radius={result.landingRadiusP95} drift={result.driftDistance} units={units} />
       </div>
+
+      {firmChance > 0 && (
+        <p
+          className={
+            "mt-3 text-xs " +
+            (firmChance > 0.05
+              ? "text-amber-700 dark:text-amber-300"
+              : "text-zinc-500 dark:text-zinc-400")
+          }
+        >
+          {/* Thresholds shown to their exact value (a rounded "8 m/s" would misstate what's counted);
+              imperial shows the round 25/35 ft/s the rule of thumb is quoted in. */}
+          <span className="font-medium">Landing hardness:</span> {formatChance(firmChance)} of flights
+          land firm (over {units === "imperial" ? "25 ft/s" : `${FIRM_LANDING_MPS} m/s`})
+          {hardChance > 0
+            ? `, ${formatChance(hardChance)} hard (over ${units === "imperial" ? "35 ft/s" : `${HARD_LANDING_MPS} m/s`})`
+            : ""}
+          . A larger canopy softens the landing (and its whole band).
+        </p>
+      )}
 
       <div className="mt-3 flex flex-wrap items-end gap-3 rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-900/60">
         <div className="w-40">

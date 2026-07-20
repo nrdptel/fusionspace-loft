@@ -265,3 +265,19 @@ export function exceedanceProbability(result: MonteCarloResult, ceilingM: number
   const over = result.samples.reduce((c, s) => c + (s.apogee > ceilingM ? 1 : 0), 0);
   return over / result.n;
 }
+
+/** Landing-speed thresholds (m/s), the same rule-of-thumb boundaries the flight's own hard-landing
+ *  warning uses: above ~7.6 m/s (25 ft/s) a landing gets firm; past ~10.7 m/s (35 ft/s) it risks
+ *  damage on all but the toughest airframes. */
+export const FIRM_LANDING_MPS = 7.6;
+export const HARD_LANDING_MPS = 10.7;
+
+/** Fraction of dispersed flights that land at or above `speedMps` — the chance of a landing at least
+ *  that hard, the recovery-adequacy companion to the waiver-ceiling exceedance. For a marginal
+ *  recovery it answers the actionable question the band alone doesn't: not just how hard the worst
+ *  case is, but how often it happens. In [0,1]; NaN with no samples or a non-positive threshold. */
+export function landingSpeedExceedance(result: MonteCarloResult, speedMps: number): number {
+  if (result.n === 0 || !(speedMps > 0)) return NaN;
+  const over = result.samples.reduce((c, s) => c + (s.landingSpeed > speedMps ? 1 : 0), 0);
+  return over / result.n;
+}

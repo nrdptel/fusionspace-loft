@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { importOrk } from "../ork/import";
 import { overridesFromStored, runFlight } from "./run";
-import { monteCarlo, exceedanceProbability, type MonteCarloOptions } from "./montecarlo";
+import { monteCarlo, exceedanceProbability, landingSpeedExceedance, type MonteCarloOptions } from "./montecarlo";
 
 async function load(name: string) {
   const buf = readFileSync(new URL(`../../fixtures/${name}`, import.meta.url));
@@ -236,6 +236,23 @@ describe("monteCarlo", () => {
       expect(exceedanceProbability(r, r.apogee.p95)).toBeLessThanOrEqual(exceedanceProbability(r, r.apogee.p5));
       // A degenerate ceiling is not a number.
       expect(exceedanceProbability(r, 0)).toBeNaN();
+    },
+    T,
+  );
+
+  it(
+    "landing-speed exceedance tracks the landing-speed band against a threshold",
+    async () => {
+      const { rocket, opts } = await baseOpts();
+      const r = monteCarlo(rocket, opts);
+      // Below every flight's landing speed ⇒ every flight is at least that hard; above every ⇒ none.
+      expect(landingSpeedExceedance(r, r.landingSpeed.min - 1)).toBe(1);
+      expect(landingSpeedExceedance(r, r.landingSpeed.max + 1)).toBe(0);
+      // Raising the threshold can only lower the chance of a landing that hard (monotonic).
+      expect(landingSpeedExceedance(r, r.landingSpeed.p95)).toBeLessThanOrEqual(
+        landingSpeedExceedance(r, r.landingSpeed.p5),
+      );
+      expect(landingSpeedExceedance(r, 0)).toBeNaN();
     },
     T,
   );
