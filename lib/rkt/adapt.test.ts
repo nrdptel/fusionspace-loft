@@ -239,3 +239,53 @@ describe("adaptRktXml — fin edge cross-section (TipShapeCode)", () => {
     expect(finFor("<TipShapeCode>9</TipShapeCode>").crossSection).toBe("square");
   });
 });
+
+describe("adaptRktXml — per-part CG override (UseKnownCG/KnownCG)", () => {
+  // RockSim stores a component's CG from its front in mm and flags a deliberate override with
+  // UseKnownCG=1. A nose or section trimmed to a measured CG (clay in the nose, say) must fly with
+  // that CG — and thus the right stability margin — the way the OpenRocket adapter honours
+  // <overridecg>. Loft counts only a *genuine* override so it doesn't blindly adopt RockSim's own
+  // per-part CG (RockSim caches it into KnownCG too) or import a nonsensical out-of-body value.
+  const design = (cgTags: string) => {
+    // Nose 0–100 mm (light); a heavy uniform body tube 100–500 mm (Len 400). The tube's geometry CG
+    // is its midpoint: 200 mm from its front ⇒ the 300 mm airframe station.
+    const xml =
+      `<RockSimDocument><DesignInformation><RocketDesign><Name>t</Name><Stage3Parts>` +
+      `<NoseCone><Name>n</Name><Len>100.</Len><BaseDia>50.</BaseDia><ShapeCode>1</ShapeCode><CalcMass>10.</CalcMass></NoseCone>` +
+      `<BodyTube><Name>b</Name><Len>400.</Len><OD>50.</OD><ID>48.</ID><SerialNo>2</SerialNo><CalcMass>2000.</CalcMass><CalcCG>200.</CalcCG>${cgTags}</BodyTube>` +
+      `</Stage3Parts></RocketDesign></DesignInformation></RockSimDocument>`;
+    const rocket = adaptRktXml(xml).rocket;
+    const tube = flattenRocket(rocket).find((p) => p.component.kind === "bodytube")!
+      .component as BodyTube & { overrideCGx?: number };
+    return { tube, cg: dryMassProperties(rocket).cg };
+  };
+
+  const baseline = design("");
+
+  it("maps a genuine override to overrideCGx and shifts the CG onto it", () => {
+    // Override the tube CG to 100 mm from its front (geometry says 200) ⇒ overrideCGx 0.1 m and the
+    // tube CG at the 200 mm station instead of 300 mm. The heavy tube pulls the whole rocket forward.
+    const g = design(`<UseKnownCG>1</UseKnownCG><KnownCG>100.</KnownCG>`);
+    expect(g.tube.overrideCGx).toBeCloseTo(0.1, 6);
+    expect(g.cg).toBeLessThan(baseline.cg); // moved forward
+    expect(g.cg).toBeCloseTo(0.2, 2); // ≈ the overridden (dominant) tube CG
+  });
+
+  it("ignores a CG marked known but equal to the computed CG (RockSim's cached value)", () => {
+    const g = design(`<UseKnownCG>1</UseKnownCG><KnownCG>200.</KnownCG>`);
+    expect(g.tube.overrideCGx).toBeUndefined();
+    expect(g.cg).toBeCloseTo(baseline.cg, 6);
+  });
+
+  it("ignores an override that sits outside the component (bogus data)", () => {
+    const g = design(`<UseKnownCG>1</UseKnownCG><KnownCG>900.</KnownCG>`); // past the 400 mm length
+    expect(g.tube.overrideCGx).toBeUndefined();
+    expect(g.cg).toBeCloseTo(baseline.cg, 6);
+  });
+
+  it("ignores KnownCG when the part isn't marked known-CG", () => {
+    const g = design(`<UseKnownCG>0</UseKnownCG><KnownCG>100.</KnownCG>`);
+    expect(g.tube.overrideCGx).toBeUndefined();
+    expect(g.cg).toBeCloseTo(baseline.cg, 6);
+  });
+});

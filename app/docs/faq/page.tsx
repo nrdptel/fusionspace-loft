@@ -113,7 +113,11 @@ export default function Faq() {
           the simulator flies, so the physics doesn&apos;t know which tool you drew in. The one
           difference is mass: a <code>.rkt</code> stores RockSim&apos;s own per-part masses, so Loft
           flies those exact figures rather than recomputing them from geometry (an <code>.ork</code>{" "}
-          stores no per-part mass, so there Loft computes it). Each RockSim{" "}
+          stores no per-part mass, so there Loft computes it). A deliberate per-part{" "}
+          <em>CG</em> override is carried through as well — a nose trimmed to a measured centre of
+          gravity flies with that CG, and so the right stability margin, the same way an
+          OpenRocket override is honoured (a value RockSim merely cached, or one that falls outside
+          the part, is ignored as not a real trim). Each RockSim{" "}
           <em>stored simulation</em> becomes a selectable motor configuration, just like an
           OpenRocket flight configuration. See <Link href="/docs/methods">Methods</Link>.
         </p>

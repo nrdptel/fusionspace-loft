@@ -203,6 +203,30 @@ const STRUCTURAL = new Set<RocketComponent["kind"]>([
   "launchlug",
 ]);
 
+/** Kinds whose CG the mass model derives from geometry and which therefore accept a per-part CG
+ *  override (the `overrideCGx` path, shared with the OpenRocket `<overridecg>` import). A point mass
+ *  carries its CG at its own station, and fins/internal fittings keep their computed CG, so those
+ *  are left out. */
+const CG_OVERRIDABLE = new Set<RocketComponent["kind"]>(["nosecone", "bodytube", "transition"]);
+
+/** A genuine RockSim per-part CG override → the CG's offset from the component fore (m), the RockSim
+ *  analogue of OpenRocket's `<overridecg>`. RockSim stores a component's CG from its front in
+ *  millimetres and flags it with `UseKnownCG`; honour it only when the part is explicitly marked
+ *  known-CG AND the value is a *deliberate* override — it differs from RockSim's own computed CG
+ *  (`CalcCG`) and sits within the component. RockSim also sets `UseKnownCG=1` when it has merely
+ *  cached the computed CG, so adopting the value whenever the flag is set would blindly defer to
+ *  RockSim's per-part CG (not ground truth) and could import a nonsensical out-of-body value (a real
+ *  file was seen with a nose `KnownCG` well past its length); this keeps only an intentional trim,
+ *  e.g. a nose weighted with clay to a measured CG. */
+function cgOverrideM(node: XmlNode, lengthM: number): number | undefined {
+  if (Math.round(n(node, "UseKnownCG", 0)) !== 1) return undefined;
+  const knownM = n(node, "KnownCG", 0) * MM;
+  const calcM = n(node, "CalcCG", 0) * MM;
+  if (!(lengthM > 0) || !(knownM > 0) || knownM > lengthM + 1e-6) return undefined;
+  if (Math.abs(knownM - calcM) < 1e-4) return undefined; // equals the computed CG — not a real override
+  return knownM;
+}
+
 // --- component parsing ----------------------------------------------------------------
 
 function baseOf(node: XmlNode, topLevel: boolean) {
@@ -416,6 +440,13 @@ function parseComponent(
   if (comp && STRUCTURAL.has(comp.kind)) {
     const om = fileMassKg(node, useKnownMass);
     if (om !== undefined) (comp as { overrideMass?: number }).overrideMass = om;
+  }
+  // Honour a genuine per-part CG override (the RockSim analogue of OpenRocket's <overridecg>), so a
+  // nose or section trimmed to a measured CG flies with that CG — and thus the right stability
+  // margin — instead of Loft's geometry estimate.
+  if (comp && CG_OVERRIDABLE.has(comp.kind)) {
+    const cg = cgOverrideM(node, (comp as { length?: number }).length ?? 0);
+    if (cg !== undefined) (comp as { overrideCGx?: number }).overrideCGx = cg;
   }
   return comp;
 }
