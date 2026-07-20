@@ -250,6 +250,14 @@ export default function LoftApp() {
   // it immediately; the flyer tweaks a real, stable flight rather than staring at a blank slate.
   const onNew = useCallback(() => loadDoc(newDesign(), "New design"), [loadDoc]);
 
+  // Rename the current design. The name is pure metadata — it doesn't touch the airframe or the
+  // flight — so this updates the document in place without re-flying. It flows to the results title,
+  // the Download .ork filename, and the saved file's own <name>, so a built design can be given a
+  // real name before it's saved or re-opened.
+  const renameDesign = useCallback((name: string) => {
+    setDoc((prev) => (prev ? { ...prev, rocket: { ...prev.rocket, name } } : prev));
+  }, []);
+
   // Save the current design — built, edited, or imported — as an OpenRocket .ork, entirely in the
   // browser. It re-opens in Loft and, using OpenRocket's own format, in OpenRocket; so a design is
   // durable and portable rather than lost on refresh. Any active what-if edits are baked in.
@@ -431,7 +439,16 @@ export default function LoftApp() {
               >
                 <span aria-hidden>←</span> Import another
               </button>
-              {fileName && (
+              <input
+                type="text"
+                aria-label="Design name"
+                value={doc.rocket.name}
+                onChange={(e) => renameDesign(e.target.value)}
+                placeholder="Design name"
+                title="Rename this design — used as the results title and the .ork filename"
+                className="min-w-0 max-w-[11rem] rounded-md border border-zinc-300 bg-white px-2.5 py-1 text-sm font-medium text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+              />
+              {fileName && fileName !== doc.rocket.name && (
                 <span className="hidden truncate text-xs text-zinc-500 dark:text-zinc-400 sm:inline" title={fileName}>
                   {fileName}
                 </span>

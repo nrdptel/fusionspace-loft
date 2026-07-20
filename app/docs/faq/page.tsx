@@ -31,14 +31,15 @@ export default function Faq() {
       <QA q="Can I build a rocket from scratch, without a file?">
         <p>
           Yes — press <em>Start a new design</em>. Loft opens a stable 54&nbsp;mm sport rocket on a
-          common 38&nbsp;mm H motor, already flying: a healthy ~1.5-caliber static margin, a real
+          common 29&nbsp;mm H motor, already flying: a healthy ~1.5-caliber static margin, a real
           apogee, mass, and recovery. From there the same edits an imported design gets — nose shape
           and length, body length and diameter, fin size, count, sweep, thickness, cross-section and
-          material, nose ballast, motor swap, parachute size — reshape it and re-fly instantly. A
-          design you build enters the exact same internal model and solver an import does, so every
-          tool (sweeps, Monte-Carlo, the second-opinion engine) works on it just the same. The
-          from-scratch builder grows from here; today it starts you from a sound baseline to tailor
-          rather than a blank slate.
+          material, nose ballast, motor swap, parachute size — reshape it and re-fly instantly. Give
+          it a name in the field beside <em>Import another</em>, and that name becomes the results
+          title and the saved <code>.ork</code> filename. A design you build enters the exact same
+          internal model and solver an import does, so every tool (sweeps, Monte-Carlo, the
+          second-opinion engine) works on it just the same. The from-scratch builder grows from here;
+          today it starts you from a sound baseline to tailor rather than a blank slate.
         </p>
       </QA>
 
@@ -300,8 +301,10 @@ export default function Faq() {
           Yes. <em>Download .ork</em> (top of the results) saves the current design — built from
           scratch, edited, or imported — as an OpenRocket <code>.ork</code> file, generated entirely
           in your browser. It re-opens in Loft and, because it&apos;s OpenRocket&apos;s own format,
-          in OpenRocket, so your work is durable and portable rather than lost on refresh. Any
-          structural (geometry) edits you&apos;ve made are baked into the saved airframe; transient
+          in OpenRocket, so your work is durable and portable rather than lost on refresh. The file
+          is named for the design — rename it in the field beside <em>Import another</em> first to
+          save meaningfully-titled variants side by side. Any structural (geometry) edits you&apos;ve
+          made are baked into the saved airframe; transient
           what-ifs — added ballast, a swapped motor, a resized canopy, launch conditions — are flight
           explorations, not part of the design, so they&apos;re left out. Every bundled design
           round-trips through save and re-open with its flight unchanged. A freeform (arbitrary

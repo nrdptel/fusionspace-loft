@@ -67,6 +67,26 @@ test.describe("Loft", () => {
     expect(download.suggestedFilename()).toMatch(/\.ork$/);
   });
 
+  test("renames the design and the results title and .ork filename follow", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: "Start a new design" }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+
+    // The results title starts as the design's own name.
+    await expect(page.getByRole("heading", { name: "New design", exact: true })).toBeVisible();
+
+    // Renaming updates the title live — pure metadata, no re-fly needed.
+    await page.getByLabel("Design name").fill("Blue Streak");
+    await expect(page.getByRole("heading", { name: "Blue Streak", exact: true })).toBeVisible();
+
+    // …and the saved file is named for the design, so variants don't clobber each other.
+    const [download] = await Promise.all([
+      page.waitForEvent("download"),
+      page.getByRole("button", { name: "Download .ork" }).click(),
+    ]);
+    expect(download.suggestedFilename()).toBe("Blue-Streak.ork");
+  });
+
   test("imports the RockSim .rkt sample and simulates the flight", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: /RockSim · 54 mm sport/ }).click();

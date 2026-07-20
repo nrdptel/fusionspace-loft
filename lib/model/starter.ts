@@ -1,7 +1,7 @@
 /** A from-scratch starter design for the in-browser builder. Produces the exact internal model an
  *  importer produces — a `Rocket` inside a document with an empty stored-simulation list — so the
  *  builder and the importers converge on one representation and one solver. The starter is a sane,
- *  stable 54 mm sport design on a common 38 mm H motor: a flyer opens it and immediately has a real
+ *  stable 54 mm sport design on a common 29 mm H motor: a flyer opens it and immediately has a real
  *  flight to tweak, rather than a blank slate that can't be simulated.
  *
  *  Dimensions are chosen for a healthy static margin (~1.5–2 cal) and a sensible mass, so the very
