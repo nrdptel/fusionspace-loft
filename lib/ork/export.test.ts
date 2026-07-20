@@ -124,6 +124,22 @@ describe("exportOrk — real-design features round-trip (regression)", () => {
     expect(structurePointMasses(back.rocket).reduce((a, m) => a + m.mass, 0)).toBeCloseTo(before, 4);
   });
 
+  it("preserves a per-configuration stage-separation override", async () => {
+    const doc = newDesign();
+    // Give the (single) stage a per-config separation override and round-trip it. Even on a
+    // one-stage design the block must survive, since it's what a multi-stage design relies on to
+    // drop its booster at the right instant per motor config.
+    doc.rocket.stages[0].separationConfigs = {
+      "cfg-1": { event: "upperignition", delay: 0 },
+      "cfg-2": { event: "burnout", delay: 1.5 },
+    };
+    const back = await roundtrip(doc);
+    const sc = back.rocket.stages[0].separationConfigs;
+    expect(sc?.["cfg-1"]?.event).toBe("upperignition");
+    expect(sc?.["cfg-2"]?.event).toBe("burnout");
+    expect(sc?.["cfg-2"]?.delay).toBeCloseTo(1.5, 6);
+  });
+
   it("preserves a launch lug's mass and count", async () => {
     const doc = newDesign();
     const lug: MinorComponent = {

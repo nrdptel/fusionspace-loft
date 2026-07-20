@@ -340,6 +340,15 @@ export type SeparationEvent =
   | "altitude"
   | "never";
 
+/** A stage-separation setting: the trigger event and a delay after it. Like a recovery device,
+ *  OpenRocket lets a stage separate on a *different* event per motor configuration — e.g. drop the
+ *  booster at its ejection charge on one motor but at upper-stage ignition on another — so a stage
+ *  can carry per-config overrides keyed by configuration id (see `Stage.separationConfigs`). */
+export interface SeparationSetting {
+  event?: SeparationEvent;
+  delay?: number;
+}
+
 export interface Stage {
   name: string;
   components: RocketComponent[];
@@ -348,6 +357,10 @@ export interface Stage {
   separationEvent?: SeparationEvent;
   /** Delay (s) added after the separation event fires. Usually 0. */
   separationDelay?: number;
+  /** Per-motor-configuration separation overrides, keyed by config id; the flown config's override
+   *  wins over the default event above. A two-stage design commonly separates at upper-stage
+   *  ignition on one motor and at the booster's ejection charge on another. */
+  separationConfigs?: Record<string, SeparationSetting>;
   /** A stage is a component assembly in OpenRocket, so it too can carry a mass/CG override. When
    *  set together with `overrideSubcomponents`, this measured figure replaces the combined mass of
    *  every component in the stage (the design's own weight for the whole section). */

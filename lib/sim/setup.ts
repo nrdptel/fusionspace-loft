@@ -10,6 +10,7 @@ import type {
   Parachute,
   Streamer,
   RocketComponent,
+  SeparationEvent,
 } from "../model/types";
 import { flattenRocket, type Positioned } from "../model/geometry";
 import { resolveMotor, type MotorMatch } from "../motors/db";
@@ -138,11 +139,14 @@ export function buildRocketDynamics(rocket: Rocket, config: MotorConfiguration):
   // back to the burnout default.) The top stage never separates.
   const detachT = new Array(nStages).fill(Infinity);
   for (let i = 1; i < nStages; i++) {
-    const ev = rocket.stages[i]?.separationEvent;
-    const sepDelay = rocket.stages[i]?.separationDelay ?? 0;
+    const sep = effectiveSeparation(rocket.stages[i], config.id);
+    const ev = sep.event;
+    const sepDelay = sep.delay;
     const burnoutSep = stageActivation[i] + stageBurnDuration[i];
     if (ev === "never") detachT[i] = Infinity;
     else if (ev === "ejection" && Number.isFinite(stageEjectionTime[i])) detachT[i] = stageEjectionTime[i] + sepDelay;
+    // `upperignition` (drop at upper-stage light) and the default both resolve to the lower stage's
+    // burnout, which is exactly when the stage above air-starts in the serial model.
     else detachT[i] = burnoutSep + sepDelay;
   }
 
@@ -182,6 +186,21 @@ export function buildRocketDynamics(rocket: Rocket, config: MotorConfiguration):
   }
 
   return { motors, recovery, resolutions, phases };
+}
+
+/** The separation setting in force for the flown configuration: a per-config override wins over
+ *  the stage's default event (a two-stage design can drop the booster at its ejection charge on
+ *  one motor and at upper-stage ignition on another). Missing the per-config lookup made the
+ *  spent booster ride to apogee on such a config — a large apogee error. */
+function effectiveSeparation(
+  stage: Rocket["stages"][number] | undefined,
+  configId: string,
+): { event: SeparationEvent | undefined; delay: number } {
+  const o = stage?.separationConfigs?.[configId];
+  return {
+    event: o?.event ?? stage?.separationEvent,
+    delay: (o?.delay ?? stage?.separationDelay) ?? 0,
+  };
 }
 
 /** The deployment setting in force for the flown configuration: a per-config override wins over

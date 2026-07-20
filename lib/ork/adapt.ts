@@ -13,6 +13,7 @@ import type {
   RocketComponent,
   Stage,
   SeparationEvent,
+  SeparationSetting,
   Material,
   MaterialType,
   Placement,
@@ -727,6 +728,26 @@ function freeformPlanform(node: XmlNode): { area: number; sweep: number; span: n
   return { area: Math.abs(area) / 2, sweep: sweepAtMaxY, span: maxY, rootChord, cpChord };
 }
 
+/** Per-configuration separation overrides: OpenRocket writes a `<separationconfiguration
+ *  configid=…>` for each motor config a stage separates differently in (e.g. at the booster's
+ *  ejection charge on one motor, at upper-stage ignition on another). Keyed by configuration id;
+ *  the flown config's override wins over the stage's default `<separationevent>`. Missing this is
+ *  why a two-stage design could carry its spent booster to apogee instead of dropping it at
+ *  staging — a large apogee error. */
+function parseSeparationConfigs(st: XmlNode): Record<string, SeparationSetting> | undefined {
+  const out: Record<string, SeparationSetting> = {};
+  for (const sc of children(st, "separationconfiguration")) {
+    const cid = sc.attrs.configid;
+    if (!cid) continue;
+    const delay = Number(childText(sc, "separationdelay"));
+    out[cid] = {
+      event: mapSeparationEvent(childText(sc, "separationevent")),
+      delay: Number.isFinite(delay) ? delay : undefined,
+    };
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
 function parseStages(rocketNode: XmlNode, ctx: WalkContext): Stage[] {
   const sub = child(rocketNode, "subcomponents");
   if (!sub) return [];
@@ -741,6 +762,7 @@ function parseStages(rocketNode: XmlNode, ctx: WalkContext): Stage[] {
       components: parseSubcomponents(st, ctx),
       separationEvent: mapSeparationEvent(childText(st, "separationevent")),
       separationDelay: Number.isFinite(sepDelay) ? sepDelay : undefined,
+      separationConfigs: parseSeparationConfigs(st),
       overrideMass: ov.overrideMass,
       overrideCGx: ov.overrideCGx,
       overrideSubcomponents: ov.overrideSubcomponents,

@@ -14,6 +14,7 @@ import type {
   MotorInstance,
   DeployEvent,
   DeploySetting,
+  SeparationSetting,
 } from "../model/types";
 import type { OrkDocument } from "./import";
 import { storeZip } from "./zipwrite";
@@ -60,6 +61,23 @@ function deployConfigsXml(configs: Record<string, DeploySetting> | undefined, pa
         (s.altitude !== undefined ? `${pad}  <deployaltitude>${num(s.altitude)}</deployaltitude>\n` : "") +
         `${pad}  <deploydelay>${num(s.delay)}</deploydelay>\n` +
         `${pad}</deploymentconfiguration>\n`,
+    )
+    .join("");
+}
+
+/** Per-configuration stage-separation overrides — a booster that drops at its ejection charge on
+ *  one motor but at upper-stage ignition on another. Without these a saved multi-config staged
+ *  design would fall back to the default separation event, which can carry the booster far past
+ *  staging (a large apogee error on re-open). */
+function separationConfigsXml(configs: Record<string, SeparationSetting> | undefined, pad: string): string {
+  if (!configs) return "";
+  return Object.entries(configs)
+    .map(
+      ([cid, s]) =>
+        `${pad}<separationconfiguration configid="${esc(cid)}">\n` +
+        (s.event ? `${pad}  <separationevent>${s.event}</separationevent>\n` : "") +
+        (s.delay !== undefined ? `${pad}  <separationdelay>${num(s.delay)}</separationdelay>\n` : "") +
+        `${pad}</separationconfiguration>\n`,
     )
     .join("");
 }
@@ -391,6 +409,7 @@ export function serializeRocketXml(rocket: Rocket): string {
         `        <id>${nextUuid()}</id>\n` +
         overrideXml(s, "        ") +
         sep +
+        separationConfigsXml(s.separationConfigs, "        ") +
         `        <subcomponents>\n` +
         s.components.map((c) => componentXml(c, motors, 5)).join("") +
         `        </subcomponents>\n` +

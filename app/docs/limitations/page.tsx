@@ -145,11 +145,16 @@ export default function Limitations() {
       <p>
         In-line (serial) multi-stage flights are simulated: the booster lights at launch, each
         stage above air-starts when the one below burns out (plus any ignition delay for a boosted
-        coast), and the spent stage separates on the event the design specifies — at burnout for
-        ordinary staging, or at its own ejection charge for a payload/dual-section rocket that stays
-        whole until near apogee, with the recovery deploying on that separation. Its structure and
-        empty casing then leave the flight, so mass and drag step down and the sustainer climbs on
-        its own. Two things are <em>not</em> yet modelled: a separated stage&apos;s own descent
+        coast), and the spent stage separates on the event the design specifies — at burnout or
+        upper-stage ignition for ordinary staging, or at its own ejection charge for a
+        payload/dual-section rocket that stays whole until near apogee, with the recovery deploying
+        on that separation. That separation event is read <em>per motor configuration</em>: a design
+        can drop its booster at staging on one motor set and hold it to an ejection charge on
+        another, and each config now flies its own way (previously the per-config override was
+        dropped, so a booster could ride a slow sustainer all the way to apogee — a large apogee
+        error). Its structure and empty casing then leave the flight, so mass and drag step down and
+        the sustainer climbs on its own. Two things are <em>not</em> yet modelled: a separated
+        stage&apos;s own descent
         (only the top stage is flown to the ground, so a booster&apos;s drift and landing
         aren&apos;t reported), and an <em>apogee</em>- or <em>altitude</em>-triggered separation,
         which falls back to the burnout default. Parallel

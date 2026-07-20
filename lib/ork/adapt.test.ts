@@ -117,6 +117,42 @@ describe("graceful degradation", () => {
     expect(doc.rocket.stages[1].separationDelay).toBeCloseTo(1.5, 6);
   });
 
+  it("reads per-configuration separation overrides, keyed by config id", () => {
+    // OpenRocket writes a <separationconfiguration configid=…> when a stage separates on a
+    // different event per motor config. Dropping these carried the booster to apogee on the
+    // overriding config instead of dropping it at staging — a large apogee error.
+    const xml = `<?xml version='1.0'?>
+      <openrocket version="1.10">
+        <rocket><name>SepCfg</name>
+          <subcomponents>
+            <stage><name>Sustainer</name><subcomponents>
+              <nosecone><length>0.1</length><aftradius>0.02</aftradius><shape>ogive</shape></nosecone>
+            </subcomponents></stage>
+            <stage><name>Booster</name>
+              <separationevent>ejection</separationevent>
+              <separationdelay>0.0</separationdelay>
+              <separationconfiguration configid="cfg-A">
+                <separationevent>burnout</separationevent>
+                <separationdelay>0.0</separationdelay>
+              </separationconfiguration>
+              <separationconfiguration configid="cfg-B">
+                <separationevent>upperignition</separationevent>
+                <separationdelay>0.0</separationdelay>
+              </separationconfiguration>
+              <subcomponents>
+                <bodytube><length>0.3</length><radius>0.02</radius><thickness>0.001</thickness></bodytube>
+              </subcomponents>
+            </stage>
+          </subcomponents>
+        </rocket>
+      </openrocket>`;
+    const doc = adaptOrkXml(xml);
+    const booster = doc.rocket.stages[1];
+    expect(booster.separationEvent).toBe("ejection"); // stage default is preserved
+    expect(booster.separationConfigs?.["cfg-A"]?.event).toBe("burnout");
+    expect(booster.separationConfigs?.["cfg-B"]?.event).toBe("upperignition");
+  });
+
   it("derives a freeform fin's span, root chord and area from its outline points", () => {
     // A freeform fin carries NO <rootchord>/<height> — only <finpoints>. If those aren't
     // derived, the fin reads as zero-span and contributes no normal force, so a design flips

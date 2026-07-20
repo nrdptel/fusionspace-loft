@@ -10,6 +10,7 @@ import type {
   TrapezoidFinSet,
   Parachute,
   MotorConfiguration,
+  SeparationEvent,
   Stage,
 } from "../model/types";
 
@@ -354,6 +355,44 @@ describe("stage separation event + recovery on lower-stage separation", () => {
     const bd = buildRocketDynamics(rocket, config);
     expect(bd.phases.length).toBe(1); // nothing ever detaches
     for (const m of bd.motors) expect(m.detachTime).toBe(Infinity);
+  });
+
+  // OpenRocket lets a stage separate on a different event per motor configuration — the classic
+  // case is a two-stage rocket that separates at the booster's ejection charge on one motor set
+  // and at upper-stage ignition on another. Missing the per-config lookup carried the spent
+  // booster to apogee on such a config (a real ~22% apogee error on a corpus two-stage design).
+  it("applies a per-config separation override over the stage's default event", () => {
+    const { rocket, config } = payload("ejection", 6);
+    const booster = () => buildRocketDynamics(rocket, config).motors.find((m) => m.curve.designation === "H128W")!;
+    const burnout = booster().ignitionTime + booster().curve.burnTime;
+    // Default (no override): separates at its ejection charge, burnout + 6 s.
+    expect(booster().detachTime).toBeCloseTo(burnout + 6, 3);
+    // This config overrides to burnout — the override wins over the default "ejection".
+    rocket.stages[1].separationConfigs = { cfg: { event: "burnout" } };
+    expect(booster().detachTime).toBeCloseTo(burnout, 3);
+    // An override keyed to a *different* config doesn't apply to this flight.
+    rocket.stages[1].separationConfigs = { "other-cfg": { event: "burnout" } };
+    expect(booster().detachTime).toBeCloseTo(burnout + 6, 3);
+  });
+
+  it("the per-config override moves when the booster drops — and changes the flight", () => {
+    const fly = (override?: SeparationEvent) => {
+      const { rocket, config } = twoStage();
+      // Booster set to part at its own ejection charge, 8 s after burnout — so without an override
+      // it rides on well past staging.
+      config.instances[1].motor.delay = 8;
+      rocket.stages[1].separationEvent = "ejection";
+      if (override) rocket.stages[1].separationConfigs = { cfg: { event: override } };
+      const run = runFlight(rocket, { configId: "cfg" });
+      return { sep: run.result.events.find((e) => e.type === "separation")!, apogee: run.result.summary.apogee };
+    };
+    const carried = fly();                 // "ejection": booster held to burnout + 8 s
+    const dropped = fly("upperignition");  // override: drops at staging (booster burnout)
+    // The crux of the bug: the override changes *when* the booster separates. Dropping the
+    // per-config lookup left both configs on the default "ejection" timing.
+    expect(dropped.sep.time).toBeLessThan(carried.sep.time - 4);
+    // And that changes the flight (the timing is modelled, not cosmetic).
+    expect(Math.abs(dropped.apogee - carried.apogee)).toBeGreaterThan(15);
   });
 
   it("doesn't flag the finless payload as an unstable upper stage — it recovers at separation", () => {
