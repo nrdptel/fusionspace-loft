@@ -117,6 +117,8 @@ export default function MonteCarlo({
       },
       () => !live,
       (done) => live && setProgress(done),
+      // Draw the cloud as it forms — each partial replaces the last, refining toward the final run.
+      (partial) => live && setResult(partial),
     ).then((r) => {
       if (!live || r === null) return;
       setResult(r);
@@ -201,7 +203,26 @@ export default function MonteCarlo({
             />
           </div>
 
-          {running || result === null ? (
+          {result !== null && result.n > 0 ? (
+            // Once some flights have landed, show the distribution and let it refine in place. While
+            // the run finishes, a slim indicator keeps the count visible so the cloud reads as
+            // "still filling in", not final.
+            <>
+              {running && (
+                <div className="mt-4 flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400" role="status">
+                  <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent" />
+                  <span>Refining — {progress}/{SAMPLES} flown…</span>
+                </div>
+              )}
+              <Report
+                result={result}
+                units={units}
+                name={doc.rocket.name}
+                ceiling={ceiling}
+                onCeiling={setCeiling}
+              />
+            </>
+          ) : running || result === null ? (
             <div className="mt-4 flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-300" role="status">
               <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent" />
               <span>
@@ -209,18 +230,10 @@ export default function MonteCarlo({
                 {progress > 0 ? ` — ${progress} done` : ""}…
               </span>
             </div>
-          ) : result.n === 0 ? (
+          ) : (
             <div className="mt-4 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900/60 dark:text-zinc-300">
               None of the dispersed flights could be flown on this design.
             </div>
-          ) : (
-            <Report
-              result={result}
-              units={units}
-              name={doc.rocket.name}
-              ceiling={ceiling}
-              onCeiling={setCeiling}
-            />
           )}
         </>
       )}

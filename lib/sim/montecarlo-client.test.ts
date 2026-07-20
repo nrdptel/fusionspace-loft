@@ -62,4 +62,23 @@ describe("montecarlo-client (batched, non-blocking)", () => {
     },
     20_000,
   );
+
+  it(
+    "emits partial distributions that fill in toward the final one",
+    async () => {
+      const { rocket, opts } = await baseOpts();
+      const partials: number[] = [];
+      const final = await runMonteCarlo(rocket, opts, undefined, undefined, (p) => partials.push(p.n));
+      expect(final).not.toBeNull();
+      // The preview arrives more than once and each has flown at least as many samples as the last —
+      // the cloud grows, never shrinks.
+      expect(partials.length).toBeGreaterThan(1);
+      for (let i = 1; i < partials.length; i++) expect(partials[i]).toBeGreaterThanOrEqual(partials[i - 1]);
+      // A partial never reports more flights than the whole run.
+      expect(partials[partials.length - 1]).toBeLessThanOrEqual(final!.n);
+      // The final result is exactly the synchronous one — the preview changes only WHEN, not WHAT.
+      expect(final).toEqual(monteCarlo(rocket, opts));
+    },
+    20_000,
+  );
 });
