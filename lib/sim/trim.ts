@@ -1,4 +1,5 @@
-/** Stability trim: solve for the nose ballast that brings a design to a target static margin.
+/** Stability trim: solve for the nose ballast — or the fin-group position — that brings a design to
+ *  a target static margin.
  *
  *  This is a goal-seek (an optimisation primitive), the inverse of the ballast parameter sweep —
  *  instead of plotting the margin across a range of added weight, it answers the design question
@@ -19,6 +20,11 @@
  *  The same {mass, CG} combine the flight uses (lib/sim/mass.ts) produces cg(b), so the ballast this
  *  returns, typed into the nose-ballast what-if, reproduces the target margin the solver reports —
  *  the round-trip is asserted in trim.test.ts against a real flight, not just the algebra. */
+
+import type { Rocket } from "../model/types";
+import { barrowman } from "./aero";
+import { dryMassProperties } from "./mass";
+import { applyGeometryEdits, primaryFinStation } from "../model/edit";
 
 export interface MarginTrimInput {
   /** Centre of pressure, station from the nose tip (m). */
@@ -110,5 +116,58 @@ export function marginTrim(input: MarginTrimInput, targetMarginCal: number): Mar
     maxMarginCal,
     feasible: true,
     alreadyMet: false,
+  };
+}
+
+export interface FinStationTrim {
+  targetMarginCal: number;
+  /** The design's current (as-supplied) static margin (cal). */
+  currentMarginCal: number;
+  /** The primary fin set's current fore station (m from the nose tip). */
+  currentStation: number;
+  /** The station to move the fin group's fore edge to for the target margin (m from the nose tip). */
+  targetStation: number;
+  /** How far to shift the fins (m): positive is aft (more stable), negative is fore (less stable). */
+  shiftM: number;
+  /** True when the design has fins whose position moves the margin and the target sits on the
+   *  airframe (a positive station); false for a finless/degenerate design or an unreachable target. */
+  feasible: boolean;
+}
+
+/** Solve the fin-group longitudinal position that brings a design to a target static margin — the
+ *  weight-free companion to `marginTrim`, and the only lever that can *reduce* an over-stable margin
+ *  (moving the fins forward), which nose ballast cannot. Static margin is very nearly linear in fin
+ *  station — the fins' centre-of-pressure contribution shifts one-for-one with them — so the slope
+ *  is taken from a small finite difference of the exact Barrowman CP and the dry CG (both pure, no
+ *  flight) and inverted. Moving the fins also drags their own mass along, nudging the loaded CG; that
+ *  term is small next to the CP shift but is folded in so the result lands on target. Typed into the
+ *  fin-position what-if it reproduces the target margin — asserted against a real flight in
+ *  trim.test.ts. Returns not-feasible for a finless or degenerate design, or a target that would put
+ *  the fins ahead of the nose tip. */
+export function finStationTrim(
+  rocket: Rocket,
+  currentMarginCal: number,
+  loadedMass: number,
+  refDiameter: number,
+  targetMarginCal: number,
+): FinStationTrim | null {
+  const station0 = primaryFinStation(rocket);
+  if (station0 === undefined || !(refDiameter > 0) || !(loadedMass > 0)) return null;
+  const DELTA = 0.05; // 5 cm probe for the finite-difference margin slope
+  const base = barrowman(rocket);
+  const dryBase = dryMassProperties(rocket);
+  const shifted = applyGeometryEdits(rocket, { finStation: station0 + DELTA });
+  const dCp = (barrowman(shifted).cp - base.cp) / DELTA;
+  const dCgLoaded = ((dryMassProperties(shifted).cg - dryBase.cg) / DELTA) * (dryBase.mass / loadedMass);
+  const dMarginPerM = (dCp - dCgLoaded) / refDiameter;
+  if (!(Math.abs(dMarginPerM) > 1e-4)) return null; // no stability authority from fin position
+  const targetStation = station0 + (targetMarginCal - currentMarginCal) / dMarginPerM;
+  return {
+    targetMarginCal,
+    currentMarginCal,
+    currentStation: station0,
+    targetStation,
+    shiftM: targetStation - station0,
+    feasible: targetStation > 0,
   };
 }

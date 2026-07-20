@@ -20,7 +20,7 @@ import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
 import { overallLength } from "@/lib/model/geometry";
 import { noseBallastStation } from "@/lib/sim/run";
-import { marginTrim } from "@/lib/sim/trim";
+import { marginTrim, finStationTrim } from "@/lib/sim/trim";
 import { recoverySizing } from "@/lib/sim/recovery";
 
 /** A gentle target landing speed to size recovery toward — the middle of the ~3–6 m/s (10–20 ft/s)
@@ -30,6 +30,11 @@ const SOFT_LANDING_TARGET = 5;
 /** A healthy static margin to trim toward — comfortably above the 1-caliber rule of thumb, below
  *  the ~3-caliber point where over-stability starts to weathercock. */
 const TRIM_TARGET_CAL = 1.5;
+
+/** Above this the design is over-stable (the flight raises the same caution) and prone to
+ *  weathercocking; the fin-position trim then eases it back toward `OVER_STABLE_TARGET_CAL`. */
+const OVER_STABLE_CAL = 3;
+const OVER_STABLE_TARGET_CAL = 2;
 
 const COLORS = {
   altitude: "#6366f1",
@@ -434,44 +439,75 @@ function FlutterFixHint({ run, units }: { run: FlightRun; units: UnitSystem }) {
   );
 }
 
-/** When the static margin is below a healthy value, say plainly how much nose ballast would trim it
- *  there — or that ballast alone can't, when the fins are too small or too far forward to reach it
- *  no matter the weight. A closed-form goal-seek (lib/sim/trim.ts), the inverse of the ballast
- *  sweep: the sweep plots the whole curve, this answers the one question a flyer actually asks. */
+/** When the static margin is off a healthy value, say plainly how to trim it: how much nose ballast
+ *  would lift a thin margin (or that ballast alone can't, when the fins are too small or too far
+ *  forward), and — as the weight-free companion — how far to slide the fin group. Moving the fins is
+ *  the *only* lever that can bring down an over-stable, weathercock-prone margin, which nose ballast
+ *  cannot. Closed-form goal-seeks (lib/sim/trim.ts), the inverse of the ballast and fin-position
+ *  sweeps: the sweeps plot the whole curve, these answer the one question a flyer actually asks. */
 function StabilityTrimHint({ run, doc, units }: { run: FlightRun; doc: OrkDocument; units: UnitSystem }) {
   const r = run.result;
+  const refD = r.stability.refRadius * 2;
   const trim = marginTrim(
     {
       cp: r.stability.cp,
       cgLoaded: r.cgLoaded,
       loadedMass: r.liftoffMass,
-      refDiameter: r.stability.refRadius * 2,
+      refDiameter: refD,
       noseStation: noseBallastStation(doc.rocket),
     },
     TRIM_TARGET_CAL,
   );
-  // Only worth surfacing when the margin is actually thin; a comfortably-stable design needs nothing.
   // A degenerate airframe (no resolvable diameter) has no meaningful margin to trim — say nothing.
-  if (!(r.stability.refRadius > 0) || trim.alreadyMet || !Number.isFinite(trim.currentMarginCal)) return null;
+  if (!(r.stability.refRadius > 0) || !Number.isFinite(trim.currentMarginCal)) return null;
 
-  return (
-    <p className="mt-3 border-t border-zinc-100 pt-3 text-xs text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
-      {trim.feasible ? (
-        <>
-          <span className="font-medium text-zinc-600 dark:text-zinc-300">Stability trim:</span> adding
-          about {d.q(d.mass(trim.ballastKg, units))} of nose ballast would bring the static margin to{" "}
-          {d.fmt(TRIM_TARGET_CAL, 1)} cal (from {d.fmt(trim.currentMarginCal, 2)} cal). Nose weight
-          trades a little apogee for stability — set it under Conditions → Design what-if to see the cost.
-        </>
-      ) : (
-        <>
-          <span className="font-medium text-zinc-600 dark:text-zinc-300">Stability trim:</span> nose
-          ballast alone tops out near {d.fmt(trim.maxMarginCal, 2)} cal — short of {d.fmt(TRIM_TARGET_CAL, 1)} cal —
-          so no amount of nose weight makes this design comfortably stable. Enlarge the fins or move them aft.
-        </>
-      )}
-    </p>
-  );
+  const box = "mt-3 border-t border-zinc-100 pt-3 text-xs text-zinc-500 dark:border-zinc-800 dark:text-zinc-400";
+  const label = <span className="font-medium text-zinc-600 dark:text-zinc-300">Stability trim:</span>;
+
+  // Thin margin: name the nose ballast, and the weight-free fin-aft move that reaches the same target.
+  if (!trim.alreadyMet) {
+    const fin = finStationTrim(doc.rocket, trim.currentMarginCal, r.liftoffMass, refD, TRIM_TARGET_CAL);
+    const finAft =
+      fin && fin.feasible && fin.shiftM > 0 ? (
+        <> Or move the fin set about {d.q(d.lengthMm(fin.shiftM, units))} aft — weight-free — for the same margin.</>
+      ) : null;
+    return (
+      <p className={box}>
+        {trim.feasible ? (
+          <>
+            {label} adding about {d.q(d.mass(trim.ballastKg, units))} of nose ballast would bring the
+            static margin to {d.fmt(TRIM_TARGET_CAL, 1)} cal (from {d.fmt(trim.currentMarginCal, 2)} cal).
+            Nose weight trades a little apogee for stability — set it under Conditions → Design what-if
+            to see the cost.
+          </>
+        ) : (
+          <>
+            {label} nose ballast alone tops out near {d.fmt(trim.maxMarginCal, 2)} cal — short of{" "}
+            {d.fmt(TRIM_TARGET_CAL, 1)} cal — so no amount of nose weight makes this design comfortably
+            stable. Enlarge the fins to reach it.
+          </>
+        )}
+        {finAft}
+      </p>
+    );
+  }
+
+  // Over-stable: the one case nose ballast can't fix — name the fin-forward move that eases it.
+  if (trim.currentMarginCal > OVER_STABLE_CAL) {
+    const fin = finStationTrim(doc.rocket, trim.currentMarginCal, r.liftoffMass, refD, OVER_STABLE_TARGET_CAL);
+    if (fin && fin.feasible && fin.shiftM < 0) {
+      return (
+        <p className={box}>
+          {label} at {d.fmt(trim.currentMarginCal, 2)} cal this is over-stable and can weathercock
+          strongly into wind. Moving the fin set about {d.q(d.lengthMm(-fin.shiftM, units))} forward
+          would ease the margin to about {d.fmt(OVER_STABLE_TARGET_CAL, 1)} cal — a weight-free trim
+          (nose ballast only adds stability, never sheds it). Set the fin position under Conditions →
+          Design what-if to check.
+        </p>
+      );
+    }
+  }
+  return null;
 }
 
 /** When the design lands firm or hard under its recovery, say plainly how big a canopy would bring

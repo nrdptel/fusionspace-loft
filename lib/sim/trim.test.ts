@@ -2,8 +2,8 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { importOrk } from "../ork/import";
-import { runFromDocument, runFlight, noseBallastStation } from "./run";
-import { marginTrim, type MarginTrimInput } from "./trim";
+import { runFromDocument, runFlight, noseBallastStation, overridesFromStored } from "./run";
+import { marginTrim, finStationTrim, type MarginTrimInput } from "./trim";
 
 async function load(name: string) {
   const bytes = new Uint8Array(readFileSync(resolve(process.cwd(), "fixtures", name)));
@@ -96,5 +96,47 @@ describe("marginTrim round-trip against a real flight", () => {
     });
     // The closed form and the flight's mass/CG combine must agree to a hundredth of a caliber.
     expect(flown.result.staticMarginCal).toBeCloseTo(target, 2);
+  }, 20000);
+});
+
+describe("finStationTrim (fin-position stability trim)", () => {
+  it("moves the fins to hit a target margin — forward to soften it, aft to stiffen it", async () => {
+    const doc = await load("demo-single-deploy.ork");
+    const sim = doc.simulations[0];
+    const over = overridesFromStored(sim);
+    const nominal = runFlight(doc.rocket, { configId: sim.conditions.configId, overrides: over }).result;
+    const cur = nominal.staticMarginCal; // the demo sits over-stable, ~4 cal
+    const refD = nominal.stability.refRadius * 2;
+
+    // Trim DOWN to 2.0 cal: the fins move forward — the over-stable fix nose ballast can't do.
+    const down = finStationTrim(doc.rocket, cur, nominal.liftoffMass, refD, 2.0)!;
+    expect(down.feasible).toBe(true);
+    expect(down.shiftM).toBeLessThan(0);
+    const flownDown = runFlight(doc.rocket, {
+      configId: sim.conditions.configId,
+      overrides: over,
+      geometry: { finStation: down.targetStation },
+    }).result;
+    // The solved station reproduces the target margin in a real flight (linear, so it lands close).
+    expect(Math.abs(flownDown.staticMarginCal - 2.0)).toBeLessThan(0.1);
+
+    // Trim UP to 6.0 cal: the fins move aft.
+    const up = finStationTrim(doc.rocket, cur, nominal.liftoffMass, refD, 6.0)!;
+    expect(up.shiftM).toBeGreaterThan(0);
+    const flownUp = runFlight(doc.rocket, {
+      configId: sim.conditions.configId,
+      overrides: over,
+      geometry: { finStation: up.targetStation },
+    }).result;
+    expect(Math.abs(flownUp.staticMarginCal - 6.0)).toBeLessThan(0.1);
+  }, 20000);
+
+  it("returns null when there is nothing to solve (no fins, no diameter, no mass)", async () => {
+    const doc = await load("demo-single-deploy.ork");
+    const m = runFlight(doc.rocket, { configId: doc.simulations[0].conditions.configId }).result;
+    const refD = m.stability.refRadius * 2;
+    // A zero loaded mass or reference diameter has no defined margin slope.
+    expect(finStationTrim(doc.rocket, m.staticMarginCal, 0, refD, 2)).toBeNull();
+    expect(finStationTrim(doc.rocket, m.staticMarginCal, m.liftoffMass, 0, 2)).toBeNull();
   }, 20000);
 });

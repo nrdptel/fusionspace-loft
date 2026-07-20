@@ -406,6 +406,19 @@ test.describe("Loft", () => {
     expect(dl.every((v) => v > 0)).toBe(true);
   });
 
+  test("an over-stable design gets a weight-free fin-position trim suggestion", async ({ page }) => {
+    await page.goto("/");
+    // The 38 mm single-deploy sample sits over-stable (~4 cal), so the trim hint offers the one fix
+    // nose ballast can't do: move the fins forward.
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+    const hint = page.locator("p").filter({ hasText: "Stability trim:" });
+    await expect(hint).toBeVisible();
+    await expect(hint).toContainText(/over-stable/);
+    // It names a concrete distance to move the fins forward (mm) — the actionable part.
+    await expect(hint).toContainText(/\d+\s*mm forward/);
+  });
+
   test("mass breakdown lists parts that sum to the dry total", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();

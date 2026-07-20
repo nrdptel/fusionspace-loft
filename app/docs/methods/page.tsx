@@ -218,6 +218,19 @@ export default function Methods() {
         ever-growing lump of lead. It is the inverse of the ballast parameter sweep, sharing the same
         mass and CG model the flight uses.
       </p>
+      <p>
+        <strong>Stability trim (fin-position goal-seek).</strong> The weight-free companion: instead
+        of adding nose weight, it solves how far to slide the fin group to reach a target margin. The
+        static margin is very nearly linear in fin station — the fins&apos; centre-of-pressure
+        contribution moves one-for-one with them — so the slope <code>dm/dx</code> is taken from a
+        small finite difference of the exact Barrowman CP and the dry CG (both computed without a
+        flight; moving the fins also drags their own mass, nudging the CG, which is folded in) and
+        inverted: <code>x_target = x₀ + (m_target − m₀)·d / (dCP/dx − dCG/dx)</code>. Uniquely, this
+        is the only lever that can <em>reduce</em> an over-stable, weathercock-prone margin — moving
+        the fins forward — which nose ballast, adding only stability, cannot. The solved station,
+        typed into the fin-position what-if, reproduces the target margin (round-tripped against a
+        real flight in the tests).
+      </p>
 
       <h2>Drag</h2>
       <p>
