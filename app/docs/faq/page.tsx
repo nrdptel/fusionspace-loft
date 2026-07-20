@@ -155,12 +155,14 @@ export default function Faq() {
           Yes. Under the results, <em>Compare fitting motors</em> flies your airframe on every
           bundled motor that fits its mount diameter — all at once, on your device — and lays them
           out highest-apogee first: apogee, max speed, rail-exit velocity, thrust-to-weight,
-          stability margin, and fin-flutter margin for each, with your design&apos;s own motor
-          marked. It&apos;s the fast way
+          stability margin, fin-flutter margin, and the optimum ejection delay for each, with your
+          design&apos;s own motor marked. It&apos;s the fast way
           to answer &ldquo;which motor gets me to my target?&rdquo; and to see the trade — a bigger
           motor climbs higher but sits heavier at the tail, trimming the stability margin, while
           rail-exit velocity and thrust-to-weight show which motors clear the rail cleanly and the
-          flutter margin flags a punchier motor that would fly the fins toward their flutter speed. Any
+          flutter margin flags a punchier motor that would fly the fins toward their flutter speed.
+          The delay column is the burnout-to-apogee time for each motor, so you can see at a glance
+          which delay to buy or drill — a faster motor coasts longer and wants a longer one. Any
           active nose-ballast or geometry what-if is applied to every motor, so you&apos;re comparing
           the design you&apos;re actually looking at. Each row is a ballistic ascent under the
           design&apos;s stored conditions — estimates to check against the motor&apos;s printed data

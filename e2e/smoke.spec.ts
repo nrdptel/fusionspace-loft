@@ -393,9 +393,17 @@ test.describe("Loft", () => {
     // A fin-flutter margin column is present: the faster (top-apogee) motor has a thinner margin
     // than the slower (bottom) one — the motor-selection flutter cue.
     await expect(panel.getByRole("columnheader", { name: "Flutter" })).toBeVisible();
-    const flutterCells = await panel.locator("tbody tr td:last-child").allInnerTexts();
+    const flutterCells = await panel.locator("tbody tr td:nth-child(8)").allInnerTexts();
     const fl = flutterCells.map((t) => parseFloat(t.replace(/[^\d.]/g, "")));
     expect(fl[0]).toBeLessThan(fl[fl.length - 1]);
+
+    // An optimum-delay column is present too — each motor's burnout-to-apogee delay (the last
+    // column), so a flyer sees which delay to buy for each candidate. Every flying motor has one.
+    await expect(panel.getByRole("columnheader", { name: "Delay" })).toBeVisible();
+    const delayCells = await panel.locator("tbody tr td:last-child").allInnerTexts();
+    const dl = delayCells.map((t) => parseFloat(t.replace(/[^\d.]/g, "")));
+    expect(dl.length).toBeGreaterThan(2);
+    expect(dl.every((v) => v > 0)).toBe(true);
   });
 
   test("mass breakdown lists parts that sum to the dry total", async ({ page }) => {

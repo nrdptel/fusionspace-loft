@@ -62,6 +62,33 @@ describe("motorSweep", () => {
     expect(rows[0].apogee).toBeGreaterThan(rows[rows.length - 1].apogee);
   });
 
+  it("reports each motor's optimum apogee-deployment delay, matching a direct flight", async () => {
+    const doc = await load("demo-single-deploy.ork");
+    const sim = doc.simulations[0];
+    const dia = doc.rocket.configurations.find((c) => c.id === sim.conditions.configId)?.instances[0]?.motor
+      .diameter;
+    const motors = fittingMotors(dia!);
+    const rows = motorSweep(doc.rocket, motors, {
+      configId: sim.conditions.configId,
+      overrides: overridesFromStored(sim),
+      designMotor: doc.rocket.configurations[0].instances[0].motor.designation,
+    });
+    // Every flying motor gets a finite, positive apogee-deployment delay, and they aren't all the
+    // same — each motor coasts to apogee on its own schedule, so the delay to buy differs by motor.
+    for (const r of rows) expect(r.optimumDelay).toBeGreaterThan(0);
+    const delays = rows.map((r) => r.optimumDelay);
+    expect(Math.max(...delays) - Math.min(...delays)).toBeGreaterThan(0.5);
+    // The design motor's row is just the solver run on that motor, so its delay matches a direct
+    // ballistic flight of the design.
+    const design = rows.find((r) => r.isDesign)!;
+    const direct = runFlight(doc.rocket, {
+      configId: sim.conditions.configId,
+      overrides: overridesFromStored(sim),
+      ballistic: true,
+    }).result.summary.optimumDelay;
+    expect(Math.abs(design.optimumDelay - direct)).toBeLessThan(0.2);
+  });
+
   it("marks the design's own motor and no other", async () => {
     const doc = await load("demo-single-deploy.ork");
     const sim = doc.simulations[0];

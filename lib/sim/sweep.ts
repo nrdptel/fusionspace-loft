@@ -32,6 +32,11 @@ export interface MotorSweepRow {
    *  pushes the fins closer to flutter, so this is a motor-selection safety cue. NaN for a finless
    *  design. */
   flutterMargin: number;
+  /** Optimum ejection delay for apogee deployment (s from burnout) — a faster motor coasts longer,
+   *  so each candidate wants a different delay. The motor-selection companion to the flight's own
+   *  optimum-delay readout: it says which delay to buy or drill for each motor. NaN when the motor
+   *  can't reach a real apogee (e.g. it won't clear the rail). */
+  optimumDelay: number;
   /** True for the design's own motor, so the UI can mark its row. */
   isDesign: boolean;
 }
@@ -77,6 +82,8 @@ export function motorSweep(rocket: Rocket, motors: SweepMotor[], opts: MotorSwee
         thrustToWeight: s.thrustToWeight,
         staticMarginCal: run.result.staticMarginCal,
         flutterMargin: run.result.flutter ? run.result.flutter.worst.margin : Number.NaN,
+        // A motor that never really flew (won't clear the rail) has no meaningful apogee delay.
+        optimumDelay: Number.isFinite(s.optimumDelay) && s.optimumDelay > 0 ? s.optimumDelay : Number.NaN,
         isDesign: m.designation === opts.designMotor,
       });
     } catch {

@@ -136,7 +136,7 @@ function sweepCsv(rows: MotorSweepRow[], units: UnitSystem): CsvCell[][] {
   const alt = units === "imperial" ? "ft" : "m";
   const toAlt = (m: number) => (units === "imperial" ? mToFt(m) : m);
   const toSpd = (mps: number) => (units === "imperial" ? mpsToFtps(mps) : mps);
-  const header: CsvCell[] = ["Motor", "Manufacturer", "Class", `Apogee (${alt})`, `Max velocity (${spd})`, `Rail-exit (${spd})`, "Thrust-to-weight", "Static margin (cal)", "Fin flutter margin (x)", "Design"];
+  const header: CsvCell[] = ["Motor", "Manufacturer", "Class", `Apogee (${alt})`, `Max velocity (${spd})`, `Rail-exit (${spd})`, "Thrust-to-weight", "Static margin (cal)", "Fin flutter margin (x)", "Optimum delay (s)", "Design"];
   const body: CsvCell[][] = rows.map((r) => [
     r.designation,
     r.manufacturer,
@@ -147,6 +147,7 @@ function sweepCsv(rows: MotorSweepRow[], units: UnitSystem): CsvCell[][] {
     round(r.thrustToWeight, 2),
     round(r.staticMarginCal, 2),
     round(r.flutterMargin, 2),
+    round(r.optimumDelay, 1),
     r.isDesign ? "yes" : "",
   ]);
   return [header, ...body];
@@ -166,7 +167,8 @@ function SweepTable({ rows, units, name }: { rows: MotorSweepRow[]; units: UnitS
               <th className="py-1 pr-4 font-medium">Rail&nbsp;exit</th>
               <th className="py-1 pr-4 font-medium">T:W</th>
               <th className="py-1 pr-4 font-medium">Margin</th>
-              <th className="py-1 font-medium">Flutter</th>
+              <th className="py-1 pr-4 font-medium">Flutter</th>
+              <th className="py-1 font-medium">Delay</th>
             </tr>
           </thead>
           <tbody className="font-mono">
@@ -209,7 +211,7 @@ function SweepTable({ rows, units, name }: { rows: MotorSweepRow[]; units: UnitS
                   <td className="py-1.5 pr-4 text-zinc-800 dark:text-zinc-100">{d.q(d.calibers(r.staticMarginCal))}</td>
                   <td
                     className={
-                      "py-1.5 " +
+                      "py-1.5 pr-4 " +
                       (thinFlutter ? "text-amber-700 dark:text-amber-300" : "text-zinc-800 dark:text-zinc-100")
                     }
                     title={
@@ -219,6 +221,12 @@ function SweepTable({ rows, units, name }: { rows: MotorSweepRow[]; units: UnitS
                     }
                   >
                     {Number.isFinite(r.flutterMargin) ? `${d.fmt(r.flutterMargin, 1)}×` : "—"}
+                  </td>
+                  <td
+                    className="py-1.5 text-zinc-800 dark:text-zinc-100"
+                    title="Optimum ejection delay for apogee deployment (burnout → apogee)"
+                  >
+                    {Number.isFinite(r.optimumDelay) ? d.q(d.seconds(r.optimumDelay)) : "—"}
                   </td>
                 </tr>
               );
@@ -230,7 +238,10 @@ function SweepTable({ rows, units, name }: { rows: MotorSweepRow[]; units: UnitS
         Each motor flies a ballistic ascent to apogee under the design&apos;s stored launch
         conditions — a like-for-like comparison, not the full recovery flight. Rail-exit velocity and
         thrust-to-weight are the launch-safety numbers to check against your rail and the ~5:1 and
-        ~15&nbsp;m/s (≈50&nbsp;ft/s) rules of thumb; these are estimates to verify, never a go/no-go.
+        ~15&nbsp;m/s (≈50&nbsp;ft/s) rules of thumb. <em>Delay</em> is the ejection delay that deploys
+        at apogee for that motor (burnout&nbsp;→&nbsp;apogee), so you can pick the delay to buy or drill
+        for each candidate; a faster motor coasts longer and wants a longer delay. These are estimates
+        to verify, never a go/no-go.
       </p>
       <div className="mt-2">
         <DownloadCsv rows={sweepCsv(rows, units)} name={name} suffix="motor-sweep" />
