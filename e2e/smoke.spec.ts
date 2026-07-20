@@ -626,6 +626,29 @@ test.describe("Loft", () => {
     await expect.poll(apogee).toBeLessThan(before);
   });
 
+  test("switching the airframe to a heavier material lowers the apogee (builder)", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: "Start a new design" }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+
+    const apogee = async () => {
+      const txt = await page
+        .getByLabel("Results")
+        .getByText("Apogee", { exact: true })
+        .locator("xpath=following-sibling::div")
+        .innerText();
+      return parseFloat(txt.replace(/[^\d.]/g, ""));
+    };
+    const before = await apogee();
+    expect(before).toBeGreaterThan(0);
+
+    // The starter is fibreglass; aluminium is far denser, so the airframe gets heavier and it flies
+    // lower on the same motor.
+    await page.locator("summary", { hasText: "Conditions" }).click();
+    await page.getByLabel("Airframe material").selectOption("aluminium");
+    await expect.poll(apogee).toBeLessThan(before);
+  });
+
   test("airfoiling the fin edges rebuilds the design and raises the apogee", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();

@@ -23,10 +23,12 @@ import {
   primaryBodyTube,
   primaryBodyDiameter,
   primaryFinish,
+  primaryAirframeMaterial,
   SURFACE_FINISHES,
   NOSE_SHAPES,
   FIN_CROSS_SECTIONS,
   FIN_MATERIALS,
+  AIRFRAME_MATERIALS,
   applyGeometryEdits,
   hasGeometryEdits,
 } from "@/lib/model/edit";
@@ -86,6 +88,7 @@ interface Edits {
   bodyLength?: number; // builder edit: primary body-tube length (m)
   bodyDiameter?: number; // builder edit: primary body-tube outer diameter (m); scales the airframe
   finish?: SurfaceFinish; // builder edit: whole-airframe surface finish
+  airframeMaterial?: string; // builder edit: airframe-shell material key (AIRFRAME_MATERIALS)
   boattailLength?: number; // builder edit: add a conical boattail of this length (m) at the aft
   boattailAftDiameter?: number; // builder edit: the added boattail's exit diameter (m)
   mainDeployAltitude?: number; // builder edit: dual-deploy — main deploys at this altitude AGL (m)
@@ -156,6 +159,7 @@ export default function LoftApp() {
           bodyLength: e.bodyLength,
           bodyDiameter: e.bodyDiameter,
           finish: e.finish,
+          airframeMaterial: e.airframeMaterial,
           boattailLength: e.boattailLength,
           boattailAftDiameter: e.boattailAftDiameter,
           mainDeployAltitude: e.mainDeployAltitude,
@@ -189,6 +193,7 @@ export default function LoftApp() {
         e.bodyLength !== undefined ||
         e.bodyDiameter !== undefined ||
         e.finish !== undefined ||
+        e.airframeMaterial !== undefined ||
         (e.boattailLength !== undefined && e.boattailAftDiameter !== undefined) ||
         (e.mainDeployAltitude !== undefined && e.drogueDiameter !== undefined);
       const baseline = hasWhatIf ? runFlight(document.rocket, { configId, overrides }) : null;
@@ -290,6 +295,7 @@ export default function LoftApp() {
       bodyLength: edits.bodyLength,
       bodyDiameter: edits.bodyDiameter,
       finish: edits.finish,
+      airframeMaterial: edits.airframeMaterial,
       boattailLength: edits.boattailLength,
       boattailAftDiameter: edits.boattailAftDiameter,
       mainDeployAltitude: edits.mainDeployAltitude,
@@ -394,6 +400,7 @@ export default function LoftApp() {
             bodyLength: primaryBodyTube(doc.rocket)?.length,
             bodyDiameter: primaryBodyDiameter(doc.rocket),
             finish: primaryFinish(doc.rocket),
+            airframeMaterial: primaryAirframeMaterial(doc.rocket),
           }
         : {
             finSpan: undefined,
@@ -409,6 +416,7 @@ export default function LoftApp() {
             bodyLength: undefined,
             bodyDiameter: undefined,
             finish: undefined,
+            airframeMaterial: undefined,
           },
     [doc],
   );
@@ -547,6 +555,7 @@ export default function LoftApp() {
                 bodyLength: edits.bodyLength,
                 bodyDiameter: edits.bodyDiameter,
                 finish: edits.finish,
+                airframeMaterial: edits.airframeMaterial,
                 boattailLength: edits.boattailLength,
                 boattailAftDiameter: edits.boattailAftDiameter,
                 mainDeployAltitude: edits.mainDeployAltitude,
@@ -639,6 +648,7 @@ function ConditionsControls({
     bodyLength?: number;
     bodyDiameter?: number;
     finish?: SurfaceFinish;
+    airframeMaterial?: string;
   };
   weather: WeatherConditions | null;
   scenario: "design" | "today";
@@ -949,6 +959,28 @@ function ConditionsControls({
                   {SURFACE_FINISHES.map((f) => (
                     <option key={f} value={f}>
                       {FINISH_LABELS[f]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            {designDims.bodyDiameter !== undefined && (
+              <label className="block">
+                <span className="block text-[11px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                  Airframe material
+                </span>
+                <select
+                  aria-label="Airframe material"
+                  value={edits.airframeMaterial ?? ""}
+                  onChange={(e) => onEdit({ airframeMaterial: e.target.value || undefined })}
+                  className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                >
+                  <option value="">
+                    As designed{designDims.airframeMaterial ? ` (${designDims.airframeMaterial})` : ""}
+                  </option>
+                  {AIRFRAME_MATERIALS.map((m) => (
+                    <option key={m.key} value={m.key}>
+                      {m.label}
                     </option>
                   ))}
                 </select>

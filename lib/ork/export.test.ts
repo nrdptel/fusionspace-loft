@@ -125,6 +125,19 @@ describe("exportOrk — real-design features round-trip (regression)", () => {
     expect(structurePointMasses(back.rocket).reduce((a, m) => a + m.mass, 0)).toBeCloseTo(before, 4);
   });
 
+  it("round-trips a builder airframe-material swap (mass preserved)", async () => {
+    const doc = newDesign();
+    const rocket = applyGeometryEdits(doc.rocket, { airframeMaterial: "carbon" });
+    const before = flight({ ...doc, rocket });
+    const back = await importOrk(exportOrk({ ...doc, rocket }));
+    // The shell material name survives on the body tube, and the flown mass round-trips.
+    const body = back.rocket.stages
+      .flatMap((s) => s.components)
+      .find((c) => c.kind === "bodytube") as { material?: { name: string } } | undefined;
+    expect(body?.material?.name).toBe("carbon fibre");
+    expect(flight(back).dryMass).toBeCloseTo(before.dryMass, 4);
+  });
+
   it("round-trips a builder dual-deploy (main-at-altitude + drogue)", async () => {
     const doc = newDesign();
     const rocket = applyGeometryEdits(doc.rocket, { mainDeployAltitude: 150, drogueDiameter: 0.3 });

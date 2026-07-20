@@ -7,7 +7,7 @@
  *  nose cone or body tube automatically shifts everything downstream and recomputes mass, drag,
  *  centre of pressure, and motor position. Fin span moves the centre of pressure (stability). */
 
-import type { Rocket, RocketComponent, NoseCone, BodyTube, Transition, Parachute, SurfaceFinish, NoseShape, FinCrossSection } from "./types";
+import type { Rocket, RocketComponent, NoseCone, BodyTube, Transition, Parachute, Material, SurfaceFinish, NoseShape, FinCrossSection } from "./types";
 import { flattenRocket } from "./geometry";
 
 /** Selectable nose-cone shapes, for the builder's nose picker. Ordered by how a flyer thinks of
@@ -36,6 +36,20 @@ export const FIN_MATERIALS: FinMaterialOption[] = [
   { key: "plywood", label: "Birch plywood", name: "birch plywood", density: 680 },
   { key: "g10", label: "G10 fibreglass", name: "G10 fibreglass", density: 1850 },
   { key: "carbon", label: "Carbon fibre", name: "carbon fibre", density: 1550 },
+  { key: "aluminium", label: "Aluminium", name: "aluminium", density: 2700 },
+];
+
+/** Airframe-shell materials for the builder's body/nose/transition material picker — the common
+ *  tube stocks, lightest → heaviest. Bulk densities are representative values for the laminate or
+ *  stock (fibreglass/carbon/phenolic laminates, vulcanised-fibre "Blue Tube", spiral-wound kraft
+ *  cardboard, birch ply, 6061 aluminium). Reuses the fin-material option shape. */
+export const AIRFRAME_MATERIALS: FinMaterialOption[] = [
+  { key: "cardboard", label: "Cardboard", name: "cardboard", density: 700 },
+  { key: "plywood", label: "Birch plywood", name: "birch plywood", density: 680 },
+  { key: "kraft-phenolic", label: "Kraft phenolic", name: "kraft phenolic", density: 950 },
+  { key: "bluetube", label: "Blue Tube", name: "vulcanised fibre", density: 1250 },
+  { key: "carbon", label: "Carbon fibre", name: "carbon fibre", density: 1550 },
+  { key: "fibreglass", label: "Fibreglass", name: "fibreglass", density: 1850 },
   { key: "aluminium", label: "Aluminium", name: "aluminium", density: 2700 },
 ];
 
@@ -100,6 +114,12 @@ export interface GeometryEdits {
   /** Surface finish applied to the whole airframe (drives skin-friction drag). Undefined leaves
    *  each component's own finish. */
   finish?: SurfaceFinish;
+  /** Airframe-shell material (an `AIRFRAME_MATERIALS` key) set on the nose, body tubes, and
+   *  transitions — the parts whose mass is computed from geometry × density, so switching stock (say
+   *  fibreglass → cardboard) re-masses the airframe and shifts apogee and stability. Fins and
+   *  internal fittings keep their own material. Undefined (or an unknown key) leaves each as-is; on a
+   *  design whose masses are file overrides (a RockSim import) it changes only the named stock. */
+  airframeMaterial?: string;
   /** Add a conical boattail (tail cone) of this axial length (m) at the aft of the airframe. The
    *  first structural *add* in the builder: it contracts the base, so most of the base drag — the
    *  single largest drag source on a blunt-based rocket — goes away, at the cost of a little
@@ -134,6 +154,7 @@ export function hasGeometryEdits(e: GeometryEdits): boolean {
     (e.bodyLength !== undefined && e.bodyLength > 0) ||
     (e.bodyDiameter !== undefined && e.bodyDiameter > 0) ||
     e.finish !== undefined ||
+    (e.airframeMaterial !== undefined && AIRFRAME_MATERIALS.some((m) => m.key === e.airframeMaterial)) ||
     (e.boattailLength !== undefined && e.boattailLength > 0 &&
       e.boattailAftDiameter !== undefined && e.boattailAftDiameter > 0) ||
     (e.mainDeployAltitude !== undefined && e.mainDeployAltitude > 0 &&
@@ -317,6 +338,24 @@ function withFinish(c: RocketComponent, finish: SurfaceFinish): RocketComponent 
   return { ...c, finish, children };
 }
 
+/** Set the airframe-shell material on a component subtree — the "what if the tubes were cardboard
+ *  instead of fibreglass?" edit. Applied only to the external shell (nose, body tubes, transitions)
+ *  whose mass is computed from geometry × density; fins keep their own material (their density and
+ *  flutter stiffness are their own choice), and internal fittings and recovery keep theirs. */
+function withAirframeMaterial(c: RocketComponent, material: Material): RocketComponent {
+  const children = c.children.length ? c.children.map((ch) => withAirframeMaterial(ch, material)) : c.children;
+  if (c.kind === "nosecone" || c.kind === "bodytube" || c.kind === "transition") {
+    return { ...c, material, children };
+  }
+  return children === c.children ? c : { ...c, children };
+}
+
+/** The airframe's representative shell material name — the primary body tube's, for the picker's
+ *  "as designed" label. Undefined when the primary tube carries no named material. */
+export function primaryAirframeMaterial(rocket: Rocket): string | undefined {
+  return primaryBodyTube(rocket)?.material?.name;
+}
+
 /** Scale the outer airframe radially by `f` — every body tube, the nose base, and each transition
  *  (with their shoulders) — so the mould line stays faired at a new caliber. This is the "same
  *  design in a wider/narrower tube" what-if: the aerodynamic outer surface (which sets the
@@ -474,6 +513,10 @@ export function applyGeometryEdits(rocket: Rocket, edits: GeometryEdits): Rocket
     if (tube) lengths.set(tube.id, edits.bodyLength);
   }
   const finish = edits.finish;
+  const matOpt = AIRFRAME_MATERIALS.find((m) => m.key === edits.airframeMaterial);
+  const airframeMaterial: Material | undefined = matOpt
+    ? { name: matOpt.name, density: matOpt.density, type: "bulk" }
+    : undefined;
   // Diameter what-if: the factor that takes the pristine primary tube to the target diameter, then
   // applied to the whole outer airframe so it stays faired. 1 (no scaling) when unset or degenerate.
   let radiusScale = 1;
@@ -484,6 +527,7 @@ export function applyGeometryEdits(rocket: Rocket, edits: GeometryEdits): Rocket
   const editOne = (c: RocketComponent): RocketComponent => {
     let geo = editComponent(c, edits, lengths);
     if (finish) geo = withFinish(geo, finish);
+    if (airframeMaterial) geo = withAirframeMaterial(geo, airframeMaterial);
     if (radiusScale !== 1) geo = scaleAirframeRadii(geo, radiusScale);
     return geo;
   };

@@ -20,6 +20,8 @@ import {
   primaryBodyTube,
   primaryFinish,
   primaryParachute,
+  primaryAirframeMaterial,
+  AIRFRAME_MATERIALS,
 } from "./edit";
 import type { GenericFinSet, Transition, Parachute } from "./types";
 import { overallLength } from "./geometry";
@@ -468,5 +470,48 @@ describe("applyGeometryEdits — dual-deploy recovery", () => {
     // the way down under the main, so the landing is much closer to the pad.
     expect(single).toBeGreaterThan(0);
     expect(dd).toBeLessThan(single * 0.6);
+  });
+});
+
+describe("applyGeometryEdits — airframe material", () => {
+  const shellMats = (r: ReturnType<typeof newDesign>["rocket"]) =>
+    flattenRocket(r)
+      .map((p) => p.component)
+      .filter((c) => c.kind === "nosecone" || c.kind === "bodytube" || c.kind === "transition")
+      .map((c) => (c as { material?: { name: string } }).material?.name);
+
+  it("sets the chosen stock on the nose/body/transitions and leaves the fins alone", () => {
+    const rocket = newDesign().rocket;
+    const finMatBefore = primaryFinMaterial(rocket);
+
+    const edited = applyGeometryEdits(rocket, { airframeMaterial: "aluminium" });
+    expect(new Set(shellMats(edited))).toEqual(new Set(["aluminium"]));
+    // Fins keep their own material — an airframe swap isn't a fin swap.
+    expect(primaryFinMaterial(edited)).toBe(finMatBefore);
+    // Non-destructive: the original still reads its own airframe material.
+    expect(primaryAirframeMaterial(rocket)).toBe("fibreglass");
+  });
+
+  it("re-masses the airframe: a heavier stock lowers apogee, a lighter one raises it", () => {
+    const rocket = newDesign().rocket;
+    const base = runFlight(rocket, { configId: "cfg-1" }).result;
+    const heavy = runFlight(applyGeometryEdits(rocket, { airframeMaterial: "aluminium" }), { configId: "cfg-1" }).result;
+    const light = runFlight(applyGeometryEdits(rocket, { airframeMaterial: "cardboard" }), { configId: "cfg-1" }).result;
+    const dryOf = (r: ReturnType<typeof runFlight>["result"]) => r.summary.apogee; // apogee proxies the mass change
+    // Aluminium adds mass ⇒ lower apogee; cardboard sheds it ⇒ higher.
+    expect(dryOf(heavy)).toBeLessThan(dryOf(base));
+    expect(dryOf(light)).toBeGreaterThan(dryOf(base));
+  });
+
+  it("ignores an unknown material key (leaves the design as-is)", () => {
+    const rocket = newDesign().rocket;
+    const edited = applyGeometryEdits(rocket, { airframeMaterial: "unobtanium" });
+    expect(new Set(shellMats(edited))).toEqual(new Set([primaryAirframeMaterial(rocket)]));
+  });
+
+  it("offers a sane material list", () => {
+    expect(AIRFRAME_MATERIALS.length).toBeGreaterThan(3);
+    expect(AIRFRAME_MATERIALS.map((m) => m.key)).toContain("fibreglass");
+    for (const m of AIRFRAME_MATERIALS) expect(m.density).toBeGreaterThan(0);
   });
 });
