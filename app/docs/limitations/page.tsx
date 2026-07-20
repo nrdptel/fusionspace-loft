@@ -156,7 +156,9 @@ export default function Limitations() {
         the sustainer climbs on its own. Two things are <em>not</em> yet modelled: a separated
         stage&apos;s own descent
         (only the top stage is flown to the ground, so a booster&apos;s drift and landing
-        aren&apos;t reported), and an <em>apogee</em>- or <em>altitude</em>-triggered separation,
+        aren&apos;t reported — though a spent lower stage that drops with <em>no</em> recovery is now
+        flagged as a ballistic, untracked range hazard rather than silently ignored), and an{" "}
+        <em>apogee</em>- or <em>altitude</em>-triggered separation,
         which falls back to the burnout default. Parallel
         (strap-on) stages and pods are still not simulated; a design that contains them is imported
         with a visible warning and its{" "}

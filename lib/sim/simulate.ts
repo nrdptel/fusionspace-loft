@@ -16,7 +16,7 @@
  *     uses the summed deployed drag areas. Descent drift is the canopy drifting with wind.
  */
 
-import type { Rocket, MotorConfiguration } from "../model/types";
+import type { Rocket, MotorConfiguration, RocketComponent } from "../model/types";
 import { Atmosphere } from "./atmosphere";
 import { aeroGeometry, barrowman, dragCoefficient, type Stability } from "./aero";
 import { analyzeFlutter, RECOMMENDED_FLUTTER_MARGIN, type FlutterReport } from "./flutter";
@@ -721,6 +721,17 @@ export function simulate(input: SimulateInput): FlightResult {
   // Optimum delay: burnout → apogee (coast time).
   const optimumDelay = Math.max(0, apogeeTime - burnout);
 
+  // Spent lower stages that drop away and carry no recovery Loft can see descend ballistically —
+  // and their fall isn't simulated (only the top stage is flown to the ground). Each such booster is
+  // a range hazard: a heavy, un-parachuted section can travel a long way downrange. The dropped
+  // stages are the ones below the final attached count; flag any with no chute/streamer in its tree.
+  const finalStageCount = phases[phases.length - 1].stageCount;
+  const ballisticBoosters: string[] = [];
+  for (let i = finalStageCount; i < nStages; i++) {
+    const st = rocket.stages[i];
+    if (st && !subtreeHasRecovery(st.components)) ballisticBoosters.push(st.name || `stage ${i + 1}`);
+  }
+
   buildWarnings(warnings, {
     staticMarginCal,
     upperStageMarginCal,
@@ -738,6 +749,7 @@ export function simulate(input: SimulateInput): FlightResult {
     recoveryExpected: recovery.length > 0,
     anyRecoveryOpened: recovery.some((d) => d.opened),
     groundHitVelocity,
+    ballisticBoosters,
   });
 
   // Fin-flutter safety estimate over the ascent. Below the recommended margin the fins are
@@ -874,6 +886,14 @@ function shouldSample(traj: TrajectorySample[], t: number, phase: FlightPhase): 
   return t - last >= gap;
 }
 
+/** Whether a component subtree carries any recovery device (parachute or streamer) — used to tell
+ *  a spent stage that will recover from one that drops ballistically. */
+function subtreeHasRecovery(components: RocketComponent[]): boolean {
+  return components.some(
+    (c) => c.kind === "parachute" || c.kind === "streamer" || subtreeHasRecovery(c.children),
+  );
+}
+
 function buildWarnings(
   out: FlightWarning[],
   ctx: {
@@ -902,6 +922,8 @@ function buildWarnings(
     /** At least one recovery device actually opened during the flight. */
     anyRecoveryOpened: boolean;
     groundHitVelocity: number;
+    /** Names of spent lower stages that dropped away with no recovery device — ballistic, untracked. */
+    ballisticBoosters: string[];
   },
 ): void {
   // A recovery device configured but never deployed before the ground = ballistic impact. This
@@ -989,6 +1011,21 @@ function buildWarnings(
           ? `After separation the ${name} is statically unstable as modelled (centre of pressure ahead of centre of gravity) once it flies alone — a staged stage can be stable on the pad yet unstable after staging. Verify independently.`
           : `After separation the ${name}'s static margin is ${ctx.upperStageMarginCal.toFixed(2)} cal — below the 1 cal rule of thumb once it flies alone. Verify independently.`,
       severity: "warning",
+    });
+  }
+  // A spent lower stage that drops with no recovery falls ballistically — and Loft flies only the
+  // top stage to the ground, so that fall isn't in the numbers above. It is a real range hazard:
+  // plan clearance for it, not just for the tracked stage.
+  if (ctx.ballisticBoosters.length > 0) {
+    const many = ctx.ballisticBoosters.length > 1;
+    out.push({
+      code: "untracked-booster",
+      message:
+        `This flight sheds ${many ? "spent lower stages" : "a spent lower stage"} (${ctx.ballisticBoosters.join(", ")}) ` +
+        `with no recovery device Loft can see. A separated booster's own descent isn't simulated — only the top stage is ` +
+        `flown to the ground — and with no parachute it falls ballistically, reaching a high speed and drifting well downrange. ` +
+        `Plan the range clearance and recovery area for it too, not just the tracked stage above.`,
+      severity: "caution",
     });
   }
   // Liftoff thrust-to-weight — the most basic launch-safety check, and (unlike rail-exit

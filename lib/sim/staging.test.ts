@@ -404,3 +404,33 @@ describe("stage separation event + recovery on lower-stage separation", () => {
     expect(run.result.warnings.some((w) => w.code === "upper-stage-stability")).toBe(false);
   });
 });
+
+describe("untracked-booster range-safety warning", () => {
+  const warned = (rocket: Rocket) =>
+    runFlight(rocket, { configId: "cfg" }).result.warnings.some((w) => w.code === "untracked-booster");
+
+  it("flags a spent booster that drops with no recovery — it falls ballistically, untracked", () => {
+    // twoStage's booster is a bare tube + fins + mount: nothing recovers it, so once it separates it
+    // descends ballistically and Loft doesn't fly it to the ground. That is a range hazard.
+    expect(warned(twoStage().rocket)).toBe(true);
+  });
+
+  it("stays silent when the booster carries its own recovery", () => {
+    const { rocket } = twoStage();
+    const boosterTube = rocket.stages[1].components[0] as BodyTube;
+    const chute: Parachute = {
+      id: "booster-chute", name: "Booster chute", kind: "parachute",
+      placement: { method: "top", offset: 0 }, cd: 0.8, diameter: 0.5, mass: 0.03,
+      deployEvent: "apogee", deployDelay: 0, children: [],
+    };
+    boosterTube.children = [...boosterTube.children, chute];
+    // The booster is designed to recover, so it isn't the ballistic hazard the warning is about.
+    expect(warned(rocket)).toBe(false);
+  });
+
+  it("doesn't flag a single-stage flight — nothing separates", () => {
+    const { rocket } = twoStage();
+    const single: Rocket = { ...rocket, stages: rocket.stages.slice(0, 1), configurations: rocket.configurations };
+    expect(warned(single)).toBe(false);
+  });
+});
