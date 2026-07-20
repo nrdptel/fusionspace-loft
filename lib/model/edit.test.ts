@@ -30,6 +30,8 @@ import type { GenericFinSet, Transition, Parachute } from "./types";
 import { overallLength } from "./geometry";
 import { newDesign } from "./starter";
 import { runFlight } from "../sim/run";
+import { exportOrk } from "../ork/export";
+import { defaultPayloadStation } from "./edit";
 import { recoverySizing } from "../sim/recovery";
 
 async function load(name: string) {
@@ -140,6 +142,55 @@ describe("applyGeometryEdits — fin position (stability lever)", () => {
       ["trapezoidfinset", "ellipticalfinset", "freeformfinset"].includes(p.component.kind),
     )!;
     expect(fin.xFore + fin.length).toBeCloseTo(overallLength(edited), 6);
+  });
+});
+
+describe("applyGeometryEdits — payload / mass component", () => {
+  it("adds a payload mass that raises the loaded mass and shifts the CG by its station", async () => {
+    const rocket = await load("demo-single-deploy.ork");
+    const cfg = rocket.configurations[0].id;
+    const base = runFlight(rocket, { configId: cfg }).result;
+
+    // A forward payload pulls the CG forward (more stable); an aft one pushes it back (less stable).
+    const fwd = runFlight(applyGeometryEdits(rocket, { payloadMassKg: 0.3, payloadStation: 0.3 }), { configId: cfg }).result;
+    const aft = runFlight(applyGeometryEdits(rocket, { payloadMassKg: 0.3, payloadStation: 0.85 }), { configId: cfg }).result;
+    expect(fwd.liftoffMass).toBeCloseTo(base.liftoffMass + 0.3, 6);
+    expect(aft.liftoffMass).toBeCloseTo(base.liftoffMass + 0.3, 6);
+    expect(fwd.cgLoaded).toBeLessThan(base.cgLoaded);
+    expect(aft.cgLoaded).toBeGreaterThan(base.cgLoaded);
+    expect(fwd.staticMarginCal).toBeGreaterThan(aft.staticMarginCal);
+    // Extra mass costs apogee, wherever it sits.
+    expect(fwd.summary.apogee).toBeLessThan(base.summary.apogee);
+  });
+
+  it("defaults an unpositioned payload to the mid-body station", async () => {
+    const rocket = await load("demo-single-deploy.ork");
+    const mid = defaultPayloadStation(rocket)!;
+    const cfg = rocket.configurations[0].id;
+    const noStation = applyGeometryEdits(rocket, { payloadMassKg: 0.3 });
+    const atMid = applyGeometryEdits(rocket, { payloadMassKg: 0.3, payloadStation: mid });
+    const cg = (rk: typeof rocket) => runFlight(rk, { configId: cfg }).result.cgLoaded;
+    expect(cg(noStation)).toBeCloseTo(cg(atMid), 6);
+  });
+
+  it("the added payload survives an export → re-import round-trip", async () => {
+    const bytes = new Uint8Array(readFileSync(resolve(process.cwd(), "fixtures", "demo-single-deploy.ork")));
+    const doc = await importOrk(bytes);
+    const edited = applyGeometryEdits(doc.rocket, { payloadMassKg: 0.3, payloadStation: 0.5 });
+    const reDoc = await importOrk(await exportOrk({ ...doc, rocket: edited }));
+    const payload = flattenRocket(reDoc.rocket).find((p) => p.component.name === "Payload");
+    expect(payload).toBeDefined();
+    expect((payload!.component as { mass: number }).mass).toBeCloseTo(0.3, 6);
+    expect(payload!.xFore).toBeCloseTo(0.5, 3);
+  });
+
+  it("no-ops when the payload mass is undefined or non-positive, and is non-destructive", async () => {
+    const rocket = await load("demo-single-deploy.ork");
+    const cfg = rocket.configurations[0].id;
+    expect(applyGeometryEdits(rocket, { payloadMassKg: 0 })).toBe(rocket);
+    const before = runFlight(rocket, { configId: cfg }).result.liftoffMass;
+    applyGeometryEdits(rocket, { payloadMassKg: 0.5 });
+    expect(runFlight(rocket, { configId: cfg }).result.liftoffMass).toBeCloseTo(before, 9);
   });
 });
 

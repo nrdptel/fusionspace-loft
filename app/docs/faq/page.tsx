@@ -40,7 +40,10 @@ export default function Faq() {
           the classic trim complement to nose ballast (which shifts the centre of gravity forward). You
           can also <em>add</em> a boattail (a tail cone: set a length and an exit diameter narrower
           than the body) to cut the base drag, the single largest drag source on a blunt-based
-          rocket, or switch to <em>dual-deploy</em> recovery (set a main-deploy altitude and a drogue
+          rocket, add a <em>payload / av-bay mass</em> — the electronics, tracker, or nose weight a
+          real rocket carries — at a station of your choice (leave the position blank and it sits
+          mid-body), which adds to the loaded mass and moves the CG toward it, or switch to{" "}
+          <em>dual-deploy</em> recovery (set a main-deploy altitude and a drogue
           diameter): the main then opens low over a drogue that controls the fall from apogee — the
           standard high-power setup that lands soft while cutting how far the wind carries it. Give it
           a name in the field beside <em>Import another</em>, and that name becomes

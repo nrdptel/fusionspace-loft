@@ -34,6 +34,7 @@ import {
   applyGeometryEdits,
   hasGeometryEdits,
   primaryParachute,
+  defaultPayloadStation,
 } from "@/lib/model/edit";
 import type { SurfaceFinish, NoseShape, FinCrossSection } from "@/lib/model/types";
 import { allMotors } from "@/lib/motors/db";
@@ -99,6 +100,8 @@ interface Edits {
   drogueDiameter?: number; // builder edit: dual-deploy — drogue diameter (m) added at apogee
   mainParachuteDiameter?: number; // builder edit: resize the main (largest) parachute (m)
   motorClusterCount?: number; // builder edit: how many motors the mount holds (cluster)
+  payloadMassKg?: number; // builder edit: add a payload/av-bay point mass (kg)
+  payloadStation?: number; // builder edit: where the added payload sits (m from nose; blank = mid-body)
 }
 
 /** Same-diameter bundled motors the design could fly, with the design's own motor as the default.
@@ -173,6 +176,8 @@ export default function LoftApp() {
           drogueDiameter: e.drogueDiameter,
           mainParachuteDiameter: e.mainParachuteDiameter,
           motorClusterCount: e.motorClusterCount,
+          payloadMassKg: e.payloadMassKg,
+          payloadStation: e.payloadStation,
         },
         // Validate only when flying the design's own stored conditions unchanged, and only when
         // Loft flew the complete design — a simplified vehicle (staging/pods/parallel/cluster)
@@ -207,7 +212,8 @@ export default function LoftApp() {
         (e.boattailLength !== undefined && e.boattailAftDiameter !== undefined) ||
         (e.mainDeployAltitude !== undefined && e.drogueDiameter !== undefined) ||
         e.mainParachuteDiameter !== undefined ||
-        e.motorClusterCount !== undefined;
+        e.motorClusterCount !== undefined ||
+        e.payloadMassKg !== undefined;
       const baseline = hasWhatIf ? runFlight(document.rocket, { configId, overrides }) : null;
       return { run, baseline };
     },
@@ -315,6 +321,8 @@ export default function LoftApp() {
       drogueDiameter: edits.drogueDiameter,
       mainParachuteDiameter: edits.mainParachuteDiameter,
       motorClusterCount: edits.motorClusterCount,
+      payloadMassKg: edits.payloadMassKg,
+      payloadStation: edits.payloadStation,
     };
     const rocket = hasGeometryEdits(geometry) ? applyGeometryEdits(doc.rocket, geometry) : doc.rocket;
     const bytes = exportOrk({ ...doc, rocket });
@@ -419,6 +427,7 @@ export default function LoftApp() {
             airframeMaterial: primaryAirframeMaterial(doc.rocket),
             mainParachuteDiameter: primaryParachute(doc.rocket)?.diameter,
             motorClusterCount: primaryMotorClusterCount(doc.rocket),
+            payloadStation: defaultPayloadStation(doc.rocket),
           }
         : {
             finSpan: undefined,
@@ -438,6 +447,7 @@ export default function LoftApp() {
             airframeMaterial: undefined,
             mainParachuteDiameter: undefined,
             motorClusterCount: undefined,
+            payloadStation: undefined,
           },
     [doc],
   );
@@ -584,6 +594,8 @@ export default function LoftApp() {
                 drogueDiameter: edits.drogueDiameter,
                 mainParachuteDiameter: edits.mainParachuteDiameter,
                 motorClusterCount: edits.motorClusterCount,
+                payloadMassKg: edits.payloadMassKg,
+                payloadStation: edits.payloadStation,
               }}
               swapOptions={swapInfo?.options}
               designMotor={swapInfo?.designMotor}
@@ -676,6 +688,7 @@ function ConditionsControls({
     airframeMaterial?: string;
     mainParachuteDiameter?: number;
     motorClusterCount?: number;
+    payloadStation?: number;
   };
   weather: WeatherConditions | null;
   scenario: "design" | "today";
@@ -998,6 +1011,22 @@ function ConditionsControls({
                 onChange={(v) => onEdit({ boattailAftDiameter: fromSpan(v) })}
               />
             )}
+            {designDims.payloadStation !== undefined && (
+              <Num
+                label={`Payload (${massU})`}
+                value={toDispMass(edits.payloadMassKg)}
+                placeholder="0"
+                onChange={(v) => onEdit({ payloadMassKg: fromMass(v) })}
+              />
+            )}
+            {designDims.payloadStation !== undefined && (
+              <Num
+                label={`Payload pos (${spanU})`}
+                value={toDispSpan(edits.payloadStation)}
+                placeholder={toDispSpan(designDims.payloadStation)}
+                onChange={(v) => onEdit({ payloadStation: fromSpan(v) })}
+              />
+            )}
             {designDims.finish !== undefined && (
               <label className="block">
                 <span className="block text-[11px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
@@ -1043,9 +1072,10 @@ function ConditionsControls({
           </div>
           <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
             Fly a different motor, add nose weight, resize the fins, nose, or body, add a boattail
-            (set both a length and an exit narrower than the body), or switch to dual-deploy (set both
-            a main-deploy altitude and a drogue diameter — the main then opens low over a drogue that
-            controls the fall from apogee, cutting drift) to trim stability, drag, apogee, or landing.
+            (set both a length and an exit narrower than the body), add a payload / av-bay mass (a
+            position blank sits it mid-body), or switch to dual-deploy (set both a main-deploy
+            altitude and a drogue diameter — the main then opens low over a drogue that controls the
+            fall from apogee, cutting drift) to trim stability, drag, apogee, or landing.
             It&apos;s a hypothetical change to the design, so the OpenRocket comparison is hidden while
             any is set. The geometry fields start from the design&apos;s own dimensions; only motors
             that fit this airframe&apos;s diameter are offered.

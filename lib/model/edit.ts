@@ -7,7 +7,7 @@
  *  nose cone or body tube automatically shifts everything downstream and recomputes mass, drag,
  *  centre of pressure, and motor position. Fin span moves the centre of pressure (stability). */
 
-import type { Rocket, RocketComponent, NoseCone, BodyTube, Transition, Parachute, Material, SurfaceFinish, NoseShape, FinCrossSection, MotorMount } from "./types";
+import type { Rocket, RocketComponent, NoseCone, BodyTube, Transition, Parachute, Material, SurfaceFinish, NoseShape, FinCrossSection, MotorMount, MassComponent } from "./types";
 import { flattenRocket } from "./geometry";
 
 /** Selectable nose-cone shapes, for the builder's nose picker. Ordered by how a flyer thinks of
@@ -154,6 +154,15 @@ export interface GeometryEdits {
    *  motor mount in the design (a from-scratch or single-stage design has one); 1 flies a single
    *  motor (de-clustering an imported cluster). Undefined leaves the mount(s) as-is. */
   motorClusterCount?: number;
+  /** Add a payload / avionics-bay mass of this many kg — the real, often dominant, non-structural
+   *  weight (electronics, tracker, ballast, nose weight) that a from-scratch design needs to fly
+   *  honestly. Modelled as a point mass inside the airframe, so it adds to the loaded mass and shifts
+   *  the CG toward its station — apogee falls and the static margin moves. Undefined adds nothing. */
+  payloadMassKg?: number;
+  /** Where the added payload sits, as a station (m) from the nose tip. Undefined places it at the
+   *  mid-point of the main body tube (a typical bay location); a value overrides that, clamped to
+   *  keep the mass inside the airframe. Only meaningful with `payloadMassKg`. */
+  payloadStation?: number;
 }
 
 /** True when at least one edit actually changes something. */
@@ -179,7 +188,8 @@ export function hasGeometryEdits(e: GeometryEdits): boolean {
     (e.mainDeployAltitude !== undefined && e.mainDeployAltitude > 0 &&
       e.drogueDiameter !== undefined && e.drogueDiameter > 0) ||
     (e.mainParachuteDiameter !== undefined && e.mainParachuteDiameter > 0) ||
-    (e.motorClusterCount !== undefined && e.motorClusterCount >= 1)
+    (e.motorClusterCount !== undefined && e.motorClusterCount >= 1) ||
+    (e.payloadMassKg !== undefined && e.payloadMassKg > 0)
   );
 }
 
@@ -515,6 +525,45 @@ function addBoattail(rocket: Rocket, length: number, aftRadius: number): Rocket 
   return inserted ? { ...rocket, stages } : rocket;
 }
 
+/** A sensible default station (m from the nose tip) for an added payload: the mid-point of the main
+ *  body tube, a typical avionics-bay location. Undefined for a design with no body tube. */
+export function defaultPayloadStation(rocket: Rocket): number | undefined {
+  const tube = primaryBodyTube(rocket);
+  if (!tube) return undefined;
+  const placed = flattenRocket(rocket).find((p) => p.component.id === tube.id);
+  return placed ? placed.xFore + placed.length / 2 : undefined;
+}
+
+/** Add a payload / avionics-bay point mass inside the main body tube. It goes in as an internal mass
+ *  component (the way OpenRocket stores a mass object), positioned at `station` from the nose tip —
+ *  clamped to stay within the tube — so it adds to the loaded mass and shifts the CG toward its
+ *  station without disturbing the external airframe. Exports as an `.ork` mass object. Skips silently
+ *  when there's no body tube to hold it or the mass isn't positive, so the caller keeps the design. */
+function addPayloadMass(rocket: Rocket, massKg: number, station: number | undefined): Rocket {
+  const tube = primaryBodyTube(rocket);
+  if (!tube || !(massKg > 0)) return rocket;
+  const placed = flattenRocket(rocket).find((p) => p.component.id === tube.id);
+  if (!placed) return rocket;
+  const target = station !== undefined ? station : placed.xFore + placed.length / 2;
+  // Keep the mass inside the tube (an offset from its fore edge, within its length).
+  const offset = Math.max(0, Math.min(placed.length, target - placed.xFore));
+  const payload: MassComponent = {
+    id: `${tube.id}-payload`,
+    name: "Payload",
+    kind: "masscomponent",
+    placement: { method: "top", offset },
+    mass: massKg,
+    massType: "payload",
+    children: [],
+  };
+  const attach = (list: RocketComponent[]): RocketComponent[] =>
+    list.map((c) => {
+      if (c.id === tube.id) return { ...c, children: [...c.children, payload] };
+      return c.children.length ? { ...c, children: attach(c.children) } : c;
+    });
+  return { ...rocket, stages: rocket.stages.map((s) => ({ ...s, components: attach(s.components) })) };
+}
+
 /** The design's main parachute — the largest by canopy area, the one that sets the landing speed.
  *  Undefined for a design with no parachute (a streamer- or tumble-recovery design). */
 export function primaryParachute(rocket: Rocket): Parachute | undefined {
@@ -654,6 +703,11 @@ export function applyGeometryEdits(rocket: Rocket, edits: GeometryEdits): Rocket
   // Recovery add: convert to dual-deploy (main at altitude + a drogue at apogee).
   if (edits.mainDeployAltitude !== undefined && edits.drogueDiameter !== undefined) {
     out = applyDualDeploy(out, edits.mainDeployAltitude, edits.drogueDiameter);
+  }
+  // Payload add: a point mass inside the (already-edited) body tube, so its station tracks whatever
+  // the length/diameter edits left.
+  if (edits.payloadMassKg !== undefined && edits.payloadMassKg > 0) {
+    out = addPayloadMass(out, edits.payloadMassKg, edits.payloadStation);
   }
   return out;
 }

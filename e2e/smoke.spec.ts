@@ -196,6 +196,34 @@ test.describe("Loft", () => {
     await expect.poll(apogee).toBeGreaterThan(single * 1.3);
   });
 
+  test("adding a payload mass re-flies the design — lower, and CG-shifted", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+
+    const apogee = async () => {
+      const txt = await page
+        .getByLabel("Results")
+        .getByText("Apogee", { exact: true })
+        .locator("xpath=following-sibling::div")
+        .innerText();
+      return parseFloat(txt.replace(/[^\d.]/g, ""));
+    };
+    const before = await apogee();
+
+    // Open the edit panel and add a 300 g payload — a builder mass add.
+    await page.locator("summary", { hasText: "Conditions" }).click();
+    await page.getByLabel(/Payload \(/).fill("300");
+
+    // Re-flies heavier: the added mass costs apogee, and a "what-if vs design" delta appears with a
+    // stability change (the payload shifts the CG).
+    await expect.poll(apogee).toBeLessThan(before);
+    const panel = page.getByRole("group", { name: "What-if vs design" });
+    await expect(panel).toBeVisible();
+    await expect(panel.locator("div", { hasText: /^Apogee/ }).getByText(/−[\d.]+%/)).toBeVisible();
+    await expect(panel.getByText(/[+−][\d.]+ cal/)).toBeVisible();
+  });
+
   test("nose ballast re-flies the design heavier — a lower apogee", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
