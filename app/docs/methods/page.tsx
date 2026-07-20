@@ -510,7 +510,10 @@ export default function Methods() {
         airframe&apos;s structure uniformly (so the centre of gravity holds and only the total mass
         moves); the aerodynamic drag scales the zero-lift drag coefficient (the drag model&apos;s own
         uncertainty — the single largest error source, so its spread belongs in the band rather than
-        being treated as exact; it does not touch a deployed canopy&apos;s drag area); the rail angle
+        being treated as exact; it does not touch a deployed canopy&apos;s drag area); the recovery
+        drag scales every open canopy&apos;s C<sub>d</sub>·A (a parachute&apos;s drag coefficient is
+        only known to ±10–20%, and it sets the descent — so this is the main driver of the
+        landing-speed band, the piece the ascent drag deliberately leaves out); the rail angle
         adds a lean to the launch rod; and the wind speed varies around the design&apos;s nominal.
         Impulse, dry mass, and drag are the main drivers of the apogee band; rail angle and wind drive
         the landing scatter. The

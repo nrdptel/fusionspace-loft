@@ -60,6 +60,7 @@ export default function MonteCarlo({
   const [impulsePct, setImpulsePct] = useState(5);
   const [massPct, setMassPct] = useState(3);
   const [dragPct, setDragPct] = useState(10);
+  const [recoveryPct, setRecoveryPct] = useState(15);
   const [rodAngleDeg, setRodAngleDeg] = useState(2);
   const [windSpeedMps, setWindSpeedMps] = useState(2);
   const [result, setResult] = useState<MonteCarloResult | null>(null);
@@ -74,17 +75,18 @@ export default function MonteCarlo({
       impulseFrac: Math.max(0, impulsePct) / 100,
       massFrac: Math.max(0, massPct) / 100,
       dragFrac: Math.max(0, dragPct) / 100,
+      recoveryFrac: Math.max(0, recoveryPct) / 100,
       rodAngleDeg: Math.max(0, rodAngleDeg),
       windSpeedMps: Math.max(0, windSpeedMps),
     }),
-    [impulsePct, massPct, dragPct, rodAngleDeg, windSpeedMps],
+    [impulsePct, massPct, dragPct, recoveryPct, rodAngleDeg, windSpeedMps],
   );
 
   // Debounce the dispersion inputs so typing in a field doesn't kick off a fresh 300-flight run on
   // every keystroke — the run waits until the value settles. (Serialised as the effect dependency so
   // a new object identity from an unchanged value doesn't re-trigger it.)
   const [settled, setSettled] = useState(dispersions);
-  const dispKey = `${dispersions.impulseFrac}|${dispersions.massFrac}|${dispersions.dragFrac}|${dispersions.rodAngleDeg}|${dispersions.windSpeedMps}`;
+  const dispKey = `${dispersions.impulseFrac}|${dispersions.massFrac}|${dispersions.dragFrac}|${dispersions.recoveryFrac}|${dispersions.rodAngleDeg}|${dispersions.windSpeedMps}`;
   useEffect(() => {
     const id = setTimeout(() => setSettled(dispersions), 350);
     return () => clearTimeout(id);
@@ -184,6 +186,14 @@ export default function MonteCarlo({
               unit="%"
               step={1}
               hint="Drag-coefficient uncertainty"
+            />
+            <NumberField
+              label="Recovery drag ±1σ"
+              value={recoveryPct}
+              onChange={setRecoveryPct}
+              unit="%"
+              step={1}
+              hint="Parachute Cd·A uncertainty"
             />
             <NumberField
               label="Rail angle ±1σ"

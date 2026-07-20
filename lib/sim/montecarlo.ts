@@ -45,6 +45,12 @@ export interface Dispersions {
    *  without it the spread reads tighter than the physics warrants. Does not touch a deployed
    *  canopy's drag area. */
   dragFrac?: number;
+  /** Deployed-recovery drag-area uncertainty as a fraction, 1σ (e.g. 0.15 = ±15%). Scales every open
+   *  canopy's Cd·A per sample. A real parachute's drag coefficient is only known to ±10–20%, and it —
+   *  not the airframe — sets the descent rate, so this is the main driver of the landing-speed band
+   *  and (with wind) the drift spread. Distinct from `dragFrac`, which is the ascent aero and leaves
+   *  the canopy untouched. Truncated well off zero so the descent stays physical. */
+  recoveryFrac?: number;
 }
 
 export interface MonteCarloOptions {
@@ -172,7 +178,8 @@ export function* monteCarloSamples(rocket: Rocket, opts: MonteCarloOptions): Gen
     const gWind = gaussian(rand);
     const railBearing = rand() * 360; // rail-lean direction — arbitrary
     const windBearing = rand() * 360; // wind heading — arbitrary
-    const gDrag = gaussian(rand); // drawn last so adding it doesn't reshuffle the earlier draws
+    const gDrag = gaussian(rand);
+    const gRecovery = gaussian(rand); // drawn last so adding it doesn't reshuffle the earlier draws
 
     // Impulse: a motor never delivers below ~a tenth of its rating, so clamp the tail off zero to
     // keep a physical (and integrable) flight; the clamp only bites at absurd σ.
@@ -187,6 +194,9 @@ export function* monteCarloSamples(rocket: Rocket, opts: MonteCarloOptions): Gen
     // Drag scale: a physical drag is positive, so clamp the low tail well off zero (only bites at
     // absurd σ). Nominal 1 when no drag spread is set.
     const dragScale = d.dragFrac ? Math.max(0.2, 1 + gDrag * d.dragFrac) : 1;
+    // Recovery drag scale: a deployed canopy's Cd·A, clamped positive. Combined below with any active
+    // recovery-size what-if, so the dispersion jitters around the size the flyer is looking at.
+    const recoveryScale = d.recoveryFrac ? Math.max(0.2, 1 + gRecovery * d.recoveryFrac) : 1;
 
     const overrides: ConditionOverrides = {
       ...base,
@@ -203,7 +213,7 @@ export function* monteCarloSamples(rocket: Rocket, opts: MonteCarloOptions): Gen
         ballastKg: opts.ballastKg,
         motorSwap: opts.motorSwap,
         geometry: opts.geometry,
-        recoveryCdScale: opts.recoveryCdScale,
+        recoveryCdScale: (opts.recoveryCdScale ?? 1) * recoveryScale,
         thrustScale,
         massScale,
         dragScale,

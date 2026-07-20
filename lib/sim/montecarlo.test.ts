@@ -90,6 +90,21 @@ describe("monteCarlo", () => {
   );
 
   it(
+    "recovery-drag spread widens the landing-speed band — the canopy dragFrac leaves untouched",
+    async () => {
+      const { rocket, opts } = await baseOpts();
+      // dragFrac scales the ascent aero and explicitly does NOT touch the canopy, so it barely moves
+      // the landing speed; recoveryFrac scales the canopy Cd·A and drives it.
+      const ascentOnly = monteCarlo(rocket, { ...opts, dispersions: { dragFrac: 0.2 } });
+      const canopy = monteCarlo(rocket, { ...opts, dispersions: { recoveryFrac: 0.2 } });
+      expect(canopy.landingSpeed.sd).toBeGreaterThan(ascentOnly.landingSpeed.sd * 2);
+      // A softer (draggier) canopy lands slower: the low tail of the band sits well under the median.
+      expect(canopy.landingSpeed.p5).toBeLessThan(canopy.landingSpeed.p50);
+    },
+    T,
+  );
+
+  it(
     "zero dispersion collapses to a single deterministic outcome",
     async () => {
       const { rocket, opts } = await baseOpts({ dispersions: {}, n: 30 });
