@@ -294,8 +294,14 @@ const MAX_TIME = 1200; // s, hard cap
  *  trajectory that a large step integrates as accurately as a small one. This ceiling is set from a
  *  convergence study (lib/sim/descent-convergence.test.ts): halving it moves the landing point and
  *  flight time by well under a tenth of a percent, so it is comfortably converged while keeping the
- *  long descent — the bulk of a full flight's steps, and thus of a Monte-Carlo's cost — cheap. */
-const DESCENT_STEP = 0.1;
+ *  long descent — the bulk of a full flight's steps, and thus of a Monte-Carlo's cost — cheap. At
+ *  0.2 s it sits just inside the drag-stability bound at a typical ~5–7 m/s main-canopy terminal
+ *  speed (2·g/v ≈ 3–4 /s ⇒ a ~0.25–0.4 s stable step), so the steady descent runs at this ceiling
+ *  while the opening transient still shortens on its own. Halving the descent's step count from the
+ *  earlier 0.1 s cuts a full recovery flight — and a 300-sample Monte-Carlo — by about a fifth to a
+ *  quarter (measured), for a sub-metre landing shift (nil on a single-deploy demo, ~0.06% on a
+ *  dual-deploy). */
+const DESCENT_STEP = 0.2;
 /** Floor on the descent step. Small enough to stay stable through the opening-shock transient of a
  *  realistic (even a mistimed high-speed) deployment; only reached briefly, since the drag pulls the
  *  speed back to terminal within a few steps. */

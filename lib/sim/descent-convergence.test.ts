@@ -33,10 +33,10 @@ describe("descent-step convergence", () => {
     const runs = steps.map((s) => ({ s, ...flyAtDescentStep(input, s) }));
     const rel = (a: number, b: number) => (Math.abs(b) > 1e-9 ? Math.abs(a - b) / Math.abs(b) : Math.abs(a - b));
 
-    // The production step (0.1) vs half its size (0.05): landing, flight time, and ground-hit speed
+    // The production step (0.2) vs half its size (0.1): landing, flight time, and ground-hit speed
     // agree to a fraction of a percent — the descent is well past converged at the production step.
-    const prod = runs.find((r) => r.s === 0.1)!;
-    const half = runs.find((r) => r.s === 0.05)!;
+    const prod = runs.find((r) => r.s === 0.2)!;
+    const half = runs.find((r) => r.s === 0.1)!;
     expect(rel(prod.flightTime, half.flightTime)).toBeLessThan(0.005);
     expect(rel(prod.drift, half.drift)).toBeLessThan(0.005);
     expect(rel(prod.groundHit, half.groundHit)).toBeLessThan(0.005);

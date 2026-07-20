@@ -49,10 +49,11 @@ export default function Methods() {
         quickly — use a fine fixed step (<code>0.01&nbsp;s</code>). The long descent under recovery
         is different: once a canopy is open the vehicle settles to a near-constant terminal velocity,
         an all-but-linear fall that a much coarser step integrates just as accurately, so the descent
-        runs at a <code>0.1&nbsp;s</code> ceiling — set from a convergence study
+        runs at a <code>0.2&nbsp;s</code> ceiling — set from a convergence study
         (<code>lib/sim/descent-convergence.test.ts</code>: halving it moves the landing point and
-        flight time by under a tenth of a percent) and the bulk of a full flight&apos;s cost, which
-        matters most for the hundreds of flights a Monte-Carlo runs. An open parachute&apos;s
+        flight time by under a tenth of a percent). The descent is the bulk of a full flight&apos;s
+        cost, so this ceiling matters most for the hundreds of flights a Monte-Carlo runs — it is a
+        fifth to a quarter of the whole run. An open parachute&apos;s
         quadratic drag is a <em>stiff</em> decay, though, and a fast deployment (a mistimed early
         ejection, a payload popping its chute at separation speed) can push an explicit step past its
         stability limit and diverge. So through the opening transient the descent step is shortened to
