@@ -169,6 +169,16 @@ describe("exportOrk — real-design features round-trip (regression)", () => {
     expect(flight(back).dryMass).toBeCloseTo(before.dryMass, 4);
   });
 
+  it("round-trips a builder motor-cluster edit (count preserved ⇒ same thrust)", async () => {
+    const doc = newDesign();
+    const rocket = applyGeometryEdits(doc.rocket, { motorClusterCount: 3 });
+    const before = flight({ ...doc, rocket });
+    const back = await importOrk(exportOrk({ ...doc, rocket }));
+    // The cluster count survives, so the re-imported design flies the same three-motor thrust.
+    expect(parts(back).mount.motorMount!.clusterCount).toBe(3);
+    expect(flight(back).apogee).toBeCloseTo(before.apogee, 0);
+  });
+
   it("round-trips a builder-added boattail with its base-drag benefit", async () => {
     // Add a boattail (the builder's first structural add), save, and re-open: the transition must
     // survive so the saved design keeps flying with the reduced base drag.

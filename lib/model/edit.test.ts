@@ -7,6 +7,7 @@ import {
   applyGeometryEdits,
   primaryFinSpan,
   primaryFinCount,
+  primaryMotorClusterCount,
   primaryFinRootChord,
   primaryFinTipChord,
   primaryFinSweep,
@@ -157,6 +158,54 @@ describe("applyGeometryEdits — fin count", () => {
   it("no-ops for a count below one", async () => {
     const rocket = await load("demo-single-deploy.ork");
     expect(applyGeometryEdits(rocket, { finCount: 0 })).toBe(rocket);
+  });
+});
+
+describe("applyGeometryEdits — motor cluster count", () => {
+  it("reads the design's current cluster count (1 for a single motor)", () => {
+    const rocket = newDesign().rocket;
+    expect(primaryMotorClusterCount(rocket)).toBe(1);
+    const clustered = applyGeometryEdits(rocket, { motorClusterCount: 3 });
+    expect(primaryMotorClusterCount(clustered)).toBe(3);
+    // The starter design is untouched.
+    expect(primaryMotorClusterCount(rocket)).toBe(1);
+  });
+
+  it("flies a cluster harder and heavier — a higher apogee and burnout mass", () => {
+    const rocket = newDesign().rocket;
+    const single = runFlight(rocket, { configId: "cfg-1" }).result;
+    const quad = runFlight(applyGeometryEdits(rocket, { motorClusterCount: 4 }), { configId: "cfg-1" }).result;
+    // Four motors ⇒ four times the thrust and four times the loaded propellant/casing mass. The
+    // extra impulse dominates the extra mass, so the cluster flies markedly higher.
+    expect(quad.summary.apogee).toBeGreaterThan(single.summary.apogee * 1.3);
+    // The loaded mass carries the extra three motors.
+    expect(quad.liftoffMass).toBeGreaterThan(single.liftoffMass);
+  });
+
+  it("a count of 1 de-clusters (clears the cluster) — back to a single motor", () => {
+    const rocket = newDesign().rocket;
+    const clustered = applyGeometryEdits(rocket, { motorClusterCount: 4 });
+    expect(primaryMotorClusterCount(clustered)).toBe(4);
+    const single = applyGeometryEdits(clustered, { motorClusterCount: 1 });
+    expect(primaryMotorClusterCount(single)).toBe(1);
+  });
+
+  it("is a no-op when unset or below one, or the design has no motor mount", () => {
+    const rocket = newDesign().rocket;
+    expect(applyGeometryEdits(rocket, { motorClusterCount: undefined })).toBe(rocket);
+    expect(applyGeometryEdits(rocket, { motorClusterCount: 0 })).toBe(rocket);
+    // A design stripped of its motor mount reads no cluster count and is unchanged by the edit.
+    const noMount = {
+      ...rocket,
+      stages: rocket.stages.map((s) => ({
+        ...s,
+        components: s.components.map(function strip(c): typeof c {
+          return { ...c, children: c.children.filter((k) => k.kind !== "innertube").map(strip) };
+        }),
+      })),
+    };
+    expect(primaryMotorClusterCount(noMount)).toBeUndefined();
+    expect(applyGeometryEdits(noMount, { motorClusterCount: 4 })).toStrictEqual(noMount);
   });
 });
 

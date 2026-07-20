@@ -12,6 +12,7 @@ import { runFlight, overridesFromStored, configChoices, type FlightRun, type Con
 import {
   primaryFinSpan,
   primaryFinCount,
+  primaryMotorClusterCount,
   primaryFinRootChord,
   primaryFinTipChord,
   primaryFinSweep,
@@ -95,6 +96,7 @@ interface Edits {
   mainDeployAltitude?: number; // builder edit: dual-deploy — main deploys at this altitude AGL (m)
   drogueDiameter?: number; // builder edit: dual-deploy — drogue diameter (m) added at apogee
   mainParachuteDiameter?: number; // builder edit: resize the main (largest) parachute (m)
+  motorClusterCount?: number; // builder edit: how many motors the mount holds (cluster)
 }
 
 /** Same-diameter bundled motors the design could fly, with the design's own motor as the default.
@@ -167,6 +169,7 @@ export default function LoftApp() {
           mainDeployAltitude: e.mainDeployAltitude,
           drogueDiameter: e.drogueDiameter,
           mainParachuteDiameter: e.mainParachuteDiameter,
+          motorClusterCount: e.motorClusterCount,
         },
         // Validate only when flying the design's own stored conditions unchanged, and only when
         // Loft flew the complete design — a simplified vehicle (staging/pods/parallel/cluster)
@@ -199,7 +202,8 @@ export default function LoftApp() {
         e.airframeMaterial !== undefined ||
         (e.boattailLength !== undefined && e.boattailAftDiameter !== undefined) ||
         (e.mainDeployAltitude !== undefined && e.drogueDiameter !== undefined) ||
-        e.mainParachuteDiameter !== undefined;
+        e.mainParachuteDiameter !== undefined ||
+        e.motorClusterCount !== undefined;
       const baseline = hasWhatIf ? runFlight(document.rocket, { configId, overrides }) : null;
       return { run, baseline };
     },
@@ -305,6 +309,7 @@ export default function LoftApp() {
       mainDeployAltitude: edits.mainDeployAltitude,
       drogueDiameter: edits.drogueDiameter,
       mainParachuteDiameter: edits.mainParachuteDiameter,
+      motorClusterCount: edits.motorClusterCount,
     };
     const rocket = hasGeometryEdits(geometry) ? applyGeometryEdits(doc.rocket, geometry) : doc.rocket;
     const bytes = exportOrk({ ...doc, rocket });
@@ -407,6 +412,7 @@ export default function LoftApp() {
             finish: primaryFinish(doc.rocket),
             airframeMaterial: primaryAirframeMaterial(doc.rocket),
             mainParachuteDiameter: primaryParachute(doc.rocket)?.diameter,
+            motorClusterCount: primaryMotorClusterCount(doc.rocket),
           }
         : {
             finSpan: undefined,
@@ -424,6 +430,7 @@ export default function LoftApp() {
             finish: undefined,
             airframeMaterial: undefined,
             mainParachuteDiameter: undefined,
+            motorClusterCount: undefined,
           },
     [doc],
   );
@@ -568,6 +575,7 @@ export default function LoftApp() {
                 mainDeployAltitude: edits.mainDeployAltitude,
                 drogueDiameter: edits.drogueDiameter,
                 mainParachuteDiameter: edits.mainParachuteDiameter,
+                motorClusterCount: edits.motorClusterCount,
               }}
               swapOptions={swapInfo?.options}
               designMotor={swapInfo?.designMotor}
@@ -658,6 +666,7 @@ function ConditionsControls({
     finish?: SurfaceFinish;
     airframeMaterial?: string;
     mainParachuteDiameter?: number;
+    motorClusterCount?: number;
   };
   weather: WeatherConditions | null;
   scenario: "design" | "today";
@@ -804,6 +813,17 @@ function ConditionsControls({
                 value={toDispSpan(edits.mainParachuteDiameter)}
                 placeholder={toDispSpan(designDims.mainParachuteDiameter)}
                 onChange={(v) => onEdit({ mainParachuteDiameter: fromSpan(v) })}
+              />
+            )}
+            {designDims.motorClusterCount !== undefined && (
+              <Num
+                label="Motor cluster"
+                value={edits.motorClusterCount ?? ""}
+                placeholder={String(designDims.motorClusterCount)}
+                onChange={(v) => {
+                  const n = v === "" ? undefined : Math.round(Number(v));
+                  onEdit({ motorClusterCount: n !== undefined && n >= 1 ? n : undefined });
+                }}
               />
             )}
             {designDims.finSpan !== undefined && (

@@ -173,6 +173,29 @@ test.describe("Loft", () => {
     await expect(page.getByText(/comes down at about [\d.]+ m\/s \([\d.]+ [J]\) under its own canopy/)).toBeVisible();
   });
 
+  test("clustering the motor re-flies the design harder — a higher apogee (builder)", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+
+    const apogee = async () => {
+      const txt = await page
+        .getByLabel("Results")
+        .getByText("Apogee", { exact: true })
+        .locator("xpath=following-sibling::div")
+        .innerText();
+      return parseFloat(txt.replace(/[^\d.]/g, ""));
+    };
+    const single = await apogee();
+    expect(single).toBeGreaterThan(0);
+
+    // Fly the single motor as a 3-motor cluster: three times the thrust dominates the extra motor
+    // mass, so the design climbs markedly higher.
+    await page.locator("summary", { hasText: "Conditions" }).click();
+    await page.getByLabel("Motor cluster").fill("3");
+    await expect.poll(apogee).toBeGreaterThan(single * 1.3);
+  });
+
   test("nose ballast re-flies the design heavier — a lower apogee", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();

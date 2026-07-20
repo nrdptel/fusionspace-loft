@@ -7,7 +7,7 @@
  *  nose cone or body tube automatically shifts everything downstream and recomputes mass, drag,
  *  centre of pressure, and motor position. Fin span moves the centre of pressure (stability). */
 
-import type { Rocket, RocketComponent, NoseCone, BodyTube, Transition, Parachute, Material, SurfaceFinish, NoseShape, FinCrossSection } from "./types";
+import type { Rocket, RocketComponent, NoseCone, BodyTube, Transition, Parachute, Material, SurfaceFinish, NoseShape, FinCrossSection, MotorMount } from "./types";
 import { flattenRocket } from "./geometry";
 
 /** Selectable nose-cone shapes, for the builder's nose picker. Ordered by how a flyer thinks of
@@ -142,6 +142,11 @@ export interface GeometryEdits {
    *  flowing into the flight (descent rate, landing speed, deployment) and the export. Undefined
    *  leaves the parachute as-is; ignored on a design with no parachute. */
   mainParachuteDiameter?: number;
+  /** Number of motors the mount holds (≥ 1). Flown as this many identical coaxial motors — N× the
+   *  thrust and motor mass — so it answers "what would clustering buy?" A cluster is set on every
+   *  motor mount in the design (a from-scratch or single-stage design has one); 1 flies a single
+   *  motor (de-clustering an imported cluster). Undefined leaves the mount(s) as-is. */
+  motorClusterCount?: number;
 }
 
 /** True when at least one edit actually changes something. */
@@ -165,7 +170,8 @@ export function hasGeometryEdits(e: GeometryEdits): boolean {
       e.boattailAftDiameter !== undefined && e.boattailAftDiameter > 0) ||
     (e.mainDeployAltitude !== undefined && e.mainDeployAltitude > 0 &&
       e.drogueDiameter !== undefined && e.drogueDiameter > 0) ||
-    (e.mainParachuteDiameter !== undefined && e.mainParachuteDiameter > 0)
+    (e.mainParachuteDiameter !== undefined && e.mainParachuteDiameter > 0) ||
+    (e.motorClusterCount !== undefined && e.motorClusterCount >= 1)
   );
 }
 
@@ -214,6 +220,15 @@ export function primaryFinSpan(rocket: Rocket): number | undefined {
 export function primaryFinCount(rocket: Rocket): number | undefined {
   const fin = primaryFinSet(rocket);
   return fin && "finCount" in fin ? fin.finCount : undefined;
+}
+
+/** How many motors the design's (first) motor mount holds — 1 for a single motor. Undefined when
+ *  the design has no motor mount at all. */
+export function primaryMotorClusterCount(rocket: Rocket): number | undefined {
+  const mount = flattenRocket(rocket)
+    .map((p) => p.component)
+    .find((c) => "motorMount" in c && (c as { motorMount?: MotorMount }).motorMount);
+  return mount ? (mount as { motorMount?: MotorMount }).motorMount?.clusterCount ?? 1 : undefined;
 }
 
 /** The primary fin set's root chord (m), only when it's trapezoidal (a generic set's root chord is a
@@ -279,6 +294,14 @@ function editComponent(c: RocketComponent, e: GeometryEdits, lengths: Map<string
   }
   if (newLen !== undefined && "length" in c) {
     return { ...c, length: newLen, children };
+  }
+
+  // Motor cluster count: how many motors the mount holds, set on every motor mount (a from-scratch
+  // or single-stage design has one). Flown as N identical coaxial motors — N× thrust and motor
+  // mass; 1 flies a single motor. A motor mount takes no other geometry edit, so return early.
+  if (e.motorClusterCount !== undefined && e.motorClusterCount >= 1 && "motorMount" in c && c.motorMount) {
+    const n = Math.round(e.motorClusterCount);
+    return { ...c, motorMount: { ...c.motorMount, clusterCount: n > 1 ? n : undefined }, children };
   }
 
   const span = e.finSpan !== undefined && e.finSpan > 0 ? e.finSpan : undefined;

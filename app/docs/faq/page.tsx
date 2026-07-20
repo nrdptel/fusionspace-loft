@@ -34,7 +34,7 @@ export default function Faq() {
           common 29&nbsp;mm H motor, already flying: a healthy ~1.5-caliber static margin, a real
           apogee, mass, and recovery. From there the same edits an imported design gets — nose shape
           and length, body length and diameter, airframe material, fin size, count, sweep, thickness,
-          cross-section and material, nose ballast, motor swap, parachute size — reshape it and re-fly
+          cross-section and material, nose ballast, motor swap, motor cluster count, parachute size — reshape it and re-fly
           instantly. You
           can also <em>add</em> a boattail (a tail cone: set a length and an exit diameter narrower
           than the body) to cut the base drag, the single largest drag source on a blunt-based
