@@ -149,6 +149,20 @@ test.describe("Loft", () => {
     await expect(panel.getByText(/mean gap/)).toBeVisible();
   });
 
+  test("a two-stage design with an undersized booster chute is flagged for a firm booster landing", async ({ page }) => {
+    await page.goto("/");
+    // A serial two-stage rocket whose booster recovers under its own (too-small) canopy: it lands
+    // firm, which the range-safety readout must flag even though only the top stage is flown down.
+    await page
+      .getByLabel(/Choose an OpenRocket .ork or RockSim .rkt file/)
+      .setInputFiles(resolve(process.cwd(), "e2e/fixtures/two-stage-firm-booster.ork"));
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+
+    // The booster's own descent is reported and, because it comes in fast, called out by name.
+    await expect(page.getByText(/separated lower stage lands (firm|hard)/i)).toBeVisible();
+    await expect(page.getByText(/Booster at about [\d.]+ m\/s/)).toBeVisible();
+  });
+
   test("nose ballast re-flies the design heavier — a lower apogee", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();

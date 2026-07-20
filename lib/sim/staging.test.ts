@@ -473,3 +473,45 @@ describe("separated booster descent readout", () => {
     expect(runFlight(single, { configId: "cfg" }).result.boosterDescents).toHaveLength(0);
   });
 });
+
+describe("booster hard-landing range-safety warning", () => {
+  const withBoosterChute = (diameter: number): Rocket => {
+    const { rocket } = twoStage();
+    const boosterTube = rocket.stages[1].components[0] as BodyTube;
+    const chute: Parachute = {
+      id: "booster-chute", name: "Booster chute", kind: "parachute",
+      placement: { method: "top", offset: 0 }, cd: 0.8, diameter, mass: 0.03,
+      deployEvent: "apogee", deployDelay: 0, children: [],
+    };
+    boosterTube.children = [...boosterTube.children, chute];
+    return rocket;
+  };
+  const boosterWarn = (diameter: number) =>
+    runFlight(withBoosterChute(diameter), { configId: "cfg" }).result.warnings.find((w) => w.code === "booster-hard-landing");
+
+  it("cautions when an undersized booster chute lands the stage firm (>7.6 m/s)", () => {
+    // A 0.2 m canopy brings this booster down at ~9.4 m/s — firm, not hard.
+    const w = boosterWarn(0.2);
+    expect(w).toBeDefined();
+    expect(w!.severity).toBe("caution");
+    expect(w!.message).toContain("Booster");
+  });
+
+  it("warns (not just cautions) when a tiny booster chute lands the stage hard (>10.7 m/s)", () => {
+    // A 0.15 m canopy leaves the booster coming in at ~12.5 m/s — hard enough to damage the airframe.
+    const w = boosterWarn(0.15);
+    expect(w).toBeDefined();
+    expect(w!.severity).toBe("warning");
+  });
+
+  it("stays silent when the booster chute lands it softly", () => {
+    // A 0.5 m canopy brings the booster down at ~3.7 m/s — a normal landing, no flag.
+    expect(boosterWarn(0.5)).toBeUndefined();
+  });
+
+  it("doesn't fire for an un-recovered (ballistic) booster — that's the untracked-booster case", () => {
+    // twoStage's bare booster has no recovery: it's flagged as ballistic, not as a firm landing.
+    const warnings = runFlight(twoStage().rocket, { configId: "cfg" }).result.warnings;
+    expect(warnings.some((w) => w.code === "booster-hard-landing")).toBe(false);
+  });
+});

@@ -782,6 +782,7 @@ export function simulate(input: SimulateInput): FlightResult {
     anyRecoveryOpened: recovery.some((d) => d.opened),
     groundHitVelocity,
     ballisticBoosters,
+    firmBoosters: boosterDescents.filter((b) => b.terminalSpeed > 7.6),
   });
 
   // Fin-flutter safety estimate over the ascent. Below the recommended margin the fins are
@@ -966,6 +967,9 @@ function buildWarnings(
     groundHitVelocity: number;
     /** Names of spent lower stages that dropped away with no recovery device — ballistic, untracked. */
     ballisticBoosters: string[];
+    /** Separated lower stages that DO recover but land firm or hard under their own canopy
+     *  (terminal speed > 7.6 m/s), each with its estimated landing speed. */
+    firmBoosters: BoosterDescent[];
   },
 ): void {
   // A recovery device configured but never deployed before the ground = ballistic impact. This
@@ -1068,6 +1072,24 @@ function buildWarnings(
         `flown to the ground — and with no parachute it falls ballistically, reaching a high speed and drifting well downrange. ` +
         `Plan the range clearance and recovery area for it too, not just the tracked stage above.`,
       severity: "caution",
+    });
+  }
+  // A separated lower stage that DOES recover, but comes down firm or hard under its own canopy.
+  // Same thresholds as the top-stage hard-landing check (firm > 7.6 m/s, hard > 10.7 m/s), applied
+  // to each recovering booster's estimated terminal speed — its own landing is otherwise only a
+  // number in the descent readout, never flagged. A too-small drogue/booster chute is a real hazard.
+  if (ctx.firmBoosters.length > 0) {
+    const hard = ctx.firmBoosters.some((b) => b.terminalSpeed > 10.7);
+    const list = ctx.firmBoosters.map((b) => `${b.name} at about ${b.terminalSpeed.toFixed(1)} m/s`).join(", ");
+    const many = ctx.firmBoosters.length > 1;
+    out.push({
+      code: "booster-hard-landing",
+      message:
+        `A separated lower stage lands ${hard ? "hard" : "firm"} under its own recovery (${list}). ` +
+        `${many ? "These stages come" : "It comes"} down faster than the ~3–6 m/s most designs aim for` +
+        `${hard ? ", hard enough to damage the airframe" : ""}. A larger drogue or booster chute lands it softer; ` +
+        `verify it's acceptable for that stage's mass and construction, and plan its recovery area.`,
+      severity: hard ? "warning" : "caution",
     });
   }
   // Liftoff thrust-to-weight — the most basic launch-safety check, and (unlike rail-exit
