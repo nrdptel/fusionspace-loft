@@ -156,9 +156,9 @@ export default function Limitations() {
         the sustainer climbs on its own. A separated stage&apos;s own descent is only partly
         modelled: solely the top stage is flown to the ground, so a booster&apos;s full trajectory
         and drift aren&apos;t integrated — but a spent lower stage that carries its <em>own</em>{" "}
-        recovery now gets a terminal-velocity landing-speed estimate (from the mass that leaves at
-        separation and its largest canopy), which raises a caution if that stage comes down firm and a
-        warning if it lands hard enough to risk damage; and one that drops with <em>no</em> recovery is
+        recovery now gets a terminal-velocity landing-speed (and landing-energy) estimate (from the
+        mass that leaves at separation and its largest canopy), which raises a caution if that stage
+        comes down firm and a warning if it lands hard enough to risk damage; and one that drops with <em>no</em> recovery is
         flagged as a ballistic, untracked range hazard rather than silently ignored. Still <em>not</em> modelled:
         the booster&apos;s downrange drift, and an <em>apogee</em>- or <em>altitude</em>-triggered
         separation, which falls back to the burnout default. Parallel

@@ -201,6 +201,9 @@ export interface BoosterDescent {
   mass: number;
   /** Terminal descent speed at the landing field (m/s) under the stage's largest canopy. */
   terminalSpeed: number;
+  /** Kinetic energy this stage carries at its own landing (J): ½·m·v² from its descending mass and
+   *  terminal speed — the same recovery-adequacy figure the top vehicle reports, for this booster. */
+  landingEnergy: number;
 }
 
 interface SimState {
@@ -770,7 +773,8 @@ export function simulate(input: SimulateInput): FlightResult {
     const sepT = phases[nStages - i]?.startTime;
     const mass = sepT !== undefined ? massSumAt(sepT - 1e-3) - massSumAt(sepT + 1e-3) : 0;
     if (mass > 0 && groundDensity > 0) {
-      boosterDescents.push({ name, mass, terminalSpeed: Math.sqrt((2 * mass * G0) / (groundDensity * cdA)) });
+      const terminalSpeed = Math.sqrt((2 * mass * G0) / (groundDensity * cdA));
+      boosterDescents.push({ name, mass, terminalSpeed, landingEnergy: 0.5 * mass * terminalSpeed * terminalSpeed });
     }
   }
 

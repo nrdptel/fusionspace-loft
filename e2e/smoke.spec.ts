@@ -169,6 +169,8 @@ test.describe("Loft", () => {
     // The booster's own descent is reported and, because it comes in fast, called out by name.
     await expect(page.getByText(/separated lower stage lands (firm|hard)/i)).toBeVisible();
     await expect(page.getByText(/Booster at about [\d.]+ m\/s/)).toBeVisible();
+    // The descent readout gives the booster's own landing speed and energy under its canopy.
+    await expect(page.getByText(/comes down at about [\d.]+ m\/s \([\d.]+ [J]\) under its own canopy/)).toBeVisible();
   });
 
   test("nose ballast re-flies the design heavier — a lower apogee", async ({ page }) => {

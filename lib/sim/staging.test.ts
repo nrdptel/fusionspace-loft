@@ -457,6 +457,10 @@ describe("separated booster descent readout", () => {
     // A real canopy descent — bounded, not a free-fall or a NaN.
     expect(bd.terminalSpeed).toBeGreaterThan(1);
     expect(bd.terminalSpeed).toBeLessThan(40);
+    // Its own landing energy is ½·m·v² from that mass and terminal speed — the same recovery figure
+    // the top vehicle reports, for the booster.
+    expect(bd.landingEnergy).toBeGreaterThan(0);
+    expect(bd.landingEnergy).toBeCloseTo(0.5 * bd.mass * bd.terminalSpeed ** 2, 6);
   });
 
   it("a bigger booster canopy gives a slower terminal descent (physical monotonicity)", () => {

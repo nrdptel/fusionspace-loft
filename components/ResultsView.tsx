@@ -515,7 +515,7 @@ function BoosterDescentNote({ run, units }: { run: FlightRun; units: UnitSystem 
       {boosters.map((b, i) => (
         <span key={b.name}>
           {i > 0 ? "; " : ""}the {b.name} ({d.q(d.mass(b.mass, units))}) comes down at about{" "}
-          {d.q(d.speed(b.terminalSpeed, units))} under its own canopy
+          {d.q(d.speed(b.terminalSpeed, units))} ({d.q(d.energy(b.landingEnergy, units))}) under its own canopy
         </span>
       ))}
       . Only the top stage is flown to the ground, so this is a terminal-velocity estimate for the
