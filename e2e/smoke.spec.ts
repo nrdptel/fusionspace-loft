@@ -491,6 +491,11 @@ test.describe("Loft", () => {
     await panel.getByLabel("Sweep variable").selectOption("ballastKg");
     await expect(panel.getByRole("img", { name: /Static margin.*versus.*Nose ballast/i })).toBeVisible();
 
+    // Fin position is a sweep axis: sliding the fins aft against the static margin traces the
+    // stability lever's response curve — the CP-location counterpart to the ballast (CG) trim.
+    await panel.getByLabel("Sweep variable").selectOption("finStation");
+    await expect(panel.getByRole("img", { name: /Static margin.*versus.*Fin position/i })).toBeVisible();
+
     // Fin thickness is a sweep axis and fin-flutter margin a metric — the flutter design tool:
     // sweep thickness and read where the margin clears the safe line.
     await panel.getByLabel("Sweep variable").selectOption("finThickness");

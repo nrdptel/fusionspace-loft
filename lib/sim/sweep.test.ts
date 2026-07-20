@@ -4,7 +4,7 @@ import { importOrk } from "../ork/import";
 import { runFlight, overridesFromStored } from "./run";
 import { motorSweep, parameterSweep, linRange, type SweepMotor } from "./sweep";
 import { allMotors } from "../motors/db";
-import { primaryFinSpan, primaryFinThickness, primaryBodyTube } from "../model/edit";
+import { primaryFinSpan, primaryFinThickness, primaryFinStation, primaryBodyTube } from "../model/edit";
 
 async function load(name: string) {
   const buf = readFileSync(new URL(`../../fixtures/${name}`, import.meta.url));
@@ -149,6 +149,27 @@ describe("parameterSweep", () => {
     // Bigger fins: CP aft ⇒ higher static margin; more fin drag + mass ⇒ lower apogee.
     expect(last.staticMarginCal).toBeGreaterThan(first.staticMarginCal);
     expect(last.apogee).toBeLessThan(first.apogee);
+  });
+
+  it("sweeps fin position: sliding the fins aft raises the static margin at ~unchanged apogee", async () => {
+    const doc = await load("demo-single-deploy.ork");
+    const sim = doc.simulations[0];
+    const s0 = primaryFinStation(doc.rocket)!;
+    const pts = parameterSweep(doc.rocket, "finStation", linRange(s0 - 0.1, s0 + 0.2, 13), {
+      configId: sim.conditions.configId,
+      overrides: overridesFromStored(sim),
+    });
+    expect(pts).toHaveLength(13);
+    // The static margin climbs monotonically as the fins move aft; x ascends across the range.
+    for (let i = 1; i < pts.length; i++) {
+      expect(pts[i].x).toBeGreaterThan(pts[i - 1].x);
+      expect(pts[i].staticMarginCal).toBeGreaterThan(pts[i - 1].staticMarginCal);
+    }
+    // Moving the fins is a placement change: it barely touches drag or mass, so apogee holds across
+    // the whole sweep — the point of the lever, and what sets it apart from a fin-size sweep.
+    const apogees = pts.map((p) => p.apogee);
+    const spread = (Math.max(...apogees) - Math.min(...apogees)) / apogees[0];
+    expect(spread).toBeLessThan(0.02);
   });
 
   it("sweeps fin thickness: the flutter margin climbs steeply while drag rises (apogee falls)", async () => {
