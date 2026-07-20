@@ -138,6 +138,7 @@ export default function ResultsView({
           <Stat label="Max dynamic pressure" q={{ value: d.fmt(s.maxDynamicPressure / 1000, 1), unit: "kPa" }} />
         </div>
         <RecoverySizingHint run={run} units={units} />
+        <BoosterDescentNote run={run} units={units} />
       </section>
 
       {/* Flight path */}
@@ -497,6 +498,27 @@ function RecoverySizingHint({ run, units }: { run: FlightRun; units: UnitSystem 
       at about {d.q(d.speed(SOFT_LANDING_TARGET, units))} instead, the main needs a drag area of
       roughly {d.fmt(sizing.cdA, 2)} m² Cd·A — about a {d.q(d.lengthMm(sizing.diameter, units))}{" "}
       canopy at Cd {d.fmt(sizing.cd, 1)}. A bigger canopy lands softer (and drifts farther).
+    </p>
+  );
+}
+
+/** A staged flight only flies the top stage to the ground; a separated lower stage that carries its
+ *  own recovery still lands somewhere. Report each such booster's estimated terminal descent so the
+ *  flyer plans for it. (An un-recovered booster is flagged ballistic by a warning instead.) */
+function BoosterDescentNote({ run, units }: { run: FlightRun; units: UnitSystem }) {
+  const boosters = run.result.boosterDescents;
+  if (!boosters.length) return null;
+  return (
+    <p className="mt-3 text-xs text-zinc-500 dark:text-zinc-400">
+      <span className="font-medium text-zinc-600 dark:text-zinc-300">Separated booster recovery:</span>{" "}
+      {boosters.map((b, i) => (
+        <span key={b.name}>
+          {i > 0 ? "; " : ""}the {b.name} ({d.q(d.mass(b.mass, units))}) comes down at about{" "}
+          {d.q(d.speed(b.terminalSpeed, units))} under its own canopy
+        </span>
+      ))}
+      . Only the top stage is flown to the ground, so this is a terminal-velocity estimate for the
+      booster&apos;s own landing — plan its recovery area separately.
     </p>
   );
 }

@@ -153,13 +153,14 @@ export default function Limitations() {
         another, and each config now flies its own way (previously the per-config override was
         dropped, so a booster could ride a slow sustainer all the way to apogee — a large apogee
         error). Its structure and empty casing then leave the flight, so mass and drag step down and
-        the sustainer climbs on its own. Two things are <em>not</em> yet modelled: a separated
-        stage&apos;s own descent
-        (only the top stage is flown to the ground, so a booster&apos;s drift and landing
-        aren&apos;t reported — though a spent lower stage that drops with <em>no</em> recovery is now
-        flagged as a ballistic, untracked range hazard rather than silently ignored), and an{" "}
-        <em>apogee</em>- or <em>altitude</em>-triggered separation,
-        which falls back to the burnout default. Parallel
+        the sustainer climbs on its own. A separated stage&apos;s own descent is only partly
+        modelled: solely the top stage is flown to the ground, so a booster&apos;s full trajectory
+        and drift aren&apos;t integrated — but a spent lower stage that carries its <em>own</em>{" "}
+        recovery now gets a terminal-velocity landing-speed estimate (from the mass that leaves at
+        separation and its largest canopy), and one that drops with <em>no</em> recovery is flagged as
+        a ballistic, untracked range hazard rather than silently ignored. Still <em>not</em> modelled:
+        the booster&apos;s downrange drift, and an <em>apogee</em>- or <em>altitude</em>-triggered
+        separation, which falls back to the burnout default. Parallel
         (strap-on) stages and pods are still not simulated; a design that contains them is imported
         with a visible warning and its{" "}
         <Link href="/docs/validation">OpenRocket-vs-Loft comparison</Link> is withheld, since the

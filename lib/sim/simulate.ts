@@ -179,6 +179,22 @@ export interface FlightResult {
    *  design has no fins with a usable thickness. A safety heuristic, not a guarantee — see
    *  flutter.ts. */
   flutter?: FlutterReport;
+  /** Separated lower stages that carry their own recovery: their estimated terminal descent speed
+   *  under that canopy (the top stage is the one flown to the ground, so a booster's own landing is
+   *  otherwise untracked). A range-safety readout, complementing the ballistic-booster warning for
+   *  an un-recovered stage. Empty for a single-stage flight or when no dropped stage recovers. */
+  boosterDescents: BoosterDescent[];
+}
+
+/** A separated, self-recovering lower stage's estimated descent — a terminal-velocity landing under
+ *  its own canopy, computed from the mass that leaves the stack at separation and the largest
+ *  recovery drag area on that stage. */
+export interface BoosterDescent {
+  name: string;
+  /** Descending mass (kg): the stage's structure plus its spent motor casing. */
+  mass: number;
+  /** Terminal descent speed at the landing field (m/s) under the stage's largest canopy. */
+  terminalSpeed: number;
 }
 
 interface SimState {
@@ -727,9 +743,25 @@ export function simulate(input: SimulateInput): FlightResult {
   // stages are the ones below the final attached count; flag any with no chute/streamer in its tree.
   const finalStageCount = phases[phases.length - 1].stageCount;
   const ballisticBoosters: string[] = [];
+  const boosterDescents: BoosterDescent[] = [];
+  const groundDensity = conditions.atmosphere.sample(conditions.launchAltitude).density;
   for (let i = finalStageCount; i < nStages; i++) {
     const st = rocket.stages[i];
-    if (st && !subtreeHasRecovery(st.components)) ballisticBoosters.push(st.name || `stage ${i + 1}`);
+    if (!st) continue;
+    const name = st.name || `stage ${i + 1}`;
+    const cdA = subtreeMaxRecoveryCdA(st.components);
+    if (cdA <= 0) {
+      // No canopy Loft can see ⇒ ballistic, untracked (flagged below).
+      ballisticBoosters.push(name);
+      continue;
+    }
+    // The mass that leaves the stack at this stage's separation (structure + spent casing) is its
+    // descending mass; under its largest canopy it settles to a terminal velocity at the field.
+    const sepT = phases[nStages - i]?.startTime;
+    const mass = sepT !== undefined ? massSumAt(sepT - 1e-3) - massSumAt(sepT + 1e-3) : 0;
+    if (mass > 0 && groundDensity > 0) {
+      boosterDescents.push({ name, mass, terminalSpeed: Math.sqrt((2 * mass * G0) / (groundDensity * cdA)) });
+    }
   }
 
   buildWarnings(warnings, {
@@ -816,6 +848,7 @@ export function simulate(input: SimulateInput): FlightResult {
     extrapolatedTransonic: extrapolated,
     deployedBeforeApogee,
     flutter,
+    boosterDescents,
   };
 }
 
@@ -886,12 +919,21 @@ function shouldSample(traj: TrajectorySample[], t: number, phase: FlightPhase): 
   return t - last >= gap;
 }
 
-/** Whether a component subtree carries any recovery device (parachute or streamer) — used to tell
- *  a spent stage that will recover from one that drops ballistically. */
-function subtreeHasRecovery(components: RocketComponent[]): boolean {
-  return components.some(
-    (c) => c.kind === "parachute" || c.kind === "streamer" || subtreeHasRecovery(c.children),
-  );
+/** The largest recovery drag area (Cd·A, m²) in a component subtree — the device that sets the
+ *  terminal descent speed at landing (the main on a dual-deploy stage, or the sole canopy). Zero
+ *  when the subtree carries no recovery device. */
+function subtreeMaxRecoveryCdA(components: RocketComponent[]): number {
+  let max = 0;
+  for (const c of components) {
+    if (c.kind === "parachute") {
+      const area = c.area ?? Math.PI * (c.diameter / 2) * (c.diameter / 2);
+      max = Math.max(max, c.cd * area);
+    } else if (c.kind === "streamer") {
+      max = Math.max(max, c.cd * c.stripLength * c.stripWidth);
+    }
+    max = Math.max(max, subtreeMaxRecoveryCdA(c.children));
+  }
+  return max;
 }
 
 function buildWarnings(

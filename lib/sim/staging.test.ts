@@ -434,3 +434,42 @@ describe("untracked-booster range-safety warning", () => {
     expect(warned(single)).toBe(false);
   });
 });
+
+describe("separated booster descent readout", () => {
+  const withBoosterChute = (diameter: number): Rocket => {
+    const { rocket } = twoStage();
+    const boosterTube = rocket.stages[1].components[0] as BodyTube;
+    const chute: Parachute = {
+      id: "booster-chute", name: "Booster chute", kind: "parachute",
+      placement: { method: "top", offset: 0 }, cd: 0.8, diameter, mass: 0.03,
+      deployEvent: "apogee", deployDelay: 0, children: [],
+    };
+    boosterTube.children = [...boosterTube.children, chute];
+    return rocket;
+  };
+
+  it("reports a recovered booster's terminal descent (mass + a sensible speed)", () => {
+    const run = runFlight(withBoosterChute(0.6), { configId: "cfg" });
+    expect(run.result.boosterDescents).toHaveLength(1);
+    const bd = run.result.boosterDescents[0];
+    expect(bd.name).toBe("Booster");
+    expect(bd.mass).toBeGreaterThan(0.05); // the dropped stage's structure + spent casing
+    // A real canopy descent — bounded, not a free-fall or a NaN.
+    expect(bd.terminalSpeed).toBeGreaterThan(1);
+    expect(bd.terminalSpeed).toBeLessThan(40);
+  });
+
+  it("a bigger booster canopy gives a slower terminal descent (physical monotonicity)", () => {
+    const small = runFlight(withBoosterChute(0.4), { configId: "cfg" }).result.boosterDescents[0].terminalSpeed;
+    const big = runFlight(withBoosterChute(1.0), { configId: "cfg" }).result.boosterDescents[0].terminalSpeed;
+    expect(big).toBeLessThan(small);
+  });
+
+  it("reports nothing for a ballistic (un-recovered) booster or a single-stage flight", () => {
+    // The un-recovered booster is the ballistic-warning case, not a tracked descent.
+    expect(runFlight(twoStage().rocket, { configId: "cfg" }).result.boosterDescents).toHaveLength(0);
+    const { rocket } = twoStage();
+    const single: Rocket = { ...rocket, stages: rocket.stages.slice(0, 1), configurations: rocket.configurations };
+    expect(runFlight(single, { configId: "cfg" }).result.boosterDescents).toHaveLength(0);
+  });
+});
