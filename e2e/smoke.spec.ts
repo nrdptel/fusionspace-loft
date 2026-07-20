@@ -70,8 +70,12 @@ test.describe("Loft", () => {
     await picker.selectOption("1");
     await expect(page.getByText("G40W", { exact: false }).first()).toBeVisible();
 
-    // Each configuration compares against its own stored OpenRocket results.
+    // Each configuration compares against its own stored OpenRocket results — and is labelled with
+    // the flown configuration's simulation, not always the first one.
     await expect(page.getByRole("heading", { name: "OpenRocket vs Loft" })).toBeVisible();
+    const validation = page.getByRole("region", { name: "Validation" });
+    await expect(validation.getByText("G40W", { exact: false })).toBeVisible();
+    await expect(validation.getByText("H128W", { exact: false })).toHaveCount(0);
   });
 
   test("nose ballast re-flies the design heavier — a lower apogee", async ({ page }) => {

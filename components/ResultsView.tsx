@@ -179,7 +179,7 @@ export default function ResultsView({
       </section>
 
       {run.validation && run.validation.count > 0 && (
-        <ValidationPanel report={run.validation} units={units} storedName={doc.simulations[0]?.name} toolName={tool} />
+        <ValidationPanel report={run.validation} units={units} storedName={doc.simulations[simIndex]?.name} toolName={tool} />
       )}
 
       {/* Per-step cross-check: when the file carries the design tool's own step-by-step flight and
