@@ -8,6 +8,7 @@ import {
   primaryFinSpan,
   primaryFinCount,
   primaryFinStation,
+  primaryFinChord,
   primaryMotorClusterCount,
   primaryFinRootChord,
   primaryFinTipChord,
@@ -125,6 +126,20 @@ describe("applyGeometryEdits — fin position (stability lever)", () => {
     const rocket = await load("demo-single-deploy.ork");
     expect(applyGeometryEdits(rocket, { finStation: 0 })).toBe(rocket);
     expect(applyGeometryEdits(rocket, { finStation: -1 })).toBe(rocket);
+  });
+
+  it("reports the fin root chord, so a caller can keep a moved fin on the airframe", async () => {
+    const rocket = await load("demo-single-deploy.ork");
+    const chord = primaryFinChord(rocket)!;
+    expect(chord).toBeGreaterThan(0);
+    // Placing the fin's fore edge at (overall length − chord) puts its trailing edge exactly at the
+    // tail — the buildable aft limit the parameter sweep clamps to.
+    const aftLimit = overallLength(rocket) - chord;
+    const edited = applyGeometryEdits(rocket, { finStation: aftLimit });
+    const fin = flattenRocket(edited).find((p) =>
+      ["trapezoidfinset", "ellipticalfinset", "freeformfinset"].includes(p.component.kind),
+    )!;
+    expect(fin.xFore + fin.length).toBeCloseTo(overallLength(edited), 6);
   });
 });
 

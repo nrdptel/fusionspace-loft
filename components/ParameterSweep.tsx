@@ -5,7 +5,8 @@ import type { OrkDocument } from "@/lib/ork/import";
 import { runFlight, overridesFromStored } from "@/lib/sim/run";
 import { linRange, type SweepAxis, type ParamSweepPoint } from "@/lib/sim/sweep";
 import { runParameterSweep } from "@/lib/sim/sweep-client";
-import { primaryFinSpan, primaryFinThickness, primaryFinStation, primaryNose, primaryBodyTube, primaryBodyDiameter, type GeometryEdits } from "@/lib/model/edit";
+import { primaryFinSpan, primaryFinThickness, primaryFinStation, primaryFinChord, primaryNose, primaryBodyTube, primaryBodyDiameter, type GeometryEdits } from "@/lib/model/edit";
+import { overallLength } from "@/lib/model/geometry";
 import { mToFt, mToIn, mpsToFtps, kgToG, G_PER_OZ } from "@/lib/units";
 import type { CsvCell } from "@/lib/csv";
 import LineChart from "./LineChart";
@@ -95,22 +96,24 @@ export default function ParameterSweep({
     if (span && span > 0) list.push(geometryAxis("finSpan", "Fin span", span));
     const thickness = primaryFinThickness(doc.rocket);
     if (thickness && thickness > 0) list.push(geometryAxis("finThickness", "Fin thickness", thickness));
-    // Fin position: a station, not a size, so it ranges as an absolute band around the design value
-    // rather than a percentage — ±35% of the body length, which slides the fins across the airframe
-    // to trace the stability response, clamped off the nose tip so the fore end stays positive.
+    // Fin position: a station, not a size, so it ranges as an absolute band (±35% of the body
+    // length) around the design value rather than a percentage. The band is then clamped to keep
+    // every swept position buildable — the fin root stays on the airframe, its fore edge behind the
+    // nose and its aft (trailing) edge no further back than the tail — so the curve never implies
+    // stability you could only get by hanging the fins off the end (for tail-mounted fins that
+    // makes it a forward-only sweep, which is the honest range).
     const finStation = primaryFinStation(doc.rocket);
+    const finChord = primaryFinChord(doc.rocket);
     const bodyForStation = primaryBodyTube(doc.rocket)?.length;
-    if (finStation && finStation > 0 && bodyForStation && bodyForStation > 0) {
+    const airframeLen = overallLength(doc.rocket);
+    const noseLen = primaryNose(doc.rocket)?.length ?? 0;
+    if (finStation && finStation > 0 && bodyForStation && bodyForStation > 0 && finChord && finChord > 0 && airframeLen > 0) {
       const band = 0.35 * bodyForStation;
-      list.push({
-        axis: "finStation",
-        label: "Fin position",
-        base: finStation,
-        lo: Math.max(0.02, finStation - band),
-        hi: finStation + band,
-        xToNumber: lengthX,
-        xUnit: lengthUnit,
-      });
+      const lo = Math.max(0.02, noseLen, finStation - band);
+      const hi = Math.min(finStation + band, airframeLen - finChord);
+      if (hi > lo) {
+        list.push({ axis: "finStation", label: "Fin position", base: finStation, lo, hi, xToNumber: lengthX, xUnit: lengthUnit });
+      }
     }
     const nose = primaryNose(doc.rocket)?.length;
     if (nose && nose > 0) list.push(geometryAxis("noseLength", "Nose length", nose));

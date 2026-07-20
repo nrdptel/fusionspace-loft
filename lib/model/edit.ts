@@ -241,6 +241,16 @@ export function primaryFinStation(rocket: Rocket): number | undefined {
   return placed ? placed.xFore : undefined;
 }
 
+/** The design's primary fin set's axial extent along the body (m) — its root chord, for any fin
+ *  kind — so a caller can tell how much airframe the fin root occupies (e.g. to keep a moved fin's
+ *  trailing edge on the airframe). Undefined for a finless design. */
+export function primaryFinChord(rocket: Rocket): number | undefined {
+  const fin = primaryFinSet(rocket);
+  if (!fin) return undefined;
+  const placed = flattenRocket(rocket).find((p) => p.component.id === fin.id);
+  return placed ? placed.length : undefined;
+}
+
 /** How many motors the design's (first) motor mount holds — 1 for a single motor. Undefined when
  *  the design has no motor mount at all. */
 export function primaryMotorClusterCount(rocket: Rocket): number | undefined {
