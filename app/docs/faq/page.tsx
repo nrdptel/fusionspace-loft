@@ -295,6 +295,21 @@ export default function Faq() {
         </p>
       </QA>
 
+      <QA q="Can I save my design, or open it in OpenRocket?">
+        <p>
+          Yes. <em>Download .ork</em> (top of the results) saves the current design — built from
+          scratch, edited, or imported — as an OpenRocket <code>.ork</code> file, generated entirely
+          in your browser. It re-opens in Loft and, because it&apos;s OpenRocket&apos;s own format,
+          in OpenRocket, so your work is durable and portable rather than lost on refresh. Any
+          structural (geometry) edits you&apos;ve made are baked into the saved airframe; transient
+          what-ifs — added ballast, a swapped motor, a resized canopy, launch conditions — are flight
+          explorations, not part of the design, so they&apos;re left out. Every bundled design
+          round-trips through save and re-open with its flight unchanged. A freeform (arbitrary
+          polygon) fin is saved as its aerodynamically-equivalent trapezoid, the one detail that
+          isn&apos;t recovered exactly.
+        </p>
+      </QA>
+
       <QA q="Can I check how Loft read my design?">
         <p>
           Yes. Under the results, expand <em>Design geometry</em> to see the component tree exactly as

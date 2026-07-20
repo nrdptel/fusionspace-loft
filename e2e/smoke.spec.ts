@@ -55,6 +55,18 @@ test.describe("Loft", () => {
     await expect(page.getByRole("heading", { name: "OpenRocket vs Loft" })).toHaveCount(0);
   });
 
+  test("exports the current design as a downloadable .ork", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: "Start a new design" }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+
+    const [download] = await Promise.all([
+      page.waitForEvent("download"),
+      page.getByRole("button", { name: "Download .ork" }).click(),
+    ]);
+    expect(download.suggestedFilename()).toMatch(/\.ork$/);
+  });
+
   test("imports the RockSim .rkt sample and simulates the flight", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: /RockSim · 54 mm sport/ }).click();

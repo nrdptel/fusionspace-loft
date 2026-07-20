@@ -7,6 +7,7 @@ import ResultsView from "./ResultsView";
 import { Segmented } from "./ui";
 import { importDesignFile, importDesign, type OrkDocument } from "@/lib/ork/import";
 import { newDesign } from "@/lib/model/starter";
+import { exportOrk } from "@/lib/ork/export";
 import { runFlight, overridesFromStored, configChoices, type FlightRun, type ConfigChoice } from "@/lib/sim/run";
 import {
   primaryFinSpan,
@@ -26,6 +27,8 @@ import {
   NOSE_SHAPES,
   FIN_CROSS_SECTIONS,
   FIN_MATERIALS,
+  applyGeometryEdits,
+  hasGeometryEdits,
 } from "@/lib/model/edit";
 import type { SurfaceFinish, NoseShape, FinCrossSection } from "@/lib/model/types";
 import { allMotors } from "@/lib/motors/db";
@@ -247,6 +250,41 @@ export default function LoftApp() {
   // it immediately; the flyer tweaks a real, stable flight rather than staring at a blank slate.
   const onNew = useCallback(() => loadDoc(newDesign(), "New design"), [loadDoc]);
 
+  // Save the current design — built, edited, or imported — as an OpenRocket .ork, entirely in the
+  // browser. It re-opens in Loft and, using OpenRocket's own format, in OpenRocket; so a design is
+  // durable and portable rather than lost on refresh. Any active what-if edits are baked in.
+  const downloadOrk = useCallback(() => {
+    if (!doc) return;
+    // Bake in the builder's structural (geometry) edits so the saved airframe matches what's shown.
+    // Transient flight what-ifs (ballast, motor swap, recovery scale, launch conditions) are not
+    // part of the design and are left out.
+    const geometry = {
+      finSpan: edits.finSpan,
+      finCount: edits.finCount,
+      finRootChord: edits.finRootChord,
+      finTipChord: edits.finTipChord,
+      finSweepLength: edits.finSweepLength,
+      finThickness: edits.finThickness,
+      finCrossSection: edits.finCrossSection,
+      finMaterial: edits.finMaterial,
+      noseLength: edits.noseLength,
+      noseShape: edits.noseShape,
+      bodyLength: edits.bodyLength,
+      bodyDiameter: edits.bodyDiameter,
+      finish: edits.finish,
+    };
+    const rocket = hasGeometryEdits(geometry) ? applyGeometryEdits(doc.rocket, geometry) : doc.rocket;
+    const bytes = exportOrk({ ...doc, rocket });
+    const base =
+      (rocket.name || fileName || "design").replace(/\.[^.]+$/, "").replace(/[^\w.-]+/g, "-") || "design";
+    const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: "application/zip" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${base}.ork`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [doc, edits, fileName]);
+
   const rerun = useCallback(
     (e: Edits, wx: WeatherConditions | null, scen: "design" | "today") => {
       if (!doc) return;
@@ -398,6 +436,14 @@ export default function LoftApp() {
                   {fileName}
                 </span>
               )}
+              <button
+                type="button"
+                onClick={downloadOrk}
+                title="Save this design as an OpenRocket .ork file"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-2.5 py-1 text-xs font-medium text-zinc-700 transition hover:border-indigo-400 hover:text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:text-zinc-100"
+              >
+                Download .ork
+              </button>
             </div>
             <Segmented
               value={units}
