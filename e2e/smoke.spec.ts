@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 
 test.describe("Loft", () => {
   test("loads with a clean hydration and the heading", async ({ page }) => {
@@ -76,6 +77,22 @@ test.describe("Loft", () => {
     const validation = page.getByRole("region", { name: "Validation" });
     await expect(validation.getByText("G40W", { exact: false })).toBeVisible();
     await expect(validation.getByText("H128W", { exact: false })).toHaveCount(0);
+  });
+
+  test("an imported file with a stored per-step log shows the drag cross-check", async ({ page }) => {
+    await page.goto("/");
+    // A design carrying the tool's own step-by-step flight (a hand-authored log, not a bundled demo).
+    await page
+      .getByLabel(/Choose an OpenRocket .ork or RockSim .rkt file/)
+      .setInputFiles(resolve(process.cwd(), "e2e/fixtures/logged-sample.ork"));
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+
+    // Loft overlays its own solver on the file's stored per-step flight: an altitude curve and a
+    // drag-coefficient curve, the latter quantified with a mean-gap figure.
+    const panel = page.getByRole("region", { name: "Stored-flight cross-check" });
+    await expect(panel).toBeVisible();
+    await expect(panel.locator("svg")).toHaveCount(2);
+    await expect(panel.getByText(/mean gap/)).toBeVisible();
   });
 
   test("nose ballast re-flies the design heavier — a lower apogee", async ({ page }) => {
