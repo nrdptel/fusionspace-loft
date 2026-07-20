@@ -90,6 +90,29 @@ describe("monteCarlo", () => {
   );
 
   it(
+    "reports a landing-energy band consistent with ½·m·v², widened by mass spread",
+    async () => {
+      const { rocket, opts } = await baseOpts();
+      const r = monteCarlo(rocket, opts);
+      // Positive, ordered, and each sample's energy is ½·m·v² for a physical descent mass (0.1–100 kg
+      // implied by energy = ½ m v²): back out m from every sample and check it's a sane vehicle mass.
+      expect(r.landingEnergy.p50).toBeGreaterThan(0);
+      expect(r.landingEnergy.p95).toBeGreaterThanOrEqual(r.landingEnergy.p50);
+      for (const s of r.samples) {
+        const impliedMass = (2 * s.landingEnergy) / (s.landingSpeed * s.landingSpeed);
+        expect(impliedMass).toBeGreaterThan(0.05);
+        expect(impliedMass).toBeLessThan(100);
+      }
+      // A heavier build lands with more energy (½ m v² rises with both m and the faster descent), so
+      // dispersing dry mass widens the energy band.
+      const tight = monteCarlo(rocket, { ...opts, dispersions: { massFrac: 0.01 } });
+      const wide = monteCarlo(rocket, { ...opts, dispersions: { massFrac: 0.2 } });
+      expect(wide.landingEnergy.sd).toBeGreaterThan(tight.landingEnergy.sd);
+    },
+    T,
+  );
+
+  it(
     "recovery-drag spread widens the landing-speed band — the canopy dragFrac leaves untouched",
     async () => {
       const { rocket, opts } = await baseOpts();

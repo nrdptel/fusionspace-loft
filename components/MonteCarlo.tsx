@@ -302,6 +302,15 @@ function Report({
         <RadiusCard radius={result.landingRadiusP95} drift={result.driftDistance} units={units} />
       </div>
 
+      {result.landingEnergy.p95 > 0 && (
+        <p className="mt-3 text-xs text-zinc-500 dark:text-zinc-400">
+          <span className="font-medium">Landing energy:</span> {d.q(d.energy(result.landingEnergy.p50, units))} median,{" "}
+          {d.q(d.energy(result.landingEnergy.p95, units))} worst-case (95th percentile) — the whole vehicle
+          as one piece. Many fields and waivers cap the per-section landing energy; a design that comes down in
+          separated sections divides this among them, so read it as a conservative whole-airframe figure.
+        </p>
+      )}
+
       {firmChance > 0 && (
         <p
           className={
@@ -571,8 +580,10 @@ function Scatter({
 function csvRows(result: MonteCarloResult, units: UnitSystem): CsvCell[][] {
   const alt = units === "imperial" ? "ft" : "m";
   const spd = units === "imperial" ? "ft/s" : "m/s";
+  const eu = units === "imperial" ? "ft·lbf" : "J";
   const toAlt = (m: number) => (units === "imperial" ? mToFt(m) : m);
   const toSpd = (mps: number) => (units === "imperial" ? mpsToFtps(mps) : mps);
+  const toEnergy = (j: number) => (units === "imperial" ? j * 0.737562 : j);
   const header: CsvCell[] = [
     "Flight",
     `Apogee (${alt})`,
@@ -581,6 +592,7 @@ function csvRows(result: MonteCarloResult, units: UnitSystem): CsvCell[][] {
     `Landing downrange (${alt})`,
     `Landing crossrange (${alt})`,
     `Landing speed (${spd})`,
+    `Landing energy (${eu})`,
   ];
   const body: CsvCell[][] = result.samples.map((s, i) => [
     i + 1,
@@ -590,6 +602,7 @@ function csvRows(result: MonteCarloResult, units: UnitSystem): CsvCell[][] {
     round(toAlt(s.landingX), 1),
     round(toAlt(s.landingY), 1),
     round(toSpd(s.landingSpeed), 1),
+    round(toEnergy(s.landingEnergy), 1),
   ]);
   return [header, ...body];
 }

@@ -83,6 +83,9 @@ export interface MonteCarloSample {
   landingY: number;
   /** Speed at ground impact (m/s) — how hard it lands under recovery, the recovery-adequacy figure. */
   landingSpeed: number;
+  /** Kinetic energy at ground impact (J), ½·m·v² for the whole vehicle — the recovery-adequacy figure
+   *  many fields and waivers set a per-section limit on, so its worst-case matters as much as speed. */
+  landingEnergy: number;
 }
 
 /** A metric's spread: median with a 5th–95th-percentile band, plus mean and standard deviation. */
@@ -106,6 +109,9 @@ export interface MonteCarloResult {
   /** Ground-impact speed spread (m/s) — how hard it lands across the dispersion; the 95th percentile
    *  is the worst-case a flyer sizes recovery against. */
   landingSpeed: Stat;
+  /** Ground-impact kinetic energy spread (J) for the whole vehicle — the field/waiver recovery-
+   *  adequacy figure; its 95th percentile is the worst-case to check against a landing-energy limit. */
+  landingEnergy: Stat;
   /** Flights that actually flew (a sample whose motor can't resolve is dropped). */
   n: number;
 }
@@ -228,6 +234,7 @@ export function* monteCarloSamples(rocket: Rocket, opts: MonteCarloOptions): Gen
         landingX: s.landingX,
         landingY: s.landingY,
         landingSpeed: s.groundHitVelocity,
+        landingEnergy: s.landingEnergy,
       };
     } catch {
       // A sample that can't be flown is dropped from the distribution.
@@ -245,6 +252,7 @@ export function summarizeSamples(samples: MonteCarloSample[]): MonteCarloResult 
     driftDistance: summarize(samples.map((s) => s.driftDistance)),
     landingRadiusP95: percentile(driftSorted, 0.95),
     landingSpeed: summarize(samples.map((s) => s.landingSpeed)),
+    landingEnergy: summarize(samples.map((s) => s.landingEnergy)),
     n: samples.length,
   };
 }

@@ -566,6 +566,13 @@ test.describe("Loft", () => {
     await expect(panel.getByRole("img", { name: /Apogee distribution histogram/i })).toBeVisible();
     await expect(panel.getByRole("img", { name: /Landing scatter/i })).toBeVisible();
 
+    // The landing-energy band (the field/waiver recovery-adequacy figure) reports a median and a
+    // worst-case in energy units.
+    const energy = panel.locator("p").filter({ hasText: "Landing energy:" });
+    await expect(energy).toBeVisible();
+    await expect(energy).toContainText(/worst-case/);
+    await expect(energy).toContainText(/\d+\s*J/);
+
     // Widening the wind spread re-runs and grows the recovery radius.
     const radius = async () => {
       const txt = await panel.getByText("Recovery radius (95%)").locator("xpath=following-sibling::div[1]").innerText();
