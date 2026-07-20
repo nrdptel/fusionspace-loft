@@ -7,6 +7,7 @@ import {
   applyGeometryEdits,
   primaryFinSpan,
   primaryFinCount,
+  primaryFinStation,
   primaryMotorClusterCount,
   primaryFinRootChord,
   primaryFinTipChord,
@@ -72,6 +73,58 @@ describe("applyGeometryEdits — fin span", () => {
     expect(applyGeometryEdits(rocket, {})).toBe(rocket);
     expect(applyGeometryEdits(rocket, { finSpan: 0 })).toBe(rocket);
     expect(applyGeometryEdits(rocket, { noseLength: 0, bodyLength: 0 })).toBe(rocket);
+  });
+});
+
+describe("applyGeometryEdits — fin position (stability lever)", () => {
+  it("moves the fin group to the requested station, non-destructively", async () => {
+    const rocket = await load("demo-single-deploy.ork");
+    const before = primaryFinStation(rocket)!;
+    expect(before).toBeGreaterThan(0);
+    const target = before + 0.05; // 5 cm aft
+    const edited = applyGeometryEdits(rocket, { finStation: target });
+    // The primary fin set's fore edge lands exactly on the requested station.
+    expect(primaryFinStation(edited)).toBeCloseTo(target, 9);
+    // The pristine design is untouched.
+    expect(primaryFinStation(rocket)).toBeCloseTo(before, 9);
+  });
+
+  it("moving the fins aft raises the static margin; forward lowers it, apogee ~unchanged", async () => {
+    const rocket = await load("demo-single-deploy.ork");
+    const s0 = primaryFinStation(rocket)!;
+    const nominal = runFlight(rocket, {}).result;
+    const aft = runFlight(applyGeometryEdits(rocket, { finStation: s0 + 0.05 }), {}).result;
+    const fore = runFlight(applyGeometryEdits(rocket, { finStation: s0 - 0.05 }), {}).result;
+    // Fins aft ⇒ centre of pressure aft ⇒ more stable; fins forward ⇒ less stable.
+    expect(aft.staticMarginCal).toBeGreaterThan(nominal.staticMarginCal);
+    expect(fore.staticMarginCal).toBeLessThan(nominal.staticMarginCal);
+    // A longitudinal shift barely touches drag or mass, so it isolates the stability effect — apogee
+    // moves less than a per-cent either way.
+    expect(Math.abs(aft.summary.apogee - nominal.summary.apogee) / nominal.summary.apogee).toBeLessThan(0.01);
+    expect(Math.abs(fore.summary.apogee - nominal.summary.apogee) / nominal.summary.apogee).toBeLessThan(0.01);
+  });
+
+  it("shifts every fin set by the same amount, preserving their spacing", async () => {
+    // A design with a single fin set: the shift equals the requested delta on that set's placement.
+    const rocket = await load("demo-single-deploy.ork");
+    const finBefore = flattenRocket(rocket).filter((p) =>
+      ["trapezoidfinset", "ellipticalfinset", "freeformfinset"].includes(p.component.kind),
+    );
+    const s0 = primaryFinStation(rocket)!;
+    const edited = applyGeometryEdits(rocket, { finStation: s0 + 0.1 });
+    const finAfter = flattenRocket(edited).filter((p) =>
+      ["trapezoidfinset", "ellipticalfinset", "freeformfinset"].includes(p.component.kind),
+    );
+    expect(finAfter.length).toBe(finBefore.length);
+    for (let i = 0; i < finBefore.length; i++) {
+      expect(finAfter[i].xFore - finBefore[i].xFore).toBeCloseTo(0.1, 9);
+    }
+  });
+
+  it("no-ops when the station is undefined or non-positive", async () => {
+    const rocket = await load("demo-single-deploy.ork");
+    expect(applyGeometryEdits(rocket, { finStation: 0 })).toBe(rocket);
+    expect(applyGeometryEdits(rocket, { finStation: -1 })).toBe(rocket);
   });
 });
 

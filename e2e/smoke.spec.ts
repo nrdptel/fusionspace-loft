@@ -231,6 +231,39 @@ test.describe("Loft", () => {
     await expect(apogeeRow.getByText(/−[\d.]+%/)).toBeVisible();
   });
 
+  test("moving the fins aft re-flies the design stiffer — a higher static margin", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+
+    const apogee = async () => {
+      const txt = await page
+        .getByLabel("Results")
+        .getByText("Apogee", { exact: true })
+        .locator("xpath=following-sibling::div")
+        .innerText();
+      return parseFloat(txt.replace(/[^\d.]/g, ""));
+    };
+    const before = await apogee();
+
+    // Open the edit panel and slide the whole fin group 100 mm aft — a "what-if" stability trim.
+    await page.locator("summary", { hasText: "Conditions" }).click();
+    const finPos = page.getByLabel(/Fin position/);
+    await expect(finPos).toBeVisible();
+    const design = parseFloat((await finPos.getAttribute("placeholder")) ?? "0");
+    expect(design).toBeGreaterThan(0);
+    await finPos.fill(String(Math.round(design + 100)));
+
+    // A "what-if vs design" delta appears: fins aft move the centre of pressure aft, so the static
+    // margin rises (a positive caliber delta in the banner).
+    const panel = page.getByRole("group", { name: "What-if vs design" });
+    await expect(panel).toBeVisible();
+    await expect(panel.getByText(/\+[\d.]+ cal/)).toBeVisible();
+    // The shift barely touches drag or mass, so apogee holds within a couple of per-cent.
+    const after = await apogee();
+    expect(Math.abs(after - before) / before).toBeLessThan(0.03);
+  });
+
   test("a bigger recovery canopy re-flies the design — a slower, softer descent, same apogee", async ({
     page,
   }) => {

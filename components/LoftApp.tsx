@@ -12,6 +12,7 @@ import { runFlight, overridesFromStored, configChoices, type FlightRun, type Con
 import {
   primaryFinSpan,
   primaryFinCount,
+  primaryFinStation,
   primaryMotorClusterCount,
   primaryFinRootChord,
   primaryFinTipChord,
@@ -82,6 +83,7 @@ interface Edits {
   finRootChord?: number; // builder edit: fin root chord (m, trapezoidal)
   finTipChord?: number; // builder edit: fin tip chord (m, trapezoidal)
   finSweepLength?: number; // builder edit: fin LE sweep (m, trapezoidal)
+  finStation?: number; // builder edit: fin group fore-edge station from nose tip (m) — stability lever
   finThickness?: number; // builder edit: fin thickness (m, any fin kind)
   finCrossSection?: FinCrossSection; // builder edit: fin edge cross-section (any fin kind)
   finMaterial?: string; // builder edit: fin material key (FIN_MATERIALS) — density + flutter stiffness
@@ -155,6 +157,7 @@ export default function LoftApp() {
           finRootChord: e.finRootChord,
           finTipChord: e.finTipChord,
           finSweepLength: e.finSweepLength,
+          finStation: e.finStation,
           finThickness: e.finThickness,
           finCrossSection: e.finCrossSection,
           finMaterial: e.finMaterial,
@@ -191,6 +194,7 @@ export default function LoftApp() {
         e.finRootChord !== undefined ||
         e.finTipChord !== undefined ||
         e.finSweepLength !== undefined ||
+        e.finStation !== undefined ||
         e.finThickness !== undefined ||
         e.finCrossSection !== undefined ||
         e.finMaterial !== undefined ||
@@ -295,6 +299,7 @@ export default function LoftApp() {
       finRootChord: edits.finRootChord,
       finTipChord: edits.finTipChord,
       finSweepLength: edits.finSweepLength,
+      finStation: edits.finStation,
       finThickness: edits.finThickness,
       finCrossSection: edits.finCrossSection,
       finMaterial: edits.finMaterial,
@@ -402,6 +407,7 @@ export default function LoftApp() {
             finRootChord: primaryFinRootChord(doc.rocket),
             finTipChord: primaryFinTipChord(doc.rocket),
             finSweepLength: primaryFinSweep(doc.rocket),
+            finStation: primaryFinStation(doc.rocket),
             finThickness: primaryFinThickness(doc.rocket),
             finCrossSection: primaryFinCrossSection(doc.rocket),
             finMaterial: primaryFinMaterial(doc.rocket),
@@ -420,6 +426,7 @@ export default function LoftApp() {
             finRootChord: undefined,
             finTipChord: undefined,
             finSweepLength: undefined,
+            finStation: undefined,
             finThickness: undefined,
             finCrossSection: undefined,
             finMaterial: undefined,
@@ -561,6 +568,7 @@ export default function LoftApp() {
                 finRootChord: edits.finRootChord,
                 finTipChord: edits.finTipChord,
                 finSweepLength: edits.finSweepLength,
+                finStation: edits.finStation,
                 finThickness: edits.finThickness,
                 finCrossSection: edits.finCrossSection,
                 finMaterial: edits.finMaterial,
@@ -656,6 +664,7 @@ function ConditionsControls({
     finRootChord?: number;
     finTipChord?: number;
     finSweepLength?: number;
+    finStation?: number;
     finThickness?: number;
     finCrossSection?: FinCrossSection;
     finMaterial?: string;
@@ -867,6 +876,14 @@ function ConditionsControls({
                 value={toDispSpan(edits.finSweepLength)}
                 placeholder={toDispSpan(designDims.finSweepLength)}
                 onChange={(v) => onEdit({ finSweepLength: fromSpan(v) })}
+              />
+            )}
+            {designDims.finStation !== undefined && (
+              <Num
+                label={`Fin position (${spanU})`}
+                value={toDispSpan(edits.finStation)}
+                placeholder={toDispSpan(designDims.finStation)}
+                onChange={(v) => onEdit({ finStation: fromSpan(v) })}
               />
             )}
             {designDims.finThickness !== undefined && (

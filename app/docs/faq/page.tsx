@@ -34,8 +34,10 @@ export default function Faq() {
           common 29&nbsp;mm H motor, already flying: a healthy ~1.5-caliber static margin, a real
           apogee, mass, and recovery. From there the same edits an imported design gets — nose shape
           and length, body length and diameter, airframe material, fin size, count, sweep, thickness,
-          cross-section and material, nose ballast, motor swap, motor cluster count, parachute size — reshape it and re-fly
-          instantly. You
+          position, cross-section and material, nose ballast, motor swap, motor cluster count, parachute
+          size — reshape it and re-fly instantly. Fin <em>position</em> slides the fins fore or aft along
+          the airframe: moving them aft moves the centre of pressure aft and stiffens the static margin,
+          the classic trim complement to nose ballast (which shifts the centre of gravity forward). You
           can also <em>add</em> a boattail (a tail cone: set a length and an exit diameter narrower
           than the body) to cut the base drag, the single largest drag source on a blunt-based
           rocket, or switch to <em>dual-deploy</em> recovery (set a main-deploy altitude and a drogue

@@ -86,6 +86,13 @@ export interface GeometryEdits {
   /** Fin leading-edge sweep (m the tip LE is aft of the root LE) for a trapezoidal fin set.
    *  Undefined leaves it. */
   finSweepLength?: number;
+  /** Longitudinal position (m from the nose tip) the primary (frontmost) fin set's fore edge should
+   *  sit at. Every fin set shifts by the same amount, keeping their spacing, so the whole fin group
+   *  moves fore or aft. This is the third classic stability lever: moving the fins aft moves the
+   *  centre of pressure aft and raises the static margin (nose ballast trims the CG forward; fin
+   *  span and this trim the CP aft). It barely touches drag or mass, so it isolates the stability
+   *  effect. Undefined leaves the fins where the design puts them. */
+  finStation?: number;
   /** Fin thickness (m) for every fin set — drives the fin drag (skin-friction form factor, edge
    *  pressure, wave) and the flutter margin (∝ (t/c)³). Undefined leaves it. */
   finThickness?: number;
@@ -157,6 +164,7 @@ export function hasGeometryEdits(e: GeometryEdits): boolean {
     (e.finRootChord !== undefined && e.finRootChord > 0) ||
     (e.finTipChord !== undefined && e.finTipChord > 0) ||
     (e.finSweepLength !== undefined && e.finSweepLength >= 0) ||
+    (e.finStation !== undefined && e.finStation > 0) ||
     (e.finThickness !== undefined && e.finThickness > 0) ||
     e.finCrossSection !== undefined ||
     (e.finMaterial !== undefined && FIN_MATERIALS.some((m) => m.key === e.finMaterial)) ||
@@ -222,6 +230,17 @@ export function primaryFinCount(rocket: Rocket): number | undefined {
   return fin && "finCount" in fin ? fin.finCount : undefined;
 }
 
+/** The design's primary fin set's fore-edge station from the nose tip (m) — the current
+ *  longitudinal position, for the builder's "move the fins" edit to start from. Resolved through
+ *  flattenRocket, so it reflects wherever the placement puts the set. Undefined for a finless
+ *  design. */
+export function primaryFinStation(rocket: Rocket): number | undefined {
+  const fin = primaryFinSet(rocket);
+  if (!fin) return undefined;
+  const placed = flattenRocket(rocket).find((p) => p.component.id === fin.id);
+  return placed ? placed.xFore : undefined;
+}
+
 /** How many motors the design's (first) motor mount holds — 1 for a single motor. Undefined when
  *  the design has no motor mount at all. */
 export function primaryMotorClusterCount(rocket: Rocket): number | undefined {
@@ -276,8 +295,13 @@ export function primaryFinMaterial(rocket: Rocket): string | undefined {
  *  dimensions downstream, so only the height changes; a generic (elliptical/freeform) set stores
  *  its planform area, so it's scaled with the span to keep the shape. Length overrides are keyed by
  *  component id (resolved once in applyGeometryEdits). */
-function editComponent(c: RocketComponent, e: GeometryEdits, lengths: Map<string, number>): RocketComponent {
-  const children = c.children.length ? c.children.map((child) => editComponent(child, e, lengths)) : c.children;
+function editComponent(
+  c: RocketComponent,
+  e: GeometryEdits,
+  lengths: Map<string, number>,
+  finShift: number,
+): RocketComponent {
+  const children = c.children.length ? c.children.map((child) => editComponent(child, e, lengths, finShift)) : c.children;
 
   const newLen = lengths.get(c.id);
   // The nose cone takes both a length override and a shape change (the aero reads both), so handle it
@@ -314,6 +338,12 @@ function editComponent(c: RocketComponent, e: GeometryEdits, lengths: Map<string
   // Fin material: swap the whole fin stock (density + a name the flutter estimate recognises).
   const matOpt = e.finMaterial !== undefined ? FIN_MATERIALS.find((m) => m.key === e.finMaterial) : undefined;
   const material = matOpt ? { name: matOpt.name, density: matOpt.density, type: "bulk" as const } : undefined;
+  // Fin-position edit: shift this fin set's placement offset by the resolved delta (+ = aft). The
+  // offset feeds linearly into the axial stacking (resolveChildFore), so a delta moves the set by
+  // exactly that much whatever its placement method. Only fin sets shift; other components ignore it.
+  const isFin = c.kind === "trapezoidfinset" || c.kind === "ellipticalfinset" || c.kind === "freeformfinset";
+  const shiftedPlacement =
+    isFin && finShift !== 0 ? { ...c.placement, offset: c.placement.offset + finShift } : undefined;
   if (
     span !== undefined ||
     count !== undefined ||
@@ -322,7 +352,8 @@ function editComponent(c: RocketComponent, e: GeometryEdits, lengths: Map<string
     sweep !== undefined ||
     thick !== undefined ||
     cross !== undefined ||
-    material !== undefined
+    material !== undefined ||
+    shiftedPlacement !== undefined
   ) {
     if (c.kind === "trapezoidfinset") {
       // Root/tip chord and sweep reshape the trapezoid directly; the aero and mass read them, so
@@ -338,6 +369,7 @@ function editComponent(c: RocketComponent, e: GeometryEdits, lengths: Map<string
         thickness: thick ?? c.thickness,
         crossSection: cross ?? c.crossSection,
         material: material ?? c.material,
+        placement: shiftedPlacement ?? c.placement,
         children,
       };
     }
@@ -353,6 +385,7 @@ function editComponent(c: RocketComponent, e: GeometryEdits, lengths: Map<string
         thickness: thick ?? c.thickness,
         crossSection: cross ?? c.crossSection,
         material: material ?? c.material,
+        placement: shiftedPlacement ?? c.placement,
         children,
       };
     }
@@ -577,8 +610,17 @@ export function applyGeometryEdits(rocket: Rocket, edits: GeometryEdits): Rocket
     const tube = primaryBodyTube(rocket);
     if (tube && tube.outerRadius > 0) radiusScale = edits.bodyDiameter / 2 / tube.outerRadius;
   }
+  // Fin-position what-if: how far to shift the fin group so the primary set's fore edge lands on the
+  // requested station. Resolved once from the pristine design (like the length edits) and applied as
+  // an offset delta to every fin set, so a single-fin-set design lands exactly on target and a
+  // multi-set one keeps its spacing. 0 (no shift) when unset or the design has no fins.
+  let finShift = 0;
+  if (edits.finStation !== undefined && edits.finStation > 0) {
+    const cur = primaryFinStation(rocket);
+    if (cur !== undefined) finShift = edits.finStation - cur;
+  }
   const editOne = (c: RocketComponent): RocketComponent => {
-    let geo = editComponent(c, edits, lengths);
+    let geo = editComponent(c, edits, lengths, finShift);
     if (finish) geo = withFinish(geo, finish);
     if (airframeMaterial) geo = withAirframeMaterial(geo, airframeMaterial);
     if (radiusScale !== 1) geo = scaleAirframeRadii(geo, radiusScale);
