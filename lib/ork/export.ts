@@ -12,6 +12,8 @@ import type {
   SurfaceFinish,
   Placement,
   MotorInstance,
+  DeployEvent,
+  DeploySetting,
 } from "../model/types";
 import type { OrkDocument } from "./import";
 import { storeZip } from "./zipwrite";
@@ -33,6 +35,34 @@ const MOTOR_TYPE_OUT: Record<string, string> = {
   hybrid: "hybrid",
   unknown: "single",
 };
+
+/** Internal deploy event → OpenRocket `<deployevent>` token (inverse of the importer's map; note
+ *  OpenRocket spells lower-stage separation without the hyphen). */
+const DEPLOY_OUT: Record<DeployEvent, string> = {
+  launch: "launch",
+  ejection: "ejection",
+  apogee: "apogee",
+  altitude: "altitude",
+  never: "never",
+  "lowerstage-separation": "lowerstageseparation",
+};
+
+/** Per-configuration deployment overrides — a recovery device deploying differently per motor
+ *  config (drogue at apogee in one, main at altitude in another). Without these a multi-config
+ *  design's recovery falls back to the default event, which can deploy at the wrong time. */
+function deployConfigsXml(configs: Record<string, DeploySetting> | undefined, pad: string): string {
+  if (!configs) return "";
+  return Object.entries(configs)
+    .map(
+      ([cid, s]) =>
+        `${pad}<deploymentconfiguration configid="${esc(cid)}">\n` +
+        `${pad}  <deployevent>${DEPLOY_OUT[s.event]}</deployevent>\n` +
+        (s.altitude !== undefined ? `${pad}  <deployaltitude>${num(s.altitude)}</deployaltitude>\n` : "") +
+        `${pad}  <deploydelay>${num(s.delay)}</deploydelay>\n` +
+        `${pad}</deploymentconfiguration>\n`,
+    )
+    .join("");
+}
 
 function esc(s: string): string {
   return s.replace(/[<>&'"]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", "'": "&apos;", '"': "&quot;" })[c]!);
@@ -58,6 +88,44 @@ function finishXml(f: SurfaceFinish | undefined, pad: string): string {
 function axialXml(p: Placement, pad: string): string {
   if (p.method === "after" && p.offset === 0) return "";
   return `${pad}<axialoffset method="${p.method}">${num(p.offset)}</axialoffset>\n`;
+}
+
+/** Mass/CG overrides — a measured weight standing in for the computed one. Shared by components and
+ *  stages (a stage is a component assembly that can carry its own measured mass). */
+function overrideXml(
+  c: { overrideMass?: number; overrideCGx?: number; overrideSubcomponents?: boolean },
+  pad: string,
+): string {
+  return (
+    (c.overrideMass !== undefined ? `${pad}<overridemass>${num(c.overrideMass)}</overridemass>\n` : "") +
+    (c.overrideCGx !== undefined ? `${pad}<overridecg>${num(c.overrideCGx)}</overridecg>\n` : "") +
+    (c.overrideSubcomponents ? `${pad}<overridesubcomponentsmass>true</overridesubcomponentsmass>\n` : "")
+  );
+}
+
+/** A nose/transition shoulder (the tube stub that plugs into the neighbouring body) — carries its
+ *  own material mass, so it must survive the round-trip. Emitted only when a shoulder is present. */
+function shoulderXml(
+  end: "fore" | "aft",
+  length: number | undefined,
+  radius: number | undefined,
+  thickness: number | undefined,
+  capped: boolean | undefined,
+  pad: string,
+): string {
+  if (!length) return "";
+  return (
+    `${pad}<${end}shoulderlength>${num(length)}</${end}shoulderlength>\n` +
+    (radius !== undefined ? `${pad}<${end}shoulderradius>${num(radius)}</${end}shoulderradius>\n` : "") +
+    (thickness !== undefined ? `${pad}<${end}shoulderthickness>${num(thickness)}</${end}shoulderthickness>\n` : "") +
+    (capped ? `${pad}<${end}shouldercapped>true</${end}shouldercapped>\n` : "")
+  );
+}
+
+/** A motor mount holding more than one motor — OpenRocket's cluster preset (`N-ring`), read back
+ *  as the motor count. Sits on the mount component, beside its <motormount>. */
+function clusterXml(clusterCount: number | undefined, pad: string): string {
+  return clusterCount && clusterCount > 1 ? `${pad}<clusterconfiguration>${clusterCount}-ring</clusterconfiguration>\n` : "";
 }
 
 let uid = 0;
@@ -114,9 +182,7 @@ function componentXml(c: RocketComponent, motors: MotorsByMount, depth: number):
   const p = pad + "  ";
   const head = `${pad}<${c.kind}>\n${p}<name>${esc(c.name)}</name>\n${p}<id>${nextUuid()}</id>\n`;
   const common = axialXml(c.placement, p) + finishXml(c.finish, p) + materialXml(c.material, p);
-  const overrides =
-    (c.overrideMass !== undefined ? `${p}<overridemass>${num(c.overrideMass)}</overridemass>\n${p}<massoverridden>true</massoverridden>\n` : "") +
-    (c.overrideSubcomponents ? `${p}<overridesubcomponents>true</overridesubcomponents>\n` : "");
+  const overrides = overrideXml(c, p);
   const kids = childrenXml(c.children, motors, depth + 1);
   const close = `${pad}</${c.kind}>\n`;
 
@@ -129,6 +195,7 @@ function componentXml(c: RocketComponent, motors: MotorsByMount, depth: number):
         `${p}<shape>${c.shape}</shape>\n` +
         (c.shapeParameter !== undefined ? `${p}<shapeparameter>${num(c.shapeParameter)}</shapeparameter>\n` : "") +
         `${p}<aftradius>${num(c.aftRadius)}</aftradius>\n` +
+        shoulderXml("aft", c.aftShoulderLength, c.aftShoulderRadius, c.aftShoulderThickness, c.aftShoulderCapped, p) +
         kids + close
       );
     case "bodytube":
@@ -137,7 +204,7 @@ function componentXml(c: RocketComponent, motors: MotorsByMount, depth: number):
         `${p}<length>${num(c.length)}</length>\n` +
         (c.thickness ? `${p}<thickness>${num(c.thickness)}</thickness>\n` : "") +
         `${p}<radius>${num(c.outerRadius)}</radius>\n` +
-        (c.motorMount ? motorMountXml(c.id, c.motorMount.overhang, motors, p) : "") +
+        (c.motorMount ? clusterXml(c.motorMount.clusterCount, p) + motorMountXml(c.id, c.motorMount.overhang, motors, p) : "") +
         kids + close
       );
     case "transition":
@@ -149,6 +216,8 @@ function componentXml(c: RocketComponent, motors: MotorsByMount, depth: number):
         (c.shapeParameter !== undefined ? `${p}<shapeparameter>${num(c.shapeParameter)}</shapeparameter>\n` : "") +
         `${p}<foreradius>${num(c.foreRadius)}</foreradius>\n` +
         `${p}<aftradius>${num(c.aftRadius)}</aftradius>\n` +
+        shoulderXml("fore", c.foreShoulderLength, c.foreShoulderRadius, c.foreShoulderThickness, c.foreShoulderCapped, p) +
+        shoulderXml("aft", c.aftShoulderLength, c.aftShoulderRadius, c.aftShoulderThickness, c.aftShoulderCapped, p) +
         kids + close
       );
     case "trapezoidfinset":
@@ -203,7 +272,7 @@ function componentXml(c: RocketComponent, motors: MotorsByMount, depth: number):
         `${p}<length>${num(c.length)}</length>\n` +
         `${p}<outerradius>${num(c.outerRadius)}</outerradius>\n` +
         `${p}<thickness>${num(Math.max(0, c.outerRadius - c.innerRadius))}</thickness>\n` +
-        (c.motorMount ? motorMountXml(c.id, c.motorMount.overhang, motors, p) : "") +
+        (c.motorMount ? clusterXml(c.motorMount.clusterCount, p) + motorMountXml(c.id, c.motorMount.overhang, motors, p) : "") +
         kids + close
       );
     case "tubecoupler":
@@ -231,10 +300,11 @@ function componentXml(c: RocketComponent, motors: MotorsByMount, depth: number):
         head + common +
         `${p}<cd>${num(c.cd)}</cd>\n` +
         `${p}<diameter>${num(c.diameter)}</diameter>\n` +
-        `${p}<deployevent>${c.deployEvent}</deployevent>\n` +
+        `${p}<deployevent>${DEPLOY_OUT[c.deployEvent]}</deployevent>\n` +
         (c.deployAltitude !== undefined ? `${p}<deployaltitude>${num(c.deployAltitude)}</deployaltitude>\n` : "") +
         (c.deployDelay !== undefined ? `${p}<deploydelay>${num(c.deployDelay)}</deploydelay>\n` : "") +
-        (c.mass ? `${p}<overridemass>${num(c.mass)}</overridemass>\n${p}<massoverridden>true</massoverridden>\n` : "") +
+        deployConfigsXml(c.deployConfigs, p) +
+        (c.mass ? `${p}<overridemass>${num(c.mass)}</overridemass>\n` : "") +
         close
       );
     case "streamer":
@@ -243,19 +313,28 @@ function componentXml(c: RocketComponent, motors: MotorsByMount, depth: number):
         `${p}<cd>${num(c.cd)}</cd>\n` +
         `${p}<striplength>${num(c.stripLength)}</striplength>\n` +
         `${p}<stripwidth>${num(c.stripWidth)}</stripwidth>\n` +
-        `${p}<deployevent>${c.deployEvent}</deployevent>\n` +
-        (c.mass ? `${p}<overridemass>${num(c.mass)}</overridemass>\n${p}<massoverridden>true</massoverridden>\n` : "") +
+        `${p}<deployevent>${DEPLOY_OUT[c.deployEvent]}</deployevent>\n` +
+        (c.deployAltitude !== undefined ? `${p}<deployaltitude>${num(c.deployAltitude)}</deployaltitude>\n` : "") +
+        (c.deployDelay !== undefined ? `${p}<deploydelay>${num(c.deployDelay)}</deploydelay>\n` : "") +
+        deployConfigsXml(c.deployConfigs, p) +
+        (c.mass ? `${p}<overridemass>${num(c.mass)}</overridemass>\n` : "") +
         close
       );
     case "launchlug":
-    case "railbutton":
+    case "railbutton": {
+      // The lug's wall thickness was consumed at import (only its computed mass survives), so write
+      // the mass explicitly — the importer takes a stated <mass> verbatim (per instance; it then
+      // multiplies by the instance count) rather than recomputing it from a thickness we don't have.
+      const count = c.instanceCount ?? 1;
       return (
         head + common +
         (c.radius !== undefined ? `${p}<radius>${num(c.radius)}</radius>\n` : "") +
         (c.length !== undefined ? `${p}<length>${num(c.length)}</length>\n` : "") +
-        (c.instanceCount !== undefined ? `${p}<instancecount>${c.instanceCount}</instancecount>\n` : "") +
+        (c.mass !== undefined ? `${p}<mass>${num(c.mass / count)}</mass>\n` : "") +
+        `${p}<instancecount>${count}</instancecount>\n` +
         close
       );
+    }
     case "shockcord":
       // The internal model already holds the cord's mass (its cord length/material were consumed at
       // import), so write it as an explicit mass — the importer's fallback when no cord length is
@@ -310,6 +389,7 @@ export function serializeRocketXml(rocket: Rocket): string {
         `      <stage>\n` +
         `        <name>${esc(s.name)}</name>\n` +
         `        <id>${nextUuid()}</id>\n` +
+        overrideXml(s, "        ") +
         sep +
         `        <subcomponents>\n` +
         s.components.map((c) => componentXml(c, motors, 5)).join("") +

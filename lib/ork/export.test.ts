@@ -7,6 +7,7 @@ import { newDesign } from "../model/starter";
 import { runFlight } from "../sim/run";
 import { structurePointMasses } from "../sim/mass";
 import type { OrkDocument } from "./adapt";
+import type { NoseCone, BodyTube, MassComponent, Parachute, InnerTube, TrapezoidFinSet, MinorComponent } from "../model/types";
 
 function flight(doc: OrkDocument) {
   const run = runFlight(doc.rocket, {
@@ -70,4 +71,72 @@ describe("exportOrk — serialize the internal model back to .ork", () => {
       expect(after.dryMass).toBeCloseTo(before.dryMass, 4);
     });
   }
+});
+
+describe("exportOrk — real-design features round-trip (regression)", () => {
+  // Helpers to reach the starter's parts, then round-trip a mutated design and re-read it.
+  const parts = (doc: OrkDocument) => {
+    const [nose, body] = doc.rocket.stages[0].components as [NoseCone, BodyTube];
+    const [avionics, chute, mount, fins] = body.children as [MassComponent, Parachute, InnerTube, TrapezoidFinSet];
+    return { nose, body, avionics, chute, mount, fins };
+  };
+  const roundtrip = async (doc: OrkDocument) => importOrk(exportOrk(doc));
+
+  it("preserves a motor cluster's count (thrust), not just one motor", async () => {
+    const doc = newDesign();
+    parts(doc).mount.motorMount!.clusterCount = 4; // fly the single motor as 4 coaxial
+    const before = flight(doc);
+    const back = await roundtrip(doc);
+    const mount = parts(back).mount;
+    expect(mount.motorMount!.clusterCount).toBe(4);
+    // 4 motors ⇒ much higher apogee than 1; the count must survive or thrust collapses.
+    expect(flight(back).apogee).toBeCloseTo(before.apogee, 0);
+  });
+
+  it("preserves a stage-level mass override (a measured whole-section weight)", async () => {
+    const doc = newDesign();
+    doc.rocket.stages[0].overrideMass = 1.5;
+    doc.rocket.stages[0].overrideSubcomponents = true;
+    const back = await roundtrip(doc);
+    expect(back.rocket.stages[0].overrideMass).toBeCloseTo(1.5, 6);
+    expect(back.rocket.stages[0].overrideSubcomponents).toBe(true);
+    expect(structurePointMasses(back.rocket).reduce((a, m) => a + m.mass, 0)).toBeCloseTo(1.5, 3);
+  });
+
+  it("preserves a per-configuration deployment override (right deploy time)", async () => {
+    const doc = newDesign();
+    parts(doc).chute.deployConfigs = { "cfg-1": { event: "altitude", altitude: 150, delay: 0 } };
+    const back = await roundtrip(doc);
+    const chute = parts(back).chute;
+    expect(chute.deployConfigs?.["cfg-1"]?.event).toBe("altitude");
+    expect(chute.deployConfigs?.["cfg-1"]?.altitude).toBeCloseTo(150, 3);
+  });
+
+  it("preserves a nose-cone shoulder's mass", async () => {
+    const doc = newDesign();
+    const n = parts(doc).nose;
+    n.aftShoulderLength = 0.06;
+    n.aftShoulderRadius = 0.026;
+    n.aftShoulderThickness = 0.002;
+    const before = structurePointMasses(doc.rocket).reduce((a, m) => a + m.mass, 0);
+    const back = await roundtrip(doc);
+    expect(parts(back).nose.aftShoulderLength).toBeCloseTo(0.06, 6);
+    expect(structurePointMasses(back.rocket).reduce((a, m) => a + m.mass, 0)).toBeCloseTo(before, 4);
+  });
+
+  it("preserves a launch lug's mass and count", async () => {
+    const doc = newDesign();
+    const lug: MinorComponent = {
+      id: "lug", name: "Launch lug", kind: "launchlug",
+      placement: { method: "bottom", offset: -0.1 },
+      mass: 0.012, radius: 0.004, length: 0.05, instanceCount: 2, children: [],
+    };
+    parts(doc).body.children.push(lug);
+    const before = structurePointMasses(doc.rocket).reduce((a, m) => a + m.mass, 0);
+    const back = await roundtrip(doc);
+    const backLug = parts(back).body.children.find((c) => c.kind === "launchlug") as MinorComponent | undefined;
+    expect(backLug).toBeTruthy();
+    expect(backLug!.mass).toBeCloseTo(0.012, 5);
+    expect(structurePointMasses(back.rocket).reduce((a, m) => a + m.mass, 0)).toBeCloseTo(before, 4);
+  });
 });
