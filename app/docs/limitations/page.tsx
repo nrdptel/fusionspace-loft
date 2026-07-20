@@ -302,9 +302,11 @@ export default function Limitations() {
         flight is computed identically. The adapter covers the parts real designs use — nose cones,
         body and inner tubes, transitions, trapezoidal fin sets, rings and couplers, mass objects,
         recovery devices, launch lugs — and reads the motor(s) and stored results from each RockSim
-        <em>simulation</em>. What it does <strong>not</strong> yet cover: tube fins and ring tails
-        (flown without them, with a warning), pods and sub-assemblies (only the primary stack flies),
-        and elliptical/custom RockSim fin shapes (treated as their trapezoidal equivalent). A
+        <em>simulation</em>. A fin&apos;s edge cross-section (RockSim&apos;s <code>TipShapeCode</code> —
+        square, rounded, or airfoil) is read too, so a thick rounded or airfoiled fin is no longer
+        over-dragged as a square edge. What it does <strong>not</strong> yet cover: tube fins and ring
+        tails (flown without them, with a warning), pods and sub-assemblies (only the primary stack
+        flies), and elliptical/custom RockSim fin planforms (treated as their trapezoidal equivalent). A
         RockSim design tree also doesn&apos;t pin a recovery device&apos;s deploy event the way
         OpenRocket does, so an imported chute defaults to apogee deployment. Unlike an{" "}
         <code>.ork</code>, a <code>.rkt</code> carries RockSim&apos;s own per-part masses; Loft flies

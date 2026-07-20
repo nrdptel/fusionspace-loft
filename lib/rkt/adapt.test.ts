@@ -51,6 +51,8 @@ describe("adaptRktXml — demo-rocksim fixture", () => {
     expect(fins.tipChord).toBeCloseTo(0.07, 5);
     expect(fins.height).toBeCloseTo(0.075, 5);
     expect(fins.sweepLength).toBeCloseTo(0.095, 5);
+    // The fixture's fin is TipShapeCode 0 — a square edge.
+    expect(fins.crossSection).toBe("square");
     // Rear-referenced: the fin trailing edge sits at the tube's aft end.
     const tubePos = flat.find((p) => p.component.kind === "bodytube")!;
     expect(finPos.xFore + fins.rootChord).toBeCloseTo(tubePos.xFore + tubePos.length, 4);
@@ -209,5 +211,31 @@ describe("adaptRktXml — degradation and edge cases", () => {
     expect(massAt(2, 100)).toBeCloseTo(0.4, 3);
     expect(massAt(2, 100)).toBeLessThan(0.5);
     expect(massAt(2, 0)).toBeCloseTo(0.5, 3);
+  });
+});
+
+describe("adaptRktXml — fin edge cross-section (TipShapeCode)", () => {
+  // A RockSim FinSet records its edge profile in TipShapeCode. On a thick fin that profile is a
+  // large share of the drag, so defaulting every RockSim fin to square badly over-drags a
+  // rounded/airfoiled design; reading it keeps the aerodynamics honest.
+  const finFor = (tip: string): TrapezoidFinSet => {
+    const xml =
+      `<RockSimDocument><DesignInformation><RocketDesign><Stage3Parts>` +
+      `<FinSet><Name>Fins</Name><FinCount>3</FinCount><RootChord>100.</RootChord><TipChord>50.</TipChord>` +
+      `<SemiSpan>50.</SemiSpan><Thickness>3.</Thickness><ShapeCode>0</ShapeCode>${tip}</FinSet>` +
+      `</Stage3Parts></RocketDesign></DesignInformation></RockSimDocument>`;
+    return flattenRocket(adaptRktXml(xml).rocket).find((p) => p.component.kind === "trapezoidfinset")!
+      .component as TrapezoidFinSet;
+  };
+
+  it("maps 0→square, 1→rounded, 2→airfoil", () => {
+    expect(finFor("<TipShapeCode>0</TipShapeCode>").crossSection).toBe("square");
+    expect(finFor("<TipShapeCode>1</TipShapeCode>").crossSection).toBe("rounded");
+    expect(finFor("<TipShapeCode>2</TipShapeCode>").crossSection).toBe("airfoil");
+  });
+
+  it("defaults an absent or unknown code to square", () => {
+    expect(finFor("").crossSection).toBe("square");
+    expect(finFor("<TipShapeCode>9</TipShapeCode>").crossSection).toBe("square");
   });
 });

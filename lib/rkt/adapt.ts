@@ -30,6 +30,7 @@ import type {
   AxialMethod,
   NoseShape,
   SurfaceFinish,
+  FinCrossSection,
   MotorConfiguration,
   MotorInstance,
   MotorSpec,
@@ -82,6 +83,22 @@ function noseShape(code: number): NoseShape {
       return "haack"; // HAACK / Von Kármán
     default:
       return "ellipsoid";
+  }
+}
+
+/** Fin edge cross-section codes (RockSim's `TipShapeCode`), matching OpenRocket's RockSim mapping.
+ *  This sets the fin edge pressure drag: a square edge stagnates the flow head-on; a rounded edge
+ *  roughly halves that; an airfoil is streamlined. On a thick fin it is a large share of the drag,
+ *  so reading it (instead of defaulting every RockSim fin to square) keeps a rounded/airfoiled
+ *  design from being badly over-dragged. Unknown/absent ⇒ square (RockSim's own default). */
+function finCrossSection(code: number): FinCrossSection {
+  switch (code) {
+    case 1:
+      return "rounded";
+    case 2:
+      return "airfoil";
+    default:
+      return "square"; // 0 = SQUARE, and RockSim's default when absent
   }
 }
 
@@ -313,6 +330,7 @@ function parseComponent(
         height: n(node, "SemiSpan", 0) * MM,
         sweepLength: n(node, "SweepDistance", 0) * MM,
         thickness: n(node, "Thickness", 0) * MM || 0.003,
+        crossSection: finCrossSection(Math.round(n(node, "TipShapeCode", 0))),
         cantAngle: n(node, "CantAngle", 0),
         children: attached(node, ctx, useKnownMass),
       };
