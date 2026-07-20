@@ -27,6 +27,7 @@ import type { GenericFinSet, Transition, Parachute } from "./types";
 import { overallLength } from "./geometry";
 import { newDesign } from "./starter";
 import { runFlight } from "../sim/run";
+import { recoverySizing } from "../sim/recovery";
 
 async function load(name: string) {
   const bytes = new Uint8Array(readFileSync(resolve(process.cwd(), "fixtures", name)));
@@ -470,6 +471,86 @@ describe("applyGeometryEdits — dual-deploy recovery", () => {
     // the way down under the main, so the landing is much closer to the pad.
     expect(single).toBeGreaterThan(0);
     expect(dd).toBeLessThan(single * 0.6);
+  });
+});
+
+describe("applyGeometryEdits — main parachute diameter", () => {
+  it("resizes the main canopy and scales its mass with area (∝ diameter²)", () => {
+    const rocket = newDesign().rocket;
+    const before = primaryParachute(rocket)!;
+    const target = before.diameter * 2;
+
+    const edited = applyGeometryEdits(rocket, { mainParachuteDiameter: target });
+    const after = primaryParachute(edited)!;
+    expect(after.diameter).toBeCloseTo(target, 6);
+    // Twice the diameter ⇒ four times the canopy area ⇒ four times the mass.
+    expect(after.mass).toBeCloseTo(before.mass * 4, 6);
+    // An explicit area (if any) is cleared so the new diameter drives the descent.
+    expect(after.area).toBeUndefined();
+    // The original design is untouched.
+    expect(primaryParachute(rocket)!.diameter).toBeCloseTo(before.diameter, 6);
+  });
+
+  it("a bigger main lands softer; a smaller main lands harder", () => {
+    const rocket = newDesign().rocket;
+    const base = runFlight(rocket, { configId: "cfg-1" }).result.summary.groundHitVelocity!;
+    const d0 = primaryParachute(rocket)!.diameter;
+    const big = runFlight(applyGeometryEdits(rocket, { mainParachuteDiameter: d0 * 1.5 }), { configId: "cfg-1" })
+      .result.summary.groundHitVelocity!;
+    const small = runFlight(applyGeometryEdits(rocket, { mainParachuteDiameter: d0 * 0.6 }), { configId: "cfg-1" })
+      .result.summary.groundHitVelocity!;
+    expect(base).toBeGreaterThan(0);
+    expect(big).toBeLessThan(base);
+    expect(small).toBeGreaterThan(base);
+  });
+
+  it("the recovery-sizing readout's diameter, applied, lands near its target speed", () => {
+    // Close the loop the sizing goal-seek opens: resizing the main to the diameter it recommends for
+    // a target landing speed should actually fly down at about that speed.
+    const rocket = newDesign().rocket;
+    const r = runFlight(rocket, { configId: "cfg-1" }).result;
+    const refArea = Math.PI * r.stability.refRadius * r.stability.refRadius;
+    const target = 4.5; // m/s — a gentle landing
+    const sizing = recoverySizing({ descentMass: r.burnoutMass, refArea, airDensity: r.descentAirDensity }, target);
+    expect(sizing.diameter).toBeGreaterThan(0);
+    const landed = runFlight(applyGeometryEdits(rocket, { mainParachuteDiameter: sizing.diameter }), {
+      configId: "cfg-1",
+    }).result.summary.groundHitVelocity!;
+    expect(landed).toBeCloseTo(target, 0); // within ~0.5 m/s of the target
+  });
+
+  it("resizes the main first, so a combined dual-deploy promotes the resized canopy", () => {
+    const rocket = newDesign().rocket;
+    const d0 = primaryParachute(rocket)!.diameter;
+    const edited = applyGeometryEdits(rocket, {
+      mainParachuteDiameter: d0 * 1.5,
+      mainDeployAltitude: 150,
+      drogueDiameter: 0.3,
+    });
+    const chutes = flattenRocket(edited).map((p) => p.component).filter((c): c is Parachute => c.kind === "parachute");
+    const main = chutes.find((c) => c.name === "Main parachute")!;
+    expect(main.deployEvent).toBe("altitude");
+    expect(main.diameter).toBeCloseTo(d0 * 1.5, 6); // the promoted main is the resized one
+  });
+
+  it("is a no-op when unset, zero, or the design has no parachute", () => {
+    const rocket = newDesign().rocket;
+    expect(applyGeometryEdits(rocket, { mainParachuteDiameter: undefined })).toBe(rocket);
+    expect(applyGeometryEdits(rocket, { mainParachuteDiameter: 0 })).toBe(rocket);
+    // A design stripped of its parachute is returned unchanged.
+    const noChute = {
+      ...rocket,
+      stages: rocket.stages.map((s) => ({
+        ...s,
+        components: s.components.map(function strip(c): typeof c {
+          return { ...c, children: c.children.filter((k) => k.kind !== "parachute").map(strip) };
+        }),
+      })),
+    };
+    expect(primaryParachute(noChute)).toBeUndefined();
+    // hasGeometryEdits is true, so the tree is rebuilt, but with no canopy to resize the result is
+    // unchanged in substance (deep-equal to the input).
+    expect(applyGeometryEdits(noChute, { mainParachuteDiameter: 1.2 })).toStrictEqual(noChute);
   });
 });
 

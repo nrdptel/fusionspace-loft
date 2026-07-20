@@ -219,6 +219,13 @@ export default function Faq() {
           the open-ended companion to the sizing readout: the readout names the size for a gentle
           landing; the what-if lets you explore the trade against drift and deployment speed.
         </p>
+        <p>
+          When you&apos;ve settled on a size, set it for keeps with <em>Main chute Ø</em> under{" "}
+          <em>Conditions → Design what-if</em>: unlike the multiplier, this resizes the design&apos;s
+          own main parachute to a real diameter — its heavier (area-scaled) canopy mass and all — so it
+          becomes part of the design and rides along into the exported <code>.ork</code>. Type the
+          diameter the sizing readout named and the rocket flies down at about that gentle speed.
+        </p>
       </QA>
 
       <QA q="Can I see what adding nose weight would do?">

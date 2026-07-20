@@ -31,6 +31,7 @@ import {
   AIRFRAME_MATERIALS,
   applyGeometryEdits,
   hasGeometryEdits,
+  primaryParachute,
 } from "@/lib/model/edit";
 import type { SurfaceFinish, NoseShape, FinCrossSection } from "@/lib/model/types";
 import { allMotors } from "@/lib/motors/db";
@@ -93,6 +94,7 @@ interface Edits {
   boattailAftDiameter?: number; // builder edit: the added boattail's exit diameter (m)
   mainDeployAltitude?: number; // builder edit: dual-deploy — main deploys at this altitude AGL (m)
   drogueDiameter?: number; // builder edit: dual-deploy — drogue diameter (m) added at apogee
+  mainParachuteDiameter?: number; // builder edit: resize the main (largest) parachute (m)
 }
 
 /** Same-diameter bundled motors the design could fly, with the design's own motor as the default.
@@ -164,6 +166,7 @@ export default function LoftApp() {
           boattailAftDiameter: e.boattailAftDiameter,
           mainDeployAltitude: e.mainDeployAltitude,
           drogueDiameter: e.drogueDiameter,
+          mainParachuteDiameter: e.mainParachuteDiameter,
         },
         // Validate only when flying the design's own stored conditions unchanged, and only when
         // Loft flew the complete design — a simplified vehicle (staging/pods/parallel/cluster)
@@ -195,7 +198,8 @@ export default function LoftApp() {
         e.finish !== undefined ||
         e.airframeMaterial !== undefined ||
         (e.boattailLength !== undefined && e.boattailAftDiameter !== undefined) ||
-        (e.mainDeployAltitude !== undefined && e.drogueDiameter !== undefined);
+        (e.mainDeployAltitude !== undefined && e.drogueDiameter !== undefined) ||
+        e.mainParachuteDiameter !== undefined;
       const baseline = hasWhatIf ? runFlight(document.rocket, { configId, overrides }) : null;
       return { run, baseline };
     },
@@ -300,6 +304,7 @@ export default function LoftApp() {
       boattailAftDiameter: edits.boattailAftDiameter,
       mainDeployAltitude: edits.mainDeployAltitude,
       drogueDiameter: edits.drogueDiameter,
+      mainParachuteDiameter: edits.mainParachuteDiameter,
     };
     const rocket = hasGeometryEdits(geometry) ? applyGeometryEdits(doc.rocket, geometry) : doc.rocket;
     const bytes = exportOrk({ ...doc, rocket });
@@ -401,6 +406,7 @@ export default function LoftApp() {
             bodyDiameter: primaryBodyDiameter(doc.rocket),
             finish: primaryFinish(doc.rocket),
             airframeMaterial: primaryAirframeMaterial(doc.rocket),
+            mainParachuteDiameter: primaryParachute(doc.rocket)?.diameter,
           }
         : {
             finSpan: undefined,
@@ -417,6 +423,7 @@ export default function LoftApp() {
             bodyDiameter: undefined,
             finish: undefined,
             airframeMaterial: undefined,
+            mainParachuteDiameter: undefined,
           },
     [doc],
   );
@@ -560,6 +567,7 @@ export default function LoftApp() {
                 boattailAftDiameter: edits.boattailAftDiameter,
                 mainDeployAltitude: edits.mainDeployAltitude,
                 drogueDiameter: edits.drogueDiameter,
+                mainParachuteDiameter: edits.mainParachuteDiameter,
               }}
               swapOptions={swapInfo?.options}
               designMotor={swapInfo?.designMotor}
@@ -649,6 +657,7 @@ function ConditionsControls({
     bodyDiameter?: number;
     finish?: SurfaceFinish;
     airframeMaterial?: string;
+    mainParachuteDiameter?: number;
   };
   weather: WeatherConditions | null;
   scenario: "design" | "today";
@@ -789,6 +798,14 @@ function ConditionsControls({
               placeholder="0"
               onChange={(v) => onEdit({ drogueDiameter: fromSpan(v) })}
             />
+            {designDims.mainParachuteDiameter !== undefined && (
+              <Num
+                label={`Main chute Ø (${spanU})`}
+                value={toDispSpan(edits.mainParachuteDiameter)}
+                placeholder={toDispSpan(designDims.mainParachuteDiameter)}
+                onChange={(v) => onEdit({ mainParachuteDiameter: fromSpan(v) })}
+              />
+            )}
             {designDims.finSpan !== undefined && (
               <Num
                 label={`Fin span (${spanU})`}

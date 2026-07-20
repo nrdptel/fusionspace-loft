@@ -209,7 +209,7 @@ export default function ResultsView({
           motor swap) remounts the panel to idle instead of leaving a stale RocketPy result on screen. */}
       {(doc.rocket.stages?.length ?? 1) === 1 && (
         <RocketpyCrossCheck
-          key={`${doc.rocket.name}:${run.config.id}:${simIndex}:${ballastKg ?? 0}:${motorSwap?.designation ?? ""}:${geometry?.finSpan ?? 0}:${geometry?.finCount ?? 0}:${geometry?.finRootChord ?? 0}:${geometry?.finTipChord ?? 0}:${geometry?.finSweepLength ?? 0}:${geometry?.finThickness ?? 0}:${geometry?.finCrossSection ?? ""}:${geometry?.finMaterial ?? ""}:${geometry?.noseLength ?? 0}:${geometry?.noseShape ?? ""}:${geometry?.bodyLength ?? 0}:${geometry?.bodyDiameter ?? 0}:${geometry?.finish ?? ""}:${geometry?.airframeMaterial ?? ""}:${geometry?.boattailLength ?? 0}:${geometry?.boattailAftDiameter ?? 0}:${geometry?.mainDeployAltitude ?? 0}:${geometry?.drogueDiameter ?? 0}`}
+          key={`${doc.rocket.name}:${run.config.id}:${simIndex}:${ballastKg ?? 0}:${motorSwap?.designation ?? ""}:${geometry?.finSpan ?? 0}:${geometry?.finCount ?? 0}:${geometry?.finRootChord ?? 0}:${geometry?.finTipChord ?? 0}:${geometry?.finSweepLength ?? 0}:${geometry?.finThickness ?? 0}:${geometry?.finCrossSection ?? ""}:${geometry?.finMaterial ?? ""}:${geometry?.noseLength ?? 0}:${geometry?.noseShape ?? ""}:${geometry?.bodyLength ?? 0}:${geometry?.bodyDiameter ?? 0}:${geometry?.finish ?? ""}:${geometry?.airframeMaterial ?? ""}:${geometry?.boattailLength ?? 0}:${geometry?.boattailAftDiameter ?? 0}:${geometry?.mainDeployAltitude ?? 0}:${geometry?.drogueDiameter ?? 0}:${geometry?.mainParachuteDiameter ?? 0}`}
           doc={doc}
           config={run.config}
           simIndex={simIndex}
@@ -226,7 +226,7 @@ export default function ResultsView({
           the sweep is over changes. */}
       {(doc.rocket.stages?.length ?? 1) === 1 && swapOptions && swapOptions.length > 1 && (
         <MotorSweep
-          key={`${doc.rocket.name}:${simIndex}:${ballastKg ?? 0}:${geometry?.finSpan ?? 0}:${geometry?.finCount ?? 0}:${geometry?.finRootChord ?? 0}:${geometry?.finTipChord ?? 0}:${geometry?.finSweepLength ?? 0}:${geometry?.finThickness ?? 0}:${geometry?.finCrossSection ?? ""}:${geometry?.finMaterial ?? ""}:${geometry?.noseLength ?? 0}:${geometry?.noseShape ?? ""}:${geometry?.bodyLength ?? 0}:${geometry?.bodyDiameter ?? 0}:${geometry?.finish ?? ""}:${geometry?.airframeMaterial ?? ""}:${geometry?.boattailLength ?? 0}:${geometry?.boattailAftDiameter ?? 0}:${geometry?.mainDeployAltitude ?? 0}:${geometry?.drogueDiameter ?? 0}`}
+          key={`${doc.rocket.name}:${simIndex}:${ballastKg ?? 0}:${geometry?.finSpan ?? 0}:${geometry?.finCount ?? 0}:${geometry?.finRootChord ?? 0}:${geometry?.finTipChord ?? 0}:${geometry?.finSweepLength ?? 0}:${geometry?.finThickness ?? 0}:${geometry?.finCrossSection ?? ""}:${geometry?.finMaterial ?? ""}:${geometry?.noseLength ?? 0}:${geometry?.noseShape ?? ""}:${geometry?.bodyLength ?? 0}:${geometry?.bodyDiameter ?? 0}:${geometry?.finish ?? ""}:${geometry?.airframeMaterial ?? ""}:${geometry?.boattailLength ?? 0}:${geometry?.boattailAftDiameter ?? 0}:${geometry?.mainDeployAltitude ?? 0}:${geometry?.drogueDiameter ?? 0}:${geometry?.mainParachuteDiameter ?? 0}`}
           doc={doc}
           simIndex={simIndex}
           units={units}
@@ -242,7 +242,7 @@ export default function ResultsView({
           it resets when the design the sweep is over changes. */}
       {(doc.rocket.stages?.length ?? 1) === 1 && (
         <ParameterSweep
-          key={`${doc.rocket.name}:${simIndex}:${ballastKg ?? 0}:${motorSwap?.designation ?? ""}:${geometry?.finSpan ?? 0}:${geometry?.finCount ?? 0}:${geometry?.finRootChord ?? 0}:${geometry?.finTipChord ?? 0}:${geometry?.finSweepLength ?? 0}:${geometry?.finThickness ?? 0}:${geometry?.finCrossSection ?? ""}:${geometry?.finMaterial ?? ""}:${geometry?.noseLength ?? 0}:${geometry?.noseShape ?? ""}:${geometry?.bodyLength ?? 0}:${geometry?.bodyDiameter ?? 0}:${geometry?.finish ?? ""}:${geometry?.airframeMaterial ?? ""}:${geometry?.boattailLength ?? 0}:${geometry?.boattailAftDiameter ?? 0}:${geometry?.mainDeployAltitude ?? 0}:${geometry?.drogueDiameter ?? 0}`}
+          key={`${doc.rocket.name}:${simIndex}:${ballastKg ?? 0}:${motorSwap?.designation ?? ""}:${geometry?.finSpan ?? 0}:${geometry?.finCount ?? 0}:${geometry?.finRootChord ?? 0}:${geometry?.finTipChord ?? 0}:${geometry?.finSweepLength ?? 0}:${geometry?.finThickness ?? 0}:${geometry?.finCrossSection ?? ""}:${geometry?.finMaterial ?? ""}:${geometry?.noseLength ?? 0}:${geometry?.noseShape ?? ""}:${geometry?.bodyLength ?? 0}:${geometry?.bodyDiameter ?? 0}:${geometry?.finish ?? ""}:${geometry?.airframeMaterial ?? ""}:${geometry?.boattailLength ?? 0}:${geometry?.boattailAftDiameter ?? 0}:${geometry?.mainDeployAltitude ?? 0}:${geometry?.drogueDiameter ?? 0}:${geometry?.mainParachuteDiameter ?? 0}`}
           doc={doc}
           simIndex={simIndex}
           units={units}
@@ -258,7 +258,7 @@ export default function ResultsView({
           flight. Keyed on design + config + active what-ifs so it resets when the flown design changes. */}
       {run.hasPropulsion && (
         <MonteCarlo
-          key={`${doc.rocket.name}:${simIndex}:${ballastKg ?? 0}:${recoveryCdScale ?? 1}:${motorSwap?.designation ?? ""}:${geometry?.finSpan ?? 0}:${geometry?.finCount ?? 0}:${geometry?.finRootChord ?? 0}:${geometry?.finTipChord ?? 0}:${geometry?.finSweepLength ?? 0}:${geometry?.finThickness ?? 0}:${geometry?.finCrossSection ?? ""}:${geometry?.finMaterial ?? ""}:${geometry?.noseLength ?? 0}:${geometry?.noseShape ?? ""}:${geometry?.bodyLength ?? 0}:${geometry?.bodyDiameter ?? 0}:${geometry?.finish ?? ""}:${geometry?.airframeMaterial ?? ""}:${geometry?.boattailLength ?? 0}:${geometry?.boattailAftDiameter ?? 0}:${geometry?.mainDeployAltitude ?? 0}:${geometry?.drogueDiameter ?? 0}`}
+          key={`${doc.rocket.name}:${simIndex}:${ballastKg ?? 0}:${recoveryCdScale ?? 1}:${motorSwap?.designation ?? ""}:${geometry?.finSpan ?? 0}:${geometry?.finCount ?? 0}:${geometry?.finRootChord ?? 0}:${geometry?.finTipChord ?? 0}:${geometry?.finSweepLength ?? 0}:${geometry?.finThickness ?? 0}:${geometry?.finCrossSection ?? ""}:${geometry?.finMaterial ?? ""}:${geometry?.noseLength ?? 0}:${geometry?.noseShape ?? ""}:${geometry?.bodyLength ?? 0}:${geometry?.bodyDiameter ?? 0}:${geometry?.finish ?? ""}:${geometry?.airframeMaterial ?? ""}:${geometry?.boattailLength ?? 0}:${geometry?.boattailAftDiameter ?? 0}:${geometry?.mainDeployAltitude ?? 0}:${geometry?.drogueDiameter ?? 0}:${geometry?.mainParachuteDiameter ?? 0}`}
           doc={doc}
           simIndex={simIndex}
           units={units}

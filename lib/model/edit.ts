@@ -136,6 +136,12 @@ export interface GeometryEdits {
   /** Diameter (m) of the drogue added at apogee for the dual-deploy above — it controls the descent
    *  from apogee down to the main's deployment. Needs `mainDeployAltitude` too. */
   drogueDiameter?: number;
+  /** Resize the design's main (largest) parachute to this canopy diameter (m). The applyable
+   *  companion to the recovery-sizing readout, which names the canopy a target landing speed needs
+   *  but couldn't set: this bakes it in, scaling the canopy mass with its area (∝ diameter²) and
+   *  flowing into the flight (descent rate, landing speed, deployment) and the export. Undefined
+   *  leaves the parachute as-is; ignored on a design with no parachute. */
+  mainParachuteDiameter?: number;
 }
 
 /** True when at least one edit actually changes something. */
@@ -158,7 +164,8 @@ export function hasGeometryEdits(e: GeometryEdits): boolean {
     (e.boattailLength !== undefined && e.boattailLength > 0 &&
       e.boattailAftDiameter !== undefined && e.boattailAftDiameter > 0) ||
     (e.mainDeployAltitude !== undefined && e.mainDeployAltitude > 0 &&
-      e.drogueDiameter !== undefined && e.drogueDiameter > 0)
+      e.drogueDiameter !== undefined && e.drogueDiameter > 0) ||
+    (e.mainParachuteDiameter !== undefined && e.mainParachuteDiameter > 0)
   );
 }
 
@@ -498,6 +505,29 @@ function applyDualDeploy(rocket: Rocket, mainAltitude: number, drogueDiameter: n
   return { ...rocket, stages: rocket.stages.map((s) => ({ ...s, components: transform(s.components) })) };
 }
 
+/** Resize the design's main (largest) parachute to a target canopy `diameter` (m), scaling the
+ *  canopy mass with its area (∝ diameter²) so a bigger chute is proportionally heavier. The mass
+ *  basis is the parachute's own effective diameter (from an explicit `area` if it carries one, else
+ *  its `diameter`), so a RockSim chute stored as an area resizes correctly too. Any explicit `area`
+ *  is cleared so the new diameter drives the descent. Skips silently when there's no parachute or
+ *  the diameter isn't positive, leaving the design as-is. */
+function withMainParachuteDiameter(rocket: Rocket, diameter: number): Rocket {
+  const main = primaryParachute(rocket);
+  if (!main || !(diameter > 0)) return rocket;
+  const oldD = main.area ? Math.sqrt((4 * main.area) / Math.PI) : main.diameter;
+  if (!(oldD > 0)) return rocket;
+  const massScale = (diameter / oldD) ** 2;
+  const transform = (list: RocketComponent[]): RocketComponent[] =>
+    list.map((c) => {
+      const children = transform(c.children);
+      if (c.id === main.id) {
+        return { ...(c as Parachute), diameter, area: undefined, mass: main.mass * massScale, children };
+      }
+      return children === c.children ? c : { ...c, children };
+    });
+  return { ...rocket, stages: rocket.stages.map((s) => ({ ...s, components: transform(s.components) })) };
+}
+
 /** Return a design with the geometry edits applied. The original rocket is untouched (a fresh tree
  *  is returned only where something changed), so callers can keep the imported model pristine. */
 export function applyGeometryEdits(rocket: Rocket, edits: GeometryEdits): Rocket {
@@ -540,6 +570,11 @@ export function applyGeometryEdits(rocket: Rocket, edits: GeometryEdits): Rocket
   let out = edited;
   if (edits.boattailLength !== undefined && edits.boattailAftDiameter !== undefined) {
     out = addBoattail(out, edits.boattailLength, edits.boattailAftDiameter / 2);
+  }
+  // Recovery resize: set the main (largest) parachute to a target diameter. Applied before any
+  // dual-deploy promotion, so a resized main is the canopy promoted to the altitude deployment.
+  if (edits.mainParachuteDiameter !== undefined && edits.mainParachuteDiameter > 0) {
+    out = withMainParachuteDiameter(out, edits.mainParachuteDiameter);
   }
   // Recovery add: convert to dual-deploy (main at altitude + a drogue at apogee).
   if (edits.mainDeployAltitude !== undefined && edits.drogueDiameter !== undefined) {

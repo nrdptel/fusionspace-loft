@@ -156,6 +156,19 @@ describe("exportOrk — real-design features round-trip (regression)", () => {
     expect(drogue.diameter).toBeCloseTo(0.3, 4);
   });
 
+  it("round-trips a builder main-parachute resize (canopy diameter + mass preserved)", async () => {
+    const doc = newDesign();
+    const d0 = parts(doc).chute.diameter;
+    const target = d0 * 1.5;
+    const rocket = applyGeometryEdits(doc.rocket, { mainParachuteDiameter: target });
+    const before = flight({ ...doc, rocket });
+    const back = await importOrk(exportOrk({ ...doc, rocket }));
+    const chute = parts(back).chute;
+    // The resized canopy diameter survives, and its heavier (∝ area) mass round-trips too.
+    expect(chute.diameter).toBeCloseTo(target, 4);
+    expect(flight(back).dryMass).toBeCloseTo(before.dryMass, 4);
+  });
+
   it("round-trips a builder-added boattail with its base-drag benefit", async () => {
     // Add a boattail (the builder's first structural add), save, and re-open: the transition must
     // survive so the saved design keeps flying with the reduced base drag.

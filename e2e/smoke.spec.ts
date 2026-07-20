@@ -229,6 +229,40 @@ test.describe("Loft", () => {
     expect(Math.abs((await stat("Apogee")) - apogeeBefore)).toBeLessThan(1);
   });
 
+  test("enlarging the main parachute (builder) lands the design softer", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+
+    const stat = async (label: string) => {
+      const txt = await page
+        .getByLabel("Results")
+        .getByText(label, { exact: true })
+        .locator("xpath=following-sibling::div")
+        .innerText();
+      return parseFloat(txt.replace(/[^\d.]/g, ""));
+    };
+    const apogeeBefore = await stat("Apogee");
+    const descentBefore = await stat("Descent rate");
+    const groundHitBefore = await stat("Ground-hit speed");
+    expect(descentBefore).toBeGreaterThan(0);
+
+    // Resize the design's own main canopy to 1.5× its current diameter — a real, bake-in edit (not
+    // the transient multiplier). Read the current size from the field's placeholder so it's unit-safe.
+    await page.locator("summary", { hasText: "Conditions" }).click();
+    const field = page.getByLabel(/Main chute Ø/);
+    const current = parseFloat((await field.getAttribute("placeholder"))!.replace(/[^\d.]/g, ""));
+    expect(current).toBeGreaterThan(0);
+    await field.fill((current * 1.5).toFixed(2));
+
+    // A bigger canopy brings it down slower and lands softer...
+    await expect.poll(() => stat("Descent rate")).toBeLessThan(descentBefore);
+    await expect.poll(() => stat("Ground-hit speed")).toBeLessThan(groundHitBefore);
+    // ...and, unlike the transient recovery-size multiplier, this bakes in the heavier (area-scaled)
+    // canopy, so it also carries a little more mass up — a slightly lower apogee, not a higher one.
+    expect(await stat("Apogee")).toBeLessThanOrEqual(apogeeBefore);
+  });
+
   test("swapping the motor re-flies the design on a different motor", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
