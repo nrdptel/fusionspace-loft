@@ -71,6 +71,25 @@ describe("monteCarlo", () => {
   );
 
   it(
+    "reports a landing-speed band — a sensible under-canopy descent that mass spread widens",
+    async () => {
+      const { rocket, opts } = await baseOpts();
+      const r = monteCarlo(rocket, opts);
+      // Every dispersed flight recovers, so the landing speed is a real under-canopy descent, and
+      // the 95th percentile (the worst, hardest landing a flyer sizes recovery against) is at or
+      // above the median.
+      expect(r.landingSpeed.p50).toBeGreaterThan(0);
+      expect(r.landingSpeed.p95).toBeLessThan(20);
+      expect(r.landingSpeed.p95).toBeGreaterThanOrEqual(r.landingSpeed.p50);
+      // Dispersing dry mass spreads the landing speed (a heavier build descends faster).
+      const tight = monteCarlo(rocket, { ...opts, dispersions: { massFrac: 0.01 } });
+      const wide = monteCarlo(rocket, { ...opts, dispersions: { massFrac: 0.2 } });
+      expect(wide.landingSpeed.sd).toBeGreaterThan(tight.landingSpeed.sd);
+    },
+    T,
+  );
+
+  it(
     "zero dispersion collapses to a single deterministic outcome",
     async () => {
       const { rocket, opts } = await baseOpts({ dispersions: {}, n: 30 });

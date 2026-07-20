@@ -260,7 +260,7 @@ function Report({
   const exceed = ceilingM > 0 ? exceedanceProbability(result, ceilingM) : NaN;
   return (
     <div className="mt-4">
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           title="Apogee"
           stat={result.apogee}
@@ -269,6 +269,11 @@ function Report({
         <StatCard
           title="Max speed"
           stat={result.maxVelocity}
+          fmt={(v) => d.q(d.speed(v, units))}
+        />
+        <StatCard
+          title="Landing speed"
+          stat={result.landingSpeed}
           fmt={(v) => d.q(d.speed(v, units))}
         />
         <RadiusCard radius={result.landingRadiusP95} drift={result.driftDistance} units={units} />
@@ -532,6 +537,7 @@ function csvRows(result: MonteCarloResult, units: UnitSystem): CsvCell[][] {
     `Drift distance (${alt})`,
     `Landing downrange (${alt})`,
     `Landing crossrange (${alt})`,
+    `Landing speed (${spd})`,
   ];
   const body: CsvCell[][] = result.samples.map((s, i) => [
     i + 1,
@@ -540,6 +546,7 @@ function csvRows(result: MonteCarloResult, units: UnitSystem): CsvCell[][] {
     round(toAlt(s.driftDistance), 1),
     round(toAlt(s.landingX), 1),
     round(toAlt(s.landingY), 1),
+    round(toSpd(s.landingSpeed), 1),
   ]);
   return [header, ...body];
 }

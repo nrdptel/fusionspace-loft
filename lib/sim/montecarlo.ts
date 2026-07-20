@@ -75,6 +75,8 @@ export interface MonteCarloSample {
   /** Landing point relative to the pad (m), for the 2D scatter. */
   landingX: number;
   landingY: number;
+  /** Speed at ground impact (m/s) — how hard it lands under recovery, the recovery-adequacy figure. */
+  landingSpeed: number;
 }
 
 /** A metric's spread: median with a 5th–95th-percentile band, plus mean and standard deviation. */
@@ -95,6 +97,9 @@ export interface MonteCarloResult {
   driftDistance: Stat;
   /** Radius (m) from the pad containing 95% of the landings — the recovery area to plan for. */
   landingRadiusP95: number;
+  /** Ground-impact speed spread (m/s) — how hard it lands across the dispersion; the 95th percentile
+   *  is the worst-case a flyer sizes recovery against. */
+  landingSpeed: Stat;
   /** Flights that actually flew (a sample whose motor can't resolve is dropped). */
   n: number;
 }
@@ -212,6 +217,7 @@ export function* monteCarloSamples(rocket: Rocket, opts: MonteCarloOptions): Gen
         driftDistance: s.driftDistance,
         landingX: s.landingX,
         landingY: s.landingY,
+        landingSpeed: s.groundHitVelocity,
       };
     } catch {
       // A sample that can't be flown is dropped from the distribution.
@@ -228,6 +234,7 @@ export function summarizeSamples(samples: MonteCarloSample[]): MonteCarloResult 
     maxVelocity: summarize(samples.map((s) => s.maxVelocity)),
     driftDistance: summarize(samples.map((s) => s.driftDistance)),
     landingRadiusP95: percentile(driftSorted, 0.95),
+    landingSpeed: summarize(samples.map((s) => s.landingSpeed)),
     n: samples.length,
   };
 }

@@ -495,8 +495,10 @@ export default function Methods() {
         gusts and shifts, a motor&apos;s total impulse varies from one unit to the next, and a built
         airframe rarely hits its CAD mass exactly. The <strong>dispersion</strong> tool flies the
         design a few hundred times with those inputs jittered around their nominal values and reports
-        the <em>spread</em> of the outcomes — the apogee band to expect, and the radius from the pad
-        that contains 95% of the landings (the recovery area to plan for). Every sample runs through
+        the <em>spread</em> of the outcomes — the apogee band to expect, the radius from the pad
+        that contains 95% of the landings (the recovery area to plan for), and the landing-speed band
+        (its 95th percentile is the hardest landing to size recovery against, which a heavier-than-CAD
+        build pushes up). Every sample runs through
         the same solver as the main flight; nothing about the physics changes. The uncertainty is
         entirely in the inputs, which are your own stated assumptions, so the result is an honest
         propagation of that spread — not a claim of new precision.
