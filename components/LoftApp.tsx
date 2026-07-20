@@ -88,6 +88,8 @@ interface Edits {
   finish?: SurfaceFinish; // builder edit: whole-airframe surface finish
   boattailLength?: number; // builder edit: add a conical boattail of this length (m) at the aft
   boattailAftDiameter?: number; // builder edit: the added boattail's exit diameter (m)
+  mainDeployAltitude?: number; // builder edit: dual-deploy — main deploys at this altitude AGL (m)
+  drogueDiameter?: number; // builder edit: dual-deploy — drogue diameter (m) added at apogee
 }
 
 /** Same-diameter bundled motors the design could fly, with the design's own motor as the default.
@@ -156,6 +158,8 @@ export default function LoftApp() {
           finish: e.finish,
           boattailLength: e.boattailLength,
           boattailAftDiameter: e.boattailAftDiameter,
+          mainDeployAltitude: e.mainDeployAltitude,
+          drogueDiameter: e.drogueDiameter,
         },
         // Validate only when flying the design's own stored conditions unchanged, and only when
         // Loft flew the complete design — a simplified vehicle (staging/pods/parallel/cluster)
@@ -185,7 +189,8 @@ export default function LoftApp() {
         e.bodyLength !== undefined ||
         e.bodyDiameter !== undefined ||
         e.finish !== undefined ||
-        (e.boattailLength !== undefined && e.boattailAftDiameter !== undefined);
+        (e.boattailLength !== undefined && e.boattailAftDiameter !== undefined) ||
+        (e.mainDeployAltitude !== undefined && e.drogueDiameter !== undefined);
       const baseline = hasWhatIf ? runFlight(document.rocket, { configId, overrides }) : null;
       return { run, baseline };
     },
@@ -287,6 +292,8 @@ export default function LoftApp() {
       finish: edits.finish,
       boattailLength: edits.boattailLength,
       boattailAftDiameter: edits.boattailAftDiameter,
+      mainDeployAltitude: edits.mainDeployAltitude,
+      drogueDiameter: edits.drogueDiameter,
     };
     const rocket = hasGeometryEdits(geometry) ? applyGeometryEdits(doc.rocket, geometry) : doc.rocket;
     const bytes = exportOrk({ ...doc, rocket });
@@ -542,6 +549,8 @@ export default function LoftApp() {
                 finish: edits.finish,
                 boattailLength: edits.boattailLength,
                 boattailAftDiameter: edits.boattailAftDiameter,
+                mainDeployAltitude: edits.mainDeployAltitude,
+                drogueDiameter: edits.drogueDiameter,
               }}
               swapOptions={swapInfo?.options}
               designMotor={swapInfo?.designMotor}
@@ -758,6 +767,18 @@ function ConditionsControls({
                 onEdit({ recoveryCdScale: n !== undefined && n > 0 ? n : undefined });
               }}
             />
+            <Num
+              label={`Main deploy alt (${lenU})`}
+              value={toDispLen(edits.mainDeployAltitude)}
+              placeholder="apogee"
+              onChange={(v) => onEdit({ mainDeployAltitude: fromLen(v) })}
+            />
+            <Num
+              label={`Drogue Ø (${spanU})`}
+              value={toDispSpan(edits.drogueDiameter)}
+              placeholder="0"
+              onChange={(v) => onEdit({ drogueDiameter: fromSpan(v) })}
+            />
             {designDims.finSpan !== undefined && (
               <Num
                 label={`Fin span (${spanU})`}
@@ -935,11 +956,13 @@ function ConditionsControls({
             )}
           </div>
           <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-            Fly a different motor, add nose weight, resize the fins, nose, or body, or add a boattail
-            (set both a length and an exit narrower than the body) to trim stability, drag, or apogee
-            — a hypothetical change to the design, so the OpenRocket comparison is hidden while any is
-            set. The geometry fields start from the design&apos;s own dimensions; only motors that fit
-            this airframe&apos;s diameter are offered.
+            Fly a different motor, add nose weight, resize the fins, nose, or body, add a boattail
+            (set both a length and an exit narrower than the body), or switch to dual-deploy (set both
+            a main-deploy altitude and a drogue diameter — the main then opens low over a drogue that
+            controls the fall from apogee, cutting drift) to trim stability, drag, apogee, or landing.
+            It&apos;s a hypothetical change to the design, so the OpenRocket comparison is hidden while
+            any is set. The geometry fields start from the design&apos;s own dimensions; only motors
+            that fit this airframe&apos;s diameter are offered.
           </p>
         </div>
 

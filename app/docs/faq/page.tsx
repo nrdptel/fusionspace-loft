@@ -37,7 +37,10 @@ export default function Faq() {
           material, nose ballast, motor swap, parachute size — reshape it and re-fly instantly. You
           can also <em>add</em> a boattail (a tail cone: set a length and an exit diameter narrower
           than the body) to cut the base drag, the single largest drag source on a blunt-based
-          rocket. Give it a name in the field beside <em>Import another</em>, and that name becomes
+          rocket, or switch to <em>dual-deploy</em> recovery (set a main-deploy altitude and a drogue
+          diameter): the main then opens low over a drogue that controls the fall from apogee — the
+          standard high-power setup that lands soft while cutting how far the wind carries it. Give it
+          a name in the field beside <em>Import another</em>, and that name becomes
           the results title and the saved <code>.ork</code> filename. A design you build enters the
           exact same
           internal model and solver an import does, so every tool (sweeps, Monte-Carlo, the

@@ -125,6 +125,24 @@ describe("exportOrk — real-design features round-trip (regression)", () => {
     expect(structurePointMasses(back.rocket).reduce((a, m) => a + m.mass, 0)).toBeCloseTo(before, 4);
   });
 
+  it("round-trips a builder dual-deploy (main-at-altitude + drogue)", async () => {
+    const doc = newDesign();
+    const rocket = applyGeometryEdits(doc.rocket, { mainDeployAltitude: 150, drogueDiameter: 0.3 });
+    const back = await importOrk(exportOrk({ ...doc, rocket }));
+    const chutes = back.rocket.stages
+      .flatMap((s) => s.components)
+      .flatMap(function walk(c): typeof c[] {
+        return [c, ...c.children.flatMap(walk)];
+      })
+      .filter((c): c is Parachute => c.kind === "parachute");
+    expect(chutes).toHaveLength(2);
+    const main = chutes.find((c) => c.deployEvent === "altitude")!;
+    const drogue = chutes.find((c) => c.deployEvent === "apogee")!;
+    expect(main).toBeTruthy();
+    expect(main.deployAltitude).toBeCloseTo(150, 3);
+    expect(drogue.diameter).toBeCloseTo(0.3, 4);
+  });
+
   it("round-trips a builder-added boattail with its base-drag benefit", async () => {
     // Add a boattail (the builder's first structural add), save, and re-open: the transition must
     // survive so the saved design keeps flying with the reduced base drag.

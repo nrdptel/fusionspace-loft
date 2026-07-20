@@ -527,6 +527,33 @@ test.describe("Loft", () => {
     await expect.poll(apogee).toBeGreaterThan(before);
   });
 
+  test("switching to dual-deploy cuts the wind drift (builder recovery)", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: "Start a new design" }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+    await page.locator("summary", { hasText: "Conditions" }).click();
+
+    // A steady crosswind so the drift is large and observable under the single apogee chute.
+    await page.getByLabel(/Surface wind/).fill("6");
+    const drift = async () => {
+      const txt = await page
+        .getByLabel("Results")
+        .getByText("Drift from pad", { exact: true })
+        .locator("xpath=following-sibling::div")
+        .innerText();
+      return parseFloat(txt.replace(/[^\d.]/g, ""));
+    };
+    await expect.poll(drift).toBeGreaterThan(0);
+    const single = await drift();
+
+    // Switch to dual-deploy: the main opens at 150 m over a 300 mm drogue. Both fields are needed.
+    await page.getByLabel(/Main deploy alt/).fill("150");
+    await page.getByLabel(/Drogue/).fill("300");
+
+    // Falling fast under the drogue until 150 m spends far less time in the wind, so it lands closer.
+    await expect.poll(drift).toBeLessThan(single * 0.7);
+  });
+
   test("sweeping the fins back rebuilds the design and raises the stability margin", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();

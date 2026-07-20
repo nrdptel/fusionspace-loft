@@ -7,7 +7,7 @@
  *  nose cone or body tube automatically shifts everything downstream and recomputes mass, drag,
  *  centre of pressure, and motor position. Fin span moves the centre of pressure (stability). */
 
-import type { Rocket, RocketComponent, NoseCone, BodyTube, Transition, SurfaceFinish, NoseShape, FinCrossSection } from "./types";
+import type { Rocket, RocketComponent, NoseCone, BodyTube, Transition, Parachute, SurfaceFinish, NoseShape, FinCrossSection } from "./types";
 import { flattenRocket } from "./geometry";
 
 /** Selectable nose-cone shapes, for the builder's nose picker. Ordered by how a flyer thinks of
@@ -108,6 +108,14 @@ export interface GeometryEdits {
   boattailLength?: number;
   /** The added boattail's exit (aft) diameter (m). Must be > 0 and < the body diameter. */
   boattailAftDiameter?: number;
+  /** Convert recovery to dual-deploy: the design's main (largest) parachute deploys at this
+   *  altitude AGL (m) instead of at apogee. Needs `drogueDiameter` too — a main alone deploying low
+   *  would free-fall ballistically from apogee, so both are required to build a valid dual-deploy.
+   *  Undefined leaves recovery as-is. */
+  mainDeployAltitude?: number;
+  /** Diameter (m) of the drogue added at apogee for the dual-deploy above — it controls the descent
+   *  from apogee down to the main's deployment. Needs `mainDeployAltitude` too. */
+  drogueDiameter?: number;
 }
 
 /** True when at least one edit actually changes something. */
@@ -127,7 +135,9 @@ export function hasGeometryEdits(e: GeometryEdits): boolean {
     (e.bodyDiameter !== undefined && e.bodyDiameter > 0) ||
     e.finish !== undefined ||
     (e.boattailLength !== undefined && e.boattailLength > 0 &&
-      e.boattailAftDiameter !== undefined && e.boattailAftDiameter > 0)
+      e.boattailAftDiameter !== undefined && e.boattailAftDiameter > 0) ||
+    (e.mainDeployAltitude !== undefined && e.mainDeployAltitude > 0 &&
+      e.drogueDiameter !== undefined && e.drogueDiameter > 0)
   );
 }
 
@@ -393,6 +403,62 @@ function addBoattail(rocket: Rocket, length: number, aftRadius: number): Rocket 
   return inserted ? { ...rocket, stages } : rocket;
 }
 
+/** The design's main parachute — the largest by canopy area, the one that sets the landing speed.
+ *  Undefined for a design with no parachute (a streamer- or tumble-recovery design). */
+export function primaryParachute(rocket: Rocket): Parachute | undefined {
+  const chutes = flattenRocket(rocket)
+    .map((p) => p.component)
+    .filter((c): c is Parachute => c.kind === "parachute");
+  if (!chutes.length) return undefined;
+  const areaOf = (c: Parachute) => c.area ?? (Math.PI / 4) * c.diameter * c.diameter;
+  return chutes.reduce((best, c) => (areaOf(c) > areaOf(best) ? c : best), chutes[0]);
+}
+
+/** Convert a design to dual-deploy: the main (largest) parachute deploys at `mainAltitude` (AGL, m)
+ *  instead of at apogee, and a drogue of `drogueDiameter` (m) is added at apogee to control the
+ *  descent down to it. This is the standard high-power recovery — a fast, low-drift fall under the
+ *  drogue, then a soft landing under the main — and it feeds the existing dual-deploy safety
+ *  readouts (the main's under-drogue opening speed, the reduced drift). Skips silently when there's
+ *  no parachute to promote or the inputs aren't a valid pair, so the caller keeps the design as-is. */
+function applyDualDeploy(rocket: Rocket, mainAltitude: number, drogueDiameter: number): Rocket {
+  const main = primaryParachute(rocket);
+  if (!main || !(mainAltitude > 0) || !(drogueDiameter > 0)) return rocket;
+  // Canopy mass scales with area (≈ diameter²), so a smaller drogue is proportionally lighter.
+  const drogueMass = main.mass * Math.min(1, (drogueDiameter / main.diameter) ** 2);
+  const drogue: Parachute = {
+    id: `${main.id}-drogue`,
+    name: "Drogue",
+    kind: "parachute",
+    placement: { ...main.placement },
+    cd: 0.8,
+    diameter: drogueDiameter,
+    mass: drogueMass,
+    deployEvent: "apogee",
+    deployDelay: 0,
+    material: main.material,
+    children: [],
+  };
+  // Rebuild the tree: promote the main to an altitude deployment and drop the drogue in beside it.
+  // A per-config deploy override would otherwise win over the new altitude event, so it's cleared.
+  const transform = (list: RocketComponent[]): RocketComponent[] =>
+    list.flatMap((c) => {
+      const children = transform(c.children);
+      if (c.id === main.id) {
+        const asMain: Parachute = {
+          ...(c as Parachute),
+          name: "Main parachute",
+          deployEvent: "altitude",
+          deployAltitude: mainAltitude,
+          deployConfigs: undefined,
+          children,
+        };
+        return [asMain, drogue];
+      }
+      return children === c.children ? [c] : [{ ...c, children }];
+    });
+  return { ...rocket, stages: rocket.stages.map((s) => ({ ...s, components: transform(s.components) })) };
+}
+
 /** Return a design with the geometry edits applied. The original rocket is untouched (a fresh tree
  *  is returned only where something changed), so callers can keep the imported model pristine. */
 export function applyGeometryEdits(rocket: Rocket, edits: GeometryEdits): Rocket {
@@ -427,8 +493,13 @@ export function applyGeometryEdits(rocket: Rocket, edits: GeometryEdits): Rocket
   };
   // Structural add: a boattail is appended after the (already-edited) primary tube, so it fairs to
   // the tube's final diameter.
+  let out = edited;
   if (edits.boattailLength !== undefined && edits.boattailAftDiameter !== undefined) {
-    return addBoattail(edited, edits.boattailLength, edits.boattailAftDiameter / 2);
+    out = addBoattail(out, edits.boattailLength, edits.boattailAftDiameter / 2);
   }
-  return edited;
+  // Recovery add: convert to dual-deploy (main at altitude + a drogue at apogee).
+  if (edits.mainDeployAltitude !== undefined && edits.drogueDiameter !== undefined) {
+    out = applyDualDeploy(out, edits.mainDeployAltitude, edits.drogueDiameter);
+  }
+  return out;
 }

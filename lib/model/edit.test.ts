@@ -19,8 +19,9 @@ import {
   primaryBodyDiameter,
   primaryBodyTube,
   primaryFinish,
+  primaryParachute,
 } from "./edit";
-import type { GenericFinSet, Transition } from "./types";
+import type { GenericFinSet, Transition, Parachute } from "./types";
 import { overallLength } from "./geometry";
 import { newDesign } from "./starter";
 import { runFlight } from "../sim/run";
@@ -415,5 +416,57 @@ describe("applyGeometryEdits — add a boattail (structural add)", () => {
     const flown = runFlight(withBt, { configId: "cfg-1" }).result.summary.apogee;
     // Contracting the base removes most of the base drag, so the same motor flies higher.
     expect(flown).toBeGreaterThan(base);
+  });
+});
+
+describe("applyGeometryEdits — dual-deploy recovery", () => {
+  const chutesOf = (r: ReturnType<typeof newDesign>["rocket"]) =>
+    flattenRocket(r).map((p) => p.component).filter((c): c is Parachute => c.kind === "parachute");
+
+  it("promotes the main to an altitude deployment and adds a drogue at apogee", () => {
+    const rocket = newDesign().rocket;
+    expect(chutesOf(rocket)).toHaveLength(1); // the starter has a single apogee chute
+    const mainD = primaryParachute(rocket)!.diameter;
+
+    const dd = applyGeometryEdits(rocket, { mainDeployAltitude: 150, drogueDiameter: 0.3 });
+    const chutes = chutesOf(dd);
+    expect(chutes).toHaveLength(2);
+    const main = chutes.find((c) => c.name === "Main parachute")!;
+    const drogue = chutes.find((c) => c.name === "Drogue")!;
+    expect(main.deployEvent).toBe("altitude");
+    expect(main.deployAltitude).toBeCloseTo(150, 6);
+    expect(main.diameter).toBeCloseTo(mainD, 6); // the main keeps its canopy
+    expect(drogue.deployEvent).toBe("apogee");
+    expect(drogue.diameter).toBeCloseTo(0.3, 6);
+    // The original design is untouched.
+    expect(chutesOf(rocket)).toHaveLength(1);
+  });
+
+  it("opens the main under the drogue at speed — the dual-deploy safety signature", () => {
+    const rocket = newDesign().rocket;
+    const single = runFlight(rocket, { configId: "cfg-1" }).result.summary;
+    const dd = runFlight(applyGeometryEdits(rocket, { mainDeployAltitude: 150, drogueDiameter: 0.3 }), {
+      configId: "cfg-1",
+    }).result.summary;
+    // A single apogee chute opens at ~0 m/s; the dual-deploy main opens after a drogue descent, so
+    // its (worst-case) deployment speed is far higher — the shock that actually matters.
+    expect(single.deploymentVelocity ?? 0).toBeLessThan(3);
+    expect(dd.deploymentVelocity ?? 0).toBeGreaterThan(8);
+    // …yet it still lands gently under the same main.
+    expect(dd.groundHitVelocity!).toBeCloseTo(single.groundHitVelocity!, 0);
+  });
+
+  it("cuts the wind drift — the reason to fly dual-deploy", () => {
+    const rocket = newDesign().rocket;
+    const wind = { windSpeed: 6 }; // 6 m/s crosswind
+    const single = runFlight(rocket, { configId: "cfg-1", overrides: wind }).result.summary.driftDistance!;
+    const dd = runFlight(applyGeometryEdits(rocket, { mainDeployAltitude: 150, drogueDiameter: 0.3 }), {
+      configId: "cfg-1",
+      overrides: wind,
+    }).result.summary.driftDistance!;
+    // Falling fast under the drogue until 150 m spends far less time in the wind than drifting all
+    // the way down under the main, so the landing is much closer to the pad.
+    expect(single).toBeGreaterThan(0);
+    expect(dd).toBeLessThan(single * 0.6);
   });
 });
