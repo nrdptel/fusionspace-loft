@@ -69,6 +69,7 @@ export default function GeometryInspector({
   cg,
   cp,
   marginCal,
+  edited = false,
 }: {
   rocket: Rocket;
   units: UnitSystem;
@@ -77,6 +78,9 @@ export default function GeometryInspector({
   cg?: number;
   cp?: number;
   marginCal?: number;
+  /** True when `rocket` reflects active what-if geometry edits rather than the imported design, so
+   *  the panel can say so — it's then a live preview of the edit, not the parsed original. */
+  edited?: boolean;
 }) {
   const parts = flattenRocket(rocket);
   if (parts.length === 0) return null;
@@ -84,7 +88,14 @@ export default function GeometryInspector({
   return (
     <details className="group rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900/40">
       <summary className="flex cursor-pointer select-none items-center justify-between px-4 py-3 text-sm font-medium text-zinc-700 dark:text-zinc-300">
-        <span>Design geometry · {parts.length} parts</span>
+        <span className="flex items-center gap-2">
+          Design geometry · {parts.length} parts
+          {edited && (
+            <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-medium text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300">
+              with your edits
+            </span>
+          )}
+        </span>
         <span className="text-xs text-zinc-400 transition group-open:rotate-180">▾</span>
       </summary>
       <div className="border-t border-zinc-100 px-4 py-3 dark:border-zinc-800">
@@ -118,10 +129,20 @@ export default function GeometryInspector({
           </table>
         </div>
         <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
-          The component tree exactly as Loft parsed it, each part&apos;s station measured from the
-          nose tip — a quick way to confirm the import matches your design. Diameters are shown as{" "}
-          <span className="font-mono">⌀</span>; a fin set lists its per-fin chords and span. Masses
-          are in the <em>Mass &amp; balance</em> panel.
+          {edited ? (
+            <>
+              The design <strong>with your active what-if edits applied</strong> — the picture, the
+              CG/CP, and the flight above all reflect the same edited rocket. Clear the edits to see
+              the design as imported.
+            </>
+          ) : (
+            <>
+              The component tree exactly as Loft parsed it, each part&apos;s station measured from the
+              nose tip — a quick way to confirm the import matches your design.
+            </>
+          )}{" "}
+          Diameters are shown as <span className="font-mono">⌀</span>; a fin set lists its per-fin
+          chords and span. Masses are in the <em>Mass &amp; balance</em> panel.
         </p>
       </div>
     </details>

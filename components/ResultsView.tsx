@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import type { FlightRun } from "@/lib/sim/run";
-import type { GeometryEdits } from "@/lib/model/edit";
+import { applyGeometryEdits, hasGeometryEdits, type GeometryEdits } from "@/lib/model/edit";
 import type { OrkDocument } from "@/lib/ork/import";
 import type { FlightResult } from "@/lib/sim/simulate";
 import { RECOMMENDED_FLUTTER_MARGIN, thicknessForFlutterMargin } from "@/lib/sim/flutter";
@@ -99,6 +99,12 @@ export default function ResultsView({
   // plots, and OpenRocket comparison. The geometry and stability below are motor-independent
   // and stay valid.
   const tool = sourceTool(doc);
+
+  // The geometry panel reflects the active what-if edits, so its silhouette matches the CG/CP the
+  // (also edited) flight reports. Ballast and motor-swap what-ifs don't change the shape — they
+  // shift only the CG marker — so applying the geometry edits alone keeps the picture consistent.
+  const editing = !!(geometry && hasGeometryEdits(geometry));
+  const shownRocket = editing ? applyGeometryEdits(doc.rocket, geometry) : doc.rocket;
 
   if (!run.hasPropulsion) {
     return (
@@ -209,11 +215,12 @@ export default function ResultsView({
       {/* The parsed component tree with each part's dimensions and station — import verification.
           The diagram marks the loaded CG and CP so the stability picture reads off the airframe. */}
       <GeometryInspector
-        rocket={doc.rocket}
+        rocket={shownRocket}
         units={units}
         cg={run.result.cgLoaded}
         cp={run.result.stability.cp}
         marginCal={run.result.staticMarginCal}
+        edited={editing}
       />
 
       {/* An independent second solver on the flyer's own design — RocketPy's flight is single-stage,
