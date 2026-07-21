@@ -169,6 +169,26 @@ export default function RocketDiagram({
           />
         ))}
 
+        {/* internal mass objects (payload, avionics, ballast) — a hollow mark at each station, so
+            the CG's cause is visible and the part's table row highlights it */}
+        {o.masses.map((m) => (
+          <circle
+            key={`mass${uid}${m.id}`}
+            cx={X(m.x)}
+            cy={centerY}
+            r={m.id === highlightId ? 5 : 3.5}
+            className={`${
+              m.id === highlightId
+                ? "fill-fuchsia-400 stroke-fuchsia-600 dark:fill-fuchsia-500 dark:stroke-fuchsia-300"
+                : "fill-white stroke-fuchsia-500 dark:fill-zinc-900 dark:stroke-fuchsia-400"
+            } ${cursor}`}
+            strokeWidth={1.4}
+            {...hoverProps(m.id)}
+          >
+            <title>{m.label}</title>
+          </circle>
+        ))}
+
         {/* centre of pressure (aft of CG when stable) — draw first, so CG sits on top if they meet */}
         {showCp && (
           <g>
@@ -201,6 +221,11 @@ export default function RocketDiagram({
         {showCp && (
           <span className="inline-flex items-center gap-1">
             <span className="inline-block h-2 w-2 rounded-full bg-amber-500" /> CP
+          </span>
+        )}
+        {o.masses.length > 0 && (
+          <span className="inline-flex items-center gap-1">
+            <span className="inline-block h-2 w-2 rounded-full border border-fuchsia-500" /> mass
           </span>
         )}
         {marginLabel && <span>· {marginLabel}</span>}

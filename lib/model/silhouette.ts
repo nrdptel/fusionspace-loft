@@ -31,6 +31,15 @@ export interface OutlineFin {
   poly: OutlinePoint[];
 }
 
+/** An internal mass object (payload, avionics, ballast), marked at its station on the diagram so
+ *  the CG's cause is visible and its parts-table row highlights something. `x` is the mass's own
+ *  centre (m from the nose tip). */
+export interface OutlineMass {
+  id: string;
+  x: number;
+  label: string;
+}
+
 export interface RocketOutline {
   /** The airframe's top profile, nose tip → aft, as `[x, r]` points (r ≥ 0). Mirror across r = 0
    *  for the bottom; together they close the body silhouette. Empty for a bodyless design. This is
@@ -41,6 +50,8 @@ export interface RocketOutline {
   parts: OutlineBodyPart[];
   /** One planform per fin set, tagged by id, standing off the body on the +r side. */
   fins: OutlineFin[];
+  /** Internal mass objects (payload, avionics, ballast), marked at their stations. */
+  masses: OutlineMass[];
   /** Nose-tip-to-aft on-axis length (m). */
   length: number;
   /** Largest body radius (m). */
@@ -152,9 +163,14 @@ export function rocketOutline(rocket: Rocket): RocketOutline {
   // Fin planforms. A side view shows one fin standing off the body (mirror it for the bottom),
   // regardless of the set's fin count. Seat it on the body radius at the root's mid-chord.
   const fins: OutlineFin[] = [];
+  const masses: OutlineMass[] = [];
   let maxExtent = maxRadius;
   for (const p of flat) {
     const c = p.component;
+    if (c.kind === "masscomponent") {
+      masses.push({ id: c.id, x: p.xFore + (c.length ?? 0) / 2, label: c.name || c.massType || "Mass" });
+      continue;
+    }
     let rootChord: number, tipChord: number, sweep: number, height: number;
     if (c.kind === "trapezoidfinset") {
       ({ rootChord, height, sweepLength: sweep } = c);
@@ -185,5 +201,5 @@ export function rocketOutline(rocket: Rocket): RocketOutline {
   let length = 0;
   for (const [x] of body) length = Math.max(length, x);
 
-  return { body, parts, fins, length, maxRadius, maxExtent };
+  return { body, parts, fins, masses, length, maxRadius, maxExtent };
 }

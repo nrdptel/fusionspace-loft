@@ -83,6 +83,10 @@ describe("rocketOutline — exact geometry on a hand-built rocket", () => {
                 finCount: 3, rootChord: 0.08, tipChord: 0.04, height: 0.05, sweepLength: 0.04, thickness: 0.003,
                 children: [],
               },
+              {
+                id: "pay", name: "Payload", kind: "masscomponent", placement: { method: "top", offset: 0.05 },
+                mass: 0.3, length: 0.03, massType: "payload", children: [],
+              },
             ],
           },
         ],
@@ -104,6 +108,14 @@ describe("rocketOutline — exact geometry on a hand-built rocket", () => {
     const o = rocketOutline(rocket);
     expect(o.parts.map((p) => p.id)).toEqual(["nose", "tube"]);
     expect(o.parts[0].kind).toBe("nosecone");
+  });
+
+  it("marks an internal mass object at its own centre", () => {
+    const o = rocketOutline(rocket);
+    expect(o.masses).toHaveLength(1);
+    // Payload placed top+0.05 in a tube starting at 0.1, length 0.03 → centre at 0.1+0.05+0.015.
+    expect(o.masses[0]).toMatchObject({ id: "pay", label: "Payload" });
+    expect(o.masses[0].x).toBeCloseTo(0.165, 6);
   });
 
   it("places the fin planform at the aft of the tube, seated on the body radius", () => {
