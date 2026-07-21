@@ -63,7 +63,21 @@ function describeDims(c: RocketComponent, units: UnitSystem): string {
   }
 }
 
-export default function GeometryInspector({ rocket, units }: { rocket: Rocket; units: UnitSystem }) {
+export default function GeometryInspector({
+  rocket,
+  units,
+  cg,
+  cp,
+  marginCal,
+}: {
+  rocket: Rocket;
+  units: UnitSystem;
+  /** Loaded CG / CP stations (m from the nose tip) and static margin (cal), marked on the diagram
+   *  — the same loaded values the results panel reports. Omitted for a design shown without a flight. */
+  cg?: number;
+  cp?: number;
+  marginCal?: number;
+}) {
   const parts = flattenRocket(rocket);
   if (parts.length === 0) return null;
 
@@ -75,7 +89,7 @@ export default function GeometryInspector({ rocket, units }: { rocket: Rocket; u
       </summary>
       <div className="border-t border-zinc-100 px-4 py-3 dark:border-zinc-800">
         <div className="mb-4">
-          <RocketDiagram rocket={rocket} units={units} />
+          <RocketDiagram rocket={rocket} units={units} cg={cg} cp={cp} marginCal={marginCal} />
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm tabular-nums">

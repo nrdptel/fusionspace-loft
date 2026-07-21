@@ -350,8 +350,11 @@ export default function Faq() {
           are listed exactly as parsed: every component with its type, its station measured from the
           nose tip, and its key dimensions (lengths, diameters, and a fin set&apos;s chords and
           span). The picture and the table are the same geometry, for an imported design or one built
-          from scratch. Pair it with the <em>Mass &amp; balance</em> panel (which shows each
-          part&apos;s weight) for the full picture of what the simulator is flying.
+          from scratch. The side-view also marks the loaded <strong>CG</strong> and{" "}
+          <strong>CP</strong>, so you can see the static margin — the CG sitting ahead of the CP —
+          right on the airframe, not just as a number. Pair it with the <em>Mass &amp; balance</em>{" "}
+          panel (which shows each part&apos;s weight) for the full picture of what the simulator is
+          flying.
         </p>
       </QA>
 

@@ -11,8 +11,27 @@ import type { UnitSystem } from "@/lib/display";
  *  a built one. Pure SVG, responsive, theme-aware, and strictly to scale (equal axial and radial
  *  scale), so proportions and fin size are honest. The geometry comes from `rocketOutline`
  *  (lib/model/silhouette); this component only maps metres to pixels and styles them. It is the
- *  visual surface a direct-manipulation editor will grow on top of. */
-export default function RocketDiagram({ rocket, units }: { rocket: Rocket; units: UnitSystem }) {
+ *  visual surface a direct-manipulation editor will grow on top of.
+ *
+ *  When the loaded centre of gravity (`cg`) and centre of pressure (`cp`) are supplied — the same
+ *  values the results panel reports — they're marked on the airframe so the stability picture (CG
+ *  ahead of CP, by the static margin) reads at a glance, which numbers alone can't show. */
+export default function RocketDiagram({
+  rocket,
+  units,
+  cg,
+  cp,
+  marginCal,
+}: {
+  rocket: Rocket;
+  units: UnitSystem;
+  /** Loaded centre-of-gravity station (m from the nose tip); marks the balance point. */
+  cg?: number;
+  /** Centre-of-pressure station (m from the nose tip); marks the aerodynamic centre. */
+  cp?: number;
+  /** Static margin (calibers), for the caption. */
+  marginCal?: number;
+}) {
   const uid = useId();
   const o = rocketOutline(rocket);
   if (!(o.length > 0) || !(o.maxExtent > 0) || o.body.length < 2) return null;
@@ -47,13 +66,20 @@ export default function RocketDiagram({ rocket, units }: { rocket: Rocket; units
         ? `${o.length.toFixed(2)} m`
         : `${Math.round(o.length * 1000)} mm`;
 
+  // CG/CP guide lines span the full drawing height so they read even on a slender airframe.
+  const markTop = top(o.maxExtent);
+  const markBot = bot(o.maxExtent);
+  const showCg = cg !== undefined && Number.isFinite(cg) && cg >= 0;
+  const showCp = cp !== undefined && Number.isFinite(cp) && cp >= 0;
+  const marginLabel = marginCal !== undefined ? `${d.q(d.calibers(marginCal))} margin` : null;
+
   return (
     <figure className="m-0">
       <svg
         viewBox={`0 0 ${W} ${H.toFixed(0)}`}
         className="h-auto w-full"
         role="img"
-        aria-label={`Scale side-view of ${rocket.name || "the rocket"}: ${lengthLabel} long, ${d.q(d.lengthMm(2 * o.maxRadius, units))} maximum diameter`}
+        aria-label={`Scale side-view of ${rocket.name || "the rocket"}: ${lengthLabel} long, ${d.q(d.lengthMm(2 * o.maxRadius, units))} maximum diameter${marginLabel && showCg && showCp ? `, centre of gravity ahead of centre of pressure by ${marginLabel}` : ""}`}
         preserveAspectRatio="xMidYMid meet"
       >
         {/* centreline */}
@@ -82,9 +108,37 @@ export default function RocketDiagram({ rocket, units }: { rocket: Rocket; units
           strokeWidth={1.2}
           strokeLinejoin="round"
         />
+
+        {/* centre of pressure (aft of CG when stable) — draw first, so CG sits on top if they meet */}
+        {showCp && (
+          <g>
+            <line x1={X(cp!)} x2={X(cp!)} y1={markTop} y2={markBot} className="stroke-amber-500" strokeWidth={1.3} strokeDasharray="3 3" />
+            <circle cx={X(cp!)} cy={centerY} r={4} className="fill-amber-500" />
+            <text x={X(cp!)} y={markBot + 11} textAnchor="middle" className="fill-amber-600 text-[10px] font-semibold dark:fill-amber-400">CP</text>
+          </g>
+        )}
+        {/* centre of gravity (loaded) */}
+        {showCg && (
+          <g>
+            <line x1={X(cg!)} x2={X(cg!)} y1={markTop} y2={markBot} className="stroke-indigo-500" strokeWidth={1.3} strokeDasharray="3 3" />
+            <circle cx={X(cg!)} cy={centerY} r={4} className="fill-indigo-500" />
+            <text x={X(cg!)} y={markTop - 3} textAnchor="middle" className="fill-indigo-600 text-[10px] font-semibold dark:fill-indigo-400">CG</text>
+          </g>
+        )}
       </svg>
-      <figcaption className="mt-1 text-[11px] text-zinc-500 dark:text-zinc-400">
-        To scale · {lengthLabel} long · ⌀ {d.q(d.lengthMm(2 * o.maxRadius, units))} max
+      <figcaption className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-zinc-500 dark:text-zinc-400">
+        <span>To scale · {lengthLabel} long · ⌀ {d.q(d.lengthMm(2 * o.maxRadius, units))} max</span>
+        {showCg && (
+          <span className="inline-flex items-center gap-1">
+            <span className="inline-block h-2 w-2 rounded-full bg-indigo-500" /> CG
+          </span>
+        )}
+        {showCp && (
+          <span className="inline-flex items-center gap-1">
+            <span className="inline-block h-2 w-2 rounded-full bg-amber-500" /> CP
+          </span>
+        )}
+        {marginLabel && <span>· {marginLabel}</span>}
       </figcaption>
     </figure>
   );

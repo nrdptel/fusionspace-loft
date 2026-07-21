@@ -206,8 +206,15 @@ export default function ResultsView({
       {/* Where the dry mass comes from, part by part — transparency into the parsed structure. */}
       <MassBreakdown rocket={doc.rocket} units={units} />
 
-      {/* The parsed component tree with each part's dimensions and station — import verification. */}
-      <GeometryInspector rocket={doc.rocket} units={units} />
+      {/* The parsed component tree with each part's dimensions and station — import verification.
+          The diagram marks the loaded CG and CP so the stability picture reads off the airframe. */}
+      <GeometryInspector
+        rocket={doc.rocket}
+        units={units}
+        cg={run.result.cgLoaded}
+        cp={run.result.stability.cp}
+        marginCal={run.result.staticMarginCal}
+      />
 
       {/* An independent second solver on the flyer's own design — RocketPy's flight is single-stage,
           so offer it only for single-stage designs that actually have propulsion (guaranteed here).
