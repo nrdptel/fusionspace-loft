@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { Rocket, RocketComponent } from "@/lib/model/types";
 import { flattenRocket } from "@/lib/model/geometry";
+import type { MotorMark } from "@/lib/sim/setup";
 import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
 import RocketDiagram from "./RocketDiagram";
@@ -71,6 +72,7 @@ export default function GeometryInspector({
   cp,
   marginCal,
   edited = false,
+  motors,
 }: {
   rocket: Rocket;
   units: UnitSystem;
@@ -82,6 +84,8 @@ export default function GeometryInspector({
   /** True when `rocket` reflects active what-if geometry edits rather than the imported design, so
    *  the panel can say so — it's then a live preview of the edit, not the parsed original. */
   edited?: boolean;
+  /** Loaded motor casing(s), drawn inside the aft body on the diagram. */
+  motors?: MotorMark[];
 }) {
   const parts = flattenRocket(rocket);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
@@ -110,6 +114,7 @@ export default function GeometryInspector({
             marginCal={marginCal}
             highlightId={hoveredId}
             onHover={setHoveredId}
+            motors={motors}
           />
         </div>
         <div className="overflow-x-auto">

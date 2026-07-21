@@ -345,8 +345,8 @@ export default function Faq() {
         <p>
           Yes. Under the results, expand <em>Design geometry</em>. It opens with a{" "}
           <strong>to-scale side-view</strong> of the airframe drawn from the model Loft parsed —
-          nose, body, transitions, and fins in their true proportions — so a wrong diameter, a
-          missing part, or a fin in the wrong place stands out at a glance. Below it, the same parts
+          nose, body, transitions, fins, and the loaded motor in their true proportions — so a wrong
+          diameter, a missing part, or a fin in the wrong place stands out at a glance. Below it, the same parts
           are listed exactly as parsed: every component with its type, its station measured from the
           nose tip, and its key dimensions (lengths, diameters, and a fin set&apos;s chords and
           span). The picture and the table are the same geometry, for an imported design or one built

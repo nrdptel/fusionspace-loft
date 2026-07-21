@@ -188,6 +188,35 @@ export function buildRocketDynamics(rocket: Rocket, config: MotorConfiguration):
   return { motors, recovery, resolutions, phases };
 }
 
+/** A loaded motor's axial extent for the design diagram: where its casing sits on the airframe and
+ *  how wide it is. Metres, from the nose tip. */
+export interface MotorMark {
+  /** Fore and aft casing stations (m from the nose tip). */
+  x0: number;
+  x1: number;
+  /** Casing radius (m). */
+  radius: number;
+  designation: string;
+}
+
+/** Where each resolved motor's casing sits on the airframe, for drawing it inside the aft body on
+ *  the design diagram. Resolves the configuration's motors against the bundled database (a design
+ *  file carries only the designation and envelope, not the casing size), so it reflects exactly the
+ *  motor the flight flew — including a what-if motor swap, since the caller passes the flown config.
+ *  Empty when nothing resolves (no propulsion). */
+export function motorLayout(rocket: Rocket, config: MotorConfiguration): MotorMark[] {
+  const { motors } = buildRocketDynamics(rocket, config);
+  return motors.map((m) => {
+    const length = m.curve.lengthMm / 1000;
+    return {
+      x0: m.cg - length / 2,
+      x1: m.cg + length / 2,
+      radius: m.curve.diameterMm / 2000,
+      designation: m.curve.designation,
+    };
+  });
+}
+
 /** The separation setting in force for the flown configuration: a per-config override wins over
  *  the stage's default event (a two-stage design can drop the booster at its ejection charge on
  *  one motor and at upper-stage ignition on another). Missing the per-config lookup made the

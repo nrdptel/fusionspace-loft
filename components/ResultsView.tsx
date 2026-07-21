@@ -20,6 +20,7 @@ import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
 import { overallLength } from "@/lib/model/geometry";
 import { noseBallastStation } from "@/lib/sim/run";
+import { motorLayout } from "@/lib/sim/setup";
 import { marginTrim, finStationTrim } from "@/lib/sim/trim";
 import { recoverySizing } from "@/lib/sim/recovery";
 
@@ -105,6 +106,9 @@ export default function ResultsView({
   // shift only the CG marker — so applying the geometry edits alone keeps the picture consistent.
   const editing = !!(geometry && hasGeometryEdits(geometry));
   const shownRocket = editing ? applyGeometryEdits(doc.rocket, geometry) : doc.rocket;
+  // The motor casing(s) the flight flew, for drawing inside the aft body — resolved for the shown
+  // design and its (possibly swapped) config, so the picture matches what was flown.
+  const shownMotors = run.hasPropulsion ? motorLayout(shownRocket, run.config) : [];
 
   if (!run.hasPropulsion) {
     return (
@@ -221,6 +225,7 @@ export default function ResultsView({
         cp={run.result.stability.cp}
         marginCal={run.result.staticMarginCal}
         edited={editing}
+        motors={shownMotors}
       />
 
       {/* An independent second solver on the flyer's own design — RocketPy's flight is single-stage,

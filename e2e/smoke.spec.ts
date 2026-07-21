@@ -43,8 +43,9 @@ test.describe("Loft", () => {
     // The geometry panel leads with a to-scale side-view drawn from the parsed model, with the
     // loaded CG marked ahead of the CP — the stability picture read straight off the airframe.
     await page.getByText(/Design geometry ·/).click();
+    // The diagram shows the loaded motor and marks the CG ahead of the CP.
     await expect(
-      page.getByRole("img", { name: /centre of gravity ahead of centre of pressure/ }),
+      page.getByRole("img", { name: /motor H128W.*centre of gravity ahead of centre of pressure/ }),
     ).toBeVisible();
 
     // Hovering a part row links to the diagram — the row (and its part) pick up the highlight.

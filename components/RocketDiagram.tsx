@@ -3,6 +3,7 @@
 import { useId } from "react";
 import type { Rocket } from "@/lib/model/types";
 import { rocketOutline } from "@/lib/model/silhouette";
+import type { MotorMark } from "@/lib/sim/setup";
 import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
 
@@ -24,6 +25,7 @@ export default function RocketDiagram({
   marginCal,
   highlightId,
   onHover,
+  motors,
 }: {
   rocket: Rocket;
   units: UnitSystem;
@@ -37,6 +39,8 @@ export default function RocketDiagram({
   highlightId?: string | null;
   /** Called with a component id on hover, null on leave — so the parts table can highlight in step. */
   onHover?: (id: string | null) => void;
+  /** Loaded motor casing(s), drawn inside the aft body so the design shows what it's flying. */
+  motors?: MotorMark[];
 }) {
   const uid = useId();
   const o = rocketOutline(rocket);
@@ -91,6 +95,7 @@ export default function RocketDiagram({
   const showCg = cg !== undefined && Number.isFinite(cg) && cg >= 0;
   const showCp = cp !== undefined && Number.isFinite(cp) && cp >= 0;
   const marginLabel = marginCal !== undefined ? `${d.q(d.calibers(marginCal))} margin` : null;
+  const motorLabel = motors && motors.length ? [...new Set(motors.map((m) => m.designation))].join(", ") : null;
 
   return (
     <figure className="m-0">
@@ -98,7 +103,7 @@ export default function RocketDiagram({
         viewBox={`0 0 ${W} ${H.toFixed(0)}`}
         className="h-auto w-full"
         role="img"
-        aria-label={`Scale side-view of ${rocket.name || "the rocket"}: ${lengthLabel} long, ${d.q(d.lengthMm(2 * o.maxRadius, units))} maximum diameter${marginLabel && showCg && showCp ? `, centre of gravity ahead of centre of pressure by ${marginLabel}` : ""}`}
+        aria-label={`Scale side-view of ${rocket.name || "the rocket"}: ${lengthLabel} long, ${d.q(d.lengthMm(2 * o.maxRadius, units))} maximum diameter${motorLabel ? `, motor ${motorLabel}` : ""}${marginLabel && showCg && showCp ? `, centre of gravity ahead of centre of pressure by ${marginLabel}` : ""}`}
         preserveAspectRatio="xMidYMid meet"
       >
         {/* centreline */}
@@ -136,6 +141,20 @@ export default function RocketDiagram({
           strokeLinejoin="round"
         />
 
+        {/* loaded motor casing(s) inside the aft body */}
+        {(motors ?? []).map((m, i) => (
+          <rect
+            key={`motor${uid}${i}`}
+            x={X(m.x0)}
+            y={centerY - m.radius * s}
+            width={Math.max(1, (m.x1 - m.x0) * s)}
+            height={2 * m.radius * s}
+            rx={1.5}
+            className="fill-zinc-500 stroke-zinc-600 dark:fill-zinc-400 dark:stroke-zinc-300"
+            strokeWidth={0.8}
+          />
+        ))}
+
         {/* per-part overlays: transparent hit targets that tint their part when hovered/highlighted */}
         {o.parts.map((part) => (
           <path
@@ -165,6 +184,11 @@ export default function RocketDiagram({
       </svg>
       <figcaption className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-zinc-500 dark:text-zinc-400">
         <span>To scale · {lengthLabel} long · ⌀ {d.q(d.lengthMm(2 * o.maxRadius, units))} max</span>
+        {motorLabel && (
+          <span className="inline-flex items-center gap-1">
+            <span className="inline-block h-2 w-3 rounded-[2px] bg-zinc-500 dark:bg-zinc-400" /> {motorLabel}
+          </span>
+        )}
         {showCg && (
           <span className="inline-flex items-center gap-1">
             <span className="inline-block h-2 w-2 rounded-full bg-indigo-500" /> CG
