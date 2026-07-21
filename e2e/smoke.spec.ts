@@ -520,9 +520,9 @@ test.describe("Loft", () => {
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
 
-    const summary = page.locator("summary", { hasText: "Design geometry" });
-    await expect(summary).toBeVisible();
-    await summary.click();
+    // The Design geometry section shows the diagram by default; the parts table is behind a toggle.
+    await expect(page.getByRole("heading", { name: "Design geometry" })).toBeVisible();
+    await page.locator("summary", { hasText: /Parts ·/ }).click();
 
     const table = page.locator("table", { has: page.getByText("Station") });
     // The parsed nose cone and body tube appear as rows.
