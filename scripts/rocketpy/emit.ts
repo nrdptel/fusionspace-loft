@@ -102,6 +102,16 @@ test("emit RocketPy specs + Loft results", () => {
     const ballistic = runFlight(doc.rocket, { configId: sim.conditions.configId, overrides, ballistic: true }).result;
 
     const spec = buildRocketpySpec(doc, config, choice.simIndex);
+    // Landing cross-check: when the design carries a canopy, fly recovery-on but wind-zeroed, so the
+    // impact speed is the vertical terminal — matching RocketPy's zero-wind descent under the same
+    // Cd·A. (A ballistic run strips recovery; a windy run adds horizontal drift to the impact speed.)
+    const landing =
+      spec.recovery.landingCdA > 0
+        ? runFlight(doc.rocket, {
+            configId: sim.conditions.configId,
+            overrides: { ...overrides, windSpeed: 0 },
+          }).result.summary
+        : null;
     const loft = {
       apogee: ballistic.summary.apogee,
       maxVelocity: ballistic.summary.maxVelocity,
@@ -109,6 +119,7 @@ test("emit RocketPy specs + Loft results", () => {
       timeToApogee: ballistic.summary.timeToApogee,
       railExitVelocity: ballistic.summary.railExitVelocity,
       staticMarginCal: ballistic.staticMarginCal,
+      ...(landing ? { landingSpeed: landing.groundHitVelocity, landingEnergy: landing.landingEnergy } : {}),
     };
     // The real (recovery-flown) apogee, for context — differs from the ballistic apogee only when
     // recovery deploys before apogee (an early ejection), which is exactly the case worth seeing.
@@ -121,6 +132,7 @@ test("emit RocketPy specs + Loft results", () => {
       resolve(OUT, `${d.key}.loft.json`),
       JSON.stringify({ key: d.key, bundled: !!d.bundled, config: choice.motors.join(","), name: doc.rocket.name, loft, realApogee, stored }, null, 2),
     );
-    console.log(`emitted ${d.key}: motor=${spec.motorDesignation} ballisticApogee=${loft.apogee.toFixed(0)}m realApogee=${realApogee.toFixed(0)}m storedApogee=${stored?.apogee?.toFixed(0) ?? "-"}${d.bundled ? " [bundled]" : ""}`);
+    const land = landing ? ` landing=${landing.groundHitVelocity.toFixed(1)}m/s` : "";
+    console.log(`emitted ${d.key}: motor=${spec.motorDesignation} ballisticApogee=${loft.apogee.toFixed(0)}m realApogee=${realApogee.toFixed(0)}m storedApogee=${stored?.apogee?.toFixed(0) ?? "-"}${land}${d.bundled ? " [bundled]" : ""}`);
   }
 });

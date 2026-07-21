@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { importOrk } from "@/lib/ork/import";
 import { runFromDocument } from "@/lib/sim/run";
-import { loadRocketpyReference, flyReferenceDesign } from "@/lib/validation/rocketpy-reference";
+import { loadRocketpyReference, flyReferenceDesign, flyReferenceRecovery } from "@/lib/validation/rocketpy-reference";
 import { fmt } from "@/lib/display";
 
 export const metadata: Metadata = {
@@ -53,14 +53,24 @@ async function rocketpyRuns() {
   for (const d of ref.designs) {
     const run = await flyReferenceDesign(d);
     const s = run.result.summary;
-    const rows = [
+    const raw = [
       { label: "Apogee", unit: "m", rp: d.apogee, loft: s.apogee, dp: 0 },
       { label: "Max velocity", unit: "m/s", rp: d.maxVelocity, loft: s.maxVelocity, dp: 0 },
       { label: "Max Mach", unit: "", rp: d.maxMach, loft: s.maxMach, dp: 2 },
       { label: "Time to apogee", unit: "s", rp: d.timeToApogee, loft: s.timeToApogee, dp: 1 },
       { label: "Rail-exit velocity", unit: "m/s", rp: d.railExitVelocity, loft: s.railExitVelocity, dp: 1 },
       { label: "Static margin", unit: "cal", rp: d.staticMargin, loft: run.result.staticMarginCal, dp: 2 },
-    ].map((r) => ({ ...r, pct: r.rp ? ((r.loft - r.rp) / r.rp) * 100 : 0 }));
+    ];
+    // Descent cross-check rows for a design that carries recovery: both engines settle to terminal
+    // under the same landing Cd·A, wind zeroed, so landing speed and energy check the descent side.
+    if (d.landingSpeed !== undefined) {
+      const rec = (await flyReferenceRecovery(d)).result.summary;
+      raw.push(
+        { label: "Landing speed", unit: "m/s", rp: d.landingSpeed, loft: rec.groundHitVelocity, dp: 1 },
+        { label: "Landing energy", unit: "J", rp: d.landingEnergy ?? 0, loft: rec.landingEnergy, dp: 0 },
+      );
+    }
+    const rows = raw.map((r) => ({ ...r, pct: r.rp ? ((r.loft - r.rp) / r.rp) * 100 : 0 }));
     runs.push({
       key: d.key,
       name: d.name,
@@ -208,11 +218,25 @@ export default async function Validation() {
       <p>
         Because the drag is held equal, this is an independent check of the{" "}
         <strong>trajectory integrator</strong>, the <strong>mass model</strong>, the{" "}
-        <strong>off-the-rail velocity</strong> (the safety-relevant departure speed, resolved at the
-        exact rod-length crossing), and — from RocketPy&apos;s own Barrowman solver — the{" "}
+        <strong>off-the-rail velocity</strong>{" "}(the safety-relevant departure speed, resolved at
+        the exact rod-length crossing), and — from RocketPy&apos;s own Barrowman solver — the{" "}
         <strong>centre of pressure</strong> and static margin. It is <em>not</em> an independent drag
         check; that is what OpenRocket&apos;s stored per-step drag (above) provides. The two oracles
         are complementary: RocketPy pins the flight mechanics, OpenRocket pins the drag.
+      </p>
+      <p>
+        The descent is cross-checked the same way. For a design that carries recovery, both engines
+        fly on to the ground under one equivalent canopy carrying the design&apos;s{" "}
+        <strong>landing drag area</strong> (<code>C<sub>d</sub>·A</code> — every deployed device plus
+        the body&apos;s own descent drag), with wind zeroed so the impact speed is the vertical
+        terminal. Holding that drag area equal makes the <strong>landing speed</strong> and{" "}
+        <strong>landing energy</strong> — the recovery-adequacy figures a flyer actually cares about
+        — a clean check of the <strong>descent integrator</strong> and the{" "}
+        <strong>burnout mass</strong>{" "}against an independent engine. The two agree to within about
+        a tenth of a percent on every bundled design. (RocketPy also applies the airframe&apos;s drag
+        curve on the way down, a sub-percent addition at a few m/s, so exact agreement isn&apos;t
+        expected; the staged drogue-then-main sequence — which changes descent <em>time</em>{" "}but
+        not the terminal speed — isn&apos;t replayed, so time-to-land is not compared.)
       </p>
       <p>
         The designs below span the geometry the centre-of-pressure model has to get right: a
@@ -222,8 +246,8 @@ export default async function Validation() {
         hundredths of a caliber.
       </p>
       <p>
-        The comparison is ballistic — recovery and wind removed on both sides — so the coast runs to
-        the true apogee with nothing to confound the physics. RocketPy is written in Python and runs{" "}
+        The ascent comparison is ballistic — recovery and wind removed on both sides — so the coast
+        runs to the true apogee with nothing to confound the physics. RocketPy is written in Python and runs{" "}
         <em>offline</em> (it isn&apos;t bundled and doesn&apos;t run in your browser); the figures
         below are its committed output (v{rpRef.engineVersion}), while the Loft column is computed
         live in this build — so the gap you see is always current with the engine. And unlike the

@@ -9,7 +9,13 @@ This is the single shared flight routine for both RocketPy runners:
 The spec is assembled by lib/validation/rocketpy-spec.ts (buildRocketpySpec). It carries Loft's
 own Cd(Mach) curve — RocketPy does not derive drag from geometry — so a RocketPy run cross-checks
 the trajectory integrator, the mass model, and RocketPy's independent Barrowman centre of pressure
-while holding the drag model equal. Scope: single-stage, ascent to apogee (terminate_on_apogee).
+while holding the drag model equal.
+
+Ascent (the default) terminates at apogee. Pass descent=True to fly on to the ground under an
+equivalent recovery canopy (Cd·A from the spec, held equal to Loft's descent drag area) and also
+return the landing speed and energy — the descent analogue of the ascent check: drag held equal,
+so it isolates the descent integrator and the (burnout) mass model. Descent is opt-in so the
+in-browser solver stays ascent-only and fast; only the offline dev harness flies to the ground.
 
 Keep this import-light and side-effect-free: it must import cleanly under Pyodide, where netCDF4 is
 stubbed out (see scripts/rocketpy/pyodide/).
@@ -18,7 +24,7 @@ stubbed out (see scripts/rocketpy/pyodide/).
 from rocketpy import Environment, GenericMotor, Rocket, Flight
 
 
-def fly(spec):
+def fly(spec, descent=False):
     e, r, m = spec["environment"], spec["rocket"], spec["motor"]
 
     env = Environment(latitude=0.0, longitude=0.0, elevation=e["elevation"])
@@ -63,12 +69,22 @@ def fly(spec):
                 position=f["position"], sweep_length=f["sweepLength"], radius=f["radius"],
             )
 
+    # Descent: one equivalent canopy carrying the whole descent drag area (spec.recovery.landingCdA
+    # = every deployed device + the body term), deployed at apogee. A single equivalent chute
+    # reaches the same terminal velocity Loft settles to, so the landing speed/energy match without
+    # replaying the staged drogue→main sequence (descent time, which the staging would change, is
+    # not compared). RocketPy still applies the body drag curve on the way down — a sub-1% add at
+    # ~5–7 m/s — so agreement of ~1% is expected, not exact.
+    land_cd_s = spec.get("recovery", {}).get("landingCdA", 0) if descent else 0
+    if descent and land_cd_s > 0:
+        rocket.add_parachute(name="recovery", cd_s=land_cd_s, trigger="apogee")
+
     flight = Flight(
         rocket=rocket, environment=env, rail_length=e["railLength"],
         inclination=e["inclinationDeg"], heading=e["headingDeg"],
-        terminate_on_apogee=True, max_time=120,
+        terminate_on_apogee=not (descent and land_cd_s > 0), max_time=600,
     )
-    return {
+    out = {
         "apogee": float(flight.apogee) - e["elevation"],
         "maxVelocity": float(flight.max_speed),
         "maxMach": float(flight.max_mach_number),
@@ -76,3 +92,12 @@ def fly(spec):
         "railExitVelocity": float(flight.out_of_rail_velocity),
         "staticMarginLiftoff": float(rocket.static_margin(0)),
     }
+    if descent and land_cd_s > 0:
+        # Impact speed (zero wind ⇒ vertical terminal; impact_velocity is the signed vertical
+        # component, negative downward) and the kinetic energy the vehicle carries into the ground,
+        # from RocketPy's own descent mass at touchdown.
+        speed = abs(float(flight.impact_velocity))
+        descent_mass = float(rocket.total_mass(flight.t_final))
+        out["landingSpeed"] = speed
+        out["landingEnergy"] = 0.5 * descent_mass * speed * speed
+    return out

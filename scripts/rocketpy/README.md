@@ -2,8 +2,8 @@
 
 An independent check on Loft's flight engine. It flies the **same designs** through
 [RocketPy](https://github.com/RocketPy-Team/RocketPy) — a mature, MIT-licensed, pure-Python 6-DOF
-trajectory simulator validated against real flight data — and diffs its ascent metrics against
-Loft's own TypeScript sim.
+trajectory simulator validated against real flight data — and diffs its ascent metrics (and, for
+designs with recovery, its landing metrics) against Loft's own TypeScript sim.
 
 It has **two roles**:
 
@@ -37,8 +37,11 @@ both sides and validates:
 
 - the **trajectory integrator** (RK4 vs RocketPy's solver),
 - the **mass model** (dry mass, motor mass depletion, burnout mass),
-- **RocketPy's independent Barrowman CP** against ours (the static-margin column), and
-- the **motor/thrust handling** (our thrust curve → RocketPy `GenericMotor`).
+- **RocketPy's independent Barrowman CP** against ours (the static-margin column),
+- the **motor/thrust handling** (our thrust curve → RocketPy `GenericMotor`), and
+- for designs with recovery, the **descent integrator and burnout mass** — both engines fly to the
+  ground under the same landing drag area (`Cd·A`), so the **landing speed and energy** are diffed
+  the same way the ascent is (drag area held equal). See "Descent cross-check" below.
 
 It is **not** an independent *drag* oracle. The independent drag check is OpenRocket's stored
 per-step Cd, which lives in the app (`lib/validation/compare.ts` and the Validation doc page).
@@ -64,6 +67,27 @@ The comparison is deliberately **ballistic** — no recovery deployment, no wind
 The emitter still records the **real** (recovery-flown) apogee alongside the ballistic one, and the
 runner prints it as context (`(real w/ chute)`) whenever an early ejection makes the two differ.
 OpenRocket's stored apogee is a *real* flight (recovery + wind), shown for reference only.
+
+## Descent cross-check (designs with recovery)
+
+The *landing* is cross-checked with the same discipline, holding the descent drag area equal instead
+of the ascent `Cd(Mach)`:
+
+- `buildRocketpySpec` computes the design's **landing `Cd·A`** — every deployed canopy/streamer plus
+  the body's own descent drag (`0.5·A_ref`), exactly the sum Loft's descent model settles to terminal
+  velocity under (`lib/sim/simulate.ts`). It rides in the spec as `recovery.landingCdA`.
+- `fly(spec, descent=True)` adds **one equivalent parachute** carrying that whole `Cd·A`, deployed at
+  apogee, and flies to the ground (no `terminate_on_apogee`). It returns the **landing speed**
+  (RocketPy's impact velocity, zero wind ⇒ vertical terminal) and **landing energy** (½·m·v² from
+  RocketPy's own descent mass) on top of the ascent metrics. A single equivalent chute reaches the
+  same terminal velocity Loft does, so the terminal landing speed/energy match without replaying the
+  staged drogue→main sequence — which changes descent *time* (not compared) but not the terminal.
+- Loft's side is flown **recovery-on, wind-zeroed** (`flyReferenceRecovery`), so its impact speed is
+  the vertical terminal too — apples-to-apples with RocketPy's zero-wind descent.
+
+Descent is **opt-in** (`descent=False` by default) so the in-browser Pyodide solver stays ascent-only
+and fast; only this offline harness flies to the ground. RocketPy still applies the airframe drag
+curve on the way down — a sub-percent add at ~5–7 m/s — so ~0.1–0.3% agreement is expected, not exact.
 
 ## How it works
 
@@ -140,26 +164,37 @@ design                metric                Loft  RocketPy  OR stored   L−RPy
 demo-multi-config     apogee (m)          547.40    548.41      520.0   -0.2%   [bundled]
                       max vel (m/s)       109.10    109.13      105.0   -0.0%
                       margin (cal)          4.51      4.51          -
-demo-single-deploy    apogee (m)          992.79    994.12      980.0   -0.1%   [bundled]
+                      landing (m/s)         6.76      6.75          -   +0.1%
+                      land KE (J)          15.31     15.27          -   +0.3%
+demo-single-deploy    apogee (m)          992.79    994.09      980.0   -0.1%   [bundled]
                       max vel (m/s)       205.22    205.24      190.0   -0.0%
                       margin (cal)          4.07      4.07          -
-demo-dual-deploy      apogee (m)         2940.52   2957.12     2250.0   -0.6%   [bundled]
-                      max vel (m/s)       436.28    436.48      305.0   -0.0%
+                      landing (m/s)         6.95      6.94          -   +0.1%
+                      land KE (J)          17.11     17.07          -   +0.3%
+demo-dual-deploy      apogee (m)         2940.52   2957.10     2250.0   -0.6%   [bundled]
+                      max vel (m/s)       436.28    436.47      305.0   -0.0%
                       max Mach              1.29      1.29          -   -0.1%
                       margin (cal)          3.06      3.06          -
-demo-boattail         apogee (m)          905.36    906.64     1015.0   -0.1%   [bundled]
-                      max vel (m/s)       187.34    187.36      196.0   -0.0%
+                      landing (m/s)         5.27      5.26          -   +0.1%
+                      land KE (J)          28.50     28.43          -   +0.3%
+demo-boattail         apogee (m)          905.36    906.57     1015.0   -0.1%   [bundled]
+                      max vel (m/s)       187.34    187.35      196.0   -0.0%
                       margin (cal)          3.82      3.84          -
+                      landing (m/s)         7.31      7.30          -   +0.1%
+                      land KE (J)          20.89     20.84          -   +0.3%
 elliptical_v1.9       apogee (m)          657.88    658.38      662.0   -0.1%
                       max vel (m/s)       182.09    182.10      181.9   -0.0%
                       margin (cal)          1.93      1.94          -
 simple_v1.0           apogee (m)          279.92    280.33      248.4   -0.1%
                       max vel (m/s)        91.42     91.47       89.0   -0.0%
                       margin (cal)          2.25      2.25          -
+                      landing (m/s)         4.07      4.07          -   +0.1%
+                      land KE (J)           0.49      0.49          -   +0.3%
 ```
 
 Apogee, velocity, Mach, and time-to-apogee all land within ~0.6% of the independent engine; the
-independently-computed Barrowman static margin agrees to a fraction of a caliber. The
+independently-computed Barrowman static margin agrees to a fraction of a caliber. The landing speed
+and energy (designs with recovery) agree to ~0.1–0.3%, holding the descent drag area equal. The
 `elliptical_v1.9` row is a real OpenRocket example whose *stored* column is a genuine OpenRocket run
 (not an author estimate): reading the elliptical fin's leading-edge sweep into the drag brought
 Loft's apogee there from −6.5% to −0.6% of OpenRocket's own figure. (For the bundled demo designs the
@@ -174,7 +209,8 @@ definitional gap, not a physics error.
 ## Scope / TODO
 
 - Single-stage only (multi-stage is skipped for now).
-- Ascent to apogee (descent/recovery deliberately out of the ballistic comparison).
+- Ascent is ballistic to apogee; descent (recovery) is cross-checked separately, holding the landing
+  `Cd·A` equal — see "Descent cross-check" above. Descent *time* (staged drogue→main) isn't compared.
 - Cluster motors are aggregated into one equivalent coaxial thrust curve.
 
 ## Licensing

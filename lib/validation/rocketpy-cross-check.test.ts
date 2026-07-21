@@ -13,7 +13,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { loadRocketpyReference, flyReferenceDesign } from "./rocketpy-reference";
+import { loadRocketpyReference, flyReferenceDesign, flyReferenceRecovery } from "./rocketpy-reference";
 
 const ref = loadRocketpyReference();
 
@@ -44,5 +44,24 @@ describe("RocketPy cross-check (drift guard)", () => {
       // RocketPy's independent Barrowman CP vs ours, within a fraction of a caliber.
       expect(Math.abs(run.result.staticMarginCal - d.staticMargin)).toBeLessThanOrEqual(0.25);
     });
+
+    // Descent cross-check (designs with recovery): Loft's terminal landing speed and energy against
+    // RocketPy's, both flown to the ground under the same landing Cd·A with wind zeroed. Holds the
+    // drag area equal, so this catches a regression in the descent integrator or the burnout mass.
+    if (d.landingSpeed !== undefined) {
+      it(`${d.key} (${d.config}) agrees with RocketPy on landing`, async () => {
+        const run = await flyReferenceRecovery(d);
+        const s = run.result.summary;
+        const near = (loft: number, rp: number, rel: number, label: string) =>
+          expect(
+            Math.abs(loft - rp) / Math.abs(rp),
+            `${d.key} ${label}: Loft ${loft.toFixed(2)} vs RocketPy ${rp} — regenerate the reference (scripts/rocketpy) if this is an intended change`,
+          ).toBeLessThanOrEqual(rel);
+        // Landing speed is a safety-relevant number; the two engines agree to ~0.1% in practice, so
+        // a 3% band tolerates small integrator/mass evolution but catches a real descent regression.
+        near(s.groundHitVelocity, d.landingSpeed!, 0.03, "landing speed");
+        near(s.landingEnergy, d.landingEnergy!, 0.05, "landing energy");
+      });
+    }
   }
 });

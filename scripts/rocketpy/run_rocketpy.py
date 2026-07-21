@@ -49,7 +49,9 @@ def main():
         loft, stored = ld["loft"], ld.get("stored")
         real_apogee = ld.get("realApogee")
         try:
-            rp = fly(spec)
+            # descent=True flies on past apogee under an equivalent canopy (Cd·A from the spec) when
+            # the design has recovery, adding landing speed/energy; ascent metrics are unchanged.
+            rp = fly(spec, descent=True)
         except Exception as ex:  # noqa: BLE001
             print(f"{base:<22}RocketPy ERROR: {type(ex).__name__}: {str(ex)[:60]}")
             continue
@@ -67,6 +69,11 @@ def main():
             svs = f"{sv:>11.1f}" if sv is not None else f"{'-':>11}"
             print(f"{name:<22}{label:<16}{lv:>10.2f}{rv:>10.2f}{svs}{pct(lv, rv):>8}")
         print(f"{'':<22}{'margin (cal)':<16}{loft['staticMarginCal']:>10.2f}{rp['staticMarginLiftoff']:>10.2f}{'-':>11}{'':>8}")
+        # Descent cross-check: both engines settle to terminal under the same landing Cd·A with wind
+        # zeroed, so this diffs the descent integrator and the burnout-mass model (drag held equal).
+        if "landingSpeed" in rp and loft.get("landingSpeed") is not None:
+            print(f"{'':<22}{'landing (m/s)':<16}{loft['landingSpeed']:>10.2f}{rp['landingSpeed']:>10.2f}{'-':>11}{pct(loft['landingSpeed'], rp['landingSpeed']):>8}")
+            print(f"{'':<22}{'land KE (J)':<16}{loft['landingEnergy']:>10.2f}{rp['landingEnergy']:>10.2f}{'-':>11}{pct(loft['landingEnergy'], rp['landingEnergy']):>8}")
         # Note the real (recovery-flown) apogee when it differs from ballistic — an early ejection.
         if real_apogee is not None and abs(real_apogee - loft["apogee"]) > 0.5:
             print(f"{'':<22}{'  (real w/ chute)':<16}{real_apogee:>10.2f}{'':>10}{'':>11}   early deploy")
@@ -74,7 +81,7 @@ def main():
 
         # Bundled demo designs become the committed reference the Validation page shows to users.
         if ld.get("bundled"):
-            reference_designs.append({
+            entry = {
                 "key": ld["key"],
                 "config": ld.get("config", ""),
                 "name": ld.get("name", ""),
@@ -84,7 +91,12 @@ def main():
                 "timeToApogee": round(rp["timeToApogee"], 2),
                 "railExitVelocity": round(rp["railExitVelocity"], 1),
                 "staticMargin": round(rp["staticMarginLiftoff"], 2),
-            })
+            }
+            # Landing metrics only for designs that carry recovery (chute-less designs fall ballistic).
+            if "landingSpeed" in rp:
+                entry["landingSpeed"] = round(rp["landingSpeed"], 2)
+                entry["landingEnergy"] = round(rp["landingEnergy"], 1)
+            reference_designs.append(entry)
 
     if reference_designs:
         reference_designs.sort(key=lambda d: d["apogee"])
@@ -96,7 +108,10 @@ def main():
                 "Loft's own Cd(Mach) curve — it does not derive drag from geometry — so this "
                 "cross-checks the trajectory integrator, the mass model, and RocketPy's "
                 "independent Barrowman centre of pressure, holding drag equal. It is not an "
-                "independent drag oracle."
+                "independent drag oracle. Designs with recovery add a descent cross-check: both "
+                "engines fly to the ground under the same landing drag area (Cd·A) with wind "
+                "zeroed, so the landing speed and energy check the descent integrator and the "
+                "burnout-mass model, again holding the drag area equal."
             ),
             "generatedBy": "scripts/rocketpy (offline; RocketPy is not bundled and does not run in the browser)",
             "designs": reference_designs,

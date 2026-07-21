@@ -76,11 +76,23 @@ export interface RocketpyEnvironment {
   headingDeg: number;
 }
 
+export interface RocketpyRecovery {
+  /** Total descent drag area C_d·A (m²) at landing: every deployed canopy/streamer plus the body's
+   *  own descent drag (0.5·A_ref), exactly the Cd·A Loft's descent model settles to terminal
+   *  velocity under (lib/sim/simulate.ts: `deployedCdA + refArea·0.5`). Fed to RocketPy as a single
+   *  equivalent parachute so an independent engine reaches the same terminal descent — the descent
+   *  analogue of feeding Loft's Cd(Mach) on ascent: the drag area is held equal, so the cross-check
+   *  isolates the descent integrator and the (burnout) mass model, not the drag. 0 when the design
+   *  carries no recovery device (it would fall ballistically, and no descent check is meaningful). */
+  landingCdA: number;
+}
+
 export interface RocketpySpec {
   name: string;
   motorDesignation: string | null;
   speedOfSound0: number;
   environment: RocketpyEnvironment;
+  recovery: RocketpyRecovery;
   rocket: {
     radius: number;
     mass: number;
@@ -140,7 +152,16 @@ export function buildRocketpySpec(
     : baseDry;
   const refR = referenceRadius(rocket);
   const flat = flattenRocket(rocket);
-  const { motors } = buildRocketDynamics(rocket, config);
+  const { motors, recovery } = buildRocketDynamics(rocket, config);
+
+  // Descent Cd·A at landing: every recovery device that actually deploys (a "never" device is
+  // configured but inert), plus the body's own descent drag — the same sum the flight's descent
+  // model settles to terminal velocity under (simulate.ts: `deployedCdA + refArea·0.5`). Fed to
+  // RocketPy as one equivalent canopy, so the descent cross-check holds the drag area equal and
+  // checks the descent integrator and mass model, exactly as the ascent check holds Cd(Mach) equal.
+  const refArea = Math.PI * refR * refR;
+  const deployedCdA = recovery.reduce((s, d) => (d.event === "never" ? s : s + d.cdA), 0);
+  const landingCdA = deployedCdA > 0 ? deployedCdA + refArea * 0.5 : 0;
 
   // Aerodynamic surfaces (nose, transitions, fins). Body tubes of constant radius add no CP.
   let nose: RocketpyNose | null = null;
@@ -214,6 +235,7 @@ export function buildRocketpySpec(
     motorDesignation: motor?.designation ?? null,
     speedOfSound0: atm0.speedOfSound,
     environment,
+    recovery: { landingCdA },
     rocket: {
       radius: refR,
       mass: dry.mass,

@@ -1,7 +1,7 @@
 {
   "engine": "RocketPy",
   "engineVersion": "1.12.1",
-  "method": "Ballistic ascent to apogee (recovery stripped, wind zeroed). RocketPy is fed Loft's own Cd(Mach) curve \u2014 it does not derive drag from geometry \u2014 so this cross-checks the trajectory integrator, the mass model, and RocketPy's independent Barrowman centre of pressure, holding drag equal. It is not an independent drag oracle.",
+  "method": "Ballistic ascent to apogee (recovery stripped, wind zeroed). RocketPy is fed Loft's own Cd(Mach) curve \u2014 it does not derive drag from geometry \u2014 so this cross-checks the trajectory integrator, the mass model, and RocketPy's independent Barrowman centre of pressure, holding drag equal. It is not an independent drag oracle. Designs with recovery add a descent cross-check: both engines fly to the ground under the same landing drag area (Cd\u00b7A) with wind zeroed, so the landing speed and energy check the descent integrator and the burnout-mass model, again holding the drag area equal.",
   "generatedBy": "scripts/rocketpy (offline; RocketPy is not bundled and does not run in the browser)",
   "designs": [
     {
@@ -13,18 +13,22 @@
       "maxMach": 0.321,
       "timeToApogee": 10.57,
       "railExitVelocity": 14.1,
-      "staticMargin": 4.51
+      "staticMargin": 4.51,
+      "landingSpeed": 6.75,
+      "landingEnergy": 15.3
     },
     {
       "key": "demo-boattail",
       "config": "H128W",
       "name": "Loft Demo 38mm \u2014 boattail + elliptical fins",
       "apogee": 906.6,
-      "maxVelocity": 187.4,
+      "maxVelocity": 187.3,
       "maxMach": 0.551,
       "timeToApogee": 12.39,
       "railExitVelocity": 21.3,
-      "staticMargin": 3.84
+      "staticMargin": 3.84,
+      "landingSpeed": 7.3,
+      "landingEnergy": 20.8
     },
     {
       "key": "demo-single-deploy",
@@ -35,7 +39,9 @@
       "maxMach": 0.604,
       "timeToApogee": 12.79,
       "railExitVelocity": 22.2,
-      "staticMargin": 4.07
+      "staticMargin": 4.07,
+      "landingSpeed": 6.94,
+      "landingEnergy": 17.1
     },
     {
       "key": "demo-dual-deploy",
@@ -46,7 +52,9 @@
       "maxMach": 1.293,
       "timeToApogee": 20.29,
       "railExitVelocity": 28.2,
-      "staticMargin": 3.06
+      "staticMargin": 3.06,
+      "landingSpeed": 5.26,
+      "landingEnergy": 28.4
     }
   ]
 }
