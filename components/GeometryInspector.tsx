@@ -92,32 +92,36 @@ export default function GeometryInspector({
   if (parts.length === 0) return null;
 
   return (
-    <details className="group rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900/40">
-      <summary className="flex cursor-pointer select-none items-center justify-between px-4 py-3 text-sm font-medium text-zinc-700 dark:text-zinc-300">
-        <span className="flex items-center gap-2">
-          Design geometry · {parts.length} parts
+    <section className="rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900/40">
+      <div className="flex items-center justify-between px-4 py-3">
+        <h3 className="flex items-center gap-2 text-sm font-medium text-zinc-700 dark:text-zinc-300">
+          Design geometry
           {edited && (
             <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-medium text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300">
               with your edits
             </span>
           )}
-        </span>
-        <span className="text-xs text-zinc-400 transition group-open:rotate-180">▾</span>
-      </summary>
+        </h3>
+      </div>
       <div className="border-t border-zinc-100 px-4 py-3 dark:border-zinc-800">
-        <div className="mb-4">
-          <RocketDiagram
-            rocket={rocket}
-            units={units}
-            cg={cg}
-            cp={cp}
-            marginCal={marginCal}
-            highlightId={hoveredId}
-            onHover={setHoveredId}
-            motors={motors}
-          />
-        </div>
-        <div className="overflow-x-auto">
+        {/* The design at a glance — always shown, so you see your rocket without hunting for it. */}
+        <RocketDiagram
+          rocket={rocket}
+          units={units}
+          cg={cg}
+          cp={cp}
+          marginCal={marginCal}
+          highlightId={hoveredId}
+          onHover={setHoveredId}
+          motors={motors}
+        />
+        {/* The part-by-part detail is opt-in — hover/focus a row and it lights up on the diagram. */}
+        <details className="group mt-3 border-t border-zinc-100 pt-3 dark:border-zinc-800">
+          <summary className="flex cursor-pointer select-none items-center gap-1.5 text-xs font-medium text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200">
+            <span className="text-zinc-400 transition group-open:rotate-180">▾</span>
+            Parts · {parts.length}
+          </summary>
+          <div className="mt-2 overflow-x-auto">
           <table className="w-full text-sm tabular-nums">
             <thead>
               <tr className="text-left text-[11px] uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
@@ -170,7 +174,8 @@ export default function GeometryInspector({
           <span className="font-mono">⌀</span>; a fin set lists its per-fin chords and span. Masses
           are in the <em>Mass &amp; balance</em> panel.
         </p>
+        </details>
       </div>
-    </details>
+    </section>
   );
 }

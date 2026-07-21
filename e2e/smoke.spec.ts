@@ -40,17 +40,15 @@ test.describe("Loft", () => {
     // The OpenRocket comparison renders.
     await expect(page.getByRole("heading", { name: "OpenRocket vs Loft" })).toBeVisible();
 
-    // The geometry panel leads with a to-scale side-view drawn from the parsed model, with the
-    // loaded CG marked ahead of the CP — the stability picture read straight off the airframe.
-    await page.getByText(/Design geometry ·/).click();
-    // The diagram shows the loaded motor and marks the CG ahead of the CP.
+    // The geometry panel shows the to-scale side-view by default — no expand needed — with the
+    // loaded motor and the CG marked ahead of the CP, the stability picture read off the airframe.
     await expect(
       page.getByRole("img", { name: /motor H128W.*centre of gravity ahead of centre of pressure/ }),
     ).toBeVisible();
 
-    // Hovering a part row links to the diagram — the row (and its part) pick up the highlight.
-    const geo = page.locator("details", { hasText: "Design geometry" });
-    const finRow = geo.locator("tr", { hasText: /Trapezoidal fins/ }).first();
+    // The part-by-part table is opt-in; expanding it, hovering a row links to the diagram.
+    await page.locator("summary", { hasText: /Parts ·/ }).click();
+    const finRow = page.locator("tr", { hasText: /Trapezoidal fins/ }).first();
     await finRow.hover();
     await expect(finRow).toHaveClass(/bg-indigo/);
     // The link is keyboard-accessible too: the row is focusable and lights up on focus.
