@@ -39,6 +39,10 @@ test.describe("Loft", () => {
 
     // The OpenRocket comparison renders.
     await expect(page.getByRole("heading", { name: "OpenRocket vs Loft" })).toBeVisible();
+
+    // The geometry panel leads with a to-scale side-view drawn from the parsed model.
+    await page.getByText(/Design geometry ·/).click();
+    await expect(page.getByRole("img", { name: /Scale side-view/ })).toBeVisible();
   });
 
   test("starts a new design from scratch and flies it (builder)", async ({ page }) => {

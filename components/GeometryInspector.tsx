@@ -4,11 +4,14 @@ import type { Rocket, RocketComponent } from "@/lib/model/types";
 import { flattenRocket } from "@/lib/model/geometry";
 import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
+import RocketDiagram from "./RocketDiagram";
 
-/** Design geometry: the parsed component tree with each part's key dimensions and its station along
- *  the airframe — the "did Loft read my rocket right?" view. Pure transparency into what the importer
- *  produced (the same components the simulator flies), the geometry counterpart of the mass & balance
- *  breakdown. Read-only for now; it's also the component list a from-scratch builder will edit. */
+/** Design geometry: a to-scale side-view of the airframe, above the parsed component tree with each
+ *  part's key dimensions and its station — the "did Loft read my rocket right?" view. Pure
+ *  transparency into what the importer produced (the same components the simulator flies), the
+ *  geometry counterpart of the mass & balance breakdown. The picture reads at a glance; the table is
+ *  the exact detail. Read-only for now; both are the surface a from-scratch builder/editor grows
+ *  direct manipulation on top of. */
 
 const KIND_LABEL: Record<string, string> = {
   nosecone: "Nose cone",
@@ -71,6 +74,9 @@ export default function GeometryInspector({ rocket, units }: { rocket: Rocket; u
         <span className="text-xs text-zinc-400 transition group-open:rotate-180">▾</span>
       </summary>
       <div className="border-t border-zinc-100 px-4 py-3 dark:border-zinc-800">
+        <div className="mb-4">
+          <RocketDiagram rocket={rocket} units={units} />
+        </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm tabular-nums">
             <thead>
