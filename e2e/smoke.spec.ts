@@ -53,6 +53,10 @@ test.describe("Loft", () => {
     const finRow = geo.locator("tr", { hasText: /Trapezoidal fins/ }).first();
     await finRow.hover();
     await expect(finRow).toHaveClass(/bg-indigo/);
+    // The link is keyboard-accessible too: the row is focusable and lights up on focus.
+    await page.mouse.move(0, 0);
+    await finRow.focus();
+    await expect(finRow).toHaveClass(/bg-indigo/);
   });
 
   test("starts a new design from scratch and flies it (builder)", async ({ page }) => {

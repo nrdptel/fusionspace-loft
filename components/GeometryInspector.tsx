@@ -131,9 +131,12 @@ export default function GeometryInspector({
               {parts.map((p, i) => (
                 <tr
                   key={`${p.component.id}-${i}`}
+                  tabIndex={0}
                   onMouseEnter={() => setHoveredId(p.component.id)}
                   onMouseLeave={() => setHoveredId(null)}
-                  className={`border-t border-zinc-100 dark:border-zinc-800 ${
+                  onFocus={() => setHoveredId(p.component.id)}
+                  onBlur={() => setHoveredId(null)}
+                  className={`border-t border-zinc-100 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-400 dark:border-zinc-800 ${
                     hoveredId === p.component.id ? "bg-indigo-50 dark:bg-indigo-500/10" : ""
                   }`}
                 >

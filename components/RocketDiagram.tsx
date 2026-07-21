@@ -78,8 +78,12 @@ export default function RocketDiagram({
     return p + " Z";
   };
 
+  // Mouse hover on desktop; tap on touch (no mouseleave fires there, so a tap simply picks the part
+  // and it stays lit until another is tapped). Keyboard parity comes from the focusable parts table.
   const hoverProps = (id: string) =>
-    onHover ? { onMouseEnter: () => onHover(id), onMouseLeave: () => onHover(null) } : {};
+    onHover
+      ? { onMouseEnter: () => onHover(id), onMouseLeave: () => onHover(null), onClick: () => onHover(id) }
+      : {};
   const cursor = onHover ? "cursor-pointer" : "";
 
   const lengthLabel =
