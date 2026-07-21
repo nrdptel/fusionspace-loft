@@ -53,9 +53,13 @@ describe("rocketOutline — from-scratch starter", () => {
     // The starter carries fins, so at least one planform, each a 4-point ring reaching past the body.
     expect(o.fins.length).toBeGreaterThanOrEqual(1);
     for (const fin of o.fins) {
-      expect(fin).toHaveLength(4);
+      expect(fin.poly).toHaveLength(4);
+      expect(fin.id).toBeTruthy();
     }
     expect(o.maxExtent).toBeGreaterThan(o.maxRadius);
+    // Every body part is addressable by its component id (for highlighting from the parts table).
+    expect(o.parts.length).toBeGreaterThanOrEqual(2);
+    for (const part of o.parts) expect(part.profile.length).toBeGreaterThanOrEqual(2);
   });
 });
 
@@ -96,10 +100,17 @@ describe("rocketOutline — exact geometry on a hand-built rocket", () => {
     expect(o.maxExtent).toBeCloseTo(0.025 + 0.05, 6);
   });
 
+  it("splits the body into addressable parts by component id", () => {
+    const o = rocketOutline(rocket);
+    expect(o.parts.map((p) => p.id)).toEqual(["nose", "tube"]);
+    expect(o.parts[0].kind).toBe("nosecone");
+  });
+
   it("places the fin planform at the aft of the tube, seated on the body radius", () => {
     const o = rocketOutline(rocket);
     expect(o.fins).toHaveLength(1);
-    const [rootLE, tipLE, tipTE, rootTE] = o.fins[0];
+    expect(o.fins[0].id).toBe("fins");
+    const [rootLE, tipLE, tipTE, rootTE] = o.fins[0].poly;
     // Root LE sits rootChord ahead of the tube aft (0.5): 0.5 - 0.08 = 0.42, on the body radius.
     expect(rootLE[0]).toBeCloseTo(0.42, 6);
     expect(rootLE[1]).toBeCloseTo(0.025, 6);
@@ -153,12 +164,14 @@ describe("rocketOutline — boattail transition and elliptical fins", () => {
     expect(aft[0]).toBeCloseTo(0.45, 6);
     expect(aft[1]).toBeCloseTo(0.018, 6);
     expect(o.maxRadius).toBeCloseTo(0.027, 6); // the wider fore radius still sets the max
+    // Nose, tube, and boattail are each their own addressable part.
+    expect(o.parts.map((p) => p.id)).toEqual(["nose", "tube", "boat"]);
   });
 
   it("draws a generic (elliptical) fin as its equal-area trapezoid", () => {
     const o = rocketOutline(rocket);
     expect(o.fins).toHaveLength(1);
-    const [rootLE, tipLE, tipTE, rootTE] = o.fins[0];
+    const [rootLE, tipLE, tipTE, rootTE] = o.fins[0].poly;
     // Root spans the fin's rootChord seated on the body; root LE at tube aft - rootChord = 0.4 - 0.1.
     expect(rootLE[0]).toBeCloseTo(0.3, 6);
     expect(rootTE[0]).toBeCloseTo(0.4, 6);

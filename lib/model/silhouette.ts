@@ -16,13 +16,31 @@ import { flattenRocket, isBody, outerRadius, radiusAtStation } from "./geometry"
 /** A point on the outline: `[axial x from the nose tip (m), radius from the centreline (m)]`. */
 export type OutlinePoint = [number, number];
 
+/** One body component's own top profile (nose tip → aft, `[x, r]` points), tagged with the
+ *  component id so a part can be highlighted on the diagram from its row in the parts table. */
+export interface OutlineBodyPart {
+  id: string;
+  kind: string;
+  profile: OutlinePoint[];
+}
+
+/** One fin set's planform, tagged with its component id. `poly` is a closed ring of `[x, r]`
+ *  points on the +r side (mirror for the bottom fin): root LE → tip LE → tip TE → root TE. */
+export interface OutlineFin {
+  id: string;
+  poly: OutlinePoint[];
+}
+
 export interface RocketOutline {
   /** The airframe's top profile, nose tip → aft, as `[x, r]` points (r ≥ 0). Mirror across r = 0
-   *  for the bottom; together they close the body silhouette. Empty for a bodyless design. */
+   *  for the bottom; together they close the body silhouette. Empty for a bodyless design. This is
+   *  the clean, seamless outline for the base fill. */
   body: OutlinePoint[];
-  /** One planform polygon per fin set, each a closed ring of `[x, r]` points standing off the body
-   *  on the +r side (mirror for the bottom fin). Order: root LE → tip LE → tip TE → root TE. */
-  fins: OutlinePoint[][];
+  /** The same body split per component (nose, each tube, each transition), so an individual part
+   *  can be drawn or highlighted on its own. Same geometry as `body`, addressable by id. */
+  parts: OutlineBodyPart[];
+  /** One planform per fin set, tagged by id, standing off the body on the +r side. */
+  fins: OutlineFin[];
   /** Nose-tip-to-aft on-axis length (m). */
   length: number;
   /** Largest body radius (m). */
@@ -111,27 +129,29 @@ export function rocketOutline(rocket: Rocket): RocketOutline {
     .sort((a, b) => a.xFore - b.xFore);
 
   const body: OutlinePoint[] = [];
+  const parts: OutlineBodyPart[] = [];
   let maxRadius = 0;
   for (const p of bodies) {
     const c = p.component;
+    let profile: OutlinePoint[];
     if (c.kind === "nosecone") {
-      for (const [x, r] of noseHalfProfile(c.shape, c.shapeParameter, c.length, c.aftRadius)) {
-        body.push([p.xFore + x, r]);
-      }
+      profile = noseHalfProfile(c.shape, c.shapeParameter, c.length, c.aftRadius).map(([x, r]) => [p.xFore + x, r]);
       maxRadius = Math.max(maxRadius, c.aftRadius);
     } else if (c.kind === "transition") {
-      body.push([p.xFore, c.foreRadius], [p.xFore + c.length, c.aftRadius]);
+      profile = [[p.xFore, c.foreRadius], [p.xFore + c.length, c.aftRadius]];
       maxRadius = Math.max(maxRadius, c.foreRadius, c.aftRadius);
     } else {
       const r = outerRadius(c);
-      body.push([p.xFore, r], [p.xFore + p.length, r]);
+      profile = [[p.xFore, r], [p.xFore + p.length, r]];
       maxRadius = Math.max(maxRadius, r);
     }
+    for (const pt of profile) body.push(pt);
+    parts.push({ id: c.id, kind: c.kind, profile });
   }
 
   // Fin planforms. A side view shows one fin standing off the body (mirror it for the bottom),
   // regardless of the set's fin count. Seat it on the body radius at the root's mid-chord.
-  const fins: OutlinePoint[][] = [];
+  const fins: OutlineFin[] = [];
   let maxExtent = maxRadius;
   for (const p of flat) {
     const c = p.component;
@@ -150,17 +170,20 @@ export function rocketOutline(rocket: Rocket): RocketOutline {
     if (!(height > 0) || !(rootChord > 0)) continue;
     const seatR = radiusAtStation(rocket, p.xFore + rootChord / 2) || maxRadius;
     const tipR = seatR + height;
-    fins.push([
-      [p.xFore, seatR], // root leading edge
-      [p.xFore + sweep, tipR], // tip leading edge
-      [p.xFore + sweep + tipChord, tipR], // tip trailing edge
-      [p.xFore + rootChord, seatR], // root trailing edge
-    ]);
+    fins.push({
+      id: c.id,
+      poly: [
+        [p.xFore, seatR], // root leading edge
+        [p.xFore + sweep, tipR], // tip leading edge
+        [p.xFore + sweep + tipChord, tipR], // tip trailing edge
+        [p.xFore + rootChord, seatR], // root trailing edge
+      ],
+    });
     maxExtent = Math.max(maxExtent, tipR);
   }
 
   let length = 0;
   for (const [x] of body) length = Math.max(length, x);
 
-  return { body, fins, length, maxRadius, maxExtent };
+  return { body, parts, fins, length, maxRadius, maxExtent };
 }

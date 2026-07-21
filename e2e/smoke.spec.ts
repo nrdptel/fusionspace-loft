@@ -46,6 +46,12 @@ test.describe("Loft", () => {
     await expect(
       page.getByRole("img", { name: /centre of gravity ahead of centre of pressure/ }),
     ).toBeVisible();
+
+    // Hovering a part row links to the diagram — the row (and its part) pick up the highlight.
+    const geo = page.locator("details", { hasText: "Design geometry" });
+    const finRow = geo.locator("tr", { hasText: /Trapezoidal fins/ }).first();
+    await finRow.hover();
+    await expect(finRow).toHaveClass(/bg-indigo/);
   });
 
   test("starts a new design from scratch and flies it (builder)", async ({ page }) => {

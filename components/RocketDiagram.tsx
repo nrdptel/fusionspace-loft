@@ -22,6 +22,8 @@ export default function RocketDiagram({
   cg,
   cp,
   marginCal,
+  highlightId,
+  onHover,
 }: {
   rocket: Rocket;
   units: UnitSystem;
@@ -31,6 +33,10 @@ export default function RocketDiagram({
   cp?: number;
   /** Static margin (calibers), for the caption. */
   marginCal?: number;
+  /** Component id to highlight (linked from the parts table); its shape is picked out. */
+  highlightId?: string | null;
+  /** Called with a component id on hover, null on leave — so the parts table can highlight in step. */
+  onHover?: (id: string | null) => void;
 }) {
   const uid = useId();
   const o = rocketOutline(rocket);
@@ -58,6 +64,19 @@ export default function RocketDiagram({
     for (let i = 1; i < pts.length; i++) p += ` L ${X(pts[i][0]).toFixed(1)} ${side(pts[i][1]).toFixed(1)}`;
     return p + " Z";
   };
+
+  // A single body component's closed silhouette (its top profile out, mirrored back) — for the
+  // per-part hit/highlight overlays that sit over the seamless base body.
+  const partPath = (profile: [number, number][]) => {
+    let p = `M ${X(profile[0][0]).toFixed(1)} ${top(profile[0][1]).toFixed(1)}`;
+    for (let i = 1; i < profile.length; i++) p += ` L ${X(profile[i][0]).toFixed(1)} ${top(profile[i][1]).toFixed(1)}`;
+    for (let i = profile.length - 1; i >= 0; i--) p += ` L ${X(profile[i][0]).toFixed(1)} ${bot(profile[i][1]).toFixed(1)}`;
+    return p + " Z";
+  };
+
+  const hoverProps = (id: string) =>
+    onHover ? { onMouseEnter: () => onHover(id), onMouseLeave: () => onHover(null) } : {};
+  const cursor = onHover ? "cursor-pointer" : "";
 
   const lengthLabel =
     units === "imperial"
@@ -93,21 +112,39 @@ export default function RocketDiagram({
           strokeDasharray="4 4"
         />
 
-        {/* fins, top and bottom, behind the body edge */}
-        {o.fins.map((pts, i) => (
-          <g key={`fin${uid}${i}`} className="fill-zinc-300 stroke-zinc-400 dark:fill-zinc-600 dark:stroke-zinc-500">
-            <path d={finPath(pts, top)} strokeWidth={1} strokeLinejoin="round" />
-            <path d={finPath(pts, bot)} strokeWidth={1} strokeLinejoin="round" />
+        {/* fins, top and bottom, behind the body edge — highlighted when their row is hovered */}
+        {o.fins.map((fin) => (
+          <g
+            key={`fin${uid}${fin.id}`}
+            className={`${
+              fin.id === highlightId
+                ? "fill-indigo-300 stroke-indigo-500 dark:fill-indigo-500/60 dark:stroke-indigo-400"
+                : "fill-zinc-300 stroke-zinc-400 dark:fill-zinc-600 dark:stroke-zinc-500"
+            } ${cursor}`}
+            {...hoverProps(fin.id)}
+          >
+            <path d={finPath(fin.poly, top)} strokeWidth={1} strokeLinejoin="round" />
+            <path d={finPath(fin.poly, bot)} strokeWidth={1} strokeLinejoin="round" />
           </g>
         ))}
 
-        {/* airframe body */}
+        {/* airframe body — one seamless base fill */}
         <path
           d={bodyPath}
           className="fill-zinc-200 stroke-zinc-400 dark:fill-zinc-700 dark:stroke-zinc-500"
           strokeWidth={1.2}
           strokeLinejoin="round"
         />
+
+        {/* per-part overlays: transparent hit targets that tint their part when hovered/highlighted */}
+        {o.parts.map((part) => (
+          <path
+            key={`part${uid}${part.id}`}
+            d={partPath(part.profile)}
+            className={`${part.id === highlightId ? "fill-indigo-400/40 dark:fill-indigo-400/30" : "fill-transparent"} ${cursor}`}
+            {...hoverProps(part.id)}
+          />
+        ))}
 
         {/* centre of pressure (aft of CG when stable) — draw first, so CG sits on top if they meet */}
         {showCp && (

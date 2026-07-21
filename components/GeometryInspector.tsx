@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import type { Rocket, RocketComponent } from "@/lib/model/types";
 import { flattenRocket } from "@/lib/model/geometry";
 import * as d from "@/lib/display";
@@ -83,6 +84,7 @@ export default function GeometryInspector({
   edited?: boolean;
 }) {
   const parts = flattenRocket(rocket);
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
   if (parts.length === 0) return null;
 
   return (
@@ -100,7 +102,15 @@ export default function GeometryInspector({
       </summary>
       <div className="border-t border-zinc-100 px-4 py-3 dark:border-zinc-800">
         <div className="mb-4">
-          <RocketDiagram rocket={rocket} units={units} cg={cg} cp={cp} marginCal={marginCal} />
+          <RocketDiagram
+            rocket={rocket}
+            units={units}
+            cg={cg}
+            cp={cp}
+            marginCal={marginCal}
+            highlightId={hoveredId}
+            onHover={setHoveredId}
+          />
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm tabular-nums">
@@ -114,7 +124,14 @@ export default function GeometryInspector({
             </thead>
             <tbody className="font-mono">
               {parts.map((p, i) => (
-                <tr key={`${p.component.id}-${i}`} className="border-t border-zinc-100 dark:border-zinc-800">
+                <tr
+                  key={`${p.component.id}-${i}`}
+                  onMouseEnter={() => setHoveredId(p.component.id)}
+                  onMouseLeave={() => setHoveredId(null)}
+                  className={`border-t border-zinc-100 dark:border-zinc-800 ${
+                    hoveredId === p.component.id ? "bg-indigo-50 dark:bg-indigo-500/10" : ""
+                  }`}
+                >
                   <th scope="row" className="py-1.5 pr-4 text-left font-sans font-normal text-zinc-700 dark:text-zinc-200">
                     {p.component.name || KIND_LABEL[p.component.kind] || p.component.kind}
                   </th>
@@ -141,8 +158,9 @@ export default function GeometryInspector({
               nose tip — a quick way to confirm the import matches your design.
             </>
           )}{" "}
-          Diameters are shown as <span className="font-mono">⌀</span>; a fin set lists its per-fin
-          chords and span. Masses are in the <em>Mass &amp; balance</em> panel.
+          Hover a part to pick it out on the diagram. Diameters are shown as{" "}
+          <span className="font-mono">⌀</span>; a fin set lists its per-fin chords and span. Masses
+          are in the <em>Mass &amp; balance</em> panel.
         </p>
       </div>
     </details>
