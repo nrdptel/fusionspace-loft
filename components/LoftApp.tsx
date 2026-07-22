@@ -599,6 +599,7 @@ export default function LoftApp() {
               }}
               swapOptions={swapInfo?.options}
               designMotor={swapInfo?.designMotor}
+              onEditGeometry={applyEdit}
             />
           )}
         </div>

@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { Rocket, RocketComponent } from "@/lib/model/types";
 import { flattenRocket } from "@/lib/model/geometry";
 import type { MotorMark } from "@/lib/sim/setup";
+import type { GeometryEdits } from "@/lib/model/edit";
 import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
 import RocketDiagram from "./RocketDiagram";
@@ -73,6 +74,7 @@ export default function GeometryInspector({
   marginCal,
   edited = false,
   motors,
+  onEdit,
 }: {
   rocket: Rocket;
   units: UnitSystem;
@@ -86,6 +88,8 @@ export default function GeometryInspector({
   edited?: boolean;
   /** Loaded motor casing(s), drawn inside the aft body on the diagram. */
   motors?: MotorMark[];
+  /** When provided, the diagram exposes a drag handle that applies a geometry edit (fin station). */
+  onEdit?: (patch: GeometryEdits) => void;
 }) {
   const parts = flattenRocket(rocket);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
@@ -114,7 +118,14 @@ export default function GeometryInspector({
           highlightId={hoveredId}
           onHover={setHoveredId}
           motors={motors}
+          onEdit={onEdit}
         />
+        {onEdit && (
+          <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
+            Grab the handle on the fins and drag it fore or aft to reposition them — the design
+            re-flies live, so the stability margin updates as you move.
+          </p>
+        )}
         {/* The part-by-part detail is opt-in — hover/focus a row and it lights up on the diagram. */}
         <details className="group mt-3 border-t border-zinc-100 pt-3 dark:border-zinc-800">
           <summary className="flex cursor-pointer select-none items-center gap-1.5 text-xs font-medium text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200">

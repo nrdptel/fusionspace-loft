@@ -43,7 +43,7 @@ test.describe("Loft", () => {
     // The geometry panel shows the to-scale side-view by default — no expand needed — with the
     // loaded motor and the CG marked ahead of the CP, the stability picture read off the airframe.
     await expect(
-      page.getByRole("img", { name: /motor H128W.*centre of gravity ahead of centre of pressure/ }),
+      page.getByRole("group", { name: /motor H128W.*centre of gravity ahead of centre of pressure/ }),
     ).toBeVisible();
 
     // The part-by-part table is opt-in; expanding it, hovering a row links to the diagram.
@@ -292,7 +292,7 @@ test.describe("Loft", () => {
 
     // Open the edit panel and slide the whole fin group 100 mm aft — a "what-if" stability trim.
     await page.locator("summary", { hasText: "Conditions" }).click();
-    const finPos = page.getByLabel(/Fin position/);
+    const finPos = page.getByRole("spinbutton", { name: /Fin position/ });
     await expect(finPos).toBeVisible();
     const design = parseFloat((await finPos.getAttribute("placeholder")) ?? "0");
     expect(design).toBeGreaterThan(0);
@@ -530,6 +530,71 @@ test.describe("Loft", () => {
     await expect(table.getByText("Body tube", { exact: true }).first()).toBeVisible();
     // A diameter is spelled out (the ⌀ marker), proving dimensions render.
     await expect(table.getByText(/⌀/).first()).toBeVisible();
+  });
+
+  test("dragging the fins forward on the diagram re-flies the design less stable", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+
+    const staticMargin = async () => {
+      const txt = await page
+        .getByText("Static margin", { exact: true })
+        .locator("xpath=following-sibling::dd")
+        .innerText();
+      return parseFloat(txt.replace(/[^\d.]/g, ""));
+    };
+    const before = await staticMargin();
+    expect(before).toBeGreaterThan(0);
+
+    // The always-shown diagram carries a drag handle sitting on the fins — direct manipulation, no
+    // panel to open. Grab it and slide it toward the nose (screen-left): fins forward pulls the
+    // centre of pressure forward, so the design flies less stable and the margin drops.
+    const handle = page.getByRole("slider", { name: /Fin position/ });
+    await expect(handle).toBeVisible();
+    await handle.scrollIntoViewIfNeeded(); // raw page.mouse uses viewport coords — bring it on-screen
+    const box = await handle.boundingBox();
+    expect(box).not.toBeNull();
+    const cx = box!.x + box!.width / 2;
+    const cy = box!.y + box!.height / 2;
+    await page.mouse.move(cx, cy);
+    await page.mouse.down();
+    await page.mouse.move(cx - 70, cy, { steps: 12 });
+    await page.mouse.up();
+
+    // Re-fly settles to a lower static margin, and the panel flags the active edit.
+    await expect.poll(staticMargin).toBeLessThan(before);
+    await expect(page.getByText("with your edits").first()).toBeVisible();
+  });
+
+  test("the fin handle is a keyboard slider — arrow keys re-fly the design", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+
+    const staticMargin = async () => {
+      const txt = await page
+        .getByText("Static margin", { exact: true })
+        .locator("xpath=following-sibling::dd")
+        .innerText();
+      return parseFloat(txt.replace(/[^\d.]/g, ""));
+    };
+    const before = await staticMargin();
+    expect(before).toBeGreaterThan(0);
+
+    // The handle is a real slider: focus it and report its station as a value. This design's fins
+    // already sit at the aft limit, so Arrow-Left nudges them forward (the accessible counterpart of
+    // dragging), pulling the centre of pressure forward — the static margin drops, no mouse needed.
+    const handle = page.getByRole("slider", { name: /Fin position/ });
+    const startMm = parseFloat((await handle.getAttribute("aria-valuenow")) ?? "0");
+    expect(startMm).toBeGreaterThan(0);
+    await handle.focus();
+    for (let i = 0; i < 8; i++) await page.keyboard.press("ArrowLeft");
+
+    await expect.poll(async () => parseFloat((await handle.getAttribute("aria-valuenow")) ?? "0")).toBeLessThan(
+      startMm,
+    );
+    await expect.poll(staticMargin).toBeLessThan(before);
   });
 
   test("parameter sweep plots a response curve and switches metric", async ({ page }) => {

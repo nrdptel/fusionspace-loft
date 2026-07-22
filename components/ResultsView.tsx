@@ -70,6 +70,7 @@ export default function ResultsView({
   geometry,
   swapOptions,
   designMotor,
+  onEditGeometry,
 }: {
   run: FlightRun;
   doc: OrkDocument;
@@ -90,6 +91,9 @@ export default function ResultsView({
   swapOptions?: { designation: string; manufacturer: string; diameter: number; motorClass: string }[];
   /** The design's own motor designation, to mark its row in the sweep. */
   designMotor?: string;
+  /** Apply a geometry edit from the diagram's drag handle (e.g. fin station) — the same path a
+   *  numeric what-if field uses, so dragging and typing converge on one edit flow. */
+  onEditGeometry?: (patch: GeometryEdits) => void;
 }) {
   const r = run.result;
   const s = r.summary;
@@ -226,6 +230,7 @@ export default function ResultsView({
         marginCal={run.result.staticMarginCal}
         edited={editing}
         motors={shownMotors}
+        onEdit={onEditGeometry}
       />
 
       {/* An independent second solver on the flyer's own design — RocketPy's flight is single-stage,

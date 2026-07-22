@@ -343,10 +343,13 @@ export default function Faq() {
 
       <QA q="Can I check how Loft read my design?">
         <p>
-          Yes. Under the results, expand <em>Design geometry</em>. It opens with a{" "}
+          Yes. Under the results is a <em>Design geometry</em> panel showing a{" "}
           <strong>to-scale side-view</strong> of the airframe drawn from the model Loft parsed —
           nose, body, transitions, fins, and the loaded motor in their true proportions — so a wrong
-          diameter, a missing part, or a fin in the wrong place stands out at a glance. Below it, the same parts
+          diameter, a missing part, or a fin in the wrong place stands out at a glance. It&apos;s also a
+          first handle for editing by hand: <strong>drag the handle on the fins fore or aft</strong> and
+          the design re-flies live, the same stability trim the numeric <em>Fin position</em> field
+          makes, but by direct manipulation. Below the picture, the same parts
           are listed exactly as parsed: every component with its type, its station measured from the
           nose tip, and its key dimensions (lengths, diameters, and a fin set&apos;s chords and
           span). The picture and the table are the same geometry, for an imported design or one built
