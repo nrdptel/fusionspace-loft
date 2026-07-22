@@ -24,7 +24,8 @@ test.describe("in-browser RocketPy second solver (self-hosted Pyodide)", () => {
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
 
-    // The second-opinion section is offered on this single-stage design.
+    // The second-opinion section lives in the Analyze workspace, offered on this single-stage design.
+    await page.getByRole("tab", { name: "Analyze" }).click();
     const panel = page.getByRole("region", { name: "RocketPy cross-check" });
     await expect(panel.getByRole("heading", { name: "Second opinion: RocketPy" })).toBeVisible();
 
@@ -55,6 +56,8 @@ test.describe("in-browser RocketPy second solver (self-hosted Pyodide)", () => {
     await page.getByRole("button", { name: /Motor comparison/ }).click();
     await expect(page.getByRole("heading", { name: /Loft Demo/ })).toBeVisible();
 
+    // The RocketPy panel is in the Analyze workspace; it stays selected across the config switch below.
+    await page.getByRole("tab", { name: "Analyze" }).click();
     const panel = page.getByRole("region", { name: "RocketPy cross-check" });
     const rpApogee = async () =>
       parseFloat(
@@ -91,10 +94,13 @@ test.describe("in-browser RocketPy second solver (self-hosted Pyodide)", () => {
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
 
-    // Add a heavy nose ballast before running the cross-check.
+    // Add a heavy nose ballast before running the cross-check (the Conditions panel sits above the
+    // workspace tabs, so it's reachable from any of them).
     await page.locator("summary", { hasText: "Conditions" }).click();
     await page.getByLabel(/Nose ballast/).fill("500");
 
+    // The RocketPy panel is in the Analyze workspace.
+    await page.getByRole("tab", { name: "Analyze" }).click();
     const panel = page.getByRole("region", { name: "RocketPy cross-check" });
     await panel.getByRole("button", { name: /Run RocketPy/ }).click();
 
