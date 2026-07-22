@@ -347,9 +347,11 @@ export default function Faq() {
           <strong>to-scale side-view</strong> of the airframe drawn from the model Loft parsed —
           nose, body, transitions, fins, and the loaded motor in their true proportions — so a wrong
           diameter, a missing part, or a fin in the wrong place stands out at a glance. It&apos;s also a
-          first handle for editing by hand: <strong>drag the handle on the fins fore or aft</strong> and
-          the design re-flies live, the same stability trim the numeric <em>Fin position</em> field
-          makes, but by direct manipulation. Below the picture, the same parts
+          handle for editing by hand: <strong>drag a fin</strong> and the design re-flies live. One
+          handle slides the whole fin group fore or aft (the same trim the numeric <em>Fin
+          position</em> field makes); on straight-edged fins a second handle at the tip rakes the
+          sweep — both stability levers, worked by direct manipulation instead of typing, and a
+          focused handle also takes arrow keys. Below the picture, the same parts
           are listed exactly as parsed: every component with its type, its station measured from the
           nose tip, and its key dimensions (lengths, diameters, and a fin set&apos;s chords and
           span). The picture and the table are the same geometry, for an imported design or one built

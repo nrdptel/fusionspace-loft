@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useId, useRef } from "react";
 import type { Rocket } from "@/lib/model/types";
 import { rocketOutline } from "@/lib/model/silhouette";
-import { primaryFinStation, primaryFinChord, type GeometryEdits } from "@/lib/model/edit";
+import { primaryFinStation, primaryFinChord, primaryFinRootChord, type GeometryEdits } from "@/lib/model/edit";
 import type { MotorMark } from "@/lib/sim/setup";
 import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
@@ -49,52 +49,6 @@ export default function RocketDiagram({
   onEdit?: (patch: GeometryEdits) => void;
 }) {
   const uid = useId();
-
-  // --- drag-to-edit plumbing (fin station) ------------------------------------------------------
-  // Sliding the fins fore/aft doesn't change the overall length, so the diagram's scale is fixed for
-  // the whole gesture — snapshot the transform, bounds, and callback at pointer-down and let the
-  // window-level handlers (which outlive the re-render each drag step triggers) read that snapshot.
-  const svgRef = useRef<SVGSVGElement | null>(null);
-  const dragRef = useRef<{
-    grabOffset: number;
-    s: number;
-    padX: number;
-    lo: number;
-    hi: number;
-    svg: SVGSVGElement;
-    onEdit: (p: GeometryEdits) => void;
-    controller: AbortController;
-  } | null>(null);
-  const rafRef = useRef<number | null>(null);
-  const pendingXRef = useRef(0);
-
-  const applyDrag = useCallback(() => {
-    rafRef.current = null;
-    const dg = dragRef.current;
-    const ctm = dg?.svg.getScreenCTM();
-    if (!dg || !ctm) return;
-    const pt = dg.svg.createSVGPoint();
-    pt.x = pendingXRef.current;
-    pt.y = 0;
-    const station = (pt.matrixTransform(ctm.inverse()).x - dg.padX) / dg.s;
-    dg.onEdit({ finStation: Math.min(dg.hi, Math.max(dg.lo, station - dg.grabOffset)) });
-  }, []);
-  const onDragMove = useCallback(
-    (ev: PointerEvent) => {
-      pendingXRef.current = ev.clientX;
-      if (rafRef.current == null) rafRef.current = requestAnimationFrame(applyDrag);
-    },
-    [applyDrag],
-  );
-  const endDrag = useCallback(() => {
-    dragRef.current?.controller.abort();
-    dragRef.current = null;
-    if (rafRef.current != null) {
-      cancelAnimationFrame(rafRef.current);
-      rafRef.current = null;
-    }
-  }, []);
-  useEffect(() => endDrag, [endDrag]); // clean up an in-flight drag on unmount
 
   const o = rocketOutline(rocket);
   if (!(o.length > 0) || !(o.maxExtent > 0) || o.body.length < 2) return null;
@@ -154,8 +108,8 @@ export default function RocketDiagram({
   const marginLabel = marginCal !== undefined ? `${d.q(d.calibers(marginCal))} margin` : null;
   const motorLabel = motors && motors.length ? [...new Set(motors.map((m) => m.designation))].join(", ") : null;
 
-  // Fin-station drag handle: sits on the primary fin set; dragging it slides every fin set fore/aft.
-  // Bounds keep the fins on the airframe — aft of the nose, and fully ahead of the body's aft end.
+  // Fin drag handles sit on the primary (frontmost) fin set. Both edits they expose keep the diagram
+  // to scale, so the pointer maths below is snapshot-and-map with no rescale to chase.
   const finStationNow = onEdit ? primaryFinStation(rocket) : undefined;
   const finChord = onEdit ? primaryFinChord(rocket) : undefined;
   const primaryFin =
@@ -164,22 +118,35 @@ export default function RocketDiagram({
           Math.abs(f.poly[0][0] - finStationNow) < Math.abs(best.poly[0][0] - finStationNow) ? f : best,
         )
       : null;
+
+  // Station handle (slide the whole group fore/aft): bounds keep the fins on the airframe — aft of
+  // the nose, and fully ahead of the body's aft end.
   const nosePart = o.parts.find((p) => p.kind === "nosecone");
   const noseEnd = nosePart ? nosePart.profile[nosePart.profile.length - 1][0] : 0;
   const finLo = Math.max(0.01, noseEnd);
   const finHi = Math.max(finLo, o.length - (finChord ?? 0));
-  const handleCx = primaryFin ? X((primaryFin.poly[0][0] + primaryFin.poly[3][0]) / 2) : 0;
-  const handleCy = primaryFin ? top((primaryFin.poly[0][1] + primaryFin.poly[1][1]) / 2) : 0;
-  // The slider reports its station in millimetres — round integers read cleanly to a screen reader
-  // and match the numeric Fin-position field's units.
-  const finNowMm = finStationNow !== undefined ? Math.round(finStationNow * 1000) : 0;
-  const finLoMm = Math.round(finLo * 1000);
-  const finHiMm = Math.round(finHi * 1000);
+  const stationCx = primaryFin ? X((primaryFin.poly[0][0] + primaryFin.poly[3][0]) / 2) : 0;
+  const stationCy = primaryFin ? top((primaryFin.poly[0][1] + primaryFin.poly[1][1]) / 2) : 0;
+
+  // Sweep handle (rake the tip fore/aft) — trapezoidal fins only, where the leading-edge sweep is a
+  // real editable dimension. Sweep is the tip leading edge's aft offset from the root leading edge,
+  // read straight off the planform. Bounds keep the tip over the airframe and always include today's
+  // value (so a design that already rakes forward stays reachable).
+  const trapezoid = onEdit ? primaryFinRootChord(rocket) !== undefined : false;
+  const sweepNow = primaryFin && trapezoid ? primaryFin.poly[1][0] - primaryFin.poly[0][0] : undefined;
+  const tipChord = primaryFin ? primaryFin.poly[2][0] - primaryFin.poly[1][0] : 0;
+  const sweepLo = Math.min(0, sweepNow ?? 0);
+  // Rake the tip aft until its trailing edge reaches the right edge of the frame (a to-scale fin can
+  // overhang the tail), and never below today's value — so a design already raked to the tail can
+  // still be raked a touch further and, of course, straightened.
+  const maxDrawX = (W - padX) / s; // rightmost station that still maps inside the viewBox
+  const sweepHi = primaryFin ? Math.max(sweepNow ?? 0, maxDrawX - primaryFin.poly[0][0] - tipChord) : 0;
+  const sweepCx = primaryFin ? X((primaryFin.poly[1][0] + primaryFin.poly[2][0]) / 2) : 0;
+  const sweepCy = primaryFin ? top(primaryFin.poly[1][1]) : 0;
 
   return (
     <figure className="m-0">
       <svg
-        ref={svgRef}
         viewBox={`0 0 ${W} ${H.toFixed(0)}`}
         className="h-auto w-full"
         // A pure picture is an `img`; once it carries the interactive fin handle it becomes a
@@ -284,67 +251,42 @@ export default function RocketDiagram({
           </g>
         )}
 
-        {/* fin-station drag handle — grab the fins and slide them fore/aft (the stability lever).
-            A real slider: focusable, arrow keys nudge it, drag moves it directly. */}
+        {/* fin drag handles — grab a fin to trim stability directly on the picture. Each is a real
+            slider: focusable, arrow keys nudge it, drag moves it. The station handle (mid-fin)
+            slides the whole group fore/aft; the sweep handle (at the tip) rakes the tip fore/aft. */}
         {onEdit && primaryFin && finStationNow !== undefined && (
-          <g
-            className="group cursor-ew-resize touch-none outline-none"
-            role="slider"
-            tabIndex={0}
-            aria-label="Fin position"
-            aria-orientation="horizontal"
-            aria-valuemin={finLoMm}
-            aria-valuemax={finHiMm}
-            aria-valuenow={finNowMm}
-            aria-valuetext={`${finNowMm} mm from the nose`}
-            onKeyDown={(ev) => {
-              const step = ev.shiftKey ? 0.05 : 0.01; // 50 mm coarse / 10 mm fine
-              let next: number | null = null;
-              if (ev.key === "ArrowLeft" || ev.key === "ArrowDown") next = finStationNow - step;
-              else if (ev.key === "ArrowRight" || ev.key === "ArrowUp") next = finStationNow + step;
-              else if (ev.key === "Home") next = finLo;
-              else if (ev.key === "End") next = finHi;
-              else return;
-              ev.preventDefault();
-              onEdit({ finStation: Math.min(finHi, Math.max(finLo, next)) });
-            }}
-            onPointerDown={(ev) => {
-              const svg = svgRef.current;
-              const ctm = svg?.getScreenCTM();
-              if (!svg || !ctm) return;
-              ev.preventDefault();
-              ev.stopPropagation();
-              (ev.currentTarget as SVGGElement).focus();
-              const pt = svg.createSVGPoint();
-              pt.x = ev.clientX;
-              pt.y = 0;
-              const station = (pt.matrixTransform(ctm.inverse()).x - padX) / s;
-              const controller = new AbortController();
-              dragRef.current = { grabOffset: station - finStationNow, s, padX, lo: finLo, hi: finHi, svg, onEdit, controller };
-              window.addEventListener("pointermove", onDragMove, { signal: controller.signal });
-              window.addEventListener("pointerup", endDrag, { signal: controller.signal });
-              window.addEventListener("pointercancel", endDrag, { signal: controller.signal });
-            }}
-          >
-            {/* focus ring — only shown when the handle is keyboard-focused */}
-            <circle
-              cx={handleCx}
-              cy={handleCy}
-              r={11}
-              className="fill-none stroke-indigo-400 opacity-0 group-focus-visible:opacity-100"
-              strokeWidth={2}
+          <>
+            <FinHandle
+              field="finStation"
+              label="Fin position"
+              valueText={`${Math.round(finStationNow * 1000)} mm from the nose`}
+              title="Drag or use arrow keys to move the fins fore/aft"
+              current={finStationNow}
+              lo={finLo}
+              hi={finHi}
+              cx={stationCx}
+              cy={stationCy}
+              s={s}
+              padX={padX}
+              onEdit={onEdit}
             />
-            <circle cx={handleCx} cy={handleCy} r={7} className="fill-indigo-500/90 stroke-white dark:stroke-zinc-900" strokeWidth={1.5} />
-            <path
-              d={`M ${handleCx - 4} ${handleCy} h 8 M ${handleCx - 4} ${handleCy} l 2 -2 m -2 2 l 2 2 M ${handleCx + 4} ${handleCy} l -2 -2 m 2 2 l -2 2`}
-              className="stroke-white"
-              strokeWidth={1.2}
-              fill="none"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-            <title>Drag or use arrow keys to move the fins fore/aft</title>
-          </g>
+            {sweepNow !== undefined && (
+              <FinHandle
+                field="finSweepLength"
+                label="Fin sweep"
+                valueText={`${Math.round(sweepNow * 1000)} mm of tip rake`}
+                title="Drag or use arrow keys to rake the fin tip fore/aft"
+                current={sweepNow}
+                lo={sweepLo}
+                hi={sweepHi}
+                cx={sweepCx}
+                cy={sweepCy}
+                s={s}
+                padX={padX}
+                onEdit={onEdit}
+              />
+            )}
+          </>
         )}
       </svg>
       <figcaption className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-zinc-500 dark:text-zinc-400">
@@ -372,5 +314,138 @@ export default function RocketDiagram({
         {marginLabel && <span>· {marginLabel}</span>}
       </figcaption>
     </figure>
+  );
+}
+
+/** A single draggable, focusable slider handle on the diagram — the direct-manipulation grip. It
+ *  drives one scale-stable fin edit (moving the group fore/aft, or raking the tip), drawn as an
+ *  indigo grip with a fore/aft glyph. Both fin edits keep the diagram's scale fixed, so the drag is
+ *  a plain snapshot-and-map: at pointer-down it records where along the airframe the grab landed,
+ *  then each move maps the pointer's x back to a station and applies the field, clamped to bounds.
+ *  Owning its own drag refs keeps that ref access inside its own event handlers, where it belongs. */
+function FinHandle({
+  field,
+  label,
+  valueText,
+  title,
+  current,
+  lo,
+  hi,
+  cx,
+  cy,
+  s,
+  padX,
+  onEdit,
+}: {
+  field: "finStation" | "finSweepLength";
+  label: string;
+  valueText: string;
+  title: string;
+  current: number;
+  lo: number;
+  hi: number;
+  cx: number;
+  cy: number;
+  s: number;
+  padX: number;
+  onEdit: (patch: GeometryEdits) => void;
+}) {
+  const dragRef = useRef<{
+    grabOffset: number;
+    s: number;
+    padX: number;
+    lo: number;
+    hi: number;
+    svg: SVGSVGElement;
+    controller: AbortController;
+  } | null>(null);
+  const rafRef = useRef<number | null>(null);
+  const pendingXRef = useRef(0);
+
+  // Apply the pending pointer-x on the next frame — the window handlers fire far faster than paint.
+  const apply = useCallback(() => {
+    rafRef.current = null;
+    const dg = dragRef.current;
+    const ctm = dg?.svg.getScreenCTM();
+    if (!dg || !ctm) return;
+    const pt = dg.svg.createSVGPoint();
+    pt.x = pendingXRef.current;
+    pt.y = 0;
+    const station = (pt.matrixTransform(ctm.inverse()).x - dg.padX) / dg.s;
+    onEdit({ [field]: Math.min(dg.hi, Math.max(dg.lo, station - dg.grabOffset)) });
+  }, [field, onEdit]);
+
+  const onMove = useCallback(
+    (ev: PointerEvent) => {
+      pendingXRef.current = ev.clientX;
+      if (rafRef.current == null) rafRef.current = requestAnimationFrame(apply);
+    },
+    [apply],
+  );
+
+  const end = useCallback(() => {
+    dragRef.current?.controller.abort();
+    dragRef.current = null;
+    if (rafRef.current != null) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => end, [end]); // clean up an in-flight drag on unmount
+
+  return (
+    <g
+      className="group cursor-ew-resize touch-none outline-none"
+      role="slider"
+      tabIndex={0}
+      aria-label={label}
+      aria-orientation="horizontal"
+      aria-valuemin={Math.round(lo * 1000)}
+      aria-valuemax={Math.round(hi * 1000)}
+      aria-valuenow={Math.round(current * 1000)}
+      aria-valuetext={valueText}
+      onKeyDown={(ev) => {
+        const step = ev.shiftKey ? 0.05 : 0.01; // 50 mm coarse / 10 mm fine
+        let next: number | null = null;
+        if (ev.key === "ArrowLeft" || ev.key === "ArrowDown") next = current - step;
+        else if (ev.key === "ArrowRight" || ev.key === "ArrowUp") next = current + step;
+        else if (ev.key === "Home") next = lo;
+        else if (ev.key === "End") next = hi;
+        else return;
+        ev.preventDefault();
+        onEdit({ [field]: Math.min(hi, Math.max(lo, next)) });
+      }}
+      onPointerDown={(ev) => {
+        const svg = ev.currentTarget.ownerSVGElement; // the containing <svg>, straight from the event
+        const ctm = svg?.getScreenCTM();
+        if (!svg || !ctm) return;
+        ev.preventDefault();
+        ev.stopPropagation();
+        ev.currentTarget.focus();
+        const pt = svg.createSVGPoint();
+        pt.x = ev.clientX;
+        pt.y = 0;
+        const station = (pt.matrixTransform(ctm.inverse()).x - padX) / s;
+        const controller = new AbortController();
+        dragRef.current = { grabOffset: station - current, s, padX, lo, hi, svg, controller };
+        window.addEventListener("pointermove", onMove, { signal: controller.signal });
+        window.addEventListener("pointerup", end, { signal: controller.signal });
+        window.addEventListener("pointercancel", end, { signal: controller.signal });
+      }}
+    >
+      {/* focus ring — only shown when the handle is keyboard-focused */}
+      <circle cx={cx} cy={cy} r={11} className="fill-none stroke-indigo-400 opacity-0 group-focus-visible:opacity-100" strokeWidth={2} />
+      <circle cx={cx} cy={cy} r={7} className="fill-indigo-500/90 stroke-white dark:stroke-zinc-900" strokeWidth={1.5} />
+      <path
+        d={`M ${cx - 4} ${cy} h 8 M ${cx - 4} ${cy} l 2 -2 m -2 2 l 2 2 M ${cx + 4} ${cy} l -2 -2 m 2 2 l -2 2`}
+        className="stroke-white"
+        strokeWidth={1.2}
+        fill="none"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <title>{title}</title>
+    </g>
   );
 }

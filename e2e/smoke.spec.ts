@@ -597,6 +597,42 @@ test.describe("Loft", () => {
     await expect.poll(staticMargin).toBeLessThan(before);
   });
 
+  test("raking the fin tip aft on the diagram re-flies the design stiffer", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+
+    const staticMargin = async () => {
+      const txt = await page
+        .getByText("Static margin", { exact: true })
+        .locator("xpath=following-sibling::dd")
+        .innerText();
+      return parseFloat(txt.replace(/[^\d.]/g, ""));
+    };
+    const before = await staticMargin();
+    expect(before).toBeGreaterThan(0);
+
+    // A second handle sits on the fin tip: dragging it aft (screen-right) rakes the leading edge
+    // back, carrying the fins' lift aft — the centre of pressure moves aft and the design flies
+    // stiffer, all without adding fin area. The slider reports the rake in mm as it moves.
+    const sweep = page.getByRole("slider", { name: "Fin sweep" });
+    await expect(sweep).toBeVisible();
+    const startMm = parseFloat((await sweep.getAttribute("aria-valuenow")) ?? "0");
+    await sweep.scrollIntoViewIfNeeded();
+    const box = await sweep.boundingBox();
+    expect(box).not.toBeNull();
+    await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box!.x + box!.width / 2 + 40, box!.y + box!.height / 2, { steps: 10 });
+    await page.mouse.up();
+
+    await expect.poll(async () => parseFloat((await sweep.getAttribute("aria-valuenow")) ?? "0")).toBeGreaterThan(
+      startMm,
+    );
+    await expect.poll(staticMargin).toBeGreaterThan(before);
+    await expect(page.getByText("with your edits").first()).toBeVisible();
+  });
+
   test("parameter sweep plots a response curve and switches metric", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
@@ -827,7 +863,7 @@ test.describe("Loft", () => {
 
     // Sweep the fin leading edge further aft — the field starts from the design's own sweep.
     await page.locator("summary", { hasText: "Conditions" }).click();
-    const finSweep = page.getByLabel(/Fin sweep/);
+    const finSweep = page.getByRole("spinbutton", { name: /Fin sweep/ });
     await expect(finSweep).toBeVisible();
     const designSweep = parseFloat((await finSweep.getAttribute("placeholder")) ?? "0");
     expect(designSweep).toBeGreaterThan(0);

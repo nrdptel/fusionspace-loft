@@ -122,8 +122,9 @@ export default function GeometryInspector({
         />
         {onEdit && (
           <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
-            Grab the handle on the fins and drag it fore or aft to reposition them — the design
-            re-flies live, so the stability margin updates as you move.
+            Grab a handle on the fins to trim stability right on the picture — slide the whole group
+            fore or aft, or (on straight-edged fins) rake the tip by its outer handle. The design
+            re-flies live, so the margin updates as you drag; arrow keys nudge a focused handle too.
           </p>
         )}
         {/* The part-by-part detail is opt-in — hover/focus a row and it lights up on the diagram. */}
