@@ -633,6 +633,33 @@ test.describe("Loft", () => {
     await expect(page.getByText("with your edits").first()).toBeVisible();
   });
 
+  test("a focused fin handle shows its live value on the diagram", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+
+    // The mm readout is a diagram-layer <text> shown only while a handle is in use; the CG/CP marks
+    // are the only other SVG text, and they aren't "### mm", so this locator is just the readout.
+    const readout = page.locator("svg text").filter({ hasText: /^\d+ mm$/ });
+    await expect(readout).toHaveCount(0); // hidden at rest
+
+    const handle = page.getByRole("slider", { name: "Fin position" });
+    await handle.focus();
+    await expect(readout).toHaveCount(1);
+    await expect(readout).toBeVisible();
+
+    // Nudging the focused handle updates the shown value in step with the edit.
+    const shown = async () => parseInt(((await readout.textContent()) ?? "").replace(/[^\d]/g, ""), 10);
+    const first = await shown();
+    expect(first).toBeGreaterThan(0);
+    await page.keyboard.press("ArrowLeft");
+    await expect.poll(shown).toBeLessThan(first);
+
+    // Blurring puts it away again.
+    await handle.blur();
+    await expect(readout).toHaveCount(0);
+  });
+
   test("parameter sweep plots a response curve and switches metric", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();

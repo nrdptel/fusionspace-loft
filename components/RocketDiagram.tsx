@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useId, useRef } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import type { Rocket } from "@/lib/model/types";
 import { rocketOutline } from "@/lib/model/silhouette";
 import { primaryFinStation, primaryFinChord, primaryFinRootChord, type GeometryEdits } from "@/lib/model/edit";
@@ -361,6 +361,11 @@ function FinHandle({
   } | null>(null);
   const rafRef = useRef<number | null>(null);
   const pendingXRef = useRef(0);
+  // Show the live value while the handle is in use — dragging or keyboard-focused. It gives the
+  // mouse a precise number to aim for and puts on screen, for sighted keyboard users, the value that
+  // otherwise only reaches assistive tech through aria-valuetext.
+  const [dragging, setDragging] = useState(false);
+  const [focused, setFocused] = useState(false);
 
   // Apply the pending pointer-x on the next frame — the window handlers fire far faster than paint.
   const apply = useCallback(() => {
@@ -390,6 +395,7 @@ function FinHandle({
       cancelAnimationFrame(rafRef.current);
       rafRef.current = null;
     }
+    setDragging(false);
   }, []);
 
   useEffect(() => end, [end]); // clean up an in-flight drag on unmount
@@ -405,6 +411,8 @@ function FinHandle({
       aria-valuemax={Math.round(hi * 1000)}
       aria-valuenow={Math.round(current * 1000)}
       aria-valuetext={valueText}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
       onKeyDown={(ev) => {
         const step = ev.shiftKey ? 0.05 : 0.01; // 50 mm coarse / 10 mm fine
         let next: number | null = null;
@@ -432,6 +440,7 @@ function FinHandle({
         window.addEventListener("pointermove", onMove, { signal: controller.signal });
         window.addEventListener("pointerup", end, { signal: controller.signal });
         window.addEventListener("pointercancel", end, { signal: controller.signal });
+        setDragging(true);
       }}
     >
       {/* focus ring — only shown when the handle is keyboard-focused */}
@@ -445,6 +454,17 @@ function FinHandle({
         strokeLinecap="round"
         strokeLinejoin="round"
       />
+      {/* live value while dragging or keyboard-focused — a haloed label so it reads over the airframe */}
+      {(dragging || focused) && (
+        <text
+          x={cx}
+          y={Math.max(11, cy - 13)}
+          textAnchor="middle"
+          className="pointer-events-none fill-zinc-800 text-[10px] font-semibold tabular-nums [paint-order:stroke] [stroke:white] [stroke-width:3px] dark:fill-zinc-100 dark:[stroke:#18181b]"
+        >
+          {Math.round(current * 1000)} mm
+        </text>
+      )}
       <title>{title}</title>
     </g>
   );
