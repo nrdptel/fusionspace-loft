@@ -53,6 +53,70 @@ export function Segmented<T extends string>({
   );
 }
 
+/** An accessible tab bar — the workspace switcher for a view built from several distinct panels.
+ *  Follows the WAI-ARIA tabs pattern: a roving-focus tablist with arrow-key navigation (Left/Right
+ *  wrap, Home/End jump), each tab pointing at its panel. The caller renders the panels and toggles
+ *  them by `value`, giving each a matching `role="tabpanel"`, `id={`panel-<id>`}`, and
+ *  `aria-labelledby={`tab-<id>`}`. Scrolls horizontally rather than wrapping when space is tight, so
+ *  it stays a single clean row on a phone. */
+export function Tabs({
+  tabs,
+  value,
+  onChange,
+  ariaLabel,
+}: {
+  tabs: { id: string; label: string }[];
+  value: string;
+  onChange: (id: string) => void;
+  ariaLabel: string;
+}) {
+  const move = (e: React.KeyboardEvent<HTMLButtonElement>, i: number) => {
+    const last = tabs.length - 1;
+    let next: number | null = null;
+    if (e.key === "ArrowRight") next = i === last ? 0 : i + 1;
+    else if (e.key === "ArrowLeft") next = i === 0 ? last : i - 1;
+    else if (e.key === "Home") next = 0;
+    else if (e.key === "End") next = last;
+    else return;
+    e.preventDefault();
+    onChange(tabs[next].id);
+    const btns = e.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role="tab"]');
+    btns?.[next]?.focus();
+  };
+  return (
+    <div
+      role="tablist"
+      aria-label={ariaLabel}
+      className="-mb-px flex gap-1 overflow-x-auto border-b border-zinc-200 dark:border-zinc-800"
+    >
+      {tabs.map((t, i) => {
+        const active = t.id === value;
+        return (
+          <button
+            key={t.id}
+            type="button"
+            role="tab"
+            id={`tab-${t.id}`}
+            aria-selected={active}
+            aria-controls={`panel-${t.id}`}
+            tabIndex={active ? 0 : -1}
+            onClick={() => onChange(t.id)}
+            onKeyDown={(e) => move(e, i)}
+            className={
+              "shrink-0 whitespace-nowrap border-b-2 px-3.5 py-2 text-sm font-medium outline-none transition focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-400 " +
+              (active
+                ? "border-indigo-500 text-zinc-900 dark:border-indigo-400 dark:text-zinc-100"
+                : "border-transparent text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200")
+            }
+          >
+            {t.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 /** A small labelled value, used for the result read-outs (volume, pressure, …). */
 export function Chip({ label, value }: { label: string; value: string }) {
   return (

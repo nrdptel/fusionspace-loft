@@ -1,6 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
+import { Tabs } from "./ui";
 import type { FlightRun } from "@/lib/sim/run";
 import { applyGeometryEdits, hasGeometryEdits, type GeometryEdits } from "@/lib/model/edit";
 import type { OrkDocument } from "@/lib/ork/import";
@@ -98,6 +100,10 @@ export default function ResultsView({
   const r = run.result;
   const s = r.summary;
   const markers = eventMarkers(r);
+  // Which workspace is open. The flight is the payoff on import, so it leads; Design and Analyze are
+  // a click away. Panels stay mounted (hidden) so a run in one — a swept curve, a Monte-Carlo — isn't
+  // lost when you glance at another.
+  const [tab, setTab] = useState("flight");
 
   // No propulsion ⇒ the "flight" is a zero-thrust drop and every metric is meaningless. Lead
   // with why, name the motor(s) that didn't resolve, and withhold the misleading numbers,
@@ -124,7 +130,7 @@ export default function ResultsView({
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <RocketSummary run={run} doc={doc} units={units} />
 
       {r.warnings.length > 0 && (
@@ -137,6 +143,22 @@ export default function ResultsView({
         </ul>
       )}
 
+      {/* Workspace navigation — the results are more than one page of tool now, so split the jobs
+          into focused views rather than one endless scroll. The design summary and any flight
+          warnings above stay put, as the context every view shares. */}
+      <Tabs
+        tabs={[
+          { id: "flight", label: "Flight" },
+          { id: "design", label: "Design" },
+          { id: "analyze", label: "Analyze" },
+        ]}
+        value={tab}
+        onChange={setTab}
+        ariaLabel="Results workspace"
+      />
+
+      {/* FLIGHT — the simulated flight and its comparison to the file's own stored numbers. */}
+      <div role="tabpanel" id="panel-flight" aria-labelledby="tab-flight" hidden={tab !== "flight"} className="space-y-8">
       {/* Key results */}
       <section aria-label="Results">
         <h2 className="text-lg font-semibold tracking-tight">Flight</h2>
@@ -217,22 +239,45 @@ export default function ResultsView({
         />
       )}
 
-      {/* Where the dry mass comes from, part by part — transparency into the parsed structure. */}
-      <MassBreakdown rocket={doc.rocket} units={units} />
+        {/* Why the metric-by-metric stored comparison is withheld for a design Loft flew reduced. */}
+        {doc.flownAsReduced && doc.simulations.some((sim) => sim.hasResults) && (
+          <section
+            aria-label="Comparison withheld"
+            className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-800 dark:text-amber-200"
+          >
+            <h2 className="text-base font-semibold tracking-tight">{tool} comparison withheld</h2>
+            <p className="mt-1.5">
+              This design contains something Loft flew in simplified form — staging, pods, parallel
+              boosters, or a fin type it can&apos;t model (see the warnings above) — so the stored{" "}
+              {tool} results describe a different flight than the one simulated here. Comparing them
+              would misstate the engine&apos;s accuracy, so the metric-by-metric comparison is
+              withheld — import a design Loft flies complete for a like-for-like check.
+            </p>
+          </section>
+        )}
+      </div>
 
-      {/* The parsed component tree with each part's dimensions and station — import verification.
-          The diagram marks the loaded CG and CP so the stability picture reads off the airframe. */}
-      <GeometryInspector
-        rocket={shownRocket}
-        units={units}
-        cg={run.result.cgLoaded}
-        cp={run.result.stability.cp}
-        marginCal={run.result.staticMarginCal}
-        edited={editing}
-        motors={shownMotors}
-        onEdit={onEditGeometry}
-      />
+      {/* DESIGN — the rocket itself: its shape (editable on the diagram) and where its mass sits. */}
+      <div role="tabpanel" id="panel-design" aria-labelledby="tab-design" hidden={tab !== "design"} className="space-y-8">
+        {/* The parsed component tree with each part's dimensions and station — import verification.
+            The diagram marks the loaded CG and CP so the stability picture reads off the airframe. */}
+        <GeometryInspector
+          rocket={shownRocket}
+          units={units}
+          cg={run.result.cgLoaded}
+          cp={run.result.stability.cp}
+          marginCal={run.result.staticMarginCal}
+          edited={editing}
+          motors={shownMotors}
+          onEdit={onEditGeometry}
+        />
 
+        {/* Where the dry mass comes from, part by part — transparency into the parsed structure. */}
+        <MassBreakdown rocket={doc.rocket} units={units} />
+      </div>
+
+      {/* ANALYZE — the heavier, opt-in tools: an independent second solver, and design-space sweeps. */}
+      <div role="tabpanel" id="panel-analyze" aria-labelledby="tab-analyze" hidden={tab !== "analyze"} className="space-y-8">
       {/* An independent second solver on the flyer's own design — RocketPy's flight is single-stage,
           so offer it only for single-stage designs that actually have propulsion (guaranteed here).
           Key on the design + configuration + active what-if so any change (config switch, ballast,
@@ -299,21 +344,7 @@ export default function ResultsView({
         />
       )}
 
-      {doc.flownAsReduced && doc.simulations.some((s) => s.hasResults) && (
-        <section
-          aria-label="Comparison withheld"
-          className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-800 dark:text-amber-200"
-        >
-          <h2 className="text-base font-semibold tracking-tight">{tool} comparison withheld</h2>
-          <p className="mt-1.5">
-            This design contains something Loft flew in simplified form — staging, pods, parallel
-            boosters, or a fin type it can&apos;t model (see the warnings above) —
-            so the stored {tool} results describe a different flight than the one simulated here.
-            Comparing them would misstate the engine&apos;s accuracy, so the metric-by-metric
-            comparison is withheld — import a design Loft flies complete for a like-for-like check.
-          </p>
-        </section>
-      )}
+      </div>
     </div>
   );
 }

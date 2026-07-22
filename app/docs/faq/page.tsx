@@ -153,10 +153,23 @@ export default function Faq() {
         </p>
       </QA>
 
+      <QA q="How are the results laid out?">
+        <p>
+          Once a design is flying, the results split into three workspaces you switch between with the
+          tabs under the design summary — each a focused view rather than one endless scroll.{" "}
+          <em>Flight</em> holds the simulated flight: the summary numbers, the trajectory and plots,
+          and the comparison against whatever results the file itself stored. <em>Design</em> is the
+          rocket — the to-scale, editable side-view and the part-by-part mass &amp; balance.{" "}
+          <em>Analyze</em> gathers the heavier, opt-in tools: the motor and parameter sweeps, the
+          Monte-Carlo dispersion, and the independent RocketPy second opinion. The design summary and
+          any flight warnings sit above the tabs, shared by every view.
+        </p>
+      </QA>
+
       <QA q="Can I compare all the motors that fit at once?">
         <p>
-          Yes. Under the results, <em>Compare fitting motors</em> flies your airframe on every
-          bundled motor that fits its mount diameter — all at once, on your device — and lays them
+          Yes. In the <em>Analyze</em> workspace, <em>Compare fitting motors</em> flies your airframe
+          on every bundled motor that fits its mount diameter — all at once, on your device — and lays them
           out highest-apogee first: apogee, max speed, rail-exit velocity, thrust-to-weight,
           stability margin, fin-flutter margin, and the optimum ejection delay for each, with your
           design&apos;s own motor marked. It&apos;s the fast way
@@ -175,7 +188,7 @@ export default function Faq() {
 
       <QA q="Can I see a whole range at once — a response curve?">
         <p>
-          Yes. Under the results, <em>Sweep a parameter</em> varies one variable — fin span, fin
+          Yes. In the <em>Analyze</em> workspace, <em>Sweep a parameter</em> varies one variable — fin span, fin
           thickness, fin position, nose length, body length or diameter, or nose ballast — across a
           range and plots how a metric responds: apogee, max speed, rail-exit velocity, stability
           margin, or fin-flutter margin, switchable on the y-axis. A marker shows the design&apos;s own
@@ -192,7 +205,7 @@ export default function Faq() {
 
       <QA q="How high will it really go, and where will it land?">
         <p>
-          Under the results, <em>Flight dispersion (Monte-Carlo)</em> flies the design a few hundred
+          In the <em>Analyze</em> workspace, <em>Flight dispersion (Monte-Carlo)</em> flies the design a few hundred
           times with the motor impulse, dry mass, aerodynamic drag, rail angle, and wind jittered
           around their nominal values, and shows the <em>spread</em> instead of a single number: the
           apogee band you can expect (5th to
@@ -303,7 +316,7 @@ export default function Faq() {
 
       <QA q="Can I see where my rocket's mass comes from?">
         <p>
-          Yes. Under the results, expand <em>Mass &amp; balance</em> for a part-by-part breakdown of
+          Yes. In the <em>Design</em> workspace, expand <em>Mass &amp; balance</em> for a part-by-part breakdown of
           the design&apos;s dry mass — every structural component with its weight, its share of the
           total, and its centre of gravity from the nose, heaviest first, adding up to the dry total
           and CG. These are the exact per-part masses the simulator flies, so it&apos;s the fastest
@@ -343,7 +356,7 @@ export default function Faq() {
 
       <QA q="Can I check how Loft read my design?">
         <p>
-          Yes. Under the results is a <em>Design geometry</em> panel showing a{" "}
+          Yes. The <em>Design</em> workspace centres on a <em>Design geometry</em> panel showing a{" "}
           <strong>to-scale side-view</strong> of the airframe drawn from the model Loft parsed —
           nose, body, transitions, fins, and the loaded motor in their true proportions — so a wrong
           diameter, a missing part, or a fin in the wrong place stands out at a glance. It&apos;s also a
@@ -373,7 +386,7 @@ export default function Faq() {
 
       <QA q="Can I get a second opinion from RocketPy?">
         <p>
-          Yes. Under the results, <em>Second opinion: RocketPy</em> flies your design in{" "}
+          Yes. In the <em>Analyze</em> workspace, <em>Second opinion: RocketPy</em> flies your design in{" "}
           <a href="https://github.com/RocketPy-Team/RocketPy" target="_blank" rel="noopener noreferrer">
             RocketPy
           </a>{" "}

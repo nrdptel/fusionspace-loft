@@ -40,8 +40,9 @@ test.describe("Loft", () => {
     // The OpenRocket comparison renders.
     await expect(page.getByRole("heading", { name: "OpenRocket vs Loft" })).toBeVisible();
 
-    // The geometry panel shows the to-scale side-view by default — no expand needed — with the
-    // loaded motor and the CG marked ahead of the CP, the stability picture read off the airframe.
+    // The Design workspace opens with the to-scale side-view — with the loaded motor and the CG
+    // marked ahead of the CP, the stability picture read off the airframe.
+    await page.getByRole("tab", { name: "Design" }).click();
     await expect(
       page.getByRole("group", { name: /motor H128W.*centre of gravity ahead of centre of pressure/ }),
     ).toBeVisible();
@@ -418,7 +419,8 @@ test.describe("Loft", () => {
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
 
-    // The sweep panel offers to fly every fitting bundled motor at once.
+    // The sweep panel lives in the Analyze workspace; it offers to fly every fitting bundled motor.
+    await page.getByRole("tab", { name: "Analyze" }).click();
     const panel = page.getByRole("region", { name: "Motor sweep" });
     await expect(panel).toBeVisible();
     await panel.getByRole("button", { name: /Run motor sweep/ }).click();
@@ -468,7 +470,8 @@ test.describe("Loft", () => {
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
 
-    // Expand the Mass & balance disclosure.
+    // Mass & balance lives in the Design workspace; expand its disclosure.
+    await page.getByRole("tab", { name: "Design" }).click();
     const summary = page.locator("summary", { hasText: "Mass & balance" });
     await expect(summary).toBeVisible();
     await summary.click();
@@ -486,6 +489,7 @@ test.describe("Loft", () => {
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
 
+    await page.getByRole("tab", { name: "Analyze" }).click();
     const panel = page.getByRole("region", { name: "Motor sweep" });
     await panel.getByRole("button", { name: /Run motor sweep/ }).click();
     await expect(panel.locator("tbody tr").first()).toBeVisible();
@@ -520,7 +524,8 @@ test.describe("Loft", () => {
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
 
-    // The Design geometry section shows the diagram by default; the parts table is behind a toggle.
+    // The Design workspace leads with the diagram; the parts table is behind a toggle.
+    await page.getByRole("tab", { name: "Design" }).click();
     await expect(page.getByRole("heading", { name: "Design geometry" })).toBeVisible();
     await page.locator("summary", { hasText: /Parts ·/ }).click();
 
@@ -547,9 +552,10 @@ test.describe("Loft", () => {
     const before = await staticMargin();
     expect(before).toBeGreaterThan(0);
 
-    // The always-shown diagram carries a drag handle sitting on the fins — direct manipulation, no
-    // panel to open. Grab it and slide it toward the nose (screen-left): fins forward pulls the
-    // centre of pressure forward, so the design flies less stable and the margin drops.
+    // The Design workspace's diagram carries a drag handle sitting on the fins — direct manipulation.
+    // Grab it and slide it toward the nose (screen-left): fins forward pulls the centre of pressure
+    // forward, so the design flies less stable and the margin (shown above, on every tab) drops.
+    await page.getByRole("tab", { name: "Design" }).click();
     const handle = page.getByRole("slider", { name: /Fin position/ });
     await expect(handle).toBeVisible();
     await handle.scrollIntoViewIfNeeded(); // raw page.mouse uses viewport coords — bring it on-screen
@@ -585,6 +591,7 @@ test.describe("Loft", () => {
     // The handle is a real slider: focus it and report its station as a value. This design's fins
     // already sit at the aft limit, so Arrow-Left nudges them forward (the accessible counterpart of
     // dragging), pulling the centre of pressure forward — the static margin drops, no mouse needed.
+    await page.getByRole("tab", { name: "Design" }).click();
     const handle = page.getByRole("slider", { name: /Fin position/ });
     const startMm = parseFloat((await handle.getAttribute("aria-valuenow")) ?? "0");
     expect(startMm).toBeGreaterThan(0);
@@ -615,6 +622,7 @@ test.describe("Loft", () => {
     // A second handle sits on the fin tip: dragging it aft (screen-right) rakes the leading edge
     // back, carrying the fins' lift aft — the centre of pressure moves aft and the design flies
     // stiffer, all without adding fin area. The slider reports the rake in mm as it moves.
+    await page.getByRole("tab", { name: "Design" }).click();
     const sweep = page.getByRole("slider", { name: "Fin sweep" });
     await expect(sweep).toBeVisible();
     const startMm = parseFloat((await sweep.getAttribute("aria-valuenow")) ?? "0");
@@ -638,6 +646,8 @@ test.describe("Loft", () => {
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
 
+    // The diagram, and its handles, live in the Design workspace.
+    await page.getByRole("tab", { name: "Design" }).click();
     // The mm readout is a diagram-layer <text> shown only while a handle is in use; the CG/CP marks
     // are the only other SVG text, and they aren't "### mm", so this locator is just the readout.
     const readout = page.locator("svg text").filter({ hasText: /^\d+ mm$/ });
@@ -660,11 +670,52 @@ test.describe("Loft", () => {
     await expect(readout).toHaveCount(0);
   });
 
+  test("results split into Flight / Design / Analyze workspaces", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+
+    const flightTab = page.getByRole("tab", { name: "Flight" });
+    const designTab = page.getByRole("tab", { name: "Design" });
+    const analyzeTab = page.getByRole("tab", { name: "Analyze" });
+    await expect(flightTab).toHaveAttribute("aria-selected", "true");
+
+    // Flight leads with the plots; the design diagram is not stacked on this view.
+    await expect(page.getByRole("heading", { name: "Flight path" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Design geometry" })).toBeHidden();
+
+    // Design shows the airframe; the flight plots are put away.
+    await designTab.click();
+    await expect(designTab).toHaveAttribute("aria-selected", "true");
+    await expect(page.getByRole("heading", { name: "Design geometry" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Flight path" })).toBeHidden();
+
+    // Analyze holds the heavy tools; run a sweep there.
+    await analyzeTab.click();
+    const sweep = page.getByRole("region", { name: "Parameter sweep" });
+    await expect(sweep).toBeVisible();
+    await sweep.getByRole("button", { name: /Run parameter sweep/ }).click();
+    await expect(sweep.getByRole("img", { name: /Apogee.*versus/i })).toBeVisible();
+
+    // Switching away and back keeps the run — the panels stay mounted, not rebuilt from scratch.
+    await flightTab.click();
+    await expect(sweep).toBeHidden();
+    await analyzeTab.click();
+    await expect(sweep.getByRole("img", { name: /Apogee.*versus/i })).toBeVisible();
+
+    // The tablist is keyboard-navigable: arrow keys move the selection (and wrap).
+    await analyzeTab.focus();
+    await page.keyboard.press("ArrowRight");
+    await expect(flightTab).toHaveAttribute("aria-selected", "true");
+    await expect(page.getByRole("heading", { name: "Flight path" })).toBeVisible();
+  });
+
   test("parameter sweep plots a response curve and switches metric", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
 
+    await page.getByRole("tab", { name: "Analyze" }).click();
     const panel = page.getByRole("region", { name: "Parameter sweep" });
     await expect(panel).toBeVisible();
     await panel.getByRole("button", { name: /Run parameter sweep/ }).click();
@@ -701,6 +752,7 @@ test.describe("Loft", () => {
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
 
+    await page.getByRole("tab", { name: "Analyze" }).click();
     const panel = page.getByRole("region", { name: "Monte-Carlo dispersion" });
     await expect(panel).toBeVisible();
     await panel.getByRole("button", { name: /Run dispersion/ }).click();
@@ -1118,20 +1170,25 @@ test.describe("Loft", () => {
   });
 
   test("has no serious accessibility violations on the results view", async ({ page }) => {
-    // Audit the full results state — stat grid, warnings, plots, and the design-tool comparison
-    // table — not just the empty landing page. The comparison table renders deviation values in a
-    // semantic caution colour, exactly the honesty-relevant numbers that must stay readable.
+    // Audit the full results state across all three workspaces — stat grid, warnings, plots, and the
+    // design-tool comparison table on Flight; the editable diagram (a slider group) on Design; the
+    // sweep and dispersion tools on Analyze — not just the empty landing page. The comparison table
+    // renders deviation values in a semantic caution colour, exactly the honesty-relevant numbers
+    // that must stay readable, and the tablist adds a new keyboard-navigable control to check.
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
     await page.getByRole("heading", { name: "Flight", exact: true }).waitFor();
     await expect(page.getByRole("heading", { name: "OpenRocket vs Loft" })).toBeVisible();
-    const results = await new AxeBuilder({ page })
-      .withTags(["wcag2a", "wcag2aa"])
-      .analyze();
-    const serious = results.violations.filter(
-      (v) => v.impact === "serious" || v.impact === "critical",
-    );
-    expect(serious).toEqual([]);
+
+    const seriousViolations = async () => {
+      const results = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze();
+      return results.violations.filter((v) => v.impact === "serious" || v.impact === "critical");
+    };
+    expect(await seriousViolations()).toEqual([]); // Flight
+    await page.getByRole("tab", { name: "Design" }).click();
+    expect(await seriousViolations()).toEqual([]); // Design
+    await page.getByRole("tab", { name: "Analyze" }).click();
+    expect(await seriousViolations()).toEqual([]); // Analyze
   });
 
   test("has no serious accessibility violations on the results view in dark mode", async ({
