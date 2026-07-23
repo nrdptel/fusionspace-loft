@@ -73,6 +73,7 @@ export default function ResultsView({
   swapOptions,
   designMotor,
   onEditGeometry,
+  initialTab,
 }: {
   run: FlightRun;
   doc: OrkDocument;
@@ -96,14 +97,17 @@ export default function ResultsView({
   /** Apply a geometry edit from the diagram's drag handle (e.g. fin station) — the same path a
    *  numeric what-if field uses, so dragging and typing converge on one edit flow. */
   onEditGeometry?: (patch: GeometryEdits) => void;
+  /** Which workspace to open on. An import lands on its flight result; a from-scratch build lands on
+   *  the editable Design surface. Read once at mount — the view remounts on every design load. */
+  initialTab?: "flight" | "design";
 }) {
   const r = run.result;
   const s = r.summary;
   const markers = eventMarkers(r);
-  // Which workspace is open. The flight is the payoff on import, so it leads; Design and Analyze are
-  // a click away. Panels stay mounted (hidden) so a run in one — a swept curve, a Monte-Carlo — isn't
-  // lost when you glance at another.
-  const [tab, setTab] = useState("flight");
+  // Which workspace is open. Imports lead with the flight (the payoff); a fresh build opens on Design
+  // (the edit surface). Panels stay mounted (hidden) so a run in one — a swept curve, a Monte-Carlo —
+  // isn't lost when you glance at another.
+  const [tab, setTab] = useState<string>(initialTab ?? "flight");
 
   // No propulsion ⇒ the "flight" is a zero-thrust drop and every metric is meaningless. Lead
   // with why, name the motor(s) that didn't resolve, and withhold the misleading numbers,

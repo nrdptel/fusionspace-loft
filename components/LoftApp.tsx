@@ -123,6 +123,11 @@ export default function LoftApp() {
   const [weather, setWeather] = useState<WeatherConditions | null>(null);
   const [scenario, setScenario] = useState<"design" | "today">("design");
   const [simIndex, setSimIndex] = useState(0);
+  // Which results workspace a freshly loaded design opens on: an import wants its Flight result up
+  // front, a from-scratch build wants the editable Design surface. Set per load, read once as the
+  // results view mounts (it remounts on every load — the import panel only shows when nothing is
+  // loaded, so every design arrives through a fresh mount).
+  const [initialTab, setInitialTab] = useState<"flight" | "design">("flight");
 
   const compute = useCallback(
     (
@@ -221,13 +226,14 @@ export default function LoftApp() {
   );
 
   const loadDoc = useCallback(
-    (document: OrkDocument, name: string) => {
+    (document: OrkDocument, name: string, opensOn: "flight" | "design" = "flight") => {
       setDoc(document);
       setFileName(name);
       setEdits({});
       setWeather(null);
       setScenario("design");
       setSimIndex(0);
+      setInitialTab(opensOn);
       setError(null);
       try {
         const { run: r, baseline: b } = compute(document, {}, null, "design", 0);
@@ -281,7 +287,7 @@ export default function LoftApp() {
   // Start a fresh design from scratch — the builder path. A starter model (not parsed from any
   // file) enters the exact same pipeline an import does, so every edit, sweep, and flight works on
   // it immediately; the flyer tweaks a real, stable flight rather than staring at a blank slate.
-  const onNew = useCallback(() => loadDoc(newDesign(), "New design"), [loadDoc]);
+  const onNew = useCallback(() => loadDoc(newDesign(), "New design", "design"), [loadDoc]);
 
   // Rename the current design. The name is pure metadata — it doesn't touch the airframe or the
   // flight — so this updates the document in place without re-flying. It flows to the results title,
@@ -600,6 +606,7 @@ export default function LoftApp() {
               swapOptions={swapInfo?.options}
               designMotor={swapInfo?.designMotor}
               onEditGeometry={applyEdit}
+              initialTab={initialTab}
             />
           )}
         </div>

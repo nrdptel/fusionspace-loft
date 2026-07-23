@@ -62,13 +62,18 @@ test.describe("Loft", () => {
     await page.goto("/");
     await page.getByRole("button", { name: "Start a new design" }).click();
 
-    // A from-scratch design enters the same pipeline: it names itself, resolves a motor, and flies.
+    // A from-scratch design enters the same pipeline: it names itself, resolves a motor, is stable.
     await expect(page.getByRole("heading", { name: "New design", exact: true })).toBeVisible();
     await expect(page.getByText("H128W", { exact: false }).first()).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
-
-    // It is stable and reaches a real apogee out of the box.
     await expect(page.getByText("Static margin", { exact: false })).toBeVisible();
+
+    // A build lands on the Design workspace — the editable rocket, not the flight readout.
+    await expect(page.getByRole("tab", { name: "Design" })).toHaveAttribute("aria-selected", "true");
+    await expect(page.getByRole("heading", { name: "Design geometry" })).toBeVisible();
+
+    // It still flies: switch to Flight and read a real apogee out of the box.
+    await page.getByRole("tab", { name: "Flight" }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
     const apogee = await page
       .getByLabel("Results")
       .getByText("Apogee", { exact: true })
@@ -83,7 +88,9 @@ test.describe("Loft", () => {
   test("exports the current design as a downloadable .ork", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: "Start a new design" }).click();
-    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+    // The design summary and its Download control sit above the workspace tabs, so they're reachable
+    // whichever workspace a build opens on.
+    await expect(page.getByRole("heading", { name: "New design", exact: true })).toBeVisible();
 
     const [download] = await Promise.all([
       page.waitForEvent("download"),
@@ -95,9 +102,8 @@ test.describe("Loft", () => {
   test("renames the design and the results title and .ork filename follow", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: "Start a new design" }).click();
-    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
 
-    // The results title starts as the design's own name.
+    // The results title (above the workspace tabs) starts as the design's own name.
     await expect(page.getByRole("heading", { name: "New design", exact: true })).toBeVisible();
 
     // Renaming updates the title live — pure metadata, no re-fly needed.
@@ -876,6 +882,8 @@ test.describe("Loft", () => {
   test("adding a boattail cuts base drag and raises the apogee (structural add)", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: "Start a new design" }).click();
+    // A build opens on Design; this test reads flight metrics, so switch to the Flight workspace.
+    await page.getByRole("tab", { name: "Flight" }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
 
     const apogee = async () => {
@@ -901,6 +909,8 @@ test.describe("Loft", () => {
   test("switching to dual-deploy cuts the wind drift (builder recovery)", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: "Start a new design" }).click();
+    // A build opens on Design; this test reads flight metrics, so switch to the Flight workspace.
+    await page.getByRole("tab", { name: "Flight" }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
     await page.locator("summary", { hasText: "Conditions" }).click();
 
@@ -1000,6 +1010,8 @@ test.describe("Loft", () => {
   test("switching the airframe to a heavier material lowers the apogee (builder)", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: "Start a new design" }).click();
+    // A build opens on Design; this test reads flight metrics, so switch to the Flight workspace.
+    await page.getByRole("tab", { name: "Flight" }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
 
     const apogee = async () => {
