@@ -94,9 +94,9 @@ test.describe("in-browser RocketPy second solver (self-hosted Pyodide)", () => {
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
 
-    // Add a heavy nose ballast before running the cross-check (the Conditions panel sits above the
-    // workspace tabs, so it's reachable from any of them).
-    await page.locator("summary", { hasText: "Conditions" }).click();
+    // Add a heavy nose ballast before running the cross-check — a design edit, on the Design
+    // workspace where the editing surface now lives.
+    await page.getByRole("tab", { name: "Design" }).click();
     await page.getByLabel(/Nose ballast/).fill("500");
 
     // The RocketPy panel is in the Analyze workspace.

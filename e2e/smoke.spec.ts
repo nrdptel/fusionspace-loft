@@ -213,9 +213,11 @@ test.describe("Loft", () => {
     expect(single).toBeGreaterThan(0);
 
     // Fly the single motor as a 3-motor cluster: three times the thrust dominates the extra motor
-    // mass, so the design climbs markedly higher.
-    await page.locator("summary", { hasText: "Conditions" }).click();
+    // mass, so the design climbs markedly higher. The edit surface lives in the Design workspace;
+    // flip back to Flight to read the new apogee.
+    await page.getByRole("tab", { name: "Design" }).click();
     await page.getByLabel("Motor cluster").fill("3");
+    await page.getByRole("tab", { name: "Flight" }).click();
     await expect.poll(apogee).toBeGreaterThan(single * 1.3);
   });
 
@@ -234,9 +236,10 @@ test.describe("Loft", () => {
     };
     const before = await apogee();
 
-    // Open the edit panel and add a 300 g payload — a builder mass add.
-    await page.locator("summary", { hasText: "Conditions" }).click();
+    // Add a 300 g payload — a builder mass add — on the Design workspace, then read the flight.
+    await page.getByRole("tab", { name: "Design" }).click();
     await page.getByLabel(/Payload \(/).fill("300");
+    await page.getByRole("tab", { name: "Flight" }).click();
 
     // Re-flies heavier: the added mass costs apogee, and a "what-if vs design" delta appears with a
     // stability change (the payload shifts the CG).
@@ -263,9 +266,10 @@ test.describe("Loft", () => {
     const before = await apogee();
     expect(before).toBeGreaterThan(0);
 
-    // Open the edit panel and add a heavy nose ballast — a "what-if" design change.
-    await page.locator("summary", { hasText: "Conditions" }).click();
+    // Add a heavy nose ballast — a "what-if" design change — on the Design workspace, then read.
+    await page.getByRole("tab", { name: "Design" }).click();
     await page.getByLabel(/Nose ballast/).fill("500");
+    await page.getByRole("tab", { name: "Flight" }).click();
 
     // Re-flies on change: the heavier rocket doesn't reach as high.
     await expect.poll(apogee).toBeLessThan(before);
@@ -297,13 +301,14 @@ test.describe("Loft", () => {
     };
     const before = await apogee();
 
-    // Open the edit panel and slide the whole fin group 100 mm aft — a "what-if" stability trim.
-    await page.locator("summary", { hasText: "Conditions" }).click();
+    // Slide the whole fin group 100 mm aft — a "what-if" stability trim — on the Design workspace.
+    await page.getByRole("tab", { name: "Design" }).click();
     const finPos = page.getByRole("spinbutton", { name: /Fin position/ });
     await expect(finPos).toBeVisible();
     const design = parseFloat((await finPos.getAttribute("placeholder")) ?? "0");
     expect(design).toBeGreaterThan(0);
     await finPos.fill(String(Math.round(design + 100)));
+    await page.getByRole("tab", { name: "Flight" }).click();
 
     // A "what-if vs design" delta appears: fins aft move the centre of pressure aft, so the static
     // margin rises (a positive caliber delta in the banner).
@@ -335,9 +340,10 @@ test.describe("Loft", () => {
     const groundHitBefore = await stat("Ground-hit speed");
     expect(descentBefore).toBeGreaterThan(0);
 
-    // Open the edit panel and double the recovery drag area — a bigger canopy, a "what-if".
-    await page.locator("summary", { hasText: "Conditions" }).click();
+    // Double the recovery drag area — a bigger canopy, a "what-if" — on the Design workspace.
+    await page.getByRole("tab", { name: "Design" }).click();
     await page.getByLabel(/Recovery size/).fill("2");
+    await page.getByRole("tab", { name: "Flight" }).click();
 
     // Re-flies on change: the bigger canopy brings it down slower and lands softer...
     await expect.poll(() => stat("Descent rate")).toBeLessThan(descentBefore);
@@ -366,11 +372,12 @@ test.describe("Loft", () => {
 
     // Resize the design's own main canopy to 1.5× its current diameter — a real, bake-in edit (not
     // the transient multiplier). Read the current size from the field's placeholder so it's unit-safe.
-    await page.locator("summary", { hasText: "Conditions" }).click();
+    await page.getByRole("tab", { name: "Design" }).click();
     const field = page.getByLabel(/Main chute Ø/);
     const current = parseFloat((await field.getAttribute("placeholder"))!.replace(/[^\d.]/g, ""));
     expect(current).toBeGreaterThan(0);
     await field.fill((current * 1.5).toFixed(2));
+    await page.getByRole("tab", { name: "Flight" }).click();
 
     // A bigger canopy brings it down slower and lands softer...
     await expect.poll(() => stat("Descent rate")).toBeLessThan(descentBefore);
@@ -395,7 +402,7 @@ test.describe("Loft", () => {
     };
     const before = await apogee();
 
-    await page.locator("summary", { hasText: "Conditions" }).click();
+    await page.getByRole("tab", { name: "Design" }).click();
     const select = page.getByLabel("Swap motor");
     await expect(select).toBeVisible();
     // Pick a fitting motor that isn't the design's own H128W (the largest same-diameter option).
@@ -410,6 +417,7 @@ test.describe("Loft", () => {
       );
     expect(value).not.toEqual("");
     await select.selectOption(value);
+    await page.getByRole("tab", { name: "Flight" }).click();
 
     // Re-flies on the swapped motor — a different apogee.
     await expect.poll(apogee).not.toBe(before);
@@ -809,9 +817,10 @@ test.describe("Loft", () => {
     const before = await staticMargin();
     expect(before).toBeGreaterThan(0);
 
-    // Open the edit panel and enlarge the fins — a builder geometry edit. The field starts from the
-    // design's own span (its placeholder), so read that and grow it.
-    await page.locator("summary", { hasText: "Conditions" }).click();
+    // Enlarge the fins on the Design workspace — a builder geometry edit. The field starts from the
+    // design's own span (its placeholder), so read that and grow it. (Static margin sits above the
+    // workspace tabs, so it stays readable without leaving Design.)
+    await page.getByRole("tab", { name: "Design" }).click();
     const finSpan = page.getByLabel(/Fin span/);
     await expect(finSpan).toBeVisible();
     const designSpan = parseFloat((await finSpan.getAttribute("placeholder")) ?? "0");
@@ -838,13 +847,15 @@ test.describe("Loft", () => {
     const before = await apogee();
     expect(before).toBeGreaterThan(0);
 
-    // Widen the fin root chord — more planform, more drag. The field starts from the design's root.
-    await page.locator("summary", { hasText: "Conditions" }).click();
+    // Widen the fin root chord — more planform, more drag — on the Design workspace. The field starts
+    // from the design's root; flip back to Flight to read the new apogee.
+    await page.getByRole("tab", { name: "Design" }).click();
     const finRoot = page.getByLabel(/Fin root/);
     await expect(finRoot).toBeVisible();
     const designRoot = parseFloat((await finRoot.getAttribute("placeholder")) ?? "0");
     expect(designRoot).toBeGreaterThan(0);
     await finRoot.fill(String(Math.round(designRoot * 1.6)));
+    await page.getByRole("tab", { name: "Flight" }).click();
 
     // A bigger fin planform drags more, so the rocket doesn't reach as high.
     await expect.poll(apogee).toBeLessThan(before);
@@ -868,12 +879,13 @@ test.describe("Loft", () => {
 
     // Thicken the fins — more frontal area and form-factor drag. The field starts from the design's
     // own thickness (a decimal millimetre value).
-    await page.locator("summary", { hasText: "Conditions" }).click();
+    await page.getByRole("tab", { name: "Design" }).click();
     const finThickness = page.getByLabel(/Fin thickness/);
     await expect(finThickness).toBeVisible();
     const designThickness = parseFloat((await finThickness.getAttribute("placeholder")) ?? "0");
     expect(designThickness).toBeGreaterThan(0);
     await finThickness.fill((designThickness * 2).toFixed(1));
+    await page.getByRole("tab", { name: "Flight" }).click();
 
     // Thicker fins drag more, so the rocket doesn't climb as high.
     await expect.poll(apogee).toBeLessThan(before);
@@ -897,10 +909,12 @@ test.describe("Loft", () => {
     const before = await apogee();
     expect(before).toBeGreaterThan(0);
 
-    // Add a boattail: a length and an exit narrower than the 54 mm body. Both are needed to build one.
-    await page.locator("summary", { hasText: "Conditions" }).click();
+    // Add a boattail on the Design workspace: a length and an exit narrower than the 54 mm body.
+    // Both are needed to build one. Flip back to Flight to read the new apogee.
+    await page.getByRole("tab", { name: "Design" }).click();
     await page.getByLabel(/Boattail length/).fill("60");
     await page.getByLabel(/Boattail exit/).fill("30");
+    await page.getByRole("tab", { name: "Flight" }).click();
 
     // Contracting the base removes most of the base drag, so the same motor flies higher.
     await expect.poll(apogee).toBeGreaterThan(before);
@@ -912,6 +926,7 @@ test.describe("Loft", () => {
     // A build opens on Design; this test reads flight metrics, so switch to the Flight workspace.
     await page.getByRole("tab", { name: "Flight" }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+    // Wind is a launch condition — it stays in the Conditions panel (above the workspace tabs).
     await page.locator("summary", { hasText: "Conditions" }).click();
 
     // A steady crosswind so the drift is large and observable under the single apogee chute.
@@ -927,9 +942,12 @@ test.describe("Loft", () => {
     await expect.poll(drift).toBeGreaterThan(0);
     const single = await drift();
 
-    // Switch to dual-deploy: the main opens at 150 m over a 300 mm drogue. Both fields are needed.
+    // Switch to dual-deploy — a design edit, on the Design workspace: the main opens at 150 m over a
+    // 300 mm drogue. Both fields are needed. Flip back to Flight to read the drift.
+    await page.getByRole("tab", { name: "Design" }).click();
     await page.getByLabel(/Main deploy alt/).fill("150");
     await page.getByLabel(/Drogue/).fill("300");
+    await page.getByRole("tab", { name: "Flight" }).click();
 
     // Falling fast under the drogue until 150 m spends far less time in the wind, so it lands closer.
     await expect.poll(drift).toBeLessThan(single * 0.7);
@@ -950,8 +968,9 @@ test.describe("Loft", () => {
     const before = await staticMargin();
     expect(before).toBeGreaterThan(0);
 
-    // Sweep the fin leading edge further aft — the field starts from the design's own sweep.
-    await page.locator("summary", { hasText: "Conditions" }).click();
+    // Sweep the fin leading edge further aft on the Design workspace — the field starts from the
+    // design's own sweep. (Static margin sits above the tabs, readable without leaving Design.)
+    await page.getByRole("tab", { name: "Design" }).click();
     const finSweep = page.getByRole("spinbutton", { name: /Fin sweep/ });
     await expect(finSweep).toBeVisible();
     const designSweep = parseFloat((await finSweep.getAttribute("placeholder")) ?? "0");
@@ -979,8 +998,9 @@ test.describe("Loft", () => {
     expect(before).toBeGreaterThan(0);
 
     // Set the whole airframe to a rough finish — more skin friction, so it doesn't climb as high.
-    await page.locator("summary", { hasText: "Conditions" }).click();
+    await page.getByRole("tab", { name: "Design" }).click();
     await page.getByLabel("Surface finish").selectOption("rough");
+    await page.getByRole("tab", { name: "Flight" }).click();
     await expect.poll(apogee).toBeLessThan(before);
   });
 
@@ -1002,8 +1022,9 @@ test.describe("Loft", () => {
 
     // Swap the ogive nose for a blunt ellipsoid — more wetted area and nose pressure, so it flies
     // a touch lower.
-    await page.locator("summary", { hasText: "Conditions" }).click();
+    await page.getByRole("tab", { name: "Design" }).click();
     await page.getByLabel("Nose shape").selectOption("ellipsoid");
+    await page.getByRole("tab", { name: "Flight" }).click();
     await expect.poll(apogee).toBeLessThan(before);
   });
 
@@ -1027,8 +1048,9 @@ test.describe("Loft", () => {
 
     // The starter is fibreglass; aluminium is far denser, so the airframe gets heavier and it flies
     // lower on the same motor.
-    await page.locator("summary", { hasText: "Conditions" }).click();
+    await page.getByRole("tab", { name: "Design" }).click();
     await page.getByLabel("Airframe material").selectOption("aluminium");
+    await page.getByRole("tab", { name: "Flight" }).click();
     await expect.poll(apogee).toBeLessThan(before);
   });
 
@@ -1050,8 +1072,9 @@ test.describe("Loft", () => {
 
     // The demo's fins default to square edges; streamlining them to an airfoil cuts the fin-edge
     // pressure drag, so it coasts higher.
-    await page.locator("summary", { hasText: "Conditions" }).click();
+    await page.getByRole("tab", { name: "Design" }).click();
     await page.getByLabel("Fin edge cross-section").selectOption("airfoil");
+    await page.getByRole("tab", { name: "Flight" }).click();
     await expect.poll(apogee).toBeGreaterThan(before);
   });
 
@@ -1073,8 +1096,9 @@ test.describe("Loft", () => {
 
     // Aluminium fins are far denser than the demo's stock, so the rocket flies heavier and lower —
     // and the fin-flutter margin (which reads the material's stiffness) jumps.
-    await page.locator("summary", { hasText: "Conditions" }).click();
+    await page.getByRole("tab", { name: "Design" }).click();
     await page.getByLabel("Fin material").selectOption("aluminium");
+    await page.getByRole("tab", { name: "Flight" }).click();
     await expect.poll(apogee).toBeLessThan(before);
   });
 
@@ -1093,9 +1117,9 @@ test.describe("Loft", () => {
     const before = await staticMargin();
     expect(before).toBeGreaterThan(0);
 
-    // Open the edit panel and add fins — a builder geometry edit. The field starts from the
-    // design's own fin count (its placeholder), so read that and add two.
-    await page.locator("summary", { hasText: "Conditions" }).click();
+    // Add fins on the Design workspace — a builder geometry edit. The field starts from the design's
+    // own fin count (its placeholder), so read that and add two. (Static margin sits above the tabs.)
+    await page.getByRole("tab", { name: "Design" }).click();
     const finCount = page.getByLabel("Fin count", { exact: true });
     await expect(finCount).toBeVisible();
     const designCount = parseInt((await finCount.getAttribute("placeholder")) ?? "0", 10);
@@ -1122,13 +1146,15 @@ test.describe("Loft", () => {
     const before = await apogee();
     expect(before).toBeGreaterThan(0);
 
-    // Stretch the main body tube — a builder geometry edit. The field starts from the design's span.
-    await page.locator("summary", { hasText: "Conditions" }).click();
+    // Stretch the main body tube on the Design workspace — a builder geometry edit. The field starts
+    // from the design's span; flip back to Flight to read the new apogee.
+    await page.getByRole("tab", { name: "Design" }).click();
     const bodyLength = page.getByLabel(/Body length/);
     await expect(bodyLength).toBeVisible();
     const designBody = parseFloat((await bodyLength.getAttribute("placeholder")) ?? "0");
     expect(designBody).toBeGreaterThan(0);
     await bodyLength.fill(String(Math.round(designBody * 1.5)));
+    await page.getByRole("tab", { name: "Flight" }).click();
 
     // A longer tube is heavier and has more drag, so it doesn't reach as high.
     await expect.poll(apogee).toBeLessThan(before);
@@ -1150,13 +1176,15 @@ test.describe("Loft", () => {
     const before = await apogee();
     expect(before).toBeGreaterThan(0);
 
-    // Widen the whole airframe — a builder geometry edit. The field starts from the design's caliber.
-    await page.locator("summary", { hasText: "Conditions" }).click();
+    // Widen the whole airframe on the Design workspace — a builder geometry edit. The field starts
+    // from the design's caliber; flip back to Flight to read the new apogee.
+    await page.getByRole("tab", { name: "Design" }).click();
     const bodyDia = page.getByLabel(/Body diameter/);
     await expect(bodyDia).toBeVisible();
     const designDia = parseFloat((await bodyDia.getAttribute("placeholder")) ?? "0");
     expect(designDia).toBeGreaterThan(0);
     await bodyDia.fill(String(Math.round(designDia * 1.5)));
+    await page.getByRole("tab", { name: "Flight" }).click();
 
     // A fatter airframe has a bigger frontal area (more drag) and more tube material, so it flies lower.
     await expect.poll(apogee).toBeLessThan(before);

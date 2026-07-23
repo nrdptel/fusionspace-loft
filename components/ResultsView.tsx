@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { Tabs } from "./ui";
 import type { FlightRun } from "@/lib/sim/run";
@@ -74,6 +74,7 @@ export default function ResultsView({
   designMotor,
   onEditGeometry,
   initialTab,
+  designEditor,
 }: {
   run: FlightRun;
   doc: OrkDocument;
@@ -100,6 +101,9 @@ export default function ResultsView({
   /** Which workspace to open on. An import lands on its flight result; a from-scratch build lands on
    *  the editable Design surface. Read once at mount — the view remounts on every design load. */
   initialTab?: "flight" | "design";
+  /** The design-editing surface (motor swap + geometry/recovery what-ifs), rendered inside the
+   *  Design workspace next to the diagram it edits — build and edit are the same surface. */
+  designEditor?: ReactNode;
 }) {
   const r = run.result;
   const s = r.summary;
@@ -129,6 +133,9 @@ export default function ResultsView({
       <div className="space-y-8">
         <NoPropulsionNotice run={run} tool={tool} />
         <RocketSummary run={run} doc={doc} units={units} />
+        {/* Still offer the editing surface — a swap to a motor that resolves is the very fix this
+            case needs, and geometry stays editable even when no motor flew. */}
+        {designEditor}
       </div>
     );
   }
@@ -275,6 +282,10 @@ export default function ResultsView({
           motors={shownMotors}
           onEdit={onEditGeometry}
         />
+
+        {/* The editing surface, right below the diagram it changes — fly a different motor, add
+            nose weight, resize/reshape the airframe. Build and edit are the same surface. */}
+        {designEditor}
 
         {/* Where the dry mass comes from, part by part — transparency into the parsed structure. */}
         <MassBreakdown rocket={doc.rocket} units={units} />

@@ -552,8 +552,6 @@ export default function LoftApp() {
             units={units}
             edits={edits}
             onEdit={applyEdit}
-            swap={swapInfo}
-            designDims={designDims}
             weather={weather}
             scenario={scenario}
             setScenario={(s) => {
@@ -607,6 +605,15 @@ export default function LoftApp() {
               designMotor={swapInfo?.designMotor}
               onEditGeometry={applyEdit}
               initialTab={initialTab}
+              designEditor={
+                <DesignEditor
+                  units={units}
+                  edits={edits}
+                  onEdit={applyEdit}
+                  swap={swapInfo}
+                  designDims={designDims}
+                />
+              }
             />
           )}
         </div>
@@ -661,23 +668,22 @@ function ConfigPicker({
 
 // --- conditions controls (rod / wind / elevation + today's weather) -----------------
 
-function ConditionsControls({
+/** The design-editing surface: fly a different motor, add nose weight, and resize/reshape the
+ *  airframe. It lives in the Design workspace next to the to-scale diagram it edits, so building
+ *  and editing are the same surface. Every change is a hypothetical on the loaded design, so the
+ *  stored-tool comparison is hidden while any is set. */
+function DesignEditor({
   units,
   edits,
   onEdit,
   swap,
   designDims,
-  weather,
-  scenario,
-  setScenario,
-  onWeather,
-  busy,
 }: {
   units: UnitSystem;
   edits: Edits;
   onEdit: (patch: Edits) => void;
   swap: SwapInfo | null;
-  /** The design's own dimensions (m; fin count is a plain number), shown as the builder fields' placeholders. */
+  /** The design's own dimensions (m; counts are plain numbers), shown as the fields' placeholders. */
   designDims: {
     finSpan?: number;
     finCount?: number;
@@ -698,76 +704,25 @@ function ConditionsControls({
     motorClusterCount?: number;
     payloadStation?: number;
   };
-  weather: WeatherConditions | null;
-  scenario: "design" | "today";
-  setScenario: (s: "design" | "today") => void;
-  onWeather: (wx: WeatherConditions) => void;
-  busy: boolean;
 }) {
-  const [place, setPlace] = useState("");
-  const [wxBusy, setWxBusy] = useState(false);
-  const [wxError, setWxError] = useState<string | null>(null);
-
   const imperial = units === "imperial";
   const lenU = imperial ? "ft" : "m";
-  const spdU = imperial ? "mph" : "m/s";
   const toDispLen = (m: number | undefined) => (m === undefined ? "" : imperial ? mToFt(m).toFixed(1) : m.toFixed(1));
-  const toDispSpd = (mps: number | undefined) => (mps === undefined ? "" : imperial ? mpsToMph(mps).toFixed(0) : mps.toFixed(1));
   const fromLen = (v: string) => (v === "" ? undefined : imperial ? ftToM(Number(v)) : Number(v));
-  const fromSpd = (v: string) => (v === "" ? undefined : imperial ? mphToMps(Number(v)) : Number(v));
   const massU = imperial ? "oz" : "g";
   const toDispMass = (kg: number | undefined) =>
     kg === undefined ? "" : imperial ? (kg * 35.274).toFixed(1) : (kg * 1000).toFixed(0);
   const fromMass = (v: string) =>
     v === "" || Number(v) === 0 ? undefined : imperial ? Number(v) / 35.274 : Number(v) / 1000;
-  // Fin span is small, so show it in mm / in.
   const spanU = imperial ? "in" : "mm";
   const toDispSpan = (m: number | undefined) =>
     m === undefined ? "" : imperial ? (m * 39.3701).toFixed(2) : (m * 1000).toFixed(0);
   const fromSpan = (v: string) =>
     v === "" || Number(v) === 0 ? undefined : imperial ? Number(v) / 39.3701 : Number(v) / 1000;
-  // Fin thickness is a few mm, where a round millimetre is too coarse — show a decimal.
   const toDispThick = (m: number | undefined) =>
     m === undefined ? "" : imperial ? (m * 39.3701).toFixed(3) : (m * 1000).toFixed(1);
 
-  const findWeather = async () => {
-    if (!place.trim()) return;
-    setWxBusy(true);
-    setWxError(null);
-    try {
-      const places = await geocode(place);
-      if (places.length === 0) {
-        setWxError("No matching place found.");
-        return;
-      }
-      const p = places[0];
-      const wx = await fetchConditions(p.latitude, p.longitude, [p.name, p.admin1, p.country].filter(Boolean).join(", "));
-      onWeather(wx);
-    } catch {
-      setWxError("Couldn't fetch weather (offline, or the service is down).");
-    } finally {
-      setWxBusy(false);
-    }
-  };
-
   return (
-    <details className="group rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900/40">
-      <summary className="flex cursor-pointer select-none items-center justify-between px-4 py-3 text-sm font-medium text-zinc-700 dark:text-zinc-300">
-        <span>Conditions {scenario === "today" && weather ? "· today" : "· as designed"}</span>
-        <span className="text-xs text-zinc-400 transition group-open:rotate-180">▾</span>
-      </summary>
-      <div className="space-y-4 border-t border-zinc-100 px-4 py-4 dark:border-zinc-800">
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <Num label={`Rail length (${lenU})`} value={toDispLen(edits.rodLength)} placeholder="1.2" onChange={(v) => onEdit({ rodLength: fromLen(v) })} />
-          <Num label="Rail angle (°)" value={edits.rodAngleDeg ?? ""} placeholder="0" onChange={(v) => onEdit({ rodAngleDeg: v === "" ? undefined : Number(v) })} />
-          <Num label={`Surface wind (${spdU})`} value={toDispSpd(edits.windSpeed)} placeholder="0" onChange={(v) => onEdit({ windSpeed: fromSpd(v) })} disabled={scenario === "today"} />
-          <Num label={`Field elev. (${lenU})`} value={toDispLen(edits.launchAltitude)} placeholder="0" onChange={(v) => onEdit({ launchAltitude: fromLen(v) })} disabled={scenario === "today"} />
-        </div>
-        <p className="text-xs text-zinc-500 dark:text-zinc-400">
-          Blank fields use the design&apos;s stored launch conditions. Changing any field re-flies
-          the design and hides the OpenRocket comparison (the conditions no longer match).
-        </p>
-
         <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-900/60">
           <p className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
             Design what-if
@@ -1089,6 +1044,77 @@ function ConditionsControls({
             that fit this airframe&apos;s diameter are offered.
           </p>
         </div>
+  );
+}
+
+function ConditionsControls({
+  units,
+  edits,
+  onEdit,
+  weather,
+  scenario,
+  setScenario,
+  onWeather,
+  busy,
+}: {
+  units: UnitSystem;
+  edits: Edits;
+  onEdit: (patch: Edits) => void;
+  weather: WeatherConditions | null;
+  scenario: "design" | "today";
+  setScenario: (s: "design" | "today") => void;
+  onWeather: (wx: WeatherConditions) => void;
+  busy: boolean;
+}) {
+  const [place, setPlace] = useState("");
+  const [wxBusy, setWxBusy] = useState(false);
+  const [wxError, setWxError] = useState<string | null>(null);
+
+  const imperial = units === "imperial";
+  const lenU = imperial ? "ft" : "m";
+  const spdU = imperial ? "mph" : "m/s";
+  const toDispLen = (m: number | undefined) => (m === undefined ? "" : imperial ? mToFt(m).toFixed(1) : m.toFixed(1));
+  const toDispSpd = (mps: number | undefined) => (mps === undefined ? "" : imperial ? mpsToMph(mps).toFixed(0) : mps.toFixed(1));
+  const fromLen = (v: string) => (v === "" ? undefined : imperial ? ftToM(Number(v)) : Number(v));
+  const fromSpd = (v: string) => (v === "" ? undefined : imperial ? mphToMps(Number(v)) : Number(v));
+
+  const findWeather = async () => {
+    if (!place.trim()) return;
+    setWxBusy(true);
+    setWxError(null);
+    try {
+      const places = await geocode(place);
+      if (places.length === 0) {
+        setWxError("No matching place found.");
+        return;
+      }
+      const p = places[0];
+      const wx = await fetchConditions(p.latitude, p.longitude, [p.name, p.admin1, p.country].filter(Boolean).join(", "));
+      onWeather(wx);
+    } catch {
+      setWxError("Couldn't fetch weather (offline, or the service is down).");
+    } finally {
+      setWxBusy(false);
+    }
+  };
+
+  return (
+    <details className="group rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900/40">
+      <summary className="flex cursor-pointer select-none items-center justify-between px-4 py-3 text-sm font-medium text-zinc-700 dark:text-zinc-300">
+        <span>Conditions {scenario === "today" && weather ? "· today" : "· as designed"}</span>
+        <span className="text-xs text-zinc-400 transition group-open:rotate-180">▾</span>
+      </summary>
+      <div className="space-y-4 border-t border-zinc-100 px-4 py-4 dark:border-zinc-800">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <Num label={`Rail length (${lenU})`} value={toDispLen(edits.rodLength)} placeholder="1.2" onChange={(v) => onEdit({ rodLength: fromLen(v) })} />
+          <Num label="Rail angle (°)" value={edits.rodAngleDeg ?? ""} placeholder="0" onChange={(v) => onEdit({ rodAngleDeg: v === "" ? undefined : Number(v) })} />
+          <Num label={`Surface wind (${spdU})`} value={toDispSpd(edits.windSpeed)} placeholder="0" onChange={(v) => onEdit({ windSpeed: fromSpd(v) })} disabled={scenario === "today"} />
+          <Num label={`Field elev. (${lenU})`} value={toDispLen(edits.launchAltitude)} placeholder="0" onChange={(v) => onEdit({ launchAltitude: fromLen(v) })} disabled={scenario === "today"} />
+        </div>
+        <p className="text-xs text-zinc-500 dark:text-zinc-400">
+          Blank fields use the design&apos;s stored launch conditions. Changing any field re-flies
+          the design and hides the OpenRocket comparison (the conditions no longer match).
+        </p>
 
         <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-900/60">
           <p className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">

@@ -444,7 +444,7 @@ export default function Methods() {
         drag area and an equivalent diameter. Because it uses the flight&apos;s own descent model, a
         canopy sized this way, flown, lands at the target speed — checked against a real flight in{" "}
         <code>lib/sim/recovery.test.ts</code>. The goal-seek names one size; the{" "}
-        <strong>recovery-size what-if</strong> (<em>Conditions → Design what-if</em>) is its
+        <strong>recovery-size what-if</strong> (<em>Design workspace</em>) is its
         open-ended companion — a multiplier on every deployed device&apos;s drag area that re-flies
         the design with a bigger or smaller canopy, so you can watch the descent rate, drift, and
         deployment speed move together (a bigger canopy lands softer but drifts farther and snaps

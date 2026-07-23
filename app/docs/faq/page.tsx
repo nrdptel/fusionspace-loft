@@ -141,7 +141,7 @@ export default function Faq() {
 
       <QA q="Can I try the design on a different motor?">
         <p>
-          Yes. Under <em>Conditions → Design what-if</em>, the <em>Motor</em> picker lists the
+          Yes. In the <em>Design workspace</em>, the <em>Motor</em> picker lists the
           bundled motors that fit this airframe&apos;s mount diameter, grouped by class. Choose one
           and Loft re-flies the same rocket on it, so you can compare apogee, speed, rail-exit
           velocity, and stability across motors without editing the file — the classic &ldquo;what
@@ -239,7 +239,7 @@ export default function Faq() {
         </p>
         <p>
           To try a size yourself, use the <em>Recovery size (×)</em> what-if under{" "}
-          <em>Conditions → Design what-if</em>: it multiplies every deployed chute&apos;s drag area,
+          <em>Design workspace</em>: it multiplies every deployed chute&apos;s drag area,
           so <em>2</em> flies a canopy twice as draggy and <em>0.5</em> one half the size. Loft
           re-flies the descent, and the descent rate, ground-hit speed, and drift all move with it —
           as does the Monte-Carlo landing scatter — while the ascent and apogee stay put. It&apos;s
@@ -248,7 +248,7 @@ export default function Faq() {
         </p>
         <p>
           When you&apos;ve settled on a size, set it for keeps with <em>Main chute Ø</em> under{" "}
-          <em>Conditions → Design what-if</em>: unlike the multiplier, this resizes the design&apos;s
+          <em>Design workspace</em>: unlike the multiplier, this resizes the design&apos;s
           own main parachute to a real diameter — its heavier (area-scaled) canopy mass and all — so it
           becomes part of the design and rides along into the exported <code>.ork</code>. Type the
           diameter the sizing readout named and the rocket flies down at about that gentle speed.
@@ -257,7 +257,7 @@ export default function Faq() {
 
       <QA q="Can I see what adding nose weight would do?">
         <p>
-          Yes. Under <em>Conditions → Design what-if</em>, enter a nose-ballast mass and Loft re-flies
+          Yes. In the <em>Design workspace</em>, enter a nose-ballast mass and Loft re-flies
           the design with that weight added at the nose cone — the classic trim for a marginally
           stable rocket. You&apos;ll see the centre of gravity move forward, the stability margin
           rise, and the apogee drop as the rocket flies heavier, so you can find how much weight buys
@@ -279,7 +279,7 @@ export default function Faq() {
 
       <QA q="Can I change the design's geometry and see what happens?">
         <p>
-          Starting to. Under <em>Conditions → Design what-if</em>, the <em>Fin span</em>,{" "}
+          Starting to. In the <em>Design workspace</em>, the <em>Fin span</em>,{" "}
           <em>Fin count</em>, <em>Fin root</em>, <em>Fin tip</em> and <em>Fin sweep</em> (the
           trapezoidal fin&apos;s chords and leading-edge sweep), <em>Fin thickness</em>,{" "}
           <em>Fin edge</em> (square, rounded, or airfoil profile), <em>Nose length</em>,{" "}
