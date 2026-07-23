@@ -459,6 +459,10 @@ function RocketSummary({ run, doc, units }: { run: FlightRun; doc: OrkDocument; 
       </div>
 
       <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-4">
+        {/* Apogee leads the strip so a design edit's headline flight effect is visible from any
+            workspace — the editors live on Design, but this summary sits above the tabs. Only with
+            propulsion: a design whose motor didn't resolve has no meaningful apogee. */}
+        {run.hasPropulsion && <Field term="Apogee" value={d.q(d.altitude(r.summary.apogee, units))} />}
         <Field term="Liftoff mass" value={d.q(d.mass(r.liftoffMass, units))} />
         <Field term="Burnout mass" value={d.q(d.mass(r.burnoutMass, units))} />
         <Field term="Length" value={d.q(d.lengthMm(length, units))} />

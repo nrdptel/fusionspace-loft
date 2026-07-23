@@ -286,6 +286,30 @@ test.describe("Loft", () => {
     await expect(apogeeRow.getByText(/−[\d.]+%/)).toBeVisible();
   });
 
+  test("apogee shows in the summary above the tabs and updates while editing on Design", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+
+    // The summary strip sits above the workspace tabs, so its Apogee is the first one in the DOM
+    // (the Flight panel's Results section renders below). Read it there — no tab switch.
+    const summaryApogee = async () => {
+      const dd = page
+        .getByText("Apogee", { exact: true })
+        .first()
+        .locator("xpath=following-sibling::dd");
+      return parseFloat((await dd.innerText()).replace(/[^\d.]/g, ""));
+    };
+    const before = await summaryApogee();
+    expect(before).toBeGreaterThan(0);
+
+    // Edit on the Design workspace and stay there: the above-tabs apogee re-flies live, so the
+    // heavier rocket's lower apogee is visible without leaving the editing surface.
+    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByLabel(/Nose ballast/).fill("500");
+    await expect.poll(summaryApogee).toBeLessThan(before);
+  });
+
   test("moving the fins aft re-flies the design stiffer — a higher static margin", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
