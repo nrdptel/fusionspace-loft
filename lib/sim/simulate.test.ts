@@ -200,3 +200,47 @@ describe("simulate — recovery terminal velocity", () => {
     expect(events.some((e) => e.type === "landing")).toBe(true);
   });
 });
+
+describe("simulate — peak acceleration is an ascent quantity", () => {
+  // Regression for a real-file finding: OpenRocket's "A simple model rocket" C6 "too short delay"
+  // config deploys its chute well before apogee at ~90 m/s. Loft used to fold that opening-shock
+  // deceleration into the reported max acceleration (473 m/s² vs OpenRocket's 191), because the
+  // instantaneous drag jump of an opening canopy registers a huge finite-difference spike. Max
+  // acceleration is the ascent (boost) g-load; the opening shock is a recovery load reported via
+  // the deployment velocity instead.
+  const motor: ResolvedMotor = { curve: constMotor(120, 1.0, 0.1), cg: 0.4, ignitionTime: 0 };
+  const bigCdA = 0.8 * Math.PI * 0.25; // a full-size canopy: a violent opening shock at speed
+
+  function flyWith(event: "apogee" | "launch", deployDelay: number) {
+    return simulate({
+      rocket: testRocket(1.0),
+      config: CONFIG,
+      motors: [motor],
+      recovery: [{ name: "chute", cdA: bigCdA, event, deployDelay }],
+      conditions: {
+        rodLength: 0.001,
+        rodAngleFromVertical: 0,
+        rodAzimuth: 0,
+        windSpeed: 0,
+        windTo: 0,
+        launchAltitude: 0,
+        atmosphere: new Atmosphere(),
+      },
+    });
+  }
+
+  it("ignores an opening shock from a high-speed early deployment", () => {
+    const normal = flyWith("apogee", 0); // opens at apogee, near-stationary — a gentle shock
+    const early = flyWith("launch", 1.2); // opens 0.2 s after burnout, still climbing fast
+
+    // The early flight really does open at speed — otherwise the test proves nothing.
+    expect(early.summary.deploymentVelocity).toBeGreaterThan(30);
+    expect(early.events.some((e) => e.type === "deploy")).toBe(true);
+
+    // The boost is identical up to the early deploy, so both flights share the same peak g-load;
+    // the high-speed opening shock must NOT inflate the early flight's reported max acceleration.
+    expect(early.summary.maxAcceleration).toBeCloseTo(normal.summary.maxAcceleration, 1);
+    // And it stays near the ~100 m/s² boost peak, nowhere near the hundreds-of-m/s² opening shock.
+    expect(early.summary.maxAcceleration).toBeLessThan(150);
+  });
+});
