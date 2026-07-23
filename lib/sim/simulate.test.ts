@@ -243,4 +243,47 @@ describe("simulate — peak acceleration is an ascent quantity", () => {
     // And it stays near the ~100 m/s² boost peak, nowhere near the hundreds-of-m/s² opening shock.
     expect(early.summary.maxAcceleration).toBeLessThan(150);
   });
+
+  it("resolves a sharp thrust peak analytically, not smoothed by the step", () => {
+    // A triangular thrust pulse peaking at t = 0.1 s, flown in vacuum (no drag) with a fixed mass,
+    // so the peak acceleration has a closed form: a = Ppeak/m − g. A finite difference of sampled
+    // speed averages the acceleration across the step and reads the peak low (~307 m/s² here);
+    // evaluating the net force at the step lands on the true peak (~323 m/s²). This is what makes a
+    // punchy HPR motor's max-g read right instead of ~20% low.
+    const Ppeak = 200;
+    const spike: MotorCurve = {
+      designation: "SPIKE",
+      manufacturer: "test",
+      diameterMm: 29,
+      lengthMm: 100,
+      delaysRaw: "",
+      delays: [],
+      propMass: 0,
+      totalMass: 0.1,
+      dryMass: 0.1,
+      samples: [
+        { t: 0, thrust: 0 },
+        { t: 0.1, thrust: Ppeak },
+        { t: 0.2, thrust: 0 },
+      ],
+      totalImpulse: 0.5 * Ppeak * 0.2,
+      cumulativeImpulse: [0, 0.5 * Ppeak * 0.1, 0.5 * Ppeak * 0.2],
+      burnTime: 0.2,
+      maxThrust: Ppeak,
+      avgThrust: (0.5 * Ppeak * 0.2) / 0.2,
+      motorClass: "?",
+    };
+    const mass = 0.6; // 0.5 kg payload + 0.1 kg motor, constant (propMass 0)
+    const { summary } = simulate({
+      rocket: testRocket(0.5),
+      config: CONFIG,
+      motors: [{ curve: spike, cg: 0.4, ignitionTime: 0 }],
+      recovery: [],
+      conditions: vacuumConditions(),
+    });
+    const analyticPeak = Ppeak / mass - 9.80665; // ≈ 323.5 m/s²
+    // Lands on the analytic peak (within ~1.5%), clear of the ~307 m/s² a difference quotient gives.
+    expect(summary.maxAcceleration).toBeGreaterThan(318);
+    expect(summary.maxAcceleration).toBeLessThan(analyticPeak * 1.02);
+  });
 });

@@ -646,12 +646,15 @@ export function simulate(input: SimulateInput): FlightResult {
       maxV = Math.max(maxV, speed);
       maxMach = Math.max(maxMach, mach);
       maxQ = Math.max(maxQ, q);
-      // Peak acceleration is an ascent quantity: stop tracking it once a recovery canopy is dragging,
-      // so a high-speed (mistimed) deployment's opening-shock spike doesn't masquerade as the
-      // flight's max g-load. The opening shock is reported separately via the deployment velocity.
-      // Gate on the drag-active predicate (not a post-step flag) so the very step the canopy opens —
-      // where the finite-difference spike is largest — is already excluded.
-      if (!anyDeployed(recovery, state.t)) maxA = Math.max(maxA, Math.abs(accInst));
+      // Peak acceleration from the instantaneous net specific force |F/m| at this step, not a
+      // finite difference of sampled speed: the difference quotient averages the acceleration across
+      // the step and so smooths a sharp thrust spike — reading ~20% low on a punchy motor (an H669N
+      // measured 569 m/s² vs a step-converged 718). Evaluating the acceleration field at the step
+      // lands on the true peak (a step falls within half a step of any thrust breakpoint) without
+      // refining the integration, so apogee is unchanged. Still an ascent quantity: freeze it once a
+      // recovery canopy is dragging so a mistimed high-speed deployment's opening shock — reported
+      // separately via the deployment velocity — cannot masquerade as the flight's max g-load.
+      if (!anyDeployed(recovery, state.t)) maxA = Math.max(maxA, mag(accel(state)));
     }
     prevSpeed = speed;
 
