@@ -305,15 +305,22 @@ export default async function Validation() {
         at low Reynolds number rather than an inappropriate laminar branch. And the base drag now
         carries in full through boost (as OpenRocket&apos;s does), which had been discounted — a fix
         that most matters for a body much wider than its motor, where the exhaust fills little of the
-        base. Across the A8, B4, and C6 configurations the fast <strong>C6 flights land within
-        ~6%</strong>; the low-thrust <strong>A8 (~+17%) and B4 (~+33%)</strong> read higher. Those
-        two are motor-<em>data</em> differences, not the aerodynamics — Loft flies the A8 on the
-        NAR-certified curve (a realistic ~72&nbsp;s specific impulse and Estes&apos; published loaded
-        mass), which delivers a little more than OpenRocket&apos;s bundled A8, and its B4 curve
-        likewise differs; the shared drag model fits all three. To reproduce: import the file, pick
-        each
-        simulation&apos;s configuration, and read the OpenRocket-vs-Loft panel. (The file isn&apos;t
-        bundled — it ships with OpenRocket, which is GPL.)
+        base. All five of the file&apos;s stored simulations now land within a few percent: the three{" "}
+        <strong>C6 flights within ~1%</strong>, the <strong>B4 at +2.5%</strong>, and the
+        low-impulse <strong>A8 at +4.5%</strong> (a 2&nbsp;m difference on a 50&nbsp;m flight, where a
+        slow, near-drag-free A8 leaves little to model). Driving this file is itself what caught a
+        mis-sourced B4 thrust curve: the bundled B4 had been an over-energetic data file
+        (5.02&nbsp;N·s — just over the 5.0&nbsp;N·s ceiling that <em>defines</em> a B motor, averaging
+        ~5&nbsp;N rather than 4), which flew the B4 ~26% high. It now uses the NAR-certified curve
+        (4.30&nbsp;N·s, avg 4.2&nbsp;N, published on the{" "}
+        <a href="https://www.thrustcurve.org/motors/Estes/B4/" target="_blank" rel="noopener noreferrer">
+          ThrustCurve.org B4 page
+        </a>
+        ), and
+        a unit test now pins every bundled Estes curve to its certified impulse so a wrong data file
+        can&apos;t slip back in. The shared drag model fits all three motors. To reproduce: import the
+        file, pick each simulation&apos;s configuration, and read the OpenRocket-vs-Loft panel. (The
+        file isn&apos;t bundled — it ships with OpenRocket, which is GPL.)
       </p>
       <p>
         Driving more of OpenRocket&apos;s own example files the same way turned up two drag fixes.

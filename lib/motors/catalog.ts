@@ -582,13 +582,13 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
     }
   },
   {
-    "eng": "; B4-4\nB4-4 18 70 P 0.006 0.0195 E\n   0.058 2.361\n   0.102 2.921\n   0.122 3.797\n   0.15 5.866\n   0.18 8.373\n   0.199 9.882\n   0.208 10.88\n   0.216 11.367\n   0.238 11.245\n   0.245 10.832\n   0.262 8.982\n   0.293 6.134\n   0.322 5.306\n   0.357 4.917\n   0.388 4.795\n   0.416 4.746\n   0.46 4.625\n   0.502 4.576\n   0.544 4.357\n   0.575 4.503\n   0.605 4.527\n   0.674 4.552\n   0.731 4.454\n   0.88 4.454\n   0.915 4.503\n   0.96 4.406\n   1.0 4.065\n   1.047 2.556\n   1.049 0.0\n",
+    "eng": ";\n;Estes B4 RASP.ENG file made from NAR published data\n;File produced October 3, 2000\n;The total impulse, peak thrust, average thrust and burn time are\n;the same as the averaged static test data on the NAR web site in\n;the certification file. The curve drawn with these data points is as\n;close to the certification curve as can be with such a limited\n;number of points (32) allowed with wRASP up to v1.6.\nB4 18 70 2-4 0.006 0.0189 Estes \n0.02 0.418\n0.04 1.673\n0.065 4.076\n0.085 6.69\n0.105 9.304\n0.119 11.496\n0.136 12.75\n0.153 11.916\n0.173 10.666\n0.187 9.304\n0.198 7.214\n0.207 5.645\n0.226 4.809\n0.258 4.182\n0.326 3.763\n0.422 3.554\n0.549 3.345\n0.665 3.345\n0.776 3.345\n0.863 3.345\n0.94 3.449\n0.991 3.449\n1.002 2.404\n1.01 1.254\n1.03 0\n",
     "source": {
       "file": "Estes_B4.eng",
       "motorId": "5f4294d2000231000000000e",
-      "simfileId": "5f4294d20002e90000000834",
-      "license": "PD",
-      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000834/"
+      "simfileId": "5f4294d20002e900000004e5",
+      "license": null,
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000004e5/"
     }
   },
   {

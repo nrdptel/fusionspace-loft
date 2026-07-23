@@ -32,6 +32,33 @@ describe("motor database", () => {
     }
   });
 
+  it("flies the Estes low/mid line on its NAR-certified impulse (guards a mis-sourced curve)", () => {
+    // Each bundled Estes curve must integrate to its NAR-certified total impulse (avg thrust ×
+    // burn time from ThrustCurve.org). The band is asymmetric — a sparse RASP curve integrates a
+    // few percent UNDER the published figure, so >2% OVER means the wrong data file, not sampling.
+    // This is the guard that catches a mis-sourced curve: the bundled B4 was once an over-energetic
+    // simfile (5.02 N·s — over the 5.0 N·s B-class ceiling, ~+17%), which flew "A simple model
+    // rocket" ~26% high until it was replaced with the certified 4.30 N·s curve.
+    const cases: Array<[string, string, number]> = [
+      ["A8", "A", 2.321],
+      ["B4", "B", 4.295],
+      ["B6", "B", 4.326],
+      ["C6", "C", 8.816],
+      ["C11", "C", 8.797],
+      ["D12", "D", 16.846],
+      ["E9", "E", 27.872],
+      ["E12", "E", 27.255],
+    ];
+    for (const [designation, cls, certNs] of cases) {
+      const m = resolveMotor({ manufacturer: "Estes", designation });
+      expect(m, `${designation} should resolve`).not.toBeNull();
+      expect(m!.entry.curve.motorClass).toBe(cls);
+      // Integrated impulse consistent with the class letter its designation claims (a B ≤ 5.0 N·s).
+      expect(m!.entry.curve.totalImpulse, `${designation} impulse vs cert`).toBeGreaterThan(certNs * 0.92);
+      expect(m!.entry.curve.totalImpulse, `${designation} impulse vs cert`).toBeLessThan(certNs * 1.02);
+    }
+  });
+
   it("covers common mid-power gap-fillers (Estes F15/E16, AeroTech F52/G77, Quest D5)", () => {
     // Common D–G motors real beginner/mid-power files reference, added from authentic ThrustCurve
     // curves. Each resolves in the right impulse class with a curve carrying real total impulse.
