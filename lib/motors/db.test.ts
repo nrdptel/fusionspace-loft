@@ -124,21 +124,27 @@ describe("motor database", () => {
 
   it("resolves the AeroTech H242T / J570W / H999N an OpenRocket dual-deploy design flies", () => {
     // OpenRocket's "Dual parachute deployment" example offers these three configs; without the
-    // curves each flew to a zero apogee. Impulse must land near the certified value; H999N's only
-    // published RASP curve is labelled "H999" (no propellant suffix), so it resolves by core match
-    // rather than an exact-string hit.
-    const cases: Array<[string, string, number, boolean]> = [
+    // curves each flew to a zero apogee. Impulse must land near the certified value — and where a
+    // certified peak thrust is given, the curve's peak must match it too: a curve with the right
+    // total impulse but a smoothed peak still under-reports max acceleration. The bundled H999N was
+    // once exactly that (a 1027 N peak against a TRA-certified 1710 N, reading max-g ~25% low) until
+    // it was swapped for the certification curve.
+    const cases: Array<[string, string, number, boolean, number?]> = [
       ["H242T", "H", 231.7, true],
-      ["J570W", "J", 973.1, true],
-      ["H999N", "H", 319.9, false],
+      ["J570W", "J", 973.1, true, 1142.5],
+      ["H999N", "H", 319.9, true, 1710],
     ];
-    for (const [designation, cls, certNs, exact] of cases) {
+    for (const [designation, cls, certNs, exact, certMaxN] of cases) {
       const m = resolveMotor({ manufacturer: "AeroTech", designation });
       expect(m).not.toBeNull();
       if (exact) expect(m?.quality).toBe("exact");
       expect(coreDesignation(m!.entry.curve.designation)[0]).toBe(cls);
       expect(m!.entry.curve.totalImpulse).toBeGreaterThan(certNs * 0.92);
       expect(m!.entry.curve.totalImpulse).toBeLessThan(certNs * 1.08);
+      if (certMaxN !== undefined) {
+        expect(m!.entry.curve.maxThrust, `${designation} peak thrust`).toBeGreaterThan(certMaxN * 0.9);
+        expect(m!.entry.curve.maxThrust, `${designation} peak thrust`).toBeLessThan(certMaxN * 1.1);
+      }
     }
   });
 

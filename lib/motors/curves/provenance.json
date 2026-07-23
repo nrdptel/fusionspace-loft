@@ -740,13 +740,13 @@
   {
     "file": "AeroTech_H999N.eng",
     "motorId": "5f4294d2000231000000009c",
-    "license": "PD",
-    "simfileId": "685351934a21c50002d2dec9",
+    "license": null,
+    "simfileId": "5f4294d20002e9000000026b",
     "designation": "H999N",
     "manufacturer": "AeroTech",
     "class": "H",
     "diameter": 38,
-    "header": "H999 38 203 P 0.147 0.3311207 AT"
+    "header": "H999N 38 203 0 0.144 0.331 AT"
   },
   {
     "file": "Estes_F15.eng",
