@@ -18,6 +18,9 @@ import ParameterSweep from "./ParameterSweep";
 import MonteCarlo from "./MonteCarlo";
 import MassBreakdown from "./MassBreakdown";
 import GeometryInspector from "./GeometryInspector";
+import DownloadCsv from "./DownloadCsv";
+import type { CsvCell } from "@/lib/csv";
+import { mToFt, mpsToFtps, kgToLb } from "@/lib/units";
 import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
 import { overallLength } from "@/lib/model/geometry";
@@ -29,6 +32,56 @@ import { recoverySizing } from "@/lib/sim/recovery";
 /** A gentle target landing speed to size recovery toward — the middle of the ~3–6 m/s (10–20 ft/s)
  *  band most designs aim for, the same range the hard-landing warning is written against. */
 const SOFT_LANDING_TARGET = 5;
+
+/** The whole simulated trajectory as a CSV grid, one row per integration sample — so a flyer can take
+ *  the raw flight into a spreadsheet or plot it against an altimeter log. The kinematic columns follow
+ *  the chosen unit system (the same toggle the plots use); Mach and drag coefficient are unitless, and
+ *  thrust, drag, and dynamic pressure stay in SI (newtons, pascals), matching how the app shows them.
+ *  Client-side only, like every other export. */
+function flightDataCsv(result: FlightResult, units: UnitSystem): CsvCell[][] {
+  const imperial = units === "imperial";
+  const len = (m: number) => (imperial ? mToFt(m) : m);
+  const spd = (mps: number) => (imperial ? mpsToFtps(mps) : mps);
+  const mass = (kg: number) => (imperial ? kgToLb(kg) : kg);
+  const lenU = imperial ? "ft" : "m";
+  const spdU = imperial ? "ft/s" : "m/s";
+  const massU = imperial ? "lb" : "kg";
+  const r5 = (n: number) => (Number.isFinite(n) ? Math.round(n * 1e5) / 1e5 : "");
+  const header: CsvCell[] = [
+    "Time (s)",
+    "Phase",
+    `Altitude (${lenU})`,
+    `Downrange (${lenU})`,
+    `Speed (${spdU})`,
+    `Vertical speed (${spdU})`,
+    `Acceleration (${spdU}²)`,
+    "Mach",
+    "Drag coefficient",
+    "Thrust (N)",
+    "Drag (N)",
+    `Mass (${massU})`,
+    "Dynamic pressure (Pa)",
+  ];
+  const rows: CsvCell[][] = [header];
+  for (const s of result.trajectory) {
+    rows.push([
+      r5(s.t),
+      s.phase,
+      r5(len(s.altitude)),
+      r5(len(s.x)),
+      r5(spd(s.velocity)),
+      r5(spd(s.verticalVelocity)),
+      r5(spd(s.acceleration)), // an acceleration shares the length unit's per-second² factor
+      r5(s.mach),
+      r5(s.cd),
+      r5(s.thrust),
+      r5(s.drag),
+      r5(mass(s.mass)),
+      r5(s.dynamicPressure),
+    ]);
+  }
+  return rows;
+}
 
 /** A healthy static margin to trim toward — comfortably above the 1-caliber rule of thumb, below
  *  the ~3-caliber point where over-stability starts to weathercock. */
@@ -204,7 +257,14 @@ export default function ResultsView({
 
       {/* Plots */}
       <section aria-label="Plots" className="space-y-6">
-        <h2 className="text-lg font-semibold tracking-tight">Plots</h2>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-lg font-semibold tracking-tight">Plots</h2>
+          {/* The raw trajectory, sample by sample, for a spreadsheet or a plot against an altimeter
+              log — offered only for a real flight (a design with no resolved motor has none). */}
+          {run.hasPropulsion && r.trajectory.length > 0 && (
+            <DownloadCsv rows={flightDataCsv(r, units)} name={doc.rocket.name} suffix="flight-data" label="Download flight data" />
+          )}
+        </div>
         <Plot title={`Altitude (${units === "imperial" ? "ft" : "m"}) vs time`}>
           <LineChart
             series={[altSeries(r, units)]}

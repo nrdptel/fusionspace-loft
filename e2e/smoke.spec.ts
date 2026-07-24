@@ -99,6 +99,34 @@ test.describe("Loft", () => {
     expect(download.suggestedFilename()).toMatch(/\.ork$/);
   });
 
+  test("exports the flight trajectory as a CSV", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+
+    // The download sits in the Flight workspace's Plots section, beside the charts it exports.
+    const plots = page.getByRole("region", { name: "Plots" });
+    const [download] = await Promise.all([
+      page.waitForEvent("download"),
+      plots.getByRole("button", { name: /Download flight data/ }).click(),
+    ]);
+    expect(download.suggestedFilename()).toMatch(/flight-data\.csv$/);
+    const csv = readFileSync(await download.path(), "utf8");
+    const lines = csv.split(/\r?\n/);
+    // The header names the columns; the body is the sample-by-sample trajectory (hundreds of rows).
+    expect(lines[0]).toContain("Altitude (m)");
+    expect(lines[0]).toContain("Mach");
+    expect(lines[0]).toContain("Thrust (N)");
+    expect(lines.length).toBeGreaterThan(50);
+    // The flight starts on the pad (the first sample is early, still on the rail) and runs through
+    // powered and coasting flight.
+    const first = lines[1].split(",");
+    expect(Number(first[0])).toBeLessThan(0.1); // time near zero
+    expect(first[1]).toBe("rod"); // phase column: still on the launch rail
+    expect(csv).toContain(",boost,");
+    expect(csv).toContain(",coast,");
+  });
+
   test("renames the design and the results title and .ork filename follow", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: "Start a new design" }).click();
