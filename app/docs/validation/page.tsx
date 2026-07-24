@@ -335,6 +335,20 @@ export default async function Validation() {
         summing over sets brings it within ~4%. Both are reproducible by importing the file and
         reading the per-step panel; neither file is bundled (GPL).
       </p>
+      <p>
+        Taken together, that example set is a broad accuracy check. Across OpenRocket&apos;s nine
+        bundled example designs — <strong>33 flight configurations</strong> spanning small A-class
+        models through J-class high-power, single-stage through three-stage — Loft&apos;s{" "}
+        <strong>apogee lands within 10% of OpenRocket&apos;s stored value on every configuration</strong>,
+        and within 5% on most (median ~2%). Max velocity agrees just as closely (median ~2%, every
+        flight within 10%), and rail-exit velocity typically to about 1%. Peak acceleration is within
+        ~5% on most; the exceptions are a few very high-thrust motors whose brief thrust spike Loft&apos;s
+        fixed-step integrator still slightly under-resolves (reading a little low) and one three-stage
+        sustainer (a little high) — each a known, bounded residual rather than a drag or mass error,
+        since apogee and velocity on those same flights agree. These are point-in-time figures you can
+        reproduce by importing the files and reading the OpenRocket-vs-Loft panel; none is bundled
+        (they ship with OpenRocket, which is GPL).
+      </p>
 
       <h2>Motor curves vs certification</h2>
       <p>
