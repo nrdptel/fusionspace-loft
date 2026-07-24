@@ -24,6 +24,7 @@ import { parseFlightLog, type FlightLogPoint, type FlightLogSpeedPoint, type Log
 import { mToFt, ftToM, mpsToFtps, ftpsToMps, mphToMps, KMH_PER_MPS, kgToLb } from "@/lib/units";
 import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
+import { impulseClass } from "@/lib/motors/eng";
 import { overallLength } from "@/lib/model/geometry";
 import { noseBallastStation } from "@/lib/sim/run";
 import { motorLayout } from "@/lib/sim/setup";
@@ -461,6 +462,7 @@ export default function ResultsView({
         {thrustSeries(run) && (
           <Plot title="Motor thrust (N) vs time">
             <LineChart series={[thrustSeries(run)!]} xLabel="time (s)" yLabel="N" yZeroFloor />
+            <MotorStatsCaption run={run} units={units} />
           </Plot>
         )}
       </section>
@@ -1040,6 +1042,40 @@ function thrustSeries(run: FlightRun): Series | null {
   // A cluster fires N identical motors, so the delivered thrust is N× the single-motor curve.
   const n = Math.max(1, res?.count ?? 1);
   return { color: COLORS.thrust, label: "thrust", points: m.samples.map((p) => ({ x: p.t, y: p.thrust * n })) };
+}
+
+/** The key numbers a flyer reads a thrust curve for, under the plot: the delivered total impulse and
+ *  its class letter, the peak and average thrust, the burn time, and the loaded propellant mass. All
+ *  are the *delivered* figures — scaled by the cluster count, to match the N× curve above — so the
+ *  impulse and its class are what the vehicle actually flies (a cluster of three G's reads as an I).
+ *  Reads the same primary resolved motor `thrustSeries` plots; renders nothing when none resolved. */
+function MotorStatsCaption({ run, units }: { run: FlightRun; units: UnitSystem }) {
+  const res = run.resolutions.find((x) => x.match);
+  const m = res?.match?.entry.curve;
+  if (!m) return null;
+  const n = Math.max(1, res?.count ?? 1);
+  const totalImpulse = m.totalImpulse * n;
+  const propMass = m.propMass * n; // kg
+  const propText =
+    units === "imperial" ? `${(propMass * 35.274).toFixed(2)} oz` : `${Math.round(propMass * 1000)} g`;
+  const delays = m.delaysRaw && m.delaysRaw !== "0" ? m.delaysRaw : null;
+  const stat = (label: string, value: string) => (
+    <span>
+      <span className="text-zinc-500 dark:text-zinc-400">{label}</span>{" "}
+      <span className="font-medium tabular-nums text-zinc-700 dark:text-zinc-200">{value}</span>
+    </span>
+  );
+  return (
+    <figcaption className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px]">
+      {n > 1 && stat("cluster", `${n}× ${m.designation}`)}
+      {stat("total impulse", `${totalImpulse.toFixed(1)} N·s (${impulseClass(totalImpulse)})`)}
+      {stat("peak", `${Math.round(m.maxThrust * n)} N`)}
+      {stat("avg", `${Math.round(m.avgThrust * n)} N`)}
+      {stat("burn", `${m.burnTime.toFixed(1)} s`)}
+      {stat("propellant", propText)}
+      {delays && stat("delays", delays)}
+    </figcaption>
+  );
 }
 
 function eventMarkers(r: FlightResult): Marker[] {

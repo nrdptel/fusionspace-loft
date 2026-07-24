@@ -309,6 +309,22 @@ test.describe("Loft", () => {
     await expect(page.getByLabel("Results").getByText("Apogee", { exact: true })).toBeVisible();
   });
 
+  test("the thrust curve is annotated with the motor's impulse, thrust, and burn stats", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+
+    // Below the thrust curve, the numbers a flyer reads it for: delivered total impulse and class,
+    // peak and average thrust, burn time, and propellant mass — here the demo's AeroTech H128W.
+    const thrust = page.getByRole("heading", { name: "Motor thrust (N) vs time" }).locator("xpath=..");
+    await expect(thrust).toBeVisible();
+    await expect(thrust.getByText("total impulse")).toBeVisible();
+    await expect(thrust.getByText("177.8 N·s (H)")).toBeVisible();
+    await expect(thrust.getByText("190 N")).toBeVisible();
+    await expect(thrust.getByText("1.3 s")).toBeVisible();
+    await expect(thrust.getByText("94 g")).toBeVisible();
+  });
+
   test("a two-stage design with an undersized booster chute is flagged for a firm booster landing", async ({ page }) => {
     await page.goto("/");
     // A serial two-stage rocket whose booster recovers under its own (too-small) canopy: it lands
