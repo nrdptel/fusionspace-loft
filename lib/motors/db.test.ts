@@ -77,6 +77,25 @@ describe("motor database", () => {
     }
   });
 
+  it("fills the Cesaroni sub-I gap and AeroTech G64, on their certified impulse", () => {
+    // Cesaroni had no bundled motor below I-class, though its Pro38 H/I motors are L1/L2 staples;
+    // and the common AeroTech G64 was missing. Each is authentic ThrustCurve data resolving by its
+    // (unique) designation, and must integrate to its published certified total impulse — the same
+    // guard that caught the mis-sourced Estes B4 and AeroTech H999N curves.
+    const cases: [string, string, string, number][] = [
+      ["Cesaroni", "H100", "H", 286.4],
+      ["Cesaroni", "I212", "I", 364],
+      ["AeroTech", "G64", "G", 118.8],
+    ];
+    for (const [manufacturer, designation, cls, certNs] of cases) {
+      const m = resolveMotor({ manufacturer, designation });
+      expect(m, `${designation} should resolve`).not.toBeNull();
+      expect(m!.entry.curve.motorClass).toBe(cls);
+      expect(m!.entry.curve.totalImpulse, `${designation} impulse vs cert`).toBeGreaterThan(certNs * 0.9);
+      expect(m!.entry.curve.totalImpulse, `${designation} impulse vs cert`).toBeLessThan(certNs * 1.05);
+    }
+  });
+
   it("covers the common AeroTech F–I motors real HPR files reference", () => {
     // These are the motors the OpenRocket example designs used that Loft previously couldn't
     // resolve, so those files flew to nothing. Each must now resolve to its exact curve.

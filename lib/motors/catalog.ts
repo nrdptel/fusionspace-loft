@@ -92,6 +92,16 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
     }
   },
   {
+    "eng": "; Aerotech G64 Bifurcated RASP.ENG file made from data Supplied by Aerotech \r\n; File produced August 10 by Tim Barr\r\n; The curve drawn with these data points is as\r\n; close to the test curve as can be with such a limited\r\n; number of points (32) allowed with wRASP up to v1.6.\r\nG64BF 29 124 4-8-10 0.0625 0.1512 AERO\r\n0.01\t9.5637\r\n0.02\t60.0510\r\n0.03\t77.4880\r\n0.04\t90.3211\r\n0.05\t98.8061\r\n0.06\t102.9986\r\n0.07\t105.9789\r\n0.08\t108.1140\r\n0.09\t108.0695\r\n0.10\t106.4237\r\n0.15\t104.0773\r\n0.25\t103.3222\r\n0.35\t100.4053\r\n0.45\t95.4399\r\n0.55\t90.4957\r\n0.65\t85.0522\r\n0.75\t79.2640\r\n0.95\t67.6591\r\n1.15\t53.0840\r\n1.35\t38.1535\r\n1.55\t23.7201\r\n1.75\t11.4636\r\n1.95\t4.6295\r\n2.15\t1.4518\r\n2.35\t0.1101\r\n2.44\t0",
+    "source": {
+      "file": "AeroTech_G64.eng",
+      "motorId": "5f4294d20002310000000060",
+      "simfileId": "5f4294d20002e9000000081a",
+      "license": null,
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000081a/"
+    }
+  },
+  {
     "eng": ";\n; Aerotech G77R (Redline)\n;\n; AeroTech RMS-29/120 EZ Access Reloadable Motors (New! Hardware).\n; New AeroTech Redline Motor. Just announced on AeroTech's Website!\n; File produced 28 Feb 2005.\n;\n; The file was produced by scaling data points off the\n; thrust curve in the manufacturers catalog sheet.\n;\n; The motor is not yet on www.thrustcurve.org.\n; Hence the amateur file production.\n; The file was created by Stan Hemphill.\n; Contact at stanley_hemphill@hotmail.com.\n;\n; Motor Dia  Len  Delay Prop Gross Mfg\nG77R 29 150 4-6-8-9-10-12-13-15-17 0.0554 0.155 AT\n0.0132 014.8333\n0.0243 032.4479\n0.0331 046.3542\n0.0375 052.8438\n0.0463 056.5521\n0.0617 059.3333\n0.2580 073.2396\n0.6548 087.1458\n0.8709 089.0000\n0.8885 085.2917\n1.0252 086.2188\n1.0472 084.3646\n1.0715 086.2188\n1.1002 084.3646\n1.1332 085.2917\n1.1950 076.9479\n1.2104 076.0208\n1.2369 065.8229\n1.2611 043.5729\n1.2898 027.8125\n1.3317 012.0521\n1.3625 004.6354\n1.4000 000.0000",
     "source": {
       "file": "AeroTech_G77R.eng",
@@ -419,6 +429,26 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "simfileId": "5f4294d20002e90000000674",
       "license": "?",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000674/"
+    }
+  },
+  {
+    "eng": "H100-IM 38 186 6-8-11-12-15 0.1544 0.327 CTI\r\n0.016 68\r\n0.056 116\r\n0.09 118\r\n0.14 115\r\n0.5 116\r\n0.6 114\r\n1.25 113\r\n2.32 99\r\n2.44 100\r\n2.55 89\r\n2.77 0",
+    "source": {
+      "file": "Cesaroni_H100.eng",
+      "motorId": "5f4294d200023100000002cb",
+      "simfileId": "5f4294d20002e90000000656",
+      "license": null,
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000656/"
+    }
+  },
+  {
+    "eng": ";\n;\nI212SS  38.0 245.00 5-7-9-11-14 0.24810 0.47500 CTI\n   0.04     189.66 \n   0.20     207.11 \n   0.40     222.41 \n   0.60     236.62 \n   0.80     249.60 \n   0.95     255.15 \n   1.01     250.22 \n   1.21     233.54 \n   1.40     208.99 \n   1.55     183.99 \n   1.60     168.08 \n   1.63     134.62 \n   1.69      25.86 \n   1.71       0.00",
+    "source": {
+      "file": "Cesaroni_I212.eng",
+      "motorId": "5f4294d200023100000000ba",
+      "simfileId": "5f4294d20002e9000000013b",
+      "license": null,
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000013b/"
     }
   },
   {

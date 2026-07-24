@@ -797,5 +797,38 @@
     "manufacturer": "Quest",
     "class": "D",
     "diameter": 20
+  },
+  {
+    "file": "AeroTech_G64.eng",
+    "motorId": "5f4294d20002310000000060",
+    "license": null,
+    "simfileId": "5f4294d20002e9000000081a",
+    "designation": "G64BF",
+    "manufacturer": "AeroTech",
+    "class": "G",
+    "diameter": 29,
+    "header": "G64BF 29 124 4-8-10 0.0625 0.1512 AERO"
+  },
+  {
+    "file": "Cesaroni_H100.eng",
+    "motorId": "5f4294d200023100000002cb",
+    "license": null,
+    "simfileId": "5f4294d20002e90000000656",
+    "designation": "H100-IM",
+    "manufacturer": "Cesaroni",
+    "class": "H",
+    "diameter": 38,
+    "header": "H100-IM 38 186 6-8-11-12-15 0.1544 0.327 CTI"
+  },
+  {
+    "file": "Cesaroni_I212.eng",
+    "motorId": "5f4294d200023100000000ba",
+    "license": null,
+    "simfileId": "5f4294d20002e9000000013b",
+    "designation": "I212SS",
+    "manufacturer": "Cesaroni",
+    "class": "I",
+    "diameter": 38,
+    "header": "I212SS 38.0 245.00 5-7-9-11-14 0.24810 0.47500 CTI"
   }
 ]

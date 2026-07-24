@@ -65,6 +65,7 @@ export function coreDesignation(designation: string): string {
 // comparison works.
 const MFR_ALIASES: Record<string, string> = {
   AT: "aerotech",
+  AERO: "aerotech", // some RASP .eng files spell AeroTech's code "AERO" rather than "AT"
   AEROTECH: "aerotech",
   CTI: "cesaroni",
   CES: "cesaroni",
