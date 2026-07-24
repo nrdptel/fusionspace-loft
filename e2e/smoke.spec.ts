@@ -882,6 +882,48 @@ test.describe("Loft", () => {
     await expect(page.getByText("with your edits").first()).toBeVisible();
   });
 
+  test("dragging the fin span up on the diagram re-flies the design stiffer", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+
+    const staticMargin = async () => {
+      const txt = await page
+        .getByText("Static margin", { exact: true })
+        .locator("xpath=following-sibling::dd")
+        .innerText();
+      return parseFloat(txt.replace(/[^\d.]/g, ""));
+    };
+    const before = await staticMargin();
+    expect(before).toBeGreaterThan(0);
+
+    // The fin span is the one handle that drags VERTICALLY: it sits above the tip and pulling it up
+    // grows the semi-span. Bigger fins carry more lift aft — the centre of pressure moves back and the
+    // design flies stiffer. The reserved headroom and drag-frozen frame keep the tip under the pointer.
+    await page.getByRole("tab", { name: "Design" }).click();
+    const span = page.getByRole("slider", { name: "Fin span" });
+    await expect(span).toBeVisible();
+    const startMm = parseFloat((await span.getAttribute("aria-valuenow")) ?? "0");
+    expect(startMm).toBeGreaterThan(0);
+    await span.scrollIntoViewIfNeeded();
+    const box = await span.boundingBox();
+    expect(box).not.toBeNull();
+    await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2 - 30, { steps: 12 });
+    await page.mouse.up();
+
+    await expect.poll(async () => parseFloat((await span.getAttribute("aria-valuenow")) ?? "0")).toBeGreaterThan(
+      startMm,
+    );
+    await expect.poll(staticMargin).toBeGreaterThan(before);
+    // The keyboard slider works too: it's a vertical orientation, and arrow-down shrinks the span.
+    await span.focus();
+    const afterDrag = parseFloat((await span.getAttribute("aria-valuenow")) ?? "0");
+    await page.keyboard.press("ArrowDown");
+    await expect.poll(async () => parseFloat((await span.getAttribute("aria-valuenow")) ?? "0")).toBeLessThan(afterDrag);
+  });
+
   test("results split into Flight / Design / Analyze workspaces", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
@@ -1025,7 +1067,8 @@ test.describe("Loft", () => {
     // design's own span (its placeholder), so read that and grow it. (Static margin sits above the
     // workspace tabs, so it stays readable without leaving Design.)
     await page.getByRole("tab", { name: "Design" }).click();
-    const finSpan = page.getByLabel(/Fin span/);
+    // The number field, specifically — the diagram now also carries a vertical "Fin span" drag handle.
+    const finSpan = page.getByRole("spinbutton", { name: /Fin span/ });
     await expect(finSpan).toBeVisible();
     const designSpan = parseFloat((await finSpan.getAttribute("placeholder")) ?? "0");
     expect(designSpan).toBeGreaterThan(0);

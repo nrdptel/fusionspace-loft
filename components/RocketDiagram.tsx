@@ -44,12 +44,18 @@ export default function RocketDiagram({
   /** Loaded motor casing(s), drawn inside the aft body so the design shows what it's flying. */
   motors?: MotorMark[];
   /** When provided, the diagram becomes editable: drag handles on the fins trim their position, tip
-   *  rake, and root and tip chords (the stability and area levers), re-flying the design live. Applies
+   *  rake, span, and root and tip chords (the stability and area levers), re-flying the design live. Applies
    *  a geometry edit patch, exactly what a numeric what-if field does — so building by dragging and
    *  building by typing share one path. */
   onEdit?: (patch: GeometryEdits) => void;
 }) {
   const uid = useId();
+  // A drag-frozen vertical extent, set while the fin SPAN is being dragged. The diagram normally fits
+  // the airframe tightly, which pins the widest fin's tip to the frame edge — so a span drag can't
+  // move it. When editable we reserve a little headroom (below), and while a span drag is live we hold
+  // the frame at its grab-time extent so the tip tracks the pointer instead of the frame chasing the
+  // growing fin. Null except during a span drag.
+  const [spanFrameExtent, setSpanFrameExtent] = useState<number | null>(null);
 
   const o = rocketOutline(rocket);
   if (!(o.length > 0) || !(o.maxExtent > 0) || o.body.length < 2) return null;
@@ -58,8 +64,13 @@ export default function RocketDiagram({
   const padX = 14;
   const padY = 10;
   const s = (W - 2 * padX) / o.length; // pixels per metre (equal on both axes → true scale)
-  const centerY = padY + o.maxExtent * s;
-  const H = centerY + o.maxExtent * s + padY;
+  // Vertical extent the view frames to. Editable diagrams reserve 30% headroom above the tallest fin
+  // so the span handle has room to pull the tip outward; a static (view-only) diagram fits tightly.
+  // A live span drag holds this fixed (see spanFrameExtent) so the frame doesn't chase the fin.
+  const SPAN_HEADROOM = 1.3;
+  const frameExtent = spanFrameExtent ?? (onEdit ? o.maxExtent * SPAN_HEADROOM : o.maxExtent);
+  const centerY = padY + frameExtent * s;
+  const H = centerY + frameExtent * s + padY;
 
   const X = (x: number) => padX + x * s;
   const top = (r: number) => centerY - r * s;
@@ -175,6 +186,18 @@ export default function RocketDiagram({
   const rootCx = primaryFin ? X(primaryFin.poly[3][0]) : 0;
   const rootCy = primaryFin ? top(primaryFin.poly[3][1]) : 0;
 
+  // Span handle (pull the fin tip outward to resize the semi-span). Unlike the four horizontal
+  // handles this changes the fin's radial extent, so it drags VERTICALLY, rides the reserved headroom
+  // above the tip, and freezes the frame while dragging so the tip tracks the pointer. It applies to
+  // every fin kind — span (height) is the one dimension a generic elliptical/freeform set edits
+  // directly too. Bounds keep the tip inside the framed extent (so it stays visible) and off zero.
+  const spanNow = primaryFin ? primaryFin.poly[1][1] - primaryFin.poly[0][1] : undefined; // tipR − seatR
+  const seatR = primaryFin ? primaryFin.poly[0][1] : 0;
+  const spanLo = spanNow !== undefined ? Math.min(spanNow, 0.005) : 0;
+  const spanHi = spanNow !== undefined ? Math.max(spanNow, frameExtent - seatR) : 0;
+  const spanCx = primaryFin ? X((primaryFin.poly[1][0] + primaryFin.poly[2][0]) / 2) : 0;
+  const spanCy = primaryFin ? top(primaryFin.poly[1][1]) - 13 : 0; // a touch outside the tip, in the headroom
+
   return (
     <figure className="m-0">
       <svg
@@ -285,7 +308,8 @@ export default function RocketDiagram({
         {/* fin drag handles — grab a fin to trim stability directly on the picture. Each is a real
             slider: focusable, arrow keys nudge it, drag moves it. The station handle (mid-fin) slides
             the whole group fore/aft; the sweep handle (tip leading corner) rakes the tip fore/aft; the
-            root- and tip-chord handles (root and tip trailing corners) lengthen or shorten each chord. */}
+            root- and tip-chord handles (root and tip trailing corners) lengthen or shorten each chord;
+            the span handle (above the tip) drags vertically to resize the semi-span. */}
         {onEdit && primaryFin && finStationNow !== undefined && (
           <>
             <FinHandle
@@ -350,6 +374,27 @@ export default function RocketDiagram({
                 onEdit={onEdit}
               />
             )}
+            {spanNow !== undefined && (
+              <FinHandle
+                field="finSpan"
+                axis="y"
+                label="Fin span"
+                valueText={`${Math.round(spanNow * 1000)} mm semi-span`}
+                title="Drag up/down or use arrow keys to resize the fin span"
+                current={spanNow}
+                lo={spanLo}
+                hi={spanHi}
+                cx={spanCx}
+                cy={spanCy}
+                s={s}
+                padX={padX}
+                centerY={centerY}
+                onEdit={onEdit}
+                onActiveChange={(active) =>
+                  setSpanFrameExtent(active ? o.maxExtent * SPAN_HEADROOM : null)
+                }
+              />
+            )}
           </>
         )}
       </svg>
@@ -382,12 +427,14 @@ export default function RocketDiagram({
 }
 
 /** A single draggable, focusable slider handle on the diagram — the direct-manipulation grip. It
- *  drives one scale-stable fin edit (moving the group fore/aft, raking the tip, or resizing the root
- *  or tip chord), drawn as an indigo grip with a fore/aft glyph. All these edits keep the diagram's
- *  scale fixed, so the drag is a plain snapshot-and-map: at pointer-down it records where along the
- *  airframe the grab landed, then each move maps the pointer's x back to a station and applies the
- *  field, clamped to bounds. Owning its own drag refs keeps that ref access inside its own event
- *  handlers, where it belongs. */
+ *  drives one fin edit, drawn as an indigo grip. Most handles are HORIZONTAL (`axis` "x") and
+ *  scale-stable — moving the group fore/aft, raking the tip, resizing a chord — so the drag is a
+ *  plain snapshot-and-map: at pointer-down it records where the grab landed, then each move maps the
+ *  pointer's x back to a station and applies the field. The SPAN handle is VERTICAL (`axis` "y"): it
+ *  maps the pointer's y back to a radius, and because it changes the fin's radial extent it asks the
+ *  parent (via `onActiveChange`) to freeze the frame for the drag so the tip tracks the pointer
+ *  instead of the frame chasing the fin. Owning its own drag refs keeps that ref access inside its
+ *  own event handlers, where it belongs. */
 function FinHandle({
   field,
   label,
@@ -401,8 +448,11 @@ function FinHandle({
   s,
   padX,
   onEdit,
+  axis = "x",
+  centerY = 0,
+  onActiveChange,
 }: {
-  field: "finStation" | "finSweepLength" | "finRootChord" | "finTipChord";
+  field: "finStation" | "finSweepLength" | "finRootChord" | "finTipChord" | "finSpan";
   label: string;
   valueText: string;
   title: string;
@@ -414,11 +464,20 @@ function FinHandle({
   s: number;
   padX: number;
   onEdit: (patch: GeometryEdits) => void;
+  /** "x" maps the pointer's horizontal position to a station; "y" maps its vertical position to a
+   *  radius (for the span). Defaults to "x". */
+  axis?: "x" | "y";
+  /** Viewbox y of the centreline — needed to turn a pointer y into a radius (the "y" axis only). */
+  centerY?: number;
+  /** Called with true at drag start / false at drag end, so the parent can freeze the frame around a
+   *  span drag. Only the span handle passes it. */
+  onActiveChange?: (active: boolean) => void;
 }) {
   const dragRef = useRef<{
     grabOffset: number;
     s: number;
     padX: number;
+    centerY: number;
     lo: number;
     hi: number;
     svg: SVGSVGElement;
@@ -426,13 +485,23 @@ function FinHandle({
   } | null>(null);
   const rafRef = useRef<number | null>(null);
   const pendingXRef = useRef(0);
+  const pendingYRef = useRef(0);
+  // Held in a ref so `end`/pointer-down stay stable across renders. `onActiveChange` is an inline
+  // parent arrow (new identity each render); if it were a dependency of `end`, the freeze it triggers
+  // would re-create `end`, firing the unmount-cleanup effect below and aborting the very drag that
+  // set it — so the span drag would die on its first move. The ref sidesteps that.
+  const onActiveChangeRef = useRef(onActiveChange);
+  useEffect(() => {
+    onActiveChangeRef.current = onActiveChange;
+  }, [onActiveChange]);
   // Show the live value while the handle is in use — dragging or keyboard-focused. It gives the
   // mouse a precise number to aim for and puts on screen, for sighted keyboard users, the value that
   // otherwise only reaches assistive tech through aria-valuetext.
   const [dragging, setDragging] = useState(false);
   const [focused, setFocused] = useState(false);
 
-  // Apply the pending pointer-x on the next frame — the window handlers fire far faster than paint.
+  // Map the pending pointer position (through the SVG's live transform) to this axis's value and
+  // apply it, on the next frame — the window handlers fire far faster than paint.
   const apply = useCallback(() => {
     rafRef.current = null;
     const dg = dragRef.current;
@@ -440,14 +509,16 @@ function FinHandle({
     if (!dg || !ctm) return;
     const pt = dg.svg.createSVGPoint();
     pt.x = pendingXRef.current;
-    pt.y = 0;
-    const station = (pt.matrixTransform(ctm.inverse()).x - dg.padX) / dg.s;
-    onEdit({ [field]: Math.min(dg.hi, Math.max(dg.lo, station - dg.grabOffset)) });
-  }, [field, onEdit]);
+    pt.y = pendingYRef.current;
+    const local = pt.matrixTransform(ctm.inverse());
+    const mapped = axis === "y" ? (dg.centerY - local.y) / dg.s : (local.x - dg.padX) / dg.s;
+    onEdit({ [field]: Math.min(dg.hi, Math.max(dg.lo, mapped - dg.grabOffset)) });
+  }, [field, onEdit, axis]);
 
   const onMove = useCallback(
     (ev: PointerEvent) => {
       pendingXRef.current = ev.clientX;
+      pendingYRef.current = ev.clientY;
       if (rafRef.current == null) rafRef.current = requestAnimationFrame(apply);
     },
     [apply],
@@ -461,17 +532,18 @@ function FinHandle({
       rafRef.current = null;
     }
     setDragging(false);
+    onActiveChangeRef.current?.(false);
   }, []);
 
   useEffect(() => end, [end]); // clean up an in-flight drag on unmount
 
   return (
     <g
-      className="group cursor-ew-resize touch-none outline-none"
+      className={`group touch-none outline-none ${axis === "y" ? "cursor-ns-resize" : "cursor-ew-resize"}`}
       role="slider"
       tabIndex={0}
       aria-label={label}
-      aria-orientation="horizontal"
+      aria-orientation={axis === "y" ? "vertical" : "horizontal"}
       aria-valuemin={Math.round(lo * 1000)}
       aria-valuemax={Math.round(hi * 1000)}
       aria-valuenow={Math.round(current * 1000)}
@@ -498,21 +570,27 @@ function FinHandle({
         ev.currentTarget.focus();
         const pt = svg.createSVGPoint();
         pt.x = ev.clientX;
-        pt.y = 0;
-        const station = (pt.matrixTransform(ctm.inverse()).x - padX) / s;
+        pt.y = ev.clientY;
+        const local = pt.matrixTransform(ctm.inverse());
+        const mapped = axis === "y" ? (centerY - local.y) / s : (local.x - padX) / s;
         const controller = new AbortController();
-        dragRef.current = { grabOffset: station - current, s, padX, lo, hi, svg, controller };
+        dragRef.current = { grabOffset: mapped - current, s, padX, centerY, lo, hi, svg, controller };
         window.addEventListener("pointermove", onMove, { signal: controller.signal });
         window.addEventListener("pointerup", end, { signal: controller.signal });
         window.addEventListener("pointercancel", end, { signal: controller.signal });
         setDragging(true);
+        onActiveChangeRef.current?.(true);
       }}
     >
       {/* focus ring — only shown when the handle is keyboard-focused */}
       <circle cx={cx} cy={cy} r={11} className="fill-none stroke-indigo-400 opacity-0 group-focus-visible:opacity-100" strokeWidth={2} />
       <circle cx={cx} cy={cy} r={7} className="fill-indigo-500/90 stroke-white dark:stroke-zinc-900" strokeWidth={1.5} />
       <path
-        d={`M ${cx - 4} ${cy} h 8 M ${cx - 4} ${cy} l 2 -2 m -2 2 l 2 2 M ${cx + 4} ${cy} l -2 -2 m 2 2 l -2 2`}
+        d={
+          axis === "y"
+            ? `M ${cx} ${cy - 4} v 8 M ${cx} ${cy - 4} l -2 2 m 2 -2 l 2 2 M ${cx} ${cy + 4} l -2 -2 m 2 2 l 2 -2`
+            : `M ${cx - 4} ${cy} h 8 M ${cx - 4} ${cy} l 2 -2 m -2 2 l 2 2 M ${cx + 4} ${cy} l -2 -2 m 2 2 l -2 2`
+        }
         className="stroke-white"
         strokeWidth={1.2}
         fill="none"

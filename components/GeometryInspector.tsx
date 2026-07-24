@@ -123,9 +123,9 @@ export default function GeometryInspector({
         {onEdit && (
           <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
             Grab a handle on the fins to trim stability right on the picture — slide the whole group
-            fore or aft, or (on straight-edged fins) rake the tip or resize the root and tip chords by
-            their corner handles. The design re-flies live, so the margin updates as you drag; arrow
-            keys nudge a focused handle too.
+            fore or aft, pull the tip up to resize the span, or (on straight-edged fins) rake the tip
+            or resize the root and tip chords by their corner handles. The design re-flies live, so the
+            margin updates as you drag; arrow keys nudge a focused handle too.
           </p>
         )}
         {/* The part-by-part detail is opt-in — hover/focus a row and it lights up on the diagram. */}
