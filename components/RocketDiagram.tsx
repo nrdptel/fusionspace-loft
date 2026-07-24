@@ -43,9 +43,10 @@ export default function RocketDiagram({
   onHover?: (id: string | null) => void;
   /** Loaded motor casing(s), drawn inside the aft body so the design shows what it's flying. */
   motors?: MotorMark[];
-  /** When provided, the diagram becomes editable: a drag handle on the fins sets the fin station
-   *  (the stability lever), re-flying the design live. Applies a geometry edit patch, exactly what
-   *  a numeric what-if field does — so building by dragging and building by typing share one path. */
+  /** When provided, the diagram becomes editable: drag handles on the fins trim their position, tip
+   *  rake, and root chord (the stability and area levers), re-flying the design live. Applies a
+   *  geometry edit patch, exactly what a numeric what-if field does — so building by dragging and
+   *  building by typing share one path. */
   onEdit?: (patch: GeometryEdits) => void;
 }) {
   const uid = useId();
@@ -143,6 +144,21 @@ export default function RocketDiagram({
   const sweepHi = primaryFin ? Math.max(sweepNow ?? 0, maxDrawX - primaryFin.poly[0][0] - tipChord) : 0;
   const sweepCx = primaryFin ? X((primaryFin.poly[1][0] + primaryFin.poly[2][0]) / 2) : 0;
   const sweepCy = primaryFin ? top(primaryFin.poly[1][1]) : 0;
+
+  // Root-chord handle (lengthen/shorten the fin root by dragging its trailing-edge corner fore/aft)
+  // — trapezoidal fins only, where the root chord is a directly editable dimension. The root is the
+  // fin's longest chord, so it drives the planform area and thus a good deal of the stability margin
+  // and the fin drag; a strong lever to have on the picture. It leaves the fin's radial extent, so
+  // the diagram's scale is unchanged — the same snapshot-and-map as the other two handles. Bounds
+  // keep the root on the airframe (never past the aft end) and off zero, always including today's
+  // value so it stays reachable.
+  const rootChordNow =
+    primaryFin && trapezoid ? primaryFin.poly[3][0] - primaryFin.poly[0][0] : undefined;
+  const rootLeStation = primaryFin ? primaryFin.poly[0][0] : 0;
+  const rootLo = rootChordNow !== undefined ? Math.min(rootChordNow, 0.01) : 0;
+  const rootHi = rootChordNow !== undefined ? Math.max(rootChordNow, o.length - rootLeStation) : 0;
+  const rootCx = primaryFin ? X(primaryFin.poly[3][0]) : 0;
+  const rootCy = primaryFin ? top(primaryFin.poly[3][1]) : 0;
 
   return (
     <figure className="m-0">
@@ -253,7 +269,8 @@ export default function RocketDiagram({
 
         {/* fin drag handles — grab a fin to trim stability directly on the picture. Each is a real
             slider: focusable, arrow keys nudge it, drag moves it. The station handle (mid-fin)
-            slides the whole group fore/aft; the sweep handle (at the tip) rakes the tip fore/aft. */}
+            slides the whole group fore/aft; the sweep handle (at the tip) rakes the tip fore/aft;
+            the root-chord handle (at the root trailing-edge corner) lengthens or shortens the root. */}
         {onEdit && primaryFin && finStationNow !== undefined && (
           <>
             <FinHandle
@@ -281,6 +298,22 @@ export default function RocketDiagram({
                 hi={sweepHi}
                 cx={sweepCx}
                 cy={sweepCy}
+                s={s}
+                padX={padX}
+                onEdit={onEdit}
+              />
+            )}
+            {rootChordNow !== undefined && (
+              <FinHandle
+                field="finRootChord"
+                label="Fin root chord"
+                valueText={`${Math.round(rootChordNow * 1000)} mm root chord`}
+                title="Drag or use arrow keys to lengthen or shorten the fin root"
+                current={rootChordNow}
+                lo={rootLo}
+                hi={rootHi}
+                cx={rootCx}
+                cy={rootCy}
                 s={s}
                 padX={padX}
                 onEdit={onEdit}
@@ -318,11 +351,12 @@ export default function RocketDiagram({
 }
 
 /** A single draggable, focusable slider handle on the diagram — the direct-manipulation grip. It
- *  drives one scale-stable fin edit (moving the group fore/aft, or raking the tip), drawn as an
- *  indigo grip with a fore/aft glyph. Both fin edits keep the diagram's scale fixed, so the drag is
- *  a plain snapshot-and-map: at pointer-down it records where along the airframe the grab landed,
- *  then each move maps the pointer's x back to a station and applies the field, clamped to bounds.
- *  Owning its own drag refs keeps that ref access inside its own event handlers, where it belongs. */
+ *  drives one scale-stable fin edit (moving the group fore/aft, raking the tip, or resizing the root
+ *  chord), drawn as an indigo grip with a fore/aft glyph. All these edits keep the diagram's scale
+ *  fixed, so the drag is a plain snapshot-and-map: at pointer-down it records where along the airframe
+ *  the grab landed, then each move maps the pointer's x back to a station and applies the field,
+ *  clamped to bounds. Owning its own drag refs keeps that ref access inside its own event handlers,
+ *  where it belongs. */
 function FinHandle({
   field,
   label,
@@ -337,7 +371,7 @@ function FinHandle({
   padX,
   onEdit,
 }: {
-  field: "finStation" | "finSweepLength";
+  field: "finStation" | "finSweepLength" | "finRootChord";
   label: string;
   valueText: string;
   title: string;

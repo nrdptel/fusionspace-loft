@@ -708,6 +708,43 @@ test.describe("Loft", () => {
     await expect(readout).toHaveCount(0);
   });
 
+  test("resizing the fin root chord on the diagram re-flies the design", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+
+    // The above-tabs summary apogee re-flies live, so the edit's effect shows without leaving Design.
+    const summaryApogee = async () => {
+      const dd = page.getByText("Apogee", { exact: true }).first().locator("xpath=following-sibling::dd");
+      return parseFloat((await dd.innerText()).replace(/[^\d.]/g, ""));
+    };
+    const before = await summaryApogee();
+    expect(before).toBeGreaterThan(0);
+
+    // A third handle sits on the fin's root trailing-edge corner: dragging it forward (screen-left)
+    // shortens the root chord, shedding fin planform — less drag, so the rocket flies higher. The
+    // slider reports the root chord in mm as it moves. (This demo's fin root already reaches the tail,
+    // so forward is the available direction — the accessible drag counterpart of shrinking the fin.)
+    await page.getByRole("tab", { name: "Design" }).click();
+    const root = page.getByRole("slider", { name: "Fin root chord" });
+    await expect(root).toBeVisible();
+    const startMm = parseFloat((await root.getAttribute("aria-valuenow")) ?? "0");
+    expect(startMm).toBeGreaterThan(0);
+    await root.scrollIntoViewIfNeeded();
+    const box = await root.boundingBox();
+    expect(box).not.toBeNull();
+    await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box!.x + box!.width / 2 - 40, box!.y + box!.height / 2, { steps: 10 });
+    await page.mouse.up();
+
+    await expect.poll(async () => parseFloat((await root.getAttribute("aria-valuenow")) ?? "0")).toBeLessThan(
+      startMm,
+    );
+    await expect.poll(summaryApogee).toBeGreaterThan(before);
+    await expect(page.getByText("with your edits").first()).toBeVisible();
+  });
+
   test("results split into Flight / Design / Analyze workspaces", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
@@ -874,7 +911,8 @@ test.describe("Loft", () => {
     // Widen the fin root chord — more planform, more drag — on the Design workspace. The field starts
     // from the design's root; flip back to Flight to read the new apogee.
     await page.getByRole("tab", { name: "Design" }).click();
-    const finRoot = page.getByLabel(/Fin root/);
+    // The number field, specifically — the diagram now also carries a "Fin root chord" drag handle.
+    const finRoot = page.getByRole("spinbutton", { name: /Fin root/ });
     await expect(finRoot).toBeVisible();
     const designRoot = parseFloat((await finRoot.getAttribute("placeholder")) ?? "0");
     expect(designRoot).toBeGreaterThan(0);
