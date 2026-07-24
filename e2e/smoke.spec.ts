@@ -924,6 +924,50 @@ test.describe("Loft", () => {
     await expect.poll(async () => parseFloat((await span.getAttribute("aria-valuenow")) ?? "0")).toBeLessThan(afterDrag);
   });
 
+  test("dragging the body wall out on the diagram widens the caliber and re-flies less stable", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+
+    const staticMargin = async () => {
+      const txt = await page
+        .getByText("Static margin", { exact: true })
+        .locator("xpath=following-sibling::dd")
+        .innerText();
+      return parseFloat(txt.replace(/[^\d.]/g, ""));
+    };
+    const before = await staticMargin();
+    expect(before).toBeGreaterThan(0);
+
+    // The body-diameter handle sits on the airframe wall and drags VERTICALLY, like the span. Pulling
+    // it up scales the whole outer airframe to a wider caliber: the fins keep their size but grow
+    // relatively smaller against the bigger reference diameter, so the centre of pressure moves forward
+    // and — with more calibers in the denominator — the static margin drops. The reserved headroom and
+    // drag-frozen frame keep the wall under the pointer.
+    await page.getByRole("tab", { name: "Design" }).click();
+    const dia = page.getByRole("slider", { name: "Body diameter" });
+    await expect(dia).toBeVisible();
+    const startMm = parseFloat((await dia.getAttribute("aria-valuenow")) ?? "0");
+    expect(startMm).toBeGreaterThan(0);
+    await dia.scrollIntoViewIfNeeded();
+    const box = await dia.boundingBox();
+    expect(box).not.toBeNull();
+    await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2 - 30, { steps: 12 });
+    await page.mouse.up();
+
+    await expect.poll(async () => parseFloat((await dia.getAttribute("aria-valuenow")) ?? "0")).toBeGreaterThan(
+      startMm,
+    );
+    await expect.poll(staticMargin).toBeLessThan(before);
+    // The keyboard slider works too: vertical orientation, and arrow-down narrows the caliber back.
+    await dia.focus();
+    const afterDrag = parseFloat((await dia.getAttribute("aria-valuenow")) ?? "0");
+    await page.keyboard.press("ArrowDown");
+    await expect.poll(async () => parseFloat((await dia.getAttribute("aria-valuenow")) ?? "0")).toBeLessThan(afterDrag);
+  });
+
   test("results split into Flight / Design / Analyze workspaces", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
@@ -1427,7 +1471,8 @@ test.describe("Loft", () => {
     // Widen the whole airframe on the Design workspace — a builder geometry edit. The field starts
     // from the design's caliber; flip back to Flight to read the new apogee.
     await page.getByRole("tab", { name: "Design" }).click();
-    const bodyDia = page.getByLabel(/Body diameter/);
+    // The what-if number field, not the diagram's "Body diameter" drag slider (same accessible name).
+    const bodyDia = page.getByRole("spinbutton", { name: /Body diameter/ });
     await expect(bodyDia).toBeVisible();
     const designDia = parseFloat((await bodyDia.getAttribute("placeholder")) ?? "0");
     expect(designDia).toBeGreaterThan(0);

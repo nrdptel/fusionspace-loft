@@ -3,7 +3,14 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import type { Rocket } from "@/lib/model/types";
 import { rocketOutline } from "@/lib/model/silhouette";
-import { primaryFinStation, primaryFinChord, primaryFinRootChord, type GeometryEdits } from "@/lib/model/edit";
+import {
+  primaryFinStation,
+  primaryFinChord,
+  primaryFinRootChord,
+  primaryBodyTube,
+  primaryBodyDiameter,
+  type GeometryEdits,
+} from "@/lib/model/edit";
 import type { MotorMark } from "@/lib/sim/setup";
 import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
@@ -44,18 +51,19 @@ export default function RocketDiagram({
   /** Loaded motor casing(s), drawn inside the aft body so the design shows what it's flying. */
   motors?: MotorMark[];
   /** When provided, the diagram becomes editable: drag handles on the fins trim their position, tip
-   *  rake, span, and root and tip chords (the stability and area levers), re-flying the design live. Applies
-   *  a geometry edit patch, exactly what a numeric what-if field does — so building by dragging and
-   *  building by typing share one path. */
+   *  rake, span, and root and tip chords, and a handle on the body wall resizes the caliber (the
+   *  stability, area, and drag levers), re-flying the design live. Applies a geometry edit patch,
+   *  exactly what a numeric what-if field does — so building by dragging and building by typing share
+   *  one path. */
   onEdit?: (patch: GeometryEdits) => void;
 }) {
   const uid = useId();
-  // A drag-frozen vertical extent, set while the fin SPAN is being dragged. The diagram normally fits
-  // the airframe tightly, which pins the widest fin's tip to the frame edge — so a span drag can't
-  // move it. When editable we reserve a little headroom (below), and while a span drag is live we hold
-  // the frame at its grab-time extent so the tip tracks the pointer instead of the frame chasing the
-  // growing fin. Null except during a span drag.
-  const [spanFrameExtent, setSpanFrameExtent] = useState<number | null>(null);
+  // A drag-frozen vertical extent, set while a vertical resize handle is being dragged (the fin SPAN
+  // or the body DIAMETER). The diagram normally fits the airframe tightly, which pins the widest part
+  // to the frame edge — so an outward drag couldn't move it. When editable we reserve a little
+  // headroom (below), and while such a drag is live we hold the frame at its grab-time extent so the
+  // grabbed edge tracks the pointer instead of the frame chasing the growing geometry. Null otherwise.
+  const [vFrameExtent, setVFrameExtent] = useState<number | null>(null);
 
   const o = rocketOutline(rocket);
   if (!(o.length > 0) || !(o.maxExtent > 0) || o.body.length < 2) return null;
@@ -64,11 +72,12 @@ export default function RocketDiagram({
   const padX = 14;
   const padY = 10;
   const s = (W - 2 * padX) / o.length; // pixels per metre (equal on both axes → true scale)
-  // Vertical extent the view frames to. Editable diagrams reserve 30% headroom above the tallest fin
-  // so the span handle has room to pull the tip outward; a static (view-only) diagram fits tightly.
-  // A live span drag holds this fixed (see spanFrameExtent) so the frame doesn't chase the fin.
-  const SPAN_HEADROOM = 1.3;
-  const frameExtent = spanFrameExtent ?? (onEdit ? o.maxExtent * SPAN_HEADROOM : o.maxExtent);
+  // Vertical extent the view frames to. Editable diagrams reserve 30% headroom around the widest part
+  // so a vertical handle (fin span, body diameter) has room to pull the edge outward; a static
+  // (view-only) diagram fits tightly. A live vertical drag holds this fixed (see vFrameExtent) so the
+  // frame doesn't chase the growing geometry.
+  const V_HEADROOM = 1.3;
+  const frameExtent = vFrameExtent ?? (onEdit ? o.maxExtent * V_HEADROOM : o.maxExtent);
   const centerY = padY + frameExtent * s;
   const H = centerY + frameExtent * s + padY;
 
@@ -197,6 +206,22 @@ export default function RocketDiagram({
   const spanHi = spanNow !== undefined ? Math.max(spanNow, frameExtent - seatR) : 0;
   const spanCx = primaryFin ? X((primaryFin.poly[1][0] + primaryFin.poly[2][0]) / 2) : 0;
   const spanCy = primaryFin ? top(primaryFin.poly[1][1]) - 13 : 0; // a touch outside the tip, in the headroom
+
+  // Diameter handle (pull the body wall outward to resize the caliber). Like the span it drags
+  // VERTICALLY, rides the reserved headroom, and freezes the frame while dragging. It sits on the top
+  // wall at the primary body tube's mid-station and drives `bodyDiameter`, which scales the whole
+  // outer airframe to that caliber — the lever that sets the reference area (and so the drag and the
+  // stability, measured in calibers). Its value is a diameter, so the pointer→radius map is doubled
+  // (axisScale 2). Independent of the fins, so a finless design still gets it. Bounds keep the wall
+  // inside the framed extent and off zero, always including today's caliber.
+  const bodyTube = onEdit ? primaryBodyTube(rocket) : undefined;
+  const bodyDiaNow = onEdit ? primaryBodyDiameter(rocket) : undefined;
+  const bodyPart = bodyTube ? o.parts.find((p) => p.id === bodyTube.id) : undefined;
+  const bodyR = bodyTube ? bodyTube.outerRadius : 0;
+  const diaLo = bodyDiaNow !== undefined ? Math.min(bodyDiaNow, 0.01) : 0;
+  const diaHi = bodyDiaNow !== undefined ? Math.max(bodyDiaNow, 2 * frameExtent) : 0;
+  const diaCx = bodyPart ? X((bodyPart.profile[0][0] + bodyPart.profile[bodyPart.profile.length - 1][0]) / 2) : 0;
+  const diaCy = bodyPart ? top(bodyR) : 0;
 
   return (
     <figure className="m-0">
@@ -391,11 +416,35 @@ export default function RocketDiagram({
                 centerY={centerY}
                 onEdit={onEdit}
                 onActiveChange={(active) =>
-                  setSpanFrameExtent(active ? o.maxExtent * SPAN_HEADROOM : null)
+                  setVFrameExtent(active ? o.maxExtent * V_HEADROOM : null)
                 }
               />
             )}
           </>
+        )}
+
+        {/* body-diameter handle — grab the body wall to resize the caliber, independent of the fins */}
+        {onEdit && bodyPart && bodyDiaNow !== undefined && (
+          <FinHandle
+            field="bodyDiameter"
+            axis="y"
+            axisScale={2}
+            label="Body diameter"
+            valueText={`${Math.round(bodyDiaNow * 1000)} mm diameter`}
+            title="Drag up/down or use arrow keys to resize the body diameter"
+            current={bodyDiaNow}
+            lo={diaLo}
+            hi={diaHi}
+            cx={diaCx}
+            cy={diaCy}
+            s={s}
+            padX={padX}
+            centerY={centerY}
+            onEdit={onEdit}
+            onActiveChange={(active) =>
+              setVFrameExtent(active ? o.maxExtent * V_HEADROOM : null)
+            }
+          />
         )}
       </svg>
       <figcaption className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-zinc-500 dark:text-zinc-400">
@@ -426,15 +475,16 @@ export default function RocketDiagram({
   );
 }
 
-/** A single draggable, focusable slider handle on the diagram — the direct-manipulation grip. It
- *  drives one fin edit, drawn as an indigo grip. Most handles are HORIZONTAL (`axis` "x") and
- *  scale-stable — moving the group fore/aft, raking the tip, resizing a chord — so the drag is a
- *  plain snapshot-and-map: at pointer-down it records where the grab landed, then each move maps the
- *  pointer's x back to a station and applies the field. The SPAN handle is VERTICAL (`axis` "y"): it
- *  maps the pointer's y back to a radius, and because it changes the fin's radial extent it asks the
- *  parent (via `onActiveChange`) to freeze the frame for the drag so the tip tracks the pointer
- *  instead of the frame chasing the fin. Owning its own drag refs keeps that ref access inside its
- *  own event handlers, where it belongs. */
+/** A single draggable, focusable slider handle on the diagram — the direct-manipulation grip, drawn
+ *  as an indigo grip. Most handles are HORIZONTAL (`axis` "x") and scale-stable — moving the fin
+ *  group fore/aft, raking the tip, resizing a chord — so the drag is a plain snapshot-and-map: at
+ *  pointer-down it records where the grab landed, then each move maps the pointer's x back to a
+ *  station and applies the field. The VERTICAL handles (`axis` "y") — the fin span and the body
+ *  diameter — map the pointer's y back to a radius (scaled by `axisScale`: ×1 for the span, ×2 for
+ *  the diameter it drives), and because they change a radial extent they ask the parent (via
+ *  `onActiveChange`) to freeze the frame for the drag so the grabbed edge tracks the pointer instead
+ *  of the frame chasing the geometry. Owning its own drag refs keeps that ref access inside its own
+ *  event handlers, where it belongs. */
 function FinHandle({
   field,
   label,
@@ -449,10 +499,11 @@ function FinHandle({
   padX,
   onEdit,
   axis = "x",
+  axisScale = 1,
   centerY = 0,
   onActiveChange,
 }: {
-  field: "finStation" | "finSweepLength" | "finRootChord" | "finTipChord" | "finSpan";
+  field: "finStation" | "finSweepLength" | "finRootChord" | "finTipChord" | "finSpan" | "bodyDiameter";
   label: string;
   valueText: string;
   title: string;
@@ -467,6 +518,10 @@ function FinHandle({
   /** "x" maps the pointer's horizontal position to a station; "y" maps its vertical position to a
    *  radius (for the span). Defaults to "x". */
   axis?: "x" | "y";
+  /** Multiplies the mapped axis value before it becomes the field value — 1 for a station or a
+   *  radius-valued field (span), 2 for a diameter-valued one (the body caliber is twice the radius
+   *  the pointer's y maps to). Defaults to 1. */
+  axisScale?: number;
   /** Viewbox y of the centreline — needed to turn a pointer y into a radius (the "y" axis only). */
   centerY?: number;
   /** Called with true at drag start / false at drag end, so the parent can freeze the frame around a
@@ -478,6 +533,7 @@ function FinHandle({
     s: number;
     padX: number;
     centerY: number;
+    axisScale: number;
     lo: number;
     hi: number;
     svg: SVGSVGElement;
@@ -511,7 +567,7 @@ function FinHandle({
     pt.x = pendingXRef.current;
     pt.y = pendingYRef.current;
     const local = pt.matrixTransform(ctm.inverse());
-    const mapped = axis === "y" ? (dg.centerY - local.y) / dg.s : (local.x - dg.padX) / dg.s;
+    const mapped = (axis === "y" ? (dg.centerY - local.y) / dg.s : (local.x - dg.padX) / dg.s) * dg.axisScale;
     onEdit({ [field]: Math.min(dg.hi, Math.max(dg.lo, mapped - dg.grabOffset)) });
   }, [field, onEdit, axis]);
 
@@ -572,9 +628,9 @@ function FinHandle({
         pt.x = ev.clientX;
         pt.y = ev.clientY;
         const local = pt.matrixTransform(ctm.inverse());
-        const mapped = axis === "y" ? (centerY - local.y) / s : (local.x - padX) / s;
+        const mapped = (axis === "y" ? (centerY - local.y) / s : (local.x - padX) / s) * axisScale;
         const controller = new AbortController();
-        dragRef.current = { grabOffset: mapped - current, s, padX, centerY, lo, hi, svg, controller };
+        dragRef.current = { grabOffset: mapped - current, s, padX, centerY, axisScale, lo, hi, svg, controller };
         window.addEventListener("pointermove", onMove, { signal: controller.signal });
         window.addEventListener("pointerup", end, { signal: controller.signal });
         window.addEventListener("pointercancel", end, { signal: controller.signal });
