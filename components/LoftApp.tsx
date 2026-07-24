@@ -727,311 +727,360 @@ function DesignEditor({
           <p className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
             Design what-if
           </p>
-          {swap && swap.options.length > 1 && (
-            <label className="mt-2 block">
-              <span className="block text-[11px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-                Motor
-              </span>
-              <select
-                aria-label="Swap motor"
-                value={edits.motorSwap ? `${edits.motorSwap.manufacturer ?? ""}|${edits.motorSwap.designation}` : ""}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  const opt = v ? swap.options.find((o) => `${o.manufacturer}|${o.designation}` === v) : undefined;
-                  onEdit({
-                    motorSwap: opt
-                      ? { manufacturer: opt.manufacturer, designation: opt.designation, diameter: opt.diameter }
-                      : undefined,
-                  });
-                }}
-                className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
-              >
-                <option value="">Design motor ({swap.designMotor})</option>
-                {Object.entries(
-                  swap.options.reduce<Record<string, SwapInfo["options"]>>((acc, o) => {
-                    (acc[o.motorClass] ??= []).push(o);
-                    return acc;
-                  }, {}),
-                ).map(([cls, opts]) => (
-                  <optgroup key={cls} label={`${cls} class`}>
-                    {opts.map((o) => (
-                      <option key={`${o.manufacturer}|${o.designation}`} value={`${o.manufacturer}|${o.designation}`}>
-                        {o.designation} · {o.manufacturer}
-                      </option>
-                    ))}
-                  </optgroup>
-                ))}
-              </select>
-            </label>
-          )}
-          <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <Num
-              label={`Nose ballast (${massU})`}
-              value={toDispMass(edits.ballastKg)}
-              placeholder="0"
-              onChange={(v) => onEdit({ ballastKg: fromMass(v) })}
-            />
-            <Num
-              label="Recovery size (×)"
-              value={edits.recoveryCdScale ?? ""}
-              placeholder="1"
-              onChange={(v) => {
-                const n = v === "" ? undefined : Number(v);
-                onEdit({ recoveryCdScale: n !== undefined && n > 0 ? n : undefined });
-              }}
-            />
-            <Num
-              label={`Main deploy alt (${lenU})`}
-              value={toDispLen(edits.mainDeployAltitude)}
-              placeholder="apogee"
-              onChange={(v) => onEdit({ mainDeployAltitude: fromLen(v) })}
-            />
-            <Num
-              label={`Drogue Ø (${spanU})`}
-              value={toDispSpan(edits.drogueDiameter)}
-              placeholder="0"
-              onChange={(v) => onEdit({ drogueDiameter: fromSpan(v) })}
-            />
-            {designDims.mainParachuteDiameter !== undefined && (
-              <Num
-                label={`Main chute Ø (${spanU})`}
-                value={toDispSpan(edits.mainParachuteDiameter)}
-                placeholder={toDispSpan(designDims.mainParachuteDiameter)}
-                onChange={(v) => onEdit({ mainParachuteDiameter: fromSpan(v) })}
-              />
+          {/* The what-if fields, grouped into labelled sections (a <fieldset> per subsystem) rather
+              than one long wall — so a flyer can find the fin controls, the nose/body controls, or the
+              recovery controls at a glance, and a screen reader announces each field's group. A group
+              renders only when the design actually carries fields for it. */}
+          <div className="mt-3 space-y-4">
+            {((swap && swap.options.length > 1) || designDims.motorClusterCount !== undefined) && (
+              <fieldset className="min-w-0 border-0 p-0">
+                <legend className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                  Motor
+                </legend>
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  {swap && swap.options.length > 1 && (
+                    <label className="col-span-2 block">
+                      <span className="block text-[11px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                        Swap motor
+                      </span>
+                      <select
+                        aria-label="Swap motor"
+                        value={edits.motorSwap ? `${edits.motorSwap.manufacturer ?? ""}|${edits.motorSwap.designation}` : ""}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          const opt = v ? swap.options.find((o) => `${o.manufacturer}|${o.designation}` === v) : undefined;
+                          onEdit({
+                            motorSwap: opt
+                              ? { manufacturer: opt.manufacturer, designation: opt.designation, diameter: opt.diameter }
+                              : undefined,
+                          });
+                        }}
+                        className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                      >
+                        <option value="">Design motor ({swap.designMotor})</option>
+                        {Object.entries(
+                          swap.options.reduce<Record<string, SwapInfo["options"]>>((acc, o) => {
+                            (acc[o.motorClass] ??= []).push(o);
+                            return acc;
+                          }, {}),
+                        ).map(([cls, opts]) => (
+                          <optgroup key={cls} label={`${cls} class`}>
+                            {opts.map((o) => (
+                              <option key={`${o.manufacturer}|${o.designation}`} value={`${o.manufacturer}|${o.designation}`}>
+                                {o.designation} · {o.manufacturer}
+                              </option>
+                            ))}
+                          </optgroup>
+                        ))}
+                      </select>
+                    </label>
+                  )}
+                  {designDims.motorClusterCount !== undefined && (
+                    <Num
+                      label="Motor cluster"
+                      value={edits.motorClusterCount ?? ""}
+                      placeholder={String(designDims.motorClusterCount)}
+                      onChange={(v) => {
+                        const n = v === "" ? undefined : Math.round(Number(v));
+                        onEdit({ motorClusterCount: n !== undefined && n >= 1 ? n : undefined });
+                      }}
+                    />
+                  )}
+                </div>
+              </fieldset>
             )}
-            {designDims.motorClusterCount !== undefined && (
-              <Num
-                label="Motor cluster"
-                value={edits.motorClusterCount ?? ""}
-                placeholder={String(designDims.motorClusterCount)}
-                onChange={(v) => {
-                  const n = v === "" ? undefined : Math.round(Number(v));
-                  onEdit({ motorClusterCount: n !== undefined && n >= 1 ? n : undefined });
-                }}
-              />
-            )}
+
             {designDims.finSpan !== undefined && (
-              <Num
-                label={`Fin span (${spanU})`}
-                value={toDispSpan(edits.finSpan)}
-                placeholder={toDispSpan(designDims.finSpan)}
-                onChange={(v) => onEdit({ finSpan: fromSpan(v) })}
-              />
+              <fieldset className="min-w-0 border-0 p-0">
+                <legend className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                  Fins
+                </legend>
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  <Num
+                    label={`Fin span (${spanU})`}
+                    value={toDispSpan(edits.finSpan)}
+                    placeholder={toDispSpan(designDims.finSpan)}
+                    onChange={(v) => onEdit({ finSpan: fromSpan(v) })}
+                  />
+                  {designDims.finCount !== undefined && (
+                    <Num
+                      label="Fin count"
+                      value={edits.finCount ?? ""}
+                      placeholder={String(designDims.finCount)}
+                      onChange={(v) => {
+                        const n = v === "" ? undefined : Math.round(Number(v));
+                        onEdit({ finCount: n !== undefined && n >= 1 ? n : undefined });
+                      }}
+                    />
+                  )}
+                  {designDims.finRootChord !== undefined && (
+                    <Num
+                      label={`Fin root (${spanU})`}
+                      value={toDispSpan(edits.finRootChord)}
+                      placeholder={toDispSpan(designDims.finRootChord)}
+                      onChange={(v) => onEdit({ finRootChord: fromSpan(v) })}
+                    />
+                  )}
+                  {designDims.finTipChord !== undefined && (
+                    <Num
+                      label={`Fin tip (${spanU})`}
+                      value={toDispSpan(edits.finTipChord)}
+                      placeholder={toDispSpan(designDims.finTipChord)}
+                      onChange={(v) => onEdit({ finTipChord: fromSpan(v) })}
+                    />
+                  )}
+                  {designDims.finSweepLength !== undefined && (
+                    <Num
+                      label={`Fin sweep (${spanU})`}
+                      value={toDispSpan(edits.finSweepLength)}
+                      placeholder={toDispSpan(designDims.finSweepLength)}
+                      onChange={(v) => onEdit({ finSweepLength: fromSpan(v) })}
+                    />
+                  )}
+                  {designDims.finStation !== undefined && (
+                    <Num
+                      label={`Fin position (${spanU})`}
+                      value={toDispSpan(edits.finStation)}
+                      placeholder={toDispSpan(designDims.finStation)}
+                      onChange={(v) => onEdit({ finStation: fromSpan(v) })}
+                    />
+                  )}
+                  {designDims.finThickness !== undefined && (
+                    <Num
+                      label={`Fin thickness (${spanU})`}
+                      value={toDispThick(edits.finThickness)}
+                      placeholder={toDispThick(designDims.finThickness)}
+                      onChange={(v) => onEdit({ finThickness: fromSpan(v) })}
+                    />
+                  )}
+                  {designDims.finCrossSection !== undefined && (
+                    <label className="block">
+                      <span className="block text-[11px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                        Fin edge
+                      </span>
+                      <select
+                        aria-label="Fin edge cross-section"
+                        value={edits.finCrossSection ?? ""}
+                        onChange={(e) =>
+                          onEdit({ finCrossSection: e.target.value ? (e.target.value as FinCrossSection) : undefined })
+                        }
+                        className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                      >
+                        <option value="">As designed ({FIN_CROSS_SECTION_LABELS[designDims.finCrossSection]})</option>
+                        {FIN_CROSS_SECTIONS.map((s) => (
+                          <option key={s} value={s}>
+                            {FIN_CROSS_SECTION_LABELS[s]}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
+                  {designDims.finCrossSection !== undefined && (
+                    <label className="block">
+                      <span className="block text-[11px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                        Fin material
+                      </span>
+                      <select
+                        aria-label="Fin material"
+                        value={edits.finMaterial ?? ""}
+                        onChange={(e) => onEdit({ finMaterial: e.target.value || undefined })}
+                        className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                      >
+                        <option value="">
+                          As designed{designDims.finMaterial ? ` (${designDims.finMaterial})` : ""}
+                        </option>
+                        {FIN_MATERIALS.map((m) => (
+                          <option key={m.key} value={m.key}>
+                            {m.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
+                </div>
+              </fieldset>
             )}
-            {designDims.finCount !== undefined && (
-              <Num
-                label="Fin count"
-                value={edits.finCount ?? ""}
-                placeholder={String(designDims.finCount)}
-                onChange={(v) => {
-                  const n = v === "" ? undefined : Math.round(Number(v));
-                  onEdit({ finCount: n !== undefined && n >= 1 ? n : undefined });
-                }}
-              />
+
+            {(designDims.noseLength !== undefined ||
+              designDims.noseShape !== undefined ||
+              designDims.bodyDiameter !== undefined) && (
+              <fieldset className="min-w-0 border-0 p-0">
+                <legend className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                  Nose &amp; body
+                </legend>
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  {designDims.noseLength !== undefined && (
+                    <Num
+                      label={`Nose length (${spanU})`}
+                      value={toDispSpan(edits.noseLength)}
+                      placeholder={toDispSpan(designDims.noseLength)}
+                      onChange={(v) => onEdit({ noseLength: fromSpan(v) })}
+                    />
+                  )}
+                  {designDims.noseShape !== undefined && (
+                    <label className="block">
+                      <span className="block text-[11px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                        Nose shape
+                      </span>
+                      <select
+                        aria-label="Nose shape"
+                        value={edits.noseShape ?? ""}
+                        onChange={(e) => onEdit({ noseShape: e.target.value ? (e.target.value as NoseShape) : undefined })}
+                        className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                      >
+                        <option value="">As designed ({NOSE_SHAPE_LABELS[designDims.noseShape]})</option>
+                        {NOSE_SHAPES.map((s) => (
+                          <option key={s} value={s}>
+                            {NOSE_SHAPE_LABELS[s]}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
+                  {designDims.bodyLength !== undefined && (
+                    <Num
+                      label={`Body length (${spanU})`}
+                      value={toDispSpan(edits.bodyLength)}
+                      placeholder={toDispSpan(designDims.bodyLength)}
+                      onChange={(v) => onEdit({ bodyLength: fromSpan(v) })}
+                    />
+                  )}
+                  {designDims.bodyDiameter !== undefined && (
+                    <Num
+                      label={`Body diameter (${spanU})`}
+                      value={toDispSpan(edits.bodyDiameter)}
+                      placeholder={toDispSpan(designDims.bodyDiameter)}
+                      onChange={(v) => onEdit({ bodyDiameter: fromSpan(v) })}
+                    />
+                  )}
+                  {designDims.bodyDiameter !== undefined && (
+                    <Num
+                      label={`Boattail length (${spanU})`}
+                      value={toDispSpan(edits.boattailLength)}
+                      placeholder="0"
+                      onChange={(v) => onEdit({ boattailLength: fromSpan(v) })}
+                    />
+                  )}
+                  {designDims.bodyDiameter !== undefined && (
+                    <Num
+                      label={`Boattail exit (${spanU})`}
+                      value={toDispSpan(edits.boattailAftDiameter)}
+                      placeholder={`< ${toDispSpan(designDims.bodyDiameter)}`}
+                      onChange={(v) => onEdit({ boattailAftDiameter: fromSpan(v) })}
+                    />
+                  )}
+                </div>
+              </fieldset>
             )}
-            {designDims.finRootChord !== undefined && (
-              <Num
-                label={`Fin root (${spanU})`}
-                value={toDispSpan(edits.finRootChord)}
-                placeholder={toDispSpan(designDims.finRootChord)}
-                onChange={(v) => onEdit({ finRootChord: fromSpan(v) })}
-              />
-            )}
-            {designDims.finTipChord !== undefined && (
-              <Num
-                label={`Fin tip (${spanU})`}
-                value={toDispSpan(edits.finTipChord)}
-                placeholder={toDispSpan(designDims.finTipChord)}
-                onChange={(v) => onEdit({ finTipChord: fromSpan(v) })}
-              />
-            )}
-            {designDims.finSweepLength !== undefined && (
-              <Num
-                label={`Fin sweep (${spanU})`}
-                value={toDispSpan(edits.finSweepLength)}
-                placeholder={toDispSpan(designDims.finSweepLength)}
-                onChange={(v) => onEdit({ finSweepLength: fromSpan(v) })}
-              />
-            )}
-            {designDims.finStation !== undefined && (
-              <Num
-                label={`Fin position (${spanU})`}
-                value={toDispSpan(edits.finStation)}
-                placeholder={toDispSpan(designDims.finStation)}
-                onChange={(v) => onEdit({ finStation: fromSpan(v) })}
-              />
-            )}
-            {designDims.finThickness !== undefined && (
-              <Num
-                label={`Fin thickness (${spanU})`}
-                value={toDispThick(edits.finThickness)}
-                placeholder={toDispThick(designDims.finThickness)}
-                onChange={(v) => onEdit({ finThickness: fromSpan(v) })}
-              />
-            )}
-            {designDims.finCrossSection !== undefined && (
-              <label className="block">
-                <span className="block text-[11px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-                  Fin edge
-                </span>
-                <select
-                  aria-label="Fin edge cross-section"
-                  value={edits.finCrossSection ?? ""}
-                  onChange={(e) =>
-                    onEdit({ finCrossSection: e.target.value ? (e.target.value as FinCrossSection) : undefined })
-                  }
-                  className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
-                >
-                  <option value="">As designed ({FIN_CROSS_SECTION_LABELS[designDims.finCrossSection]})</option>
-                  {FIN_CROSS_SECTIONS.map((s) => (
-                    <option key={s} value={s}>
-                      {FIN_CROSS_SECTION_LABELS[s]}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
-            {designDims.finCrossSection !== undefined && (
-              <label className="block">
-                <span className="block text-[11px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-                  Fin material
-                </span>
-                <select
-                  aria-label="Fin material"
-                  value={edits.finMaterial ?? ""}
-                  onChange={(e) => onEdit({ finMaterial: e.target.value || undefined })}
-                  className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
-                >
-                  <option value="">
-                    As designed{designDims.finMaterial ? ` (${designDims.finMaterial})` : ""}
-                  </option>
-                  {FIN_MATERIALS.map((m) => (
-                    <option key={m.key} value={m.key}>
-                      {m.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
-            {designDims.noseLength !== undefined && (
-              <Num
-                label={`Nose length (${spanU})`}
-                value={toDispSpan(edits.noseLength)}
-                placeholder={toDispSpan(designDims.noseLength)}
-                onChange={(v) => onEdit({ noseLength: fromSpan(v) })}
-              />
-            )}
-            {designDims.noseShape !== undefined && (
-              <label className="block">
-                <span className="block text-[11px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-                  Nose shape
-                </span>
-                <select
-                  aria-label="Nose shape"
-                  value={edits.noseShape ?? ""}
-                  onChange={(e) => onEdit({ noseShape: e.target.value ? (e.target.value as NoseShape) : undefined })}
-                  className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
-                >
-                  <option value="">As designed ({NOSE_SHAPE_LABELS[designDims.noseShape]})</option>
-                  {NOSE_SHAPES.map((s) => (
-                    <option key={s} value={s}>
-                      {NOSE_SHAPE_LABELS[s]}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
-            {designDims.bodyLength !== undefined && (
-              <Num
-                label={`Body length (${spanU})`}
-                value={toDispSpan(edits.bodyLength)}
-                placeholder={toDispSpan(designDims.bodyLength)}
-                onChange={(v) => onEdit({ bodyLength: fromSpan(v) })}
-              />
-            )}
-            {designDims.bodyDiameter !== undefined && (
-              <Num
-                label={`Body diameter (${spanU})`}
-                value={toDispSpan(edits.bodyDiameter)}
-                placeholder={toDispSpan(designDims.bodyDiameter)}
-                onChange={(v) => onEdit({ bodyDiameter: fromSpan(v) })}
-              />
-            )}
-            {designDims.bodyDiameter !== undefined && (
-              <Num
-                label={`Boattail length (${spanU})`}
-                value={toDispSpan(edits.boattailLength)}
-                placeholder="0"
-                onChange={(v) => onEdit({ boattailLength: fromSpan(v) })}
-              />
-            )}
-            {designDims.bodyDiameter !== undefined && (
-              <Num
-                label={`Boattail exit (${spanU})`}
-                value={toDispSpan(edits.boattailAftDiameter)}
-                placeholder={`< ${toDispSpan(designDims.bodyDiameter)}`}
-                onChange={(v) => onEdit({ boattailAftDiameter: fromSpan(v) })}
-              />
-            )}
-            {designDims.payloadStation !== undefined && (
-              <Num
-                label={`Payload (${massU})`}
-                value={toDispMass(edits.payloadMassKg)}
-                placeholder="0"
-                onChange={(v) => onEdit({ payloadMassKg: fromMass(v) })}
-              />
-            )}
-            {designDims.payloadStation !== undefined && (
-              <Num
-                label={`Payload pos (${spanU})`}
-                value={toDispSpan(edits.payloadStation)}
-                placeholder={toDispSpan(designDims.payloadStation)}
-                onChange={(v) => onEdit({ payloadStation: fromSpan(v) })}
-              />
-            )}
-            {designDims.finish !== undefined && (
-              <label className="block">
-                <span className="block text-[11px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-                  Surface finish
-                </span>
-                <select
-                  aria-label="Surface finish"
-                  value={edits.finish ?? ""}
-                  onChange={(e) => onEdit({ finish: e.target.value ? (e.target.value as SurfaceFinish) : undefined })}
-                  className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
-                >
-                  <option value="">As designed ({FINISH_LABELS[designDims.finish]})</option>
-                  {SURFACE_FINISHES.map((f) => (
-                    <option key={f} value={f}>
-                      {FINISH_LABELS[f]}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
-            {designDims.bodyDiameter !== undefined && (
-              <label className="block">
-                <span className="block text-[11px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-                  Airframe material
-                </span>
-                <select
-                  aria-label="Airframe material"
-                  value={edits.airframeMaterial ?? ""}
-                  onChange={(e) => onEdit({ airframeMaterial: e.target.value || undefined })}
-                  className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
-                >
-                  <option value="">
-                    As designed{designDims.airframeMaterial ? ` (${designDims.airframeMaterial})` : ""}
-                  </option>
-                  {AIRFRAME_MATERIALS.map((m) => (
-                    <option key={m.key} value={m.key}>
-                      {m.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
+
+            <fieldset className="min-w-0 border-0 p-0">
+              <legend className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                Recovery
+              </legend>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <Num
+                  label="Recovery size (×)"
+                  value={edits.recoveryCdScale ?? ""}
+                  placeholder="1"
+                  onChange={(v) => {
+                    const n = v === "" ? undefined : Number(v);
+                    onEdit({ recoveryCdScale: n !== undefined && n > 0 ? n : undefined });
+                  }}
+                />
+                <Num
+                  label={`Main deploy alt (${lenU})`}
+                  value={toDispLen(edits.mainDeployAltitude)}
+                  placeholder="apogee"
+                  onChange={(v) => onEdit({ mainDeployAltitude: fromLen(v) })}
+                />
+                <Num
+                  label={`Drogue Ø (${spanU})`}
+                  value={toDispSpan(edits.drogueDiameter)}
+                  placeholder="0"
+                  onChange={(v) => onEdit({ drogueDiameter: fromSpan(v) })}
+                />
+                {designDims.mainParachuteDiameter !== undefined && (
+                  <Num
+                    label={`Main chute Ø (${spanU})`}
+                    value={toDispSpan(edits.mainParachuteDiameter)}
+                    placeholder={toDispSpan(designDims.mainParachuteDiameter)}
+                    onChange={(v) => onEdit({ mainParachuteDiameter: fromSpan(v) })}
+                  />
+                )}
+              </div>
+            </fieldset>
+
+            <fieldset className="min-w-0 border-0 p-0">
+              <legend className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                Mass &amp; finish
+              </legend>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <Num
+                  label={`Nose ballast (${massU})`}
+                  value={toDispMass(edits.ballastKg)}
+                  placeholder="0"
+                  onChange={(v) => onEdit({ ballastKg: fromMass(v) })}
+                />
+                {designDims.payloadStation !== undefined && (
+                  <Num
+                    label={`Payload (${massU})`}
+                    value={toDispMass(edits.payloadMassKg)}
+                    placeholder="0"
+                    onChange={(v) => onEdit({ payloadMassKg: fromMass(v) })}
+                  />
+                )}
+                {designDims.payloadStation !== undefined && (
+                  <Num
+                    label={`Payload pos (${spanU})`}
+                    value={toDispSpan(edits.payloadStation)}
+                    placeholder={toDispSpan(designDims.payloadStation)}
+                    onChange={(v) => onEdit({ payloadStation: fromSpan(v) })}
+                  />
+                )}
+                {designDims.finish !== undefined && (
+                  <label className="block">
+                    <span className="block text-[11px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                      Surface finish
+                    </span>
+                    <select
+                      aria-label="Surface finish"
+                      value={edits.finish ?? ""}
+                      onChange={(e) => onEdit({ finish: e.target.value ? (e.target.value as SurfaceFinish) : undefined })}
+                      className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                    >
+                      <option value="">As designed ({FINISH_LABELS[designDims.finish]})</option>
+                      {SURFACE_FINISHES.map((f) => (
+                        <option key={f} value={f}>
+                          {FINISH_LABELS[f]}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+                {designDims.bodyDiameter !== undefined && (
+                  <label className="block">
+                    <span className="block text-[11px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                      Airframe material
+                    </span>
+                    <select
+                      aria-label="Airframe material"
+                      value={edits.airframeMaterial ?? ""}
+                      onChange={(e) => onEdit({ airframeMaterial: e.target.value || undefined })}
+                      className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                    >
+                      <option value="">
+                        As designed{designDims.airframeMaterial ? ` (${designDims.airframeMaterial})` : ""}
+                      </option>
+                      {AIRFRAME_MATERIALS.map((m) => (
+                        <option key={m.key} value={m.key}>
+                          {m.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+              </div>
+            </fieldset>
           </div>
           <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
             Fly a different motor, add nose weight, resize the fins, nose, or body, add a boattail
