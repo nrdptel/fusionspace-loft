@@ -20,7 +20,8 @@ import MassBreakdown from "./MassBreakdown";
 import GeometryInspector from "./GeometryInspector";
 import DownloadCsv from "./DownloadCsv";
 import type { CsvCell } from "@/lib/csv";
-import { mToFt, mpsToFtps, kgToLb } from "@/lib/units";
+import { parseFlightLog, type FlightLogPoint, type LogUnit } from "@/lib/flightlog";
+import { mToFt, ftToM, mpsToFtps, kgToLb } from "@/lib/units";
 import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
 import { overallLength } from "@/lib/model/geometry";
@@ -166,6 +167,41 @@ export default function ResultsView({
   // isn't lost when you glance at another.
   const [tab, setTab] = useState<string>(initialTab ?? "flight");
 
+  // An optional uploaded flight log (altimeter CSV) overlaid on the altitude plot — the flyer's real
+  // flight beside Loft's prediction. Parsed and held entirely in the browser; the unit defaults to
+  // whatever the file named (or the current display unit) and can be corrected if the curve looks off.
+  const [log, setLog] = useState<{ points: FlightLogPoint[]; unit: LogUnit } | null>(null);
+  const [logError, setLogError] = useState<string | null>(null);
+  const onLogFile = (file: File | undefined) => {
+    setLogError(null);
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onerror = () => setLogError("Couldn't read that file.");
+    reader.onload = () => {
+      try {
+        const parsed = parseFlightLog(String(reader.result ?? ""));
+        setLog({ points: parsed.points, unit: parsed.unitHint ?? (units === "imperial" ? "ft" : "m") });
+      } catch (e) {
+        setLog(null);
+        setLogError(e instanceof Error ? e.message : "Couldn't read that flight log.");
+      }
+    };
+    reader.readAsText(file);
+  };
+  // The uploaded log as an altitude series in the plot's own display unit: log altitude → metres →
+  // the metric/imperial unit the altitude curve uses.
+  const logSeries: Series | null =
+    log && log.points.length > 1
+      ? {
+          color: "#0891b2", // cyan — distinct from the indigo prediction, reads as measured data
+          label: "flight log",
+          points: log.points.map((p) => {
+            const m = log.unit === "ft" ? ftToM(p.altitude) : p.altitude;
+            return { x: p.t, y: units === "imperial" ? mToFt(m) : m };
+          }),
+        }
+      : null;
+
   // No propulsion ⇒ the "flight" is a zero-thrust drop and every metric is meaningless. Lead
   // with why, name the motor(s) that didn't resolve, and withhold the misleading numbers,
   // plots, and OpenRocket comparison. The geometry and stability below are motor-independent
@@ -267,12 +303,63 @@ export default function ResultsView({
         </div>
         <Plot title={`Altitude (${units === "imperial" ? "ft" : "m"}) vs time`}>
           <LineChart
-            series={[altSeries(r, units)]}
+            series={logSeries ? [altSeries(r, units), logSeries] : [altSeries(r, units)]}
             markers={markers}
             xLabel="time (s)"
             yLabel={units === "imperial" ? "ft" : "m"}
             yZeroFloor
           />
+          {run.hasPropulsion && r.trajectory.length > 0 && (
+            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-zinc-500 dark:text-zinc-400">
+              {/* Overlay a real altimeter log beside the prediction — the predict → fly → compare loop.
+                  Parsed in the browser; the file is never uploaded. */}
+              <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-zinc-300 px-2.5 py-1 font-medium text-zinc-600 transition hover:bg-zinc-50 hover:text-zinc-800 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-zinc-100">
+                {log ? "Replace flight log" : "Overlay a flight log"}
+                <input
+                  type="file"
+                  accept=".csv,.txt,text/csv,text/plain"
+                  aria-label="Flight log CSV"
+                  className="sr-only"
+                  onChange={(e) => {
+                    onLogFile(e.target.files?.[0]);
+                    e.target.value = ""; // allow re-selecting the same file after a parse error
+                  }}
+                />
+              </label>
+              {log && (
+                <>
+                  <label className="inline-flex items-center gap-1.5">
+                    Log altitude in
+                    <select
+                      aria-label="Flight log altitude unit"
+                      value={log.unit}
+                      onChange={(e) => setLog({ points: log.points, unit: e.target.value as LogUnit })}
+                      className="rounded-md border border-zinc-300 bg-white px-1.5 py-0.5 text-xs text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                    >
+                      <option value="m">metres</option>
+                      <option value="ft">feet</option>
+                    </select>
+                  </label>
+                  <span>· {log.points.length} points</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLog(null);
+                      setLogError(null);
+                    }}
+                    className="underline underline-offset-2 hover:text-zinc-800 dark:hover:text-zinc-100"
+                  >
+                    Remove
+                  </button>
+                </>
+              )}
+              {logError ? (
+                <span className="text-red-600 dark:text-red-400">{logError}</span>
+              ) : !log ? (
+                <span>a CSV with time and altitude columns — its curve overlays here to check against.</span>
+              ) : null}
+            </div>
+          )}
         </Plot>
         <Plot title={`Velocity (${units === "imperial" ? "ft/s" : "m/s"}) vs time`}>
           <LineChart

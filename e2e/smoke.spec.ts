@@ -162,6 +162,39 @@ test.describe("Loft", () => {
     await expect(resetBtn).toHaveCount(0);
   });
 
+  test("overlays an uploaded flight log on the altitude plot", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+
+    const plots = page.getByRole("region", { name: "Plots" });
+    // Before upload: just Loft's own altitude curve — no "flight log" series in the legend.
+    await expect(plots.getByText("flight log", { exact: true })).toHaveCount(0);
+
+    // Upload an altimeter CSV (parsed in the browser); its curve overlays the prediction.
+    await plots.getByLabel("Flight log CSV").setInputFiles(resolve(process.cwd(), "e2e/fixtures/flight-log.csv"));
+    await expect(plots.getByText("flight log", { exact: true })).toBeVisible();
+    // The file named feet, so the unit picker reads feet — and can be corrected.
+    await expect(plots.getByLabel("Flight log altitude unit")).toHaveValue("ft");
+    await expect(plots.getByText(/\d+ points/)).toBeVisible();
+
+    // Removing it clears the overlay.
+    await plots.getByRole("button", { name: "Remove" }).click();
+    await expect(plots.getByText("flight log", { exact: true })).toHaveCount(0);
+  });
+
+  test("rejects an unreadable flight log with a helpful message", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+
+    const plots = page.getByRole("region", { name: "Plots" });
+    // A .ork (not a time/altitude CSV) can't be read as a flight log — say so, don't draw a wrong curve.
+    await plots.getByLabel("Flight log CSV").setInputFiles(resolve(process.cwd(), "e2e/fixtures/logged-sample.ork"));
+    await expect(plots.getByText(/couldn't|no data rows|numeric/i)).toBeVisible();
+    await expect(plots.getByText("flight log", { exact: true })).toHaveCount(0);
+  });
+
   test("renames the design and the results title and .ork filename follow", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: "Start a new design" }).click();
