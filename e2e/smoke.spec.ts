@@ -855,6 +855,12 @@ test.describe("Loft", () => {
     await panel.getByLabel("Sweep variable").selectOption("finThickness");
     await panel.getByLabel("Sweep metric").selectOption("flutterMargin");
     await expect(panel.getByRole("img", { name: /Fin flutter margin.*versus.*Fin thickness/i })).toBeVisible();
+
+    // Fin root chord is a sweep axis too — the fin-area lever you can also shape on the diagram,
+    // here traced against apogee (the classic "how big should my fins be?" curve).
+    await panel.getByLabel("Sweep variable").selectOption("finRootChord");
+    await panel.getByLabel("Sweep metric").selectOption("apogee");
+    await expect(panel.getByRole("img", { name: /Apogee.*versus.*Fin root chord/i })).toBeVisible();
   });
 
   test("Monte-Carlo dispersion flies the design and reports the spread", async ({ page }) => {

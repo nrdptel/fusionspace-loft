@@ -5,7 +5,7 @@ import type { OrkDocument } from "@/lib/ork/import";
 import { runFlight, overridesFromStored } from "@/lib/sim/run";
 import { linRange, type SweepAxis, type ParamSweepPoint } from "@/lib/sim/sweep";
 import { runParameterSweep } from "@/lib/sim/sweep-client";
-import { primaryFinSpan, primaryFinThickness, primaryFinStation, primaryFinChord, primaryNose, primaryBodyTube, primaryBodyDiameter, type GeometryEdits } from "@/lib/model/edit";
+import { primaryFinSpan, primaryFinRootChord, primaryFinTipChord, primaryFinThickness, primaryFinStation, primaryFinChord, primaryNose, primaryBodyTube, primaryBodyDiameter, type GeometryEdits } from "@/lib/model/edit";
 import { overallLength } from "@/lib/model/geometry";
 import { mToFt, mToIn, mpsToFtps, kgToG, G_PER_OZ } from "@/lib/units";
 import type { CsvCell } from "@/lib/csv";
@@ -94,6 +94,13 @@ export default function ParameterSweep({
     const list: AxisDef[] = [];
     const span = primaryFinSpan(doc.rocket);
     if (span && span > 0) list.push(geometryAxis("finSpan", "Fin span", span));
+    // The chord axes (trapezoidal fins only) are the fin-area levers a flyer can also drag on the
+    // diagram — sweeping them plots the "how big should my fins be?" response. Tip chord can be zero
+    // on a delta, which has no range to sweep, so it's offered only when the design carries one.
+    const rootChord = primaryFinRootChord(doc.rocket);
+    if (rootChord && rootChord > 0) list.push(geometryAxis("finRootChord", "Fin root chord", rootChord));
+    const tipChord = primaryFinTipChord(doc.rocket);
+    if (tipChord && tipChord > 0) list.push(geometryAxis("finTipChord", "Fin tip chord", tipChord));
     const thickness = primaryFinThickness(doc.rocket);
     if (thickness && thickness > 0) list.push(geometryAxis("finThickness", "Fin thickness", thickness));
     // Fin position: a station, not a size, so it ranges as an absolute band (±35% of the body

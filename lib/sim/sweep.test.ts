@@ -4,7 +4,7 @@ import { importOrk } from "../ork/import";
 import { runFlight, overridesFromStored } from "./run";
 import { motorSweep, parameterSweep, linRange, type SweepMotor } from "./sweep";
 import { allMotors } from "../motors/db";
-import { primaryFinSpan, primaryFinThickness, primaryFinStation, primaryBodyTube } from "../model/edit";
+import { primaryFinSpan, primaryFinRootChord, primaryFinTipChord, primaryFinThickness, primaryFinStation, primaryBodyTube } from "../model/edit";
 
 async function load(name: string) {
   const buf = readFileSync(new URL(`../../fixtures/${name}`, import.meta.url));
@@ -217,6 +217,48 @@ describe("parameterSweep", () => {
     expect(last.flutterMargin).toBeGreaterThan(first.flutterMargin);
     expect(last.flutterMargin).toBeGreaterThan(first.flutterMargin * 2); // the (t/c)³ steepness
     expect(last.apogee).toBeLessThan(first.apogee);
+  });
+
+  it("sweeps fin root chord: more planform drags harder (lower apogee) and shifts CG aft (lower margin)", async () => {
+    const doc = await load("demo-single-deploy.ork");
+    const sim = doc.simulations[0];
+    const root = primaryFinRootChord(doc.rocket)!;
+    const pts = parameterSweep(doc.rocket, "finRootChord", linRange(root * 0.5, root * 1.75, 12), {
+      configId: sim.conditions.configId,
+      overrides: overridesFromStored(sim),
+    });
+    expect(pts).toHaveLength(12);
+    for (let i = 0; i < pts.length; i++) {
+      expect(pts[i].apogee).toBeGreaterThan(0);
+      expect(Number.isFinite(pts[i].staticMarginCal)).toBe(true);
+      if (i > 0) expect(pts[i].x).toBeGreaterThan(pts[i - 1].x);
+    }
+    const first = pts[0];
+    const last = pts[pts.length - 1];
+    // A longer root chord adds planform and drag, so the apogee falls. The added chord extends aft
+    // along the body (its root TE already sits at this design's tail), so the extra fin mass lands
+    // well aft and pulls the CG toward the CP faster than the low-arm area moves the CP — so the
+    // static margin eases down too, monotonically across the range.
+    expect(last.apogee).toBeLessThan(first.apogee);
+    expect(last.staticMarginCal).toBeLessThan(first.staticMarginCal);
+  });
+
+  it("sweeps fin tip chord: growing the tip adds planform — lower apogee, and the aft mass eases margin", async () => {
+    const doc = await load("demo-single-deploy.ork");
+    const sim = doc.simulations[0];
+    const tip = primaryFinTipChord(doc.rocket)!;
+    const pts = parameterSweep(doc.rocket, "finTipChord", linRange(tip * 0.5, tip * 1.75, 12), {
+      configId: sim.conditions.configId,
+      overrides: overridesFromStored(sim),
+    });
+    expect(pts).toHaveLength(12);
+    for (let i = 1; i < pts.length; i++) expect(pts[i].x).toBeGreaterThan(pts[i - 1].x);
+    const first = pts[0];
+    const last = pts[pts.length - 1];
+    // More tip chord is more planform (more drag → lower apogee); the added area sits at the swept-back
+    // tip, so its mass lands aft and the static margin eases down across the range.
+    expect(last.apogee).toBeLessThan(first.apogee);
+    expect(last.staticMarginCal).toBeLessThan(first.staticMarginCal);
   });
 
   it("reports a flutter margin on a fin-span sweep (bigger fins → thinner flutter margin)", async () => {

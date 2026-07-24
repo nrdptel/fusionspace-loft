@@ -101,6 +101,8 @@ export function motorSweep(rocket: Rocket, motors: SweepMotor[], opts: MotorSwee
  *  instead — the classic stability-trim sweep. */
 export type SweepAxis =
   | "finSpan"
+  | "finRootChord"
+  | "finTipChord"
   | "finThickness"
   | "finStation"
   | "noseLength"
@@ -110,9 +112,13 @@ export type SweepAxis =
 
 /** The geometry axes, distinct from the ballast (mass) axis for how a value is applied. Most set an
  *  absolute dimension; `finStation` sets the fin group's longitudinal position — both flow through
- *  the same builder edit, so the swept value is just one field of GeometryEdits either way. */
+ *  the same builder edit, so the swept value is just one field of GeometryEdits either way. The chord
+ *  axes (root, tip) are the fin-area levers a flyer can also shape on the diagram, so a dimension is
+ *  sweepable and draggable through one path. */
 const GEOMETRY_AXES: readonly SweepAxis[] = [
   "finSpan",
+  "finRootChord",
+  "finTipChord",
   "finThickness",
   "finStation",
   "noseLength",
