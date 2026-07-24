@@ -149,6 +149,11 @@ export interface FlightSummary {
   landingX: number;
   landingY: number;
   descentRate: number; // final (main) descent rate (m/s)
+  /** Under-drogue (fast) descent rate (m/s) for a dual-deploy flight — the steady speed reached under
+   *  the drogue, before the main opens. It sets how far the rocket drifts before main deployment and
+   *  the shock the main opens against. Undefined for a single-deploy flight (only the one rate above)
+   *  or when the recovery has no distinct faster phase. */
+  drogueDescentRate?: number;
   /** Kinetic energy the vehicle carries at ground impact (J): ½·m·v², from the descent (burnout)
    *  mass and the ground-hit speed. Many flying fields and waivers reference a per-section landing
    *  energy as their recovery-adequacy check, so it's reported alongside the descent rate. Loft
@@ -761,6 +766,25 @@ export function simulate(input: SimulateInput): FlightResult {
     }
   }
 
+  // Under-drogue (fast) descent rate for a dual-deploy flight: the steady descent speed reached under
+  // the drogue, before the main opens. The main deployment is the faster of the recovery deployments
+  // — the drogue opens near apogee, almost stationary — so the descent speed just before that later,
+  // faster deploy is the under-drogue rate. Reported only when it is a genuinely faster phase than the
+  // final (main) descent, so a single-deploy flight, or two canopies that both open at apogee, has none.
+  let drogueDescentRate: number | undefined;
+  const deployEvents = events.filter((e) => e.type === "deploy");
+  if (deployEvents.length >= 2) {
+    const mainDeploy = deployEvents.reduce((a, b) => (b.velocity > a.velocity ? b : a));
+    for (let i = trajectory.length - 1; i >= 0; i--) {
+      const p = trajectory[i];
+      if (p.t <= mainDeploy.time && p.phase === "descent") {
+        const rate = Math.abs(p.verticalVelocity);
+        if (rate > descentRate * 1.3) drogueDescentRate = rate;
+        break;
+      }
+    }
+  }
+
   // Optimum delay: burnout → apogee (coast time).
   const optimumDelay = Math.max(0, apogeeTime - burnout);
 
@@ -862,6 +886,7 @@ export function simulate(input: SimulateInput): FlightResult {
       landingX: state.pos.x,
       landingY: state.pos.y,
       descentRate,
+      drogueDescentRate,
       landingEnergy,
     },
     trajectory,

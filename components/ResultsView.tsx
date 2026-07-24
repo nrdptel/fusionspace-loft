@@ -310,7 +310,14 @@ export default function ResultsView({
           <Stat label="Thrust-to-weight" q={d.ratio(s.thrustToWeight)} sub="liftoff" />
           <Stat label="Time to apogee" q={d.seconds(s.timeToApogee)} />
           <Stat label="Burnout velocity" q={d.speed(s.burnoutVelocity, units)} />
-          <Stat label="Descent rate" q={d.speed(s.descentRate, units)} />
+          <Stat
+            label="Descent rate"
+            q={d.speed(s.descentRate, units)}
+            sub={s.drogueDescentRate !== undefined ? "under main" : undefined}
+          />
+          {s.drogueDescentRate !== undefined && (
+            <Stat label="Drogue descent" q={d.speed(s.drogueDescentRate, units)} sub="under drogue" />
+          )}
           <Stat label="Drift from pad" q={d.distance(s.driftDistance, units)} />
           <Stat label="Ground-hit speed" q={d.speed(s.groundHitVelocity, units)} />
           <Stat label="Landing energy" q={d.energy(s.landingEnergy, units)} sub="whole vehicle" />

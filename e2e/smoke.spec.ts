@@ -242,6 +242,12 @@ test.describe("Loft", () => {
     await page.getByRole("button", { name: /54 mm dual-deploy/ }).click();
     await expect(page.getByRole("heading", { name: /Loft Demo/ })).toBeVisible();
     await expect(page.getByText(/transonic|supersonic/i).first()).toBeVisible();
+    // A dual-deploy flight reports two descent rates: the fast phase under the drogue and the slower
+    // final descent under the main — a single-deploy flight shows only the one.
+    const results = page.getByLabel("Results");
+    await expect(results.getByText("Drogue descent")).toBeVisible();
+    await expect(results.getByText("under drogue")).toBeVisible();
+    await expect(results.getByText("under main")).toBeVisible();
   });
 
   test("multi-config sample lets you switch motor configuration", async ({ page }) => {

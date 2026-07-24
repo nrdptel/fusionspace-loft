@@ -617,6 +617,22 @@ describe("dual-deploy reports the worst-case (main) deployment velocity", () => 
     expect(run.result.summary.deploymentVelocity).toBeCloseTo(main.velocity, 5);
     expect(run.result.summary.deploymentVelocity).toBeGreaterThan(drogue.velocity);
   });
+
+  it("reports the under-drogue descent rate as a distinct, faster phase than the main", async () => {
+    const doc = await load("demo-dual-deploy.ork");
+    const s = runFromDocument(doc).result.summary;
+    // The fast phase under the drogue is reported separately and is genuinely faster than the final
+    // (main) descent — it's what sets the drift before main deployment and the main's opening shock.
+    expect(s.drogueDescentRate).toBeDefined();
+    expect(s.drogueDescentRate!).toBeGreaterThan(s.descentRate * 1.3);
+  });
+
+  it("reports no under-drogue rate for a single-deploy flight", async () => {
+    const doc = await load("demo-single-deploy.ork");
+    const s = runFromDocument(doc).result.summary;
+    // One canopy at apogee: there's a single descent rate, so no distinct fast phase to report.
+    expect(s.drogueDescentRate).toBeUndefined();
+  });
 });
 
 describe("multi-configuration selection", () => {
