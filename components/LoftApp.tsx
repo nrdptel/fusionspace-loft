@@ -8,7 +8,7 @@ import { Segmented } from "./ui";
 import { importDesignFile, importDesign, type OrkDocument } from "@/lib/ork/import";
 import { newDesign } from "@/lib/model/starter";
 import { exportOrk } from "@/lib/ork/export";
-import { runFlight, overridesFromStored, configChoices, type FlightRun, type ConfigChoice } from "@/lib/sim/run";
+import { runFlight, pickConfig, overridesFromStored, configChoices, type FlightRun, type ConfigChoice } from "@/lib/sim/run";
 import {
   primaryFinSpan,
   primaryFinCount,
@@ -408,7 +408,11 @@ export default function LoftApp() {
   const swapInfo = useMemo<SwapInfo | null>(() => {
     if (!doc) return null;
     const sim = doc.simulations[simIndex] ?? doc.simulations[0];
-    const motor = doc.rocket.configurations.find((c) => c.id === sim?.conditions.configId)?.instances[0]?.motor;
+    // The config Loft actually flies — the stored sim's when it names one, otherwise the design's
+    // default (pickConfig, the same resolution the simulator uses). So a design imported without any
+    // stored simulation — a hand-authored or exported file — still offers same-casing swaps.
+    const config = pickConfig(doc.rocket, sim?.conditions.configId);
+    const motor = config?.instances[0]?.motor;
     if (!motor?.designation) return null;
     const diaMm = Math.round((motor.diameter ?? 0) * 1000);
     if (!(diaMm > 0)) return null;

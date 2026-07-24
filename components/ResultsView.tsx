@@ -258,7 +258,7 @@ export default function ResultsView({
   if (!run.hasPropulsion) {
     return (
       <div className="space-y-8">
-        <NoPropulsionNotice run={run} tool={tool} />
+        <NoPropulsionNotice run={run} tool={tool} swapOptions={swapOptions} />
         <RocketSummary run={run} doc={doc} units={units} />
         {/* Still offer the editing surface — a swap to a motor that resolves is the very fix this
             case needs, and geometry stays editable even when no motor flew. */}
@@ -597,9 +597,24 @@ export default function ResultsView({
   );
 }
 
-function NoPropulsionNotice({ run, tool }: { run: FlightRun; tool: string }) {
+function NoPropulsionNotice({
+  run,
+  tool,
+  swapOptions,
+}: {
+  run: FlightRun;
+  tool: string;
+  /** Bundled motors of the design's own casing diameter — the substitutes the design tools below
+   *  offer. When present, the notice points the flyer at that recovery path rather than dead-ending. */
+  swapOptions?: { designation: string; manufacturer: string; diameter: number; motorClass: string }[];
+}) {
   const unresolved = run.resolutions.filter((res) => !res.match);
   const hasInstances = run.resolutions.length > 0;
+  // Same-casing substitutes exist — the "Swap motor" picker in the design tools below can fly the
+  // design on a bundled curve of the right diameter, turning a dead-end into a two-click recovery.
+  // Gated at >1 to match that picker's own visibility, so the notice never points at an absent one.
+  const canSubstitute = !!swapOptions && swapOptions.length > 1;
+  const casingMm = canSubstitute ? Math.round(swapOptions![0].diameter * 1000) : 0;
   return (
     <section
       aria-label="No flight simulated"
@@ -631,6 +646,14 @@ function NoPropulsionNotice({ run, tool }: { run: FlightRun; tool: string }) {
           results and plots are withheld.
         </p>
       )}
+      {canSubstitute && (
+        <p className="mt-3 text-sm">
+          <strong>Fly it with a substitute.</strong> The bundled set has {swapOptions!.length} motors
+          of the same {casingMm} mm casing. Pick one under <em>Swap motor</em> in the design tools
+          below and the flight re-flies with it — a quick way to get a ballpark while you track down
+          the exact curve.
+        </p>
+      )}
       <p className="mt-3 text-sm">
         The bundled database is a curated subset of ThrustCurve.org, not the full catalogue — see
         the{" "}
@@ -641,7 +664,7 @@ function NoPropulsionNotice({ run, tool }: { run: FlightRun; tool: string }) {
         <Link href="/docs/limitations" className="underline underline-offset-2">
           limitations log
         </Link>
-        . Check the designation, or pick a configuration whose motor is in the set. The rocket
+        . Check the designation{canSubstitute ? "" : ", or pick a configuration whose motor is in the set"}. The rocket
         geometry and stability below are computed independently and remain valid.
       </p>
     </section>

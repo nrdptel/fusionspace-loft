@@ -282,6 +282,33 @@ test.describe("Loft", () => {
     await expect(panel.getByText(/mean gap/)).toBeVisible();
   });
 
+  test("a design whose motor isn't bundled can be flown with a substitute", async ({ page }) => {
+    await page.goto("/");
+    // A real-world snag: the file names a motor Loft doesn't carry a thrust curve for, so nothing
+    // flies. Rather than dead-end, the notice points at the same-casing substitutes in the design
+    // tools, and swapping one in re-flies the design.
+    await page
+      .getByLabel(/Choose an OpenRocket .ork or RockSim .rkt file/)
+      .setInputFiles(resolve(process.cwd(), "e2e/fixtures/unresolved-motor.ork"));
+
+    const notice = page.getByRole("region", { name: "No flight simulated" });
+    await expect(notice).toBeVisible({ timeout: 15000 });
+    // The recovery path is spelled out — a substitute of the same casing, picked in the design tools.
+    await expect(notice.getByText(/Fly it with a substitute/)).toBeVisible();
+    await expect(notice.getByText(/29 mm casing/)).toBeVisible();
+
+    // The "Swap motor" picker sits right below, listing bundled 29 mm motors. Pick the first one.
+    const swap = page.getByRole("combobox", { name: "Swap motor" });
+    await expect(swap).toBeVisible();
+    await swap.selectOption({ index: 1 });
+
+    // With a real curve behind it the design flies: the no-flight notice clears and the results
+    // workspace (with its Flight tab and an apogee) appears.
+    await expect(page.getByRole("heading", { name: "No flight simulated" })).toBeHidden();
+    await expect(page.getByRole("tab", { name: "Flight" })).toBeVisible();
+    await expect(page.getByLabel("Results").getByText("Apogee", { exact: true })).toBeVisible();
+  });
+
   test("a two-stage design with an undersized booster chute is flagged for a firm booster landing", async ({ page }) => {
     await page.goto("/");
     // A serial two-stage rocket whose booster recovers under its own (too-small) canopy: it lands
