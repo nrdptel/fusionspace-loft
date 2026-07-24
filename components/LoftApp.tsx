@@ -363,6 +363,19 @@ export default function LoftApp() {
     rerun(next, weather, scenario);
   };
 
+  // Clear every what-if — design edits, condition edits, and today's-weather — and re-fly the design
+  // exactly as the file describes it, restoring the stored-tool comparison. The counterpart to the
+  // build-by-editing loop: one step back to the untouched design without unloading it. A cleared
+  // field lingers as an `undefined` key (applyEdit merges), so "active" is any *defined* value, not a
+  // non-empty object.
+  const editsActive = scenario === "today" || Object.values(edits).some((v) => v !== undefined && v !== "");
+  const resetEdits = () => {
+    setEdits({});
+    setWeather(null);
+    setScenario("design");
+    rerun({}, null, "design");
+  };
+
   const selectConfig = (idx: number) => {
     setSimIndex(idx);
     if (!doc) return;
@@ -520,6 +533,16 @@ export default function LoftApp() {
               >
                 Download .ork
               </button>
+              {editsActive && (
+                <button
+                  type="button"
+                  onClick={resetEdits}
+                  title="Clear every what-if and re-fly the design as the file describes it"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-2.5 py-1 text-xs font-medium text-zinc-700 transition hover:border-indigo-400 hover:text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:text-zinc-100"
+                >
+                  Reset to as-designed
+                </button>
+              )}
             </div>
             <Segmented
               value={units}

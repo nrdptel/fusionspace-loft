@@ -127,6 +127,41 @@ test.describe("Loft", () => {
     expect(csv).toContain(",coast,");
   });
 
+  test("resets every what-if back to the as-designed flight", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+
+    const summaryApogee = async () => {
+      const dd = page.getByText("Apogee", { exact: true }).first().locator("xpath=following-sibling::dd");
+      return parseFloat((await dd.innerText()).replace(/[^\d.]/g, ""));
+    };
+    const before = await summaryApogee();
+    expect(before).toBeGreaterThan(0);
+    // The as-designed flight shows the OpenRocket comparison and offers no reset (nothing to undo).
+    await expect(page.getByRole("heading", { name: "OpenRocket vs Loft" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Reset to as-designed" })).toHaveCount(0);
+
+    // Stack a design what-if: nose ballast makes the rocket heavier and lower.
+    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByLabel(/Nose ballast/).fill("500");
+    await expect.poll(summaryApogee).toBeLessThan(before);
+
+    // Back on Flight, the hypothetical flight has dropped the stored comparison, and the header now
+    // offers a one-click way back.
+    await page.getByRole("tab", { name: "Flight" }).click();
+    await expect(page.getByRole("heading", { name: "OpenRocket vs Loft" })).toHaveCount(0);
+    const resetBtn = page.getByRole("button", { name: "Reset to as-designed" });
+    await expect(resetBtn).toBeVisible();
+
+    // Reset restores the exact as-designed flight: the apogee returns, the comparison is back, and
+    // the control disappears (nothing left to undo).
+    await resetBtn.click();
+    await expect.poll(summaryApogee).toBe(before);
+    await expect(page.getByRole("heading", { name: "OpenRocket vs Loft" })).toBeVisible();
+    await expect(resetBtn).toHaveCount(0);
+  });
+
   test("renames the design and the results title and .ork filename follow", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: "Start a new design" }).click();
