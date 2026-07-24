@@ -171,19 +171,22 @@ test.describe("Loft", () => {
     // Before upload: just Loft's own altitude curve — no "flight log" series in the legend.
     await expect(plots.getByText("flight log", { exact: true })).toHaveCount(0);
 
-    // Upload an altimeter CSV (parsed in the browser); its curve overlays the prediction.
+    // Upload an altimeter CSV (parsed in the browser); its curve overlays the prediction. The fixture
+    // carries both altitude and velocity columns, so the "flight log" series appears on both plots.
     await plots.getByLabel("Flight log CSV").setInputFiles(resolve(process.cwd(), "e2e/fixtures/flight-log.csv"));
-    await expect(plots.getByText("flight log", { exact: true })).toBeVisible();
-    // The file named feet, so the unit picker reads feet — and can be corrected.
+    await expect(plots.getByText("flight log", { exact: true })).toHaveCount(2);
+    // The file named feet and ft/s, so both unit pickers read those — and can be corrected.
     await expect(plots.getByLabel("Flight log altitude unit")).toHaveValue("ft");
+    await expect(plots.getByLabel("Flight log speed unit")).toHaveValue("ft/s");
     await expect(plots.getByText(/\d+ points/)).toBeVisible();
-    // The concrete payoff: the log's own peak altitude beside Loft's predicted apogee.
-    await expect(plots.getByText(/Log peak/)).toBeVisible();
-    await expect(plots.getByText(/Loft predicted/)).toBeVisible();
+    // The concrete payoff on each plot: the log's own peak beside Loft's prediction.
+    await expect(plots.getByText(/Log peak/).first()).toBeVisible();
+    await expect(plots.getByText(/Loft predicted/)).toHaveCount(2); // apogee and max-velocity comparisons
 
-    // Removing it clears the overlay.
+    // Removing it clears both overlays.
     await plots.getByRole("button", { name: "Remove" }).click();
     await expect(plots.getByText("flight log", { exact: true })).toHaveCount(0);
+    await expect(plots.getByLabel("Flight log speed unit")).toHaveCount(0);
   });
 
   test("rejects an unreadable flight log with a helpful message", async ({ page }) => {

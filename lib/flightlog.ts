@@ -11,6 +11,8 @@
  *  what it could not read rather than guessing a wrong curve onto the plot. */
 
 export type LogUnit = "m" | "ft";
+/** The speed units altimeters export. Detected from the header when named; the caller can override. */
+export type LogSpeedUnit = "m/s" | "ft/s" | "mph" | "km/h";
 
 export interface FlightLogPoint {
   /** Seconds, as recorded (not re-zeroed). */
@@ -19,10 +21,19 @@ export interface FlightLogPoint {
   altitude: number;
 }
 
+export interface FlightLogSpeedPoint {
+  t: number;
+  /** Speed in the log's own unit (see `speedUnitHint`); the caller converts. */
+  v: number;
+}
+
 export interface FlightLog {
   points: FlightLogPoint[];
   /** Unit named in the altitude column header ("ft"/"m"), or null when the file doesn't say. */
   unitHint: LogUnit | null;
+  /** The velocity/speed column when the log carries one — many accel-based altimeters do — else null.
+   *  Optional: a bare-altitude baro log parses exactly as before, with this absent. */
+  speed: { points: FlightLogSpeedPoint[]; unitHint: LogSpeedUnit | null } | null;
 }
 
 /** A header cell that names the elapsed-time column. Matches "Time", "Flight Time", "Time (s)",
@@ -38,12 +49,29 @@ function isAltitudeHeader(cell: string): boolean {
   return /alt|height|\bagl\b/.test(c);
 }
 
+/** A header cell that names a velocity/speed column: "Velocity", "Speed", "Vel (ft/s)". */
+function isSpeedHeader(cell: string): boolean {
+  const c = cell.trim().toLowerCase();
+  return /veloc|speed|\bvel\b/.test(c);
+}
+
 /** The unit named in an altitude header cell, if any. Feet win over metres when both somehow appear,
  *  since "ft"/"feet" is unambiguous while a stray "m" is easy to hit. */
 function unitOf(cell: string): LogUnit | null {
   const c = cell.toLowerCase();
   if (/\bft\b|feet|\(ft\)/.test(c)) return "ft";
   if (/\bm\b|meter|metre|\(m\)/.test(c)) return "m";
+  return null;
+}
+
+/** The speed unit named in a velocity header cell, if any. The compound units (ft/s, m/s, km/h) are
+ *  tested before the bare-length fallbacks so "ft/s" isn't mistaken for plain feet. */
+function speedUnitOf(cell: string): LogSpeedUnit | null {
+  const c = cell.toLowerCase();
+  if (/ft\/?s|fps|feet\s*\/\s*s/.test(c)) return "ft/s";
+  if (/m\/?s|meters?\s*\/\s*s|metres?\s*\/\s*s|mps/.test(c)) return "m/s";
+  if (/mph|mi\/?h/.test(c)) return "mph";
+  if (/km\/?h|kph|kmh/.test(c)) return "km/h";
   return null;
 }
 
@@ -89,9 +117,14 @@ export function parseFlightLog(text: string): FlightLog {
     );
   }
 
-  const unitHint = unitOf(splitRow(lines[headerIdx], delimiter)[altIdx]);
+  const headerCells = splitRow(lines[headerIdx], delimiter);
+  const unitHint = unitOf(headerCells[altIdx]);
+  // An optional velocity column, if the header names one that isn't the altitude column.
+  const speedIdx = headerCells.findIndex((c, i) => i !== timeIdx && i !== altIdx && isSpeedHeader(c));
+  const speedUnitHint = speedIdx >= 0 ? speedUnitOf(headerCells[speedIdx]) : null;
 
   const points: FlightLogPoint[] = [];
+  const speedPoints: FlightLogSpeedPoint[] = [];
   for (let i = headerIdx + 1; i < lines.length; i++) {
     const cells = splitRow(lines[i], delimiter);
     // An empty cell is `Number("") === 0`, not NaN, so guard it explicitly — otherwise a blank line
@@ -101,9 +134,16 @@ export function parseFlightLog(text: string): FlightLog {
     if (!tRaw || !aRaw) continue;
     const t = Number(tRaw);
     const altitude = Number(aRaw);
-    if (Number.isFinite(t) && Number.isFinite(altitude)) points.push({ t, altitude });
+    if (!Number.isFinite(t) || !Number.isFinite(altitude)) continue;
+    points.push({ t, altitude });
+    if (speedIdx >= 0) {
+      const vRaw = cells[speedIdx];
+      const v = vRaw ? Number(vRaw) : NaN;
+      if (Number.isFinite(v)) speedPoints.push({ t, v });
+    }
   }
   if (points.length < 2) throw new Error("Found the columns, but no numeric time/altitude rows under them.");
 
-  return { points, unitHint };
+  const speed = speedPoints.length > 1 ? { points: speedPoints, unitHint: speedUnitHint } : null;
+  return { points, unitHint, speed };
 }

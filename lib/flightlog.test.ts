@@ -11,6 +11,19 @@ describe("parseFlightLog", () => {
     expect(log.points).toHaveLength(4);
     expect(log.points[0]).toEqual({ t: 0, altitude: 0 });
     expect(log.points[2]).toEqual({ t: 2, altitude: 600 });
+    // The velocity column comes through too, with its own unit.
+    expect(log.speed?.unitHint).toBe("ft/s");
+    expect(log.speed?.points).toHaveLength(4);
+    expect(log.speed?.points[1]).toEqual({ t: 1, v: 300 });
+  });
+
+  it("reads a velocity column in mph and leaves speed null when there is none", () => {
+    const withSpeed = parseFlightLog(["Time,Altitude (m),Speed (mph)", "0,0,0", "1,120,140", "2,300,120"].join("\n"));
+    expect(withSpeed.speed?.unitHint).toBe("mph");
+    expect(withSpeed.speed?.points[2]).toEqual({ t: 2, v: 120 });
+
+    const baroOnly = parseFlightLog(["Time (s),Altitude (m)", "0,0", "1,120", "2,300"].join("\n"));
+    expect(baroOnly.speed).toBeNull();
   });
 
   it("reads metres and matches the column by name in any order", () => {

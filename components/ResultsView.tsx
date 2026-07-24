@@ -20,8 +20,8 @@ import MassBreakdown from "./MassBreakdown";
 import GeometryInspector from "./GeometryInspector";
 import DownloadCsv from "./DownloadCsv";
 import type { CsvCell } from "@/lib/csv";
-import { parseFlightLog, type FlightLogPoint, type LogUnit } from "@/lib/flightlog";
-import { mToFt, ftToM, mpsToFtps, kgToLb } from "@/lib/units";
+import { parseFlightLog, type FlightLogPoint, type FlightLogSpeedPoint, type LogUnit, type LogSpeedUnit } from "@/lib/flightlog";
+import { mToFt, ftToM, mpsToFtps, ftpsToMps, mphToMps, KMH_PER_MPS, kgToLb } from "@/lib/units";
 import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
 import { overallLength } from "@/lib/model/geometry";
@@ -170,7 +170,11 @@ export default function ResultsView({
   // An optional uploaded flight log (altimeter CSV) overlaid on the altitude plot — the flyer's real
   // flight beside Loft's prediction. Parsed and held entirely in the browser; the unit defaults to
   // whatever the file named (or the current display unit) and can be corrected if the curve looks off.
-  const [log, setLog] = useState<{ points: FlightLogPoint[]; unit: LogUnit } | null>(null);
+  const [log, setLog] = useState<{
+    points: FlightLogPoint[];
+    unit: LogUnit;
+    speed: { points: FlightLogSpeedPoint[]; unit: LogSpeedUnit } | null;
+  } | null>(null);
   const [logError, setLogError] = useState<string | null>(null);
   const onLogFile = (file: File | undefined) => {
     setLogError(null);
@@ -180,7 +184,13 @@ export default function ResultsView({
     reader.onload = () => {
       try {
         const parsed = parseFlightLog(String(reader.result ?? ""));
-        setLog({ points: parsed.points, unit: parsed.unitHint ?? (units === "imperial" ? "ft" : "m") });
+        setLog({
+          points: parsed.points,
+          unit: parsed.unitHint ?? (units === "imperial" ? "ft" : "m"),
+          speed: parsed.speed
+            ? { points: parsed.speed.points, unit: parsed.speed.unitHint ?? (units === "imperial" ? "ft/s" : "m/s") }
+            : null,
+        });
       } catch (e) {
         setLog(null);
         setLogError(e instanceof Error ? e.message : "Couldn't read that flight log.");
@@ -209,6 +219,26 @@ export default function ResultsView({
   const altUnit = units === "imperial" ? "ft" : "m";
   const logPeak = logSeries ? Math.max(...logSeries.points.map((p) => p.y)) : null;
   const peakDeltaPct = logPeak !== null && predApogee > 0 ? ((logPeak - predApogee) / predApogee) * 100 : null;
+
+  // When the log also carries a velocity column, overlay it on the velocity plot and compare its own
+  // peak against Loft's predicted max velocity — the second half of the predict-vs-reality check.
+  const logToMps = (v: number, u: LogSpeedUnit) =>
+    u === "ft/s" ? ftpsToMps(v) : u === "mph" ? mphToMps(v) : u === "km/h" ? v / KMH_PER_MPS : v;
+  const logSpeedSeries: Series | null =
+    log?.speed && log.speed.points.length > 1
+      ? {
+          color: "#0891b2",
+          label: "flight log",
+          points: log.speed.points.map((p) => {
+            const mps = logToMps(p.v, log.speed!.unit);
+            return { x: p.t, y: units === "imperial" ? mpsToFtps(mps) : mps };
+          }),
+        }
+      : null;
+  const spdUnit = units === "imperial" ? "ft/s" : "m/s";
+  const predMaxV = units === "imperial" ? mpsToFtps(s.maxVelocity) : s.maxVelocity;
+  const logMaxV = logSpeedSeries ? Math.max(...logSpeedSeries.points.map((p) => p.y)) : null;
+  const vDeltaPct = logMaxV !== null && predMaxV > 0 ? ((logMaxV - predMaxV) / predMaxV) * 100 : null;
 
   // No propulsion ⇒ the "flight" is a zero-thrust drop and every metric is meaningless. Lead
   // with why, name the motor(s) that didn't resolve, and withhold the misleading numbers,
@@ -341,7 +371,7 @@ export default function ResultsView({
                     <select
                       aria-label="Flight log altitude unit"
                       value={log.unit}
-                      onChange={(e) => setLog({ points: log.points, unit: e.target.value as LogUnit })}
+                      onChange={(e) => setLog({ ...log, unit: e.target.value as LogUnit })}
                       className="rounded-md border border-zinc-300 bg-white px-1.5 py-0.5 text-xs text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
                     >
                       <option value="m">metres</option>
@@ -385,11 +415,45 @@ export default function ResultsView({
         </Plot>
         <Plot title={`Velocity (${units === "imperial" ? "ft/s" : "m/s"}) vs time`}>
           <LineChart
-            series={velSeries(r, units)}
+            series={logSpeedSeries ? [...velSeries(r, units), logSpeedSeries] : velSeries(r, units)}
             markers={markers}
             xLabel="time (s)"
             yLabel={units === "imperial" ? "ft/s" : "m/s"}
           />
+          {logSpeedSeries && log?.speed && (
+            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-zinc-500 dark:text-zinc-400">
+              {/* The uploaded log carried a velocity column — overlay it and compare peaks, with its own
+                  unit picker (speeds are exported in more units than altitudes). */}
+              <label className="inline-flex items-center gap-1.5">
+                Log speed in
+                <select
+                  aria-label="Flight log speed unit"
+                  value={log.speed.unit}
+                  onChange={(e) =>
+                    setLog(log ? { ...log, speed: log.speed ? { ...log.speed, unit: e.target.value as LogSpeedUnit } : null } : null)
+                  }
+                  className="rounded-md border border-zinc-300 bg-white px-1.5 py-0.5 text-xs text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                >
+                  <option value="m/s">m/s</option>
+                  <option value="ft/s">ft/s</option>
+                  <option value="mph">mph</option>
+                  <option value="km/h">km/h</option>
+                </select>
+              </label>
+              {logMaxV !== null && (
+                <span className="text-zinc-600 dark:text-zinc-300">
+                  Log peak <strong className="tabular-nums">{d.fmt(logMaxV, 0)}&nbsp;{spdUnit}</strong> · Loft predicted{" "}
+                  <strong className="tabular-nums">{d.fmt(predMaxV, 0)}&nbsp;{spdUnit}</strong>
+                  {vDeltaPct !== null && Math.abs(vDeltaPct) >= 0.5 && (
+                    <>
+                      {" "}— <strong className="tabular-nums">{d.fmt(Math.abs(vDeltaPct), 0)}%</strong>{" "}
+                      {vDeltaPct >= 0 ? "faster" : "slower"}
+                    </>
+                  )}
+                </span>
+              )}
+            </div>
+          )}
         </Plot>
         <Plot title="Acceleration (g) vs time">
           <LineChart series={[accelSeries(r)]} markers={markers} xLabel="time (s)" yLabel="g" />
