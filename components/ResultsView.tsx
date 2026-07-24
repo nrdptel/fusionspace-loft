@@ -201,6 +201,14 @@ export default function ResultsView({
           }),
         }
       : null;
+  // The one number the overlay is really for: the log's own peak altitude beside Loft's predicted
+  // apogee. It compares peaks only, so it needs no time alignment; it's the flyer's measurement next
+  // to the estimate, not a model-accuracy claim. A wildly off delta usually means the log's unit is
+  // set wrong — the toggle beside it fixes that. Both values are in the plot's display unit.
+  const predApogee = units === "imperial" ? mToFt(s.apogee) : s.apogee;
+  const altUnit = units === "imperial" ? "ft" : "m";
+  const logPeak = logSeries ? Math.max(...logSeries.points.map((p) => p.y)) : null;
+  const peakDeltaPct = logPeak !== null && predApogee > 0 ? ((logPeak - predApogee) / predApogee) * 100 : null;
 
   // No propulsion ⇒ the "flight" is a zero-thrust drop and every metric is meaningless. Lead
   // with why, name the motor(s) that didn't resolve, and withhold the misleading numbers,
@@ -359,6 +367,20 @@ export default function ResultsView({
                 <span>a CSV with time and altitude columns — its curve overlays here to check against.</span>
               ) : null}
             </div>
+          )}
+          {logPeak !== null && (
+            <p className="mt-1.5 text-xs text-zinc-600 dark:text-zinc-300">
+              Log peak <strong className="tabular-nums">{d.fmt(logPeak, 0)}&nbsp;{altUnit}</strong> · Loft predicted{" "}
+              <strong className="tabular-nums">{d.fmt(predApogee, 0)}&nbsp;{altUnit}</strong>
+              {peakDeltaPct !== null && Math.abs(peakDeltaPct) >= 0.5 && (
+                <>
+                  {" "}— the log flew{" "}
+                  <strong className="tabular-nums">{d.fmt(Math.abs(peakDeltaPct), 0)}%</strong>{" "}
+                  {peakDeltaPct >= 0 ? "higher" : "lower"} than predicted
+                </>
+              )}
+              . Your measurement beside the estimate — not a model-accuracy figure.
+            </p>
           )}
         </Plot>
         <Plot title={`Velocity (${units === "imperial" ? "ft/s" : "m/s"}) vs time`}>

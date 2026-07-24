@@ -177,6 +177,9 @@ test.describe("Loft", () => {
     // The file named feet, so the unit picker reads feet — and can be corrected.
     await expect(plots.getByLabel("Flight log altitude unit")).toHaveValue("ft");
     await expect(plots.getByText(/\d+ points/)).toBeVisible();
+    // The concrete payoff: the log's own peak altitude beside Loft's predicted apogee.
+    await expect(plots.getByText(/Log peak/)).toBeVisible();
+    await expect(plots.getByText(/Loft predicted/)).toBeVisible();
 
     // Removing it clears the overlay.
     await plots.getByRole("button", { name: "Remove" }).click();
