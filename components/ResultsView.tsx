@@ -508,7 +508,7 @@ function FlutterFixHint({ run, units }: { run: FlightRun; units: UnitSystem }) {
       thickening the {f.worst.finName} from {d.q(d.lengthMm(f.worst.thickness, units))} to about{" "}
       {d.q(d.lengthMm(tFix, units))} would lift the flutter margin to {d.fmt(RECOMMENDED_FLUTTER_MARGIN, 1)}×
       (from {d.fmt(f.worst.margin, 1)}×). Shortening the span or a stiffer material does the same —
-      set the fin thickness under Conditions → Design what-if to check the apogee cost.
+      set the fin thickness in the Design workspace to check the apogee cost.
     </p>
   );
 }
@@ -551,8 +551,8 @@ function StabilityTrimHint({ run, doc, units }: { run: FlightRun; doc: OrkDocume
           <>
             {label} adding about {d.q(d.mass(trim.ballastKg, units))} of nose ballast would bring the
             static margin to {d.fmt(TRIM_TARGET_CAL, 1)} cal (from {d.fmt(trim.currentMarginCal, 2)} cal).
-            Nose weight trades a little apogee for stability — set it under Conditions → Design what-if
-            to see the cost.
+            Nose weight trades a little apogee for stability — set it in the Design workspace to see
+            the cost.
           </>
         ) : (
           <>
@@ -575,8 +575,8 @@ function StabilityTrimHint({ run, doc, units }: { run: FlightRun; doc: OrkDocume
           {label} at {d.fmt(trim.currentMarginCal, 2)} cal this is over-stable and can weathercock
           strongly into wind. Moving the fin set about {d.q(d.lengthMm(-fin.shiftM, units))} forward
           would ease the margin to about {d.fmt(OVER_STABLE_TARGET_CAL, 1)} cal — a weight-free trim
-          (nose ballast only adds stability, never sheds it). Set the fin position under Conditions →
-          Design what-if to check.
+          (nose ballast only adds stability, never sheds it). Set the fin position in the Design
+          workspace to check.
         </p>
       );
     }
