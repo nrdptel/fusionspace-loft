@@ -745,6 +745,41 @@ test.describe("Loft", () => {
     await expect(page.getByText("with your edits").first()).toBeVisible();
   });
 
+  test("resizing the fin tip chord on the diagram re-flies the design", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+
+    const summaryApogee = async () => {
+      const dd = page.getByText("Apogee", { exact: true }).first().locator("xpath=following-sibling::dd");
+      return parseFloat((await dd.innerText()).replace(/[^\d.]/g, ""));
+    };
+    const before = await summaryApogee();
+    expect(before).toBeGreaterThan(0);
+
+    // The fourth fin handle sits on the tip's trailing-edge corner: dragging it forward (screen-left)
+    // shortens the tip chord toward a delta, shedding planform — less drag, so the rocket flies
+    // higher. The slider reports the tip chord in mm as it moves.
+    await page.getByRole("tab", { name: "Design" }).click();
+    const tip = page.getByRole("slider", { name: "Fin tip chord" });
+    await expect(tip).toBeVisible();
+    const startMm = parseFloat((await tip.getAttribute("aria-valuenow")) ?? "0");
+    expect(startMm).toBeGreaterThan(0);
+    await tip.scrollIntoViewIfNeeded();
+    const box = await tip.boundingBox();
+    expect(box).not.toBeNull();
+    await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box!.x + box!.width / 2 - 40, box!.y + box!.height / 2, { steps: 10 });
+    await page.mouse.up();
+
+    await expect.poll(async () => parseFloat((await tip.getAttribute("aria-valuenow")) ?? "0")).toBeLessThan(
+      startMm,
+    );
+    await expect.poll(summaryApogee).toBeGreaterThan(before);
+    await expect(page.getByText("with your edits").first()).toBeVisible();
+  });
+
   test("results split into Flight / Design / Analyze workspaces", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
