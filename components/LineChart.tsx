@@ -1,6 +1,6 @@
 "use client";
 
-import { useId } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 export interface Series {
   points: { x: number; y: number }[];
@@ -14,16 +14,18 @@ export interface Marker {
   label: string;
 }
 
-/** Vertical spacing between stacked marker-label rows, in viewBox units. */
-const MARKER_ROW_H = 10;
-/** Fixed viewBox geometry. The chart scales to its container through the viewBox, so these are
- *  constants rather than measured pixels. */
-const CHART_W = 640;
-const PAD_L = 52;
+/** Vertical spacing between stacked marker-label rows, in px. */
+const MARKER_ROW_H = 11;
+/** Width assumed before the container has been measured — also what the server renders. */
+const DEFAULT_W = 640;
 const PAD_R = 14;
-/** Mean glyph width at the 9px marker font, in viewBox units — enough to know when two labels
- *  would touch. Deliberately an estimate: measuring text would mean a DOM round-trip per render. */
-const MARKER_CHAR_W = 4.4;
+/** Mean glyph width at the 9px marker font — enough to know when two labels would touch.
+ *  Deliberately an estimate: measuring text would mean a DOM round-trip per render. */
+const MARKER_CHAR_W = 4.6;
+
+/** Room for the y-axis tick labels. Narrow plots claw some of it back — on a phone every pixel
+ *  of plot width counts, and the ticks are shorter there anyway (fewer, rounder numbers). */
+const padLeft = (w: number) => (w < 420 ? 38 : 52);
 
 interface PlacedMarker extends Marker {
   row: number;
@@ -34,21 +36,22 @@ interface PlacedMarker extends Marker {
 /** Place marker labels so they never overprint. Each label takes the topmost row in which it
  *  clears the previous label on that row; a label that would run off either end of the plot is
  *  anchored inward instead of being clipped. */
-export function layoutMarkers(markers: Marker[], px: (x: number) => number): PlacedMarker[] {
+export function layoutMarkers(markers: Marker[], px: (x: number) => number, width = DEFAULT_W): PlacedMarker[] {
   const sorted = [...markers].sort((a, b) => a.x - b.x);
   const rowEnds: number[] = [];
+  const padL = padLeft(width);
   return sorted.map((m) => {
     const w = Math.max(1, m.label.length) * MARKER_CHAR_W;
     const at = px(m.x);
     // Keep the label inside the plot: hug the edge rather than overflow it.
     let anchor: PlacedMarker["anchor"] = "middle";
     let textX = at;
-    if (at - w / 2 < PAD_L) {
+    if (at - w / 2 < padL) {
       anchor = "start";
-      textX = Math.max(PAD_L, at - w / 2);
-    } else if (at + w / 2 > CHART_W - PAD_R) {
+      textX = Math.max(padL, at - w / 2);
+    } else if (at + w / 2 > width - PAD_R) {
       anchor = "end";
-      textX = Math.min(CHART_W - PAD_R, at + w / 2);
+      textX = Math.min(width - PAD_R, at + w / 2);
     }
     const left = anchor === "start" ? textX : anchor === "end" ? textX - w : textX - w / 2;
     const right = left + w;
@@ -57,6 +60,25 @@ export function layoutMarkers(markers: Marker[], px: (x: number) => number): Pla
     rowEnds[row] = right;
     return { ...m, row, textX, anchor };
   });
+}
+
+/** The chart's own width in CSS pixels, tracked so the SVG's user units ARE pixels. A fixed
+ *  viewBox would scale the type with the container: at 640 units wide inside a 340 px phone
+ *  column, a 10 px label renders at 5 px — the reason every plot's axis was unreadable on a
+ *  phone and squinting-small in the desktop two-up grid. */
+export function useMeasuredWidth(ref: React.RefObject<HTMLElement | null>): number {
+  const [w, setW] = useState(DEFAULT_W);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const measure = () => setW(Math.max(240, Math.round(el.getBoundingClientRect().width)));
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [ref]);
+  return w;
 }
 
 /** A small, dependency-free, theme-aware SVG line chart. Responsive: it scales to its
@@ -79,11 +101,11 @@ export default function LineChart({
   yZeroFloor?: boolean;
 }) {
   const uid = useId();
-  const W = CHART_W;
+  const box = useRef<HTMLElement>(null);
+  const W = useMeasuredWidth(box);
   const H = height;
-  const padL = PAD_L;
+  const padL = padLeft(W);
   const padR = PAD_R;
-  const padT = 12;
   const padB = 34;
 
   const all = series.flatMap((s) => s.points);
@@ -102,6 +124,17 @@ export default function LineChart({
   const ySpan = yMax - yMin || 1;
 
   const px = (x: number) => padL + ((x - xMin) / xSpan) * (W - padL - padR);
+  // Events crowded together stack into rows; the plot gives that stack its own band at the top so
+  // the labels sit above the trace instead of over it. Narrow charts stack the most and are
+  // exactly where an overlaid label hides the peak it is pointing at.
+  const placed = layoutMarkers(markers, px, W);
+  const markerRows = placed.length ? Math.max(...placed.map((m) => m.row)) + 1 : 0;
+  const bandTop = 12;
+  // …but never at the cost of the plot itself: a very crowded stack keeps its last rows over the
+  // trace rather than squeezing the data into a strip.
+  const padT = markerRows
+    ? Math.min(H * 0.35, bandTop + 4 + (markerRows - 1) * MARKER_ROW_H + 5)
+    : bandTop;
   const py = (y: number) => H - padB - ((y - yMin) / ySpan) * (H - padT - padB);
 
   const ticks = (min: number, max: number, n: number) => {
@@ -111,14 +144,16 @@ export default function LineChart({
     for (let v = start; v <= max + 1e-9; v += step) out.push(v);
     return out;
   };
-  const xTicks = ticks(xMin, xMax, 5);
-  const yTicks = ticks(yMin, yMax, 4);
+  // Tick density follows the real size of the plot rather than a fixed count, so a narrow chart
+  // gets three readable labels instead of six overlapping ones.
+  const xTicks = ticks(xMin, xMax, Math.max(3, Math.min(6, Math.round((W - padL - padR) / 95))));
+  const yTicks = ticks(yMin, yMax, Math.max(3, Math.min(5, Math.round((H - padT - padB) / 48))));
 
   const path = (pts: { x: number; y: number }[]) =>
     pts.map((p, i) => `${i === 0 ? "M" : "L"}${px(p.x).toFixed(1)},${py(p.y).toFixed(1)}`).join(" ");
 
   return (
-    <figure className="m-0">
+    <figure className="m-0" ref={box}>
       <svg
         viewBox={`0 0 ${W} ${H}`}
         className="h-auto w-full"
@@ -163,7 +198,7 @@ export default function LineChart({
         {/* Event markers. Labels are stacked into rows so that events close together in time —
             liftoff and burnout on a short burn, apogee and deployment on an at-apogee chute —
             stay readable instead of overprinting each other into a smear. */}
-        {layoutMarkers(markers, px).map((m, i) => (
+        {placed.map((m, i) => (
           <g key={`m${uid}${i}`}>
             <line
               x1={px(m.x)}
@@ -176,7 +211,7 @@ export default function LineChart({
             />
             <text
               x={m.textX}
-              y={padT + 4 + m.row * MARKER_ROW_H}
+              y={bandTop + 4 + m.row * MARKER_ROW_H}
               textAnchor={m.anchor}
               className="fill-zinc-400 text-[9px]"
             >

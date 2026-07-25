@@ -21,8 +21,6 @@ not yet done. Newest first. One line each. Anything here is fair game for the ne
 - The corpus sweep and the per-step drag cross-check are worth committing as real dev tools with
   assertions rather than being rewritten as throwaway probes each session — the sweep now is, the
   drag cross-check isn't.
-- Marker labels collide on every plot and on the flight path — "liftoff"/"burnout" and
-  "apogee"/"deploy" overprint each other into unreadable glyphs when their times are close.
 - RASAero import leaves three things on the table: booster stages (only the sustainer flies, and
   the comparison is withheld), a fin set mounted on a tapered section, and `<Protuberance>` parts.
   RASAero's `<MachAlt>` Mach-vs-altitude table is also unread — it is a second per-step oracle.

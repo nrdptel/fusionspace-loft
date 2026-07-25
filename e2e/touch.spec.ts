@@ -57,6 +57,31 @@ test.describe("phone layout", () => {
     }
   });
 
+  test("plot and flight-path labels render at the size they claim", async ({ page }) => {
+    // An SVG with a fixed viewBox scales its type with the container: the plots declared 640 user
+    // units inside a ~330 px phone column, so a 10 px axis label came out at ~5 px and every plot
+    // was unreadable on the form factor the pad check happens on. The charts now measure
+    // themselves so a user unit IS a CSS pixel; this asserts the rendered result, not the code.
+    await page.goto("/");
+    await page.getByRole("button", { name: /54 mm dual-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 30_000 });
+    const smallest = await page.$$eval("figure svg text", (ns) =>
+      ns
+        .filter((n) => (n.textContent || "").trim().length > 0 && n.getBoundingClientRect().height > 0)
+        .map((n) => {
+          // The declared font-size scaled by however the viewBox maps onto the rendered box.
+          const svg = n.closest("svg")!;
+          const vb = svg.viewBox.baseVal;
+          const scale = vb && vb.width ? svg.getBoundingClientRect().width / vb.width : 1;
+          return Math.round(parseFloat(getComputedStyle(n).fontSize) * scale * 10) / 10;
+        })
+        .sort((a, b) => a - b)
+        .slice(0, 3),
+    );
+    expect(smallest.length, "no chart labels found").toBeGreaterThan(0);
+    for (const size of smallest) expect(size, "chart label effective font size (px)").toBeGreaterThanOrEqual(8.5);
+  });
+
   test("no page scrolls horizontally on a phone", async ({ page }) => {
     for (const route of ROUTES) {
       await page.goto(route);

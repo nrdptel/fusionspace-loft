@@ -1,9 +1,10 @@
 "use client";
 
-import { useId } from "react";
+import { useId, useRef } from "react";
 import type { FlightResult } from "@/lib/sim/simulate";
 import { mToFt } from "@/lib/units";
 import type { UnitSystem } from "@/lib/display";
+import { useMeasuredWidth } from "./LineChart";
 
 /** Flight-path visualization: altitude vs down-range distance, coloured by phase (boost →
  *  coast → descent), with the key events marked. It's the "where does it go" picture that a
@@ -19,9 +20,12 @@ const PHASE_COLOR: Record<string, string> = {
 
 export default function FlightViz({ result, units }: { result: FlightResult; units: UnitSystem }) {
   const uid = useId();
-  const W = 640;
+  const box = useRef<HTMLElement>(null);
+  // User units are CSS pixels (see useMeasuredWidth) so the labels stay the size they say they
+  // are — at a fixed 640-unit viewBox, a 9 px event label rendered at 5 px in a phone column.
+  const W = useMeasuredWidth(box);
   const H = 300;
-  const padL = 50;
+  const padL = W < 420 ? 38 : 50;
   const padR = 16;
   const padT = 16;
   const padB = 34;
@@ -67,7 +71,7 @@ export default function FlightViz({ result, units }: { result: FlightResult; uni
     });
 
   return (
-    <figure className="m-0">
+    <figure className="m-0" ref={box}>
       <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" role="img" aria-label="Flight path: altitude versus down-range distance" preserveAspectRatio="xMidYMid meet">
         {/* ground */}
         <line x1={padL} x2={W - padR} y1={py(0)} y2={py(0)} className="stroke-zinc-400 dark:stroke-zinc-600" strokeWidth={1} />
@@ -108,8 +112,8 @@ export default function FlightViz({ result, units }: { result: FlightResult; uni
   );
 }
 
-/** Mean glyph width and line height at the 9px label font, in viewBox units. */
-const LABEL_CHAR_W = 4.4;
+/** Mean glyph width and line height at the 9px label font, in px. */
+const LABEL_CHAR_W = 4.6;
 const LABEL_LINE_H = 11;
 
 /** Lift each label above its dot, raising it a line at a time until it clears every label already
