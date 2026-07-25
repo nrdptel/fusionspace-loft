@@ -43,6 +43,9 @@ export interface ResolvedMotor {
   ignitionTime: number;
   /** Ejection-charge fire time (s) if a delay is set (burnout + delay). */
   ejectionTime?: number;
+  /** The design states this motor is PLUGGED: no ejection charge exists, so a device waiting on
+   *  the motor's charge has nothing to open it. Distinct from an unstated delay. */
+  plugged?: boolean;
   /** Time (s) the motor's stage separates and drops away, taking the spent casing with it.
    *  `Infinity` (the default) for the final stage, which flies to apogee. */
   detachTime?: number;
@@ -444,6 +447,9 @@ export function simulate(input: SimulateInput): FlightResult {
   // "at ejection" opens at this time — which may be before or after apogee, depending on the
   // delay — rather than always at apogee, so a mistimed delay shows as an early or late deploy.
   const ejectionChargeTime = firstEjectionTime(motors);
+  // …and whether there is no charge BECAUSE the design says the motor is plugged. A device
+  // waiting on the charge then never opens, rather than quietly falling back to apogee.
+  const ejectionPlugged = ejectionChargeTime === undefined && ejectionIsPlugged(motors);
   // The final stage separation — when the tracked (top) stage is left flying alone. A recovery
   // device set to deploy on lower-stage separation opens then (the classic payload/dual-section
   // charge that both parts the sections and pops the chute). Undefined for a single-stage flight.
@@ -686,8 +692,11 @@ export function simulate(input: SimulateInput): FlightResult {
         let trigger = false;
         if (dev.event === "apogee") trigger = apogeePassed;
         else if (dev.event === "ejection")
-          // Fire at the motor's ejection charge if one is modelled; else fall back to apogee.
-          trigger = ejectionChargeTime !== undefined ? state.t >= ejectionChargeTime : apogeePassed;
+          // Fire at the motor's ejection charge if one is modelled. With no charge modelled, fall
+          // back to apogee — UNLESS the design states the motor is plugged, in which case there is
+          // no charge to fire and the device stays packed. Deploying anyway would invent a gentle
+          // descent for a flight that has nothing to open the canopy.
+          trigger = ejectionChargeTime !== undefined ? state.t >= ejectionChargeTime : !ejectionPlugged && apogeePassed;
         else if (dev.event === "altitude") trigger = apogeePassed && state.pos.z <= (dev.deployAltitude ?? 0);
         else if (dev.event === "launch") trigger = liftedOff;
         else if (dev.event === "separation")
@@ -836,6 +845,7 @@ export function simulate(input: SimulateInput): FlightResult {
     deploymentVelocity: deploymentV,
     recoveryExpected: recovery.length > 0,
     anyRecoveryOpened: recovery.some((d) => d.opened),
+    plugged: ejectionPlugged && recovery.some((d) => d.event === "ejection"),
     groundHitVelocity,
     ballisticBoosters,
     firmBoosters: boosterDescents.filter((b) => b.terminalSpeed > 7.6),
@@ -958,6 +968,19 @@ function firstEjectionTime(motors: ResolvedMotor[]): number | undefined {
   return Number.isFinite(t) ? t : undefined;
 }
 
+/** Whether the flying stage's motors are stated to be PLUGGED — the design says outright that no
+ *  ejection charge exists. A device waiting on the motor's charge then has nothing to open it,
+ *  which is a different thing from a design that simply never pinned a delay. */
+function ejectionIsPlugged(motors: ResolvedMotor[]): boolean {
+  let any = false;
+  for (const m of motors) {
+    if ((m.detachTime ?? Infinity) !== Infinity) continue;
+    if (m.ejectionTime !== undefined) return false; // something on this stage does fire
+    if (m.plugged) any = true;
+  }
+  return any;
+}
+
 /** A device contributes drag only once its canopy has opened — i.e. the trigger has fired AND
  *  its deploy delay has elapsed (t ≥ deployedAt). Before then the vehicle falls on body drag. */
 function anyDeployed(recovery: RecoveryDeviceSim[], t: number): boolean {
@@ -1020,6 +1043,8 @@ function buildWarnings(
     deploymentVelocity: number;
     /** The design carries at least one recovery device. */
     recoveryExpected: boolean;
+    /** A device waits on the motor's ejection charge, and the design says the motor is plugged. */
+    plugged: boolean;
     /** At least one recovery device actually opened during the flight. */
     anyRecoveryOpened: boolean;
     groundHitVelocity: number;
@@ -1037,8 +1062,13 @@ function buildWarnings(
       code: "ballistic-descent",
       message:
         `No recovery device deployed before the rocket reached the ground — it comes in ballistic ` +
-        `at about ${ctx.groundHitVelocity.toFixed(0)} m/s. The ejection charge fires after the rocket ` +
-        "is already down (delay too long), or no ejection is modelled for the motor. Verify the recovery timing.",
+        `at about ${ctx.groundHitVelocity.toFixed(0)} m/s. ` +
+        (ctx.plugged
+          ? "The design's motor is plugged — it carries no ejection charge — and the recovery is set to " +
+            "open on that charge. If the flight deploys on an altimeter, set the deployment to apogee or " +
+            "an altitude in the design; Loft does not assume one."
+          : "The ejection charge fires after the rocket is already down (delay too long), or no ejection " +
+            "is modelled for the motor. Verify the recovery timing."),
       severity: "warning",
     });
   } else if (ctx.deployedBeforeApogee) {

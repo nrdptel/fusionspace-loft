@@ -594,6 +594,15 @@ describe("adaptOrkXml — per-configuration airstart ignition", () => {
     expect(cfgA.instances[0].ignitionDelay).toBe(0);
     expect(cfgB.instances[0].ignitionDelay).toBe(3);
   });
+
+  it("reads <delay>none</delay> as a plugged motor, not as a missing delay", () => {
+    // OpenRocket writes "none" for a plugged reload — a positive statement that no ejection charge
+    // exists, as flown with altimeter deployment. A device waiting on that charge never opens.
+    const doc = adaptOrkXml(xml);
+    for (const cfg of doc.rocket.configurations) {
+      expect(cfg.instances[0].motor.plugged).toBe(true);
+    }
+  });
 });
 
 describe("freeform fin exact chordwise CP (Barrowman strip theory)", () => {

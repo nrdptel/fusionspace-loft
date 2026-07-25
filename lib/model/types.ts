@@ -326,6 +326,11 @@ export interface MotorSpec {
   digest?: string;
   /** Ejection-charge delay (s), if the design pinned one. */
   delay?: number;
+  /** The design says this motor is PLUGGED — it carries no ejection charge at all. Distinct from
+   *  an unstated delay: "plugged" is a positive statement that nothing will fire, so a recovery
+   *  device waiting on the motor's charge never opens. OpenRocket writes `<delay>none</delay>`;
+   *  RockSim writes a negative `<EjectionDelay>`. */
+  plugged?: boolean;
 }
 
 export interface MotorInstance {

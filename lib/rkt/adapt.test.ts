@@ -376,9 +376,9 @@ describe("adaptRktXml — recovery fires on the motor's ejection charge", () => 
     expect(zero.result.summary.apogee).toBeLessThan(late.result.summary.apogee * 0.9);
   });
 
-  it("falls back to apogee for a plugged motor, which has no ejection charge", () => {
-    // RockSim writes no <EjectionDelay> for a plugged ("-P") reload; there is no charge to fire on,
-    // and the solver deploys at apogee instead of never deploying at all.
+  it("falls back to apogee when the file states no ejection delay at all", () => {
+    // Silence is not a statement that nothing fires, so the generous read stands: deploy at apogee
+    // rather than never. (A plugged motor is written differently — see below.)
     const doc = adaptRktXml(design(""));
     const chute = flattenRocket(doc.rocket).find((p) => p.component.kind === "parachute")!.component as Parachute;
     expect(chute.deployEvent).toBe("ejection");
@@ -386,5 +386,17 @@ describe("adaptRktXml — recovery fires on the motor's ejection charge", () => 
     const deploy = run.result.events.find((e) => e.type === "deploy")!;
     const apogeeEvent = run.result.events.find((e) => e.type === "apogee")!;
     expect(deploy.time).toBeGreaterThanOrEqual(apogeeEvent.time - 0.05);
+  });
+
+  it("opens nothing for a plugged motor, which RockSim writes as a negative ejection delay", () => {
+    // A "-P" configuration carries no ejection charge; RockSim's own stored results for one eject
+    // at no time and come in ballistic. Deploying at apogee anyway invents a recovery the design
+    // has no way to trigger — on a real corpus file that read a 345 s flight against a stored 43 s.
+    const doc = adaptRktXml(design("<EjectionDelay>-2.</EjectionDelay>"));
+    expect(doc.rocket.configurations[0].instances[0].motor.plugged).toBe(true);
+    expect(doc.rocket.configurations[0].instances[0].motor.delay).toBeUndefined();
+    const run = runFromDocument(doc);
+    expect(run.result.events.some((e) => e.type === "deploy")).toBe(false);
+    expect(run.result.warnings.some((w) => w.code === "ballistic-descent")).toBe(true);
   });
 });

@@ -103,6 +103,8 @@ export function buildRocketDynamics(rocket: Rocket, config: MotorConfiguration):
     cg: number;
     count: number;
     ejectionDelay: number;
+    /** The design states this motor is plugged — no ejection charge will fire. */
+    plugged: boolean;
     /** This motor's ignition delay from its stage becoming active — 0 for a normal motor, or the
      *  airstart delay for a second motor timed to light after liftoff/staging. */
     ignitionDelay: number;
@@ -141,7 +143,17 @@ export function buildRocketDynamics(rocket: Rocket, config: MotorConfiguration):
     const ejectionDelay = Number.isFinite(inst.motor.delay ?? NaN) ? (inst.motor.delay as number) : NaN;
     const ignitionDelay = Number.isFinite(inst.ignitionDelay ?? NaN) ? (inst.ignitionDelay as number) : 0;
     const trigger = ignitionTrigger(inst.ignitionEvent, stageIndex, nStages);
-    placed.push({ curve: match.entry.curve, designation: match.entry.designation, cg, count, ejectionDelay, ignitionDelay, stageIndex, trigger });
+    placed.push({
+      curve: match.entry.curve,
+      designation: match.entry.designation,
+      cg,
+      count,
+      ejectionDelay,
+      plugged: inst.motor.plugged === true,
+      ignitionDelay,
+      stageIndex,
+      trigger,
+    });
     // A motor with no trigger never lights, so it adds no burn time to its stage — it rides along
     // as mass. The stage above therefore waits on whatever does burn below it, not on this.
     if (trigger !== "none") {
@@ -209,6 +221,7 @@ export function buildRocketDynamics(rocket: Rocket, config: MotorConfiguration):
       ejectionTime: Number.isFinite(p.ejectionDelay)
         ? ignitionTime + p.curve.burnTime + p.ejectionDelay
         : undefined,
+      plugged: p.plugged || undefined,
     };
     for (let i = 0; i < p.count; i++) motors.push(resolved);
   }

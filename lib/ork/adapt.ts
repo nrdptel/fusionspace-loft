@@ -327,6 +327,10 @@ function parseMotorMount(node: XmlNode, mountId: string, ctx: WalkContext): bool
   }
   for (const motor of children(mm, "motor")) {
     const configId = motor.attrs.configid || "default";
+    // OpenRocket writes `<delay>none</delay>` for a plugged motor — no ejection charge at all,
+    // as flown with altimeter deployment. That is a different statement from a missing <delay>,
+    // which says only that the design never pinned one.
+    const delayText = (childText(motor, "delay") || "").trim().toLowerCase();
     const spec: MotorSpec = {
       manufacturer: childText(motor, "manufacturer"),
       designation: childText(motor, "designation") || "",
@@ -335,6 +339,7 @@ function parseMotorMount(node: XmlNode, mountId: string, ctx: WalkContext): bool
       length: childNum(motor, "length", 0),
       digest: childText(motor, "digest"),
       delay: parseNum(childText(motor, "delay"), NaN),
+      plugged: delayText === "none" || undefined,
     };
     if (spec.designation) {
       const ign = ignByConfig.get(configId);

@@ -518,7 +518,12 @@ export default function Methods() {
         higher speed reached at line-stretch. An <em>ejection</em> deployment fires at the real charge time (burnout plus
         the design&apos;s delay), so a too-short delay opens the canopy before apogee while still
         ascending, and a too-long delay opens it late at speed — or, if the charge would fire after
-        the rocket is already down, not at all. Both a pre-apogee opening and a ballistic (no-deploy)
+        the rocket is already down, not at all. A <strong>plugged</strong> motor
+        (OpenRocket&apos;s <code>delay = none</code>, RockSim&apos;s negative ejection delay) carries no
+        charge at all, so a device waiting on one never opens and the flight is ballistic — Loft does
+        not assume an altimeter that the design does not describe. A design that simply states no
+        delay is different: that is silence rather than a statement, and such a device falls back to
+        deploying at apogee. Both a pre-apogee opening and a ballistic (no-deploy)
         descent are flagged. Descent then uses the summed deployed drag areas
         (<code>C<sub>d</sub>·A</code>); the steady descent rate this gives is checked against the
         ~3–6 m/s (10–20 ft/s) most designs aim for, and a firm (&gt;25 ft/s) or hard (&gt;35 ft/s)

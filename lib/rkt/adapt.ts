@@ -485,7 +485,13 @@ function engineInstance(set: XmlNode, ctx: Ctx): MotorInstance | null {
   const mountSerial = Math.round(n(set, "MountSerialNo", 0));
   const count = Math.max(1, Math.round(n(set, "EngineCount", 1)));
   const overhang = n(set, "EngineOverhang", 0) * MM;
-  const ejection = n(set, "EjectionDelay", -1);
+  // RockSim writes the ejection delay in seconds, and a NEGATIVE value for a plugged motor —
+  // no ejection charge at all (the file that flies both writes 0 for its "-0" configuration and
+  // −2 for its "-P" one, whose own stored results eject at no time and come in ballistic). A
+  // missing element says nothing either way, so it stays "unstated" rather than plugged.
+  const ejectionText = (childText(set, "EjectionDelay") || "").trim();
+  const ejection = ejectionText === "" ? -1 : n(set, "EjectionDelay", -1);
+  const plugged = ejectionText !== "" && ejection < 0;
   const mount = ctx.mounts.get(mountSerial) ?? fallbackMount(ctx);
   if (mount) {
     const role: MotorMount = { overhang };
@@ -499,6 +505,7 @@ function engineInstance(set: XmlNode, ctx: Ctx): MotorInstance | null {
     diameter: 0,
     length: 0,
     delay: ejection >= 0 ? ejection : undefined,
+    plugged: plugged || undefined,
   };
   return {
     mountId: mount?.id ?? "",

@@ -254,8 +254,10 @@ export default function Limitations() {
         worst-case speed at canopy open across every device — so on a dual-deploy design it is the
         main&apos;s under-drogue opening speed, not the drogue&apos;s near-zero apogee deployment,
         which is the shock that actually matters (and lets the fast-deployment caution fire on a hard
-        main). The shock force itself is not computed. Where no ejection charge is modelled for the motor, an ejection-triggered
-        device falls back to deploying at apogee. The steady descent rate is compared against the
+        main). The shock force itself is not computed. Where the design states no ejection delay at
+        all, an ejection-triggered device falls back to deploying at apogee; where it states the
+        motor is <em>plugged</em>, nothing opens and the descent is ballistic and flagged, since
+        Loft will not assume an altimeter deployment the design does not describe. The steady descent rate is compared against the
         ~3–6 m/s most designs aim for, and a firm or hard landing under an undersized canopy is
         flagged — but that check is on descent <em>rate</em> alone; it doesn&apos;t weigh the
         airframe&apos;s mass or fragility, so treat it as a prompt to check your recovery sizing, not
@@ -375,10 +377,15 @@ export default function Limitations() {
         configuration therefore opens the canopy at burnout, still climbing fast, and tops out far
         below its ballistic apogee: on a real USLI full-scale design that is 359&nbsp;m against
         RockSim&apos;s own stored 323&nbsp;m, where deploying at apogee instead read 2,086&nbsp;m
-        against the same 323&nbsp;m. A plugged (&ldquo;-P&rdquo;) motor carries no ejection delay,
-        and the canopy falls back to apogee deployment; those configurations of the same design land
-        within 1% of the numbers RockSim stores for them. What is <em>not</em> read is a RockSim
-        altimeter-triggered or timed deployment set up outside the motor&apos;s charge. Unlike an{" "}
+        against the same 323&nbsp;m. A plugged (&ldquo;-P&rdquo;) motor — which RockSim writes as a
+        negative ejection delay — carries no charge at all, so the canopy stays packed and the
+        flight is ballistic, with a warning: on those configurations of the same design that is
+        43.7&nbsp;s of flight against RockSim&apos;s stored 42.6&nbsp;s, where deploying at apogee
+        instead read 345&nbsp;s. Loft comes in at 152&nbsp;m/s against RockSim&apos;s 83&nbsp;m/s
+        because it falls nose-down where RockSim tumbles; both agree nothing opened. What is{" "}
+        <em>not</em> read is a RockSim altimeter-triggered or timed deployment set up outside the
+        motor&apos;s charge — a plugged motor is very often flown exactly that way, so on such a
+        design the ballistic warning marks what Loft cannot see rather than a certain outcome. Unlike an{" "}
         <code>.ork</code>, a <code>.rkt</code> carries RockSim&apos;s own per-part masses; Loft flies
         those directly (see <Link href="/docs/methods">Methods</Link>), so component CG comes from
         geometry while total mass is exactly as the file states.

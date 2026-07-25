@@ -755,6 +755,40 @@ describe("ejection-charge deployment timing", () => {
     expect(run.result.summary.groundHitVelocity).toBeGreaterThan(50); // comes in ballistic
   });
 
+  it("a plugged motor opens nothing — a charge-triggered canopy stays packed", async () => {
+    // A plugged motor carries no ejection charge. A recovery device waiting on that charge has
+    // nothing to open it, so the flight is ballistic — and saying so is the point. Falling back
+    // to apogee (what an UNSTATED delay does) would invent a gentle descent the design can't fly.
+    const doc = await load("demo-single-deploy.ork");
+    setEjection(doc, NaN);
+    for (const cfg of doc.rocket.configurations) {
+      for (const inst of cfg.instances) {
+        inst.motor.delay = undefined;
+        inst.motor.plugged = true;
+      }
+    }
+    const run = runFromDocument(doc);
+    expect(run.result.events.some((e) => e.type === "deploy")).toBe(false);
+    const ballistic = run.result.warnings.find((w) => w.code === "ballistic-descent");
+    expect(ballistic?.message).toMatch(/plugged/);
+    expect(run.result.summary.groundHitVelocity).toBeGreaterThan(50);
+  });
+
+  it("an unstated delay still falls back to apogee", async () => {
+    // The generous read stays for a design that simply never pinned a delay: unlike "plugged",
+    // that is silence, not a statement that nothing fires.
+    const doc = await load("demo-single-deploy.ork");
+    setEjection(doc, NaN);
+    for (const cfg of doc.rocket.configurations) {
+      for (const inst of cfg.instances) inst.motor.delay = undefined;
+    }
+    const run = runFromDocument(doc);
+    const apogee = run.result.events.find((e) => e.type === "apogee")!;
+    const deploy = run.result.events.find((e) => e.type === "deploy")!;
+    expect(deploy.time).toBeCloseTo(apogee.time, 1);
+    expect(run.result.warnings.some((w) => w.code === "ballistic-descent")).toBe(false);
+  });
+
   it("reports a recovery-independent optimum delay even when the flown delay opens early", async () => {
     // The optimum ejection delay is the delay that deploys AT apogee — a property of the rocket,
     // motor, and conditions, not of the (possibly wrong) delay actually flown. A too-short delay
