@@ -70,6 +70,12 @@ that file's `KNOWN_ISSUES` **with a reason** — flown but not asserted, so the 
 rather than baked in as correct. Fix the cause, then delete the entry to arm the assert. Never
 widen the tolerance to make a case pass.
 
+It also holds the docs to account. The Validation page publishes a per-metric accuracy census
+measured on this corpus; the suite recomputes it and fails if any metric drifts past the published
+figure, so an engine change either keeps that page true or forces it to be updated. The guard is
+one-directional — improving is always allowed — and the run prints the current figures, so updating
+`PUBLISHED_MEDIAN_PCT` and the page is a two-line change when it does.
+
 ## Checks (run before opening a PR)
 
 These mirror CI (`.github/workflows/test.yml`); all must pass.

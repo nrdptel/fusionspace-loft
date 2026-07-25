@@ -59,6 +59,28 @@ const KNOWN_ISSUES: Record<string, string> = {
     "velocity reads 17% low.",
 };
 
+/** The per-metric accuracy the Validation page publishes: median absolute disagreement with each
+ *  file's own stored results, across every stored simulation Loft flies completely (known issues
+ *  included, so it is the honest picture rather than the flattering one). Keep this and the page in
+ *  step — the suite prints the current figures, so an improvement is a one-line update to both. */
+const PUBLISHED_MEDIAN_PCT: Record<string, number> = {
+  timeToApogee: 1.7,
+  launchRodVelocity: 1.9,
+  maxMach: 2.1,
+  maxVelocity: 2.3,
+  optimumDelay: 2.7,
+  groundHitVelocity: 3.0,
+  maxAltitude: 3.2,
+  flightTime: 3.3,
+  maxAcceleration: 3.3,
+  deploymentVelocity: 6.5,
+};
+
+/** How far a metric may drift past its published figure before the page counts as stale. Wide
+ *  enough that adding one design to the corpus doesn't fail the suite, tight enough that a real
+ *  regression in the engine does. */
+const CENSUS_SLACK_PCT = 0.75;
+
 interface Case {
   file: string;
   sim: string;
@@ -190,5 +212,62 @@ suite("real-design corpus", () => {
 
     expect(asserted.length, "no comparable simulations found — is the corpus complete?").toBeGreaterThan(0);
     expect(breaches, `apogee or max velocity outside ±${TOLERANCE_PCT}%`).toEqual([]);
+  }, 900_000);
+
+  it("still meets the accuracy the Validation page claims", async () => {
+    // The docs publish a per-metric census of how far Loft lands from the numbers real design files
+    // already carry. A published accuracy figure with nothing holding it to account goes quietly
+    // stale the first time the engine changes — so it is asserted here, against the same corpus it
+    // was measured on. One-directional on purpose: getting better is always allowed, and the run
+    // logs the current figures so the page can be updated when it does.
+    const errs = new Map<string, number[]>();
+    for (const f of files) {
+      let doc;
+      try {
+        doc = await importDesign(new Uint8Array(readFileSync(f.path)));
+      } catch {
+        continue;
+      }
+      for (const sim of doc.simulations) {
+        let run;
+        try {
+          run = runFromDocument(doc, {
+            configId: sim.conditions.configId,
+            validateAgainst: doc.flownAsReduced ? undefined : sim,
+            overrides: overridesFromStored(sim),
+          });
+        } catch {
+          continue;
+        }
+        if (!run.hasPropulsion || !run.validation) continue;
+        for (const c of run.validation.comparisons) {
+          if (!Number.isFinite(c.pctError)) continue;
+          const list = errs.get(c.key) ?? [];
+          list.push(Math.abs(c.pctError));
+          errs.set(c.key, list);
+        }
+      }
+    }
+    const median = (a: number[]) => {
+      const s = [...a].sort((x, y) => x - y);
+      return s.length % 2 ? s[(s.length - 1) / 2] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2;
+    };
+    const measured = [...errs.entries()].map(([k, v]) => ({ key: k, n: v.length, med: median(v) }));
+    console.log(
+      "corpus census (median |Δ| vs each file's stored results, known issues included):\n" +
+        measured
+          .sort((a, b) => b.med - a.med)
+          .map((m) => `  ${m.key.padEnd(20)} n=${String(m.n).padStart(3)}  ${m.med.toFixed(1)}%`)
+          .join("\n"),
+    );
+    const stale: string[] = [];
+    for (const m of measured) {
+      const claim = PUBLISHED_MEDIAN_PCT[m.key];
+      if (claim === undefined) continue;
+      if (m.med > claim + CENSUS_SLACK_PCT) {
+        stale.push(`${m.key} median |Δ| ${m.med.toFixed(1)}% > the ${claim}% on /docs/validation`);
+      }
+    }
+    expect(stale, "the Validation page's accuracy census no longer holds — remeasure and update it").toEqual([]);
   }, 900_000);
 });

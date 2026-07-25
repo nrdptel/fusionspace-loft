@@ -178,6 +178,12 @@ export default async function Validation() {
         3.3% and <strong>0.9 m/s</strong>. Read it in m/s, not percent. The genuinely wrong
         deployment cases are elsewhere and are listed as known issues in the suite.
       </p>
+      <p>
+        These figures are asserted, not just written down: the corpus suite recomputes the census on
+        every run and fails if any metric drifts past what this page claims, so a change to the
+        engine either keeps the numbers true or forces them to be updated. It is one-directional —
+        getting better is always allowed, and the run prints the current figures.
+      </p>
 
       <h2 id="rocketpy">Against RocketPy (an independent engine)</h2>
       <p>
