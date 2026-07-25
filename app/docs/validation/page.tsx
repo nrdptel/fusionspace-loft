@@ -166,7 +166,13 @@ export default async function Validation() {
       <p>
         Computed at build time from the committed fixtures — these numbers are always current with
         the engine. &ldquo;Stored&rdquo; is the fixture&apos;s author-estimated figure; &ldquo;Loft&rdquo;
-        is this engine&apos;s output.
+        is this engine&apos;s output. These designs are Loft&apos;s own, and no OpenRocket run
+        produced their stored numbers, so each carries OpenRocket&apos;s{" "}
+        <code>status=&quot;external&quot;</code> marker — the format&apos;s own way of saying
+        &ldquo;these results did not come from this simulator.&rdquo; The in-app panel reads that
+        marker and labels them <em>stated figures</em> rather than OpenRocket&apos;s, so a number no
+        OpenRocket run produced is never attributed to OpenRocket. Import your own simulated{" "}
+        <code>.ork</code> for a genuine tool-against-tool comparison.
       </p>
       {runs.map((r) => (
         <div key={r.name}>

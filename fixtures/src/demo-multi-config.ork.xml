@@ -131,7 +131,7 @@
     </subcomponents>
   </rocket>
   <simulations>
-    <simulation status="loaded">
+    <simulation status="external">
       <name>H128W</name>
       <simulator>RK4Simulator</simulator>
       <calculator>BarrowmanCalculator</calculator>
@@ -151,7 +151,7 @@
       <flightdata maxaltitude="980.0" maxvelocity="190.0" maxacceleration="238.0" maxmach="0.55" timetoapogee="12.4" flighttime="122.0" groundhitvelocity="4.7" launchrodvelocity="19.4" deploymentvelocity="3.2" optimumdelay="11.1">
       </flightdata>
     </simulation>
-    <simulation status="loaded">
+    <simulation status="external">
       <name>G40W</name>
       <simulator>RK4Simulator</simulator>
       <calculator>BarrowmanCalculator</calculator>

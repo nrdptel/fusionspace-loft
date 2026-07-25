@@ -3,13 +3,13 @@
 Rough edges, missing affordances, and ideas too big for one pass — noticed while working,
 not yet done. Newest first. One line each. Anything here is fair game for the next session.
 
-- The bundled demo `.ork` fixtures carry HAND-AUTHORED `<flightdata>` presented in the app as
-  "the results stored in Simulation 1" from OpenRocket. `demo-dual-deploy` reads +31% apogee /
-  +43% velocity against them, and its stored numbers are self-inconsistent (2,250 m apogee at the
-  same 20.2 s time-to-apogee Loft reaches 2,940 m in — impossible for a ballistic coast; every
-  value is a round number). The real corpus sits at a 2.5% median, so this is the fixture, not the
-  physics — but a first-time visitor sees Loft apparently disagreeing with OpenRocket by a third on
-  its own showcase file, and numbers no OpenRocket run produced are attributed to OpenRocket.
+- `demo-rocksim.rkt`'s stored `<SimulationResults>` are author estimates too, but RockSim's format
+  has no `external` marker to carry that, so the panel still labels them RockSim's. Worth either a
+  document-level flag on the import or dropping the stored block from that fixture.
+- Loft still reads +31% apogee / +43% velocity against `demo-dual-deploy`'s stated figures, and
+  those figures are internally inconsistent (2,250 m apogee at the same 20.2 s time-to-apogee Loft
+  reaches 2,940 m in). The label is now honest, but the demo would land better with figures that
+  hold together — regenerate them from the engine, or state a range.
 - Marker labels collide on every plot and on the flight path — "liftoff"/"burnout" and
   "apogee"/"deploy" overprint each other into unreadable glyphs when their times are close.
 - RASAero import leaves three things on the table: booster stages (only the sustainer flies, and

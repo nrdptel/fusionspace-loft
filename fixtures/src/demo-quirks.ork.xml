@@ -60,7 +60,7 @@
       </parallelstage>
     </subcomponents>
   </rocket>
-  <simulations><simulation status="loaded"><name>Sim 1</name>
+  <simulations><simulation status="external"><name>Sim 1</name>
     <conditions><configid>cfg-t</configid><launchrodlength>1.8</launchrodlength><launchrodangle>0</launchrodangle><windaverage>2</windaverage><launchaltitude>0</launchaltitude></conditions>
     <flightdata maxaltitude="900" maxvelocity="220" maxmach="0.65"/>
   </simulation></simulations>

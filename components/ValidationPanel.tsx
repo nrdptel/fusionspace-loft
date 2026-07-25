@@ -8,9 +8,13 @@ import { mToFt, mpsToFtps } from "@/lib/units";
 
 /** Shows Loft's engine against the results the design tool (OpenRocket or RockSim) stored in
  *  the imported design, metric by metric. This is the honest accuracy record: the numbers are
- *  what they are, the mean error is stated plainly, and nothing is hidden. For the bundled
- *  samples the stored figures are author estimates (see the Validation docs), so this reads as
- *  a demonstration there. */
+ *  what they are, the mean error is stated plainly, and nothing is hidden.
+ *
+ *  Not every `.ork` carries a real run, though. OpenRocket's own `status="external"` marks
+ *  results that did NOT come from its simulator — which is exactly what the bundled demo designs
+ *  carry: figures their author estimated, so the panel has something to demonstrate on. Calling
+ *  those "OpenRocket vs Loft" would attribute a number to a tool that never produced it, so an
+ *  external simulation is labelled as the file's own stated figures instead. */
 
 const IMPERIAL_LEN = new Set(["Apogee"]);
 const IMPERIAL_SPD = new Set(["Max velocity", "Ground-hit velocity", "Rail-exit velocity", "Deployment velocity"]);
@@ -27,16 +31,22 @@ export default function ValidationPanel({
   units,
   storedName,
   toolName = "OpenRocket",
+  external = false,
 }: {
   report: ValidationReport;
   units: UnitSystem;
   storedName?: string;
   toolName?: string;
+  /** The stored simulation is marked `external` — figures the file carries, not this tool's own
+   *  simulator output. */
+  external?: boolean;
 }) {
   return (
     <section aria-label="Validation" className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900/40">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="text-lg font-semibold tracking-tight">{toolName} vs Loft</h2>
+        <h2 className="text-lg font-semibold tracking-tight">
+          {external ? "Stated figures vs Loft" : `${toolName} vs Loft`}
+        </h2>
         <span className="text-xs text-zinc-500 dark:text-zinc-400">
           mean abs. error{" "}
           <span className="font-mono text-zinc-700 dark:text-zinc-300">{fmt(report.mape, 1)}%</span>
@@ -44,8 +54,11 @@ export default function ValidationPanel({
       </div>
       <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
         Loft&apos;s engine against the results stored in{" "}
-        {storedName ? <span className="italic">{storedName}</span> : "this design"}. Differences
-        are expected — the point is to show them, not hide them. See{" "}
+        {storedName ? <span className="italic">{storedName}</span> : "this design"}
+        {external
+          ? ` — figures the file states, marked in it as not produced by ${toolName}'s own simulator, so treat them as a reference point rather than a second solver's answer`
+          : ""}
+        . Differences are expected — the point is to show them, not hide them. See{" "}
         <Link href="/docs/validation" className="text-indigo-600 underline underline-offset-2 dark:text-indigo-400">
           how this is measured
         </Link>

@@ -140,7 +140,7 @@
     </subcomponents>
   </rocket>
   <simulations>
-    <simulation status="loaded">
+    <simulation status="external">
       <name>Simulation 1</name>
       <simulator>RK4Simulator</simulator>
       <calculator>BarrowmanCalculator</calculator>

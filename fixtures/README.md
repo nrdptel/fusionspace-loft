@@ -1,5 +1,13 @@
 # Test fixtures
 
+**The stored flight results in these designs are author estimates, not simulator output.** They
+exist so the comparison panel has something to demonstrate on. Each therefore carries
+OpenRocket's `status="external"` on its `<simulation>` — the format's own marker for results
+that did not come from its simulator — and the app labels them "stated figures" rather than
+attributing them to OpenRocket. If you edit a fixture's geometry, either update its stored
+figures or leave them: they are a reference point, never a ground truth. Real ground truth lives
+in the separate design-file corpus.
+
 Real design files used by the parser tests, the simulation tests, and the validation
 harness. The OpenRocket `.ork` fixtures are ZIP archives containing a single `rocket.ork`
 XML entry, exactly like a file OpenRocket writes; the RockSim `.rkt` fixture is plain XML,
