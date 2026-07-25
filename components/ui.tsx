@@ -91,7 +91,14 @@ export function Tabs({
     <div
       role="tablist"
       aria-label={ariaLabel}
-      className="-mb-px flex gap-1 overflow-x-auto border-b border-zinc-200 dark:border-zinc-800"
+      // Sticky on a phone, where one workspace runs many screens deep and the only way back to the
+      // tab bar was to scroll to the top of the page. A pointer layout has a wheel and the height
+      // to spare, so above `sm` the tabs stay in the flow exactly as before. The background is the
+      // page's own, solid: content scrolls underneath, and a translucent bar just shows it through.
+      className={
+        "sticky top-0 z-20 -mb-px flex gap-1 overflow-x-auto border-b border-zinc-200 bg-white " +
+        "dark:border-zinc-800 dark:bg-zinc-950 sm:static sm:bg-transparent dark:sm:bg-transparent"
+      }
     >
       {tabs.map((t, i) => {
         const active = t.id === value;

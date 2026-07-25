@@ -82,6 +82,22 @@ test.describe("phone layout", () => {
     for (const size of smallest) expect(size, "chart label effective font size (px)").toBeGreaterThanOrEqual(8.5);
   });
 
+  test("the workspace tabs stay reachable however far you scroll", async ({ page }) => {
+    // A workspace runs many screens deep on a phone — the flight view alone is over ten thousand
+    // pixels — and switching to Design meant scrolling all the way back to the top first.
+    await page.goto("/");
+    await page.getByRole("button", { name: /54 mm dual-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+    const tabs = page.locator('[role="tablist"]');
+    await page.mouse.wheel(0, 4000);
+    await expect
+      .poll(async () => Math.round((await tabs.boundingBox())?.y ?? -999))
+      .toBeLessThanOrEqual(1);
+    // Still usable where it landed, not merely visible.
+    await tabs.getByRole("tab", { name: "Design" }).click();
+    await expect(page.getByRole("heading", { name: "Design geometry" })).toBeVisible();
+  });
+
   test("no page scrolls horizontally on a phone", async ({ page }) => {
     for (const route of ROUTES) {
       await page.goto(route);
