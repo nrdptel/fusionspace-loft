@@ -153,6 +153,32 @@ export default async function Validation() {
         those files are other people&apos;s designs and aren&apos;t redistributed.
       </p>
 
+      <h3>What the corpus says, metric by metric</h3>
+      <p>
+        Across the corpus — 35 design files from OpenRocket, RockSim and RASAero, and the{" "}
+        <strong>95 stored simulations</strong> in them that Loft flies completely — this is the
+        median absolute disagreement with each file&apos;s own stored result. It includes the cases
+        the suite excuses as known issues, so it is the honest picture rather than the flattering
+        one:
+      </p>
+      <ul>
+        <li>time to apogee <strong>1.1%</strong>, rail-exit velocity <strong>1.9%</strong>, optimum delay <strong>1.9%</strong></li>
+        <li>max Mach <strong>2.1%</strong>, max velocity <strong>2.3%</strong></li>
+        <li>ground-hit velocity <strong>3.0%</strong>, flight time <strong>3.0%</strong>, apogee <strong>3.2%</strong>, max acceleration <strong>3.3%</strong></li>
+        <li>deployment velocity <strong>6.5%</strong></li>
+      </ul>
+      <p>
+        Deployment velocity looks like the outlier and mostly isn&apos;t: it is an{" "}
+        <em>ill-conditioned</em> metric, not a badly modelled one. Near apogee the rocket is barely
+        moving, so the opening speed is roughly <code>g</code> times however far past apogee the
+        charge fires — and a tenth of a second of timing difference between two simulators is about
+        1 m/s on a number whose whole value is a few m/s. Split by how slow the opening is, the{" "}
+        <em>absolute</em> error barely moves while the percentage swings wildly: openings under
+        5 m/s disagree by 23% but only <strong>0.5 m/s</strong>; openings over 15 m/s disagree by
+        3.3% and <strong>0.9 m/s</strong>. Read it in m/s, not percent. The genuinely wrong
+        deployment cases are elsewhere and are listed as known issues in the suite.
+      </p>
+
       <h2 id="rocketpy">Against RocketPy (an independent engine)</h2>
       <p>
         Loft is also cross-checked against{" "}

@@ -13,8 +13,11 @@
  *
  *  What it asserts:
  *   - every design file imports without throwing;
- *   - where Loft flew the complete design and the file stores results, the apogee agrees within
- *     `TOLERANCE_PCT` — unless the case is listed in `KNOWN_ISSUES` with a reason.
+ *   - where Loft flew the complete design and the file stores results, both the apogee AND the max
+ *     velocity agree within `TOLERANCE_PCT` — unless the case is listed in `KNOWN_ISSUES` with a
+ *     reason. Apogee alone is not the trajectory: a heavier rocket that also drags less reaches a
+ *     similar height on a different flight, so the speed it got there at is what separates accuracy
+ *     from two errors cancelling.
  *
  *  A file Loft still gets wrong belongs in KNOWN_ISSUES, parsed and flown but not asserted, so the
  *  gap is documented rather than baked in as correct. Fix the cause, then delete the entry to arm
@@ -52,6 +55,12 @@ const KNOWN_ISSUES: Record<string, string> = {
   "FullScaleModelTH.rkt::L1940X-0":
     "Zero-delay configuration: the charge fires at burnout at 236 m/s and the canopy opens while " +
     "still climbing. Loft models the deployment but not the shredding that RockSim's numbers imply.",
+  "FullScaleModelTH.rkt::L1940X-P":
+    "Plugged configuration, so nothing opens and the flight is ballistic — which Loft now gets " +
+    "right (43.7 s against a stored 42.6 s). Apogee agrees to 5.3%, but max velocity reads 14.1% " +
+    "high on BOTH of this file's configurations, so it is the boost, not the recovery: this USLI " +
+    "airframe is flying lighter or cleaner in Loft than in RockSim. Excused on speed alone until " +
+    "that is traced.",
   "Punisher Apprentice.ork::Simulation 10":
     "Largest motor in a nine-simulation sweep; the rest land within 8%.",
   "03.Three-stage.ork":
@@ -103,7 +112,7 @@ suite("real-design corpus", () => {
     expect(failures, "design files that failed to import").toEqual([]);
   }, 300_000);
 
-  it("flies every stored simulation and agrees on apogee", async () => {
+  it("flies every stored simulation and agrees on apogee and speed", async () => {
     const asserted: Case[] = [];
     const excused: Case[] = [];
     const breaches: string[] = [];
@@ -150,6 +159,17 @@ suite("real-design corpus", () => {
               `(stored ${apogee.stored.toFixed(1)} m, Loft ${apogee.simulated.toFixed(1)} m)`,
           );
         }
+        // Apogee alone is not the trajectory. A heavier rocket that also drags less reaches a
+        // similar height on a different flight, so agreeing on the peak can be two errors
+        // cancelling — this suite already refuses to *un-excuse* a case on apogee alone for
+        // exactly that reason. Holding max velocity to the same tolerance makes that a gate
+        // rather than a hint, and the speed it got there at is the number that separates the two.
+        if (vel && Number.isFinite(vel.pctError) && Math.abs(vel.pctError) > TOLERANCE_PCT) {
+          breaches.push(
+            `${short} [${sim.name}] max velocity ${vel.pctError.toFixed(1)}% ` +
+              `(stored ${vel.stored.toFixed(1)} m/s, Loft ${vel.simulated.toFixed(1)} m/s)`,
+          );
+        }
       }
     }
 
@@ -178,6 +198,6 @@ suite("real-design corpus", () => {
     }
 
     expect(asserted.length, "no comparable simulations found — is the corpus complete?").toBeGreaterThan(0);
-    expect(breaches, `apogee outside ±${TOLERANCE_PCT}%`).toEqual([]);
+    expect(breaches, `apogee or max velocity outside ±${TOLERANCE_PCT}%`).toEqual([]);
   }, 900_000);
 });

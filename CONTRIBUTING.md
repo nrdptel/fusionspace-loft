@@ -61,8 +61,11 @@ per source tool:
 corpus/openrocket/*.ork   corpus/rocksim/*.rkt   corpus/rasaero/*.CDX1
 ```
 
-It asserts that every file imports, and that where Loft flew the complete design the apogee agrees
-with the file's stored result within the suite's tolerance. A case Loft still gets wrong belongs in
+It asserts that every file imports, and that where Loft flew the complete design both the apogee and
+the max velocity agree with the file's stored results within the suite's tolerance. Apogee alone is
+not the trajectory — a heavier rocket that also drags less reaches a similar height on a different
+flight — so the speed it got there at is what separates accuracy from two errors cancelling. A case
+Loft still gets wrong belongs in
 that file's `KNOWN_ISSUES` **with a reason** — flown but not asserted, so the gap is documented
 rather than baked in as correct. Fix the cause, then delete the entry to arm the assert. Never
 widen the tolerance to make a case pass.

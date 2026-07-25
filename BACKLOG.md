@@ -21,10 +21,10 @@ not yet done. Newest first. One line each. Anything here is fair game for the ne
   Loft comes in at 152 m/s against RockSim's 83 m/s: both agree nothing opened, but RockSim models
   the unstable body's drag and Loft flies it nose-down. Worth a tumbling-drag model for the
   ballistic case, where the number feeds a safety warning.
-- Deployment velocity is still the worst-agreeing metric across the corpus (median |Δ| 6.5% over 76
-  comparisons, against 1–3% for everything else; the full census is in the commit that fixed the
-  plugged-motor case). The largest residuals are near-apogee deployments, where a fraction of a
-  second of event timing is several m/s — event-time interpolation may be most of it.
+- `FullScaleModelTH.rkt` reads 14.1% high on max velocity on BOTH its configurations, so it is the
+  boost, not the recovery — this USLI airframe flies lighter or cleaner in Loft than in RockSim.
+  Newly excused in the corpus suite when the max-velocity assert was armed; worth tracing to a
+  per-part mass or a drag term rather than left as an excuse.
 - The service worker precaches route HTML but not the RSC segment payloads Next's router fetches
   for a client-side navigation (`__next.*.txt?_rsc=…`, ~580 kB, and the `_rsc` hash means they
   can't be matched without `ignoreSearch`). Offline, an in-app link still lands on the right page
