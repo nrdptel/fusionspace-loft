@@ -367,9 +367,13 @@ export default function Limitations() {
         over-dragged as a square edge. Tube-fin sets import too; where the file leaves the tube bore
         at zero — RockSim&apos;s usual habit, which also makes it weigh the tubes as solid rods — the
         wall is taken from the airframe the tubes are cut from and the part is re-weighed to match,
-        rather than flying tubes that mass like rods. What it does <strong>not</strong> yet cover: ring
-        tails (flown without them, with a warning), pods and sub-assemblies (only the primary stack
-        flies), and elliptical/custom RockSim fin planforms (treated as their trapezoidal equivalent). A
+        rather than flying tubes that mass like rods. A <em>custom</em> fin set imports at its real
+        shape: RockSim writes the planform outline as a point list, and the span, root chord, area,
+        leading-edge sweep and exact strip-theory centre of pressure all come from that outline
+        rather than from the trapezoidal summary fields alongside it, which on a custom shape are
+        RockSim&apos;s own approximation and disagree with it. What it does <strong>not</strong> yet
+        cover: ring tails (flown without them, with a warning) and pods and sub-assemblies (only the
+        primary stack flies). A
         RockSim design tree doesn&apos;t pin a recovery device&apos;s deploy event the way OpenRocket
         does — that lives in the simulation setup — so an imported canopy is deployed by the{" "}
         <em>motor&apos;s ejection charge</em>, which is what the delay in a RockSim engine code is

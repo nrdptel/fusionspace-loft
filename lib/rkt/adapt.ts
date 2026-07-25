@@ -36,6 +36,7 @@ import type {
   MotorSpec,
   MotorMount,
 } from "../model/types";
+import { planformFromPoints, type FinPoint } from "../model/planform";
 import { radToDeg, cToK } from "../units";
 import { parseXml, child, children, childText, childNum, type XmlNode } from "../ork/xml";
 import type {
@@ -190,6 +191,25 @@ function fileMassKg(node: XmlNode, useKnownMass: boolean): number | undefined {
   return grams > 0 ? grams * G : undefined;
 }
 
+/** A `<CustomFinSet>`'s outline: "x,y|x,y|…" in millimetres, with a trailing separator and often a
+ *  repeated closing point. Returns the points in the outline's own units (mm); a list too short to
+ *  bound an area yields none, and the caller falls back to the trapezoidal summary fields. */
+function finPointList(node: XmlNode): FinPoint[] {
+  const raw = childText(node, "PointList") || "";
+  const pts: FinPoint[] = [];
+  for (const pair of raw.split("|")) {
+    const [xs, ys] = pair.split(",");
+    const x = Number(xs);
+    const y = Number(ys);
+    if (Number.isFinite(x) && Number.isFinite(y)) pts.push({ x, y });
+  }
+  // Drop a repeated final point (RockSim closes the polygon explicitly); the area maths closes it.
+  while (pts.length > 1 && pts[pts.length - 1].x === pts[pts.length - 2].x && pts[pts.length - 1].y === pts[pts.length - 2].y) {
+    pts.pop();
+  }
+  return pts.length >= 3 ? pts : [];
+}
+
 const STRUCTURAL = new Set<RocketComponent["kind"]>([
   "nosecone",
   "bodytube",
@@ -200,6 +220,7 @@ const STRUCTURAL = new Set<RocketComponent["kind"]>([
   "bulkhead",
   "engineblock",
   "trapezoidfinset",
+  "freeformfinset",
   "tubefinset",
   "launchlug",
 ]);
@@ -357,6 +378,32 @@ function parseComponent(
         thickness: n(node, "Thickness", 0) * MM || 0.003,
         crossSection: finCrossSection(Math.round(n(node, "TipShapeCode", 0))),
         cantAngle: n(node, "CantAngle", 0),
+        children: attached(node, ctx, useKnownMass),
+      };
+      break;
+    }
+    case "CustomFinSet": {
+      // A custom (freeform) planform. RockSim writes the outline in `<PointList>` as
+      // "x,y|x,y|…" in millimetres — x chordwise from the root leading edge, y spanwise — and
+      // ALSO writes root/tip/span/sweep fields, which on a custom shape are RockSim's own
+      // trapezoidal summary and disagree with the outline (on the USLI full-scale design in the
+      // corpus, the list gives a 76.2 mm tip where the field says 52.04). The shape is the whole
+      // point of drawing one, so the outline wins and the same strip-theory CP the OpenRocket
+      // freeform path uses is computed from it.
+      const pts = finPointList(node);
+      const p = planformFromPoints(pts);
+      const fallbackSpan = n(node, "SemiSpan", 0) * MM;
+      comp = {
+        ...b,
+        kind: "freeformfinset",
+        finCount: Math.max(1, Math.round(n(node, "FinCount", 3))),
+        rootChord: p.rootChord * MM || n(node, "RootChord", 0) * MM,
+        area: p.area * MM * MM,
+        height: p.span * MM || fallbackSpan,
+        sweepLength: p.sweep * MM || n(node, "SweepDistance", 0) * MM,
+        thickness: n(node, "Thickness", 0) * MM || 0.003,
+        crossSection: finCrossSection(Math.round(n(node, "TipShapeCode", 0))),
+        cpChord: p.cpChord > 0 ? p.cpChord * MM : undefined,
         children: attached(node, ctx, useKnownMass),
       };
       break;

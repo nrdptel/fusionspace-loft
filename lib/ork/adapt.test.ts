@@ -1,7 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { adaptOrkXml, freeformChordwiseCp } from "./adapt";
+import { adaptOrkXml } from "./adapt";
+import { freeformChordwiseCp } from "../model/planform";
 import { importOrk } from "./import";
 import { flattenRocket, referenceRadius } from "../model/geometry";
 import { barrowman } from "../sim/aero";

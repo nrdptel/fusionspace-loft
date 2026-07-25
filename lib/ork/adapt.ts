@@ -30,6 +30,7 @@ import type {
 } from "../model/types";
 import { degToRad } from "../units";
 import { parseXml, child, children, childText, childNum, parseNum, type XmlNode } from "./xml";
+import { planformFromPoints, type Planform } from "../model/planform";
 
 export interface StoredResults {
   maxAltitude?: number;
@@ -667,82 +668,15 @@ function lugMass(node: XmlNode, outerRadius: number | undefined, length: number)
   return Math.PI * (outerRadius * outerRadius - ri * ri) * length * density;
 }
 
-/** Reduce a freeform fin's `<finpoints>` outline to the trapezoid-equivalent fields the model
- *  and the aerodynamics need: planform area (shoelace), semi-span (max y), root chord (the chord
- *  at the body, i.e. the x-extent of the y≈0 edge), and the tip leading-edge sweep. A freeform
- *  fin carries NO `<rootchord>`/`<height>` elements — its shape is only these points — so without
- *  deriving them here the fin reads as zero-span and contributes no normal force or drag. */
-/** Exact chordwise centre of pressure of a freeform fin, measured aft of the root leading edge (m).
- *  Barrowman strip theory: each spanwise strip contributes lift proportional to its local chord with
- *  its aerodynamic centre at its own quarter-chord, so the fin's chordwise CP is the chord-weighted
- *  mean of the local quarter-chord line, x̄ = ∫(x_LE(y)+¼c(y))·c(y)dy / ∫c(y)dy. Reduces to the
- *  trapezoid CP formula for a trapezoid outline; for the odd freeform shape it's more faithful than
- *  the equal-area trapezoid the aero would otherwise assume. `rootLe` is the root leading edge's x,
- *  so the result is referenced to it (matching how the trapezoid CP is measured). */
-export function freeformChordwiseCp(pts: { x: number; y: number }[], span: number, rootLe: number): number {
-  if (pts.length < 3 || !(span > 0)) return 0;
-  const N = 200; // strips; the CP is computed once per design, so this is negligible.
-  let num = 0;
-  let den = 0;
-  for (let i = 0; i < N; i++) {
-    const y = ((i + 0.5) / N) * span;
-    let lo = Infinity;
-    let hi = -Infinity;
-    for (let j = 0; j < pts.length; j++) {
-      const a = pts[j];
-      const b = pts[(j + 1) % pts.length];
-      // Half-open span test so a vertex shared by two edges is counted once.
-      if ((a.y <= y && y < b.y) || (b.y <= y && y < a.y)) {
-        const x = a.x + ((b.x - a.x) * (y - a.y)) / (b.y - a.y);
-        if (x < lo) lo = x;
-        if (x > hi) hi = x;
-      }
-    }
-    if (hi <= lo) continue;
-    const c = hi - lo;
-    num += (lo + 0.25 * c) * c; // dy is constant, so it cancels in the ratio
-    den += c;
-  }
-  return den > 0 ? num / den - rootLe : 0;
-}
-
-function freeformPlanform(node: XmlNode): { area: number; sweep: number; span: number; rootChord: number; cpChord: number } {
+/** A freeform fin's `<finpoints>` outline as plain points, in metres. A freeform fin carries NO
+ *  `<rootchord>`/`<height>` elements — its shape is only these points — so the model's span, root
+ *  chord, area, sweep and exact CP all come from them (see lib/model/planform.ts, shared with the
+ *  RockSim importer, whose custom fin sets carry the same outline in a different spelling). */
+function freeformPlanform(node: XmlNode): Planform {
   const fp = child(node, "finpoints");
   if (!fp) return { area: 0, sweep: 0, span: 0, rootChord: 0, cpChord: 0 };
   const pts = children(fp, "point").map((p) => ({ x: parseNum(p.attrs.x, 0), y: parseNum(p.attrs.y, 0) }));
-  if (pts.length < 3) return { area: 0, sweep: 0, span: 0, rootChord: 0, cpChord: 0 };
-  // Shoelace area, and the LE sweep as the x at the highest-y (tip) point.
-  let area = 0;
-  let maxY = 0;
-  let sweepAtMaxY = 0;
-  for (let i = 0; i < pts.length; i++) {
-    const a = pts[i];
-    const b = pts[(i + 1) % pts.length];
-    area += a.x * b.y - b.x * a.y;
-    if (a.y > maxY) {
-      maxY = a.y;
-      sweepAtMaxY = a.x;
-    }
-  }
-  // Root chord: the x-extent of the fin edge that meets the body (y within a small band of 0).
-  const eps = Math.max(1e-4, maxY * 0.02);
-  let rootMin = Infinity;
-  let rootMax = -Infinity;
-  for (const p of pts) {
-    if (p.y <= eps) {
-      rootMin = Math.min(rootMin, p.x);
-      rootMax = Math.max(rootMax, p.x);
-    }
-  }
-  let rootChord = rootMax - rootMin;
-  if (!(rootChord > 0)) {
-    // Degenerate root band — fall back to the overall chordwise extent.
-    const xs = pts.map((p) => p.x);
-    rootChord = Math.max(...xs) - Math.min(...xs);
-  }
-  const rootLe = Number.isFinite(rootMin) ? rootMin : Math.min(...pts.map((p) => p.x));
-  const cpChord = freeformChordwiseCp(pts, maxY, rootLe);
-  return { area: Math.abs(area) / 2, sweep: sweepAtMaxY, span: maxY, rootChord, cpChord };
+  return planformFromPoints(pts);
 }
 
 /** Per-configuration separation overrides: OpenRocket writes a `<separationconfiguration

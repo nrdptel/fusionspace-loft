@@ -52,15 +52,6 @@ const KNOWN_ISSUES: Record<string, string> = {
     "Its apogee happens to land within 6% while max velocity reads 25% and max acceleration 60% " +
     "high — the file flies a much heavier rocket than its own geometry describes, so agreeing " +
     "with its apogee would be two errors cancelling, not accuracy.",
-  "FullScaleModelTH.rkt::L1940X-0":
-    "Zero-delay configuration: the charge fires at burnout at 236 m/s and the canopy opens while " +
-    "still climbing. Loft models the deployment but not the shredding that RockSim's numbers imply.",
-  "FullScaleModelTH.rkt::L1940X-P":
-    "Plugged configuration, so nothing opens and the flight is ballistic — which Loft now gets " +
-    "right (43.7 s against a stored 42.6 s). Apogee agrees to 5.3%, but max velocity reads 14.1% " +
-    "high on BOTH of this file's configurations, so it is the boost, not the recovery: this USLI " +
-    "airframe is flying lighter or cleaner in Loft than in RockSim. Excused on speed alone until " +
-    "that is traced.",
   "Punisher Apprentice.ork::Simulation 10":
     "Largest motor in a nine-simulation sweep; the rest land within 8%.",
   "03.Three-stage.ork":

@@ -6,7 +6,7 @@ import { adaptDesignXml, importDesign } from "../ork/import";
 import { flattenRocket, overallLength } from "../model/geometry";
 import { dryMassProperties } from "../sim/mass";
 import { runFromDocument, configChoices } from "../sim/run";
-import type { NoseCone, BodyTube, TrapezoidFinSet, Parachute, MassComponent } from "../model/types";
+import type { NoseCone, BodyTube, TrapezoidFinSet, GenericFinSet, Parachute, MassComponent } from "../model/types";
 
 const readRkt = (name: string) => readFileSync(resolve(process.cwd(), "fixtures/src", name), "utf-8");
 
@@ -398,5 +398,72 @@ describe("adaptRktXml — recovery fires on the motor's ejection charge", () => 
     const run = runFromDocument(doc);
     expect(run.result.events.some((e) => e.type === "deploy")).toBe(false);
     expect(run.result.warnings.some((w) => w.code === "ballistic-descent")).toBe(true);
+  });
+});
+
+describe("adaptRktXml — custom (freeform) fin sets", () => {
+  // The outline of the corpus's USLI full-scale design, verbatim: root TE → tip TE → tip LE → root
+  // LE, in millimetres. Note the traversal starts at the TRAILING edge, the opposite of the order
+  // OpenRocket writes its freeform points in — which is why the sweep can't be "the first point
+  // that reaches the tip".
+  const POINTS = "203.2,0|177.8,177.8|101.6,177.8|0,0|0,0|";
+  const design = (pointList: string, extra = "") => `<?xml version="1.0"?>
+    <RockSimDocument><DesignInformation><RocketDesign>
+      <Name>Custom</Name><StageCount>1</StageCount><UseKnownMass>0</UseKnownMass>
+      <Stage3Parts>
+        <NoseCone><Name>Nose</Name><Len>900</Len><BaseDia>156</BaseDia><ShapeCode>1</ShapeCode><CalcMass>2000</CalcMass></NoseCone>
+        <BodyTube><Name>Body</Name><Len>1500</Len><OD>156</OD><ID>152</ID><CalcMass>4000</CalcMass><SerialNo>7</SerialNo>
+          <AttachedParts>
+            <CustomFinSet><Name>Fin set</Name><FinCount>3</FinCount>
+              <RootChord>203.2</RootChord><TipChord>52.04</TipChord><SemiSpan>177.8</SemiSpan>
+              <SweepDistance>113.68</SweepDistance><Thickness>4.7625</Thickness>
+              <TipShapeCode>0</TipShapeCode><Xb>1200</Xb><LocationMode>0</LocationMode>
+              <CalcMass>676.136</CalcMass>${pointList ? `<PointList>${pointList}</PointList>` : ""}${extra}
+            </CustomFinSet>
+          </AttachedParts>
+        </BodyTube>
+      </Stage3Parts></RocketDesign></DesignInformation></RockSimDocument>`;
+
+  const finOf = (xml: string) => {
+    const doc = adaptRktXml(xml);
+    const fin = flattenRocket(doc.rocket).find((p) => p.component.kind === "freeformfinset");
+    return { doc, fin: fin?.component as GenericFinSet | undefined };
+  };
+
+  it("imports the fin set instead of dropping it with a warning", () => {
+    // A dropped fin set is not a small error: the design flies as a finless tube, losing the fins'
+    // mass, drag AND normal force — so the stability margin reads low on a perfectly stable rocket.
+    const { doc, fin } = finOf(design(POINTS));
+    expect(doc.warnings).toEqual([]);
+    expect(fin).toBeDefined();
+    expect(fin!.finCount).toBe(3);
+  });
+
+  it("takes the planform from the outline, not the trapezoidal summary fields", () => {
+    const { fin } = finOf(design(POINTS));
+    expect(fin!.rootChord).toBeCloseTo(0.2032, 5);
+    expect(fin!.height).toBeCloseTo(0.1778, 5);
+    // Shoelace area of the four-point outline.
+    expect(fin!.area).toBeCloseTo(0.024839, 5);
+    // The tip's LEADING edge (101.6 mm), not its trailing edge (177.8) and not the file's own
+    // SweepDistance field (113.68), which disagrees with the shape it ships.
+    expect(fin!.sweepLength).toBeCloseTo(0.1016, 5);
+    // Exact strip-theory CP from the outline, so the aero doesn't reduce it to a trapezoid.
+    expect(fin!.cpChord).toBeGreaterThan(0);
+  });
+
+  it("falls back to the summary fields when the outline is missing or degenerate", () => {
+    const { fin } = finOf(design("0,0|0,0|"));
+    expect(fin!.rootChord).toBeCloseTo(0.2032, 5);
+    expect(fin!.height).toBeCloseTo(0.1778, 5);
+    expect(fin!.sweepLength).toBeCloseTo(0.11368, 5);
+    expect(fin!.cpChord).toBeUndefined();
+  });
+
+  it("carries the file's own fin mass", () => {
+    const { doc } = finOf(design(POINTS));
+    const withFins = dryMassProperties(doc.rocket).mass;
+    const withoutFins = dryMassProperties(adaptRktXml(design(POINTS).replace(/<CustomFinSet>[\s\S]*?<\/CustomFinSet>/, "")).rocket).mass;
+    expect(withFins - withoutFins).toBeCloseTo(0.676136, 4);
   });
 });
