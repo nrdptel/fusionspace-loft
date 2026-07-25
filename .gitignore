@@ -33,6 +33,11 @@ next-env.d.ts
 /playwright-report
 /playwright/.cache
 
+# The real-design corpus: other people's design files, under their own terms. Never committed;
+# extracted here (or pointed at with LOFT_CORPUS_DIR) so lib/corpus/sweep.test.ts can run. The
+# suite skips itself when this is absent, so a public clone and a fork's CI stay green.
+/corpus
+
 # Vendored Pyodide + RocketPy runtime for the in-browser second solver (~40 MB).
 # Regenerate with: node scripts/pyodide/vendor.mjs
 /public/pyodide/
