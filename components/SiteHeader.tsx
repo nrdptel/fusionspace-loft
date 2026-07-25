@@ -2,7 +2,7 @@ import Link from "next/link";
 import { KOFI_URL } from "@/lib/links";
 import FusionSpaceBadge from "./FusionSpaceBadge";
 import ThemeToggle from "./ThemeToggle";
-import { TOUCH_TARGET } from "./ui";
+import { TOUCH_TARGET } from "@/lib/ui-tokens";
 
 /** Page header: the Fusion Space eyebrow over the product name on the left, a Ko-fi tip link,
  *  a Docs link and the theme toggle on the right. Mirrors the sibling tools' header. */

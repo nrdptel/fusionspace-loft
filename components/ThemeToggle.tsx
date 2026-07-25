@@ -1,6 +1,6 @@
 "use client";
 
-import { TOUCH_TARGET } from "./ui";
+import { TOUCH_TARGET } from "@/lib/ui-tokens";
 
 import { useEffect, useState } from "react";
 

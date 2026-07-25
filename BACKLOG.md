@@ -3,11 +3,6 @@
 Rough edges, missing affordances, and ideas too big for one pass — noticed while working,
 not yet done. Newest first. One line each. Anything here is fair game for the next session.
 
-- Touch targets still under 44 px on a phone after the sweep: the header's Tip/Docs links and the
-  theme toggle read 26 px, "Download flight data" 26 px, "← Import another" 40 px, "Download .ork"
-  42 px, and the "how this is measured" disclosure 38 px. The shared `TOUCH_TARGET` utility is
-  applied to the header links and lands in the built HTML, but they still measure 26 px — worth
-  finding out why before sprinkling it further.
 - RASAero `.CDX1` import is blocked on one design call, not on parsing: the format is a small,
   ordered XML part list (inches/pounds) that also stores RASAero's own predicted apogee, but it
   carries NO materials or per-part masses — only `SustainerLaunchWt` and `SustainerCG`. Flying it

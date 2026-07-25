@@ -2,11 +2,7 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 
-/** A 44 px minimum hit target on touch layouts, released back to the design's own density on
- *  pointer layouts (`sm:` and up). 44 px is the Apple HIG / WCAG 2.5.5 figure, and it is not a
- *  nicety here: the stated phone use is a pad check with gloves on. Desktop deliberately keeps its
- *  tighter spacing — the two form factors are tuned separately, not stretched from one layout. */
-export const TOUCH_TARGET = "min-h-11 sm:min-h-0";
+import { TOUCH_TARGET } from "@/lib/ui-tokens";
 
 export interface Option<T extends string> {
   value: T;

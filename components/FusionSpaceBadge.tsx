@@ -3,6 +3,8 @@
  * people discover the other tools at fusionspace.co. Uses the official FusionSpace
  * wordmark so the family reads as one (the gradient reads on both light and dark).
  * Mirrors the HPR Motor Finder's badge. */
+import { TOUCH_TARGET } from "@/lib/ui-tokens";
+
 export default function FusionSpaceBadge({ className = "" }: { className?: string }) {
   return (
     <a
@@ -10,7 +12,7 @@ export default function FusionSpaceBadge({ className = "" }: { className?: strin
       target="_blank"
       rel="noopener noreferrer"
       title="Fusion Space — free, polished tools for high-power rocketry"
-      className={`group inline-flex w-fit items-center gap-1 transition hover:opacity-80 ${className}`}
+      className={`group inline-flex w-fit items-center gap-1 transition hover:opacity-80 ${TOUCH_TARGET} ${className}`}
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img

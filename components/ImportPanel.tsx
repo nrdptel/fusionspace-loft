@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 
-import { TOUCH_TARGET } from "./ui";
+import { TOUCH_TARGET } from "@/lib/ui-tokens";
 
 /** The import surface: a large drop zone / file picker for an OpenRocket `.ork` or RockSim
  *  `.rkt`, plus one-tap buttons to load the bundled sample designs so the tool is usable before
