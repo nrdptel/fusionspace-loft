@@ -3,12 +3,6 @@
 Rough edges, missing affordances, and ideas too big for one pass — noticed while working,
 not yet done. Newest first. One line each. Anything here is fair game for the next session.
 
-- The build isn't reproducible: Next mints a random build id per run, which names
-  `_next/static/<id>/_buildManifest.js` and is embedded in every page's HTML, so two builds of
-  the same commit differ. Every deploy therefore lands in a fresh service-worker cache and
-  prompts every visitor to refresh — even a no-op deploy — and an offline-first user re-downloads
-  the whole ~1.3 MB app for nothing. `generateBuildId` returning the commit SHA would fix it
-  (measured: two consecutive builds of the same tree gave ids `c3241a20f138` and `9936986d55df`).
 - The service worker precaches route HTML but not the RSC segment payloads Next's router fetches
   for a client-side navigation (`__next.*.txt?_rsc=…`, ~580 kB, and the `_rsc` hash means they
   can't be matched without `ignoreSearch`). Offline, an in-app link still lands on the right page
