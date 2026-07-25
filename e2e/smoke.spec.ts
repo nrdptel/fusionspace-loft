@@ -742,6 +742,34 @@ test.describe("Loft", () => {
     expect(csv[1]).toContain(byDelay);
   });
 
+  test("the dispersion tolerances are remembered across designs and reloads", async ({ page }) => {
+    // These are the flyer's own standing assumptions about their build quality and their field —
+    // not a result. Re-entering them for every design and every reload is the kind of forgetting
+    // that makes a tool feel like a demo.
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+    await page.getByRole("tab", { name: "Analyze" }).click();
+    const panel = page.getByRole("region", { name: /dispersion/i });
+    await panel.getByRole("button", { name: /Run dispersion/ }).click();
+    const impulse = panel.getByLabel(/Motor impulse/i);
+    await expect(impulse).toHaveValue("5");
+    await impulse.fill("8");
+
+    await page.reload();
+    await expect(page.getByText(/Picked up where you left off/)).toBeVisible({ timeout: 30_000 });
+    await page.getByRole("tab", { name: "Analyze" }).click();
+    await panel.getByRole("button", { name: /Run dispersion/ }).click();
+    await expect(panel.getByLabel(/Motor impulse/i)).toHaveValue("8");
+
+    // …and they outlive the design, because they describe the flyer, not the rocket.
+    await page.getByRole("button", { name: "Start fresh" }).click();
+    await page.getByRole("button", { name: /54 mm dual-deploy/ }).click();
+    await page.getByRole("tab", { name: "Analyze" }).click();
+    await panel.getByRole("button", { name: /Run dispersion/ }).click();
+    await expect(panel.getByLabel(/Motor impulse/i)).toHaveValue("8");
+  });
+
   test("printing a design gives a flight card, not the whole web page", async ({ page }) => {
     // Printing a design is range paperwork — a card for the RSO, a page for the build notebook.
     // Without print rules it came out as the site: navigation, theme toggle, buttons nobody can

@@ -14,6 +14,7 @@ import {
   type Stat,
 } from "@/lib/sim/montecarlo";
 import type { GeometryEdits } from "@/lib/model/edit";
+import { usePersistedNumber } from "@/lib/session";
 import { mToFt, ftToM, mpsToFtps } from "@/lib/units";
 import type { CsvCell } from "@/lib/csv";
 import { NumberField } from "./ui";
@@ -64,13 +65,15 @@ export default function MonteCarlo({
 }) {
   const [open, setOpen] = useState(false);
   // Dispersion 1σ inputs, with common planning defaults: a ~5% motor total-impulse band, a couple
-  // of degrees of rail lean, and a couple of m/s of wind variability. All editable.
-  const [impulsePct, setImpulsePct] = useState(5);
-  const [massPct, setMassPct] = useState(3);
-  const [dragPct, setDragPct] = useState(10);
-  const [recoveryPct, setRecoveryPct] = useState(15);
-  const [rodAngleDeg, setRodAngleDeg] = useState(2);
-  const [windSpeedMps, setWindSpeedMps] = useState(2);
+  // of degrees of rail lean, and a couple of m/s of wind variability. All editable — and kept,
+  // because they are the flyer's own standing assumptions about their build quality and their
+  // field, not something they should re-enter for every design and every reload.
+  const [impulsePct, setImpulsePct] = usePersistedNumber("mc.impulsePct", 5);
+  const [massPct, setMassPct] = usePersistedNumber("mc.massPct", 3);
+  const [dragPct, setDragPct] = usePersistedNumber("mc.dragPct", 10);
+  const [recoveryPct, setRecoveryPct] = usePersistedNumber("mc.recoveryPct", 15);
+  const [rodAngleDeg, setRodAngleDeg] = usePersistedNumber("mc.rodAngleDeg", 2);
+  const [windSpeedMps, setWindSpeedMps] = usePersistedNumber("mc.windSpeedMps", 2);
   const [result, setResult] = useState<MonteCarloResult | null>(null);
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState(0);

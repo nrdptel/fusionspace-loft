@@ -13,6 +13,8 @@
  *  or by clearing site data. There is no account and no upload.
  */
 
+import { useCallback, useEffect, useState } from "react";
+
 const KEY = "loft.session";
 /** localStorage is typically a ~5 MB budget for the whole origin, and base64 costs a third on top
  *  of the raw bytes. A design far past this is a pathological file, not a rocket; it simply isn't
@@ -83,6 +85,36 @@ export function saveSession(s: SavedSession): void {
     // Quota exceeded, or storage disabled entirely. Not remembering the session is a lesser
     // failure than breaking the app, so this is deliberately silent.
   }
+}
+
+/** A number the flyer set that should still be there next time — a dispersion tolerance, not a
+ *  result. Kept apart from the design session above: these are the flyer's own standing assumptions
+ *  about their build and their field, so they outlive whichever design is open and survive
+ *  "Start fresh". Stored per key; unreadable or unavailable storage just falls back to `initial`,
+ *  and the first render always uses `initial` so the server's HTML and the client's agree. */
+export function usePersistedNumber(key: string, initial: number): [number, (v: number) => void] {
+  const [value, setValue] = useState(initial);
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(`loft.pref.${key}`);
+      const n = raw === null ? NaN : Number(raw);
+      if (Number.isFinite(n)) setValue(n);
+    } catch {
+      // storage disabled — keep the default
+    }
+  }, [key]);
+  const set = useCallback(
+    (v: number) => {
+      setValue(v);
+      try {
+        localStorage.setItem(`loft.pref.${key}`, String(v));
+      } catch {
+        // as above
+      }
+    },
+    [key],
+  );
+  return [value, set];
 }
 
 export function clearSession(): void {
