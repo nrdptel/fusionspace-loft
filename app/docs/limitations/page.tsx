@@ -371,9 +371,13 @@ export default function Limitations() {
         shape: RockSim writes the planform outline as a point list, and the span, root chord, area,
         leading-edge sweep and exact strip-theory centre of pressure all come from that outline
         rather than from the trapezoidal summary fields alongside it, which on a custom shape are
-        RockSim&apos;s own approximation and disagree with it. What it does <strong>not</strong> yet
-        cover: ring tails (flown without them, with a warning) and pods and sub-assemblies (only the
-        primary stack flies). A
+        RockSim&apos;s own approximation and disagree with it. A multi-stage <code>.rkt</code> flies
+        serially, the same way a multi-stage <code>.ork</code> does — RockSim numbers its stages
+        from the sustainer down to the aft booster, which is already the model&apos;s nose-to-tail
+        order, so the solver&apos;s staging applies unchanged instead of the stack being flown as
+        one lump carrying every stage&apos;s mass and drag to apogee. What it does{" "}
+        <strong>not</strong> yet cover: ring tails (flown without them, with a warning) and pods and
+        sub-assemblies (only the primary stack flies). A
         RockSim design tree doesn&apos;t pin a recovery device&apos;s deploy event the way OpenRocket
         does — that lives in the simulation setup — so an imported canopy is deployed by the{" "}
         <em>motor&apos;s ejection charge</em>, which is what the delay in a RockSim engine code is

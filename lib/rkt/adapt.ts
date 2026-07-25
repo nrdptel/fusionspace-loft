@@ -662,12 +662,14 @@ export function adaptRktXml(xml: string): OrkDocument {
   const ctx: Ctx = { warnings, mounts: new Map(), reduced: false };
   const useKnownMass = Math.round(n(design, "UseKnownMass", 0)) === 1;
 
-  // RockSim numbers stages 3 (top / sustainer, with the nose) down to 1 (aft booster). Flatten
-  // the populated stages nose→tail into one axial stack so the whole airframe is present and
-  // stacks correctly; flag a multi-stage design as flown-reduced (only the primary stack flies).
-  const components: RocketComponent[] = [];
-  let populatedStages = 0;
-  for (const stageTag of ["Stage3Parts", "Stage2Parts", "Stage1Parts"]) {
+  // RockSim numbers stages 3 (top / sustainer, with the nose) down to 1 (aft booster), which is
+  // already Loft's nose→tail stage order, so each populated RockSim stage becomes one of the
+  // model's stages and the solver's serial staging takes it from there — the same staging an
+  // OpenRocket multi-stage design gets, since the solver has never seen a file format.
+  const stageParts: { name: string; components: RocketComponent[] }[] = [];
+  const allComponents: RocketComponent[] = [];
+  const STAGE_TAGS = ["Stage3Parts", "Stage2Parts", "Stage1Parts"] as const;
+  for (const stageTag of STAGE_TAGS) {
     const stage = child(design, stageTag);
     if (!stage) continue;
     const parts: RocketComponent[] = [];
@@ -677,18 +679,24 @@ export function adaptRktXml(xml: string): OrkDocument {
       else noteUnsupported(partNode, ctx);
     }
     if (parts.length) {
-      populatedStages += 1;
-      components.push(...parts);
+      stageParts.push({ name: stageTag.replace("Parts", ""), components: parts });
+      allComponents.push(...parts);
     }
   }
-  if (populatedStages > 1) {
-    ctx.reduced = true;
+  if (stageParts.length > 1) {
     warnings.push(
-      `This design has ${populatedStages} stages; staging (separation, air-starts) isn't simulated yet — the stack was flown as one.`,
+      `This design has ${stageParts.length} stages, flown serially: the booster lights at launch, each ` +
+        `stage above air-starts when the one below burns out and separates. The separated stages' own ` +
+        `descent isn't tracked — only the sustainer is flown to the ground.`,
     );
   }
-  resolveTubeFinWalls(components, 0);
-  const stages: Stage[] = [{ name: childText(design, "Name") || "Stage", components }];
+  // A tube fin's wall comes from the airframe it's cut from, which may sit in another stage.
+  resolveTubeFinWalls(allComponents, 0);
+  const designName = childText(design, "Name") || "Stage";
+  const stages: Stage[] =
+    stageParts.length > 0
+      ? stageParts.map((s) => ({ name: stageParts.length > 1 ? s.name : designName, components: s.components }))
+      : [{ name: designName, components: [] }];
 
   // Each <SimulationResults> carries its own <EngineSet>s and stored numbers: map each to a
   // motor configuration (linked by id) and a stored simulation, mirroring how OpenRocket's

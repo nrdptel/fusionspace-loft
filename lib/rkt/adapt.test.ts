@@ -166,7 +166,10 @@ describe("adaptRktXml — degradation and edge cases", () => {
     expect(run.hasPropulsion).toBe(false);
   });
 
-  it("flags a multi-stage design as flown-reduced", () => {
+  it("builds one model stage per populated RockSim stage, nose first", () => {
+    // RockSim numbers the sustainer 3 and the aft booster 1, which is already Loft's nose→tail
+    // stage order — so the solver's serial staging applies unchanged, and a staged RockSim design
+    // is no longer flown as one fixed lump carrying every stage's mass and drag to apogee.
     const stage = (tag: string, dia: number) =>
       `<${tag}><BodyTube><Name>${tag}</Name><Len>300.</Len><OD>${dia}.</OD><ID>${dia - 2}.</ID>` +
       `<SerialNo>${dia}</SerialNo><CalcMass>100.</CalcMass></BodyTube></${tag}>`;
@@ -174,8 +177,16 @@ describe("adaptRktXml — degradation and edge cases", () => {
       stage("Stage3Parts", 40) + stage("Stage1Parts", 54) +
       `</RocketDesign></DesignInformation></RockSimDocument>`;
     const doc = adaptRktXml(xml);
-    expect(doc.flownAsReduced).toBe(true);
-    expect(doc.warnings.some((w) => /stages/.test(w))).toBe(true);
+    expect(doc.rocket.stages).toHaveLength(2);
+    // Stage 3 (the narrower sustainer) is the top one.
+    expect((doc.rocket.stages[0].components[0] as BodyTube).outerRadius).toBeCloseTo(0.02, 5);
+    expect((doc.rocket.stages[1].components[0] as BodyTube).outerRadius).toBeCloseTo(0.027, 5);
+    // Flown as the design describes it, so its own stored numbers are comparable again.
+    expect(doc.flownAsReduced).toBe(false);
+    expect(doc.warnings.some((w) => /flown serially/.test(w))).toBe(true);
+    // The stages stack nose→tail rather than piling up at the nose.
+    const flat = flattenRocket(doc.rocket);
+    expect(flat[1].xFore).toBeCloseTo(flat[0].xFore + flat[0].length, 5);
   });
 
   // LocationMode 1 places a sub-component from the nose tip (an absolute airframe station),
@@ -465,5 +476,59 @@ describe("adaptRktXml — custom (freeform) fin sets", () => {
     const withFins = dryMassProperties(doc.rocket).mass;
     const withoutFins = dryMassProperties(adaptRktXml(design(POINTS).replace(/<CustomFinSet>[\s\S]*?<\/CustomFinSet>/, "")).rocket).mass;
     expect(withFins - withoutFins).toBeCloseTo(0.676136, 4);
+  });
+});
+
+describe("adaptRktXml — a staged RockSim design flies staged", () => {
+  // Two stages, each on its own H128W, wired the way RockSim writes them: the parts in
+  // Stage3Parts/Stage1Parts and the motors in the matching Stage3Engines/Stage1Engines inside the
+  // simulation, each pointing at its own mount by serial number.
+  const xml = `<?xml version="1.0"?>
+    <RockSimDocument><DesignInformation><RocketDesign>
+      <Name>Two stage</Name><StageCount>2</StageCount><UseKnownMass>0</UseKnownMass>
+      <Stage3Parts>
+        <NoseCone><Name>Nose</Name><Len>200</Len><BaseDia>54</BaseDia><ShapeCode>1</ShapeCode><CalcMass>120</CalcMass></NoseCone>
+        <BodyTube><Name>Sustainer</Name><Len>500</Len><OD>54</OD><ID>52</ID><CalcMass>300</CalcMass><SerialNo>10</SerialNo>
+          <AttachedParts>
+            <Parachute><Name>Main</Name><Dia>800</Dia><DragCoefficient>0.8</DragCoefficient><CalcMass>60</CalcMass><Xb>100</Xb></Parachute>
+            <FinSet><Name>Fins</Name><FinCount>3</FinCount><RootChord>110</RootChord><TipChord>50</TipChord>
+              <SemiSpan>60</SemiSpan><SweepDistance>50</SweepDistance><Thickness>3</Thickness>
+              <Xb>0</Xb><LocationMode>2</LocationMode><CalcMass>60</CalcMass></FinSet>
+          </AttachedParts>
+        </BodyTube>
+      </Stage3Parts>
+      <Stage1Parts>
+        <BodyTube><Name>Booster</Name><Len>500</Len><OD>54</OD><ID>52</ID><CalcMass>300</CalcMass><SerialNo>20</SerialNo>
+          <AttachedParts>
+            <FinSet><Name>Booster fins</Name><FinCount>3</FinCount><RootChord>110</RootChord><TipChord>50</TipChord>
+              <SemiSpan>60</SemiSpan><SweepDistance>50</SweepDistance><Thickness>3</Thickness>
+              <Xb>0</Xb><LocationMode>2</LocationMode><CalcMass>60</CalcMass></FinSet>
+          </AttachedParts>
+        </BodyTube>
+      </Stage1Parts>
+    </RocketDesign></DesignInformation>
+    <SimulationResultsList><SimulationResults>
+      <MaxAltitude>0</MaxAltitude>
+      <Stage3Engines><EngineSet><EngineCount>1</EngineCount><EngineCode>H128W</EngineCode><EngineMfg>AeroTech</EngineMfg>
+        <MountSerialNo>10</MountSerialNo><IgnitionDelay>0.</IgnitionDelay><EjectionDelay>8</EjectionDelay></EngineSet></Stage3Engines>
+      <Stage1Engines><EngineSet><EngineCount>1</EngineCount><EngineCode>H128W</EngineCode><EngineMfg>AeroTech</EngineMfg>
+        <MountSerialNo>20</MountSerialNo><IgnitionDelay>0.</IgnitionDelay><EjectionDelay>0</EjectionDelay></EngineSet></Stage1Engines>
+    </SimulationResults></SimulationResultsList>
+    </RockSimDocument>`;
+
+  it("drops the spent booster and air-starts the sustainer", () => {
+    const doc = adaptRktXml(xml);
+    expect(doc.rocket.stages).toHaveLength(2);
+    const run = runFromDocument(doc);
+    expect(run.hasPropulsion).toBe(true);
+    // Both motors resolve, one per stage.
+    expect(run.resolutions).toHaveLength(2);
+    // The booster parts company partway up, which is the whole difference from flying one lump.
+    expect(run.result.events.some((e) => e.type === "separation")).toBe(true);
+    const sep = run.result.events.find((e) => e.type === "separation")!;
+    const apogee = run.result.events.find((e) => e.type === "apogee")!;
+    expect(sep.time).toBeGreaterThan(0);
+    expect(sep.time).toBeLessThan(apogee.time);
+    expect(run.result.summary.apogee).toBeGreaterThan(100);
   });
 });
