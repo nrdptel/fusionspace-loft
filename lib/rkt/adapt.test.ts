@@ -333,3 +333,58 @@ describe("adaptRktXml — tube fins", () => {
     expect(dryMassProperties(doc.rocket).mass).toBeLessThan(0.06);
   });
 });
+
+describe("adaptRktXml — recovery fires on the motor's ejection charge", () => {
+  const design = (ejectionDelay: string) => `<?xml version="1.0"?>
+    <RockSimDocument><DesignInformation><RocketDesign>
+      <Name>Deploy</Name><StageCount>1</StageCount><UseKnownMass>0</UseKnownMass>
+      <Stage3Parts>
+        <NoseCone><Name>Nose</Name><Len>150</Len><BaseDia>54</BaseDia><ShapeCode>1</ShapeCode><CalcMass>120</CalcMass></NoseCone>
+        <BodyTube><Name>Body</Name><Len>600</Len><OD>54</OD><ID>52</ID><CalcMass>200</CalcMass><SerialNo>7</SerialNo>
+          <AttachedParts>
+            <Parachute><Name>Main</Name><Dia>600</Dia><DragCoefficient>0.8</DragCoefficient><CalcMass>40</CalcMass><Xb>100</Xb></Parachute>
+            <FinSet><Name>Fins</Name><FinCount>3</FinCount><RootChord>120</RootChord><TipChord>60</TipChord>
+              <SemiSpan>70</SemiSpan><SweepDistance>40</SweepDistance><Thickness>3</Thickness><CalcMass>60</CalcMass><Xb>480</Xb></FinSet>
+          </AttachedParts>
+        </BodyTube>
+      </Stage3Parts>
+    </RocketDesign></DesignInformation>
+    <SimulationResultsList><SimulationResults>
+      <MaxAltitude>0</MaxAltitude>
+      <Stage3Engines><EngineSet><EngineCount>1</EngineCount><EngineCode>H128W</EngineCode><EngineMfg>AeroTech</EngineMfg><MountSerialNo>7</MountSerialNo><IgnitionDelay>0.</IgnitionDelay>${ejectionDelay}</EngineSet></Stage3Engines>
+    </SimulationResults></SimulationResultsList>
+    </RockSimDocument>`;
+
+  it("marks the canopy as ejection-triggered rather than apogee-triggered", () => {
+    const doc = adaptRktXml(design("<EjectionDelay>6</EjectionDelay>"));
+    const chute = flattenRocket(doc.rocket).find((p) => p.component.kind === "parachute")!.component as Parachute;
+    expect(chute.deployEvent).toBe("ejection");
+  });
+
+  it("opens the canopy at the charge — a zero delay ejects at burnout, well below apogee", () => {
+    // This is what a RockSim "-0" configuration means, and what its own stored results describe:
+    // the charge fires at burnout while the rocket is still climbing fast, and the flight tops out
+    // far below its ballistic apogee. Defaulting the canopy to apogee flew a real design ~545%
+    // high against the numbers its own file carries.
+    const zero = runFromDocument(adaptRktXml(design("<EjectionDelay>0</EjectionDelay>")));
+    const late = runFromDocument(adaptRktXml(design("<EjectionDelay>20</EjectionDelay>")));
+    expect(zero.hasPropulsion).toBe(true);
+    const zeroDeploy = zero.result.events.find((e) => e.type === "deploy")!;
+    const lateDeploy = late.result.events.find((e) => e.type === "deploy")!;
+    expect(zeroDeploy.time).toBeLessThan(lateDeploy.time);
+    // A 20 s delay lands past apogee, so that flight reaches its full ballistic height.
+    expect(zero.result.summary.apogee).toBeLessThan(late.result.summary.apogee * 0.9);
+  });
+
+  it("falls back to apogee for a plugged motor, which has no ejection charge", () => {
+    // RockSim writes no <EjectionDelay> for a plugged ("-P") reload; there is no charge to fire on,
+    // and the solver deploys at apogee instead of never deploying at all.
+    const doc = adaptRktXml(design(""));
+    const chute = flattenRocket(doc.rocket).find((p) => p.component.kind === "parachute")!.component as Parachute;
+    expect(chute.deployEvent).toBe("ejection");
+    const run = runFromDocument(doc);
+    const deploy = run.result.events.find((e) => e.type === "deploy")!;
+    const apogeeEvent = run.result.events.find((e) => e.type === "apogee")!;
+    expect(deploy.time).toBeGreaterThanOrEqual(apogeeEvent.time - 0.05);
+  });
+});

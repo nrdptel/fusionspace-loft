@@ -411,9 +411,14 @@ function parseComponent(
         cd: n(node, "DragCoefficient", 0.8) || 0.8,
         diameter: n(node, "Dia", 0) * MM,
         mass: fileMassKg(node, useKnownMass) ?? 0,
-        // The design tree doesn't pin a deploy event/altitude (that lives in the sim setup);
-        // default to apogee, the common single-deploy case, and let the flight report it.
-        deployEvent: "apogee",
+        // The design tree doesn't pin a deploy event/altitude (that lives in the sim setup), but a
+        // RockSim single-deploy design ejects on the motor's charge — that is what the delay in an
+        // engine code is for. Firing at the CHARGE rather than at apogee is what the file's own
+        // stored results describe: a zero-delay ("-0") configuration opens the canopy at burnout,
+        // still doing hundreds of metres per second, and tops out far below its ballistic apogee.
+        // Defaulting to apogee flew one such design ~545% high against its own stored numbers. A
+        // plugged motor carries no ejection delay, and the solver then falls back to apogee.
+        deployEvent: "ejection",
         deployDelay: 0,
         packedLength: n(node, "Len", 0) * MM || undefined,
         children: [],
@@ -428,7 +433,8 @@ function parseComponent(
         stripLength: n(node, "Len", 0) * MM,
         stripWidth: n(node, "Width", 0) * MM,
         mass: fileMassKg(node, useKnownMass) ?? 0,
-        deployEvent: "apogee",
+        // As for a parachute above: RockSim ejects on the motor's charge, not at apogee.
+        deployEvent: "ejection",
         deployDelay: 0,
         packedLength: n(node, "Len", 0) * MM || undefined,
         children: [],

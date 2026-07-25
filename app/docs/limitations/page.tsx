@@ -332,8 +332,17 @@ export default function Limitations() {
         rather than flying tubes that mass like rods. What it does <strong>not</strong> yet cover: ring
         tails (flown without them, with a warning), pods and sub-assemblies (only the primary stack
         flies), and elliptical/custom RockSim fin planforms (treated as their trapezoidal equivalent). A
-        RockSim design tree also doesn&apos;t pin a recovery device&apos;s deploy event the way
-        OpenRocket does, so an imported chute defaults to apogee deployment. Unlike an{" "}
+        RockSim design tree doesn&apos;t pin a recovery device&apos;s deploy event the way OpenRocket
+        does — that lives in the simulation setup — so an imported canopy is deployed by the{" "}
+        <em>motor&apos;s ejection charge</em>, which is what the delay in a RockSim engine code is
+        for and what the file&apos;s own stored results describe. A zero-delay (&ldquo;-0&rdquo;)
+        configuration therefore opens the canopy at burnout, still climbing fast, and tops out far
+        below its ballistic apogee: on a real USLI full-scale design that is 359&nbsp;m against
+        RockSim&apos;s own stored 323&nbsp;m, where deploying at apogee instead read 2,086&nbsp;m
+        against the same 323&nbsp;m. A plugged (&ldquo;-P&rdquo;) motor carries no ejection delay,
+        and the canopy falls back to apogee deployment; those configurations of the same design land
+        within 1% of the numbers RockSim stores for them. What is <em>not</em> read is a RockSim
+        altimeter-triggered or timed deployment set up outside the motor&apos;s charge. Unlike an{" "}
         <code>.ork</code>, a <code>.rkt</code> carries RockSim&apos;s own per-part masses; Loft flies
         those directly (see <Link href="/docs/methods">Methods</Link>), so component CG comes from
         geometry while total mass is exactly as the file states.
