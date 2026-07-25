@@ -766,3 +766,77 @@ describe("tube fins (open-duct normal force and wall drag)", () => {
     expect(st.contributions.find((c) => c.source === "tube fins")!.cnAlpha).toBe(0);
   });
 });
+
+describe("skin friction is summed per surface, not charged the roughest finish", () => {
+  const atm = new Atmosphere().sample(0);
+
+  /** A slender airframe whose nose and fins are polished but whose short mid tube is left at a
+   *  coarser finish — the ordinary case on a real build, and the one that used to set the
+   *  roughness for the entire rocket. */
+  function mixed(midFinish: "polished" | "regular-paint"): Rocket {
+    const R = 0.0166;
+    const nose: NoseCone = {
+      id: "n", name: "nose", kind: "nosecone", placement: { method: "after", offset: 0 },
+      length: 0.137, aftRadius: R, shape: "ogive", shapeParameter: 1, finish: "polished", children: [],
+    };
+    const mid: BodyTube = {
+      id: "m", name: "mid", kind: "bodytube", placement: { method: "after", offset: 0 },
+      outerRadius: R, thickness: 0.002, length: 0.025, finish: midFinish, children: [],
+    };
+    const fins: TrapezoidFinSet = {
+      id: "f", name: "fins", kind: "trapezoidfinset", placement: { method: "bottom", offset: 0 },
+      finCount: 3, rootChord: 0.076, tipChord: 0.024, height: 0.05, sweepLength: 0.039,
+      thickness: 0.00025, finish: "polished", children: [],
+    };
+    const body: BodyTube = {
+      id: "b", name: "body", kind: "bodytube", placement: { method: "after", offset: 0 },
+      outerRadius: R, thickness: 0.0005, length: 0.432, finish: "polished", children: [fins],
+    };
+    return {
+      name: "mixed", stages: [{ name: "s", components: [nose, mid, body] }],
+      configurations: [], referenceType: "maximum",
+    };
+  }
+
+  it("banks each surface's wetted area against its own finish", () => {
+    const g = aeroGeometry(mixed("regular-paint"));
+    expect(g.bodyWettedByFinish.length).toBe(2); // polished nose+body, and the coarser mid tube
+    const total = g.bodyWettedByFinish.reduce((a, s) => a + s.area, 0);
+    expect(total).toBeCloseTo(g.bodyWettedArea, 9);
+    // The coarse surface is the small one; it must not dominate.
+    const coarse = g.bodyWettedByFinish.find((s) => s.roughness > 1e-5)!;
+    expect(coarse.area / total).toBeLessThan(0.1);
+    // Fins are polished, so they bank as one smooth surface.
+    expect(g.finWettedByFinish).toHaveLength(1);
+    expect(g.finWettedByFinish[0].area).toBeCloseTo(g.finWettedArea, 9);
+  });
+
+  it("charges a 25 mm coarse tube only for its own area, not the whole airframe", () => {
+    // Before this was a buildup, the roughest finish present set the friction for every surface:
+    // one short unpainted tube on an otherwise polished 33 mm model added ~0.14 to a ~0.46
+    // coefficient and flew it ~17% low against the file's own stored results. The mixed design
+    // must now sit much nearer the fully-polished one than a fully-coarse one.
+    const cdMixed = dragCoefficient(aeroGeometry(mixed("regular-paint")), atm, 100).friction;
+    const cdSmooth = dragCoefficient(aeroGeometry(mixed("polished")), atm, 100).friction;
+    expect(cdMixed).toBeGreaterThan(cdSmooth); // the coarse patch still costs something
+    expect(cdMixed - cdSmooth).toBeLessThan(0.25 * cdSmooth); // but nothing like charging it throughout
+  });
+
+  it("is unchanged for a uniformly-finished design", () => {
+    // The buildup must degenerate to the old single-cf result when every surface matches.
+    const g = aeroGeometry(mixed("polished"));
+    expect(g.bodyWettedByFinish).toHaveLength(1);
+    const cf = skinFriction(
+      (atm.density * 100 * g.bodyLength) / atm.dynamicViscosity,
+      g.roughness,
+      g.bodyLength,
+      100 / atm.speedOfSound,
+    );
+    const fr = Math.max(2, g.bodyFineness);
+    const bodyForm = 1 + 60 / (fr * fr * fr) + 0.0025 * fr;
+    const finForm = 1 + 2 * g.finThicknessRatio;
+    const expected =
+      cf * bodyForm * (g.bodyWettedArea / g.refArea) + cf * finForm * (g.finWettedArea / g.refArea);
+    expect(dragCoefficient(g, atm, 100).friction).toBeCloseTo(expected, 9);
+  });
+});

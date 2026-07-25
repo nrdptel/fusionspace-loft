@@ -16,7 +16,14 @@
  *  extrapolated. See the in-app methods section and limitations log.
  */
 
-import type { Rocket, TrapezoidFinSet, GenericFinSet, TubeFinSet, FinCrossSection } from "../model/types";
+import type {
+  Rocket,
+  TrapezoidFinSet,
+  GenericFinSet,
+  TubeFinSet,
+  FinCrossSection,
+  SurfaceFinish,
+} from "../model/types";
 import {
   flattenRocket,
   referenceRadius,
@@ -199,6 +206,12 @@ function finContribution(
 
 // --- drag ----------------------------------------------------------------------------
 
+/** A wetted area (m²) and the roughness height (m) of the finish it carries. */
+export interface WettedSurface {
+  roughness: number;
+  area: number;
+}
+
 export interface AeroGeometry {
   refRadius: number;
   refArea: number;
@@ -221,8 +234,19 @@ export interface AeroGeometry {
   /** Draggiest fin edge cross-section present (square > rounded > airfoil), setting the fin
    *  leading-edge pressure drag. Square when the design has fins but names no cross-section. */
   finCrossSection: FinCrossSection;
-  /** Roughness height (m) from the roughest surface finish present. */
+  /** Wetted-area-weighted mean roughness height (m) — a representative figure for reporting and
+   *  for the tube-fin term. The friction buildup itself does NOT use it; it sums per surface
+   *  (`bodyWettedByFinish` / `finWettedByFinish`), because skin friction is a property of each
+   *  surface, not of the airframe as a whole. */
   roughness: number;
+  /** Body wetted area (m²) split by the roughness of the finish that surface actually carries.
+   *  Sums to `bodyWettedArea`. A design commonly mixes finishes — a polished airframe with one
+   *  unpainted coupler, a filled nose on a bare tube — and charging the whole rocket the roughest
+   *  one over-drags it badly: on a real polished 33 mm model whose 25 mm of body tube is left
+   *  "normal", it inflated the coefficient by ~0.14, about 30% of the total. */
+  bodyWettedByFinish: WettedSurface[];
+  /** Fin wetted area (m²) split the same way. Sums to `finWettedArea`. */
+  finWettedByFinish: WettedSurface[];
   /** Forebody (nose) fineness ratio, length / diameter — the primary wave-drag driver. */
   noseFineness: number;
   /** Nose-contour wave-drag factor relative to a Von Kármán ogive (= 1.0, the minimum). */
@@ -256,6 +280,8 @@ export interface AeroGeometry {
   /** Wetted-area-weighted mean tube-fin chord (m) — the Reynolds and roughness length for the
    *  tube-fin friction term. Zero on a design without them. */
   tubeFinChord: number;
+  /** Roughness height (m) of the tube fins' own finish. Zero on a design without them. */
+  tubeFinRoughness: number;
 }
 
 /** Transonic/supersonic wave-drag of a nose contour, relative to a Von Kármán ogive of the
@@ -289,7 +315,17 @@ export function aeroGeometry(rocket: Rocket): AeroGeometry {
   let bodyWetted = 0;
   let bodyLength = 0;
   let baseRadius = rRef;
-  let roughness = FINISH_ROUGHNESS.unfinished;
+  // Wetted area banked against the roughness of the finish each surface actually carries. Skin
+  // friction is a property of a surface, not of the airframe, so a design that mixes finishes —
+  // the common case — is summed term by term rather than charged the roughest one throughout.
+  const bodyByFinish = new Map<number, number>();
+  const finByFinish = new Map<number, number>();
+  const bank = (m: Map<number, number>, k: number, a: number): void => {
+    if (a > 0) m.set(k, (m.get(k) ?? 0) + a);
+  };
+  /** The roughness a component's own finish implies, falling back to the design default. */
+  const roughOf = (c: { finish?: SurfaceFinish }): number =>
+    (c.finish && FINISH_ROUGHNESS[c.finish]) || FINISH_ROUGHNESS.unfinished;
 
   let finWetted = 0;
   let finCount = 0;
@@ -323,18 +359,20 @@ export function aeroGeometry(rocket: Rocket): AeroGeometry {
   let nosePressureCdA = 0;
 
   let tubeFinWetted = 0;
+  let tubeFinRough = 0;
   let tubeFinAnnulus = 0;
   let tubeFinChordWeight = 0; // Σ (wetted · chord), for the wetted-weighted mean chord below
 
   let aftBodyEnd = 0;
   for (const p of flat) {
     const c = p.component;
-    if (c.finish && FINISH_ROUGHNESS[c.finish] !== undefined) {
-      roughness = Math.max(roughness === FINISH_ROUGHNESS.unfinished ? 0 : roughness, FINISH_ROUGHNESS[c.finish]);
-    }
     if (c.kind === "nosecone") {
       bodyLength += c.length;
-      bodyWetted += noseProps(c.shape, c.length, c.aftRadius, c.shapeParameter ?? 0).wettedArea;
+      {
+        const w = noseProps(c.shape, c.length, c.aftRadius, c.shapeParameter ?? 0).wettedArea;
+        bodyWetted += w;
+        bank(bodyByFinish, roughOf(c), w);
+      }
       if (p.xFore + c.length > aftBodyEnd) {
         aftBodyEnd = p.xFore + c.length;
         baseRadius = c.aftRadius;
@@ -359,14 +397,22 @@ export function aeroGeometry(rocket: Rocket): AeroGeometry {
       }
     } else if (c.kind === "bodytube") {
       bodyLength += c.length;
-      bodyWetted += 2 * Math.PI * c.outerRadius * c.length;
+      {
+        const w = 2 * Math.PI * c.outerRadius * c.length;
+        bodyWetted += w;
+        bank(bodyByFinish, roughOf(c), w);
+      }
       if (p.xFore + c.length > aftBodyEnd) {
         aftBodyEnd = p.xFore + c.length;
         baseRadius = c.outerRadius;
       }
     } else if (c.kind === "transition") {
       bodyLength += c.length;
-      bodyWetted += transitionProps(c.shape, c.length, c.foreRadius, c.aftRadius, c.shapeParameter ?? 0).wettedArea;
+      {
+        const w = transitionProps(c.shape, c.length, c.foreRadius, c.aftRadius, c.shapeParameter ?? 0).wettedArea;
+        bodyWetted += w;
+        bank(bodyByFinish, roughOf(c), w);
+      }
       if (p.xFore + c.length > aftBodyEnd) {
         aftBodyEnd = p.xFore + c.length;
         baseRadius = c.aftRadius;
@@ -398,6 +444,7 @@ export function aeroGeometry(rocket: Rocket): AeroGeometry {
     } else if (c.kind === "trapezoidfinset") {
       const area = ((c.rootChord + c.tipChord) / 2) * c.height;
       finWetted += 2 * area * c.finCount;
+      bank(finByFinish, roughOf(c), 2 * area * c.finCount);
       finFrontal += c.finCount * c.thickness * c.height;
       finCount = Math.max(finCount, c.finCount);
       finThickness = Math.max(finThickness, c.thickness);
@@ -407,6 +454,7 @@ export function aeroGeometry(rocket: Rocket): AeroGeometry {
       noteFinEdge(c.crossSection);
     } else if (c.kind === "ellipticalfinset" || c.kind === "freeformfinset") {
       finWetted += 2 * c.area * c.finCount;
+      bank(finByFinish, roughOf(c), 2 * c.area * c.finCount);
       finFrontal += c.finCount * c.thickness * c.height;
       finCount = Math.max(finCount, c.finCount);
       finThickness = Math.max(finThickness, c.thickness);
@@ -428,6 +476,7 @@ export function aeroGeometry(rocket: Rocket): AeroGeometry {
       const ri = Math.max(0, ro - c.thickness);
       if (c.finCount > 0 && ro > 0 && c.length > 0) {
         tubeFinWetted += c.finCount * 2 * Math.PI * (ro + ri) * c.length;
+        tubeFinRough = roughOf(c);
         tubeFinAnnulus += c.finCount * Math.PI * (ro * ro - ri * ri);
         tubeFinChordWeight += c.finCount * 2 * Math.PI * (ro + ri) * c.length * c.length;
       }
@@ -444,6 +493,15 @@ export function aeroGeometry(rocket: Rocket): AeroGeometry {
   const noseFineness = haveNose && noseDiameter > 0 ? noseLength / noseDiameter : 3;
   // Fin leading-edge sweep Λ (from the tip's aft offset over the span): supersonic fin wave
   // drag falls with cos²Λ as the leading edge sweeps back behind the Mach cone.
+  // A single representative roughness for reporting and for the tube-fin term: the wetted-area
+  // weighted mean, which degenerates to the one value a uniformly-finished design carries.
+  let roughWeighted = 0;
+  let roughArea = 0;
+  for (const [k, a] of [...bodyByFinish, ...finByFinish]) {
+    roughWeighted += k * a;
+    roughArea += a;
+  }
+  const weightedRoughness = roughArea > 0 ? roughWeighted / roughArea : FINISH_ROUGHNESS.unfinished;
   const sweepAngle = finSpan > 0 ? Math.atan2(finSweepLength, finSpan) : 0;
   const cosL = Math.cos(sweepAngle);
   return {
@@ -463,7 +521,9 @@ export function aeroGeometry(rocket: Rocket): AeroGeometry {
     // For a design with one fin set this equals finCount·finThickness·finSpan, unchanged.
     finFrontalArea: finFrontal,
     finCrossSection: finEdgeRank < 0 ? "square" : (["airfoil", "rounded", "square"] as const)[finEdgeRank],
-    roughness: roughness || FINISH_ROUGHNESS.unfinished,
+    roughness: weightedRoughness,
+    bodyWettedByFinish: [...bodyByFinish].map(([roughness, area]) => ({ roughness, area })),
+    finWettedByFinish: [...finByFinish].map(([roughness, area]) => ({ roughness, area })),
     noseFineness: Math.max(0.5, noseFineness),
     noseShapeFactor,
     finSweepFactor: clamp(cosL * cosL, 0.35, 1),
@@ -474,6 +534,7 @@ export function aeroGeometry(rocket: Rocket): AeroGeometry {
     tubeFinWettedArea: tubeFinWetted,
     tubeFinAnnulusArea: tubeFinAnnulus,
     tubeFinChord: tubeFinWetted > 0 ? tubeFinChordWeight / tubeFinWetted : 0,
+    tubeFinRoughness: tubeFinRough,
   };
 }
 
@@ -525,14 +586,24 @@ export function dragCoefficient(
   const mach = velocity / atm.speedOfSound;
   const re = (atm.density * velocity * geom.bodyLength) / atm.dynamicViscosity;
 
-  const cf = skinFriction(re, geom.roughness, geom.bodyLength, mach);
-
-  // Body friction with a fineness form factor; fins with a thickness form factor.
+  // Body friction with a fineness form factor; fins with a thickness form factor. Each is summed
+  // over the design's surfaces at the roughness of the finish that surface actually carries — a
+  // component buildup, since skin friction belongs to a surface rather than to the airframe.
+  // Charging every surface the roughest finish present over-drags the common mixed-finish design:
+  // on a polished 33 mm model with 25 mm of "normal" body tube it added ~0.14 to a ~0.46
+  // coefficient, and Loft read ~17% low on apogee against the file's own stored results.
   const fr = Math.max(2, geom.bodyFineness);
   const bodyForm = 1 + 60 / (fr * fr * fr) + 0.0025 * fr;
-  const bodyFriction = cf * bodyForm * (geom.bodyWettedArea / geom.refArea);
   const finForm = 1 + 2 * geom.finThicknessRatio;
-  const finFriction = cf * finForm * (geom.finWettedArea / geom.refArea);
+  const frictionOver = (surfaces: WettedSurface[], form: number): number => {
+    let total = 0;
+    for (const sfc of surfaces) {
+      total += skinFriction(re, sfc.roughness, geom.bodyLength, mach) * form * (sfc.area / geom.refArea);
+    }
+    return total;
+  };
+  const bodyFriction = frictionOver(geom.bodyWettedByFinish, bodyForm);
+  const finFriction = frictionOver(geom.finWettedByFinish, finForm);
   // Tube fins: friction on both walls of a thin open cylinder. A thin-walled tube aligned with the
   // flow is aerodynamically a rolled-up flat plate — no thickness-driven pressure gradient — so it
   // takes NO form factor; its bluntness is carried explicitly by the wall-annulus terms below
@@ -541,7 +612,7 @@ export function dragCoefficient(
   let tubeFinFriction = 0;
   if (geom.tubeFinWettedArea > 0 && geom.tubeFinChord > 0) {
     const reTube = (atm.density * velocity * geom.tubeFinChord) / atm.dynamicViscosity;
-    const cfTube = skinFriction(reTube, geom.roughness, geom.tubeFinChord, mach);
+    const cfTube = skinFriction(reTube, geom.tubeFinRoughness || geom.roughness, geom.tubeFinChord, mach);
     tubeFinFriction = cfTube * (geom.tubeFinWettedArea / geom.refArea);
   }
   const friction = bodyFriction + finFriction + tubeFinFriction;

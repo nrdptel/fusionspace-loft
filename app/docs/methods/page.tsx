@@ -297,6 +297,17 @@ export default function Methods() {
           apogee, matching OpenRocket&apos;s stored per-step drag. A compressible-turbulent
           (reference-temperature / Frankl–Voishel) correction is applied at speed, over the body and
           fin wetted areas with fineness- and thickness-ratio form factors (Hoerner-style).
+          Friction is summed <strong>surface by surface</strong>, each at the roughness of the
+          finish it actually carries — <code>Σ C<sub>f</sub>(k<sub>i</sub>)·A<sub>wet,i</sub></code>{" "}
+          — because skin friction belongs to a surface, not to the airframe. Real builds mix
+          finishes constantly (a polished airframe with one bare coupler, a filled nose on an
+          unpainted tube), and charging every surface the roughest one present over-drags them
+          badly: on a real polished 33&nbsp;mm model whose 25&nbsp;mm mid tube is left at
+          &ldquo;normal&rdquo;, it added about <code>0.14</code> to a <code>0.46</code>{" "}
+          coefficient — 30% too much drag — and flew the design ~17% low against the numbers its own
+          file stores. Summing per surface brought that design to −5%, and across the corpus moved
+          the 90th-percentile apogee error from 16.3% to 11.6% with six designs crossing back
+          inside 10% and none crossing out.
         </li>
         <li>
           <strong>Base drag</strong>, referenced to the base area: the subsonic correlation{" "}

@@ -41,7 +41,10 @@ export default function Limitations() {
         transition (shoulder) and a diameter-decreasing one (boattail) now carry their own pressure
         drag on top of the boattail&apos;s base-area effect, and a cone or blunt nose carries its
         own joint-angle pressure drag (near zero for the streamlined ogive noses most designs use).
-        Fin-junction interference is still lumped into a small flat allowance. The boundary layer is treated as <em>fully turbulent</em> — the standard rocketry
+        Fin-junction interference is still lumped into a small flat allowance. Skin friction is now
+        summed surface by surface at each finish&apos;s own roughness rather than charging the whole
+        airframe the roughest finish present — the old treatment over-dragged any mixed-finish build,
+        which is most of them. The boundary layer is treated as <em>fully turbulent</em> — the standard rocketry
         assumption, since it trips near the nose — so there is no laminar run to solve (and no
         laminar-drag credit for an unusually smooth, slow flight). Base drag is applied in full
         whether the motor is burning or not — matching OpenRocket&apos;s stored per-step drag, which
