@@ -3,6 +3,28 @@
 Rough edges, missing affordances, and ideas too big for one pass — noticed while working,
 not yet done. Newest first. One line each. Anything here is fair game for the next session.
 
+- The Analyze workspace is four full-width cards of prose with one button each — a menu, not a work
+  surface. A single column wastes the desktop width, nothing a run produced survives switching tabs,
+  and there's no saved-view or preset idea anywhere. OpenRocket's simulation tab is a table of runs
+  you can re-run, edit, plot and export; that's the benchmark this surface is furthest from.
+- The desktop landing page fills about half the width and never says what Loft can do past import —
+  no mention of the sweeps, dispersion, cross-check, or the builder that are one click away.
+- The design what-if panel is a wall of ~24 number fields. Only the fins, body wall and boattail
+  have diagram handles; nose, recovery, payload, materials and finish are typing-only.
+- The parts list is read-only and one-directional (a row highlights the diagram, not the reverse),
+  hidden behind a disclosure, and carries no mass. OpenRocket's editor has a selectable component
+  tree with add/delete, which is the gap that keeps Loft's editor feeling like a viewer with fields.
+- Corpus fetch is still unwired: no lock file pinning repo/tag/asset/sha256, no `fetch-fixtures`
+  step, no CI secret. Blocked on two owner-side actions — cutting a release asset in `loft-fixtures`
+  and adding `FIXTURES_TOKEN` — so the suite still only gates a machine that already has the files.
+- A no-recovery descent is a tumble, not a dart. On `FullScaleModelTH.rkt`'s plugged configuration
+  Loft comes in at 152 m/s against RockSim's 83 m/s: both agree nothing opened, but RockSim models
+  the unstable body's drag and Loft flies it nose-down. Worth a tumbling-drag model for the
+  ballistic case, where the number feeds a safety warning.
+- Deployment velocity is still the worst-agreeing metric across the corpus (median |Δ| 6.5% over 76
+  comparisons, against 1–3% for everything else; the full census is in the commit that fixed the
+  plugged-motor case). The largest residuals are near-apogee deployments, where a fraction of a
+  second of event timing is several m/s — event-time interpolation may be most of it.
 - The service worker precaches route HTML but not the RSC segment payloads Next's router fetches
   for a client-side navigation (`__next.*.txt?_rsc=…`, ~580 kB, and the `_rsc` hash means they
   can't be matched without `ignoreSearch`). Offline, an in-app link still lands on the right page

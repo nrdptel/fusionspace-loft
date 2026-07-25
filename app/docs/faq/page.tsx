@@ -64,6 +64,18 @@ export default function Faq() {
         </p>
       </QA>
 
+      <QA q="Does Loft remember the design I had open?">
+        <p>
+          Yes — the last design you opened, the units you chose, the motor configuration you were
+          flying, and any what-if edits are kept in this browser&apos;s own storage, so a reload or a
+          tab the phone reclaimed picks up where you left off. That matters most at the pad, where
+          re-importing means finding the design file on a phone that may not have it. It is stored on
+          your device only, alongside the theme choice — there is no account and nothing is uploaded.
+          Loft says so on screen when it restores a session, and <em>Start fresh</em> (or{" "}
+          <em>Import another</em>) forgets it immediately; clearing site data does the same.
+        </p>
+      </QA>
+
       <QA q="Can I trust it for a waiver or a cert flight?">
         <p>
           Treat every figure as an estimate to verify independently, not as authority. Loft shows the

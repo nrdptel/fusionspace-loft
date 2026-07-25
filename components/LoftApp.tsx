@@ -1,11 +1,11 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import ImportPanel from "./ImportPanel";
 import ResultsView from "./ResultsView";
 import { Segmented } from "./ui";
-import { importDesignFile, importDesign, type OrkDocument } from "@/lib/ork/import";
+import { importDesign, type OrkDocument } from "@/lib/ork/import";
 import { newDesign } from "@/lib/model/starter";
 import { exportOrk } from "@/lib/ork/export";
 import { runFlight, pickConfig, overridesFromStored, configChoices, type FlightRun, type ConfigChoice } from "@/lib/sim/run";
@@ -40,6 +40,7 @@ import type { SurfaceFinish, NoseShape, FinCrossSection } from "@/lib/model/type
 import { allMotors } from "@/lib/motors/db";
 import type { ConditionOverrides } from "@/lib/sim/setup";
 import { fetchConditions, geocode, type WeatherConditions } from "@/lib/weather";
+import { clearSession, fromBase64, loadSession, saveSession, toBase64 } from "@/lib/session";
 import { mToFt, ftToM, mpsToMph, mphToMps } from "@/lib/units";
 import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
@@ -128,6 +129,11 @@ export default function LoftApp() {
   // results view mounts (it remounts on every load — the import panel only shows when nothing is
   // loaded, so every design arrives through a fresh mount).
   const [initialTab, setInitialTab] = useState<"flight" | "design">("flight");
+  /** The loaded design's own bytes, kept so the session can be written back verbatim — the file
+   *  the flyer imported, not a re-serialisation of it, so its stored results survive a reload. */
+  const designBytes = useRef<string | null>(null);
+  /** True when this design came back from the last session rather than being freshly opened. */
+  const [restored, setRestored] = useState(false);
 
   const compute = useCallback(
     (
@@ -226,17 +232,29 @@ export default function LoftApp() {
   );
 
   const loadDoc = useCallback(
-    (document: OrkDocument, name: string, opensOn: "flight" | "design" = "flight") => {
+    (
+      document: OrkDocument,
+      name: string,
+      opensOn: "flight" | "design" = "flight",
+      /** The design's own file bytes, so the session can store exactly what was opened. */
+      bytes?: Uint8Array,
+      /** A session being restored: its saved edits and configuration, instead of a clean slate. */
+      resume?: { edits: Edits; simIndex: number },
+    ) => {
+      const e = resume?.edits ?? {};
+      const idx = resume?.simIndex ?? 0;
       setDoc(document);
       setFileName(name);
-      setEdits({});
+      setEdits(e);
       setWeather(null);
       setScenario("design");
-      setSimIndex(0);
+      setSimIndex(idx);
       setInitialTab(opensOn);
       setError(null);
+      setRestored(resume !== undefined);
+      if (bytes) designBytes.current = toBase64(bytes);
       try {
-        const { run: r, baseline: b } = compute(document, {}, null, "design", 0);
+        const { run: r, baseline: b } = compute(document, e, null, "design", idx);
         setRun(r);
         setBaseline(b);
       } catch (err) {
@@ -253,8 +271,9 @@ export default function LoftApp() {
       setBusy(true);
       setError(null);
       try {
-        const document = await importDesignFile(file);
-        loadDoc(document, file.name);
+        const bytes = new Uint8Array(await file.arrayBuffer());
+        const document = await importDesign(bytes);
+        loadDoc(document, file.name, "flight", bytes);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Could not read that file.");
         setDoc(null);
@@ -274,7 +293,7 @@ export default function LoftApp() {
         const res = await fetch(path);
         const bytes = new Uint8Array(await res.arrayBuffer());
         const document = await importDesign(bytes);
-        loadDoc(document, label);
+        loadDoc(document, label, "flight", bytes);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Could not load the sample.");
       } finally {
@@ -287,7 +306,12 @@ export default function LoftApp() {
   // Start a fresh design from scratch — the builder path. A starter model (not parsed from any
   // file) enters the exact same pipeline an import does, so every edit, sweep, and flight works on
   // it immediately; the flyer tweaks a real, stable flight rather than staring at a blank slate.
-  const onNew = useCallback(() => loadDoc(newDesign(), "New design", "design"), [loadDoc]);
+  const onNew = useCallback(() => {
+    // A built design has no file behind it, so it is serialised through the same .ork writer the
+    // download uses — one representation for saving, sharing, and remembering.
+    const document = newDesign();
+    loadDoc(document, "New design", "design", exportOrk(document));
+  }, [loadDoc]);
 
   // Rename the current design. The name is pure metadata — it doesn't touch the airframe or the
   // flight — so this updates the document in place without re-flying. It flows to the results title,
@@ -399,7 +423,56 @@ export default function LoftApp() {
     setWeather(null);
     setScenario("design");
     setSimIndex(0);
+    setRestored(false);
+    designBytes.current = null;
+    clearSession();
   };
+
+  // Pick the last session back up. A phone reclaims a backgrounded tab routinely and the pad is
+  // where that hurts — the design file that would let you import again may not even be on the
+  // device. Restoring runs the saved bytes back through the ordinary importer, so a resumed design
+  // is byte-for-byte the one that was open, edits and all. Nothing here leaves the browser.
+  useEffect(() => {
+    const saved = loadSession();
+    if (!saved) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const bytes = fromBase64(saved.design);
+        const document = await importDesign(bytes);
+        if (cancelled) return;
+        setUnits(saved.units);
+        loadDoc(document, saved.name, saved.opensOn, bytes, {
+          edits: saved.edits as Edits,
+          simIndex: saved.simIndex,
+        });
+      } catch {
+        // A design Loft can no longer read (a format change, a truncated write) is dropped rather
+        // than shown as an error on a page the flyer never asked to be on.
+        clearSession();
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // Deliberately once, on mount: this restores a session, it doesn't track one.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // …and keep it current. Everything that survives a reload is written here, so there is one
+  // place that decides what "where I left off" means.
+  useEffect(() => {
+    if (!doc || !designBytes.current) return;
+    saveSession({
+      v: 1,
+      design: designBytes.current,
+      name: fileName,
+      opensOn: initialTab,
+      units,
+      simIndex,
+      edits: edits as Record<string, unknown>,
+    });
+  }, [doc, fileName, initialTab, units, simIndex, edits]);
 
   const choices = doc ? configChoices(doc) : [];
 
@@ -560,6 +633,25 @@ export default function LoftApp() {
               size="sm"
             />
           </div>
+
+          {restored && (
+            // Never restore silently: a design that reappears without saying so is indistinguishable
+            // from one you thought you had closed, and the numbers on screen would be someone else's
+            // session as far as the reader knows.
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900/60 dark:text-zinc-400">
+              <span>
+                Picked up where you left off — <strong className="font-medium">{fileName}</strong>, with
+                any what-ifs you had set. Kept on this device only.
+              </span>
+              <button
+                type="button"
+                onClick={reset}
+                className="underline underline-offset-2 hover:text-zinc-900 dark:hover:text-zinc-100"
+              >
+                Start fresh
+              </button>
+            </div>
+          )}
 
           {choices.length > 1 && (
             <ConfigPicker choices={choices} selected={simIndex} onSelect={selectConfig} units={units} />

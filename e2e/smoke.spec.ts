@@ -1575,6 +1575,36 @@ test.describe("Loft", () => {
     await expect(page.getByRole("heading", { name: /Altitude \(ft\) vs time/ })).toBeVisible();
   });
 
+  test("a reload picks up the design, the units, and the edits where they were left", async ({ page }) => {
+    // Losing the loaded design on a refresh is worst exactly where this tool is meant to be used:
+    // a phone at the pad, offline, whose backgrounded tab the OS reclaimed — and the design file
+    // that would let you import again may not be on the phone at all.
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Imperial" }).click();
+    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByLabel("Fin span (in)").fill("3");
+    await expect(page.getByRole("button", { name: /Reset to as-designed/ })).toBeVisible();
+
+    await page.reload();
+    // The design is back, on the workspace it was opened on, in the units that were chosen…
+    await expect(page.getByText(/Picked up where you left off/)).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByRole("tab", { name: "Flight" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Altitude \(ft\) vs time/ })).toBeVisible();
+    // …and so is the edit that was in flight.
+    await page.getByRole("tab", { name: "Design" }).click();
+    // Restored through the model, so it comes back as the display format of the stored metres.
+    await expect(page.getByLabel("Fin span (in)")).toHaveValue(/^3(\.0+)?$/);
+
+    // "Start fresh" really does forget it.
+    await page.getByRole("button", { name: "Start fresh" }).click();
+    await expect(page.getByRole("button", { name: /38 mm single-deploy/ })).toBeVisible();
+    await page.reload();
+    await expect(page.getByRole("button", { name: /38 mm single-deploy/ })).toBeVisible();
+    await expect(page.getByText(/Picked up where you left off/)).toHaveCount(0);
+  });
+
   test("has no serious accessibility violations on the home page", async ({ page }) => {
     await page.goto("/");
     const results = await new AxeBuilder({ page })
