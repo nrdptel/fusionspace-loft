@@ -464,9 +464,19 @@ export default function Methods() {
 
       <h2>Staging</h2>
       <p>
-        In-line (serial) stages fly in sequence. The bottom stage lights at launch; each stage
-        above air-starts when the stage below burns out, plus any ignition delay it specifies —
-        so a boosted-dart coast between separation and the sustainer&apos;s air-start is honoured.
+        In-line (serial) stages fly in sequence. By default the bottom stage lights at launch and
+        each stage above air-starts when the stage below burns out, plus any ignition delay it
+        specifies — so a boosted-dart coast between separation and the sustainer&apos;s air-start is
+        honoured. That default is what OpenRocket calls an <code>automatic</code> ignition event,
+        and a design can say otherwise: the file records an event per motor per configuration, and
+        Loft follows it. A <code>launch</code> event fires that motor at liftoff wherever it sits in
+        the stack — one OpenRocket example lights its <em>middle</em> stage first — and an event
+        that can never arrive (a <code>burnout</code> trigger on the bottom-most stage, with
+        nothing beneath it to burn out) leaves that motor unlit, riding as inert mass, which is
+        what the file&apos;s own stored mass and thrust traces show. Reading those events took that
+        design from 49.8% high to 9.4% low, with rail-exit velocity landing within 0.4% of the
+        stored figure. A serial stack also parts at one joint: the stage that separates takes
+        everything below it with it, rather than the stack shedding one stage per event.
         A stage <em>separates</em> on the event the design specifies: by default (and for the usual
         boosted staging) when it finishes burning, but a stage set to separate at its own
         <em> ejection charge</em> hangs on until that charge fires — often a long delay, so a

@@ -519,3 +519,82 @@ describe("booster hard-landing range-safety warning", () => {
     expect(warnings.some((w) => w.code === "booster-hard-landing")).toBe(false);
   });
 });
+
+describe("the design's own ignition events drive the firing order", () => {
+  /** Three-stage stack: stages[0] top (sustainer), stages[2] bottom — the OpenRocket order. */
+  function threeStage(events: [string, string, string]): { rocket: Rocket; config: MotorConfiguration } {
+    uid = 0;
+    const ids = ["m-top", "m-mid", "m-bot"];
+    const rocket: Rocket = {
+      name: "Test three-stage",
+      stages: [
+        { name: "Stage", components: [nose(), tube(0.6, ids[0])] },
+        { name: "Booster 1", components: [tube(0.3, ids[1])] },
+        { name: "Booster 2", components: [tube(0.3, ids[2])] },
+      ],
+      configurations: [],
+      referenceType: "maximum",
+    };
+    const motor = (d: string) => ({ designation: d, manufacturer: "AeroTech", type: "reload" as const, diameter: 0.038, length: 0.2 });
+    return {
+      rocket,
+      config: {
+        id: "cfg",
+        instances: ids.map((mountId, i) => ({
+          mountId,
+          motor: motor(i === 1 ? "H128W" : "H180W"),
+          ignitionEvent: events[i],
+          ignitionDelay: 0,
+        })),
+      },
+    };
+  }
+
+  it("keeps the serial default when every motor is automatic", () => {
+    const { rocket, config } = threeStage(["automatic", "automatic", "automatic"]);
+    const b = buildRocketDynamics(rocket, config);
+    const times = b.motors.map((m) => m.ignitionTime).sort((a, x) => a - x);
+    // Bottom lights at launch; the two above air-start in turn.
+    expect(times[0]).toBe(0);
+    expect(times[1]).toBeGreaterThan(0);
+    expect(times[2]).toBeGreaterThan(times[1]);
+  });
+
+  it("lights a MIDDLE stage at launch when the design says so", () => {
+    // An OpenRocket example does exactly this: the middle stage carries `launch` while the bottom
+    // stage's motor sits on a `burnout` event with nothing below it to burn out. Flying it on the
+    // serial default fired the wrong motor first and read 49.8% high against the file's own
+    // stored results; honouring the events brought it to -9.4% with rail-exit velocity matching
+    // the stored figure to 0.4%.
+    const { rocket, config } = threeStage(["burnout", "launch", "burnout"]);
+    const b = buildRocketDynamics(rocket, config);
+    const byMount = new Map(b.motors.map((m) => [m.designation, m.ignitionTime]));
+    // The middle stage's H128W is the one that fires at t=0.
+    expect(byMount.get("H128W")).toBe(0);
+  });
+
+  it("never lights a motor whose trigger can never arrive", () => {
+    // `burnout` on the bottom-most stage has nothing beneath it; the motor rides as inert mass.
+    const { rocket, config } = threeStage(["burnout", "launch", "burnout"]);
+    const b = buildRocketDynamics(rocket, config);
+    const lit = b.motors.filter((m) => Number.isFinite(m.ignitionTime));
+    expect(lit).toHaveLength(2); // the middle stage's, and the sustainer's on its burnout
+    expect(b.motors.some((m) => m.ignitionTime === Infinity)).toBe(true);
+  });
+
+  it("drops everything below the joint that parts, not one stage per event", () => {
+    // A serial stack separates at ONE joint: when the middle stage goes, the bottom goes with it.
+    const { rocket, config } = threeStage(["burnout", "launch", "burnout"]);
+    const b = buildRocketDynamics(rocket, config);
+    // Phases step 3 → 1: the un-fired bottom stage never separates on its own.
+    expect(b.phases[0].stageCount).toBe(3);
+    expect(b.phases[b.phases.length - 1].stageCount).toBe(1);
+    expect(b.phases).toHaveLength(2);
+  });
+
+  it("still steps N → N-1 → … → 1 when every stage separates in turn", () => {
+    const { rocket, config } = threeStage(["automatic", "automatic", "automatic"]);
+    const counts = buildRocketDynamics(rocket, config).phases.map((p) => p.stageCount);
+    expect(counts).toEqual([3, 2, 1]);
+  });
+});

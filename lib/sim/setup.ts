@@ -61,6 +61,33 @@ function stageOfComponent(rocket: Rocket): Map<string, number> {
  *  launch; each stage above air-starts when the stage below burns out (plus its ignition delay)
  *  and the spent stage separates and drops away at that instant. The final (top) stage flies on
  *  to apogee. A single-stage design is the degenerate case — one phase, nothing separates. */
+/** How a motor is triggered: at liftoff, by its stage becoming active in the serial sequence, or
+ *  not at all. */
+type IgnitionTrigger = "launch" | "stage" | "none";
+
+/** Resolve a design's stated ignition event into a trigger.
+ *
+ *  OpenRocket records an ignition event per motor per configuration — `launch`, `burnout` (of the
+ *  stage below), `automatic`, `never`. Loft's serial model assumes the default arrangement: the
+ *  bottom stage lights at launch and each stage above air-starts on the burnout below it, which is
+ *  exactly what `automatic` means. A design can say otherwise, and one does: an OpenRocket example
+ *  lights its MIDDLE stage at launch and leaves the bottom stage's motor on a burnout event with
+ *  nothing beneath it to burn out. Flying that on the default assumption fired the wrong motor
+ *  first and read 49.8% high against the numbers the file itself stores.
+ *
+ *  `burnout`/`upperignition` on the bottom-most stage has no trigger — nothing below it ever burns
+ *  out — so that motor never lights and rides as mass, which is what the file's stored flight
+ *  shows (its mass trace carries the motor; its thrust trace never fires it). */
+function ignitionTrigger(event: string | undefined, stageIndex: number, nStages: number): IgnitionTrigger {
+  const ev = (event ?? "").trim().toLowerCase();
+  const isBottom = stageIndex === nStages - 1;
+  if (ev === "launch") return "launch";
+  if (ev === "never") return "none";
+  if (ev === "burnout" || ev === "upperignition") return isBottom ? "none" : "stage";
+  // `automatic` and anything unrecognised keep the serial default.
+  return isBottom ? "launch" : "stage";
+}
+
 export function buildRocketDynamics(rocket: Rocket, config: MotorConfiguration): Buildup {
   const flat = flattenRocket(rocket);
   const byId = new Map<string, Positioned>();
@@ -80,6 +107,7 @@ export function buildRocketDynamics(rocket: Rocket, config: MotorConfiguration):
      *  airstart delay for a second motor timed to light after liftoff/staging. */
     ignitionDelay: number;
     stageIndex: number;
+    trigger: IgnitionTrigger;
   }
   const placed: Placed[] = [];
   const resolutions: MotorResolution[] = [];
@@ -112,8 +140,13 @@ export function buildRocketDynamics(rocket: Rocket, config: MotorConfiguration):
     const cg = mountAft + overhang - motorLen / 2;
     const ejectionDelay = Number.isFinite(inst.motor.delay ?? NaN) ? (inst.motor.delay as number) : NaN;
     const ignitionDelay = Number.isFinite(inst.ignitionDelay ?? NaN) ? (inst.ignitionDelay as number) : 0;
-    placed.push({ curve: match.entry.curve, designation: match.entry.designation, cg, count, ejectionDelay, ignitionDelay, stageIndex });
-    stageBurnDuration[stageIndex] = Math.max(stageBurnDuration[stageIndex], ignitionDelay + match.entry.curve.burnTime);
+    const trigger = ignitionTrigger(inst.ignitionEvent, stageIndex, nStages);
+    placed.push({ curve: match.entry.curve, designation: match.entry.designation, cg, count, ejectionDelay, ignitionDelay, stageIndex, trigger });
+    // A motor with no trigger never lights, so it adds no burn time to its stage — it rides along
+    // as mass. The stage above therefore waits on whatever does burn below it, not on this.
+    if (trigger !== "none") {
+      stageBurnDuration[stageIndex] = Math.max(stageBurnDuration[stageIndex], ignitionDelay + match.entry.curve.burnTime);
+    }
   }
 
   // Stage activation times (firing order: the bottom stage — last in list order — is active at
@@ -145,6 +178,9 @@ export function buildRocketDynamics(rocket: Rocket, config: MotorConfiguration):
     const sepDelay = sep.delay;
     const burnoutSep = stageActivation[i] + stageBurnDuration[i];
     if (ev === "never") detachT[i] = Infinity;
+    // A stage whose motors never light has no burnout, so a burnout-triggered separation has no
+    // trigger either: it stays attached and goes with whatever separates above it.
+    else if (stageBurnDuration[i] === 0 && ev !== "ejection") detachT[i] = Infinity;
     else if (ev === "ejection" && Number.isFinite(stageEjectionTime[i])) detachT[i] = stageEjectionTime[i] + sepDelay;
     // `upperignition` (drop at upper-stage light) and the default both resolve to the lower stage's
     // burnout, which is exactly when the stage above air-starts in the serial model.
@@ -153,7 +189,17 @@ export function buildRocketDynamics(rocket: Rocket, config: MotorConfiguration):
 
   const motors: ResolvedMotor[] = [];
   for (const p of placed) {
-    const ignitionTime = stageActivation[p.stageIndex] + p.ignitionDelay;
+    // `launch` fires at liftoff wherever the motor sits in the stack — a design can light a
+    // middle stage first, which the serial "bottom stage lights at launch" default would get
+    // wrong. `none` means the design gave the motor a trigger that never arrives (a burnout
+    // event with nothing below it to burn out); it rides as inert mass, which is what the
+    // file's own stored flight shows.
+    const ignitionTime =
+      p.trigger === "launch"
+        ? p.ignitionDelay
+        : p.trigger === "none"
+          ? Infinity
+          : stageActivation[p.stageIndex] + p.ignitionDelay;
     const resolved: ResolvedMotor = {
       curve: p.curve,
       designation: p.designation,
@@ -170,10 +216,18 @@ export function buildRocketDynamics(rocket: Rocket, config: MotorConfiguration):
   // Phases: the stack starts whole; each separation (in time order) drops the current bottom
   // stage, so the attached count steps N → N-1 → … → 1.
   const phases: StagePhase[] = [{ startTime: 0, stageCount: nStages }];
-  const seps = detachT.filter((t) => Number.isFinite(t)).sort((a, b) => a - b);
+  // A serial stack parts at ONE joint: separating stage i takes everything below it with it, so
+  // the attached count becomes i, not one fewer. With every stage separating in turn that is the
+  // same N → N-1 → … → 1 sequence as before; it differs only when a stage stays attached, where
+  // decrementing would otherwise leave a phantom stage aboard after the joint above it parted.
+  const seps = detachT
+    .map((t, i) => ({ t, i }))
+    .filter((x) => Number.isFinite(x.t) && x.i > 0)
+    .sort((a, b) => a.t - b.t);
   let count = nStages;
-  for (const t of seps) {
-    count -= 1;
+  for (const { t, i } of seps) {
+    if (i >= count) continue; // already gone with an earlier separation above it
+    count = i;
     phases.push({ startTime: t, stageCount: count });
   }
 
