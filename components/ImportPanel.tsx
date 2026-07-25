@@ -36,7 +36,9 @@ export default function ImportPanel({
           if (f) onFile(f);
         }}
         className={
-          "rounded-xl border-2 border-dashed p-8 text-center transition " +
+          // Capped at the reading measure: this is a landing surface, not the workspace, and a
+          // 1600 px drop zone reads as a stretched page rather than a considered one.
+          "mx-auto max-w-3xl rounded-xl border-2 border-dashed p-8 text-center transition " +
           (dragging
             ? "border-indigo-400 bg-indigo-50/60 dark:bg-indigo-500/10"
             : "border-zinc-300 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900/40")
@@ -88,7 +90,7 @@ export default function ImportPanel({
         </p>
       </div>
 
-      <div className="mt-4 rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900/40">
+      <div className="mx-auto mt-4 max-w-3xl rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900/40">
         <p className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
           Or try a bundled example
         </p>

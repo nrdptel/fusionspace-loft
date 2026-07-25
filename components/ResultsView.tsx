@@ -347,6 +347,10 @@ export default function ResultsView({
             <DownloadCsv rows={flightDataCsv(r, units)} name={doc.rocket.name} suffix="flight-data" label="Download flight data" />
           )}
         </div>
+        {/* Two-up once the column is wide enough for it: four full-width plots stacked made the
+            Flight workspace 4.7 screens tall, and reading altitude against velocity meant
+            scrolling between them. */}
+        <div className="grid gap-6 xl:grid-cols-2">
         <Plot title={`Altitude (${units === "imperial" ? "ft" : "m"}) vs time`}>
           <LineChart
             series={logSeries ? [altSeries(r, units), logSeries] : [altSeries(r, units)]}
@@ -472,6 +476,7 @@ export default function ResultsView({
             <MotorStatsCaption run={run} units={units} />
           </Plot>
         )}
+        </div>
       </section>
 
       {run.validation && run.validation.count > 0 && (
