@@ -3,19 +3,17 @@
 Rough edges, missing affordances, and ideas too big for one pass — noticed while working,
 not yet done. Newest first. One line each. Anything here is fair game for the next session.
 
-- RASAero `.CDX1` import is blocked on one design call, not on parsing: the format is a small,
-  ordered XML part list (inches/pounds) that also stores RASAero's own predicted apogee, but it
-  carries NO materials or per-part masses — only `SustainerLaunchWt` and `SustainerCG`. Flying it
-  needs the internal model to express "the whole vehicle weighs X loaded with its CG at Y", with
-  the resolved motor's mass subtracted from the structure, rather than per-component overrides.
+- RASAero import leaves three things on the table: booster stages (only the sustainer flies, and
+  the comparison is withheld), a fin set mounted on a tapered section, and `<Protuberance>` parts.
+  RASAero's `<MachAlt>` Mach-vs-altitude table is also unread — it is a second per-step oracle.
+- A RASAero import's mass is a single point, so the airframe carries no moment of inertia of its
+  own. Harmless for the 3-DOF solve; a real gap the day rotational dynamics arrive.
 - Two RockSim corpus fixtures store results that don't match their own geometry (`TubeFins1.rkt`
   weighs its tube fins as solid rods; `rocksimTestRocket1.rkt` reads 52% low on max acceleration,
   a pre-deployment number) — both are OpenRocket's synthetic import-test files, so they want a
   `knownIssue` marking them unusable as accuracy oracles once the corpus suite exists.
 - ThrustCurve has no RASP file for Cesaroni H225-14A (RockSim `.rse` only); an `.rse` curve reader
   would unlock it and a long tail of other motors that only ship in that format.
-- RASAero `.CDX1` files don't import (4 in the corpus): the adapter would be thin — `.CDX1`
-  is plain XML — and it unlocks a whole tool family plus one cross-tool same-design group.
 - RocketPy `.py` / `.ipynb` design scripts don't import; the corpus carries three, two of
   them with *actual flown* apogees (NDRT 2020, Valetudo) — the strongest ground truth there is.
 - Tube fins can't be edited: no diagram handles, no what-if fields, and `lib/model/edit.ts`

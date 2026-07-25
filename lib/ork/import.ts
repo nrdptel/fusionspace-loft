@@ -1,12 +1,13 @@
 /** Top-level design import: raw file bytes → canonical document. Thin by design — read the
- *  design XML out of its container, then adapt it into the one internal model. Two design
- *  formats are understood, sniffed by their XML root: OpenRocket (`.ork`, `<openrocket>`) and
- *  RockSim (`.rkt`, `<RockSimDocument>`). Each adapter is independently tested; the simulator
- *  never sees either format. */
+ *  design XML out of its container, then adapt it into the one internal model. Three design
+ *  formats are understood, sniffed by their XML root: OpenRocket (`.ork`, `<openrocket>`),
+ *  RockSim (`.rkt`, `<RockSimDocument>`) and RASAero II (`.CDX1`, `<RASAeroDocument>`). Each
+ *  adapter is independently tested; the simulator never sees any of the formats. */
 
 import { readOrkXml } from "./zip";
 import { adaptOrkXml, type OrkDocument } from "./adapt";
 import { adaptRktXml } from "../rkt/adapt";
+import { adaptRasAeroXml } from "../rasaero/adapt";
 
 export type {
   OrkDocument,
@@ -22,12 +23,14 @@ export function adaptDesignXml(xml: string): OrkDocument {
   // Cheap sniff of the first element name, tolerating a leading declaration/comment/whitespace.
   const head = xml.slice(0, 4096);
   if (/<\s*RockSimDocument[\s>]/.test(head)) return adaptRktXml(xml);
+  if (/<\s*RASAeroDocument[\s>]/.test(head)) return adaptRasAeroXml(xml);
   // Fall back to the OpenRocket adapter, which raises a clear "Not an OpenRocket file" error if
   // the root isn't <openrocket> — so an unrecognised format still fails honestly.
   return adaptOrkXml(xml);
 }
 
-/** Import a design from its bytes: OpenRocket `.ork`/`.ork.gz`/raw XML, or RockSim `.rkt`. */
+/** Import a design from its bytes: OpenRocket `.ork`/`.ork.gz`/raw XML, RockSim `.rkt`, or
+ *  RASAero `.CDX1`. */
 export async function importDesign(bytes: Uint8Array): Promise<OrkDocument> {
   const xml = await readOrkXml(bytes);
   return adaptDesignXml(xml);

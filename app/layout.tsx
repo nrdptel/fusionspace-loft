@@ -13,7 +13,8 @@ const siteUrl = SITE_URL;
 
 const DESCRIPTION =
   "A flight simulator for high-power rocketry that runs in your browser and works on a phone. " +
-  "Import an OpenRocket .ork design and get apogee, max velocity and Mach, stability margin, " +
+  "Import an OpenRocket .ork, RockSim .rkt or RASAero .CDX1 design and get apogee, max velocity " +
+  "and Mach, stability margin, " +
   "rail-exit speed, and descent and drift — with the model's assumptions and accuracy shown. " +
   "No accounts, no tracking, no verdicts.";
 

@@ -276,7 +276,7 @@ test.describe("Loft", () => {
     await page.goto("/");
     // A design carrying the tool's own step-by-step flight (a hand-authored log, not a bundled demo).
     await page
-      .getByLabel(/Choose an OpenRocket .ork or RockSim .rkt file/)
+      .getByLabel(/^Choose an OpenRocket/)
       .setInputFiles(resolve(process.cwd(), "e2e/fixtures/logged-sample.ork"));
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
 
@@ -294,7 +294,7 @@ test.describe("Loft", () => {
     // flies. Rather than dead-end, the notice points at the same-casing substitutes in the design
     // tools, and swapping one in re-flies the design.
     await page
-      .getByLabel(/Choose an OpenRocket .ork or RockSim .rkt file/)
+      .getByLabel(/^Choose an OpenRocket/)
       .setInputFiles(resolve(process.cwd(), "e2e/fixtures/unresolved-motor.ork"));
 
     const notice = page.getByRole("region", { name: "No flight simulated" });
@@ -331,12 +331,25 @@ test.describe("Loft", () => {
     await expect(thrust.getByText("94 g")).toBeVisible();
   });
 
+  test("a RASAero .CDX1 imports and flies through the same solver", async ({ page }) => {
+    // A third design format, read by its XML root like the others. RASAero carries no materials or
+    // per-part masses, so this also exercises the stated-launch-weight path end to end.
+    await page.goto("/");
+    await page
+      .getByLabel(/^Choose an OpenRocket/)
+      .setInputFiles(resolve(process.cwd(), "e2e/fixtures/demo-rasaero.CDX1"));
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    await expect(page.getByLabel("Results").getByText("Apogee", { exact: true })).toBeVisible();
+    // The import says plainly that the flight uses the weight and CG the file states.
+    await expect(page.getByText(/no materials or per-part masses/i).first()).toBeVisible();
+  });
+
   test("a two-stage design with an undersized booster chute is flagged for a firm booster landing", async ({ page }) => {
     await page.goto("/");
     // A serial two-stage rocket whose booster recovers under its own (too-small) canopy: it lands
     // firm, which the range-safety readout must flag even though only the top stage is flown down.
     await page
-      .getByLabel(/Choose an OpenRocket .ork or RockSim .rkt file/)
+      .getByLabel(/^Choose an OpenRocket/)
       .setInputFiles(resolve(process.cwd(), "e2e/fixtures/two-stage-firm-booster.ork"));
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
 

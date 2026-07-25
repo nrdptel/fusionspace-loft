@@ -4,8 +4,8 @@ import { useRef, useState } from "react";
 
 import { TOUCH_TARGET } from "@/lib/ui-tokens";
 
-/** The import surface: a large drop zone / file picker for an OpenRocket `.ork` or RockSim
- *  `.rkt`, plus one-tap buttons to load the bundled sample designs so the tool is usable before
+/** The import surface: a large drop zone / file picker for an OpenRocket `.ork`, RockSim
+ *  `.rkt` or RASAero `.CDX1`, plus one-tap buttons to load the bundled sample designs so the tool is usable before
  *  you have a file. Mobile first — the whole thing is tap-friendly and one-handed. */
 export default function ImportPanel({
   onFile,
@@ -45,12 +45,12 @@ export default function ImportPanel({
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/brand/fusion-space-mark.svg" alt="" aria-hidden width={880} height={815} className="mx-auto h-9 w-auto opacity-80" />
         <p className="mt-4 text-base font-medium text-zinc-800 dark:text-zinc-100">
-          Import an OpenRocket or RockSim design
+          Import an OpenRocket, RockSim or RASAero design
         </p>
         <p className="mx-auto mt-1 max-w-md text-sm text-zinc-500 dark:text-zinc-400">
-          Drop an OpenRocket <code className="font-mono">.ork</code> or RockSim{" "}
-          <code className="font-mono">.rkt</code> file here, or choose one. Everything runs in
-          your browser — your design is never uploaded.
+          Drop an OpenRocket <code className="font-mono">.ork</code>, RockSim{" "}
+          <code className="font-mono">.rkt</code> or RASAero <code className="font-mono">.CDX1</code>{" "}
+          file here, or choose one. Everything runs in your browser — your design is never uploaded.
         </p>
         <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
           <button
@@ -64,8 +64,8 @@ export default function ImportPanel({
           <input
             ref={inputRef}
             type="file"
-            aria-label="Choose an OpenRocket .ork or RockSim .rkt file"
-            accept=".ork,.ork.gz,.rkt,application/zip"
+            aria-label="Choose an OpenRocket .ork, RockSim .rkt or RASAero .CDX1 file"
+            accept=".ork,.ork.gz,.rkt,.cdx1,.CDX1,application/zip"
             className="sr-only"
             onChange={(e) => {
               const f = e.target.files?.[0];

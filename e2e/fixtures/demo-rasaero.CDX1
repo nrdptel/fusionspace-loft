@@ -1,0 +1,68 @@
+<RASAeroDocument>
+  <FileVersion>2</FileVersion>
+  <RocketDesign>
+    <NoseCone>
+      <PartType>NoseCone</PartType>
+      <Length>15</Length>
+      <Diameter>2.6</Diameter>
+      <Shape>Von Karman Ogive</Shape>
+      <BluntRadius>0</BluntRadius>
+      <Location>0</Location>
+    </NoseCone>
+    <BodyTube>
+      <PartType>BodyTube</PartType>
+      <Length>36</Length>
+      <Diameter>2.6</Diameter>
+      <LaunchLugDiameter>0.375</LaunchLugDiameter>
+      <LaunchLugLength>1.5</LaunchLugLength>
+      <RailGuideDiameter>0</RailGuideDiameter>
+      <Location>15</Location>
+      <BoattailLength>0</BoattailLength>
+      <BoattailRearDiameter>0</BoattailRearDiameter>
+      <Fin>
+        <Count>3</Count>
+        <Chord>7</Chord>
+        <Span>3.5</Span>
+        <SweepDistance>3.5</SweepDistance>
+        <TipChord>3</TipChord>
+        <Thickness>0.125</Thickness>
+        <LERadius>0</LERadius>
+        <Location>28</Location>
+        <AirfoilSection>Square</AirfoilSection>
+      </Fin>
+    </BodyTube>
+    <Surface>Smooth Paint</Surface>
+    <ModifiedBarrowman>False</ModifiedBarrowman>
+    <Comments>Loft demo — 66 mm sport (RASAero)</Comments>
+  </RocketDesign>
+  <LaunchSite>
+    <Altitude>200</Altitude>
+    <Pressure>29.92</Pressure>
+    <RodAngle>0</RodAngle>
+    <RodLength>6</RodLength>
+    <Temperature>59</Temperature>
+    <WindSpeed>5</WindSpeed>
+  </LaunchSite>
+  <Recovery>
+    <DeviceType1>Parachute</DeviceType1>
+    <Size1>3</Size1>
+    <CD1>1.33</CD1>
+    <Altitude1>0</Altitude1>
+    <DeviceType2>None</DeviceType2>
+    <Size2>1</Size2>
+    <CD2>1.33</CD2>
+    <Altitude2>700</Altitude2>
+  </Recovery>
+  <SimulationList>
+    <Simulation>
+      <SustainerEngine>H128W  (AT)</SustainerEngine>
+      <SustainerLaunchWt>3.9</SustainerLaunchWt>
+      <SustainerCG>32.5</SustainerCG>
+      <SustainerIgnitionDelay>0</SustainerIgnitionDelay>
+      <FlightTime>0</FlightTime>
+      <TimetoApogee>9.4</TimetoApogee>
+      <MaxAltitude>1420</MaxAltitude>
+      <MaxVelocity>420</MaxVelocity>
+    </Simulation>
+  </SimulationList>
+</RASAeroDocument>

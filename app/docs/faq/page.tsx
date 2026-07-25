@@ -104,11 +104,11 @@ export default function Faq() {
 
       <QA q="Which motors and file formats are supported?">
         <p>
-          OpenRocket <code>.ork</code> files (and gzip-wrapped or raw OpenRocket XML) and RockSim{" "}
-          <code>.rkt</code> files. Neither format embeds the motor&apos;s thrust curve — it&apos;s
+          OpenRocket <code>.ork</code> files (and gzip-wrapped or raw OpenRocket XML), RockSim{" "}
+          <code>.rkt</code> files, and RASAero II <code>.CDX1</code> files. Neither format embeds the motor&apos;s thrust curve — it&apos;s
           referenced by manufacturer and designation — so Loft resolves it against a bundled set of
           real ThrustCurve.org curves. If your motor isn&apos;t in the set, Loft tells you rather
-          than guessing. RocketPy import is planned, not in yet.
+          than guessing. A RASAero design carries no materials or per-part masses — it is an aerodynamics tool, and the flyer types in one launch weight and CG — so Loft flies the weight and CG the file states, with the motor&apos;s own mass separated out. RocketPy import is planned, not in yet.
         </p>
       </QA>
 

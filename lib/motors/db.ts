@@ -106,6 +106,9 @@ const MFR_ALIASES: Record<string, string> = {
   RR: "roadrunner",
   PP: "publicmissiles",
   AMW: "animalmotorworks",
+  AP: "apogee", // RASAero writes the maker as a short code in parentheses: "1/4A2  (AP)"
+  APOGEE: "apogee",
+  APOGEECOMPONENTS: "apogee",
   CS: "contrail",
   H: "hypertek",
   HT: "hypertek",

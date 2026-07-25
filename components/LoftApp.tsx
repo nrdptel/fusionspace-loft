@@ -480,8 +480,9 @@ export default function LoftApp() {
       {!doc && (
         <>
           <p className="mb-6 max-w-2xl text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
-            Import an OpenRocket <code className="font-mono">.ork</code> or RockSim{" "}
-            <code className="font-mono">.rkt</code> design and Loft simulates the flight in your
+            Import an OpenRocket <code className="font-mono">.ork</code>, RockSim{" "}
+            <code className="font-mono">.rkt</code> or RASAero <code className="font-mono">.CDX1</code>{" "}
+            design and Loft simulates the flight in your
             browser — apogee, speed, stability, and recovery — and compares against the numbers
             the design tool stored in the file. It runs on a phone, offline once loaded. Results
             are estimates from a model;{" "}

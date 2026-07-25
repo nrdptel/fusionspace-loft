@@ -20,17 +20,39 @@ export default function Methods() {
 
       <h2>Importing designs</h2>
       <p>
-        Loft reads two design formats: OpenRocket <code>.ork</code> (a ZIP, gzip, or raw XML with an{" "}
-        <code>&lt;openrocket&gt;</code> root; <code>lib/ork/</code>) and RockSim <code>.rkt</code>{" "}
-        (XML with a <code>&lt;RockSimDocument&gt;</code> root; <code>lib/rkt/</code>). The importer
-        sniffs the root element and picks the adapter. Each adapter is a <em>thin</em> translator
+        Loft reads three design formats: OpenRocket <code>.ork</code> (a ZIP, gzip, or raw XML with
+        an <code>&lt;openrocket&gt;</code> root; <code>lib/ork/</code>), RockSim <code>.rkt</code>{" "}
+        (XML with a <code>&lt;RockSimDocument&gt;</code> root; <code>lib/rkt/</code>), and RASAero II{" "}
+        <code>.CDX1</code> (XML with a <code>&lt;RASAeroDocument&gt;</code> root;{" "}
+        <code>lib/rasaero/</code>). The importer sniffs the root element and picks the adapter. Each adapter is a <em>thin</em> translator
         into one internal rocket model — the simulator only ever sees that model, never a file
-        format — so the same physics flies either format and a future importer (RocketPy) is another
+        format — so the same physics flies any of them and a future importer (RocketPy) is another
         adapter, not a second engine. The RockSim adapter is implemented clean-room from RockSim&apos;s
         published file specification (its <code>RockSim_Xml_Doc.txt</code>, the RockSim engine-file
         format, and the documented shape/finish codes); RockSim stores lengths in millimetres, masses
         in grams, and diameters as diameters, all converted to SI on import. Unknown parts are
         skipped with a warning rather than failing the whole file.
+      </p>
+      <p>
+        The <strong>RASAero II</strong> adapter is likewise clean-room, from the published RASAero II
+        user manual and from inspecting real <code>.CDX1</code> exports; RASAero works in US
+        customary throughout — inches, pounds, feet, ft/s, °F, inHg, mph — all converted to SI on
+        import. Only the design <em>file</em> is read; RASAero&apos;s own aerodynamics are not
+        reimplemented, and the numbers it stored sit beside Loft&apos;s as an independent
+        cross-check, exactly as OpenRocket&apos;s and RockSim&apos;s stored results do.
+      </p>
+      <p>
+        <strong>Mass on a RASAero import</strong> works differently, and it has to. A{" "}
+        <code>.CDX1</code> carries no materials and no per-part masses at all — RASAero is an
+        aerodynamics and trajectory tool, so the flyer types in a single launch weight and CG per
+        simulation. Loft therefore takes the geometry as massless and carries the stated launch
+        weight as one airframe mass component: its mass is the launch weight less the resolved
+        motor&apos;s own loaded mass, and its station is solved from{" "}
+        <code>m<sub>a</sub>·x<sub>a</sub> + m<sub>m</sub>·x<sub>m</sub> = M·x<sub>cg</sub></code>{" "}
+        so the loaded vehicle balances exactly where the file says. That keeps one component tree
+        every surface reads the same way, and it means swapping the motor in the app correctly
+        keeps the airframe and changes only the motor. When the motor can&apos;t be weighed from the
+        bundled data, the whole stated weight is placed at the stated CG and the import says so.
       </p>
 
       <h2>Coordinate model &amp; integrator</h2>

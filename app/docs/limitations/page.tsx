@@ -318,6 +318,36 @@ export default function Limitations() {
         and a prominent warning says how many motors were missing.
       </p>
 
+      <h3>RASAero import is geometry, weight and CG — not RASAero&apos;s aerodynamics</h3>
+      <p>
+        RASAero II <code>.CDX1</code> files import through the same internal model as the other
+        formats, so the flight is computed by Loft&apos;s solver, not RASAero&apos;s. The adapter
+        covers what a RASAero design is made of — nose cone, body tubes, fin cans, transitions and
+        boattails (including a boattail declared inline on a tube), fin sets with their sweep and
+        airfoil section, launch lugs and rail guides, the launch site, and the two recovery events —
+        and it carries RASAero&apos;s own stored apogee, max velocity and time-to-apogee as a
+        cross-check. What it does <strong>not</strong> yet cover: RASAero booster stages (only the
+        sustainer is flown, and the comparison is withheld because that is a different vehicle), a
+        fin set mounted on a tapered section, and explicit protuberances.
+      </p>
+      <p>
+        <strong>Mass is stated, not computed.</strong> A <code>.CDX1</code> carries no materials and
+        no per-part masses, so Loft flies the launch weight and CG the file states (see{" "}
+        <Link href="/docs/methods">Methods</Link>). The consequence worth knowing: the mass{" "}
+        <em>distribution</em> is a single point, so the airframe&apos;s own moment of inertia is not
+        represented. That does not affect the 3-DOF trajectory Loft integrates, but it is a real gap
+        the day rotational dynamics arrive.
+      </p>
+      <p>
+        <strong>Expect disagreement on a fast flight.</strong> On the corpus&apos;s one single-stage
+        RASAero design — a minimum-diameter N1000W shot — RASAero stores 73,409&nbsp;ft at Mach 2.32
+        while the <em>same design</em> in OpenRocket stores 45,636&nbsp;ft at Mach 2.03: the two
+        established tools differ from each other by about 60%. Loft reads lower again. Every one of
+        those numbers is an extrapolation well past Mach&nbsp;0.8, where Loft&apos;s wave drag is a
+        bounded parametric estimate rather than a solved one, and Loft flags the flight as such.
+        Treat all three as independent estimates that disagree, not as one number with two errors.
+      </p>
+
       <h3>RockSim import is a common-subset adapter</h3>
       <p>
         RockSim <code>.rkt</code> files import through the same internal model as OpenRocket, so the
