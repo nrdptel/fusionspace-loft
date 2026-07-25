@@ -12,6 +12,8 @@ import {
   type GeometryEdits,
 } from "@/lib/model/edit";
 import type { MotorMark } from "@/lib/sim/setup";
+import { useMeasuredWidth } from "./LineChart";
+import { TOUCH_TARGET } from "@/lib/ui-tokens";
 import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
 
@@ -64,11 +66,18 @@ export default function RocketDiagram({
   // headroom (below), and while such a drag is live we hold the frame at its grab-time extent so the
   // grabbed edge tracks the pointer instead of the frame chasing the growing geometry. Null otherwise.
   const [vFrameExtent, setVFrameExtent] = useState<number | null>(null);
+  // The diagram draws in CSS pixels (a user unit IS a pixel), so a handle and a label stay the size
+  // they claim whatever the column width — and the airframe can be magnified without the furniture
+  // growing with it. Fit-to-width is the default; zooming makes the drawing wider than its column
+  // and the column scrolls.
+  const box = useRef<HTMLElement>(null);
+  const available = useMeasuredWidth(box);
+  const [zoom, setZoom] = useState(1);
 
   const o = rocketOutline(rocket);
   if (!(o.length > 0) || !(o.maxExtent > 0) || o.body.length < 2) return null;
 
-  const W = 640;
+  const W = Math.round(available * zoom);
   const padX = 14;
   const padY = 10;
   const s = (W - 2 * padX) / o.length; // pixels per metre (equal on both axes → true scale)
@@ -224,10 +233,13 @@ export default function RocketDiagram({
   const diaCy = bodyPart ? top(bodyR) : 0;
 
   return (
-    <figure className="m-0">
+    <figure className="m-0" ref={box}>
+      <div className="overflow-x-auto overscroll-x-contain">
       <svg
         viewBox={`0 0 ${W} ${H.toFixed(0)}`}
-        className="h-auto w-full"
+        width={W}
+        height={Math.round(H)}
+        className="block max-w-none"
         // A pure picture is an `img`; once it carries the interactive fin handle it becomes a
         // labelled `group` — an `img` may not hold focusable descendants (it's an atomic graphic).
         role={onEdit ? "group" : "img"}
@@ -447,7 +459,9 @@ export default function RocketDiagram({
           />
         )}
       </svg>
+      </div>
       <figcaption className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-zinc-500 dark:text-zinc-400">
+        <ZoomControl zoom={zoom} onZoom={setZoom} />
         <span>To scale · {lengthLabel} long · ⌀ {d.q(d.lengthMm(2 * o.maxRadius, units))} max</span>
         {motorLabel && (
           <span className="inline-flex items-center gap-1">
@@ -472,6 +486,41 @@ export default function RocketDiagram({
         {marginLabel && <span>· {marginLabel}</span>}
       </figcaption>
     </figure>
+  );
+}
+
+/** Zoom for the diagram. A hobby airframe is a long thin thing — a 1.6 m rocket 56 mm across is a
+ *  29:1 sliver — so fitting it to the column width is the only way to see the whole design and the
+ *  worst way to see any of it. In a phone column, fit puts the body wall about eleven pixels apart,
+ *  which is smaller than the drag handles on it. Zooming keeps the airframe to scale and lets the
+ *  column scroll, the same escape hatch the desktop tools' rocket figures give. */
+function ZoomControl({ zoom, onZoom }: { zoom: number; onZoom: (z: number) => void }) {
+  const STEPS = [1, 1.5, 2, 3, 4, 6, 8];
+  const i = STEPS.indexOf(zoom);
+  const at = i < 0 ? 0 : i;
+  const btn =
+    "inline-flex items-center justify-center rounded-md border border-zinc-200 px-2 font-medium text-zinc-600 " +
+    "hover:bg-zinc-50 disabled:opacity-40 disabled:hover:bg-transparent dark:border-zinc-700 dark:text-zinc-300 " +
+    "dark:hover:bg-zinc-800 " +
+    TOUCH_TARGET;
+  return (
+    <span className="inline-flex items-center gap-1" role="group" aria-label="Diagram zoom">
+      <button type="button" className={btn} onClick={() => onZoom(STEPS[at - 1])} disabled={at === 0} aria-label="Zoom out">
+        −
+      </button>
+      <span className="min-w-10 text-center tabular-nums" aria-live="polite">
+        {zoom === 1 ? "Fit" : `${zoom}×`}
+      </span>
+      <button
+        type="button"
+        className={btn}
+        onClick={() => onZoom(STEPS[at + 1])}
+        disabled={at === STEPS.length - 1}
+        aria-label="Zoom in"
+      >
+        +
+      </button>
+    </span>
   );
 }
 

@@ -736,6 +736,31 @@ test.describe("Loft", () => {
     await expect(table.getByText(/⌀/).first()).toBeVisible();
   });
 
+  test("the diagram zooms, and the airframe grows with it", async ({ page }) => {
+    // Fit-to-width is the only way to see a 29:1 airframe whole and the worst way to see any of it.
+    // Zooming has to actually magnify the drawing — not restretch the same picture — so this asserts
+    // the rendered SVG gets wider than its column while the column itself does not.
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+    await page.getByRole("tab", { name: "Design" }).click();
+
+    const svg = page.locator('svg[aria-label*="Scale side-view"]');
+    const fit = (await svg.boundingBox())!;
+    await page.getByRole("button", { name: "Zoom in" }).click();
+    await page.getByRole("button", { name: "Zoom in" }).click();
+    const zoomed = (await svg.boundingBox())!;
+    expect(zoomed.width).toBeGreaterThan(fit.width * 1.5);
+    expect(zoomed.height).toBeGreaterThan(fit.height * 1.5);
+    // The page must not grow with it — the drawing scrolls inside its own container.
+    const [scrollW, innerW] = await page.evaluate(() => [document.documentElement.scrollWidth, window.innerWidth]);
+    expect(scrollW).toBeLessThanOrEqual(innerW);
+
+    await page.getByRole("button", { name: "Zoom out" }).click();
+    await page.getByRole("button", { name: "Zoom out" }).click();
+    expect((await svg.boundingBox())!.width).toBeCloseTo(fit.width, 0);
+  });
+
   test("dragging the fins forward on the diagram re-flies the design less stable", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
