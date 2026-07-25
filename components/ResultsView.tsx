@@ -363,7 +363,7 @@ export default function ResultsView({
             <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-zinc-500 dark:text-zinc-400">
               {/* Overlay a real altimeter log beside the prediction — the predict → fly → compare loop.
                   Parsed in the browser; the file is never uploaded. */}
-              <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-zinc-300 px-2.5 py-1 font-medium text-zinc-600 transition hover:bg-zinc-50 hover:text-zinc-800 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-zinc-100">
+              <label className="print-hide inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-zinc-300 px-2.5 py-1 font-medium text-zinc-600 transition hover:bg-zinc-50 hover:text-zinc-800 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-zinc-100">
                 {log ? "Replace flight log" : "Overlay a flight log"}
                 <input
                   type="file"

@@ -742,6 +742,28 @@ test.describe("Loft", () => {
     expect(csv[1]).toContain(byDelay);
   });
 
+  test("printing a design gives a flight card, not the whole web page", async ({ page }) => {
+    // Printing a design is range paperwork — a card for the RSO, a page for the build notebook.
+    // Without print rules it came out as the site: navigation, theme toggle, buttons nobody can
+    // press on paper. What must survive is the design, its numbers, and the disclaimer.
+    await page.goto("/");
+    await page.getByRole("button", { name: /54 mm dual-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+    await page.emulateMedia({ media: "print" });
+
+    // No controls survive except the wordmark, which says which tool produced the sheet.
+    const controls = await page.$$eval("button, [role=tablist], [role=group], header a, input", (ns) =>
+      ns.filter((n) => n.getBoundingClientRect().height > 0).map((n) => (n.textContent || "").trim().slice(0, 20)),
+    );
+    expect(controls).toEqual(["Loft"]);
+
+    // The design, its numbers, and the estimate-not-a-verdict line all print.
+    await expect(page.getByRole("heading", { name: /Loft Demo 54mm/ })).toBeVisible();
+    await expect(page.getByText("Apogee", { exact: true }).first()).toBeVisible();
+    await expect(page.getByText(/never a go\/no-go verdict/)).toBeVisible();
+    await page.emulateMedia({ media: "screen" });
+  });
+
   test("reports a fin-flutter estimate in the stability readout", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();

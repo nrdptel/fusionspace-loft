@@ -43,7 +43,8 @@ export default function InstallHint() {
 
   return (
     <section className="mt-10">
-      <details className="group rounded-md border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm dark:border-zinc-800 dark:bg-zinc-900/50">
+      {/* print-hide: how to install the app is page furniture, not part of the design being printed. */}
+      <details className="print-hide group rounded-md border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm dark:border-zinc-800 dark:bg-zinc-900/50">
         <summary className="cursor-pointer select-none font-medium text-zinc-700 dark:text-zinc-300">
           Use it offline &amp; install it
         </summary>

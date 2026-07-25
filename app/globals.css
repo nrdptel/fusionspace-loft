@@ -210,3 +210,78 @@ input[type="number"] {
 :where(.dark) .prose-loft th {
   background: #18181b;
 }
+
+/* --- Print ---------------------------------------------------------------------------------
+ *
+ *  A flyer printing a design is doing range paperwork: a flight card for the RSO, a page for the
+ *  build notebook, a summary to check against the motor's printed data. Without any print rules
+ *  that came out as the whole web page — navigation, theme toggle, tip link, buttons that cannot
+ *  be pressed on paper, and dark-mode colours on a white sheet.
+ *
+ *  What prints is the design and its numbers: the name and summary, the warnings, whichever
+ *  workspace is open (the hidden panels carry `hidden`, so the printed page matches the screen),
+ *  and — always — the estimate-not-a-verdict disclaimer. That line is the honesty posture, so it
+ *  is the one piece of page furniture that must never be printed away.
+ */
+@media print {
+  :root,
+  :root.dark,
+  :root.light {
+    color-scheme: light;
+  }
+  html,
+  body {
+    background: #fff !important;
+    color: #18181b !important;
+  }
+  /* Ink, not screen: flatten the card shading and let the borders carry the structure. */
+  *,
+  *::before,
+  *::after {
+    background-image: none !important;
+    box-shadow: none !important;
+  }
+  main > * > .rounded-xl,
+  main > * > .rounded-lg,
+  section {
+    background: #fff !important;
+  }
+  /* Controls, navigation, and anything that only makes sense to press on a screen. The Loft
+     wordmark stays: a sheet of numbers should say which tool produced it. */
+  header a:not([href="/"]),
+  header button,
+  footer nav,
+  [role="tablist"],
+  [role="group"],
+  button,
+  input,
+  .print-hide {
+    display: none !important;
+  }
+  /* What is on screen is what prints — a collapsed panel stays collapsed, so the page is
+     predictable and the reader decides what to open before printing. A lone summary for a panel
+     with nothing showing is just noise, though. */
+  details:not([open]) > summary {
+    display: none !important;
+  }
+  /* Don't split a card, a table row, or a chart across a page break. */
+  section,
+  figure,
+  table,
+  tr {
+    break-inside: avoid;
+  }
+  h1,
+  h2,
+  h3 {
+    break-after: avoid;
+  }
+  a[href] {
+    text-decoration: none;
+    color: inherit;
+  }
+  footer {
+    margin-top: 1.5rem !important;
+    break-inside: avoid;
+  }
+}
