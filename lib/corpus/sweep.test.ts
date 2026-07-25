@@ -45,7 +45,10 @@ const KNOWN_ISSUES: Record<string, string> = {
     "geometry — max acceleration reads 52% off, a pre-deployment number — so it is not a usable " +
     "accuracy oracle.",
   "TubeFins1.rkt::C6-5":
-    "Synthetic import-test file whose stored per-part masses weigh the tube fins as solid rods.",
+    "Synthetic import-test file whose stored per-part masses weigh the tube fins as solid rods. " +
+    "Its apogee happens to land within 6% while max velocity reads 25% and max acceleration 60% " +
+    "high — the file flies a much heavier rocket than its own geometry describes, so agreeing " +
+    "with its apogee would be two errors cancelling, not accuracy.",
   "FullScaleModelTH.rkt::L1940X-0":
     "Zero-delay configuration: the charge fires at burnout at 236 m/s and the canopy opens while " +
     "still climbing. Loft models the deployment but not the shredding that RockSim's numbers imply.",
@@ -60,6 +63,10 @@ interface Case {
   file: string;
   sim: string;
   pctError: number;
+  /** Max velocity, where the file stores one. Apogee alone can agree for the wrong reasons —
+   *  a heavier rocket that also drags less reaches a similar height on a different trajectory —
+   *  so the speed it got there at is what separates accuracy from cancelling errors. */
+  velPctError?: number;
 }
 
 function corpusFiles(): { path: string; name: string }[] {
@@ -123,9 +130,15 @@ suite("real-design corpus", () => {
         }
         const apogee = run.validation?.comparisons.find((c) => c.key === "maxAltitude");
         if (!run.hasPropulsion || !apogee || !Number.isFinite(apogee.pctError)) continue;
+        const vel = run.validation?.comparisons.find((c) => c.key === "maxVelocity");
         const short = shortName(f.name);
         const known = KNOWN_ISSUES[`${short}::${sim.name}`] ?? KNOWN_ISSUES[short];
-        const c: Case = { file: short, sim: sim.name, pctError: apogee.pctError };
+        const c: Case = {
+          file: short,
+          sim: sim.name,
+          pctError: apogee.pctError,
+          velPctError: vel && Number.isFinite(vel.pctError) ? vel.pctError : undefined,
+        };
         if (known) {
           excused.push(c);
           continue;
@@ -141,12 +154,26 @@ suite("real-design corpus", () => {
     }
 
     // A known issue that has quietly come good should be un-excused rather than left hidden.
-    const fixed = excused.filter((c) => Math.abs(c.pctError) <= TOLERANCE_PCT / 2);
+    // Apogee alone isn't enough to say so: several of these files store results their own
+    // geometry can't produce, and one of them agrees on apogee while reading 25% high on speed.
+    // Requiring the trajectory to agree too keeps the nudge from arming a coincidence.
+    const fixed = excused.filter(
+      (c) =>
+        Math.abs(c.pctError) <= TOLERANCE_PCT / 2 &&
+        c.velPctError !== undefined &&
+        Math.abs(c.velPctError) <= TOLERANCE_PCT,
+    );
     if (fixed.length) {
       console.log(
-        `corpus: ${fixed.length} known-issue case(s) now well inside tolerance — ` +
+        `corpus: ${fixed.length} known-issue case(s) now agree on apogee AND speed — ` +
           `consider dropping their KNOWN_ISSUES entry:\n` +
-          fixed.map((c) => `  ${c.file} [${c.sim}] ${c.pctError.toFixed(1)}%`).join("\n"),
+          fixed
+            .map(
+              (c) =>
+                `  ${c.file} [${c.sim}] apogee ${c.pctError.toFixed(1)}%, ` +
+                `max velocity ${c.velPctError!.toFixed(1)}%`,
+            )
+            .join("\n"),
       );
     }
 

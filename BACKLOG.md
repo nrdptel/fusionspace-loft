@@ -30,8 +30,9 @@ not yet done. Newest first. One line each. Anything here is fair game for the ne
   own. Harmless for the 3-DOF solve; a real gap the day rotational dynamics arrive.
 - Two RockSim corpus fixtures store results that don't match their own geometry (`TubeFins1.rkt`
   weighs its tube fins as solid rods; `rocksimTestRocket1.rkt` reads 52% low on max acceleration,
-  a pre-deployment number) — both are OpenRocket's synthetic import-test files, so they want a
-  `knownIssue` marking them unusable as accuracy oracles once the corpus suite exists.
+  a pre-deployment number) — both are OpenRocket's synthetic import-test files, and both are now
+  excused in the sweep as unusable oracles. They still cost coverage: nothing else in the corpus
+  exercises tube fins against stored results, so that geometry has no accuracy check at all.
 - ThrustCurve has no RASP file for Cesaroni H225-14A (RockSim `.rse` only); an `.rse` curve reader
   would unlock it and a long tail of other motors that only ship in that format.
 - RocketPy `.py` / `.ipynb` design scripts don't import; the corpus carries three, two of
