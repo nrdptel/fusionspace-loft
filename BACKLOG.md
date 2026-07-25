@@ -3,10 +3,22 @@
 Rough edges, missing affordances, and ideas too big for one pass — noticed while working,
 not yet done. Newest first. One line each. Anything here is fair game for the next session.
 
-- 29 distinct motors across 15 real corpus design files still resolve to nothing (AeroTech
-  G74W/H283ST/H550ST/L1940X/N1000W, Cesaroni J285/J420-CL/H120/H225/2546K300, Quest C12/D16/
-  E35W/F41W, Estes 1/4A3–A3, Apogee C10/E6, HyperTEK 2800CC172L) — bundle their ThrustCurve
-  curves so those designs fly at all.
+- Touch targets still under 44 px on a phone after the sweep: the header's Tip/Docs links and the
+  theme toggle read 26 px, "Download flight data" 26 px, "← Import another" 40 px, "Download .ork"
+  42 px, and the "how this is measured" disclosure 38 px. The shared `TOUCH_TARGET` utility is
+  applied to the header links and lands in the built HTML, but they still measure 26 px — worth
+  finding out why before sprinkling it further.
+- RASAero `.CDX1` import is blocked on one design call, not on parsing: the format is a small,
+  ordered XML part list (inches/pounds) that also stores RASAero's own predicted apogee, but it
+  carries NO materials or per-part masses — only `SustainerLaunchWt` and `SustainerCG`. Flying it
+  needs the internal model to express "the whole vehicle weighs X loaded with its CG at Y", with
+  the resolved motor's mass subtracted from the structure, rather than per-component overrides.
+- Two RockSim corpus fixtures store results that don't match their own geometry (`TubeFins1.rkt`
+  weighs its tube fins as solid rods; `rocksimTestRocket1.rkt` reads 52% low on max acceleration,
+  a pre-deployment number) — both are OpenRocket's synthetic import-test files, so they want a
+  `knownIssue` marking them unusable as accuracy oracles once the corpus suite exists.
+- ThrustCurve has no RASP file for Cesaroni H225-14A (RockSim `.rse` only); an `.rse` curve reader
+  would unlock it and a long tail of other motors that only ship in that format.
 - RASAero `.CDX1` files don't import (4 in the corpus): the adapter would be thin — `.CDX1`
   is plain XML — and it unlocks a whole tool family plus one cross-tool same-design group.
 - RocketPy `.py` / `.ipynb` design scripts don't import; the corpus carries three, two of

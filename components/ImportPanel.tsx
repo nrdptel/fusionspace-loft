@@ -2,6 +2,8 @@
 
 import { useRef, useState } from "react";
 
+import { TOUCH_TARGET } from "./ui";
+
 /** The import surface: a large drop zone / file picker for an OpenRocket `.ork` or RockSim
  *  `.rkt`, plus one-tap buttons to load the bundled sample designs so the tool is usable before
  *  you have a file. Mobile first — the whole thing is tap-friendly and one-handed. */
@@ -55,7 +57,7 @@ export default function ImportPanel({
             type="button"
             disabled={busy}
             onClick={() => inputRef.current?.click()}
-            className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-indigo-500 disabled:opacity-60"
+            className={`inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-indigo-500 disabled:opacity-60 ${TOUCH_TARGET}`}
           >
             {busy ? "Working…" : "Choose a file"}
           </button>
@@ -75,7 +77,7 @@ export default function ImportPanel({
             type="button"
             disabled={busy}
             onClick={onNew}
-            className="inline-flex items-center gap-2 rounded-lg border border-zinc-300 bg-white px-4 py-2.5 text-sm font-medium text-zinc-700 transition hover:border-indigo-400 hover:text-zinc-900 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:text-zinc-100"
+            className={`inline-flex items-center gap-2 rounded-lg border border-zinc-300 bg-white px-4 py-2.5 text-sm font-medium text-zinc-700 transition hover:border-indigo-400 hover:text-zinc-900 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:text-zinc-100 ${TOUCH_TARGET}`}
           >
             Start a new design
           </button>
@@ -95,7 +97,7 @@ export default function ImportPanel({
             type="button"
             disabled={busy}
             onClick={() => onSample("/samples/demo-single-deploy.ork", "38 mm single-deploy (H128W)")}
-            className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-700 transition hover:border-indigo-400 hover:text-zinc-900 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:text-zinc-100"
+            className={`inline-flex items-center rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-700 transition hover:border-indigo-400 hover:text-zinc-900 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:text-zinc-100 ${TOUCH_TARGET}`}
           >
             38 mm single-deploy · H128W
           </button>
@@ -103,7 +105,7 @@ export default function ImportPanel({
             type="button"
             disabled={busy}
             onClick={() => onSample("/samples/demo-dual-deploy.ork", "54 mm dual-deploy (K550W)")}
-            className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-700 transition hover:border-indigo-400 hover:text-zinc-900 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:text-zinc-100"
+            className={`inline-flex items-center rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-700 transition hover:border-indigo-400 hover:text-zinc-900 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:text-zinc-100 ${TOUCH_TARGET}`}
           >
             54 mm dual-deploy · K550W
           </button>
@@ -111,7 +113,7 @@ export default function ImportPanel({
             type="button"
             disabled={busy}
             onClick={() => onSample("/samples/demo-multi-config.ork", "Motor comparison (H128W / G40W)")}
-            className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-700 transition hover:border-indigo-400 hover:text-zinc-900 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:text-zinc-100"
+            className={`inline-flex items-center rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-700 transition hover:border-indigo-400 hover:text-zinc-900 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:text-zinc-100 ${TOUCH_TARGET}`}
           >
             Motor comparison · H128W / G40W
           </button>
@@ -119,7 +121,7 @@ export default function ImportPanel({
             type="button"
             disabled={busy}
             onClick={() => onSample("/samples/demo-rocksim.rkt", "RockSim 54 mm sport (J420R)")}
-            className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-700 transition hover:border-indigo-400 hover:text-zinc-900 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:text-zinc-100"
+            className={`inline-flex items-center rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-700 transition hover:border-indigo-400 hover:text-zinc-900 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:text-zinc-100 ${TOUCH_TARGET}`}
           >
             RockSim · 54 mm sport · J420R
           </button>

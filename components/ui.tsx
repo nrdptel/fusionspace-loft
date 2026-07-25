@@ -2,6 +2,12 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 
+/** A 44 px minimum hit target on touch layouts, released back to the design's own density on
+ *  pointer layouts (`sm:` and up). 44 px is the Apple HIG / WCAG 2.5.5 figure, and it is not a
+ *  nicety here: the stated phone use is a pad check with gloves on. Desktop deliberately keeps its
+ *  tighter spacing — the two form factors are tuned separately, not stretched from one layout. */
+export const TOUCH_TARGET = "min-h-11 sm:min-h-0";
+
 export interface Option<T extends string> {
   value: T;
   label: string;
@@ -37,7 +43,9 @@ export function Segmented<T extends string>({
             aria-pressed={active}
             onClick={() => onChange(o.value)}
             className={
-              "rounded-md font-medium transition " +
+              "inline-flex items-center justify-center rounded-md font-medium transition " +
+              TOUCH_TARGET +
+              " " +
               pad +
               " " +
               (active
@@ -103,7 +111,9 @@ export function Tabs({
             onClick={() => onChange(t.id)}
             onKeyDown={(e) => move(e, i)}
             className={
-              "shrink-0 whitespace-nowrap border-b-2 px-3.5 py-2 text-sm font-medium outline-none transition focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-400 " +
+              "inline-flex shrink-0 items-center whitespace-nowrap border-b-2 px-3.5 py-2 text-sm font-medium outline-none transition focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-400 " +
+              TOUCH_TARGET +
+              " " +
               (active
                 ? "border-indigo-500 text-zinc-900 dark:border-indigo-400 dark:text-zinc-100"
                 : "border-transparent text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200")
