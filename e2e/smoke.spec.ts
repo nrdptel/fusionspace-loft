@@ -705,6 +705,43 @@ test.describe("Loft", () => {
     expect(csv).toContain("H128W");
   });
 
+  test("the motor comparison sorts by any column, and the export follows it", async ({ page }) => {
+    // "Which motor gets me to my target?" is only the first question this table answers. Which one
+    // clears the rail fastest, which leaves the most flutter margin, which needs the shortest delay
+    // — each is a real reason to pick a motor, and each was unreachable in a fixed-order table.
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+    await page.getByRole("tab", { name: "Analyze" }).click();
+    const panel = page.getByRole("region", { name: "Motor sweep" });
+    await panel.getByRole("button", { name: /Run motor sweep/ }).click();
+    await expect(panel.locator("tbody tr").first()).toBeVisible();
+
+    const firstMotor = async () => (await panel.locator("tbody tr").first().innerText()).split(/\s|·/)[0];
+    // Default is apogee, biggest first.
+    const highest = await firstMotor();
+    await panel.getByRole("button", { name: /^Apogee/ }).click();
+    const lowest = await firstMotor();
+    expect(lowest).not.toBe(highest);
+
+    // A different column orders on its own terms, and the header says which way. (Delay tracks
+    // apogee — a faster motor coasts longer — so this checks the column itself, not the row order.)
+    await panel.getByRole("button", { name: /^Delay/ }).click();
+    await expect(panel.locator('th[aria-sort="descending"]')).toHaveCount(1);
+    const delays = (await panel.locator("tbody tr td:last-child").allInnerTexts()).map((t) => parseFloat(t));
+    expect(delays.length).toBeGreaterThan(3);
+    expect(delays).toEqual([...delays].sort((a, b) => b - a));
+    const byDelay = await firstMotor();
+
+    // The CSV comes out in the order on screen, not the order it was computed in.
+    const [download] = await Promise.all([
+      page.waitForEvent("download"),
+      panel.getByRole("button", { name: /Download CSV/ }).click(),
+    ]);
+    const csv = readFileSync(await download.path(), "utf8").split(/\r?\n/);
+    expect(csv[1]).toContain(byDelay);
+  });
+
   test("reports a fin-flutter estimate in the stability readout", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();

@@ -153,26 +153,84 @@ function sweepCsv(rows: MotorSweepRow[], units: UnitSystem): CsvCell[][] {
   return [header, ...body];
 }
 
+/** The sortable columns, and what each sorts on. Apogee descending is the default because the
+ *  question this table exists to answer is "how high does each of these get me?" — but it is only
+ *  the first question. Which motor clears the rail fastest, which leaves the most flutter margin,
+ *  which needs the shortest delay: each is one click, and each is a real reason to pick a motor. */
+const COLUMNS = [
+  { key: "designation", label: "Motor", numeric: false, get: (r: MotorSweepRow) => r.designation },
+  { key: "motorClass", label: "Class", numeric: false, get: (r: MotorSweepRow) => r.motorClass },
+  { key: "apogee", label: "Apogee", numeric: true, get: (r: MotorSweepRow) => r.apogee },
+  { key: "maxVelocity", label: "Max V", numeric: true, get: (r: MotorSweepRow) => r.maxVelocity },
+  { key: "railExitVelocity", label: "Rail exit", numeric: true, get: (r: MotorSweepRow) => r.railExitVelocity },
+  { key: "thrustToWeight", label: "T:W", numeric: true, get: (r: MotorSweepRow) => r.thrustToWeight },
+  { key: "staticMarginCal", label: "Margin", numeric: true, get: (r: MotorSweepRow) => r.staticMarginCal },
+  { key: "flutterMargin", label: "Flutter", numeric: true, get: (r: MotorSweepRow) => r.flutterMargin },
+  { key: "optimumDelay", label: "Delay", numeric: true, get: (r: MotorSweepRow) => r.optimumDelay },
+] as const;
+
+type SortKey = (typeof COLUMNS)[number]["key"];
+
 function SweepTable({ rows, units, name }: { rows: MotorSweepRow[]; units: UnitSystem; name: string }) {
+  const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: "apogee", dir: -1 });
+  const col = COLUMNS.find((c) => c.key === sort.key)!;
+  const sorted = [...rows].sort((a, b) => {
+    const x = col.get(a);
+    const y = col.get(b);
+    // A motor with no flutter estimate (no fins to flutter) sorts last either way rather than
+    // pretending to be the best or worst of them.
+    if (typeof x === "number" && typeof y === "number") {
+      const xb = !Number.isFinite(x);
+      const yb = !Number.isFinite(y);
+      if (xb || yb) return xb && yb ? 0 : xb ? 1 : -1;
+      return (x - y) * sort.dir;
+    }
+    return String(x).localeCompare(String(y)) * sort.dir;
+  });
+  const click = (key: SortKey) =>
+    setSort((cur) =>
+      // Re-clicking the sorted column flips it; a new column starts the way that column is most
+      // useful — biggest first for a number, A→Z for a name.
+      cur.key === key
+        ? { key, dir: (cur.dir === 1 ? -1 : 1) as 1 | -1 }
+        : { key, dir: (COLUMNS.find((c) => c.key === key)!.numeric ? -1 : 1) as 1 | -1 },
+    );
+
   return (
     <div className="mt-3">
       <div className="overflow-x-auto">
         <table className="w-full text-sm tabular-nums">
           <thead>
             <tr className="text-left text-[11px] uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-              <th className="py-1 pr-4 font-medium">Motor</th>
-              <th className="py-1 pr-4 font-medium">Class</th>
-              <th className="py-1 pr-4 font-medium">Apogee</th>
-              <th className="py-1 pr-4 font-medium">Max&nbsp;V</th>
-              <th className="py-1 pr-4 font-medium">Rail&nbsp;exit</th>
-              <th className="py-1 pr-4 font-medium">T:W</th>
-              <th className="py-1 pr-4 font-medium">Margin</th>
-              <th className="py-1 pr-4 font-medium">Flutter</th>
-              <th className="py-1 font-medium">Delay</th>
+              {COLUMNS.map((c, i) => {
+                const active = sort.key === c.key;
+                return (
+                  <th
+                    key={c.key}
+                    className={"py-1 font-medium" + (i < COLUMNS.length - 1 ? " pr-4" : "")}
+                    aria-sort={active ? (sort.dir === 1 ? "ascending" : "descending") : "none"}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => click(c.key)}
+                      className={
+                        "inline-flex items-center gap-1 uppercase tracking-wide hover:text-zinc-800 dark:hover:text-zinc-100 " +
+                        (active ? "text-zinc-800 dark:text-zinc-100" : "")
+                      }
+                      title={`Sort by ${c.label.replace(/ /g, " ").toLowerCase()}`}
+                    >
+                      {c.label}
+                      <span aria-hidden className={active ? "" : "opacity-0"}>
+                        {sort.dir === 1 ? "▲" : "▼"}
+                      </span>
+                    </button>
+                  </th>
+                );
+              })}
             </tr>
           </thead>
           <tbody className="font-mono">
-            {rows.map((r) => {
+            {sorted.map((r) => {
               const lowTW = r.thrustToWeight < TW_RULE_OF_THUMB;
               const thinFlutter = Number.isFinite(r.flutterMargin) && r.flutterMargin < RECOMMENDED_FLUTTER_MARGIN;
               return (
@@ -244,7 +302,9 @@ function SweepTable({ rows, units, name }: { rows: MotorSweepRow[]; units: UnitS
         to verify, never a go/no-go.
       </p>
       <div className="mt-2">
-        <DownloadCsv rows={sweepCsv(rows, units)} name={name} suffix="motor-sweep" />
+        {/* Exported in the order on screen — a table you sorted and then exported unsorted is a
+            different table from the one you were reading. */}
+        <DownloadCsv rows={sweepCsv(sorted, units)} name={name} suffix="motor-sweep" />
       </div>
     </div>
   );
