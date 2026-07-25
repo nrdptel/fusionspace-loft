@@ -3,17 +3,23 @@
 Rough edges, missing affordances, and ideas too big for one pass — noticed while working,
 not yet done. Newest first. One line each. Anything here is fair game for the next session.
 
-- The Analyze workspace is four full-width cards of prose with one button each — a menu, not a work
-  surface. A single column wastes the desktop width, nothing a run produced survives switching tabs,
-  and there's no saved-view or preset idea anywhere. OpenRocket's simulation tab is a table of runs
-  you can re-run, edit, plot and export; that's the benchmark this surface is furthest from.
-- The desktop landing page fills about half the width and never says what Loft can do past import —
-  no mention of the sweeps, dispersion, cross-check, or the builder that are one click away.
+- The Monte-Carlo tolerances, the sweep's variable/metric choice and the motor table's sort order
+  are the last controls that forget: the design, units, configuration and what-ifs now survive a
+  reload but these reset. Same shape as the session work — they belong in the same saved state.
+- The Analyze workspace's empty state is four full-width cards of prose with one button each, which
+  reads as a menu; once run, the panels themselves are dense and good. Worth compressing the idle
+  state so all four fit above the fold and the width isn't spent on a single column.
+- A design library: Loft holds exactly one design at a time. A flyer working across a build wants
+  several, and the session store already has the pieces (bytes + name + edits) to keep a list.
+- The phone's design what-if panel is still a two-column grid of ~24 small fields, and the diagram
+  defaults to fit-width (now zoomable, but fit on a 29:1 airframe is 11 px of body). The natural
+  next step is per-component editing driven by the diagram selection that landed this session.
 - The design what-if panel is a wall of ~24 number fields. Only the fins, body wall and boattail
   have diagram handles; nose, recovery, payload, materials and finish are typing-only.
-- The parts list is read-only and one-directional (a row highlights the diagram, not the reverse),
-  hidden behind a disclosure, and carries no mass. OpenRocket's editor has a selectable component
-  tree with add/delete, which is the gap that keeps Loft's editor feeling like a viewer with fields.
+- The parts list selects both ways now, but it is still read-only and carries no mass. What
+  OpenRocket's component tree has and Loft's doesn't is add and delete, and a selected part opening
+  its own fields — that is the gap that keeps the editor feeling like a viewer with fields beside it.
+  (`PointMass.source` is a name string, not a component id, so a mass column needs that link first.)
 - Corpus fetch is still unwired: no lock file pinning repo/tag/asset/sha256, no `fetch-fixtures`
   step, no CI secret. Blocked on two owner-side actions — cutting a release asset in `loft-fixtures`
   and adding `FIXTURES_TOKEN` — so the suite still only gates a machine that already has the files.
