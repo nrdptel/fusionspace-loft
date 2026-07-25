@@ -20,6 +20,10 @@ export interface CatalogSource {
   /** ThrustCurve.org's common (class-and-thrust) name, e.g. "J285" for part number
    *  "648J285-15A" — the other published name a design file may reference. */
   commonName: string | null;
+  /** Certified casing diameter (mm), which wins over the RASP header's. */
+  diameterMm: number | null;
+  /** Certified casing length (mm), likewise. */
+  lengthMm: number | null;
 }
 
 export interface CatalogEntry {
@@ -37,9 +41,11 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "simfileId": "5f4294d20002e90000000482",
       "license": null,
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000482/",
-      "designation": "L1100RR",
+      "designation": "RR-54-2550",
       "manufacturer": "Animal Motor Works",
-      "commonName": null
+      "commonName": "L1100",
+      "diameterMm": 54,
+      "lengthMm": 728
     }
   },
   {
@@ -52,7 +58,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000027d/",
       "designation": "D21T",
       "manufacturer": "AeroTech",
-      "commonName": null
+      "commonName": "D21",
+      "diameterMm": 18,
+      "lengthMm": 70
     }
   },
   {
@@ -65,7 +73,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "infoUrl": "https://www.thrustcurve.org/simfiles/62431a34ee302a00044520da/",
       "designation": "E30T",
       "manufacturer": "AeroTech",
-      "commonName": null
+      "commonName": "E30",
+      "diameterMm": 24,
+      "lengthMm": 70
     }
   },
   {
@@ -78,7 +88,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000045b/",
       "designation": "F50T",
       "manufacturer": "AeroTech",
-      "commonName": null
+      "commonName": "F50",
+      "diameterMm": 29,
+      "lengthMm": 98
     }
   },
   {
@@ -89,9 +101,26 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "simfileId": "5f4294d20002e9000000045c",
       "license": null,
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000045c/",
-      "designation": "F52",
+      "designation": "F52T",
       "manufacturer": "AeroTech",
-      "commonName": null
+      "commonName": "F52",
+      "diameterMm": 29,
+      "lengthMm": 124
+    }
+  },
+  {
+    "eng": "F67C 29 112.3 6-9-14 0.0368 0.08567000000000001 AT\n   0.009 0.892\n   0.024 3.569\n   0.033 20.223\n   0.042 43.717\n   0.055 57.1\n   0.075 61.561\n   0.104 58.885\n   0.126 60.074\n   0.157 58.885\n   0.261 60.669\n   0.402 61.561\n   0.544 61.264\n   0.659 60.669\n   0.683 63.643\n   0.692 68.699\n   0.703 60.074\n   0.776 59.777\n   0.91 58.885\n   1.006 58.29\n   1.096 57.1\n   1.167 57.1\n   1.211 56.803\n   1.269 51.152\n   1.308 44.015\n   1.333 33.903\n   1.344 22.305\n   1.364 13.086\n   1.406 5.353\n   1.456 0.0\n",
+    "source": {
+      "file": "AeroTech_F67C.eng",
+      "motorId": "63628d72a244550004a0cf0a",
+      "simfileId": "639413fa1766e20004fd1199",
+      "license": "PD",
+      "infoUrl": "https://www.thrustcurve.org/simfiles/639413fa1766e20004fd1199/",
+      "designation": "F67C",
+      "manufacturer": "AeroTech",
+      "commonName": "F67",
+      "diameterMm": 29,
+      "lengthMm": null
     }
   },
   {
@@ -104,7 +133,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000088a/",
       "designation": "F67W",
       "manufacturer": "AeroTech",
-      "commonName": null
+      "commonName": "F67",
+      "diameterMm": 29,
+      "lengthMm": 83
     }
   },
   {
@@ -117,7 +148,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000463/",
       "designation": "G40W",
       "manufacturer": "AeroTech",
-      "commonName": null
+      "commonName": "G40",
+      "diameterMm": 29,
+      "lengthMm": 124
     }
   },
   {
@@ -128,9 +161,11 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "simfileId": "5f4294d20002e9000000081a",
       "license": null,
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000081a/",
-      "designation": "G64BF",
+      "designation": "G64W",
       "manufacturer": "AeroTech",
-      "commonName": null
+      "commonName": "G64",
+      "diameterMm": 29,
+      "lengthMm": 124
     }
   },
   {
@@ -143,7 +178,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000007f0/",
       "designation": "G74W",
       "manufacturer": "AeroTech",
-      "commonName": "G74"
+      "commonName": "G74",
+      "diameterMm": 29,
+      "lengthMm": 93
     }
   },
   {
@@ -156,7 +193,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000120/",
       "designation": "G77R",
       "manufacturer": "AeroTech",
-      "commonName": null
+      "commonName": "G77",
+      "diameterMm": 29,
+      "lengthMm": 150
     }
   },
   {
@@ -169,7 +208,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000007dd/",
       "designation": "G80T",
       "manufacturer": "AeroTech",
-      "commonName": null
+      "commonName": "G80",
+      "diameterMm": 29,
+      "lengthMm": 124
     }
   },
   {
@@ -180,9 +221,11 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "simfileId": "5f4294d20002e90000000854",
       "license": "free",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000854/",
-      "designation": "H100W",
+      "designation": "H100W_DMS",
       "manufacturer": "AeroTech",
-      "commonName": null
+      "commonName": "H100",
+      "diameterMm": 38,
+      "lengthMm": 153.10000000000002
     }
   },
   {
@@ -195,7 +238,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000000d/",
       "designation": "H128W",
       "manufacturer": "AeroTech",
-      "commonName": null
+      "commonName": "H128",
+      "diameterMm": 29,
+      "lengthMm": 194
     }
   },
   {
@@ -208,7 +253,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000000f/",
       "designation": "H148R",
       "manufacturer": "AeroTech",
-      "commonName": null
+      "commonName": "H148",
+      "diameterMm": 38,
+      "lengthMm": 152
     }
   },
   {
@@ -221,7 +268,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000013/",
       "designation": "H180W",
       "manufacturer": "AeroTech",
-      "commonName": null
+      "commonName": "H180",
+      "diameterMm": 29,
+      "lengthMm": 238
     }
   },
   {
@@ -234,7 +283,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000019/",
       "designation": "H242T",
       "manufacturer": "AeroTech",
-      "commonName": null
+      "commonName": "H242",
+      "diameterMm": 38,
+      "lengthMm": 152
     }
   },
   {
@@ -247,7 +298,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000872/",
       "designation": "H283ST-15A",
       "manufacturer": "AeroTech",
-      "commonName": "H283"
+      "commonName": "H283",
+      "diameterMm": 38,
+      "lengthMm": 155
     }
   },
   {
@@ -260,7 +313,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000873/",
       "designation": "H550ST",
       "manufacturer": "AeroTech",
-      "commonName": "H550"
+      "commonName": "H550",
+      "diameterMm": 38,
+      "lengthMm": 213
     }
   },
   {
@@ -273,7 +328,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000026a/",
       "designation": "H669N",
       "manufacturer": "AeroTech",
-      "commonName": null
+      "commonName": "H669",
+      "diameterMm": 38,
+      "lengthMm": 152
     }
   },
   {
@@ -286,7 +343,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000026b/",
       "designation": "H999N",
       "manufacturer": "AeroTech",
-      "commonName": null
+      "commonName": "H999",
+      "diameterMm": 38,
+      "lengthMm": 203
     }
   },
   {
@@ -299,7 +358,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000007d7/",
       "designation": "HP-H135W",
       "manufacturer": "AeroTech",
-      "commonName": "H135"
+      "commonName": "H135",
+      "diameterMm": 29,
+      "lengthMm": 216
     }
   },
   {
@@ -312,7 +373,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000423/",
       "designation": "I115W",
       "manufacturer": "AeroTech",
-      "commonName": null
+      "commonName": "I115",
+      "diameterMm": 54,
+      "lengthMm": 156
     }
   },
   {
@@ -325,7 +388,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000273/",
       "designation": "I1299N",
       "manufacturer": "AeroTech",
-      "commonName": "I1299"
+      "commonName": "I1299",
+      "diameterMm": 38,
+      "lengthMm": 249
     }
   },
   {
@@ -338,7 +403,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000002d/",
       "designation": "I161W",
       "manufacturer": "AeroTech",
-      "commonName": null
+      "commonName": "I161",
+      "diameterMm": 38,
+      "lengthMm": 191
     }
   },
   {
@@ -351,7 +418,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000033/",
       "designation": "I200W",
       "manufacturer": "AeroTech",
-      "commonName": null
+      "commonName": "I200",
+      "diameterMm": 29,
+      "lengthMm": 333
     }
   },
   {
@@ -364,7 +433,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000035/",
       "designation": "I211W",
       "manufacturer": "AeroTech",
-      "commonName": null
+      "commonName": "I211",
+      "diameterMm": 38,
+      "lengthMm": 248
     }
   },
   {
@@ -377,7 +448,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000003b/",
       "designation": "I284W",
       "manufacturer": "AeroTech",
-      "commonName": null
+      "commonName": "I284",
+      "diameterMm": 38,
+      "lengthMm": 299
     }
   },
   {
@@ -390,7 +463,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000046a/",
       "designation": "I300T",
       "manufacturer": "AeroTech",
-      "commonName": "I300"
+      "commonName": "I300",
+      "diameterMm": 38,
+      "lengthMm": 250
     }
   },
   {
@@ -403,7 +478,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000003f/",
       "designation": "I357T",
       "manufacturer": "AeroTech",
-      "commonName": null
+      "commonName": "I357",
+      "diameterMm": 38,
+      "lengthMm": 203
     }
   },
   {
@@ -416,7 +493,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000660/",
       "designation": "I59WN",
       "manufacturer": "AeroTech",
-      "commonName": null
+      "commonName": "I59",
+      "diameterMm": 38,
+      "lengthMm": 232
     }
   },
   {
@@ -429,7 +508,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000053/",
       "designation": "J315R",
       "manufacturer": "AeroTech",
-      "commonName": "J315"
+      "commonName": "J315",
+      "diameterMm": 54,
+      "lengthMm": 230
     }
   },
   {
@@ -440,9 +521,11 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "simfileId": "5f4294d20002e900000002a7",
       "license": "PD",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000002a7/",
-      "designation": "J350W",
+      "designation": "J350W-OLD",
       "manufacturer": "AeroTech",
-      "commonName": null
+      "commonName": "J350",
+      "diameterMm": 38,
+      "lengthMm": 337
     }
   },
   {
@@ -455,7 +538,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000057/",
       "designation": "J420R",
       "manufacturer": "AeroTech",
-      "commonName": null
+      "commonName": "J420",
+      "diameterMm": 38,
+      "lengthMm": 337
     }
   },
   {
@@ -468,7 +553,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000029e/",
       "designation": "J500G",
       "manufacturer": "AeroTech",
-      "commonName": null
+      "commonName": "J500",
+      "diameterMm": 38,
+      "lengthMm": 345
     }
   },
   {
@@ -481,7 +568,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000005d/",
       "designation": "J570W",
       "manufacturer": "AeroTech",
-      "commonName": null
+      "commonName": "J570",
+      "diameterMm": 38,
+      "lengthMm": 479
     }
   },
   {
@@ -494,7 +583,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000005f/",
       "designation": "J800T",
       "manufacturer": "AeroTech",
-      "commonName": null
+      "commonName": "J800",
+      "diameterMm": 54,
+      "lengthMm": 316
     }
   },
   {
@@ -507,7 +598,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000061/",
       "designation": "J90W",
       "manufacturer": "AeroTech",
-      "commonName": "J90"
+      "commonName": "J90",
+      "diameterMm": 54,
+      "lengthMm": 243
     }
   },
   {
@@ -520,7 +613,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000564/",
       "designation": "K1050W",
       "manufacturer": "AeroTech",
-      "commonName": null
+      "commonName": "K1050",
+      "diameterMm": 54,
+      "lengthMm": 627
     }
   },
   {
@@ -533,7 +628,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000067/",
       "designation": "K1275R",
       "manufacturer": "AeroTech",
-      "commonName": null
+      "commonName": "K1275",
+      "diameterMm": 54,
+      "lengthMm": 568
     }
   },
   {
@@ -546,7 +643,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000006b/",
       "designation": "K250W",
       "manufacturer": "AeroTech",
-      "commonName": null
+      "commonName": "K250",
+      "diameterMm": 54,
+      "lengthMm": 673
     }
   },
   {
@@ -559,7 +658,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000071/",
       "designation": "K550W",
       "manufacturer": "AeroTech",
-      "commonName": null
+      "commonName": "K550",
+      "diameterMm": 54,
+      "lengthMm": 410
     }
   },
   {
@@ -572,7 +673,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000079/",
       "designation": "K700W",
       "manufacturer": "AeroTech",
-      "commonName": null
+      "commonName": "K700",
+      "diameterMm": 54,
+      "lengthMm": 568
     }
   },
   {
@@ -583,9 +686,11 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "simfileId": "5f4294d20002e900000007f6",
       "license": "PD",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000007f6/",
-      "designation": "L1000",
+      "designation": "HP-L1000W",
       "manufacturer": "AeroTech",
-      "commonName": null
+      "commonName": "L1000",
+      "diameterMm": 54,
+      "lengthMm": 635
     }
   },
   {
@@ -598,7 +703,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000007f/",
       "designation": "L1150R",
       "manufacturer": "AeroTech",
-      "commonName": "L1150"
+      "commonName": "L1150",
+      "diameterMm": 75,
+      "lengthMm": 530
     }
   },
   {
@@ -611,7 +718,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "infoUrl": "https://www.thrustcurve.org/simfiles/60ac84458dc4640004c24eb6/",
       "designation": "L1940X",
       "manufacturer": "AeroTech",
-      "commonName": "L1940"
+      "commonName": "L1940",
+      "diameterMm": 75,
+      "lengthMm": 560
     }
   },
   {
@@ -624,7 +733,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000083/",
       "designation": "L850W",
       "manufacturer": "AeroTech",
-      "commonName": "L850"
+      "commonName": "L850",
+      "diameterMm": 75,
+      "lengthMm": 531
     }
   },
   {
@@ -637,7 +748,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000085/",
       "designation": "L952W",
       "manufacturer": "AeroTech",
-      "commonName": null
+      "commonName": "L952",
+      "diameterMm": 98,
+      "lengthMm": 427
     }
   },
   {
@@ -650,7 +763,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000093/",
       "designation": "M2400T",
       "manufacturer": "AeroTech",
-      "commonName": null
+      "commonName": "M2400",
+      "diameterMm": 98,
+      "lengthMm": 597
     }
   },
   {
@@ -663,7 +778,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000005c9/",
       "designation": "N1000W",
       "manufacturer": "AeroTech",
-      "commonName": "N1000"
+      "commonName": "N1000",
+      "diameterMm": 98,
+      "lengthMm": 1046
     }
   },
   {
@@ -674,9 +791,11 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "simfileId": "5f4294d20002e90000000884",
       "license": "PD",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000884/",
-      "designation": "N3300R-P",
+      "designation": "N3300R",
       "manufacturer": "AeroTech",
-      "commonName": null
+      "commonName": "N3300",
+      "diameterMm": 98,
+      "lengthMm": 1046
     }
   },
   {
@@ -689,7 +808,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000492/",
       "designation": "C10",
       "manufacturer": "Apogee Components",
-      "commonName": "C10"
+      "commonName": "C10",
+      "diameterMm": 18,
+      "lengthMm": 50
     }
   },
   {
@@ -702,7 +823,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000495/",
       "designation": "E6",
       "manufacturer": "Apogee Components",
-      "commonName": "E6"
+      "commonName": "E6",
+      "diameterMm": 24,
+      "lengthMm": 77
     }
   },
   {
@@ -713,9 +836,11 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "simfileId": "5f4294d20002e9000000074a",
       "license": "PD",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000074a/",
-      "designation": "1266-J760-WT-19A",
-      "manufacturer": "Cesaroni",
-      "commonName": null
+      "designation": "1266J760-19A",
+      "manufacturer": "Cesaroni Technology",
+      "commonName": "J760",
+      "diameterMm": 54,
+      "lengthMm": 329
     }
   },
   {
@@ -728,7 +853,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000143/",
       "designation": "2437K660-17A",
       "manufacturer": "Cesaroni Technology",
-      "commonName": null
+      "commonName": "K660",
+      "diameterMm": 54,
+      "lengthMm": 572
     }
   },
   {
@@ -741,7 +868,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000070f/",
       "designation": "2546K300-P",
       "manufacturer": "Cesaroni Technology",
-      "commonName": "K300"
+      "commonName": "K300",
+      "diameterMm": 54,
+      "lengthMm": 649
     }
   },
   {
@@ -754,7 +883,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000075a/",
       "designation": "411I175-14A",
       "manufacturer": "Cesaroni Technology",
-      "commonName": "I175"
+      "commonName": "I175",
+      "diameterMm": 38,
+      "lengthMm": 245
     }
   },
   {
@@ -767,7 +898,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000674/",
       "designation": "838J293-13A",
       "manufacturer": "Cesaroni Technology",
-      "commonName": null
+      "commonName": "J293",
+      "diameterMm": 54,
+      "lengthMm": 237
     }
   },
   {
@@ -778,9 +911,11 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "simfileId": "5f4294d20002e90000000656",
       "license": null,
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000656/",
-      "designation": "H100-IM",
-      "manufacturer": "Cesaroni",
-      "commonName": null
+      "designation": "286H100-15A",
+      "manufacturer": "Cesaroni Technology",
+      "commonName": "H100",
+      "diameterMm": 38,
+      "lengthMm": 186
     }
   },
   {
@@ -793,7 +928,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000436/",
       "designation": "261H120-14A",
       "manufacturer": "Cesaroni Technology",
-      "commonName": "H120"
+      "commonName": "H120",
+      "diameterMm": 38,
+      "lengthMm": 186
     }
   },
   {
@@ -804,9 +941,11 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "simfileId": "5f4294d20002e9000000013b",
       "license": null,
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000013b/",
-      "designation": "I212SS",
-      "manufacturer": "Cesaroni",
-      "commonName": null
+      "designation": "364I212-14A",
+      "manufacturer": "Cesaroni Technology",
+      "commonName": "I212",
+      "diameterMm": 38,
+      "lengthMm": 244
     }
   },
   {
@@ -817,9 +956,11 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "simfileId": "5f4294d20002e90000000654",
       "license": null,
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000654/",
-      "designation": "I216-CL(I)",
-      "manufacturer": "Cesaroni",
-      "commonName": null
+      "designation": "636I216-14A",
+      "manufacturer": "Cesaroni Technology",
+      "commonName": "I216",
+      "diameterMm": 38,
+      "lengthMm": 367
     }
   },
   {
@@ -830,9 +971,11 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "simfileId": "5f4294d20002e900000002aa",
       "license": "?",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000002aa/",
-      "designation": "I540WT",
-      "manufacturer": "Cesaroni",
-      "commonName": null
+      "designation": "634I540-16A",
+      "manufacturer": "Cesaroni Technology",
+      "commonName": "I540",
+      "diameterMm": 38,
+      "lengthMm": 367
     }
   },
   {
@@ -845,7 +988,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000137/",
       "designation": "648J285-15A",
       "manufacturer": "Cesaroni Technology",
-      "commonName": "J285"
+      "commonName": "J285",
+      "diameterMm": 38,
+      "lengthMm": 360
     }
   },
   {
@@ -858,7 +1003,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000633/",
       "designation": "1008J420-15A",
       "manufacturer": "Cesaroni Technology",
-      "commonName": "J420"
+      "commonName": "J420",
+      "diameterMm": 38,
+      "lengthMm": 500
     }
   },
   {
@@ -869,9 +1016,11 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "simfileId": "5f4294d20002e90000000810",
       "license": null,
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000810/",
-      "designation": "644-J94-MY-P",
-      "manufacturer": "Cesaroni",
-      "commonName": null
+      "designation": "644J94-P",
+      "manufacturer": "Cesaroni Technology",
+      "commonName": "J94",
+      "diameterMm": 38,
+      "lengthMm": 367
     }
   },
   {
@@ -882,9 +1031,11 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "simfileId": "5f4294d20002e90000000852",
       "license": "PD",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000852/",
-      "designation": "K1440",
-      "manufacturer": "Cesaroni",
-      "commonName": null
+      "designation": "2372K1440-17A",
+      "manufacturer": "Cesaroni Technology",
+      "commonName": "K1440",
+      "diameterMm": 54,
+      "lengthMm": 572
     }
   },
   {
@@ -895,9 +1046,11 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "simfileId": "5f4294d20002e9000000074e",
       "license": "PD",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000074e/",
-      "designation": "K261",
-      "manufacturer": "Cesaroni",
-      "commonName": null
+      "designation": "2021K261-P",
+      "manufacturer": "Cesaroni Technology",
+      "commonName": "K261",
+      "diameterMm": 54,
+      "lengthMm": 488
     }
   },
   {
@@ -908,9 +1061,11 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "simfileId": "5f4294d20002e90000000141",
       "license": "?",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000141/",
-      "designation": "K445",
-      "manufacturer": "Cesaroni",
-      "commonName": null
+      "designation": "1635K445-17A",
+      "manufacturer": "Cesaroni Technology",
+      "commonName": "K445",
+      "diameterMm": 54,
+      "lengthMm": 404
     }
   },
   {
@@ -921,9 +1076,11 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "simfileId": "5f4294d20002e90000000147",
       "license": "?",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000147/",
-      "designation": "K530",
-      "manufacturer": "Cesaroni",
-      "commonName": null
+      "designation": "1412K530-16A",
+      "manufacturer": "Cesaroni Technology",
+      "commonName": "K530",
+      "diameterMm": 54,
+      "lengthMm": 404
     }
   },
   {
@@ -934,9 +1091,11 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "simfileId": "5f4294d20002e900000007c6",
       "license": "PD",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000007c6/",
-      "designation": "L1350",
-      "manufacturer": "Cesaroni",
-      "commonName": null
+      "designation": "4263L1350-P",
+      "manufacturer": "Cesaroni Technology",
+      "commonName": "L1350",
+      "diameterMm": 75,
+      "lengthMm": 486
     }
   },
   {
@@ -947,9 +1106,11 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "simfileId": "5f4294d20002e90000000144",
       "license": "?",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000144/",
-      "designation": "L730",
-      "manufacturer": "Cesaroni",
-      "commonName": null
+      "designation": "2765L730-P",
+      "manufacturer": "Cesaroni Technology",
+      "commonName": "L730",
+      "diameterMm": 54,
+      "lengthMm": 649
     }
   },
   {
@@ -960,9 +1121,11 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "simfileId": "5f4294d20002e9000000062c",
       "license": "?",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000062c/",
-      "designation": "M1670",
-      "manufacturer": "Cesaroni",
-      "commonName": null
+      "designation": "6026M1670-P",
+      "manufacturer": "Cesaroni Technology",
+      "commonName": "M1670",
+      "diameterMm": 75,
+      "lengthMm": 757
     }
   },
   {
@@ -973,9 +1136,11 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "simfileId": "5f4294d20002e900000007b5",
       "license": "PD",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000007b5/",
-      "designation": "M2245",
-      "manufacturer": "Cesaroni",
-      "commonName": null
+      "designation": "9977M2245-P",
+      "manufacturer": "Cesaroni Technology",
+      "commonName": "M2245",
+      "diameterMm": 75,
+      "lengthMm": 1025
     }
   },
   {
@@ -986,9 +1151,11 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "simfileId": "5f4294d20002e900000006f9",
       "license": "?",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000006f9/",
-      "designation": "M3400",
-      "manufacturer": "Cesaroni",
-      "commonName": null
+      "designation": "9994M3400-P",
+      "manufacturer": "Cesaroni Technology",
+      "commonName": "M3400",
+      "diameterMm": 98,
+      "lengthMm": 702
     }
   },
   {
@@ -999,9 +1166,11 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "simfileId": "5f4294d20002e900000006c2",
       "license": null,
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000006c2/",
-      "designation": "N3400-SK",
-      "manufacturer": "Cesaroni",
-      "commonName": null
+      "designation": "14263N3400-P",
+      "manufacturer": "Cesaroni Technology",
+      "commonName": "N3400",
+      "diameterMm": 98,
+      "lengthMm": 1239
     }
   },
   {
@@ -1012,9 +1181,11 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "simfileId": "5f4294d20002e900000006fb",
       "license": null,
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000006fb/",
-      "designation": "N3800-BS",
-      "manufacturer": "Cesaroni",
-      "commonName": null
+      "designation": "17631N3800-P",
+      "manufacturer": "Cesaroni Technology",
+      "commonName": "N3800",
+      "diameterMm": 98,
+      "lengthMm": 1239
     }
   },
   {
@@ -1027,7 +1198,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000004e0/",
       "designation": "1/2A3",
       "manufacturer": "Estes Industries",
-      "commonName": "1/2A3"
+      "commonName": "1/2A3",
+      "diameterMm": 13,
+      "lengthMm": 45
     }
   },
   {
@@ -1040,7 +1213,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000004df/",
       "designation": "1/4A3",
       "manufacturer": "Estes Industries",
-      "commonName": "1/4A3"
+      "commonName": "1/4A3",
+      "diameterMm": 13,
+      "lengthMm": 45
     }
   },
   {
@@ -1053,7 +1228,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "infoUrl": "https://www.thrustcurve.org/simfiles/624aff26a49a690004b83002/",
       "designation": "A10",
       "manufacturer": "Estes Industries",
-      "commonName": null
+      "commonName": "A10",
+      "diameterMm": 13,
+      "lengthMm": 45
     }
   },
   {
@@ -1066,7 +1243,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000004e2/",
       "designation": "A3",
       "manufacturer": "Estes Industries",
-      "commonName": "A3"
+      "commonName": "A3",
+      "diameterMm": 13,
+      "lengthMm": 45
     }
   },
   {
@@ -1079,7 +1258,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000004e3/",
       "designation": "A8",
       "manufacturer": "Estes Industries",
-      "commonName": null
+      "commonName": "A8",
+      "diameterMm": 18,
+      "lengthMm": 70
     }
   },
   {
@@ -1092,7 +1273,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000004e5/",
       "designation": "B4",
       "manufacturer": "Estes Industries",
-      "commonName": null
+      "commonName": "B4",
+      "diameterMm": 18,
+      "lengthMm": 70
     }
   },
   {
@@ -1105,7 +1288,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000414/",
       "designation": "B6",
       "manufacturer": "Estes Industries",
-      "commonName": null
+      "commonName": "B6",
+      "diameterMm": 18,
+      "lengthMm": 70
     }
   },
   {
@@ -1118,7 +1303,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000004e8/",
       "designation": "C11",
       "manufacturer": "Estes Industries",
-      "commonName": null
+      "commonName": "C11",
+      "diameterMm": 24,
+      "lengthMm": 70
     }
   },
   {
@@ -1131,7 +1318,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "infoUrl": "https://www.thrustcurve.org/simfiles/69eb2379c7d63000021d8c29/",
       "designation": "C6",
       "manufacturer": "Estes Industries",
-      "commonName": null
+      "commonName": "C6",
+      "diameterMm": 18,
+      "lengthMm": 70
     }
   },
   {
@@ -1144,7 +1333,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000004ea/",
       "designation": "D12",
       "manufacturer": "Estes Industries",
-      "commonName": null
+      "commonName": "D12",
+      "diameterMm": 24,
+      "lengthMm": 70
     }
   },
   {
@@ -1157,7 +1348,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000007ad/",
       "designation": "E12",
       "manufacturer": "Estes Industries",
-      "commonName": null
+      "commonName": "E12",
+      "diameterMm": 24,
+      "lengthMm": 95
     }
   },
   {
@@ -1169,8 +1362,10 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "license": null,
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000007e6/",
       "designation": "E16",
-      "manufacturer": "Estes",
-      "commonName": null
+      "manufacturer": "Estes Industries",
+      "commonName": "E16",
+      "diameterMm": 29,
+      "lengthMm": 114
     }
   },
   {
@@ -1183,7 +1378,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000416/",
       "designation": "E9",
       "manufacturer": "Estes Industries",
-      "commonName": null
+      "commonName": "E9",
+      "diameterMm": 24,
+      "lengthMm": 95
     }
   },
   {
@@ -1195,8 +1392,10 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "license": null,
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000007e5/",
       "designation": "F15",
-      "manufacturer": "Estes",
-      "commonName": null
+      "manufacturer": "Estes Industries",
+      "commonName": "F15",
+      "diameterMm": 29,
+      "lengthMm": 114
     }
   },
   {
@@ -1209,7 +1408,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000000ed/",
       "designation": "2800CC172L-L540",
       "manufacturer": "Hypertek",
-      "commonName": "L540"
+      "commonName": "L540",
+      "diameterMm": 75,
+      "lengthMm": 1387
     }
   },
   {
@@ -1220,9 +1421,11 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "simfileId": "5f4294d20002e90000000864",
       "license": "PD",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000864/",
-      "designation": "G66LR",
-      "manufacturer": "Loki",
-      "commonName": null
+      "designation": "G66-LR",
+      "manufacturer": "Loki Research",
+      "commonName": "G66",
+      "diameterMm": 38,
+      "lengthMm": 122.2
     }
   },
   {
@@ -1233,9 +1436,11 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "simfileId": "5f4294d20002e90000000127",
       "license": "?",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000127/",
-      "designation": "J528",
-      "manufacturer": "Loki",
-      "commonName": null
+      "designation": "J528-LW",
+      "manufacturer": "Loki Research",
+      "commonName": "J528",
+      "diameterMm": 38,
+      "lengthMm": 419
     }
   },
   {
@@ -1246,9 +1451,11 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "simfileId": "5f4294d20002e90000000836",
       "license": "free",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000836/",
-      "designation": "K1127LB",
-      "manufacturer": "Loki",
-      "commonName": null
+      "designation": "K1127-LB",
+      "manufacturer": "Loki Research",
+      "commonName": "K1127",
+      "diameterMm": 38,
+      "lengthMm": 625.5
     }
   },
   {
@@ -1259,9 +1466,11 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "simfileId": "5f4294d20002e90000000861",
       "license": "PD",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000861/",
-      "designation": "K627",
-      "manufacturer": "Loki",
-      "commonName": null
+      "designation": "K627LR",
+      "manufacturer": "Loki Research",
+      "commonName": "K627",
+      "diameterMm": 38,
+      "lengthMm": 625.48
     }
   },
   {
@@ -1272,9 +1481,11 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "simfileId": "5f4294d20002e9000000012c",
       "license": "?",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000012c/",
-      "designation": "L1400",
-      "manufacturer": "Loki",
-      "commonName": null
+      "designation": "L1400-LW",
+      "manufacturer": "Loki Research",
+      "commonName": "L1400",
+      "diameterMm": 54,
+      "lengthMm": 736
     }
   },
   {
@@ -1285,9 +1496,11 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "simfileId": "5f4294d20002e9000000012b",
       "license": "?",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000012b/",
-      "designation": "M1882",
-      "manufacturer": "Loki",
-      "commonName": null
+      "designation": "M1882-LW",
+      "manufacturer": "Loki Research",
+      "commonName": "M1882",
+      "diameterMm": 76,
+      "lengthMm": 787
     }
   },
   {
@@ -1298,9 +1511,11 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "simfileId": "5f4294d20002e900000005df",
       "license": "?",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000005df/",
-      "designation": "M2550",
-      "manufacturer": "Loki",
-      "commonName": null
+      "designation": "M2550-LB",
+      "manufacturer": "Loki Research",
+      "commonName": "M2550",
+      "diameterMm": 76,
+      "lengthMm": 785
     }
   },
   {
@@ -1313,7 +1528,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000008a4/",
       "designation": "C12",
       "manufacturer": "Quest Aerospace",
-      "commonName": "C12"
+      "commonName": "C12",
+      "diameterMm": 18,
+      "lengthMm": 78.7
     }
   },
   {
@@ -1326,7 +1543,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000041c/",
       "designation": "C6",
       "manufacturer": "Quest Aerospace",
-      "commonName": null
+      "commonName": "C6",
+      "diameterMm": 18,
+      "lengthMm": 70
     }
   },
   {
@@ -1339,7 +1558,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000893/",
       "designation": "D16",
       "manufacturer": "Quest Aerospace",
-      "commonName": "D16"
+      "commonName": "D16",
+      "diameterMm": 18,
+      "lengthMm": 79.69999999999999
     }
   },
   {
@@ -1351,8 +1572,10 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "license": null,
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000006fd/",
       "designation": "D5",
-      "manufacturer": "Quest",
-      "commonName": null
+      "manufacturer": "Quest Aerospace",
+      "commonName": "D5",
+      "diameterMm": 20,
+      "lengthMm": 96
     }
   },
   {
@@ -1365,7 +1588,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "infoUrl": "https://www.thrustcurve.org/simfiles/62a020cfe0d0450004037025/",
       "designation": "E35W",
       "manufacturer": "Quest Aerospace",
-      "commonName": "E35"
+      "commonName": "E35",
+      "diameterMm": 24,
+      "lengthMm": 113
     }
   },
   {
@@ -1378,7 +1603,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "infoUrl": "https://www.thrustcurve.org/simfiles/62a01e29e0d0450004036ef0/",
       "designation": "F41W",
       "manufacturer": "Quest Aerospace",
-      "commonName": "F41"
+      "commonName": "F41",
+      "diameterMm": 24,
+      "lengthMm": 113
     }
   }
 ];

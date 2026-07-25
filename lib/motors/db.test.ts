@@ -114,11 +114,19 @@ describe("motor database", () => {
     for (const d of ["H100W", "H180W", "I200W", "I284W", "J350W", "J500G", "J800T",
                      "K250W", "K700W", "K1050W", "L952W", "L1000"]) {
       const m = resolveMotor({ manufacturer: "AeroTech", designation: d });
-      expect(m?.quality).toBe("exact");
-      expect(m?.entry.curve.designation).toBe(d);
-      // The resolved curve is in the right impulse class.
-      expect(m?.entry.curve.designation[0]).toBe(d[0]);
-      expect(m?.entry.curve.totalImpulse).toBeGreaterThan(0);
+      expect(m, d).not.toBeNull();
+      // Exact where the catalogued designation IS that string. Some of these are catalogued under
+      // a more specific certified name than the one a design writes — AeroTech's H100W curve is
+      // the H100W_DMS, a different product line from the RMS reload — so those resolve at
+      // "designation" quality, which the UI flags as approximate. That is the honest answer, not
+      // a miss: the name a design uses is a substring of the certified one.
+      expect(["exact", "designation"], `${d} quality`).toContain(m!.quality);
+      expect(m!.entry.names.some((n) => n.toUpperCase().includes(d.toUpperCase())), `${d} names`).toBe(true);
+      // The resolved curve is in the right impulse class. Read the class from the class-and-thrust
+      // core, not the first character — a certified name can carry a product-line prefix
+      // ("HP-L1000W"), where the leading letter is not the impulse class.
+      expect(coreDesignation(m!.entry.designation)[0], `${d} class`).toBe(d[0]);
+      expect(m!.entry.curve.totalImpulse).toBeGreaterThan(0);
     }
   });
 
@@ -355,5 +363,43 @@ describe("a motor is matched on every name it is published under", () => {
       expect(e.curve.totalImpulse, `${e.designation} impulse`).toBeGreaterThan(hi / 2 * 0.9);
       expect(e.curve.totalImpulse, `${e.designation} impulse`).toBeLessThan(hi * 1.05);
     }
+  });
+});
+
+
+describe("the catalogued envelope comes from the certification record", () => {
+  it("uses the certified diameter and length, not the RASP header's", () => {
+    // A header's envelope is the curve author's typing and is sometimes wrong: the bundled AMW
+    // L1100 curve's header claims 75 mm for a motor certified at 54 mm. That is not bookkeeping —
+    // the motor-swap list filters candidates by mount diameter and the design diagram draws the
+    // casing, so a mis-stated diameter offers the motor for the wrong mount.
+    const m = resolveMotor({ manufacturer: "Animal Motor Works", designation: "L1100" });
+    expect(m).not.toBeNull();
+    expect(m!.entry.curve.diameterMm).toBe(54);
+  });
+
+  it("gives every bundled motor a plausible casing envelope", () => {
+    // Hobby motor casings run 13 mm (Estes T-series) to 98 mm; anything outside that is a data
+    // error, not a motor.
+    for (const e of allMotors()) {
+      expect(e.curve.diameterMm, `${e.designation} diameter`).toBeGreaterThanOrEqual(13);
+      expect(e.curve.diameterMm, `${e.designation} diameter`).toBeLessThanOrEqual(98);
+      expect(e.curve.lengthMm, `${e.designation} length`).toBeGreaterThan(20);
+      expect(e.curve.lengthMm, `${e.designation} length`).toBeLessThan(2000);
+    }
+  });
+
+  it("resolves AeroTech F67C to its own curve, not the F67W", () => {
+    // A design asking for the F67C used to fall through to a class-and-thrust core match on the
+    // F67W — a different propellant with 28% less impulse in a 29 mm shorter casing — and flew a
+    // real design 29.6% low against its own stored results.
+    const c = resolveMotor({ manufacturer: "AeroTech", designation: "F67C" });
+    const w = resolveMotor({ manufacturer: "AeroTech", designation: "F67W" });
+    expect(c?.quality).toBe("exact");
+    expect(w?.quality).toBe("exact");
+    expect(c!.entry.designation).toBe("F67C");
+    expect(w!.entry.designation).toBe("F67W");
+    expect(c!.entry.curve.totalImpulse).toBeGreaterThan(w!.entry.curve.totalImpulse * 1.15);
+    expect(c!.entry.curve.lengthMm).toBeGreaterThan(w!.entry.curve.lengthMm);
   });
 });

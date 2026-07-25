@@ -47,6 +47,11 @@ for (const file of files) {
       // about by ("J285"), as distinct from the manufacturer part number ("648J285-15A").
       // Design files use one or the other, so both are matchable identities.
       commonName: p.commonName ?? null,
+      // The certified casing envelope. A RASP header's diameter and length are the curve author's
+      // typing and are sometimes simply wrong — one bundled 54 mm motor's header claims 75 mm,
+      // which would offer it as a swap for the wrong mount and draw the wrong casing.
+      diameterMm: typeof p.diameter === "number" ? p.diameter : null,
+      lengthMm: typeof p.length === "number" ? p.length : null,
     },
   });
 }
@@ -73,6 +78,10 @@ export interface CatalogSource {
   /** ThrustCurve.org's common (class-and-thrust) name, e.g. "J285" for part number
    *  "648J285-15A" — the other published name a design file may reference. */
   commonName: string | null;
+  /** Certified casing diameter (mm), which wins over the RASP header's. */
+  diameterMm: number | null;
+  /** Certified casing length (mm), likewise. */
+  lengthMm: number | null;
 }
 
 export interface CatalogEntry {

@@ -444,7 +444,13 @@ export default function Methods() {
         sold as part number &ldquo;648J285-15A&rdquo; is written into an OpenRocket file as
         &ldquo;J285&rdquo;, and both name the same motor. Those catalogued names come from
         ThrustCurve&apos;s certification record rather than the RASP file header, which carries
-        whatever the curve&apos;s author typed. An exact designation matches
+        whatever the curve&apos;s author typed — and so does the casing <em>envelope</em>. That is
+        not bookkeeping: the motor-swap list filters candidates by mount diameter and the design
+        diagram draws the casing, so one bundled 54&nbsp;mm motor whose header claimed 75&nbsp;mm
+        was being offered for the wrong mount. A curve whose catalogued name is more specific than
+        the one a design writes — AeroTech&apos;s bundled H100W curve is the H100W_DMS, a different
+        product line from the RMS reload — resolves as an <em>approximate</em> match and says so,
+        rather than claiming to be the motor the design named. An exact designation matches
         regardless of a maker-string difference, but a <em>loose</em> match never crosses
         manufacturers — a design&apos;s &ldquo;K550&rdquo; is left unresolved rather than silently
         matched to a different maker&apos;s &ldquo;K550W&rdquo;. The UI flags an approximate or failed

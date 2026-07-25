@@ -53,6 +53,16 @@ export function allMotors(): MotorDbEntry[] {
       // with no resolvable motor and so no propulsion at all.
       const designation = item.source.designation || curve.designation;
       const manufacturer = item.source.manufacturer || curve.manufacturer;
+      // The certified casing envelope wins over the header's for the same reason the designation
+      // does — the header is the curve author's typing. It matters beyond bookkeeping: the
+      // motor-swap list filters by mount diameter and the design diagram draws the casing, so a
+      // 54 mm motor whose header claims 75 mm is offered for the wrong mount and drawn wrong.
+      if (typeof item.source.diameterMm === "number" && item.source.diameterMm > 0) {
+        curve.diameterMm = item.source.diameterMm;
+      }
+      if (typeof item.source.lengthMm === "number" && item.source.lengthMm > 0) {
+        curve.lengthMm = item.source.lengthMm;
+      }
       const names = [...new Set([designation, item.source.commonName].filter((n): n is string => !!n))];
       out.push({
         curve,

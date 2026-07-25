@@ -309,7 +309,10 @@ export default function Limitations() {
         they reference that is missing. Every curve is authentic ThrustCurve.org data,
         matched to its published certified total impulse. If your motor isn&apos;t found, Loft says
         so rather than guessing; fuzzy matching by class-and-thrust core can, in rare cases, match a
-        same-core motor of a different propellant. The resolved designation is always shown so you
+        same-core motor of a different propellant. That is not hypothetical — a real design calling
+        for an AeroTech F67C fell through to the F67W, a different propellant with 28% less impulse
+        in a shorter casing, and flew 29.6% low against its own stored results until the F67C was
+        bundled. The match quality is always shown, and an approximate one is worth checking. The resolved designation is always shown so you
         can check it. Genuinely custom or experimental motors — an amateur or research motor with no
         published certification data — have no curve to bundle, so they stay unresolved rather than
         being matched to an unrelated maker&apos;s motor of the same class. When <em>no</em> motor in a configuration resolves, there
