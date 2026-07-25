@@ -38,7 +38,7 @@ test.describe("Loft", () => {
     await expect(page.getByRole("heading", { name: /Altitude \(m\) vs time/ })).toBeVisible();
 
     // The OpenRocket comparison renders.
-    await expect(page.getByRole("heading", { name: "OpenRocket vs Loft" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Stated figures vs Loft" })).toBeVisible();
 
     // The Design workspace opens with the to-scale side-view — with the loaded motor and the CG
     // marked ahead of the CP, the stability picture read off the airframe.
@@ -82,7 +82,7 @@ test.describe("Loft", () => {
     expect(parseFloat(apogee.replace(/[^\d.]/g, ""))).toBeGreaterThan(100);
 
     // No stored source, so it is not mislabelled with an OpenRocket/RockSim comparison.
-    await expect(page.getByRole("heading", { name: "OpenRocket vs Loft" })).toHaveCount(0);
+    await expect(page.getByRole("region", { name: "Validation" })).toHaveCount(0);
   });
 
   test("exports the current design as a downloadable .ork", async ({ page }) => {
@@ -139,7 +139,7 @@ test.describe("Loft", () => {
     const before = await summaryApogee();
     expect(before).toBeGreaterThan(0);
     // The as-designed flight shows the OpenRocket comparison and offers no reset (nothing to undo).
-    await expect(page.getByRole("heading", { name: "OpenRocket vs Loft" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Stated figures vs Loft" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Reset to as-designed" })).toHaveCount(0);
 
     // Stack a design what-if: nose ballast makes the rocket heavier and lower.
@@ -150,7 +150,7 @@ test.describe("Loft", () => {
     // Back on Flight, the hypothetical flight has dropped the stored comparison, and the header now
     // offers a one-click way back.
     await page.getByRole("tab", { name: "Flight" }).click();
-    await expect(page.getByRole("heading", { name: "OpenRocket vs Loft" })).toHaveCount(0);
+    await expect(page.getByRole("region", { name: "Validation" })).toHaveCount(0);
     const resetBtn = page.getByRole("button", { name: "Reset to as-designed" });
     await expect(resetBtn).toBeVisible();
 
@@ -158,7 +158,7 @@ test.describe("Loft", () => {
     // the control disappears (nothing left to undo).
     await resetBtn.click();
     await expect.poll(summaryApogee).toBe(before);
-    await expect(page.getByRole("heading", { name: "OpenRocket vs Loft" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Stated figures vs Loft" })).toBeVisible();
     await expect(resetBtn).toHaveCount(0);
   });
 
@@ -266,7 +266,7 @@ test.describe("Loft", () => {
 
     // Each configuration compares against its own stored OpenRocket results — and is labelled with
     // the flown configuration's simulation, not always the first one.
-    await expect(page.getByRole("heading", { name: "OpenRocket vs Loft" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Stated figures vs Loft" })).toBeVisible();
     const validation = page.getByRole("region", { name: "Validation" });
     await expect(validation.getByText("G40W", { exact: false })).toBeVisible();
     await expect(validation.getByText("H128W", { exact: false })).toHaveCount(0);
@@ -1573,7 +1573,7 @@ test.describe("Loft", () => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
     await page.getByRole("heading", { name: "Flight", exact: true }).waitFor();
-    await expect(page.getByRole("heading", { name: "OpenRocket vs Loft" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Stated figures vs Loft" })).toBeVisible();
 
     const seriousViolations = async () => {
       const results = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze();
@@ -1594,7 +1594,7 @@ test.describe("Loft", () => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
     await page.getByRole("heading", { name: "Flight", exact: true }).waitFor();
-    await expect(page.getByRole("heading", { name: "OpenRocket vs Loft" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Stated figures vs Loft" })).toBeVisible();
     const results = await new AxeBuilder({ page })
       .withTags(["wcag2a", "wcag2aa"])
       .analyze();

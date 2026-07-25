@@ -11,9 +11,17 @@ in the separate design-file corpus.
 Real design files used by the parser tests, the simulation tests, and the validation
 harness. The OpenRocket `.ork` fixtures are ZIP archives containing a single `rocket.ork`
 XML entry, exactly like a file OpenRocket writes; the RockSim `.rkt` fixture is plain XML,
-exactly like a file RockSim writes. The human-readable source lives in [`src/`](./src); the
-`.ork` binaries are regenerated from it (any ZIP tool works — the entry must be named
-`rocket.ork`), while the `.rkt` source *is* the loadable file.
+exactly like a file RockSim writes. The human-readable source lives in [`src/`](./src). Regenerate the loadable files from it with
+
+```bash
+node scripts/gen-fixtures.mjs
+```
+
+which writes both the `.ork` binaries here **and** the three designs the app serves as one-tap
+examples from `public/samples/`. Those two copies used to be maintained by hand and drifted —
+a change to the fixtures' stored-result marker never reached the samples users actually click —
+so they are generated from the one source now. The `.rkt` source *is* the loadable file and is
+copied straight across.
 
 | File | Design | Motor | Recovery |
 |------|--------|-------|----------|
