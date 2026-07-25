@@ -16,7 +16,7 @@
  *  extrapolated. See the in-app methods section and limitations log.
  */
 
-import type { Rocket, TrapezoidFinSet, GenericFinSet, FinCrossSection } from "../model/types";
+import type { Rocket, TrapezoidFinSet, GenericFinSet, TubeFinSet, FinCrossSection } from "../model/types";
 import {
   flattenRocket,
   referenceRadius,
@@ -84,6 +84,8 @@ export function barrowman(rocket: Rocket): Stability {
       c.kind === "freeformfinset"
     ) {
       contributions.push(finContribution(c, p, rocket, rRef));
+    } else if (c.kind === "tubefinset") {
+      contributions.push(tubeFinContribution(c, p, rRef));
     }
   }
 
@@ -95,6 +97,37 @@ export function barrowman(rocket: Rocket): Stability {
   }
   const cp = cnAlpha !== 0 ? moment / cnAlpha : 0;
   return { cnAlpha, cp, refRadius: rRef, contributions };
+}
+
+/** Normal-force slope and CP of a tube-fin set.
+ *
+ *  A tube fin is not a plate, so the Barrowman fin equations don't apply to it. It is a short
+ *  open duct: at a small angle of attack the streamtube it captures enters inclined at α and
+ *  leaves aligned with the tube's (and so the rocket's) axis. Slender-body/momentum theory — the
+ *  same theory behind Barrowman's nose and transition terms — gives the reaction from that
+ *  turning as N = ρV²·A_duct·α, i.e.
+ *
+ *      C_Nα = 2 · A_duct / A_ref   per radian,   A_duct = Σ N·π·r_i²
+ *
+ *  which is exactly the nose-cone form 2·(A_base/A_ref) with the captured area in place of the
+ *  base area. The turning is distributed along the duct rather than concentrated at either lip,
+ *  so the resultant is taken at the tube's mid-chord — the symmetric, non-extremal choice.
+ *  Against OpenRocket's stored per-step CP on its own tube-fin example this lands ≈0.9 caliber
+ *  FORWARD of theirs (Loft 0.7 cal margin vs 1.6 cal), i.e. on the conservative side; the
+ *  limitations log records that residual rather than tuning it away.
+ *
+ *  References: slender-body normal force of a flow-through duct (Nielsen, *Missile Aerodynamics*,
+ *  inlet/duct additive normal force); Barrowman 1967 for the surrounding method. Implemented
+ *  clean-room from the published relations. */
+function tubeFinContribution(fin: TubeFinSet, p: Positioned, rRef: number): CpContribution {
+  const ri = Math.max(0, fin.outerRadius - fin.thickness);
+  // A degenerate set (no tubes, no bore, no length) captures nothing and carries no normal force.
+  if (!(fin.finCount > 0) || !(ri > 0) || !(fin.length > 0) || !(rRef > 0)) {
+    return { source: fin.name || "tube fins", cnAlpha: 0, x: p.xFore };
+  }
+  const ductArea = fin.finCount * Math.PI * ri * ri;
+  const cnA = (2 * ductArea) / (Math.PI * rRef * rRef);
+  return { source: fin.name || "tube fins", cnAlpha: cnA, x: p.xFore + fin.length / 2 };
 }
 
 function finContribution(
@@ -213,6 +246,16 @@ export interface AeroGeometry {
    *  at the base. Divide by refArea for the coefficient. Zero for a tangent (ogive/ellipsoid/Haack)
    *  nose; non-zero for a cone or blunt shape. */
   nosePressureCdA: number;
+  /** Total wetted area of every tube fin (m²), inner + outer wall. Zero on a design without them.
+   *  Kept apart from `finWettedArea` because a tube fin is a duct, not a plate: it carries no
+   *  thickness form factor and its Reynolds number runs on its own (short) chord. */
+  tubeFinWettedArea: number;
+  /** Total square-cut wall annulus area of every tube fin (m²), Σ N·π(r_o² − r_i²) — the frontal
+   *  area presented at the leading edge and the base area left at the trailing edge. */
+  tubeFinAnnulusArea: number;
+  /** Wetted-area-weighted mean tube-fin chord (m) — the Reynolds and roughness length for the
+   *  tube-fin friction term. Zero on a design without them. */
+  tubeFinChord: number;
 }
 
 /** Transonic/supersonic wave-drag of a nose contour, relative to a Von Kármán ogive of the
@@ -278,6 +321,10 @@ export function aeroGeometry(rocket: Rocket): AeroGeometry {
   let shoulderPressureCdA = 0;
   let boattailPressureArea = 0;
   let nosePressureCdA = 0;
+
+  let tubeFinWetted = 0;
+  let tubeFinAnnulus = 0;
+  let tubeFinChordWeight = 0; // Σ (wetted · chord), for the wetted-weighted mean chord below
 
   let aftBodyEnd = 0;
   for (const p of flat) {
@@ -373,6 +420,17 @@ export function aeroGeometry(rocket: Rocket): AeroGeometry {
       // sweepLength already reflects its actual outline, so use that.
       finSweepLength = c.kind === "ellipticalfinset" ? c.rootChord / 2 : c.sweepLength;
       noteFinEdge(c.crossSection);
+    } else if (c.kind === "tubefinset") {
+      // Tube fins are open-ended cylinders: the flow wets both the outer and the inner wall, and
+      // the square-cut wall annulus faces the stream at each end. Both are accumulated here; the
+      // drag pass turns them into friction and leading/trailing-edge pressure terms.
+      const ro = c.outerRadius;
+      const ri = Math.max(0, ro - c.thickness);
+      if (c.finCount > 0 && ro > 0 && c.length > 0) {
+        tubeFinWetted += c.finCount * 2 * Math.PI * (ro + ri) * c.length;
+        tubeFinAnnulus += c.finCount * Math.PI * (ro * ro - ri * ri);
+        tubeFinChordWeight += c.finCount * 2 * Math.PI * (ro + ri) * c.length * c.length;
+      }
     } else if ((c.kind === "launchlug" || c.kind === "railbutton") && c.radius && c.radius > 0) {
       const count = Math.max(1, c.instanceCount ?? 1);
       protuberanceArea += count * Math.PI * c.radius * c.radius;
@@ -413,6 +471,9 @@ export function aeroGeometry(rocket: Rocket): AeroGeometry {
     shoulderPressureCdA,
     boattailPressureArea,
     nosePressureCdA,
+    tubeFinWettedArea: tubeFinWetted,
+    tubeFinAnnulusArea: tubeFinAnnulus,
+    tubeFinChord: tubeFinWetted > 0 ? tubeFinChordWeight / tubeFinWetted : 0,
   };
 }
 
@@ -472,7 +533,18 @@ export function dragCoefficient(
   const bodyFriction = cf * bodyForm * (geom.bodyWettedArea / geom.refArea);
   const finForm = 1 + 2 * geom.finThicknessRatio;
   const finFriction = cf * finForm * (geom.finWettedArea / geom.refArea);
-  const friction = bodyFriction + finFriction;
+  // Tube fins: friction on both walls of a thin open cylinder. A thin-walled tube aligned with the
+  // flow is aerodynamically a rolled-up flat plate — no thickness-driven pressure gradient — so it
+  // takes NO form factor; its bluntness is carried explicitly by the wall-annulus terms below
+  // (Hoerner, *Fluid-Dynamic Drag*, ch. 6). Its Reynolds number runs on its own chord, which is
+  // much shorter than the airframe's, so it sits higher on the friction curve than the body does.
+  let tubeFinFriction = 0;
+  if (geom.tubeFinWettedArea > 0 && geom.tubeFinChord > 0) {
+    const reTube = (atm.density * velocity * geom.tubeFinChord) / atm.dynamicViscosity;
+    const cfTube = skinFriction(reTube, geom.roughness, geom.tubeFinChord, mach);
+    tubeFinFriction = cfTube * (geom.tubeFinWettedArea / geom.refArea);
+  }
+  const friction = bodyFriction + finFriction + tubeFinFriction;
 
   // Base drag. Subsonic it rises with the square of Mach; supersonic the base pressure recovers
   // and it falls as ~1/M (Hoerner). The two branches meet continuously at M=1 (both 0.25).
@@ -538,8 +610,21 @@ export function dragCoefficient(
   // Nose pressure drag — same low-subsonic separation effect as the shoulder, so added flat. Zero
   // for a tangent (ogive/ellipsoid/Haack) nose; small for a cone or blunt shape.
   const nosePressure = geom.nosePressureCdA / geom.refArea;
+  // Tube-fin edge pressure drag. A tube fin's wall is cut square at both ends, so the same pair of
+  // terms a square-edged flat fin gets applies to its wall annulus: stagnation at the leading edge
+  // (unswept — a tube's lip is perpendicular to the flow, so no cos²Λ relief) and base drag on the
+  // trailing edge. Referenced to the annulus area Σ N·π(r_o² − r_i²). This is the term that makes a
+  // tube-fin design drag so much more than its plan area suggests: six body-diameter tubes present
+  // roughly a third of the airframe's own frontal area in bare wall edges.
+  const tubeFinPressure =
+    (stagnationCd(mach) + baseCoeff) * (geom.tubeFinAnnulusArea / geom.refArea);
   const pressure =
-    finPressure + shoulderPressure + boattailPressure + nosePressure + (protuberance + 0.01) * pg;
+    finPressure +
+    tubeFinPressure +
+    shoulderPressure +
+    boattailPressure +
+    nosePressure +
+    (protuberance + 0.01) * pg;
 
   // Wave (compressibility) drag — zero below the critical Mach, a transonic rise to a peak
   // near M≈1.15, then a supersonic decline. A bounded, published-shape model (not a

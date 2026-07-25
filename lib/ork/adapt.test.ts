@@ -381,21 +381,41 @@ describe("graceful degradation", () => {
     expect(doc.flownAsReduced).toBe(false);
   });
 
-  it("flags a tube-fin design as flown-reduced (fins skipped)", () => {
+  it("imports a tube-fin set as a flown component, not a reduction", () => {
     const xml = `<?xml version='1.0'?>
       <openrocket version="1.10">
         <rocket><name>TubeFin</name>
           <subcomponents><stage><subcomponents>
             <nosecone><length>0.1</length><aftradius>0.02</aftradius><shape>ogive</shape></nosecone>
             <bodytube><length>0.3</length><radius>0.02</radius><subcomponents>
-              <tubefinset><fincount>6</fincount><length>0.08</length><radius>0.02</radius></tubefinset>
+              <tubefinset><fincount>6</fincount><length>0.08</length><radius>0.02</radius><thickness>0.0005</thickness></tubefinset>
             </subcomponents></bodytube>
           </subcomponents></stage></subcomponents>
         </rocket>
       </openrocket>`;
     const doc = adaptOrkXml(xml);
-    expect(doc.flownAsReduced).toBe(true);
-    expect(doc.warnings.some((w) => /tubefinset/i.test(w))).toBe(true);
+    expect(doc.flownAsReduced).toBe(false);
+    expect(doc.warnings).toEqual([]);
+    const tubes = doc.rocket.stages[0].components[1].children[0];
+    expect(tubes.kind).toBe("tubefinset");
+    expect(tubes).toMatchObject({ finCount: 6, length: 0.08, outerRadius: 0.02, thickness: 0.0005 });
+  });
+
+  it('sizes an "auto"-radius tube-fin set so the tubes close around the body', () => {
+    const xml = `<?xml version='1.0'?>
+      <openrocket version="1.10">
+        <rocket><name>TubeFin</name>
+          <subcomponents><stage><subcomponents>
+            <nosecone><length>0.1</length><aftradius>0.02</aftradius><shape>ogive</shape></nosecone>
+            <bodytube><length>0.3</length><radius>0.02</radius><subcomponents>
+              <tubefinset><fincount>6</fincount><length>0.08</length><radius>auto</radius><thickness>0.0005</thickness></tubefinset>
+            </subcomponents></bodytube>
+          </subcomponents></stage></subcomponents>
+        </rocket>
+      </openrocket>`;
+    const tubes = adaptOrkXml(xml).rocket.stages[0].components[1].children[0];
+    // r = R·sin(π/6)/(1 − sin(π/6)) = R, so six tubes match the body diameter exactly.
+    expect(tubes.kind === "tubefinset" && tubes.outerRadius).toBeCloseTo(0.02, 6);
   });
 
   it("does not flag a plain single motor (clusterconfiguration = single) as a cluster", () => {

@@ -9,6 +9,7 @@ import type {
   Transition,
   TrapezoidFinSet,
   GenericFinSet,
+  TubeFinSet,
   NoseShape,
 } from "../model/types";
 
@@ -689,5 +690,79 @@ describe("skinFriction", () => {
     expect(cdAt(3)).toBeLessThan(peakCd);
     expect(cdAt(5)).toBeLessThan(cdAt(3)); // still declining, not growing
     expect(cdAt(5)).toBeGreaterThan(0.2); // toward a physical slender-body plateau
+  });
+});
+
+describe("tube fins (open-duct normal force and wall drag)", () => {
+  const R = 0.014986; // RockSim's "Airplane Look-A-Like (tube fins)" airframe, 29.972 mm OD
+  const TUBE_R = 0.0142875;
+  const WALL = 0.000508;
+  const TUBE_L = 0.073025;
+
+  function tubeFinned(count = 6): Rocket {
+    const nose: NoseCone = {
+      id: "n", name: "nose", kind: "nosecone", placement: { method: "after", offset: 0 },
+      length: 0.108001, aftRadius: R, shape: "ogive", shapeParameter: 0, children: [],
+    };
+    const tubes: TubeFinSet = {
+      id: "t", name: "tube fins", kind: "tubefinset", placement: { method: "bottom", offset: 0 },
+      finCount: count, length: TUBE_L, outerRadius: TUBE_R, thickness: WALL, children: [],
+    };
+    const body: BodyTube = {
+      id: "b", name: "body", kind: "bodytube", placement: { method: "after", offset: 0 },
+      outerRadius: R, thickness: 0.000508, length: 0.4572, children: [tubes],
+    };
+    return {
+      name: "tube fin", stages: [{ name: "s", components: [nose, body] }],
+      configurations: [], referenceType: "maximum",
+    };
+  }
+
+  it("reproduces the normal-force slope the RockSim file stores for its own tube fins", () => {
+    // RockSim's TubeFins1.rkt records <BarrowmanCNa>10.2204</BarrowmanCNa> for this set. The duct
+    // form C_Nα = 2·ΣN·π·r_i² / A_ref lands within 1% of it — an independent tool's own number for
+    // the same geometry, not a fit.
+    const st = barrowman(tubeFinned());
+    const tubes = st.contributions.find((c) => c.source === "tube fins")!;
+    expect(tubes.cnAlpha).toBeCloseTo(10.22, 0);
+    expect(Math.abs(tubes.cnAlpha - 10.2204) / 10.2204).toBeLessThan(0.01);
+  });
+
+  it("places the tube-fin CP at the mid-chord, where RockSim puts its own", () => {
+    // Same file: <BarrowmanXN>0.524222</BarrowmanXN> against a leading edge at 0.485826 m — i.e.
+    // 0.0384 m aft of it, within 2.6% of the chord of the 0.0365 m half-chord used here.
+    const st = barrowman(tubeFinned());
+    const tubes = st.contributions.find((c) => c.source === "tube fins")!;
+    const leadingEdge = 0.108001 + 0.4572 - TUBE_L;
+    expect(tubes.x - leadingEdge).toBeCloseTo(TUBE_L / 2, 6);
+  });
+
+  it("counts both walls as wetted and the wall annulus as an edge", () => {
+    const g = aeroGeometry(tubeFinned());
+    const ri = TUBE_R - WALL;
+    expect(g.tubeFinWettedArea).toBeCloseTo(6 * 2 * Math.PI * (TUBE_R + ri) * TUBE_L, 9);
+    expect(g.tubeFinAnnulusArea).toBeCloseTo(6 * Math.PI * (TUBE_R * TUBE_R - ri * ri), 12);
+    expect(g.tubeFinChord).toBeCloseTo(TUBE_L, 9);
+  });
+
+  it("drags far more than the same airframe without them", () => {
+    // The whole point: six body-diameter tubes roughly triple the wetted area and add a third of
+    // the airframe's frontal area in bare wall edges. Omitting them flew a real tube-fin design
+    // ~88% high against both OpenRocket's and RockSim's stored results.
+    const atm = new Atmosphere().sample(0);
+    const withTubes = dragCoefficient(aeroGeometry(tubeFinned()), atm, 60);
+    const bare = dragCoefficient(aeroGeometry(tubeFinned(0)), atm, 60);
+    expect(withTubes.cd).toBeGreaterThan(2 * bare.cd);
+    expect(withTubes.friction).toBeGreaterThan(bare.friction);
+    expect(withTubes.pressure).toBeGreaterThan(bare.pressure);
+  });
+
+  it("ignores a degenerate set rather than emitting a NaN", () => {
+    const r = tubeFinned();
+    const tubes = r.stages[0].components[1].children[0] as TubeFinSet;
+    tubes.thickness = TUBE_R; // no bore left — captures nothing
+    const st = barrowman(r);
+    expect(Number.isFinite(st.cp)).toBe(true);
+    expect(st.contributions.find((c) => c.source === "tube fins")!.cnAlpha).toBe(0);
   });
 });

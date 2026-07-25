@@ -55,6 +55,7 @@ export type ComponentKind =
   | "trapezoidfinset"
   | "ellipticalfinset"
   | "freeformfinset"
+  | "tubefinset"
   | "innertube"
   | "tubecoupler"
   | "centeringring"
@@ -177,6 +178,21 @@ export interface GenericFinSet extends ComponentBase {
   cpChord?: number;
 }
 
+/** A tube-fin set: N open-ended cylinders mounted around the airframe with their axes parallel
+ *  to it, standing in for conventional fins. Aerodynamically they are ducts, not plates — the
+ *  flow passes through them — so they carry their own normal-force and drag treatment rather
+ *  than reducing to an equivalent trapezoid. */
+export interface TubeFinSet extends ComponentBase {
+  kind: "tubefinset";
+  finCount: number;
+  /** Tube length along the airframe (m) — the ring's chord. */
+  length: number;
+  /** Tube outer radius (m). */
+  outerRadius: number;
+  /** Wall thickness (m). */
+  thickness: number;
+}
+
 export interface InnerTube extends ComponentBase {
   kind: "innertube";
   length: number;
@@ -274,6 +290,7 @@ export type RocketComponent =
   | Transition
   | TrapezoidFinSet
   | GenericFinSet
+  | TubeFinSet
   | InnerTube
   | RingComponent
   | MassComponent

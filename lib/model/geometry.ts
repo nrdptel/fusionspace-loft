@@ -28,6 +28,7 @@ export function axialLength(c: RocketComponent): number {
     case "nosecone":
     case "bodytube":
     case "transition":
+    case "tubefinset":
     case "innertube":
     case "tubecoupler":
     case "centeringring":

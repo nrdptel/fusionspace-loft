@@ -171,6 +171,24 @@ export function rocketOutline(rocket: Rocket): RocketOutline {
       masses.push({ id: c.id, x: p.xFore + (c.length ?? 0) / 2, label: c.name || c.massType || "Mass" });
       continue;
     }
+    if (c.kind === "tubefinset") {
+      // A tube fin shows in side view as the tube's own rectangle standing off the airframe: it
+      // seats tangent to the body, so it reaches out by its full outer diameter.
+      if (!(c.outerRadius > 0) || !(c.length > 0)) continue;
+      const seat = radiusAtStation(rocket, p.xFore + c.length / 2) || maxRadius;
+      const outer = seat + 2 * c.outerRadius;
+      fins.push({
+        id: c.id,
+        poly: [
+          [p.xFore, seat],
+          [p.xFore, outer],
+          [p.xFore + c.length, outer],
+          [p.xFore + c.length, seat],
+        ],
+      });
+      maxExtent = Math.max(maxExtent, outer);
+      continue;
+    }
     let rootChord: number, tipChord: number, sweep: number, height: number;
     if (c.kind === "trapezoidfinset") {
       ({ rootChord, height, sweepLength: sweep } = c);

@@ -198,10 +198,35 @@ export default function Methods() {
         silently suppress the low-stability warning).
       </p>
       <p>
+        <strong>Tube fins</strong> are not plates, so the Barrowman fin equations do not apply to
+        them. A tube fin is a short open duct: at a small angle of attack the streamtube it captures
+        enters inclined at <code>α</code> and leaves aligned with the tube&apos;s — and so the
+        rocket&apos;s — axis. Slender-body/momentum theory, the same theory behind the nose and
+        transition terms above, gives the reaction from that turning as{" "}
+        <code>N = ρV²·A_duct·α</code>, i.e.
+      </p>
+      <p className="rounded-lg bg-black/[0.03] px-4 py-3 font-mono text-sm dark:bg-white/[0.05]">
+        C_Nα = 2·A_duct / A_ref &nbsp;per radian, &nbsp;A_duct = Σ N·π·r_inner²
+      </p>
+      <p>
+        — exactly the nose-cone form <code>2·(A_base/A_ref)</code> with the captured area in place of
+        the base area. The turning is distributed along the duct rather than concentrated at either
+        lip, so the resultant is taken at the tube&apos;s <strong>mid-chord</strong>. RockSim&apos;s
+        own tube-fin example file stores the numbers its engine computed for the same set —{" "}
+        <code>BarrowmanCNa = 10.2204</code> at <code>BarrowmanXN = 0.524222 m</code> — and this
+        relation reproduces them to within <strong>1%</strong> and <strong>2.6% of the chord</strong>{" "}
+        respectively. Against OpenRocket&apos;s stored per-step CP on <em>its</em> tube-fin example
+        Loft sits about <strong>0.9 caliber forward</strong>, i.e. conservative; see{" "}
+        <Link href="/docs/limitations">Limitations</Link>. A tube with no bore left (a degenerate
+        part) captures nothing and contributes no normal force.
+      </p>
+      <p>
         <em>Sources:</em> J. S. Barrowman &amp; J. A. Barrowman, &ldquo;The Practical Calculation of
         the Aerodynamic Characteristics of Slender Finned Vehicles&rdquo; (1966/1967); as compiled in
         the public Apogee <em>Peak of Flight</em> newsletters (#149, #150, #157) and the OpenRocket
-        technical documentation.
+        technical documentation. For the duct/inlet normal force: J. N. Nielsen,{" "}
+        <em>Missile Aerodynamics</em> (McGraw-Hill, 1960), slender-body treatment of flow-through
+        inlets.
       </p>
       <p>
         <strong>Stability trim (nose-ballast goal-seek).</strong> When a design&apos;s margin is thin,
@@ -285,6 +310,21 @@ export default function Methods() {
           sweep is zero) over-counted its stagnation drag by ~22% on a real minimum-diameter design;
           reading the sweep from the planform brought Loft&apos;s per-step drag on OpenRocket&apos;s
           <em> elliptical_v1.9</em> example to within ~1% of its stored curve.
+        </li>
+        <li>
+          <strong>Tube-fin drag</strong> — a tube fin is aerodynamically a rolled-up flat plate with
+          two bluff ends, so it is built up from exactly that. <em>Friction</em> on both the outer
+          and the inner wall, with <strong>no</strong> thickness form factor (a thin open cylinder
+          aligned with the flow has no thickness-driven pressure gradient) and at a Reynolds number
+          taken on the tube&apos;s <em>own</em> chord, which is far shorter than the airframe&apos;s —
+          so the tubes sit higher on the friction curve than the body does. <em>Pressure</em> on the
+          square-cut wall annulus <code>Σ N·π(r_o² − r_i²)</code>: the same stagnation coefficient a
+          square fin edge gets at the leading end (unswept — a tube&apos;s lip is perpendicular to the
+          flow, so no <code>cos²Λ</code> relief) plus base drag at the trailing end. This is the term
+          that makes tube fins so much draggier than their plan area suggests: six body-diameter
+          tubes roughly triple the wetted area and present about a third of the airframe&apos;s own
+          frontal area in bare wall edges. Omitting them flew OpenRocket&apos;s and RockSim&apos;s
+          tube-fin examples <strong>~88% high</strong>; with them, −8% and −2% respectively.
         </li>
         <li>
           <strong>Shoulder pressure drag</strong> — a diameter-<em>increasing</em> transition

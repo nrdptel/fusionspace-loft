@@ -107,6 +107,7 @@ const KNOWN_COMPONENTS = new Set([
   "trapezoidfinset",
   "ellipticalfinset",
   "freeformfinset",
+  "tubefinset",
   "innertube",
   "tubecoupler",
   "centeringring",
@@ -436,6 +437,17 @@ function parseComponent(node: XmlNode, ctx: WalkContext): RocketComponent | null
         thickness: childNum(node, "thickness", 0.003),
         crossSection: parseFinCrossSection(node),
         cantAngle: degToRad(childNum(node, "cant", 0) || 0),
+        children: parseSubcomponents(node, ctx),
+      };
+    }
+    case "tubefinset": {
+      return {
+        ...b,
+        kind: "tubefinset",
+        finCount: Math.round(childNum(node, "fincount", childNum(node, "instancecount", 6))),
+        length: childNum(node, "length", 0),
+        outerRadius: childNum(node, "radius", NaN), // NaN ⇒ "auto"; sized around the parent body below
+        thickness: childNum(node, "thickness", 0.0005),
         children: parseSubcomponents(node, ctx),
       };
     }
@@ -1070,10 +1082,26 @@ function maxResolvedRadius(components: RocketComponent[]): number {
   return max;
 }
 
+/** Outer radius of a tube fin whose radius is "auto": OpenRocket sizes the tubes so that
+ *  `count` of them sit tangent to the body of radius `bodyRadius` AND tangent to each other.
+ *  Their centres lie on a circle of radius (R + r) spaced by 2π/count, so adjacent centres are
+ *  2·(R + r)·sin(π/count) apart; setting that equal to 2r gives r = R·sin(π/n) / (1 − sin(π/n)).
+ *  (For the common six-tube set sin(π/6) = ½, so the tubes match the body diameter exactly.) */
+function autoTubeFinRadius(bodyRadius: number, count: number): number {
+  if (!(bodyRadius > 0) || count < 2) return bodyRadius;
+  const s = Math.sin(Math.PI / count);
+  if (s >= 1) return bodyRadius; // n = 2: tubes can't close around the body; fall back to the body radius
+  return (bodyRadius * s) / (1 - s);
+}
+
 /** Internal parts (tube couplers, inner tubes, rings, engine blocks) with an auto outer
- *  radius fit inside their enclosing body tube. */
-function resolveInternalRadii(components: RocketComponent[], parentInner: number): void {
+ *  radius fit inside their enclosing body tube. Tube fins ride on the OUTSIDE of the same
+ *  body, so they are sized from its outer radius instead. */
+function resolveInternalRadii(components: RocketComponent[], parentInner: number, parentOuter = NaN): void {
   for (const c of components) {
+    if (c.kind === "tubefinset" && !ok(c.outerRadius)) {
+      c.outerRadius = ok(parentOuter) ? autoTubeFinRadius(parentOuter, c.finCount) : 0;
+    }
     if (INTERNAL_KINDS.has(c.kind)) {
       const f = rf(c);
       if (!ok(f.outerRadius) && ok(parentInner)) f.outerRadius = parentInner;
@@ -1093,7 +1121,12 @@ function resolveInternalRadii(components: RocketComponent[], parentInner: number
     else if (ok(g.outerRadius)) childInner = g.outerRadius;
     else if (c.kind === "nosecone" && ok(g.aftRadius)) childInner = g.aftRadius as number;
     else if (c.kind === "transition" && ok(g.aftRadius)) childInner = g.aftRadius as number;
-    if (c.children.length) resolveInternalRadii(c.children, childInner);
+    const childOuter = ok(g.outerRadius)
+      ? (g.outerRadius as number)
+      : c.kind === "nosecone" || c.kind === "transition"
+        ? (g.aftRadius as number)
+        : parentOuter;
+    if (c.children.length) resolveInternalRadii(c.children, childInner, childOuter);
   }
 }
 
@@ -1120,20 +1153,6 @@ function warnUnsupportedAssemblies(node: XmlNode, warnings: string[]): boolean {
   return false;
 }
 
-/** A tube-fin set is a fin geometry Loft doesn't model, so it's skipped on import. A rocket
- *  flown without its fins is a reduced (and aerodynamically very different) vehicle; return
- *  whether one is present so its stored-results comparison is withheld too. The user-facing
- *  "skipped unsupported component" warning is emitted during the component walk. */
-function hasTubeFins(node: XmlNode): boolean {
-  let found = false;
-  const walk = (n: XmlNode): void => {
-    if (n.name === "tubefinset") found = true;
-    for (const ch of n.children) walk(ch);
-  };
-  walk(node);
-  return found;
-}
-
 /** Parse a decompressed `rocket.ork` XML string into the canonical document. */
 export function adaptOrkXml(xml: string): OrkDocument {
   idCounter = 0;
@@ -1158,9 +1177,9 @@ export function adaptOrkXml(xml: string): OrkDocument {
         `stages' own descent isn't tracked — only the sustainer is flown to the ground.`,
     );
   }
-  // Serial staging is now simulated, so a multi-stage stack isn't "reduced". Parallel/strap-on
-  // stages and pods still are (warnUnsupportedAssemblies), as are tube fins.
-  const flownAsReduced = reducedAssemblies || hasTubeFins(rocketNode);
+  // Serial staging and tube fins are now simulated, so neither makes the flown vehicle
+  // "reduced". Parallel/strap-on stages and pods still are (warnUnsupportedAssemblies).
+  const flownAsReduced = reducedAssemblies;
 
   const refType = childText(rocketNode, "referencetype");
   const rocket: Rocket = {

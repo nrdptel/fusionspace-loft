@@ -132,11 +132,11 @@ export default async function Validation() {
       </p>
       <p>
         The comparison is shown only when Loft flew the <em>complete</em> design. If the design
-        includes something Loft simplifies — staging, pods, parallel boosters, or a fin type it
-        can&apos;t model (tube fins) — the stored results describe a different flight than the one
-        simulated, so the comparison is withheld rather than reported as a misleading error. (A
-        motor cluster <em>is</em> simulated, as coaxial motors, so it still gets a comparison.) A
-        single-stage, standard-fin design gives the honest, like-for-like check.
+        includes something Loft simplifies — pods, parallel boosters, a ring tail — the stored
+        results describe a different flight than the one simulated, so the comparison is withheld
+        rather than reported as a misleading error. (Serial staging, motor clusters, and tube fins{" "}
+        <em>are</em> simulated, so those still get a comparison.) A single-stack design gives the
+        honest, like-for-like check.
       </p>
       <p>
         Many <code>.ork</code> files store more than summary numbers — they carry OpenRocket&apos;s{" "}

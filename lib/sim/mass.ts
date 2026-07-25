@@ -136,6 +136,16 @@ function componentPointMass(p: Positioned): PointMass | null {
       cgLocal = c.length / 2;
       break;
     }
+    case "tubefinset": {
+      // N thin-walled cylinders: annular wall volume each. Their CG is the tube mid-length —
+      // they are uniform along the airframe axis.
+      const ro = c.outerRadius;
+      const ri = Math.max(0, ro - c.thickness);
+      mass = Math.PI * (ro * ro - ri * ri) * c.length * c.finCount * density(c);
+      cgLocal = c.length / 2;
+      ownInertia = (mass * c.length * c.length) / 12;
+      break;
+    }
     case "trapezoidfinset": {
       const area = ((c.rootChord + c.tipChord) / 2) * c.height;
       const vol = area * c.thickness * c.finCount;

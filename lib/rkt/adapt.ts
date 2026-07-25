@@ -200,6 +200,7 @@ const STRUCTURAL = new Set<RocketComponent["kind"]>([
   "bulkhead",
   "engineblock",
   "trapezoidfinset",
+  "tubefinset",
   "launchlug",
 ]);
 
@@ -258,9 +259,9 @@ function attached(node: XmlNode, ctx: Ctx, useKnownMass: boolean): RocketCompone
  *  results is withheld rather than reported as a misleading error. */
 function noteUnsupported(node: XmlNode, ctx: Ctx): void {
   const name = node.name;
-  if (name === "TubeFinSet" || name === "RingTail") {
+  if (name === "RingTail") {
     ctx.reduced = true;
-    ctx.warnings.push(`Tube fins (<${name}>) aren't modelled yet — the design was flown without them.`);
+    ctx.warnings.push(`A ring tail (<${name}>) isn't modelled yet — the design was flown without it.`);
   } else if (name === "Pod" || name === "ExternalPod" || name === "SubAssembly") {
     ctx.reduced = true;
     ctx.warnings.push(`A pod/sub-assembly (<${name}>) isn't simulated — only the primary stack flies.`);
@@ -356,6 +357,23 @@ function parseComponent(
         thickness: n(node, "Thickness", 0) * MM || 0.003,
         crossSection: finCrossSection(Math.round(n(node, "TipShapeCode", 0))),
         cantAngle: n(node, "CantAngle", 0),
+        children: attached(node, ctx, useKnownMass),
+      };
+      break;
+    }
+    case "TubeFinSet": {
+      const od = n(node, "OD", 0) * RAD;
+      const id = n(node, "ID", 0) * RAD;
+      comp = {
+        ...b,
+        kind: "tubefinset",
+        finCount: Math.max(1, Math.round(n(node, "TubeCount", n(node, "FinCount", 6)))),
+        length: n(node, "Len", 0) * MM,
+        outerRadius: od,
+        // RockSim often leaves a tube fin's bore at 0 (it stores no wall for the part). A solid rod
+        // is not a tube fin, so 0 means "unstated" — resolved below from the airframe the tubes are
+        // cut from, not taken literally.
+        thickness: od > id && id > 0 ? od - id : 0,
         children: attached(node, ctx, useKnownMass),
       };
       break;
@@ -546,6 +564,29 @@ function storedSim(res: XmlNode, index: number): StoredSimulation {
   };
 }
 
+/** A tube fin's wall, when the file didn't state one. RockSim's `<TubeFinSet>` commonly stores
+ *  `ID` as 0, which would read as a solid rod — the opposite of a tube fin, killing both the duct
+ *  normal force and the wall-annulus drag. Tube fins are cut from the same tube stock as the
+ *  airframe, so the enclosing body tube's own wall is the honest fallback; a thin default covers a
+ *  file that states neither. On RockSim's own tube-fin example this recovers the wall to within
+ *  half a millimetre, putting Loft's duct CNα within 1% of the CNα that file itself stores. */
+const DEFAULT_TUBE_FIN_WALL = 0.0005;
+
+function resolveTubeFinWalls(components: RocketComponent[], parentWall: number): void {
+  for (const c of components) {
+    if (c.kind === "tubefinset" && !(c.thickness > 0)) {
+      c.thickness = parentWall > 0 ? parentWall : DEFAULT_TUBE_FIN_WALL;
+      // The file's stated per-part mass came from the same zero-bore geometry — RockSim weighs
+      // those tubes as SOLID rods, an order of magnitude heavy. Having replaced the bore for the
+      // aero, keep the part coherent and weigh it from the inferred wall too, rather than flying
+      // a set of tubes that masses like a set of rods.
+      delete (c as { overrideMass?: number }).overrideMass;
+    }
+    const wall = c.kind === "bodytube" && (c.thickness ?? 0) > 0 ? (c.thickness as number) : parentWall;
+    if (c.children.length) resolveTubeFinWalls(c.children, wall);
+  }
+}
+
 // --- top level ------------------------------------------------------------------------
 
 export function adaptRktXml(xml: string): OrkDocument {
@@ -586,6 +627,7 @@ export function adaptRktXml(xml: string): OrkDocument {
       `This design has ${populatedStages} stages; staging (separation, air-starts) isn't simulated yet — the stack was flown as one.`,
     );
   }
+  resolveTubeFinWalls(components, 0);
   const stages: Stage[] = [{ name: childText(design, "Name") || "Stage", components }];
 
   // Each <SimulationResults> carries its own <EngineSet>s and stored numbers: map each to a

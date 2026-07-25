@@ -289,3 +289,47 @@ describe("adaptRktXml — per-part CG override (UseKnownCG/KnownCG)", () => {
     expect(g.cg).toBeCloseTo(baseline.cg, 6);
   });
 });
+
+describe("adaptRktXml — tube fins", () => {
+  const wrap = (parts: string) => `<?xml version="1.0"?>
+    <RockSimDocument><DesignInformation><RocketDesign>
+      <Name>TF</Name><StageCount>1</StageCount><UseKnownMass>0</UseKnownMass>
+      <Stage3Parts>
+        <NoseCone><Name>Nose</Name><Len>100</Len><BaseDia>29.972</BaseDia><ShapeCode>1</ShapeCode><CalcMass>10</CalcMass></NoseCone>
+        <BodyTube><Name>Body</Name><Len>254</Len><OD>29.972</OD><ID>28.956</ID><CalcMass>20</CalcMass>
+          <AttachedParts>${parts}</AttachedParts>
+        </BodyTube>
+      </Stage3Parts>
+    </RocketDesign></DesignInformation></RockSimDocument>`;
+
+  it("imports a tube-fin set instead of flying the design without it", () => {
+    const doc = adaptRktXml(
+      wrap(`<TubeFinSet><Name>Tube fins</Name><Xb>174.625</Xb><TubeCount>6</TubeCount>
+             <OD>28.575</OD><ID>27.559</ID><Len>73.025</Len><CalcMass>13.5</CalcMass></TubeFinSet>`),
+    );
+    expect(doc.flownAsReduced).toBe(false);
+    expect(doc.warnings).toEqual([]);
+    const tubes = flattenRocket(doc.rocket).find((p) => p.component.kind === "tubefinset")!.component;
+    expect(tubes).toMatchObject({ finCount: 6 });
+    expect(tubes.kind === "tubefinset" && tubes.outerRadius).toBeCloseTo(0.0142875, 7);
+    expect(tubes.kind === "tubefinset" && tubes.thickness).toBeCloseTo(0.000508, 7);
+    expect(tubes.kind === "tubefinset" && tubes.length).toBeCloseTo(0.073025, 7);
+  });
+
+  it("infers the wall — and re-weighs the part — when the file leaves the bore at zero", () => {
+    // RockSim commonly writes ID=0 for a tube fin and then weighs it as a SOLID rod (here 193.5 g
+    // against ~13 g of actual tube wall). Taking that literally flew a real design ~85% LOW; the
+    // tubes are cut from the airframe's own stock, so the body tube's wall is the honest fallback
+    // and the stated rod mass goes with the geometry it came from.
+    const doc = adaptRktXml(
+      wrap(`<TubeFinSet><Name>Tube fins</Name><Xb>174.625</Xb><TubeCount>6</TubeCount>
+             <OD>28.575</OD><ID>0.</ID><Len>73.025</Len><Density>688.794</Density>
+             <Material>Cardboard</Material><CalcMass>193.542</CalcMass></TubeFinSet>`),
+    );
+    const tubes = flattenRocket(doc.rocket).find((p) => p.component.kind === "tubefinset")!.component;
+    expect(tubes.kind === "tubefinset" && tubes.thickness).toBeCloseTo(0.000508, 7); // the body's wall
+    expect(tubes.overrideMass).toBeUndefined();
+    // ~13 g of tube wall, not the ~194 g of solid rod the file states.
+    expect(dryMassProperties(doc.rocket).mass).toBeLessThan(0.06);
+  });
+});

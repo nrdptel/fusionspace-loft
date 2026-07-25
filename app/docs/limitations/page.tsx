@@ -120,9 +120,25 @@ export default function Limitations() {
         stability. It is computed at import and is span-scale invariant, so it stays valid when a
         geometry edit stretches the fin. Still reduced for a freeform fin: its normal-force slope
         (the equal-area trapezoid) and its mass CG (a mid-planform estimate — no closed-form area
-        centroid for an arbitrary outline). Tube fins are not yet modelled — a design that uses them
-        is flown without those fins (with a visible warning), and because that isn&apos;t the whole
-        vehicle, its OpenRocket comparison is withheld.
+        centroid for an arbitrary outline).
+      </p>
+
+      <h3>Tube fins are modelled as ducts, and read ~1 caliber conservative</h3>
+      <p>
+        Tube fins are flown, not skipped. They are treated as what they are — short open cylinders
+        the flow passes <em>through</em> — so they get a duct normal force{" "}
+        <code>C<sub>Nα</sub> = 2·ΣN·πr<sub>i</sub>²/A<sub>ref</sub></code> at the tube mid-chord, plus
+        friction on both walls and stagnation and base drag on the square-cut wall annulus at each
+        end. Two independent oracles bound the result. On OpenRocket&apos;s own tube-fin example the
+        apogee error falls from <strong>+88% to −8%</strong>, and Loft&apos;s centre of pressure lands{" "}
+        <strong>≈0.9 caliber forward</strong> of the CP OpenRocket stores step by step (0.7 vs 1.6
+        calibers of margin) — the conservative side, but a real residual, not a rounding difference.
+        On RockSim&apos;s tube-fin file the apogee error falls from <strong>+87% to −2%</strong>, and
+        the duct normal-force slope and mid-chord CP land within <strong>1%</strong> and{" "}
+        <strong>2.6% of chord</strong> of the values that file itself stores for the same set. What
+        is <em>not</em> modelled: tube-to-body and tube-to-tube interference drag, any lift the
+        tubes carry as a ring wing beyond the captured streamtube, and the shielding of the airframe
+        that sits inside them. Ring tails (a single large ring) are still skipped.
       </p>
 
       <h3>Fin flutter is an estimate, not a certification</h3>
@@ -308,7 +324,10 @@ export default function Limitations() {
         recovery devices, launch lugs — and reads the motor(s) and stored results from each RockSim
         <em>simulation</em>. A fin&apos;s edge cross-section (RockSim&apos;s <code>TipShapeCode</code> —
         square, rounded, or airfoil) is read too, so a thick rounded or airfoiled fin is no longer
-        over-dragged as a square edge. What it does <strong>not</strong> yet cover: tube fins and ring
+        over-dragged as a square edge. Tube-fin sets import too; where the file leaves the tube bore
+        at zero — RockSim&apos;s usual habit, which also makes it weigh the tubes as solid rods — the
+        wall is taken from the airframe the tubes are cut from and the part is re-weighed to match,
+        rather than flying tubes that mass like rods. What it does <strong>not</strong> yet cover: ring
         tails (flown without them, with a warning), pods and sub-assemblies (only the primary stack
         flies), and elliptical/custom RockSim fin planforms (treated as their trapezoidal equivalent). A
         RockSim design tree also doesn&apos;t pin a recovery device&apos;s deploy event the way

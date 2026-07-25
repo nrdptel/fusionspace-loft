@@ -284,6 +284,17 @@ function componentXml(c: RocketComponent, motors: MotorsByMount, depth: number):
         `${pad}</trapezoidfinset>\n`
       );
     }
+    case "tubefinset":
+      // Written with an explicit radius rather than OpenRocket's "auto", so a set whose tubes were
+      // sized against a body Loft has since resized still round-trips to the geometry it flew.
+      return (
+        head + common + overrides +
+        `${p}<fincount>${c.finCount}</fincount>\n` +
+        `${p}<length>${num(c.length)}</length>\n` +
+        `${p}<radius>${num(c.outerRadius)}</radius>\n` +
+        `${p}<thickness>${num(c.thickness)}</thickness>\n` +
+        kids + close
+      );
     case "innertube":
       return (
         head + common + overrides +
