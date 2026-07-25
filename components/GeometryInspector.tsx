@@ -37,6 +37,9 @@ const KIND_LABEL: Record<string, string> = {
   railbutton: "Rail button",
 };
 
+/** What kind of part this is, in the reader's words. */
+const kindLabel = (c: RocketComponent): string => KIND_LABEL[c.kind] ?? c.kind;
+
 /** A compact dimension summary for one component, in the flyer's units. Empty when the part has no
  *  geometry worth spelling out (its mass still shows in the mass breakdown). */
 function describeDims(c: RocketComponent, units: UnitSystem): string {
@@ -92,7 +95,14 @@ export default function GeometryInspector({
   onEdit?: (patch: GeometryEdits) => void;
 }) {
   const parts = flattenRocket(rocket);
+  // Hover previews, a click picks. Picking has to stick: the pointer must leave a shape before you
+  // can read anything about it, so a hover-only link meant clicking a part on the diagram told you
+  // nothing — the one place it said what the part was sat behind a closed disclosure.
   const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [partsOpen, setPartsOpen] = useState(false);
+  const activeId = hoveredId ?? selectedId;
+  const active = parts.find((p) => p.component.id === activeId);
   if (parts.length === 0) return null;
 
   return (
@@ -115,11 +125,39 @@ export default function GeometryInspector({
           cg={cg}
           cp={cp}
           marginCal={marginCal}
-          highlightId={hoveredId}
+          highlightId={activeId}
           onHover={setHoveredId}
+          onSelect={(id) => {
+            setSelectedId((cur) => (cur === id ? null : id));
+            setPartsOpen(true);
+          }}
           motors={motors}
           onEdit={onEdit}
         />
+        {/* What you just pointed at. Reserved height so hovering across the airframe doesn't make
+            everything below it jump. */}
+        <p className="mt-1 min-h-6 text-xs text-zinc-600 dark:text-zinc-300" aria-live="polite">
+          {active ? (
+            <>
+              <span className="font-medium text-zinc-800 dark:text-zinc-100">
+                {active.component.name || KIND_LABEL[active.component.kind] || active.component.kind}
+              </span>{" "}
+              <span className="text-zinc-500 dark:text-zinc-400">
+                {/* Most designs name a part after what it is; repeating "Body tube · Body tube"
+                    is noise, so the type only appears when it adds something. */}
+                {kindLabel(active.component) !== (active.component.name || "")
+                  ? `· ${kindLabel(active.component)} `
+                  : ""}
+                · at {d.q(d.lengthMm(active.xFore, units))} from the nose
+              </span>{" "}
+              <span className="font-mono">{describeDims(active.component, units)}</span>
+            </>
+          ) : (
+            <span className="text-zinc-500 dark:text-zinc-400">
+              Point at a part of the airframe to identify it; click one to keep it picked out.
+            </span>
+          )}
+        </p>
         {onEdit && (
           <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
             Grab a handle to reshape the design right on the picture — slide the fin group fore or aft,
@@ -130,7 +168,11 @@ export default function GeometryInspector({
           </p>
         )}
         {/* The part-by-part detail is opt-in — hover/focus a row and it lights up on the diagram. */}
-        <details className="group mt-3 border-t border-zinc-100 pt-3 dark:border-zinc-800">
+        <details
+          className="group mt-3 border-t border-zinc-100 pt-3 dark:border-zinc-800"
+          open={partsOpen}
+          onToggle={(e) => setPartsOpen((e.currentTarget as HTMLDetailsElement).open)}
+        >
           <summary className="flex cursor-pointer select-none items-center gap-1.5 text-xs font-medium text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200">
             <span className="text-zinc-400 transition group-open:rotate-180">▾</span>
             Parts · {parts.length}
@@ -154,9 +196,17 @@ export default function GeometryInspector({
                   onMouseLeave={() => setHoveredId(null)}
                   onFocus={() => setHoveredId(p.component.id)}
                   onBlur={() => setHoveredId(null)}
-                  className={`border-t border-zinc-100 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-400 dark:border-zinc-800 ${
-                    hoveredId === p.component.id ? "bg-indigo-50 dark:bg-indigo-500/10" : ""
-                  }`}
+                  onClick={() => setSelectedId((cur) => (cur === p.component.id ? null : p.component.id))}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      setSelectedId((cur) => (cur === p.component.id ? null : p.component.id));
+                    }
+                  }}
+                  aria-selected={selectedId === p.component.id}
+                  className={`cursor-pointer border-t border-zinc-100 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-400 dark:border-zinc-800 ${
+                    activeId === p.component.id ? "bg-indigo-50 dark:bg-indigo-500/10" : ""
+                  } ${selectedId === p.component.id ? "ring-1 ring-inset ring-indigo-300 dark:ring-indigo-500/40" : ""}`}
                 >
                   <th scope="row" className="py-1.5 pr-4 text-left font-sans font-normal text-zinc-700 dark:text-zinc-200">
                     {p.component.name || KIND_LABEL[p.component.kind] || p.component.kind}
@@ -184,9 +234,10 @@ export default function GeometryInspector({
               nose tip — a quick way to confirm the import matches your design.
             </>
           )}{" "}
-          Hover a part to pick it out on the diagram. Diameters are shown as{" "}
-          <span className="font-mono">⌀</span>; a fin set lists its per-fin chords and span. Masses
-          are in the <em>Mass &amp; balance</em> panel.
+          A row and its shape on the diagram light up together, and clicking either keeps that part
+          picked out — so you can find a part on the picture and read what it is, or the other way
+          round. Diameters are shown as <span className="font-mono">⌀</span>; a fin set lists its
+          per-fin chords and span. Masses are in the <em>Mass &amp; balance</em> panel.
         </p>
         </details>
       </div>

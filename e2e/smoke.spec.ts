@@ -736,6 +736,32 @@ test.describe("Loft", () => {
     await expect(table.getByText(/⌀/).first()).toBeVisible();
   });
 
+  test("picking a part on the diagram says what it is and finds it in the parts list", async ({ page }) => {
+    // Hover alone can't answer "what is this?" — the pointer has to leave the shape before you can
+    // read anything, and the only place that said so was behind a closed disclosure.
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+    await page.getByRole("tab", { name: "Design" }).click();
+
+    const section = page.locator("section", { has: page.getByRole("heading", { name: "Design geometry" }) });
+    const readout = section.locator('p[aria-live="polite"]');
+    await expect(readout).toHaveText(/Point at a part of the airframe/);
+
+    // Click the airframe about a tenth of the way along — the nose or forward body, either way a
+    // part. Positioned relative to the element so the click resolves against its live box (the
+    // diagram measures itself on mount, so an absolute point read too early goes stale).
+    const svg = page.locator('svg[aria-label*="Scale side-view"]');
+    const box = (await svg.boundingBox())!;
+    await svg.click({ position: { x: box.width * 0.1, y: box.height / 2 } });
+
+    // It names the part and where it sits…
+    await expect(readout).toHaveText(/· at .* from the nose/);
+    // …and the parts list opens itself at the row for it.
+    await expect(section.locator("table")).toBeVisible();
+    await expect(section.locator('tr[aria-selected="true"]')).toHaveCount(1);
+  });
+
   test("the diagram zooms, and the airframe grows with it", async ({ page }) => {
     // Fit-to-width is the only way to see a 29:1 airframe whole and the worst way to see any of it.
     // Zooming has to actually magnify the drawing — not restretch the same picture — so this asserts

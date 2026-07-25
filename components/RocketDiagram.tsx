@@ -35,6 +35,7 @@ export default function RocketDiagram({
   marginCal,
   highlightId,
   onHover,
+  onSelect,
   motors,
   onEdit,
 }: {
@@ -50,6 +51,9 @@ export default function RocketDiagram({
   highlightId?: string | null;
   /** Called with a component id on hover, null on leave — so the parts table can highlight in step. */
   onHover?: (id: string | null) => void;
+  /** Called with a component id when one is clicked or tapped — a sticky pick, unlike hover, so the
+   *  part stays identified while you read what it is. */
+  onSelect?: (id: string) => void;
   /** Loaded motor casing(s), drawn inside the aft body so the design shows what it's flying. */
   motors?: MotorMark[];
   /** When provided, the diagram becomes editable: drag handles on the fins trim their position, tip
@@ -115,13 +119,18 @@ export default function RocketDiagram({
     return p + " Z";
   };
 
-  // Mouse hover on desktop; tap on touch (no mouseleave fires there, so a tap simply picks the part
-  // and it stays lit until another is tapped). Keyboard parity comes from the focusable parts table.
+  // Mouse hover previews a part; a click or tap PICKS it, and the pick sticks — hover alone can't,
+  // because the pointer has to leave the shape to read anything about it. Touch fires no mouseleave,
+  // so a tap does both. Keyboard parity comes from the focusable parts table.
   const hoverProps = (id: string) =>
-    onHover
-      ? { onMouseEnter: () => onHover(id), onMouseLeave: () => onHover(null), onClick: () => onHover(id) }
+    onHover || onSelect
+      ? {
+          onMouseEnter: () => onHover?.(id),
+          onMouseLeave: () => onHover?.(null),
+          onClick: () => onSelect?.(id),
+        }
       : {};
-  const cursor = onHover ? "cursor-pointer" : "";
+  const cursor = onHover || onSelect ? "cursor-pointer" : "";
 
   const lengthLabel =
     units === "imperial"
