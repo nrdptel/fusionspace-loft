@@ -10,6 +10,13 @@ not yet done. Newest first. One line each. Anything here is fair game for the ne
   those figures are internally inconsistent (2,250 m apogee at the same 20.2 s time-to-apogee Loft
   reaches 2,940 m in). The label is now honest, but the demo would land better with figures that
   hold together — regenerate them from the engine, or state a range.
+- Remaining corpus residuals, each excused in the suite's KNOWN_ISSUES with a reason: APEX K-Dart
+  -22.8% and OR-vs-RAS -42%/-66% (both supersonic, outside the validated envelope and the biggest
+  argument for a real wave-drag model); `03.Three-stage` max velocity -17% after the ignition fix;
+  Punisher sim 10 -10.4%; USLI zero-delay +11.7%.
+- The corpus sweep and the per-step drag cross-check are worth committing as real dev tools with
+  assertions rather than being rewritten as throwaway probes each session — the sweep now is, the
+  drag cross-check isn't.
 - Marker labels collide on every plot and on the flight path — "liftoff"/"burnout" and
   "apogee"/"deploy" overprint each other into unreadable glyphs when their times are close.
 - RASAero import leaves three things on the table: booster stages (only the sustainer flies, and
@@ -31,11 +38,9 @@ not yet done. Newest first. One line each. Anything here is fair game for the ne
   beyond the captured streamtube, and the shielding of the airframe inside the tubes; the
   CP reads ~0.9 caliber forward of OpenRocket's on its own example.
 - Ring tails (`<RingTail>` in RockSim) are still dropped with a warning.
-- The private fixture corpus (`nrdptel/loft-fixtures`, 38 real files) is not wired into the
-  repo at all — no lock file, no `fetch-fixtures` step, no gated corpus suite. It is the
-  sharpest bug-finder available and today it only runs by hand.
-- `02.Two-stage.ork` flies 81% low and `Parallel booster staging.ork` sim 2 flies 35% high —
-  both worth a look once the corpus suite exists to hold them.
+- The corpus suite exists now (`lib/corpus/sweep.test.ts`, skips when absent) but nothing FETCHES
+  the corpus: no lock file pinning repo/tag/asset/sha256, no `fetch-fixtures` step, no CI secret.
+  Until that lands the suite only gates a machine that already has the files.
 - `Pods--airframes and winglets.ork` sim 1 reads +25%: pods are dropped, so the comparison is
   withheld, but the pods' own drag is simply missing.
 - Deployment velocity is the worst metric in almost every corpus comparison (e.g. +153% on

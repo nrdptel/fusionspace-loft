@@ -81,11 +81,13 @@ export default function FlightViz({ result, units }: { result: FlightResult; uni
           <path key={`seg${uid}${i}`} d={s.d} fill="none" stroke={s.color} strokeWidth={2.2} strokeLinejoin="round" strokeLinecap="round" />
         ))}
 
-        {eventDots.map((d, i) => (
+        {/* Labels are lifted clear of one another: apogee and an at-apogee deployment sit on the
+            same point, and drawing both at the dot smeared them into an unreadable overprint. */}
+        {placeLabels(eventDots.map((d) => ({ ...d, text: label(d.e.type, d.e.label) }))).map((d, i) => (
           <g key={`e${uid}${i}`}>
             <circle cx={d.x} cy={d.y} r={3} className="fill-white stroke-zinc-700 dark:fill-zinc-900 dark:stroke-zinc-200" strokeWidth={1.5} />
-            <text x={d.x} y={d.y - 7} textAnchor="middle" className="fill-zinc-600 text-[9px] dark:fill-zinc-300">
-              {label(d.e.type, d.e.label)}
+            <text x={d.x} y={d.labelY} textAnchor="middle" className="fill-zinc-600 text-[9px] dark:fill-zinc-300">
+              {d.text}
             </text>
           </g>
         ))}
@@ -104,6 +106,32 @@ export default function FlightViz({ result, units }: { result: FlightResult; uni
       </figcaption>
     </figure>
   );
+}
+
+/** Mean glyph width and line height at the 9px label font, in viewBox units. */
+const LABEL_CHAR_W = 4.4;
+const LABEL_LINE_H = 11;
+
+/** Lift each label above its dot, raising it a line at a time until it clears every label already
+ *  placed. Events that share a point — apogee and a deployment triggered at apogee — then read as
+ *  two stacked words instead of one smear. */
+function placeLabels<T extends { x: number; y: number; text: string }>(dots: T[]): (T & { labelY: number })[] {
+  const boxes: { x0: number; x1: number; y: number }[] = [];
+  return dots.map((d) => {
+    const w = Math.max(1, d.text.length) * LABEL_CHAR_W;
+    const x0 = d.x - w / 2;
+    const x1 = d.x + w / 2;
+    let y = d.y - 7;
+    // Six lines is more than any flight's worth of coincident events; the bound keeps a
+    // degenerate trajectory from marching labels off the top of the plot.
+    for (let guard = 0; guard < 6; guard++) {
+      const clash = boxes.some((b) => b.x1 > x0 - 2 && b.x0 < x1 + 2 && Math.abs(b.y - y) < LABEL_LINE_H);
+      if (!clash) break;
+      y -= LABEL_LINE_H;
+    }
+    boxes.push({ x0, x1, y });
+    return { ...d, labelY: y };
+  });
 }
 
 function Legend({ color, label }: { color: string; label: string }) {

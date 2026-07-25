@@ -33,6 +33,12 @@ next-env.d.ts
 /playwright-report
 /playwright/.cache
 
+# Throwaway diagnostics. A session's probes get named *-tmp.* and live in the tree only while
+# they run; ignoring them keeps `git add -A` from sweeping one into a commit, which has happened.
+*-tmp.mjs
+*-tmp.test.ts
+*-tmp.ts
+
 # The real-design corpus: other people's design files, under their own terms. Never committed;
 # extracted here (or pointed at with LOFT_CORPUS_DIR) so lib/corpus/sweep.test.ts can run. The
 # suite skips itself when this is absent, so a public clone and a fork's CI stay green.

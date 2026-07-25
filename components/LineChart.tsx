@@ -14,6 +14,51 @@ export interface Marker {
   label: string;
 }
 
+/** Vertical spacing between stacked marker-label rows, in viewBox units. */
+const MARKER_ROW_H = 10;
+/** Fixed viewBox geometry. The chart scales to its container through the viewBox, so these are
+ *  constants rather than measured pixels. */
+const CHART_W = 640;
+const PAD_L = 52;
+const PAD_R = 14;
+/** Mean glyph width at the 9px marker font, in viewBox units — enough to know when two labels
+ *  would touch. Deliberately an estimate: measuring text would mean a DOM round-trip per render. */
+const MARKER_CHAR_W = 4.4;
+
+interface PlacedMarker extends Marker {
+  row: number;
+  textX: number;
+  anchor: "start" | "middle" | "end";
+}
+
+/** Place marker labels so they never overprint. Each label takes the topmost row in which it
+ *  clears the previous label on that row; a label that would run off either end of the plot is
+ *  anchored inward instead of being clipped. */
+export function layoutMarkers(markers: Marker[], px: (x: number) => number): PlacedMarker[] {
+  const sorted = [...markers].sort((a, b) => a.x - b.x);
+  const rowEnds: number[] = [];
+  return sorted.map((m) => {
+    const w = Math.max(1, m.label.length) * MARKER_CHAR_W;
+    const at = px(m.x);
+    // Keep the label inside the plot: hug the edge rather than overflow it.
+    let anchor: PlacedMarker["anchor"] = "middle";
+    let textX = at;
+    if (at - w / 2 < PAD_L) {
+      anchor = "start";
+      textX = Math.max(PAD_L, at - w / 2);
+    } else if (at + w / 2 > CHART_W - PAD_R) {
+      anchor = "end";
+      textX = Math.min(CHART_W - PAD_R, at + w / 2);
+    }
+    const left = anchor === "start" ? textX : anchor === "end" ? textX - w : textX - w / 2;
+    const right = left + w;
+    let row = 0;
+    while (row < rowEnds.length && rowEnds[row] > left - 2) row++;
+    rowEnds[row] = right;
+    return { ...m, row, textX, anchor };
+  });
+}
+
 /** A small, dependency-free, theme-aware SVG line chart. Responsive: it scales to its
  *  container width via a viewBox. Used for the altitude/velocity/acceleration/thrust plots.
  *  Kept deliberately simple — no chart library, so it works offline and ships nothing. */
@@ -34,10 +79,10 @@ export default function LineChart({
   yZeroFloor?: boolean;
 }) {
   const uid = useId();
-  const W = 640;
+  const W = CHART_W;
   const H = height;
-  const padL = 52;
-  const padR = 14;
+  const padL = PAD_L;
+  const padR = PAD_R;
   const padT = 12;
   const padB = 34;
 
@@ -115,8 +160,10 @@ export default function LineChart({
           </text>
         ))}
 
-        {/* event markers */}
-        {markers.map((m, i) => (
+        {/* Event markers. Labels are stacked into rows so that events close together in time —
+            liftoff and burnout on a short burn, apogee and deployment on an at-apogee chute —
+            stay readable instead of overprinting each other into a smear. */}
+        {layoutMarkers(markers, px).map((m, i) => (
           <g key={`m${uid}${i}`}>
             <line
               x1={px(m.x)}
@@ -128,9 +175,9 @@ export default function LineChart({
               strokeDasharray="3 3"
             />
             <text
-              x={px(m.x)}
-              y={padT + 4}
-              textAnchor="middle"
+              x={m.textX}
+              y={padT + 4 + m.row * MARKER_ROW_H}
+              textAnchor={m.anchor}
               className="fill-zinc-400 text-[9px]"
             >
               {m.label}
