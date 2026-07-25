@@ -35,6 +35,14 @@ for (const file of files) {
       simfileId: p.simfileId ?? null,
       license: p.license ?? null,
       infoUrl: p.simfileId ? `https://www.thrustcurve.org/simfiles/${p.simfileId}/` : null,
+      // ThrustCurve.org's own designation and manufacturer for this motor. A RASP header
+      // carries whatever the curve's author typed — an abbreviated designation ("E30" for an
+      // E30T, "G80NBT" for a G80T) and a one-or-two-letter maker code ("A", "AT", "E") — so
+      // the catalogued identity comes from the certification record instead, and the header
+      // is only the fallback. Matching a design's motor reference against the abbreviation is
+      // what left real files with no propulsion at all.
+      designation: p.designation ?? null,
+      manufacturer: p.manufacturer ?? null,
     },
   });
 }
@@ -53,6 +61,11 @@ export interface CatalogSource {
   simfileId: string | null;
   license: string | null;
   infoUrl: string | null;
+  /** ThrustCurve.org's designation for this motor, when recorded — the catalogued identity
+   *  matching runs against, in preference to the RASP header's abbreviation. */
+  designation: string | null;
+  /** ThrustCurve.org's manufacturer, likewise, in preference to the header's maker code. */
+  manufacturer: string | null;
 }
 
 export interface CatalogEntry {

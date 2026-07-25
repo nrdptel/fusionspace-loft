@@ -33,6 +33,10 @@ import { vec, type Vec3, add, scale, mag } from "./vector";
 /** A motor loaded into the design, resolved to a real curve and placed on the axis. */
 export interface ResolvedMotor {
   curve: MotorCurve;
+  /** The motor's catalogued designation — ThrustCurve.org's where the bundled curve records it,
+   *  rather than the RASP header's abbreviation. Carried so every surface that names the flown
+   *  motor names the same thing the resolution panel does; absent ⇒ fall back to the curve's. */
+  designation?: string;
   /** Motor CG station from the nose tip (m). */
   cg: number;
   /** Ignition time (s). */

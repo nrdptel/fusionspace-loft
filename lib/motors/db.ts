@@ -18,6 +18,11 @@ export interface MotorDbEntry {
   source: CatalogSource;
   /** Normalized core designation, e.g. "K550", "J293". */
   core: string;
+  /** The motor's catalogued designation — ThrustCurve.org's, when the curve's provenance
+   *  records it, else the RASP header's. Matching runs against this. */
+  designation: string;
+  /** The motor's catalogued manufacturer, on the same preference. */
+  manufacturer?: string;
 }
 
 export type MatchQuality = "exact" | "designation" | "core" | "none";
@@ -36,7 +41,20 @@ export function allMotors(): MotorDbEntry[] {
   for (const item of MOTOR_CATALOG) {
     try {
       const curve = parseEng(item.eng);
-      out.push({ curve, source: item.source, core: coreDesignation(curve.designation) });
+      // A RASP header carries whatever the curve's author typed: an abbreviated designation
+      // ("E30" for AeroTech's E30T, "G80NBT" for a G80T) and a terse maker code ("A", "AT",
+      // "E"). ThrustCurve.org's certification record is the authority on both, so it wins where
+      // the provenance has it. Matching against the abbreviation alone left real design files
+      // with no resolvable motor and so no propulsion at all.
+      const designation = item.source.designation || curve.designation;
+      const manufacturer = item.source.manufacturer || curve.manufacturer;
+      out.push({
+        curve,
+        source: item.source,
+        core: coreDesignation(designation),
+        designation,
+        manufacturer,
+      });
     } catch {
       // A bad curve shouldn't take down the whole database.
     }
@@ -64,6 +82,7 @@ export function coreDesignation(designation: string): string {
 // "AT" vs "AeroTech"); designs spell them out. Fold both onto one key so manufacturer
 // comparison works.
 const MFR_ALIASES: Record<string, string> = {
+  A: "aerotech", // the single-letter AeroTech code some wRASP-era .eng files use
   AT: "aerotech",
   AERO: "aerotech", // some RASP .eng files spell AeroTech's code "AERO" rather than "AT"
   AEROTECH: "aerotech",
@@ -113,8 +132,8 @@ export function resolveMotor(spec: Pick<MotorSpec, "manufacturer" | "designation
   // both sides. An unknown maker on either side never vetoes.
   let best: { entry: MotorDbEntry; quality: MatchQuality; score: number } | null = null;
   for (const entry of motors) {
-    const eDesig = normalize(entry.curve.designation);
-    const eMfr = mfrKey(entry.curve.manufacturer);
+    const eDesig = normalize(entry.designation);
+    const eMfr = mfrKey(entry.manufacturer);
     const mfrKnown = qMfr !== "" && eMfr !== "";
     const mfrAgree = mfrKnown ? qMfr === eMfr : false;
 

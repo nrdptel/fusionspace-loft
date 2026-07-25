@@ -72,6 +72,7 @@ export function buildRocketDynamics(rocket: Rocket, config: MotorConfiguration):
   // accumulate how long each stage burns from activation to its last motor's burnout.
   interface Placed {
     curve: ResolvedMotor["curve"];
+    designation: string;
     cg: number;
     count: number;
     ejectionDelay: number;
@@ -111,7 +112,7 @@ export function buildRocketDynamics(rocket: Rocket, config: MotorConfiguration):
     const cg = mountAft + overhang - motorLen / 2;
     const ejectionDelay = Number.isFinite(inst.motor.delay ?? NaN) ? (inst.motor.delay as number) : NaN;
     const ignitionDelay = Number.isFinite(inst.ignitionDelay ?? NaN) ? (inst.ignitionDelay as number) : 0;
-    placed.push({ curve: match.entry.curve, cg, count, ejectionDelay, ignitionDelay, stageIndex });
+    placed.push({ curve: match.entry.curve, designation: match.entry.designation, cg, count, ejectionDelay, ignitionDelay, stageIndex });
     stageBurnDuration[stageIndex] = Math.max(stageBurnDuration[stageIndex], ignitionDelay + match.entry.curve.burnTime);
   }
 
@@ -155,6 +156,7 @@ export function buildRocketDynamics(rocket: Rocket, config: MotorConfiguration):
     const ignitionTime = stageActivation[p.stageIndex] + p.ignitionDelay;
     const resolved: ResolvedMotor = {
       curve: p.curve,
+      designation: p.designation,
       cg: p.cg,
       ignitionTime,
       detachTime: detachT[p.stageIndex],
@@ -212,7 +214,7 @@ export function motorLayout(rocket: Rocket, config: MotorConfiguration): MotorMa
       x0: m.cg - length / 2,
       x1: m.cg + length / 2,
       radius: m.curve.diameterMm / 2000,
-      designation: m.curve.designation,
+      designation: m.designation ?? m.curve.designation,
     };
   });
 }

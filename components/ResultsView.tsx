@@ -711,13 +711,13 @@ function RocketSummary({ run, doc, units }: { run: FlightRun; doc: OrkDocument; 
             }
             title={
               res.match
-                ? `Matched ${res.match.entry.curve.designation} (${res.match.quality})${res.count > 1 ? ` — cluster of ${res.count}` : ""}`
+                ? `Matched ${res.match.entry.designation} (${res.match.quality})${res.count > 1 ? ` — cluster of ${res.count}` : ""}`
                 : "No thrust curve found"
             }
           >
             {res.count > 1 ? `${res.count}× ` : ""}
             {res.designation}
-            {res.match && res.match.quality !== "exact" ? ` → ${res.match.entry.curve.designation}` : ""}
+            {res.match && res.match.quality !== "exact" ? ` → ${res.match.entry.designation}` : ""}
             {!res.match ? " · not found" : res.match.quality !== "exact" ? " · approx" : ""}
           </span>
         ))}
@@ -937,8 +937,8 @@ function WhatIfDelta({ run, baseline, units }: { run: FlightRun; baseline: Fligh
 
   // Name the motor change when the swap flew a different motor than the design's own. Designation
   // comes from the resolutions, so it's correct regardless of any mass difference between motors.
-  const curMotor = run.resolutions.find((x) => x.match)?.match?.entry.curve.designation;
-  const baseMotor = baseline.resolutions.find((x) => x.match)?.match?.entry.curve.designation;
+  const curMotor = run.resolutions.find((x) => x.match)?.match?.entry.designation;
+  const baseMotor = baseline.resolutions.find((x) => x.match)?.match?.entry.designation;
   const motorNote = curMotor && baseMotor && curMotor !== baseMotor ? { from: baseMotor, to: curMotor } : null;
 
   const rows = [

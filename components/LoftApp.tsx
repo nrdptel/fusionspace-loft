@@ -420,8 +420,8 @@ export default function LoftApp() {
       .filter((m) => Math.round(m.curve.diameterMm) === diaMm)
       .sort((a, b) => a.curve.totalImpulse - b.curve.totalImpulse)
       .map((m) => ({
-        designation: m.curve.designation,
-        manufacturer: m.curve.manufacturer,
+        designation: m.designation,
+        manufacturer: m.manufacturer ?? m.curve.manufacturer ?? "",
         diameter: m.curve.diameterMm / 1000,
         motorClass: m.curve.motorClass,
       }));

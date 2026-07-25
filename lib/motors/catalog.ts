@@ -12,6 +12,11 @@ export interface CatalogSource {
   simfileId: string | null;
   license: string | null;
   infoUrl: string | null;
+  /** ThrustCurve.org's designation for this motor, when recorded — the catalogued identity
+   *  matching runs against, in preference to the RASP header's abbreviation. */
+  designation: string | null;
+  /** ThrustCurve.org's manufacturer, likewise, in preference to the header's maker code. */
+  manufacturer: string | null;
 }
 
 export interface CatalogEntry {
@@ -28,7 +33,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "motorId": "5f4294d2000231000000018b",
       "simfileId": "5f4294d20002e90000000482",
       "license": null,
-      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000482/"
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000482/",
+      "designation": "L1100RR",
+      "manufacturer": "Animal Motor Works"
     }
   },
   {
@@ -38,7 +45,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "motorId": "5f4294d20002310000000023",
       "simfileId": "5f4294d20002e9000000027d",
       "license": null,
-      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000027d/"
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000027d/",
+      "designation": "D21T",
+      "manufacturer": "AeroTech"
     }
   },
   {
@@ -48,7 +57,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "motorId": "5f4294d20002310000000034",
       "simfileId": "62431a34ee302a00044520da",
       "license": "PD",
-      "infoUrl": "https://www.thrustcurve.org/simfiles/62431a34ee302a00044520da/"
+      "infoUrl": "https://www.thrustcurve.org/simfiles/62431a34ee302a00044520da/",
+      "designation": "E30T",
+      "manufacturer": "AeroTech"
     }
   },
   {
@@ -58,7 +69,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "motorId": "5f4294d20002310000000049",
       "simfileId": "5f4294d20002e9000000045b",
       "license": "?",
-      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000045b/"
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000045b/",
+      "designation": "F50T",
+      "manufacturer": "AeroTech"
     }
   },
   {
@@ -68,7 +81,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "motorId": "5f4294d2000231000000004b",
       "simfileId": "5f4294d20002e9000000045c",
       "license": null,
-      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000045c/"
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000045c/",
+      "designation": "F52",
+      "manufacturer": "AeroTech"
     }
   },
   {
@@ -78,7 +93,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "motorId": "5f4294d2000231000000045a",
       "simfileId": "5f4294d20002e9000000088a",
       "license": "?",
-      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000088a/"
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000088a/",
+      "designation": "F67W",
+      "manufacturer": "AeroTech"
     }
   },
   {
@@ -88,7 +105,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "motorId": "5f4294d20002310000000059",
       "simfileId": "5f4294d20002e90000000463",
       "license": "?",
-      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000463/"
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000463/",
+      "designation": "G40W",
+      "manufacturer": "AeroTech"
     }
   },
   {
@@ -98,7 +117,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "motorId": "5f4294d20002310000000060",
       "simfileId": "5f4294d20002e9000000081a",
       "license": null,
-      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000081a/"
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000081a/",
+      "designation": "G64BF",
+      "manufacturer": "AeroTech"
     }
   },
   {
@@ -108,7 +129,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "motorId": "5f4294d20002310000000065",
       "simfileId": "5f4294d20002e90000000120",
       "license": null,
-      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000120/"
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000120/",
+      "designation": "G77R",
+      "manufacturer": "AeroTech"
     }
   },
   {
@@ -118,7 +141,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "motorId": "5f4294d20002310000000068",
       "simfileId": "5f4294d20002e900000007dd",
       "license": "?",
-      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000007dd/"
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000007dd/",
+      "designation": "G80T",
+      "manufacturer": "AeroTech"
     }
   },
   {
@@ -128,7 +153,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "motorId": "5f4294d20002310000000440",
       "simfileId": "5f4294d20002e90000000854",
       "license": "free",
-      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000854/"
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000854/",
+      "designation": "H100W",
+      "manufacturer": "AeroTech"
     }
   },
   {
@@ -138,7 +165,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "motorId": "5f4294d20002310000000083",
       "simfileId": "5f4294d20002e9000000000d",
       "license": "PD",
-      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000000d/"
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000000d/",
+      "designation": "H128W",
+      "manufacturer": "AeroTech"
     }
   },
   {
@@ -148,7 +177,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "motorId": "5f4294d20002310000000087",
       "simfileId": "5f4294d20002e9000000000f",
       "license": "PD",
-      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000000f/"
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000000f/",
+      "designation": "H148R",
+      "manufacturer": "AeroTech"
     }
   },
   {
@@ -158,7 +189,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "motorId": "5f4294d2000231000000008b",
       "simfileId": "5f4294d20002e90000000013",
       "license": "PD",
-      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000013/"
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000013/",
+      "designation": "H180W",
+      "manufacturer": "AeroTech"
     }
   },
   {
@@ -168,7 +201,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "motorId": "5f4294d20002310000000091",
       "simfileId": "5f4294d20002e90000000019",
       "license": "PD",
-      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000019/"
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000019/",
+      "designation": "H242T",
+      "manufacturer": "AeroTech"
     }
   },
   {
@@ -178,7 +213,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "motorId": "5f4294d2000231000000009b",
       "simfileId": "5f4294d20002e9000000026a",
       "license": "?",
-      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000026a/"
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000026a/",
+      "designation": "H669N",
+      "manufacturer": "AeroTech"
     }
   },
   {
@@ -188,7 +225,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "motorId": "5f4294d2000231000000009c",
       "simfileId": "5f4294d20002e9000000026b",
       "license": null,
-      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000026b/"
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000026b/",
+      "designation": "H999N",
+      "manufacturer": "AeroTech"
     }
   },
   {
@@ -198,7 +237,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "motorId": "5f4294d200023100000001e7",
       "simfileId": "5f4294d20002e90000000423",
       "license": "?",
-      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000423/"
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000423/",
+      "designation": "I115W",
+      "manufacturer": "AeroTech"
     }
   },
   {
@@ -208,7 +249,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "motorId": "5f4294d200023100000000b1",
       "simfileId": "5f4294d20002e9000000002d",
       "license": "PD",
-      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000002d/"
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000002d/",
+      "designation": "I161W",
+      "manufacturer": "AeroTech"
     }
   },
   {
@@ -218,7 +261,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "motorId": "5f4294d200023100000000b5",
       "simfileId": "5f4294d20002e90000000033",
       "license": "PD",
-      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000033/"
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000033/",
+      "designation": "I200W",
+      "manufacturer": "AeroTech"
     }
   },
   {
@@ -228,7 +273,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "motorId": "5f4294d200023100000000b9",
       "simfileId": "5f4294d20002e90000000035",
       "license": "PD",
-      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000035/"
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000035/",
+      "designation": "I211W",
+      "manufacturer": "AeroTech"
     }
   },
   {
@@ -238,7 +285,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "motorId": "5f4294d200023100000000c5",
       "simfileId": "5f4294d20002e9000000003b",
       "license": "PD",
-      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000003b/"
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000003b/",
+      "designation": "I284W",
+      "manufacturer": "AeroTech"
     }
   },
   {
@@ -248,7 +297,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "motorId": "5f4294d200023100000000d3",
       "simfileId": "5f4294d20002e9000000003f",
       "license": "PD",
-      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000003f/"
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000003f/",
+      "designation": "I357T",
+      "manufacturer": "AeroTech"
     }
   },
   {
@@ -258,7 +309,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "motorId": "5f4294d200023100000002d0",
       "simfileId": "5f4294d20002e90000000660",
       "license": "PD",
-      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000660/"
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000660/",
+      "designation": "I59WN",
+      "manufacturer": "AeroTech"
     }
   },
   {
@@ -268,7 +321,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "motorId": "5f4294d2000231000000010e",
       "simfileId": "5f4294d20002e900000002a7",
       "license": "PD",
-      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000002a7/"
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000002a7/",
+      "designation": "J350W",
+      "manufacturer": "AeroTech"
     }
   },
   {
@@ -278,7 +333,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "motorId": "5f4294d2000231000000011c",
       "simfileId": "5f4294d20002e90000000057",
       "license": "PD",
-      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000057/"
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000057/",
+      "designation": "J420R",
+      "manufacturer": "AeroTech"
     }
   },
   {
@@ -288,7 +345,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "motorId": "5f4294d200023100000001e5",
       "simfileId": "5f4294d20002e9000000029e",
       "license": "?",
-      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000029e/"
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000029e/",
+      "designation": "J500G",
+      "manufacturer": "AeroTech"
     }
   },
   {
@@ -298,7 +357,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "motorId": "5f4294d20002310000000126",
       "simfileId": "5f4294d20002e9000000005d",
       "license": "PD",
-      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000005d/"
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000005d/",
+      "designation": "J570W",
+      "manufacturer": "AeroTech"
     }
   },
   {
@@ -308,7 +369,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "motorId": "5f4294d20002310000000129",
       "simfileId": "5f4294d20002e9000000005f",
       "license": "PD",
-      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000005f/"
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000005f/",
+      "designation": "J800T",
+      "manufacturer": "AeroTech"
     }
   },
   {
@@ -318,7 +381,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "motorId": "5f4294d2000231000000024e",
       "simfileId": "5f4294d20002e90000000564",
       "license": "?",
-      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000564/"
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000564/",
+      "designation": "K1050W",
+      "manufacturer": "AeroTech"
     }
   },
   {
@@ -328,7 +393,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "motorId": "5f4294d20002310000000167",
       "simfileId": "5f4294d20002e90000000067",
       "license": "PD",
-      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000067/"
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000067/",
+      "designation": "K1275R",
+      "manufacturer": "AeroTech"
     }
   },
   {
@@ -338,7 +405,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "motorId": "5f4294d20002310000000132",
       "simfileId": "5f4294d20002e9000000006b",
       "license": "PD",
-      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000006b/"
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000006b/",
+      "designation": "K250W",
+      "manufacturer": "AeroTech"
     }
   },
   {
@@ -348,7 +417,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "motorId": "5f4294d20002310000000146",
       "simfileId": "5f4294d20002e90000000071",
       "license": "PD",
-      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000071/"
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000071/",
+      "designation": "K550W",
+      "manufacturer": "AeroTech"
     }
   },
   {
@@ -358,7 +429,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "motorId": "5f4294d2000231000000015a",
       "simfileId": "5f4294d20002e90000000079",
       "license": "PD",
-      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000079/"
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000079/",
+      "designation": "K700W",
+      "manufacturer": "AeroTech"
     }
   },
   {
@@ -368,7 +441,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "motorId": "5f4294d2000231000000040b",
       "simfileId": "5f4294d20002e900000007f6",
       "license": "PD",
-      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000007f6/"
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000007f6/",
+      "designation": "L1000",
+      "manufacturer": "AeroTech"
     }
   },
   {
@@ -378,7 +453,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "motorId": "5f4294d20002310000000185",
       "simfileId": "5f4294d20002e90000000085",
       "license": "PD",
-      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000085/"
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000085/",
+      "designation": "L952W",
+      "manufacturer": "AeroTech"
     }
   },
   {
@@ -388,7 +465,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "motorId": "5f4294d200023100000001b6",
       "simfileId": "5f4294d20002e90000000093",
       "license": "PD",
-      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000093/"
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000093/",
+      "designation": "M2400T",
+      "manufacturer": "AeroTech"
     }
   },
   {
@@ -398,7 +477,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "motorId": "5f4294d2000231000000030d",
       "simfileId": "5f4294d20002e90000000884",
       "license": "PD",
-      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000884/"
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000884/",
+      "designation": "N3300R-P",
+      "manufacturer": "AeroTech"
     }
   },
   {
@@ -408,7 +489,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "motorId": "5f4294d200023100000003a8",
       "simfileId": "5f4294d20002e9000000074a",
       "license": "PD",
-      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000074a/"
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000074a/",
+      "designation": "1266-J760-WT-19A",
+      "manufacturer": "Cesaroni"
     }
   },
   {
@@ -418,7 +501,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "motorId": "5f4294d20002310000000154",
       "simfileId": "5f4294d20002e90000000143",
       "license": "?",
-      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000143/"
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000143/",
+      "designation": "2437K660-17A",
+      "manufacturer": "Cesaroni Technology"
     }
   },
   {
@@ -428,7 +513,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "motorId": "5f4294d200023100000002d8",
       "simfileId": "5f4294d20002e90000000674",
       "license": "?",
-      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000674/"
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000674/",
+      "designation": "838J293-13A",
+      "manufacturer": "Cesaroni Technology"
     }
   },
   {
@@ -438,7 +525,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "motorId": "5f4294d200023100000002cb",
       "simfileId": "5f4294d20002e90000000656",
       "license": null,
-      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000656/"
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000656/",
+      "designation": "H100-IM",
+      "manufacturer": "Cesaroni"
     }
   },
   {
@@ -448,7 +537,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "motorId": "5f4294d200023100000000ba",
       "simfileId": "5f4294d20002e9000000013b",
       "license": null,
-      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000013b/"
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000013b/",
+      "designation": "I212SS",
+      "manufacturer": "Cesaroni"
     }
   },
   {
@@ -458,7 +549,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "motorId": "5f4294d200023100000002cc",
       "simfileId": "5f4294d20002e90000000654",
       "license": null,
-      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000654/"
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000654/",
+      "designation": "I216-CL(I)",
+      "manufacturer": "Cesaroni"
     }
   },
   {
@@ -468,7 +561,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "motorId": "5f4294d200023100000001fb",
       "simfileId": "5f4294d20002e900000002aa",
       "license": "?",
-      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000002aa/"
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000002aa/",
+      "designation": "I540WT",
+      "manufacturer": "Cesaroni"
     }
   },
   {
@@ -478,7 +573,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "motorId": "5f4294d20002310000000416",
       "simfileId": "5f4294d20002e90000000810",
       "license": null,
-      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000810/"
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000810/",
+      "designation": "644-J94-MY-P",
+      "manufacturer": "Cesaroni"
     }
   },
   {
@@ -488,7 +585,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "motorId": "5f4294d20002310000000261",
       "simfileId": "5f4294d20002e90000000852",
       "license": "PD",
-      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000852/"
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000852/",
+      "designation": "K1440",
+      "manufacturer": "Cesaroni"
     }
   },
   {
@@ -498,7 +597,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "motorId": "5f4294d200023100000003a6",
       "simfileId": "5f4294d20002e9000000074e",
       "license": "PD",
-      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000074e/"
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000074e/",
+      "designation": "K261",
+      "manufacturer": "Cesaroni"
     }
   },
   {
@@ -508,7 +609,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "motorId": "5f4294d2000231000000013b",
       "simfileId": "5f4294d20002e90000000141",
       "license": "?",
-      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000141/"
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000141/",
+      "designation": "K445",
+      "manufacturer": "Cesaroni"
     }
   },
   {
@@ -518,7 +621,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "motorId": "5f4294d20002310000000145",
       "simfileId": "5f4294d20002e90000000147",
       "license": "?",
-      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000147/"
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000147/",
+      "designation": "K530",
+      "manufacturer": "Cesaroni"
     }
   },
   {
@@ -528,7 +633,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "motorId": "5f4294d200023100000003dc",
       "simfileId": "5f4294d20002e900000007c6",
       "license": "PD",
-      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000007c6/"
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000007c6/",
+      "designation": "L1350",
+      "manufacturer": "Cesaroni"
     }
   },
   {
@@ -538,7 +645,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "motorId": "5f4294d2000231000000017c",
       "simfileId": "5f4294d20002e90000000144",
       "license": "?",
-      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000144/"
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000144/",
+      "designation": "L730",
+      "manufacturer": "Cesaroni"
     }
   },
   {
@@ -548,7 +657,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "motorId": "5f4294d20002310000000296",
       "simfileId": "5f4294d20002e9000000062c",
       "license": "?",
-      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000062c/"
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000062c/",
+      "designation": "M1670",
+      "manufacturer": "Cesaroni"
     }
   },
   {
@@ -558,7 +669,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "motorId": "5f4294d200023100000003e9",
       "simfileId": "5f4294d20002e900000007b5",
       "license": "PD",
-      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000007b5/"
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000007b5/",
+      "designation": "M2245",
+      "manufacturer": "Cesaroni"
     }
   },
   {
@@ -568,7 +681,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "motorId": "5f4294d20002310000000318",
       "simfileId": "5f4294d20002e900000006f9",
       "license": "?",
-      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000006f9/"
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000006f9/",
+      "designation": "M3400",
+      "manufacturer": "Cesaroni"
     }
   },
   {
@@ -578,7 +693,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "motorId": "5f4294d200023100000002f9",
       "simfileId": "5f4294d20002e900000006c2",
       "license": null,
-      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000006c2/"
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000006c2/",
+      "designation": "N3400-SK",
+      "manufacturer": "Cesaroni"
     }
   },
   {
@@ -588,7 +705,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "motorId": "5f4294d20002310000000319",
       "simfileId": "5f4294d20002e900000006fb",
       "license": null,
-      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000006fb/"
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000006fb/",
+      "designation": "N3800-BS",
+      "manufacturer": "Cesaroni"
     }
   },
   {
@@ -598,7 +717,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "motorId": "5f4294d2000231000000000c",
       "simfileId": "624aff26a49a690004b83002",
       "license": null,
-      "infoUrl": "https://www.thrustcurve.org/simfiles/624aff26a49a690004b83002/"
+      "infoUrl": "https://www.thrustcurve.org/simfiles/624aff26a49a690004b83002/",
+      "designation": "A10",
+      "manufacturer": "Estes Industries"
     }
   },
   {
@@ -608,7 +729,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "motorId": "5f4294d2000231000000000b",
       "simfileId": "5f4294d20002e900000004e3",
       "license": null,
-      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000004e3/"
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000004e3/",
+      "designation": "A8",
+      "manufacturer": "Estes Industries"
     }
   },
   {
@@ -618,7 +741,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "motorId": "5f4294d2000231000000000e",
       "simfileId": "5f4294d20002e900000004e5",
       "license": null,
-      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000004e5/"
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000004e5/",
+      "designation": "B4",
+      "manufacturer": "Estes Industries"
     }
   },
   {
@@ -628,7 +753,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "motorId": "5f4294d20002310000000010",
       "simfileId": "5f4294d20002e90000000414",
       "license": null,
-      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000414/"
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000414/",
+      "designation": "B6",
+      "manufacturer": "Estes Industries"
     }
   },
   {
@@ -638,7 +765,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "motorId": "5f4294d2000231000000001a",
       "simfileId": "5f4294d20002e900000004e8",
       "license": null,
-      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000004e8/"
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000004e8/",
+      "designation": "C11",
+      "manufacturer": "Estes Industries"
     }
   },
   {
@@ -648,7 +777,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "motorId": "5f4294d20002310000000015",
       "simfileId": "69eb2379c7d63000021d8c29",
       "license": null,
-      "infoUrl": "https://www.thrustcurve.org/simfiles/69eb2379c7d63000021d8c29/"
+      "infoUrl": "https://www.thrustcurve.org/simfiles/69eb2379c7d63000021d8c29/",
+      "designation": "C6",
+      "manufacturer": "Estes Industries"
     }
   },
   {
@@ -658,7 +789,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "motorId": "5f4294d20002310000000020",
       "simfileId": "5f4294d20002e900000004ea",
       "license": "?",
-      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000004ea/"
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000004ea/",
+      "designation": "D12",
+      "manufacturer": "Estes Industries"
     }
   },
   {
@@ -668,7 +801,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "motorId": "5f4294d200023100000003e3",
       "simfileId": "5f4294d20002e900000007ad",
       "license": "?",
-      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000007ad/"
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000007ad/",
+      "designation": "E12",
+      "manufacturer": "Estes Industries"
     }
   },
   {
@@ -678,7 +813,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "motorId": "5f4294d200023100000003f8",
       "simfileId": "5f4294d20002e900000007e6",
       "license": null,
-      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000007e6/"
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000007e6/",
+      "designation": "E16",
+      "manufacturer": "Estes"
     }
   },
   {
@@ -688,7 +825,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "motorId": "5f4294d20002310000000028",
       "simfileId": "5f4294d20002e90000000416",
       "license": null,
-      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000416/"
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000416/",
+      "designation": "E9",
+      "manufacturer": "Estes Industries"
     }
   },
   {
@@ -698,7 +837,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "motorId": "5f4294d200023100000003f2",
       "simfileId": "5f4294d20002e900000007e5",
       "license": null,
-      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000007e5/"
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000007e5/",
+      "designation": "F15",
+      "manufacturer": "Estes"
     }
   },
   {
@@ -708,7 +849,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "motorId": "5f4294d20002310000000449",
       "simfileId": "5f4294d20002e90000000864",
       "license": "PD",
-      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000864/"
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000864/",
+      "designation": "G66LR",
+      "manufacturer": "Loki"
     }
   },
   {
@@ -718,7 +861,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "motorId": "5f4294d20002310000000123",
       "simfileId": "5f4294d20002e90000000127",
       "license": "?",
-      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000127/"
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000127/",
+      "designation": "J528",
+      "manufacturer": "Loki"
     }
   },
   {
@@ -728,7 +873,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "motorId": "5f4294d2000231000000043a",
       "simfileId": "5f4294d20002e90000000836",
       "license": "free",
-      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000836/"
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000836/",
+      "designation": "K1127LB",
+      "manufacturer": "Loki"
     }
   },
   {
@@ -738,7 +885,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "motorId": "5f4294d20002310000000446",
       "simfileId": "5f4294d20002e90000000861",
       "license": "PD",
-      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000861/"
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000861/",
+      "designation": "K627",
+      "manufacturer": "Loki"
     }
   },
   {
@@ -748,7 +897,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "motorId": "5f4294d20002310000000193",
       "simfileId": "5f4294d20002e9000000012c",
       "license": "?",
-      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000012c/"
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000012c/",
+      "designation": "L1400",
+      "manufacturer": "Loki"
     }
   },
   {
@@ -758,7 +909,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "motorId": "5f4294d200023100000001ae",
       "simfileId": "5f4294d20002e9000000012b",
       "license": "?",
-      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000012b/"
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000012b/",
+      "designation": "M1882",
+      "manufacturer": "Loki"
     }
   },
   {
@@ -768,7 +921,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "motorId": "5f4294d2000231000000024f",
       "simfileId": "5f4294d20002e900000005df",
       "license": "?",
-      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000005df/"
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000005df/",
+      "designation": "M2550",
+      "manufacturer": "Loki"
     }
   },
   {
@@ -778,7 +933,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "motorId": "5f4294d20002310000000016",
       "simfileId": "5f4294d20002e9000000041c",
       "license": null,
-      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000041c/"
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000041c/",
+      "designation": "C6",
+      "manufacturer": "Quest Aerospace"
     }
   },
   {
@@ -788,7 +945,9 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "motorId": "5f4294d20002310000000376",
       "simfileId": "5f4294d20002e900000006fd",
       "license": null,
-      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000006fd/"
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000006fd/",
+      "designation": "D5",
+      "manufacturer": "Quest"
     }
   }
 ];

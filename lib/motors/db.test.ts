@@ -256,3 +256,28 @@ describe("motor database", () => {
     expect(coreDesignation("K550W")).toBe("K550");
   });
 });
+
+describe("catalogued identity beats the RASP header's abbreviation", () => {
+  it("resolves AeroTech E30T, whose curve header says only \"E30\" from maker \"A\"", () => {
+    // The bundled AeroTech_E30T.eng header reads `E30 24 70 4-7 .0178 .047 A`: an abbreviated
+    // designation and a single-letter maker code. Matching against that left a real design file
+    // (a Punisher Apprentice from the .ork corpus) with no resolvable motor and so no flight at
+    // all. ThrustCurve.org's record — E30T, AeroTech — is the catalogued identity instead.
+    const m = resolveMotor({ manufacturer: "AeroTech", designation: "E30T" });
+    expect(m?.quality).toBe("exact");
+    expect(m?.entry.designation).toBe("E30T");
+    expect(m?.entry.manufacturer).toBe("AeroTech");
+  });
+
+  it("resolves AeroTech G80T exactly, not by a loose class-and-thrust core", () => {
+    // Header designation is "G80NBT"; the certification designation is G80T.
+    const m = resolveMotor({ manufacturer: "AeroTech", designation: "G80T" });
+    expect(m?.quality).toBe("exact");
+    expect(m?.entry.designation).toBe("G80T");
+  });
+
+  it("still falls back to the header when the provenance records no designation", () => {
+    // Every bundled entry ends up with a designation one way or the other.
+    for (const e of allMotors()) expect(e.designation.length).toBeGreaterThan(0);
+  });
+});
