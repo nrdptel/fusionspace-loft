@@ -405,7 +405,13 @@ export default function Methods() {
         depleted in proportion to delivered impulse (constant-<em>I<sub>sp</sub></em> assumption), so
         motor mass falls from loaded to casing mass over the burn. Matching prefers an exact
         designation, then a looser substring or class-and-thrust core (so a Cesaroni
-        &ldquo;838J293-13A&rdquo; still resolves to &ldquo;J293&rdquo;); an exact designation matches
+        &ldquo;838J293-13A&rdquo; still resolves to &ldquo;J293&rdquo;). A motor is matched on{" "}
+        <em>every</em> name it is published under — ThrustCurve&apos;s manufacturer designation and
+        its common class-and-thrust name — because a design file may carry either: a Cesaroni reload
+        sold as part number &ldquo;648J285-15A&rdquo; is written into an OpenRocket file as
+        &ldquo;J285&rdquo;, and both name the same motor. Those catalogued names come from
+        ThrustCurve&apos;s certification record rather than the RASP file header, which carries
+        whatever the curve&apos;s author typed. An exact designation matches
         regardless of a maker-string difference, but a <em>loose</em> match never crosses
         manufacturers — a design&apos;s &ldquo;K550&rdquo; is left unresolved rather than silently
         matched to a different maker&apos;s &ldquo;K550W&rdquo;. The UI flags an approximate or failed

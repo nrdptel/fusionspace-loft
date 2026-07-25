@@ -297,11 +297,13 @@ export default function Limitations() {
 
       <h3>Motor database is a curated subset</h3>
       <p>
-        The bundled database covers a representative set of common motors across classes A–N —
-        the common Estes/Quest low-power motors, AeroTech F–N single-use and reload motors, and
-        mid-to-high-power Cesaroni, Loki and Animal Motor Works G–N reloads, up to the 98&nbsp;mm
-        Cesaroni and AeroTech N-class research motors — but not the entire ThrustCurve.org catalogue
-        (that would bloat the offline bundle). Every curve is authentic ThrustCurve.org data,
+        The bundled database covers a representative set of common motors across classes
+        &frac14;A&ndash;N — the common Estes/Quest/Apogee low-power motors, AeroTech D&ndash;N
+        single-use and reload motors, mid-to-high-power Cesaroni, Loki and Animal Motor Works
+        G&ndash;N reloads, up to the 98&nbsp;mm Cesaroni and AeroTech N-class research motors, and a
+        HyperTEK hybrid — but not the entire ThrustCurve.org catalogue (that would bloat the offline
+        bundle). The set is grown by driving real in-the-wild design files and bundling whatever
+        they reference that is missing. Every curve is authentic ThrustCurve.org data,
         matched to its published certified total impulse. If your motor isn&apos;t found, Loft says
         so rather than guessing; fuzzy matching by class-and-thrust core can, in rare cases, match a
         same-core motor of a different propellant. The resolved designation is always shown so you

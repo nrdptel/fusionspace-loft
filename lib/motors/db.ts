@@ -23,6 +23,11 @@ export interface MotorDbEntry {
   designation: string;
   /** The motor's catalogued manufacturer, on the same preference. */
   manufacturer?: string;
+  /** Every published name this motor answers to — its manufacturer designation and, where the
+   *  provenance records one, its common (class-and-thrust) name. A Cesaroni reload is sold as
+   *  part number "648J285-15A" but written into a design as "J285"; both name the same motor,
+   *  and a design file may carry either. */
+  names: string[];
 }
 
 export type MatchQuality = "exact" | "designation" | "core" | "none";
@@ -48,12 +53,14 @@ export function allMotors(): MotorDbEntry[] {
       // with no resolvable motor and so no propulsion at all.
       const designation = item.source.designation || curve.designation;
       const manufacturer = item.source.manufacturer || curve.manufacturer;
+      const names = [...new Set([designation, item.source.commonName].filter((n): n is string => !!n))];
       out.push({
         curve,
         source: item.source,
         core: coreDesignation(designation),
         designation,
         manufacturer,
+        names,
       });
     } catch {
       // A bad curve shouldn't take down the whole database.
@@ -114,6 +121,18 @@ function mfrKey(m?: string): string {
   return MFR_ALIASES[n] ?? n.toLowerCase();
 }
 
+/** Whether two manufacturer keys name the same maker. Beyond the alias table, one key being a
+ *  prefix of the other covers the trading-name difference that shows up constantly between a
+ *  design file and a certification record — "Apogee" vs "Apogee Components", "Estes" vs "Estes
+ *  Industries", "Quest" vs "Quest Aerospace", "Cesaroni" vs "Cesaroni Technology". Three
+ *  characters minimum, so a one- or two-letter RASP code can't prefix-match half the database
+ *  (those go through the alias table instead). */
+function sameMaker(a: string, b: string): boolean {
+  if (a === b) return true;
+  if (a.length < 3 || b.length < 3) return false;
+  return a.startsWith(b) || b.startsWith(a);
+}
+
 /** Resolve a design's motor reference to a database entry. Returns the best match and its
  *  quality; `quality === "none"` (with a null entry) means nothing matched. */
 export function resolveMotor(spec: Pick<MotorSpec, "manufacturer" | "designation">): MotorMatch | null {
@@ -124,28 +143,33 @@ export function resolveMotor(spec: Pick<MotorSpec, "manufacturer" | "designation
   const qCore = coreDesignation(spec.designation);
   const qMfr = mfrKey(spec.manufacturer);
 
-  // An EXACT designation identifies a motor on its own ("A8" is an A8, and only one motor is
-  // called "K550W"), so it matches maker-agnostically — otherwise an "E"-vs-"Estes" string
-  // difference would block a clearly-correct match. The looser tiers are the danger: a substring
-  // match ("K550" ⊂ a different maker's "K550W") or a class-and-thrust core match ("J293") can
-  // land on the wrong maker's motor, so both require the manufacturer to agree when it's known on
-  // both sides. An unknown maker on either side never vetoes.
+  // A KNOWN, DISAGREEING manufacturer vetoes the match outright, at every quality. Bare
+  // class-and-thrust names are not unique across makers once more than one maker is bundled —
+  // Apogee, Estes and Quest all sell a "C10"-shaped name — so an exact designation on the wrong
+  // maker is exactly the silent wrong-motor substitution this database must never make. (The
+  // veto used to spare exact matches, on the reasoning that an "E"-vs-"Estes" string difference
+  // shouldn't block an obviously-correct match; catalogued manufacturers now come from
+  // ThrustCurve's certification record and fold through the alias table and a trading-name
+  // prefix, so that escape hatch is no longer paying for itself.) An unknown maker on either
+  // side never vetoes: a design that names no maker still resolves on designation alone.
   let best: { entry: MotorDbEntry; quality: MatchQuality; score: number } | null = null;
   for (const entry of motors) {
-    const eDesig = normalize(entry.designation);
     const eMfr = mfrKey(entry.manufacturer);
     const mfrKnown = qMfr !== "" && eMfr !== "";
-    const mfrAgree = mfrKnown ? qMfr === eMfr : false;
+    const mfrAgree = mfrKnown ? sameMaker(qMfr, eMfr) : false;
+    if (mfrKnown && !mfrAgree) continue;
 
+    // Test every published name the motor answers to and keep its best quality.
     let quality: MatchQuality = "none";
-    if (eDesig === qDesig) quality = "exact";
-    else if (eDesig.includes(qDesig) || qDesig.includes(eDesig)) {
-      if (mfrKnown && !mfrAgree) continue; // a substring match must not cross makers
-      quality = "designation";
-    } else if (entry.core === qCore) {
-      if (mfrKnown && !mfrAgree) continue; // nor a loose core match
-      quality = "core";
-    } else continue;
+    for (const name of entry.names) {
+      const eDesig = normalize(name);
+      if (eDesig === qDesig) { quality = "exact"; break; }
+      if (eDesig.includes(qDesig) || qDesig.includes(eDesig)) quality = "designation";
+    }
+    if (quality === "none") {
+      if (entry.core === qCore) quality = "core";
+      else continue;
+    }
 
     // Rank by designation quality first, then prefer an agreeing manufacturer.
     const score = rank(quality) * 10 + (mfrAgree ? 1 : 0);

@@ -17,6 +17,9 @@ export interface CatalogSource {
   designation: string | null;
   /** ThrustCurve.org's manufacturer, likewise, in preference to the header's maker code. */
   manufacturer: string | null;
+  /** ThrustCurve.org's common (class-and-thrust) name, e.g. "J285" for part number
+   *  "648J285-15A" — the other published name a design file may reference. */
+  commonName: string | null;
 }
 
 export interface CatalogEntry {
@@ -35,7 +38,8 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "license": null,
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000482/",
       "designation": "L1100RR",
-      "manufacturer": "Animal Motor Works"
+      "manufacturer": "Animal Motor Works",
+      "commonName": null
     }
   },
   {
@@ -47,7 +51,8 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "license": null,
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000027d/",
       "designation": "D21T",
-      "manufacturer": "AeroTech"
+      "manufacturer": "AeroTech",
+      "commonName": null
     }
   },
   {
@@ -59,7 +64,8 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "license": "PD",
       "infoUrl": "https://www.thrustcurve.org/simfiles/62431a34ee302a00044520da/",
       "designation": "E30T",
-      "manufacturer": "AeroTech"
+      "manufacturer": "AeroTech",
+      "commonName": null
     }
   },
   {
@@ -71,7 +77,8 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "license": "?",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000045b/",
       "designation": "F50T",
-      "manufacturer": "AeroTech"
+      "manufacturer": "AeroTech",
+      "commonName": null
     }
   },
   {
@@ -83,7 +90,8 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "license": null,
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000045c/",
       "designation": "F52",
-      "manufacturer": "AeroTech"
+      "manufacturer": "AeroTech",
+      "commonName": null
     }
   },
   {
@@ -95,7 +103,8 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "license": "?",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000088a/",
       "designation": "F67W",
-      "manufacturer": "AeroTech"
+      "manufacturer": "AeroTech",
+      "commonName": null
     }
   },
   {
@@ -107,7 +116,8 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "license": "?",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000463/",
       "designation": "G40W",
-      "manufacturer": "AeroTech"
+      "manufacturer": "AeroTech",
+      "commonName": null
     }
   },
   {
@@ -119,7 +129,21 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "license": null,
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000081a/",
       "designation": "G64BF",
-      "manufacturer": "AeroTech"
+      "manufacturer": "AeroTech",
+      "commonName": null
+    }
+  },
+  {
+    "eng": "; G74W Economax\nG74W 29 83 4-6-9 0.039299999999999995 0.08700000000000001 AT\n   0.023 6.551\n   0.05 21.838\n   0.088 44.852\n   0.124 67.362\n   0.135 71.561\n   0.148 74.417\n   0.197 80.128\n   0.248 85.0\n   0.298 87.52\n   0.397 89.704\n   0.499 91.215\n   0.6 90.375\n   0.699 90.375\n   0.751 89.536\n   0.8 87.856\n   0.9 84.496\n   0.954 82.144\n   0.971 81.808\n   0.987 79.96\n   1.002 76.433\n   1.023 67.194\n   1.065 44.516\n   1.094 22.174\n   1.107 15.287\n   1.126 6.887\n   1.138 3.36\n   1.157 1.344\n   1.18 0.168\n   1.192 0.0\n",
+    "source": {
+      "file": "AeroTech_G74W.eng",
+      "motorId": "5f4294d20002310000000400",
+      "simfileId": "5f4294d20002e900000007f0",
+      "license": "PD",
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000007f0/",
+      "designation": "G74W",
+      "manufacturer": "AeroTech",
+      "commonName": "G74"
     }
   },
   {
@@ -131,7 +155,8 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "license": null,
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000120/",
       "designation": "G77R",
-      "manufacturer": "AeroTech"
+      "manufacturer": "AeroTech",
+      "commonName": null
     }
   },
   {
@@ -143,7 +168,8 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "license": "?",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000007dd/",
       "designation": "G80T",
-      "manufacturer": "AeroTech"
+      "manufacturer": "AeroTech",
+      "commonName": null
     }
   },
   {
@@ -155,7 +181,8 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "license": "free",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000854/",
       "designation": "H100W",
-      "manufacturer": "AeroTech"
+      "manufacturer": "AeroTech",
+      "commonName": null
     }
   },
   {
@@ -167,7 +194,8 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "license": "PD",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000000d/",
       "designation": "H128W",
-      "manufacturer": "AeroTech"
+      "manufacturer": "AeroTech",
+      "commonName": null
     }
   },
   {
@@ -179,7 +207,8 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "license": "PD",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000000f/",
       "designation": "H148R",
-      "manufacturer": "AeroTech"
+      "manufacturer": "AeroTech",
+      "commonName": null
     }
   },
   {
@@ -191,7 +220,8 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "license": "PD",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000013/",
       "designation": "H180W",
-      "manufacturer": "AeroTech"
+      "manufacturer": "AeroTech",
+      "commonName": null
     }
   },
   {
@@ -203,7 +233,34 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "license": "PD",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000019/",
       "designation": "H242T",
-      "manufacturer": "AeroTech"
+      "manufacturer": "AeroTech",
+      "commonName": null
+    }
+  },
+  {
+    "eng": "; 38mm DMS Super Thunder\nH283ST 38 155 7-11-15 0.097 0.247 AT\n   0.003 133.038\n   0.005 223.16\n   0.007 267.302\n   0.009 285.694\n   0.017 296.73\n   0.045 300.408\n   0.049 310.83\n   0.052 301.634\n   0.066 304.7\n   0.081 312.67\n   0.094 308.378\n   0.108 315.122\n   0.222 331.062\n   0.225 337.193\n   0.229 332.901\n   0.336 316.348\n   0.371 312.67\n   0.404 300.408\n   0.435 289.986\n   0.449 290.599\n   0.47 278.337\n   0.499 274.046\n   0.538 257.493\n   0.572 239.1\n   0.593 239.713\n   0.606 226.839\n   0.636 225.613\n   0.644 221.934\n   0.658 178.406\n   0.67 129.972\n   0.677 121.389\n   0.688 91.962\n   0.691 98.092\n   0.722 41.689\n   0.738 23.297\n   0.74 0.0\n",
+    "source": {
+      "file": "AeroTech_H283ST.eng",
+      "motorId": "5f4294d20002310000000455",
+      "simfileId": "5f4294d20002e90000000872",
+      "license": "free",
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000872/",
+      "designation": "H283ST-15A",
+      "manufacturer": "AeroTech",
+      "commonName": "H283"
+    }
+  },
+  {
+    "eng": "; AT H550 ST RMS\nH550 38 213 14 0.176 0.323 AT\n   0.008 445.411\n   0.009 533.786\n   0.01 565.601\n   0.013 586.812\n   0.015 623.34\n   0.021 639.837\n   0.036 606.843\n   0.045 629.232\n   0.057 615.092\n   0.061 635.123\n   0.067 619.805\n   0.101 637.48\n   0.116 622.162\n   0.157 643.372\n   0.174 623.34\n   0.196 623.34\n   0.205 639.837\n   0.231 631.588\n   0.234 618.627\n   0.255 611.557\n   0.268 628.053\n   0.314 595.06\n   0.334 600.952\n   0.362 571.493\n   0.386 565.601\n   0.401 556.175\n   0.426 518.468\n   0.445 503.15\n   0.493 447.768\n   0.505 447.768\n   0.511 456.016\n   0.519 451.303\n   0.535 357.036\n   0.545 266.304\n   0.551 179.107\n   0.559 91.91\n   0.565 42.42\n   0.572 12.962\n   0.579 0.0\n",
+    "source": {
+      "file": "AeroTech_H550ST.eng",
+      "motorId": "5f4294d20002310000000456",
+      "simfileId": "5f4294d20002e90000000873",
+      "license": null,
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000873/",
+      "designation": "H550ST",
+      "manufacturer": "AeroTech",
+      "commonName": "H550"
     }
   },
   {
@@ -215,7 +272,8 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "license": "?",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000026a/",
       "designation": "H669N",
-      "manufacturer": "AeroTech"
+      "manufacturer": "AeroTech",
+      "commonName": null
     }
   },
   {
@@ -227,7 +285,21 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "license": null,
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000026b/",
       "designation": "H999N",
-      "manufacturer": "AeroTech"
+      "manufacturer": "AeroTech",
+      "commonName": null
+    }
+  },
+  {
+    "eng": "; AeroTech Pro-SU 29mm H135 14sec adjustable delay.\n; From Tripoli Data Sheet updated 2013/02/10\n; Created by Robert Belknap 2013/03/04\nH135W 29 216 6-8-10-12-14 0.082 0.212 AT\n   0.014 159.806\n   0.045 110.931\n   0.104 144.43\n   0.131 135.643\n   0.252 154.315\n   0.293 130.701\n   0.387 149.921\n   1.005 140.037\n   1.261 119.168\n   1.297 142.233\n   1.324 109.833\n   1.387 120.267\n   1.518 110.382\n   1.595 80.727\n   1.685 60.408\n   1.797 33.499\n   1.896 14.278\n   2.072 0.0\n",
+    "source": {
+      "file": "AeroTech_HP-H135W.eng",
+      "motorId": "5f4294d200023100000003f1",
+      "simfileId": "5f4294d20002e900000007d7",
+      "license": null,
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000007d7/",
+      "designation": "HP-H135W",
+      "manufacturer": "AeroTech",
+      "commonName": "H135"
     }
   },
   {
@@ -239,7 +311,21 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "license": "?",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000423/",
       "designation": "I115W",
-      "manufacturer": "AeroTech"
+      "manufacturer": "AeroTech",
+      "commonName": null
+    }
+  },
+  {
+    "eng": ";Entered by Jim Yehle\n;from TRA cert document\nI1299N 38 249 1000 0.192 0.422 AT-RMS \n0 15.7171\n0.00361 222.5\n0.0115 1112\n0.0134228 1237.11\n0.02 1287\n0.04 1359\n0.1 1451\n0.12 1470\n0.18 1491\n0.2 1483\n0.22 1462\n0.24 1399\n0.28 1208\n0.294743 1131.63\n0.3 1065\n0.304251 974.46\n0.32 305\n0.330537 55.0098\n0.333893 11.7878\n0.34 0\n;\n",
+    "source": {
+      "file": "AeroTech_I1299N.eng",
+      "motorId": "5f4294d200023100000001c5",
+      "simfileId": "5f4294d20002e90000000273",
+      "license": null,
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000273/",
+      "designation": "I1299N",
+      "manufacturer": "AeroTech",
+      "commonName": "I1299"
     }
   },
   {
@@ -251,7 +337,8 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "license": "PD",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000002d/",
       "designation": "I161W",
-      "manufacturer": "AeroTech"
+      "manufacturer": "AeroTech",
+      "commonName": null
     }
   },
   {
@@ -263,7 +350,8 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "license": "PD",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000033/",
       "designation": "I200W",
-      "manufacturer": "AeroTech"
+      "manufacturer": "AeroTech",
+      "commonName": null
     }
   },
   {
@@ -275,7 +363,8 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "license": "PD",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000035/",
       "designation": "I211W",
-      "manufacturer": "AeroTech"
+      "manufacturer": "AeroTech",
+      "commonName": null
     }
   },
   {
@@ -287,7 +376,21 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "license": "PD",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000003b/",
       "designation": "I284W",
-      "manufacturer": "AeroTech"
+      "manufacturer": "AeroTech",
+      "commonName": null
+    }
+  },
+  {
+    "eng": ";\n;\nI300T 38 250 6-10-14 0.2216 0.4405 AT\n0 473.17\n0.1 395.68\n0.2 375.31\n0.3 367.14\n0.4 358.97\n0.5 346.72\n0.6 338.56\n0.7 318.19\n0.8 305.94\n0.9 295.35\n1.07 269.23\n1.1 258.01\n1.2 246.79\n1.3 179.49\n1.4 48.95\n1.5 13.91\n1.6 0\n",
+    "source": {
+      "file": "AeroTech_I300T.eng",
+      "motorId": "5f4294d200023100000000cb",
+      "simfileId": "5f4294d20002e9000000046a",
+      "license": null,
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000046a/",
+      "designation": "I300T",
+      "manufacturer": "AeroTech",
+      "commonName": "I300"
     }
   },
   {
@@ -299,7 +402,8 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "license": "PD",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000003f/",
       "designation": "I357T",
-      "manufacturer": "AeroTech"
+      "manufacturer": "AeroTech",
+      "commonName": null
     }
   },
   {
@@ -311,7 +415,21 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "license": "PD",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000660/",
       "designation": "I59WN",
-      "manufacturer": "AeroTech"
+      "manufacturer": "AeroTech",
+      "commonName": null
+    }
+  },
+  {
+    "eng": "; AeroTech J315R\n; provided by ThrustCurve.org (www.thrustcurve.org)\nJ315R 54 243 0 0.42112 0.8512 AT\n   0.051 189.719\n   0.154 337.529\n   0.259 354.534\n   0.363 364.111\n   0.468 371.479\n   0.572 373.222\n   0.676 376.062\n   0.780 372.962\n   0.884 368.988\n   0.989 366.978\n   1.093 358.752\n   1.197 351.302\n   1.301 339.336\n   1.406 325.202\n   1.510 311.322\n   1.614 300.496\n   1.718 288.598\n   1.822 278.279\n   1.927 270.538\n   2.031 262.127\n   2.136 245.027\n   2.239 236.238\n   2.344 188.308\n   2.448 63.668\n   2.552 18.746\n   2.657 0.000\n",
+    "source": {
+      "file": "AeroTech_J315R.eng",
+      "motorId": "5f4294d20002310000000106",
+      "simfileId": "5f4294d20002e90000000053",
+      "license": "PD",
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000053/",
+      "designation": "J315R",
+      "manufacturer": "AeroTech",
+      "commonName": "J315"
     }
   },
   {
@@ -323,7 +441,8 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "license": "PD",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000002a7/",
       "designation": "J350W",
-      "manufacturer": "AeroTech"
+      "manufacturer": "AeroTech",
+      "commonName": null
     }
   },
   {
@@ -335,7 +454,8 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "license": "PD",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000057/",
       "designation": "J420R",
-      "manufacturer": "AeroTech"
+      "manufacturer": "AeroTech",
+      "commonName": null
     }
   },
   {
@@ -347,7 +467,8 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "license": "?",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000029e/",
       "designation": "J500G",
-      "manufacturer": "AeroTech"
+      "manufacturer": "AeroTech",
+      "commonName": null
     }
   },
   {
@@ -359,7 +480,8 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "license": "PD",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000005d/",
       "designation": "J570W",
-      "manufacturer": "AeroTech"
+      "manufacturer": "AeroTech",
+      "commonName": null
     }
   },
   {
@@ -371,7 +493,21 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "license": "PD",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000005f/",
       "designation": "J800T",
-      "manufacturer": "AeroTech"
+      "manufacturer": "AeroTech",
+      "commonName": null
+    }
+  },
+  {
+    "eng": "; AeroTech J90W\n; converted from TMT test stand data 1998 (www.tripoli.org)\n; provided by ThrustCurve.org (www.thrustcurve.org)\nJ90W 54 243 0 0.427392 0.852544 AT\n   0.143 116.187\n   0.430 165.444\n   0.718 176.536\n   1.005 184.645\n   1.293 187.242\n   1.580 183.651\n   1.868 175.492\n   2.155 167.687\n   2.443 156.858\n   2.730 143.514\n   3.018 128.856\n   3.305 110.879\n   3.593 94.003\n   3.880 79.657\n   4.168 67.472\n   4.455 57.268\n   4.743 48.008\n   5.030 40.523\n   5.318 33.901\n   5.605 28.248\n   5.893 23.334\n   6.180 19.275\n   6.468 15.923\n   6.755 12.727\n   7.044 9.903\n   7.332 0.000\n",
+    "source": {
+      "file": "AeroTech_J90W.eng",
+      "motorId": "5f4294d200023100000000df",
+      "simfileId": "5f4294d20002e90000000061",
+      "license": "PD",
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000061/",
+      "designation": "J90W",
+      "manufacturer": "AeroTech",
+      "commonName": "J90"
     }
   },
   {
@@ -383,7 +519,8 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "license": "?",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000564/",
       "designation": "K1050W",
-      "manufacturer": "AeroTech"
+      "manufacturer": "AeroTech",
+      "commonName": null
     }
   },
   {
@@ -395,7 +532,8 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "license": "PD",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000067/",
       "designation": "K1275R",
-      "manufacturer": "AeroTech"
+      "manufacturer": "AeroTech",
+      "commonName": null
     }
   },
   {
@@ -407,7 +545,8 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "license": "PD",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000006b/",
       "designation": "K250W",
-      "manufacturer": "AeroTech"
+      "manufacturer": "AeroTech",
+      "commonName": null
     }
   },
   {
@@ -419,7 +558,8 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "license": "PD",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000071/",
       "designation": "K550W",
-      "manufacturer": "AeroTech"
+      "manufacturer": "AeroTech",
+      "commonName": null
     }
   },
   {
@@ -431,7 +571,8 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "license": "PD",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000079/",
       "designation": "K700W",
-      "manufacturer": "AeroTech"
+      "manufacturer": "AeroTech",
+      "commonName": null
     }
   },
   {
@@ -443,7 +584,47 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "license": "PD",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000007f6/",
       "designation": "L1000",
-      "manufacturer": "AeroTech"
+      "manufacturer": "AeroTech",
+      "commonName": null
+    }
+  },
+  {
+    "eng": "; AeroTech L1150\n; provided by ThrustCurve.org (www.thrustcurve.org)\nL1150 75 531 0 2.06528 3.6736 AT\n   0.053 935.855\n   0.175 1292.642\n   0.300 1260.926\n   0.425 1241.482\n   0.550 1257.058\n   0.675 1272.287\n   0.800 1287.605\n   0.925 1301.012\n   1.048 1309.708\n   1.170 1308.417\n   1.295 1304.830\n   1.420 1285.265\n   1.545 1267.657\n   1.670 1255.624\n   1.795 1227.212\n   1.920 1202.443\n   2.043 1182.617\n   2.165 1150.712\n   2.290 1117.909\n   2.415 1081.739\n   2.540 1037.547\n   2.665 1007.091\n   2.790 1008.911\n   2.915 643.124\n   3.040 64.371\n   3.165 0.000\n",
+    "source": {
+      "file": "AeroTech_L1150R.eng",
+      "motorId": "5f4294d2000231000000018f",
+      "simfileId": "5f4294d20002e9000000007f",
+      "license": "PD",
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000007f/",
+      "designation": "L1150R",
+      "manufacturer": "AeroTech",
+      "commonName": "L1150"
+    }
+  },
+  {
+    "eng": "; from TMT document and posted thrust curve\nL1940X 75 560.4 P 1.8234317999999998 3.855515 AT\n   0.02 48.137\n   0.04 2107.333\n   0.055 2289.184\n   0.073 2150.122\n   0.156 2101.985\n   0.397 2150.122\n   0.691 2155.47\n   0.982 2118.03\n   1.41 2000.362\n   1.696 1898.739\n   1.935 1839.905\n   2.06 1818.511\n   2.103 1652.705\n   2.116 1374.58\n   2.133 935.998\n   2.163 534.856\n   2.214 240.685\n   2.244 112.32\n   2.296 5.349\n   2.309 0.0\n",
+    "source": {
+      "file": "AeroTech_L1940X.eng",
+      "motorId": "60ac748b8dc4640004c24d85",
+      "simfileId": "60ac84458dc4640004c24eb6",
+      "license": "PD",
+      "infoUrl": "https://www.thrustcurve.org/simfiles/60ac84458dc4640004c24eb6/",
+      "designation": "L1940X",
+      "manufacturer": "AeroTech",
+      "commonName": "L1940"
+    }
+  },
+  {
+    "eng": "; AeroTech L850W\n; converted from TMT test stand data 1998 (www.tripoli.org)\n; provided by ThrustCurve.org (www.thrustcurve.org)\nL850W 75 531 0 2.06528 3.67315 AT\n   0.091 1015.926\n   0.274 1064.942\n   0.458 1101.366\n   0.643 1143.358\n   0.827 1170.928\n   1.011 1184.795\n   1.196 1178.044\n   1.380 1177.598\n   1.564 1174.910\n   1.748 1170.021\n   1.932 1113.716\n   2.117 1042.586\n   2.301 972.795\n   2.485 908.071\n   2.670 844.471\n   2.854 773.595\n   3.039 714.046\n   3.222 649.095\n   3.406 597.341\n   3.591 557.444\n   3.775 422.233\n   3.959 200.739\n   4.144 79.411\n   4.328 43.959\n   4.513 14.862\n   4.697 0.000\n",
+    "source": {
+      "file": "AeroTech_L850W.eng",
+      "motorId": "5f4294d20002310000000181",
+      "simfileId": "5f4294d20002e90000000083",
+      "license": "PD",
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000083/",
+      "designation": "L850W",
+      "manufacturer": "AeroTech",
+      "commonName": "L850"
     }
   },
   {
@@ -455,7 +636,8 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "license": "PD",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000085/",
       "designation": "L952W",
-      "manufacturer": "AeroTech"
+      "manufacturer": "AeroTech",
+      "commonName": null
     }
   },
   {
@@ -467,7 +649,21 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "license": "PD",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000093/",
       "designation": "M2400T",
-      "manufacturer": "AeroTech"
+      "manufacturer": "AeroTech",
+      "commonName": null
+    }
+  },
+  {
+    "eng": "; @TI: 14137.65, @TIa: 14071.08, @TIe: 0.0%, @ThMax: 2137.42, @ThAvg: 1048.203, @Tb: 13.424\n; Exported using ThrustCurveTool, www.ThrustGear.com\nN1048 98 1046 P 7.925 12.777 AT/RCS\n0.0 0.457288\n0.152 0.314574\n0.162 40.2069\n0.164 148.3954\n0.168 598.904\n0.172 890.058\n0.176 995.096\n0.178 1158.031\n0.182 1342.306\n0.19 1556.716\n0.222 1959.8\n0.234 2050.53\n0.254 2111.01\n0.308 2119.9\n0.356 2073.29\n0.47 2091.07\n0.528 1989.543\n0.582 1825.825\n0.648 1733.526\n0.782 1658.07\n0.892 1701.725\n0.914 1633.231\n0.966 1669.558\n1.7839 1594.076\n1.8239 1551.156\n3.1999 1533.43\n5.4538 1378.986\n6.9577 1170.933\n10.9216 424.692\n13.5895 106.0499\n14.6754 12.60914\n16.1354 0.0\n",
+    "source": {
+      "file": "AeroTech_N1000W.eng",
+      "motorId": "5f4294d2000231000000027e",
+      "simfileId": "5f4294d20002e900000005c9",
+      "license": null,
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000005c9/",
+      "designation": "N1000W",
+      "manufacturer": "AeroTech",
+      "commonName": "N1000"
     }
   },
   {
@@ -479,7 +675,34 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "license": "PD",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000884/",
       "designation": "N3300R-P",
-      "manufacturer": "AeroTech"
+      "manufacturer": "AeroTech",
+      "commonName": null
+    }
+  },
+  {
+    "eng": ";\n;Apogee C10 RASP.ENG file made from NAR published data\n;File produced September 4, 2000\n;The total impulse, peak thrust, average thrust and burn time are\n;the same as the averaged static test data on the NAR web site in\n;the certification file. The curve drawn with these data points is as\n;close to the certification curve as can be with such a limited\n;number of points (32) allowed with wRASP up to v1.6.\nC10 18 50 4-7-10 0.0049 0.0176 Apogee \n0.01 2.712\n0.019 5.842\n0.029 17.116\n0.037 25.72\n0.051 22.535\n0.07 20.446\n0.106 18.983\n0.164 17.085\n0.188 17.085\n0.2 15.824\n0.216 16.036\n0.255 15.602\n0.293 14.35\n0.343 13.503\n0.394 12.655\n0.41 11.605\n0.434 11.605\n0.521 9.287\n0.631 6.34\n0.741 4.021\n0.851 2.119\n0.911 1.48\n0.945 1.264\n0.96 0\n",
+    "source": {
+      "file": "Apogee_C10.eng",
+      "motorId": "5f4294d20002310000000019",
+      "simfileId": "5f4294d20002e90000000492",
+      "license": null,
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000492/",
+      "designation": "C10",
+      "manufacturer": "Apogee Components",
+      "commonName": "C10"
+    }
+  },
+  {
+    "eng": ";\n;Aerotech E6 RASP.ENG file made from NAR published data\n;File produced July 4, 2000\n;The total impulse, peak thrust, average thrust and burn time are\n;the same as the averaged static test data on the NAR web site in\n;the certification file. The curve drawn with these data points is as\n;close to the certification curve as can be with such a limited\n;number of points (32) allowed with wRASP up to v1.6.\nE6 24 70 2-4-6-8-100 0.0215 0.0463 Apogee \n0.056 18.59\n0.112 20.12\n0.168 17.575\n0.307 14.38\n0.531 10.45\n0.894 7.696\n1.146 6.244\n1.691 5.808\n2.836 5.663\n3.898 5.517\n4.275 5.227\n4.415 4.937\n5.058 5.082\n5.519 5.227\n5.603 6.679\n5.729 3.921\n5.882 2.323\n5.966 1.016\n6.06 0\n",
+    "source": {
+      "file": "Apogee_E6.eng",
+      "motorId": "5f4294d2000231000000020f",
+      "simfileId": "5f4294d20002e90000000495",
+      "license": null,
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000495/",
+      "designation": "E6",
+      "manufacturer": "Apogee Components",
+      "commonName": "E6"
     }
   },
   {
@@ -491,7 +714,8 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "license": "PD",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000074a/",
       "designation": "1266-J760-WT-19A",
-      "manufacturer": "Cesaroni"
+      "manufacturer": "Cesaroni",
+      "commonName": null
     }
   },
   {
@@ -503,7 +727,34 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "license": "?",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000143/",
       "designation": "2437K660-17A",
-      "manufacturer": "Cesaroni Technology"
+      "manufacturer": "Cesaroni Technology",
+      "commonName": null
+    }
+  },
+  {
+    "eng": ";Pro54 6GXL 2546 K300-CL P\n;Longburn\n;Uses a new threaded forward closure\nK300-CL 54 649 0 1.3776 2.27 CTI \n0.036 495.273\n0.132 543.273\n0.265 506.909\n0.734 493.091\n1.258 489.455\n1.811 482.909\n2.467 453.818\n3.737 375.273\n4.705 299.636\n6.047 165.091\n6.474 120.727\n6.829 90.182\n7.323 63.273\n7.72 46.545\n8.309 30.545\n8.37 0\n;\n",
+    "source": {
+      "file": "Cesaroni_2546K300-P.eng",
+      "motorId": "5f4294d2000231000000037f",
+      "simfileId": "5f4294d20002e9000000070f",
+      "license": null,
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000070f/",
+      "designation": "2546K300-P",
+      "manufacturer": "Cesaroni Technology",
+      "commonName": "K300"
+    }
+  },
+  {
+    "eng": "; Pro38-3G White\n411-I175-WH-14A 38 245 6-8-9-11-12-13 0.22890000000000002 0.4375 CTI\n   0.019 149.422\n   0.038 180.347\n   0.052 166.763\n   0.106 184.971\n   0.148 187.572\n   0.232 187.861\n   0.338 189.017\n   0.518 190.751\n   0.604 192.197\n   0.733 193.353\n   0.877 195.087\n   1.005 193.931\n   1.128 193.353\n   1.333 193.064\n   1.495 190.751\n   1.648 188.15\n   1.79 183.526\n   1.921 178.035\n   2.001 178.324\n   2.043 176.59\n   2.089 151.156\n   2.147 115.318\n   2.212 70.231\n   2.274 47.11\n   2.32 22.832\n   2.368 8.671\n   2.396 3.757\n   2.435 3.179\n   2.5 0.0\n",
+    "source": {
+      "file": "Cesaroni_411-I175-WH-14A.eng",
+      "motorId": "5f4294d200023100000003a0",
+      "simfileId": "5f4294d20002e9000000075a",
+      "license": "PD",
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000075a/",
+      "designation": "411I175-14A",
+      "manufacturer": "Cesaroni Technology",
+      "commonName": "I175"
     }
   },
   {
@@ -515,7 +766,8 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "license": "?",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000674/",
       "designation": "838J293-13A",
-      "manufacturer": "Cesaroni Technology"
+      "manufacturer": "Cesaroni Technology",
+      "commonName": null
     }
   },
   {
@@ -527,7 +779,21 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "license": null,
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000656/",
       "designation": "H100-IM",
-      "manufacturer": "Cesaroni"
+      "manufacturer": "Cesaroni",
+      "commonName": null
+    }
+  },
+  {
+    "eng": ";Pro-38 Red Lightning 2 Grain reload\nH120-14A 38 186 14-11-9-7-5 0.1366 0.295 CTI \n0.016 53.023\n0.029 107.113\n0.036 124.55\n0.049 129.532\n0.062 117.789\n0.072 98.217\n0.131 123.838\n0.199 136.649\n0.258 144.122\n0.313 147.681\n0.369 146.257\n0.441 145.19\n0.558 143.411\n0.683 141.631\n0.777 140.92\n0.859 139.14\n0.98 136.293\n1.097 133.091\n1.251 128.82\n1.434 122.771\n1.558 118.856\n1.639 117.077\n1.731 117.077\n1.884 117.077\n1.927 105.334\n1.959 88.964\n1.995 68.325\n2.031 41.991\n2.083 18.505\n2.142 6.761\n2.181 2.135\n2.24 0\n;\n",
+    "source": {
+      "file": "Cesaroni_H120-14A.eng",
+      "motorId": "5f4294d20002310000000218",
+      "simfileId": "5f4294d20002e90000000436",
+      "license": null,
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000436/",
+      "designation": "261H120-14A",
+      "manufacturer": "Cesaroni Technology",
+      "commonName": "H120"
     }
   },
   {
@@ -539,7 +805,8 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "license": null,
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000013b/",
       "designation": "I212SS",
-      "manufacturer": "Cesaroni"
+      "manufacturer": "Cesaroni",
+      "commonName": null
     }
   },
   {
@@ -551,7 +818,8 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "license": null,
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000654/",
       "designation": "I216-CL(I)",
-      "manufacturer": "Cesaroni"
+      "manufacturer": "Cesaroni",
+      "commonName": null
     }
   },
   {
@@ -563,7 +831,34 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "license": "?",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000002aa/",
       "designation": "I540WT",
-      "manufacturer": "Cesaroni"
+      "manufacturer": "Cesaroni",
+      "commonName": null
+    }
+  },
+  {
+    "eng": ";\n;\nJ285  38.0 367.00 6-8-10-12-15 0.31250 0.59500 CTI\n   0.06     351.01 \n   0.15     346.01 \n   0.25     357.64 \n   0.50     363.90 \n   0.75     369.26 \n   1.03     343.33 \n   1.27     337.07 \n   1.51     317.40 \n   1.75     282.53 \n   1.93     127.86 \n   2.02      84.94 \n   2.25      11.02 \n   2.26       0.00\n",
+    "source": {
+      "file": "Cesaroni_J285.eng",
+      "motorId": "5f4294d20002310000000101",
+      "simfileId": "5f4294d20002e90000000137",
+      "license": null,
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000137/",
+      "designation": "648J285-15A",
+      "manufacturer": "Cesaroni Technology",
+      "commonName": "J285"
+    }
+  },
+  {
+    "eng": "J420-CL 38 500 6-8-10-12-15 0.522 0.874 CTI \n0.015 360\n0.02 660\n0.035 800\n0.075 660\n0.25 625\n0.7 560\n1.45 495\n1.51 480\n1.62 350\n1.8 220\n1.9 150\n2 120\n2.25 48\n2.62 0\n",
+    "source": {
+      "file": "Cesaroni_J420-CL.eng",
+      "motorId": "5f4294d2000231000000029d",
+      "simfileId": "5f4294d20002e90000000633",
+      "license": null,
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000633/",
+      "designation": "1008J420-15A",
+      "manufacturer": "Cesaroni Technology",
+      "commonName": "J420"
     }
   },
   {
@@ -575,7 +870,8 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "license": null,
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000810/",
       "designation": "644-J94-MY-P",
-      "manufacturer": "Cesaroni"
+      "manufacturer": "Cesaroni",
+      "commonName": null
     }
   },
   {
@@ -587,7 +883,8 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "license": "PD",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000852/",
       "designation": "K1440",
-      "manufacturer": "Cesaroni"
+      "manufacturer": "Cesaroni",
+      "commonName": null
     }
   },
   {
@@ -599,7 +896,8 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "license": "PD",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000074e/",
       "designation": "K261",
-      "manufacturer": "Cesaroni"
+      "manufacturer": "Cesaroni",
+      "commonName": null
     }
   },
   {
@@ -611,7 +909,8 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "license": "?",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000141/",
       "designation": "K445",
-      "manufacturer": "Cesaroni"
+      "manufacturer": "Cesaroni",
+      "commonName": null
     }
   },
   {
@@ -623,7 +922,8 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "license": "?",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000147/",
       "designation": "K530",
-      "manufacturer": "Cesaroni"
+      "manufacturer": "Cesaroni",
+      "commonName": null
     }
   },
   {
@@ -635,7 +935,8 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "license": "PD",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000007c6/",
       "designation": "L1350",
-      "manufacturer": "Cesaroni"
+      "manufacturer": "Cesaroni",
+      "commonName": null
     }
   },
   {
@@ -647,7 +948,8 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "license": "?",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000144/",
       "designation": "L730",
-      "manufacturer": "Cesaroni"
+      "manufacturer": "Cesaroni",
+      "commonName": null
     }
   },
   {
@@ -659,7 +961,8 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "license": "?",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000062c/",
       "designation": "M1670",
-      "manufacturer": "Cesaroni"
+      "manufacturer": "Cesaroni",
+      "commonName": null
     }
   },
   {
@@ -671,7 +974,8 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "license": "PD",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000007b5/",
       "designation": "M2245",
-      "manufacturer": "Cesaroni"
+      "manufacturer": "Cesaroni",
+      "commonName": null
     }
   },
   {
@@ -683,7 +987,8 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "license": "?",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000006f9/",
       "designation": "M3400",
-      "manufacturer": "Cesaroni"
+      "manufacturer": "Cesaroni",
+      "commonName": null
     }
   },
   {
@@ -695,7 +1000,8 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "license": null,
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000006c2/",
       "designation": "N3400-SK",
-      "manufacturer": "Cesaroni"
+      "manufacturer": "Cesaroni",
+      "commonName": null
     }
   },
   {
@@ -707,7 +1013,34 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "license": null,
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000006fb/",
       "designation": "N3800-BS",
-      "manufacturer": "Cesaroni"
+      "manufacturer": "Cesaroni",
+      "commonName": null
+    }
+  },
+  {
+    "eng": ";\n;Estes 1/2A3T RASP.ENG file made from NAR published data\n;File produced October 3, 2000\n;The total impulse, peak thrust, average thrust and burn time are\n;the same as the averaged static test data on the NAR web site in\n;the certification file. The curve drawn with these data points is as\n;close to the certification curve as can be with such a limited\n;number of points (32) allowed with wRASP up to v1.6.\n1/2A3T 13 45 2-4 0.002 0.0066 Estes \n0.024 0.501\n0.042 1.454\n0.064 3.009\n0.076 4.062\n0.088 4.914\n0.093 5.065\n0.103 6.068\n0.112 6.87\n0.117 7.021\n0.126 7.62\n0.137 7.472\n0.146 6.87\n0.153 6.118\n0.159 5.065\n0.166 4.363\n0.179 3.66\n0.197 2.908\n0.222 2.256\n0.25 2.156\n0.277 2.106\n0.294 2.056\n0.304 2.156\n0.316 1.955\n0.326 1.554\n0.339 1.053\n0.35 0.651\n0.36 0\n",
+    "source": {
+      "file": "Estes_1_2A3.eng",
+      "motorId": "5f4294d20002310000000006",
+      "simfileId": "5f4294d20002e900000004e0",
+      "license": null,
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000004e0/",
+      "designation": "1/2A3",
+      "manufacturer": "Estes Industries",
+      "commonName": "1/2A3"
+    }
+  },
+  {
+    "eng": ";Estes 1/4A3T RASP.ENG file made from NAR published data\n;File produced October 3, 2000\n;The total impulse, peak thrust, average thrust and burn time are\n;the same as the averaged static test data on the NAR web site in\n;the certification file. The curve drawn with these data points is as\n;close to the certification curve as can be with such a limited\n;number of points (32) allowed with wRASP up to v1.6.\n1/4A3T 13 45 3 0.00083 0.0061 Estes \n0.016 0.243\n0.044 1.164\n0.08 2.698\n0.088 2.851\n0.096 3.312\n0.105 3.804\n0.116 4.325\n0.129 4.754\n0.131 4.754\n0.135 4.95\n0.139 4.815\n0.143 4.814\n0.149 4.66\n0.157 4.289\n0.173 3.548\n0.187 2.808\n0.194 2.592\n0.197 2.13\n0.202 1.913\n0.206 1.512\n0.213 1.389\n0.218 1.112\n0.227 0.802\n0.236 0.493\n0.241 0.277\n0.25 0\n",
+    "source": {
+      "file": "Estes_1_4A3.eng",
+      "motorId": "5f4294d20002310000000004",
+      "simfileId": "5f4294d20002e900000004df",
+      "license": null,
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000004df/",
+      "designation": "1/4A3",
+      "manufacturer": "Estes Industries",
+      "commonName": "1/4A3"
     }
   },
   {
@@ -719,7 +1052,21 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "license": null,
       "infoUrl": "https://www.thrustcurve.org/simfiles/624aff26a49a690004b83002/",
       "designation": "A10",
-      "manufacturer": "Estes Industries"
+      "manufacturer": "Estes Industries",
+      "commonName": null
+    }
+  },
+  {
+    "eng": ";\n;Estes A3T RASP.ENG file made from NAR published data\n;File produced October 3, 2000\n;The total impulse, peak thrust, average thrust and burn time are\n;the same as the averaged static test data on the NAR web site in\n;the certification file. The curve drawn with these data points is as\n;close to the certification curve as can be with such a limited\n;number of points (32) allowed with wRASP up to v1.6.\nA3T 13 45 4 0.0033 0.0085 Estes \n0.024 0.195\n0.048 0.899\n0.086 2.658\n0.11 4.183\n0.14 5.83\n0.159 5.395\n0.18 4.301\n0.199 3.635\n0.215 2.736\n0.234 2.267\n0.258 2.15\n0.315 2.072\n0.441 1.993\n0.554 2.033\n0.605 2.072\n0.673 1.954\n0.764 1.954\n0.874 2.072\n0.931 2.15\n0.953 2.072\n0.966 1.719\n0.977 1.173\n0.993 0.547\n1.01 0\n",
+    "source": {
+      "file": "Estes_A3.eng",
+      "motorId": "5f4294d20002310000000009",
+      "simfileId": "5f4294d20002e900000004e2",
+      "license": null,
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000004e2/",
+      "designation": "A3",
+      "manufacturer": "Estes Industries",
+      "commonName": "A3"
     }
   },
   {
@@ -731,7 +1078,8 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "license": null,
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000004e3/",
       "designation": "A8",
-      "manufacturer": "Estes Industries"
+      "manufacturer": "Estes Industries",
+      "commonName": null
     }
   },
   {
@@ -743,7 +1091,8 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "license": null,
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000004e5/",
       "designation": "B4",
-      "manufacturer": "Estes Industries"
+      "manufacturer": "Estes Industries",
+      "commonName": null
     }
   },
   {
@@ -755,7 +1104,8 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "license": null,
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000414/",
       "designation": "B6",
-      "manufacturer": "Estes Industries"
+      "manufacturer": "Estes Industries",
+      "commonName": null
     }
   },
   {
@@ -767,7 +1117,8 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "license": null,
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000004e8/",
       "designation": "C11",
-      "manufacturer": "Estes Industries"
+      "manufacturer": "Estes Industries",
+      "commonName": null
     }
   },
   {
@@ -779,7 +1130,8 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "license": null,
       "infoUrl": "https://www.thrustcurve.org/simfiles/69eb2379c7d63000021d8c29/",
       "designation": "C6",
-      "manufacturer": "Estes Industries"
+      "manufacturer": "Estes Industries",
+      "commonName": null
     }
   },
   {
@@ -791,7 +1143,8 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "license": "?",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000004ea/",
       "designation": "D12",
-      "manufacturer": "Estes Industries"
+      "manufacturer": "Estes Industries",
+      "commonName": null
     }
   },
   {
@@ -803,7 +1156,8 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "license": "?",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000007ad/",
       "designation": "E12",
-      "manufacturer": "Estes Industries"
+      "manufacturer": "Estes Industries",
+      "commonName": null
     }
   },
   {
@@ -815,7 +1169,8 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "license": null,
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000007e6/",
       "designation": "E16",
-      "manufacturer": "Estes"
+      "manufacturer": "Estes",
+      "commonName": null
     }
   },
   {
@@ -827,7 +1182,8 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "license": null,
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000416/",
       "designation": "E9",
-      "manufacturer": "Estes Industries"
+      "manufacturer": "Estes Industries",
+      "commonName": null
     }
   },
   {
@@ -839,7 +1195,21 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "license": null,
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000007e5/",
       "designation": "F15",
-      "manufacturer": "Estes"
+      "manufacturer": "Estes",
+      "commonName": null
+    }
+  },
+  {
+    "eng": "; HyperTek L540 (2800/75-172-L)\n; provided by ThrustCurve.org (www.thrustcurve.org)\nL540 75 1387 0 2.52224 5.05792 HT\n   0.191 685.548\n   0.574 665.171\n   0.957 635.467\n   1.341 634.122\n   1.725 656.225\n   2.109 706.931\n   2.493 696.526\n   2.876 777.726\n   3.260 775.919\n   3.645 781.611\n   4.028 712.736\n   4.411 695.555\n   4.796 701.251\n   5.180 645.985\n   5.564 607.757\n   5.947 546.408\n   6.331 387.372\n   6.716 234.214\n   7.099 181.086\n   7.482 139.253\n   7.867 106.109\n   8.251 78.293\n   8.634 54.851\n   9.018 36.384\n   9.402 20.375\n   9.786 0.000\n",
+    "source": {
+      "file": "Hypertek_2800CC172L-L540.eng",
+      "motorId": "5f4294d20002310000000172",
+      "simfileId": "5f4294d20002e900000000ed",
+      "license": "PD",
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000000ed/",
+      "designation": "2800CC172L-L540",
+      "manufacturer": "Hypertek",
+      "commonName": "L540"
     }
   },
   {
@@ -851,7 +1221,8 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "license": "PD",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000864/",
       "designation": "G66LR",
-      "manufacturer": "Loki"
+      "manufacturer": "Loki",
+      "commonName": null
     }
   },
   {
@@ -863,7 +1234,8 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "license": "?",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000127/",
       "designation": "J528",
-      "manufacturer": "Loki"
+      "manufacturer": "Loki",
+      "commonName": null
     }
   },
   {
@@ -875,7 +1247,8 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "license": "free",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000836/",
       "designation": "K1127LB",
-      "manufacturer": "Loki"
+      "manufacturer": "Loki",
+      "commonName": null
     }
   },
   {
@@ -887,7 +1260,8 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "license": "PD",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000861/",
       "designation": "K627",
-      "manufacturer": "Loki"
+      "manufacturer": "Loki",
+      "commonName": null
     }
   },
   {
@@ -899,7 +1273,8 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "license": "?",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000012c/",
       "designation": "L1400",
-      "manufacturer": "Loki"
+      "manufacturer": "Loki",
+      "commonName": null
     }
   },
   {
@@ -911,7 +1286,8 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "license": "?",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000012b/",
       "designation": "M1882",
-      "manufacturer": "Loki"
+      "manufacturer": "Loki",
+      "commonName": null
     }
   },
   {
@@ -923,7 +1299,21 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "license": "?",
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000005df/",
       "designation": "M2550",
-      "manufacturer": "Loki"
+      "manufacturer": "Loki",
+      "commonName": null
+    }
+  },
+  {
+    "eng": "; TMT Certified 5-12-2018 10C12\nC12 18 78.6 4-6-8 0.010400000000000001 0.0237 Q\n   0.012 0.342\n   0.023 1.796\n   0.036 5.218\n   0.05 8.127\n   0.051 9.41\n   0.061 10.351\n   0.088 9.752\n   0.099 9.752\n   0.144 10.265\n   0.165 10.864\n   0.183 11.634\n   0.334 13.687\n   0.501 14.628\n   0.552 15.056\n   0.582 14.628\n   0.593 15.227\n   0.618 15.056\n   0.664 15.74\n   0.702 17.536\n   0.711 17.707\n   0.721 16.852\n   0.727 14.799\n   0.739 11.035\n   0.754 7.271\n   0.765 5.304\n   0.782 3.336\n   0.8 2.053\n   0.823 1.283\n   0.848 0.77\n   0.889 0.0\n",
+    "source": {
+      "file": "Quest_C12.eng",
+      "motorId": "5f4294d2000231000000045e",
+      "simfileId": "5f4294d20002e900000008a4",
+      "license": "PD",
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000008a4/",
+      "designation": "C12",
+      "manufacturer": "Quest Aerospace",
+      "commonName": "C12"
     }
   },
   {
@@ -935,7 +1325,21 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "license": null,
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000041c/",
       "designation": "C6",
-      "manufacturer": "Quest Aerospace"
+      "manufacturer": "Quest Aerospace",
+      "commonName": null
+    }
+  },
+  {
+    "eng": "; TMT Certified 5-12-2018 12D16\nD16 18 78.6 4-6-8 0.0125 0.0257 Q\n   0.007 0.411\n   0.021 1.745\n   0.028 8.828\n   0.031 11.497\n   0.04 12.113\n   0.051 13.755\n   0.079 13.037\n   0.167 14.782\n   0.203 16.116\n   0.221 16.014\n   0.271 17.553\n   0.284 18.169\n   0.296 17.553\n   0.334 18.477\n   0.397 19.504\n   0.501 20.736\n   0.618 22.275\n   0.636 22.07\n   0.656 20.941\n   0.673 17.759\n   0.689 13.345\n   0.707 9.033\n   0.724 6.159\n   0.742 3.798\n   0.77 1.95\n   0.803 0.821\n   0.838 0.0\n",
+    "source": {
+      "file": "Quest_D16.eng",
+      "motorId": "5f4294d2000231000000045f",
+      "simfileId": "5f4294d20002e90000000893",
+      "license": "PD",
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000893/",
+      "designation": "D16",
+      "manufacturer": "Quest Aerospace",
+      "commonName": "D16"
     }
   },
   {
@@ -947,7 +1351,34 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "license": null,
       "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e900000006fd/",
       "designation": "D5",
-      "manufacturer": "Quest"
+      "manufacturer": "Quest",
+      "commonName": null
+    }
+  },
+  {
+    "eng": "; From TMT letter June 3 2022\nE35 24 112.8 5,8,11 0.0254 0.0551 Quest\n   0.001 0.626\n   0.028 3.962\n   0.04 13.136\n   0.051 29.608\n   0.178 34.821\n   0.321 36.489\n   0.516 37.74\n   0.712 40.242\n   0.854 41.911\n   0.947 43.579\n   0.979 46.498\n   0.999 41.911\n   1.018 33.779\n   1.04 26.481\n   1.069 19.6\n   1.104 9.383\n   1.122 3.128\n   1.141 0.0\n",
+    "source": {
+      "file": "Quest_E35W.eng",
+      "motorId": "629ee7b1e0d0450004036826",
+      "simfileId": "62a020cfe0d0450004037025",
+      "license": "PD",
+      "infoUrl": "https://www.thrustcurve.org/simfiles/62a020cfe0d0450004037025/",
+      "designation": "E35W",
+      "manufacturer": "Quest Aerospace",
+      "commonName": "E35"
+    }
+  },
+  {
+    "eng": "; From TMT letter June 3 2022\nF41 24 114.3 5,8,11 0.03 0.060700000000000004 Quest\n   0.018 0.679\n   0.031 8.821\n   0.048 25.558\n   0.07 30.308\n   0.099 33.249\n   0.145 34.832\n   0.231 36.641\n   0.409 41.843\n   0.647 45.236\n   0.884 47.498\n   0.947 47.724\n   0.995 51.569\n   1.032 51.343\n   1.049 49.081\n   1.059 44.558\n   1.077 35.963\n   1.1 26.689\n   1.167 9.273\n   1.2 0.0\n",
+    "source": {
+      "file": "Quest_F41W.eng",
+      "motorId": "629ee8bae0d045000403682e",
+      "simfileId": "62a01e29e0d0450004036ef0",
+      "license": "PD",
+      "infoUrl": "https://www.thrustcurve.org/simfiles/62a01e29e0d0450004036ef0/",
+      "designation": "F41W",
+      "manufacturer": "Quest Aerospace",
+      "commonName": "F41"
     }
   }
 ];

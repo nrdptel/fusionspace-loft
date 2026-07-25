@@ -1,16 +1,5 @@
 [
   {
-    "file": "AMW_L1100.eng",
-    "motorId": "5f4294d2000231000000018b",
-    "license": null,
-    "simfileId": "5f4294d20002e90000000482",
-    "designation": "L1100RR",
-    "manufacturer": "Animal Motor Works",
-    "class": "L",
-    "diameter": 75,
-    "header": "L1100RR 75 728 100 1.346 2.5881 Animal_Motor_Works"
-  },
-  {
     "file": "AeroTech_D21T.eng",
     "motorId": "5f4294d20002310000000023",
     "license": null,
@@ -42,6 +31,16 @@
     "header": "F50T 29 98 4-6-9 0.0336 0.0898 AeroTech"
   },
   {
+    "file": "AeroTech_F52T.eng",
+    "motorId": "5f4294d2000231000000004b",
+    "license": null,
+    "simfileId": "5f4294d20002e9000000045c",
+    "designation": "F52",
+    "manufacturer": "AeroTech",
+    "class": "F",
+    "diameter": 29
+  },
+  {
     "file": "AeroTech_F67W.eng",
     "motorId": "5f4294d2000231000000045a",
     "license": "?",
@@ -62,6 +61,39 @@
     "class": "G",
     "diameter": 29,
     "header": "G40W 29 124 4-7-10 0.0538 0.123 AeroTech"
+  },
+  {
+    "file": "AeroTech_G64.eng",
+    "motorId": "5f4294d20002310000000060",
+    "license": null,
+    "simfileId": "5f4294d20002e9000000081a",
+    "designation": "G64BF",
+    "manufacturer": "AeroTech",
+    "class": "G",
+    "diameter": 29,
+    "header": "G64BF 29 124 4-8-10 0.0625 0.1512 AERO"
+  },
+  {
+    "file": "AeroTech_G74W.eng",
+    "motorId": "5f4294d20002310000000400",
+    "license": "PD",
+    "simfileId": "5f4294d20002e900000007f0",
+    "designation": "G74W",
+    "commonName": "G74",
+    "manufacturer": "AeroTech",
+    "class": "G",
+    "diameter": 29,
+    "header": "G74W 29 83 4-6-9 0.039299999999999995 0.08700000000000001 AT"
+  },
+  {
+    "file": "AeroTech_G77R.eng",
+    "motorId": "5f4294d20002310000000065",
+    "license": null,
+    "simfileId": "5f4294d20002e90000000120",
+    "designation": "G77R",
+    "manufacturer": "AeroTech",
+    "class": "G",
+    "diameter": 29
   },
   {
     "file": "AeroTech_G80T.eng",
@@ -119,6 +151,41 @@
     "header": "H180W 29 238 6 0.12096 0.2464 AT"
   },
   {
+    "file": "AeroTech_H242T.eng",
+    "motorId": "5f4294d20002310000000091",
+    "license": "PD",
+    "simfileId": "5f4294d20002e90000000019",
+    "designation": "H242T",
+    "manufacturer": "AeroTech",
+    "class": "H",
+    "diameter": 38,
+    "header": "H242T 38 152 10 0.11648 0.2688 AT"
+  },
+  {
+    "file": "AeroTech_H283ST.eng",
+    "motorId": "5f4294d20002310000000455",
+    "license": "free",
+    "simfileId": "5f4294d20002e90000000872",
+    "designation": "H283ST-15A",
+    "commonName": "H283",
+    "manufacturer": "AeroTech",
+    "class": "H",
+    "diameter": 38,
+    "header": "H283ST 38 155 7-11-15 0.097 0.247 AT"
+  },
+  {
+    "file": "AeroTech_H550ST.eng",
+    "motorId": "5f4294d20002310000000456",
+    "license": null,
+    "simfileId": "5f4294d20002e90000000873",
+    "designation": "H550ST",
+    "commonName": "H550",
+    "manufacturer": "AeroTech",
+    "class": "H",
+    "diameter": 38,
+    "header": "H550 38 213 14 0.176 0.323 AT"
+  },
+  {
     "file": "AeroTech_H669N.eng",
     "motorId": "5f4294d2000231000000009b",
     "license": "?",
@@ -130,6 +197,29 @@
     "header": "H669N  38 152  0  0.096  0.252  AT"
   },
   {
+    "file": "AeroTech_H999N.eng",
+    "motorId": "5f4294d2000231000000009c",
+    "license": null,
+    "simfileId": "5f4294d20002e9000000026b",
+    "designation": "H999N",
+    "manufacturer": "AeroTech",
+    "class": "H",
+    "diameter": 38,
+    "header": "H999N 38 203 0 0.144 0.331 AT"
+  },
+  {
+    "file": "AeroTech_HP-H135W.eng",
+    "motorId": "5f4294d200023100000003f1",
+    "license": null,
+    "simfileId": "5f4294d20002e900000007d7",
+    "designation": "HP-H135W",
+    "commonName": "H135",
+    "manufacturer": "AeroTech",
+    "class": "H",
+    "diameter": 29,
+    "header": "H135W 29 216 6-8-10-12-14 0.082 0.212 AT"
+  },
+  {
     "file": "AeroTech_I115W.eng",
     "motorId": "5f4294d200023100000001e7",
     "license": "?",
@@ -139,6 +229,18 @@
     "class": "I",
     "diameter": 54,
     "header": "I115W 54 156 6-10-14-P 0.229 0.58 AT"
+  },
+  {
+    "file": "AeroTech_I1299N.eng",
+    "motorId": "5f4294d200023100000001c5",
+    "license": null,
+    "simfileId": "5f4294d20002e90000000273",
+    "designation": "I1299N",
+    "commonName": "I1299",
+    "manufacturer": "AeroTech",
+    "class": "I",
+    "diameter": 38,
+    "header": "I1299N 38 249 1000 0.192 0.422 AT-RMS"
   },
   {
     "file": "AeroTech_I161W.eng",
@@ -185,6 +287,52 @@
     "header": "I284W 38 297 0 0.310016 0.555072 AT"
   },
   {
+    "file": "AeroTech_I300T.eng",
+    "motorId": "5f4294d200023100000000cb",
+    "license": null,
+    "simfileId": "5f4294d20002e9000000046a",
+    "designation": "I300T",
+    "commonName": "I300",
+    "manufacturer": "AeroTech",
+    "class": "I",
+    "diameter": 38,
+    "header": "I300T 38 250 6-10-14 0.2216 0.4405 AT"
+  },
+  {
+    "file": "AeroTech_I357T.eng",
+    "motorId": "5f4294d200023100000000d3",
+    "license": "PD",
+    "simfileId": "5f4294d20002e9000000003f",
+    "designation": "I357T",
+    "manufacturer": "AeroTech",
+    "class": "I",
+    "diameter": 38,
+    "header": "I357T 38 203 14 0.1792 0.34944 AT"
+  },
+  {
+    "file": "AeroTech_I59WN.eng",
+    "motorId": "5f4294d200023100000002d0",
+    "license": "PD",
+    "simfileId": "5f4294d20002e90000000660",
+    "designation": "I59WN",
+    "manufacturer": "AeroTech",
+    "class": "I",
+    "diameter": 38,
+    "header": "I59WN-P 38 232 P 0.272 0.487 AT"
+  },
+  {
+    "file": "AeroTech_J315R.eng",
+    "motorId": "5f4294d20002310000000106",
+    "license": "PD",
+    "simfileId": "5f4294d20002e90000000053",
+    "designation": "J315R",
+    "commonName": "J315",
+    "manufacturer": "AeroTech",
+    "class": "J",
+    "diameter": 54,
+    "header": "J315R 54 243 0 0.42112 0.8512 AT"
+  },
+  {
     "file": "AeroTech_J350W.eng",
     "motorId": "5f4294d2000231000000010e",
     "license": "PD",
@@ -218,6 +366,17 @@
     "header": "J500G 38 335.407 0-6-10-14 0.3626 0.654 Aerotech"
   },
   {
+    "file": "AeroTech_J570W.eng",
+    "motorId": "5f4294d20002310000000126",
+    "license": "PD",
+    "simfileId": "5f4294d20002e9000000005d",
+    "designation": "J570W",
+    "manufacturer": "AeroTech",
+    "class": "J",
+    "diameter": 38,
+    "header": "J570W 38 479 0 0.547904 0.886144 AT"
+  },
+  {
     "file": "AeroTech_J800T.eng",
     "motorId": "5f4294d20002310000000129",
     "license": "PD",
@@ -229,6 +388,18 @@
     "header": "J800T 54 314 0 0.613312 1.08595 AT"
   },
   {
+    "file": "AeroTech_J90W.eng",
+    "motorId": "5f4294d200023100000000df",
+    "license": "PD",
+    "simfileId": "5f4294d20002e90000000061",
+    "designation": "J90W",
+    "commonName": "J90",
+    "manufacturer": "AeroTech",
+    "class": "J",
+    "diameter": 54,
+    "header": "J90W 54 243 0 0.427392 0.852544 AT"
+  },
+  {
     "file": "AeroTech_K1050W.eng",
     "motorId": "5f4294d2000231000000024e",
     "license": "?",
@@ -238,6 +409,17 @@
     "class": "K",
     "diameter": 54,
     "header": "K1050W 54 635 1000 1.373 2.259 Aerotech"
+  },
+  {
+    "file": "AeroTech_K1275R.eng",
+    "motorId": "5f4294d20002310000000167",
+    "license": "PD",
+    "simfileId": "5f4294d20002e90000000067",
+    "designation": "K1275R",
+    "manufacturer": "AeroTech",
+    "class": "K",
+    "diameter": 54,
+    "header": "K1275R 54 569 0 1.29024 2.03392 AT"
   },
   {
     "file": "AeroTech_K250W.eng",
@@ -284,6 +466,42 @@
     "header": "L1000 54 635 18 1.4000000000000001 2.194 AT"
   },
   {
+    "file": "AeroTech_L1150R.eng",
+    "motorId": "5f4294d2000231000000018f",
+    "license": "PD",
+    "simfileId": "5f4294d20002e9000000007f",
+    "designation": "L1150R",
+    "commonName": "L1150",
+    "manufacturer": "AeroTech",
+    "class": "L",
+    "diameter": 75,
+    "header": "L1150 75 531 0 2.06528 3.6736 AT"
+  },
+  {
+    "file": "AeroTech_L1940X.eng",
+    "motorId": "60ac748b8dc4640004c24d85",
+    "license": "PD",
+    "simfileId": "60ac84458dc4640004c24eb6",
+    "designation": "L1940X",
+    "commonName": "L1940",
+    "manufacturer": "AeroTech",
+    "class": "L",
+    "diameter": 75,
+    "header": "L1940X 75 560.4 P 1.8234317999999998 3.855515 AT"
+  },
+  {
+    "file": "AeroTech_L850W.eng",
+    "motorId": "5f4294d20002310000000181",
+    "license": "PD",
+    "simfileId": "5f4294d20002e90000000083",
+    "designation": "L850W",
+    "commonName": "L850",
+    "manufacturer": "AeroTech",
+    "class": "L",
+    "diameter": 75,
+    "header": "L850W 75 531 0 2.06528 3.67315 AT"
+  },
+  {
     "file": "AeroTech_L952W.eng",
     "motorId": "5f4294d20002310000000185",
     "license": "PD",
@@ -295,6 +513,29 @@
     "header": "L952W 98 427 0 2.73011 5.01222 AT"
   },
   {
+    "file": "AeroTech_M2400T.eng",
+    "motorId": "5f4294d200023100000001b6",
+    "license": "PD",
+    "simfileId": "5f4294d20002e90000000093",
+    "designation": "M2400T",
+    "manufacturer": "AeroTech",
+    "class": "M",
+    "diameter": 98,
+    "header": "M2400T 98 597 0 3.65254 6.4512 AT"
+  },
+  {
+    "file": "AeroTech_N1000W.eng",
+    "motorId": "5f4294d2000231000000027e",
+    "license": null,
+    "simfileId": "5f4294d20002e900000005c9",
+    "designation": "N1000W",
+    "commonName": "N1000",
+    "manufacturer": "AeroTech",
+    "class": "N",
+    "diameter": 98,
+    "header": "N1048 98 1046 P 7.925 12.777 AT/RCS"
+  },
+  {
     "file": "AeroTech_N3300.eng",
     "motorId": "5f4294d2000231000000030d",
     "license": "PD",
@@ -304,6 +545,41 @@
     "class": "N",
     "diameter": 98,
     "header": "N3300R-P 98 1060 P 7.5120000000000005 12.269 AT"
+  },
+  {
+    "file": "AMW_L1100.eng",
+    "motorId": "5f4294d2000231000000018b",
+    "license": null,
+    "simfileId": "5f4294d20002e90000000482",
+    "designation": "L1100RR",
+    "manufacturer": "Animal Motor Works",
+    "class": "L",
+    "diameter": 75,
+    "header": "L1100RR 75 728 100 1.346 2.5881 Animal_Motor_Works"
+  },
+  {
+    "file": "Apogee_C10.eng",
+    "motorId": "5f4294d20002310000000019",
+    "license": null,
+    "simfileId": "5f4294d20002e90000000492",
+    "designation": "C10",
+    "commonName": "C10",
+    "manufacturer": "Apogee Components",
+    "class": "C",
+    "diameter": 18,
+    "header": "C10 18 50 4-7-10 0.0049 0.0176 Apogee"
+  },
+  {
+    "file": "Apogee_E6.eng",
+    "motorId": "5f4294d2000231000000020f",
+    "license": null,
+    "simfileId": "5f4294d20002e90000000495",
+    "designation": "E6",
+    "commonName": "E6",
+    "manufacturer": "Apogee Components",
+    "class": "E",
+    "diameter": 24,
+    "header": "E6 24 70 2-4-6-8-100 0.0215 0.0463 Apogee"
   },
   {
     "file": "Cesaroni_1266-J760-WT-19A.eng",
@@ -328,6 +604,30 @@
     "header": "K660  54.0 572.00 7-17 1.17700 1.94900 CTI"
   },
   {
+    "file": "Cesaroni_2546K300-P.eng",
+    "motorId": "5f4294d2000231000000037f",
+    "license": null,
+    "simfileId": "5f4294d20002e9000000070f",
+    "designation": "2546K300-P",
+    "commonName": "K300",
+    "manufacturer": "Cesaroni Technology",
+    "class": "K",
+    "diameter": 54,
+    "header": "K300-CL 54 649 0 1.3776 2.27 CTI"
+  },
+  {
+    "file": "Cesaroni_411-I175-WH-14A.eng",
+    "motorId": "5f4294d200023100000003a0",
+    "license": "PD",
+    "simfileId": "5f4294d20002e9000000075a",
+    "designation": "411I175-14A",
+    "commonName": "I175",
+    "manufacturer": "Cesaroni Technology",
+    "class": "I",
+    "diameter": 38,
+    "header": "411-I175-WH-14A 38 245 6-8-9-11-12-13 0.22890000000000002 0.4375 CTI"
+  },
+  {
     "file": "Cesaroni_838J293-13A.eng",
     "motorId": "5f4294d200023100000002d8",
     "license": "?",
@@ -337,6 +637,40 @@
     "class": "J",
     "diameter": 54,
     "header": "J293BS 54 237 13-12-11-10-9-8-7-6-5-4-3 0.41600000000000004 0.84 CTI"
+  },
+  {
+    "file": "Cesaroni_H100.eng",
+    "motorId": "5f4294d200023100000002cb",
+    "license": null,
+    "simfileId": "5f4294d20002e90000000656",
+    "designation": "H100-IM",
+    "manufacturer": "Cesaroni",
+    "class": "H",
+    "diameter": 38,
+    "header": "H100-IM 38 186 6-8-11-12-15 0.1544 0.327 CTI"
+  },
+  {
+    "file": "Cesaroni_H120-14A.eng",
+    "motorId": "5f4294d20002310000000218",
+    "license": null,
+    "simfileId": "5f4294d20002e90000000436",
+    "designation": "261H120-14A",
+    "commonName": "H120",
+    "manufacturer": "Cesaroni Technology",
+    "class": "H",
+    "diameter": 38,
+    "header": "H120-14A 38 186 14-11-9-7-5 0.1366 0.295 CTI"
+  },
+  {
+    "file": "Cesaroni_I212.eng",
+    "motorId": "5f4294d200023100000000ba",
+    "license": null,
+    "simfileId": "5f4294d20002e9000000013b",
+    "designation": "I212SS",
+    "manufacturer": "Cesaroni",
+    "class": "I",
+    "diameter": 38,
+    "header": "I212SS 38.0 245.00 5-7-9-11-14 0.24810 0.47500 CTI"
   },
   {
     "file": "Cesaroni_I216.eng",
@@ -359,6 +693,30 @@
     "class": "I",
     "diameter": 38,
     "header": "I540WT 38 367 7-9-11-13-16 0.3288 0.5982 CTI"
+  },
+  {
+    "file": "Cesaroni_J285.eng",
+    "motorId": "5f4294d20002310000000101",
+    "license": null,
+    "simfileId": "5f4294d20002e90000000137",
+    "designation": "648J285-15A",
+    "commonName": "J285",
+    "manufacturer": "Cesaroni Technology",
+    "class": "J",
+    "diameter": 38,
+    "header": "J285  38.0 367.00 6-8-10-12-15 0.31250 0.59500 CTI"
+  },
+  {
+    "file": "Cesaroni_J420-CL.eng",
+    "motorId": "5f4294d2000231000000029d",
+    "license": null,
+    "simfileId": "5f4294d20002e90000000633",
+    "designation": "1008J420-15A",
+    "commonName": "J420",
+    "manufacturer": "Cesaroni Technology",
+    "class": "J",
+    "diameter": 38,
+    "header": "J420-CL 38 500 6-8-10-12-15 0.522 0.874 CTI"
   },
   {
     "file": "Cesaroni_J94.eng",
@@ -493,6 +851,30 @@
     "header": "N3800-BS 98 1239 P 8.71 14.261000000000001 CTI"
   },
   {
+    "file": "Estes_1_2A3.eng",
+    "motorId": "5f4294d20002310000000006",
+    "license": null,
+    "simfileId": "5f4294d20002e900000004e0",
+    "designation": "1/2A3",
+    "commonName": "1/2A3",
+    "manufacturer": "Estes Industries",
+    "class": "A",
+    "diameter": 13,
+    "header": "1/2A3T 13 45 2-4 0.002 0.0066 Estes"
+  },
+  {
+    "file": "Estes_1_4A3.eng",
+    "motorId": "5f4294d20002310000000004",
+    "license": null,
+    "simfileId": "5f4294d20002e900000004df",
+    "designation": "1/4A3",
+    "commonName": "1/4A3",
+    "manufacturer": "Estes Industries",
+    "class": "A",
+    "diameter": 13,
+    "header": "1/4A3T 13 45 3 0.00083 0.0061 Estes"
+  },
+  {
     "file": "Estes_A10.eng",
     "motorId": "5f4294d2000231000000000c",
     "license": null,
@@ -501,6 +883,18 @@
     "manufacturer": "Estes Industries",
     "class": "A",
     "diameter": 13
+  },
+  {
+    "file": "Estes_A3.eng",
+    "motorId": "5f4294d20002310000000009",
+    "license": null,
+    "simfileId": "5f4294d20002e900000004e2",
+    "designation": "A3",
+    "commonName": "A3",
+    "manufacturer": "Estes Industries",
+    "class": "A",
+    "diameter": 13,
+    "header": "A3T 13 45 4 0.0033 0.0085 Estes"
   },
   {
     "file": "Estes_A8.eng",
@@ -575,6 +969,16 @@
     "header": "E12 24 95 0-4-6-8 0.0359 0.0599 Estes"
   },
   {
+    "file": "Estes_E16.eng",
+    "motorId": "5f4294d200023100000003f8",
+    "license": null,
+    "simfileId": "5f4294d20002e900000007e6",
+    "designation": "E16",
+    "manufacturer": "Estes",
+    "class": "E",
+    "diameter": 29
+  },
+  {
     "file": "Estes_E9.eng",
     "motorId": "5f4294d20002310000000028",
     "license": null,
@@ -583,6 +987,28 @@
     "manufacturer": "Estes Industries",
     "class": "E",
     "diameter": 24
+  },
+  {
+    "file": "Estes_F15.eng",
+    "motorId": "5f4294d200023100000003f2",
+    "license": null,
+    "simfileId": "5f4294d20002e900000007e5",
+    "designation": "F15",
+    "manufacturer": "Estes",
+    "class": "F",
+    "diameter": 29
+  },
+  {
+    "file": "Hypertek_2800CC172L-L540.eng",
+    "motorId": "5f4294d20002310000000172",
+    "license": "PD",
+    "simfileId": "5f4294d20002e900000000ed",
+    "designation": "2800CC172L-L540",
+    "commonName": "L540",
+    "manufacturer": "Hypertek",
+    "class": "L",
+    "diameter": 75,
+    "header": "L540 75 1387 0 2.52224 5.05792 HT"
   },
   {
     "file": "Loki_G66.eng",
@@ -662,6 +1088,18 @@
     "header": "M2550-LB 76 785 0 3.13 5.53 Loki"
   },
   {
+    "file": "Quest_C12.eng",
+    "motorId": "5f4294d2000231000000045e",
+    "license": "PD",
+    "simfileId": "5f4294d20002e900000008a4",
+    "designation": "C12",
+    "commonName": "C12",
+    "manufacturer": "Quest Aerospace",
+    "class": "C",
+    "diameter": 18,
+    "header": "C12 18 78.6 4-6-8 0.010400000000000001 0.0237 Q"
+  },
+  {
     "file": "Quest_C6.eng",
     "motorId": "5f4294d20002310000000016",
     "license": null,
@@ -672,121 +1110,16 @@
     "diameter": 18
   },
   {
-    "file": "AeroTech_I59WN.eng",
-    "motorId": "5f4294d200023100000002d0",
+    "file": "Quest_D16.eng",
+    "motorId": "5f4294d2000231000000045f",
     "license": "PD",
-    "simfileId": "5f4294d20002e90000000660",
-    "designation": "I59WN",
-    "manufacturer": "AeroTech",
-    "class": "I",
-    "diameter": 38,
-    "header": "I59WN-P 38 232 P 0.272 0.487 AT"
-  },
-  {
-    "file": "AeroTech_I357T.eng",
-    "motorId": "5f4294d200023100000000d3",
-    "license": "PD",
-    "simfileId": "5f4294d20002e9000000003f",
-    "designation": "I357T",
-    "manufacturer": "AeroTech",
-    "class": "I",
-    "diameter": 38,
-    "header": "I357T 38 203 14 0.1792 0.34944 AT"
-  },
-  {
-    "file": "AeroTech_K1275R.eng",
-    "motorId": "5f4294d20002310000000167",
-    "license": "PD",
-    "simfileId": "5f4294d20002e90000000067",
-    "designation": "K1275R",
-    "manufacturer": "AeroTech",
-    "class": "K",
-    "diameter": 54,
-    "header": "K1275R 54 569 0 1.29024 2.03392 AT"
-  },
-  {
-    "file": "AeroTech_M2400T.eng",
-    "motorId": "5f4294d200023100000001b6",
-    "license": "PD",
-    "simfileId": "5f4294d20002e90000000093",
-    "designation": "M2400T",
-    "manufacturer": "AeroTech",
-    "class": "M",
-    "diameter": 98,
-    "header": "M2400T 98 597 0 3.65254 6.4512 AT"
-  },
-  {
-    "file": "AeroTech_H242T.eng",
-    "motorId": "5f4294d20002310000000091",
-    "license": "PD",
-    "simfileId": "5f4294d20002e90000000019",
-    "designation": "H242T",
-    "manufacturer": "AeroTech",
-    "class": "H",
-    "diameter": 38,
-    "header": "H242T 38 152 10 0.11648 0.2688 AT"
-  },
-  {
-    "file": "AeroTech_J570W.eng",
-    "motorId": "5f4294d20002310000000126",
-    "license": "PD",
-    "simfileId": "5f4294d20002e9000000005d",
-    "designation": "J570W",
-    "manufacturer": "AeroTech",
-    "class": "J",
-    "diameter": 38,
-    "header": "J570W 38 479 0 0.547904 0.886144 AT"
-  },
-  {
-    "file": "AeroTech_H999N.eng",
-    "motorId": "5f4294d2000231000000009c",
-    "license": null,
-    "simfileId": "5f4294d20002e9000000026b",
-    "designation": "H999N",
-    "manufacturer": "AeroTech",
-    "class": "H",
-    "diameter": 38,
-    "header": "H999N 38 203 0 0.144 0.331 AT"
-  },
-  {
-    "file": "Estes_F15.eng",
-    "motorId": "5f4294d200023100000003f2",
-    "license": null,
-    "simfileId": "5f4294d20002e900000007e5",
-    "designation": "F15",
-    "manufacturer": "Estes",
-    "class": "F",
-    "diameter": 29
-  },
-  {
-    "file": "Estes_E16.eng",
-    "motorId": "5f4294d200023100000003f8",
-    "license": null,
-    "simfileId": "5f4294d20002e900000007e6",
-    "designation": "E16",
-    "manufacturer": "Estes",
-    "class": "E",
-    "diameter": 29
-  },
-  {
-    "file": "AeroTech_F52T.eng",
-    "motorId": "5f4294d2000231000000004b",
-    "license": null,
-    "simfileId": "5f4294d20002e9000000045c",
-    "designation": "F52",
-    "manufacturer": "AeroTech",
-    "class": "F",
-    "diameter": 29
-  },
-  {
-    "file": "AeroTech_G77R.eng",
-    "motorId": "5f4294d20002310000000065",
-    "license": null,
-    "simfileId": "5f4294d20002e90000000120",
-    "designation": "G77R",
-    "manufacturer": "AeroTech",
-    "class": "G",
-    "diameter": 29
+    "simfileId": "5f4294d20002e90000000893",
+    "designation": "D16",
+    "commonName": "D16",
+    "manufacturer": "Quest Aerospace",
+    "class": "D",
+    "diameter": 18,
+    "header": "D16 18 78.6 4-6-8 0.0125 0.0257 Q"
   },
   {
     "file": "Quest_D5.eng",
@@ -799,36 +1132,27 @@
     "diameter": 20
   },
   {
-    "file": "AeroTech_G64.eng",
-    "motorId": "5f4294d20002310000000060",
-    "license": null,
-    "simfileId": "5f4294d20002e9000000081a",
-    "designation": "G64BF",
-    "manufacturer": "AeroTech",
-    "class": "G",
-    "diameter": 29,
-    "header": "G64BF 29 124 4-8-10 0.0625 0.1512 AERO"
+    "file": "Quest_E35W.eng",
+    "motorId": "629ee7b1e0d0450004036826",
+    "license": "PD",
+    "simfileId": "62a020cfe0d0450004037025",
+    "designation": "E35W",
+    "commonName": "E35",
+    "manufacturer": "Quest Aerospace",
+    "class": "E",
+    "diameter": 24,
+    "header": "E35 24 112.8 5,8,11 0.0254 0.0551 Quest"
   },
   {
-    "file": "Cesaroni_H100.eng",
-    "motorId": "5f4294d200023100000002cb",
-    "license": null,
-    "simfileId": "5f4294d20002e90000000656",
-    "designation": "H100-IM",
-    "manufacturer": "Cesaroni",
-    "class": "H",
-    "diameter": 38,
-    "header": "H100-IM 38 186 6-8-11-12-15 0.1544 0.327 CTI"
-  },
-  {
-    "file": "Cesaroni_I212.eng",
-    "motorId": "5f4294d200023100000000ba",
-    "license": null,
-    "simfileId": "5f4294d20002e9000000013b",
-    "designation": "I212SS",
-    "manufacturer": "Cesaroni",
-    "class": "I",
-    "diameter": 38,
-    "header": "I212SS 38.0 245.00 5-7-9-11-14 0.24810 0.47500 CTI"
+    "file": "Quest_F41W.eng",
+    "motorId": "629ee8bae0d045000403682e",
+    "license": "PD",
+    "simfileId": "62a01e29e0d0450004036ef0",
+    "designation": "F41W",
+    "commonName": "F41",
+    "manufacturer": "Quest Aerospace",
+    "class": "F",
+    "diameter": 24,
+    "header": "F41 24 114.3 5,8,11 0.03 0.060700000000000004 Quest"
   }
 ]

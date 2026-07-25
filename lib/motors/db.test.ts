@@ -243,11 +243,17 @@ describe("motor database", () => {
     // maker's motor stays unresolved for the same reason.)
     expect(resolveMotor({ manufacturer: "Cesaroni", designation: "K550" })).toBeNull();
     expect(resolveMotor({ manufacturer: "Loki", designation: "H128" })).toBeNull();
-    // But the same designation with the right (or unknown) manufacturer still resolves, and an
-    // exact designation matches regardless of a maker-string difference.
+    // But the same designation with the right (or unknown) manufacturer still resolves.
     expect(resolveMotor({ manufacturer: "AeroTech", designation: "K550" })?.entry.curve.designation).toBe("K550W");
     expect(resolveMotor({ designation: "K550" })?.entry.curve.designation).toBe("K550W");
-    expect(resolveMotor({ manufacturer: "Cesaroni", designation: "K550W" })?.quality).toBe("exact");
+    // Nor does an EXACT designation cross makers. Bare class-and-thrust names are not unique
+    // across manufacturers, so "Cesaroni K550W" resolving to AeroTech's would be the same silent
+    // wrong-motor substitution, just with a longer string.
+    expect(resolveMotor({ manufacturer: "Cesaroni", designation: "K550W" })).toBeNull();
+    // A trading-name difference is not a maker difference, though.
+    expect(resolveMotor({ manufacturer: "Apogee Components", designation: "C10" })?.quality).toBe("exact");
+    expect(resolveMotor({ manufacturer: "Apogee", designation: "C10" })?.quality).toBe("exact");
+    expect(resolveMotor({ manufacturer: "Estes Industries", designation: "A8" })?.quality).toBe("exact");
   });
 
   it("normalizes and extracts cores", () => {
@@ -279,5 +285,75 @@ describe("catalogued identity beats the RASP header's abbreviation", () => {
   it("still falls back to the header when the provenance records no designation", () => {
     // Every bundled entry ends up with a designation one way or the other.
     for (const e of allMotors()) expect(e.designation.length).toBeGreaterThan(0);
+  });
+});
+
+describe("a motor is matched on every name it is published under", () => {
+  it("resolves a Cesaroni reload written by its common name, not its part number", () => {
+    // OpenRocket files reference "J285"; ThrustCurve's designation for that motor is the part
+    // number "648J285-15A". Matching only the part number left the design unresolved.
+    const m = resolveMotor({ manufacturer: "Cesaroni Technology", designation: "J285" });
+    expect(m?.quality).toBe("exact");
+    expect(m?.entry.designation).toBe("648J285-15A");
+    expect(m?.entry.names).toContain("J285");
+    expect(m!.entry.curve.diameterMm).toBeCloseTo(38, 0);
+  });
+
+  it("resolves a design's fuller Cesaroni string against the part number", () => {
+    const m = resolveMotor({ manufacturer: "Cesaroni Technology", designation: "411-I175-WH-14A" });
+    expect(m?.entry.designation).toBe("411I175-14A");
+    expect(m!.entry.curve.diameterMm).toBeCloseTo(38, 0);
+  });
+
+  it("keeps a loose name match from crossing manufacturers", () => {
+    // "C10" is an Apogee 18 mm motor here; asking Estes for one must not hand back Apogee's —
+    // and Estes makes no C10, so the honest answer is "not found".
+    expect(resolveMotor({ manufacturer: "Estes", designation: "C10" })).toBeNull();
+    // Quest's C12 and Estes' C11 are likewise their own makers' motors, not each other's.
+    expect(resolveMotor({ manufacturer: "Estes", designation: "C12" })).toBeNull();
+    expect(resolveMotor({ manufacturer: "Quest", designation: "C11" })).toBeNull();
+  });
+
+  it("bundles the motors the real-design corpus asks for", () => {
+    // Each of these came from an in-the-wild .ork or .rkt that previously flew with no propulsion
+    // at all. Diameters are asserted so a future re-fetch can't quietly swap in a same-name motor
+    // of a different size.
+    const cases: [string, string, number][] = [
+      ["AeroTech", "L1940X", 75],
+      ["AeroTech", "N1000W", 98],
+      ["AeroTech", "G74W", 29],
+      ["AeroTech", "HP-H135W", 29],
+      ["Cesaroni Technology", "J420-CL", 38],
+      ["Cesaroni Technology", "2546K300-P", 54],
+      ["Quest", "C12", 18],
+      ["Quest", "F41W", 24],
+      ["Apogee", "C10", 18],
+      ["Estes", "1/4A3", 13],
+      ["Estes", "1/2A3", 13],
+      ["Estes", "A3", 13],
+      ["Hypertek", "2800CC172L-L540", 75],
+    ];
+    for (const [manufacturer, designation, dia] of cases) {
+      const m = resolveMotor({ manufacturer, designation });
+      expect(m, `${manufacturer} ${designation}`).not.toBeNull();
+      expect(m!.entry.curve.diameterMm, `${designation} diameter`).toBeCloseTo(dia, 0);
+    }
+  });
+
+  it("keeps every bundled curve inside its own impulse class", () => {
+    // A curve fetched under the wrong name shows up here: a "J" carrying an I's impulse, say.
+    const MAX: Record<string, number> = {
+      A: 2.5, B: 5, C: 10, D: 20, E: 40, F: 80, G: 160, H: 320,
+      I: 640, J: 1280, K: 2560, L: 5120, M: 10240, N: 20480,
+    };
+    for (const e of allMotors()) {
+      const m = (e.source.commonName ?? e.designation).match(/^(\d)\/(\d)?([A-Z])|^([A-Z])/);
+      const cls = m?.[3] ?? m?.[4];
+      const frac = m?.[1] && m?.[2] ? Number(m[1]) / Number(m[2]) : 1;
+      if (!cls || !MAX[cls]) continue;
+      const hi = MAX[cls] * frac;
+      expect(e.curve.totalImpulse, `${e.designation} impulse`).toBeGreaterThan(hi / 2 * 0.9);
+      expect(e.curve.totalImpulse, `${e.designation} impulse`).toBeLessThan(hi * 1.05);
+    }
   });
 });

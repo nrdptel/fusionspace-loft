@@ -43,6 +43,10 @@ for (const file of files) {
       // what left real files with no propulsion at all.
       designation: p.designation ?? null,
       manufacturer: p.manufacturer ?? null,
+      // ThrustCurve's *common* name — the class-and-thrust name a motor is sold and talked
+      // about by ("J285"), as distinct from the manufacturer part number ("648J285-15A").
+      // Design files use one or the other, so both are matchable identities.
+      commonName: p.commonName ?? null,
     },
   });
 }
@@ -66,6 +70,9 @@ export interface CatalogSource {
   designation: string | null;
   /** ThrustCurve.org's manufacturer, likewise, in preference to the header's maker code. */
   manufacturer: string | null;
+  /** ThrustCurve.org's common (class-and-thrust) name, e.g. "J285" for part number
+   *  "648J285-15A" — the other published name a design file may reference. */
+  commonName: string | null;
 }
 
 export interface CatalogEntry {
