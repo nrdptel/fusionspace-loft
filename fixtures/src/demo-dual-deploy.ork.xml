@@ -137,8 +137,6 @@
         <atmosphere model="isa"/>
         <timestep>0.01</timestep>
       </conditions>
-      <flightdata maxaltitude="2250.0" maxvelocity="305.0" maxacceleration="208.0" maxmach="0.89" timetoapogee="20.2" flighttime="214.0" groundhitvelocity="5.6" launchrodvelocity="26.2" deploymentvelocity="4.0" optimumdelay="17.3">
-      </flightdata>
     </simulation>
   </simulations>
 </openrocket>

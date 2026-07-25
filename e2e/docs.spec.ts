@@ -14,10 +14,12 @@ test.describe("Docs", () => {
     await expect(page.getByText(/static margin/i).first()).toBeVisible();
   });
 
-  test("validation page shows the build-time comparison table", async ({ page }) => {
+  test("validation page is explicit about what the samples do and don't show", async ({ page }) => {
     await page.goto("/docs/validation");
     await expect(page.getByRole("heading", { name: "Validation", exact: true })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Bundled sample comparisons" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /What the bundled samples/ })).toBeVisible();
+    // The real cross-check — an independent engine over the same designs — is still tabulated.
+    await expect(page.getByRole("heading", { name: /Against RocketPy/ })).toBeVisible();
     await expect(page.getByRole("cell", { name: "Apogee", exact: true }).first()).toBeVisible();
   });
 

@@ -43,13 +43,25 @@ describe("adaptOrkXml — single deploy fixture", () => {
     expect(cfg.instances[0].motor.diameter).toBeCloseTo(0.029, 4);
   });
 
-  it("reads the stored flight results", () => {
+  it("carries the simulation and its conditions, but no invented results", () => {
+    // A design the app SHIPS as a sample states no flight results: no OpenRocket run produced any,
+    // and a fabricated set would be presented as another tool's prediction. The simulation and its
+    // launch conditions still import — the flight is flown under them.
     expect(doc.simulations).toHaveLength(1);
     const sim = doc.simulations[0];
-    expect(sim.hasResults).toBe(true);
-    expect(sim.results.maxAltitude).toBe(980);
-    expect(sim.results.maxMach).toBe(0.55);
+    expect(sim.hasResults).toBe(false);
+    expect(sim.results.maxAltitude).toBeUndefined();
     expect(sim.conditions.rodLength).toBe(1.2);
+  });
+
+  it("reads stored flight results where a design carries them", () => {
+    // demo-boattail is a test-only fixture (not shipped as a sample) and keeps a declared set of
+    // synthetic stored results, so the comparison path stays covered.
+    const withResults = adaptOrkXml(readXml("demo-boattail.ork.xml"));
+    const sim = withResults.simulations[0];
+    expect(sim.hasResults).toBe(true);
+    expect(sim.results.maxAltitude).toBe(1015);
+    expect(Number.isFinite(sim.results.maxVelocity ?? NaN)).toBe(true);
   });
 });
 

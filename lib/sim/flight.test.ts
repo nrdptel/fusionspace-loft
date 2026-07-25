@@ -46,10 +46,14 @@ describe("single-deploy fixture flight", () => {
     expect(run.result.staticMarginCal).toBeGreaterThan(1);
     expect(run.result.stability.cp).toBeGreaterThan(run.result.cgLoaded);
 
-    // The validation harness runs and produces a finite MAPE against the stored estimates.
-    expect(run.validation).toBeDefined();
-    expect(Number.isFinite(run.validation!.mape)).toBe(true);
-    expect(run.validation!.count).toBeGreaterThanOrEqual(6);
+    // A shipped sample states no flight results, so there is nothing to compare against — the
+    // panel stays away rather than reporting a difference from numbers nobody computed.
+    expect(run.validation).toBeUndefined();
+    // The harness itself is covered on a fixture that does carry stored results.
+    const withStored = runFromDocument(await load("demo-boattail.ork"));
+    expect(withStored.validation).toBeDefined();
+    expect(Number.isFinite(withStored.validation!.mape)).toBe(true);
+    expect(withStored.validation!.count).toBeGreaterThanOrEqual(3);
 
     // Regression: the per-sample acceleration must not be dead-zero (it powers the plot).
     const peakSampleAccel = Math.max(...run.result.trajectory.map((s) => Math.abs(s.acceleration)));
@@ -642,8 +646,10 @@ describe("multi-configuration selection", () => {
     expect(choices).toHaveLength(2);
     expect(choices[0].motors).toEqual(["H128W"]);
     expect(choices[1].motors).toEqual(["G40W"]);
-    expect(choices[0].storedApogeeM).toBe(980);
-    expect(choices[1].storedApogeeM).toBe(520);
+    // A shipped sample states no results, so a choice carries none to label itself with — the
+    // picker falls back to the motor, which is what it shows for any design without stored numbers.
+    expect(choices[0].storedApogeeM).toBeUndefined();
+    expect(choices[1].storedApogeeM).toBeUndefined();
   });
 
   it("flies the chosen configuration's motor and compares to its own stored results", async () => {
@@ -659,8 +665,6 @@ describe("multi-configuration selection", () => {
     expect(g.resolutions[0].match?.entry.curve.designation).toBe("G40W");
     // The larger motor flies higher, and each is compared against its own stored numbers.
     expect(h.result.summary.apogee).toBeGreaterThan(g.result.summary.apogee);
-    expect(h.validation).toBeDefined();
-    expect(g.validation).toBeDefined();
     expect(doc.flownAsReduced).toBe(false);
   });
 });
@@ -691,7 +695,9 @@ describe("motor cluster simulation", () => {
 
 describe("validation withheld for a simplified vehicle", () => {
   it("compares a complete design but withholds it when the flown vehicle is reduced", async () => {
-    const doc = await load("demo-single-deploy.ork");
+    // demo-boattail is a test-only fixture that still carries stored results; the shipped samples
+    // deliberately carry none, so they have nothing to compare in the first place.
+    const doc = await load("demo-boattail.ork");
     // Complete single-stage design ⇒ flown whole ⇒ the stored-results comparison runs.
     expect(doc.flownAsReduced).toBe(false);
     expect(runFromDocument(doc).validation).toBeDefined();

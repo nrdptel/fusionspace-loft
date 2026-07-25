@@ -1,12 +1,19 @@
 # Test fixtures
 
-**The stored flight results in these designs are author estimates, not simulator output.** They
-exist so the comparison panel has something to demonstrate on. Each therefore carries
-OpenRocket's `status="external"` on its `<simulation>` — the format's own marker for results
-that did not come from its simulator — and the app labels them "stated figures" rather than
-attributing them to OpenRocket. If you edit a fixture's geometry, either update its stored
-figures or leave them: they are a reference point, never a ground truth. Real ground truth lives
-in the separate design-file corpus.
+**The designs the app SHIPS as samples state no flight results at all.** They are Loft's own
+designs; no OpenRocket run ever produced numbers for them, so inventing a set and letting the
+comparison panel present it as another tool's prediction was dishonest — and the invented figures
+did not even hold together (one claimed a 2,250 m apogee at the same 20.2 s time-to-apogee at
+which Loft reaches 2,940 m, which no ballistic coast does). Those files now carry their simulation
+and its launch conditions and nothing else, so the comparison panel simply doesn't appear for a
+sample. It appears for YOUR file, which is where it belongs.
+
+The **test-only** fixtures — `demo-boattail`, `demo-quirks`, `demo-payload-separation`, and
+`demo-rocksim.rkt`, none of which is offered in the app — keep a declared set of synthetic stored
+results so the comparison path stays covered by tests. Each carries OpenRocket's
+`status="external"`, the format's own marker for results that did not come from its simulator.
+They are test data, never ground truth. Real ground truth lives in the separate design-file
+corpus (see CONTRIBUTING).
 
 Real design files used by the parser tests, the simulation tests, and the validation
 harness. The OpenRocket `.ork` fixtures are ZIP archives containing a single `rocket.ork`
