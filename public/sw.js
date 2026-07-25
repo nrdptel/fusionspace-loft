@@ -5,19 +5,24 @@
 //
 // Strategy:
 //   - navigations: network-first (an online visitor always gets fresh HTML), falling
-//     back to the cached app shell when offline.
+//     back offline to the cached copy of THAT page, and to the app shell only for a
+//     route that was never cached.
 //   - other same-origin GETs (JS/CSS/fonts/icons): stale-while-revalidate, so assets
 //     load instantly and refresh in the background.
-//   - install PRECACHES everything needed to run offline: the app shell, the hashed
-//     JS/CSS/font build output, and the bundled sample designs. Precaching the build
-//     output is essential, not just an optimisation — on a first visit the script/style
-//     chunks load via <script>/<link> tags BEFORE this worker is installed and in
-//     control, so stale-while-revalidate never sees them and they'd otherwise never be
-//     cached. Without them a returning offline visitor gets the shell HTML but no way to
-//     hydrate, i.e. a dead page.
+//   - install PRECACHES everything needed to run offline: every prerendered route, the
+//     hashed JS/CSS/font build output, and the bundled sample designs. Precaching the
+//     build output is essential, not just an optimisation — on a first visit the
+//     script/style chunks load via <script>/<link> tags BEFORE this worker is installed
+//     and in control, so stale-while-revalidate never sees them and they'd otherwise
+//     never be cached. Without them a returning offline visitor gets the shell HTML but
+//     no way to hydrate, i.e. a dead page. Precaching every route matters for the same
+//     reason the app is offline-first at all: the limitations log and the methods write-up
+//     are what tell a flyer how much to trust a number, and the pad is exactly where that
+//     question gets asked — with no signal to go and fetch them.
 // The cache name carries a per-build id (injected below), so a new deploy lands in a
-// fresh cache and the old one is cleared on activate — and the worker's bytes change
-// every build that changes an asset, so the update prompt fires reliably.
+// fresh cache and the old one is cleared on activate — and the id hashes both the asset
+// list and every route's HTML, so the worker's bytes change on any build that changes
+// what's served (a docs rewrite included) and the update prompt fires reliably.
 //
 // The one thing that needs a connection is the optional "today's conditions" re-run
 // (live weather); everything else is offline by design.
@@ -43,18 +48,53 @@ const SAMPLES = [
 const BUILD_ASSETS = [
   // __BUILD_ASSETS__
 ];
-const PRECACHE = [SHELL, ...SAMPLES, ...BUILD_ASSETS];
+// Every prerendered route, injected the same way. "/" is in here, so it covers the shell.
+const ROUTES = [
+  SHELL,
+  // __BUILD_ROUTES__
+];
+
+// Page HTML is cached under a normalised path — "/docs", never "/docs/" — because hosts
+// disagree about which form is canonical: Cloudflare Pages serves /docs directly, while the
+// local `serve` used by the e2e run 301s it to /docs/. Normalising both the write and the
+// read means an offline visitor gets the page they asked for under either host.
+function pageKey(pathname) {
+  const trimmed = pathname.replace(/\/+$/, "");
+  return trimmed === "" ? "/" : trimmed;
+}
+
+// A page replayed from the cache for a navigation must not carry fetch's "redirected" flag:
+// responding to a navigation with a redirected Response is a TypeError, and following a host
+// redirect is exactly how some of these get fetched. Rebuilding the Response from its body
+// drops the flag. Only the content type is worth keeping — the rest are the host's to set.
+async function pageCopy(res) {
+  return new Response(await res.blob(), {
+    status: 200,
+    statusText: "OK",
+    headers: { "content-type": res.headers.get("content-type") || "text/html; charset=utf-8" },
+  });
+}
+
+async function precache() {
+  const c = await caches.open(CACHE);
+  // Best-effort and per-entry (allSettled): a transient failure fetching one entry must not
+  // fail the whole install — anything missed is re-cached on first online use anyway.
+  await Promise.allSettled([
+    ...ROUTES.map(async (path) => {
+      const res = await fetch(path, { credentials: "same-origin" });
+      if (res.ok) await c.put(pageKey(path), await pageCopy(res));
+    }),
+    ...SAMPLES.map((u) => c.add(u)),
+    ...BUILD_ASSETS.map((u) => c.add(u)),
+  ]);
+}
 
 self.addEventListener("install", (event) => {
   // Note: no skipWaiting() here. When a controller is already running (an updated
   // visit), the new worker waits so it can't swap assets out from under an open tab;
   // the page shows a "refresh" prompt and calls skipWaiting() via the message below.
   // On a first-ever visit there's no controller, so the browser activates immediately.
-  // Best-effort and per-asset (allSettled): a transient failure fetching one entry must
-  // not fail the whole install — anything missed is re-cached on first online use anyway.
-  event.waitUntil(
-    caches.open(CACHE).then((c) => Promise.allSettled(PRECACHE.map((u) => c.add(u)))).catch(() => {}),
-  );
+  event.waitUntil(precache().catch(() => {}));
 });
 
 // The page posts this when the user accepts the update, letting the waiting worker
@@ -105,14 +145,23 @@ self.addEventListener("fetch", (event) => {
   }
 
   if (req.mode === "navigate") {
+    const key = pageKey(url.pathname);
     event.respondWith(
       fetch(req)
         .then((res) => {
-          const copy = res.clone();
-          caches.open(CACHE).then((c) => c.put(SHELL, copy)).catch(() => {});
+          if (res && res.ok) {
+            const copy = res.clone();
+            caches
+              .open(CACHE)
+              .then(async (c) => c.put(key, await pageCopy(copy)))
+              .catch(() => {});
+          }
           return res;
         })
-        .catch(() => caches.match(SHELL, { ignoreSearch: true })),
+        // Offline: the page that was actually asked for, and the shell only for a route
+        // that was never cached — so /docs/limitations reads as the limitations log rather
+        // than silently serving the landing page under the URL of something else.
+        .catch(() => caches.match(key).then((hit) => hit || caches.match(SHELL))),
     );
     return;
   }

@@ -380,7 +380,10 @@ export default function Faq() {
         <p>
           Yes — once loaded, install it or just revisit and it runs with no connection: the app, the
           motor database, the simulation, and the bundled sample designs are all client-side, cached
-          for the pad. Only the live-weather re-run needs a signal.
+          for the pad. So are these documentation pages, including the{" "}
+          <Link href="/docs/limitations">limitations log</Link> — the question of how far to trust a
+          number is one you ask at the pad, not at a desk. Only the live-weather re-run and the
+          first RocketPy download need a signal.
         </p>
       </QA>
 

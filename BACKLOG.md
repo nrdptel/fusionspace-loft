@@ -3,6 +3,10 @@
 Rough edges, missing affordances, and ideas too big for one pass — noticed while working,
 not yet done. Newest first. One line each. Anything here is fair game for the next session.
 
+- The service worker precaches route HTML but not the RSC segment payloads Next's router fetches
+  for a client-side navigation (`__next.*.txt?_rsc=…`, ~580 kB, and the `_rsc` hash means they
+  can't be matched without `ignoreSearch`). Offline, an in-app link still lands on the right page
+  because the router falls back to a full navigation — but that reload drops in-memory state.
 - `demo-rocksim.rkt`'s stored `<SimulationResults>` are author estimates too, but RockSim's format
   has no `external` marker to carry that, so the panel still labels them RockSim's. Worth either a
   document-level flag on the import or dropping the stored block from that fixture.
