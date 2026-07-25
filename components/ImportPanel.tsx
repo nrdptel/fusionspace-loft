@@ -129,6 +129,93 @@ export default function ImportPanel({
           </button>
         </div>
       </div>
+
+      <WhatItDoes />
     </section>
+  );
+}
+
+/** What a flyer can do once a design is loaded.
+ *
+ *  Everything below is one or two clicks from here and none of it was visible from this page: a
+ *  first-time visitor saw a drop zone and could reasonably conclude Loft reads a file and draws an
+ *  altitude curve. The builder, the motor comparison, the sweeps, the dispersion, the second solver
+ *  and the cross-check against the file's own stored numbers are the reasons to come back a tenth
+ *  time, and a capability nobody can find is one that isn't there. Deliberately specific — what
+ *  each one computes, not what it feels like. */
+const CAPABILITIES: { title: string; body: React.ReactNode }[] = [
+  {
+    title: "Build and edit, not just view",
+    body: (
+      <>
+        Start from a stable design or reshape an imported one — drag the fins, the body wall, the
+        nose on the diagram, or type the numbers. It re-flies as you go.
+      </>
+    ),
+  },
+  {
+    title: "Compare every fitting motor",
+    body: (
+      <>
+        Fly the airframe on every bundled motor its mount takes, at once: apogee, max speed,
+        rail-exit velocity, thrust-to-weight, stability, flutter margin, and the delay to drill.
+      </>
+    ),
+  },
+  {
+    title: "Sweep one dimension",
+    body: <>The response curve behind a single edit — how apogee, speed, stability or flutter margin move as you change it.</>,
+  },
+  {
+    title: "Fly it hundreds of times",
+    body: (
+      <>
+        Monte-Carlo dispersion over your own stated tolerances: the apogee band to expect, the
+        landing scatter, and the recovery area to plan for.
+      </>
+    ),
+  },
+  {
+    title: "Check it against a second engine",
+    body: (
+      <>
+        RocketPy — an independent 6-DOF simulator — flies the same design in your browser, so
+        Loft&apos;s answer isn&apos;t the only one you get.
+      </>
+    ),
+  },
+  {
+    title: "…and against your own file",
+    body: (
+      <>
+        An <code className="font-mono">.ork</code> or <code className="font-mono">.rkt</code>{" "}
+        carries its tool&apos;s own stored simulation. Loft shows its result beside those numbers
+        rather than asking you to trust one.
+      </>
+    ),
+  },
+];
+
+function WhatItDoes() {
+  return (
+    // Full page width, so it lines up with the heading above and the footer below. The drop zone is
+    // deliberately narrower than the page; a third thing at a third width would read as an accident.
+    <div className="mt-8">
+      <h2 className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+        Once a design is loaded
+      </h2>
+      <ul className="mt-3 grid gap-x-8 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
+        {CAPABILITIES.map((c) => (
+          <li key={c.title}>
+            <h3 className="text-sm font-medium text-zinc-800 dark:text-zinc-100">{c.title}</h3>
+            <p className="mt-0.5 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">{c.body}</p>
+          </li>
+        ))}
+      </ul>
+      <p className="mt-4 text-sm text-zinc-500 dark:text-zinc-400">
+        All of it runs on your device — no account, nothing uploaded, and it keeps working at the pad
+        with no signal once loaded.
+      </p>
+    </div>
   );
 }
