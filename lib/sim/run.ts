@@ -173,12 +173,19 @@ export function runFlight(rocket: Rocket, opts: RunOptions = {}): FlightRun {
     result.summary.optimumDelay = freeCoast.summary.optimumDelay;
   }
   const hasPropulsion = resolutions.some((r) => r.match !== null);
+  // A motor the bundled database doesn't carry is a hole in LOFT, not a disagreement with the
+  // design tool. The flight still runs — on the motors that did resolve, with the rest riding as
+  // dead mass — and it is warned about loudly, but comparing it to results the file stored for the
+  // COMPLETE vehicle reports Loft's missing curve as an accuracy gap. On a two-stage RASAero design
+  // whose booster motor isn't bundled that reads as −36% on apogee, which is a statement about the
+  // motor database and nothing else. Withhold it, the same way a reduced vehicle's is withheld.
+  const allMotorsResolved = resolutions.every((r) => r.match !== null);
   // A no-thrust run "flies" to zero apogee; comparing that to stored results yields a
   // meaningless −100%, so skip validation entirely unless the flight actually had propulsion.
   // A ballistic run flew a different (recovery-stripped) trajectory than the stored one describes,
   // so its stored comparison would be misleading — skip it there too.
   const validation =
-    !opts.ballistic && hasPropulsion && opts.validateAgainst && opts.validateAgainst.hasResults
+    !opts.ballistic && hasPropulsion && allMotorsResolved && opts.validateAgainst && opts.validateAgainst.hasResults
       ? compareToStored(result.summary, opts.validateAgainst.results)
       : undefined;
   return { result, config, resolutions, hasPropulsion, validation };

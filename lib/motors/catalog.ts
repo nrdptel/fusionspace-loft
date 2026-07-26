@@ -409,6 +409,21 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
     }
   },
   {
+    "eng": "; Aerotech I170G from TRA Cert Data\r\n; Created by Mark Hairfield 12-29-10\r\nI170G 54 151 10 0.227 0.528 AT\r\n   0.06 89.0\r\n   0.16 169.0\r\n   0.25 184.6\r\n   0.5 202.4\r\n   0.75 207.3\r\n   1.0 202.4\r\n   1.5 177.9\r\n   2.18 137.9\r\n   2.25 139.7\r\n   2.30 131.2\r\n   2.35 22.2\r\n   2.40 0.0\n",
+    "source": {
+      "file": "AeroTech_I170G.eng",
+      "motorId": "5f4294d2000231000000038f",
+      "simfileId": "5f4294d20002e9000000076b",
+      "license": "PD",
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000076b/",
+      "designation": "I170G",
+      "manufacturer": "AeroTech",
+      "commonName": "I170",
+      "diameterMm": 54,
+      "lengthMm": 151
+    }
+  },
+  {
     "eng": "; AeroTech I200W\n; converted from TMT test stand data 1999 (www.tripoli.org)\n; provided by ThrustCurve.org (www.thrustcurve.org)\nI200W 29 333 0 0.181888 0.357504 AT\n   0.033 303.951\n   0.103 273.452\n   0.174 276.061\n   0.245 271.625\n   0.316 268.233\n   0.386 258.449\n   0.457 252.480\n   0.528 246.642\n   0.599 242.304\n   0.670 237.737\n   0.741 234.769\n   0.811 233.171\n   0.882 230.660\n   0.953 224.985\n   1.024 221.658\n   1.095 214.548\n   1.166 177.365\n   1.236 154.208\n   1.307 119.146\n   1.378 91.586\n   1.449 65.330\n   1.520 32.877\n   1.591 28.702\n   1.661 22.211\n   1.732 15.558\n   1.803 0.000",
     "source": {
       "file": "AeroTech_I200W.eng",
@@ -436,6 +451,21 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "commonName": "I211",
       "diameterMm": 38,
       "lengthMm": 248
+    }
+  },
+  {
+    "eng": "; Aerotech I215R from TRA Cert Data\r\nI215R 54 156 6-10-14-P 0.20800000000000002 0.527 AT\r\n   0.049 88.39\r\n   0.089 154.683\r\n   0.094 206.914\r\n   0.178 245.083\r\n   0.251 255.127\r\n   0.325 259.145\r\n   0.404 249.1\r\n   0.582 257.136\r\n   0.631 253.118\r\n   0.7 253.118\r\n   0.774 245.083\r\n   1.001 239.056\r\n   1.509 192.852\r\n   1.681 178.79\r\n   1.716 180.799\r\n   1.746 190.843\r\n   1.775 178.79\r\n   1.8 90.399\r\n   1.82 34.151\r\n   1.859 0.0\n",
+    "source": {
+      "file": "AeroTech_I215R.eng",
+      "motorId": "5f4294d200023100000001e9",
+      "simfileId": "5f4294d20002e90000000425",
+      "license": null,
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e90000000425/",
+      "designation": "I215R",
+      "manufacturer": "AeroTech",
+      "commonName": "I215",
+      "diameterMm": 54,
+      "lengthMm": 156
     }
   },
   {
@@ -496,6 +526,21 @@ export const MOTOR_CATALOG: CatalogEntry[] = [
       "commonName": "I59",
       "diameterMm": 38,
       "lengthMm": 232
+    }
+  },
+  {
+    "eng": "; AeroTech J180T\n; converted from TMT test stand data 1998 (www.tripoli.org)\n; provided by ThrustCurve.org (www.thrustcurve.org)\nJ180T 54 230 0 0.429184 0.809088 AT\n   0.093 301.634\n   0.281 313.236\n   0.470 313.710\n   0.658 308.334\n   0.847 300.100\n   1.035 290.743\n   1.224 278.867\n   1.412 263.823\n   1.601 245.974\n   1.790 226.651\n   1.978 207.345\n   2.167 187.053\n   2.355 168.339\n   2.544 149.993\n   2.732 133.094\n   2.921 116.330\n   3.109 100.088\n   3.298 84.507\n   3.486 70.453\n   3.675 57.263\n   3.864 44.453\n   4.052 33.340\n   4.241 24.654\n   4.429 17.964\n   4.619 12.391\n   4.808 0.000\n",
+    "source": {
+      "file": "AeroTech_J180T.eng",
+      "motorId": "5f4294d200023100000000ee",
+      "simfileId": "5f4294d20002e9000000004f",
+      "license": "PD",
+      "infoUrl": "https://www.thrustcurve.org/simfiles/5f4294d20002e9000000004f/",
+      "designation": "J180T",
+      "manufacturer": "AeroTech",
+      "commonName": "J180",
+      "diameterMm": 54,
+      "lengthMm": 230
     }
   },
   {

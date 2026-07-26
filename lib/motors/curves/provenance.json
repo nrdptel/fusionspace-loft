@@ -307,6 +307,18 @@
     "length": 191
   },
   {
+    "file": "AeroTech_I170G.eng",
+    "motorId": "5f4294d2000231000000038f",
+    "license": "PD",
+    "simfileId": "5f4294d20002e9000000076b",
+    "designation": "I170G",
+    "manufacturer": "AeroTech",
+    "class": "I",
+    "diameter": 54,
+    "commonName": "I170",
+    "length": 151
+  },
+  {
     "file": "AeroTech_I200W.eng",
     "motorId": "5f4294d200023100000000b5",
     "license": "PD",
@@ -331,6 +343,18 @@
     "header": "I211W 38 240 0 0.247296 0.466368 AT",
     "commonName": "I211",
     "length": 248
+  },
+  {
+    "file": "AeroTech_I215R.eng",
+    "motorId": "5f4294d200023100000001e9",
+    "license": null,
+    "simfileId": "5f4294d20002e90000000425",
+    "designation": "I215R",
+    "manufacturer": "AeroTech",
+    "class": "I",
+    "diameter": 54,
+    "commonName": "I215",
+    "length": 156
   },
   {
     "file": "AeroTech_I284W.eng",
@@ -383,6 +407,18 @@
     "header": "I59WN-P 38 232 P 0.272 0.487 AT",
     "commonName": "I59",
     "length": 232
+  },
+  {
+    "file": "AeroTech_J180T.eng",
+    "motorId": "5f4294d200023100000000ee",
+    "license": "PD",
+    "simfileId": "5f4294d20002e9000000004f",
+    "designation": "J180T",
+    "manufacturer": "AeroTech",
+    "class": "J",
+    "diameter": 54,
+    "commonName": "J180",
+    "length": 230
   },
   {
     "file": "AeroTech_J315R.eng",

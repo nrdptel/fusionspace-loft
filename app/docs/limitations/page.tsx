@@ -334,9 +334,27 @@ export default function Limitations() {
         boattails (including a boattail declared inline on a tube), fin sets with their sweep and
         airfoil section, launch lugs and rail guides, the launch site, and the two recovery events —
         and it carries RASAero&apos;s own stored apogee, max velocity and time-to-apogee as a
-        cross-check. What it does <strong>not</strong> yet cover: RASAero booster stages (only the
-        sustainer is flown, and the comparison is withheld because that is a different vehicle), a
-        fin set mounted on a tapered section, and explicit protuberances.
+        cross-check. A fin set mounted on a tapered section is flown too — the aerodynamics take a
+        fin&apos;s body radius from the airframe at the fin&apos;s own station, so a taper needs no
+        special case, and dropping such a set loses all of its drag and lift, which is much the
+        larger error. What it does <strong>not</strong> yet cover: a <em>second</em> booster stage
+        (only the stages above it are flown, and the comparison is then withheld because that is a
+        different vehicle) and explicit protuberances.
+      </p>
+      <p>
+        <strong>The first booster flies as its own stage.</strong> RASAero states a launch weight and
+        CG for the sustainer and again for the stack with Booster&nbsp;1 aboard, and the format
+        doesn&apos;t say which of the two the Booster&nbsp;1 pair describes. The file&apos;s own
+        geometry settles it: on the corpus&apos;s two-stage example — whose booster spans
+        55.0–62.5&nbsp;in — reading Booster&nbsp;1 as the whole stack puts the booster&apos;s own
+        centre of gravity at 61.3&nbsp;in, inside the part and aft where its motor and fins are,
+        while reading it as the booster alone would put it at 43.1&nbsp;in, a foot forward of where
+        the booster begins. Nothing balances outside itself, so Booster&nbsp;1 is the stack on the
+        pad; the booster is the difference in weight, balanced at the difference in moments. A file
+        that can&apos;t support that reading — no booster weight, a weight at or below the
+        sustainer&apos;s, or a derived CG outside the booster — is not flown staged, because a stage
+        with an impossible mass is worse than one Loft says it skipped. The separated booster&apos;s
+        own descent isn&apos;t tracked; only the sustainer is flown to the ground.
       </p>
       <p>
         <strong>Mass is stated, not computed.</strong> A <code>.CDX1</code> carries no materials and

@@ -172,9 +172,13 @@ function inlineBoattail(node: XmlNode, foreRadius: number): Transition | null {
 /** Translate one `<RocketDesign>` part into body components, in nose→tail order. A part may
  *  expand into more than one component (a tube with an inline boattail, a fin can that is a tube
  *  plus its fin set). Unsupported parts are reported and skipped. */
-function parseParts(design: XmlNode, warnings: string[]): { components: RocketComponent[]; sawBooster: boolean } {
+function parseParts(
+  design: XmlNode,
+  warnings: string[],
+): { components: RocketComponent[]; boosters: RocketComponent[][] } {
   const components: RocketComponent[] = [];
-  let sawBooster = false;
+  // One list per `<Booster>` part, nose→tail, each the makings of one stage below the sustainer.
+  const boosters: RocketComponent[][] = [];
   let lastRadius = 0;
 
   for (const node of design.children) {
@@ -203,10 +207,10 @@ function parseParts(design: XmlNode, warnings: string[]): { components: RocketCo
       case "BodyTube":
       case "FinCan":
       case "Booster": {
-        if (type === "Booster") {
-          sawBooster = true;
-          continue; // handled by the caller's warning; the sustainer stack alone is flown
-        }
+        // A `<Booster>` is structurally a tube with its own fins and (usually) an inline
+        // boattail — the same shape as a fin can — so it is built exactly the same way and then
+        // collected into its own stage rather than appended to the sustainer's stack.
+        const into = type === "Booster" ? [] : components;
         const kids: RocketComponent[] = [...externals(node)];
         const fin = child(node, "Fin");
         if (fin) {
@@ -215,7 +219,7 @@ function parseParts(design: XmlNode, warnings: string[]): { components: RocketCo
         }
         const tube: BodyTube = {
           id: nextId(),
-          name: type === "FinCan" ? "Fin can" : "Body tube",
+          name: type === "Booster" ? "Booster tube" : type === "FinCan" ? "Fin can" : "Body tube",
           kind: "bodytube",
           placement: { method: "after", offset: 0 },
           length,
@@ -223,12 +227,13 @@ function parseParts(design: XmlNode, warnings: string[]): { components: RocketCo
           children: kids,
         };
         lastRadius = tube.outerRadius;
-        components.push(tube);
+        into.push(tube);
         const bt = inlineBoattail(node, tube.outerRadius);
         if (bt) {
-          components.push(bt);
+          into.push(bt);
           lastRadius = bt.aftRadius;
         }
+        if (type === "Booster") boosters.push(into);
         break;
       }
       case "Transition":
@@ -246,13 +251,15 @@ function parseParts(design: XmlNode, warnings: string[]): { components: RocketCo
           shape: "conical",
           children: [],
         };
-        // A boattail can carry its own fin set (a tail-mounted fin on a tapered section).
+        // A boattail or transition can carry its own fin set (a tail-mounted fin on a tapered
+        // section). It is mounted rather than dropped: the aerodynamics take a fin's body radius
+        // from the airframe at the fin's own station, not from a constant-radius assumption, so a
+        // taper is handled — and dropping the set loses ALL of its drag and normal force, which is
+        // a far bigger error than the taper's own small radius variation across the root chord.
         const fin = child(node, "Fin");
         if (fin) {
           const set = finSet(fin, length);
-          // Loft's fin geometry seats on a constant-radius body, so a fin on a taper is warned
-          // about rather than silently seated at the wrong radius.
-          if (set) warnings.push("A fin set mounted on a tapered section isn't modelled; it was skipped.");
+          if (set) tr.children.push(set);
         }
         lastRadius = tr.aftRadius;
         components.push(tr);
@@ -265,7 +272,7 @@ function parseParts(design: XmlNode, warnings: string[]): { components: RocketCo
         break; // <Surface>, <CP>, <Comments> and the other design-level settings, read elsewhere
     }
   }
-  return { components, sawBooster };
+  return { components, boosters };
 }
 
 /** RASAero names a motor as "N1000W  (AT)" — the designation, then the manufacturer's short code
@@ -304,6 +311,40 @@ export function airframeMass(
   // m_a·x_a + m_m·x_m = (m_a + m_m)·x_cg  ⇒  x_a = (M·x_cg − m_m·x_m) / m_a
   const station = (launchMass * launchCG - motorMass * motorCG) / mass;
   return { mass, station };
+}
+
+/** What the first booster weighs and where it balances, or null when it shouldn't fly.
+ *
+ *  RASAero writes `SustainerLaunchWt`/`SustainerCG` and `Booster1LaunchWt`/`Booster1CG`, and the
+ *  format documentation doesn't say whether the Booster1 pair describes the booster alone or the
+ *  whole stack standing on the pad. The file's own geometry settles it. On the corpus's
+ *  `Complex.Two-Stage.CDX1` — whose `<Booster>` spans 55.0–62.5 in — the sustainer is 4.06 lb at
+ *  35.96 in and Booster1 is 5.64 lb at 43.06 in:
+ *
+ *    · read as the WHOLE STACK, the booster alone is 5.64 − 4.06 = 1.58 lb, and the moment balance
+ *      puts its centre of gravity at 61.3 in — inside the part, and aft, where its motor and fins
+ *      are. Both of that file's simulations agree (the second gives 61.2 in).
+ *    · read as the BOOSTER ALONE, its centre of gravity would be 43.1 in — twelve inches forward of
+ *      where the booster begins. No part balances outside itself.
+ *
+ *  So Booster1 is the stack at liftoff. The difference is the booster, and the difference of
+ *  moments is where it balances. A file that doesn't support that reading (no booster weight, a
+ *  weight at or below the sustainer's, or a derived CG outside the booster) is not flown staged —
+ *  a stage with an impossible mass is worse than a stage Loft admits it skipped. */
+function planBooster(
+  sim: XmlNode,
+  boosters: RocketComponent[][],
+): { mass: number; cg: number } | null {
+  if (!boosters.length) return null;
+  if (!/^true$/i.test((childText(sim, "IncludeBooster1") ?? "").trim())) return null;
+  const stackWt = n(sim, "Booster1LaunchWt", 0) * LB;
+  const stackCg = n(sim, "Booster1CG", 0) * IN;
+  const susWt = n(sim, "SustainerLaunchWt", 0) * LB;
+  const susCg = n(sim, "SustainerCG", 0) * IN;
+  const mass = stackWt - susWt;
+  if (!(mass > 0) || !(susWt > 0) || !(stackCg > 0)) return null;
+  const cg = (stackWt * stackCg - susWt * susCg) / mass;
+  return Number.isFinite(cg) && cg > 0 ? { mass, cg } : null;
 }
 
 /** One `<Simulation>` → Loft's stored-results shape. RASAero stores its own predicted apogee and
@@ -391,16 +432,11 @@ export function adaptRasAeroXml(xml: string): OrkDocument {
   if (!design) throw new Error("RASAero file has no <RocketDesign> element");
 
   const warnings: string[] = [];
-  const { components, sawBooster } = parseParts(design, warnings);
+  const { components, boosters } = parseParts(design, warnings);
   if (!components.length) throw new Error("RASAero file has no recognisable airframe parts");
-  if (sawBooster) {
-    warnings.push(
-      "This design has RASAero booster stages, which aren't simulated yet — only the sustainer was flown.",
-    );
-  }
 
   const finish = surfaceFinish(childText(design, "Surface"));
-  if (finish) for (const c of components) if (!c.finish) c.finish = finish;
+  if (finish) for (const c of [...components, ...boosters.flat()]) if (!c.finish) c.finish = finish;
 
   // Recovery hangs off the aftmost body tube, which is where a RASAero design's chute lives.
   const rec = recovery(child(root, "Recovery"), warnings);
@@ -411,6 +447,23 @@ export function adaptRasAeroXml(xml: string): OrkDocument {
 
   const site = child(root, "LaunchSite");
   const simNodes = children(child(root, "SimulationList") ?? { name: "", attrs: {}, children: [], text: "" }, "Simulation");
+
+  // Whether the first booster flies as a real stage. RASAero states the stack's weights per
+  // simulation but the airframe is one document, so this is decided from the first simulation —
+  // the same one the sustainer's stated launch weight already comes from.
+  const firstSim = simNodes[0];
+  const boosterPlan = firstSim ? planBooster(firstSim, boosters) : null;
+  const boosterParts = boosterPlan ? boosters[0] : [];
+  const boosterTube = boosterParts.find((c) => c.kind === "bodytube") as BodyTube | undefined;
+  // RASAero holds the spent booster on for this long after it burns out before letting it go.
+  const boosterSeparationDelay = firstSim ? Math.max(0, n(firstSim, "Booster1SeparationDelay", 0)) : 0;
+  const droppedBoosters = boosters.length - (boosterPlan ? 1 : 0);
+  if (droppedBoosters > 0) {
+    warnings.push(
+      `This design has ${droppedBoosters === 1 ? "a further RASAero booster stage" : `${droppedBoosters} further RASAero booster stages`}, ` +
+        `which aren't simulated yet — only the stages above ${droppedBoosters === 1 ? "it" : "them"} were flown.`,
+    );
+  }
 
   const configurations: MotorConfiguration[] = [];
   const simulations: StoredSimulation[] = [];
@@ -425,7 +478,18 @@ export function adaptRasAeroXml(xml: string): OrkDocument {
         // RASAero states a nozzle exit diameter but no casing envelope, so the casing size is
         // left to the bundled curve — which is where Loft reads it from for any format.
         motor: { designation, manufacturer, type: "unknown", diameter: 0, length: 0 },
+        // Measured from the stage below burning out, which is exactly what Loft's serial staging
+        // does with an upper stage's ignition delay (and from launch on a single-stage design).
         ignitionDelay: n(sim, "SustainerIgnitionDelay", 0),
+      });
+    }
+    const boosterRaw = childText(sim, "Booster1Engine") ?? "";
+    if (boosterTube && boosterRaw.trim()) {
+      const { designation, manufacturer } = parseEngineName(boosterRaw);
+      instances.push({
+        mountId: boosterTube.id,
+        motor: { designation, manufacturer, type: "unknown", diameter: 0, length: 0 },
+        ignitionDelay: n(sim, "Booster1IgnitionDelay", 0),
       });
     }
     configurations.push({ id, name: parseEngineName(raw).designation || `Simulation ${i + 1}`, instances });
@@ -433,12 +497,16 @@ export function adaptRasAeroXml(xml: string): OrkDocument {
   });
   if (!configurations.length) configurations.push({ id: "default", instances: [] });
 
-  // The mount is the aftmost body tube, so the motor sits where it actually sits.
+  // The mount is the aftmost body tube, so the motor sits where it actually sits. The booster's own
+  // motor already points at the booster's tube and must keep doing so.
   const aftTube = [...components].reverse().find((c) => c.kind === "bodytube") as BodyTube | undefined;
   if (aftTube) {
     aftTube.motorMount = { overhang: 0 };
-    for (const cfg of configurations) for (const inst of cfg.instances) inst.mountId = aftTube.id;
+    for (const cfg of configurations) {
+      for (const inst of cfg.instances) if (inst.mountId !== boosterTube?.id) inst.mountId = aftTube.id;
+    }
   }
+  if (boosterTube) boosterTube.motorMount = { overhang: 0 };
 
   // The stated launch weight, as one airframe mass component (see the mass note at the top).
   const first = simNodes[0];
@@ -479,9 +547,47 @@ export function adaptRasAeroXml(xml: string): OrkDocument {
     warnings.push("This design states no launch weight, so it has no mass to fly.");
   }
 
+  // The booster's own mass, by the same reading of the file that decided it flies: the difference
+  // between the stack's stated liftoff weight and the sustainer's, balanced at the difference of
+  // their moments, with its motor separated out exactly as the sustainer's is.
+  if (boosterPlan && boosterParts.length) {
+    const boosterRaw = firstSim ? (childText(firstSim, "Booster1Engine") ?? "") : "";
+    const { designation, manufacturer } = parseEngineName(boosterRaw);
+    const match = designation ? resolveMotor({ designation, manufacturer }) : null;
+    const motorMass = match ? match.entry.curve.totalMass : 0;
+    const boosterEnd = total + stackLength(boosterParts);
+    const motorCG = boosterEnd - (match ? match.entry.curve.lengthMm / 1000 : 0) / 2;
+    const { mass, station } = airframeMass(boosterPlan.mass, boosterPlan.cg, motorMass, motorCG);
+    const booster: MassComponent = {
+      id: nextId(),
+      name: "Booster (stated launch weight)",
+      kind: "masscomponent",
+      placement: { method: "absolute", offset: Math.min(Math.max(total, station), boosterEnd) },
+      mass,
+      children: [],
+    };
+    (boosterTube ?? boosterParts[0]).children.push(booster);
+    warnings.push(
+      `This design's booster flies as its own stage: ${(boosterPlan.mass / LB).toFixed(2)}\u00a0lb, the ` +
+        `difference between the stack's stated liftoff weight and the sustainer's, separating at ` +
+        `burnout${boosterSeparationDelay > 0 ? ` plus ${boosterSeparationDelay.toFixed(1)}\u00a0s` : ""}. ` +
+        `Its own descent isn't tracked — only the sustainer is flown to the ground.`,
+    );
+  }
+
   const rocket: Rocket = {
     name: childText(design, "Comments")?.trim().split("\n")[0] || "RASAero design",
-    stages: [{ name: "Sustainer", components }],
+    stages: boosterPlan
+      ? [
+          { name: "Sustainer", components },
+          {
+            name: "Booster",
+            components: boosterParts,
+            separationEvent: "burnout" as const,
+            separationDelay: boosterSeparationDelay,
+          },
+        ]
+      : [{ name: "Sustainer", components }],
     configurations,
     defaultConfigId: configurations[0]?.id,
     referenceType: "maximum",
@@ -494,7 +600,8 @@ export function adaptRasAeroXml(xml: string): OrkDocument {
     creator: "RASAero II",
     warnings,
     // RASAero's stored numbers come from its own solver on the same geometry, so the comparison is
-    // like-for-like — except when boosters were dropped, which is a different vehicle.
-    flownAsReduced: sawBooster,
+    // like-for-like — except when a booster was dropped, which is a different vehicle. A booster
+    // Loft actually flies is not a reduction, so the comparison stands.
+    flownAsReduced: droppedBoosters > 0,
   };
 }

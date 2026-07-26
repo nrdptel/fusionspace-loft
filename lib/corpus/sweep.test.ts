@@ -52,6 +52,13 @@ const KNOWN_ISSUES: Record<string, string> = {
     "Its apogee happens to land within 6% while max velocity reads 25% and max acceleration 60% " +
     "high — the file flies a much heavier rocket than its own geometry describes, so agreeing " +
     "with its apogee would be two errors cancelling, not accuracy.",
+  "Complex.Two-Stage.CDX1::J90W":
+    "Two-stage RASAero design, newly flown staged rather than sustainer-only. Its other " +
+    "configuration (J180T + I215R) lands at +4.5% apogee and −1.9% max velocity; this one, on the " +
+    "long-burn J90W, reads +12.4% and +8.0%. RASAero stores nearly the same apogee for both " +
+    "(1326.5 m and 1328.6 m) despite very different motors, which Loft doesn't reproduce. Flying " +
+    "the sustainer after separation rather than at booster burnout was tried and made BOTH " +
+    "configurations worse (+23.6% and +21.7%), so the timing is not the cause.",
   "Punisher Apprentice.ork::Simulation 10":
     "Largest motor in a nine-simulation sweep; the rest land within 8%.",
   "03.Three-stage.ork":

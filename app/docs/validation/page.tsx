@@ -156,7 +156,7 @@ export default async function Validation() {
       <h3>What the corpus says, metric by metric</h3>
       <p>
         Across the corpus — 35 design files from OpenRocket, RockSim and RASAero, and the{" "}
-        <strong>95 stored simulations</strong> in them that Loft flies completely — this is the
+        <strong>97 stored simulations</strong> in them that Loft flies completely — this is the
         median absolute disagreement with each file&apos;s own stored result. It includes the cases
         the suite excuses as known issues, so it is the honest picture rather than the flattering
         one:

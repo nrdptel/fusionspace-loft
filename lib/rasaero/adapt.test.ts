@@ -150,7 +150,9 @@ describe("adaptRasAeroXml", () => {
     expect(Number.isFinite(run.result.summary.apogee)).toBe(true);
   });
 
-  it("flags a design with RASAero boosters as flown reduced", () => {
+  it("flags a booster it can't weigh as flown reduced", () => {
+    // This design's simulation states no Booster1 weight, so there is nothing to build the stage
+    // from — it is skipped and the comparison withheld, rather than flown at a guessed mass.
     const staged = DESIGN.replace(
       "<Surface>Smooth Paint</Surface>",
       `<Booster><PartType>Booster</PartType><Length>24</Length><Diameter>4</Diameter><Location>68</Location></Booster>
@@ -158,7 +160,7 @@ describe("adaptRasAeroXml", () => {
     );
     const d = adaptRasAeroXml(staged);
     expect(d.flownAsReduced).toBe(true);
-    expect(d.warnings.join(" ")).toMatch(/booster stages/);
+    expect(d.warnings.join(" ")).toMatch(/booster stage/i);
   });
 
   it("reads an inline boattail on a body tube as a contracting transition", () => {
@@ -181,5 +183,89 @@ describe("adaptRasAeroXml", () => {
     expect(d.warnings.join(" ")).toMatch(/no launch weight/);
     // No motor, so the run layer withholds the flight rather than reporting a zero-altitude one.
     expect(runFromDocument(d).hasPropulsion).toBe(false);
+  });
+});
+
+describe("adaptRasAeroXml — booster stages", () => {
+  /** A two-stage design shaped like the corpus's: a 4 in sustainer over a booster that carries its
+   *  own fins and inline boattail, and a simulation stating the stack's weight with Booster 1
+   *  aboard. The booster spans 68–76 in, which is what makes the two readings of Booster1CG
+   *  distinguishable. */
+  const staged = (sim: string) => `<RASAeroDocument><FileVersion>2</FileVersion><RocketDesign>
+    <NoseCone><PartType>NoseCone</PartType><Length>20</Length><Diameter>4</Diameter><Shape>Von Karman Ogive</Shape></NoseCone>
+    <BodyTube><PartType>BodyTube</PartType><Length>48</Length><Diameter>4</Diameter>
+      <Fin><Count>4</Count><Chord>12</Chord><Span>5</Span><SweepDistance>10</SweepDistance>
+        <TipChord>2.5</TipChord><Thickness>0.1875</Thickness><Location>30</Location></Fin>
+    </BodyTube>
+    <Booster><PartType>Booster</PartType><Length>8</Length><Diameter>4</Diameter><Location>68</Location>
+      <BoattailLength>0</BoattailLength><BoattailRearDiameter>0</BoattailRearDiameter>
+      <Fin><Count>3</Count><Chord>6</Chord><Span>3</Span><SweepDistance>3</SweepDistance>
+        <TipChord>2</TipChord><Thickness>0.1</Thickness><Location>1</Location></Fin>
+    </Booster>
+    </RocketDesign><SimulationList><Simulation>${sim}</Simulation></SimulationList></RASAeroDocument>`;
+
+  // Sustainer 10 lb at 40 in; the stack with the booster aboard 14 lb at 48 in. Read as the stack,
+  // the booster is 4 lb and the moment balance puts it at (14·48 − 10·40)/4 = 68 in — inside it.
+  const SIM = `<SustainerEngine>K550W  (AT)</SustainerEngine>
+    <SustainerLaunchWt>10</SustainerLaunchWt><SustainerCG>40</SustainerCG><SustainerIgnitionDelay>0</SustainerIgnitionDelay>
+    <Booster1Engine>K550W  (AT)</Booster1Engine><Booster1LaunchWt>14</Booster1LaunchWt><Booster1CG>48</Booster1CG>
+    <Booster1SeparationDelay>1.5</Booster1SeparationDelay><Booster1IgnitionDelay>0</Booster1IgnitionDelay>
+    <IncludeBooster1>True</IncludeBooster1>
+    <MaxAltitude>7340</MaxAltitude><MaxVelocity>900</MaxVelocity>`;
+
+  it("builds the booster as its own stage, below the sustainer", () => {
+    const doc = adaptRasAeroXml(staged(SIM));
+    expect(doc.rocket.stages.map((s) => s.name)).toEqual(["Sustainer", "Booster"]);
+    expect(doc.rocket.stages[1].separationEvent).toBe("burnout");
+    expect(doc.rocket.stages[1].separationDelay).toBeCloseTo(1.5, 6);
+    // A booster Loft actually flies is not a reduced vehicle, so the cross-check stands.
+    expect(doc.flownAsReduced).toBe(false);
+  });
+
+  it("reads Booster1 as the whole stack on the pad, not the booster alone", () => {
+    // The convention the corpus settles: the booster is the DIFFERENCE in stated weight, balanced
+    // at the difference in moments. 14 − 10 = 4 lb here.
+    const doc = adaptRasAeroXml(staged(SIM));
+    const boosterMass = dryMassProperties(doc.rocket).mass - dryMassProperties({ ...doc.rocket, stages: [doc.rocket.stages[0]] }).mass;
+    // The booster's motor mass is separated out of its stated weight, so compare the stage's own
+    // mass component rather than the loaded figure: 4 lb minus the K550W's loaded mass.
+    expect(boosterMass).toBeGreaterThan(0);
+    expect(boosterMass).toBeLessThan(4 * 0.45359237);
+  });
+
+  it("gives the booster its own motor, mounted in the booster", () => {
+    const doc = adaptRasAeroXml(staged(SIM));
+    const cfg = doc.rocket.configurations[0];
+    expect(cfg.instances).toHaveLength(2);
+    const boosterTube = doc.rocket.stages[1].components.find((c) => c.kind === "bodytube")!;
+    expect(cfg.instances.some((i) => i.mountId === boosterTube.id)).toBe(true);
+    // …and the fin set RASAero hangs off the booster came with it.
+    expect(boosterTube.children.some((c) => c.kind === "trapezoidfinset")).toBe(true);
+  });
+
+  it("refuses to stage on a weight it can't make sense of", () => {
+    // A stack weight at or below the sustainer's would give the booster zero or negative mass.
+    const bad = SIM.replace("<Booster1LaunchWt>14</Booster1LaunchWt>", "<Booster1LaunchWt>9</Booster1LaunchWt>");
+    const doc = adaptRasAeroXml(staged(bad));
+    expect(doc.rocket.stages).toHaveLength(1);
+    expect(doc.flownAsReduced).toBe(true);
+    expect(doc.warnings.join(" ")).toMatch(/booster stage/i);
+  });
+
+  it("doesn't stage a simulation that excludes the booster", () => {
+    const off = SIM.replace("<IncludeBooster1>True</IncludeBooster1>", "<IncludeBooster1>False</IncludeBooster1>");
+    const doc = adaptRasAeroXml(staged(off));
+    expect(doc.rocket.stages).toHaveLength(1);
+    expect(doc.flownAsReduced).toBe(true);
+  });
+
+  it("flies the stack and drops the booster partway up", () => {
+    const doc = adaptRasAeroXml(staged(SIM));
+    const run = runFromDocument(doc);
+    expect(run.hasPropulsion).toBe(true);
+    const sep = run.result.events.find((e) => e.type === "separation");
+    const apogee = run.result.events.find((e) => e.type === "apogee")!;
+    expect(sep).toBeDefined();
+    expect(sep!.time).toBeLessThan(apogee.time);
   });
 });
