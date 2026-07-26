@@ -75,6 +75,23 @@ test.describe("Loft", () => {
     await expect(page.locator("p[aria-live='polite']").first()).toContainText(/Trapezoidal fins.*from the nose.*kg/);
   });
 
+  test("a file Loft can't read says so in the flyer's words", async ({ page }) => {
+    // The front door of the app. A parser internal on screen ("zip: end-of-central-directory not
+    // found") tells someone holding the wrong file nothing about which file to reach for instead.
+    await page.goto("/");
+    const input = page.getByLabel(/^Choose an OpenRocket/);
+    const error = page.locator("div.border-red-500\\/30").first();
+
+    await input.setInputFiles({ name: "shot.png", mimeType: "image/png", buffer: Buffer.from("\x89PNG\r\n\x1a\n....", "binary") });
+    await expect(error).toContainText(/looks like an image/i);
+    await expect(error).toContainText(/\.ork/);
+
+    await input.setInputFiles({ name: "broken.ork", mimeType: "application/zip", buffer: Buffer.from("PK\x03\x04truncated", "binary") });
+    await expect(error).toContainText(/truncated or corrupt/i);
+
+    await expect(page.getByText(/^zip:|^xml:|end-of-central-directory/)).toHaveCount(0);
+  });
+
   test("a what-if outside its physical range is brought back into it, not flown", async ({ page }) => {
     // A rail angle of 120° is a typo, not a launch. The solver still returns a number for it — it
     // returned an apogee of zero — and a confident zero from a mistyped field is worse than no
