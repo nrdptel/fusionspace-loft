@@ -3,6 +3,47 @@
 Rough edges, missing affordances, and ideas too big for one pass — noticed while working,
 not yet done. Newest first. One line each. Anything here is fair game for the next session.
 
+- A design whose motor isn't in the bundled database loses the workspace tabs entirely: on
+  `rocksimTestRocket2.rkt`, `[role=tab]` count is 0 and `[role=slider]` is 0, because `ResultsView`
+  returns the no-propulsion branch before the `<Tabs>`. The editor fields are still rendered below,
+  but the stability-trim advice on that same screen says "Set the fin position in the Design
+  workspace to check" — naming a workspace that isn't there. The no-motor notice already gates its
+  "pick a configuration" clause on `canSubstitute`, but the config picker itself only renders at
+  `choices.length > 1`, so that advice can also point at an absent control. Both are one-line gates.
+- The fin-flutter fix hint names the worst-margin fin set and says to set the thickness in the
+  Design workspace, but the thickness field reaches only the primary fin group — on a staged design
+  the worst set is usually a booster ring the panel can't touch, so following the hint does nothing
+  to the margin it quotes. Now noted on the limitations page; the real fix is per-component editing.
+- `RocketDiagram` resolves its drag-handle fin set by nearest station to `primaryFinStation` rather
+  than by id, so nothing structurally guarantees the handle and the edit target are the same set.
+  They agree on every corpus design today; matching `primaryFinGroupIds` would make it provable.
+- `SWEEP_AXES`/`GEOMETRY_AXES` doc comments in `lib/sim/sweep.ts` still describe the fin axes as
+  acting on every fin set; they now act on the primary fin group.
+- Phone, measured on a 412x915 viewport: all 7 diagram drag handles are 22x22 px with an 11 px grab
+  radius (a fingertip is ~40 px at DPR 2.6), and two of them sit 7 px apart centre-to-centre — a tap
+  12 px below "Fin position" grabs "Fin root chord" instead. Six of seven did not move under a
+  synthetic touch drag in one sequential pass (indicative, not confirmed — the clean-state re-test
+  never ran). The four "Run …" analysis buttons are 36 px tall. All 13 views exceed two viewport
+  heights (Flight 5,288 px, Design 5,030 px, Analyze 3,513 px); `/docs/methods` is 21,514 px with no
+  in-page nav. 167 text nodes under 12 px in Analyze. Clean: no hover-only state, no horizontal
+  document overflow, no console errors.
+- Desktop tenth-use, measured: analysis results are the one thing a reload discards (units, tab,
+  motor swap and fin edits all survive it); no long analysis can be cancelled (no Cancel/Stop in
+  MonteCarlo/MotorSweep/ParameterSweep/RocketpyCrossCheck); the cluster fixture offers two options
+  labelled identically ("C6 · 307 m" twice); apogee reads 63 m in the header and 62.9 m in the
+  validation table it is meant to be checked against; Mass & balance has no sort affordances while
+  the sibling Parts table does; four Conditions inputs have no accessible name; the Parts sort order
+  is the one view choice not persisted (`GeometryInspector.tsx` uses plain `useState`).
+- Every design what-if still addresses ONE resolved component — the frontmost fin set, the frontmost
+  nose, the longest body tube, the largest parachute — so on a design with several there is no way to
+  edit the others at all. Measured over the corpus: 13 of 35 designs carry more than one fin set and
+  23 carry more than one body tube. The fin edits no longer clobber the sets they don't describe and
+  the panel now names the set it edits, but "editable" still means one component per role. The fix is
+  per-component-id addressing, which is the same change the read-only parts list needs; `bodyDiameter`
+  is the next-worst case, since it scales every tube by a factor derived from the longest one alone.
+- A second nose cone is simply never edited: `primaryNose` takes the frontmost and `noseLength`/
+  `noseShape` key off its id. No corpus design has two nose cones (0 of 35), so this is documentation,
+  not a bug worth code today.
 - The diagram's seven drag handles are 24x24 px on a phone — the one control the whole
   direct-manipulation story rests on, and the only thing in the Design workspace still under the
   project's own 44 px minimum. A transparent 44 px hit circle is the obvious fix, but on a 346x89 px

@@ -9,6 +9,7 @@
 
 import type { Rocket, RocketComponent, NoseCone, BodyTube, Transition, Parachute, Material, SurfaceFinish, NoseShape, FinCrossSection, MotorMount, MassComponent } from "./types";
 import { flattenRocket } from "./geometry";
+import type { Positioned } from "./geometry";
 
 /** Selectable nose-cone shapes, for the builder's nose picker. Ordered by how a flyer thinks of
  *  them (sharp → blunt, then the parametrised low-drag families). */
@@ -75,7 +76,8 @@ export const SURFACE_FINISHES: SurfaceFinish[] = [
 ];
 
 export interface GeometryEdits {
-  /** Absolute fin semi-span (root→tip height, m) for every fin set. Undefined leaves fins as-is. */
+  /** Absolute fin semi-span (root→tip height, m) for the fin group the panel describes — the
+   *  primary set and any set indistinguishable from it. Undefined leaves fins as-is. */
   finSpan?: number;
   /** Number of fins per set (≥ 1). Undefined leaves the count as-is. */
   finCount?: number;
@@ -93,15 +95,15 @@ export interface GeometryEdits {
    *  span and this trim the CP aft). It barely touches drag or mass, so it isolates the stability
    *  effect. Undefined leaves the fins where the design puts them. */
   finStation?: number;
-  /** Fin thickness (m) for every fin set — drives the fin drag (skin-friction form factor, edge
-   *  pressure, wave) and the flutter margin (∝ (t/c)³). Undefined leaves it. */
+  /** Fin thickness (m) for the primary fin group — drives the fin drag (skin-friction form factor,
+   *  edge pressure, wave) and the flutter margin (∝ (t/c)³). Undefined leaves it. */
   finThickness?: number;
-  /** Fin edge cross-section for every fin set — square, rounded, or airfoil. Sets the fin edge
+  /** Fin edge cross-section for the primary fin group — square, rounded, or airfoil. Sets the fin edge
    *  pressure drag: a square edge stagnates the flow head-on, a rounded edge roughly halves that,
    *  an airfoil is streamlined. The "what would airfoiling my fins buy?" what-if. Undefined leaves
    *  each set's own profile. */
   finCrossSection?: FinCrossSection;
-  /** Fin material for every fin set, as a `FIN_MATERIALS` key — sets the fin density (so mass, CG
+  /** Fin material for the primary fin group, as a `FIN_MATERIALS` key — sets the fin density (so mass, CG
    *  and stability follow) and the material the flutter estimate reads for its shear modulus, so
    *  a stiffer stock visibly raises the flutter margin. The "would G10 fix my flutter?" what-if.
    *  Undefined (or an unknown key) leaves each set's own material. */
@@ -227,6 +229,74 @@ function primaryFinSet(rocket: Rocket) {
     .find((c) => c.kind === "trapezoidfinset" || c.kind === "ellipticalfinset" || c.kind === "freeformfinset");
 }
 
+const FIN_SET_KINDS = ["trapezoidfinset", "ellipticalfinset", "freeformfinset"] as const;
+
+function isFinSet(c: RocketComponent) {
+  return (FIN_SET_KINDS as readonly string[]).includes(c.kind);
+}
+
+/** Identity of a fin set as a flyer would see it: where it sits and what it looks like. Two sets
+ *  with the same key are indistinguishable on the airframe, so they are one physical ring that the
+ *  design file happens to store as separate parts — a common OpenRocket pattern, and the reason the
+ *  fin edits cannot simply target one component id. */
+function finGroupKey(p: Positioned): string {
+  const c = p.component as {
+    height?: number;
+    rootChord?: number;
+    tipChord?: number;
+    sweepLength?: number;
+    thickness?: number;
+    finCount?: number;
+  };
+  return [
+    p.xFore.toFixed(6),
+    (c.height ?? 0).toFixed(6),
+    (c.rootChord ?? 0).toFixed(6),
+    (c.tipChord ?? 0).toFixed(6),
+    (c.sweepLength ?? 0).toFixed(6),
+    (c.thickness ?? 0).toFixed(7),
+    c.finCount ?? 0,
+  ].join("|");
+}
+
+/** The fin sets the panel's fields actually describe: the primary set plus every set identical to
+ *  it at the same station. That is one physical ring however many parts the file splits it into, so
+ *  a span edit resizes the whole ring and never leaves a rocket with fins of two different sizes.
+ *
+ *  Measured over the 35-design corpus: 13 designs carry several fin sets. One (`ARC payload
+ *  rocket.ork`) is a single 3-fin ring stored as three 1-fin sets, where every set must move
+ *  together; the other 12 hold sets that genuinely differ — `03.Three-stage.ork` puts a 19.1 mm
+ *  sustainer set beside 108.0 mm booster fins — where editing all of them would destroy the design.
+ *  Grouping by appearance is what serves both: it broadcasts only where the sets are
+ *  indistinguishable to begin with. */
+export function primaryFinGroupIds(rocket: Rocket): Set<string> {
+  const fins = flattenRocket(rocket).filter((p) => isFinSet(p.component));
+  if (!fins.length) return new Set();
+  const key = finGroupKey(fins[0]);
+  return new Set(fins.filter((p) => finGroupKey(p) === key).map((p) => p.component.id));
+}
+
+/** How many fin sets sit OUTSIDE the group the fin fields describe — the sets a flyer can see on the
+ *  diagram but cannot reach from this panel. 0 means the fields speak for every fin on the rocket. */
+export function unreachableFinSetCount(rocket: Rocket): number {
+  const fins = flattenRocket(rocket).filter((p) => isFinSet(p.component));
+  return fins.length - primaryFinGroupIds(rocket).size;
+}
+
+/** The primary fin set's own name, so a design with sets the panel cannot reach can say which one
+ *  its fields describe rather than labelling them all "Fins". Falls back to a positional name,
+ *  since real files name every set alike ("Fin set", "Trapezoidal fin set"). */
+export function primaryFinSetName(rocket: Rocket): string | undefined {
+  const fin = primaryFinSet(rocket);
+  if (!fin) return undefined;
+  const own = fin.name?.trim();
+  // A name shared with the sets it must be told apart from distinguishes nothing.
+  const shared =
+    !!own &&
+    flattenRocket(rocket).filter((p) => isFinSet(p.component) && p.component.name?.trim() === own).length > 1;
+  return own && !shared ? own : "the frontmost set";
+}
+
 /** The design's primary fin set's semi-span (m), for showing the flyer the current value to edit
  *  from. Undefined for a finless design. */
 export function primaryFinSpan(rocket: Rocket): number | undefined {
@@ -320,8 +390,11 @@ function editComponent(
   e: GeometryEdits,
   lengths: Map<string, number>,
   finShift: number,
+  finTargetIds: Set<string>,
 ): RocketComponent {
-  const children = c.children.length ? c.children.map((child) => editComponent(child, e, lengths, finShift)) : c.children;
+  const children = c.children.length
+    ? c.children.map((child) => editComponent(child, e, lengths, finShift, finTargetIds))
+    : c.children;
 
   const newLen = lengths.get(c.id);
   // The nose cone takes both a length override and a shape change (the aero reads both), so handle it
@@ -348,20 +421,33 @@ function editComponent(
     return { ...c, motorMount: { ...c.motorMount, clusterCount: n > 1 ? n : undefined }, children };
   }
 
-  const span = e.finSpan !== undefined && e.finSpan > 0 ? e.finSpan : undefined;
-  const count = e.finCount !== undefined && e.finCount >= 1 ? Math.round(e.finCount) : undefined;
-  const root = e.finRootChord !== undefined && e.finRootChord > 0 ? e.finRootChord : undefined;
-  const tip = e.finTipChord !== undefined && e.finTipChord > 0 ? e.finTipChord : undefined;
-  const sweep = e.finSweepLength !== undefined && e.finSweepLength >= 0 ? e.finSweepLength : undefined;
-  const thick = e.finThickness !== undefined && e.finThickness > 0 ? e.finThickness : undefined;
-  const cross = e.finCrossSection;
+  const isFin = c.kind === "trapezoidfinset" || c.kind === "ellipticalfinset" || c.kind === "freeformfinset";
+  // The fin SHAPE edits carry absolute values read back off the primary fin set (primaryFinSpan and
+  // friends), so they may only be written back to the sets that reading actually describes: the
+  // primary set and anything indistinguishable from it. Applying them to EVERY set would take a
+  // design whose sets legitimately differ — a three-stage booster's 108 mm fins beside its
+  // sustainer's 19 mm — and flatten them all to the one value the panel happened to be showing.
+  // Applying them to one component id alone would break the opposite case, where a file stores a
+  // single 3-fin ring as three 1-fin sets and resizing one leaves the rocket asymmetric. Grouping
+  // by appearance serves both. What the field shows is what it changes — no more, no less.
+  const isFinTarget = isFin && finTargetIds.has(c.id);
+  const span = isFinTarget && e.finSpan !== undefined && e.finSpan > 0 ? e.finSpan : undefined;
+  const count = isFinTarget && e.finCount !== undefined && e.finCount >= 1 ? Math.round(e.finCount) : undefined;
+  const root = isFinTarget && e.finRootChord !== undefined && e.finRootChord > 0 ? e.finRootChord : undefined;
+  const tip = isFinTarget && e.finTipChord !== undefined && e.finTipChord > 0 ? e.finTipChord : undefined;
+  const sweep =
+    isFinTarget && e.finSweepLength !== undefined && e.finSweepLength >= 0 ? e.finSweepLength : undefined;
+  const thick = isFinTarget && e.finThickness !== undefined && e.finThickness > 0 ? e.finThickness : undefined;
+  const cross = isFinTarget ? e.finCrossSection : undefined;
   // Fin material: swap the whole fin stock (density + a name the flutter estimate recognises).
-  const matOpt = e.finMaterial !== undefined ? FIN_MATERIALS.find((m) => m.key === e.finMaterial) : undefined;
+  const matOpt =
+    isFinTarget && e.finMaterial !== undefined ? FIN_MATERIALS.find((m) => m.key === e.finMaterial) : undefined;
   const material = matOpt ? { name: matOpt.name, density: matOpt.density, type: "bulk" as const } : undefined;
   // Fin-position edit: shift this fin set's placement offset by the resolved delta (+ = aft). The
   // offset feeds linearly into the axial stacking (resolveChildFore), so a delta moves the set by
   // exactly that much whatever its placement method. Only fin sets shift; other components ignore it.
-  const isFin = c.kind === "trapezoidfinset" || c.kind === "ellipticalfinset" || c.kind === "freeformfinset";
+  // Unlike the shape edits this one is a DELTA and stays group-wide on purpose: the whole fin group
+  // slides together, so a multi-set design keeps its spacing and finStationTrim's slope holds.
   const shiftedPlacement =
     isFin && finShift !== 0 ? { ...c.placement, offset: c.placement.offset + finShift } : undefined;
   if (
@@ -678,8 +764,12 @@ export function applyGeometryEdits(rocket: Rocket, edits: GeometryEdits): Rocket
     const cur = primaryFinStation(rocket);
     if (cur !== undefined) finShift = edits.finStation - cur;
   }
+  // Which sets the fin SHAPE edits land on — the primary set every primaryFin* readback seeds the
+  // fields from, plus any set indistinguishable from it (one ring stored as several parts).
+  // Resolved once from the pristine design, like the length edits above.
+  const finTargetIds = primaryFinGroupIds(rocket);
   const editOne = (c: RocketComponent): RocketComponent => {
-    let geo = editComponent(c, edits, lengths, finShift);
+    let geo = editComponent(c, edits, lengths, finShift, finTargetIds);
     if (finish) geo = withFinish(geo, finish);
     if (airframeMaterial) geo = withAirframeMaterial(geo, airframeMaterial);
     if (radiusScale !== 1) geo = scaleAirframeRadii(geo, radiusScale);

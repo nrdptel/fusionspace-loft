@@ -25,8 +25,17 @@ import {
   primaryParachute,
   primaryAirframeMaterial,
   AIRFRAME_MATERIALS,
+  unreachableFinSetCount,
+  primaryFinGroupIds,
 } from "./edit";
-import type { GenericFinSet, Transition, Parachute } from "./types";
+import type {
+  GenericFinSet,
+  Transition,
+  Parachute,
+  Rocket,
+  RocketComponent,
+  TrapezoidFinSet,
+} from "./types";
 import { overallLength } from "./geometry";
 import { newDesign } from "./starter";
 import { runFlight } from "../sim/run";
@@ -76,6 +85,153 @@ describe("applyGeometryEdits — fin span", () => {
     expect(applyGeometryEdits(rocket, {})).toBe(rocket);
     expect(applyGeometryEdits(rocket, { finSpan: 0 })).toBe(rocket);
     expect(applyGeometryEdits(rocket, { noseLength: 0, bodyLength: 0 })).toBe(rocket);
+  });
+});
+
+describe("applyGeometryEdits — a design with several fin sets", () => {
+  /** Clone the design's fin set into a second, larger set on the same stage — the shape a staged
+   *  design has in the wild (13 of the 35 corpus designs carry more than one set, and on
+   *  OpenRocket's `03.Three-stage.ork` the booster's 108 mm fins sit beside a 19.1 mm sustainer
+   *  set). Different station AND different dimensions, so these are two independent sets. */
+  async function twoFinSets() {
+    const rocket = await load("demo-single-deploy.ork");
+    const stage = rocket.stages[0];
+    const findFin = (list: RocketComponent[]): TrapezoidFinSet | undefined => {
+      for (const c of list) {
+        if (c.kind === "trapezoidfinset") return c;
+        const inner = findFin(c.children);
+        if (inner) return inner;
+      }
+      return undefined;
+    };
+    const first = findFin(stage.components)!;
+    const second: TrapezoidFinSet = {
+      ...first,
+      id: `${first.id}-second`,
+      name: "Booster fin set",
+      height: first.height * 4,
+      rootChord: first.rootChord * 2,
+      children: [],
+    };
+    // Appended beside the first set's parent-level siblings so flattenRocket sees both.
+    const withTwo = {
+      ...rocket,
+      stages: [{ ...stage, components: [...stage.components, second] }, ...rocket.stages.slice(1)],
+    };
+    return { rocket: withTwo, first, second };
+  }
+
+  const finSetsOf = (r: Rocket) =>
+    flattenRocket(r)
+      .map((p) => p.component)
+      .filter((c): c is TrapezoidFinSet => c.kind === "trapezoidfinset");
+
+  it("counts the sets the fin fields cannot reach", async () => {
+    const { rocket } = await twoFinSets();
+    expect(unreachableFinSetCount(rocket)).toBe(1);
+    expect(unreachableFinSetCount(await load("demo-single-deploy.ork"))).toBe(0);
+  });
+
+  it("edits only the set the fin fields read back, leaving the others alone", async () => {
+    const { rocket, second } = await twoFinSets();
+    // The panel seeds its fields from the primary (frontmost) set.
+    const shown = primaryFinSpan(rocket)!;
+    expect(shown).toBeCloseTo(finSetsOf(rocket)[0].height, 9);
+    expect(second.height).not.toBeCloseTo(shown, 6);
+
+    const edited = applyGeometryEdits(rocket, { finSpan: shown + 0.01 });
+    const [a, b] = finSetsOf(edited);
+
+    // What the field showed is what the field changed...
+    expect(a.height).toBeCloseTo(shown + 0.01, 9);
+    // ...and the set it never described keeps its own geometry. Before this was scoped, one nudge
+    // flattened every set to the single value the panel happened to be showing.
+    expect(b.height).toBeCloseTo(second.height, 9);
+    expect(b.rootChord).toBeCloseTo(second.rootChord, 9);
+  });
+
+  it("scopes every fin SHAPE edit, not just the span", async () => {
+    const { rocket, second } = await twoFinSets();
+    const edited = applyGeometryEdits(rocket, {
+      finCount: 8,
+      finRootChord: 0.2,
+      finTipChord: 0.05,
+      finSweepLength: 0.03,
+      finThickness: 0.01,
+      finCrossSection: "airfoil",
+      finMaterial: FIN_MATERIALS[0].key,
+    });
+    const [, b] = finSetsOf(edited);
+    expect(b.finCount).toBe(second.finCount);
+    expect(b.rootChord).toBeCloseTo(second.rootChord, 9);
+    expect(b.tipChord).toBeCloseTo(second.tipChord, 9);
+    expect(b.sweepLength).toBeCloseTo(second.sweepLength, 9);
+    expect(b.thickness).toBeCloseTo(second.thickness, 9);
+    expect(b.crossSection).toBe(second.crossSection);
+    expect(b.material?.name).toBe(second.material?.name);
+  });
+
+  /** The opposite real case: one physical fin ring that the file stores as N single-fin sets, all
+   *  identical and at the same station. `ARC payload rocket.ork` in the corpus is exactly this — 3
+   *  sets of 1 fin each, all 55.4 mm. Resizing only one would leave the rocket asymmetric, so the
+   *  whole ring has to move together. */
+  async function splitRing() {
+    const rocket = await load("demo-single-deploy.ork");
+    const stage = rocket.stages[0];
+    const findFin = (list: RocketComponent[]): TrapezoidFinSet | undefined => {
+      for (const c of list) {
+        if (c.kind === "trapezoidfinset") return c;
+        const inner = findFin(c.children);
+        if (inner) return inner;
+      }
+      return undefined;
+    };
+    const first = findFin(stage.components)!;
+    // Same station, same dimensions, different id — indistinguishable on the airframe. They must be
+    // siblings of the original inside the same parent, or the axial stacking gives each its own
+    // station and they stop being one ring.
+    const clone = (n: number): TrapezoidFinSet => ({ ...first, id: `${first.id}-ring${n}`, children: [] });
+    const insert = (list: RocketComponent[]): RocketComponent[] =>
+      list.flatMap((c) =>
+        c.id === first.id
+          ? [c, clone(1), clone(2)]
+          : [c.children.length ? { ...c, children: insert(c.children) } : c],
+      );
+    const withRing = {
+      ...rocket,
+      stages: [{ ...stage, components: insert(stage.components) }, ...rocket.stages.slice(1)],
+    };
+    return { rocket: withRing, first };
+  }
+
+  it("treats a ring stored as several identical sets as one set, and resizes all of it", async () => {
+    const { rocket } = await splitRing();
+    // Nothing here is out of reach — the fields speak for every fin on the rocket.
+    expect(unreachableFinSetCount(rocket)).toBe(0);
+    expect(primaryFinGroupIds(rocket).size).toBe(3);
+
+    const shown = primaryFinSpan(rocket)!;
+    const edited = applyGeometryEdits(rocket, { finSpan: shown + 0.01 });
+    const heights = finSetsOf(edited).map((f) => f.height);
+    // All three move together: resizing one third of a fin ring would fly an asymmetric rocket.
+    expect(heights).toHaveLength(3);
+    for (const h of heights) expect(h).toBeCloseTo(shown + 0.01, 9);
+  });
+
+  it("still slides the whole fin GROUP for a position edit, keeping its spacing", async () => {
+    const { rocket } = await twoFinSets();
+    const before = flattenRocket(rocket)
+      .filter((p) => p.component.kind === "trapezoidfinset")
+      .map((p) => p.xFore);
+    const station = primaryFinStation(rocket)!;
+    const shifted = applyGeometryEdits(rocket, { finStation: station + 0.05 });
+    const after = flattenRocket(shifted)
+      .filter((p) => p.component.kind === "trapezoidfinset")
+      .map((p) => p.xFore);
+    // Every set moves by the same delta — position is a delta edit and stays group-wide on
+    // purpose, so the design keeps its layout and finStationTrim's slope holds.
+    expect(after[0] - before[0]).toBeCloseTo(0.05, 9);
+    expect(after[1] - before[1]).toBeCloseTo(0.05, 9);
   });
 });
 
