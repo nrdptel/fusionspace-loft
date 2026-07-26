@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { Tabs } from "./ui";
 import type { FlightRun } from "@/lib/sim/run";
@@ -103,6 +103,11 @@ const COLORS = {
   thrust: "#ef4444",
 };
 
+/** The results workspaces, in the order the tab bar shows them. Also the vocabulary of the URL
+ *  fragment (`#design`), so a workspace is a place you can link to and come back to. */
+export const WORKSPACES = ["flight", "design", "analyze"] as const;
+export type Workspace = (typeof WORKSPACES)[number];
+
 const SEVERITY: Record<string, string> = {
   warning: "border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-300",
   caution: "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300",
@@ -123,6 +128,7 @@ export default function ResultsView({
   designMotor,
   onEditGeometry,
   initialTab,
+  onWorkspaceChange,
   designEditor,
 }: {
   run: FlightRun;
@@ -148,8 +154,11 @@ export default function ResultsView({
    *  numeric what-if field uses, so dragging and typing converge on one edit flow. */
   onEditGeometry?: (patch: GeometryEdits) => void;
   /** Which workspace to open on. An import lands on its flight result; a from-scratch build lands on
-   *  the editable Design surface. Read once at mount — the view remounts on every design load. */
-  initialTab?: "flight" | "design";
+   *  the editable Design surface, and a resumed session lands where it was left. Read once at mount
+   *  — the view remounts on every design load. */
+  initialTab?: Workspace;
+  /** Told which workspace the flyer moved to, so the session can pick that one back up. */
+  onWorkspaceChange?: (tab: Workspace) => void;
   /** The design-editing surface (motor swap + geometry/recovery what-ifs), rendered inside the
    *  Design workspace next to the diagram it edits — build and edit are the same surface. */
   designEditor?: ReactNode;
@@ -160,7 +169,48 @@ export default function ResultsView({
   // Which workspace is open. Imports lead with the flight (the payoff); a fresh build opens on Design
   // (the edit surface). Panels stay mounted (hidden) so a run in one — a swept curve, a Monte-Carlo —
   // isn't lost when you glance at another.
-  const [tab, setTab] = useState<string>(initialTab ?? "flight");
+  const [tab, setTab] = useState<Workspace>(initialTab ?? "flight");
+
+  // The open workspace is written to the URL fragment, so a workspace can be linked, bookmarked, and
+  // reached with the browser's own Back button — three views deep in an app that never changed its
+  // address is a view you can only get to by knowing it's there. Hydration-safe: the fragment is
+  // read in an effect, never during render, so the server's HTML and the client's first pass agree.
+  useEffect(() => {
+    const fromHash = () => {
+      const id = window.location.hash.replace(/^#/, "");
+      return (WORKSPACES as readonly string[]).includes(id) ? (id as Workspace) : null;
+    };
+    const adopt = (id: Workspace) => {
+      setTab(id);
+      // Tell the session too: a workspace reached with the browser's Back button is as much "where
+      // I left off" as one reached by clicking the tab, and a reload must agree with the address.
+      onWorkspaceChange?.(id);
+    };
+    const initial = fromHash();
+    if (initial) adopt(initial);
+    const onHash = () => {
+      const id = fromHash();
+      if (id) adopt(id);
+    };
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+    // Once, as the view mounts for this design — thereafter the listener carries it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const selectTab = useCallback(
+    (id: string) => {
+      const next = (WORKSPACES as readonly string[]).includes(id) ? (id as Workspace) : "flight";
+      setTab(next);
+      onWorkspaceChange?.(next);
+      // A real history entry, so Back returns to the workspace you came from rather than leaving
+      // the app. Guarded: a repeat of the current fragment would stack duplicate entries.
+      if (typeof window !== "undefined" && window.location.hash !== `#${next}`) {
+        window.history.pushState(null, "", `#${next}`);
+      }
+    },
+    [onWorkspaceChange],
+  );
 
   // An optional uploaded flight log (altimeter CSV) overlaid on the altitude plot — the flyer's real
   // flight beside Loft's prediction. Parsed and held entirely in the browser; the unit defaults to
@@ -291,7 +341,7 @@ export default function ResultsView({
           { id: "analyze", label: "Analyze" },
         ]}
         value={tab}
-        onChange={setTab}
+        onChange={selectTab}
         ariaLabel="Results workspace"
       />
 

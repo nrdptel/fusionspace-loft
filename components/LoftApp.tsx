@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import ImportPanel from "./ImportPanel";
-import ResultsView from "./ResultsView";
+import ResultsView, { type Workspace } from "./ResultsView";
 import { Segmented } from "./ui";
 import { importDesign, sourceTool, type OrkDocument } from "@/lib/ork/import";
 import { newDesign } from "@/lib/model/starter";
@@ -135,10 +135,12 @@ export default function LoftApp() {
   const [scenario, setScenario] = useState<"design" | "today">("design");
   const [simIndex, setSimIndex] = useState(0);
   // Which results workspace a freshly loaded design opens on: an import wants its Flight result up
-  // front, a from-scratch build wants the editable Design surface. Set per load, read once as the
-  // results view mounts (it remounts on every load — the import panel only shows when nothing is
-  // loaded, so every design arrives through a fresh mount).
-  const [initialTab, setInitialTab] = useState<"flight" | "design">("flight");
+  // front, a from-scratch build wants the editable Design surface, and a resumed session wants the
+  // one it was left on. Set per load, read once as the results view mounts (it remounts on every
+  // load — the import panel only shows when nothing is loaded, so every design arrives through a
+  // fresh mount) and then kept in step as the flyer moves between workspaces, so "where I left off"
+  // includes which workspace that was.
+  const [initialTab, setInitialTab] = useState<Workspace>("flight");
   /** The loaded design's own bytes, kept so the session can be written back verbatim — the file
    *  the flyer imported, not a re-serialisation of it, so its stored results survive a reload. */
   const designBytes = useRef<string | null>(null);
@@ -249,7 +251,7 @@ export default function LoftApp() {
     (
       document: OrkDocument,
       name: string,
-      opensOn: "flight" | "design" = "flight",
+      opensOn: Workspace = "flight",
       /** The design's own file bytes, so the session can store exactly what was opened. */
       bytes?: Uint8Array,
       /** A session being restored: its saved edits and configuration, instead of a clean slate. */
@@ -264,6 +266,11 @@ export default function LoftApp() {
       setScenario("design");
       setSimIndex(idx);
       setInitialTab(opensOn);
+      // Point the address at the workspace this load means to open on, before the results view
+      // mounts and reads it. Loading a design is a deliberate act with an intended landing place —
+      // an import leads with its flight — so it wins over whatever fragment the last design left
+      // behind; within a design, the fragment then follows the flyer.
+      if (typeof window !== "undefined") window.history.replaceState(null, "", `#${opensOn}`);
       setError(null);
       setRestored(resume !== undefined);
       if (bytes) designBytes.current = toBase64(bytes);
@@ -477,6 +484,9 @@ export default function LoftApp() {
     setRestored(false);
     designBytes.current = null;
     clearSession();
+    // No design, no workspace — leave the address on the import screen rather than pointing at a
+    // view that isn't there.
+    if (typeof window !== "undefined") window.history.replaceState(null, "", window.location.pathname);
   };
 
   // Pick the last session back up. A phone reclaims a backgrounded tab routinely and the pad is
@@ -797,6 +807,7 @@ export default function LoftApp() {
               designMotor={swapInfo?.designMotor}
               onEditGeometry={applyEdit}
               initialTab={initialTab}
+              onWorkspaceChange={setInitialTab}
               designEditor={
                 <DesignEditor
                   units={units}

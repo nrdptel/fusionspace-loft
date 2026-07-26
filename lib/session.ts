@@ -28,8 +28,9 @@ export interface SavedSession {
   design: string;
   /** File name (or the built design's name), as shown in the header. */
   name: string;
-  /** Which workspace this design opens on — an import leads with its flight, a build with design. */
-  opensOn: "flight" | "design";
+  /** Which workspace this design opens on — an import leads with its flight, a build with design,
+   *  and a session that was left on another picks that one back up. */
+  opensOn: "flight" | "design" | "analyze";
   units: "metric" | "imperial";
   /** Index into the design's stored simulations — which motor configuration was being flown. */
   simIndex: number;
@@ -67,7 +68,8 @@ export function loadSession(): SavedSession | null {
       v: 1,
       design: parsed.design,
       name: typeof parsed.name === "string" ? parsed.name : "Saved design",
-      opensOn: parsed.opensOn === "design" ? "design" : "flight",
+      opensOn:
+        parsed.opensOn === "design" || parsed.opensOn === "analyze" ? parsed.opensOn : "flight",
       units: parsed.units === "imperial" ? "imperial" : "metric",
       simIndex: Number.isInteger(parsed.simIndex) ? parsed.simIndex : 0,
       edits: parsed.edits && typeof parsed.edits === "object" ? parsed.edits : {},

@@ -75,6 +75,29 @@ test.describe("Loft", () => {
     await expect(page.locator("p[aria-live='polite']").first()).toContainText(/Trapezoidal fins.*from the nose.*kg/);
   });
 
+  test("the open workspace is in the address, so Back and a reload land where you were", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+    // An import lands on its flight result, and says so in the address.
+    expect(new URL(page.url()).hash).toBe("#flight");
+
+    await page.getByRole("tab", { name: "Analyze" }).click();
+    expect(new URL(page.url()).hash).toBe("#analyze");
+    await page.getByRole("tab", { name: "Design" }).click();
+    expect(new URL(page.url()).hash).toBe("#design");
+
+    // Back returns to the workspace you came from rather than leaving the app.
+    await page.goBack();
+    expect(new URL(page.url()).hash).toBe("#analyze");
+    await expect(page.getByRole("tab", { selected: true })).toHaveText("Analyze");
+
+    // …and a reload picks the same workspace back up, not the one the design loaded on.
+    await page.reload();
+    await expect(page.getByRole("tablist")).toBeVisible({ timeout: 15000 });
+    await expect(page.getByRole("tab", { selected: true })).toHaveText("Analyze");
+  });
+
   test("keeps the designs you have opened on a shelf you can reopen from", async ({ page }) => {
     await page.goto("/");
     // A first visit has no history, so the shelf isn't shown at all.
@@ -1786,14 +1809,16 @@ test.describe("Loft", () => {
     await expect(page.getByRole("button", { name: /Reset to as-designed/ })).toBeVisible();
 
     await page.reload();
-    // The design is back, on the workspace it was opened on, in the units that were chosen…
+    // The design is back, in the units that were chosen, on the workspace that was open — not the
+    // one the design happened to load on an hour ago.
     await expect(page.getByText(/Picked up where you left off/)).toBeVisible({ timeout: 30_000 });
-    await expect(page.getByRole("tab", { name: "Flight" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: /Altitude \(ft\) vs time/ })).toBeVisible();
-    // …and so is the edit that was in flight.
-    await page.getByRole("tab", { name: "Design" }).click();
-    // Restored through the model, so it comes back as the display format of the stored metres.
+    await expect(page.getByRole("tab", { selected: true })).toHaveText("Design");
+    // …and so is the edit that was in flight. Restored through the model, so it comes back as the
+    // display format of the stored metres.
     await expect(page.getByLabel("Fin span (in)")).toHaveValue(/^3(\.0+)?$/);
+    // The flight is still a click away and still in imperial.
+    await page.getByRole("tab", { name: "Flight" }).click();
+    await expect(page.getByRole("heading", { name: /Altitude \(ft\) vs time/ })).toBeVisible();
 
     // "Start fresh" really does forget it.
     await page.getByRole("button", { name: "Start fresh" }).click();
