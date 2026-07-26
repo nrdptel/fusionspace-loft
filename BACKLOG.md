@@ -3,13 +3,16 @@
 Rough edges, missing affordances, and ideas too big for one pass — noticed while working,
 not yet done. Newest first. One line each. Anything here is fair game for the next session.
 
-- A design whose motor isn't in the bundled database still renders no workspace tabs at all: on
-  `rocksimTestRocket2.rkt`, `[role=tab]` is 0 and `[role=slider]` is 0, because `ResultsView` returns
-  the no-propulsion branch before the `<Tabs>`. The advice on that screen no longer names controls
-  that aren't there, and the design fields are rendered below — but there is still no diagram and no
-  way to reach Analyze, so the design is only partly inspectable. Worth deciding whether the
-  no-flight branch should render the tabs with Flight and Analyze explaining themselves, rather than
-  dropping the navigation spine entirely.
+- The parameter sweep's CSV rounds every metric to 3 dp, which is right for apogee and wrong for the
+  flutter-margin column: a fin-thickness sweep down to 0.5× on an already-thin fin drives the margin
+  under 0.0005 and the column reads `0` while the plotted curve doesn't. The motor sweep's CSV was
+  moved to 3 dp for the same reason and is fine at that scale; this one needs per-metric precision
+  rather than one number for all five.
+- `toDispThick` in `LoftApp.tsx` is the one fin-thickness surface not routed through `lengthMm`
+  (`(m*1000).toFixed(1)`), so a fin under 0.05 mm would show "0.0" in the input while the fix hint
+  beside it names the real value — and re-typing the shown number drops the edit. No corpus file is
+  that thin (the thinnest is Cherokee's 0.254 mm, which shows correctly), so this is a latent
+  inconsistency rather than a live bug.
 - The fin-flutter fix hint now admits when the worst-margin set is one the fin fields can't reach
   (16 of the 60 corpus flights it fires on, including the thinnest margins: 0.08x, 0.21x, 0.29x).
   What it still can't do is let the flyer act on it — that needs per-component editing.

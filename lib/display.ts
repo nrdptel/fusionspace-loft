@@ -12,6 +12,34 @@ export function fmt(n: number, decimals = 1): string {
   return (r === 0 ? 0 : r).toLocaleString("en-US", { maximumFractionDigits: decimals });
 }
 
+/** How many decimal places a value needs before it stops rounding away to zero, starting from
+ *  `decimals` and giving up at `maxDecimals`. Callers that show several related numbers together —
+ *  a from/to pair and the change between them — take the widest of them so the row is formatted at
+ *  one precision and cannot contradict itself. */
+export function decimalsFor(n: number, decimals = 1, maxDecimals = decimals + 4): number {
+  if (!Number.isFinite(n) || n === 0) return decimals;
+  for (let dp = decimals; dp <= maxDecimals; dp++) {
+    if (Math.round(n * 10 ** dp) !== 0) return dp;
+  }
+  return maxDecimals;
+}
+
+/** Format like `fmt`, but never present a value that isn't zero as a flat "0". A 0.254 mm fin shown
+ *  as "0 mm" reads as a formatting bug rather than as the alarmingly thin fin it is, and a flutter
+ *  margin printed "0×" hides the difference between 0.01× and 0.05× on a safety flag. Adds decimal
+ *  places until the value survives the rounding; past `maxDecimals` it is smaller than this display
+ *  can state, and a bound is honest where another zero is not. */
+export function fmtSmall(n: number, decimals = 1, maxDecimals = decimals + 4): string {
+  if (!Number.isFinite(n)) return "—";
+  const dp = decimalsFor(n, decimals, maxDecimals);
+  const shown = fmt(n, dp);
+  if (n !== 0 && Number(shown.replace(/,/g, "")) === 0) {
+    // The same sign glyph `fmt` would have produced, so a bound and an ordinary value read alike.
+    return `${n < 0 ? "-" : ""}<${fmt(10 ** -maxDecimals, maxDecimals)}`;
+  }
+  return shown;
+}
+
 export interface Quantity {
   value: string;
   unit: string;
@@ -50,10 +78,14 @@ export function mass(kg: number, sys: UnitSystem): Quantity {
     : { value: fmt(kg, 3), unit: "kg" };
 }
 
+/** A component dimension. Whole millimetres (or tenths of an inch) is the right precision for an
+ *  airframe, but hobby stock runs thinner than that — a 0.254 mm (0.010 in) balsa fin is a real part
+ *  a real file specifies — so a dimension that would round away keeps the places it needs instead of
+ *  reading as a missing value. */
 export function lengthMm(m: number, sys: UnitSystem): Quantity {
   return sys === "imperial"
-    ? { value: fmt(m * 39.3701, 1), unit: "in" }
-    : { value: fmt(m * 1000, 0), unit: "mm" };
+    ? { value: fmtSmall(m * 39.3701, 1), unit: "in" }
+    : { value: fmtSmall(m * 1000, 0), unit: "mm" };
 }
 
 export function mach(m: number): Quantity {
@@ -76,6 +108,14 @@ export function energy(joules: number, sys: UnitSystem): Quantity {
 
 export function calibers(cal: number): Quantity {
   return { value: fmt(cal, 2), unit: "cal" };
+}
+
+/** A fin-flutter margin, "1.4×" — the estimated flutter speed as a multiple of the peak airspeed.
+ *  One helper so every surface that quotes it agrees, and small enough margins keep their digits:
+ *  the thinnest in the corpus run 0.01–0.05×, and those are exactly the ones a flyer has to be able
+ *  to tell apart. */
+export function flutterMargin(x: number): string {
+  return `${fmtSmall(x, 1)}×`;
 }
 
 /** A dimensionless ratio, shown as "6.2 : 1" — the form flyers read thrust-to-weight in. */

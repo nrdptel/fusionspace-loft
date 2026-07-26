@@ -181,10 +181,18 @@ export default function ResultsView({
   const r = run.result;
   const s = r.summary;
   const markers = eventMarkers(r);
-  // Which workspace is open. Imports lead with the flight (the payoff); a fresh build opens on Design
-  // (the edit surface). Panels stay mounted (hidden) so a run in one — a swept curve, a Monte-Carlo —
-  // isn't lost when you glance at another.
-  const [tab, setTab] = useState<Workspace>(initialTab ?? "flight");
+  // Where a load lands. Imports lead with the flight (the payoff) and a fresh build with the editor,
+  // but a design whose motor didn't resolve has no flight to lead with — so it opens on Design, the
+  // workspace holding the geometry it can still be checked against and the motor swap that fixes it.
+  // Only the landing is corrected: clicking Flight from there is still the flyer's to do.
+  const landingTab = (want: Workspace | null | undefined): Workspace => {
+    const w = want ?? "flight";
+    return !run.hasPropulsion && w === "flight" ? "design" : w;
+  };
+
+  // Which workspace is open. Panels stay mounted (hidden) so a run in one — a swept curve, a
+  // Monte-Carlo — isn't lost when you glance at another.
+  const [tab, setTab] = useState<Workspace>(landingTab(initialTab));
 
   // The open workspace is written to the URL fragment, so a workspace can be linked, bookmarked, and
   // reached with the browser's own Back button — three views deep in an app that never changed its
@@ -201,8 +209,13 @@ export default function ResultsView({
       // I left off" as one reached by clicking the tab, and a reload must agree with the address.
       onWorkspaceChange?.(id);
     };
-    const initial = fromHash();
-    if (initial) adopt(initial);
+    // The loader points the address at the workspace it means to open on, before this view mounts.
+    // Correct it for what the design actually has and put the address back in step, so a load never
+    // leaves `#flight` selecting Design. `replaceState`, not `push`: this is the same landing, not a
+    // navigation the Back button should have to undo.
+    const initial = landingTab(fromHash() ?? initialTab);
+    adopt(initial);
+    if (window.location.hash !== `#${initial}`) window.history.replaceState(null, "", `#${initial}`);
     const onHash = () => {
       const id = fromHash();
       if (id) adopt(id);
@@ -319,26 +332,25 @@ export default function ResultsView({
   // the design on screen, so the panel resets rather than showing a stale answer as a current one.
   const dkey = designKey({ name: doc.rocket.name, simIndex, configId: run.config.id, ballastKg, recoveryCdScale, motorSwap, geometry });
   const staged = (doc.rocket.stages?.length ?? 1) > 1;
+  // The motor sweep flies the bundled candidates itself rather than the design's own configuration,
+  // so it is the one Analyze tool that still works when no motor resolved — and on that design it is
+  // the most useful one there is.
+  const canSweepMotors = !staged && !!swapOptions && swapOptions.length > 1;
   const shownRocket = editing ? applyGeometryEdits(doc.rocket, geometry) : doc.rocket;
   // The motor casing(s) the flight flew, for drawing inside the aft body — resolved for the shown
   // design and its (possibly swapped) config, so the picture matches what was flown.
   const shownMotors = run.hasPropulsion ? motorLayout(shownRocket, run.config) : [];
 
-  if (!run.hasPropulsion) {
-    return (
-      <div className="space-y-8">
-        <NoPropulsionNotice run={run} tool={toolName} swapOptions={swapOptions} doc={doc} />
-        <RocketSummary run={run} doc={doc} units={units} editHere="below" />
-        {/* Still offer the editing surface — a swap to a motor that resolves is the very fix this
-            case needs, and geometry stays editable even when no motor flew. */}
-        {designEditor}
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6">
-      <RocketSummary run={run} doc={doc} units={units} editHere="workspace" />
+      {/* Why there is no flight, when there isn't one. Above the tabs with the flight warnings,
+          because it is the context every workspace shares — the geometry below is still real, the
+          numbers that depend on thrust are not. */}
+      {!run.hasPropulsion && (
+        <NoPropulsionNotice run={run} tool={toolName} swapOptions={swapOptions} doc={doc} />
+      )}
+
+      <RocketSummary run={run} doc={doc} units={units} />
 
       {r.warnings.length > 0 && (
         <ul className="space-y-2">
@@ -366,6 +378,18 @@ export default function ResultsView({
 
       {/* FLIGHT — the simulated flight and its comparison to the file's own stored numbers. */}
       <div role="tabpanel" id="panel-flight" aria-labelledby="tab-flight" hidden={tab !== "flight"} className="space-y-8">
+      {/* With no thrust every flight number is meaningless, so the workspace says what it would hold
+          and why it is empty rather than showing a zero-altitude "flight" — or simply vanishing,
+          which reads as a feature Loft doesn't have. */}
+      {!run.hasPropulsion && (
+        <ToolUnavailable
+          title="Flight"
+          reason={`Flying this design needs a thrust curve, and none of ${
+            run.resolutions.length > 1 ? "its motors" : "its motor"
+          } could be matched to one — see the notice above. The flight results, plots, flight path and ${toolName} comparison all depend on that thrust, so they are withheld rather than shown as zeros. Swap in a bundled motor under Design and they fill in.`}
+        />
+      )}
+      {run.hasPropulsion && (<>
       {/* Key results */}
       <section aria-label="Results">
         <h2 className="text-lg font-semibold tracking-tight">Flight</h2>
@@ -589,6 +613,7 @@ export default function ResultsView({
             </p>
           </section>
         )}
+      </>)}
       </div>
 
       {/* DESIGN — the rocket itself: its shape (editable on the diagram) and where its mass sits. */}
@@ -625,11 +650,24 @@ export default function ResultsView({
           reason={`This design flies ${doc.rocket.stages.length} stages. The RocketPy cross-check flies a single-stage vehicle, and a motor or parameter sweep needs one unambiguous airframe to vary — with several stages there is no single "the" nose, body or fin set to sweep. The dispersion study below is over the whole flight and does run on a staged design.`}
         />
       )}
+      {/* Without a resolved motor there is no flight to analyze, and every tool here is built on one
+          — except the motor sweep, which flies the bundled candidates itself and so still answers
+          the question this design actually has: which motor to put in it. */}
+      {!run.hasPropulsion && (
+        <ToolUnavailable
+          title={canSweepMotors ? "Second solver, parameter sweep and dispersion study" : "Analysis"}
+          reason={`These tools re-fly the design hundreds of times, and this one has no thrust curve to fly on — see the notice above.${
+            canSweepMotors
+              ? " The motor sweep below is the exception: it flies the bundled substitutes themselves, so it works here and is the fastest way to see what this airframe would do on each of them."
+              : " Swap in a bundled motor under Design and they become available."
+          }`}
+        />
+      )}
       {/* An independent second solver on the flyer's own design — RocketPy's flight is single-stage,
-          so offer it only for single-stage designs that actually have propulsion (guaranteed here).
+          so offer it only for single-stage designs that actually have propulsion.
           Key on the design + configuration + active what-if so any change (config switch, ballast,
           motor swap) remounts the panel to idle instead of leaving a stale RocketPy result on screen. */}
-      {!staged && (
+      {!staged && run.hasPropulsion && (
         <RocketpyCrossCheck
           designKey={dkey}
           doc={doc}
@@ -646,7 +684,7 @@ export default function ResultsView({
           single-stage vehicle, so each swept flight is a like-for-like whole-rocket comparison.
           Keyed on the design + config + active geometry/ballast what-if so it resets when the design
           the sweep is over changes. */}
-      {!staged && swapOptions && swapOptions.length > 1 && (
+      {canSweepMotors && (
         <MotorSweep
           designKey={dkey}
           doc={doc}
@@ -662,7 +700,7 @@ export default function ResultsView({
       {/* Parameter sweep: vary one design dimension and plot the response. Single-stage only, so the
           swept "primary" nose/body/fin is unambiguous. Keyed on design + config + active what-ifs so
           it resets when the design the sweep is over changes. */}
-      {!staged && (
+      {!staged && run.hasPropulsion && (
         <ParameterSweep
           designKey={dkey}
           doc={doc}
@@ -777,27 +815,22 @@ function NoPropulsionNotice({
   );
 }
 
-/** Where the design fields actually are on THIS screen. With a flight there are workspace tabs and
- *  they live behind "Design"; without one the tabs aren't rendered at all and the same fields sit
- *  directly below. Advice that names the wrong one sends a flyer looking for a control that isn't
- *  there. */
-type EditHere = "workspace" | "below";
-const editPointer = (w: EditHere) => (w === "workspace" ? "in the Design workspace" : "in the design fields below");
+/** Where the design fields are, named once. Every design reaches the Design workspace now — a
+ *  design with no flight included — so advice can point at one place instead of guessing which
+ *  layout the flyer is looking at. */
+const EDIT_POINTER = "in the Design workspace";
 /** The same place named as a noun rather than as a verb adjunct — "the Design workspace's fin
- *  fields describe…" instead of the ungrammatical "the fin fields in the design fields below". */
-const finFieldsNoun = (w: EditHere) =>
-  w === "workspace" ? "The Design workspace's fin fields" : "The fin fields below";
+ *  fields describe…" rather than a bare "the fin fields". */
+const FIN_FIELDS_NOUN = "The Design workspace's fin fields";
 
 function RocketSummary({
   run,
   doc,
   units,
-  editHere,
 }: {
   run: FlightRun;
   doc: OrkDocument;
   units: UnitSystem;
-  editHere: EditHere;
 }) {
   const r = run.result;
   const length = overallLength(doc.rocket);
@@ -867,13 +900,13 @@ function RocketSummary({
             value={d.q(d.speed(r.flutter.worst.flutterVelocity, units))}
             hint={r.flutter.worst.margin < RECOMMENDED_FLUTTER_MARGIN ? "thin" : undefined}
             hintWhy={`the estimated flutter speed is under ${RECOMMENDED_FLUTTER_MARGIN}× the peak airspeed, the margin the method's own spread calls for`}
-            sub={`${d.fmt(r.flutter.worst.margin, 1)}× margin`}
+            sub={`${d.flutterMargin(r.flutter.worst.margin)} margin`}
           />
         )}
       </dl>
 
-      <StabilityTrimHint run={run} doc={doc} units={units} editHere={editHere} />
-      <FlutterFixHint run={run} doc={doc} units={units} editHere={editHere} />
+      <StabilityTrimHint run={run} doc={doc} units={units} />
+      <FlutterFixHint run={run} doc={doc} units={units} />
     </section>
   );
 }
@@ -886,12 +919,10 @@ function FlutterFixHint({
   run,
   doc,
   units,
-  editHere,
 }: {
   run: FlightRun;
   doc: OrkDocument;
   units: UnitSystem;
-  editHere: EditHere;
 }) {
   const f = run.result.flutter;
   if (!f || !Number.isFinite(f.worst.margin) || f.worst.margin >= RECOMMENDED_FLUTTER_MARGIN) return null;
@@ -908,15 +939,16 @@ function FlutterFixHint({
     <p className="mt-3 text-xs text-zinc-500 dark:text-zinc-400">
       <span className="font-medium text-zinc-600 dark:text-zinc-300">Fin-flutter fix:</span>{" "}
       thickening the {f.worst.finName} from {d.q(d.lengthMm(f.worst.thickness, units))} to about{" "}
-      {d.q(d.lengthMm(tFix, units))} would lift the flutter margin to {d.fmt(RECOMMENDED_FLUTTER_MARGIN, 1)}×
-      (from {d.fmt(f.worst.margin, 1)}×). Shortening the span or a stiffer material does the same.{" "}
+      {d.q(d.lengthMm(tFix, units))} would lift the flutter margin to{" "}
+      {d.flutterMargin(RECOMMENDED_FLUTTER_MARGIN)} (from {d.flutterMargin(f.worst.margin)}). Shortening
+      the span or a stiffer material does the same.{" "}
       {editable ? (
-        <>Set the fin thickness {editPointer(editHere)} to check the apogee cost.</>
+        <>Set the fin thickness {EDIT_POINTER} to check the apogee cost.</>
       ) : (
         <>
           {/* The explicit space is load-bearing: JSX drops a plain space between an expression and
               the text that follows it across a line break, which shipped "fin fieldsdescribe". */}
-          {finFieldsNoun(editHere)}{" "}
+          {FIN_FIELDS_NOUN}{" "}
           describe a different fin set on this design, so they can&apos;t make this change — it has to
           go back to the design file.
         </>
@@ -935,12 +967,10 @@ function StabilityTrimHint({
   run,
   doc,
   units,
-  editHere,
 }: {
   run: FlightRun;
   doc: OrkDocument;
   units: UnitSystem;
-  editHere: EditHere;
 }) {
   const r = run.result;
   const refD = r.stability.refRadius * 2;
@@ -973,7 +1003,7 @@ function StabilityTrimHint({
           <>
             {label} adding about {d.q(d.mass(trim.ballastKg, units))} of nose ballast would bring the
             static margin to {d.fmt(TRIM_TARGET_CAL, 1)} cal (from {d.fmt(trim.currentMarginCal, 2)} cal).
-            Nose weight trades a little apogee for stability — set it {editPointer(editHere)} to see
+            Nose weight trades a little apogee for stability — set it {EDIT_POINTER} to see
             the cost.
           </>
         ) : (
@@ -998,7 +1028,7 @@ function StabilityTrimHint({
           strongly into wind. Moving the fin set about {d.q(d.lengthMm(-fin.shiftM, units))} forward
           would ease the margin to about {d.fmt(OVER_STABLE_TARGET_CAL, 1)} cal — a weight-free trim
           (nose ballast only adds stability, never sheds it). Set the fin position{" "}
-          {editPointer(editHere)} to check.
+          {EDIT_POINTER} to check.
         </p>
       );
     }
@@ -1146,16 +1176,29 @@ function WhatIfDelta({ run, baseline, units }: { run: FlightRun; baseline: Fligh
       change: d.changeAbsolute(baseline.result.staticMarginCal, run.result.staticMarginCal, "cal"),
     },
     // Fin-flutter margin, when both flights estimate one (a finned design) — so a fin edit shows its
-    // effect on the flutter headroom right alongside the stability trade.
+    // effect on the flutter headroom right alongside the stability trade. All three numbers share
+    // one precision, and it has to be wide enough for the CHANGE as well as for the two ends: at one
+    // decimal 1.44 → 1.46 reads "1.4 → 1.5" with a change of "0", which is the self-contradiction
+    // this row exists to avoid. `fmtSmall` on the ends so a margin below even that precision states
+    // a bound rather than a zero.
     ...(run.result.flutter && baseline.result.flutter
-      ? [
-          {
-            label: "Flutter margin",
-            base: { value: d.fmt(baseline.result.flutter.worst.margin, 1), unit: "×" },
-            cur: { value: d.fmt(run.result.flutter.worst.margin, 1), unit: "×" },
-            change: d.changeAbsolute(baseline.result.flutter.worst.margin, run.result.flutter.worst.margin, "×", 1),
-          },
-        ]
+      ? (() => {
+          const baseMargin = baseline.result.flutter.worst.margin;
+          const curMargin = run.result.flutter.worst.margin;
+          const dp = Math.max(
+            d.decimalsFor(baseMargin, 1),
+            d.decimalsFor(curMargin, 1),
+            d.decimalsFor(curMargin - baseMargin, 1),
+          );
+          return [
+            {
+              label: "Flutter margin",
+              base: { value: d.fmtSmall(baseMargin, dp), unit: "×" },
+              cur: { value: d.fmtSmall(curMargin, dp), unit: "×" },
+              change: d.changeAbsolute(baseMargin, curMargin, "×", dp),
+            },
+          ];
+        })()
       : []),
   ];
 

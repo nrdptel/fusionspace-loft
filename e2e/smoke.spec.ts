@@ -598,39 +598,54 @@ test.describe("Loft", () => {
     await expect(swap).toBeVisible();
     await swap.selectOption({ index: 1 });
 
-    // With a real curve behind it the design flies: the no-flight notice clears and the results
-    // workspace (with its Flight tab and an apogee) appears.
+    // With a real curve behind it the design flies. The swap happens on Design and the view stays
+    // there — the flyer is at the editing surface — so the payoff has to be legible without moving:
+    // the no-flight notice clears and the summary strip above the tabs gains its apogee.
     await expect(page.getByRole("heading", { name: "No flight simulated" })).toBeHidden();
     await expect(page.getByRole("tab", { name: "Flight" })).toBeVisible();
-    await expect(page.getByLabel("Results").getByText("Apogee", { exact: true })).toBeVisible();
+    await expect(page.getByRole("term").filter({ hasText: /^Apogee$/ })).toBeVisible();
   });
 
-  test("advice on a design that can't fly names controls that are actually on screen", async ({ page }) => {
+  test("a design that can't fly still gets the whole navigation spine", async ({ page }) => {
     await page.goto("/");
-    // Without a flight there are no workspace tabs — ResultsView returns before them — but the same
-    // design fields are rendered directly below. Advice that still says "in the Design workspace"
-    // sends the flyer looking for a tab that was never drawn.
+    // A design whose motor isn't bundled used to lose the workspace tabs entirely, and with them the
+    // diagram, the parts table and the mass breakdown — everything that answers "did Loft read my
+    // rocket right?", which is exactly the question a file that didn't fly raises.
     await page
       .getByLabel(/^Choose an OpenRocket/)
       .setInputFiles(resolve(process.cwd(), "e2e/fixtures/unresolved-motor.ork"));
     await expect(page.getByRole("region", { name: "No flight simulated" })).toBeVisible({ timeout: 15000 });
-    await expect(page.getByRole("tab")).toHaveCount(0);
 
-    // A positive anchor first: some hint must actually be pointing somewhere, or the two negative
-    // assertions below would pass on a screen that simply renders no advice at all.
-    await expect(page.getByText("in the design fields below").first()).toBeVisible();
-    // Nothing may point at the absent workspace...
-    await expect(page.getByText("in the Design workspace")).toHaveCount(0);
-    // ...and nothing may offer a configuration picker that only renders for a multi-config design.
+    // All three workspaces are there, and it lands on Design — the one with something in it.
+    await expect(page.getByRole("tab")).toHaveCount(3);
+    await expect(page.getByRole("tab", { name: "Design" })).toHaveAttribute("aria-selected", "true");
+    // The geometry is real and motor-independent, so the diagram and the parts table are shown.
+    await expect(page.getByLabel(/Scale side-view/)).toBeVisible();
+
+    // Flight says what it would hold and why it is empty, rather than vanishing.
+    await page.getByRole("tab", { name: "Flight" }).click();
+    await expect(page.getByRole("region", { name: "Flight unavailable" })).toBeVisible();
+    await expect(page.getByLabel("Results", { exact: true })).toHaveCount(0);
+
+    // Analyze does the same — and offers the motor sweep, which flies the bundled substitutes
+    // themselves and so is the one analysis that still works on a design with no resolved motor.
+    await page.getByRole("tab", { name: "Analyze" }).click();
+    await expect(page.getByRole("region", { name: /unavailable$/ })).toBeVisible();
+    await expect(page.getByRole("region", { name: "Motor sweep" })).toBeVisible();
+
+    // Advice points at the Design workspace, which now exists on every design.
+    await page.getByRole("tab", { name: "Design" }).click();
+    await expect(page.getByText("in the Design workspace").first()).toBeVisible();
+    // Nothing may offer a configuration picker that only renders for a multi-config design.
     if ((await page.getByRole("combobox", { name: /configuration/i }).count()) === 0) {
       await expect(page.getByText("pick a configuration")).toHaveCount(0);
     }
 
-    // Swapping in a bundled motor brings the workspace back, and the advice follows it there.
+    // Swapping in a bundled motor fills the empty workspaces in rather than changing the layout.
     await page.getByRole("combobox", { name: "Swap motor" }).selectOption({ index: 1 });
-    await expect(page.getByRole("tab", { name: "Design" })).toBeVisible();
-    await expect(page.getByText("in the Design workspace").first()).toBeVisible();
-    await expect(page.getByText("in the design fields below")).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "No flight simulated" })).toBeHidden();
+    await page.getByRole("tab", { name: "Flight" }).click();
+    await expect(page.getByLabel("Results").getByText("Apogee", { exact: true })).toBeVisible();
   });
 
   test("the thrust curve is annotated with the motor's impulse, thrust, and burn stats", async ({ page }) => {
