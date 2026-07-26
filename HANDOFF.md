@@ -4,29 +4,35 @@ Overwritten each session. What shipped, what is part-way, and what to pick up fi
 
 ## Where the work is
 
-`main` is at `b5f6f74`, which is an **ancestor of this branch** — main is periodically
-fast-forwarded from here, with no pull request in the loop, so earlier sessions' work has already
-reached loft.fusionspace.co. Measured after `git fetch --prune origin`, this branch is **20 commits
-ahead of `origin/main`**: exactly this session's work, and nothing older.
+Everything below is on the session's working branch and is now in **PR #32** against `main`, opened
+with the owner's standing permission to open and merge PRs. That PR is also the first thing that has
+made CI run for this work: `test.yml` fires on `pull_request:` but not on a branch push, so a branch
+push builds and checks nothing.
 
-Advancing main is the owner's move, not an engineering one. Measure it yourself before quoting it —
-an earlier draft of this file said "61 commits ahead, main has none of it", which was read off a
-remote-tracking ref that had gone stale two hours into the run. **Always `git fetch` before you
-quote a divergence, and cite the SHA you measured against.** The clone is also shallow
-(`git rev-parse --is-shallow-repository` → true, `--depth 50`), so any commit count or file history
-is a window, not the whole record.
+`main` is periodically fast-forwarded from the working branch with no PR in the loop, so earlier
+sessions' work had already reached loft.fusionspace.co. Measure the gap yourself before quoting it —
+`git fetch --prune origin` first, then `git rev-list --count origin/main..HEAD`. An earlier draft of
+this file said "61 commits ahead, main has none of it", read off a remote-tracking ref that had gone
+stale two hours into the run; the real figure was 20. The clone is also shallow
+(`git rev-parse --is-shallow-repository` → true), so any commit count or file history is a window.
 
 ## Before you trust a sweep
 
-The corpus directory is gitignored and absent on a fresh container. Link it first:
+The corpus is gitignored and absent on a fresh container. There is now one command for it:
 
 ```bash
-cd fusionspace-loft && mkdir -p corpus
-for d in openrocket rocksim rasaero rocketpy spacecad; do ln -sfn /home/user/loft-fixtures/$d corpus/$d; done
-npx vitest run lib/corpus --reporter=verbose     # must print "imports every design file (35 present)"
+FIXTURES_TOKEN=<token that can read nrdptel/loft-fixtures> npm run fetch-fixtures
+npx vitest run lib/corpus --reporter=verbose     # must print "imports every design file (N present)"
 ```
 
-A run that says `1 passed` with no census printed examined nothing.
+`fixtures.lock.json` pins the snapshot by commit and by the sha256 of its own `CHECKSUMS.sha256`;
+the fetch verifies both and fails loudly if either moved. With no token it exits 0 and does nothing,
+and the corpus suite then skips itself — a run that says `1 passed` with no census printed examined
+nothing. Linking a local fixtures checkout into `corpus/` still works and needs no token.
+
+**CI cannot fetch the corpus until a `FIXTURES_TOKEN` repository secret exists.** Everything else is
+wired: the lock file, the script, the npm script, and the workflow step. That secret is the only
+remaining owner action.
 
 ## Shipped this session
 
@@ -53,24 +59,26 @@ Seventeen increments, every one gated locally on lint + `npm test` + `npm run bu
 | `688941e` | Documents carry notes as well as warnings, so "this design flies serially" stops appearing under "weren't fully understood". |
 | `b549038` | The two cross-check tables read the same way — reference, Loft, delta. |
 | `a0d61c1` | The Design workspace meets the project's own 44 px hit target: 41 controls were under it on a phone. |
+| `fbc6fe2` | Corrected this file: the divergence from main was read off a stale ref and published wrong. |
+| `9394d94` | The corpus can be fetched and hash-verified — lock file, script, npm script, CI step. Needs the secret. |
+| `6724aaf` | The standing operating brief moved into `CLAUDE.md`, so it is reviewable in a diff and no longer pasted per session. |
 
 The corpus sweep was green throughout and its census never moved: **35 design files, 97 stored
 simulations flown, 0 new findings**, median apogee disagreement 3.2%.
 
 ## Pick up first
 
-1. **Analyze results are silently discarded by any design edit** (top of BACKLOG). The panels are
-   keyed on `designKey` so a stale result can't be shown as current — right, but it means a fin
-   tweak throws away a 300-flight Monte-Carlo with no notice, and comparing before with after is
-   the whole point of the workbench. Keep the result, mark it stale against the key it was computed
-   under, and let the old numbers sit beside the new ones. Four panels, one shared pattern.
-2. **The editor is still a viewer with fields beside it.** Mass and selection landed this session;
+1. **The editor is still a viewer with fields beside it.** Mass and selection landed this session;
    add/delete and per-part fields are the remaining gap, and they need the edits model to grow past
    one flat bag of ~26 global fields to something addressed per component id.
-3. **Fin flutter still cries wolf** (31 of 94 corpus flights). The Wood Handbook's elastic ratios
+2. **Fin flutter still cries wolf** (31 of 94 corpus flights). The Wood Handbook's elastic ratios
    are now in the backlog and unblock half of it; the honest destination is probably a flutter-speed
    band per material rather than a better single number, since G is uncertain by ~2× on exactly the
    soft stocks that trip it.
+3. **The phone's diagram handles are 24 px** — the one control the whole direct-manipulation story
+   rests on, and the last thing in the Design workspace under the 44 px minimum. A bigger circle
+   isn't the fix: seven of them would overlap on a 346x89 px phone diagram, so it wants a
+   touch-specific layout. Measured, with the numbers, at the top of `BACKLOG.md`.
 
 ## Environment notes
 
