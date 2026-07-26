@@ -115,6 +115,17 @@ interface Edits {
   payloadStation?: number; // builder edit: where the added payload sits (m from nose; blank = mid-body)
 }
 
+/** Is any what-if actually set? `applyEdit` merges patches, so clearing a field leaves its key
+ *  behind holding `undefined` — a design edited and then un-edited still has a non-empty `Edits`
+ *  object. "Edited" therefore means any *defined* value, never a non-empty object.
+ *
+ *  This is the single definition, because two of them disagreeing is what the flyer feels: the gate
+ *  that hides the stored-tool comparison and the button that restores it have to answer the same
+ *  question, or clearing a field leaves the comparison hidden with the way back hidden too. */
+function hasActiveEdits(e: Edits): boolean {
+  return Object.values(e).some((v) => v !== undefined && v !== "");
+}
+
 /** Same-diameter bundled motors the design could fly, with the design's own motor as the default.
  *  Built once per design/config so the picker offers a fitting alternative without editing the file. */
 interface SwapInfo {
@@ -173,7 +184,7 @@ export default function LoftApp() {
         overrides.launchAltitude = wx.elevationMsl;
         overrides.windSpeed = wx.surfaceWindMps;
       }
-      const edited = Object.keys(e).length > 0 || scen === "today";
+      const edited = hasActiveEdits(e) || scen === "today";
       const configId = stored?.conditions.configId;
       const run = runFlight(document.rocket, {
         configId,
@@ -447,10 +458,8 @@ export default function LoftApp() {
 
   // Clear every what-if — design edits, condition edits, and today's-weather — and re-fly the design
   // exactly as the file describes it, restoring the stored-tool comparison. The counterpart to the
-  // build-by-editing loop: one step back to the untouched design without unloading it. A cleared
-  // field lingers as an `undefined` key (applyEdit merges), so "active" is any *defined* value, not a
-  // non-empty object.
-  const editsActive = scenario === "today" || Object.values(edits).some((v) => v !== undefined && v !== "");
+  // build-by-editing loop: one step back to the untouched design without unloading it.
+  const editsActive = scenario === "today" || hasActiveEdits(edits);
   const resetEdits = () => {
     setEdits({});
     setWeather(null);

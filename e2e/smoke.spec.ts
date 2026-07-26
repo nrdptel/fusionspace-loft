@@ -75,6 +75,32 @@ test.describe("Loft", () => {
     await expect(page.locator("p[aria-live='polite']").first()).toContainText(/Trapezoidal fins.*from the nose.*kg/);
   });
 
+  test("clearing a what-if brings the stored-tool comparison back", async ({ page }) => {
+    // A what-if means Loft is no longer flying the design the file describes, so the stored-results
+    // comparison is withheld. Clearing it again must restore it — the edit fields are the surface
+    // the app invites you to use, and a one-way door out of its headline check is not honest.
+    await page.goto("/");
+    await page
+      .getByLabel(/^Choose an OpenRocket/)
+      .setInputFiles(resolve(process.cwd(), "e2e/fixtures/logged-sample.ork"));
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    const comparison = page.getByRole("heading", { name: /vs Loft/ });
+    const reset = page.getByRole("button", { name: /Reset to as-designed/ });
+    await expect(comparison).toHaveCount(1);
+
+    await page.locator("summary", { hasText: /conditions/i }).first().click();
+    const rail = page.getByLabel(/Rail length/i).first();
+    await rail.fill("2");
+    await expect(comparison).toHaveCount(0);
+    await expect(reset).toBeVisible();
+
+    // Emptying the field is as much a way back as the button is — and the button must not vanish
+    // before the comparison returns, or there is no way back at all.
+    await rail.fill("");
+    await expect(comparison).toHaveCount(1);
+    await expect(reset).toHaveCount(0);
+  });
+
   test("the open workspace is in the address, so Back and a reload land where you were", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
