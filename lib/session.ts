@@ -148,6 +148,114 @@ export function usePersistedChoice<T extends string>(key: string, initial: T, al
   return [value, set];
 }
 
+/** --- the recent-designs shelf ------------------------------------------------------------------
+ *
+ *  Loft holds one design at a time, but a flyer working across a build does not: a booster and its
+ *  sustainer, this year's cert rocket and last year's, the same airframe on two motor mounts. Every
+ *  design that gets opened is kept here on the device — the same bytes the session keeps, under a
+ *  separate key — so any of them can be reopened later without going back to the file. It is the
+ *  "recent files" the desktop tools have, minus the filesystem: at the pad the file may not be on
+ *  the phone at all.
+ *
+ *  Deliberately separate from the active session above: this shelf is additive, so a shelf that
+ *  cannot be read or written never costs the flyer the design they have open. */
+const RECENTS_KEY = "loft.recents";
+/** How many designs the shelf holds. Past this the least-recently-opened is dropped — enough for a
+ *  build's worth of variants without spending the origin's whole storage budget on history. */
+export const MAX_RECENTS = 8;
+/** Total base64 the shelf may hold, so history never crowds out the active session (which has its
+ *  own MAX_BYTES allowance on top). Oldest entries go first until the shelf fits. */
+const MAX_RECENTS_BYTES = 2_500_000;
+
+export interface RecentDesign {
+  /** Stable id, so reopening the same design updates its entry rather than adding another. */
+  id: string;
+  /** The design file's own bytes, base64-encoded — the same verbatim bytes the session keeps. */
+  design: string;
+  /** Display name (the file name, or the built design's name). */
+  name: string;
+  /** The rocket's own name, which a rename changes independently of the file name. */
+  rocket: string;
+  /** Epoch ms when it was last opened — the shelf's order and its eviction rule. */
+  openedAt: number;
+}
+
+/** An id for a design: its name and its size, which is stable across reopening the same file and
+ *  distinct between two designs a flyer would call different. Two genuinely different designs that
+ *  collide here would overwrite each other's entry — a name-and-size collision, which in practice
+ *  means the same file. */
+function recentId(name: string, design: string): string {
+  return `${name}:${design.length}`;
+}
+
+export function loadRecents(): RecentDesign[] {
+  try {
+    const raw = localStorage.getItem(RECENTS_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter(
+        (r): r is RecentDesign =>
+          !!r &&
+          typeof r === "object" &&
+          typeof (r as RecentDesign).design === "string" &&
+          !!(r as RecentDesign).design &&
+          typeof (r as RecentDesign).name === "string",
+      )
+      .map((r) => ({
+        id: typeof r.id === "string" && r.id ? r.id : recentId(r.name, r.design),
+        design: r.design,
+        name: r.name,
+        rocket: typeof r.rocket === "string" ? r.rocket : r.name,
+        openedAt: Number.isFinite(r.openedAt) ? r.openedAt : 0,
+      }))
+      .sort((a, b) => b.openedAt - a.openedAt)
+      .slice(0, MAX_RECENTS);
+  } catch {
+    return [];
+  }
+}
+
+function writeRecents(list: RecentDesign[]): void {
+  try {
+    localStorage.setItem(RECENTS_KEY, JSON.stringify(list));
+  } catch {
+    // Quota exceeded or storage disabled. History is a convenience; losing it must never break the
+    // design that is actually open.
+  }
+}
+
+/** Record a design on the shelf, newest first, evicting by age until it fits both caps. Returns the
+ *  shelf as it now stands so a caller can render it without re-reading storage. */
+export function rememberRecent(entry: Omit<RecentDesign, "id" | "openedAt">, now: number): RecentDesign[] {
+  const id = recentId(entry.name, entry.design);
+  const kept = loadRecents().filter((r) => r.id !== id);
+  let list = [{ ...entry, id, openedAt: now }, ...kept].slice(0, MAX_RECENTS);
+  let total = list.reduce((n, r) => n + r.design.length, 0);
+  while (list.length > 1 && total > MAX_RECENTS_BYTES) {
+    total -= list[list.length - 1].design.length;
+    list = list.slice(0, -1);
+  }
+  writeRecents(list);
+  return list;
+}
+
+/** Drop one design from the shelf — the flyer's own "I'm done with that one". */
+export function forgetRecent(id: string): RecentDesign[] {
+  const list = loadRecents().filter((r) => r.id !== id);
+  writeRecents(list);
+  return list;
+}
+
+export function clearRecents(): void {
+  try {
+    localStorage.removeItem(RECENTS_KEY);
+  } catch {
+    // as above
+  }
+}
+
 export function clearSession(): void {
   try {
     localStorage.removeItem(KEY);

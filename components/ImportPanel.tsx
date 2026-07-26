@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 
 import { TOUCH_TARGET } from "@/lib/ui-tokens";
+import type { RecentDesign } from "@/lib/session";
 
 /** The import surface: a large drop zone / file picker for an OpenRocket `.ork`, RockSim
  *  `.rkt` or RASAero `.CDX1`, plus one-tap buttons to load the bundled sample designs so the tool is usable before
@@ -12,11 +13,19 @@ export default function ImportPanel({
   onSample,
   onNew,
   busy,
+  recents,
+  onOpenRecent,
+  onForgetRecent,
 }: {
   onFile: (file: File) => void;
   onSample: (path: string, label: string) => void;
   onNew: () => void;
   busy: boolean;
+  /** Designs opened before, newest first — kept on this device so a build's variants are one tap
+   *  away without the file. Empty on a first visit, and on a device with storage turned off. */
+  recents: RecentDesign[];
+  onOpenRecent: (id: string) => void;
+  onForgetRecent: (id: string) => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
@@ -89,6 +98,49 @@ export default function ImportPanel({
           whatever you build.
         </p>
       </div>
+
+      {/* Designs opened before. A flyer working across a build has several on the go, and at the pad
+          the file may not be on the phone at all — so what has been opened stays openable. Shown
+          only when there is history, so a first visit is not padded with an empty shelf. */}
+      {recents.length > 0 && (
+        <div className="mx-auto mt-4 max-w-3xl rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900/40">
+          <p className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+            Your designs
+          </p>
+          <ul className="mt-2 flex flex-wrap gap-2">
+            {recents.map((r) => (
+              <li key={r.id} className="flex min-w-0 items-stretch rounded-lg border border-zinc-300 dark:border-zinc-700">
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => onOpenRecent(r.id)}
+                  // The visible label is the rocket's name; the accessible name leads with the verb
+                  // so the button reads as an action out of context, and still contains the visible
+                  // text. The file it came from goes in the title, where the two differ.
+                  aria-label={`Reopen ${r.rocket || r.name}`}
+                  title={r.name}
+                  className={`inline-flex min-w-0 items-center rounded-l-lg bg-white px-3 py-1.5 text-left text-sm text-zinc-700 transition hover:text-zinc-900 disabled:opacity-60 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:text-zinc-100 ${TOUCH_TARGET}`}
+                >
+                  <span className="truncate">{r.rocket || r.name}</span>
+                </button>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => onForgetRecent(r.id)}
+                  aria-label={`Remove ${r.rocket || r.name} from your designs`}
+                  className="rounded-r-lg border-l border-zinc-200 px-2 text-sm text-zinc-400 transition hover:bg-zinc-50 hover:text-zinc-700 disabled:opacity-60 dark:border-zinc-800 dark:hover:bg-zinc-800/60 dark:hover:text-zinc-200"
+                >
+                  <span aria-hidden>×</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
+            Kept in this browser on this device — never uploaded. Reopening one flies it as saved;
+            any what-if edits you had set are not part of the design.
+          </p>
+        </div>
+      )}
 
       <div className="mx-auto mt-4 max-w-3xl rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900/40">
         <p className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">

@@ -75,6 +75,37 @@ test.describe("Loft", () => {
     await expect(page.locator("p[aria-live='polite']").first()).toContainText(/Trapezoidal fins.*from the nose.*kg/);
   });
 
+  test("keeps the designs you have opened on a shelf you can reopen from", async ({ page }) => {
+    await page.goto("/");
+    // A first visit has no history, so the shelf isn't shown at all.
+    await expect(page.getByText("Your designs")).toHaveCount(0);
+
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+    await page.getByRole("button", { name: /Import another/ }).click();
+    const shelf = page.getByRole("list").filter({ has: page.getByRole("button", { name: /^Reopen/ }) });
+    await expect(shelf.getByRole("button", { name: /^Reopen/ })).toHaveCount(1);
+
+    // A second design joins it, newest first.
+    await page.getByRole("button", { name: /54 mm dual-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+    await page.getByRole("button", { name: /Import another/ }).click();
+    await expect(shelf.getByRole("button", { name: /^Reopen/ }).first()).toContainText("54mm");
+
+    // The shelf survives a reload — it is the point of it at the pad — even though "Import another"
+    // ended the session, so there is nothing to restore. Reopening flies the design straight away.
+    await page.reload();
+    await expect(shelf.getByRole("button", { name: /^Reopen/ })).toHaveCount(2);
+    await shelf.getByRole("button", { name: /^Reopen/ }).nth(1).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 2 }).first()).toContainText("38mm");
+
+    // And a design can be dropped from it.
+    await page.getByRole("button", { name: /Import another/ }).click();
+    await page.getByRole("button", { name: /^Remove .* from your designs/ }).first().click();
+    await expect(shelf.getByRole("button", { name: /^Reopen/ })).toHaveCount(1);
+  });
+
   test("starts a new design from scratch and flies it (builder)", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: "Start a new design" }).click();

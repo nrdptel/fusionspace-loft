@@ -40,7 +40,17 @@ import type { SurfaceFinish, NoseShape, FinCrossSection } from "@/lib/model/type
 import { allMotors } from "@/lib/motors/db";
 import type { ConditionOverrides } from "@/lib/sim/setup";
 import { fetchConditions, geocode, type WeatherConditions } from "@/lib/weather";
-import { clearSession, fromBase64, loadSession, saveSession, toBase64 } from "@/lib/session";
+import {
+  clearSession,
+  forgetRecent,
+  fromBase64,
+  loadRecents,
+  loadSession,
+  rememberRecent,
+  saveSession,
+  toBase64,
+  type RecentDesign,
+} from "@/lib/session";
 import { mToFt, ftToM, mpsToMph, mphToMps } from "@/lib/units";
 import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
@@ -134,6 +144,10 @@ export default function LoftApp() {
   const designBytes = useRef<string | null>(null);
   /** True when this design came back from the last session rather than being freshly opened. */
   const [restored, setRestored] = useState(false);
+  /** Designs opened before, kept on the device so a flyer working across a build can pick any of
+   *  them back up without the file. Read on mount (localStorage is client-only, so the first render
+   *  must match the server's empty one) and kept in step as designs are opened and dropped. */
+  const [recents, setRecents] = useState<RecentDesign[]>([]);
 
   const compute = useCallback(
     (
@@ -253,6 +267,17 @@ export default function LoftApp() {
       setError(null);
       setRestored(resume !== undefined);
       if (bytes) designBytes.current = toBase64(bytes);
+      // Every design that gets opened joins the shelf, so history builds itself rather than asking
+      // the flyer to curate it. A resumed session is already the newest entry; re-recording it
+      // would only rewrite its timestamp.
+      if (bytes && !resume) {
+        setRecents(
+          rememberRecent(
+            { design: designBytes.current!, name, rocket: document.rocket.name || name },
+            Date.now(),
+          ),
+        );
+      }
       try {
         const { run: r, baseline: b } = compute(document, e, null, "design", idx);
         setRun(r);
@@ -302,6 +327,32 @@ export default function LoftApp() {
     },
     [loadDoc],
   );
+
+  // Reopen a design from the shelf. Its bytes go back through the ordinary importer, exactly as a
+  // restored session does, so a reopened design is byte-for-byte the one that was saved — stored
+  // results and all. Its what-if edits are not kept: the shelf remembers designs, not experiments.
+  const onOpenRecent = useCallback(
+    async (id: string) => {
+      const entry = loadRecents().find((r) => r.id === id);
+      if (!entry) return;
+      setBusy(true);
+      setError(null);
+      try {
+        const bytes = fromBase64(entry.design);
+        const document = await importDesign(bytes);
+        loadDoc(document, entry.name, "flight", bytes);
+      } catch {
+        // A design Loft can no longer read is dropped from the shelf rather than left to fail again.
+        setRecents(forgetRecent(id));
+        setError("That saved design could no longer be read, so it has been removed.");
+      } finally {
+        setBusy(false);
+      }
+    },
+    [loadDoc],
+  );
+
+  const onForgetRecent = useCallback((id: string) => setRecents(forgetRecent(id)), []);
 
   // Start a fresh design from scratch — the builder path. A starter model (not parsed from any
   // file) enters the exact same pipeline an import does, so every edit, sweep, and flight works on
@@ -432,6 +483,12 @@ export default function LoftApp() {
   // where that hurts — the design file that would let you import again may not even be on the
   // device. Restoring runs the saved bytes back through the ordinary importer, so a resumed design
   // is byte-for-byte the one that was open, edits and all. Nothing here leaves the browser.
+  // The shelf is read on mount for the same reason the session is: localStorage is client-only, so
+  // the first render has to match the server's (empty) one.
+  useEffect(() => {
+    setRecents(loadRecents());
+  }, []);
+
   useEffect(() => {
     const saved = loadSession();
     if (!saved) return;
@@ -574,7 +631,15 @@ export default function LoftApp() {
             </Link>
             .
           </p>
-          <ImportPanel onFile={onFile} onSample={onSample} onNew={onNew} busy={busy} />
+          <ImportPanel
+            onFile={onFile}
+            onSample={onSample}
+            onNew={onNew}
+            busy={busy}
+            recents={recents}
+            onOpenRecent={onOpenRecent}
+            onForgetRecent={onForgetRecent}
+          />
         </>
       )}
 
