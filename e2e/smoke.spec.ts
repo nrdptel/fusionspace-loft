@@ -605,6 +605,34 @@ test.describe("Loft", () => {
     await expect(page.getByLabel("Results").getByText("Apogee", { exact: true })).toBeVisible();
   });
 
+  test("advice on a design that can't fly names controls that are actually on screen", async ({ page }) => {
+    await page.goto("/");
+    // Without a flight there are no workspace tabs — ResultsView returns before them — but the same
+    // design fields are rendered directly below. Advice that still says "in the Design workspace"
+    // sends the flyer looking for a tab that was never drawn.
+    await page
+      .getByLabel(/^Choose an OpenRocket/)
+      .setInputFiles(resolve(process.cwd(), "e2e/fixtures/unresolved-motor.ork"));
+    await expect(page.getByRole("region", { name: "No flight simulated" })).toBeVisible({ timeout: 15000 });
+    await expect(page.getByRole("tab")).toHaveCount(0);
+
+    // A positive anchor first: some hint must actually be pointing somewhere, or the two negative
+    // assertions below would pass on a screen that simply renders no advice at all.
+    await expect(page.getByText("in the design fields below").first()).toBeVisible();
+    // Nothing may point at the absent workspace...
+    await expect(page.getByText("in the Design workspace")).toHaveCount(0);
+    // ...and nothing may offer a configuration picker that only renders for a multi-config design.
+    if ((await page.getByRole("combobox", { name: /configuration/i }).count()) === 0) {
+      await expect(page.getByText("pick a configuration")).toHaveCount(0);
+    }
+
+    // Swapping in a bundled motor brings the workspace back, and the advice follows it there.
+    await page.getByRole("combobox", { name: "Swap motor" }).selectOption({ index: 1 });
+    await expect(page.getByRole("tab", { name: "Design" })).toBeVisible();
+    await expect(page.getByText("in the Design workspace").first()).toBeVisible();
+    await expect(page.getByText("in the design fields below")).toHaveCount(0);
+  });
+
   test("the thrust curve is annotated with the motor's impulse, thrust, and burn stats", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();

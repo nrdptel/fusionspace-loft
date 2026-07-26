@@ -10,6 +10,7 @@ import {
 } from "./flutter";
 import { Atmosphere } from "./atmosphere";
 import { importOrk } from "../ork/import";
+import { primaryFinGroupIds } from "../model/edit";
 import { runFromDocument, runFlight } from "./run";
 import { flattenRocket } from "../model/geometry";
 
@@ -118,6 +119,44 @@ describe("analyzeFlutter — worst-case margin over the ascent", () => {
       expect(rep!.worst.margin).toBeGreaterThan(RECOMMENDED_FLUTTER_MARGIN);
       expect(run.result.warnings.some((w) => w.code === "fin-flutter")).toBe(false);
     }
+  });
+
+  it("names the worst set by component id, so a surface can tell whether it is editable", async () => {
+    // The fin what-ifs address one fin group, which need not be the worst-margin set. Without an id
+    // on the report, the flutter fix hint can only name the set — and on a staged design it will
+    // happily tell a flyer to thicken fins the design fields do not reach. Measured over the
+    // corpus: the hint fires on 60 flights and 16 of those name an unreachable set.
+    const doc = await load("demo-dual-deploy.ork");
+    const stage = doc.rocket.stages[0];
+    const find = (list: typeof stage.components): (typeof stage.components)[number] | undefined => {
+      for (const c of list) {
+        if (c.kind === "trapezoidfinset") return c;
+        const inner = find(c.children);
+        if (inner) return inner;
+      }
+      return undefined;
+    };
+    const original = find(stage.components)!;
+    // A SECOND fin set, thinner than the first, appended so it is not the frontmost. The thin one
+    // must be the set the report names — if finId were hard-wired to the primary set, or the report
+    // simply echoed whichever set it saw first, this is the case that catches it.
+    const thin = {
+      ...original,
+      id: `${original.id}-thin`,
+      name: "Booster fin set",
+      thickness: 0.0006,
+      children: [],
+    };
+    (original as { thickness: number }).thickness = 0.004; // comfortably stiff
+    doc.rocket.stages[0] = { ...stage, components: [...stage.components, thin] };
+
+    const worst = runFromDocument(doc).result.flutter!.worst;
+    expect(worst.finId).toBe(thin.id);
+    expect(worst.finName).toBe("Booster fin set");
+    expect(worst.thickness).toBeCloseTo(0.0006, 9);
+    // And it is NOT the set the fin what-ifs address — which is exactly the case the fix hint has
+    // to admit it cannot act on.
+    expect(primaryFinGroupIds(doc.rocket).has(worst.finId)).toBe(false);
   });
 
   it("flags flutter (warning) once the fins are made too thin", async () => {

@@ -139,6 +139,9 @@ function finDims(
 }
 
 export interface FinFlutter {
+  /** The fin set's own component id, so a surface can tell whether the design fields actually reach
+   *  this set — the fin what-ifs address one fin group, which need not be the worst-margin one. */
+  finId: string;
   /** The fin set's name (or "fins"). */
   finName: string;
   /** The fin set's thickness (m) — the design lever the flutter fix works on. */
@@ -209,6 +212,7 @@ export function analyzeFlutter(
       const margin = vf / s.velocity;
       if (!worst || margin < worst.margin) {
         worst = {
+          finId: fin.id,
           finName: fin.name || "fins",
           thickness: dims.t,
           flutterVelocity: vf,
