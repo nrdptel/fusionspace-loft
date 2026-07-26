@@ -27,7 +27,7 @@ import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
 import { impulseClass } from "@/lib/motors/eng";
 import { overallLength } from "@/lib/model/geometry";
-import { noseBallastStation } from "@/lib/sim/run";
+import { noseBallastStation, configChoices } from "@/lib/sim/run";
 import { motorLayout } from "@/lib/sim/setup";
 import { marginTrim, finStationTrim } from "@/lib/sim/trim";
 import { recoverySizing } from "@/lib/sim/recovery";
@@ -327,8 +327,8 @@ export default function ResultsView({
   if (!run.hasPropulsion) {
     return (
       <div className="space-y-8">
-        <NoPropulsionNotice run={run} tool={toolName} swapOptions={swapOptions} />
-        <RocketSummary run={run} doc={doc} units={units} />
+        <NoPropulsionNotice run={run} tool={toolName} swapOptions={swapOptions} doc={doc} />
+        <RocketSummary run={run} doc={doc} units={units} editHere="below" />
         {/* Still offer the editing surface — a swap to a motor that resolves is the very fix this
             case needs, and geometry stays editable even when no motor flew. */}
         {designEditor}
@@ -338,7 +338,7 @@ export default function ResultsView({
 
   return (
     <div className="space-y-6">
-      <RocketSummary run={run} doc={doc} units={units} />
+      <RocketSummary run={run} doc={doc} units={units} editHere="workspace" />
 
       {r.warnings.length > 0 && (
         <ul className="space-y-2">
@@ -700,12 +700,14 @@ function NoPropulsionNotice({
   run,
   tool,
   swapOptions,
+  doc,
 }: {
   run: FlightRun;
   tool: string;
   /** Bundled motors of the design's own casing diameter — the substitutes the design tools below
    *  offer. When present, the notice points the flyer at that recovery path rather than dead-ending. */
   swapOptions?: { designation: string; manufacturer: string; diameter: number; motorClass: string }[];
+  doc: OrkDocument;
 }) {
   const unresolved = run.resolutions.filter((res) => !res.match);
   const hasInstances = run.resolutions.length > 0;
@@ -713,6 +715,10 @@ function NoPropulsionNotice({
   // design on a bundled curve of the right diameter, turning a dead-end into a two-click recovery.
   // Gated at >1 to match that picker's own visibility, so the notice never points at an absent one.
   const canSubstitute = !!swapOptions && swapOptions.length > 1;
+  // The configuration picker only renders when the design stores more than one, so a design with a
+  // single stored configuration has nothing to pick — offering that as the way out sends the flyer
+  // hunting for a control that was never drawn. Gated the same way the picker itself is.
+  const canPickConfig = configChoices(doc).length > 1;
   const casingMm = canSubstitute ? Math.round(swapOptions![0].diameter * 1000) : 0;
   return (
     <section
@@ -763,14 +769,32 @@ function NoPropulsionNotice({
         <Link href="/docs/limitations" className="underline underline-offset-2">
           limitations log
         </Link>
-        . Check the designation{canSubstitute ? "" : ", or pick a configuration whose motor is in the set"}. The rocket
+        . Check the designation
+        {!canSubstitute && canPickConfig ? ", or pick a configuration whose motor is in the set" : ""}. The rocket
         geometry and stability below are computed independently and remain valid.
       </p>
     </section>
   );
 }
 
-function RocketSummary({ run, doc, units }: { run: FlightRun; doc: OrkDocument; units: UnitSystem }) {
+/** Where the design fields actually are on THIS screen. With a flight there are workspace tabs and
+ *  they live behind "Design"; without one the tabs aren't rendered at all and the same fields sit
+ *  directly below. Advice that names the wrong one sends a flyer looking for a control that isn't
+ *  there. */
+type EditHere = "workspace" | "below";
+const editPointer = (w: EditHere) => (w === "workspace" ? "in the Design workspace" : "in the design fields below");
+
+function RocketSummary({
+  run,
+  doc,
+  units,
+  editHere,
+}: {
+  run: FlightRun;
+  doc: OrkDocument;
+  units: UnitSystem;
+  editHere: EditHere;
+}) {
   const r = run.result;
   const length = overallLength(doc.rocket);
   const dia = r.stability.refRadius * 2;
@@ -844,8 +868,8 @@ function RocketSummary({ run, doc, units }: { run: FlightRun; doc: OrkDocument; 
         )}
       </dl>
 
-      <StabilityTrimHint run={run} doc={doc} units={units} />
-      <FlutterFixHint run={run} units={units} />
+      <StabilityTrimHint run={run} doc={doc} units={units} editHere={editHere} />
+      <FlutterFixHint run={run} units={units} editHere={editHere} />
     </section>
   );
 }
@@ -854,7 +878,7 @@ function RocketSummary({ run, doc, units }: { run: FlightRun; doc: OrkDocument; 
  *  healthy margin — the number behind the "thicken the fins" caution, so it's actionable rather than
  *  a vague direction. Completes the actionable-safety trio (stability trim, recovery sizing, this).
  *  Closed-form (lib/sim/flutter.ts) and conservative (errs slightly thick). */
-function FlutterFixHint({ run, units }: { run: FlightRun; units: UnitSystem }) {
+function FlutterFixHint({ run, units, editHere }: { run: FlightRun; units: UnitSystem; editHere: EditHere }) {
   const f = run.result.flutter;
   if (!f || !Number.isFinite(f.worst.margin) || f.worst.margin >= RECOMMENDED_FLUTTER_MARGIN) return null;
   if (!(f.worst.thickness > 0)) return null;
@@ -867,7 +891,7 @@ function FlutterFixHint({ run, units }: { run: FlightRun; units: UnitSystem }) {
       thickening the {f.worst.finName} from {d.q(d.lengthMm(f.worst.thickness, units))} to about{" "}
       {d.q(d.lengthMm(tFix, units))} would lift the flutter margin to {d.fmt(RECOMMENDED_FLUTTER_MARGIN, 1)}×
       (from {d.fmt(f.worst.margin, 1)}×). Shortening the span or a stiffer material does the same —
-      set the fin thickness in the Design workspace to check the apogee cost.
+      set the fin thickness {editPointer(editHere)} to check the apogee cost.
     </p>
   );
 }
@@ -878,7 +902,17 @@ function FlutterFixHint({ run, units }: { run: FlightRun; units: UnitSystem }) {
  *  the *only* lever that can bring down an over-stable, weathercock-prone margin, which nose ballast
  *  cannot. Closed-form goal-seeks (lib/sim/trim.ts), the inverse of the ballast and fin-position
  *  sweeps: the sweeps plot the whole curve, these answer the one question a flyer actually asks. */
-function StabilityTrimHint({ run, doc, units }: { run: FlightRun; doc: OrkDocument; units: UnitSystem }) {
+function StabilityTrimHint({
+  run,
+  doc,
+  units,
+  editHere,
+}: {
+  run: FlightRun;
+  doc: OrkDocument;
+  units: UnitSystem;
+  editHere: EditHere;
+}) {
   const r = run.result;
   const refD = r.stability.refRadius * 2;
   const trim = marginTrim(
@@ -910,7 +944,7 @@ function StabilityTrimHint({ run, doc, units }: { run: FlightRun; doc: OrkDocume
           <>
             {label} adding about {d.q(d.mass(trim.ballastKg, units))} of nose ballast would bring the
             static margin to {d.fmt(TRIM_TARGET_CAL, 1)} cal (from {d.fmt(trim.currentMarginCal, 2)} cal).
-            Nose weight trades a little apogee for stability — set it in the Design workspace to see
+            Nose weight trades a little apogee for stability — set it {editPointer(editHere)} to see
             the cost.
           </>
         ) : (
@@ -934,8 +968,8 @@ function StabilityTrimHint({ run, doc, units }: { run: FlightRun; doc: OrkDocume
           {label} at {d.fmt(trim.currentMarginCal, 2)} cal this is over-stable and can weathercock
           strongly into wind. Moving the fin set about {d.q(d.lengthMm(-fin.shiftM, units))} forward
           would ease the margin to about {d.fmt(OVER_STABLE_TARGET_CAL, 1)} cal — a weight-free trim
-          (nose ballast only adds stability, never sheds it). Set the fin position in the Design
-          workspace to check.
+          (nose ballast only adds stability, never sheds it). Set the fin position{" "}
+          {editPointer(editHere)} to check.
         </p>
       );
     }
