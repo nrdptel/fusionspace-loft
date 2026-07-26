@@ -3,6 +3,17 @@
 Rough edges, missing affordances, and ideas too big for one pass — noticed while working,
 not yet done. Newest first. One line each. Anything here is fair game for the next session.
 
+- The fin-flutter check cries wolf: across the corpus it raises the hard "fins may flutter" warning
+  on 31 of 94 flights — a third — including OpenRocket's own bundled Estes-class examples, which fly
+  every weekend. The formula is not the problem (it reproduces Apogee #291's worked example: 260.7
+  vs ~262 m/s). Every false alarm is on a soft, density-variable stock — cardboard (G assumed
+  0.02 GPa), balsa (0.09), basswood (0.17), birch ply (0.62) — and Vf goes as the SQUARE ROOT of G,
+  so the shear modulus is the most leveraged input in the estimate and `lib/sim/flutter.ts` carries
+  it as an uncited table of "representative engineering figures". Re-tabling it needs a citable
+  source (the Apogee newsletter's own table would be ideal — that PDF is scanned, so it isn't
+  extractable); substituting one guess for another isn't worth doing. Until then the warning is
+  training flyers to ignore a safety flag. One extreme case is NOT Loft's fault: Cherokee-E-5055's
+  0.01x margin comes from the file's own 0.254 mm (0.01 in) balsa fin.
 - The sweep's variable/metric choice and the motor table's sort order are the last controls that
   forget. Both are view state rather than the flyer's own input (which the dispersion tolerances
   were, and now persist), so it's a judgement call whether they should be kept or reset.
