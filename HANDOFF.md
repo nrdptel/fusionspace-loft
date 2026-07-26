@@ -4,10 +4,10 @@ Overwritten each session. What shipped, what is part-way, and what to pick up fi
 
 ## Where the work is
 
-Everything below is on `claude/loft-lead-engineer-manual-p857yp`, which is **62 commits ahead of
-`main` with no open PR**. `main` — and therefore loft.fusionspace.co — does not have any of it.
-That is an owner decision to make, not an engineering one, but it is the single most important
-fact about this repo right now: the live site is 62 commits stale.
+This working branch is **61 commits ahead of `main`, with no open pull request**. `main` — and
+therefore loft.fusionspace.co — has none of it. Merging is an owner decision rather than an
+engineering one, but it is the single most important fact about this repo right now: the live site
+is 61 commits behind the work.
 
 ## Before you trust a sweep
 
