@@ -206,10 +206,13 @@ function Comparison({ loft, rp, units }: { loft: LoftBallistic; rp: RocketpyFlig
         <table className="w-full text-sm tabular-nums">
           <thead>
             <tr className="text-left text-[11px] uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+              {/* Same reading order as the stored-results comparison next door: the outside number
+                  first, Loft second, then how Loft differs from it. Two tables on adjacent tabs that
+                  put the reference on opposite sides make every glance a re-read. */}
               <th className="py-1 pr-4 font-medium">Metric</th>
-              <th className="py-1 pr-4 font-medium">Loft</th>
               <th className="py-1 pr-4 font-medium">RocketPy</th>
-              <th className="py-1 font-medium">Loft − RocketPy</th>
+              <th className="py-1 pr-4 font-medium">Loft</th>
+              <th className="py-1 font-medium">Δ</th>
             </tr>
           </thead>
           <tbody className="font-mono">
@@ -218,8 +221,8 @@ function Comparison({ loft, rp, units }: { loft: LoftBallistic; rp: RocketpyFlig
                 <th scope="row" className="py-1.5 pr-4 text-left font-sans font-normal text-zinc-600 dark:text-zinc-300">
                   {r.label}
                 </th>
-                <td className="py-1.5 pr-4 text-zinc-800 dark:text-zinc-100">{d.q(r.loft)}</td>
                 <td className="py-1.5 pr-4 text-zinc-800 dark:text-zinc-100">{d.q(r.rp)}</td>
+                <td className="py-1.5 pr-4 text-zinc-800 dark:text-zinc-100">{d.q(r.loft)}</td>
                 <td className="py-1.5 text-zinc-500 dark:text-zinc-400">{r.delta.text}</td>
               </tr>
             ))}
@@ -229,6 +232,7 @@ function Comparison({ loft, rp, units }: { loft: LoftBallistic; rp: RocketpyFlig
       <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
         Ballistic ascent to apogee (recovery and wind removed), RocketPy fed Loft&apos;s Cd(Mach) — a
         cross-check of the integrator, mass, and centre of pressure, not an independent drag model.
+        Δ is Loft against RocketPy, the same direction the stored-results comparison reads.
         Close agreement is a good sign; a gap is worth investigating, not proof either engine is right.
       </p>
     </div>
