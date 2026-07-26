@@ -93,7 +93,7 @@ describe("adaptRasAeroXml", () => {
     const dry = dryMassProperties(doc.rocket);
     expect(dry.mass).toBeGreaterThan(0);
     expect(dry.mass).toBeLessThan(37.8 * 0.45359237);
-    expect(doc.warnings.join(" ")).toMatch(/no materials or per-part masses/);
+    expect(doc.notes.join(" ")).toMatch(/no materials or per-part masses/);
   });
 
   it("balances airframe and motor at exactly the stated CG", () => {

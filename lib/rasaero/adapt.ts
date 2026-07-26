@@ -390,7 +390,7 @@ function storedSim(sim: XmlNode, site: XmlNode | undefined, index: number, confi
 /** Recovery devices from the design-level `<Recovery>` block. RASAero models up to two events,
  *  each with a device type, a drag coefficient and a diameter (feet), deploying at apogee (event
  *  1) or at a set altitude (event 2) — the standard dual-deploy arrangement. */
-function recovery(rec: XmlNode | undefined, warnings: string[]): Parachute[] {
+function recovery(rec: XmlNode | undefined, notes: string[]): Parachute[] {
   if (!rec) return [];
   const out: Parachute[] = [];
   for (const i of [1, 2] as const) {
@@ -400,7 +400,7 @@ function recovery(rec: XmlNode | undefined, warnings: string[]): Parachute[] {
     const cd = n(rec, `CD${i}`, 0.8) || 0.8;
     if (!(size > 0)) continue;
     if (!/chute|parachute/i.test(type)) {
-      warnings.push(`Recovery device ${i} is a ${type}; it was flown as a canopy of the stated size and Cd.`);
+      notes.push(`Recovery device ${i} is a ${type}; it was flown as a canopy of the stated size and Cd.`);
     }
     // Event 1 is the apogee event; event 2 deploys at its stated altitude.
     const altitudeFt = n(rec, `Altitude${i}`, 0);
@@ -432,6 +432,7 @@ export function adaptRasAeroXml(xml: string): OrkDocument {
   if (!design) throw new Error("RASAero file has no <RocketDesign> element");
 
   const warnings: string[] = [];
+  const notes: string[] = [];
   const { components, boosters } = parseParts(design, warnings);
   if (!components.length) throw new Error("RASAero file has no recognisable airframe parts");
 
@@ -439,7 +440,7 @@ export function adaptRasAeroXml(xml: string): OrkDocument {
   if (finish) for (const c of [...components, ...boosters.flat()]) if (!c.finish) c.finish = finish;
 
   // Recovery hangs off the aftmost body tube, which is where a RASAero design's chute lives.
-  const rec = recovery(child(root, "Recovery"), warnings);
+  const rec = recovery(child(root, "Recovery"), notes);
   if (rec.length) {
     const host = [...components].reverse().find((c) => c.kind === "bodytube") ?? components[components.length - 1];
     host.children.push(...rec);
@@ -539,7 +540,7 @@ export function adaptRasAeroXml(xml: string): OrkDocument {
       children: [],
     };
     (components.find((c) => c.kind === "bodytube") ?? components[0]).children.push(airframe);
-    warnings.push(
+    notes.push(
       `A RASAero design carries no materials or per-part masses, so the flight uses the file's own ` +
         `stated launch weight (${(launchMass / LB).toFixed(1)} lb) and CG.`,
     );
@@ -599,6 +600,7 @@ export function adaptRasAeroXml(xml: string): OrkDocument {
     formatVersion: `RASAero ${childText(root, "FileVersion") ?? "?"}`,
     creator: "RASAero II",
     warnings,
+    notes,
     // RASAero's stored numbers come from its own solver on the same geometry, so the comparison is
     // like-for-like — except when a booster was dropped, which is a different vehicle. A booster
     // Loft actually flies is not a reduction, so the comparison stands.

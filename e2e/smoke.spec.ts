@@ -75,6 +75,21 @@ test.describe("Loft", () => {
     await expect(page.locator("p[aria-live='polite']").first()).toContainText(/Trapezoidal fins.*from the nose.*kg/);
   });
 
+  test("an explanation of how a design was read isn't dressed as a parse failure", async ({ page }) => {
+    // "This design has 2 stages, flown serially…" is Loft saying it understood the design, not that
+    // it didn't. It sat under an amber "Some parts of this design weren't fully understood".
+    await page.goto("/");
+    await page
+      .getByLabel(/^Choose an OpenRocket/)
+      .setInputFiles(resolve(process.cwd(), "e2e/fixtures/two-stage-firm-booster.ork"));
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+
+    const note = page.getByText("How Loft read this design");
+    await expect(note).toBeVisible();
+    await expect(page.getByText(/weren't fully understood/)).toHaveCount(0);
+    await expect(page.getByText(/flown serially/)).toBeVisible();
+  });
+
   test("an analysis table can be copied straight out, not just downloaded", async ({ page }) => {
     // A file download is the right shape for archiving a run and the wrong one for pasting a motor
     // comparison into a spreadsheet or a build thread, which is what this audience does with it.

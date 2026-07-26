@@ -139,6 +139,8 @@ function ringKind(code: number): RingKind {
 
 interface Ctx {
   warnings: string[];
+  /** Explanations of how the design was read, kept apart from the gaps above. */
+  notes: string[];
   /** All body/inner tubes by their RockSim serial number, so an EngineSet's MountSerialNo can
    *  find the mount it loads and mark it (with the cluster count) as a motor mount. */
   mounts: Map<number, BodyMount>;
@@ -659,7 +661,8 @@ export function adaptRktXml(xml: string): OrkDocument {
   if (!design) throw new Error("RockSim file has no <RocketDesign> element");
 
   const warnings: string[] = [];
-  const ctx: Ctx = { warnings, mounts: new Map(), reduced: false };
+  const notes: string[] = [];
+  const ctx: Ctx = { warnings, notes, mounts: new Map(), reduced: false };
   const useKnownMass = Math.round(n(design, "UseKnownMass", 0)) === 1;
 
   // RockSim numbers stages 3 (top / sustainer, with the nose) down to 1 (aft booster), which is
@@ -684,7 +687,7 @@ export function adaptRktXml(xml: string): OrkDocument {
     }
   }
   if (stageParts.length > 1) {
-    warnings.push(
+    notes.push(
       `This design has ${stageParts.length} stages, flown serially: the booster lights at launch, each ` +
         `stage above air-starts when the one below burns out and separates. The separated stages' own ` +
         `descent isn't tracked — only the sustainer is flown to the ground.`,
@@ -732,6 +735,7 @@ export function adaptRktXml(xml: string): OrkDocument {
     formatVersion: `RockSim ${childText(root, "FileVersion") || "?"}`,
     creator: "RockSim",
     warnings,
+    notes,
     flownAsReduced: ctx.reduced,
   };
 }

@@ -133,5 +133,5 @@ export function newDesign(): OrkDocument {
     referenceType: "maximum",
   };
 
-  return { rocket, simulations: [], formatVersion: "unknown", warnings: [], flownAsReduced: false };
+  return { rocket, simulations: [], formatVersion: "unknown", warnings: [], notes: [], flownAsReduced: false };
 }

@@ -94,7 +94,13 @@ export interface OrkDocument {
   simulations: StoredSimulation[];
   formatVersion: string;
   creator?: string;
+  /** Things Loft could NOT fully read: a part it skipped, a fin type it can't model, a dimension it
+   *  had to guess. These are gaps, and the UI says so in as many words. */
   warnings: string[];
+  /** Things Loft read fine and wants the flyer to know it did — how a staged design is flown, which
+   *  figure a format without materials is using for mass. Explanations, not failures; showing them
+   *  under "weren't fully understood" made a correct reading look like a broken one. */
+  notes: string[];
   /** True when Loft flew a *simplified* version of the design — multi-stage, parallel/strap-on
    *  stages, pods, or a motor cluster reduced to a single motor. The stored OpenRocket results
    *  then describe a different flight than Loft simulated, so the accuracy comparison is withheld. */
@@ -270,6 +276,8 @@ function parseDeployConfigs(node: XmlNode): Record<string, DeploySetting> | unde
 
 interface WalkContext {
   warnings: string[];
+  /** Explanations of how the design was read, kept apart from the gaps above. */
+  notes: string[];
   motorInstances: Array<{
     mountId: string;
     configId: string;
@@ -1104,13 +1112,13 @@ export function adaptOrkXml(xml: string): OrkDocument {
   const rocketNode = child(root, "rocket");
   if (!rocketNode) throw new Error("OpenRocket file has no <rocket> element");
 
-  const ctx: WalkContext = { warnings: [], motorInstances: [] };
+  const ctx: WalkContext = { warnings: [], notes: [], motorInstances: [] };
   const stages = parseStages(rocketNode, ctx);
   const { configs, defaultId } = parseMotorConfigs(rocketNode, ctx);
 
   const reducedAssemblies = warnUnsupportedAssemblies(rocketNode, ctx.warnings);
   if (stages.length > 1) {
-    ctx.warnings.push(
+    ctx.notes.push(
       `This design has ${stages.length} stages, flown serially: the booster lights at launch, ` +
         `each stage above air-starts when the one below burns out and separates. The separated ` +
         `stages' own descent isn't tracked — only the sustainer is flown to the ground.`,
@@ -1139,6 +1147,7 @@ export function adaptOrkXml(xml: string): OrkDocument {
     formatVersion,
     creator,
     warnings: ctx.warnings,
+    notes: ctx.notes,
     flownAsReduced,
   };
 }

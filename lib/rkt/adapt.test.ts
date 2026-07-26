@@ -183,7 +183,9 @@ describe("adaptRktXml — degradation and edge cases", () => {
     expect((doc.rocket.stages[1].components[0] as BodyTube).outerRadius).toBeCloseTo(0.027, 5);
     // Flown as the design describes it, so its own stored numbers are comparable again.
     expect(doc.flownAsReduced).toBe(false);
-    expect(doc.warnings.some((w) => /flown serially/.test(w))).toBe(true);
+    // How a staged design is flown is an explanation, not a gap — it belongs in notes.
+    expect(doc.notes.some((w) => /flown serially/.test(w))).toBe(true);
+    expect(doc.warnings).toEqual([]);
     // The stages stack nose→tail rather than piling up at the nose.
     const flat = flattenRocket(doc.rocket);
     expect(flat[1].xFore).toBeCloseTo(flat[0].xFore + flat[0].length, 5);

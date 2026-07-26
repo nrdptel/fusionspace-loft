@@ -758,6 +758,20 @@ export default function LoftApp() {
             </div>
           )}
 
+          {/* How the design was read, as distinct from what couldn't be. Explaining that a two-stage
+              design flies serially, or which weight a format without materials uses, under an amber
+              "weren't fully understood" heading made a correct reading look like a broken one. */}
+          {doc.notes.length > 0 && (
+            <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900/60 dark:text-zinc-300">
+              <p className="font-medium text-zinc-700 dark:text-zinc-200">How Loft read this design:</p>
+              <ul className="mt-1 list-disc pl-5">
+                {doc.notes.slice(0, 6).map((n, i) => (
+                  <li key={i}>{n}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           <ConditionsControls
             units={units}
             edits={edits}
