@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { Tabs } from "./ui";
 import type { FlightRun } from "@/lib/sim/run";
 import { applyGeometryEdits, hasGeometryEdits, type GeometryEdits } from "@/lib/model/edit";
-import type { OrkDocument } from "@/lib/ork/import";
+import { designKey } from "@/lib/model/design-key";
+import { formatLabel, sourceTool, type OrkDocument } from "@/lib/ork/import";
 import type { FlightResult } from "@/lib/sim/simulate";
 import { RECOMMENDED_FLUTTER_MARGIN, thicknessForFlutterMargin } from "@/lib/sim/flutter";
 import LineChart, { type Series, type Marker } from "./LineChart";
@@ -103,17 +104,30 @@ const COLORS = {
   thrust: "#ef4444",
 };
 
+/** Why an Analyze tool isn't offered for this design — said out loud, because a panel that simply
+ *  isn't there reads as a missing feature rather than a modelling limit. */
+function ToolUnavailable({ title, reason }: { title: string; reason: string }) {
+  return (
+    <section
+      aria-label={`${title} unavailable`}
+      className="rounded-xl border border-dashed border-zinc-300 bg-zinc-50 p-4 text-sm text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900/40 dark:text-zinc-400"
+    >
+      <h2 className="text-base font-semibold tracking-tight text-zinc-700 dark:text-zinc-300">{title}</h2>
+      <p className="mt-1.5">{reason}</p>
+    </section>
+  );
+}
+
+/** The results workspaces, in the order the tab bar shows them. Also the vocabulary of the URL
+ *  fragment (`#design`), so a workspace is a place you can link to and come back to. */
+export const WORKSPACES = ["flight", "design", "analyze"] as const;
+export type Workspace = (typeof WORKSPACES)[number];
+
 const SEVERITY: Record<string, string> = {
   warning: "border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-300",
   caution: "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300",
   info: "border-zinc-400/30 bg-zinc-500/10 text-zinc-600 dark:text-zinc-300",
 };
-
-/** The design tool an imported document came from, for labelling the stored-results comparison
- *  honestly (a RockSim import isn't an "OpenRocket comparison"). */
-function sourceTool(doc: OrkDocument): string {
-  return doc.formatVersion.startsWith("RockSim") ? "RockSim" : "OpenRocket";
-}
 
 export default function ResultsView({
   run,
@@ -129,6 +143,7 @@ export default function ResultsView({
   designMotor,
   onEditGeometry,
   initialTab,
+  onWorkspaceChange,
   designEditor,
 }: {
   run: FlightRun;
@@ -154,8 +169,11 @@ export default function ResultsView({
    *  numeric what-if field uses, so dragging and typing converge on one edit flow. */
   onEditGeometry?: (patch: GeometryEdits) => void;
   /** Which workspace to open on. An import lands on its flight result; a from-scratch build lands on
-   *  the editable Design surface. Read once at mount — the view remounts on every design load. */
-  initialTab?: "flight" | "design";
+   *  the editable Design surface, and a resumed session lands where it was left. Read once at mount
+   *  — the view remounts on every design load. */
+  initialTab?: Workspace;
+  /** Told which workspace the flyer moved to, so the session can pick that one back up. */
+  onWorkspaceChange?: (tab: Workspace) => void;
   /** The design-editing surface (motor swap + geometry/recovery what-ifs), rendered inside the
    *  Design workspace next to the diagram it edits — build and edit are the same surface. */
   designEditor?: ReactNode;
@@ -166,7 +184,48 @@ export default function ResultsView({
   // Which workspace is open. Imports lead with the flight (the payoff); a fresh build opens on Design
   // (the edit surface). Panels stay mounted (hidden) so a run in one — a swept curve, a Monte-Carlo —
   // isn't lost when you glance at another.
-  const [tab, setTab] = useState<string>(initialTab ?? "flight");
+  const [tab, setTab] = useState<Workspace>(initialTab ?? "flight");
+
+  // The open workspace is written to the URL fragment, so a workspace can be linked, bookmarked, and
+  // reached with the browser's own Back button — three views deep in an app that never changed its
+  // address is a view you can only get to by knowing it's there. Hydration-safe: the fragment is
+  // read in an effect, never during render, so the server's HTML and the client's first pass agree.
+  useEffect(() => {
+    const fromHash = () => {
+      const id = window.location.hash.replace(/^#/, "");
+      return (WORKSPACES as readonly string[]).includes(id) ? (id as Workspace) : null;
+    };
+    const adopt = (id: Workspace) => {
+      setTab(id);
+      // Tell the session too: a workspace reached with the browser's Back button is as much "where
+      // I left off" as one reached by clicking the tab, and a reload must agree with the address.
+      onWorkspaceChange?.(id);
+    };
+    const initial = fromHash();
+    if (initial) adopt(initial);
+    const onHash = () => {
+      const id = fromHash();
+      if (id) adopt(id);
+    };
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+    // Once, as the view mounts for this design — thereafter the listener carries it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const selectTab = useCallback(
+    (id: string) => {
+      const next = (WORKSPACES as readonly string[]).includes(id) ? (id as Workspace) : "flight";
+      setTab(next);
+      onWorkspaceChange?.(next);
+      // A real history entry, so Back returns to the workspace you came from rather than leaving
+      // the app. Guarded: a repeat of the current fragment would stack duplicate entries.
+      if (typeof window !== "undefined" && window.location.hash !== `#${next}`) {
+        window.history.pushState(null, "", `#${next}`);
+      }
+    },
+    [onWorkspaceChange],
+  );
 
   // An optional uploaded flight log (altimeter CSV) overlaid on the altitude plot — the flyer's real
   // flight beside Loft's prediction. Parsed and held entirely in the browser; the unit defaults to
@@ -242,15 +301,24 @@ export default function ResultsView({
   const vDeltaPct = logMaxV !== null && predMaxV > 0 ? ((logMaxV - predMaxV) / predMaxV) * 100 : null;
 
   // No propulsion ⇒ the "flight" is a zero-thrust drop and every metric is meaningless. Lead
-  // with why, name the motor(s) that didn't resolve, and withhold the misleading numbers,
-  // plots, and OpenRocket comparison. The geometry and stability below are motor-independent
-  // and stay valid.
-  const tool = sourceTool(doc);
+  // with why, name the motor(s) that didn't resolve, and withhold the misleading numbers, plots,
+  // and the stored comparison. The geometry and stability below are motor-independent and stay
+  // valid.
+  //
+  // Whose stored numbers those are is the file's own tool — OpenRocket, RockSim or RASAero. Every
+  // surface below that names it is gated on the file carrying that tool's results, so a design
+  // built here rather than imported never reaches them; the neutral wording is the fallback rather
+  // than naming a tool that never wrote this design.
+  const toolName = sourceTool(doc) ?? "the design file";
 
   // The geometry panel reflects the active what-if edits, so its silhouette matches the CG/CP the
   // (also edited) flight reports. Ballast and motor-swap what-ifs don't change the shape — they
   // shift only the CG marker — so applying the geometry edits alone keeps the picture consistent.
   const editing = !!(geometry && hasGeometryEdits(geometry));
+  // What the Analyze panels are keyed on: change any of it and a completed run no longer describes
+  // the design on screen, so the panel resets rather than showing a stale answer as a current one.
+  const dkey = designKey({ name: doc.rocket.name, simIndex, configId: run.config.id, ballastKg, recoveryCdScale, motorSwap, geometry });
+  const staged = (doc.rocket.stages?.length ?? 1) > 1;
   const shownRocket = editing ? applyGeometryEdits(doc.rocket, geometry) : doc.rocket;
   // The motor casing(s) the flight flew, for drawing inside the aft body — resolved for the shown
   // design and its (possibly swapped) config, so the picture matches what was flown.
@@ -259,7 +327,7 @@ export default function ResultsView({
   if (!run.hasPropulsion) {
     return (
       <div className="space-y-8">
-        <NoPropulsionNotice run={run} tool={tool} swapOptions={swapOptions} />
+        <NoPropulsionNotice run={run} tool={toolName} swapOptions={swapOptions} />
         <RocketSummary run={run} doc={doc} units={units} />
         {/* Still offer the editing surface — a swap to a motor that resolves is the very fix this
             case needs, and geometry stays editable even when no motor flew. */}
@@ -292,7 +360,7 @@ export default function ResultsView({
           { id: "analyze", label: "Analyze" },
         ]}
         value={tab}
-        onChange={setTab}
+        onChange={selectTab}
         ariaLabel="Results workspace"
       />
 
@@ -484,8 +552,9 @@ export default function ResultsView({
           report={run.validation}
           units={units}
           storedName={doc.simulations[simIndex]?.name}
-          toolName={tool}
+          toolName={toolName}
           external={doc.simulations[simIndex]?.status === "external"}
+          storedStatus={doc.simulations[simIndex]?.status}
         />
       )}
 
@@ -497,8 +566,9 @@ export default function ResultsView({
         <DragCrossCheck
           result={r}
           flightData={doc.simulations[simIndex]!.flightData!}
-          toolName={tool}
+          toolName={toolName}
           storedName={doc.simulations[simIndex]?.name}
+          storedStatus={doc.simulations[simIndex]?.status}
           units={units}
         />
       )}
@@ -509,11 +579,11 @@ export default function ResultsView({
             aria-label="Comparison withheld"
             className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-800 dark:text-amber-200"
           >
-            <h2 className="text-base font-semibold tracking-tight">{tool} comparison withheld</h2>
+            <h2 className="text-base font-semibold tracking-tight">{toolName} comparison withheld</h2>
             <p className="mt-1.5">
               This design contains something Loft flew in simplified form — staging, pods, parallel
               boosters, or a fin type it can&apos;t model (see the warnings above) — so the stored{" "}
-              {tool} results describe a different flight than the one simulated here. Comparing them
+              {toolName} results describe a different flight than the one simulated here. Comparing them
               would misstate the engine&apos;s accuracy, so the metric-by-metric comparison is
               withheld — import a design Loft flies complete for a like-for-like check.
             </p>
@@ -546,13 +616,22 @@ export default function ResultsView({
 
       {/* ANALYZE — the heavier, opt-in tools: an independent second solver, and design-space sweeps. */}
       <div role="tabpanel" id="panel-analyze" aria-labelledby="tab-analyze" hidden={tab !== "analyze"} className="space-y-8">
+      {/* Three of the four tools are single-stage only — a swept "primary" fin or nose is ambiguous
+          once there are several stages, and the second solver flies one stage. Saying so is the
+          point: a panel that is simply absent reads as a feature Loft doesn't have. */}
+      {staged && (
+        <ToolUnavailable
+          title="Second solver and design sweeps"
+          reason={`This design flies ${doc.rocket.stages.length} stages. The RocketPy cross-check flies a single-stage vehicle, and a motor or parameter sweep needs one unambiguous airframe to vary — with several stages there is no single "the" nose, body or fin set to sweep. The dispersion study below is over the whole flight and does run on a staged design.`}
+        />
+      )}
       {/* An independent second solver on the flyer's own design — RocketPy's flight is single-stage,
           so offer it only for single-stage designs that actually have propulsion (guaranteed here).
           Key on the design + configuration + active what-if so any change (config switch, ballast,
           motor swap) remounts the panel to idle instead of leaving a stale RocketPy result on screen. */}
-      {(doc.rocket.stages?.length ?? 1) === 1 && (
+      {!staged && (
         <RocketpyCrossCheck
-          key={`${doc.rocket.name}:${run.config.id}:${simIndex}:${ballastKg ?? 0}:${motorSwap?.designation ?? ""}:${geometry?.finSpan ?? 0}:${geometry?.finCount ?? 0}:${geometry?.finRootChord ?? 0}:${geometry?.finTipChord ?? 0}:${geometry?.finSweepLength ?? 0}:${geometry?.finStation ?? 0}:${geometry?.finThickness ?? 0}:${geometry?.finCrossSection ?? ""}:${geometry?.finMaterial ?? ""}:${geometry?.noseLength ?? 0}:${geometry?.noseShape ?? ""}:${geometry?.bodyLength ?? 0}:${geometry?.bodyDiameter ?? 0}:${geometry?.finish ?? ""}:${geometry?.airframeMaterial ?? ""}:${geometry?.boattailLength ?? 0}:${geometry?.boattailAftDiameter ?? 0}:${geometry?.mainDeployAltitude ?? 0}:${geometry?.drogueDiameter ?? 0}:${geometry?.mainParachuteDiameter ?? 0}:${geometry?.motorClusterCount ?? 0}:${geometry?.payloadMassKg ?? 0}:${geometry?.payloadStation ?? 0}`}
+          designKey={dkey}
           doc={doc}
           config={run.config}
           simIndex={simIndex}
@@ -567,9 +646,9 @@ export default function ResultsView({
           single-stage vehicle, so each swept flight is a like-for-like whole-rocket comparison.
           Keyed on the design + config + active geometry/ballast what-if so it resets when the design
           the sweep is over changes. */}
-      {(doc.rocket.stages?.length ?? 1) === 1 && swapOptions && swapOptions.length > 1 && (
+      {!staged && swapOptions && swapOptions.length > 1 && (
         <MotorSweep
-          key={`${doc.rocket.name}:${simIndex}:${ballastKg ?? 0}:${geometry?.finSpan ?? 0}:${geometry?.finCount ?? 0}:${geometry?.finRootChord ?? 0}:${geometry?.finTipChord ?? 0}:${geometry?.finSweepLength ?? 0}:${geometry?.finStation ?? 0}:${geometry?.finThickness ?? 0}:${geometry?.finCrossSection ?? ""}:${geometry?.finMaterial ?? ""}:${geometry?.noseLength ?? 0}:${geometry?.noseShape ?? ""}:${geometry?.bodyLength ?? 0}:${geometry?.bodyDiameter ?? 0}:${geometry?.finish ?? ""}:${geometry?.airframeMaterial ?? ""}:${geometry?.boattailLength ?? 0}:${geometry?.boattailAftDiameter ?? 0}:${geometry?.mainDeployAltitude ?? 0}:${geometry?.drogueDiameter ?? 0}:${geometry?.mainParachuteDiameter ?? 0}:${geometry?.motorClusterCount ?? 0}:${geometry?.payloadMassKg ?? 0}:${geometry?.payloadStation ?? 0}`}
+          designKey={dkey}
           doc={doc}
           simIndex={simIndex}
           units={units}
@@ -583,9 +662,9 @@ export default function ResultsView({
       {/* Parameter sweep: vary one design dimension and plot the response. Single-stage only, so the
           swept "primary" nose/body/fin is unambiguous. Keyed on design + config + active what-ifs so
           it resets when the design the sweep is over changes. */}
-      {(doc.rocket.stages?.length ?? 1) === 1 && (
+      {!staged && (
         <ParameterSweep
-          key={`${doc.rocket.name}:${simIndex}:${ballastKg ?? 0}:${motorSwap?.designation ?? ""}:${geometry?.finSpan ?? 0}:${geometry?.finCount ?? 0}:${geometry?.finRootChord ?? 0}:${geometry?.finTipChord ?? 0}:${geometry?.finSweepLength ?? 0}:${geometry?.finStation ?? 0}:${geometry?.finThickness ?? 0}:${geometry?.finCrossSection ?? ""}:${geometry?.finMaterial ?? ""}:${geometry?.noseLength ?? 0}:${geometry?.noseShape ?? ""}:${geometry?.bodyLength ?? 0}:${geometry?.bodyDiameter ?? 0}:${geometry?.finish ?? ""}:${geometry?.airframeMaterial ?? ""}:${geometry?.boattailLength ?? 0}:${geometry?.boattailAftDiameter ?? 0}:${geometry?.mainDeployAltitude ?? 0}:${geometry?.drogueDiameter ?? 0}:${geometry?.mainParachuteDiameter ?? 0}:${geometry?.motorClusterCount ?? 0}:${geometry?.payloadMassKg ?? 0}:${geometry?.payloadStation ?? 0}`}
+          designKey={dkey}
           doc={doc}
           simIndex={simIndex}
           units={units}
@@ -601,7 +680,7 @@ export default function ResultsView({
           flight. Keyed on design + config + active what-ifs so it resets when the flown design changes. */}
       {run.hasPropulsion && (
         <MonteCarlo
-          key={`${doc.rocket.name}:${simIndex}:${ballastKg ?? 0}:${recoveryCdScale ?? 1}:${motorSwap?.designation ?? ""}:${geometry?.finSpan ?? 0}:${geometry?.finCount ?? 0}:${geometry?.finRootChord ?? 0}:${geometry?.finTipChord ?? 0}:${geometry?.finSweepLength ?? 0}:${geometry?.finStation ?? 0}:${geometry?.finThickness ?? 0}:${geometry?.finCrossSection ?? ""}:${geometry?.finMaterial ?? ""}:${geometry?.noseLength ?? 0}:${geometry?.noseShape ?? ""}:${geometry?.bodyLength ?? 0}:${geometry?.bodyDiameter ?? 0}:${geometry?.finish ?? ""}:${geometry?.airframeMaterial ?? ""}:${geometry?.boattailLength ?? 0}:${geometry?.boattailAftDiameter ?? 0}:${geometry?.mainDeployAltitude ?? 0}:${geometry?.drogueDiameter ?? 0}:${geometry?.mainParachuteDiameter ?? 0}:${geometry?.motorClusterCount ?? 0}:${geometry?.payloadMassKg ?? 0}:${geometry?.payloadStation ?? 0}`}
+          designKey={dkey}
           doc={doc}
           simIndex={simIndex}
           units={units}
@@ -700,11 +779,7 @@ function RocketSummary({ run, doc, units }: { run: FlightRun; doc: OrkDocument; 
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="text-lg font-semibold tracking-tight">{doc.rocket.name}</h2>
         <span className="text-xs text-zinc-500 dark:text-zinc-400">
-          {doc.formatVersion === "unknown"
-            ? ""
-            : doc.formatVersion.startsWith("RockSim")
-              ? doc.formatVersion.replace("RockSim ", "RockSim format ")
-              : `OpenRocket format ${doc.formatVersion}`}
+          {formatLabel(doc)}
         </span>
       </div>
 
@@ -749,6 +824,13 @@ function RocketSummary({ run, doc, units }: { run: FlightRun; doc: OrkDocument; 
           term="Static margin"
           value={d.q(d.calibers(r.staticMarginCal))}
           hint={r.staticMarginCal < 1 ? "low" : r.staticMarginCal > 3 ? "high" : undefined}
+          hintWhy={
+            r.staticMarginCal < 1
+              ? "under 1 caliber: the centre of pressure is close enough to the centre of gravity that the rocket may not hold a straight course off the rail"
+              : r.staticMarginCal > 3
+                ? "over 3 calibers: strongly over-stable, so the rocket weathercocks hard into wind and loses altitude and downrange predictability"
+                : undefined
+          }
         />
         <Field term="CNα" value={d.fmt(r.stability.cnAlpha, 2) + " /rad"} />
         {r.flutter && (
@@ -756,6 +838,7 @@ function RocketSummary({ run, doc, units }: { run: FlightRun; doc: OrkDocument; 
             term="Fin flutter (est.)"
             value={d.q(d.speed(r.flutter.worst.flutterVelocity, units))}
             hint={r.flutter.worst.margin < RECOMMENDED_FLUTTER_MARGIN ? "thin" : undefined}
+            hintWhy={`the estimated flutter speed is under ${RECOMMENDED_FLUTTER_MARGIN}× the peak airspeed, the margin the method's own spread calls for`}
             sub={`${d.fmt(r.flutter.worst.margin, 1)}× margin`}
           />
         )}
@@ -910,13 +993,35 @@ function BoosterDescentNote({ run, units }: { run: FlightRun; units: UnitSystem 
   );
 }
 
-function Field({ term, value, hint, sub }: { term: string; value: string; hint?: string; sub?: string }) {
+function Field({
+  term,
+  value,
+  hint,
+  hintWhy,
+  sub,
+}: {
+  term: string;
+  value: string;
+  hint?: string;
+  /** What the flag means and why it matters — a badge reading "HIGH" beside a number is a verdict
+   *  with no reasoning attached, which is the one thing this tool is not supposed to hand out. */
+  hintWhy?: string;
+  sub?: string;
+}) {
   return (
     <div>
       <dt className="text-[11px] uppercase tracking-wide text-zinc-500 dark:text-zinc-400">{term}</dt>
       <dd className="font-mono text-sm tabular-nums text-zinc-800 dark:text-zinc-200">
         {value}
-        {hint && <span className="ml-1 text-[10px] uppercase text-amber-700 dark:text-amber-400">{hint}</span>}
+        {hint && (
+          <abbr
+            title={hintWhy}
+            aria-label={hintWhy ? `${hint} — ${hintWhy}` : hint}
+            className="ml-1 text-[10px] uppercase text-amber-700 no-underline dark:text-amber-400"
+          >
+            {hint}
+          </abbr>
+        )}
         {sub && <div className="text-[10px] tabular-nums text-zinc-500 dark:text-zinc-400">{sub}</div>}
       </dd>
     </div>

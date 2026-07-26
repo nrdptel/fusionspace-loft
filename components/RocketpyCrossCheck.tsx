@@ -39,6 +39,7 @@ export default function RocketpyCrossCheck({
   ballastKg,
   motorSwap,
   geometry,
+  designKey,
 }: {
   doc: OrkDocument;
   config: MotorConfiguration;
@@ -52,8 +53,17 @@ export default function RocketpyCrossCheck({
   /** Active builder geometry edits (fin span, nose/body length). Applied to both the RocketPy spec
    *  and Loft's baseline, so both engines fly the edited design. */
   geometry?: GeometryEdits;
+  /** One string standing for the design that was flown. Downloading a 40 MB runtime and flying it
+   *  costs the better part of a minute, so unlike the sweeps this panel does not re-run itself when
+   *  the design changes — it keeps the answer and says it is now for a different rocket, which is
+   *  also the comparison a flyer editing toward a target actually wants. */
+  designKey: string;
 }) {
   const [state, setState] = useState<State>({ phase: "idle" });
+  // The design the result on screen was computed for. Captured when the run finishes, so a later
+  // edit makes the difference visible rather than silently invalidating what is shown.
+  const [ranFor, setRanFor] = useState<string | null>(null);
+  const stale = state.phase === "done" && ranFor !== null && ranFor !== designKey;
 
   const run = useCallback(async () => {
     setState({ phase: "running", stage: "Preparing…" });
@@ -103,10 +113,11 @@ export default function RocketpyCrossCheck({
       const spec = buildRocketpySpec({ ...doc, rocket: editedRocket }, config, simIndex, extras);
       const rp = await runRocketpy(spec, { onProgress: (stage) => setState({ phase: "running", stage }) });
       setState({ phase: "done", loft, rp });
+      setRanFor(designKey);
     } catch (e) {
       setState({ phase: "error", message: e instanceof Error ? e.message : String(e) });
     }
-  }, [doc, config, simIndex, ballastKg, motorSwap, geometry]);
+  }, [doc, config, simIndex, ballastKg, motorSwap, geometry, designKey]);
 
   return (
     <section
@@ -159,6 +170,22 @@ export default function RocketpyCrossCheck({
         </div>
       )}
 
+      {stale && (
+        <div className="mt-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-200">
+          <p>
+            The design or motor configuration has changed since this ran, so the figures below are
+            for the rocket as it was. They are kept rather than cleared — that is the &ldquo;before&rdquo;
+            if you are editing toward a target — but run it again for what is on screen now.
+          </p>
+          <button
+            type="button"
+            onClick={run}
+            className="mt-2 rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-indigo-500"
+          >
+            Run RocketPy again
+          </button>
+        </div>
+      )}
       {state.phase === "done" && <Comparison loft={state.loft} rp={state.rp} units={units} />}
     </section>
   );
@@ -179,10 +206,13 @@ function Comparison({ loft, rp, units }: { loft: LoftBallistic; rp: RocketpyFlig
         <table className="w-full text-sm tabular-nums">
           <thead>
             <tr className="text-left text-[11px] uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+              {/* Same reading order as the stored-results comparison next door: the outside number
+                  first, Loft second, then how Loft differs from it. Two tables on adjacent tabs that
+                  put the reference on opposite sides make every glance a re-read. */}
               <th className="py-1 pr-4 font-medium">Metric</th>
-              <th className="py-1 pr-4 font-medium">Loft</th>
               <th className="py-1 pr-4 font-medium">RocketPy</th>
-              <th className="py-1 font-medium">Loft − RocketPy</th>
+              <th className="py-1 pr-4 font-medium">Loft</th>
+              <th className="py-1 font-medium">Δ</th>
             </tr>
           </thead>
           <tbody className="font-mono">
@@ -191,8 +221,8 @@ function Comparison({ loft, rp, units }: { loft: LoftBallistic; rp: RocketpyFlig
                 <th scope="row" className="py-1.5 pr-4 text-left font-sans font-normal text-zinc-600 dark:text-zinc-300">
                   {r.label}
                 </th>
-                <td className="py-1.5 pr-4 text-zinc-800 dark:text-zinc-100">{d.q(r.loft)}</td>
                 <td className="py-1.5 pr-4 text-zinc-800 dark:text-zinc-100">{d.q(r.rp)}</td>
+                <td className="py-1.5 pr-4 text-zinc-800 dark:text-zinc-100">{d.q(r.loft)}</td>
                 <td className="py-1.5 text-zinc-500 dark:text-zinc-400">{r.delta.text}</td>
               </tr>
             ))}
@@ -202,6 +232,7 @@ function Comparison({ loft, rp, units }: { loft: LoftBallistic; rp: RocketpyFlig
       <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
         Ballistic ascent to apogee (recovery and wind removed), RocketPy fed Loft&apos;s Cd(Mach) — a
         cross-check of the integrator, mass, and centre of pressure, not an independent drag model.
+        Δ is Loft against RocketPy, the same direction the stored-results comparison reads.
         Close agreement is a good sign; a gap is worth investigating, not proof either engine is right.
       </p>
     </div>

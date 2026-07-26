@@ -72,7 +72,15 @@ export default function Faq() {
           re-importing means finding the design file on a phone that may not have it. It is stored on
           your device only, alongside the theme choice — there is no account and nothing is uploaded.
           Loft says so on screen when it restores a session, and <em>Start fresh</em> (or{" "}
-          <em>Import another</em>) forgets it immediately; clearing site data does the same.
+          <em>Import another</em>) ends that session immediately.
+        </p>
+        <p>
+          Separately, the last few designs you have <em>ever</em> opened stay on a shelf under{" "}
+          <em>Your designs</em> on the import screen, so a build with several variants on the go can
+          be picked back up without the files. Those are the designs themselves, not your what-if
+          edits, and they outlive <em>Start fresh</em> — each has its own <span aria-hidden>×</span>{" "}
+          to remove it, and clearing site data removes the lot. Same rule as everything else here:
+          this device only, never uploaded.
         </p>
       </QA>
 

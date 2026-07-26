@@ -11,7 +11,7 @@ import { overallLength } from "@/lib/model/geometry";
 import { mToFt, mToIn, mpsToFtps, kgToG, G_PER_OZ } from "@/lib/units";
 import type { CsvCell } from "@/lib/csv";
 import LineChart from "./LineChart";
-import DownloadCsv from "./DownloadCsv";
+import DownloadCsv, { CopyTable } from "./DownloadCsv";
 import type { UnitSystem } from "@/lib/display";
 
 const round = (n: number, dp: number) => (Number.isFinite(n) ? Math.round(n * 10 ** dp) / 10 ** dp : "");
@@ -85,6 +85,7 @@ export default function ParameterSweep({
   ballastKg,
   motorSwap,
   geometry,
+  designKey,
 }: {
   doc: OrkDocument;
   simIndex: number;
@@ -92,6 +93,10 @@ export default function ParameterSweep({
   ballastKg?: number;
   motorSwap?: { manufacturer?: string; designation: string; diameter?: number };
   geometry?: GeometryEdits;
+  /** One string standing for the design being swept. The props above are rebuilt on every render,
+   *  so depending on their identity would restart the sweep whenever anything re-renders; this is
+   *  their *value*, and it is what decides when the sweep is genuinely out of date. */
+  designKey: string;
 }) {
   // The variables this design can sweep: its geometry (each ranged around its own value) plus nose
   // ballast (0 → a mass-relative max), which any flyable design can take.
@@ -224,7 +229,10 @@ export default function ParameterSweep({
     return () => {
       live = false;
     };
-  }, [open, doc, simIndex, axisDef, ballastKg, motorSwap, geometry]);
+    // Keyed on the design's value, not the props' identity — see `designKey`. Changing the swept
+    // axis still re-runs; an unrelated re-render no longer restarts the flights.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, axisDef, designKey]);
 
   // A design with no editable dimension (no fins, nose, or body tube) has nothing to sweep.
   if (axes.length === 0) return null;
@@ -295,14 +303,25 @@ export default function ParameterSweep({
             </label>
           </div>
 
-          {running || points === null ? (
+          {(running || points === null) && (
             <div className="mt-3 flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-300" role="status">
               <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent" />
-              <span>Flying {STEPS} points…</span>
+              <span>
+                Flying {STEPS} points
+                {points !== null && points.length > 1
+                  ? " again for the edited design — the curve below is the previous run"
+                  : "…"}
+              </span>
             </div>
-          ) : points.length > 1 ? (
-            <SweepChart points={points} axis={axisDef} metric={metric} metrics={metrics} units={units} name={doc.rocket.name} />
-          ) : (
+          )}
+          {/* The previous curve stays while the next one flies, dimmed and announced above as the
+              previous design's, so an edit can be read against what it changed. */}
+          {points !== null && points.length > 1 && (
+            <div aria-busy={running} className={running ? "opacity-50 transition-opacity" : undefined}>
+              <SweepChart points={points} axis={axisDef} metric={metric} metrics={metrics} units={units} name={doc.rocket.name} />
+            </div>
+          )}
+          {!running && points !== null && points.length <= 1 && (
             <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-300">
               Not enough of the range could be flown to draw a curve.
             </p>
@@ -364,6 +383,7 @@ function SweepChart({
       </p>
       <div className="mt-2">
         <DownloadCsv rows={csv} name={name} suffix={`sweep-${axis.axis}`} />
+        <CopyTable rows={csv} />
       </div>
     </div>
   );

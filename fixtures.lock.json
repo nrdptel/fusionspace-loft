@@ -1,0 +1,21 @@
+{
+  "_comment": [
+    "Pins the real-design corpus that lib/corpus/sweep.test.ts runs against.",
+    "The corpus is other people's design files under their own terms and is never committed here;",
+    "it lives in a separate private repository and is fetched by scripts/fetch-fixtures.mjs.",
+    "",
+    "'commit' is an immutable pin — a tag or branch could move under us and silently change what",
+    "the suite asserts. 'checksums' is the sha256 of that snapshot's own CHECKSUMS.sha256, which in",
+    "turn hashes every design file: verifying the manifest and then verifying each file against it",
+    "makes the whole corpus tamper-evident without depending on the archive being byte-reproducible",
+    "(GitHub's generated tarballs are not).",
+    "",
+    "To re-cut: push the new corpus to the fixtures repo, then update 'commit' and 'checksums' here",
+    "and re-run `npm run fetch-fixtures` to confirm the sweep still passes."
+  ],
+  "repo": "nrdptel/loft-fixtures",
+  "commit": "37251476e5cfee330c88aa94cf0dd58f93370ccd",
+  "checksums": "d909aeae6e063b629a161ba36dcc0f8b51e45313997789c8ecbc71e342971510",
+  "files": 38,
+  "tools": ["openrocket", "rocksim", "rasaero", "rocketpy", "spacecad"]
+}

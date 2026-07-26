@@ -108,4 +108,30 @@ test.describe("phone layout", () => {
       expect(scrollW, `horizontal overflow on ${route}`).toBeLessThanOrEqual(innerW);
     }
   });
+
+  test("the design editor's own controls clear the hit target too", async ({ page }) => {
+    // The workspace a pad check actually uses. Its ~20 what-if fields, its material and shape
+    // pickers, its zoom buttons and its parts-table headers were all under the project's own 44 px
+    // minimum — 34 px for a field, 24 px for a zoom button — while the header and tabs met it.
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+    await page.getByRole("tab", { name: "Design" }).click();
+    await page.locator("summary", { hasText: /Parts ·/ }).click();
+
+    const panel = page.locator("#panel-design");
+    const short: string[] = [];
+    for (const el of await panel.locator("input[type=number], select, button").all()) {
+      const box = await el.boundingBox();
+      if (!box || box.height === 0) continue; // not laid out (a closed disclosure)
+      if (box.height < 44) short.push(`${Math.round(box.width)}x${Math.round(box.height)}`);
+    }
+    expect(short, `controls under the 44 px hit target: ${short.join(", ")}`).toEqual([]);
+
+    // A one-glyph control needs the minimum in both directions — height alone leaves a 24 px sliver.
+    for (const name of ["Zoom in", "Zoom out"]) {
+      const box = await panel.getByRole("button", { name }).boundingBox();
+      expect(Math.min(box!.width, box!.height)).toBeGreaterThanOrEqual(44);
+    }
+  });
 });

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
-import { combine, dryMassProperties, finChordCentroid, structurePointMasses } from "./mass";
+import { combine, dryMassProperties, finChordCentroid, massByComponent, structurePointMasses } from "./mass";
 import { flattenRocket } from "../model/geometry";
 import { importOrk } from "../ork/import";
 import type { Rocket, BodyTube, MassComponent, GenericFinSet, NoseCone } from "../model/types";
@@ -259,4 +259,36 @@ describe("mass breakdown invariant (per-component sums to the dry total)", () =>
       }
     });
   }
+});
+
+describe("massByComponent", () => {
+  /** A body tube with two ballast masses inside — three parts that each carry their own mass. */
+  const parted = () => rocketOf(tube({ id: "body" }, [ballast(0.2, 0.1), { ...ballast(0.3, 0.4), id: "m2" }]));
+
+  it("gives every load-bearing part its own mass, keyed by component id", () => {
+    const rocket = parted();
+    const byId = massByComponent(rocket);
+    const flat = flattenRocket(rocket);
+    expect(byId.size).toBeGreaterThan(0);
+    // The per-component masses add up to the dry total the simulator flies.
+    let sum = 0;
+    for (const p of flat) sum += byId.get(p.component.id)?.mass ?? 0;
+    expect(sum).toBeCloseTo(dryMassProperties(rocket).mass, 9);
+  });
+
+  it("says which assembly swallowed a subsumed part rather than reporting zero silently", () => {
+    const rocket = parted();
+    const stage = rocket.stages[0];
+    stage.overrideMass = 1.5;
+    stage.overrideSubcomponents = true;
+    stage.name = "Sustainer";
+    const byId = massByComponent(rocket);
+    for (const p of flattenRocket(rocket)) {
+      const m = byId.get(p.component.id);
+      expect(m).toBeDefined();
+      expect(m!.mass).toBe(0);
+      expect(m!.subsumedBy).toBe("Sustainer");
+    }
+    expect(dryMassProperties(rocket).mass).toBeCloseTo(1.5, 9);
+  });
 });

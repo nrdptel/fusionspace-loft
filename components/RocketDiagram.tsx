@@ -9,11 +9,12 @@ import {
   primaryFinRootChord,
   primaryBodyTube,
   primaryBodyDiameter,
+  primaryNose,
   type GeometryEdits,
 } from "@/lib/model/edit";
 import type { MotorMark } from "@/lib/sim/setup";
 import { useMeasuredWidth } from "./LineChart";
-import { TOUCH_TARGET } from "@/lib/ui-tokens";
+import { TOUCH_TARGET_SQUARE } from "@/lib/ui-tokens";
 import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
 
@@ -241,6 +242,17 @@ export default function RocketDiagram({
   const diaCx = bodyPart ? X((bodyPart.profile[0][0] + bodyPart.profile[bodyPart.profile.length - 1][0]) / 2) : 0;
   const diaCy = bodyPart ? top(bodyR) : 0;
 
+  // Nose-length handle. The nose/body joint is the one place on the silhouette where the nose's
+  // length is a visible edge, so that is where it goes: drag it aft and the cone stretches, forward
+  // and it blunts, with everything downstream restacking. Bounds keep it a nose rather than a
+  // needle or a disc, always including today's length.
+  const nose = onEdit ? primaryNose(rocket) : undefined;
+  const noseLenNow = nose?.length;
+  const noseLo = noseLenNow !== undefined ? Math.min(noseLenNow, 0.02) : 0;
+  const noseHi = noseLenNow !== undefined ? Math.max(noseLenNow * 2, 12 * (nose?.aftRadius ?? 0.05)) : 0;
+  const noseCx = nosePart ? X(nosePart.profile[nosePart.profile.length - 1][0]) : 0;
+  const noseCy = nose ? top(nose.aftRadius) : 0;
+
   return (
     <figure className="m-0" ref={box}>
       <div className="overflow-x-auto overscroll-x-contain">
@@ -444,6 +456,24 @@ export default function RocketDiagram({
           </>
         )}
 
+        {/* nose-length handle — grab the nose/body joint and stretch or blunt the cone */}
+        {onEdit && nosePart && noseLenNow !== undefined && (
+          <FinHandle
+            field="noseLength"
+            label="Nose length"
+            valueText={`${Math.round(noseLenNow * 1000)} mm long`}
+            title="Drag or use arrow keys to lengthen or shorten the nose cone"
+            current={noseLenNow}
+            lo={noseLo}
+            hi={noseHi}
+            cx={noseCx}
+            cy={noseCy}
+            s={s}
+            padX={padX}
+            onEdit={onEdit}
+          />
+        )}
+
         {/* body-diameter handle — grab the body wall to resize the caliber, independent of the fins */}
         {onEdit && bodyPart && bodyDiaNow !== undefined && (
           <FinHandle
@@ -511,7 +541,7 @@ function ZoomControl({ zoom, onZoom }: { zoom: number; onZoom: (z: number) => vo
     "inline-flex items-center justify-center rounded-md border border-zinc-200 px-2 font-medium text-zinc-600 " +
     "hover:bg-zinc-50 disabled:opacity-40 disabled:hover:bg-transparent dark:border-zinc-700 dark:text-zinc-300 " +
     "dark:hover:bg-zinc-800 " +
-    TOUCH_TARGET;
+    TOUCH_TARGET_SQUARE;
   return (
     <span className="inline-flex items-center gap-1" role="group" aria-label="Diagram zoom">
       <button type="button" className={btn} onClick={() => onZoom(STEPS[at - 1])} disabled={at === 0} aria-label="Zoom out">
@@ -561,7 +591,7 @@ function FinHandle({
   centerY = 0,
   onActiveChange,
 }: {
-  field: "finStation" | "finSweepLength" | "finRootChord" | "finTipChord" | "finSpan" | "bodyDiameter";
+  field: "finStation" | "finSweepLength" | "finRootChord" | "finTipChord" | "finSpan" | "bodyDiameter" | "noseLength";
   label: string;
   valueText: string;
   title: string;
@@ -665,7 +695,12 @@ function FinHandle({
       onFocus={() => setFocused(true)}
       onBlur={() => setFocused(false)}
       onKeyDown={(ev) => {
-        const step = ev.shiftKey ? 0.05 : 0.01; // 50 mm coarse / 10 mm fine
+        // A step scaled to the handle's own range: an arrow crosses it in ~100 nudges, Shift in ~10.
+        // A single 10 mm "fine" step could not reach 62 mm on a 57 mm airframe, and Shift made it
+        // coarser still — the wrong way round for the key that means "carefully".
+        const span = Math.max(0, hi - lo);
+        const fine = Math.max(0.0005, span / 100); // never below half a millimetre
+        const step = ev.shiftKey ? fine * 10 : fine;
         let next: number | null = null;
         if (ev.key === "ArrowLeft" || ev.key === "ArrowDown") next = current - step;
         else if (ev.key === "ArrowRight" || ev.key === "ArrowUp") next = current + step;

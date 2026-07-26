@@ -38,8 +38,8 @@ test.describe("in-browser RocketPy second solver (self-hosted Pyodide)", () => {
 
     const num = async (colIndex: number) =>
       parseFloat((await apogeeRow.locator("td").nth(colIndex).innerText()).replace(/[^\d.]/g, ""));
-    const loftApogee = await num(0); // td[0] Loft, td[1] RocketPy, td[2] delta
-    const rpApogee = await num(1);
+    const rpApogee = await num(0); // td[0] RocketPy, td[1] Loft, td[2] delta — reference first
+    const loftApogee = await num(1);
 
     // RocketPy actually flew the design: apogee lands on the committed reference (994 m), and Loft's
     // own ballistic apogee agrees with it — the two independent engines converge.
@@ -49,7 +49,7 @@ test.describe("in-browser RocketPy second solver (self-hosted Pyodide)", () => {
     expect(loftApogee).toBeLessThan(1005);
   });
 
-  test("resets on config change and reuses the warm worker for the next run", async ({ page }) => {
+  test("labels a result the config moved out from under, and reuses the warm worker to redo it", async ({ page }) => {
     test.setTimeout(240_000);
 
     await page.goto("/");
@@ -61,7 +61,7 @@ test.describe("in-browser RocketPy second solver (self-hosted Pyodide)", () => {
     const panel = page.getByRole("region", { name: "RocketPy cross-check" });
     const rpApogee = async () =>
       parseFloat(
-        (await panel.getByRole("row", { name: /^Apogee\b/ }).locator("td").nth(1).innerText()).replace(/[^\d.]/g, ""),
+        (await panel.getByRole("row", { name: /^Apogee\b/ }).locator("td").nth(0).innerText()).replace(/[^\d.]/g, ""),
       );
 
     // First run: cold boot on the default configuration (the more powerful H128W).
@@ -70,16 +70,19 @@ test.describe("in-browser RocketPy second solver (self-hosted Pyodide)", () => {
     const apogeeDefault = await rpApogee();
     expect(apogeeDefault).toBeGreaterThan(0);
 
-    // Switching motor configuration must drop that stale result: the panel remounts back to idle,
-    // so the table is gone and "Run RocketPy" is offered again for the new configuration.
+    // Switching motor configuration must never leave that result reading as current. It costs the
+    // better part of a minute to produce, so it is kept as the "before" — labelled as being for the
+    // previous configuration, with a way to run it again for the new one.
     await page.getByLabel("Motor configuration").selectOption("1");
-    await expect(panel.getByRole("button", { name: /Run RocketPy/ })).toBeVisible();
-    await expect(panel.getByRole("row", { name: /^Apogee\b/ })).toHaveCount(0);
+    await expect(panel.getByText(/has changed since this ran/)).toBeVisible();
+    await expect(panel.getByRole("button", { name: /Run RocketPy again/ })).toBeVisible();
 
-    // Second run reuses the WARM worker — no ~10 s reboot — and flies the newly selected G40W
+    await panel.getByRole("button", { name: /Run RocketPy again/ }).click();
+    await expect(panel.getByText(/has changed since this ran/)).toHaveCount(0, { timeout: 60_000 });
+
+    // That second run reused the WARM worker — no ~10 s reboot — and flew the newly selected G40W
     // configuration: its apogee lands on the committed reference (~548 m) and differs clearly from
     // the H128W run above, proving the warm worker flew the right (switched) config.
-    await panel.getByRole("button", { name: /Run RocketPy/ }).click();
     await expect(panel.getByRole("row", { name: /^Apogee\b/ })).toBeVisible({ timeout: 60_000 });
     const apogeeG40 = await rpApogee();
     expect(apogeeG40).toBeGreaterThan(510);
@@ -108,8 +111,8 @@ test.describe("in-browser RocketPy second solver (self-hosted Pyodide)", () => {
     await expect(apogeeRow).toBeVisible({ timeout: 180_000 });
     const cell = async (i: number) =>
       parseFloat((await apogeeRow.locator("td").nth(i).innerText()).replace(/[^\d.]/g, ""));
-    const loftApogee = await cell(0);
-    const rpApogee = await cell(1);
+    const rpApogee = await cell(0); // reference first, as in the stored-results comparison
+    const loftApogee = await cell(1);
 
     // The base (unballasted) design apogees ~994 m; 500 g of nose ballast drops it well below that
     // in BOTH engines — proving the RocketPy spec and Loft's baseline both fly the ballasted design.

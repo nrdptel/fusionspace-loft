@@ -3,9 +3,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import ImportPanel from "./ImportPanel";
-import ResultsView from "./ResultsView";
+import ResultsView, { type Workspace } from "./ResultsView";
 import { Segmented } from "./ui";
-import { importDesign, type OrkDocument } from "@/lib/ork/import";
+import { importDesign, sourceTool, type OrkDocument } from "@/lib/ork/import";
 import { newDesign } from "@/lib/model/starter";
 import { exportOrk } from "@/lib/ork/export";
 import { runFlight, pickConfig, overridesFromStored, configChoices, type FlightRun, type ConfigChoice } from "@/lib/sim/run";
@@ -40,8 +40,19 @@ import type { SurfaceFinish, NoseShape, FinCrossSection } from "@/lib/model/type
 import { allMotors } from "@/lib/motors/db";
 import type { ConditionOverrides } from "@/lib/sim/setup";
 import { fetchConditions, geocode, type WeatherConditions } from "@/lib/weather";
-import { clearSession, fromBase64, loadSession, saveSession, toBase64 } from "@/lib/session";
+import {
+  clearSession,
+  forgetRecent,
+  fromBase64,
+  loadRecents,
+  loadSession,
+  rememberRecent,
+  saveSession,
+  toBase64,
+  type RecentDesign,
+} from "@/lib/session";
 import { mToFt, ftToM, mpsToMph, mphToMps } from "@/lib/units";
+import { TOUCH_TARGET } from "@/lib/ui-tokens";
 import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
 
@@ -105,6 +116,17 @@ interface Edits {
   payloadStation?: number; // builder edit: where the added payload sits (m from nose; blank = mid-body)
 }
 
+/** Is any what-if actually set? `applyEdit` merges patches, so clearing a field leaves its key
+ *  behind holding `undefined` — a design edited and then un-edited still has a non-empty `Edits`
+ *  object. "Edited" therefore means any *defined* value, never a non-empty object.
+ *
+ *  This is the single definition, because two of them disagreeing is what the flyer feels: the gate
+ *  that hides the stored-tool comparison and the button that restores it have to answer the same
+ *  question, or clearing a field leaves the comparison hidden with the way back hidden too. */
+function hasActiveEdits(e: Edits): boolean {
+  return Object.values(e).some((v) => v !== undefined && v !== "");
+}
+
 /** Same-diameter bundled motors the design could fly, with the design's own motor as the default.
  *  Built once per design/config so the picker offers a fitting alternative without editing the file. */
 interface SwapInfo {
@@ -125,15 +147,21 @@ export default function LoftApp() {
   const [scenario, setScenario] = useState<"design" | "today">("design");
   const [simIndex, setSimIndex] = useState(0);
   // Which results workspace a freshly loaded design opens on: an import wants its Flight result up
-  // front, a from-scratch build wants the editable Design surface. Set per load, read once as the
-  // results view mounts (it remounts on every load — the import panel only shows when nothing is
-  // loaded, so every design arrives through a fresh mount).
-  const [initialTab, setInitialTab] = useState<"flight" | "design">("flight");
+  // front, a from-scratch build wants the editable Design surface, and a resumed session wants the
+  // one it was left on. Set per load, read once as the results view mounts (it remounts on every
+  // load — the import panel only shows when nothing is loaded, so every design arrives through a
+  // fresh mount) and then kept in step as the flyer moves between workspaces, so "where I left off"
+  // includes which workspace that was.
+  const [initialTab, setInitialTab] = useState<Workspace>("flight");
   /** The loaded design's own bytes, kept so the session can be written back verbatim — the file
    *  the flyer imported, not a re-serialisation of it, so its stored results survive a reload. */
   const designBytes = useRef<string | null>(null);
   /** True when this design came back from the last session rather than being freshly opened. */
   const [restored, setRestored] = useState(false);
+  /** Designs opened before, kept on the device so a flyer working across a build can pick any of
+   *  them back up without the file. Read on mount (localStorage is client-only, so the first render
+   *  must match the server's empty one) and kept in step as designs are opened and dropped. */
+  const [recents, setRecents] = useState<RecentDesign[]>([]);
 
   const compute = useCallback(
     (
@@ -157,7 +185,7 @@ export default function LoftApp() {
         overrides.launchAltitude = wx.elevationMsl;
         overrides.windSpeed = wx.surfaceWindMps;
       }
-      const edited = Object.keys(e).length > 0 || scen === "today";
+      const edited = hasActiveEdits(e) || scen === "today";
       const configId = stored?.conditions.configId;
       const run = runFlight(document.rocket, {
         configId,
@@ -235,7 +263,7 @@ export default function LoftApp() {
     (
       document: OrkDocument,
       name: string,
-      opensOn: "flight" | "design" = "flight",
+      opensOn: Workspace = "flight",
       /** The design's own file bytes, so the session can store exactly what was opened. */
       bytes?: Uint8Array,
       /** A session being restored: its saved edits and configuration, instead of a clean slate. */
@@ -250,9 +278,25 @@ export default function LoftApp() {
       setScenario("design");
       setSimIndex(idx);
       setInitialTab(opensOn);
+      // Point the address at the workspace this load means to open on, before the results view
+      // mounts and reads it. Loading a design is a deliberate act with an intended landing place —
+      // an import leads with its flight — so it wins over whatever fragment the last design left
+      // behind; within a design, the fragment then follows the flyer.
+      if (typeof window !== "undefined") window.history.replaceState(null, "", `#${opensOn}`);
       setError(null);
       setRestored(resume !== undefined);
       if (bytes) designBytes.current = toBase64(bytes);
+      // Every design that gets opened joins the shelf, so history builds itself rather than asking
+      // the flyer to curate it. A resumed session is already the newest entry; re-recording it
+      // would only rewrite its timestamp.
+      if (bytes && !resume) {
+        setRecents(
+          rememberRecent(
+            { design: designBytes.current!, name, rocket: document.rocket.name || name },
+            Date.now(),
+          ),
+        );
+      }
       try {
         const { run: r, baseline: b } = compute(document, e, null, "design", idx);
         setRun(r);
@@ -302,6 +346,32 @@ export default function LoftApp() {
     },
     [loadDoc],
   );
+
+  // Reopen a design from the shelf. Its bytes go back through the ordinary importer, exactly as a
+  // restored session does, so a reopened design is byte-for-byte the one that was saved — stored
+  // results and all. Its what-if edits are not kept: the shelf remembers designs, not experiments.
+  const onOpenRecent = useCallback(
+    async (id: string) => {
+      const entry = loadRecents().find((r) => r.id === id);
+      if (!entry) return;
+      setBusy(true);
+      setError(null);
+      try {
+        const bytes = fromBase64(entry.design);
+        const document = await importDesign(bytes);
+        loadDoc(document, entry.name, "flight", bytes);
+      } catch {
+        // A design Loft can no longer read is dropped from the shelf rather than left to fail again.
+        setRecents(forgetRecent(id));
+        setError("That saved design could no longer be read, so it has been removed.");
+      } finally {
+        setBusy(false);
+      }
+    },
+    [loadDoc],
+  );
+
+  const onForgetRecent = useCallback((id: string) => setRecents(forgetRecent(id)), []);
 
   // Start a fresh design from scratch — the builder path. A starter model (not parsed from any
   // file) enters the exact same pipeline an import does, so every edit, sweep, and flight works on
@@ -389,10 +459,8 @@ export default function LoftApp() {
 
   // Clear every what-if — design edits, condition edits, and today's-weather — and re-fly the design
   // exactly as the file describes it, restoring the stored-tool comparison. The counterpart to the
-  // build-by-editing loop: one step back to the untouched design without unloading it. A cleared
-  // field lingers as an `undefined` key (applyEdit merges), so "active" is any *defined* value, not a
-  // non-empty object.
-  const editsActive = scenario === "today" || Object.values(edits).some((v) => v !== undefined && v !== "");
+  // build-by-editing loop: one step back to the untouched design without unloading it.
+  const editsActive = scenario === "today" || hasActiveEdits(edits);
   const resetEdits = () => {
     setEdits({});
     setWeather(null);
@@ -426,12 +494,21 @@ export default function LoftApp() {
     setRestored(false);
     designBytes.current = null;
     clearSession();
+    // No design, no workspace — leave the address on the import screen rather than pointing at a
+    // view that isn't there.
+    if (typeof window !== "undefined") window.history.replaceState(null, "", window.location.pathname);
   };
 
   // Pick the last session back up. A phone reclaims a backgrounded tab routinely and the pad is
   // where that hurts — the design file that would let you import again may not even be on the
   // device. Restoring runs the saved bytes back through the ordinary importer, so a resumed design
   // is byte-for-byte the one that was open, edits and all. Nothing here leaves the browser.
+  // The shelf is read on mount for the same reason the session is: localStorage is client-only, so
+  // the first render has to match the server's (empty) one.
+  useEffect(() => {
+    setRecents(loadRecents());
+  }, []);
+
   useEffect(() => {
     const saved = loadSession();
     if (!saved) return;
@@ -475,6 +552,12 @@ export default function LoftApp() {
   }, [doc, fileName, initialTab, units, simIndex, edits]);
 
   const choices = doc ? configChoices(doc) : [];
+
+  // The tool that wrote the loaded design, for every place the UI names whose stored numbers it is
+  // showing or withholding. A RockSim `.rkt` and a RASAero `.CDX1` carry their own tool's results;
+  // calling those "OpenRocket's" attributes a prediction to a tool that never made it. A design
+  // built here has no source tool, and none of these surfaces have anything of its to name.
+  const toolName = (doc && sourceTool(doc)) || "the design file";
 
   // Bundled motors of the same casing diameter as the design's own — the fitting swaps the picker
   // offers. Recomputed only when the design or its selected configuration changes.
@@ -568,7 +651,15 @@ export default function LoftApp() {
             </Link>
             .
           </p>
-          <ImportPanel onFile={onFile} onSample={onSample} onNew={onNew} busy={busy} />
+          <ImportPanel
+            onFile={onFile}
+            onSample={onSample}
+            onNew={onNew}
+            busy={busy}
+            recents={recents}
+            onOpenRecent={onOpenRecent}
+            onForgetRecent={onForgetRecent}
+          />
         </>
       )}
 
@@ -654,7 +745,7 @@ export default function LoftApp() {
           )}
 
           {choices.length > 1 && (
-            <ConfigPicker choices={choices} selected={simIndex} onSelect={selectConfig} units={units} />
+            <ConfigPicker choices={choices} selected={simIndex} onSelect={selectConfig} units={units} tool={toolName} />
           )}
 
           {doc.warnings.length > 0 && (
@@ -663,6 +754,20 @@ export default function LoftApp() {
               <ul className="mt-1 list-disc pl-5">
                 {doc.warnings.slice(0, 6).map((w, i) => (
                   <li key={i}>{w}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* How the design was read, as distinct from what couldn't be. Explaining that a two-stage
+              design flies serially, or which weight a format without materials uses, under an amber
+              "weren't fully understood" heading made a correct reading look like a broken one. */}
+          {doc.notes.length > 0 && (
+            <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900/60 dark:text-zinc-300">
+              <p className="font-medium text-zinc-700 dark:text-zinc-200">How Loft read this design:</p>
+              <ul className="mt-1 list-disc pl-5">
+                {doc.notes.slice(0, 6).map((n, i) => (
+                  <li key={i}>{n}</li>
                 ))}
               </ul>
             </div>
@@ -684,6 +789,7 @@ export default function LoftApp() {
               rerun(edits, wx, "today");
             }}
             busy={busy}
+            tool={toolName}
           />
 
           {run && (
@@ -725,6 +831,7 @@ export default function LoftApp() {
               designMotor={swapInfo?.designMotor}
               onEditGeometry={applyEdit}
               initialTab={initialTab}
+              onWorkspaceChange={setInitialTab}
               designEditor={
                 <DesignEditor
                   units={units}
@@ -732,6 +839,7 @@ export default function LoftApp() {
                   onEdit={applyEdit}
                   swap={swapInfo}
                   designDims={designDims}
+                  tool={toolName}
                 />
               }
             />
@@ -744,19 +852,22 @@ export default function LoftApp() {
 
 // --- motor-configuration picker ------------------------------------------------------
 
-/** When a design carries more than one flight configuration (OpenRocket's stored simulations —
+/** When a design carries more than one flight configuration (the source tool's stored simulations —
  *  e.g. the same airframe on an H128W and a G40W), let the flyer choose which to simulate. Each
- *  option shows the motor(s) and the apogee OpenRocket stored for it, so motors can be compared. */
+ *  option shows the motor(s) and the apogee that tool stored for it, so motors can be compared. */
 function ConfigPicker({
   choices,
   selected,
   onSelect,
   units,
+  tool,
 }: {
   choices: ConfigChoice[];
   selected: number;
   onSelect: (simIndex: number) => void;
   units: UnitSystem;
+  /** The tool that stored these configurations — a RockSim or RASAero import isn't OpenRocket's. */
+  tool: string;
 }) {
   const optionLabel = (c: ConfigChoice): string => {
     const motors = c.motors.length ? c.motors.join(" + ") : c.name || "Configuration";
@@ -780,7 +891,7 @@ function ConfigPicker({
         ))}
       </select>
       <span className="w-full text-xs text-zinc-500 dark:text-zinc-400 sm:w-auto">
-        {choices.length} configurations in this design — the apogee shown is OpenRocket&apos;s stored value.
+        {choices.length} configurations in this design — the apogee shown is {tool}&apos;s stored value.
       </span>
     </label>
   );
@@ -798,11 +909,14 @@ function DesignEditor({
   onEdit,
   swap,
   designDims,
+  tool,
 }: {
   units: UnitSystem;
   edits: Edits;
   onEdit: (patch: Edits) => void;
   swap: SwapInfo | null;
+  /** The tool whose stored comparison an edit hides — named by the importer, never assumed. */
+  tool: string;
   /** The design's own dimensions (m; counts are plain numbers), shown as the fields' placeholders. */
   designDims: {
     finSpan?: number;
@@ -875,7 +989,7 @@ function DesignEditor({
                               : undefined,
                           });
                         }}
-                        className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                        className={`mt-1 w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 ${TOUCH_TARGET}`}
                       >
                         <option value="">Design motor ({swap.designMotor})</option>
                         {Object.entries(
@@ -900,6 +1014,10 @@ function DesignEditor({
                       label="Motor cluster"
                       value={edits.motorClusterCount ?? ""}
                       placeholder={String(designDims.motorClusterCount)}
+                      min={1}
+                      max={12}
+                      step={1}
+                      hint="How many motors the mount holds — at least one."
                       onChange={(v) => {
                         const n = v === "" ? undefined : Math.round(Number(v));
                         onEdit({ motorClusterCount: n !== undefined && n >= 1 ? n : undefined });
@@ -921,12 +1039,17 @@ function DesignEditor({
                     value={toDispSpan(edits.finSpan)}
                     placeholder={toDispSpan(designDims.finSpan)}
                     onChange={(v) => onEdit({ finSpan: fromSpan(v) })}
+                  min={0}
                   />
                   {designDims.finCount !== undefined && (
                     <Num
                       label="Fin count"
                       value={edits.finCount ?? ""}
                       placeholder={String(designDims.finCount)}
+                      min={1}
+                      max={12}
+                      step={1}
+                      hint="Fins in the set. Zero is not a fin set — it is a design with no fins, which the editor cannot yet build."
                       onChange={(v) => {
                         const n = v === "" ? undefined : Math.round(Number(v));
                         onEdit({ finCount: n !== undefined && n >= 1 ? n : undefined });
@@ -939,6 +1062,7 @@ function DesignEditor({
                       value={toDispSpan(edits.finRootChord)}
                       placeholder={toDispSpan(designDims.finRootChord)}
                       onChange={(v) => onEdit({ finRootChord: fromSpan(v) })}
+                    min={0}
                     />
                   )}
                   {designDims.finTipChord !== undefined && (
@@ -947,6 +1071,7 @@ function DesignEditor({
                       value={toDispSpan(edits.finTipChord)}
                       placeholder={toDispSpan(designDims.finTipChord)}
                       onChange={(v) => onEdit({ finTipChord: fromSpan(v) })}
+                    min={0}
                     />
                   )}
                   {designDims.finSweepLength !== undefined && (
@@ -955,6 +1080,7 @@ function DesignEditor({
                       value={toDispSpan(edits.finSweepLength)}
                       placeholder={toDispSpan(designDims.finSweepLength)}
                       onChange={(v) => onEdit({ finSweepLength: fromSpan(v) })}
+                    min={0}
                     />
                   )}
                   {designDims.finStation !== undefined && (
@@ -963,6 +1089,7 @@ function DesignEditor({
                       value={toDispSpan(edits.finStation)}
                       placeholder={toDispSpan(designDims.finStation)}
                       onChange={(v) => onEdit({ finStation: fromSpan(v) })}
+                    min={0}
                     />
                   )}
                   {designDims.finThickness !== undefined && (
@@ -971,6 +1098,7 @@ function DesignEditor({
                       value={toDispThick(edits.finThickness)}
                       placeholder={toDispThick(designDims.finThickness)}
                       onChange={(v) => onEdit({ finThickness: fromSpan(v) })}
+                    min={0}
                     />
                   )}
                   {designDims.finCrossSection !== undefined && (
@@ -984,7 +1112,7 @@ function DesignEditor({
                         onChange={(e) =>
                           onEdit({ finCrossSection: e.target.value ? (e.target.value as FinCrossSection) : undefined })
                         }
-                        className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                        className={`mt-1 w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 ${TOUCH_TARGET}`}
                       >
                         <option value="">As designed ({FIN_CROSS_SECTION_LABELS[designDims.finCrossSection]})</option>
                         {FIN_CROSS_SECTIONS.map((s) => (
@@ -1004,7 +1132,7 @@ function DesignEditor({
                         aria-label="Fin material"
                         value={edits.finMaterial ?? ""}
                         onChange={(e) => onEdit({ finMaterial: e.target.value || undefined })}
-                        className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                        className={`mt-1 w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 ${TOUCH_TARGET}`}
                       >
                         <option value="">
                           As designed{designDims.finMaterial ? ` (${designDims.finMaterial})` : ""}
@@ -1035,6 +1163,7 @@ function DesignEditor({
                       value={toDispSpan(edits.noseLength)}
                       placeholder={toDispSpan(designDims.noseLength)}
                       onChange={(v) => onEdit({ noseLength: fromSpan(v) })}
+                    min={0}
                     />
                   )}
                   {designDims.noseShape !== undefined && (
@@ -1046,7 +1175,7 @@ function DesignEditor({
                         aria-label="Nose shape"
                         value={edits.noseShape ?? ""}
                         onChange={(e) => onEdit({ noseShape: e.target.value ? (e.target.value as NoseShape) : undefined })}
-                        className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                        className={`mt-1 w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 ${TOUCH_TARGET}`}
                       >
                         <option value="">As designed ({NOSE_SHAPE_LABELS[designDims.noseShape]})</option>
                         {NOSE_SHAPES.map((s) => (
@@ -1063,6 +1192,7 @@ function DesignEditor({
                       value={toDispSpan(edits.bodyLength)}
                       placeholder={toDispSpan(designDims.bodyLength)}
                       onChange={(v) => onEdit({ bodyLength: fromSpan(v) })}
+                    min={0}
                     />
                   )}
                   {designDims.bodyDiameter !== undefined && (
@@ -1071,6 +1201,7 @@ function DesignEditor({
                       value={toDispSpan(edits.bodyDiameter)}
                       placeholder={toDispSpan(designDims.bodyDiameter)}
                       onChange={(v) => onEdit({ bodyDiameter: fromSpan(v) })}
+                    min={0}
                     />
                   )}
                   {designDims.bodyDiameter !== undefined && (
@@ -1079,6 +1210,7 @@ function DesignEditor({
                       value={toDispSpan(edits.boattailLength)}
                       placeholder="0"
                       onChange={(v) => onEdit({ boattailLength: fromSpan(v) })}
+                    min={0}
                     />
                   )}
                   {designDims.bodyDiameter !== undefined && (
@@ -1087,6 +1219,7 @@ function DesignEditor({
                       value={toDispSpan(edits.boattailAftDiameter)}
                       placeholder={`< ${toDispSpan(designDims.bodyDiameter)}`}
                       onChange={(v) => onEdit({ boattailAftDiameter: fromSpan(v) })}
+                    min={0}
                     />
                   )}
                 </div>
@@ -1102,6 +1235,10 @@ function DesignEditor({
                   label="Recovery size (×)"
                   value={edits.recoveryCdScale ?? ""}
                   placeholder="1"
+                  min={0.1}
+                  max={10}
+                  step={0.1}
+                  hint="Scale on the deployed drag area — 2 is twice the canopy."
                   onChange={(v) => {
                     const n = v === "" ? undefined : Number(v);
                     onEdit({ recoveryCdScale: n !== undefined && n > 0 ? n : undefined });
@@ -1112,12 +1249,14 @@ function DesignEditor({
                   value={toDispLen(edits.mainDeployAltitude)}
                   placeholder="apogee"
                   onChange={(v) => onEdit({ mainDeployAltitude: fromLen(v) })}
+                min={0}
                 />
                 <Num
                   label={`Drogue Ø (${spanU})`}
                   value={toDispSpan(edits.drogueDiameter)}
                   placeholder="0"
                   onChange={(v) => onEdit({ drogueDiameter: fromSpan(v) })}
+                min={0}
                 />
                 {designDims.mainParachuteDiameter !== undefined && (
                   <Num
@@ -1125,6 +1264,7 @@ function DesignEditor({
                     value={toDispSpan(edits.mainParachuteDiameter)}
                     placeholder={toDispSpan(designDims.mainParachuteDiameter)}
                     onChange={(v) => onEdit({ mainParachuteDiameter: fromSpan(v) })}
+                  min={0}
                   />
                 )}
               </div>
@@ -1140,6 +1280,7 @@ function DesignEditor({
                   value={toDispMass(edits.ballastKg)}
                   placeholder="0"
                   onChange={(v) => onEdit({ ballastKg: fromMass(v) })}
+                min={0}
                 />
                 {designDims.payloadStation !== undefined && (
                   <Num
@@ -1147,6 +1288,7 @@ function DesignEditor({
                     value={toDispMass(edits.payloadMassKg)}
                     placeholder="0"
                     onChange={(v) => onEdit({ payloadMassKg: fromMass(v) })}
+                  min={0}
                   />
                 )}
                 {designDims.payloadStation !== undefined && (
@@ -1155,6 +1297,7 @@ function DesignEditor({
                     value={toDispSpan(edits.payloadStation)}
                     placeholder={toDispSpan(designDims.payloadStation)}
                     onChange={(v) => onEdit({ payloadStation: fromSpan(v) })}
+                  min={0}
                   />
                 )}
                 {designDims.finish !== undefined && (
@@ -1166,7 +1309,7 @@ function DesignEditor({
                       aria-label="Surface finish"
                       value={edits.finish ?? ""}
                       onChange={(e) => onEdit({ finish: e.target.value ? (e.target.value as SurfaceFinish) : undefined })}
-                      className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                      className={`mt-1 w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 ${TOUCH_TARGET}`}
                     >
                       <option value="">As designed ({FINISH_LABELS[designDims.finish]})</option>
                       {SURFACE_FINISHES.map((f) => (
@@ -1186,7 +1329,7 @@ function DesignEditor({
                       aria-label="Airframe material"
                       value={edits.airframeMaterial ?? ""}
                       onChange={(e) => onEdit({ airframeMaterial: e.target.value || undefined })}
-                      className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                      className={`mt-1 w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 ${TOUCH_TARGET}`}
                     >
                       <option value="">
                         As designed{designDims.airframeMaterial ? ` (${designDims.airframeMaterial})` : ""}
@@ -1208,7 +1351,7 @@ function DesignEditor({
             position blank sits it mid-body), or switch to dual-deploy (set both a main-deploy
             altitude and a drogue diameter — the main then opens low over a drogue that controls the
             fall from apogee, cutting drift) to trim stability, drag, apogee, or landing.
-            It&apos;s a hypothetical change to the design, so the OpenRocket comparison is hidden while
+            It&apos;s a hypothetical change to the design, so the {tool} comparison is hidden while
             any is set. The geometry fields start from the design&apos;s own dimensions; only motors
             that fit this airframe&apos;s diameter are offered.
           </p>
@@ -1225,10 +1368,13 @@ function ConditionsControls({
   setScenario,
   onWeather,
   busy,
+  tool,
 }: {
   units: UnitSystem;
   edits: Edits;
   onEdit: (patch: Edits) => void;
+  /** The tool whose stored comparison a condition change hides — named by the importer. */
+  tool: string;
   weather: WeatherConditions | null;
   scenario: "design" | "today";
   setScenario: (s: "design" | "today") => void;
@@ -1275,14 +1421,49 @@ function ConditionsControls({
       </summary>
       <div className="space-y-4 border-t border-zinc-100 px-4 py-4 dark:border-zinc-800">
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <Num label={`Rail length (${lenU})`} value={toDispLen(edits.rodLength)} placeholder="1.2" onChange={(v) => onEdit({ rodLength: fromLen(v) })} />
-          <Num label="Rail angle (°)" value={edits.rodAngleDeg ?? ""} placeholder="0" onChange={(v) => onEdit({ rodAngleDeg: v === "" ? undefined : Number(v) })} />
-          <Num label={`Surface wind (${spdU})`} value={toDispSpd(edits.windSpeed)} placeholder="0" onChange={(v) => onEdit({ windSpeed: fromSpd(v) })} disabled={scenario === "today"} />
-          <Num label={`Field elev. (${lenU})`} value={toDispLen(edits.launchAltitude)} placeholder="0" onChange={(v) => onEdit({ launchAltitude: fromLen(v) })} disabled={scenario === "today"} />
+          <Num
+            label={`Rail length (${lenU})`}
+            value={toDispLen(edits.rodLength)}
+            placeholder="1.2"
+            onChange={(v) => onEdit({ rodLength: fromLen(v) })}
+            min={0}
+            max={imperial ? 66 : 20}
+            hint="How much rail guides the rocket before it flies free."
+          />
+          <Num
+            label="Rail angle (°)"
+            value={edits.rodAngleDeg ?? ""}
+            placeholder="0"
+            onChange={(v) => onEdit({ rodAngleDeg: v === "" ? undefined : Number(v) })}
+            min={0}
+            max={45}
+            step={1}
+            hint="Tilt from vertical, 0–45°. Past that the rocket is being thrown rather than launched, and the ascent model no longer describes it."
+          />
+          <Num
+            label={`Surface wind (${spdU})`}
+            value={toDispSpd(edits.windSpeed)}
+            placeholder="0"
+            onChange={(v) => onEdit({ windSpeed: fromSpd(v) })}
+            disabled={scenario === "today"}
+            min={0}
+            max={imperial ? 90 : 40}
+            hint="Wind speed at the pad. Direction is a separate thing — a negative speed is not a wind from the other side."
+          />
+          <Num
+            label={`Field elev. (${lenU})`}
+            value={toDispLen(edits.launchAltitude)}
+            placeholder="0"
+            onChange={(v) => onEdit({ launchAltitude: fromLen(v) })}
+            disabled={scenario === "today"}
+            min={imperial ? -1400 : -430}
+            max={imperial ? 16400 : 5000}
+            hint="Height of the launch site above sea level — from the Dead Sea to the highest field anyone drives to."
+          />
         </div>
         <p className="text-xs text-zinc-500 dark:text-zinc-400">
           Blank fields use the design&apos;s stored launch conditions. Changing any field re-flies
-          the design and hides the OpenRocket comparison (the conditions no longer match).
+          the design and hides the {tool} comparison (the conditions no longer match).
         </p>
 
         <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-900/60">
@@ -1338,21 +1519,47 @@ function ConditionsControls({
   );
 }
 
+/** A number field for a what-if. `min`/`max` are the range in which the value means something
+ *  physically, not a style choice: outside it the solver still returns a number, and a confident
+ *  figure computed from a rail angle of 120° or a fin count of zero is worse than no figure. The
+ *  bounds reach the browser (validation, spinners, the mobile keypad) and are enforced on commit,
+ *  so a typed or pasted value lands inside them and the field shows what was actually flown. */
 function Num({
   label,
   value,
   placeholder,
   onChange,
   disabled,
+  min,
+  max,
+  step,
+  hint,
 }: {
   label: string;
   value: string | number;
   placeholder?: string;
   onChange: (v: string) => void;
   disabled?: boolean;
+  min?: number;
+  max?: number;
+  step?: number;
+  /** What the range means, in the flyer's words — shown as the field's tooltip. */
+  hint?: string;
 }) {
+  const clamp = (raw: string): string => {
+    if (raw === "") return raw; // blank means "use the design's own value", never zero
+    const n = Number(raw);
+    if (!Number.isFinite(n)) return raw;
+    if (min !== undefined && n < min) return String(min);
+    if (max !== undefined && n > max) return String(max);
+    return raw;
+  };
+  const ranged =
+    min !== undefined || max !== undefined
+      ? `${min ?? "–"} to ${max ?? "–"}`
+      : undefined;
   return (
-    <label className="block">
+    <label className="block" title={hint ?? (ranged ? `${label}: ${ranged}` : undefined)}>
       <span className="block text-[11px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">{label}</span>
       <input
         type="number"
@@ -1360,8 +1567,26 @@ function Num({
         value={value}
         placeholder={placeholder}
         disabled={disabled}
+        min={min}
+        max={max}
+        step={step}
+        // Typing is left alone so a value can be entered digit by digit ("1" on the way to "12");
+        // the range is applied when the field is committed — blurred, or Enter pressed.
         onChange={(e) => onChange(e.target.value)}
-        className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 font-mono text-sm text-zinc-800 outline-none focus:border-indigo-400 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+        onBlur={(e) => {
+          const c = clamp(e.target.value);
+          if (c !== e.target.value) onChange(c);
+        }}
+        onKeyDown={(e) => {
+          if (e.key !== "Enter") return;
+          const el = e.currentTarget;
+          const c = clamp(el.value);
+          if (c !== el.value) onChange(c);
+        }}
+        // A what-if field is the control a flyer uses most, and the stated phone use is a pad check
+        // with gloves on: 34 px was under the project's own 44 px touch minimum. Released back to
+        // the design's density on a pointer layout, like every other target here.
+        className={`mt-1 w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 font-mono text-sm text-zinc-800 outline-none focus:border-indigo-400 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 ${TOUCH_TARGET}`}
       />
     </label>
   );

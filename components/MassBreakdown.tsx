@@ -4,7 +4,7 @@ import type { Rocket } from "@/lib/model/types";
 import { structurePointMasses, combine } from "@/lib/sim/mass";
 import { kgToLb, mToIn } from "@/lib/units";
 import type { CsvCell } from "@/lib/csv";
-import DownloadCsv from "./DownloadCsv";
+import DownloadCsv, { CopyTable } from "./DownloadCsv";
 import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
 
@@ -94,6 +94,7 @@ export default function MassBreakdown({ rocket, units }: { rocket: Rocket; units
         </p>
         <div className="mt-2">
           <DownloadCsv rows={csv} name={rocket.name} suffix="mass-breakdown" />
+          <CopyTable rows={csv} />
         </div>
       </div>
     </details>

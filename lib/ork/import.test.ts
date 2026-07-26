@@ -4,7 +4,7 @@
  *  precision on a safety-relevant altitude. */
 
 import { describe, it, expect } from "vitest";
-import { adaptDesignXml, importDesign } from "./import";
+import { adaptDesignXml, formatLabel, importDesign, sourceTool } from "./import";
 import { runFromDocument } from "../sim/run";
 
 const ork = (inner: string) =>
@@ -99,5 +99,73 @@ describe("import robustness — degenerate geometry with a valid motor", () => {
     }
     expect(err).toBeInstanceOf(Error);
     expect(err!.message).toMatch(/implausibly large|unit error/i);
+  });
+});
+
+describe("source tool", () => {
+  it("names the tool each format came from", () => {
+    expect(sourceTool({ formatVersion: "1.9" })).toBe("OpenRocket");
+    expect(sourceTool({ formatVersion: "RockSim 3" })).toBe("RockSim");
+    expect(sourceTool({ formatVersion: "RASAero 2" })).toBe("RASAero");
+  });
+
+  it("names no tool for a design built here rather than imported", () => {
+    expect(sourceTool({ formatVersion: "unknown" })).toBeNull();
+    expect(formatLabel({ formatVersion: "unknown" })).toBe("");
+  });
+
+  it("reads a format stamp the way a flyer does", () => {
+    expect(formatLabel({ formatVersion: "1.9" })).toBe("OpenRocket format 1.9");
+    expect(formatLabel({ formatVersion: "RockSim 3" })).toBe("RockSim format 3");
+    expect(formatLabel({ formatVersion: "RASAero 2" })).toBe("RASAero format 2");
+  });
+
+  it("labels a parsed document by the tool that wrote it", async () => {
+    const rkt = `<?xml version="1.0"?><RockSimDocument><FileVersion>4</FileVersion><DesignInformation><RocketDesign><Name>T</Name></RocketDesign></DesignInformation></RockSimDocument>`;
+    expect(sourceTool(await importDesign(new TextEncoder().encode(rkt)))).toBe("RockSim");
+    expect(sourceTool(adaptDesignXml(ork(stage(""))))).toBe("OpenRocket");
+  });
+});
+
+describe("import failures speak to the flyer, not the parser", () => {
+  const bytesOf = (...b: number[]) => new Uint8Array(b);
+  const fail = async (bytes: Uint8Array): Promise<Error> => {
+    try {
+      await importDesign(bytes);
+    } catch (e) {
+      return e as Error;
+    }
+    throw new Error("expected the import to fail");
+  };
+
+  it("never leaks a container or parser internal", async () => {
+    const cases = [
+      new TextEncoder().encode("not a rocket file at all"),
+      new TextEncoder().encode("<?xml version=\"1.0\"?><foo><bar/></foo>"),
+      bytesOf(0x50, 0x4b, 0x03, 0x04, 1, 2, 3, 4, 5, 6), // truncated zip
+      bytesOf(0x89, 0x50, 0x4e, 0x47, 13, 10, 26, 10), // PNG
+      bytesOf(0x25, 0x50, 0x44, 0x46, 0x2d, 0x31), // PDF
+      bytesOf(0x1f, 0x8b, 8, 0, 0, 0, 0, 0), // truncated gzip
+      new Uint8Array(0),
+    ];
+    for (const bytes of cases) {
+      const err = await fail(bytes);
+      expect(err.message).not.toMatch(/^zip:|^xml:|end-of-central-directory|no root element/);
+      // Every failure says what Loft can read, or what to do next — never just what broke.
+      expect(err.message).toMatch(/\.ork|saving it again|design file your tool saved/);
+      expect(err.message.length).toBeGreaterThan(30);
+    }
+  });
+
+  it("names what the file looked like, so the fix is obvious", async () => {
+    expect((await fail(bytesOf(0x89, 0x50, 0x4e, 0x47, 13, 10, 26, 10))).message).toMatch(/an image/i);
+    expect((await fail(bytesOf(0x25, 0x50, 0x44, 0x46, 0x2d))).message).toMatch(/a PDF/i);
+    expect((await fail(new Uint8Array(0))).message).toMatch(/empty/i);
+    expect((await fail(bytesOf(0x50, 0x4b, 3, 4, 9, 9, 9, 9))).message).toMatch(/truncated or corrupt/i);
+  });
+
+  it("keeps the technical cause for a bug report", async () => {
+    const err = await fail(new TextEncoder().encode("nope"));
+    expect((err as Error & { cause?: unknown }).cause).toBeInstanceOf(Error);
   });
 });

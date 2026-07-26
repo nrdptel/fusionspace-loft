@@ -1,5 +1,16 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { toBase64, fromBase64, loadSession, saveSession, clearSession } from "./session";
+import {
+  toBase64,
+  fromBase64,
+  loadSession,
+  saveSession,
+  clearSession,
+  loadRecents,
+  rememberRecent,
+  forgetRecent,
+  clearRecents,
+  MAX_RECENTS,
+} from "./session";
 
 /** A minimal localStorage stand-in — the tests run in Node, and the point is the module's own
  *  guards (bad JSON, an older schema, an oversized design, storage that throws outright). */
@@ -110,5 +121,58 @@ describe("session storage", () => {
     saveSession(session());
     clearSession();
     expect(loadSession()).toBeNull();
+  });
+});
+
+describe("the recent-designs shelf", () => {
+  const put = (name: string, at: number, bytes = "AAEC") =>
+    rememberRecent({ design: bytes, name, rocket: name.replace(/\..*$/, "") }, at);
+
+  it("keeps designs newest-first and reopening one moves it back to the front", () => {
+    put("a.ork", 1000);
+    put("b.ork", 2000);
+    expect(loadRecents().map((r) => r.name)).toEqual(["b.ork", "a.ork"]);
+    put("a.ork", 3000);
+    const list = loadRecents();
+    expect(list.map((r) => r.name)).toEqual(["a.ork", "b.ork"]);
+    expect(list.length).toBe(2); // reopened, not duplicated
+  });
+
+  it("holds a build's worth of designs and drops the least recently opened past that", () => {
+    for (let i = 0; i < MAX_RECENTS + 3; i++) put(`d${i}.ork`, 1000 + i);
+    const list = loadRecents();
+    expect(list.length).toBe(MAX_RECENTS);
+    expect(list[0].name).toBe(`d${MAX_RECENTS + 2}.ork`);
+    expect(list.some((r) => r.name === "d0.ork")).toBe(false);
+  });
+
+  it("never lets history outgrow its storage budget", () => {
+    const big = "A".repeat(1_000_000);
+    for (let i = 0; i < 5; i++) put(`big${i}.ork`, 1000 + i, big);
+    const list = loadRecents();
+    expect(list.length).toBeGreaterThan(0);
+    expect(list.reduce((n, r) => n + r.design.length, 0)).toBeLessThanOrEqual(2_500_000);
+    expect(list[0].name).toBe("big4.ork"); // the newest is always kept
+  });
+
+  it("keeps a design too large for the shelf's whole budget rather than dropping everything", () => {
+    put("huge.ork", 1000, "A".repeat(3_000_000));
+    expect(loadRecents().map((r) => r.name)).toEqual(["huge.ork"]);
+  });
+
+  it("forgets one design without touching the rest, and can be cleared outright", () => {
+    put("a.ork", 1000);
+    put("b.ork", 2000);
+    const id = loadRecents().find((r) => r.name === "a.ork")!.id;
+    expect(forgetRecent(id).map((r) => r.name)).toEqual(["b.ork"]);
+    clearRecents();
+    expect(loadRecents()).toEqual([]);
+  });
+
+  it("survives unreadable storage rather than throwing at the caller", () => {
+    localStorage.setItem("loft.recents", "{not json");
+    expect(loadRecents()).toEqual([]);
+    localStorage.setItem("loft.recents", JSON.stringify([{ name: "x" }, null, 7]));
+    expect(loadRecents()).toEqual([]);
   });
 });

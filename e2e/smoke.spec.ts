@@ -56,6 +56,299 @@ test.describe("Loft", () => {
     await page.mouse.move(0, 0);
     await finRow.focus();
     await expect(finRow).toHaveClass(/bg-indigo/);
+
+    // Each part carries its own dry mass beside its dimensions, and the column sorts heaviest-first
+    // — the "where is my mass going?" question answered on the part you are looking at.
+    const table = page.locator("table").first();
+    const massOf = async (row: number) =>
+      parseFloat((await table.locator("tbody tr").nth(row).locator("td").nth(2).innerText()).replace(/[^\d.]/g, ""));
+    await table.getByRole("button", { name: /Mass/ }).click();
+    const heaviest = await massOf(0);
+    expect(heaviest).toBeGreaterThan(0);
+    expect(heaviest).toBeGreaterThanOrEqual(await massOf(1));
+    // Clicking the active heading returns to the design's own nose-to-tail order.
+    await table.getByRole("button", { name: /Mass/ }).click();
+    await expect(table.locator("tbody tr").first()).toContainText("Nose cone");
+
+    // Pointing at a part on the diagram says what it weighs, not just what it is.
+    await finRow.hover();
+    await expect(page.locator("p[aria-live='polite']").first()).toContainText(/Trapezoidal fins.*from the nose.*kg/);
+  });
+
+  test("an explanation of how a design was read isn't dressed as a parse failure", async ({ page }) => {
+    // "This design has 2 stages, flown serially…" is Loft saying it understood the design, not that
+    // it didn't. It sat under an amber "Some parts of this design weren't fully understood".
+    await page.goto("/");
+    await page
+      .getByLabel(/^Choose an OpenRocket/)
+      .setInputFiles(resolve(process.cwd(), "e2e/fixtures/two-stage-firm-booster.ork"));
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+
+    const note = page.getByText("How Loft read this design");
+    await expect(note).toBeVisible();
+    await expect(page.getByText(/weren't fully understood/)).toHaveCount(0);
+    await expect(page.getByText(/flown serially/)).toBeVisible();
+  });
+
+  test("an analysis table can be copied straight out, not just downloaded", async ({ page }) => {
+    // A file download is the right shape for archiving a run and the wrong one for pasting a motor
+    // comparison into a spreadsheet or a build thread, which is what this audience does with it.
+    await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+    await page.getByRole("tab", { name: "Analyze" }).click();
+
+    const sweep = page.getByRole("region", { name: "Motor sweep" });
+    await sweep.getByRole("button", { name: "Run motor sweep" }).click();
+    await expect(sweep.locator("table")).toBeVisible();
+    await sweep.getByRole("button", { name: "Copy" }).click();
+    await expect(sweep.getByRole("button", { name: "Copied" })).toBeVisible();
+
+    const text = await page.evaluate(() => navigator.clipboard.readText());
+    const lines = text.split("\n");
+    expect(lines[0]).toContain("Motor\tManufacturer");
+    expect(lines.length).toBeGreaterThan(2); // header plus a row per fitting motor
+    // Tab-separated, so a paste lands in columns rather than in one cell.
+    expect(lines[1].split("\t").length).toBe(lines[0].split("\t").length);
+  });
+
+  test("a design edit re-runs an open sweep instead of throwing it away", async ({ page }) => {
+    // The workbench loop: change something, see how the comparison moved. It used to be impossible —
+    // any edit remounted the Analyze panels to idle, so a completed sweep (or a 300-flight
+    // Monte-Carlo) vanished with no notice and the "before" was gone.
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+    const apogee = async () =>
+      parseFloat(
+        (
+          await page
+            .getByLabel("Results")
+            .getByText("Apogee", { exact: true })
+            .locator("xpath=following-sibling::div")
+            .innerText()
+        ).replace(/[^\d.]/g, ""),
+      );
+
+    await page.getByRole("tab", { name: "Analyze" }).click();
+    const sweep = page.getByRole("region", { name: "Motor sweep" });
+    await sweep.getByRole("button", { name: "Run motor sweep" }).click();
+    const firstRow = () => sweep.locator("tbody tr").first().locator("td").nth(1);
+    await expect(firstRow()).not.toBeEmpty();
+    const sweptBefore = await firstRow().innerText();
+    const flownBefore = await apogee();
+
+    // Widen the fins on the Design workspace, then come back.
+    await page.getByRole("tab", { name: "Design" }).click();
+    const span = page.locator("label", { hasText: /Fin span/ }).locator("input");
+    await span.fill("70");
+    await span.blur();
+    await expect.poll(apogee).not.toBe(flownBefore);
+
+    await page.getByRole("tab", { name: "Analyze" }).click();
+    // The sweep is still open, and it has re-flown every motor on the edited design.
+    await expect(sweep.locator("table")).toBeVisible();
+    await expect.poll(async () => firstRow().innerText()).not.toBe(sweptBefore);
+  });
+
+  test("the nose is draggable on the diagram, and arrow keys nudge rather than jump", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+    await page.getByRole("tab", { name: "Design" }).click();
+
+    // The import screen promises you can drag the nose. It has to be there.
+    const nose = () => page.getByRole("slider", { name: "Nose length" });
+    await expect(nose()).toBeVisible();
+    const at = async () => Number(await nose().getAttribute("aria-valuenow"));
+    const before = await at();
+    expect(before).toBeGreaterThan(0);
+
+    // A step scaled to the handle's own range: an arrow is a nudge, Shift is the bigger move — the
+    // fixed 10 mm arrow / 50 mm Shift pair had it the wrong way round and could not reach a value
+    // between two steps on a small airframe.
+    await nose().focus();
+    await page.keyboard.press("ArrowRight");
+    const nudged = await at();
+    expect(nudged).toBeGreaterThan(before);
+    await nose().focus();
+    await page.keyboard.press("Shift+ArrowRight");
+    expect((await at()) - nudged).toBeGreaterThan(nudged - before);
+
+    // Dragging the nose re-flies the design — it is a design change, not a drawing change.
+    await expect(page.getByRole("button", { name: /Reset to as-designed/ })).toBeVisible();
+  });
+
+  test("the page has a top, and a keyboard reaches the workspace first", async ({ page }) => {
+    await page.goto("/");
+    // The app page titles itself. An outline that starts at <h2> has no top for a screen reader to
+    // land on, and the app is the page people actually use.
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Loft");
+    // …and the docs section, which titles itself, still has exactly one of its own.
+    await page.goto("/docs");
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Documentation");
+
+    // Reaching the workspace by keyboard used to mean tabbing through the whole header, starting
+    // with a link off to another site.
+    await page.goto("/");
+    await page.keyboard.press("Tab");
+    await expect(page.getByRole("link", { name: "Skip to content" })).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect(page.locator("#main")).toBeVisible();
+  });
+
+  test("a staged design is told why three Analyze tools aren't offered", async ({ page }) => {
+    // Three of the four are single-stage only. Rendering nothing at all reads as "Loft doesn't have
+    // these", which is a different claim from "they don't apply to this design".
+    await page.goto("/");
+    await page
+      .getByLabel(/^Choose an OpenRocket/)
+      .setInputFiles(resolve(process.cwd(), "e2e/fixtures/two-stage-firm-booster.ork"));
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    await page.getByRole("tab", { name: "Analyze" }).click();
+    const panel = page.locator("#panel-analyze");
+    await expect(panel.getByRole("heading", { name: /Second solver and design sweeps/ })).toBeVisible();
+    await expect(panel).toContainText(/flies 2 stages/);
+    // The one that does apply is still there.
+    await expect(panel.getByRole("heading", { name: /Monte-Carlo/ })).toBeVisible();
+  });
+
+  test("a file Loft can't read says so in the flyer's words", async ({ page }) => {
+    // The front door of the app. A parser internal on screen ("zip: end-of-central-directory not
+    // found") tells someone holding the wrong file nothing about which file to reach for instead.
+    await page.goto("/");
+    const input = page.getByLabel(/^Choose an OpenRocket/);
+    const error = page.locator("div.border-red-500\\/30").first();
+
+    await input.setInputFiles({ name: "shot.png", mimeType: "image/png", buffer: Buffer.from("\x89PNG\r\n\x1a\n....", "binary") });
+    await expect(error).toContainText(/looks like an image/i);
+    await expect(error).toContainText(/\.ork/);
+
+    await input.setInputFiles({ name: "broken.ork", mimeType: "application/zip", buffer: Buffer.from("PK\x03\x04truncated", "binary") });
+    await expect(error).toContainText(/truncated or corrupt/i);
+
+    await expect(page.getByText(/^zip:|^xml:|end-of-central-directory/)).toHaveCount(0);
+  });
+
+  test("a what-if outside its physical range is brought back into it, not flown", async ({ page }) => {
+    // A rail angle of 120° is a typo, not a launch. The solver still returns a number for it — it
+    // returned an apogee of zero — and a confident zero from a mistyped field is worse than no
+    // figure at all. Every what-if carries the range in which it means something.
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+    const apogee = async () =>
+      parseFloat(
+        (
+          await page
+            .getByLabel("Results")
+            .getByText("Apogee", { exact: true })
+            .locator("xpath=following-sibling::div")
+            .innerText()
+        ).replace(/[^\d.]/g, ""),
+      );
+    expect(await apogee()).toBeGreaterThan(0);
+
+    await page.locator("summary", { hasText: /conditions/i }).first().click();
+    const angle = page.getByLabel(/Rail angle/i).first();
+    await angle.fill("120");
+    await angle.blur();
+    await expect(angle).toHaveValue("45");
+    expect(await apogee()).toBeGreaterThan(0);
+
+    // A negative tilt is not a tilt the other way — direction is not this field's job.
+    await angle.fill("-30");
+    await angle.blur();
+    await expect(angle).toHaveValue("0");
+
+    // Nor is a negative wind speed a wind from the other side.
+    await angle.fill("");
+    await angle.blur();
+    const wind = page.getByLabel(/Surface wind/i).first();
+    await wind.fill("-50");
+    await wind.blur();
+    await expect(wind).toHaveValue(/^0(\.0+)?$/);
+  });
+
+  test("clearing a what-if brings the stored-tool comparison back", async ({ page }) => {
+    // A what-if means Loft is no longer flying the design the file describes, so the stored-results
+    // comparison is withheld. Clearing it again must restore it — the edit fields are the surface
+    // the app invites you to use, and a one-way door out of its headline check is not honest.
+    await page.goto("/");
+    await page
+      .getByLabel(/^Choose an OpenRocket/)
+      .setInputFiles(resolve(process.cwd(), "e2e/fixtures/logged-sample.ork"));
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    const comparison = page.getByRole("heading", { name: /vs Loft/ });
+    const reset = page.getByRole("button", { name: /Reset to as-designed/ });
+    await expect(comparison).toHaveCount(1);
+
+    await page.locator("summary", { hasText: /conditions/i }).first().click();
+    const rail = page.getByLabel(/Rail length/i).first();
+    await rail.fill("2");
+    await expect(comparison).toHaveCount(0);
+    await expect(reset).toBeVisible();
+
+    // Emptying the field is as much a way back as the button is — and the button must not vanish
+    // before the comparison returns, or there is no way back at all.
+    await rail.fill("");
+    await expect(comparison).toHaveCount(1);
+    await expect(reset).toHaveCount(0);
+  });
+
+  test("the open workspace is in the address, so Back and a reload land where you were", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+    // An import lands on its flight result, and says so in the address.
+    expect(new URL(page.url()).hash).toBe("#flight");
+
+    await page.getByRole("tab", { name: "Analyze" }).click();
+    expect(new URL(page.url()).hash).toBe("#analyze");
+    await page.getByRole("tab", { name: "Design" }).click();
+    expect(new URL(page.url()).hash).toBe("#design");
+
+    // Back returns to the workspace you came from rather than leaving the app.
+    await page.goBack();
+    expect(new URL(page.url()).hash).toBe("#analyze");
+    await expect(page.getByRole("tab", { selected: true })).toHaveText("Analyze");
+
+    // …and a reload picks the same workspace back up, not the one the design loaded on.
+    await page.reload();
+    await expect(page.getByRole("tablist")).toBeVisible({ timeout: 15000 });
+    await expect(page.getByRole("tab", { selected: true })).toHaveText("Analyze");
+  });
+
+  test("keeps the designs you have opened on a shelf you can reopen from", async ({ page }) => {
+    await page.goto("/");
+    // A first visit has no history, so the shelf isn't shown at all.
+    await expect(page.getByText("Your designs")).toHaveCount(0);
+
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+    await page.getByRole("button", { name: /Import another/ }).click();
+    const shelf = page.getByRole("list").filter({ has: page.getByRole("button", { name: /^Reopen/ }) });
+    await expect(shelf.getByRole("button", { name: /^Reopen/ })).toHaveCount(1);
+
+    // A second design joins it, newest first.
+    await page.getByRole("button", { name: /54 mm dual-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+    await page.getByRole("button", { name: /Import another/ }).click();
+    await expect(shelf.getByRole("button", { name: /^Reopen/ }).first()).toContainText("54mm");
+
+    // The shelf survives a reload — it is the point of it at the pad — even though "Import another"
+    // ended the session, so there is nothing to restore. Reopening flies the design straight away.
+    await page.reload();
+    await expect(shelf.getByRole("button", { name: /^Reopen/ })).toHaveCount(2);
+    await shelf.getByRole("button", { name: /^Reopen/ }).nth(1).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 2 }).first()).toContainText("38mm");
+
+    // And a design can be dropped from it.
+    await page.getByRole("button", { name: /Import another/ }).click();
+    await page.getByRole("button", { name: /^Remove .* from your designs/ }).first().click();
+    await expect(shelf.getByRole("button", { name: /^Reopen/ })).toHaveCount(1);
   });
 
   test("starts a new design from scratch and flies it (builder)", async ({ page }) => {
@@ -339,6 +632,12 @@ test.describe("Loft", () => {
     await expect(page.getByLabel("Results").getByText("Apogee", { exact: true })).toBeVisible();
     // The import says plainly that the flight uses the weight and CG the file states.
     await expect(page.getByText(/no materials or per-part masses/i).first()).toBeVisible();
+    // The file's own stored numbers are attributed to RASAero, not to OpenRocket — as is the
+    // format stamp. A prediction belongs to the tool that made it.
+    await expect(page.getByText(/RASAero format 2/).first()).toBeVisible();
+    await expect(page.getByRole("heading", { name: "RASAero vs Loft" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "OpenRocket vs Loft" })).toHaveCount(0);
+    await expect(page.getByText(/OpenRocket format \d/)).toHaveCount(0);
   });
 
   test("a two-stage design with an undersized booster chute is flagged for a firm booster landing", async ({ page }) => {
@@ -1732,14 +2031,16 @@ test.describe("Loft", () => {
     await expect(page.getByRole("button", { name: /Reset to as-designed/ })).toBeVisible();
 
     await page.reload();
-    // The design is back, on the workspace it was opened on, in the units that were chosen…
+    // The design is back, in the units that were chosen, on the workspace that was open — not the
+    // one the design happened to load on an hour ago.
     await expect(page.getByText(/Picked up where you left off/)).toBeVisible({ timeout: 30_000 });
-    await expect(page.getByRole("tab", { name: "Flight" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: /Altitude \(ft\) vs time/ })).toBeVisible();
-    // …and so is the edit that was in flight.
-    await page.getByRole("tab", { name: "Design" }).click();
-    // Restored through the model, so it comes back as the display format of the stored metres.
+    await expect(page.getByRole("tab", { selected: true })).toHaveText("Design");
+    // …and so is the edit that was in flight. Restored through the model, so it comes back as the
+    // display format of the stored metres.
     await expect(page.getByLabel("Fin span (in)")).toHaveValue(/^3(\.0+)?$/);
+    // The flight is still a click away and still in imperial.
+    await page.getByRole("tab", { name: "Flight" }).click();
+    await expect(page.getByRole("heading", { name: /Altitude \(ft\) vs time/ })).toBeVisible();
 
     // "Start fresh" really does forget it.
     await page.getByRole("button", { name: "Start fresh" }).click();

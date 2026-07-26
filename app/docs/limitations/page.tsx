@@ -33,6 +33,23 @@ export default function Limitations() {
         under-modelled. Apogee, max velocity/Mach, rail-exit speed, and descent are the reliable
         outputs; horizontal drift is dominated by the (well-modelled) descent under canopy.
       </p>
+      <p>
+        The visible consequence is that <strong>wind speed barely moves the apogee</strong>. Wind
+        enters the ascent only through the airspeed the drag is taken at, which a crosswind changes
+        by a fraction of a percent; the altitude a real rocket loses to wind is lost by weathercocking
+        into it, which is rotation and is not integrated. On a corpus design carrying five stored
+        simulations of one airframe at 0, 5, 10, 15 and 20&nbsp;mph, OpenRocket&apos;s own apogees fall
+        1,602 → 1,549&nbsp;m (−3.3%) across that range while Loft reads the same 1,634&nbsp;m at every
+        wind speed. Read Loft&apos;s apogee as the still-air figure, and treat a windy day as costing
+        something on top of it.
+      </p>
+      <p>
+        For the same reason the rail angle is accepted only from 0 to 45° from vertical. Past that
+        the vehicle is being thrown rather than launched: the gravity turn a rotating rocket would
+        fly is not modelled, so the trajectory stops describing the flight — at 120° the solver
+        returned a confident apogee of zero. A what-if outside the range in which it means something
+        is brought back into that range rather than flown.
+      </p>
 
       <h3>Drag is the largest error source</h3>
       <p>

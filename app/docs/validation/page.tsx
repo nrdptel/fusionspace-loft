@@ -93,13 +93,28 @@ export default async function Validation() {
         </li>
       </ul>
 
-      <h2>Against OpenRocket (the free oracle)</h2>
+      <h2>Against the file&apos;s own tool</h2>
       <p>
-        A <code>.ork</code> you simulated in OpenRocket carries OpenRocket&apos;s own stored flight
-        results. When you import such a file, Loft flies it under the same stored launch conditions
-        and diffs each metric — apogee, velocity, Mach, timings — reporting the signed error and the
-        mean absolute percentage error (MAPE). That comparison appears right in the results, and the
-        method is in <code>lib/validation/compare.ts</code>.
+        A design file you already simulated carries that tool&apos;s own stored flight results — an{" "}
+        <code>.ork</code> carries OpenRocket&apos;s, a <code>.rkt</code> RockSim&apos;s, a{" "}
+        <code>.CDX1</code> RASAero&apos;s. When you import such a file, Loft flies it under the same
+        stored launch conditions and diffs each metric — apogee, velocity, Mach, timings — reporting
+        the signed error and the mean absolute percentage error (MAPE). That comparison appears right
+        in the results, labelled with the tool that actually produced the numbers, and the method is
+        in <code>lib/validation/compare.ts</code>.
+      </p>
+      <p>
+        A file&apos;s stored runs are not all the tool&apos;s current answer, and the file says which
+        is which. OpenRocket stamps each simulation with a status: <code>outdated</code> means the run
+        predates the design&apos;s last edit, so it describes an earlier version of the rocket, and{" "}
+        <code>notsimulated</code> means the figures are carried in the file for a simulation the tool
+        does not consider run. Both are shown — they are still a reference point — but labelled, since
+        calling either &ldquo;OpenRocket vs Loft&rdquo; would credit a current prediction to a tool
+        that did not make one. This is not a rare edge: across the corpus 11 of 91 stored OpenRocket
+        runs are outdated and 7 more are marked not simulated. The accuracy census below includes
+        them, which is the honest picture rather than the flattering one; measured separately they
+        agree with Loft about as well as the up-to-date runs do (median apogee disagreement 3.3%
+        against 2.1%).
       </p>
       <p>
         The comparison is shown only when Loft flew the <em>complete</em> design. If the design

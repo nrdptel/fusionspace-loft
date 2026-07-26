@@ -5,19 +5,26 @@ import ThemeToggle from "./ThemeToggle";
 import { TOUCH_TARGET } from "@/lib/ui-tokens";
 
 /** Page header: the Fusion Space eyebrow over the product name on the left, a Ko-fi tip link,
- *  a Docs link and the theme toggle on the right. Mirrors the sibling tools' header. */
+ *  a Docs link and the theme toggle on the right. Mirrors the sibling tools' header.
+ *
+ *  `compact` marks a page that titles itself (the docs section): there the product name is a link
+ *  home, and that page's own <h1> is its title. On the app itself nothing else names the page, so
+ *  the product name IS the heading — a document whose outline starts at <h2> has no top. */
 export default function SiteHeader({ compact = false }: { compact?: boolean }) {
+  const name = (
+    <Link
+      href="/"
+      className="text-2xl font-semibold tracking-tight text-zinc-900 hover:opacity-80 dark:text-zinc-100 md:text-3xl"
+    >
+      Loft
+    </Link>
+  );
   return (
     <header className="flex items-start justify-between gap-4">
       <div>
         <FusionSpaceBadge className="mb-1" />
         <div className="flex items-baseline gap-2">
-          <Link
-            href="/"
-            className="text-2xl font-semibold tracking-tight text-zinc-900 hover:opacity-80 dark:text-zinc-100 md:text-3xl"
-          >
-            Loft
-          </Link>
+          {compact ? name : <h1 className="contents">{name}</h1>}
           {!compact && (
             <span className="text-sm text-zinc-500 dark:text-zinc-400">flight simulator</span>
           )}

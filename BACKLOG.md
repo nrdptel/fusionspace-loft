@@ -3,6 +3,48 @@
 Rough edges, missing affordances, and ideas too big for one pass — noticed while working,
 not yet done. Newest first. One line each. Anything here is fair game for the next session.
 
+- The diagram's seven drag handles are 24x24 px on a phone — the one control the whole
+  direct-manipulation story rests on, and the only thing in the Design workspace still under the
+  project's own 44 px minimum. A transparent 44 px hit circle is the obvious fix, but on a 346x89 px
+  phone diagram seven of them would overlap, so it needs a touch-only layout (fewer handles, or
+  spread ones) rather than a bigger circle. Measured on a Pixel 7 viewport.
+- The to-scale diagram is 346x89 px on a phone — 89 px of height for a whole airframe. It zooms, but
+  the default fit is unreadable, and the Design workspace runs 1,892 px deep before you reach the
+  fields.
+- Wind barely moves Loft's apogee, because weathercocking is rotation and the solver is 3-DOF. On
+  `USLI2025-FULLSCALE`'s own five stored runs at 0/5/10/15/20 mph, OpenRocket's apogee falls
+  1,602 → 1,549 m (−3.3%) while Loft reads 1,634 m at every wind speed. Now stated in the
+  limitations log; closing it properly means integrating pitch, i.e. the 6-DOF project.
+- The Wood Handbook (USDA FPL-GTR-190, Table 5-1) unblocks half of the fin-flutter shear-modulus
+  problem below: it gives citable G_LR/E_L ratios — balsa 0.054, basswood 0.056, yellow birch 0.074
+  — so G follows from a species' E_L. What is still missing is a citable E_L for hobby-grade stock
+  (balsa's varies ~3× across the density range the shops sell), and any source at all for birch
+  *plywood* panel shear and cardboard. That spread is the real finding: G is uncertain by ~2× on
+  exactly the soft stocks that trip the warning, and Vf goes as √G, so the honest fix is probably a
+  flutter-speed *band* per material rather than a better single number.
+- The parts table and the Mass & balance panel are two tables of the same components on the same
+  tab — the parts table now carries mass beside each part's dimensions, and Mass & balance carries
+  % dry, per-part CG, the dry total and the CSV. Worth unifying into one component table (which is
+  what OpenRocket's tree is) rather than leaving the overlap.
+- Diagram handles and number fields still disagree on range: the fin-span handle clamps to the
+  framed extent (5–84 mm on the 38 mm sample) and reports that as its `aria-valuemax`, while the
+  fin-span field accepts 120 mm and computes a perfectly good 4.79 cal. The handle's bound is a
+  framing constraint dressed as a property limit.
+- RASAero `<Protuberance>` is still unread, but the corpus says it barely matters: the only one
+  present (`Complex.Two-Stage`) is 0.25 in² of frontal area against a 4-inch airframe's 12.6 in²,
+  so modelling it cannot move that file's +12.4% residual. Lower priority than the entry it
+  replaces suggested.
+- Design number fields show the design's own value only as a grey placeholder, so a set value and an
+  inherited one look nearly alike and any tweak means retyping the whole number.
+- There is no undo, and "Reset to as-designed" is all-or-nothing with no per-field revert; "Import
+  another" discards every what-if without asking.
+- The motor sweep and the parameter sweep show a labelled spinner but no count. Monte-Carlo does it
+  well ("32/300 flown") and the RocketPy cross-check does it best (runtime → install → fly); neither
+  sweep's worker reports progress, so adding one means threading a callback through.
+- Analyze results survive an edit now, but not a reload: the session keeps the design, units, edits
+  and motor configuration, and a 300-flight Monte-Carlo is still gone.
+- The parameter sweep offers 7 axes against ~23 editable dimensions — no fin count, materials,
+  surface finish, chute sizes, payload mass or boattail.
 - The fin-flutter check cries wolf: across the corpus it raises the hard "fins may flutter" warning
   on 31 of 94 flights — a third — including OpenRocket's own bundled Estes-class examples, which fly
   every weekend. The formula is not the problem (it reproduces Apogee #291's worked example: 260.7
@@ -17,20 +59,25 @@ not yet done. Newest first. One line each. Anything here is fair game for the ne
 - The Analyze workspace's empty state is four full-width cards of prose with one button each, which
   reads as a menu; once run, the panels themselves are dense and good. Worth compressing the idle
   state so all four fit above the fold and the width isn't spent on a single column.
-- A design library: Loft holds exactly one design at a time. A flyer working across a build wants
-  several, and the session store already has the pieces (bytes + name + edits) to keep a list.
+- A design library: the shelf under "Your designs" now keeps the last eight designs opened and
+  reopens any of them, which covers working across a build. What it isn't yet is a library — no
+  switching without going back to the import screen, no renaming or grouping there, and each entry
+  carries the design but not the what-ifs that were set on it.
 - The phone's design what-if panel is still a two-column grid of ~24 small fields, and the diagram
   defaults to fit-width (now zoomable, but fit on a 29:1 airframe is 11 px of body). The natural
-  next step is per-component editing driven by the diagram selection that landed this session.
-- The design what-if panel is a wall of ~24 number fields. Only the fins, body wall and boattail
-  have diagram handles; nose, recovery, payload, materials and finish are typing-only.
-- The parts list selects both ways now, but it is still read-only and carries no mass. What
-  OpenRocket's component tree has and Loft's doesn't is add and delete, and a selected part opening
-  its own fields — that is the gap that keeps the editor feeling like a viewer with fields beside it.
-  (`PointMass.source` is a name string, not a component id, so a mass column needs that link first.)
-- Corpus fetch is still unwired: no lock file pinning repo/tag/asset/sha256, no `fetch-fixtures`
-  step, no CI secret. Blocked on two owner-side actions — cutting a release asset in `loft-fixtures`
-  and adding `FIXTURES_TOKEN` — so the suite still only gates a machine that already has the files.
+  next step is per-component editing driven by the diagram selection.
+- The design what-if panel is a wall of ~24 number fields. Only the fins, body wall, nose and
+  boattail have diagram handles; recovery, payload, materials and finish are typing-only.
+- The parts list selects both ways and now carries each part's mass and sorts by any column, but it
+  is still read-only. What OpenRocket's component tree has and Loft's doesn't is add and delete, and
+  a selected part opening its own fields — that is the gap that keeps the editor feeling like a
+  viewer with fields beside it. It needs the edits model to grow past one flat bag of ~26 global
+  fields ("the" fin set, "the" nose) to something addressed per component id.
+- The corpus fetch is wired — `fixtures.lock.json`, `scripts/fetch-fixtures.mjs`, an npm script and a
+  CI step — but CI still fetches nothing until a `FIXTURES_TOKEN` repository secret exists. That is
+  the one owner-side action left; until then the suite gates only a machine that already has the
+  files. The network path itself is the one branch never exercised here (no real token in the
+  sandbox); the local-tarball, tampered-file, moved-snapshot and no-token paths all are.
 - A no-recovery descent is a tumble, not a dart. On `FullScaleModelTH.rkt`'s plugged configuration
   Loft comes in at 152 m/s against RockSim's 83 m/s: both agree nothing opened, but RockSim models
   the unstable body's drag and Loft flies it nose-down. Worth a tumbling-drag model for the
