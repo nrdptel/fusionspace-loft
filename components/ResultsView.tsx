@@ -867,7 +867,7 @@ function RocketSummary({
             value={d.q(d.speed(r.flutter.worst.flutterVelocity, units))}
             hint={r.flutter.worst.margin < RECOMMENDED_FLUTTER_MARGIN ? "thin" : undefined}
             hintWhy={`the estimated flutter speed is under ${RECOMMENDED_FLUTTER_MARGIN}× the peak airspeed, the margin the method's own spread calls for`}
-            sub={`${d.fmt(r.flutter.worst.margin, 1)}× margin`}
+            sub={`${d.flutterMargin(r.flutter.worst.margin)} margin`}
           />
         )}
       </dl>
@@ -908,8 +908,9 @@ function FlutterFixHint({
     <p className="mt-3 text-xs text-zinc-500 dark:text-zinc-400">
       <span className="font-medium text-zinc-600 dark:text-zinc-300">Fin-flutter fix:</span>{" "}
       thickening the {f.worst.finName} from {d.q(d.lengthMm(f.worst.thickness, units))} to about{" "}
-      {d.q(d.lengthMm(tFix, units))} would lift the flutter margin to {d.fmt(RECOMMENDED_FLUTTER_MARGIN, 1)}×
-      (from {d.fmt(f.worst.margin, 1)}×). Shortening the span or a stiffer material does the same.{" "}
+      {d.q(d.lengthMm(tFix, units))} would lift the flutter margin to{" "}
+      {d.flutterMargin(RECOMMENDED_FLUTTER_MARGIN)} (from {d.flutterMargin(f.worst.margin)}). Shortening
+      the span or a stiffer material does the same.{" "}
       {editable ? (
         <>Set the fin thickness {editPointer(editHere)} to check the apogee cost.</>
       ) : (
@@ -1146,16 +1147,24 @@ function WhatIfDelta({ run, baseline, units }: { run: FlightRun; baseline: Fligh
       change: d.changeAbsolute(baseline.result.staticMarginCal, run.result.staticMarginCal, "cal"),
     },
     // Fin-flutter margin, when both flights estimate one (a finned design) — so a fin edit shows its
-    // effect on the flutter headroom right alongside the stability trade.
+    // effect on the flutter headroom right alongside the stability trade. On a very thin margin one
+    // decimal renders both ends and the delta as "0", so the row takes the precision the pair
+    // actually needs and formats all three at it — a from/to that disagrees with the change between
+    // them is worse than either alone.
     ...(run.result.flutter && baseline.result.flutter
-      ? [
-          {
-            label: "Flutter margin",
-            base: { value: d.fmt(baseline.result.flutter.worst.margin, 1), unit: "×" },
-            cur: { value: d.fmt(run.result.flutter.worst.margin, 1), unit: "×" },
-            change: d.changeAbsolute(baseline.result.flutter.worst.margin, run.result.flutter.worst.margin, "×", 1),
-          },
-        ]
+      ? (() => {
+          const baseMargin = baseline.result.flutter.worst.margin;
+          const curMargin = run.result.flutter.worst.margin;
+          const dp = Math.max(d.decimalsFor(baseMargin, 1), d.decimalsFor(curMargin, 1));
+          return [
+            {
+              label: "Flutter margin",
+              base: { value: d.fmt(baseMargin, dp), unit: "×" },
+              cur: { value: d.fmt(curMargin, dp), unit: "×" },
+              change: d.changeAbsolute(baseMargin, curMargin, "×", dp),
+            },
+          ];
+        })()
       : []),
   ];
 

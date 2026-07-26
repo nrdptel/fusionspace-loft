@@ -306,7 +306,7 @@ function SweepTable({ rows, units, name }: { rows: MotorSweepRow[]; units: UnitS
                         : undefined
                     }
                   >
-                    {Number.isFinite(r.flutterMargin) ? `${d.fmt(r.flutterMargin, 1)}×` : "—"}
+                    {Number.isFinite(r.flutterMargin) ? d.flutterMargin(r.flutterMargin) : "—"}
                   </td>
                   <td
                     className="py-1.5 text-zinc-800 dark:text-zinc-100"

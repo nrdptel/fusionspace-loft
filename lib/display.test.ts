@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { changePercent, changeAbsolute, energy } from "./display";
+import { changePercent, changeAbsolute, decimalsFor, energy, flutterMargin, fmtSmall, lengthMm } from "./display";
+import { RECOMMENDED_FLUTTER_MARGIN } from "./sim/flutter";
 
 describe("energy", () => {
   it("shows joules in metric and foot-pounds-force in imperial", () => {
@@ -59,5 +60,45 @@ describe("changeAbsolute", () => {
 
   it("returns an em dash for non-finite inputs", () => {
     expect(changeAbsolute(NaN, 1, "cal")).toEqual({ text: "—", dir: 0 });
+  });
+});
+
+describe("fmtSmall / lengthMm / flutterMargin", () => {
+  it("keeps a value that would round away, in both unit systems", () => {
+    // The 0.254 mm (0.010 in) balsa fin Cherokee-E-5055.ork specifies. Whole millimetres and tenths
+    // of an inch both round it to nothing, which reads as a missing dimension rather than a thin fin.
+    expect(lengthMm(0.000254, "metric")).toEqual({ value: "0.3", unit: "mm" });
+    expect(lengthMm(0.000254, "imperial")).toEqual({ value: "0.01", unit: "in" });
+  });
+
+  it("leaves ordinary dimensions at their usual precision", () => {
+    expect(lengthMm(0.038, "metric")).toEqual({ value: "38", unit: "mm" });
+    expect(lengthMm(1.2, "metric")).toEqual({ value: "1,200", unit: "mm" });
+    expect(lengthMm(0.038, "imperial")).toEqual({ value: "1.5", unit: "in" });
+  });
+
+  it("states a bound rather than a zero when a value is below what it can say", () => {
+    expect(fmtSmall(1e-9, 1)).toBe("<0.00001");
+    expect(fmtSmall(-1e-9, 1)).toBe("−<0.00001");
+    expect(fmtSmall(0, 1)).toBe("0");
+    expect(fmtSmall(NaN, 1)).toBe("—");
+  });
+
+  it("tells thin flutter margins apart instead of printing them all as 0×", () => {
+    // Cherokee-E-5055's five stored configurations land between these; at one decimal every one of
+    // them read "0×", so the worst margins in the corpus were indistinguishable on a safety flag.
+    expect(flutterMargin(0.011813876548032825)).toBe("0.01×");
+    expect(flutterMargin(0.04872690796526505)).toBe("0.05×");
+    expect(flutterMargin(1.4)).toBe("1.4×");
+    expect(flutterMargin(RECOMMENDED_FLUTTER_MARGIN)).toBe("1.5×");
+  });
+
+  it("reports the precision a pair of values needs, for a row formatted at one scale", () => {
+    // The what-if row shows base, current and the change between them; taking the widest keeps the
+    // delta from reading "0" beside two values that plainly differ.
+    expect(decimalsFor(1.4, 1)).toBe(1);
+    expect(decimalsFor(0.0118, 1)).toBe(2);
+    expect(Math.max(decimalsFor(0.0118, 1), decimalsFor(0.0487, 1))).toBe(2);
+    expect(changeAbsolute(0.0118, 0.0487, "×", 2).text).toBe("+0.04 ×");
   });
 });
