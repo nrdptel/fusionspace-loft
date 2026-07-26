@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { storedCaveat } from "./stored-status";
+import { storedCaveat, storedTag } from "./stored-status";
 
 describe("storedCaveat", () => {
   it("says when a stored run predates the design's last edit", () => {
@@ -19,5 +19,21 @@ describe("storedCaveat", () => {
     expect(storedCaveat("somethingnew", "OpenRocket")).toBeNull();
     // `external` changes the panel's heading too, so it is handled there rather than here.
     expect(storedCaveat("external", "OpenRocket")).toBeNull();
+  });
+});
+
+describe("storedTag", () => {
+  it("compresses the caveat to something a select option can carry", () => {
+    expect(storedTag("outdated")).toBe("outdated");
+    expect(storedTag("notsimulated")).toBe("not run");
+    expect(storedTag("loaded")).toBe("not run");
+  });
+
+  it("stays quiet exactly where the sentence does", () => {
+    // The two must agree on WHEN to speak, or a picker option would carry a tag the panel it leads
+    // to never explains, or the reverse.
+    for (const status of ["uptodate", "external", "somethingnew", undefined]) {
+      expect(storedTag(status) === null).toBe(storedCaveat(status, "OpenRocket") === null);
+    }
   });
 });

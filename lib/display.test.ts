@@ -158,6 +158,21 @@ describe("storedRunLabels", () => {
     expect(new Set(labels).size).toBe(labels.length);
   });
 
+  it("marks a stored apogee the source tool doesn't stand behind", () => {
+    // 18 of the corpus's 108 picker options quote a run marked outdated or never run — all five on
+    // USLI2025-FULLSCALE. Unmarked, they read as the tool's current answer for the design on screen.
+    expect(
+      storedRunLabels(
+        [
+          { simIndex: 0, motors: ["L1000"], name: "a", storedApogeeM: 1500, status: "uptodate" },
+          { simIndex: 1, motors: ["L1000"], name: "b", storedApogeeM: 1400, status: "outdated" },
+          { simIndex: 2, motors: ["L1000"], name: "c", storedApogeeM: 1300, status: "notsimulated" },
+        ],
+        "metric",
+      ),
+    ).toEqual(["L1000 · 1,500 m", "L1000 · 1,400 m (outdated)", "L1000 · 1,300 m (not run)"]);
+  });
+
   it("falls back to the run's name when it has no motors and no stored apogee", () => {
     expect(storedRunLabels([run(0, [], "Simulation 1")], "metric")).toEqual(["Simulation 1"]);
     expect(storedRunLabels([run(0, [], "")], "metric")).toEqual(["Configuration"]);

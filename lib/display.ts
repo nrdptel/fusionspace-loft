@@ -2,6 +2,7 @@
  *  chosen unit system and format to honest precision. No verdicts, no false precision. */
 
 import { mToFt, mpsToFtps, mpsToMph, kgToLb } from "./units";
+import { storedTag } from "./validation/stored-status";
 
 export type UnitSystem = "metric" | "imperial";
 
@@ -172,13 +173,18 @@ export function changeAbsolute(base: number, cur: number, unit: string, decimals
  *  read the same silently compares Loft against a different stored flight, so a repeated label
  *  takes on whatever separates it: the run's own name, then its position in the file. */
 export function storedRunLabels(
-  runs: readonly { motors: string[]; name: string; storedApogeeM?: number; simIndex: number }[],
+  runs: readonly { motors: string[]; name: string; storedApogeeM?: number; simIndex: number; status?: string }[],
   sys: UnitSystem,
 ): string[] {
   const base = runs.map((c) => {
     const motors = c.motors.length ? c.motors.join(" + ") : c.name || "Configuration";
     if (c.storedApogeeM === undefined) return motors;
-    return `${motors} · ${q(altitude(c.storedApogeeM, sys))}`;
+    // The apogee is the source tool's, and the tool says whether it still stands behind it. 18 of
+    // the corpus's 108 picker options quote a run marked outdated or never run — every option on
+    // `USLI2025-FULLSCALE`, 8 of 9 on `Punisher Apprentice.ork` — so an unmarked figure here would
+    // present an earlier version of the rocket as that tool's current answer.
+    const tag = storedTag(c.status);
+    return `${motors} · ${q(altitude(c.storedApogeeM, sys))}${tag ? ` (${tag})` : ""}`;
   });
   const tally = (xs: string[]) => xs.reduce((m, x) => m.set(x, (m.get(x) ?? 0) + 1), new Map<string, number>());
   const byBase = tally(base);

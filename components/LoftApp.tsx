@@ -9,6 +9,7 @@ import { importDesign, sourceTool, type OrkDocument } from "@/lib/ork/import";
 import { newDesign } from "@/lib/model/starter";
 import { exportOrk } from "@/lib/ork/export";
 import { runFlight, pickConfig, overridesFromStored, configChoices, type FlightRun, type ConfigChoice } from "@/lib/sim/run";
+import { storedTag } from "@/lib/validation/stored-status";
 import {
   primaryFinSpan,
   unreachableFinSetCount,
@@ -893,6 +894,16 @@ function ConfigPicker({
       </select>
       <span className="w-full text-xs text-zinc-500 dark:text-zinc-400 sm:w-auto">
         {choices.length} configurations in this design — the apogee shown is {tool}&apos;s stored value.
+        {/* An option marked outdated or not run still belongs in the list — it is a reference point —
+            but it is not what the tool would predict for the design as it now stands, and the picker
+            is where the flyer decides which run to be compared against. */}
+        {choices.some((c) => storedTag(c.status)) && (
+          <>
+            {" "}
+            One or more predate the design&apos;s last edit or were never run; {tool} says so, and the
+            comparison panel spells out what that means for the flight chosen.
+          </>
+        )}
       </span>
     </label>
   );
