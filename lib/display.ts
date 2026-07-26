@@ -161,3 +161,30 @@ export function changeAbsolute(base: number, cur: number, unit: string, decimals
   const sign = dir > 0 ? "+" : dir < 0 ? "−" : "";
   return { text: `${sign}${mag}${unit ? " " + unit : ""}`, dir };
 }
+
+/** Labels for a design's stored simulations, guaranteed to be distinct.
+ *
+ *  A run's motor and its stored apogee are usually enough to tell it from the others, but not
+ *  always: measured over the 35-design corpus, of the 21 designs that offer a picker, 3 produce a
+ *  repeated label. `Clustered motors.ork` carries two genuinely different configurations that both
+ *  reach 307 m; `FullScaleModelTH.rkt` stores 15 runs of one motor whose apogees round together,
+ *  six of them indistinguishable, and its run names repeat as well. Choosing between options that
+ *  read the same silently compares Loft against a different stored flight, so a repeated label
+ *  takes on whatever separates it: the run's own name, then its position in the file. */
+export function storedRunLabels(
+  runs: readonly { motors: string[]; name: string; storedApogeeM?: number; simIndex: number }[],
+  sys: UnitSystem,
+): string[] {
+  const base = runs.map((c) => {
+    const motors = c.motors.length ? c.motors.join(" + ") : c.name || "Configuration";
+    if (c.storedApogeeM === undefined) return motors;
+    return `${motors} · ${q(altitude(c.storedApogeeM, sys))}`;
+  });
+  const tally = (xs: string[]) => xs.reduce((m, x) => m.set(x, (m.get(x) ?? 0) + 1), new Map<string, number>());
+  const byBase = tally(base);
+  const named = base.map((l, i) =>
+    byBase.get(l)! > 1 && runs[i].name?.trim() ? `${l} · ${runs[i].name.trim()}` : l,
+  );
+  const byNamed = tally(named);
+  return named.map((l, i) => (byNamed.get(l)! > 1 ? `${l} · #${runs[i].simIndex + 1}` : l));
+}

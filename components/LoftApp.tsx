@@ -875,12 +875,7 @@ function ConfigPicker({
   /** The tool that stored these configurations — a RockSim or RASAero import isn't OpenRocket's. */
   tool: string;
 }) {
-  const optionLabel = (c: ConfigChoice): string => {
-    const motors = c.motors.length ? c.motors.join(" + ") : c.name || "Configuration";
-    if (c.storedApogeeM === undefined) return motors;
-    const a = d.altitude(c.storedApogeeM, units);
-    return `${motors} · ${a.value} ${a.unit}`;
-  };
+  const labels = d.storedRunLabels(choices, units);
   return (
     <label className="flex flex-wrap items-center gap-2 rounded-lg border border-zinc-200 bg-white px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900/40">
       <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Motor configuration</span>
@@ -890,9 +885,9 @@ function ConfigPicker({
         onChange={(e) => onSelect(Number(e.target.value))}
         className="min-w-0 flex-1 rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
       >
-        {choices.map((c) => (
+        {choices.map((c, i) => (
           <option key={c.simIndex} value={c.simIndex} title={c.name}>
-            {optionLabel(c)}
+            {labels[i]}
           </option>
         ))}
       </select>

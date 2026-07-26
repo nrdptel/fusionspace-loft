@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { changePercent, changeAbsolute, decimalsFor, energy, flutterMargin, fmtSmall, lengthMm } from "./display";
+import { changePercent, changeAbsolute, decimalsFor, energy, flutterMargin, fmtSmall, lengthMm, storedRunLabels } from "./display";
 import { RECOMMENDED_FLUTTER_MARGIN } from "./sim/flutter";
 
 describe("energy", () => {
@@ -118,5 +118,48 @@ describe("fmtSmall / lengthMm / flutterMargin", () => {
     expect(row(1.2, 1.9)).toEqual(["1.2", "1.9", "+0.7 ×"]);
     // No change at all still reads as a plain 0, not a spurious precision.
     expect(row(1.4, 1.4)).toEqual(["1.4", "1.4", "0 ×"]);
+  });
+});
+
+describe("storedRunLabels", () => {
+  const run = (simIndex: number, motors: string[], name: string, storedApogeeM?: number) => ({
+    simIndex,
+    motors,
+    name,
+    storedApogeeM,
+  });
+
+  it("leaves distinct runs alone", () => {
+    expect(
+      storedRunLabels([run(0, ["H128W"], "Simulation 1", 300), run(1, ["G40W"], "Simulation 2", 180)], "metric"),
+    ).toEqual(["H128W · 300 m", "G40W · 180 m"]);
+  });
+
+  it("names the run when motor and apogee repeat", () => {
+    // `Clustered motors.ork`: two genuinely different configurations, both stored at 307 m.
+    expect(
+      storedRunLabels([run(3, ["C6"], "Simulation 4", 307), run(4, ["C6"], "Simulation 5", 307)], "metric"),
+    ).toEqual(["C6 · 307 m · Simulation 4", "C6 · 307 m · Simulation 5"]);
+  });
+
+  it("falls back to the run's position when the name repeats too", () => {
+    // `FullScaleModelTH.rkt` stores fifteen runs of one motor and reuses "L1940X-P" across them.
+    expect(
+      storedRunLabels(
+        [run(3, ["L1940X"], "L1940X-P", 2105), run(7, ["L1940X"], "L1940X-P", 2105)],
+        "metric",
+      ),
+    ).toEqual(["L1940X · 2,105 m · L1940X-P · #4", "L1940X · 2,105 m · L1940X-P · #8"]);
+  });
+
+  it("never returns two identical labels, whatever the input", () => {
+    const runs = Array.from({ length: 6 }, (_, i) => run(i, ["L1940X"], "", 2100));
+    const labels = storedRunLabels(runs, "imperial");
+    expect(new Set(labels).size).toBe(labels.length);
+  });
+
+  it("falls back to the run's name when it has no motors and no stored apogee", () => {
+    expect(storedRunLabels([run(0, [], "Simulation 1")], "metric")).toEqual(["Simulation 1"]);
+    expect(storedRunLabels([run(0, [], "")], "metric")).toEqual(["Configuration"]);
   });
 });
