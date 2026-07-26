@@ -616,6 +616,9 @@ test.describe("Loft", () => {
     await expect(page.getByRole("region", { name: "No flight simulated" })).toBeVisible({ timeout: 15000 });
     await expect(page.getByRole("tab")).toHaveCount(0);
 
+    // A positive anchor first: some hint must actually be pointing somewhere, or the two negative
+    // assertions below would pass on a screen that simply renders no advice at all.
+    await expect(page.getByText("in the design fields below").first()).toBeVisible();
     // Nothing may point at the absent workspace...
     await expect(page.getByText("in the Design workspace")).toHaveCount(0);
     // ...and nothing may offer a configuration picker that only renders for a multi-config design.
@@ -626,6 +629,7 @@ test.describe("Loft", () => {
     // Swapping in a bundled motor brings the workspace back, and the advice follows it there.
     await page.getByRole("combobox", { name: "Swap motor" }).selectOption({ index: 1 });
     await expect(page.getByRole("tab", { name: "Design" })).toBeVisible();
+    await expect(page.getByText("in the Design workspace").first()).toBeVisible();
     await expect(page.getByText("in the design fields below")).toHaveCount(0);
   });
 

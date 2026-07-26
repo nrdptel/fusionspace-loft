@@ -783,6 +783,10 @@ function NoPropulsionNotice({
  *  there. */
 type EditHere = "workspace" | "below";
 const editPointer = (w: EditHere) => (w === "workspace" ? "in the Design workspace" : "in the design fields below");
+/** The same place named as a noun rather than as a verb adjunct — "the Design workspace's fin
+ *  fields describe…" instead of the ungrammatical "the fin fields in the design fields below". */
+const finFieldsNoun = (w: EditHere) =>
+  w === "workspace" ? "The Design workspace's fin fields" : "The fin fields below";
 
 function RocketSummary({
   run,
@@ -910,7 +914,9 @@ function FlutterFixHint({
         <>Set the fin thickness {editPointer(editHere)} to check the apogee cost.</>
       ) : (
         <>
-          The fin fields {editPointer(editHere)}{" "}
+          {/* The explicit space is load-bearing: JSX drops a plain space between an expression and
+              the text that follows it across a line break, which shipped "fin fieldsdescribe". */}
+          {finFieldsNoun(editHere)}{" "}
           describe a different fin set on this design, so they can&apos;t make this change — it has to
           go back to the design file.
         </>
