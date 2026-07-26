@@ -2188,4 +2188,26 @@ test.describe("Loft", () => {
 
     await context.setOffline(false);
   });
+
+  test("a field with only one bound says so in words, not with a dash", async ({ page }) => {
+    // Most design fields are floored at zero and open above — a dimension has no upper limit the
+    // editor can name — and the range tooltip rendered "0 to –", which reads as a range that failed
+    // to load rather than as "no maximum". 17 fields in the Design workspace were showing it.
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+    await page.getByRole("tab", { name: "Design" }).click();
+
+    const dashed = await page.$$eval("[title]", (ns) =>
+      ns.map((n) => n.getAttribute("title") ?? "").filter((t) => /\b(–|-)\s*$|:\s*–\s+to\b/.test(t)),
+    );
+    expect(dashed, `range tooltips with an unnamed bound: ${dashed.join(" | ")}`).toEqual([]);
+
+    // And the positive anchor: the one-sided form is actually being produced, so the assertion
+    // above cannot pass on a screen that renders no ranges at all.
+    const ranges = await page.$$eval("[title]", (ns) =>
+      ns.map((n) => n.getAttribute("title") ?? "").filter((t) => /(or more|up to \d)/.test(t)),
+    );
+    expect(ranges.length).toBeGreaterThan(0);
+  });
 });

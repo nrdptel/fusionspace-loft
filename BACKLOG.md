@@ -3,6 +3,15 @@
 Rough edges, missing affordances, and ideas too big for one pass — noticed while working,
 not yet done. Newest first. One line each. Anything here is fair game for the next session.
 
+- **Information that exists only in a `title=` never reaches a phone.** Measured this run on the
+  results view at 412x915: 33 elements carry an explanation the visible text and any `aria-label`
+  don't — the four Conditions field teachings (rail length, rail angle, surface wind, field
+  elevation), the `<abbr>` behind a flagged stability margin, the motor-match quality badge, the
+  parts-table sort headers, and the design-name and export buttons. A native tooltip does not fire
+  on touch, so on the form factor the project describes as a pad check with gloves on, a flagged
+  margin gets no explanation at all. The range half of this is fixed (a one-sided range now reads
+  "0 or more"); the teaching half needs a real disclosure, not a `title`. Re-measured: 0 inputs lack
+  an accessible name, so the older note claiming four do is resolved.
 - **Benchmark, configuration picker vs OpenRocket's simulation table.** Theirs is a table with a row
   per stored run and columns for apogee, max velocity, max acceleration, time to apogee, deployment
   velocity and ground-hit velocity, a status icon per row, and sorting — every run visible and
@@ -52,7 +61,7 @@ not yet done. Newest first. One line each. Anything here is fair game for the ne
   MonteCarlo/MotorSweep/ParameterSweep/RocketpyCrossCheck); the cluster fixture offers two options
   labelled identically ("C6 · 307 m" twice); apogee reads 63 m in the header and 62.9 m in the
   validation table it is meant to be checked against; Mass & balance has no sort affordances while
-  the sibling Parts table does; four Conditions inputs have no accessible name; the Parts sort order
+  the sibling Parts table does; the Parts sort order
   is the one view choice not persisted (`GeometryInspector.tsx` uses plain `useState`).
 - Every design what-if still addresses ONE resolved component — the frontmost fin set, the frontmost
   nose, the longest body tube, the largest parachute — so on a design with several there is no way to
