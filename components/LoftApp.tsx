@@ -1583,10 +1583,18 @@ function Num({
     if (max !== undefined && n > max) return String(max);
     return raw;
   };
+  // A bound the field doesn't have is said in words, not left as a dash. Most of these fields are
+  // floored at zero and open above — a dimension has no upper limit the editor can name — and
+  // "0 to –" reads as a range that failed to load rather than as "no maximum". Measured in the
+  // Design workspace: 17 fields were showing it.
   const ranged =
-    min !== undefined || max !== undefined
-      ? `${min ?? "–"} to ${max ?? "–"}`
-      : undefined;
+    min !== undefined && max !== undefined
+      ? `${min} to ${max}`
+      : min !== undefined
+        ? `${min} or more`
+        : max !== undefined
+          ? `up to ${max}`
+          : undefined;
   return (
     <label className="block" title={hint ?? (ranged ? `${label}: ${ranged}` : undefined)}>
       <span className="block text-[11px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">{label}</span>
