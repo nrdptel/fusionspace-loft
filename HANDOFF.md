@@ -4,17 +4,20 @@ Overwritten each session. What shipped, what is part-way, and what to pick up fi
 
 ## Where the work is
 
-Everything below is on the session's working branch and is now in **PR #32** against `main`, opened
-with the owner's standing permission to open and merge PRs. That PR is also the first thing that has
-made CI run for this work: `test.yml` fires on `pull_request:` but not on a branch push, so a branch
-push builds and checks nothing.
+**All of it is on `main` and deployed.** PR #32 merged as `7a17dd9`; `git rev-list --count
+origin/main..HEAD` is 0. That PR was also the first thing to make CI run for this work — `test.yml`
+fires on `pull_request:` but not on a branch push, so a branch push builds and checks nothing. Both
+jobs passed on `2eef314` before the merge.
 
-`main` is periodically fast-forwarded from the working branch with no PR in the loop, so earlier
-sessions' work had already reached loft.fusionspace.co. Measure the gap yourself before quoting it —
-`git fetch --prune origin` first, then `git rev-list --count origin/main..HEAD`. An earlier draft of
-this file said "61 commits ahead, main has none of it", read off a remote-tracking ref that had gone
-stale two hours into the run; the real figure was 20. The clone is also shallow
-(`git rev-parse --is-shallow-repository` → true), so any commit count or file history is a window.
+Opening and merging pull requests is pre-authorised. Use them: they are the only way to get checks,
+and a working branch that never lands has shipped nothing.
+
+Two things to measure rather than assume, both of which caught this session out:
+- **`git fetch --prune origin` before quoting any divergence**, and cite the SHA. An earlier draft of
+  this file said "61 commits ahead, main has none of it", read off a remote-tracking ref that had
+  gone stale two hours in. The real figure was 20.
+- **The clone may be shallow** (`git rev-parse --is-shallow-repository`), so every commit count and
+  file history is a window rather than the record.
 
 ## Before you trust a sweep
 
@@ -61,7 +64,7 @@ Seventeen increments, every one gated locally on lint + `npm test` + `npm run bu
 | `a0d61c1` | The Design workspace meets the project's own 44 px hit target: 41 controls were under it on a phone. |
 | `fbc6fe2` | Corrected this file: the divergence from main was read off a stale ref and published wrong. |
 | `9394d94` | The corpus can be fetched and hash-verified — lock file, script, npm script, CI step. Needs the secret. |
-| `6724aaf` | The standing operating brief moved into `CLAUDE.md`, so it is reviewable in a diff and no longer pasted per session. |
+| `6724aaf` | The standing operating brief moved into the repo (now `MAINTAINING.md`), so it is reviewable in a diff rather than pasted per session. Open a session with "Follow MAINTAINING.md". |
 
 The corpus sweep was green throughout and its census never moved: **35 design files, 97 stored
 simulations flown, 0 new findings**, median apogee disagreement 3.2%.

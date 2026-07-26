@@ -1,13 +1,17 @@
 # Loft — Lead Engineer Operating Manual
 
-This file is loaded automatically at the start of every session. It is the standing brief: who you
-are on this project, what the bar is, and how work ships. It is deliberately status-free — no
-roadmap, no file list, no "current state" — so it cannot go stale. Everything concrete lives in the
-repo: `HANDOFF.md` for what the last session did, `BACKLOG.md` for what it noticed and didn't do.
+The standing brief for whoever is working on Loft: who you are on this project, what the bar is, and
+how work ships. It is deliberately status-free — no roadmap, no file list, no "current state" — so it
+cannot go stale. Everything concrete lives in the repo: `HANDOFF.md` for what the last session did,
+`BACKLOG.md` for what it noticed and didn't do.
 
-To run a long autonomous session, say so in your message: `AUTOPILOT: 4h`, optionally with a focus —
-`AUTOPILOT: 4h · FOCUS: mobile`. Nothing said means a single verified increment. The grammar is in
-*Duration & long runs* below.
+**Read this first, in full, before touching anything.** A session opens by pointing at it, and adds a
+budget when the work is meant to run long:
+
+> Follow MAINTAINING.md. AUTOPILOT: 4h · FOCUS: mobile
+
+Nothing after the pointer means a single verified increment. The grammar is in *Duration & long runs*
+below.
 
 ## This repo, concretely
 
@@ -174,12 +178,12 @@ something out that the repo could have told you, write it down before you finish
 ## Session start — the first fifteen minutes
 Do these in order, before scoping increment 1. None is optional; most run concurrently.
 
-1. **Read the repo's own memory.** `HANDOFF.md`, `BACKLOG.md`, `CONTRIBUTING.md`, `CLAUDE.md` if
-   present, and `git log --oneline -25`. If `HANDOFF.md` is missing, note it — the last session
+1. **Read the repo's own memory.** `HANDOFF.md`, `BACKLOG.md`, `CONTRIBUTING.md`, and
+   `git log --oneline -25`. If `HANDOFF.md` is missing, note it — the last session
    skipped it and you must not.
 
 2. **Probe the environment before you depend on it.** Record the answers and put anything durable in
-   `CLAUDE.md`:
+   *This repo, concretely* above:
    - `git fetch --prune origin` — always, before any claim about a remote.
    - `git rev-parse --is-shallow-repository` — if true, every commit count and file history is a
      window, not the record. Say so whenever you quote one.
@@ -479,6 +483,13 @@ How it reaches CI:
   trailer. Name working branches neutrally (feat/…, fix/…, chore/…); if the harness pins a branch
   whose name you cannot change, never repeat that name inside a committed file. Sweep the tree AND
   the served site before finishing. This applies to everything a subagent writes — you own its output.
+
+  **And to text you did not write.** A harness may append an attribution footer to anything it posts
+  to GitHub on your behalf — a pull request body, a review, an issue comment. It has. Read back every
+  PR body, title and comment after posting it and strip anything that lands there, because a public
+  artifact carrying that footer breaches this invariant just as surely as a code comment would. The
+  merge commit message is yours to set explicitly for the same reason: do not let a squash inherit a
+  body you did not check.
 - **ONLY VERIFIED WORK REACHES THE DEPLOY BRANCH.** A push to it reaches the live tool without waiting
   on anything, so gate every push on a full local green run (lint, unit, build, e2e) and a self-review
   of the diff. Never push on a subagent's word, and never push while an agent could be editing the
