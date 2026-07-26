@@ -24,6 +24,9 @@ import RocketDiagram from "./RocketDiagram";
  *  on the numeric ones, because that is the question being asked when you sort them. */
 type PartSort = "design" | "name" | "type" | "station" | "mass";
 
+/** The component kinds the fin fields can describe. A pick on anything else leaves them alone. */
+const FIN_SET_KINDS = new Set(["trapezoidfinset", "ellipticalfinset", "freeformfinset"]);
+
 const KIND_LABEL: Record<string, string> = {
   nosecone: "Nose cone",
   bodytube: "Body tube",
@@ -117,6 +120,7 @@ export default function GeometryInspector({
   edited = false,
   motors,
   onEdit,
+  onSelectFinSet,
 }: {
   rocket: Rocket;
   units: UnitSystem;
@@ -132,6 +136,12 @@ export default function GeometryInspector({
   motors?: MotorMark[];
   /** When provided, the diagram exposes a drag handle that applies a geometry edit (fin station). */
   onEdit?: (patch: GeometryEdits) => void;
+  /** Told which fin set the flyer picked, so the fin fields can describe and edit THAT set rather
+   *  than always the frontmost. Fires with null when the pick is released or lands on a part that
+   *  is not a fin set — picking a body tube must not leave the fin fields pointed somewhere the
+   *  flyer can no longer see they picked. Picking is a view concern and stays owned here; only the
+   *  fin-set half of it is anything the edit model needs to know. */
+  onSelectFinSet?: (id: string | null) => void;
 }) {
   const parts = flattenRocket(rocket);
   // Each part's own dry mass, keyed by the same component id the diagram and the table share, so a
@@ -146,6 +156,16 @@ export default function GeometryInspector({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [partsOpen, setPartsOpen] = useState(false);
   const [sort, setSort] = useState<PartSort>("design");
+  const isFinSetId = (id: string) =>
+    FIN_SET_KINDS.has(parts.find((p) => p.component.id === id)?.component.kind ?? "");
+  // The diagram, a table row click and a row's Enter/Space all pick the same way, so they go through
+  // one toggle — three copies could not stay in step once picking gained a second effect.
+  const pick = (id: string) =>
+    setSelectedId((cur) => {
+      const next = cur === id ? null : id;
+      onSelectFinSet?.(next && isFinSetId(next) ? next : null);
+      return next;
+    });
   const activeId = hoveredId ?? selectedId;
   const active = parts.find((p) => p.component.id === activeId);
 
@@ -206,7 +226,7 @@ export default function GeometryInspector({
           highlightId={activeId}
           onHover={setHoveredId}
           onSelect={(id) => {
-            setSelectedId((cur) => (cur === id ? null : id));
+            pick(id);
             setPartsOpen(true);
           }}
           motors={motors}
@@ -277,11 +297,11 @@ export default function GeometryInspector({
                   onMouseLeave={() => setHoveredId(null)}
                   onFocus={() => setHoveredId(p.component.id)}
                   onBlur={() => setHoveredId(null)}
-                  onClick={() => setSelectedId((cur) => (cur === p.component.id ? null : p.component.id))}
+                  onClick={() => pick(p.component.id)}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" || e.key === " ") {
                       e.preventDefault();
-                      setSelectedId((cur) => (cur === p.component.id ? null : p.component.id));
+                      pick(p.component.id);
                     }
                   }}
                   // A focusable row with no name is an anonymous stop for anyone arriving by

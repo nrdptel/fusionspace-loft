@@ -305,14 +305,18 @@ export function unreachableFinSetCount(rocket: Rocket, selectedId?: string): num
  *  its fields describe rather than labelling them all "Fins". Falls back to a positional name,
  *  since real files name every set alike ("Fin set", "Trapezoidal fin set"). */
 export function primaryFinSetName(rocket: Rocket, selectedId?: string): string | undefined {
-  const fin = primaryFinSet(rocket, selectedId);
-  if (!fin) return undefined;
-  const own = fin.name?.trim();
-  // A name shared with the sets it must be told apart from distinguishes nothing.
-  const shared =
-    !!own &&
-    flattenRocket(rocket).filter((p) => isFinSet(p.component) && p.component.name?.trim() === own).length > 1;
-  return own && !shared ? own : "the frontmost set";
+  const fins = flattenRocket(rocket).filter((p) => isFinSet(p.component));
+  if (!fins.length) return undefined;
+  const found = selectedId ? fins.findIndex((p) => p.component.id === selectedId) : 0;
+  const at = found >= 0 ? found : 0;
+  const own = fins[at].component.name?.trim();
+  // A name shared with the sets it must be told apart from distinguishes nothing — and real files
+  // name every set alike ("Fin set", "Trapezoidal fin set").
+  const shared = !!own && fins.filter((p) => p.component.name?.trim() === own).length > 1;
+  if (own && !shared) return own;
+  // So fall back to where the set sits. "The frontmost set" is only honest for the default: once a
+  // flyer has picked the third set, calling it the frontmost names the wrong fins.
+  return at === 0 ? "the frontmost set" : `fin set ${at + 1}`;
 }
 
 /** The design's primary fin set's semi-span (m), for showing the flyer the current value to edit

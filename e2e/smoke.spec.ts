@@ -2210,4 +2210,38 @@ test.describe("Loft", () => {
     );
     expect(ranges.length).toBeGreaterThan(0);
   });
+
+  test("picking a fin set aims the fin fields at it, and the edit lands there only", async ({ page }) => {
+    // Every fin what-if used to resolve "the" fin set as the frontmost one, so on a design with
+    // several the others could not be edited at all — 19 sets across 10 corpus designs. The value
+    // the field shows and the set the edit writes to must be the same set, which is the half that
+    // fails silently: nudge the number you can see and a different fin changes.
+    await page.goto("/");
+    await page
+      .getByLabel(/^Choose an OpenRocket/)
+      .setInputFiles(resolve(process.cwd(), "e2e/fixtures/two-stage-firm-booster.ork"));
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    await page.getByRole("tab", { name: "Design" }).click();
+    await page.locator("summary", { hasText: /Parts ·/ }).click();
+
+    const finRows = page.locator("tr").filter({ hasText: /Trapezoidal fins/ });
+    await expect(finRows).toHaveCount(2);
+    const spanOf = async () =>
+      (await finRows.allTextContents()).map((t) => t.replace(/\s+/g, " ").match(/span ([\d,]+) mm/)?.[1] ?? "?");
+    const before = await spanOf();
+    expect(before[0]).not.toBe("?");
+
+    // Aim the fields at the SECOND set and confirm they now describe it.
+    await finRows.nth(1).click();
+    const spanField = page.locator("label").filter({ hasText: /Fin span/ }).first().locator("input");
+    await expect(spanField).toHaveAttribute("placeholder", before[1]);
+
+    // Edit it. Only the picked set moves.
+    await spanField.fill("77");
+    await spanField.blur();
+    await expect
+      .poll(async () => (await spanOf())[1], { timeout: 15000 })
+      .toBe("77");
+    expect((await spanOf())[0], "the set that was not picked must not change").toBe(before[0]);
+  });
 });
