@@ -53,9 +53,22 @@ each file is a built-in accuracy oracle. Those files are other people's designs 
 terms and are **never committed here**; they live in a separate repository.
 
 `lib/corpus/sweep.test.ts` runs against whatever corpus is present and **skips itself when there
-is none**, so a public clone and a fork's CI stay green. To run it, extract a corpus into a
-gitignored `corpus/` at the repo root (or point `LOFT_CORPUS_DIR` at one), laid out one directory
-per source tool:
+is none**, so a public clone and a fork's CI stay green.
+
+If you have access to the fixtures repo, one command fetches it:
+
+```bash
+FIXTURES_TOKEN=<a token that can read nrdptel/loft-fixtures> npm run fetch-fixtures
+```
+
+`fixtures.lock.json` pins the snapshot by commit — immutable, unlike a tag — and by the sha256 of
+that snapshot's own `CHECKSUMS.sha256`. The fetch verifies the manifest against the lock and then
+every design file against the manifest, so a corpus that has drifted fails loudly instead of quietly
+changing what the suite asserts. With no token it exits 0 and does nothing. CI runs the same command
+with the token as a secret, so the corpus gates every push there too.
+
+Otherwise, extract a corpus into a gitignored `corpus/` at the repo root (or point `LOFT_CORPUS_DIR`
+at one), laid out one directory per source tool:
 
 ```
 corpus/openrocket/*.ork   corpus/rocksim/*.rkt   corpus/rasaero/*.CDX1

@@ -27,6 +27,13 @@ jobs:
           cache-dependency-path: package-lock.json
       - name: Install
         run: npm ci
+      # The real-design corpus lives in a separate private repo, pinned by fixtures.lock.json. With
+      # the secret set this fetches and hash-verifies it, so lib/corpus/sweep.test.ts genuinely gates
+      # the push; without it (a fork, a public clone) the step exits 0 and the suite skips itself.
+      - name: Fetch design corpus
+        run: npm run fetch-fixtures
+        env:
+          FIXTURES_TOKEN: ${{ secrets.FIXTURES_TOKEN }}
       - name: Lint
         run: npm run lint
       - name: Test

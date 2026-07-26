@@ -9,6 +9,7 @@
     "postbuild": "node scripts/gen-sw-precache.mjs",
     "start": "next start",
     "lint": "eslint .",
+    "fetch-fixtures": "node scripts/fetch-fixtures.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test"
