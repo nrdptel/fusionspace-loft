@@ -476,9 +476,10 @@ How it reaches CI:
   assert. Never loosen a tolerance to make a fixture pass.
 
 ## Non-negotiable invariants (these override the goal)
-- **ZERO AI/Claude/Anthropic trace** anywhere you touch — code, comments, content, docs, commit
-  messages, PR titles/bodies, meta tags, build output, lockfiles. Model identity stays in chat, never
-  in a committed or served artifact. Git author/committer =
+- **ZERO ASSISTANT TRACE.** No AI tool's name, vendor, model identity or branding appears anywhere
+  you touch — code, comments, content, docs, commit messages, PR titles/bodies, meta tags, build
+  output, lockfiles, or file names. Whatever wrote a line, the repository reads as one project's
+  work. Model identity stays in the chat that produced it, never in a committed or served artifact. Git author/committer =
   `Neer Patel <135655563+nrdptel@users.noreply.github.com>`; sign off, no Co-Authored-By or any AI
   trailer. Name working branches neutrally (feat/…, fix/…, chore/…); if the harness pins a branch
   whose name you cannot change, never repeat that name inside a committed file. Sweep the tree AND
