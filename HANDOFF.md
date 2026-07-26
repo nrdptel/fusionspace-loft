@@ -23,23 +23,32 @@ A run that says `1 passed` with no census printed examined nothing.
 
 ## Shipped this session
 
+Seventeen increments, every one gated locally on lint + `npm test` + `npm run build` +
+`npm run test:e2e` and driven in a real browser against the built export before pushing.
+
 | | |
 |---|---|
-| `a4e6727` | Name the tool whose numbers a comparison is showing. A RASAero `.CDX1` carries its own stored simulation; the results view read the format stamp with a single RockSim test and called everything else OpenRocket, so a `.CDX1` showed "OpenRocket format RASAero 2" over an "OpenRocket vs Loft" panel. `sourceTool()`/`formatLabel()` now live in the importer and are read on all seven surfaces that name a tool. |
-| `5947140` | Per-part mass in the geometry panel: `massByComponent()` keys the dry structural masses by component id, so the pointed-at line and the parts table show what each part weighs, with sortable columns and "in &lt;assembly&gt;" where a subtree override swallowed it. |
-| `ea76ebb` | A recent-designs shelf. Every design opened joins "Your designs" on the import screen, eight kept, reopenable in a tap. Separate localStorage key from the working session, so a shelf that can't be written never costs the flyer the open design. |
-| `052b54e` | The open workspace is the URL fragment: Back steps between workspaces, a reload lands where you were, and clearing the design clears the fragment. |
-| `93d7bfc` | **Bug.** Two definitions of "edited" disagreed, so clearing a what-if field left the stored-tool comparison hidden *and* hid the button that would restore it. One predicate now. |
-| `3b407b5` | Physical ranges on every what-if. A rail angle of 120° flew and reported an apogee of zero; wind accepted −50; fin count 0 was silently discarded. |
-| `97390bd` | Import failures in the flyer's words, chosen from the file's own leading bytes, instead of `zip: end-of-central-directory not found`. |
-| `8fc6af9` | A staged design is told why three of the four Analyze tools aren't offered, and the four hand-written reset keys became one tested `designKey()` in `lib/model`. |
-| `9223369` | An `<h1>` on the app page, a skip link, an accessible name on the focusable parts rows, and a reason behind the amber "HIGH" static-margin badge. |
-| `00ef139` | A nose-length drag handle (the import screen had been promising one), and keyboard steps scaled to each handle's range instead of a fixed 10 mm / 50 mm pair that had fine and coarse the wrong way round. |
-| `aac24c6` | A stored run marked `outdated` or `notsimulated` by its own tool now says so. 11 of 91 stored OpenRocket runs in the corpus are outdated, 7 more not simulated. |
+| `a4e6727` | Name the tool whose numbers a comparison is showing. A RASAero `.CDX1` carries its own stored simulation; the results view tested only for RockSim and called everything else OpenRocket, so a `.CDX1` showed "OpenRocket format RASAero 2" over an "OpenRocket vs Loft" panel. `sourceTool()`/`formatLabel()` now live in the importer and are read on all seven surfaces that name a tool. |
+| `5947140` | Per-part mass in the geometry panel, keyed by component id, with sortable columns and "in &lt;assembly&gt;" where a subtree override swallowed a part. |
+| `ea76ebb` | A recent-designs shelf: every design opened joins "Your designs", eight kept, reopenable in a tap, on a separate storage key from the working session. |
+| `052b54e` | The open workspace is the URL fragment — Back steps between workspaces, a reload lands where you were. |
+| `93d7bfc` | **Bug.** Two definitions of "edited" disagreed, so clearing a what-if left the stored-tool comparison hidden *and* hid the button that would restore it. |
+| `3b407b5` | Physical ranges on every what-if. A rail angle of 120° flew and reported an apogee of zero. |
+| `97390bd` | Import failures in the flyer's words, chosen from the file's leading bytes, not `zip: end-of-central-directory not found`. |
+| `8fc6af9` | A staged design is told why three Analyze tools aren't offered; four hand-written reset keys became one tested `designKey()`. |
+| `9223369` | An `<h1>`, a skip link, a name on the focusable parts rows, and a reason behind the amber "HIGH" margin badge. |
+| `00ef139` | A nose-length drag handle (the import screen was promising one), and keyboard steps scaled to each handle's range. |
+| `aac24c6` | A stored run marked `outdated` or `notsimulated` by its own tool now says so — 11 of 91 corpus runs are outdated, 7 more not simulated. |
+| `8c01ed9` | Backlog and this handoff. |
+| `67f45e6` | An edit re-runs an open sweep instead of erasing it; the RocketPy panel keeps its answer and labels it. Also stopped an unrelated re-render restarting hundreds of flights. |
+| `d4a5f8e` | The previous sweep stays on screen, dimmed and labelled, while the next one flies. |
+| `8803a11` | Copy beside Download on every analysis table, as tab-separated text. |
+| `688941e` | Documents carry notes as well as warnings, so "this design flies serially" stops appearing under "weren't fully understood". |
+| `b549038` | The two cross-check tables read the same way — reference, Loft, delta. |
+| `a0d61c1` | The Design workspace meets the project's own 44 px hit target: 41 controls were under it on a phone. |
 
-Every one was gated locally on lint + `npm test` + `npm run build` + `npm run test:e2e` before
-pushing, and driven in a real browser against the built export. The corpus sweep was green
-throughout (35 files, 97 stored simulations, census unchanged).
+The corpus sweep was green throughout and its census never moved: **35 design files, 97 stored
+simulations flown, 0 new findings**, median apogee disagreement 3.2%.
 
 ## Pick up first
 
@@ -61,4 +70,9 @@ throughout (35 files, 97 stored simulations, census unchanged).
 - Playwright: pass `PW_EXECUTABLE_PATH=/opt/pw-browsers/chromium`; do not run `playwright install`.
 - Probe scripts: name them `*-tmp.*` — the ignore glob now covers `*-tmp.*.ts` too, which it didn't,
   so an `audit-a-tmp.spec.ts` used to show up as untracked and as a lint error in the local gate.
-- Nothing flaky was seen this session; the full e2e suite (90 tests) passed on every run.
+- Nothing flaky was seen this session; the full e2e suite (94 tests) passed on every run. The three
+  RocketPy tests genuinely run (~19 s each) once `npm run build` has vendored Pyodide — check for
+  that, because they skip silently without it.
+- **CI does not run on this branch.** `.github/workflows/test.yml` triggers on pushes to `main` and
+  on pull requests only, so a push here builds nothing and checks nothing. The local gate is the
+  only gate; run all four commands before every push.
