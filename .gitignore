@@ -36,7 +36,7 @@ next-env.d.ts
 # Throwaway diagnostics. A session's probes get named *-tmp.* and live in the tree only while
 # they run; ignoring them keeps `git add -A` from sweeping one into a commit, which has happened.
 *-tmp.mjs
-*-tmp.test.ts
+*-tmp.*.ts
 *-tmp.ts
 
 # The real-design corpus: other people's design files, under their own terms. Never committed;

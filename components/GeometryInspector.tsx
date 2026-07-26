@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { Rocket, RocketComponent } from "@/lib/model/types";
 import { flattenRocket } from "@/lib/model/geometry";
+import { massByComponent } from "@/lib/sim/mass";
 import type { MotorMark } from "@/lib/sim/setup";
 import type { GeometryEdits } from "@/lib/model/edit";
 import * as d from "@/lib/display";
@@ -13,8 +14,14 @@ import RocketDiagram from "./RocketDiagram";
  *  part's key dimensions and its station — the "did Loft read my rocket right?" view. Pure
  *  transparency into what the importer produced (the same components the simulator flies), the
  *  geometry counterpart of the mass & balance breakdown. The picture reads at a glance; the table is
- *  the exact detail. Read-only for now; both are the surface a from-scratch builder/editor grows
- *  direct manipulation on top of. */
+ *  the exact detail. The diagram is directly editable through its handles; the table is still
+ *  read-only, and both are the surface a from-scratch builder/editor grows further manipulation on
+ *  top of. */
+
+/** How the parts table is ordered. "design" is the airframe's own order, nose to tail — the order a
+ *  flyer reads their own rocket in, and the default. The rest sort a column, heaviest/longest first
+ *  on the numeric ones, because that is the question being asked when you sort them. */
+type PartSort = "design" | "name" | "type" | "station" | "mass";
 
 const KIND_LABEL: Record<string, string> = {
   nosecone: "Nose cone",
@@ -36,6 +43,37 @@ const KIND_LABEL: Record<string, string> = {
   launchlug: "Launch lug",
   railbutton: "Rail button",
 };
+
+/** A sortable column heading. Clicking it sorts by that column; clicking the active one returns to
+ *  the design's own nose-to-tail order, so there is always a way back to how the rocket is built. */
+function SortHeader({
+  col,
+  sort,
+  onSort,
+  children,
+}: {
+  col: Exclude<PartSort, "design">;
+  sort: PartSort;
+  onSort: (s: PartSort) => void;
+  children: React.ReactNode;
+}) {
+  const active = sort === col;
+  return (
+    <th className="py-1 pr-4 font-medium" aria-sort={active ? (col === "mass" ? "descending" : "ascending") : "none"}>
+      <button
+        type="button"
+        onClick={() => onSort(active ? "design" : col)}
+        title={active ? "Back to the design's own order" : `Sort by ${col}`}
+        className="inline-flex items-center gap-1 uppercase tracking-wide outline-none hover:text-zinc-700 focus-visible:ring-2 focus-visible:ring-indigo-400 dark:hover:text-zinc-200"
+      >
+        {children}
+        <span aria-hidden className={active ? "text-indigo-500" : "text-transparent"}>
+          {col === "mass" ? "▾" : "▴"}
+        </span>
+      </button>
+    </th>
+  );
+}
 
 /** What kind of part this is, in the reader's words. */
 const kindLabel = (c: RocketComponent): string => KIND_LABEL[c.kind] ?? c.kind;
@@ -95,14 +133,53 @@ export default function GeometryInspector({
   onEdit?: (patch: GeometryEdits) => void;
 }) {
   const parts = flattenRocket(rocket);
+  // Each part's own dry mass, keyed by the same component id the diagram and the table share, so a
+  // part can be pointed at on the picture and read with its weight beside its dimensions. Structure
+  // only — the motor is layered on at launch and lives in the mass & balance panel.
+  const masses = massByComponent(rocket);
+  const dryTotal = [...masses.values()].reduce((a, m) => a + m.mass, 0);
   // Hover previews, a click picks. Picking has to stick: the pointer must leave a shape before you
   // can read anything about it, so a hover-only link meant clicking a part on the diagram told you
   // nothing — the one place it said what the part was sat behind a closed disclosure.
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [partsOpen, setPartsOpen] = useState(false);
+  const [sort, setSort] = useState<PartSort>("design");
   const activeId = hoveredId ?? selectedId;
   const active = parts.find((p) => p.component.id === activeId);
+
+  // The table's rows in the chosen order. Sorting is stable against the design order, so parts that
+  // tie on a column still read nose-to-tail rather than shuffling.
+  const rows = parts.map((p, i) => ({ p, i }));
+  if (sort !== "design") {
+    const key = (r: { p: (typeof parts)[number] }) => {
+      switch (sort) {
+        case "name":
+          return (r.p.component.name || kindLabel(r.p.component)).toLowerCase();
+        case "type":
+          return kindLabel(r.p.component).toLowerCase();
+        case "station":
+          return r.p.xFore;
+        case "mass":
+          return -(masses.get(r.p.component.id)?.mass ?? 0); // heaviest first
+      }
+    };
+    rows.sort((a, b) => {
+      const ka = key(a);
+      const kb = key(b);
+      if (ka === kb) return a.i - b.i;
+      return ka < kb ? -1 : 1;
+    });
+  }
+
+  /** A part's own dry mass as the table shows it: a figure, or where its mass is counted instead. */
+  const massCell = (id: string): { text: string; muted: boolean } => {
+    const m = masses.get(id);
+    if (!m) return { text: "—", muted: true }; // carries no structural mass of its own
+    if (m.subsumedBy) return { text: `in ${m.subsumedBy}`, muted: true };
+    return { text: d.q(d.mass(m.mass, units)), muted: false };
+  };
+
   if (parts.length === 0) return null;
 
   return (
@@ -150,7 +227,8 @@ export default function GeometryInspector({
                   : ""}
                 · at {d.q(d.lengthMm(active.xFore, units))} from the nose
               </span>{" "}
-              <span className="font-mono">{describeDims(active.component, units)}</span>
+              <span className="font-mono">{describeDims(active.component, units)}</span>{" "}
+              <span className="text-zinc-500 dark:text-zinc-400">· {massCell(active.component.id).text}</span>
             </>
           ) : (
             <span className="text-zinc-500 dark:text-zinc-400">
@@ -181,14 +259,15 @@ export default function GeometryInspector({
           <table className="w-full text-sm tabular-nums">
             <thead>
               <tr className="text-left text-[11px] uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-                <th className="py-1 pr-4 font-medium">Component</th>
-                <th className="py-1 pr-4 font-medium">Type</th>
-                <th className="py-1 pr-4 font-medium">Station</th>
+                <SortHeader col="name" sort={sort} onSort={setSort}>Component</SortHeader>
+                <SortHeader col="type" sort={sort} onSort={setSort}>Type</SortHeader>
+                <SortHeader col="station" sort={sort} onSort={setSort}>Station</SortHeader>
+                <SortHeader col="mass" sort={sort} onSort={setSort}>Mass</SortHeader>
                 <th className="py-1 font-medium">Dimensions</th>
               </tr>
             </thead>
             <tbody className="font-mono">
-              {parts.map((p, i) => (
+              {rows.map(({ p, i }) => (
                 <tr
                   key={`${p.component.id}-${i}`}
                   tabIndex={0}
@@ -215,6 +294,15 @@ export default function GeometryInspector({
                     {KIND_LABEL[p.component.kind] ?? p.component.kind}
                   </td>
                   <td className="py-1.5 pr-4 text-zinc-800 dark:text-zinc-100">{d.q(d.lengthMm(p.xFore, units))}</td>
+                  <td
+                    className={`py-1.5 pr-4 ${
+                      massCell(p.component.id).muted
+                        ? "font-sans text-xs text-zinc-500 dark:text-zinc-400"
+                        : "text-zinc-800 dark:text-zinc-100"
+                    }`}
+                  >
+                    {massCell(p.component.id).text}
+                  </td>
                   <td className="py-1.5 text-zinc-800 dark:text-zinc-100">{describeDims(p.component, units)}</td>
                 </tr>
               ))}
@@ -237,7 +325,10 @@ export default function GeometryInspector({
           A row and its shape on the diagram light up together, and clicking either keeps that part
           picked out — so you can find a part on the picture and read what it is, or the other way
           round. Diameters are shown as <span className="font-mono">⌀</span>; a fin set lists its
-          per-fin chords and span. Masses are in the <em>Mass &amp; balance</em> panel.
+          per-fin chords and span. Any column heading sorts the table; the design&apos;s own
+          nose-to-tail order is the default. The mass column is dry structure only — it adds up to{" "}
+          {d.q(d.mass(dryTotal, units))}, with the motor and any what-if ballast layered on at launch
+          in the <em>Mass &amp; balance</em> panel.
         </p>
         </details>
       </div>

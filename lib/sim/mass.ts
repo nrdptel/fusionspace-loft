@@ -21,6 +21,10 @@ export interface PointMass {
   ownInertia: number;
   /** For diagnostics: which component produced this. */
   source: string;
+  /** The component this mass belongs to, for surfaces that key off the same identity the diagram
+   *  and the parts table do. Absent on the lumped mass of a stage-level override, which stands for
+   *  a whole assembly rather than one part. */
+  componentId?: string;
 }
 
 export interface MassProperties {
@@ -220,7 +224,7 @@ function componentPointMass(p: Positioned): PointMass | null {
   if (totalMass <= 0) return null;
   // Mass-weighted CG of the body and its shoulder(s), which sit fore/aft of the body proper.
   const cg = (mass * bodyCg + shoulderMoment) / totalMass;
-  return { mass: totalMass, cg, ownInertia, source: c.name || c.kind };
+  return { mass: totalMass, cg, ownInertia, source: c.name || c.kind, componentId: c.id };
 }
 
 /** Mass and CG of each shoulder of a nose cone or transition — the collar that plugs into the
@@ -382,4 +386,41 @@ export function structurePointMasses(rocket: Rocket): PointMass[] {
 /** Dry mass properties (no motor). */
 export function dryMassProperties(rocket: Rocket): MassProperties {
   return combine(structurePointMasses(rocket));
+}
+
+/** What each component contributes to the dry structure, keyed by the component id the diagram and
+ *  the parts table already use — so one part can be pointed at in the picture and read in the table
+ *  with its mass beside its dimensions.
+ *
+ *  A part whose mass is folded into an ancestor's whole-assembly override contributes nothing of its
+ *  own; it is reported with `subsumedBy` naming the assembly that carries it, so the table can say
+ *  where the mass went rather than show a misleading zero. */
+export interface ComponentMass {
+  /** Mass this component contributes to the dry structure (kg); 0 when subsumed. */
+  mass: number;
+  /** Absolute CG station from the nose tip (m); undefined when subsumed. */
+  cg?: number;
+  /** The assembly whose mass override subsumed this part, when one did. */
+  subsumedBy?: string;
+}
+
+export function massByComponent(rocket: Rocket): Map<string, ComponentMass> {
+  const out = new Map<string, ComponentMass>();
+  for (const pm of structurePointMasses(rocket)) {
+    if (pm.componentId) out.set(pm.componentId, { mass: pm.mass, cg: pm.cg });
+  }
+  // Anything the walk skipped is subsumed by an ancestor (or stage) override. Name the nearest
+  // ancestor that carries a whole-assembly override so the row says where its mass is counted.
+  const label = (c: RocketComponent | Stage) => c.name || ("kind" in c ? c.kind : "stage");
+  const walk = (components: RocketComponent[], carrier: string | undefined) => {
+    for (const c of components) {
+      const carriedBy = carrier ?? (overridesSubtreeMass(c) ? label(c) : undefined);
+      if (carrier && !out.has(c.id)) out.set(c.id, { mass: 0, subsumedBy: carrier });
+      walk(c.children, carriedBy);
+    }
+  };
+  for (const stage of rocket.stages) {
+    walk(stage.components, stageOverridesSubtreeMass(stage) ? label(stage) : undefined);
+  }
+  return out;
 }

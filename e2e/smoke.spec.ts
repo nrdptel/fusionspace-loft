@@ -56,6 +56,23 @@ test.describe("Loft", () => {
     await page.mouse.move(0, 0);
     await finRow.focus();
     await expect(finRow).toHaveClass(/bg-indigo/);
+
+    // Each part carries its own dry mass beside its dimensions, and the column sorts heaviest-first
+    // — the "where is my mass going?" question answered on the part you are looking at.
+    const table = page.locator("table").first();
+    const massOf = async (row: number) =>
+      parseFloat((await table.locator("tbody tr").nth(row).locator("td").nth(2).innerText()).replace(/[^\d.]/g, ""));
+    await table.getByRole("button", { name: /Mass/ }).click();
+    const heaviest = await massOf(0);
+    expect(heaviest).toBeGreaterThan(0);
+    expect(heaviest).toBeGreaterThanOrEqual(await massOf(1));
+    // Clicking the active heading returns to the design's own nose-to-tail order.
+    await table.getByRole("button", { name: /Mass/ }).click();
+    await expect(table.locator("tbody tr").first()).toContainText("Nose cone");
+
+    // Pointing at a part on the diagram says what it weighs, not just what it is.
+    await finRow.hover();
+    await expect(page.locator("p[aria-live='polite']").first()).toContainText(/Trapezoidal fins.*from the nose.*kg/);
   });
 
   test("starts a new design from scratch and flies it (builder)", async ({ page }) => {
