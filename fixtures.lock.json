@@ -14,7 +14,7 @@
     "and re-run `npm run fetch-fixtures` to confirm the sweep still passes."
   ],
   "repo": "nrdptel/loft-fixtures",
-  "commit": "5fc826c19a8a7652a45c9999f8d3f40a8c85a549",
+  "commit": "37251476e5cfee330c88aa94cf0dd58f93370ccd",
   "checksums": "d909aeae6e063b629a161ba36dcc0f8b51e45313997789c8ecbc71e342971510",
   "files": 38,
   "tools": ["openrocket", "rocksim", "rasaero", "rocketpy", "spacecad"]
