@@ -303,14 +303,25 @@ export default function ParameterSweep({
             </label>
           </div>
 
-          {running || points === null ? (
+          {(running || points === null) && (
             <div className="mt-3 flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-300" role="status">
               <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent" />
-              <span>Flying {STEPS} points…</span>
+              <span>
+                Flying {STEPS} points
+                {points !== null && points.length > 1
+                  ? " again for the edited design — the curve below is the previous run"
+                  : "…"}
+              </span>
             </div>
-          ) : points.length > 1 ? (
-            <SweepChart points={points} axis={axisDef} metric={metric} metrics={metrics} units={units} name={doc.rocket.name} />
-          ) : (
+          )}
+          {/* The previous curve stays while the next one flies, dimmed and announced above as the
+              previous design's, so an edit can be read against what it changed. */}
+          {points !== null && points.length > 1 && (
+            <div aria-busy={running} className={running ? "opacity-50 transition-opacity" : undefined}>
+              <SweepChart points={points} axis={axisDef} metric={metric} metrics={metrics} units={units} name={doc.rocket.name} />
+            </div>
+          )}
+          {!running && points !== null && points.length <= 1 && (
             <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-300">
               Not enough of the range could be flown to draw a curve.
             </p>

@@ -123,7 +123,10 @@ export default function MotorSweep({
       {open && running && (
         <div className="mt-3 flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-300" role="status">
           <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent" />
-          <span>Flying {options.length} motors…</span>
+          <span>
+            Flying {options.length} motors
+            {rows !== null && rows.length > 0 ? " again for the edited design — the table below is the previous run" : "…"}
+          </span>
         </div>
       )}
 
@@ -133,8 +136,13 @@ export default function MotorSweep({
         </div>
       )}
 
-      {open && !running && rows !== null && rows.length > 0 && (
-        <SweepTable rows={rows} units={units} name={doc.rocket.name} />
+      {/* The previous run stays on screen while the next one flies, dimmed and announced above as the
+          previous design's — so an edit can be compared against what it changed rather than against a
+          spinner. It is never left unlabelled: the status line says which it is. */}
+      {open && rows !== null && rows.length > 0 && (
+        <div aria-busy={running} className={running ? "opacity-50 transition-opacity" : undefined}>
+          <SweepTable rows={rows} units={units} name={doc.rocket.name} />
+        </div>
       )}
     </section>
   );
