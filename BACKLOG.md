@@ -54,17 +54,10 @@ not yet done. Newest first. One line each. Anything here is fair game for the ne
 - A second nose cone is simply never edited: `primaryNose` takes the frontmost and `noseLength`/
   `noseShape` key off its id. No corpus design has two nose cones (0 of 35), so this is documentation,
   not a bug worth code today.
-- **The diagram's fin handles cannot all be tapped on a phone.** Measured this run on a 412x915 /
-  DPR 2.6 viewport with the 38 mm single-deploy sample: all seven `g[role=slider]` handles render
-  24x24 px, and the five fin handles cluster inside a 24x34 px box — centres 10.0 px (position vs
-  sweep), 16.4, 20.0, 22.4 px apart. `document.elementFromPoint` at the centre of **"Fin position"
-  returns "Fin sweep"**, so that handle is unreachable by any tap, and a cold walk measured only
-  28-52% of each handle's own core as the topmost element, meaning the reachable ones drag the wrong
-  dimension roughly half the time. A transparent 44 px hit circle makes this worse, not better: at
-  10 px separation the circles would nest. The fix is a touch-specific layout — one active fin
-  handle at a time, chosen from a chip row beside the zoom control, with the other four hidden while
-  it is selected. The nose-length and body-diameter handles are 117 px apart and need only a bigger
-  hit area, not the layout.
+- The diagram's touch layout shows one fin handle at a time now, which makes every handle tappable
+  but costs the phone something the desktop keeps: two fin dimensions can't be compared side by side
+  on the picture, and re-aiming is a tap away. Worth revisiting once the diagram itself is bigger on
+  a phone (it is 346x89 px at fit-width) — with room, two or three handles could coexist at 44 px.
 - The to-scale diagram is 346x89 px on a phone — 89 px of height for a whole airframe. It zooms, but
   the default fit is unreadable, and the Design workspace runs 1,892 px deep before you reach the
   fields.

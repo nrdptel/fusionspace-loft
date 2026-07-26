@@ -400,7 +400,11 @@ function Report({
       </div>
 
       <p className="mt-3 text-xs text-zinc-500 dark:text-zinc-400">
-        {result.n} flights; the bands are 5th–95th percentiles. Rail-lean and wind directions are
+        {/* Explicit: the space between an expression and the text after it is the one JSX drops,
+            and it shipped "300flights;" here. The sibling caption above survives only because its
+            text sits on its own line. */}
+        {result.n}{" "}
+        flights; the bands are 5th–95th percentiles. Rail-lean and wind directions are
         sampled from all bearings, so the scatter maps the recovery area to plan for regardless of the
         day&apos;s wind heading.{" "}
         {Number.isFinite(exceed) &&

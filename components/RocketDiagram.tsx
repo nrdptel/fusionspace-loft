@@ -28,6 +28,17 @@ import type { UnitSystem } from "@/lib/display";
  *  When the loaded centre of gravity (`cg`) and centre of pressure (`cp`) are supplied — the same
  *  values the results panel reports — they're marked on the airframe so the stability picture (CG
  *  ahead of CP, by the static margin) reads at a glance, which numbers alone can't show. */
+/** The fin dimensions the diagram can edit, in the order the touch chip row offers them. */
+const FIN_FIELDS = ["finStation", "finSweepLength", "finRootChord", "finTipChord", "finSpan"] as const;
+type FinField = (typeof FIN_FIELDS)[number];
+const FIN_FIELD_LABEL: Record<FinField, string> = {
+  finStation: "Position",
+  finSweepLength: "Sweep",
+  finRootChord: "Root",
+  finTipChord: "Tip",
+  finSpan: "Span",
+};
+
 export default function RocketDiagram({
   rocket,
   units,
@@ -78,6 +89,28 @@ export default function RocketDiagram({
   const box = useRef<HTMLElement>(null);
   const available = useMeasuredWidth(box);
   const [zoom, setZoom] = useState(1);
+
+  // A finger is not a mouse pointer, and the five fin handles sit within 10-22 px of each other at a
+  // phone's fit-width: measured on a 412x915 viewport, `document.elementFromPoint` at the centre of
+  // "Fin position" returns "Fin sweep", so that handle could not be tapped at all. Enlarging them
+  // makes it worse — at 10 px apart, 44 px circles nest. So on a coarse pointer the fin handles show
+  // one at a time, picked from a chip row, and the one on screen gets a hit area a glove can find.
+  // Read in an effect, never during render, so the server's HTML and the client's first pass agree.
+  const [coarse, setCoarse] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(pointer: coarse)");
+    const sync = () => setCoarse(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
+  const [activeFin, setActiveFin] = useState<FinField>("finStation");
+
+  // Half the project's own 44 px minimum, in the diagram's own units (a user unit here IS a pixel).
+  // Only on a coarse pointer: on a mouse layout the drawn dot is the target, and an invisible circle
+  // three times its size would swallow taps meant for the airframe underneath.
+  const hitR = coarse ? 22 : 0;
+  const showFin = (f: FinField) => !coarse || activeFin === f;
 
   const o = rocketOutline(rocket);
   if (!(o.length > 0) || !(o.maxExtent > 0) || o.body.length < 2) return null;
@@ -370,6 +403,7 @@ export default function RocketDiagram({
             the span handle (above the tip) drags vertically to resize the semi-span. */}
         {onEdit && primaryFin && finStationNow !== undefined && (
           <>
+            {showFin("finStation") && (
             <FinHandle
               field="finStation"
               label="Fin position"
@@ -383,8 +417,10 @@ export default function RocketDiagram({
               s={s}
               padX={padX}
               onEdit={onEdit}
+              hitR={hitR}
             />
-            {sweepNow !== undefined && (
+            )}
+            {sweepNow !== undefined && showFin("finSweepLength") && (
               <FinHandle
                 field="finSweepLength"
                 label="Fin sweep"
@@ -398,9 +434,10 @@ export default function RocketDiagram({
                 s={s}
                 padX={padX}
                 onEdit={onEdit}
+                hitR={hitR}
               />
             )}
-            {rootChordNow !== undefined && (
+            {rootChordNow !== undefined && showFin("finRootChord") && (
               <FinHandle
                 field="finRootChord"
                 label="Fin root chord"
@@ -414,9 +451,10 @@ export default function RocketDiagram({
                 s={s}
                 padX={padX}
                 onEdit={onEdit}
+                hitR={hitR}
               />
             )}
-            {tipChordNow !== undefined && (
+            {tipChordNow !== undefined && showFin("finTipChord") && (
               <FinHandle
                 field="finTipChord"
                 label="Fin tip chord"
@@ -430,9 +468,10 @@ export default function RocketDiagram({
                 s={s}
                 padX={padX}
                 onEdit={onEdit}
+                hitR={hitR}
               />
             )}
-            {spanNow !== undefined && (
+            {spanNow !== undefined && showFin("finSpan") && (
               <FinHandle
                 field="finSpan"
                 axis="y"
@@ -448,6 +487,7 @@ export default function RocketDiagram({
                 padX={padX}
                 centerY={centerY}
                 onEdit={onEdit}
+                hitR={hitR}
                 onActiveChange={(active) =>
                   setVFrameExtent(active ? o.maxExtent * V_HEADROOM : null)
                 }
@@ -471,6 +511,7 @@ export default function RocketDiagram({
             s={s}
             padX={padX}
             onEdit={onEdit}
+            hitR={hitR}
           />
         )}
 
@@ -492,6 +533,7 @@ export default function RocketDiagram({
             padX={padX}
             centerY={centerY}
             onEdit={onEdit}
+            hitR={hitR}
             onActiveChange={(active) =>
               setVFrameExtent(active ? o.maxExtent * V_HEADROOM : null)
             }
@@ -501,6 +543,23 @@ export default function RocketDiagram({
       </div>
       <figcaption className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-zinc-500 dark:text-zinc-400">
         <ZoomControl zoom={zoom} onZoom={setZoom} />
+        {coarse && onEdit && primaryFin && finStationNow !== undefined && (
+          <FinHandlePicker
+            value={activeFin}
+            onChange={setActiveFin}
+            offered={FIN_FIELDS.filter((f) =>
+              f === "finStation"
+                ? true
+                : f === "finSweepLength"
+                  ? sweepNow !== undefined
+                  : f === "finRootChord"
+                    ? rootChordNow !== undefined
+                    : f === "finTipChord"
+                      ? tipChordNow !== undefined
+                      : spanNow !== undefined,
+            )}
+          />
+        )}
         <span>To scale · {lengthLabel} long · ⌀ {d.q(d.lengthMm(2 * o.maxRadius, units))} max</span>
         {motorLabel && (
           <span className="inline-flex items-center gap-1">
@@ -573,6 +632,46 @@ function ZoomControl({ zoom, onZoom }: { zoom: number; onZoom: (z: number) => vo
  *  `onActiveChange`) to freeze the frame for the drag so the grabbed edge tracks the pointer instead
  *  of the frame chasing the geometry. Owning its own drag refs keeps that ref access inside its own
  *  event handlers, where it belongs. */
+/** Which fin dimension the diagram's single touch handle edits. Five handles within 22 px of each
+ *  other is not a control a finger can use — one of them was provably unreachable — so a coarse
+ *  pointer gets one handle and this row to aim it. The dimensions themselves are unchanged: this
+ *  picks which one the picture exposes, not what can be edited. */
+function FinHandlePicker({
+  value,
+  onChange,
+  offered,
+}: {
+  value: FinField;
+  onChange: (f: FinField) => void;
+  offered: readonly FinField[];
+}) {
+  if (offered.length < 2) return null;
+  return (
+    <span role="group" aria-label="Fin handle" className="inline-flex flex-wrap items-center gap-1">
+      <span className="text-zinc-500 dark:text-zinc-400">Drag:</span>
+      {offered.map((f) => {
+        const on = f === value;
+        return (
+          <button
+            key={f}
+            type="button"
+            aria-pressed={on}
+            onClick={() => onChange(f)}
+            className={
+              `inline-flex items-center rounded-md border px-2 ${TOUCH_TARGET_SQUARE} ` +
+              (on
+                ? "border-indigo-500 bg-indigo-500/10 font-medium text-indigo-700 dark:text-indigo-300"
+                : "border-zinc-300 text-zinc-600 dark:border-zinc-700 dark:text-zinc-300")
+            }
+          >
+            {FIN_FIELD_LABEL[f]}
+          </button>
+        );
+      })}
+    </span>
+  );
+}
+
 function FinHandle({
   field,
   label,
@@ -590,6 +689,7 @@ function FinHandle({
   axisScale = 1,
   centerY = 0,
   onActiveChange,
+  hitR = 0,
 }: {
   field: "finStation" | "finSweepLength" | "finRootChord" | "finTipChord" | "finSpan" | "bodyDiameter" | "noseLength";
   label: string;
@@ -615,6 +715,10 @@ function FinHandle({
   /** Called with true at drag start / false at drag end, so the parent can freeze the frame around a
    *  span drag. Only the span handle passes it. */
   onActiveChange?: (active: boolean) => void;
+  /** Radius (px, and a user unit here IS a px) of an invisible circle that extends the grab area
+   *  beyond the drawn dot. 0 leaves the handle exactly as drawn — right for a mouse, where the
+   *  visible target is the real one; a touch layout passes half the 44 px minimum. */
+  hitR?: number;
 }) {
   const dragRef = useRef<{
     grabOffset: number;
@@ -731,6 +835,9 @@ function FinHandle({
         onActiveChangeRef.current?.(true);
       }}
     >
+      {/* The grab area, drawn first so everything visible paints over it. Transparent rather than
+          absent: a fill of `none` is not hit-testable, and this circle IS the touch target. */}
+      {hitR > 0 && <circle cx={cx} cy={cy} r={hitR} fill="transparent" />}
       {/* focus ring — only shown when the handle is keyboard-focused */}
       <circle cx={cx} cy={cy} r={11} className="fill-none stroke-indigo-400 opacity-0 group-focus-visible:opacity-100" strokeWidth={2} />
       <circle cx={cx} cy={cy} r={7} className="fill-indigo-500/90 stroke-white dark:stroke-zinc-900" strokeWidth={1.5} />
