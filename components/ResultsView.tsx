@@ -631,7 +631,7 @@ export default function ResultsView({
           motor swap) remounts the panel to idle instead of leaving a stale RocketPy result on screen. */}
       {!staged && (
         <RocketpyCrossCheck
-          key={`rocketpy:${dkey}`}
+          designKey={dkey}
           doc={doc}
           config={run.config}
           simIndex={simIndex}
@@ -648,7 +648,7 @@ export default function ResultsView({
           the sweep is over changes. */}
       {!staged && swapOptions && swapOptions.length > 1 && (
         <MotorSweep
-          key={`motors:${dkey}`}
+          designKey={dkey}
           doc={doc}
           simIndex={simIndex}
           units={units}
@@ -664,7 +664,7 @@ export default function ResultsView({
           it resets when the design the sweep is over changes. */}
       {!staged && (
         <ParameterSweep
-          key={`params:${dkey}`}
+          designKey={dkey}
           doc={doc}
           simIndex={simIndex}
           units={units}
@@ -680,7 +680,7 @@ export default function ResultsView({
           flight. Keyed on design + config + active what-ifs so it resets when the flown design changes. */}
       {run.hasPropulsion && (
         <MonteCarlo
-          key={`montecarlo:${dkey}`}
+          designKey={dkey}
           doc={doc}
           simIndex={simIndex}
           units={units}

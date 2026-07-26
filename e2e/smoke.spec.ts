@@ -75,6 +75,45 @@ test.describe("Loft", () => {
     await expect(page.locator("p[aria-live='polite']").first()).toContainText(/Trapezoidal fins.*from the nose.*kg/);
   });
 
+  test("a design edit re-runs an open sweep instead of throwing it away", async ({ page }) => {
+    // The workbench loop: change something, see how the comparison moved. It used to be impossible —
+    // any edit remounted the Analyze panels to idle, so a completed sweep (or a 300-flight
+    // Monte-Carlo) vanished with no notice and the "before" was gone.
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+    const apogee = async () =>
+      parseFloat(
+        (
+          await page
+            .getByLabel("Results")
+            .getByText("Apogee", { exact: true })
+            .locator("xpath=following-sibling::div")
+            .innerText()
+        ).replace(/[^\d.]/g, ""),
+      );
+
+    await page.getByRole("tab", { name: "Analyze" }).click();
+    const sweep = page.getByRole("region", { name: "Motor sweep" });
+    await sweep.getByRole("button", { name: "Run motor sweep" }).click();
+    const firstRow = () => sweep.locator("tbody tr").first().locator("td").nth(1);
+    await expect(firstRow()).not.toBeEmpty();
+    const sweptBefore = await firstRow().innerText();
+    const flownBefore = await apogee();
+
+    // Widen the fins on the Design workspace, then come back.
+    await page.getByRole("tab", { name: "Design" }).click();
+    const span = page.locator("label", { hasText: /Fin span/ }).locator("input");
+    await span.fill("70");
+    await span.blur();
+    await expect.poll(apogee).not.toBe(flownBefore);
+
+    await page.getByRole("tab", { name: "Analyze" }).click();
+    // The sweep is still open, and it has re-flown every motor on the edited design.
+    await expect(sweep.locator("table")).toBeVisible();
+    await expect.poll(async () => firstRow().innerText()).not.toBe(sweptBefore);
+  });
+
   test("the nose is draggable on the diagram, and arrow keys nudge rather than jump", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();

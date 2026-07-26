@@ -85,6 +85,7 @@ export default function ParameterSweep({
   ballastKg,
   motorSwap,
   geometry,
+  designKey,
 }: {
   doc: OrkDocument;
   simIndex: number;
@@ -92,6 +93,10 @@ export default function ParameterSweep({
   ballastKg?: number;
   motorSwap?: { manufacturer?: string; designation: string; diameter?: number };
   geometry?: GeometryEdits;
+  /** One string standing for the design being swept. The props above are rebuilt on every render,
+   *  so depending on their identity would restart the sweep whenever anything re-renders; this is
+   *  their *value*, and it is what decides when the sweep is genuinely out of date. */
+  designKey: string;
 }) {
   // The variables this design can sweep: its geometry (each ranged around its own value) plus nose
   // ballast (0 → a mass-relative max), which any flyable design can take.
@@ -224,7 +229,10 @@ export default function ParameterSweep({
     return () => {
       live = false;
     };
-  }, [open, doc, simIndex, axisDef, ballastKg, motorSwap, geometry]);
+    // Keyed on the design's value, not the props' identity — see `designKey`. Changing the swept
+    // axis still re-runs; an unrelated re-render no longer restarts the flights.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, axisDef, designKey]);
 
   // A design with no editable dimension (no fins, nose, or body tube) has nothing to sweep.
   if (axes.length === 0) return null;

@@ -54,6 +54,7 @@ export default function MonteCarlo({
   recoveryCdScale,
   motorSwap,
   geometry,
+  designKey,
 }: {
   doc: OrkDocument;
   simIndex: number;
@@ -62,6 +63,10 @@ export default function MonteCarlo({
   recoveryCdScale?: number;
   motorSwap?: { manufacturer?: string; designation: string; diameter?: number };
   geometry?: GeometryEdits;
+  /** One string standing for the design being flown. The props above are rebuilt on every render,
+   *  so depending on their identity would restart the run whenever anything re-renders; this is
+   *  their *value*, and it is what decides when the dispersion is genuinely out of date. */
+  designKey: string;
 }) {
   const [open, setOpen] = useState(false);
   // Dispersion 1σ inputs, with common planning defaults: a ~5% motor total-impulse band, a couple
@@ -140,7 +145,10 @@ export default function MonteCarlo({
     return () => {
       live = false;
     };
-  }, [open, doc, simIndex, settled, ballastKg, recoveryCdScale, motorSwap, geometry]);
+    // Keyed on the design's value, not the props' identity — see `designKey`. A changed dispersion
+    // tolerance still re-flies; an unrelated re-render no longer restarts hundreds of flights.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, settled, designKey]);
 
   return (
     <section

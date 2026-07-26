@@ -49,7 +49,7 @@ test.describe("in-browser RocketPy second solver (self-hosted Pyodide)", () => {
     expect(loftApogee).toBeLessThan(1005);
   });
 
-  test("resets on config change and reuses the warm worker for the next run", async ({ page }) => {
+  test("labels a result the config moved out from under, and reuses the warm worker to redo it", async ({ page }) => {
     test.setTimeout(240_000);
 
     await page.goto("/");
@@ -70,16 +70,19 @@ test.describe("in-browser RocketPy second solver (self-hosted Pyodide)", () => {
     const apogeeDefault = await rpApogee();
     expect(apogeeDefault).toBeGreaterThan(0);
 
-    // Switching motor configuration must drop that stale result: the panel remounts back to idle,
-    // so the table is gone and "Run RocketPy" is offered again for the new configuration.
+    // Switching motor configuration must never leave that result reading as current. It costs the
+    // better part of a minute to produce, so it is kept as the "before" — labelled as being for the
+    // previous configuration, with a way to run it again for the new one.
     await page.getByLabel("Motor configuration").selectOption("1");
-    await expect(panel.getByRole("button", { name: /Run RocketPy/ })).toBeVisible();
-    await expect(panel.getByRole("row", { name: /^Apogee\b/ })).toHaveCount(0);
+    await expect(panel.getByText(/has changed since this ran/)).toBeVisible();
+    await expect(panel.getByRole("button", { name: /Run RocketPy again/ })).toBeVisible();
 
-    // Second run reuses the WARM worker — no ~10 s reboot — and flies the newly selected G40W
+    await panel.getByRole("button", { name: /Run RocketPy again/ }).click();
+    await expect(panel.getByText(/has changed since this ran/)).toHaveCount(0, { timeout: 60_000 });
+
+    // That second run reused the WARM worker — no ~10 s reboot — and flew the newly selected G40W
     // configuration: its apogee lands on the committed reference (~548 m) and differs clearly from
     // the H128W run above, proving the warm worker flew the right (switched) config.
-    await panel.getByRole("button", { name: /Run RocketPy/ }).click();
     await expect(panel.getByRole("row", { name: /^Apogee\b/ })).toBeVisible({ timeout: 60_000 });
     const apogeeG40 = await rpApogee();
     expect(apogeeG40).toBeGreaterThan(510);

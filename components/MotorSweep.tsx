@@ -36,6 +36,7 @@ export default function MotorSweep({
   designMotor,
   ballastKg,
   geometry,
+  designKey,
 }: {
   doc: OrkDocument;
   simIndex: number;
@@ -48,6 +49,10 @@ export default function MotorSweep({
   ballastKg?: number;
   /** Active builder geometry edits, applied to every motor in the sweep. */
   geometry?: GeometryEdits;
+  /** One string standing for the design being swept. The props above are rebuilt on every render,
+   *  so depending on their identity would restart the sweep whenever anything re-renders; this is
+   *  their *value*, and it is what decides when the sweep is genuinely out of date. */
+  designKey: string;
 }) {
   const [open, setOpen] = useState(false);
   const [rows, setRows] = useState<MotorSweepRow[] | null>(null);
@@ -82,7 +87,10 @@ export default function MotorSweep({
     return () => {
       live = false;
     };
-  }, [open, doc, simIndex, options, designMotor, ballastKg, geometry]);
+    // Deliberately keyed on the design's value, not on the props' identity — see `designKey`. The
+    // sweep re-runs when the design actually changes and survives an unrelated re-render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, designKey]);
 
   return (
     <section
