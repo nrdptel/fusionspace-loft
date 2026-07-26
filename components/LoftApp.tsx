@@ -999,6 +999,10 @@ function DesignEditor({
                       label="Motor cluster"
                       value={edits.motorClusterCount ?? ""}
                       placeholder={String(designDims.motorClusterCount)}
+                      min={1}
+                      max={12}
+                      step={1}
+                      hint="How many motors the mount holds — at least one."
                       onChange={(v) => {
                         const n = v === "" ? undefined : Math.round(Number(v));
                         onEdit({ motorClusterCount: n !== undefined && n >= 1 ? n : undefined });
@@ -1020,12 +1024,17 @@ function DesignEditor({
                     value={toDispSpan(edits.finSpan)}
                     placeholder={toDispSpan(designDims.finSpan)}
                     onChange={(v) => onEdit({ finSpan: fromSpan(v) })}
+                  min={0}
                   />
                   {designDims.finCount !== undefined && (
                     <Num
                       label="Fin count"
                       value={edits.finCount ?? ""}
                       placeholder={String(designDims.finCount)}
+                      min={1}
+                      max={12}
+                      step={1}
+                      hint="Fins in the set. Zero is not a fin set — it is a design with no fins, which the editor cannot yet build."
                       onChange={(v) => {
                         const n = v === "" ? undefined : Math.round(Number(v));
                         onEdit({ finCount: n !== undefined && n >= 1 ? n : undefined });
@@ -1038,6 +1047,7 @@ function DesignEditor({
                       value={toDispSpan(edits.finRootChord)}
                       placeholder={toDispSpan(designDims.finRootChord)}
                       onChange={(v) => onEdit({ finRootChord: fromSpan(v) })}
+                    min={0}
                     />
                   )}
                   {designDims.finTipChord !== undefined && (
@@ -1046,6 +1056,7 @@ function DesignEditor({
                       value={toDispSpan(edits.finTipChord)}
                       placeholder={toDispSpan(designDims.finTipChord)}
                       onChange={(v) => onEdit({ finTipChord: fromSpan(v) })}
+                    min={0}
                     />
                   )}
                   {designDims.finSweepLength !== undefined && (
@@ -1054,6 +1065,7 @@ function DesignEditor({
                       value={toDispSpan(edits.finSweepLength)}
                       placeholder={toDispSpan(designDims.finSweepLength)}
                       onChange={(v) => onEdit({ finSweepLength: fromSpan(v) })}
+                    min={0}
                     />
                   )}
                   {designDims.finStation !== undefined && (
@@ -1062,6 +1074,7 @@ function DesignEditor({
                       value={toDispSpan(edits.finStation)}
                       placeholder={toDispSpan(designDims.finStation)}
                       onChange={(v) => onEdit({ finStation: fromSpan(v) })}
+                    min={0}
                     />
                   )}
                   {designDims.finThickness !== undefined && (
@@ -1070,6 +1083,7 @@ function DesignEditor({
                       value={toDispThick(edits.finThickness)}
                       placeholder={toDispThick(designDims.finThickness)}
                       onChange={(v) => onEdit({ finThickness: fromSpan(v) })}
+                    min={0}
                     />
                   )}
                   {designDims.finCrossSection !== undefined && (
@@ -1134,6 +1148,7 @@ function DesignEditor({
                       value={toDispSpan(edits.noseLength)}
                       placeholder={toDispSpan(designDims.noseLength)}
                       onChange={(v) => onEdit({ noseLength: fromSpan(v) })}
+                    min={0}
                     />
                   )}
                   {designDims.noseShape !== undefined && (
@@ -1162,6 +1177,7 @@ function DesignEditor({
                       value={toDispSpan(edits.bodyLength)}
                       placeholder={toDispSpan(designDims.bodyLength)}
                       onChange={(v) => onEdit({ bodyLength: fromSpan(v) })}
+                    min={0}
                     />
                   )}
                   {designDims.bodyDiameter !== undefined && (
@@ -1170,6 +1186,7 @@ function DesignEditor({
                       value={toDispSpan(edits.bodyDiameter)}
                       placeholder={toDispSpan(designDims.bodyDiameter)}
                       onChange={(v) => onEdit({ bodyDiameter: fromSpan(v) })}
+                    min={0}
                     />
                   )}
                   {designDims.bodyDiameter !== undefined && (
@@ -1178,6 +1195,7 @@ function DesignEditor({
                       value={toDispSpan(edits.boattailLength)}
                       placeholder="0"
                       onChange={(v) => onEdit({ boattailLength: fromSpan(v) })}
+                    min={0}
                     />
                   )}
                   {designDims.bodyDiameter !== undefined && (
@@ -1186,6 +1204,7 @@ function DesignEditor({
                       value={toDispSpan(edits.boattailAftDiameter)}
                       placeholder={`< ${toDispSpan(designDims.bodyDiameter)}`}
                       onChange={(v) => onEdit({ boattailAftDiameter: fromSpan(v) })}
+                    min={0}
                     />
                   )}
                 </div>
@@ -1201,6 +1220,10 @@ function DesignEditor({
                   label="Recovery size (×)"
                   value={edits.recoveryCdScale ?? ""}
                   placeholder="1"
+                  min={0.1}
+                  max={10}
+                  step={0.1}
+                  hint="Scale on the deployed drag area — 2 is twice the canopy."
                   onChange={(v) => {
                     const n = v === "" ? undefined : Number(v);
                     onEdit({ recoveryCdScale: n !== undefined && n > 0 ? n : undefined });
@@ -1211,12 +1234,14 @@ function DesignEditor({
                   value={toDispLen(edits.mainDeployAltitude)}
                   placeholder="apogee"
                   onChange={(v) => onEdit({ mainDeployAltitude: fromLen(v) })}
+                min={0}
                 />
                 <Num
                   label={`Drogue Ø (${spanU})`}
                   value={toDispSpan(edits.drogueDiameter)}
                   placeholder="0"
                   onChange={(v) => onEdit({ drogueDiameter: fromSpan(v) })}
+                min={0}
                 />
                 {designDims.mainParachuteDiameter !== undefined && (
                   <Num
@@ -1224,6 +1249,7 @@ function DesignEditor({
                     value={toDispSpan(edits.mainParachuteDiameter)}
                     placeholder={toDispSpan(designDims.mainParachuteDiameter)}
                     onChange={(v) => onEdit({ mainParachuteDiameter: fromSpan(v) })}
+                  min={0}
                   />
                 )}
               </div>
@@ -1239,6 +1265,7 @@ function DesignEditor({
                   value={toDispMass(edits.ballastKg)}
                   placeholder="0"
                   onChange={(v) => onEdit({ ballastKg: fromMass(v) })}
+                min={0}
                 />
                 {designDims.payloadStation !== undefined && (
                   <Num
@@ -1246,6 +1273,7 @@ function DesignEditor({
                     value={toDispMass(edits.payloadMassKg)}
                     placeholder="0"
                     onChange={(v) => onEdit({ payloadMassKg: fromMass(v) })}
+                  min={0}
                   />
                 )}
                 {designDims.payloadStation !== undefined && (
@@ -1254,6 +1282,7 @@ function DesignEditor({
                     value={toDispSpan(edits.payloadStation)}
                     placeholder={toDispSpan(designDims.payloadStation)}
                     onChange={(v) => onEdit({ payloadStation: fromSpan(v) })}
+                  min={0}
                   />
                 )}
                 {designDims.finish !== undefined && (
@@ -1377,10 +1406,45 @@ function ConditionsControls({
       </summary>
       <div className="space-y-4 border-t border-zinc-100 px-4 py-4 dark:border-zinc-800">
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <Num label={`Rail length (${lenU})`} value={toDispLen(edits.rodLength)} placeholder="1.2" onChange={(v) => onEdit({ rodLength: fromLen(v) })} />
-          <Num label="Rail angle (°)" value={edits.rodAngleDeg ?? ""} placeholder="0" onChange={(v) => onEdit({ rodAngleDeg: v === "" ? undefined : Number(v) })} />
-          <Num label={`Surface wind (${spdU})`} value={toDispSpd(edits.windSpeed)} placeholder="0" onChange={(v) => onEdit({ windSpeed: fromSpd(v) })} disabled={scenario === "today"} />
-          <Num label={`Field elev. (${lenU})`} value={toDispLen(edits.launchAltitude)} placeholder="0" onChange={(v) => onEdit({ launchAltitude: fromLen(v) })} disabled={scenario === "today"} />
+          <Num
+            label={`Rail length (${lenU})`}
+            value={toDispLen(edits.rodLength)}
+            placeholder="1.2"
+            onChange={(v) => onEdit({ rodLength: fromLen(v) })}
+            min={0}
+            max={imperial ? 66 : 20}
+            hint="How much rail guides the rocket before it flies free."
+          />
+          <Num
+            label="Rail angle (°)"
+            value={edits.rodAngleDeg ?? ""}
+            placeholder="0"
+            onChange={(v) => onEdit({ rodAngleDeg: v === "" ? undefined : Number(v) })}
+            min={0}
+            max={45}
+            step={1}
+            hint="Tilt from vertical, 0–45°. Past that the rocket is being thrown rather than launched, and the ascent model no longer describes it."
+          />
+          <Num
+            label={`Surface wind (${spdU})`}
+            value={toDispSpd(edits.windSpeed)}
+            placeholder="0"
+            onChange={(v) => onEdit({ windSpeed: fromSpd(v) })}
+            disabled={scenario === "today"}
+            min={0}
+            max={imperial ? 90 : 40}
+            hint="Wind speed at the pad. Direction is a separate thing — a negative speed is not a wind from the other side."
+          />
+          <Num
+            label={`Field elev. (${lenU})`}
+            value={toDispLen(edits.launchAltitude)}
+            placeholder="0"
+            onChange={(v) => onEdit({ launchAltitude: fromLen(v) })}
+            disabled={scenario === "today"}
+            min={imperial ? -1400 : -430}
+            max={imperial ? 16400 : 5000}
+            hint="Height of the launch site above sea level — from the Dead Sea to the highest field anyone drives to."
+          />
         </div>
         <p className="text-xs text-zinc-500 dark:text-zinc-400">
           Blank fields use the design&apos;s stored launch conditions. Changing any field re-flies
@@ -1440,21 +1504,47 @@ function ConditionsControls({
   );
 }
 
+/** A number field for a what-if. `min`/`max` are the range in which the value means something
+ *  physically, not a style choice: outside it the solver still returns a number, and a confident
+ *  figure computed from a rail angle of 120° or a fin count of zero is worse than no figure. The
+ *  bounds reach the browser (validation, spinners, the mobile keypad) and are enforced on commit,
+ *  so a typed or pasted value lands inside them and the field shows what was actually flown. */
 function Num({
   label,
   value,
   placeholder,
   onChange,
   disabled,
+  min,
+  max,
+  step,
+  hint,
 }: {
   label: string;
   value: string | number;
   placeholder?: string;
   onChange: (v: string) => void;
   disabled?: boolean;
+  min?: number;
+  max?: number;
+  step?: number;
+  /** What the range means, in the flyer's words — shown as the field's tooltip. */
+  hint?: string;
 }) {
+  const clamp = (raw: string): string => {
+    if (raw === "") return raw; // blank means "use the design's own value", never zero
+    const n = Number(raw);
+    if (!Number.isFinite(n)) return raw;
+    if (min !== undefined && n < min) return String(min);
+    if (max !== undefined && n > max) return String(max);
+    return raw;
+  };
+  const ranged =
+    min !== undefined || max !== undefined
+      ? `${min ?? "–"} to ${max ?? "–"}`
+      : undefined;
   return (
-    <label className="block">
+    <label className="block" title={hint ?? (ranged ? `${label}: ${ranged}` : undefined)}>
       <span className="block text-[11px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">{label}</span>
       <input
         type="number"
@@ -1462,7 +1552,22 @@ function Num({
         value={value}
         placeholder={placeholder}
         disabled={disabled}
+        min={min}
+        max={max}
+        step={step}
+        // Typing is left alone so a value can be entered digit by digit ("1" on the way to "12");
+        // the range is applied when the field is committed — blurred, or Enter pressed.
         onChange={(e) => onChange(e.target.value)}
+        onBlur={(e) => {
+          const c = clamp(e.target.value);
+          if (c !== e.target.value) onChange(c);
+        }}
+        onKeyDown={(e) => {
+          if (e.key !== "Enter") return;
+          const el = e.currentTarget;
+          const c = clamp(el.value);
+          if (c !== el.value) onChange(c);
+        }}
         className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 font-mono text-sm text-zinc-800 outline-none focus:border-indigo-400 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
       />
     </label>

@@ -75,6 +75,46 @@ test.describe("Loft", () => {
     await expect(page.locator("p[aria-live='polite']").first()).toContainText(/Trapezoidal fins.*from the nose.*kg/);
   });
 
+  test("a what-if outside its physical range is brought back into it, not flown", async ({ page }) => {
+    // A rail angle of 120° is a typo, not a launch. The solver still returns a number for it — it
+    // returned an apogee of zero — and a confident zero from a mistyped field is worse than no
+    // figure at all. Every what-if carries the range in which it means something.
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+    const apogee = async () =>
+      parseFloat(
+        (
+          await page
+            .getByLabel("Results")
+            .getByText("Apogee", { exact: true })
+            .locator("xpath=following-sibling::div")
+            .innerText()
+        ).replace(/[^\d.]/g, ""),
+      );
+    expect(await apogee()).toBeGreaterThan(0);
+
+    await page.locator("summary", { hasText: /conditions/i }).first().click();
+    const angle = page.getByLabel(/Rail angle/i).first();
+    await angle.fill("120");
+    await angle.blur();
+    await expect(angle).toHaveValue("45");
+    expect(await apogee()).toBeGreaterThan(0);
+
+    // A negative tilt is not a tilt the other way — direction is not this field's job.
+    await angle.fill("-30");
+    await angle.blur();
+    await expect(angle).toHaveValue("0");
+
+    // Nor is a negative wind speed a wind from the other side.
+    await angle.fill("");
+    await angle.blur();
+    const wind = page.getByLabel(/Surface wind/i).first();
+    await wind.fill("-50");
+    await wind.blur();
+    await expect(wind).toHaveValue(/^0(\.0+)?$/);
+  });
+
   test("clearing a what-if brings the stored-tool comparison back", async ({ page }) => {
     // A what-if means Loft is no longer flying the design the file describes, so the stored-results
     // comparison is withheld. Clearing it again must restore it — the edit fields are the surface
