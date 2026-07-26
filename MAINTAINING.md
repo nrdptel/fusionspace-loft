@@ -191,6 +191,11 @@ Do these in order, before scoping increment 1. None is optional; most run concur
      and "check CI" are impossible without one; do not write a plan around a tool you have not
      confirmed.
    - Whether the browser driver has an executable, and whether `corpus/` exists.
+   - **Whether your commits will actually be signed.** `git config commit.gpgsign` and
+     `user.signingkey`, then make one commit and check it carries a signature
+     (`git cat-file commit HEAD | grep gpgsig`). A key can be configured and still not sign, and a
+     whole session of unsigned commits is only fixable by rewriting history you have already pushed.
+     Never disable signing to get past an error — find out why it failed.
 
 3. **Establish where work lands** — measured, not assumed. See *How this ships*.
 
