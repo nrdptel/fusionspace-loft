@@ -97,6 +97,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             style={{ background: b.background }}
           />
         ))}
+        {/* First stop for a keyboard or screen-reader user. Without it, reaching the workspace meant
+            tabbing past the whole header — starting with a link off to another site. Visible only
+            when focused, as the convention is. */}
+        <a
+          href="#main"
+          className="sr-only rounded-b-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-50"
+        >
+          Skip to content
+        </a>
         {children}
       </body>
     </html>

@@ -282,6 +282,11 @@ export default function GeometryInspector({
                       setSelectedId((cur) => (cur === p.component.id ? null : p.component.id));
                     }
                   }}
+                  // A focusable row with no name is an anonymous stop for anyone arriving by
+                  // keyboard; say which part it is and what pressing it does.
+                  aria-label={`${p.component.name || KIND_LABEL[p.component.kind] || p.component.kind} — ${
+                    selectedId === p.component.id ? "picked out on the diagram, press to release" : "press to pick out on the diagram"
+                  }`}
                   aria-selected={selectedId === p.component.id}
                   className={`cursor-pointer border-t border-zinc-100 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-400 dark:border-zinc-800 ${
                     activeId === p.component.id ? "bg-indigo-50 dark:bg-indigo-500/10" : ""

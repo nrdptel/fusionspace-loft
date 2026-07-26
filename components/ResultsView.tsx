@@ -822,6 +822,13 @@ function RocketSummary({ run, doc, units }: { run: FlightRun; doc: OrkDocument; 
           term="Static margin"
           value={d.q(d.calibers(r.staticMarginCal))}
           hint={r.staticMarginCal < 1 ? "low" : r.staticMarginCal > 3 ? "high" : undefined}
+          hintWhy={
+            r.staticMarginCal < 1
+              ? "under 1 caliber: the centre of pressure is close enough to the centre of gravity that the rocket may not hold a straight course off the rail"
+              : r.staticMarginCal > 3
+                ? "over 3 calibers: strongly over-stable, so the rocket weathercocks hard into wind and loses altitude and downrange predictability"
+                : undefined
+          }
         />
         <Field term="CNα" value={d.fmt(r.stability.cnAlpha, 2) + " /rad"} />
         {r.flutter && (
@@ -829,6 +836,7 @@ function RocketSummary({ run, doc, units }: { run: FlightRun; doc: OrkDocument; 
             term="Fin flutter (est.)"
             value={d.q(d.speed(r.flutter.worst.flutterVelocity, units))}
             hint={r.flutter.worst.margin < RECOMMENDED_FLUTTER_MARGIN ? "thin" : undefined}
+            hintWhy={`the estimated flutter speed is under ${RECOMMENDED_FLUTTER_MARGIN}× the peak airspeed, the margin the method's own spread calls for`}
             sub={`${d.fmt(r.flutter.worst.margin, 1)}× margin`}
           />
         )}
@@ -983,13 +991,35 @@ function BoosterDescentNote({ run, units }: { run: FlightRun; units: UnitSystem 
   );
 }
 
-function Field({ term, value, hint, sub }: { term: string; value: string; hint?: string; sub?: string }) {
+function Field({
+  term,
+  value,
+  hint,
+  hintWhy,
+  sub,
+}: {
+  term: string;
+  value: string;
+  hint?: string;
+  /** What the flag means and why it matters — a badge reading "HIGH" beside a number is a verdict
+   *  with no reasoning attached, which is the one thing this tool is not supposed to hand out. */
+  hintWhy?: string;
+  sub?: string;
+}) {
   return (
     <div>
       <dt className="text-[11px] uppercase tracking-wide text-zinc-500 dark:text-zinc-400">{term}</dt>
       <dd className="font-mono text-sm tabular-nums text-zinc-800 dark:text-zinc-200">
         {value}
-        {hint && <span className="ml-1 text-[10px] uppercase text-amber-700 dark:text-amber-400">{hint}</span>}
+        {hint && (
+          <abbr
+            title={hintWhy}
+            aria-label={hintWhy ? `${hint} — ${hintWhy}` : hint}
+            className="ml-1 text-[10px] uppercase text-amber-700 no-underline dark:text-amber-400"
+          >
+            {hint}
+          </abbr>
+        )}
         {sub && <div className="text-[10px] tabular-nums text-zinc-500 dark:text-zinc-400">{sub}</div>}
       </dd>
     </div>

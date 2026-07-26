@@ -4,7 +4,7 @@ import Footer from "@/components/Footer";
 
 export default function DocsLayout({ children }: { children: React.ReactNode }) {
   return (
-    <main className="mx-auto w-full max-w-3xl px-4 py-8 md:px-6 md:py-10">
+    <main id="main" className="mx-auto w-full max-w-3xl px-4 py-8 md:px-6 md:py-10">
       <SiteHeader compact />
       <div className="mt-8">
         <div className="flex flex-wrap items-baseline justify-between gap-3">

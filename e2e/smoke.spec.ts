@@ -75,6 +75,24 @@ test.describe("Loft", () => {
     await expect(page.locator("p[aria-live='polite']").first()).toContainText(/Trapezoidal fins.*from the nose.*kg/);
   });
 
+  test("the page has a top, and a keyboard reaches the workspace first", async ({ page }) => {
+    await page.goto("/");
+    // The app page titles itself. An outline that starts at <h2> has no top for a screen reader to
+    // land on, and the app is the page people actually use.
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Loft");
+    // …and the docs section, which titles itself, still has exactly one of its own.
+    await page.goto("/docs");
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Documentation");
+
+    // Reaching the workspace by keyboard used to mean tabbing through the whole header, starting
+    // with a link off to another site.
+    await page.goto("/");
+    await page.keyboard.press("Tab");
+    await expect(page.getByRole("link", { name: "Skip to content" })).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect(page.locator("#main")).toBeVisible();
+  });
+
   test("a staged design is told why three Analyze tools aren't offered", async ({ page }) => {
     // Three of the four are single-stage only. Rendering nothing at all reads as "Loft doesn't have
     // these", which is a different claim from "they don't apply to this design".
