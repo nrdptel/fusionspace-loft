@@ -76,6 +76,16 @@ export const SURFACE_FINISHES: SurfaceFinish[] = [
 ];
 
 export interface GeometryEdits {
+  /** Which fin set the fin fields describe and edit. Undefined means the frontmost one, which is
+   *  what the panel has always used and what every readback below still falls back to. This is a
+   *  SELECTION, not an edit: on its own it changes no geometry, so `hasGeometryEdits` ignores it and
+   *  a design with only a selection set is still flown untouched.
+   *
+   *  It matters because 13 of the 35 corpus designs carry more than one fin set, and until now the
+   *  other sets could not be reached at all. The edit still lands on the selected set's whole GROUP
+   *  — every set indistinguishable from it — so a ring the file stores as three parts resizes
+   *  together, exactly as before. */
+  finSetId?: string;
   /** Absolute fin semi-span (root→tip height, m) for the fin group the panel describes — the
    *  primary set and any set indistinguishable from it. Undefined leaves fins as-is. */
   finSpan?: number;
@@ -223,10 +233,17 @@ export function primaryBodyDiameter(rocket: Rocket): number | undefined {
 }
 
 /** The design's primary (frontmost) fin set, if any. */
-function primaryFinSet(rocket: Rocket) {
-  return flattenRocket(rocket)
+/** The fin set the panel is about: the one selected, or the frontmost when nothing is.
+ *
+ *  Every fin readback and the fin edit path resolve through this one function, so the value shown
+ *  to edit FROM and the set the edit is written TO can never name different components. A selection
+ *  naming a set this design doesn't have falls back to the frontmost rather than resolving to
+ *  nothing — a stale id from a restored session must not silently disable the fin fields. */
+function primaryFinSet(rocket: Rocket, selectedId?: string) {
+  const fins = flattenRocket(rocket)
     .map((p) => p.component)
-    .find((c) => c.kind === "trapezoidfinset" || c.kind === "ellipticalfinset" || c.kind === "freeformfinset");
+    .filter((c) => c.kind === "trapezoidfinset" || c.kind === "ellipticalfinset" || c.kind === "freeformfinset");
+  return (selectedId ? fins.find((c) => c.id === selectedId) : undefined) ?? fins[0];
 }
 
 const FIN_SET_KINDS = ["trapezoidfinset", "ellipticalfinset", "freeformfinset"] as const;
@@ -269,25 +286,26 @@ function finGroupKey(p: Positioned): string {
  *  sustainer set beside 108.0 mm booster fins — where editing all of them would destroy the design.
  *  Grouping by appearance is what serves both: it broadcasts only where the sets are
  *  indistinguishable to begin with. */
-export function primaryFinGroupIds(rocket: Rocket): Set<string> {
+export function primaryFinGroupIds(rocket: Rocket, selectedId?: string): Set<string> {
   const fins = flattenRocket(rocket).filter((p) => isFinSet(p.component));
   if (!fins.length) return new Set();
-  const key = finGroupKey(fins[0]);
+  const seed = (selectedId ? fins.find((p) => p.component.id === selectedId) : undefined) ?? fins[0];
+  const key = finGroupKey(seed);
   return new Set(fins.filter((p) => finGroupKey(p) === key).map((p) => p.component.id));
 }
 
 /** How many fin sets sit OUTSIDE the group the fin fields describe — the sets a flyer can see on the
  *  diagram but cannot reach from this panel. 0 means the fields speak for every fin on the rocket. */
-export function unreachableFinSetCount(rocket: Rocket): number {
+export function unreachableFinSetCount(rocket: Rocket, selectedId?: string): number {
   const fins = flattenRocket(rocket).filter((p) => isFinSet(p.component));
-  return fins.length - primaryFinGroupIds(rocket).size;
+  return fins.length - primaryFinGroupIds(rocket, selectedId).size;
 }
 
 /** The primary fin set's own name, so a design with sets the panel cannot reach can say which one
  *  its fields describe rather than labelling them all "Fins". Falls back to a positional name,
  *  since real files name every set alike ("Fin set", "Trapezoidal fin set"). */
-export function primaryFinSetName(rocket: Rocket): string | undefined {
-  const fin = primaryFinSet(rocket);
+export function primaryFinSetName(rocket: Rocket, selectedId?: string): string | undefined {
+  const fin = primaryFinSet(rocket, selectedId);
   if (!fin) return undefined;
   const own = fin.name?.trim();
   // A name shared with the sets it must be told apart from distinguishes nothing.
@@ -299,14 +317,14 @@ export function primaryFinSetName(rocket: Rocket): string | undefined {
 
 /** The design's primary fin set's semi-span (m), for showing the flyer the current value to edit
  *  from. Undefined for a finless design. */
-export function primaryFinSpan(rocket: Rocket): number | undefined {
-  const fin = primaryFinSet(rocket);
+export function primaryFinSpan(rocket: Rocket, selectedId?: string): number | undefined {
+  const fin = primaryFinSet(rocket, selectedId);
   return fin && "height" in fin ? fin.height : undefined;
 }
 
 /** The design's primary fin set's fin count. Undefined for a finless design. */
-export function primaryFinCount(rocket: Rocket): number | undefined {
-  const fin = primaryFinSet(rocket);
+export function primaryFinCount(rocket: Rocket, selectedId?: string): number | undefined {
+  const fin = primaryFinSet(rocket, selectedId);
   return fin && "finCount" in fin ? fin.finCount : undefined;
 }
 
@@ -314,8 +332,8 @@ export function primaryFinCount(rocket: Rocket): number | undefined {
  *  longitudinal position, for the builder's "move the fins" edit to start from. Resolved through
  *  flattenRocket, so it reflects wherever the placement puts the set. Undefined for a finless
  *  design. */
-export function primaryFinStation(rocket: Rocket): number | undefined {
-  const fin = primaryFinSet(rocket);
+export function primaryFinStation(rocket: Rocket, selectedId?: string): number | undefined {
+  const fin = primaryFinSet(rocket, selectedId);
   if (!fin) return undefined;
   const placed = flattenRocket(rocket).find((p) => p.component.id === fin.id);
   return placed ? placed.xFore : undefined;
@@ -324,8 +342,8 @@ export function primaryFinStation(rocket: Rocket): number | undefined {
 /** The design's primary fin set's axial extent along the body (m) — its root chord, for any fin
  *  kind — so a caller can tell how much airframe the fin root occupies (e.g. to keep a moved fin's
  *  trailing edge on the airframe). Undefined for a finless design. */
-export function primaryFinChord(rocket: Rocket): number | undefined {
-  const fin = primaryFinSet(rocket);
+export function primaryFinChord(rocket: Rocket, selectedId?: string): number | undefined {
+  const fin = primaryFinSet(rocket, selectedId);
   if (!fin) return undefined;
   const placed = flattenRocket(rocket).find((p) => p.component.id === fin.id);
   return placed ? placed.length : undefined;
@@ -342,42 +360,42 @@ export function primaryMotorClusterCount(rocket: Rocket): number | undefined {
 
 /** The primary fin set's root chord (m), only when it's trapezoidal (a generic set's root chord is a
  *  reduction, not a directly editable dimension). Undefined otherwise. */
-export function primaryFinRootChord(rocket: Rocket): number | undefined {
-  const fin = primaryFinSet(rocket);
+export function primaryFinRootChord(rocket: Rocket, selectedId?: string): number | undefined {
+  const fin = primaryFinSet(rocket, selectedId);
   return fin?.kind === "trapezoidfinset" ? fin.rootChord : undefined;
 }
 
 /** The primary fin set's tip chord (m), only when it's trapezoidal. Undefined otherwise. */
-export function primaryFinTipChord(rocket: Rocket): number | undefined {
-  const fin = primaryFinSet(rocket);
+export function primaryFinTipChord(rocket: Rocket, selectedId?: string): number | undefined {
+  const fin = primaryFinSet(rocket, selectedId);
   return fin?.kind === "trapezoidfinset" ? fin.tipChord : undefined;
 }
 
 /** The primary fin set's leading-edge sweep (m), only when it's trapezoidal. Undefined otherwise. */
-export function primaryFinSweep(rocket: Rocket): number | undefined {
-  const fin = primaryFinSet(rocket);
+export function primaryFinSweep(rocket: Rocket, selectedId?: string): number | undefined {
+  const fin = primaryFinSet(rocket, selectedId);
   return fin?.kind === "trapezoidfinset" ? fin.sweepLength : undefined;
 }
 
 /** The primary fin set's thickness (m). Defined for every fin kind (all carry a thickness), so a
  *  finless design is the only undefined case. */
-export function primaryFinThickness(rocket: Rocket): number | undefined {
-  const fin = primaryFinSet(rocket);
+export function primaryFinThickness(rocket: Rocket, selectedId?: string): number | undefined {
+  const fin = primaryFinSet(rocket, selectedId);
   return fin && "thickness" in fin ? fin.thickness : undefined;
 }
 
 /** The primary fin set's edge cross-section, defaulting to square (the OpenRocket default) when a
  *  finned design names none — so the picker shows the profile the aero is actually using. Undefined
  *  for a finless design. */
-export function primaryFinCrossSection(rocket: Rocket): FinCrossSection | undefined {
-  const fin = primaryFinSet(rocket);
+export function primaryFinCrossSection(rocket: Rocket, selectedId?: string): FinCrossSection | undefined {
+  const fin = primaryFinSet(rocket, selectedId);
   return fin ? (("crossSection" in fin && fin.crossSection) || "square") : undefined;
 }
 
 /** The primary fin set's material name (the design's own, for the picker's "as designed" label).
  *  Undefined for a finless design or a fin set with no named material. */
-export function primaryFinMaterial(rocket: Rocket): string | undefined {
-  const fin = primaryFinSet(rocket);
+export function primaryFinMaterial(rocket: Rocket, selectedId?: string): string | undefined {
+  const fin = primaryFinSet(rocket, selectedId);
   return fin?.material?.name;
 }
 
@@ -767,7 +785,7 @@ export function applyGeometryEdits(rocket: Rocket, edits: GeometryEdits): Rocket
   // Which sets the fin SHAPE edits land on — the primary set every primaryFin* readback seeds the
   // fields from, plus any set indistinguishable from it (one ring stored as several parts).
   // Resolved once from the pristine design, like the length edits above.
-  const finTargetIds = primaryFinGroupIds(rocket);
+  const finTargetIds = primaryFinGroupIds(rocket, edits.finSetId);
   const editOne = (c: RocketComponent): RocketComponent => {
     let geo = editComponent(c, edits, lengths, finShift, finTargetIds);
     if (finish) geo = withFinish(geo, finish);

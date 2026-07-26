@@ -24,9 +24,16 @@ export interface FlownDesign {
   geometry?: GeometryEdits;
 }
 
+/** Fields that say which component the panel is POINTING AT rather than what it changed. They must
+ *  stay out of the key: selecting a different fin set alters no geometry, so a Monte-Carlo already
+ *  flown still describes the design on screen, and resetting it would throw away minutes of work
+ *  for a click that changed nothing. The moment a value edit follows, the key moves on its own. */
+const SELECTION_ONLY_FIELDS = new Set(["finSetId"]);
+
 export function designKey(d: FlownDesign): string {
   const g = (d.geometry ?? {}) as Record<string, unknown>;
   const edits = Object.keys(g)
+    .filter((k) => !SELECTION_ONLY_FIELDS.has(k))
     .sort()
     .map((k) => `${k}=${g[k] ?? ""}`)
     .join(",");

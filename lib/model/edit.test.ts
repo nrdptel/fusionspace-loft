@@ -27,6 +27,7 @@ import {
   AIRFRAME_MATERIALS,
   unreachableFinSetCount,
   primaryFinGroupIds,
+  hasGeometryEdits,
 } from "./edit";
 import type {
   GenericFinSet,
@@ -216,6 +217,55 @@ describe("applyGeometryEdits — a design with several fin sets", () => {
     // All three move together: resizing one third of a fin ring would fly an asymmetric rocket.
     expect(heights).toHaveLength(3);
     for (const h of heights) expect(h).toBeCloseTo(shown + 0.01, 9);
+  });
+
+  it("reads back and writes to the SAME set, whichever one is selected", async () => {
+    // The failure this guards against is silent and destructive: the panel seeds its fields from
+    // one set and the edit lands on another, so a flyer nudges the number they can see and a
+    // different fin changes. Every readback and the edit path resolve through one function now, so
+    // assert that for both sets rather than trusting the wiring.
+    const { rocket, first, second } = await twoFinSets();
+    for (const target of [first, second]) {
+      const shown = primaryFinSpan(rocket, target.id)!;
+      expect(shown).toBeCloseTo(target.height, 9);
+      const edited = applyGeometryEdits(rocket, { finSetId: target.id, finSpan: shown + 0.01 });
+      const sets = finSetsOf(edited);
+      const hit = sets.find((f) => f.id === target.id)!;
+      const other = sets.find((f) => f.id !== target.id)!;
+      expect(hit.height).toBeCloseTo(target.height + 0.01, 9);
+      // …and the set that was not selected is untouched.
+      const untouched = target.id === first.id ? second : first;
+      expect(other.height).toBeCloseTo(untouched.height, 9);
+    }
+  });
+
+  it("falls back to the frontmost set when the selection names nothing on this design", async () => {
+    // A stale id restored from a session must not disable the fin fields or silently edit nothing.
+    const { rocket, first } = await twoFinSets();
+    expect(primaryFinSpan(rocket, "no-such-component")).toBeCloseTo(primaryFinSpan(rocket)!, 9);
+    const edited = applyGeometryEdits(rocket, { finSetId: "no-such-component", finSpan: first.height + 0.01 });
+    const hit = finSetsOf(edited).find((f) => f.id === first.id)!;
+    expect(hit.height).toBeCloseTo(first.height + 0.01, 9);
+  });
+
+  it("selecting a set is not an edit", async () => {
+    // A selection alone must leave the design identical — same object, so nothing re-flies and no
+    // stored-tool comparison is withheld for a click that changed no geometry.
+    const { rocket, second } = await twoFinSets();
+    expect(hasGeometryEdits({ finSetId: second.id })).toBe(false);
+    expect(applyGeometryEdits(rocket, { finSetId: second.id })).toBe(rocket);
+  });
+
+  it("groups the SELECTED set with the sets indistinguishable from it", async () => {
+    // The split-ring rule follows the selection: picking any member of a ring still resizes the
+    // whole ring, and the count of out-of-reach sets is relative to what is selected.
+    const { rocket } = await splitRing();
+    const ids = [...primaryFinGroupIds(rocket)];
+    expect(ids.length).toBe(3);
+    for (const id of ids) {
+      expect(primaryFinGroupIds(rocket, id).size).toBe(3);
+      expect(unreachableFinSetCount(rocket, id)).toBe(0);
+    }
   });
 
   it("still slides the whole fin GROUP for a position edit, keeping its spacing", async () => {
