@@ -3,6 +3,16 @@
 Rough edges, missing affordances, and ideas too big for one pass — noticed while working,
 not yet done. Newest first. One line each. Anything here is fair game for the next session.
 
+- **Benchmark, configuration picker vs OpenRocket's simulation table.** Theirs is a table with a row
+  per stored run and columns for apogee, max velocity, max acceleration, time to apogee, deployment
+  velocity and ground-hit velocity, a status icon per row, and sorting — every run visible and
+  comparable at once, and each run's own launch conditions editable in place. Loft's is a single
+  `<select>`: one run visible at a time, one metric (apogee), and the status folded into the label
+  rather than given a column. As of this run the identity and the status marker are honest (that was
+  the gap that could mislead); what is left is the SHAPE — a flyer comparing five stored motors has
+  to open the dropdown five times and remember. The natural fix is the same component table the
+  parts list and Mass & balance want, applied to stored runs: rows, columns, a sort, and the picker
+  becoming a selection in it. On `FullScaleModelTH.rkt` that is 15 rows a dropdown cannot show.
 - The parameter sweep's CSV rounds every metric to 3 dp, which is right for apogee and wrong for the
   flutter-margin column: a fin-thickness sweep down to 0.5× on an already-thin fin drives the margin
   under 0.0005 and the column reads `0` while the plotted curve doesn't. The motor sweep's CSV was
