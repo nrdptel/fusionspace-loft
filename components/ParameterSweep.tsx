@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import type { OrkDocument } from "@/lib/ork/import";
 import { runFlight, overridesFromStored } from "@/lib/sim/run";
-import { linRange, type SweepAxis, type ParamSweepPoint } from "@/lib/sim/sweep";
+import { linRange, SWEEP_AXES, type SweepAxis, type ParamSweepPoint } from "@/lib/sim/sweep";
+import { usePersistedChoice } from "@/lib/session";
 import { runParameterSweep } from "@/lib/sim/sweep-client";
 import { primaryFinSpan, primaryFinRootChord, primaryFinTipChord, primaryFinThickness, primaryFinStation, primaryFinChord, primaryNose, primaryBodyTube, primaryBodyDiameter, type GeometryEdits } from "@/lib/model/edit";
 import { overallLength } from "@/lib/model/geometry";
@@ -50,6 +51,10 @@ const METRICS: MetricDef[] = [
   // Unitless ratio (flutter speed ÷ peak airspeed); keep ≥ 1.5. Only offered for a finned design.
   { key: "flutterMargin", label: "Fin flutter margin", toNumber: (v) => v, unit: () => "×" },
 ];
+
+/** Every metric key the sweep can offer, for validating a remembered choice against a build of Loft
+ *  that may have added or dropped one. (The axes' equivalent is SWEEP_AXES, in the sweep module.) */
+const ALL_METRIC_KEYS = METRICS.map((m) => m.key) as readonly MetricDef["key"][];
 
 /** The design's small lengths (fin span, tube lengths) read best in mm / in; ballast in g / oz. */
 const lengthX = (m: number, units: UnitSystem) => (units === "imperial" ? mToIn(m) : m * 1000);
@@ -164,8 +169,23 @@ export default function ParameterSweep({
   );
 
   const [open, setOpen] = useState(false);
-  const [axisKey, setAxisKey] = useState<SweepAxis>(axes[0]?.axis ?? "finSpan");
-  const [metricKey, setMetricKey] = useState<MetricDef["key"]>("apogee");
+  // Which dimension to sweep and what to plot are a view the flyer set up, not a result — so they
+  // are remembered. A stored choice this design can't offer (no fins, so no flutter margin; an axis
+  // its geometry doesn't have) falls back to the default rather than selecting nothing.
+  const [storedAxis, setStoredAxis] = usePersistedChoice<SweepAxis>(
+    "sweep.axis",
+    axes[0]?.axis ?? "finSpan",
+    SWEEP_AXES,
+  );
+  const [storedMetric, setStoredMetric] = usePersistedChoice<MetricDef["key"]>(
+    "sweep.metric",
+    "apogee",
+    ALL_METRIC_KEYS,
+  );
+  const axisKey = axes.some((a) => a.axis === storedAxis) ? storedAxis : (axes[0]?.axis ?? "finSpan");
+  const metricKey = metrics.some((m) => m.key === storedMetric) ? storedMetric : "apogee";
+  const setAxisKey = setStoredAxis;
+  const setMetricKey = setStoredMetric;
   const [points, setPoints] = useState<ParamSweepPoint[] | null>(null);
   const [running, setRunning] = useState(false);
 

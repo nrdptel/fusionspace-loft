@@ -8,6 +8,7 @@ import { RECOMMENDED_FLUTTER_MARGIN } from "@/lib/sim/flutter";
 import { runMotorSweep } from "@/lib/sim/sweep-client";
 import type { GeometryEdits } from "@/lib/model/edit";
 import { mToFt, mpsToFtps } from "@/lib/units";
+import { usePersistedChoice } from "@/lib/session";
 import type { CsvCell } from "@/lib/csv";
 import DownloadCsv from "./DownloadCsv";
 import * as d from "@/lib/display";
@@ -171,8 +172,19 @@ const COLUMNS = [
 
 type SortKey = (typeof COLUMNS)[number]["key"];
 
+/** Every "<column>:<direction>" the sort can be in, so a remembered value from a build with a
+ *  different column set is discarded rather than leaving the table sorted on nothing. */
+const SORT_CHOICES: readonly string[] = COLUMNS.flatMap((c) => [`${c.key}:asc`, `${c.key}:desc`]);
+
 function SweepTable({ rows, units, name }: { rows: MotorSweepRow[]; units: UnitSystem; name: string }) {
-  const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: "apogee", dir: -1 });
+  // Which column the table is sorted on is a view the flyer chose deliberately — someone picking a
+  // motor on flutter margin is doing that across every design they open, not once. Direction rides
+  // along in the same stored value so the pair can't come back inconsistent.
+  const [stored, setStored] = usePersistedChoice<string>("motorSweep.sort", "apogee:desc", SORT_CHOICES);
+  const [key, dir] = stored.split(":") as [SortKey, "asc" | "desc"];
+  const sort = { key, dir: (dir === "asc" ? 1 : -1) as 1 | -1 };
+  const setSort = (next: { key: SortKey; dir: 1 | -1 }) =>
+    setStored(`${next.key}:${next.dir === 1 ? "asc" : "desc"}`);
   const col = COLUMNS.find((c) => c.key === sort.key)!;
   const sorted = [...rows].sort((a, b) => {
     const x = col.get(a);
@@ -187,13 +199,13 @@ function SweepTable({ rows, units, name }: { rows: MotorSweepRow[]; units: UnitS
     }
     return String(x).localeCompare(String(y)) * sort.dir;
   });
-  const click = (key: SortKey) =>
-    setSort((cur) =>
-      // Re-clicking the sorted column flips it; a new column starts the way that column is most
-      // useful — biggest first for a number, A→Z for a name.
-      cur.key === key
-        ? { key, dir: (cur.dir === 1 ? -1 : 1) as 1 | -1 }
-        : { key, dir: (COLUMNS.find((c) => c.key === key)!.numeric ? -1 : 1) as 1 | -1 },
+  // Re-clicking the sorted column flips it; a new column starts the way that column is most
+  // useful — biggest first for a number, A→Z for a name.
+  const click = (next: SortKey) =>
+    setSort(
+      sort.key === next
+        ? { key: next, dir: (sort.dir === 1 ? -1 : 1) as 1 | -1 }
+        : { key: next, dir: (COLUMNS.find((c) => c.key === next)!.numeric ? -1 : 1) as 1 | -1 },
     );
 
   return (

@@ -14,9 +14,6 @@ not yet done. Newest first. One line each. Anything here is fair game for the ne
   extractable); substituting one guess for another isn't worth doing. Until then the warning is
   training flyers to ignore a safety flag. One extreme case is NOT Loft's fault: Cherokee-E-5055's
   0.01x margin comes from the file's own 0.254 mm (0.01 in) balsa fin.
-- The sweep's variable/metric choice and the motor table's sort order are the last controls that
-  forget. Both are view state rather than the flyer's own input (which the dispersion tolerances
-  were, and now persist), so it's a judgement call whether they should be kept or reset.
 - The Analyze workspace's empty state is four full-width cards of prose with one button each, which
   reads as a menu; once run, the panels themselves are dense and good. Worth compressing the idle
   state so all four fit above the fold and the width isn't spent on a single column.

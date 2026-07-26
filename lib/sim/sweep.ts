@@ -99,16 +99,22 @@ export function motorSweep(rocket: Rocket, motors: SweepMotor[], opts: MotorSwee
 /** A continuous variable the sweep can vary. The geometry axes map to a field of GeometryEdits
  *  (reusing the builder's "edit → rebuild → re-fly" path); `ballastKg` varies added nose weight
  *  instead — the classic stability-trim sweep. */
-export type SweepAxis =
-  | "finSpan"
-  | "finRootChord"
-  | "finTipChord"
-  | "finThickness"
-  | "finStation"
-  | "noseLength"
-  | "bodyLength"
-  | "bodyDiameter"
-  | "ballastKg";
+/** Every dimension the parameter sweep can vary. The union is derived from this list so a new axis
+ *  is declared once — anything that needs to validate an axis at runtime (a remembered choice, say)
+ *  reads the same array the type comes from. */
+export const SWEEP_AXES = [
+  "finSpan",
+  "finRootChord",
+  "finTipChord",
+  "finThickness",
+  "finStation",
+  "noseLength",
+  "bodyLength",
+  "bodyDiameter",
+  "ballastKg",
+] as const;
+
+export type SweepAxis = (typeof SWEEP_AXES)[number];
 
 /** The geometry axes, distinct from the ballast (mass) axis for how a value is applied. Most set an
  *  absolute dimension; `finStation` sets the fin group's longitudinal position — both flow through

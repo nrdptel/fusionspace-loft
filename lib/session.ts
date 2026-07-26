@@ -117,6 +117,37 @@ export function usePersistedNumber(key: string, initial: number): [number, (v: n
   return [value, set];
 }
 
+/** A choice the flyer made about how to look at their results — which dimension the sweep varies,
+ *  which metric it plots, which column the motor table is sorted on. Not the flyer's input the way
+ *  a dispersion tolerance is, but a view they set up deliberately, and having it snap back to the
+ *  default on the next design is the same small betrayal. `allowed` guards against a stored value
+ *  that no longer exists (a renamed axis, a dropped column). */
+export function usePersistedChoice<T extends string>(key: string, initial: T, allowed: readonly T[]): [T, (v: T) => void] {
+  const [value, setValue] = useState<T>(initial);
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(`loft.pref.${key}`) as T | null;
+      if (raw !== null && allowed.includes(raw)) setValue(raw);
+    } catch {
+      // storage disabled — keep the default
+    }
+    // `allowed` is a literal list at every call site; re-running on its identity would loop.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+  const set = useCallback(
+    (v: T) => {
+      setValue(v);
+      try {
+        localStorage.setItem(`loft.pref.${key}`, v);
+      } catch {
+        // as above
+      }
+    },
+    [key],
+  );
+  return [value, set];
+}
+
 export function clearSession(): void {
   try {
     localStorage.removeItem(KEY);

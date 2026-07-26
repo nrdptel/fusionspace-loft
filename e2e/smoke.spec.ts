@@ -770,6 +770,37 @@ test.describe("Loft", () => {
     await expect(panel.getByLabel(/Motor impulse/i)).toHaveValue("8");
   });
 
+  test("the sweep's axis and the motor table's sort survive a reload", async ({ page }) => {
+    // Someone picking motors on flutter margin, or sweeping body length, is doing that across every
+    // design they open — not once. Snapping back to the defaults loses a view they set up.
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+    await page.getByRole("tab", { name: "Analyze" }).click();
+
+    const sweep = page.getByRole("region", { name: /Parameter sweep/i });
+    await sweep.getByRole("button", { name: /Run parameter sweep/ }).click();
+    await sweep.getByLabel("Sweep variable").selectOption("bodyLength");
+    await sweep.getByLabel("Sweep metric").selectOption("staticMarginCal");
+
+    const motors = page.getByRole("region", { name: "Motor sweep" });
+    await motors.getByRole("button", { name: /Run motor sweep/ }).click();
+    await expect(motors.locator("tbody tr").first()).toBeVisible();
+    await motors.getByRole("button", { name: /^Flutter/ }).click();
+
+    await page.reload();
+    await expect(page.getByText(/Picked up where you left off/)).toBeVisible({ timeout: 30_000 });
+    await page.getByRole("tab", { name: "Analyze" }).click();
+    await sweep.getByRole("button", { name: /Run parameter sweep/ }).click();
+    await expect(sweep.getByLabel("Sweep variable")).toHaveValue("bodyLength");
+    await expect(sweep.getByLabel("Sweep metric")).toHaveValue("staticMarginCal");
+    await motors.getByRole("button", { name: /Run motor sweep/ }).click();
+    await expect(motors.locator("tbody tr").first()).toBeVisible();
+    // The flutter column is the one sorted, still descending.
+    const flutterHeader = motors.locator("th", { has: page.getByRole("button", { name: /^Flutter/ }) });
+    await expect(flutterHeader).toHaveAttribute("aria-sort", "descending");
+  });
+
   test("printing a design gives a flight card, not the whole web page", async ({ page }) => {
     // Printing a design is range paperwork — a card for the RSO, a page for the build notebook.
     // Without print rules it came out as the site: navigation, theme toggle, buttons nobody can
