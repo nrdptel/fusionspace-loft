@@ -134,4 +134,47 @@ test.describe("phone layout", () => {
       expect(Math.min(box!.width, box!.height)).toBeGreaterThanOrEqual(44);
     }
   });
+
+  test("every diagram handle is 44 px and resolves to itself", async ({ page }) => {
+    // The one control the direct-manipulation story rests on. At a phone's fit-width the five fin
+    // handles landed within 10-22 px of each other, and elementFromPoint at the centre of "Fin
+    // position" returned "Fin sweep" — that handle could not be tapped at all, and the reachable
+    // ones dragged the wrong dimension about half the time. A bigger circle makes that worse, so a
+    // coarse pointer gets ONE fin handle, chosen from a chip row.
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+    await page.getByRole("tab", { name: "Design" }).click();
+
+    const picker = page.getByRole("group", { name: "Fin handle" });
+    await expect(picker).toBeVisible();
+    // One fin handle, plus the nose and body handles, which sit far enough apart to coexist.
+    await expect(page.locator('g[role="slider"]')).toHaveCount(3);
+
+    const check = async () => {
+      for (const h of await page.locator('g[role="slider"]').all()) {
+        const name = await h.getAttribute("aria-label");
+        const box = await h.boundingBox();
+        expect(box, `${name} has no box`).not.toBeNull();
+        expect(Math.round(box!.width), `${name} width`).toBeGreaterThanOrEqual(44);
+        expect(Math.round(box!.height), `${name} height`).toBeGreaterThanOrEqual(44);
+        // The centre of a handle must belong to that handle — the failure was a silent wrong edit,
+        // not a missed tap, so size alone would not have caught it.
+        const hit = await page.evaluate(
+          ([x, y]) =>
+            document.elementFromPoint(x, y)?.closest('g[role="slider"]')?.getAttribute("aria-label") ?? null,
+          [box!.x + box!.width / 2, box!.y + box!.height / 2],
+        );
+        expect(hit, `${name} centre resolves to ${hit}`).toBe(name);
+      }
+    };
+    await check();
+
+    // The chip row aims the handle, and every dimension stays reachable — one at a time, not fewer.
+    for (const label of ["Span", "Root", "Tip", "Sweep", "Position"]) {
+      await picker.getByRole("button", { name: label }).click();
+      await expect(page.locator('g[role="slider"]')).toHaveCount(3);
+      await check();
+    }
+  });
 });
