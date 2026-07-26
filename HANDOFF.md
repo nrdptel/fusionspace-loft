@@ -16,6 +16,9 @@ commit title and message explicitly at merge time for the same reason.
 **The clone is shallow** (`git rev-parse --is-shallow-repository` → true), so every commit count and
 file history here is a window, not the record.
 
+**Everything from this run is on `main` and deployed** — PRs #36, #37 and #38 merged as `7520d65`,
+`fed272e` and `84cb2b3`. Nothing is pending on the working branch.
+
 **Production's build marker is in `sw.js`.** `curl -s https://loft.fusionspace.co/sw.js | grep BUILD_ID`
 against `grep BUILD_ID out/sw.js` is the fastest way to tell whether what you built is what is being
 served. At this session's start production was `44d265094e3f`; it served `7520d65` (PR #36) and then
@@ -77,8 +80,8 @@ sweep ran throughout at **35 design files, 3 suites passing, 0 findings**.
 | `f01771f` | **Two picker options that read alike.** Of the 21 corpus designs offering a configuration picker, 3 produce a repeated label — `Clustered motors.ork` has two different configurations both stored at 307 m, `FullScaleModelTH.rkt` fifteen runs of one motor with six indistinguishable and one name reused eleven times. The picked configuration is what Loft flies and compares against, so an ambiguous option silently checks the engine against a different flight. `storedRunLabels` in `lib/display.ts` adds the run's name, then its position, then guarantees distinctness outright. |
 | `e2c0247` | **An apogee the tool has disowned.** 18 of 108 picker options quote a run the source tool marks outdated (11) or never simulated (7) — all five of `USLI2025-FULLSCALE`'s, 8 of `Punisher Apprentice.ork`'s 9. Loft already read the marker (validation panel, drag cross-check); the picker dropped it. `storedTag` shares its switch with `storedCaveat`, and a test holds the two to speaking in the same cases. |
 | `cf64f1c` | **That review's findings in turn:** the name tier appended a name the label already carried (RASAero names each run after its own motor), the promised distinctness was the caller's property not the function's, the test meant to prove it varied only the tiebreaker's field, a NaN apogee could render "C6 · — m", and the option tooltip had become less specific than the visible text. |
-| `3d553d7` (branch) | **The phone's fin handles.** Measured at 412x915/DPR 2.6: seven handles at 24x24 px, the five fin ones inside a 24x34 box, and `elementFromPoint` at the centre of "Fin position" returning "Fin sweep" — unreachable by any tap, with the reachable ones dragging the wrong dimension about half the time. A bigger circle makes it worse (at 10 px apart, 44 px circles nest), so a coarse pointer gets ONE fin handle aimed by a chip row, and every handle carries a 44 px grab area. Desktop untouched. |
-| (branch) | **"300flights;".** The done-check walk caught the JSX-eats-the-space bug a third time, in the Monte-Carlo caption. Fixed with an explicit `{" "}` and verified in the built chunk; a scan of the whole bundle for the same pattern (`children:[<expr>,"<word>`) returns **0** other instances. |
+| `84cb2b3` | **The phone's fin handles.** Measured at 412x915/DPR 2.6: seven handles at 24x24 px, the five fin ones inside a 24x34 box, and `elementFromPoint` at the centre of "Fin position" returning "Fin sweep" — unreachable by any tap, with the reachable ones dragging the wrong dimension about half the time. A bigger circle makes it worse (at 10 px apart, 44 px circles nest), so a coarse pointer gets ONE fin handle aimed by a chip row, and every handle carries a 44 px grab area. Desktop untouched. |
+| `84cb2b3` (both, merged) | **"300flights;".** The done-check walk caught the JSX-eats-the-space bug a third time, in the Monte-Carlo caption. Fixed with an explicit `{" "}` and verified in the built chunk; a scan of the whole bundle for the same pattern (`children:[<expr>,"<word>`) returns **0** other instances. |
 
 ## Pick up first
 
