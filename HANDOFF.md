@@ -4,10 +4,17 @@ Overwritten each session. What shipped, what is part-way, and what to pick up fi
 
 ## Where the work is
 
-This working branch is **61 commits ahead of `main`, with no open pull request**. `main` — and
-therefore loft.fusionspace.co — has none of it. Merging is an owner decision rather than an
-engineering one, but it is the single most important fact about this repo right now: the live site
-is 61 commits behind the work.
+`main` is at `b5f6f74`, which is an **ancestor of this branch** — main is periodically
+fast-forwarded from here, with no pull request in the loop, so earlier sessions' work has already
+reached loft.fusionspace.co. Measured after `git fetch --prune origin`, this branch is **20 commits
+ahead of `origin/main`**: exactly this session's work, and nothing older.
+
+Advancing main is the owner's move, not an engineering one. Measure it yourself before quoting it —
+an earlier draft of this file said "61 commits ahead, main has none of it", which was read off a
+remote-tracking ref that had gone stale two hours into the run. **Always `git fetch` before you
+quote a divergence, and cite the SHA you measured against.** The clone is also shallow
+(`git rev-parse --is-shallow-repository` → true, `--depth 50`), so any commit count or file history
+is a window, not the whole record.
 
 ## Before you trust a sweep
 
@@ -75,4 +82,6 @@ simulations flown, 0 new findings**, median apogee disagreement 3.2%.
   that, because they skip silently without it.
 - **CI does not run on this branch.** `.github/workflows/test.yml` triggers on pushes to `main` and
   on pull requests only, so a push here builds nothing and checks nothing. The local gate is the
-  only gate; run all four commands before every push.
+  only gate; run all four commands before every push. Opening a PR would attach CI — there is no
+  `gh` binary in this environment, but the GitHub MCP tools (`create_pull_request`, `actions_list`)
+  are available if a future session wants one.
