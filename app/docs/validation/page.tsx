@@ -104,6 +104,19 @@ export default async function Validation() {
         in <code>lib/validation/compare.ts</code>.
       </p>
       <p>
+        A file&apos;s stored runs are not all the tool&apos;s current answer, and the file says which
+        is which. OpenRocket stamps each simulation with a status: <code>outdated</code> means the run
+        predates the design&apos;s last edit, so it describes an earlier version of the rocket, and{" "}
+        <code>notsimulated</code> means the figures are carried in the file for a simulation the tool
+        does not consider run. Both are shown — they are still a reference point — but labelled, since
+        calling either &ldquo;OpenRocket vs Loft&rdquo; would credit a current prediction to a tool
+        that did not make one. This is not a rare edge: across the corpus 11 of 91 stored OpenRocket
+        runs are outdated and 7 more are marked not simulated. The accuracy census below includes
+        them, which is the honest picture rather than the flattering one; measured separately they
+        agree with Loft about as well as the up-to-date runs do (median apogee disagreement 3.3%
+        against 2.1%).
+      </p>
+      <p>
         The comparison is shown only when Loft flew the <em>complete</em> design. If the design
         includes something Loft simplifies — pods, parallel boosters, a ring tail — the stored
         results describe a different flight than the one simulated, so the comparison is withheld

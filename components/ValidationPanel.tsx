@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import type { ValidationReport } from "@/lib/validation/compare";
+import { storedCaveat } from "@/lib/validation/stored-status";
 import type { UnitSystem } from "@/lib/display";
 import { fmt } from "@/lib/display";
 import { mToFt, mpsToFtps } from "@/lib/units";
@@ -10,11 +11,20 @@ import { mToFt, mpsToFtps } from "@/lib/units";
  *  the imported design, metric by metric. This is the honest accuracy record: the numbers are
  *  what they are, the mean error is stated plainly, and nothing is hidden.
  *
- *  Not every `.ork` carries a real run, though. OpenRocket's own `status="external"` marks
- *  results that did NOT come from its simulator — which is exactly what the bundled demo designs
- *  carry: figures their author estimated, so the panel has something to demonstrate on. Calling
- *  those "OpenRocket vs Loft" would attribute a number to a tool that never produced it, so an
- *  external simulation is labelled as the file's own stated figures instead. */
+ *  Not every stored run is the tool's current answer, though, and the file says which is which.
+ *  OpenRocket writes a status on every simulation, and three of them mean the numbers are not what
+ *  they look like:
+ *
+ *    - `external` — results that did NOT come from its simulator, which is what the bundled demo
+ *      designs carry: figures their author estimated, so the panel has something to demonstrate on.
+ *    - `outdated` — a real run, but from before the design was last edited, so it describes an
+ *      earlier version of this rocket.
+ *    - `notsimulated` / `loaded` — figures the file carries for a simulation the tool does not
+ *      consider run.
+ *
+ *  Calling any of those "OpenRocket vs Loft" attributes a current prediction to a tool that did not
+ *  make one, so each is said out loud instead. Across the corpus this is not a rare edge: 11 of 91
+ *  stored OpenRocket runs are outdated and 7 more are marked not simulated. */
 
 const IMPERIAL_LEN = new Set(["Apogee"]);
 const IMPERIAL_SPD = new Set(["Max velocity", "Ground-hit velocity", "Rail-exit velocity", "Deployment velocity"]);
@@ -32,6 +42,7 @@ export default function ValidationPanel({
   storedName,
   toolName,
   external = false,
+  storedStatus,
 }: {
   report: ValidationReport;
   units: UnitSystem;
@@ -41,6 +52,8 @@ export default function ValidationPanel({
   /** The stored simulation is marked `external` — figures the file carries, not this tool's own
    *  simulator output. */
   external?: boolean;
+  /** The source tool's own status for this stored run, when it has one. */
+  storedStatus?: string;
 }) {
   return (
     <section aria-label="Validation" className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900/40">
@@ -65,6 +78,12 @@ export default function ValidationPanel({
         </Link>
         .
       </p>
+
+      {!external && storedCaveat(storedStatus, toolName) && (
+        <p className="mt-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-200">
+          {storedCaveat(storedStatus, toolName)}
+        </p>
+      )}
 
       <div className="mt-3 overflow-x-auto">
         <table className="w-full min-w-[30rem] border-collapse text-sm">

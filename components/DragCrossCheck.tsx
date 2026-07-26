@@ -22,6 +22,7 @@ export default function DragCrossCheck({
   flightData,
   toolName,
   storedName,
+  storedStatus,
   units,
 }: {
   result: FlightResult;
@@ -29,6 +30,8 @@ export default function DragCrossCheck({
   /** The tool whose stored per-step log this is — named by the importer, never assumed. */
   toolName: string;
   storedName?: string;
+  /** The source tool's own status for this stored run — an outdated one logged a different design. */
+  storedStatus?: string;
   units: UnitSystem;
 }) {
   const cc = crossCheckSeries(result, flightData);
@@ -53,6 +56,15 @@ export default function DragCrossCheck({
         ) : null}
         . Loft&apos;s solver is plotted against it — two independent estimates of the same flight, so
         a difference is a flag worth seeing, not hidden.
+        {storedStatus === "outdated" && (
+          <>
+            {" "}
+            <span className="text-amber-700 dark:text-amber-400">
+              {toolName} marks this run as outdated, so the logged flight is of the design as it was
+              before its last edit.
+            </span>
+          </>
+        )}
         {cc.haveDrag ? " The drag curve is the ascent only; a deployed parachute's coefficient is left off." : ""}{" "}
         See{" "}
         <Link href="/docs/validation" className="text-indigo-600 underline underline-offset-2 dark:text-indigo-400">

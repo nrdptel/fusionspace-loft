@@ -554,6 +554,7 @@ export default function ResultsView({
           storedName={doc.simulations[simIndex]?.name}
           toolName={toolName}
           external={doc.simulations[simIndex]?.status === "external"}
+          storedStatus={doc.simulations[simIndex]?.status}
         />
       )}
 
@@ -567,6 +568,7 @@ export default function ResultsView({
           flightData={doc.simulations[simIndex]!.flightData!}
           toolName={toolName}
           storedName={doc.simulations[simIndex]?.name}
+          storedStatus={doc.simulations[simIndex]?.status}
           units={units}
         />
       )}
