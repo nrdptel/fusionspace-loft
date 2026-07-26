@@ -11,6 +11,8 @@ import { exportOrk } from "@/lib/ork/export";
 import { runFlight, pickConfig, overridesFromStored, configChoices, type FlightRun, type ConfigChoice } from "@/lib/sim/run";
 import {
   primaryFinSpan,
+  unreachableFinSetCount,
+  primaryFinSetName,
   primaryFinCount,
   primaryFinStation,
   primaryMotorClusterCount,
@@ -590,6 +592,8 @@ export default function LoftApp() {
       doc
         ? {
             finSpan: primaryFinSpan(doc.rocket),
+            unreachableFinSets: unreachableFinSetCount(doc.rocket),
+            finSetName: primaryFinSetName(doc.rocket),
             finCount: primaryFinCount(doc.rocket),
             finRootChord: primaryFinRootChord(doc.rocket),
             finTipChord: primaryFinTipChord(doc.rocket),
@@ -610,6 +614,8 @@ export default function LoftApp() {
           }
         : {
             finSpan: undefined,
+            unreachableFinSets: 0,
+            finSetName: undefined,
             finCount: undefined,
             finRootChord: undefined,
             finTipChord: undefined,
@@ -920,6 +926,8 @@ function DesignEditor({
   /** The design's own dimensions (m; counts are plain numbers), shown as the fields' placeholders. */
   designDims: {
     finSpan?: number;
+    unreachableFinSets: number;
+    finSetName?: string;
     finCount?: number;
     finRootChord?: number;
     finTipChord?: number;
@@ -1031,8 +1039,19 @@ function DesignEditor({
             {designDims.finSpan !== undefined && (
               <fieldset className="min-w-0 border-0 p-0">
                 <legend className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-                  Fins
+                  {designDims.unreachableFinSets > 0 ? `Fins — ${designDims.finSetName}` : "Fins"}
                 </legend>
+                {designDims.unreachableFinSets > 0 && (
+                  // A staged or podded design carries sets that legitimately differ. These fields
+                  // read from, and write to, the frontmost set (and anything identical to it) only —
+                  // say so, rather than letting one unlabelled control stand for all of them.
+                  <p className="mb-2 text-xs text-zinc-500 dark:text-zinc-400">
+                    This design has {designDims.unreachableFinSets} other fin{" "}
+                    {designDims.unreachableFinSets === 1 ? "set" : "sets"} with different dimensions.
+                    These fields describe and change {designDims.finSetName}; the others keep their own
+                    shape and can&apos;t be edited here yet. Fin position moves all of them together.
+                  </p>
+                )}
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                   <Num
                     label={`Fin span (${spanU})`}

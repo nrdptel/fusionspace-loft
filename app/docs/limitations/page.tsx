@@ -143,6 +143,39 @@ export default function Limitations() {
         centroid for an arbitrary outline).
       </p>
 
+      <h3>Design what-ifs address a resolved role, not an arbitrary component</h3>
+      <p>
+        The Design workspace&apos;s what-ifs are a fixed set of fields, and most of them address one
+        component that Loft resolves from the design by role: the <em>frontmost</em> fin set, the
+        frontmost nose cone, the <em>longest</em> body tube, the largest parachute. That is what the
+        field beside the diagram reads its starting value from, and — since this pass — it bounds
+        what the field changes. Some fields are deliberately whole-airframe instead: surface finish
+        and airframe material apply to the entire tree, body diameter scales the whole outer mould
+        line, and motor cluster count applies to every mount.
+      </p>
+      <p>
+        It matters for fins because real designs carry several sets and mean two different things by
+        it. Of the 35 in-the-wild files in the corpus, 13 have more than one fin set (and 23 more
+        than one body tube). Usually the sets genuinely differ — OpenRocket&apos;s three-stage
+        example puts a 19.1&nbsp;mm sustainer set beside 108.0&nbsp;mm booster fins — and editing all
+        of them together would destroy the design. But one file (a payload rocket carrying three
+        1-fin sets of 55.4&nbsp;mm at the same station) is a <em>single physical fin ring</em> the
+        file happens to store as three parts, where editing only one would fly an asymmetric rocket.
+        So the fin fields act on the frontmost set <em>and any set indistinguishable from it</em> —
+        same station, same dimensions — which is the group the panel&apos;s own readback describes.
+        A design that still has sets outside that group says so above the fin fields. Fin{" "}
+        <em>position</em> is the deliberate exception: it is a delta, so the whole fin group slides
+        together and the design keeps its spacing.
+      </p>
+      <p>
+        What this does not yet give you is a way to edit the <em>other</em> sets, or any component
+        the resolver did not pick. Editing an arbitrary component means addressing edits per
+        component id rather than by these fixed roles, which is the direction the in-app editor is
+        headed; until then, a multi-set design is only partly editable here, and the parts list is
+        read-only. One knock-on: the fin-flutter fix hint names the worst-margin set, which on a
+        staged design may be a set these fields cannot reach.
+      </p>
+
       <h3>Tube fins are modelled as ducts, and read ~1 caliber conservative</h3>
       <p>
         Tube fins are flown, not skipped. They are treated as what they are — short open cylinders
