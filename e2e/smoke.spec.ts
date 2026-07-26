@@ -75,6 +75,22 @@ test.describe("Loft", () => {
     await expect(page.locator("p[aria-live='polite']").first()).toContainText(/Trapezoidal fins.*from the nose.*kg/);
   });
 
+  test("a staged design is told why three Analyze tools aren't offered", async ({ page }) => {
+    // Three of the four are single-stage only. Rendering nothing at all reads as "Loft doesn't have
+    // these", which is a different claim from "they don't apply to this design".
+    await page.goto("/");
+    await page
+      .getByLabel(/^Choose an OpenRocket/)
+      .setInputFiles(resolve(process.cwd(), "e2e/fixtures/two-stage-firm-booster.ork"));
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    await page.getByRole("tab", { name: "Analyze" }).click();
+    const panel = page.locator("#panel-analyze");
+    await expect(panel.getByRole("heading", { name: /Second solver and design sweeps/ })).toBeVisible();
+    await expect(panel).toContainText(/flies 2 stages/);
+    // The one that does apply is still there.
+    await expect(panel.getByRole("heading", { name: /Monte-Carlo/ })).toBeVisible();
+  });
+
   test("a file Loft can't read says so in the flyer's words", async ({ page }) => {
     // The front door of the app. A parser internal on screen ("zip: end-of-central-directory not
     // found") tells someone holding the wrong file nothing about which file to reach for instead.
