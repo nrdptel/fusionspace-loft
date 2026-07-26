@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { toCsv, toTsv, type CsvCell } from "@/lib/csv";
+import { TOUCH_TARGET } from "@/lib/ui-tokens";
 
 /** Turn a design name into a safe filename stem. */
 function slug(s: string): string {
@@ -15,7 +16,8 @@ function slug(s: string): string {
 }
 
 const BUTTON =
-  "rounded-md border border-zinc-300 px-2.5 py-1 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50 hover:text-zinc-800 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-zinc-100";
+  "inline-flex items-center rounded-md border border-zinc-300 px-2.5 py-1 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50 hover:text-zinc-800 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-zinc-100 " +
+  TOUCH_TARGET;
 
 /** Copy a table straight to the clipboard as tab-separated text. A file download is the right shape
  *  for archiving a run and the wrong one for "put these numbers in my build thread" or for pasting a

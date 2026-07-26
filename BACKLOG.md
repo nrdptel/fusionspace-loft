@@ -3,6 +3,14 @@
 Rough edges, missing affordances, and ideas too big for one pass — noticed while working,
 not yet done. Newest first. One line each. Anything here is fair game for the next session.
 
+- The diagram's seven drag handles are 24x24 px on a phone — the one control the whole
+  direct-manipulation story rests on, and the only thing in the Design workspace still under the
+  project's own 44 px minimum. A transparent 44 px hit circle is the obvious fix, but on a 346x89 px
+  phone diagram seven of them would overlap, so it needs a touch-only layout (fewer handles, or
+  spread ones) rather than a bigger circle. Measured on a Pixel 7 viewport.
+- The to-scale diagram is 346x89 px on a phone — 89 px of height for a whole airframe. It zooms, but
+  the default fit is unreadable, and the Design workspace runs 1,892 px deep before you reach the
+  fields.
 - Analyze results are thrown away by any design edit, silently. The four panels are keyed on
   `designKey` so a completed sweep can't describe an edited rocket — correct, but a fin tweak
   discards a 300-flight Monte-Carlo with no notice, which makes the workbench loop (edit, see how

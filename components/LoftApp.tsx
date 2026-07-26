@@ -52,6 +52,7 @@ import {
   type RecentDesign,
 } from "@/lib/session";
 import { mToFt, ftToM, mpsToMph, mphToMps } from "@/lib/units";
+import { TOUCH_TARGET } from "@/lib/ui-tokens";
 import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
 
@@ -988,7 +989,7 @@ function DesignEditor({
                               : undefined,
                           });
                         }}
-                        className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                        className={`mt-1 w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 ${TOUCH_TARGET}`}
                       >
                         <option value="">Design motor ({swap.designMotor})</option>
                         {Object.entries(
@@ -1111,7 +1112,7 @@ function DesignEditor({
                         onChange={(e) =>
                           onEdit({ finCrossSection: e.target.value ? (e.target.value as FinCrossSection) : undefined })
                         }
-                        className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                        className={`mt-1 w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 ${TOUCH_TARGET}`}
                       >
                         <option value="">As designed ({FIN_CROSS_SECTION_LABELS[designDims.finCrossSection]})</option>
                         {FIN_CROSS_SECTIONS.map((s) => (
@@ -1131,7 +1132,7 @@ function DesignEditor({
                         aria-label="Fin material"
                         value={edits.finMaterial ?? ""}
                         onChange={(e) => onEdit({ finMaterial: e.target.value || undefined })}
-                        className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                        className={`mt-1 w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 ${TOUCH_TARGET}`}
                       >
                         <option value="">
                           As designed{designDims.finMaterial ? ` (${designDims.finMaterial})` : ""}
@@ -1174,7 +1175,7 @@ function DesignEditor({
                         aria-label="Nose shape"
                         value={edits.noseShape ?? ""}
                         onChange={(e) => onEdit({ noseShape: e.target.value ? (e.target.value as NoseShape) : undefined })}
-                        className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                        className={`mt-1 w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 ${TOUCH_TARGET}`}
                       >
                         <option value="">As designed ({NOSE_SHAPE_LABELS[designDims.noseShape]})</option>
                         {NOSE_SHAPES.map((s) => (
@@ -1308,7 +1309,7 @@ function DesignEditor({
                       aria-label="Surface finish"
                       value={edits.finish ?? ""}
                       onChange={(e) => onEdit({ finish: e.target.value ? (e.target.value as SurfaceFinish) : undefined })}
-                      className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                      className={`mt-1 w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 ${TOUCH_TARGET}`}
                     >
                       <option value="">As designed ({FINISH_LABELS[designDims.finish]})</option>
                       {SURFACE_FINISHES.map((f) => (
@@ -1328,7 +1329,7 @@ function DesignEditor({
                       aria-label="Airframe material"
                       value={edits.airframeMaterial ?? ""}
                       onChange={(e) => onEdit({ airframeMaterial: e.target.value || undefined })}
-                      className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                      className={`mt-1 w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 ${TOUCH_TARGET}`}
                     >
                       <option value="">
                         As designed{designDims.airframeMaterial ? ` (${designDims.airframeMaterial})` : ""}
@@ -1582,7 +1583,10 @@ function Num({
           const c = clamp(el.value);
           if (c !== el.value) onChange(c);
         }}
-        className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 font-mono text-sm text-zinc-800 outline-none focus:border-indigo-400 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+        // A what-if field is the control a flyer uses most, and the stated phone use is a pad check
+        // with gloves on: 34 px was under the project's own 44 px touch minimum. Released back to
+        // the design's density on a pointer layout, like every other target here.
+        className={`mt-1 w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 font-mono text-sm text-zinc-800 outline-none focus:border-indigo-400 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 ${TOUCH_TARGET}`}
       />
     </label>
   );

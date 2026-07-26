@@ -6,6 +6,7 @@ import { flattenRocket } from "@/lib/model/geometry";
 import { massByComponent } from "@/lib/sim/mass";
 import type { MotorMark } from "@/lib/sim/setup";
 import type { GeometryEdits } from "@/lib/model/edit";
+import { TOUCH_TARGET } from "@/lib/ui-tokens";
 import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
 import RocketDiagram from "./RocketDiagram";
@@ -64,7 +65,7 @@ function SortHeader({
         type="button"
         onClick={() => onSort(active ? "design" : col)}
         title={active ? "Back to the design's own order" : `Sort by ${col}`}
-        className="inline-flex items-center gap-1 uppercase tracking-wide outline-none hover:text-zinc-700 focus-visible:ring-2 focus-visible:ring-indigo-400 dark:hover:text-zinc-200"
+        className={`inline-flex items-center gap-1 uppercase tracking-wide outline-none hover:text-zinc-700 focus-visible:ring-2 focus-visible:ring-indigo-400 dark:hover:text-zinc-200 ${TOUCH_TARGET}`}
       >
         {children}
         <span aria-hidden className={active ? "text-indigo-500" : "text-transparent"}>

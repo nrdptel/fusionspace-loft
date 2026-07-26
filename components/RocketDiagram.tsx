@@ -14,7 +14,7 @@ import {
 } from "@/lib/model/edit";
 import type { MotorMark } from "@/lib/sim/setup";
 import { useMeasuredWidth } from "./LineChart";
-import { TOUCH_TARGET } from "@/lib/ui-tokens";
+import { TOUCH_TARGET_SQUARE } from "@/lib/ui-tokens";
 import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
 
@@ -541,7 +541,7 @@ function ZoomControl({ zoom, onZoom }: { zoom: number; onZoom: (z: number) => vo
     "inline-flex items-center justify-center rounded-md border border-zinc-200 px-2 font-medium text-zinc-600 " +
     "hover:bg-zinc-50 disabled:opacity-40 disabled:hover:bg-transparent dark:border-zinc-700 dark:text-zinc-300 " +
     "dark:hover:bg-zinc-800 " +
-    TOUCH_TARGET;
+    TOUCH_TARGET_SQUARE;
   return (
     <span className="inline-flex items-center gap-1" role="group" aria-label="Diagram zoom">
       <button type="button" className={btn} onClick={() => onZoom(STEPS[at - 1])} disabled={at === 0} aria-label="Zoom out">
