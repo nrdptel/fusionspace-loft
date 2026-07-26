@@ -167,9 +167,9 @@ file count, a commit history — that you have not measured in the last few minu
 what you measured it against. Remote refs go stale mid-run; `main` can move underneath you.
 
 **Push the mechanics down into the repo.** Anything a future session would have to rediscover — how
-to link the corpus, the exact gate commands, which branch to push, a flaky check, a tool that is
-missing — belongs in a committed `CLAUDE.md` (or `CONTRIBUTING.md`), not in this paste. If you had to
-work something out that the repo could have told you, write it down there before you finish.
+to fetch the corpus, the exact gate commands, which ref to push, a flaky check, a tool that is
+missing — belongs in *This repo, concretely* above, or in `CONTRIBUTING.md`. If you had to work
+something out that the repo could have told you, write it down before you finish.
 
 ## Session start — the first fifteen minutes
 Do these in order, before scoping increment 1. None is optional; most run concurrently.
@@ -452,14 +452,18 @@ tool's stored simulation results**, so every such file is its own built-in oracl
 results are not all equal. A file's own tool marks runs it considers outdated or never-run; read that
 marker and label accordingly rather than treating every stored number as the tool's current answer.
 
-How it should reach CI (reconcile with the repo for how far Loft has adopted this; wiring it up where
-it is missing is itself high-value work):
-- The corpus is NEVER committed into the Loft repo. A lock file pins repo/tag/asset/sha256; a
-  `fetch-fixtures` step downloads that release asset with a token (`FIXTURES_TOKEN` / `GITHUB_TOKEN`),
-  verifies the hash, and extracts into a gitignored corpus directory.
+How it reaches CI:
+- The corpus is NEVER committed into this repo. `fixtures.lock.json` pins the snapshot by **commit** —
+  immutable, where a tag or branch could move and silently change what the suite asserts — and by the
+  sha256 of that snapshot's own `CHECKSUMS.sha256`. `scripts/fetch-fixtures.mjs` verifies the manifest
+  against the lock and then every design file against the manifest, so a drifted or tampered corpus
+  fails loudly. Hashing the archive itself would prove nothing: GitHub's generated tarballs are not
+  byte-reproducible.
 - With no token the fetch exits 0 and the corpus suite skips itself, so public clones and fork CI stay
-  green. CI holds the token as a secret and fetches before testing, so the corpus genuinely gates
-  every push.
+  green. CI runs it before lint with `FIXTURES_TOKEN` as a secret, so the corpus gates every push
+  there — **once that secret exists.** Check whether it does before claiming the corpus gates CI.
+- Re-cutting a snapshot means regenerating `CHECKSUMS.sha256` in the fixtures repo, then bumping
+  `commit`, `checksums` and `files` in the lock. The fixtures repo's README carries the commands.
 - A parser fix can land BEFORE the corpus's expected values are regenerated; a committed,
   CI-reachable overrides file is the home for a fixture's updated contract in that window, deleted
   once the corpus is re-cut. A bridge, not a home.
