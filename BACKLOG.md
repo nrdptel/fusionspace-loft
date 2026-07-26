@@ -27,15 +27,6 @@ not yet done. Newest first. One line each. Anything here is fair game for the ne
   Loft comes in at 152 m/s against RockSim's 83 m/s: both agree nothing opened, but RockSim models
   the unstable body's drag and Loft flies it nose-down. Worth a tumbling-drag model for the
   ballistic case, where the number feeds a safety warning.
-- RASAero booster staging is now the only staging Loft doesn't do (RockSim's landed this session).
-  The file has everything needed — `Booster1Engine`, `Booster1LaunchWt`, `Booster1CG`,
-  `Booster1SeparationDelay`, `Booster1IgnitionDelay`, `IncludeBooster1`, and the `<Booster>` part
-  itself with its own fins and boattail. What's missing is the CONVENTION: on
-  `Complex.Two-Stage.CDX1` the sustainer is 4.06 lb at 35.96 in and Booster1 is 5.64 lb at 43.06 in,
-  and a 43 in CG cannot belong to a part spanning 55–62.5 in — so those almost certainly describe
-  the whole stack at liftoff, not the booster alone. "Almost certainly" isn't good enough for a mass
-  and a CG. Settle it empirically first: fly both readings against the three staged CDX1 files'
-  stored apogees and take the one that reproduces them.
 - A RockSim `<CustomFinSet>`'s fin tabs (`TabLength`/`TabDepth`/`TabOffset`) and cant angle are
   read past — the tab is structure inside the airframe, so it is mass Loft doesn't count, and a
   canted custom fin flies uncanted. Both are zero on the corpus's only custom-fin design.
@@ -57,9 +48,9 @@ not yet done. Newest first. One line each. Anything here is fair game for the ne
 - The corpus sweep and the per-step drag cross-check are worth committing as real dev tools with
   assertions rather than being rewritten as throwaway probes each session — the sweep now is, the
   drag cross-check isn't.
-- RASAero import leaves three things on the table: booster stages (only the sustainer flies, and
-  the comparison is withheld), a fin set mounted on a tapered section, and `<Protuberance>` parts.
-  RASAero's `<MachAlt>` Mach-vs-altitude table is also unread — it is a second per-step oracle.
+- RASAero import still leaves `<Protuberance>` parts unread, and a SECOND booster stage is skipped
+  (only Booster 1 flies). RASAero's `<MachAlt>` Mach-vs-altitude table is also unread — it is a
+  second per-step oracle, in a file that already gives one cross-check.
 - A RASAero import's mass is a single point, so the airframe carries no moment of inertia of its
   own. Harmless for the 3-DOF solve; a real gap the day rotational dynamics arrive.
 - Two RockSim corpus fixtures store results that don't match their own geometry (`TubeFins1.rkt`
@@ -77,12 +68,11 @@ not yet done. Newest first. One line each. Anything here is fair game for the ne
   beyond the captured streamtube, and the shielding of the airframe inside the tubes; the
   CP reads ~0.9 caliber forward of OpenRocket's on its own example.
 - Ring tails (`<RingTail>` in RockSim) are still dropped with a warning.
-- The corpus suite exists now (`lib/corpus/sweep.test.ts`, skips when absent) but nothing FETCHES
-  the corpus: no lock file pinning repo/tag/asset/sha256, no `fetch-fixtures` step, no CI secret.
-  Until that lands the suite only gates a machine that already has the files.
 - `Pods--airframes and winglets.ork` sim 1 reads +25%: pods are dropped, so the comparison is
   withheld, but the pods' own drag is simply missing.
-- Deployment velocity is the worst metric in almost every corpus comparison (e.g. +153% on
-  OpenRocket's tube-fin example) — the chute-deploy timing model looks like the cause.
-- A `.ork` whose motor Loft can't resolve flies with no propulsion; the same-casing substitute
-  is offered, but a design with *several* unresolvable motors makes you pick one by one.
+- Deployment velocity reads worst in percentage terms but is ill-conditioned near apogee, not badly
+  modelled — the census on /docs/validation shows the absolute error barely moves across bands. The
+  genuinely wrong cases (e.g. +153% on OpenRocket's tube-fin example) are the ones left to explain.
+- A design with SEVERAL unresolvable motors makes you accept the same-casing substitute one by one.
+  (A partly-resolved configuration now withholds its stored comparison, so at least the missing
+  curve no longer reads as an accuracy gap.)
