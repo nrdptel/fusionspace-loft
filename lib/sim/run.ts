@@ -201,6 +201,9 @@ export interface ConfigChoice {
   storedApogeeM?: number;
   /** The simulation's name (e.g. "H128W", "Simulation 3 - too short delay"). */
   name: string;
+  /** The source tool's own status for this run — `outdated`, `notsimulated`, `external`, … — so a
+   *  surface quoting its stored apogee can say whether the tool stands behind it. */
+  status?: string;
 }
 
 /** The design's stored simulations as selectable configurations, each labelled by its motor(s)
@@ -218,6 +221,7 @@ export function configChoices(doc: OrkDocument): ConfigChoice[] {
       motors,
       storedApogeeM: sim.hasResults && Number.isFinite(apo) ? apo : undefined,
       name: sim.name,
+      status: sim.status,
     };
   });
 }

@@ -15,6 +15,23 @@
  *  Across the real-design corpus this is not a rare edge: 11 of 91 stored OpenRocket runs are
  *  outdated and 7 more are marked not simulated, including both files whose stored apogees Loft
  *  disagrees with most. */
+/** The same caveat compressed to a tag, for a surface with no room for a sentence — a `<select>`
+ *  option, a table cell. It says which of the two applies and nothing more; the full sentence is
+ *  still on the comparison panel the option leads to. A surface quoting a stored number without
+ *  either is presenting an earlier version of the rocket, or a figure the tool never computed, as
+ *  that tool's answer. */
+export function storedTag(status: string | undefined): string | null {
+  switch (status) {
+    case "outdated":
+      return "outdated";
+    case "notsimulated":
+    case "loaded":
+      return "not run";
+    default:
+      return null;
+  }
+}
+
 export function storedCaveat(status: string | undefined, tool: string): string | null {
   switch (status) {
     case "outdated":

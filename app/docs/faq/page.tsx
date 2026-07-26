@@ -155,7 +155,11 @@ export default function Faq() {
           <em>motor configuration</em> picker above the results. Each entry is labelled with its
           motor(s) and the apogee OpenRocket stored for it; choosing one re-flies that configuration
           and compares against its own stored numbers, so you can see how each motor changes the
-          flight. The bundled &ldquo;Motor comparison&rdquo; example shows it.
+          flight. Two entries never read alike — where the motor and apogee coincide, the run&apos;s
+          own name and its position in the file are added — and an entry whose stored run the tool
+          marks <code>outdated</code> or not run says so, since that figure describes an earlier
+          version of the rocket rather than the design on screen. The bundled &ldquo;Motor
+          comparison&rdquo; example shows it.
         </p>
       </QA>
 

@@ -16,25 +16,27 @@ not yet done. Newest first. One line each. Anything here is fair game for the ne
 - The fin-flutter fix hint now admits when the worst-margin set is one the fin fields can't reach
   (16 of the 60 corpus flights it fires on, including the thinnest margins: 0.08x, 0.21x, 0.29x).
   What it still can't do is let the flyer act on it — that needs per-component editing.
-- The flutter hint can quote a thickness of "0 mm" and a margin of "0x": on `Cherokee-E-5055.ork` it
-  reads "thickening the Fin set from 0 mm to about 4 mm ... (from 0x)". The underlying numbers are a
-  0.254 mm (0.01 in) balsa fin the file itself specifies and a 0.01x margin, so the physics is right
-  and the DISPLAY is what fails — a value rounded to zero is not something a flyer can act on, and
-  "from 0x" reads as a bug rather than as an alarmingly thin fin. Needs a sub-mm precision rule on
-  that one surface.
 - `RocketDiagram` resolves its drag-handle fin set by nearest station to `primaryFinStation` rather
   than by id, so nothing structurally guarantees the handle and the edit target are the same set.
-  They agree on every corpus design today; matching `primaryFinGroupIds` would make it provable.
+  Measured this run: across the 29 corpus designs that carry a fin set, nearest-station and by-id
+  resolution pick the same set every time and the primary set is present in the outline in all 29,
+  so this is a latent fragility with zero live cases — matching by id would make it provable, and
+  `OutlineFin` already carries the id.
 - `SWEEP_AXES`/`GEOMETRY_AXES` doc comments in `lib/sim/sweep.ts` still describe the fin axes as
   acting on every fin set; they now act on the primary fin group.
-- Phone, measured on a 412x915 viewport: all 7 diagram drag handles are 22x22 px with an 11 px grab
-  radius (a fingertip is ~40 px at DPR 2.6), and two of them sit 7 px apart centre-to-centre — a tap
-  12 px below "Fin position" grabs "Fin root chord" instead. Six of seven did not move under a
-  synthetic touch drag in one sequential pass (indicative, not confirmed — the clean-state re-test
-  never ran). The four "Run …" analysis buttons are 36 px tall. All 13 views exceed two viewport
-  heights (Flight 5,288 px, Design 5,030 px, Analyze 3,513 px); `/docs/methods` is 21,514 px with no
-  in-page nav. 167 text nodes under 12 px in Analyze. Clean: no hover-only state, no horizontal
-  document overflow, no console errors.
+- Phone, re-measured this run at 412x915 / DPR 2.6 (handles are their own entry below). Under 44 px:
+  the 9 motor-sweep column-sort buttons at 15.7 px tall, the Conditions "Launch site" input (250.8x34)
+  and its "Fetch" button (61.2x32), the sticky header's design-name input (176x30) and "Import
+  another" (92.1x40, wrapping to two lines), the four Analyze "Run …" buttons at 36 px, 7 Monte-Carlo
+  number inputs at 36 px, the "Parts · 8" and "Use it offline" disclosure rows at 16-20 px, the 5
+  /docs sub-nav links at 30 px, and 10 footer links at 16-20 px. Every view exceeds two viewport
+  heights — /docs/methods 21,514 px (23.5x), /docs/limitations 16,656, /docs/faq 13,136, Design with
+  all sections open 6,182, Flight 4,022 — though the workspace tablist is sticky and its tabs are a
+  clean 44 px. Text under 12 px: Flight 113 nodes (24 at 9 px, 38 at 10 px, all in the flight-path
+  figure), Design 76, Analyze 16. Clean: no hover-only state (0), no horizontal document overflow
+  (0 across 12 states), no console errors (0). Caveat worth its own fix: 13 elements carry
+  information ONLY in `title=`, which never fires on touch — including the `<abbr>` behind the
+  stability badge and all four Conditions field explanations.
 - Desktop tenth-use, measured: analysis results are the one thing a reload discards (units, tab,
   motor swap and fin edits all survive it); no long analysis can be cancelled (no Cancel/Stop in
   MonteCarlo/MotorSweep/ParameterSweep/RocketpyCrossCheck); the cluster fixture offers two options
@@ -52,11 +54,17 @@ not yet done. Newest first. One line each. Anything here is fair game for the ne
 - A second nose cone is simply never edited: `primaryNose` takes the frontmost and `noseLength`/
   `noseShape` key off its id. No corpus design has two nose cones (0 of 35), so this is documentation,
   not a bug worth code today.
-- The diagram's seven drag handles are 24x24 px on a phone — the one control the whole
-  direct-manipulation story rests on, and the only thing in the Design workspace still under the
-  project's own 44 px minimum. A transparent 44 px hit circle is the obvious fix, but on a 346x89 px
-  phone diagram seven of them would overlap, so it needs a touch-only layout (fewer handles, or
-  spread ones) rather than a bigger circle. Measured on a Pixel 7 viewport.
+- **The diagram's fin handles cannot all be tapped on a phone.** Measured this run on a 412x915 /
+  DPR 2.6 viewport with the 38 mm single-deploy sample: all seven `g[role=slider]` handles render
+  24x24 px, and the five fin handles cluster inside a 24x34 px box — centres 10.0 px (position vs
+  sweep), 16.4, 20.0, 22.4 px apart. `document.elementFromPoint` at the centre of **"Fin position"
+  returns "Fin sweep"**, so that handle is unreachable by any tap, and a cold walk measured only
+  28-52% of each handle's own core as the topmost element, meaning the reachable ones drag the wrong
+  dimension roughly half the time. A transparent 44 px hit circle makes this worse, not better: at
+  10 px separation the circles would nest. The fix is a touch-specific layout — one active fin
+  handle at a time, chosen from a chip row beside the zoom control, with the other four hidden while
+  it is selected. The nose-length and body-diameter handles are 117 px apart and need only a bigger
+  hit area, not the layout.
 - The to-scale diagram is 346x89 px on a phone — 89 px of height for a whole airframe. It zooms, but
   the default fit is unreadable, and the Design workspace runs 1,892 px deep before you reach the
   fields.

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { changePercent, changeAbsolute, decimalsFor, energy, flutterMargin, fmtSmall, lengthMm } from "./display";
+import { changePercent, changeAbsolute, decimalsFor, energy, flutterMargin, fmtSmall, lengthMm, storedRunLabels } from "./display";
 import { RECOMMENDED_FLUTTER_MARGIN } from "./sim/flutter";
 
 describe("energy", () => {
@@ -118,5 +118,92 @@ describe("fmtSmall / lengthMm / flutterMargin", () => {
     expect(row(1.2, 1.9)).toEqual(["1.2", "1.9", "+0.7 ×"]);
     // No change at all still reads as a plain 0, not a spurious precision.
     expect(row(1.4, 1.4)).toEqual(["1.4", "1.4", "0 ×"]);
+  });
+});
+
+describe("storedRunLabels", () => {
+  const run = (simIndex: number, motors: string[], name: string, storedApogeeM?: number) => ({
+    simIndex,
+    motors,
+    name,
+    storedApogeeM,
+  });
+
+  it("leaves distinct runs alone", () => {
+    expect(
+      storedRunLabels([run(0, ["H128W"], "Simulation 1", 300), run(1, ["G40W"], "Simulation 2", 180)], "metric"),
+    ).toEqual(["H128W · 300 m", "G40W · 180 m"]);
+  });
+
+  it("names the run when motor and apogee repeat", () => {
+    // `Clustered motors.ork`: two genuinely different configurations, both stored at 307 m.
+    expect(
+      storedRunLabels([run(3, ["C6"], "Simulation 4", 307), run(4, ["C6"], "Simulation 5", 307)], "metric"),
+    ).toEqual(["C6 · 307 m · Simulation 4", "C6 · 307 m · Simulation 5"]);
+  });
+
+  it("falls back to the run's position when the name repeats too", () => {
+    // `FullScaleModelTH.rkt` stores fifteen runs of one motor and reuses "L1940X-P" across them.
+    expect(
+      storedRunLabels(
+        [run(3, ["L1940X"], "L1940X-P", 2105), run(7, ["L1940X"], "L1940X-P", 2105)],
+        "metric",
+      ),
+    ).toEqual(["L1940X · 2,105 m · L1940X-P · #4", "L1940X · 2,105 m · L1940X-P · #8"]);
+  });
+
+  it("never returns two identical labels, even for runs identical in every field", () => {
+    // Varying only `simIndex` would make this tautological — that is the field the tiebreaker uses.
+    // These six runs agree on everything, including their index, so distinctness has to come from
+    // the function itself.
+    const runs = Array.from({ length: 6 }, () => run(0, ["L1940X"], "same", 2100));
+    const labels = storedRunLabels(runs, "imperial");
+    expect(new Set(labels).size).toBe(labels.length);
+  });
+
+  it("does not repeat a name the label already carries", () => {
+    // RASAero names each run after its own motor, and an .ork whose configuration didn't resolve
+    // falls back to the name for the motor half — so appending it blindly read "J90W · 1,200 m · J90W".
+    expect(
+      storedRunLabels([run(0, ["J90W"], "J90W", 1200), run(1, ["J90W"], "J90W", 1200)], "metric"),
+    ).toEqual(["J90W · 1,200 m · #1", "J90W · 1,200 m · #2"]);
+    expect(
+      storedRunLabels([run(0, [], "Simulation", 307), run(1, [], "Simulation", 307)], "metric"),
+    ).toEqual(["Simulation · 307 m · #1", "Simulation · 307 m · #2"]);
+    // And the backstop still holds when a run's own name reads like another's position marker.
+    expect(
+      new Set(
+        storedRunLabels(
+          [run(0, ["C6"], "Sim", 307), run(1, ["C6"], "Sim", 307), run(2, ["C6"], "Sim · #2", 307)],
+          "metric",
+        ),
+      ).size,
+    ).toBe(3);
+  });
+
+  it("withholds an apogee it doesn't actually have rather than printing an em dash", () => {
+    expect(storedRunLabels([run(0, ["C6"], "s", NaN)], "metric")).toEqual(["C6"]);
+    expect(storedRunLabels([run(0, ["C6"], "s", Infinity)], "metric")).toEqual(["C6"]);
+    expect(storedRunLabels([{ simIndex: 0, motors: ["C6"], name: "s", storedApogeeM: undefined }], "metric")).toEqual(["C6"]);
+  });
+
+  it("marks a stored apogee the source tool doesn't stand behind", () => {
+    // 18 of the corpus's 108 picker options quote a run marked outdated or never run — all five on
+    // USLI2025-FULLSCALE. Unmarked, they read as the tool's current answer for the design on screen.
+    expect(
+      storedRunLabels(
+        [
+          { simIndex: 0, motors: ["L1000"], name: "a", storedApogeeM: 1500, status: "uptodate" },
+          { simIndex: 1, motors: ["L1000"], name: "b", storedApogeeM: 1400, status: "outdated" },
+          { simIndex: 2, motors: ["L1000"], name: "c", storedApogeeM: 1300, status: "notsimulated" },
+        ],
+        "metric",
+      ),
+    ).toEqual(["L1000 · 1,500 m", "L1000 · 1,400 m (outdated)", "L1000 · 1,300 m (not run)"]);
+  });
+
+  it("falls back to the run's name when it has no motors and no stored apogee", () => {
+    expect(storedRunLabels([run(0, [], "Simulation 1")], "metric")).toEqual(["Simulation 1"]);
+    expect(storedRunLabels([run(0, [], "")], "metric")).toEqual(["Configuration"]);
   });
 });

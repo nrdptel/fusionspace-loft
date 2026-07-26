@@ -9,6 +9,7 @@ import { importDesign, sourceTool, type OrkDocument } from "@/lib/ork/import";
 import { newDesign } from "@/lib/model/starter";
 import { exportOrk } from "@/lib/ork/export";
 import { runFlight, pickConfig, overridesFromStored, configChoices, type FlightRun, type ConfigChoice } from "@/lib/sim/run";
+import { storedTag } from "@/lib/validation/stored-status";
 import {
   primaryFinSpan,
   unreachableFinSetCount,
@@ -875,12 +876,7 @@ function ConfigPicker({
   /** The tool that stored these configurations — a RockSim or RASAero import isn't OpenRocket's. */
   tool: string;
 }) {
-  const optionLabel = (c: ConfigChoice): string => {
-    const motors = c.motors.length ? c.motors.join(" + ") : c.name || "Configuration";
-    if (c.storedApogeeM === undefined) return motors;
-    const a = d.altitude(c.storedApogeeM, units);
-    return `${motors} · ${a.value} ${a.unit}`;
-  };
+  const labels = d.storedRunLabels(choices, units);
   return (
     <label className="flex flex-wrap items-center gap-2 rounded-lg border border-zinc-200 bg-white px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900/40">
       <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Motor configuration</span>
@@ -890,14 +886,28 @@ function ConfigPicker({
         onChange={(e) => onSelect(Number(e.target.value))}
         className="min-w-0 flex-1 rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
       >
-        {choices.map((c) => (
-          <option key={c.simIndex} value={c.simIndex} title={c.name}>
-            {optionLabel(c)}
+        {/* No `title`: it used to carry the run's raw name, which is now part of the visible label
+            wherever it distinguishes anything — leaving it made eleven options with different text
+            share one identical tooltip on `FullScaleModelTH.rkt`. A tooltip less specific than the
+            text it expands is worse than none, and native tooltips never fire on touch anyway. */}
+        {choices.map((c, i) => (
+          <option key={c.simIndex} value={c.simIndex}>
+            {labels[i]}
           </option>
         ))}
       </select>
       <span className="w-full text-xs text-zinc-500 dark:text-zinc-400 sm:w-auto">
         {choices.length} configurations in this design — the apogee shown is {tool}&apos;s stored value.
+        {/* An option marked outdated or not run still belongs in the list — it is a reference point —
+            but it is not what the tool would predict for the design as it now stands, and the picker
+            is where the flyer decides which run to be compared against. */}
+        {choices.some((c) => storedTag(c.status)) && (
+          <>
+            {" "}
+            One or more predate the design&apos;s last edit or were never run; {tool} says so, and the
+            comparison panel spells out what that means for the flight chosen.
+          </>
+        )}
       </span>
     </label>
   );
