@@ -75,6 +75,29 @@ test.describe("Loft", () => {
     await expect(page.locator("p[aria-live='polite']").first()).toContainText(/Trapezoidal fins.*from the nose.*kg/);
   });
 
+  test("an analysis table can be copied straight out, not just downloaded", async ({ page }) => {
+    // A file download is the right shape for archiving a run and the wrong one for pasting a motor
+    // comparison into a spreadsheet or a build thread, which is what this audience does with it.
+    await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+    await page.getByRole("tab", { name: "Analyze" }).click();
+
+    const sweep = page.getByRole("region", { name: "Motor sweep" });
+    await sweep.getByRole("button", { name: "Run motor sweep" }).click();
+    await expect(sweep.locator("table")).toBeVisible();
+    await sweep.getByRole("button", { name: "Copy" }).click();
+    await expect(sweep.getByRole("button", { name: "Copied" })).toBeVisible();
+
+    const text = await page.evaluate(() => navigator.clipboard.readText());
+    const lines = text.split("\n");
+    expect(lines[0]).toContain("Motor\tManufacturer");
+    expect(lines.length).toBeGreaterThan(2); // header plus a row per fitting motor
+    // Tab-separated, so a paste lands in columns rather than in one cell.
+    expect(lines[1].split("\t").length).toBe(lines[0].split("\t").length);
+  });
+
   test("a design edit re-runs an open sweep instead of throwing it away", async ({ page }) => {
     // The workbench loop: change something, see how the comparison moved. It used to be impossible —
     // any edit remounted the Analyze panels to idle, so a completed sweep (or a 300-flight

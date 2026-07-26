@@ -18,7 +18,7 @@ import { usePersistedNumber } from "@/lib/session";
 import { mToFt, ftToM, mpsToFtps } from "@/lib/units";
 import type { CsvCell } from "@/lib/csv";
 import { NumberField } from "./ui";
-import DownloadCsv from "./DownloadCsv";
+import DownloadCsv, { CopyTable } from "./DownloadCsv";
 import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
 
@@ -410,6 +410,7 @@ function Report({
       </p>
       <div className="mt-2">
         <DownloadCsv rows={csvRows(result, units)} name={name} suffix="dispersion" />
+        <CopyTable rows={csvRows(result, units)} />
       </div>
     </div>
   );

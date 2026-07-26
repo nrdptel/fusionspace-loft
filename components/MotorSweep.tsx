@@ -10,7 +10,7 @@ import type { GeometryEdits } from "@/lib/model/edit";
 import { mToFt, mpsToFtps } from "@/lib/units";
 import { usePersistedChoice } from "@/lib/session";
 import type { CsvCell } from "@/lib/csv";
-import DownloadCsv from "./DownloadCsv";
+import DownloadCsv, { CopyTable } from "./DownloadCsv";
 import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
 
@@ -333,6 +333,7 @@ function SweepTable({ rows, units, name }: { rows: MotorSweepRow[]; units: UnitS
         {/* Exported in the order on screen — a table you sorted and then exported unsorted is a
             different table from the one you were reading. */}
         <DownloadCsv rows={sweepCsv(sorted, units)} name={name} suffix="motor-sweep" />
+        <CopyTable rows={sweepCsv(sorted, units)} />
       </div>
     </div>
   );

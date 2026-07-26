@@ -11,7 +11,7 @@ import { overallLength } from "@/lib/model/geometry";
 import { mToFt, mToIn, mpsToFtps, kgToG, G_PER_OZ } from "@/lib/units";
 import type { CsvCell } from "@/lib/csv";
 import LineChart from "./LineChart";
-import DownloadCsv from "./DownloadCsv";
+import DownloadCsv, { CopyTable } from "./DownloadCsv";
 import type { UnitSystem } from "@/lib/display";
 
 const round = (n: number, dp: number) => (Number.isFinite(n) ? Math.round(n * 10 ** dp) / 10 ** dp : "");
@@ -383,6 +383,7 @@ function SweepChart({
       </p>
       <div className="mt-2">
         <DownloadCsv rows={csv} name={name} suffix={`sweep-${axis.axis}`} />
+        <CopyTable rows={csv} />
       </div>
     </div>
   );
