@@ -886,8 +886,12 @@ function ConfigPicker({
         onChange={(e) => onSelect(Number(e.target.value))}
         className="min-w-0 flex-1 rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
       >
+        {/* No `title`: it used to carry the run's raw name, which is now part of the visible label
+            wherever it distinguishes anything — leaving it made eleven options with different text
+            share one identical tooltip on `FullScaleModelTH.rkt`. A tooltip less specific than the
+            text it expands is worse than none, and native tooltips never fire on touch anyway. */}
         {choices.map((c, i) => (
-          <option key={c.simIndex} value={c.simIndex} title={c.name}>
+          <option key={c.simIndex} value={c.simIndex}>
             {labels[i]}
           </option>
         ))}

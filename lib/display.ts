@@ -171,26 +171,49 @@ export function changeAbsolute(base: number, cur: number, unit: string, decimals
  *  reach 307 m; `FullScaleModelTH.rkt` stores 15 runs of one motor whose apogees round together,
  *  six of them indistinguishable, and its run names repeat as well. Choosing between options that
  *  read the same silently compares Loft against a different stored flight, so a repeated label
- *  takes on whatever separates it: the run's own name, then its position in the file. */
+ *  takes on whatever separates it: the run's own name, then its position in the file. Distinctness
+ *  is this function's own guarantee, not something a caller has to have arranged. */
 export function storedRunLabels(
   runs: readonly { motors: string[]; name: string; storedApogeeM?: number; simIndex: number; status?: string }[],
   sys: UnitSystem,
 ): string[] {
   const base = runs.map((c) => {
-    const motors = c.motors.length ? c.motors.join(" + ") : c.name || "Configuration";
-    if (c.storedApogeeM === undefined) return motors;
+    const motors = c.motors.length ? c.motors.join(" + ") : c.name?.trim() || "Configuration";
+    // `Number.isFinite`, not `!== undefined`: a null or NaN apogee would reach `fmt` and render
+    // "— m", which asserts a stored figure this run does not carry.
+    if (!Number.isFinite(c.storedApogeeM as number)) return motors;
     // The apogee is the source tool's, and the tool says whether it still stands behind it. 18 of
     // the corpus's 108 picker options quote a run marked outdated or never run — every option on
     // `USLI2025-FULLSCALE`, 8 of 9 on `Punisher Apprentice.ork` — so an unmarked figure here would
     // present an earlier version of the rocket as that tool's current answer.
     const tag = storedTag(c.status);
-    return `${motors} · ${q(altitude(c.storedApogeeM, sys))}${tag ? ` (${tag})` : ""}`;
+    return `${motors} · ${q(altitude(c.storedApogeeM as number, sys))}${tag ? ` (${tag})` : ""}`;
   });
   const tally = (xs: string[]) => xs.reduce((m, x) => m.set(x, (m.get(x) ?? 0) + 1), new Map<string, number>());
+
+  // Tier two: the run's own name, but only where it actually adds something. A RASAero import names
+  // each run after its own motor and an .ork with an unresolved configuration falls back to the
+  // name for the motor half of the label, so appending it blindly produces "J90W · 1,200 m · J90W".
   const byBase = tally(base);
-  const named = base.map((l, i) =>
-    byBase.get(l)! > 1 && runs[i].name?.trim() ? `${l} · ${runs[i].name.trim()}` : l,
-  );
+  const named = base.map((l, i) => {
+    const name = runs[i].name?.trim();
+    return byBase.get(l)! > 1 && name && !l.includes(name) ? `${l} · ${name}` : l;
+  });
+
+  // Tier three: the run's position in the file, on every member of a group that still reads alike —
+  // marking only the later ones would leave the first looking like the unambiguous one. The position
+  // is the run's own index in the file, which is what a flyer counts down their simulation list to
+  // find; the backstop below is what makes distinctness a guarantee rather than a consequence of it.
   const byNamed = tally(named);
-  return named.map((l, i) => (byNamed.get(l)! > 1 ? `${l} · #${runs[i].simIndex + 1}` : l));
+  const placed = named.map((l, i) => (byNamed.get(l)! > 1 ? `${l} · #${runs[i].simIndex + 1}` : l));
+
+  // And a backstop, so "distinct" is a property of this function rather than of its callers: a run
+  // whose own name happens to read like another's position marker could still collide.
+  const seen = new Set<string>();
+  return placed.map((l) => {
+    let out = l;
+    for (let k = 2; seen.has(out); k++) out = `${l} (${k})`;
+    seen.add(out);
+    return out;
+  });
 }

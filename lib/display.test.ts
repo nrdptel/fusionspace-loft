@@ -152,10 +152,39 @@ describe("storedRunLabels", () => {
     ).toEqual(["L1940X · 2,105 m · L1940X-P · #4", "L1940X · 2,105 m · L1940X-P · #8"]);
   });
 
-  it("never returns two identical labels, whatever the input", () => {
-    const runs = Array.from({ length: 6 }, (_, i) => run(i, ["L1940X"], "", 2100));
+  it("never returns two identical labels, even for runs identical in every field", () => {
+    // Varying only `simIndex` would make this tautological — that is the field the tiebreaker uses.
+    // These six runs agree on everything, including their index, so distinctness has to come from
+    // the function itself.
+    const runs = Array.from({ length: 6 }, () => run(0, ["L1940X"], "same", 2100));
     const labels = storedRunLabels(runs, "imperial");
     expect(new Set(labels).size).toBe(labels.length);
+  });
+
+  it("does not repeat a name the label already carries", () => {
+    // RASAero names each run after its own motor, and an .ork whose configuration didn't resolve
+    // falls back to the name for the motor half — so appending it blindly read "J90W · 1,200 m · J90W".
+    expect(
+      storedRunLabels([run(0, ["J90W"], "J90W", 1200), run(1, ["J90W"], "J90W", 1200)], "metric"),
+    ).toEqual(["J90W · 1,200 m · #1", "J90W · 1,200 m · #2"]);
+    expect(
+      storedRunLabels([run(0, [], "Simulation", 307), run(1, [], "Simulation", 307)], "metric"),
+    ).toEqual(["Simulation · 307 m · #1", "Simulation · 307 m · #2"]);
+    // And the backstop still holds when a run's own name reads like another's position marker.
+    expect(
+      new Set(
+        storedRunLabels(
+          [run(0, ["C6"], "Sim", 307), run(1, ["C6"], "Sim", 307), run(2, ["C6"], "Sim · #2", 307)],
+          "metric",
+        ),
+      ).size,
+    ).toBe(3);
+  });
+
+  it("withholds an apogee it doesn't actually have rather than printing an em dash", () => {
+    expect(storedRunLabels([run(0, ["C6"], "s", NaN)], "metric")).toEqual(["C6"]);
+    expect(storedRunLabels([run(0, ["C6"], "s", Infinity)], "metric")).toEqual(["C6"]);
+    expect(storedRunLabels([{ simIndex: 0, motors: ["C6"], name: "s", storedApogeeM: undefined }], "metric")).toEqual(["C6"]);
   });
 
   it("marks a stored apogee the source tool doesn't stand behind", () => {
