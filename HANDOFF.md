@@ -19,11 +19,18 @@ file history here is a window, not the record.
 **Everything from this run is on `main` and deployed** — PRs #36, #37 and #38 merged as `7520d65`,
 `fed272e` and `84cb2b3`. Nothing is pending on the working branch.
 
-**Production's build marker is in `sw.js`.** `curl -s https://loft.fusionspace.co/sw.js | grep BUILD_ID`
-against `grep BUILD_ID out/sw.js` is the fastest way to tell whether what you built is what is being
-served. At this session's start production was `44d265094e3f`; it served `7520d65` (PR #36) and then
-`fed272e` (PR #37) during it, and a local build of `7520d65` reproduced production's `a2721df72cfa`
-byte-for-byte — which is how to prove what is live, rather than assuming the deploy fired.
+**Two ways to tell what production is actually serving**, and they are not equivalent:
+
+- `curl -s https://loft.fusionspace.co/sw.js | grep BUILD_ID` against `grep BUILD_ID out/sw.js`.
+  This matches only when you build the EXACT commit that was deployed — the marker hashes route
+  HTML, which carries Next's own build id, so a working tree one docs commit ahead produces a
+  different marker for identical app code. Checking out the merged SHA and building it reproduced
+  production's marker byte-for-byte this session (`7520d65` → `a2721df72cfa`); building HEAD did not.
+- Better, and immune to that: find the chunk carrying your change
+  (`grep -rl "<a string you added>" out/_next/static/chunks/*.js`) and fetch that filename from
+  production. The names are content hashes, so a 200 with your string in it proves that exact code
+  is live. At this session's start production was `44d265094e3f`; it served `7520d65`, `fed272e` and
+  `84cb2b3` during the run.
 
 ## Environment traps these sessions hit
 
