@@ -16,8 +16,8 @@ commit title and message explicitly at merge time for the same reason.
 **The clone is shallow** (`git rev-parse --is-shallow-repository` → true), so every commit count and
 file history here is a window, not the record.
 
-**Everything from this run is on `main` and deployed** — PRs #36, #37 and #38 merged as `7520d65`,
-`fed272e` and `84cb2b3`. Nothing is pending on the working branch.
+**Everything from this run is on `main` and deployed** — PRs #36–#40. Nothing is pending on the
+working branch at the end of the run.
 
 **Two ways to tell what production is actually serving**, and they are not equivalent:
 
@@ -89,6 +89,8 @@ sweep ran throughout at **35 design files, 3 suites passing, 0 findings**.
 | `cf64f1c` | **That review's findings in turn:** the name tier appended a name the label already carried (RASAero names each run after its own motor), the promised distinctness was the caller's property not the function's, the test meant to prove it varied only the tiebreaker's field, a NaN apogee could render "C6 · — m", and the option tooltip had become less specific than the visible text. |
 | `84cb2b3` | **The phone's fin handles.** Measured at 412x915/DPR 2.6: seven handles at 24x24 px, the five fin ones inside a 24x34 box, and `elementFromPoint` at the centre of "Fin position" returning "Fin sweep" — unreachable by any tap, with the reachable ones dragging the wrong dimension about half the time. A bigger circle makes it worse (at 10 px apart, 44 px circles nest), so a coarse pointer gets ONE fin handle aimed by a chip row, and every handle carries a 44 px grab area. Desktop untouched. |
 | `84cb2b3` (both, merged) | **"300flights;".** The done-check walk caught the JSX-eats-the-space bug a third time, in the Monte-Carlo caption. Fixed with an explicit `{" "}` and verified in the built chunk; a scan of the whole bundle for the same pattern (`children:[<expr>,"<word>`) returns **0** other instances. |
+
+| (this PR) | **"0 to –".** A design field's range tooltip used a dash for whichever bound was absent, and nearly every field is floored at zero and open above — so 17 fields in the Design workspace read "Fin span (mm): 0 to –", which looks like a range that failed to load. Now "0 or more" / "up to 12" / "1 to 12". Found by the done-check's own cold walk, not by looking for it. |
 
 ## Pick up first
 
