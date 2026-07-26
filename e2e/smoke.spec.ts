@@ -339,6 +339,12 @@ test.describe("Loft", () => {
     await expect(page.getByLabel("Results").getByText("Apogee", { exact: true })).toBeVisible();
     // The import says plainly that the flight uses the weight and CG the file states.
     await expect(page.getByText(/no materials or per-part masses/i).first()).toBeVisible();
+    // The file's own stored numbers are attributed to RASAero, not to OpenRocket — as is the
+    // format stamp. A prediction belongs to the tool that made it.
+    await expect(page.getByText(/RASAero format 2/).first()).toBeVisible();
+    await expect(page.getByRole("heading", { name: "RASAero vs Loft" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "OpenRocket vs Loft" })).toHaveCount(0);
+    await expect(page.getByText(/OpenRocket format \d/)).toHaveCount(0);
   });
 
   test("a two-stage design with an undersized booster chute is flagged for a firm booster landing", async ({ page }) => {

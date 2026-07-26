@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Tabs } from "./ui";
 import type { FlightRun } from "@/lib/sim/run";
 import { applyGeometryEdits, hasGeometryEdits, type GeometryEdits } from "@/lib/model/edit";
-import type { OrkDocument } from "@/lib/ork/import";
+import { formatLabel, sourceTool, type OrkDocument } from "@/lib/ork/import";
 import type { FlightResult } from "@/lib/sim/simulate";
 import { RECOMMENDED_FLUTTER_MARGIN, thicknessForFlutterMargin } from "@/lib/sim/flutter";
 import LineChart, { type Series, type Marker } from "./LineChart";
@@ -108,12 +108,6 @@ const SEVERITY: Record<string, string> = {
   caution: "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300",
   info: "border-zinc-400/30 bg-zinc-500/10 text-zinc-600 dark:text-zinc-300",
 };
-
-/** The design tool an imported document came from, for labelling the stored-results comparison
- *  honestly (a RockSim import isn't an "OpenRocket comparison"). */
-function sourceTool(doc: OrkDocument): string {
-  return doc.formatVersion.startsWith("RockSim") ? "RockSim" : "OpenRocket";
-}
 
 export default function ResultsView({
   run,
@@ -242,10 +236,15 @@ export default function ResultsView({
   const vDeltaPct = logMaxV !== null && predMaxV > 0 ? ((logMaxV - predMaxV) / predMaxV) * 100 : null;
 
   // No propulsion ⇒ the "flight" is a zero-thrust drop and every metric is meaningless. Lead
-  // with why, name the motor(s) that didn't resolve, and withhold the misleading numbers,
-  // plots, and OpenRocket comparison. The geometry and stability below are motor-independent
-  // and stay valid.
-  const tool = sourceTool(doc);
+  // with why, name the motor(s) that didn't resolve, and withhold the misleading numbers, plots,
+  // and the stored comparison. The geometry and stability below are motor-independent and stay
+  // valid.
+  //
+  // Whose stored numbers those are is the file's own tool — OpenRocket, RockSim or RASAero. Every
+  // surface below that names it is gated on the file carrying that tool's results, so a design
+  // built here rather than imported never reaches them; the neutral wording is the fallback rather
+  // than naming a tool that never wrote this design.
+  const toolName = sourceTool(doc) ?? "the design file";
 
   // The geometry panel reflects the active what-if edits, so its silhouette matches the CG/CP the
   // (also edited) flight reports. Ballast and motor-swap what-ifs don't change the shape — they
@@ -259,7 +258,7 @@ export default function ResultsView({
   if (!run.hasPropulsion) {
     return (
       <div className="space-y-8">
-        <NoPropulsionNotice run={run} tool={tool} swapOptions={swapOptions} />
+        <NoPropulsionNotice run={run} tool={toolName} swapOptions={swapOptions} />
         <RocketSummary run={run} doc={doc} units={units} />
         {/* Still offer the editing surface — a swap to a motor that resolves is the very fix this
             case needs, and geometry stays editable even when no motor flew. */}
@@ -484,7 +483,7 @@ export default function ResultsView({
           report={run.validation}
           units={units}
           storedName={doc.simulations[simIndex]?.name}
-          toolName={tool}
+          toolName={toolName}
           external={doc.simulations[simIndex]?.status === "external"}
         />
       )}
@@ -497,7 +496,7 @@ export default function ResultsView({
         <DragCrossCheck
           result={r}
           flightData={doc.simulations[simIndex]!.flightData!}
-          toolName={tool}
+          toolName={toolName}
           storedName={doc.simulations[simIndex]?.name}
           units={units}
         />
@@ -509,11 +508,11 @@ export default function ResultsView({
             aria-label="Comparison withheld"
             className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-800 dark:text-amber-200"
           >
-            <h2 className="text-base font-semibold tracking-tight">{tool} comparison withheld</h2>
+            <h2 className="text-base font-semibold tracking-tight">{toolName} comparison withheld</h2>
             <p className="mt-1.5">
               This design contains something Loft flew in simplified form — staging, pods, parallel
               boosters, or a fin type it can&apos;t model (see the warnings above) — so the stored{" "}
-              {tool} results describe a different flight than the one simulated here. Comparing them
+              {toolName} results describe a different flight than the one simulated here. Comparing them
               would misstate the engine&apos;s accuracy, so the metric-by-metric comparison is
               withheld — import a design Loft flies complete for a like-for-like check.
             </p>
@@ -700,11 +699,7 @@ function RocketSummary({ run, doc, units }: { run: FlightRun; doc: OrkDocument; 
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="text-lg font-semibold tracking-tight">{doc.rocket.name}</h2>
         <span className="text-xs text-zinc-500 dark:text-zinc-400">
-          {doc.formatVersion === "unknown"
-            ? ""
-            : doc.formatVersion.startsWith("RockSim")
-              ? doc.formatVersion.replace("RockSim ", "RockSim format ")
-              : `OpenRocket format ${doc.formatVersion}`}
+          {formatLabel(doc)}
         </span>
       </div>
 

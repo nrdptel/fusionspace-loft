@@ -93,13 +93,15 @@ export default async function Validation() {
         </li>
       </ul>
 
-      <h2>Against OpenRocket (the free oracle)</h2>
+      <h2>Against the file&apos;s own tool</h2>
       <p>
-        A <code>.ork</code> you simulated in OpenRocket carries OpenRocket&apos;s own stored flight
-        results. When you import such a file, Loft flies it under the same stored launch conditions
-        and diffs each metric — apogee, velocity, Mach, timings — reporting the signed error and the
-        mean absolute percentage error (MAPE). That comparison appears right in the results, and the
-        method is in <code>lib/validation/compare.ts</code>.
+        A design file you already simulated carries that tool&apos;s own stored flight results — an{" "}
+        <code>.ork</code> carries OpenRocket&apos;s, a <code>.rkt</code> RockSim&apos;s, a{" "}
+        <code>.CDX1</code> RASAero&apos;s. When you import such a file, Loft flies it under the same
+        stored launch conditions and diffs each metric — apogee, velocity, Mach, timings — reporting
+        the signed error and the mean absolute percentage error (MAPE). That comparison appears right
+        in the results, labelled with the tool that actually produced the numbers, and the method is
+        in <code>lib/validation/compare.ts</code>.
       </p>
       <p>
         The comparison is shown only when Loft flew the <em>complete</em> design. If the design

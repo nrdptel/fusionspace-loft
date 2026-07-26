@@ -20,13 +20,14 @@ const STORED_COLOR = "#f59e0b"; // amber — the design tool's stored run
 export default function DragCrossCheck({
   result,
   flightData,
-  toolName = "OpenRocket",
+  toolName,
   storedName,
   units,
 }: {
   result: FlightResult;
   flightData: StoredFlightData;
-  toolName?: string;
+  /** The tool whose stored per-step log this is — named by the importer, never assumed. */
+  toolName: string;
   storedName?: string;
   units: UnitSystem;
 }) {

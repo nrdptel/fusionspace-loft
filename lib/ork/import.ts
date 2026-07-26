@@ -45,3 +45,32 @@ export async function importDesignFile(file: Blob): Promise<OrkDocument> {
 /** Back-compat aliases (the importer used to be OpenRocket-only). */
 export const importOrk = importDesign;
 export const importOrkFile = importDesignFile;
+
+/** The design tool a document came from. `null` when there is none to name — a design built in
+ *  Loft rather than imported. */
+export type SourceTool = "OpenRocket" | "RockSim" | "RASAero" | null;
+
+/** Which tool produced a document, read from the format stamp each adapter records. This is what
+ *  every surface that shows a file's *stored* results must label them with: a RockSim `.rkt` or a
+ *  RASAero `.CDX1` carries its own tool's numbers, and calling those "OpenRocket's" attributes a
+ *  prediction to a tool that never made it. */
+export function sourceTool(doc: Pick<OrkDocument, "formatVersion">): SourceTool {
+  const v = doc.formatVersion;
+  if (v === "unknown") return null;
+  if (v.startsWith("RockSim")) return "RockSim";
+  if (v.startsWith("RASAero")) return "RASAero";
+  // The OpenRocket adapter stamps the bare file-format version ("1.9"); everything else is
+  // prefixed with its tool's name above.
+  return "OpenRocket";
+}
+
+/** The document's format stamp as a flyer reads it — "RASAero format 2", "OpenRocket format 1.9".
+ *  Empty when the design carries no format (built here, not imported). */
+export function formatLabel(doc: Pick<OrkDocument, "formatVersion">): string {
+  const tool = sourceTool(doc);
+  if (!tool) return "";
+  const version = doc.formatVersion.startsWith(tool)
+    ? doc.formatVersion.slice(tool.length).trim()
+    : doc.formatVersion;
+  return `${tool} format ${version}`;
+}

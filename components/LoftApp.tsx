@@ -5,7 +5,7 @@ import Link from "next/link";
 import ImportPanel from "./ImportPanel";
 import ResultsView from "./ResultsView";
 import { Segmented } from "./ui";
-import { importDesign, type OrkDocument } from "@/lib/ork/import";
+import { importDesign, sourceTool, type OrkDocument } from "@/lib/ork/import";
 import { newDesign } from "@/lib/model/starter";
 import { exportOrk } from "@/lib/ork/export";
 import { runFlight, pickConfig, overridesFromStored, configChoices, type FlightRun, type ConfigChoice } from "@/lib/sim/run";
@@ -476,6 +476,12 @@ export default function LoftApp() {
 
   const choices = doc ? configChoices(doc) : [];
 
+  // The tool that wrote the loaded design, for every place the UI names whose stored numbers it is
+  // showing or withholding. A RockSim `.rkt` and a RASAero `.CDX1` carry their own tool's results;
+  // calling those "OpenRocket's" attributes a prediction to a tool that never made it. A design
+  // built here has no source tool, and none of these surfaces have anything of its to name.
+  const toolName = (doc && sourceTool(doc)) || "the design file";
+
   // Bundled motors of the same casing diameter as the design's own — the fitting swaps the picker
   // offers. Recomputed only when the design or its selected configuration changes.
   const swapInfo = useMemo<SwapInfo | null>(() => {
@@ -654,7 +660,7 @@ export default function LoftApp() {
           )}
 
           {choices.length > 1 && (
-            <ConfigPicker choices={choices} selected={simIndex} onSelect={selectConfig} units={units} />
+            <ConfigPicker choices={choices} selected={simIndex} onSelect={selectConfig} units={units} tool={toolName} />
           )}
 
           {doc.warnings.length > 0 && (
@@ -684,6 +690,7 @@ export default function LoftApp() {
               rerun(edits, wx, "today");
             }}
             busy={busy}
+            tool={toolName}
           />
 
           {run && (
@@ -732,6 +739,7 @@ export default function LoftApp() {
                   onEdit={applyEdit}
                   swap={swapInfo}
                   designDims={designDims}
+                  tool={toolName}
                 />
               }
             />
@@ -744,19 +752,22 @@ export default function LoftApp() {
 
 // --- motor-configuration picker ------------------------------------------------------
 
-/** When a design carries more than one flight configuration (OpenRocket's stored simulations —
+/** When a design carries more than one flight configuration (the source tool's stored simulations —
  *  e.g. the same airframe on an H128W and a G40W), let the flyer choose which to simulate. Each
- *  option shows the motor(s) and the apogee OpenRocket stored for it, so motors can be compared. */
+ *  option shows the motor(s) and the apogee that tool stored for it, so motors can be compared. */
 function ConfigPicker({
   choices,
   selected,
   onSelect,
   units,
+  tool,
 }: {
   choices: ConfigChoice[];
   selected: number;
   onSelect: (simIndex: number) => void;
   units: UnitSystem;
+  /** The tool that stored these configurations — a RockSim or RASAero import isn't OpenRocket's. */
+  tool: string;
 }) {
   const optionLabel = (c: ConfigChoice): string => {
     const motors = c.motors.length ? c.motors.join(" + ") : c.name || "Configuration";
@@ -780,7 +791,7 @@ function ConfigPicker({
         ))}
       </select>
       <span className="w-full text-xs text-zinc-500 dark:text-zinc-400 sm:w-auto">
-        {choices.length} configurations in this design — the apogee shown is OpenRocket&apos;s stored value.
+        {choices.length} configurations in this design — the apogee shown is {tool}&apos;s stored value.
       </span>
     </label>
   );
@@ -798,11 +809,14 @@ function DesignEditor({
   onEdit,
   swap,
   designDims,
+  tool,
 }: {
   units: UnitSystem;
   edits: Edits;
   onEdit: (patch: Edits) => void;
   swap: SwapInfo | null;
+  /** The tool whose stored comparison an edit hides — named by the importer, never assumed. */
+  tool: string;
   /** The design's own dimensions (m; counts are plain numbers), shown as the fields' placeholders. */
   designDims: {
     finSpan?: number;
@@ -1208,7 +1222,7 @@ function DesignEditor({
             position blank sits it mid-body), or switch to dual-deploy (set both a main-deploy
             altitude and a drogue diameter — the main then opens low over a drogue that controls the
             fall from apogee, cutting drift) to trim stability, drag, apogee, or landing.
-            It&apos;s a hypothetical change to the design, so the OpenRocket comparison is hidden while
+            It&apos;s a hypothetical change to the design, so the {tool} comparison is hidden while
             any is set. The geometry fields start from the design&apos;s own dimensions; only motors
             that fit this airframe&apos;s diameter are offered.
           </p>
@@ -1225,10 +1239,13 @@ function ConditionsControls({
   setScenario,
   onWeather,
   busy,
+  tool,
 }: {
   units: UnitSystem;
   edits: Edits;
   onEdit: (patch: Edits) => void;
+  /** The tool whose stored comparison a condition change hides — named by the importer. */
+  tool: string;
   weather: WeatherConditions | null;
   scenario: "design" | "today";
   setScenario: (s: "design" | "today") => void;
@@ -1282,7 +1299,7 @@ function ConditionsControls({
         </div>
         <p className="text-xs text-zinc-500 dark:text-zinc-400">
           Blank fields use the design&apos;s stored launch conditions. Changing any field re-flies
-          the design and hides the OpenRocket comparison (the conditions no longer match).
+          the design and hides the {tool} comparison (the conditions no longer match).
         </p>
 
         <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-900/60">

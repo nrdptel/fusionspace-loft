@@ -30,13 +30,14 @@ export default function ValidationPanel({
   report,
   units,
   storedName,
-  toolName = "OpenRocket",
+  toolName,
   external = false,
 }: {
   report: ValidationReport;
   units: UnitSystem;
   storedName?: string;
-  toolName?: string;
+  /** The tool whose stored results these are — named by the importer, never assumed. */
+  toolName: string;
   /** The stored simulation is marked `external` — figures the file carries, not this tool's own
    *  simulator output. */
   external?: boolean;

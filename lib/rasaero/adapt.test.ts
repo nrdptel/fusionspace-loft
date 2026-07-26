@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { adaptRasAeroXml, airframeMass, parseEngineName } from "./adapt";
-import { adaptDesignXml } from "../ork/import";
+import { adaptDesignXml, sourceTool } from "../ork/import";
 import { flattenRocket, overallLength } from "../model/geometry";
 import { dryMassProperties } from "../sim/mass";
 import { runFromDocument } from "../sim/run";
@@ -53,6 +53,7 @@ describe("adaptRasAeroXml", () => {
   it("is picked by the shared importer from its XML root", () => {
     expect(adaptDesignXml(DESIGN).creator).toBe("RASAero II");
     expect(doc.formatVersion).toMatch(/^RASAero/);
+    expect(sourceTool(doc)).toBe("RASAero");
   });
 
   it("rejects a file that isn't RASAero", () => {

@@ -4,7 +4,7 @@
  *  precision on a safety-relevant altitude. */
 
 import { describe, it, expect } from "vitest";
-import { adaptDesignXml, importDesign } from "./import";
+import { adaptDesignXml, formatLabel, importDesign, sourceTool } from "./import";
 import { runFromDocument } from "../sim/run";
 
 const ork = (inner: string) =>
@@ -99,5 +99,30 @@ describe("import robustness — degenerate geometry with a valid motor", () => {
     }
     expect(err).toBeInstanceOf(Error);
     expect(err!.message).toMatch(/implausibly large|unit error/i);
+  });
+});
+
+describe("source tool", () => {
+  it("names the tool each format came from", () => {
+    expect(sourceTool({ formatVersion: "1.9" })).toBe("OpenRocket");
+    expect(sourceTool({ formatVersion: "RockSim 3" })).toBe("RockSim");
+    expect(sourceTool({ formatVersion: "RASAero 2" })).toBe("RASAero");
+  });
+
+  it("names no tool for a design built here rather than imported", () => {
+    expect(sourceTool({ formatVersion: "unknown" })).toBeNull();
+    expect(formatLabel({ formatVersion: "unknown" })).toBe("");
+  });
+
+  it("reads a format stamp the way a flyer does", () => {
+    expect(formatLabel({ formatVersion: "1.9" })).toBe("OpenRocket format 1.9");
+    expect(formatLabel({ formatVersion: "RockSim 3" })).toBe("RockSim format 3");
+    expect(formatLabel({ formatVersion: "RASAero 2" })).toBe("RASAero format 2");
+  });
+
+  it("labels a parsed document by the tool that wrote it", async () => {
+    const rkt = `<?xml version="1.0"?><RockSimDocument><FileVersion>4</FileVersion><DesignInformation><RocketDesign><Name>T</Name></RocketDesign></DesignInformation></RockSimDocument>`;
+    expect(sourceTool(await importDesign(new TextEncoder().encode(rkt)))).toBe("RockSim");
+    expect(sourceTool(adaptDesignXml(ork(stage(""))))).toBe("OpenRocket");
   });
 });
