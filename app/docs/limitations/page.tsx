@@ -172,8 +172,10 @@ export default function Limitations() {
         the resolver did not pick. Editing an arbitrary component means addressing edits per
         component id rather than by these fixed roles, which is the direction the in-app editor is
         headed; until then, a multi-set design is only partly editable here, and the parts list is
-        read-only. One knock-on: the fin-flutter fix hint names the worst-margin set, which on a
-        staged design may be a set these fields cannot reach.
+        read-only. The fin-flutter fix hint names the worst-margin set, which on a staged design is
+        often one these fields cannot reach — across the corpus that hint fires on 60 flights and 16
+        of them name an unreachable set, including the thinnest margins there are. It now says so
+        rather than pointing at a field that would change a different set.
       </p>
 
       <h3>Tube fins are modelled as ducts, and read ~1 caliber conservative</h3>

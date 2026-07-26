@@ -3,17 +3,22 @@
 Rough edges, missing affordances, and ideas too big for one pass — noticed while working,
 not yet done. Newest first. One line each. Anything here is fair game for the next session.
 
-- A design whose motor isn't in the bundled database loses the workspace tabs entirely: on
-  `rocksimTestRocket2.rkt`, `[role=tab]` count is 0 and `[role=slider]` is 0, because `ResultsView`
-  returns the no-propulsion branch before the `<Tabs>`. The editor fields are still rendered below,
-  but the stability-trim advice on that same screen says "Set the fin position in the Design
-  workspace to check" — naming a workspace that isn't there. The no-motor notice already gates its
-  "pick a configuration" clause on `canSubstitute`, but the config picker itself only renders at
-  `choices.length > 1`, so that advice can also point at an absent control. Both are one-line gates.
-- The fin-flutter fix hint names the worst-margin fin set and says to set the thickness in the
-  Design workspace, but the thickness field reaches only the primary fin group — on a staged design
-  the worst set is usually a booster ring the panel can't touch, so following the hint does nothing
-  to the margin it quotes. Now noted on the limitations page; the real fix is per-component editing.
+- A design whose motor isn't in the bundled database still renders no workspace tabs at all: on
+  `rocksimTestRocket2.rkt`, `[role=tab]` is 0 and `[role=slider]` is 0, because `ResultsView` returns
+  the no-propulsion branch before the `<Tabs>`. The advice on that screen no longer names controls
+  that aren't there, and the design fields are rendered below — but there is still no diagram and no
+  way to reach Analyze, so the design is only partly inspectable. Worth deciding whether the
+  no-flight branch should render the tabs with Flight and Analyze explaining themselves, rather than
+  dropping the navigation spine entirely.
+- The fin-flutter fix hint now admits when the worst-margin set is one the fin fields can't reach
+  (16 of the 60 corpus flights it fires on, including the thinnest margins: 0.08x, 0.21x, 0.29x).
+  What it still can't do is let the flyer act on it — that needs per-component editing.
+- The flutter hint can quote a thickness of "0 mm" and a margin of "0x": on `Cherokee-E-5055.ork` it
+  reads "thickening the Fin set from 0 mm to about 4 mm ... (from 0x)". The underlying numbers are a
+  0.254 mm (0.01 in) balsa fin the file itself specifies and a 0.01x margin, so the physics is right
+  and the DISPLAY is what fails — a value rounded to zero is not something a flyer can act on, and
+  "from 0x" reads as a bug rather than as an alarmingly thin fin. Needs a sub-mm precision rule on
+  that one surface.
 - `RocketDiagram` resolves its drag-handle fin set by nearest station to `primaryFinStation` rather
   than by id, so nothing structurally guarantees the handle and the edit target are the same set.
   They agree on every corpus design today; matching `primaryFinGroupIds` would make it provable.

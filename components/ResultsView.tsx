@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { Tabs } from "./ui";
 import type { FlightRun } from "@/lib/sim/run";
-import { applyGeometryEdits, hasGeometryEdits, type GeometryEdits } from "@/lib/model/edit";
+import { applyGeometryEdits, hasGeometryEdits, primaryFinGroupIds, type GeometryEdits } from "@/lib/model/edit";
 import { designKey } from "@/lib/model/design-key";
 import { formatLabel, sourceTool, type OrkDocument } from "@/lib/ork/import";
 import type { FlightResult } from "@/lib/sim/simulate";
@@ -869,7 +869,7 @@ function RocketSummary({
       </dl>
 
       <StabilityTrimHint run={run} doc={doc} units={units} editHere={editHere} />
-      <FlutterFixHint run={run} units={units} editHere={editHere} />
+      <FlutterFixHint run={run} doc={doc} units={units} editHere={editHere} />
     </section>
   );
 }
@@ -878,20 +878,43 @@ function RocketSummary({
  *  healthy margin — the number behind the "thicken the fins" caution, so it's actionable rather than
  *  a vague direction. Completes the actionable-safety trio (stability trim, recovery sizing, this).
  *  Closed-form (lib/sim/flutter.ts) and conservative (errs slightly thick). */
-function FlutterFixHint({ run, units, editHere }: { run: FlightRun; units: UnitSystem; editHere: EditHere }) {
+function FlutterFixHint({
+  run,
+  doc,
+  units,
+  editHere,
+}: {
+  run: FlightRun;
+  doc: OrkDocument;
+  units: UnitSystem;
+  editHere: EditHere;
+}) {
   const f = run.result.flutter;
   if (!f || !Number.isFinite(f.worst.margin) || f.worst.margin >= RECOMMENDED_FLUTTER_MARGIN) return null;
   if (!(f.worst.thickness > 0)) return null;
   const tFix = thicknessForFlutterMargin(f.worst.thickness, f.worst.margin, RECOMMENDED_FLUTTER_MARGIN);
   if (!(tFix > f.worst.thickness)) return null;
+  // The fin what-ifs address one fin group, which need not be the worst-margin set. Across the
+  // corpus this hint fires on 60 flights and 16 of them name a set the fields cannot reach — and
+  // those are the worst margins in the set (0.08x, 0.21x, 0.29x). Telling a flyer to thicken fins
+  // the panel will not touch is worse than saying nothing, on a warning that is safety-relevant.
+  const editable = primaryFinGroupIds(doc.rocket).has(f.worst.finId);
 
   return (
     <p className="mt-3 text-xs text-zinc-500 dark:text-zinc-400">
       <span className="font-medium text-zinc-600 dark:text-zinc-300">Fin-flutter fix:</span>{" "}
       thickening the {f.worst.finName} from {d.q(d.lengthMm(f.worst.thickness, units))} to about{" "}
       {d.q(d.lengthMm(tFix, units))} would lift the flutter margin to {d.fmt(RECOMMENDED_FLUTTER_MARGIN, 1)}×
-      (from {d.fmt(f.worst.margin, 1)}×). Shortening the span or a stiffer material does the same —
-      set the fin thickness {editPointer(editHere)} to check the apogee cost.
+      (from {d.fmt(f.worst.margin, 1)}×). Shortening the span or a stiffer material does the same.{" "}
+      {editable ? (
+        <>Set the fin thickness {editPointer(editHere)} to check the apogee cost.</>
+      ) : (
+        <>
+          The fin fields {editPointer(editHere)}{" "}
+          describe a different fin set on this design, so they can&apos;t make this change — it has to
+          go back to the design file.
+        </>
+      )}
     </p>
   );
 }

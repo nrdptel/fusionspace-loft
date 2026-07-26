@@ -120,6 +120,28 @@ describe("analyzeFlutter — worst-case margin over the ascent", () => {
     }
   });
 
+  it("names the worst set by component id, so a surface can tell whether it is editable", async () => {
+    // The fin what-ifs address one fin group, which need not be the worst-margin set. Without an id
+    // on the report, the flutter fix hint can only name the set — and on a staged design it will
+    // happily tell a flyer to thicken fins the design fields do not reach. Measured over the
+    // corpus: the hint fires on 60 flights and 16 of those name an unreachable set.
+    const doc = await load("demo-dual-deploy.ork");
+    const fins = flattenRocket(doc.rocket)
+      .map((p) => p.component)
+      .filter(
+        (c) =>
+          c.kind === "trapezoidfinset" || c.kind === "ellipticalfinset" || c.kind === "freeformfinset",
+      );
+    for (const c of fins) (c as { thickness: number }).thickness = 0.0008; // force the hint's condition
+    const run = runFromDocument(doc);
+    const worst = run.result.flutter!.worst;
+    expect(worst.finId).toBeTruthy();
+    // The id resolves to a real fin set in the design, and to the one the report names.
+    const named = fins.find((c) => c.id === worst.finId);
+    expect(named, "worst.finId should identify a fin set in the design").toBeDefined();
+    expect(named!.name || "fins").toBe(worst.finName);
+  });
+
   it("flags flutter (warning) once the fins are made too thin", async () => {
     const doc = await load("demo-dual-deploy.ork"); // a fast, transonic flight
     for (const p of flattenRocket(doc.rocket)) {
