@@ -11,11 +11,6 @@ not yet done. Newest first. One line each. Anything here is fair game for the ne
 - The to-scale diagram is 346x89 px on a phone — 89 px of height for a whole airframe. It zooms, but
   the default fit is unreadable, and the Design workspace runs 1,892 px deep before you reach the
   fields.
-- Analyze results are thrown away by any design edit, silently. The four panels are keyed on
-  `designKey` so a completed sweep can't describe an edited rocket — correct, but a fin tweak
-  discards a 300-flight Monte-Carlo with no notice, which makes the workbench loop (edit, see how
-  the comparison moved) impossible. The fix is to keep the result and mark it stale against the key
-  it was computed under, so the old numbers stay visible beside the new ones.
 - Wind barely moves Loft's apogee, because weathercocking is rotation and the solver is 3-DOF. On
   `USLI2025-FULLSCALE`'s own five stored runs at 0/5/10/15/20 mph, OpenRocket's apogee falls
   1,602 → 1,549 m (−3.3%) while Loft reads 1,634 m at every wind speed. Now stated in the
@@ -41,22 +36,15 @@ not yet done. Newest first. One line each. Anything here is fair game for the ne
   replaces suggested.
 - Design number fields show the design's own value only as a grey placeholder, so a set value and an
   inherited one look nearly alike and any tweak means retyping the whole number.
-- The two cross-check tables read in opposite directions: the stored-results panel is
-  `STORED | LOFT | Δ`, the RocketPy panel is `LOFT | ROCKETPY | LOFT − ROCKETPY`. The reference
-  column swaps sides between two tables on one screen.
-- No copy-to-clipboard on any table — CSV download only. A designer wants the motor comparison
-  pasted into a spreadsheet or a forum post.
 - There is no undo, and "Reset to as-designed" is all-or-nothing with no per-field revert; "Import
   another" discards every what-if without asking.
-- The motor sweep and the parameter sweep run with no progress indicator. Monte-Carlo does it well
-  ("32/300 flown") and the RocketPy cross-check does it best (runtime → install → fly).
+- The motor sweep and the parameter sweep show a labelled spinner but no count. Monte-Carlo does it
+  well ("32/300 flown") and the RocketPy cross-check does it best (runtime → install → fly); neither
+  sweep's worker reports progress, so adding one means threading a callback through.
+- Analyze results survive an edit now, but not a reload: the session keeps the design, units, edits
+  and motor configuration, and a 300-flight Monte-Carlo is still gone.
 - The parameter sweep offers 7 axes against ~23 editable dimensions — no fin count, materials,
   surface finish, chute sizes, payload mass or boattail.
-- A doc-warnings block titled "Some parts of this design weren't fully understood" is used for
-  benign notes too, e.g. the explanation of how serial staging is flown. An explanation dressed in
-  amber as a parse failure.
-- Analyze results don't survive a reload: the session keeps the design, units, edits and motor
-  config, but a 300-flight Monte-Carlo is gone.
 - The fin-flutter check cries wolf: across the corpus it raises the hard "fins may flutter" warning
   on 31 of 94 flights — a third — including OpenRocket's own bundled Estes-class examples, which fly
   every weekend. The formula is not the problem (it reproduces Apogee #291's worked example: 260.7
@@ -85,9 +73,11 @@ not yet done. Newest first. One line each. Anything here is fair game for the ne
   a selected part opening its own fields — that is the gap that keeps the editor feeling like a
   viewer with fields beside it. It needs the edits model to grow past one flat bag of ~26 global
   fields ("the" fin set, "the" nose) to something addressed per component id.
-- Corpus fetch is still unwired: no lock file pinning repo/tag/asset/sha256, no `fetch-fixtures`
-  step, no CI secret. Blocked on two owner-side actions — cutting a release asset in `loft-fixtures`
-  and adding `FIXTURES_TOKEN` — so the suite still only gates a machine that already has the files.
+- The corpus fetch is wired — `fixtures.lock.json`, `scripts/fetch-fixtures.mjs`, an npm script and a
+  CI step — but CI still fetches nothing until a `FIXTURES_TOKEN` repository secret exists. That is
+  the one owner-side action left; until then the suite gates only a machine that already has the
+  files. The network path itself is the one branch never exercised here (no real token in the
+  sandbox); the local-tarball, tampered-file, moved-snapshot and no-token paths all are.
 - A no-recovery descent is a tumble, not a dart. On `FullScaleModelTH.rkt`'s plugged configuration
   Loft comes in at 152 m/s against RockSim's 83 m/s: both agree nothing opened, but RockSim models
   the unstable body's drag and Loft flies it nose-down. Worth a tumbling-drag model for the
