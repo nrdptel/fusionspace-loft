@@ -39,28 +39,44 @@ if (!TOKEN && !LOCAL) {
   process.exit(0);
 }
 
+/** The tarball endpoint answers with a redirect to a pre-signed codeload URL. Follow it by hand and
+ *  drop the Authorization header when the host changes: the signed URL carries its own credential,
+ *  and forwarding a bearer token to a different host is both unnecessary and worth not doing. Some
+ *  fetch implementations strip it on a cross-origin redirect anyway — doing it explicitly means the
+ *  behaviour is ours rather than the runtime's. */
 async function download() {
   if (LOCAL) return readFileSync(LOCAL);
-  const url = `https://api.github.com/repos/${LOCK.repo}/tarball/${LOCK.commit}`;
+  let url = `https://api.github.com/repos/${LOCK.repo}/tarball/${LOCK.commit}`;
   say(`downloading ${LOCK.repo}@${LOCK.commit.slice(0, 12)}`);
-  const res = await fetch(url, {
-    headers: {
-      Authorization: `Bearer ${TOKEN}`,
-      Accept: "application/vnd.github+json",
-      "User-Agent": "loft-fetch-fixtures",
-    },
-    redirect: "follow",
-  });
-  if (!res.ok) {
-    // 404 on a private repo means "no access" as often as "no such commit"; say both.
-    throw new Error(
-      `${res.status} ${res.statusText} fetching the corpus. ` +
-        (res.status === 404
-          ? "The token may lack access to the private fixtures repo, or the pinned commit may not exist."
-          : "Check FIXTURES_TOKEN."),
-    );
+  let host = new URL(url).host;
+  for (let hop = 0; hop <= 5; hop++) {
+    const sameHost = new URL(url).host === host;
+    const res = await fetch(url, {
+      headers: {
+        ...(sameHost ? { Authorization: `Bearer ${TOKEN}` } : {}),
+        Accept: "application/vnd.github+json",
+        "User-Agent": "loft-fetch-fixtures",
+      },
+      redirect: "manual",
+    });
+    const location = res.headers.get("location");
+    if (res.status >= 300 && res.status < 400 && location) {
+      url = new URL(location, url).toString();
+      host = new URL(url).host === host ? host : "";
+      continue;
+    }
+    if (!res.ok) {
+      // 404 on a private repo means "no access" as often as "no such commit"; say both.
+      throw new Error(
+        `${res.status} ${res.statusText} fetching the corpus. ` +
+          (res.status === 404
+            ? "The token may lack access to the private fixtures repo, or the pinned commit may not exist."
+            : "Check FIXTURES_TOKEN."),
+      );
+    }
+    return Buffer.from(await res.arrayBuffer());
   }
-  return Buffer.from(await res.arrayBuffer());
+  throw new Error("too many redirects fetching the corpus");
 }
 
 /** Every file under `dir`, as repo-relative POSIX paths. */
