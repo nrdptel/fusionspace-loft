@@ -75,6 +75,34 @@ test.describe("Loft", () => {
     await expect(page.locator("p[aria-live='polite']").first()).toContainText(/Trapezoidal fins.*from the nose.*kg/);
   });
 
+  test("the nose is draggable on the diagram, and arrow keys nudge rather than jump", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+    await page.getByRole("tab", { name: "Design" }).click();
+
+    // The import screen promises you can drag the nose. It has to be there.
+    const nose = () => page.getByRole("slider", { name: "Nose length" });
+    await expect(nose()).toBeVisible();
+    const at = async () => Number(await nose().getAttribute("aria-valuenow"));
+    const before = await at();
+    expect(before).toBeGreaterThan(0);
+
+    // A step scaled to the handle's own range: an arrow is a nudge, Shift is the bigger move — the
+    // fixed 10 mm arrow / 50 mm Shift pair had it the wrong way round and could not reach a value
+    // between two steps on a small airframe.
+    await nose().focus();
+    await page.keyboard.press("ArrowRight");
+    const nudged = await at();
+    expect(nudged).toBeGreaterThan(before);
+    await nose().focus();
+    await page.keyboard.press("Shift+ArrowRight");
+    expect((await at()) - nudged).toBeGreaterThan(nudged - before);
+
+    // Dragging the nose re-flies the design — it is a design change, not a drawing change.
+    await expect(page.getByRole("button", { name: /Reset to as-designed/ })).toBeVisible();
+  });
+
   test("the page has a top, and a keyboard reaches the workspace first", async ({ page }) => {
     await page.goto("/");
     // The app page titles itself. An outline that starts at <h2> has no top for a screen reader to
