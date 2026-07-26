@@ -61,6 +61,11 @@ If you have access to the fixtures repo, one command fetches it:
 FIXTURES_TOKEN=<a token that can read nrdptel/loft-fixtures> npm run fetch-fixtures
 ```
 
+Two counts appear and they are not the same number: the fetch verifies every hashed file in the
+snapshot, while the sweep counts only the ones it can currently import. The difference is the formats
+Loft does not read yet — RocketPy design scripts, chiefly — so a gap between them is a to-do, not a
+fault.
+
 `fixtures.lock.json` pins the snapshot by commit — immutable, unlike a tag — and by the sha256 of
 that snapshot's own `CHECKSUMS.sha256`. The fetch verifies the manifest against the lock and then
 every design file against the manifest, so a corpus that has drifted fails loudly instead of quietly
