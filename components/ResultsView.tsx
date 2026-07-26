@@ -1176,20 +1176,25 @@ function WhatIfDelta({ run, baseline, units }: { run: FlightRun; baseline: Fligh
       change: d.changeAbsolute(baseline.result.staticMarginCal, run.result.staticMarginCal, "cal"),
     },
     // Fin-flutter margin, when both flights estimate one (a finned design) — so a fin edit shows its
-    // effect on the flutter headroom right alongside the stability trade. On a very thin margin one
-    // decimal renders both ends and the delta as "0", so the row takes the precision the pair
-    // actually needs and formats all three at it — a from/to that disagrees with the change between
-    // them is worse than either alone.
+    // effect on the flutter headroom right alongside the stability trade. All three numbers share
+    // one precision, and it has to be wide enough for the CHANGE as well as for the two ends: at one
+    // decimal 1.44 → 1.46 reads "1.4 → 1.5" with a change of "0", which is the self-contradiction
+    // this row exists to avoid. `fmtSmall` on the ends so a margin below even that precision states
+    // a bound rather than a zero.
     ...(run.result.flutter && baseline.result.flutter
       ? (() => {
           const baseMargin = baseline.result.flutter.worst.margin;
           const curMargin = run.result.flutter.worst.margin;
-          const dp = Math.max(d.decimalsFor(baseMargin, 1), d.decimalsFor(curMargin, 1));
+          const dp = Math.max(
+            d.decimalsFor(baseMargin, 1),
+            d.decimalsFor(curMargin, 1),
+            d.decimalsFor(curMargin - baseMargin, 1),
+          );
           return [
             {
               label: "Flutter margin",
-              base: { value: d.fmt(baseMargin, dp), unit: "×" },
-              cur: { value: d.fmt(curMargin, dp), unit: "×" },
+              base: { value: d.fmtSmall(baseMargin, dp), unit: "×" },
+              cur: { value: d.fmtSmall(curMargin, dp), unit: "×" },
               change: d.changeAbsolute(baseMargin, curMargin, "×", dp),
             },
           ];

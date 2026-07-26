@@ -163,7 +163,9 @@ function sweepCsv(rows: MotorSweepRow[], units: UnitSystem): CsvCell[][] {
     round(toSpd(r.railExitVelocity), 1),
     round(r.thrustToWeight, 2),
     round(r.staticMarginCal, 2),
-    round(r.flutterMargin, 2),
+    // Three places, not two: the on-screen cell keeps a thin margin's digits, and a column that
+    // exported "0" for a number the table shows as 0.005× would disagree with what it came from.
+    round(r.flutterMargin, 3),
     round(r.optimumDelay, 1),
     r.isDesign ? "yes" : "",
   ]);

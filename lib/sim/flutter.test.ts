@@ -12,6 +12,7 @@ import { Atmosphere } from "./atmosphere";
 import { importOrk } from "../ork/import";
 import { primaryFinGroupIds } from "../model/edit";
 import { runFromDocument, runFlight } from "./run";
+import { flutterMargin } from "../display";
 import { flattenRocket } from "../model/geometry";
 
 async function load(name: string) {
@@ -172,6 +173,26 @@ describe("analyzeFlutter — worst-case margin over the ascent", () => {
     const w = run.result.warnings.find((x) => x.code === "fin-flutter");
     expect(w).toBeDefined();
     expect(w!.severity).toBe("warning");
+  });
+
+  it("quotes the margin in the caution the same way the display does", async () => {
+    // The banner and the stability card sit on the same screen, so they must agree digit for digit.
+    // `toFixed` and the display layer's rounding disagree on ties (1.45 → "1.4" vs "1.5"), which is
+    // how they came apart; this asserts the caution's number against the display helper itself.
+    const doc = await load("demo-dual-deploy.ork");
+    for (const p of flattenRocket(doc.rocket)) {
+      const c = p.component;
+      if (c.kind === "trapezoidfinset" || c.kind === "ellipticalfinset" || c.kind === "freeformfinset") {
+        (c as { thickness: number }).thickness = 0.0028; // thin enough to caution, thick enough not to warn
+      }
+    }
+    const run = runFromDocument(doc);
+    const margin = run.result.flutter!.worst.margin;
+    const w = run.result.warnings.find((x) => x.code === "fin-flutter");
+    expect(w).toBeDefined();
+    expect(w!.severity).toBe("caution");
+    expect(margin).toBeGreaterThanOrEqual(1);
+    expect(w!.message).toContain(`is only ${flutterMargin(margin)} the`);
   });
 
   it("only considers the ascent — a fast descent never sets the margin", async () => {

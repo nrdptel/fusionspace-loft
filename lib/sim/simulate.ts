@@ -874,7 +874,12 @@ export function simulate(input: SimulateInput): FlightResult {
             severity: "caution",
             message:
               `Thin fin-flutter margin: the estimated flutter speed (~${Math.round(w.flutterVelocity)} m/s${attrib}) ` +
-              `is only ${w.margin.toFixed(1)}× the ${Math.round(w.velocity)} m/s peak airspeed ` +
+              // Formatted the way the display layer formats, not the way `toFixed` does: the two
+              // disagreed both on ties (1.45 → "1.4" here, "1.5" on the stability card) and on a
+              // trailing zero ("1.0×" against "1×"), and this banner and that card render on the
+              // same screen. The core stays free of the display module — a flutter test pins the
+              // two together instead. This branch only runs at margin ≥ 1, so it cannot reach zero.
+              `is only ${Math.round(w.margin * 10) / 10}× the ${Math.round(w.velocity)} m/s peak airspeed ` +
               `(keep ≥ ${RECOMMENDED_FLUTTER_MARGIN}×).`,
           },
     );

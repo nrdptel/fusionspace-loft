@@ -79,7 +79,9 @@ describe("fmtSmall / lengthMm / flutterMargin", () => {
 
   it("states a bound rather than a zero when a value is below what it can say", () => {
     expect(fmtSmall(1e-9, 1)).toBe("<0.00001");
-    expect(fmtSmall(-1e-9, 1)).toBe("−<0.00001");
+    // The same sign glyph an ordinary value gets, so the two read alike in one column.
+    expect(fmtSmall(-1e-9, 1)).toBe("-<0.00001");
+    expect(fmtSmall(-0.04, 1).startsWith("-")).toBe(true);
     expect(fmtSmall(0, 1)).toBe("0");
     expect(fmtSmall(NaN, 1)).toBe("—");
   });
@@ -100,5 +102,21 @@ describe("fmtSmall / lengthMm / flutterMargin", () => {
     expect(decimalsFor(0.0118, 1)).toBe(2);
     expect(Math.max(decimalsFor(0.0118, 1), decimalsFor(0.0487, 1))).toBe(2);
     expect(changeAbsolute(0.0118, 0.0487, "×", 2).text).toBe("+0.04 ×");
+  });
+
+  it("widens for the change as well as the ends, so the row can't contradict itself", () => {
+    // The precision the two ENDS need is not enough: at one decimal 1.44 → 1.46 renders as
+    // "1.4 → 1.5" with a change of "0", which is exactly the disagreement the shared precision is
+    // meant to prevent. The row's rule is max(base, cur, difference).
+    const row = (base: number, cur: number) => {
+      const dp = Math.max(decimalsFor(base, 1), decimalsFor(cur, 1), decimalsFor(cur - base, 1));
+      return [fmtSmall(base, dp), fmtSmall(cur, dp), changeAbsolute(base, cur, "×", dp).text];
+    };
+    expect(row(1.44, 1.46)).toEqual(["1.44", "1.46", "+0.02 ×"]);
+    expect(row(0.0149, 0.0151)).toEqual(["0.0149", "0.0151", "+0.0002 ×"]);
+    // An ordinary change is unaffected — the widening only fires when it has to.
+    expect(row(1.2, 1.9)).toEqual(["1.2", "1.9", "+0.7 ×"]);
+    // No change at all still reads as a plain 0, not a spurious precision.
+    expect(row(1.4, 1.4)).toEqual(["1.4", "1.4", "0 ×"]);
   });
 });

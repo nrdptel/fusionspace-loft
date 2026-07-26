@@ -34,7 +34,8 @@ export function fmtSmall(n: number, decimals = 1, maxDecimals = decimals + 4): s
   const dp = decimalsFor(n, decimals, maxDecimals);
   const shown = fmt(n, dp);
   if (n !== 0 && Number(shown.replace(/,/g, "")) === 0) {
-    return `${n < 0 ? "−" : ""}<${fmt(10 ** -maxDecimals, maxDecimals)}`;
+    // The same sign glyph `fmt` would have produced, so a bound and an ordinary value read alike.
+    return `${n < 0 ? "-" : ""}<${fmt(10 ** -maxDecimals, maxDecimals)}`;
   }
   return shown;
 }
