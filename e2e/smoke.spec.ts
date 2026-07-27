@@ -2351,4 +2351,46 @@ test.describe("Loft", () => {
     await expect(wind).not.toHaveAttribute("aria-invalid", "true");
     await expect(mc.getByText("isn't a value this can fly")).toHaveCount(0);
   });
+
+  test("a waiver ceiling keeps meaning the same altitude when the units change", async ({ page }) => {
+    // The ceiling was held in whatever units were on screen, so the unit toggle silently
+    // reinterpreted it. Measured on this design (apogee ~3,230 ft / ~985 m): a 3,000 ft waiver read
+    // "Chance over ceiling 86%", and switching to metric left 3000 in the box — now meaning
+    // 3,000 m — and the same rocket read 0%. A waiver bust reading as clean, from a gesture nobody
+    // expects to change what they typed. This asserts the ALTITUDE survives, not the digits.
+    test.setTimeout(120_000);
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+
+    const units = page.getByRole("group", { name: /unit/i }).first();
+    await units.getByRole("button", { name: "Imperial" }).click();
+    await page.getByRole("tab", { name: "Analyze" }).click();
+
+    const mc = page.getByRole("region", { name: "Monte-Carlo dispersion" });
+    await mc.getByRole("button", { name: "Run dispersion" }).click();
+    const ceiling = mc.getByLabel("Waiver ceiling");
+    await expect(ceiling).toBeVisible({ timeout: 90_000 });
+
+    // The reading is the value under the "Chance over ceiling" heading.
+    const chance = mc.locator("div").filter({ hasText: /^Chance over ceiling$/ }).first().locator("+ div");
+
+    await ceiling.fill("3000");
+    await ceiling.blur();
+    // Let every flight land first. The panel refines its figures in place as samples arrive, so a
+    // reading taken mid-run drifts by a few points and would make this look flaky rather than
+    // wrong. Once it has settled, switching units re-reads the SAME samples — this is post-hoc, it
+    // never re-flies — so the two readings have to be identical, not merely close.
+    await expect(mc.getByText(/Refining|Flying \d/)).toHaveCount(0, { timeout: 90_000 });
+    await expect(chance).not.toHaveText("");
+    const imperial = await chance.innerText();
+    // This design tops 3,000 ft on most flights, so the honest answer is a large percentage.
+    expect(parseInt(imperial, 10), "chance of busting a 3,000 ft waiver").toBeGreaterThan(50);
+
+    await units.getByRole("button", { name: "Metric" }).click();
+
+    // 3,000 ft is 914 m: the box now says so, and the answer is the same answer.
+    await expect(ceiling).toHaveValue("914");
+    await expect(chance).toHaveText(imperial);
+  });
 });
