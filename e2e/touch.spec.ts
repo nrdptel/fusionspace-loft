@@ -177,4 +177,45 @@ test.describe("phone layout", () => {
       await check();
     }
   });
+
+  test("every operable control clears the hit target, on every workspace", async ({ page }) => {
+    // The existing case scans the Design panel only. These are the surfaces a pad check actually
+    // touches on the way there: the sticky header, the Conditions row, the Analyze run buttons and
+    // the motor-sweep sort headers were 30-36 px, and the two disclosure rows 16-20 px.
+    //
+    // Excluded, deliberately, and each for a reason rather than to make the test pass: the footer's
+    // links and inline prose links are text bound by their line height, not controls; the file input
+    // is 1x1 and sr-only behind a visible 44 px trigger; the skip link is offscreen until focused;
+    // and the wordmark is exempted by the header test above.
+    const scan = () =>
+      page.$$eval("button, input:not([type=hidden]), select, summary, [role=tab]", (ns) =>
+        ns
+          .map((n) => {
+            const r = n.getBoundingClientRect();
+            if (r.width < 4 || r.height < 4 || r.height >= 44) return null;
+            if (n.closest("footer")) return null;
+            const name = (n.getAttribute("aria-label") || n.textContent || "").replace(/\s+/g, " ").trim().slice(0, 30);
+            return `${n.tagName.toLowerCase()}"${name}" ${Math.round(r.width)}x${Math.round(r.height)}`;
+          })
+          .filter(Boolean),
+      );
+
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+    expect(await scan(), "Flight workspace").toEqual([]);
+
+    await page.getByRole("tab", { name: "Analyze" }).click();
+    expect(await scan(), "Analyze workspace").toEqual([]);
+
+    // The motor-sweep table's sort headers only exist once a sweep has run.
+    const sweep = page.getByRole("region", { name: "Motor sweep" });
+    await sweep.getByRole("button", { name: /Run/i }).first().click();
+    await sweep.getByRole("table").waitFor({ timeout: 120000 });
+    expect(await scan(), "Analyze with the motor-sweep table").toEqual([]);
+
+    await page.getByRole("tab", { name: "Design" }).click();
+    await page.locator("summary", { hasText: /Parts ·/ }).click();
+    expect(await scan(), "Design workspace with the parts table open").toEqual([]);
+  });
 });

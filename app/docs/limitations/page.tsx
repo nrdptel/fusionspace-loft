@@ -161,21 +161,25 @@ export default function Limitations() {
         of them together would destroy the design. But one file (a payload rocket carrying three
         1-fin sets of 55.4&nbsp;mm at the same station) is a <em>single physical fin ring</em> the
         file happens to store as three parts, where editing only one would fly an asymmetric rocket.
-        So the fin fields act on the frontmost set <em>and any set indistinguishable from it</em> —
-        same station, same dimensions — which is the group the panel&apos;s own readback describes.
-        A design that still has sets outside that group says so above the fin fields. Fin{" "}
+        So the fin fields act on the <em>selected</em> set — the frontmost until you pick another —
+        <em>and any set indistinguishable from it</em>, same station and same dimensions, which is the
+        group the panel&apos;s own readback describes. Picking a fin set on the diagram or in the parts
+        list aims the fields at it, and the panel names the set it is describing. A design that still
+        has sets outside the selected group says so above the fin fields. Fin{" "}
         <em>position</em> is the deliberate exception: it is a delta, so the whole fin group slides
         together and the design keeps its spacing.
       </p>
       <p>
-        What this does not yet give you is a way to edit the <em>other</em> sets, or any component
-        the resolver did not pick. Editing an arbitrary component means addressing edits per
-        component id rather than by these fixed roles, which is the direction the in-app editor is
-        headed; until then, a multi-set design is only partly editable here, and the parts list is
-        read-only. The fin-flutter fix hint names the worst-margin set, which on a staged design is
-        often one these fields cannot reach — across the corpus that hint fires on 60 flights and 16
-        of them name an unreachable set, including the thinnest margins there are. It now says so
-        rather than pointing at a field that would change a different set.
+        Fins are the first role that escaped this: measured over the 27 OpenRocket files in the
+        corpus, 10 carry more than one fin set and 19 sets could not be reached at all before a set
+        could be picked — now none. Every other role is still fixed. A second nose cone, a body tube
+        that is not the longest, a parachute that is not the largest: none of them can be addressed,
+        and the parts list stays read-only. Getting there means addressing edits per component id
+        for every role rather than only for fins, which is the direction the in-app editor is headed.
+        The fin-flutter fix hint names the worst-margin set, which on a staged design is often not
+        the one the fields are aimed at — across the corpus that hint fires on 60 flights and 16 of
+        them name a set outside the selected group. It says so rather than pointing at a field that
+        would change a different set, and picking that set is now a way to act on it.
       </p>
 
       <h3>Tube fins are modelled as ducts, and read ~1 caliber conservative</h3>

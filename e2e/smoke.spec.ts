@@ -2275,4 +2275,42 @@ test.describe("Loft", () => {
     expect(after[1], "the edited set keeps its edit").toBe("77");
     expect(after[0], "the set that was never picked must not inherit it").toBe(before[0]);
   });
+
+  test("a refused what-if says so, and the field shows what is actually flown", async ({ page }) => {
+    // The field is controlled by the committed edit, so an entry the model refuses left `value`
+    // unchanged — React never re-rendered the node and the refused text sat there looking like the
+    // number in the flight. Typing -3 into Fin span kept "-3" on screen while the design's own span
+    // went on being flown, with no aria-invalid, no message, and nothing else to say so.
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    await page.getByRole("tab", { name: "Design" }).click();
+
+    const span = page.locator("label").filter({ hasText: /Fin span/ }).first().locator("input");
+    const designSpan = await span.getAttribute("placeholder");
+    expect(designSpan).toBeTruthy();
+
+    await span.fill("-3");
+    await span.blur();
+
+    // The box goes back to what is being flown rather than keeping the refused entry...
+    await expect(span).toHaveValue("");
+    // ...it is marked invalid for assistive tech...
+    await expect(span).toHaveAttribute("aria-invalid", "true");
+    // ...and it says plainly what is being flown instead, naming that value. Located through the
+    // field's own aria-describedby rather than by role, so this asserts THIS field's message.
+    const msgId = await span.getAttribute("aria-describedby");
+    expect(msgId).toBeTruthy();
+    const msg = page.locator(`#${msgId}`);
+    await expect(msg).toHaveAttribute("role", "alert");
+    await expect(msg).toContainText("isn't a value this can fly");
+    await expect(msg).toContainText(designSpan!);
+
+    // A value the model accepts clears all of it and lands.
+    await span.fill("50");
+    await span.blur();
+    await expect(span).toHaveValue("50");
+    await expect(span).not.toHaveAttribute("aria-invalid", "true");
+    await expect(page.locator(`#${msgId}`)).toHaveCount(0);
+  });
 });

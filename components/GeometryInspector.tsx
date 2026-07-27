@@ -303,7 +303,7 @@ export default function GeometryInspector({
           open={partsOpen}
           onToggle={(e) => setPartsOpen((e.currentTarget as HTMLDetailsElement).open)}
         >
-          <summary className="flex cursor-pointer select-none items-center gap-1.5 text-xs font-medium text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200">
+          <summary className={`flex cursor-pointer select-none items-center gap-1.5 text-xs font-medium text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 ${TOUCH_TARGET}`}>
             <span className="text-zinc-400 transition group-open:rotate-180">▾</span>
             Parts · {parts.length}
           </summary>

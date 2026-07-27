@@ -19,13 +19,20 @@ not yet done. Newest first. One line each. Anything here is fair game for the ne
   and `out/pyodide/`) calls `rocket.add_nose()` without the `power=` kwarg. Reproduced on
   `The Red Hunter.ork`. The headline independent-solver feature, 100% unavailable on that nose shape,
   showing a stack trace. Fix the kwarg AND stop rendering raw tracebacks.
-- The design what-if fields silently discard a negative entry: typing `-3` into fin span leaves the
-  field showing `-3` while the flown value stays 29 mm — no `aria-invalid`, no `role=alert`, no
-  border change — yet "Reset to as-designed" appears as though an edit landed. The number on screen
-  is not the number being flown, with nothing saying so. Related: none of the 21 number inputs carry
-  a `max`, so a one-keystroke typo (500 for 50 in fin span) grows the diagram from 297 px to 3,446 px
-  tall and shoves the panel off the page; 5000 gives 33,531 px. The "To scale · 455 mm long" caption
-  keeps promising fidelity throughout.
+- `NumberField` in `components/ui.tsx` is a SECOND what-if number field, and it did not get the
+  refused-entry treatment `Num` just did. It is used for the seven Monte-Carlo dispersion inputs
+  (`MonteCarlo.tsx:186,194,202,210,218,226,348`) — values that are flown 300 times each — so an entry
+  it refuses has the same "the number on screen is not the number being flown" problem, at 300x the
+  cost. Same fix, one component over.
+- The diagram has no ceiling on its rendered height, so a large fin span or body diameter grows it
+  without bound. Re-measured this run at 1440x900: of the 17 unbounded fields only TWO move the
+  diagram's height at all — fin span (273 px -> 16,091 px at 5000 mm) and body diameter
+  (273 -> 8,217) — so the earlier "any of 17 fields" note overstated it. One extra keystroke (600 for
+  60) gives 2,002 px, which is degraded rather than catastrophic; the 16,091 px case needs a value
+  two orders out. The honest fix is a ceiling on the FRAME rather than a max on the input, since a
+  big fin is physically meaningful and the project does not refuse meaningful values — but the
+  "To scale" caption keeps promising fidelity while the picture is nonsense, so whatever bounds the
+  frame has to change that caption too.
 - The diagram drag handles freeze their range at grab time: pulling fin span up 30 px moves 29→41 mm
   and the next 30 px moves nothing (6 consecutive samples at 41), with `aria-valuemax` jumping 41→58
   only on release. Half a long drag is dead travel.
@@ -78,14 +85,10 @@ not yet done. Newest first. One line each. Anything here is fair game for the ne
   resolution pick the same set every time and the primary set is present in the outline in all 29,
   so this is a latent fragility with zero live cases — matching by id would make it provable, and
   `OutlineFin` already carries the id.
-- `SWEEP_AXES`/`GEOMETRY_AXES` doc comments in `lib/sim/sweep.ts` still describe the fin axes as
-  acting on every fin set; they now act on the primary fin group.
-- Phone, re-measured this run at 412x915 / DPR 2.6 (handles are their own entry below). Under 44 px:
-  the 9 motor-sweep column-sort buttons at 15.7 px tall, the Conditions "Launch site" input (250.8x34)
-  and its "Fetch" button (61.2x32), the sticky header's design-name input (176x30) and "Import
-  another" (92.1x40, wrapping to two lines), the four Analyze "Run …" buttons at 36 px, 7 Monte-Carlo
-  number inputs at 36 px, the "Parts · 8" and "Use it offline" disclosure rows at 16-20 px, the 5
-  /docs sub-nav links at 30 px, and 10 footer links at 16-20 px. Every view exceeds two viewport
+- Phone, re-measured at 412x915 / DPR 2.6. The operable controls now clear 44 px on every workspace
+  and an e2e case holds them there. What is left is text rather than controls, and needs a different
+  answer than a bigger box: the 5 /docs sub-nav links at 30 px and 10 footer links at 16-20 px are
+  line-height-bound, and the inline prose links with them. Every view exceeds two viewport
   heights — /docs/methods 21,514 px (23.5x), /docs/limitations 16,656, /docs/faq 13,136, Design with
   all sections open 6,182, Flight 4,022 — though the workspace tablist is sticky and its tabs are a
   clean 44 px. Text under 12 px: Flight 113 nodes (24 at 9 px, 38 at 10 px, all in the flight-path
@@ -100,13 +103,12 @@ not yet done. Newest first. One line each. Anything here is fair game for the ne
   validation table it is meant to be checked against; Mass & balance has no sort affordances while
   the sibling Parts table does; the Parts sort order
   is the one view choice not persisted (`GeometryInspector.tsx` uses plain `useState`).
-- Every design what-if still addresses ONE resolved component — the frontmost fin set, the frontmost
-  nose, the longest body tube, the largest parachute — so on a design with several there is no way to
-  edit the others at all. Measured over the corpus: 13 of 35 designs carry more than one fin set and
-  23 carry more than one body tube. The fin edits no longer clobber the sets they don't describe and
-  the panel now names the set it edits, but "editable" still means one component per role. The fix is
-  per-component-id addressing, which is the same change the read-only parts list needs; `bodyDiameter`
-  is the next-worst case, since it scales every tube by a factor derived from the longest one alone.
+- Fins can now be addressed by id, but every OTHER role still resolves one component: the frontmost
+  nose, the longest body tube, the largest parachute. 23 of 35 corpus designs carry more than one body
+  tube and none of the extras can be edited. `bodyDiameter` is the worst of them, since it scales
+  every tube by a factor derived from the longest one alone. The seam that made fins work — one
+  resolver shared by the readbacks and the write path, plus a selection on `GeometryEdits` — is the
+  pattern to repeat per role; the read-only parts list needs the same thing.
 - A second nose cone is simply never edited: `primaryNose` takes the frontmost and `noseLength`/
   `noseShape` key off its id. No corpus design has two nose cones (0 of 35), so this is documentation,
   not a bug worth code today.
