@@ -78,8 +78,6 @@ not yet done. Newest first. One line each. Anything here is fair game for the ne
   resolution pick the same set every time and the primary set is present in the outline in all 29,
   so this is a latent fragility with zero live cases — matching by id would make it provable, and
   `OutlineFin` already carries the id.
-- `SWEEP_AXES`/`GEOMETRY_AXES` doc comments in `lib/sim/sweep.ts` still describe the fin axes as
-  acting on every fin set; they now act on the primary fin group.
 - Phone, re-measured this run at 412x915 / DPR 2.6 (handles are their own entry below). Under 44 px:
   the 9 motor-sweep column-sort buttons at 15.7 px tall, the Conditions "Launch site" input (250.8x34)
   and its "Fetch" button (61.2x32), the sticky header's design-name input (176x30) and "Import
@@ -100,13 +98,12 @@ not yet done. Newest first. One line each. Anything here is fair game for the ne
   validation table it is meant to be checked against; Mass & balance has no sort affordances while
   the sibling Parts table does; the Parts sort order
   is the one view choice not persisted (`GeometryInspector.tsx` uses plain `useState`).
-- Every design what-if still addresses ONE resolved component — the frontmost fin set, the frontmost
-  nose, the longest body tube, the largest parachute — so on a design with several there is no way to
-  edit the others at all. Measured over the corpus: 13 of 35 designs carry more than one fin set and
-  23 carry more than one body tube. The fin edits no longer clobber the sets they don't describe and
-  the panel now names the set it edits, but "editable" still means one component per role. The fix is
-  per-component-id addressing, which is the same change the read-only parts list needs; `bodyDiameter`
-  is the next-worst case, since it scales every tube by a factor derived from the longest one alone.
+- Fins can now be addressed by id, but every OTHER role still resolves one component: the frontmost
+  nose, the longest body tube, the largest parachute. 23 of 35 corpus designs carry more than one body
+  tube and none of the extras can be edited. `bodyDiameter` is the worst of them, since it scales
+  every tube by a factor derived from the longest one alone. The seam that made fins work — one
+  resolver shared by the readbacks and the write path, plus a selection on `GeometryEdits` — is the
+  pattern to repeat per role; the read-only parts list needs the same thing.
 - A second nose cone is simply never edited: `primaryNose` takes the frontmost and `noseLength`/
   `noseShape` key off its id. No corpus design has two nose cones (0 of 35), so this is documentation,
   not a bug worth code today.
