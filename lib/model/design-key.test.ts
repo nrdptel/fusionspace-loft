@@ -37,4 +37,19 @@ describe("designKey", () => {
   it("tells a set field from a cleared one, so clearing an edit resets the panels too", () => {
     expect(key({ geometry: { finSpan: 0.1 } as never })).not.toBe(key({ geometry: { finSpan: undefined } as never }));
   });
+
+  it("ignores a bare fin selection but not one that aims an active fin edit", () => {
+    const base = { name: "r", simIndex: 0 };
+    // No fin value set: picking a set changed nothing that flew, so a Monte-Carlo already run still
+    // describes the design on screen and must not be thrown away.
+    expect(designKey({ ...base, geometry: { finSetId: "a" } })).toBe(
+      designKey({ ...base, geometry: { finSetId: "b" } }),
+    );
+    expect(designKey({ ...base, geometry: { finSetId: "a" } })).toBe(designKey({ ...base, geometry: {} }));
+    // With a span edit active, the selection decides which fin gets it — the same number on a
+    // different set is a different rocket, and a stale panel would present its numbers as current.
+    expect(designKey({ ...base, geometry: { finSetId: "a", finSpan: 0.05 } })).not.toBe(
+      designKey({ ...base, geometry: { finSetId: "b", finSpan: 0.05 } }),
+    );
+  });
 });

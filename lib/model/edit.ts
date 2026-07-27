@@ -777,13 +777,15 @@ export function applyGeometryEdits(rocket: Rocket, edits: GeometryEdits): Rocket
     const tube = primaryBodyTube(rocket);
     if (tube && tube.outerRadius > 0) radiusScale = edits.bodyDiameter / 2 / tube.outerRadius;
   }
-  // Fin-position what-if: how far to shift the fin group so the primary set's fore edge lands on the
-  // requested station. Resolved once from the pristine design (like the length edits) and applied as
-  // an offset delta to every fin set, so a single-fin-set design lands exactly on target and a
-  // multi-set one keeps its spacing. 0 (no shift) when unset or the design has no fins.
+  // Fin-position what-if: how far to shift the fin group so the SELECTED set's fore edge lands on
+  // the requested station, applied as an offset delta to every fin set so the design keeps its
+  // spacing. The base must come from the same set the field showed: seeding it from the frontmost
+  // set while the field displayed the selected one turned "nudge this set 10 mm aft" into a shift of
+  // the whole inter-set distance — on a two-stage design, over a metre, silently, on every fin.
+  // 0 (no shift) when unset or the design has no fins.
   let finShift = 0;
   if (edits.finStation !== undefined && edits.finStation > 0) {
-    const cur = primaryFinStation(rocket);
+    const cur = primaryFinStation(rocket, edits.finSetId);
     if (cur !== undefined) finShift = edits.finStation - cur;
   }
   // Which sets the fin SHAPE edits land on — the primary set every primaryFin* readback seeds the

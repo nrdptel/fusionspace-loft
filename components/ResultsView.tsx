@@ -634,6 +634,7 @@ export default function ResultsView({
           motors={shownMotors}
           onEdit={onEditGeometry}
           onSelectFinSet={onSelectFinSet}
+          selectedFinSetId={geometry?.finSetId}
         />
 
         {/* The editing surface, right below the diagram it changes — fly a different motor, add

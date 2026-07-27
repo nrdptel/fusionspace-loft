@@ -268,6 +268,34 @@ describe("applyGeometryEdits — a design with several fin sets", () => {
     }
   });
 
+  it("measures a position edit from the SELECTED set, not the frontmost", async () => {
+    // The field shows the selected set's station, so the shift has to be measured from that set.
+    // Seeding it from the frontmost turned "nudge this set 10 mm aft" into a shift of the whole
+    // inter-set distance — on this fixture, the gap between the two sets — silently, on every fin.
+    // A real two-stage file rather than the synthetic fixture above: appending a copy of a nested
+    // fin set at stage level inherits its parent-relative placement and resolves to a NEGATIVE
+    // station, which `applyGeometryEdits` rightly refuses, so it cannot exercise this at all.
+    const doc = await importOrk(new Uint8Array(readFileSync(resolve("e2e/fixtures/two-stage-firm-booster.ork"))));
+    const rocket = doc.rocket;
+    const sets = flattenRocket(rocket).filter((p) => p.component.kind === "trapezoidfinset");
+    expect(sets.length).toBe(2);
+    const second = sets[1].component;
+    const shown = primaryFinStation(rocket, second.id)!;
+    expect(shown).toBeGreaterThan(0);
+    // The two sets are a real distance apart; measuring from the wrong one moves everything by it.
+    expect(Math.abs(shown - primaryFinStation(rocket)!)).toBeGreaterThan(0.1);
+    const before = sets.map((p) => p.xFore);
+    const shifted = applyGeometryEdits(rocket, { finSetId: second.id, finStation: shown + 0.01 });
+    const after = flattenRocket(shifted)
+      .filter((p) => p.component.kind === "trapezoidfinset")
+      .map((p) => p.xFore);
+    // Every set still moves together — position stays a group-wide delta — but by the 10 mm asked
+    // for, not by 10 mm plus the distance between the sets.
+    expect(after[0] - before[0]).toBeCloseTo(0.01, 9);
+    expect(after[1] - before[1]).toBeCloseTo(0.01, 9);
+    expect(primaryFinStation(shifted, second.id)).toBeCloseTo(shown + 0.01, 9);
+  });
+
   it("still slides the whole fin GROUP for a position edit, keeping its spacing", async () => {
     const { rocket } = await twoFinSets();
     const before = flattenRocket(rocket)

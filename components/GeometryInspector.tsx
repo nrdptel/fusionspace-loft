@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Rocket, RocketComponent } from "@/lib/model/types";
 import { flattenRocket } from "@/lib/model/geometry";
 import { massByComponent } from "@/lib/sim/mass";
@@ -121,6 +121,7 @@ export default function GeometryInspector({
   motors,
   onEdit,
   onSelectFinSet,
+  selectedFinSetId,
 }: {
   rocket: Rocket;
   units: UnitSystem;
@@ -142,6 +143,10 @@ export default function GeometryInspector({
    *  flyer can no longer see they picked. Picking is a view concern and stays owned here; only the
    *  fin-set half of it is anything the edit model needs to know. */
   onSelectFinSet?: (id: string | null) => void;
+  /** The fin set the edit model is currently aimed at. Passed back in so the pick shown here and
+   *  the set the fields describe cannot drift apart — a restored session arrives with a selection
+   *  and no pick, and "Reset to as-designed" clears the selection without clearing the pick. */
+  selectedFinSetId?: string;
 }) {
   const parts = flattenRocket(rocket);
   // Each part's own dry mass, keyed by the same component id the diagram and the table share, so a
@@ -156,16 +161,40 @@ export default function GeometryInspector({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [partsOpen, setPartsOpen] = useState(false);
   const [sort, setSort] = useState<PartSort>("design");
+  // Keep the pick shown here in step with the selection the edit model holds. Two paths move it
+  // without a click: restoring a session arrives with a selection and no pick, and "Reset to
+  // as-designed" clears the selection while the row stays highlighted — after which the next click
+  // on that row toggles it OFF and the flyer has to click twice to aim at it again.
+  useEffect(() => {
+    setSelectedId((cur) => {
+      if (selectedFinSetId) return selectedFinSetId;
+      // Only a fin pick is the model's to clear; a body tube the flyer is reading stays picked.
+      return cur && FIN_SET_KINDS.has(parts.find((x) => x.component.id === cur)?.component.kind ?? "")
+        ? null
+        : cur;
+    });
+    // `parts` is derived from `rocket` each render; keying on the selection alone is what we want.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedFinSetId]);
+
   const isFinSetId = (id: string) =>
     FIN_SET_KINDS.has(parts.find((p) => p.component.id === id)?.component.kind ?? "");
   // The diagram, a table row click and a row's Enter/Space all pick the same way, so they go through
   // one toggle — three copies could not stay in step once picking gained a second effect.
-  const pick = (id: string) =>
-    setSelectedId((cur) => {
-      const next = cur === id ? null : id;
-      onSelectFinSet?.(next && isFinSetId(next) ? next : null);
-      return next;
-    });
+  //
+  // The next value is computed here rather than inside the updater: a state updater has to be pure,
+  // and React double-invokes it in development, so calling out from inside it re-flew the design
+  // twice per pick and updated a parent mid-render.
+  //
+  // Only a FIN SET pick moves the fin target, and nothing clears it. Clearing on a body-tube pick
+  // would silently re-aim an active fin edit at the frontmost set — the flyer sets set 2's span to
+  // 77 mm, clicks a tube to read it, and set 1 becomes 77 mm instead. The legend names the set the
+  // fields describe, so leaving it aimed is visible, not hidden.
+  const pick = (id: string) => {
+    const next = selectedId === id ? null : id;
+    setSelectedId(next);
+    if (next && isFinSetId(next)) onSelectFinSet?.(next);
+  };
   const activeId = hoveredId ?? selectedId;
   const active = parts.find((p) => p.component.id === activeId);
 
@@ -231,6 +260,7 @@ export default function GeometryInspector({
           }}
           motors={motors}
           onEdit={onEdit}
+          selectedFinSetId={selectedFinSetId}
         />
         {/* What you just pointed at. Reserved height so hovering across the airframe doesn't make
             everything below it jump. */}

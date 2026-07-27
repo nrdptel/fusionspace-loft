@@ -2244,4 +2244,35 @@ test.describe("Loft", () => {
       .toBe("77");
     expect((await spanOf())[0], "the set that was not picked must not change").toBe(before[0]);
   });
+
+  test("an active fin edit stays on its set when you click something else", async ({ page }) => {
+    // The destructive version of this is silent: with the fin fields aimed at set 2 and a span set,
+    // clicking a body tube to read it cleared the target, so the same 77 mm re-applied to set 1 —
+    // a different fin changed, with the field still reading 77.
+    await page.goto("/");
+    await page
+      .getByLabel(/^Choose an OpenRocket/)
+      .setInputFiles(resolve(process.cwd(), "e2e/fixtures/two-stage-firm-booster.ork"));
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    await page.getByRole("tab", { name: "Design" }).click();
+    await page.locator("summary", { hasText: /Parts ·/ }).click();
+
+    const finRows = page.locator("tr").filter({ hasText: /Trapezoidal fins/ });
+    const spanOf = async () =>
+      (await finRows.allTextContents()).map((t) => t.replace(/\s+/g, " ").match(/span ([\d,]+) mm/)?.[1] ?? "?");
+    const before = await spanOf();
+
+    await finRows.nth(1).click();
+    const spanField = page.locator("label").filter({ hasText: /Fin span/ }).first().locator("input");
+    await spanField.fill("77");
+    await spanField.blur();
+    await expect.poll(async () => (await spanOf())[1], { timeout: 15000 }).toBe("77");
+
+    // Read a different part. The edit must not follow the pick.
+    await page.locator("tr").filter({ hasText: /Body tube/ }).first().click();
+    await page.waitForTimeout(600);
+    const after = await spanOf();
+    expect(after[1], "the edited set keeps its edit").toBe("77");
+    expect(after[0], "the set that was never picked must not inherit it").toBe(before[0]);
+  });
 });

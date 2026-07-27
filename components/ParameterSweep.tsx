@@ -102,16 +102,19 @@ export default function ParameterSweep({
   // ballast (0 → a mass-relative max), which any flyable design can take.
   const axes = useMemo<AxisDef[]>(() => {
     const list: AxisDef[] = [];
-    const span = primaryFinSpan(doc.rocket);
+    // Each axis is swept as an ABSOLUTE value written to the selected fin set, so its base has to
+    // be that set's dimension. Reading the frontmost set's span while writing the selected one
+    // plotted a curve whose x-axis was not the span of the fin being changed.
+    const span = primaryFinSpan(doc.rocket, geometry?.finSetId);
     if (span && span > 0) list.push(geometryAxis("finSpan", "Fin span", span));
     // The chord axes (trapezoidal fins only) are the fin-area levers a flyer can also drag on the
     // diagram — sweeping them plots the "how big should my fins be?" response. Tip chord can be zero
     // on a delta, which has no range to sweep, so it's offered only when the design carries one.
-    const rootChord = primaryFinRootChord(doc.rocket);
+    const rootChord = primaryFinRootChord(doc.rocket, geometry?.finSetId);
     if (rootChord && rootChord > 0) list.push(geometryAxis("finRootChord", "Fin root chord", rootChord));
-    const tipChord = primaryFinTipChord(doc.rocket);
+    const tipChord = primaryFinTipChord(doc.rocket, geometry?.finSetId);
     if (tipChord && tipChord > 0) list.push(geometryAxis("finTipChord", "Fin tip chord", tipChord));
-    const thickness = primaryFinThickness(doc.rocket);
+    const thickness = primaryFinThickness(doc.rocket, geometry?.finSetId);
     if (thickness && thickness > 0) list.push(geometryAxis("finThickness", "Fin thickness", thickness));
     // Fin position: a station, not a size, so it ranges as an absolute band (±35% of the body
     // length) around the design value rather than a percentage. The band is then clamped to keep
@@ -119,8 +122,8 @@ export default function ParameterSweep({
     // nose and its aft (trailing) edge no further back than the tail — so the curve never implies
     // stability you could only get by hanging the fins off the end (for tail-mounted fins that
     // makes it a forward-only sweep, which is the honest range).
-    const finStation = primaryFinStation(doc.rocket);
-    const finChord = primaryFinChord(doc.rocket);
+    const finStation = primaryFinStation(doc.rocket, geometry?.finSetId);
+    const finChord = primaryFinChord(doc.rocket, geometry?.finSetId);
     const bodyForStation = primaryBodyTube(doc.rocket)?.length;
     const airframeLen = overallLength(doc.rocket);
     const noseLen = primaryNose(doc.rocket)?.length ?? 0;
@@ -169,7 +172,7 @@ export default function ParameterSweep({
 
   // The flutter-margin metric is only meaningful for a design with fins; a finless design drops it.
   const metrics = useMemo(
-    () => (primaryFinThickness(doc.rocket) !== undefined ? METRICS : METRICS.filter((m) => m.key !== "flutterMargin")),
+    () => (primaryFinThickness(doc.rocket, geometry?.finSetId) !== undefined ? METRICS : METRICS.filter((m) => m.key !== "flutterMargin")),
     [doc],
   );
 
