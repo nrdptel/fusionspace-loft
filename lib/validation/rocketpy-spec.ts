@@ -34,6 +34,10 @@ export interface RocketpyNose {
   baseRadius: number;
   /** Station of the nose tip from the nose tip (m) — i.e. its fore x on the airframe. */
   position: number;
+  /** Exponent for a power-series contour (y = R·(x/L)^power). RocketPy REQUIRES it for that kind
+   *  and raises without it, so a design with a power nose could not be cross-checked at all until
+   *  it was carried through. Omitted for every other kind, which RocketPy shapes on its own. */
+  power?: number;
 }
 
 export interface RocketpyTail {
@@ -170,7 +174,19 @@ export function buildRocketpySpec(
   for (const p of flat) {
     const c = p.component;
     if (c.kind === "nosecone") {
-      nose = { length: c.length, kind: NOSE_KIND[c.shape] ?? "ogive", baseRadius: c.aftRadius, position: p.xFore };
+      const kind = NOSE_KIND[c.shape] ?? "ogive";
+      // A power series is the one contour RocketPy will not infer: it raises `Parameter 'power'
+      // cannot be None` without the exponent. Loft reads it off the file (`shapeParameter`);
+      // OpenRocket's own default is 0.5, and RocketPy accepts 0 < power <= 1, so a file that omits
+      // it or states something outside that range falls back rather than failing the whole run.
+      const param = c.shapeParameter;
+      const power =
+        kind === "powerseries"
+          ? param !== undefined && Number.isFinite(param) && param > 0 && param <= 1
+            ? param
+            : 0.5
+          : undefined;
+      nose = { length: c.length, kind, baseRadius: c.aftRadius, position: p.xFore, ...(power !== undefined ? { power } : {}) };
     } else if (c.kind === "transition") {
       tails.push({ topRadius: c.foreRadius, bottomRadius: c.aftRadius, length: c.length, position: p.xFore });
     } else if (c.kind === "trapezoidfinset") {

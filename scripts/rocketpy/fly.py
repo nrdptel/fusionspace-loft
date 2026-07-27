@@ -57,7 +57,12 @@ def fly(spec, descent=False):
     rocket.add_motor(motor, position=m["position"])
     if r["nose"]:
         n = r["nose"]
-        rocket.add_nose(length=n["length"], kind=n["kind"], position=n["position"], base_radius=n["baseRadius"])
+        # `power` is only present for a power-series contour, which RocketPy will not shape without
+        # it — it raises `Parameter 'power' cannot be None` and the whole cross-check dies.
+        nose_kw = {"power": n["power"]} if n.get("power") is not None else {}
+        rocket.add_nose(
+            length=n["length"], kind=n["kind"], position=n["position"], base_radius=n["baseRadius"], **nose_kw
+        )
     for t in r["tails"]:
         rocket.add_tail(top_radius=t["topRadius"], bottom_radius=t["bottomRadius"], length=t["length"], position=t["position"])
     for f in r["fins"]:

@@ -12,6 +12,43 @@ not yet done. Newest first. One line each. Anything here is fair game for the ne
   margin gets no explanation at all. The range half of this is fixed (a one-sided range now reads
   "0 or more"); the teaching half needs a real disclosure, not a `title`. Re-measured: 0 inputs lack
   an accessible name, so the older note claiming four do is resolved.
+- **RocketPy cross-check is dead for any power-series nose cone**, and dies loudly: after a ~40 MB
+  download it prints a raw 900-character Python traceback into the page — `ValueError: Parameter
+  'power' cannot be None when using a nose cone kind 'powerseries'`. `lib/validation/rocketpy-spec.ts`
+  maps `power: "powerseries"` but `scripts/rocketpy/fly.py` (and its two copies under `public/pyodide/`
+  and `out/pyodide/`) calls `rocket.add_nose()` without the `power=` kwarg. Reproduced on
+  `The Red Hunter.ork`. The headline independent-solver feature, 100% unavailable on that nose shape,
+  showing a stack trace. Fix the kwarg AND stop rendering raw tracebacks.
+- The design what-if fields silently discard a negative entry: typing `-3` into fin span leaves the
+  field showing `-3` while the flown value stays 29 mm — no `aria-invalid`, no `role=alert`, no
+  border change — yet "Reset to as-designed" appears as though an edit landed. The number on screen
+  is not the number being flown, with nothing saying so. Related: none of the 21 number inputs carry
+  a `max`, so a one-keystroke typo (500 for 50 in fin span) grows the diagram from 297 px to 3,446 px
+  tall and shoves the panel off the page; 5000 gives 33,531 px. The "To scale · 455 mm long" caption
+  keeps promising fidelity throughout.
+- The diagram drag handles freeze their range at grab time: pulling fin span up 30 px moves 29→41 mm
+  and the next 30 px moves nothing (6 consecutive samples at 41), with `aria-valuemax` jumping 41→58
+  only on release. Half a long drag is dead travel.
+- `primaryFinSetName`'s positional fallback ("fin set 2") numbers by `flattenRocket` order, but the
+  parts table can be re-sorted by name/type/station/mass — so after sorting by mass, "fin set 2" is
+  not the second fin row on screen. It also names one component while the fields edit its whole
+  appearance-group, so on a design with two identical pairs the note names one set and changes two.
+- Still no undo anywhere: Ctrl+Z after a handle drag does nothing, and the only escape is "Reset to
+  as-designed", which discards every edit at once. Ten flights in, that is a stack of trims and one
+  all-or-nothing exit.
+- Parts table gaps measured this run: every column sorts one direction only (a second click returns
+  to design order, so there is no lightest-first), there is no Copy or CSV while Mass & balance, the
+  motor sweep and the parameter sweep all have both, and the sort order is not persisted though the
+  motor sweep's is (`loft.pref.motorSweep.sort`). Mass & balance has no sortable columns at all, and
+  in imperial 4 of its 9 rows collapse to `0 lb` while the % column still shows real values.
+- No analysis can be cancelled: `cancel|stop|abort` matches 0 buttons across all four Analyze tools,
+  including a RocketPy run measured at 50.5 s whose own copy says "a minute or so"; the only exit is
+  a reload, which discards everything. The motor and parameter sweeps also report no progress at all
+  (only `aria-busy`), while the dispersion study reports "152/300 flown" — same gesture, different
+  feedback. The parameter sweep offers no range or step control: 25 points over an auto range, so
+  "sweep 40–60 mm at 1 mm" — the tenth-use question — cannot be asked.
+- Parts table rows carry `tabIndex=0` with `role=null` and `aria-selected`, which is invalid on an
+  implicit row outside a grid, and they add 12 stops to the tab order.
 - **Benchmark, configuration picker vs OpenRocket's simulation table.** Theirs is a table with a row
   per stored run and columns for apogee, max velocity, max acceleration, time to apogee, deployment
   velocity and ground-hit velocity, a status icon per row, and sorting — every run visible and
