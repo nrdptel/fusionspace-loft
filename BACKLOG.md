@@ -12,11 +12,11 @@ not yet done. Newest first. One line each. Anything here is fair game for the ne
   margin gets no explanation at all. The range half of this is fixed (a one-sided range now reads
   "0 or more"); the teaching half needs a real disclosure, not a `title`. Re-measured: 0 inputs lack
   an accessible name, so the older note claiming four do is resolved.
-- `NumberField` in `components/ui.tsx` is a SECOND what-if number field, and it did not get the
-  refused-entry treatment `Num` just did. It is used for the seven Monte-Carlo dispersion inputs
-  (`MonteCarlo.tsx:186,194,202,210,218,226,348`) — values that are flown 300 times each — so an entry
-  it refuses has the same "the number on screen is not the number being flown" problem, at 300x the
-  cost. Same fix, one component over.
+- **A third value-entry surface still takes a number without a range: the diagram drag handles.**
+  Both typed what-if fields now refuse an out-of-range entry and name what is flown instead, and
+  they share one sentence (`lib/what-if.ts`) so they cannot drift. The handles reach the same edits
+  by a different gesture and have their own bounds logic — worth checking they agree with the
+  fields, since a flyer who learns the rule by typing will expect it when dragging.
 - The diagram has no ceiling on its rendered height, so a large fin span or body diameter grows it
   without bound. Re-measured this run at 1440x900: of the 17 unbounded fields only TWO move the
   diagram's height at all — fin span (273 px -> 16,091 px at 5000 mm) and body diameter

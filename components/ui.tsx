@@ -3,6 +3,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 
 import { TOUCH_TARGET } from "@/lib/ui-tokens";
+import { rangeWords, refusedMessage } from "@/lib/what-if";
 
 export interface Option<T extends string> {
   value: T;
@@ -173,7 +174,16 @@ function display(value: number): string {
 
 /** Numeric input with a label and a unit suffix. Keeps an internal text buffer so
  *  partial entries like "0." survive a render, and re-syncs when the value changes
- *  externally (a unit switch, or loading state from the URL). */
+ *  externally (a unit switch, or loading state from the URL).
+ *
+ *  It also refuses an out-of-range entry out loud, the same way the design editor's what-if fields
+ *  do. `min` used to be declared on the input and enforced nowhere: the seven dispersion inputs
+ *  read a ±1σ spread, every one of them is floored at zero by `MonteCarlo.tsx`, and typing a
+ *  NEGATIVE one left the minus sign sitting in the box while the study flew zero. Measured on the
+ *  38 mm sample: "Wind speed ±1σ" typed as -5 gave a 95% recovery radius of 366 m — the same as
+ *  leaving it blank — where the ±5 the flyer asked for gives 1,259 m and the default ±2 gives
+ *  671 m. A mistyped sign quietly shrank the recovery area to plan for by 3.4x, on the surface
+ *  whose entire job is to say how wide that area might be. */
 export function NumberField({
   label,
   value,
@@ -181,6 +191,7 @@ export function NumberField({
   unit,
   step,
   min = 0,
+  max,
   hint,
   placeholder,
 }: {
@@ -190,18 +201,26 @@ export function NumberField({
   unit?: string;
   step?: number;
   min?: number;
+  max?: number;
   hint?: React.ReactNode;
   placeholder?: string;
 }) {
   const [text, setText] = useState(() => display(value));
+  /** The refused entry and the value flown in its place, kept only to say so. Both are needed: the
+   *  complaint a refusal answers is not "that was rejected", it is "then what is being flown?".
+   *  Cleared as soon as the flyer types again. */
+  const [refused, setRefused] = useState<{ entry: string; flown: number } | null>(null);
   const last = useRef(value);
   const unitId = useId();
   const hintId = useId();
-  // Point the input at both its unit suffix and its hint, so a screen reader reads the
+  const msgId = useId();
+  // Point the input at its unit suffix, its hint, and any refusal, so a screen reader reads the
   // load-bearing guidance ("1.5 = +50%", "doesn't change the estimate") that sighted users
   // see under the field — not just the unit.
   const describedBy =
-    [unit ? unitId : null, hint ? hintId : null].filter(Boolean).join(" ") || undefined;
+    [unit ? unitId : null, hint ? hintId : null, refused !== null ? msgId : null]
+      .filter(Boolean)
+      .join(" ") || undefined;
 
   useEffect(() => {
     if (value !== last.current) {
@@ -210,27 +229,68 @@ export function NumberField({
     }
   }, [value]);
 
+  const ranged = rangeWords(min, max);
+  /** Apply the range to the typed text. Out of range is pulled to the nearest bound rather than
+   *  dropped, because "as much as it takes" is a legible intent and a bound is a real answer.
+   *
+   *  Unlike the design editor's field, this one needs no re-sync effect to catch a parent that
+   *  quietly resolved the entry some other way: the bound is applied HERE, so the box, the parent's
+   *  state and the message are all written from one value in one place. */
+  const commit = (raw: string) => {
+    const n = Number.parseFloat(raw);
+    if (!Number.isFinite(n)) {
+      // Blank is a real answer here — zero spread — and reads back as blank, so nothing is hidden.
+      // (A partial entry like "-" is reported as "" by a number input, so it lands here too.)
+      setRefused(null);
+      return;
+    }
+    const bounded = min !== undefined && n < min ? min : max !== undefined && n > max ? max : n;
+    if (bounded === n) {
+      setRefused(null);
+      return;
+    }
+    setRefused({ entry: raw, flown: bounded });
+    last.current = bounded;
+    setText(display(bounded));
+    onChange(bounded);
+  };
+
   return (
     <label className="block">
       <span className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
         {label}
       </span>
-      <div className="mt-1.5 flex items-center rounded-lg border border-zinc-300 bg-white transition focus-within:border-indigo-500 focus-within:ring-1 focus-within:ring-indigo-500 dark:border-zinc-700 dark:bg-zinc-900">
+      <div
+        className={`mt-1.5 flex items-center rounded-lg border bg-white transition dark:bg-zinc-900 ${
+          refused !== null
+            ? "border-amber-500 dark:border-amber-500"
+            : "border-zinc-300 focus-within:border-indigo-500 focus-within:ring-1 focus-within:ring-indigo-500 dark:border-zinc-700"
+        }`}
+      >
         <input
           type="number"
           inputMode="decimal"
           step={step}
           min={min}
+          max={max}
           value={text}
           placeholder={placeholder}
+          aria-invalid={refused !== null || undefined}
           aria-describedby={describedBy}
+          // Typing is left alone so a value can be entered digit by digit; the range is applied
+          // when the field is committed — blurred, or Enter pressed.
           onChange={(e) => {
             const t = e.target.value;
             setText(t);
+            setRefused(null);
             const n = Number.parseFloat(t);
             const v = Number.isFinite(n) ? n : 0;
             last.current = v;
             onChange(v);
+          }}
+          onBlur={(e) => commit(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") commit(e.currentTarget.value);
           }}
           className="w-full bg-transparent px-3 py-2 text-sm tabular-nums outline-none placeholder:text-zinc-400 dark:placeholder:text-zinc-600"
         />
@@ -243,6 +303,11 @@ export function NumberField({
           </span>
         )}
       </div>
+      {refused !== null && (
+        <span id={msgId} role="alert" className="mt-1 block text-xs text-amber-700 dark:text-amber-400">
+          {refusedMessage(refused.entry, ranged, String(refused.flown))}
+        </span>
+      )}
       {hint && (
         <span id={hintId} className="mt-1 block text-xs text-zinc-500 dark:text-zinc-400">
           {hint}
