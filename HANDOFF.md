@@ -66,10 +66,13 @@ on the working branch at the end of the run.
   commit and check with `git log -1 --format='%an <%ae>'`. Signing works (`gpg.format=ssh`) even
   though the configured `user.signingkey` file is zero bytes; confirm with
   `git cat-file commit HEAD | grep gpgsig` after the first commit rather than trusting the config.
-- **Never pipe a gate run through `tail -n`.** Playwright's list reporter interleaves in-progress
-  lines with the summary, so a truncated capture showed "56 passed" and a list of test names for a
-  run that was actually clean at 104. Capture the whole thing (or `grep -v '^  ✓'`) before believing
-  a count, and never let a build run against a server the suite is already using.
+- **Never read a Playwright count through a pipe.** Hit three times: `npm run test:e2e | tail -6`
+  and `| grep -v '^  ✓' | tail -4` both reported "55 passed" with a list of test names, for runs that
+  were clean at 106. The list reporter rewrites its progress lines and a pipe mangles the result, so
+  the number you read is not the number of tests. **Redirect to a file and read that** —
+  `npm run test:e2e > e2e.log 2>&1; echo "exit=$?"; grep -E "passed|failed|flaky" e2e.log` — which
+  gave exit 0 and `106 passed` for the same command that had just printed 55. Also never let a build
+  run against a server the suite is already using.
 - **A probe that finds nothing may be broken, not clean.** A census over the corpus returned "0
   designs with multiple fin sets" twice — first because the component `kind` strings are lowercase
   (`bodytube`, `trapezoidfinset`), then because `flattenRocket` returns `Positioned` wrappers and the
@@ -141,10 +144,15 @@ before trusting this — it is a claim about today's tree, not a guarantee.
 ## Pick up first
 
 1. **No analysis can be cancelled** — `cancel|stop|abort` matches 0 buttons across all four Analyze
-   tools, and the RocketPy run is measured at 50.5 s under copy that says "a minute or so". This is
-   now the cheapest of the three: `runRocketpy` already takes an `AbortSignal` and already leaves the
-   warm worker running when it fires, so the RocketPy one is a button and a controller, not new
-   machinery. Watch the phone: the running row has no `flex-wrap` and 0 px of slack at 390 px.
+   tools, and the RocketPy run is measured at 50.5 s under copy that says "a minute or so". I went to
+   ship this and stopped: it is **not** the cheap one it looks like, and the reason is written up in
+   `BACKLOG.md`. In short, `runRocketpy`'s `AbortSignal` is main-thread only — it stops listening and
+   deliberately leaves the worker running — while the worker serialises runs through one `runChain`
+   awaiting `runPythonAsync`, which Pyodide cannot interrupt without a SharedArrayBuffer interrupt
+   buffer. A Stop wired to the existing signal would clear the spinner and then strand the next run
+   at "Preparing…" for the rest of the abandoned flight. Decide between terminating the worker,
+   adding an interrupt buffer, or saying plainly that it only stops waiting — **before** writing UI.
+   Watch the phone either way: the running row has no `flex-wrap` and 0 px of slack at 390 px.
 2. **The diagram frame has no ceiling.** Re-measured at 1440x900: of the 17 unbounded fields only
    **two** move the diagram's height — fin span (273 px → 16,091 px at 5000 mm) and body diameter
    (273 → 8,217). One extra keystroke (600 for 60) gives 2,002 px, which is degraded rather than
