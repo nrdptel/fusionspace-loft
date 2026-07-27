@@ -2313,4 +2313,42 @@ test.describe("Loft", () => {
     await expect(span).not.toHaveAttribute("aria-invalid", "true");
     await expect(page.locator(`#${msgId}`)).toHaveCount(0);
   });
+
+  test("a refused dispersion says so too, and does not quietly shrink the recovery area", async ({ page }) => {
+    // The same defect, one component over and with more riding on it. `NumberField` declared
+    // `min={0}` on the input and enforced it nowhere, so a negative ±1σ stayed in the box while
+    // `MonteCarlo.tsx` floored it to zero for the study. Measured on this design: "Wind speed ±1σ"
+    // typed as -5 returned a 95% recovery radius of 366 m — identical to leaving the field blank —
+    // where the ±5 asked for gives 1,259 m and the default ±2 gives 671 m. The one number on the
+    // page whose job is to say how much ground to search came back 3.4x too small, silently.
+    test.setTimeout(120_000);
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    await page.getByRole("tab", { name: "Analyze" }).click();
+
+    const mc = page.getByRole("region", { name: "Monte-Carlo dispersion" });
+    await mc.getByRole("button", { name: "Run dispersion" }).click();
+    const wind = mc.getByLabel("Wind speed ±1σ");
+    await expect(wind).toHaveValue("2");
+
+    await wind.fill("-5");
+    await wind.blur();
+
+    // The box shows the spread actually being flown — zero, which this field renders blank...
+    await expect(wind).toHaveValue("");
+    await expect(wind).toHaveAttribute("aria-invalid", "true");
+    // ...and it names that value, in the same words the design editor's fields use.
+    const ids = (await wind.getAttribute("aria-describedby"))!.split(" ");
+    const msg = mc.locator(ids.map((id) => `#${id}`).join(", ")).filter({ hasText: "isn't a value this can fly" });
+    await expect(msg).toHaveAttribute("role", "alert");
+    await expect(msg).toHaveText("-5 isn't a value this can fly (0 or more) — flying 0.");
+
+    // A value it will fly clears the whole state and lands.
+    await wind.fill("5");
+    await wind.blur();
+    await expect(wind).toHaveValue("5");
+    await expect(wind).not.toHaveAttribute("aria-invalid", "true");
+    await expect(mc.getByText("isn't a value this can fly")).toHaveCount(0);
+  });
 });

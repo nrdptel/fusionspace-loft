@@ -56,6 +56,7 @@ import {
 } from "@/lib/session";
 import { mToFt, ftToM, mpsToMph, mphToMps } from "@/lib/units";
 import { TOUCH_TARGET } from "@/lib/ui-tokens";
+import { rangeWords, refusedMessage } from "@/lib/what-if";
 import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
 
@@ -1628,15 +1629,9 @@ function Num({
 
   // A bound the field doesn't have is said in words, not left as a dash. Most of these fields are
   // floored at zero and open above — a dimension has no upper limit the editor can name — and
-  // "0 to –" reads as a range that failed to load rather than as "no maximum".
-  const ranged =
-    min !== undefined && max !== undefined
-      ? `${min} to ${max}`
-      : min !== undefined
-        ? `${min} or more`
-        : max !== undefined
-          ? `up to ${max}`
-          : undefined;
+  // "0 to –" reads as a range that failed to load rather than as "no maximum". Shared with the
+  // analysis panels' number field so the two never say it differently.
+  const ranged = rangeWords(min, max);
   // What the flight is actually using: the committed edit if there is one, else the design's own
   // value, which is what the placeholder shows. Naming it is the whole point of the message — the
   // complaint is not that the entry was refused, it is not knowing what is being flown instead.
@@ -1681,8 +1676,7 @@ function Num({
       />
       {refused !== null && (
         <span id={msgId} role="alert" className="mt-1 block text-[11px] text-amber-700 dark:text-amber-400">
-          {refused} isn&apos;t a value this can fly{ranged ? ` (${ranged})` : ""}
-          {flown ? ` — flying ${flown}` : ""}.
+          {refusedMessage(refused, ranged, flown)}
         </span>
       )}
     </label>
