@@ -3,6 +3,7 @@
 import { useCallback, useState } from "react";
 import type { OrkDocument } from "@/lib/ork/import";
 import type { MotorConfiguration } from "@/lib/model/types";
+import { TOUCH_TARGET } from "@/lib/ui-tokens";
 import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
 import type { RocketpyFlightResult } from "@/lib/validation/rocketpy-engine";
@@ -148,7 +149,7 @@ export default function RocketpyCrossCheck({
           <button
             type="button"
             onClick={run}
-            className="rounded-lg bg-indigo-600 px-3.5 py-2 text-sm font-medium text-white transition hover:bg-indigo-500"
+            className={`rounded-lg bg-indigo-600 px-3.5 py-2 text-sm font-medium text-white transition hover:bg-indigo-500 ${TOUCH_TARGET}`}
           >
             Run RocketPy
           </button>

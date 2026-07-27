@@ -78,12 +78,10 @@ not yet done. Newest first. One line each. Anything here is fair game for the ne
   resolution pick the same set every time and the primary set is present in the outline in all 29,
   so this is a latent fragility with zero live cases — matching by id would make it provable, and
   `OutlineFin` already carries the id.
-- Phone, re-measured this run at 412x915 / DPR 2.6 (handles are their own entry below). Under 44 px:
-  the 9 motor-sweep column-sort buttons at 15.7 px tall, the Conditions "Launch site" input (250.8x34)
-  and its "Fetch" button (61.2x32), the sticky header's design-name input (176x30) and "Import
-  another" (92.1x40, wrapping to two lines), the four Analyze "Run …" buttons at 36 px, 7 Monte-Carlo
-  number inputs at 36 px, the "Parts · 8" and "Use it offline" disclosure rows at 16-20 px, the 5
-  /docs sub-nav links at 30 px, and 10 footer links at 16-20 px. Every view exceeds two viewport
+- Phone, re-measured at 412x915 / DPR 2.6. The operable controls now clear 44 px on every workspace
+  and an e2e case holds them there. What is left is text rather than controls, and needs a different
+  answer than a bigger box: the 5 /docs sub-nav links at 30 px and 10 footer links at 16-20 px are
+  line-height-bound, and the inline prose links with them. Every view exceeds two viewport
   heights — /docs/methods 21,514 px (23.5x), /docs/limitations 16,656, /docs/faq 13,136, Design with
   all sections open 6,182, Flight 4,022 — though the workspace tablist is sticky and its tabs are a
   clean 44 px. Text under 12 px: Flight 113 nodes (24 at 9 px, 38 at 10 px, all in the flight-path

@@ -11,6 +11,7 @@ import { mToFt, mpsToFtps } from "@/lib/units";
 import { usePersistedChoice } from "@/lib/session";
 import type { CsvCell } from "@/lib/csv";
 import DownloadCsv, { CopyTable } from "./DownloadCsv";
+import { TOUCH_TARGET } from "@/lib/ui-tokens";
 import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
 
@@ -113,7 +114,7 @@ export default function MotorSweep({
           <button
             type="button"
             onClick={() => setOpen(true)}
-            className="rounded-lg bg-indigo-600 px-3.5 py-2 text-sm font-medium text-white transition hover:bg-indigo-500"
+            className={`rounded-lg bg-indigo-600 px-3.5 py-2 text-sm font-medium text-white transition hover:bg-indigo-500 ${TOUCH_TARGET}`}
           >
             Run motor sweep
           </button>
@@ -244,7 +245,7 @@ function SweepTable({ rows, units, name }: { rows: MotorSweepRow[]; units: UnitS
                       type="button"
                       onClick={() => click(c.key)}
                       className={
-                        "inline-flex items-center gap-1 uppercase tracking-wide hover:text-zinc-800 dark:hover:text-zinc-100 " +
+                        `inline-flex items-center gap-1 uppercase tracking-wide hover:text-zinc-800 dark:hover:text-zinc-100 ${TOUCH_TARGET} ` +
                         (active ? "text-zinc-800 dark:text-zinc-100" : "")
                       }
                       title={`Sort by ${c.label.replace(/ /g, " ").toLowerCase()}`}
