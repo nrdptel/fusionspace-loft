@@ -7,6 +7,7 @@ import { TOUCH_TARGET } from "@/lib/ui-tokens";
 import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
 import type { RocketpyFlightResult } from "@/lib/validation/rocketpy-engine";
+import { engineFailure } from "@/lib/validation/engine-error";
 import type { GeometryEdits } from "@/lib/model/edit";
 
 /** Loft's own ballistic ascent, for a like-for-like comparison against RocketPy. */
@@ -144,19 +145,6 @@ export default function RocketpyCrossCheck({
         stability model. RocketPy runs entirely on your device; the design never leaves the browser.
       </p>
 
-      {state.phase === "idle" && (
-        <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1">
-          <button
-            type="button"
-            onClick={run}
-            className={`rounded-lg bg-indigo-600 px-3.5 py-2 text-sm font-medium text-white transition hover:bg-indigo-500 ${TOUCH_TARGET}`}
-          >
-            Run RocketPy
-          </button>
-          <span className="text-xs text-zinc-500 dark:text-zinc-400">downloads ~40 MB the first time</span>
-        </div>
-      )}
-
       {state.phase === "running" && (
         <div className="mt-3 flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-300" role="status">
           <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent" />
@@ -165,9 +153,29 @@ export default function RocketpyCrossCheck({
         </div>
       )}
 
-      {state.phase === "error" && (
-        <div className="mt-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-700 dark:text-red-300">
-          RocketPy couldn&apos;t run: {state.message}
+      {/* A failure reads before the way out of it, so the button below is the next thing reached. */}
+      {state.phase === "error" && <Failure message={state.message} />}
+
+      {/* A failed run must leave a way back. RocketPy is CPython under WASM flying a design a flyer
+          is actively editing, so failures are ordinary — a geometry it will not take, a runtime that
+          did not finish downloading — and every one of them used to end the panel for the rest of
+          the page's life, reachable again only by reloading and losing the loaded design. Offering
+          the same button is not a retry loop: nothing is re-attempted automatically, and the warm
+          worker means a second attempt after a transient failure costs seconds, not the full boot. */}
+      {(state.phase === "idle" || state.phase === "error") && (
+        <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1">
+          <button
+            type="button"
+            onClick={run}
+            className={`rounded-lg bg-indigo-600 px-3.5 py-2 text-sm font-medium text-white transition hover:bg-indigo-500 ${TOUCH_TARGET}`}
+          >
+            {state.phase === "error" ? "Try RocketPy again" : "Run RocketPy"}
+          </button>
+          {/* Only true before the first attempt. After a failure we do not know whether the download
+              is the thing that failed, and guessing at the cause is worse than saying nothing. */}
+          {state.phase === "idle" && (
+            <span className="text-xs text-zinc-500 dark:text-zinc-400">downloads ~40 MB the first time</span>
+          )}
         </div>
       )}
 
@@ -189,6 +197,37 @@ export default function RocketpyCrossCheck({
       )}
       {state.phase === "done" && <Comparison loft={state.loft} rp={state.rp} units={units} />}
     </section>
+  );
+}
+
+/** What the second solver said when it stopped, in a shape a phone can hold.
+ *
+ *  A RocketPy failure arrives as a Python traceback — the real one is 30 lines and 1,449 characters,
+ *  of which only the last says what went wrong. Printed straight into the panel it buried that line
+ *  under frames the flyer did not write, and its longest path (an 86-character site-packages frame line)
+ *  is a single unbreakable token, so at 390 px it pushed the whole page 115 px sideways: every other
+ *  panel on the workspace started scrolling horizontally because of one failed cross-check.
+ *
+ *  The report is kept in full and unedited — it is the only thing worth attaching to a bug report,
+ *  and the frame it names is often more telling than the exception line — but it is folded away and
+ *  scrolls inside its own box, with the alignment of Python's `^^^` carets intact. */
+function Failure({ message }: { message: string }) {
+  const { headline, detail } = engineFailure(message);
+  return (
+    <div className="mt-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-700 dark:text-red-300">
+      <p className="break-words">RocketPy couldn&apos;t run: {headline}</p>
+      {detail && (
+        <details className="group mt-1">
+          <summary className={`flex cursor-pointer select-none items-center gap-1.5 text-xs ${TOUCH_TARGET}`}>
+            <span className="underline underline-offset-2">What RocketPy reported</span>
+            <span className="transition group-open:rotate-180">▾</span>
+          </summary>
+          <pre className="mt-1 max-h-64 overflow-auto rounded border border-red-500/20 bg-red-500/5 p-2 text-[11px] leading-snug">
+            {detail}
+          </pre>
+        </details>
+      )}
+    </div>
   );
 }
 

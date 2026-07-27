@@ -12,13 +12,6 @@ not yet done. Newest first. One line each. Anything here is fair game for the ne
   margin gets no explanation at all. The range half of this is fixed (a one-sided range now reads
   "0 or more"); the teaching half needs a real disclosure, not a `title`. Re-measured: 0 inputs lack
   an accessible name, so the older note claiming four do is resolved.
-- **RocketPy cross-check is dead for any power-series nose cone**, and dies loudly: after a ~40 MB
-  download it prints a raw 900-character Python traceback into the page — `ValueError: Parameter
-  'power' cannot be None when using a nose cone kind 'powerseries'`. `lib/validation/rocketpy-spec.ts`
-  maps `power: "powerseries"` but `scripts/rocketpy/fly.py` (and its two copies under `public/pyodide/`
-  and `out/pyodide/`) calls `rocket.add_nose()` without the `power=` kwarg. Reproduced on
-  `The Red Hunter.ork`. The headline independent-solver feature, 100% unavailable on that nose shape,
-  showing a stack trace. Fix the kwarg AND stop rendering raw tracebacks.
 - `NumberField` in `components/ui.tsx` is a SECOND what-if number field, and it did not get the
   refused-entry treatment `Num` just did. It is used for the seven Monte-Carlo dispersion inputs
   (`MonteCarlo.tsx:186,194,202,210,218,226,348`) — values that are flown 300 times each — so an entry
@@ -50,7 +43,11 @@ not yet done. Newest first. One line each. Anything here is fair game for the ne
   in imperial 4 of its 9 rows collapse to `0 lb` while the % column still shows real values.
 - No analysis can be cancelled: `cancel|stop|abort` matches 0 buttons across all four Analyze tools,
   including a RocketPy run measured at 50.5 s whose own copy says "a minute or so"; the only exit is
-  a reload, which discards everything. The motor and parameter sweeps also report no progress at all
+  a reload, which discards everything. (`runRocketpy` already takes an `AbortSignal` and leaves the
+  warm worker alone when it fires, so the RocketPy one is a button and a controller, not new
+  machinery. A failed run no longer needs the reload — only a running one does.) When adding it,
+  note the running row has no `flex-wrap` and 0 px of slack at 390 px, so a Cancel beside the stage
+  label will overflow the phone unless the row wraps. The motor and parameter sweeps also report no progress at all
   (only `aria-busy`), while the dispersion study reports "152/300 flown" — same gesture, different
   feedback. The parameter sweep offers no range or step control: 25 points over an auto range, so
   "sweep 40–60 mm at 1 mm" — the tenth-use question — cannot be asked.
