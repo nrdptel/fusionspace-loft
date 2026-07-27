@@ -19,13 +19,20 @@ not yet done. Newest first. One line each. Anything here is fair game for the ne
   and `out/pyodide/`) calls `rocket.add_nose()` without the `power=` kwarg. Reproduced on
   `The Red Hunter.ork`. The headline independent-solver feature, 100% unavailable on that nose shape,
   showing a stack trace. Fix the kwarg AND stop rendering raw tracebacks.
-- The design what-if fields silently discard a negative entry: typing `-3` into fin span leaves the
-  field showing `-3` while the flown value stays 29 mm — no `aria-invalid`, no `role=alert`, no
-  border change — yet "Reset to as-designed" appears as though an edit landed. The number on screen
-  is not the number being flown, with nothing saying so. Related: none of the 21 number inputs carry
-  a `max`, so a one-keystroke typo (500 for 50 in fin span) grows the diagram from 297 px to 3,446 px
-  tall and shoves the panel off the page; 5000 gives 33,531 px. The "To scale · 455 mm long" caption
-  keeps promising fidelity throughout.
+- `NumberField` in `components/ui.tsx` is a SECOND what-if number field, and it did not get the
+  refused-entry treatment `Num` just did. It is used for the seven Monte-Carlo dispersion inputs
+  (`MonteCarlo.tsx:186,194,202,210,218,226,348`) — values that are flown 300 times each — so an entry
+  it refuses has the same "the number on screen is not the number being flown" problem, at 300x the
+  cost. Same fix, one component over.
+- The diagram has no ceiling on its rendered height, so a large fin span or body diameter grows it
+  without bound. Re-measured this run at 1440x900: of the 17 unbounded fields only TWO move the
+  diagram's height at all — fin span (273 px -> 16,091 px at 5000 mm) and body diameter
+  (273 -> 8,217) — so the earlier "any of 17 fields" note overstated it. One extra keystroke (600 for
+  60) gives 2,002 px, which is degraded rather than catastrophic; the 16,091 px case needs a value
+  two orders out. The honest fix is a ceiling on the FRAME rather than a max on the input, since a
+  big fin is physically meaningful and the project does not refuse meaningful values — but the
+  "To scale" caption keeps promising fidelity while the picture is nonsense, so whatever bounds the
+  frame has to change that caption too.
 - The diagram drag handles freeze their range at grab time: pulling fin span up 30 px moves 29→41 mm
   and the next 30 px moves nothing (6 consecutive samples at 41), with `aria-valuemax` jumping 41→58
   only on release. Half a long drag is dead travel.

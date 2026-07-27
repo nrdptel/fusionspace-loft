@@ -1588,18 +1588,47 @@ function Num({
   /** What the range means, in the flyer's words — shown as the field's tooltip. */
   hint?: string;
 }) {
-  const clamp = (raw: string): string => {
-    if (raw === "") return raw; // blank means "use the design's own value", never zero
+  const ref = useRef<HTMLInputElement>(null);
+  // What the box shows. It is NOT simply `value`: while the field has focus the flyer owns the
+  // text, so it can pass through states the model would reject ("1" on the way to "12", or "-" on
+  // the way to "-3"). The moment focus leaves it goes back to what is being flown — see the effect.
+  const [draft, setDraft] = useState(String(value ?? ""));
+  // The entry that was refused, kept only to say so. Cleared as soon as the flyer types again.
+  const [refused, setRefused] = useState<string | null>(null);
+
+  // The field must never sit there showing a number that is not the one in the flight. It could:
+  // the input is controlled by `value`, and an entry the model refuses leaves `value` unchanged, so
+  // React sees the same prop, never re-renders the node, and the refused text stays on screen —
+  // typing -3 into Fin span left "-3" in the box while the design's own 19 mm went on being flown,
+  // with nothing saying so. Re-syncing whenever the field is not focused converges on the truth
+  // however the parent resolved the entry: accepted, clamped, or dropped.
+  useEffect(() => {
+    if (document.activeElement !== ref.current) setDraft(String(value ?? ""));
+  });
+
+  /** Commit the typed text. Returns what the model was asked for, which is not always what was
+   *  typed: a value outside the range is pulled to the nearest bound rather than refused outright,
+   *  because the flyer's intent ("as thin as it goes") is legible and a bound is a real answer. */
+  const commit = (raw: string) => {
+    if (raw === "") {
+      // Blank means "use the design's own value", never zero.
+      setRefused(null);
+      onChange("");
+      return;
+    }
     const n = Number(raw);
-    if (!Number.isFinite(n)) return raw;
-    if (min !== undefined && n < min) return String(min);
-    if (max !== undefined && n > max) return String(max);
-    return raw;
+    if (!Number.isFinite(n)) {
+      setRefused(raw);
+      return;
+    }
+    const bounded = min !== undefined && n < min ? min : max !== undefined && n > max ? max : n;
+    setRefused(bounded !== n ? raw : null);
+    if (String(bounded) !== raw) onChange(String(bounded));
   };
+
   // A bound the field doesn't have is said in words, not left as a dash. Most of these fields are
   // floored at zero and open above — a dimension has no upper limit the editor can name — and
-  // "0 to –" reads as a range that failed to load rather than as "no maximum". Measured in the
-  // Design workspace: 17 fields were showing it.
+  // "0 to –" reads as a range that failed to load rather than as "no maximum".
   const ranged =
     min !== undefined && max !== undefined
       ? `${min} to ${max}`
@@ -1608,36 +1637,54 @@ function Num({
         : max !== undefined
           ? `up to ${max}`
           : undefined;
+  // What the flight is actually using: the committed edit if there is one, else the design's own
+  // value, which is what the placeholder shows. Naming it is the whole point of the message — the
+  // complaint is not that the entry was refused, it is not knowing what is being flown instead.
+  const flown = String(value ?? "") || placeholder;
+  const msgId = `${label.replace(/[^a-z]+/gi, "-").toLowerCase()}-refused`;
+
   return (
     <label className="block" title={hint ?? (ranged ? `${label}: ${ranged}` : undefined)}>
       <span className="block text-[11px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">{label}</span>
       <input
+        ref={ref}
         type="number"
         inputMode="decimal"
-        value={value}
+        value={draft}
         placeholder={placeholder}
         disabled={disabled}
         min={min}
         max={max}
         step={step}
+        aria-invalid={refused !== null || undefined}
+        aria-describedby={refused !== null ? msgId : undefined}
         // Typing is left alone so a value can be entered digit by digit ("1" on the way to "12");
         // the range is applied when the field is committed — blurred, or Enter pressed.
-        onChange={(e) => onChange(e.target.value)}
-        onBlur={(e) => {
-          const c = clamp(e.target.value);
-          if (c !== e.target.value) onChange(c);
+        onChange={(e) => {
+          setDraft(e.target.value);
+          setRefused(null);
+          onChange(e.target.value);
         }}
+        onBlur={(e) => commit(e.target.value)}
         onKeyDown={(e) => {
           if (e.key !== "Enter") return;
-          const el = e.currentTarget;
-          const c = clamp(el.value);
-          if (c !== el.value) onChange(c);
+          commit(e.currentTarget.value);
         }}
         // A what-if field is the control a flyer uses most, and the stated phone use is a pad check
         // with gloves on: 34 px was under the project's own 44 px touch minimum. Released back to
         // the design's density on a pointer layout, like every other target here.
-        className={`mt-1 w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 font-mono text-sm text-zinc-800 outline-none focus:border-indigo-400 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 ${TOUCH_TARGET}`}
+        className={`mt-1 w-full rounded-md border bg-white px-2.5 py-1.5 font-mono text-sm text-zinc-800 outline-none disabled:opacity-50 dark:bg-zinc-900 dark:text-zinc-100 ${TOUCH_TARGET} ${
+          refused !== null
+            ? "border-amber-500 focus:border-amber-500 dark:border-amber-500"
+            : "border-zinc-300 focus:border-indigo-400 dark:border-zinc-700"
+        }`}
       />
+      {refused !== null && (
+        <span id={msgId} role="alert" className="mt-1 block text-[11px] text-amber-700 dark:text-amber-400">
+          {refused} isn&apos;t a value this can fly{ranged ? ` (${ranged})` : ""}
+          {flown ? ` — flying ${flown}` : ""}.
+        </span>
+      )}
     </label>
   );
 }
