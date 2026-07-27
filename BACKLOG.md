@@ -12,6 +12,11 @@ not yet done. Newest first. One line each. Anything here is fair game for the ne
   margin gets no explanation at all. The range half of this is fixed (a one-sided range now reads
   "0 or more"); the teaching half needs a real disclosure, not a `title`. Re-measured: 0 inputs lack
   an accessible name, so the older note claiming four do is resolved.
+- The refusal sentence says "flying 0", which is right for the six dispersion inputs and slightly
+  wrong for the seventh field it now also covers: a waiver ceiling is not flown, it is compared
+  against, and 0 there means "no ceiling set". The actionable half (refused, range is 0 or more) is
+  right in both. Fixing it means one more parameter on `refusedMessage` or a per-field verb — worth
+  doing only alongside a third caller, not on its own.
 - **A third value-entry surface still takes a number without a range: the diagram drag handles.**
   Both typed what-if fields now refuse an out-of-range entry and name what is flown instead, and
   they share one sentence (`lib/what-if.ts`) so they cannot drift. The handles reach the same edits

@@ -83,9 +83,16 @@ export default function MonteCarlo({
   const [result, setResult] = useState<MonteCarloResult | null>(null);
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState(0);
-  // Waiver/altitude ceiling to check the apogee band against (display units; 0 = off). Post-hoc on
-  // the existing samples, so changing it never re-flies — it only re-reads the results.
-  const [ceiling, setCeiling] = useState(0);
+  // Waiver/altitude ceiling to check the apogee band against — held in METRES, like every other
+  // value in the model, and converted only where it is typed and read. Post-hoc on the existing
+  // samples, so changing it never re-flies; it only re-reads the results.
+  //
+  // It used to be held in whatever units were on screen, which meant the unit toggle silently
+  // reinterpreted it: a 3,000 ft waiver on this project's 38 mm sample (apogee 3,230 ft) reads
+  // "chance over ceiling 86%", and switching to metric left 3000 in the box, now meaning 3,000 m,
+  // and the same rocket read 0%. A waiver bust reading as clean, from a gesture nobody expects to
+  // change what they entered.
+  const [ceilingM, setCeilingM] = useState(0);
 
   const dispersions = useMemo<Dispersions>(
     () => ({
@@ -248,8 +255,8 @@ export default function MonteCarlo({
                 result={result}
                 units={units}
                 name={doc.rocket.name}
-                ceiling={ceiling}
-                onCeiling={setCeiling}
+                ceilingM={ceilingM}
+                onCeilingM={setCeilingM}
               />
             </>
           ) : running || result === null ? (
@@ -275,18 +282,23 @@ function Report({
   result,
   units,
   name,
-  ceiling,
-  onCeiling,
+  ceilingM,
+  onCeilingM,
 }: {
   result: MonteCarloResult;
   units: UnitSystem;
   name: string;
-  ceiling: number;
-  onCeiling: (v: number) => void;
+  /** The ceiling in metres. 0 = none set. */
+  ceilingM: number;
+  onCeilingM: (v: number) => void;
 }) {
-  // The ceiling is entered in the chosen unit system; convert to metres to compare with the
-  // (SI) sample apogees. 0/blank means "no ceiling set".
-  const ceilingM = ceiling > 0 ? (units === "imperial" ? ftToM(ceiling) : ceiling) : 0;
+  // The ceiling is HELD in metres and only shown in the chosen system, so switching systems
+  // re-labels the same altitude instead of re-reading the same digits as a different one. Rounded
+  // to a whole unit for the field: a waiver is quoted in whole feet or metres, and 3,937.007874 ft
+  // in the box would be a conversion artefact, not the flyer's number. The rounding never reaches
+  // the state — it is written back only if the flyer actually edits the field.
+  const ceiling = ceilingM > 0 ? Math.round(units === "imperial" ? mToFt(ceilingM) : ceilingM) : 0;
+  const onCeiling = (v: number) => onCeilingM(v > 0 ? (units === "imperial" ? ftToM(v) : v) : 0);
   const exceed = ceilingM > 0 ? exceedanceProbability(result, ceilingM) : NaN;
   // How often the dispersed flights land firm (>7.6 m/s) or hard (>10.7 m/s) — the recovery-adequacy
   // question the landing-speed band alone doesn't answer: not just the worst case, but how likely.
