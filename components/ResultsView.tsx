@@ -142,6 +142,7 @@ export default function ResultsView({
   swapOptions,
   designMotor,
   onEditGeometry,
+  onSelectFinSet,
   initialTab,
   onWorkspaceChange,
   designEditor,
@@ -168,6 +169,9 @@ export default function ResultsView({
   /** Apply a geometry edit from the diagram's drag handle (e.g. fin station) — the same path a
    *  numeric what-if field uses, so dragging and typing converge on one edit flow. */
   onEditGeometry?: (patch: GeometryEdits) => void;
+  /** Told which fin set the flyer picked in the parts table or on the diagram, so the fin fields
+   *  describe and edit that set. Null clears it back to the frontmost. */
+  onSelectFinSet?: (id: string | null) => void;
   /** Which workspace to open on. An import lands on its flight result; a from-scratch build lands on
    *  the editable Design surface, and a resumed session lands where it was left. Read once at mount
    *  — the view remounts on every design load. */
@@ -350,7 +354,7 @@ export default function ResultsView({
         <NoPropulsionNotice run={run} tool={toolName} swapOptions={swapOptions} doc={doc} />
       )}
 
-      <RocketSummary run={run} doc={doc} units={units} />
+      <RocketSummary run={run} doc={doc} units={units} geometry={geometry} />
 
       {r.warnings.length > 0 && (
         <ul className="space-y-2">
@@ -629,6 +633,8 @@ export default function ResultsView({
           edited={editing}
           motors={shownMotors}
           onEdit={onEditGeometry}
+          onSelectFinSet={onSelectFinSet}
+          selectedFinSetId={geometry?.finSetId}
         />
 
         {/* The editing surface, right below the diagram it changes — fly a different motor, add
@@ -827,10 +833,12 @@ function RocketSummary({
   run,
   doc,
   units,
+  geometry,
 }: {
   run: FlightRun;
   doc: OrkDocument;
   units: UnitSystem;
+  geometry?: GeometryEdits;
 }) {
   const r = run.result;
   const length = overallLength(doc.rocket);
@@ -906,7 +914,7 @@ function RocketSummary({
       </dl>
 
       <StabilityTrimHint run={run} doc={doc} units={units} />
-      <FlutterFixHint run={run} doc={doc} units={units} />
+      <FlutterFixHint run={run} doc={doc} units={units} geometry={geometry} />
     </section>
   );
 }
@@ -919,10 +927,15 @@ function FlutterFixHint({
   run,
   doc,
   units,
+  geometry,
 }: {
   run: FlightRun;
   doc: OrkDocument;
   units: UnitSystem;
+  /** The active what-ifs, for the fin SELECTION only: whether this hint's set is reachable depends
+   *  on which set the fields are currently pointed at, so the claim and the fields have to resolve
+   *  it the same way. */
+  geometry?: GeometryEdits;
 }) {
   const f = run.result.flutter;
   if (!f || !Number.isFinite(f.worst.margin) || f.worst.margin >= RECOMMENDED_FLUTTER_MARGIN) return null;
@@ -933,7 +946,7 @@ function FlutterFixHint({
   // corpus this hint fires on 60 flights and 16 of them name a set the fields cannot reach — and
   // those are the worst margins in the set (0.08x, 0.21x, 0.29x). Telling a flyer to thicken fins
   // the panel will not touch is worse than saying nothing, on a warning that is safety-relevant.
-  const editable = primaryFinGroupIds(doc.rocket).has(f.worst.finId);
+  const editable = primaryFinGroupIds(doc.rocket, geometry?.finSetId).has(f.worst.finId);
 
   return (
     <p className="mt-3 text-xs text-zinc-500 dark:text-zinc-400">

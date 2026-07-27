@@ -50,6 +50,7 @@ export default function RocketDiagram({
   onSelect,
   motors,
   onEdit,
+  selectedFinSetId,
 }: {
   rocket: Rocket;
   units: UnitSystem;
@@ -74,6 +75,10 @@ export default function RocketDiagram({
    *  exactly what a numeric what-if field does — so building by dragging and building by typing share
    *  one path. */
   onEdit?: (patch: GeometryEdits) => void;
+  /** Which fin set the fin fields — and therefore these handles — are aimed at. The handles emit
+   *  ABSOLUTE values, so reading them off a different set than the edit writes to would snap the
+   *  edited set to the read set's dimensions on the first nudge. */
+  selectedFinSetId?: string;
 }) {
   const uid = useId();
   // A drag-frozen vertical extent, set while a vertical resize handle is being dragged (the fin SPAN
@@ -181,10 +186,11 @@ export default function RocketDiagram({
   const marginLabel = marginCal !== undefined ? `${d.q(d.calibers(marginCal))} margin` : null;
   const motorLabel = motors && motors.length ? [...new Set(motors.map((m) => m.designation))].join(", ") : null;
 
-  // Fin drag handles sit on the primary (frontmost) fin set. Both edits they expose keep the diagram
-  // to scale, so the pointer maths below is snapshot-and-map with no rescale to chase.
-  const finStationNow = onEdit ? primaryFinStation(rocket) : undefined;
-  const finChord = onEdit ? primaryFinChord(rocket) : undefined;
+  // Fin drag handles sit on the fin set the fields are aimed at — the selected one, or the frontmost
+  // when nothing is picked. Both edits they expose keep the diagram to scale, so the pointer maths
+  // below is snapshot-and-map with no rescale to chase.
+  const finStationNow = onEdit ? primaryFinStation(rocket, selectedFinSetId) : undefined;
+  const finChord = onEdit ? primaryFinChord(rocket, selectedFinSetId) : undefined;
   const primaryFin =
     finStationNow !== undefined && o.fins.length
       ? o.fins.reduce((best, f) =>
@@ -207,7 +213,7 @@ export default function RocketDiagram({
   // value (so a design that already rakes forward stays reachable). It sits on the tip's leading-edge
   // corner, so the two tip handles land on distinct corners (leading = rake, trailing = tip chord)
   // rather than crowding the tip's mid-point.
-  const trapezoid = onEdit ? primaryFinRootChord(rocket) !== undefined : false;
+  const trapezoid = onEdit ? primaryFinRootChord(rocket, selectedFinSetId) !== undefined : false;
   const sweepNow = primaryFin && trapezoid ? primaryFin.poly[1][0] - primaryFin.poly[0][0] : undefined;
   const tipChord = primaryFin ? primaryFin.poly[2][0] - primaryFin.poly[1][0] : 0;
   const sweepLo = Math.min(0, sweepNow ?? 0);

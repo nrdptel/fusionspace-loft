@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { importOrk } from "../ork/import";
 import { configChoices, noseBallastStation } from "../sim/run";
@@ -108,5 +108,67 @@ describe("buildRocketpySpec", () => {
     expect(tail.length).toBeGreaterThan(0);
     // Its elliptical fins map to RocketPy's elliptical kind.
     expect(spec.rocket.fins.some((f) => f.kind === "elliptical")).toBe(true);
+  });
+});
+
+describe("power-series nose", () => {
+  /** Build a spec from a design whose nose has been reshaped, without needing a fixture per shape. */
+  async function specWithNose(shape: string, shapeParameter?: number) {
+    const doc = await load("demo-single-deploy.ork");
+    for (const s of doc.rocket.stages) {
+      const walk = (list: { kind: string; children: unknown[] }[]) => {
+        for (const c of list) {
+          if (c.kind === "nosecone") Object.assign(c, { shape, shapeParameter });
+          walk((c.children ?? []) as { kind: string; children: unknown[] }[]);
+        }
+      };
+      walk(s.components as unknown as { kind: string; children: unknown[] }[]);
+    }
+    const choice = configChoices(doc)[0];
+    const sim = doc.simulations[choice.simIndex];
+    const config = doc.rocket.configurations.find((c) => c.id === sim.conditions.configId)!;
+    return buildRocketpySpec(doc, config, choice.simIndex);
+  }
+
+  it("carries the exponent RocketPy refuses to run without", async () => {
+    // Without it RocketPy raises `Parameter 'power' cannot be None when using a nose cone kind
+    // 'powerseries'`, which killed the entire cross-check — after a ~40 MB download — for any design
+    // with this nose. `The Red Hunter.ork` in the corpus is one, with an exponent of 0.5.
+    const spec = await specWithNose("power", 0.42);
+    expect(spec.rocket.nose?.kind).toBe("powerseries");
+    expect(spec.rocket.nose?.power).toBe(0.42);
+  });
+
+  it("falls back rather than failing when the file's exponent is missing or out of range", async () => {
+    // RocketPy accepts 0 < power <= 1; OpenRocket's own default is 0.5. A file outside that range
+    // must not take the whole run down with it.
+    for (const bad of [undefined, 0, -1, 1.5, NaN]) {
+      const spec = await specWithNose("power", bad as number | undefined);
+      expect(spec.rocket.nose?.power, `exponent ${String(bad)}`).toBe(0.5);
+    }
+  });
+
+  it("sends no exponent for the shapes RocketPy contours on its own", async () => {
+    for (const shape of ["ogive", "conical", "ellipsoid", "haack"]) {
+      const spec = await specWithNose(shape, 0.5);
+      expect(spec.rocket.nose?.kind, shape).toBe(NOSE_KIND[shape]);
+      expect(spec.rocket.nose?.power, shape).toBeUndefined();
+    }
+  });
+
+  it("keeps the vendored copy of the flight script identical to its source", () => {
+    // `scripts/rocketpy/fly.py` is the source; `scripts/pyodide/vendor.mjs` copies it verbatim to
+    // `public/pyodide/fly.py`, which is what the browser actually loads. Nothing enforced that they
+    // match, which is exactly how a fix reaches one and not the other — and the browser copy is the
+    // one a flyer runs. `public/pyodide/` is gitignored and vendored on demand, so a checkout
+    // without it (CI, a fresh clone) has nothing to compare and skips rather than failing: an
+    // absent copy is not a drifted one.
+    const vendored = resolve(process.cwd(), "public/pyodide/fly.py");
+    if (!existsSync(vendored)) {
+      expect(existsSync(resolve(process.cwd(), "scripts/rocketpy/fly.py"))).toBe(true);
+      return;
+    }
+    const src = readFileSync(resolve(process.cwd(), "scripts/rocketpy/fly.py"), "utf8");
+    expect(readFileSync(vendored, "utf8"), "public/pyodide/fly.py has drifted — re-run scripts/pyodide/vendor.mjs").toBe(src);
   });
 });

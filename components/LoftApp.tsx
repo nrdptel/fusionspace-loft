@@ -87,6 +87,8 @@ const FIN_CROSS_SECTION_LABELS: Record<FinCrossSection, string> = {
 };
 
 interface Edits {
+  /** Which fin set the fin fields describe and edit. A selection, not an edit — see hasActiveEdits. */
+  finSetId?: string;
   rodLength?: number; // m
   rodAngleDeg?: number;
   windSpeed?: number; // m/s
@@ -127,7 +129,10 @@ interface Edits {
  *  that hides the stored-tool comparison and the button that restores it have to answer the same
  *  question, or clearing a field leaves the comparison hidden with the way back hidden too. */
 function hasActiveEdits(e: Edits): boolean {
-  return Object.values(e).some((v) => v !== undefined && v !== "");
+  // `finSetId` says which component the fin fields are POINTED AT, not that anything was changed.
+  // Counting it would withhold the stored-tool comparison — and hide the button that brings it
+  // back — the moment a flyer clicked a fin set to look at it.
+  return Object.entries(e).some(([k, v]) => k !== "finSetId" && v !== undefined && v !== "");
 }
 
 /** Same-diameter bundled motors the design could fly, with the design's own motor as the default.
@@ -197,6 +202,7 @@ export default function LoftApp() {
         recoveryCdScale: e.recoveryCdScale,
         motorSwap: e.motorSwap,
         geometry: {
+          finSetId: e.finSetId,
           finSpan: e.finSpan,
           finCount: e.finCount,
           finRootChord: e.finRootChord,
@@ -403,6 +409,7 @@ export default function LoftApp() {
     // Transient flight what-ifs (ballast, motor swap, recovery scale, launch conditions) are not
     // part of the design and are left out.
     const geometry = {
+      finSetId: edits.finSetId,
       finSpan: edits.finSpan,
       finCount: edits.finCount,
       finRootChord: edits.finRootChord,
@@ -592,17 +599,19 @@ export default function LoftApp() {
     () =>
       doc
         ? {
-            finSpan: primaryFinSpan(doc.rocket),
-            unreachableFinSets: unreachableFinSetCount(doc.rocket),
-            finSetName: primaryFinSetName(doc.rocket),
-            finCount: primaryFinCount(doc.rocket),
-            finRootChord: primaryFinRootChord(doc.rocket),
-            finTipChord: primaryFinTipChord(doc.rocket),
-            finSweepLength: primaryFinSweep(doc.rocket),
-            finStation: primaryFinStation(doc.rocket),
-            finThickness: primaryFinThickness(doc.rocket),
-            finCrossSection: primaryFinCrossSection(doc.rocket),
-            finMaterial: primaryFinMaterial(doc.rocket),
+            // Every fin readback takes the selected set, so the value the field shows to edit FROM
+            // is the same set the edit is written TO. Undefined selection = the frontmost set.
+            finSpan: primaryFinSpan(doc.rocket, edits.finSetId),
+            unreachableFinSets: unreachableFinSetCount(doc.rocket, edits.finSetId),
+            finSetName: primaryFinSetName(doc.rocket, edits.finSetId),
+            finCount: primaryFinCount(doc.rocket, edits.finSetId),
+            finRootChord: primaryFinRootChord(doc.rocket, edits.finSetId),
+            finTipChord: primaryFinTipChord(doc.rocket, edits.finSetId),
+            finSweepLength: primaryFinSweep(doc.rocket, edits.finSetId),
+            finStation: primaryFinStation(doc.rocket, edits.finSetId),
+            finThickness: primaryFinThickness(doc.rocket, edits.finSetId),
+            finCrossSection: primaryFinCrossSection(doc.rocket, edits.finSetId),
+            finMaterial: primaryFinMaterial(doc.rocket, edits.finSetId),
             noseLength: primaryNose(doc.rocket)?.length,
             noseShape: primaryNoseShape(doc.rocket),
             bodyLength: primaryBodyTube(doc.rocket)?.length,
@@ -635,7 +644,9 @@ export default function LoftApp() {
             motorClusterCount: undefined,
             payloadStation: undefined,
           },
-    [doc],
+    // The fin readbacks take the selected set, so the selection is a real dependency: without it
+    // the panel keeps showing the frontmost set's numbers while the edit writes to the picked one.
+    [doc, edits.finSetId],
   );
 
   return (
@@ -683,7 +694,7 @@ export default function LoftApp() {
               <button
                 type="button"
                 onClick={reset}
-                className="inline-flex items-center gap-1.5 text-sm text-zinc-600 underline underline-offset-2 hover:text-zinc-900 dark:text-zinc-300 dark:hover:text-white"
+                className={`inline-flex items-center gap-1.5 text-sm text-zinc-600 underline underline-offset-2 hover:text-zinc-900 dark:text-zinc-300 dark:hover:text-white ${TOUCH_TARGET}`}
               >
                 <span aria-hidden>←</span> Import another
               </button>
@@ -694,7 +705,7 @@ export default function LoftApp() {
                 onChange={(e) => renameDesign(e.target.value)}
                 placeholder="Design name"
                 title="Rename this design — used as the results title and the .ork filename"
-                className="min-w-0 max-w-[11rem] rounded-md border border-zinc-300 bg-white px-2.5 py-1 text-sm font-medium text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                className={`min-w-0 max-w-[11rem] rounded-md border border-zinc-300 bg-white px-2.5 py-1 text-sm font-medium text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 ${TOUCH_TARGET}`}
               />
               {fileName && fileName !== doc.rocket.name && (
                 <span className="hidden truncate text-xs text-zinc-500 dark:text-zinc-400 sm:inline" title={fileName}>
@@ -705,7 +716,7 @@ export default function LoftApp() {
                 type="button"
                 onClick={downloadOrk}
                 title="Save this design as an OpenRocket .ork file"
-                className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-2.5 py-1 text-xs font-medium text-zinc-700 transition hover:border-indigo-400 hover:text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:text-zinc-100"
+                className={`inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-2.5 py-1 text-xs font-medium text-zinc-700 transition hover:border-indigo-400 hover:text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:text-zinc-100 ${TOUCH_TARGET}`}
               >
                 Download .ork
               </button>
@@ -714,7 +725,7 @@ export default function LoftApp() {
                   type="button"
                   onClick={resetEdits}
                   title="Clear every what-if and re-fly the design as the file describes it"
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-2.5 py-1 text-xs font-medium text-zinc-700 transition hover:border-indigo-400 hover:text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:text-zinc-100"
+                  className={`inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-2.5 py-1 text-xs font-medium text-zinc-700 transition hover:border-indigo-400 hover:text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:text-zinc-100 ${TOUCH_TARGET}`}
                 >
                   Reset to as-designed
                 </button>
@@ -810,6 +821,7 @@ export default function LoftApp() {
               recoveryCdScale={edits.recoveryCdScale}
               motorSwap={edits.motorSwap}
               geometry={{
+                finSetId: edits.finSetId,
                 finSpan: edits.finSpan,
                 finCount: edits.finCount,
                 finRootChord: edits.finRootChord,
@@ -837,6 +849,7 @@ export default function LoftApp() {
               swapOptions={swapInfo?.options}
               designMotor={swapInfo?.designMotor}
               onEditGeometry={applyEdit}
+              onSelectFinSet={(id) => applyEdit({ finSetId: id ?? undefined })}
               initialTab={initialTab}
               onWorkspaceChange={setInitialTab}
               designEditor={
@@ -884,7 +897,7 @@ function ConfigPicker({
         aria-label="Motor configuration"
         value={selected}
         onChange={(e) => onSelect(Number(e.target.value))}
-        className="min-w-0 flex-1 rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+        className={`min-w-0 flex-1 rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 ${TOUCH_TARGET}`}
       >
         {/* No `title`: it used to carry the run's raw name, which is now part of the visible label
             wherever it distinguishes anything — leaving it made eleven options with different text
@@ -1053,13 +1066,13 @@ function DesignEditor({
                 </legend>
                 {designDims.unreachableFinSets > 0 && (
                   // A staged or podded design carries sets that legitimately differ. These fields
-                  // read from, and write to, the frontmost set (and anything identical to it) only —
-                  // say so, rather than letting one unlabelled control stand for all of them.
+                  // describe one of them at a time — say which, and say how to aim them at another,
+                  // rather than letting one unlabelled control stand for all of them.
                   <p className="mb-2 text-xs text-zinc-500 dark:text-zinc-400">
                     This design has {designDims.unreachableFinSets} other fin{" "}
                     {designDims.unreachableFinSets === 1 ? "set" : "sets"} with different dimensions.
-                    These fields describe and change {designDims.finSetName}; the others keep their own
-                    shape and can&apos;t be edited here yet. Fin position moves all of them together.
+                    These fields describe and change {designDims.finSetName}; to edit another, pick it
+                    on the diagram or in the parts table above. Fin position moves all of them together.
                   </p>
                 )}
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -1511,13 +1524,13 @@ function ConditionsControls({
               onChange={(e) => setPlace(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && findWeather()}
               placeholder="Launch site, e.g. Lucerne Valley, CA"
-              className="min-w-0 flex-1 rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+              className={`min-w-0 flex-1 rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 ${TOUCH_TARGET}`}
             />
             <button
               type="button"
               onClick={findWeather}
               disabled={wxBusy || busy}
-              className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-indigo-500 disabled:opacity-60"
+              className={`rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-indigo-500 disabled:opacity-60 ${TOUCH_TARGET}`}
             >
               {wxBusy ? "Fetching…" : "Fetch"}
             </button>

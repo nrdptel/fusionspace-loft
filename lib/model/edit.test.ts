@@ -27,6 +27,7 @@ import {
   AIRFRAME_MATERIALS,
   unreachableFinSetCount,
   primaryFinGroupIds,
+  hasGeometryEdits,
 } from "./edit";
 import type {
   GenericFinSet,
@@ -216,6 +217,83 @@ describe("applyGeometryEdits — a design with several fin sets", () => {
     // All three move together: resizing one third of a fin ring would fly an asymmetric rocket.
     expect(heights).toHaveLength(3);
     for (const h of heights) expect(h).toBeCloseTo(shown + 0.01, 9);
+  });
+
+  it("reads back and writes to the SAME set, whichever one is selected", async () => {
+    // The failure this guards against is silent and destructive: the panel seeds its fields from
+    // one set and the edit lands on another, so a flyer nudges the number they can see and a
+    // different fin changes. Every readback and the edit path resolve through one function now, so
+    // assert that for both sets rather than trusting the wiring.
+    const { rocket, first, second } = await twoFinSets();
+    for (const target of [first, second]) {
+      const shown = primaryFinSpan(rocket, target.id)!;
+      expect(shown).toBeCloseTo(target.height, 9);
+      const edited = applyGeometryEdits(rocket, { finSetId: target.id, finSpan: shown + 0.01 });
+      const sets = finSetsOf(edited);
+      const hit = sets.find((f) => f.id === target.id)!;
+      const other = sets.find((f) => f.id !== target.id)!;
+      expect(hit.height).toBeCloseTo(target.height + 0.01, 9);
+      // …and the set that was not selected is untouched.
+      const untouched = target.id === first.id ? second : first;
+      expect(other.height).toBeCloseTo(untouched.height, 9);
+    }
+  });
+
+  it("falls back to the frontmost set when the selection names nothing on this design", async () => {
+    // A stale id restored from a session must not disable the fin fields or silently edit nothing.
+    const { rocket, first } = await twoFinSets();
+    expect(primaryFinSpan(rocket, "no-such-component")).toBeCloseTo(primaryFinSpan(rocket)!, 9);
+    const edited = applyGeometryEdits(rocket, { finSetId: "no-such-component", finSpan: first.height + 0.01 });
+    const hit = finSetsOf(edited).find((f) => f.id === first.id)!;
+    expect(hit.height).toBeCloseTo(first.height + 0.01, 9);
+  });
+
+  it("selecting a set is not an edit", async () => {
+    // A selection alone must leave the design identical — same object, so nothing re-flies and no
+    // stored-tool comparison is withheld for a click that changed no geometry.
+    const { rocket, second } = await twoFinSets();
+    expect(hasGeometryEdits({ finSetId: second.id })).toBe(false);
+    expect(applyGeometryEdits(rocket, { finSetId: second.id })).toBe(rocket);
+  });
+
+  it("groups the SELECTED set with the sets indistinguishable from it", async () => {
+    // The split-ring rule follows the selection: picking any member of a ring still resizes the
+    // whole ring, and the count of out-of-reach sets is relative to what is selected.
+    const { rocket } = await splitRing();
+    const ids = [...primaryFinGroupIds(rocket)];
+    expect(ids.length).toBe(3);
+    for (const id of ids) {
+      expect(primaryFinGroupIds(rocket, id).size).toBe(3);
+      expect(unreachableFinSetCount(rocket, id)).toBe(0);
+    }
+  });
+
+  it("measures a position edit from the SELECTED set, not the frontmost", async () => {
+    // The field shows the selected set's station, so the shift has to be measured from that set.
+    // Seeding it from the frontmost turned "nudge this set 10 mm aft" into a shift of the whole
+    // inter-set distance — on this fixture, the gap between the two sets — silently, on every fin.
+    // A real two-stage file rather than the synthetic fixture above: appending a copy of a nested
+    // fin set at stage level inherits its parent-relative placement and resolves to a NEGATIVE
+    // station, which `applyGeometryEdits` rightly refuses, so it cannot exercise this at all.
+    const doc = await importOrk(new Uint8Array(readFileSync(resolve("e2e/fixtures/two-stage-firm-booster.ork"))));
+    const rocket = doc.rocket;
+    const sets = flattenRocket(rocket).filter((p) => p.component.kind === "trapezoidfinset");
+    expect(sets.length).toBe(2);
+    const second = sets[1].component;
+    const shown = primaryFinStation(rocket, second.id)!;
+    expect(shown).toBeGreaterThan(0);
+    // The two sets are a real distance apart; measuring from the wrong one moves everything by it.
+    expect(Math.abs(shown - primaryFinStation(rocket)!)).toBeGreaterThan(0.1);
+    const before = sets.map((p) => p.xFore);
+    const shifted = applyGeometryEdits(rocket, { finSetId: second.id, finStation: shown + 0.01 });
+    const after = flattenRocket(shifted)
+      .filter((p) => p.component.kind === "trapezoidfinset")
+      .map((p) => p.xFore);
+    // Every set still moves together — position stays a group-wide delta — but by the 10 mm asked
+    // for, not by 10 mm plus the distance between the sets.
+    expect(after[0] - before[0]).toBeCloseTo(0.01, 9);
+    expect(after[1] - before[1]).toBeCloseTo(0.01, 9);
+    expect(primaryFinStation(shifted, second.id)).toBeCloseTo(shown + 0.01, 9);
   });
 
   it("still slides the whole fin GROUP for a position edit, keeping its spacing", async () => {
