@@ -48,11 +48,18 @@ not yet done. Newest first. One line each. Anything here is fair game for the ne
   in imperial 4 of its 9 rows collapse to `0 lb` while the % column still shows real values.
 - No analysis can be cancelled: `cancel|stop|abort` matches 0 buttons across all four Analyze tools,
   including a RocketPy run measured at 50.5 s whose own copy says "a minute or so"; the only exit is
-  a reload, which discards everything. (`runRocketpy` already takes an `AbortSignal` and leaves the
-  warm worker alone when it fires, so the RocketPy one is a button and a controller, not new
-  machinery. A failed run no longer needs the reload — only a running one does.) When adding it,
-  note the running row has no `flex-wrap` and 0 px of slack at 390 px, so a Cancel beside the stage
-  label will overflow the phone unless the row wraps. The motor and parameter sweeps also report no progress at all
+  a reload, which discards everything. A failed run no longer needs the reload — only a running one
+  does. **The RocketPy one looks like a button and a controller and is not.** `runRocketpy` does take
+  an `AbortSignal`, but it is main-thread only: it stops LISTENING and deliberately leaves the warm
+  worker running (`rocketpy-engine.ts:86`). Meanwhile the worker serialises every run through one
+  `runChain` promise (`public/rocketpy.worker.js:64`) that awaits `runPythonAsync`, which Pyodide
+  cannot interrupt without a SharedArrayBuffer interrupt buffer. So a Stop button wired to the
+  existing signal would clear the spinner and then make the NEXT run sit at "Preparing…" for the
+  remainder of the abandoned flight — worse than no button, and invisible. The three honest routes:
+  terminate the worker outright (a true stop, at the cost of the ~10 s warm boot on the next run),
+  add an interrupt buffer, or say plainly that it only stops waiting. Pick one before writing UI.
+  Whichever it is, the running row has no `flex-wrap` and 0 px of slack at 390 px, so a Stop beside
+  the stage label will overflow a phone unless the row wraps. The motor and parameter sweeps also report no progress at all
   (only `aria-busy`), while the dispersion study reports "152/300 flown" — same gesture, different
   feedback. The parameter sweep offers no range or step control: 25 points over an auto range, so
   "sweep 40–60 mm at 1 mm" — the tenth-use question — cannot be asked.
