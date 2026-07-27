@@ -172,8 +172,12 @@ export default function ParameterSweep({
   }, [doc, simIndex, motorSwap, geometry]);
 
   // The flutter-margin metric is only meaningful for a design with fins; a finless design drops it.
+  // Deliberately NOT asked of the picked set: the question is whether this rocket has fins at all,
+  // and every fin set carries a thickness, so routing it through the selection only made the answer
+  // look as if it moved with the picker when it cannot. (It also read a value it did not depend on,
+  // which is what eslint was pointing at.)
   const metrics = useMemo(
-    () => (primaryFinThickness(doc.rocket, geometry?.finSetId) !== undefined ? METRICS : METRICS.filter((m) => m.key !== "flutterMargin")),
+    () => (primaryFinThickness(doc.rocket) !== undefined ? METRICS : METRICS.filter((m) => m.key !== "flutterMargin")),
     [doc],
   );
 
