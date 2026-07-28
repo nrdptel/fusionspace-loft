@@ -148,6 +148,10 @@ interface SwapInfo {
   /** The design motor's manufacturer as the catalog spells it, set only when the motor matched
    *  exactly — what tells an Estes C6 from a Quest C6 when the sweep marks the design's own row. */
   designManufacturer?: string;
+  /** Whether the design's own motor resolves to a bundled curve — i.e. whether this design flies at
+   *  all. The copy describing the offered list claims a casing "this design already flies", which is
+   *  false on a design whose motor was never matched. */
+  designMotorFlies: boolean;
   options: SwapOption[];
 }
 
@@ -692,9 +696,14 @@ export default function LoftApp() {
     // Which casing to offer swaps at, and who made the design's motor. RockSim and RASAero state no
     // casing at all, which used to leave this 0 and withhold both surfaces from every design they
     // write; see `designMotorIdentity` for what stands in and what deliberately does not.
-    const { casingMm: diaMm, manufacturer: designManufacturer } = designMotorIdentity(motor);
+    const { casingMm: diaMm, manufacturer: designManufacturer, resolves } = designMotorIdentity(motor);
     if (!(diaMm > 0)) return null;
-    return { designMotor: motor.designation, designManufacturer, options: swapOptions(diaMm) };
+    return {
+      designMotor: motor.designation,
+      designManufacturer,
+      designMotorFlies: resolves,
+      options: swapOptions(diaMm),
+    };
   }, [doc, simIndex]);
 
   // The design's own dimensions, shown as the starting points for the builder edits.
@@ -963,6 +972,7 @@ export default function LoftApp() {
               swapOptions={swapInfo?.options}
               designMotor={swapInfo?.designMotor}
               designManufacturer={swapInfo?.designManufacturer}
+              designMotorFlies={swapInfo?.designMotorFlies}
               onEditGeometry={applyEdit}
               onSelectFinSet={(id) => applyEdit({ finSetId: id ?? undefined })}
               initialTab={initialTab}
@@ -1508,11 +1518,13 @@ function DesignEditor({
             position blank sits it mid-body), or switch to dual-deploy (set both a main-deploy
             altitude and a drogue diameter — the main then opens low over a drogue that controls the
             fall from apogee, cutting drift) to trim stability, drag, apogee, or landing.
-            It&apos;s a hypothetical change to the design, so the {tool} comparison is hidden while
+            It&apos;s a hypothetical change to the design, so the {tool}{" "}
+            comparison is hidden while
             any is set. The geometry fields start from the design&apos;s own dimensions; the motors
-            offered are the bundled ones of the same casing as the one this design already flies —
-            that casing demonstrably fits, which a mount&apos;s stated bore does not establish for
-            every motor that would go in it.
+            offered are the bundled ones of{" "}
+            {swap?.designMotorFlies
+              ? "the same casing as the one this design already flies — that casing demonstrably fits, which a mount's stated bore does not establish for every motor that would go in it."
+              : "the casing this design's file states for its motor. Its own motor was not matched to a bundled thrust curve, so there is no flight to take the casing from."}
           </p>
         </div>
   );

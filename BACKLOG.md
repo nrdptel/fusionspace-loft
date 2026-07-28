@@ -3,6 +3,75 @@
 Rough edges, missing affordances, and ideas too big for one pass — noticed while working,
 not yet done. Newest first. One line each. Anything here is fair game for the next session.
 
+- **The from-scratch builder journey is where Loft is weakest, and it had never been walked.** One
+  cold walk produced two blockers (below) and six more, all reproduced on the built export of
+  `e7f80a9`. Beyond the two blockers:
+  1. **The summary strip's "Length" is frozen at the starter's 840 mm**, so after lengthening the
+     airframe the CP marker reads beyond the tail.
+  2. **"Mass & balance" omits every part the builder added**, understating dry mass by **27%**.
+  3. **Re-opening your own design and re-entering a value duplicates the component** — two boattails
+     in series.
+  4. **Typing `0` into any dimension leaves "0" in the box while the app flies the un-zeroed value** —
+     the same "the field asserts a value not in force" family as the Conditions placeholder entry.
+  5. **A from-scratch design can never fly above an I motor** and nothing says why (the starter's
+     mount casing decides it, and there is no mount control).
+  6. **The rename survives nowhere** except the live tab and the download filename.
+  Also: the flight CSV labels the touchdown samples "rod" and its last altitude is negative; "Drift
+  from pad 0 m" is presented as a result with the zero-wind assumption hidden in a collapsed panel;
+  nothing checks the parts physically fit each other; and everything a builder types is labelled
+  "what-if" and measured against a template they never chose.
+
+- **Benchmarked against OpenRocket's motor selection, four gaps worth closing.** Ours has the sweep
+  itself — fly every fitting motor and tabulate nine columns, including flutter margin and stability
+  per candidate, which OpenRocket has no equivalent of. Theirs has:
+  1. **A motor-length vs mount-length check** ("Limit motor length to mount length"). Loft's sweep
+     ranks motors that physically cannot be loaded. The bundled catalog carries motor length, so this
+     is a filter over data already present — but Loft does not currently carry the MOUNT's length,
+     which is the other half.
+  2. **Loft prints an "optimum ejection delay" for motors that carry no ejection charge at all**, and
+     the footnote tells the flyer to buy or drill it. `MotorSpec.plugged` already exists.
+  3. **The picker and the sweep name a motor and say nothing else** — no total impulse, peak or
+     average thrust, burn time, propellant mass, length, or thrust curve. All of it is in the bundled
+     catalog already.
+  4. **108 bundled motors against OpenRocket's ~1,033, with no way to add one.**
+  Smaller: motors are listed by manufacturer part number though the catalog carries common names too;
+  there is no search or filter; and thrust-to-weight is computed from PEAK thrust but shown against a
+  rule of thumb that is conventionally stated on AVERAGE thrust — that last one is a correctness
+  question, not a feature gap, and should be checked first.
+
+- **BLOCKER — "Download .ork" silently drops the motor you picked, and the saved rocket flies 48%
+  lower.** On the from-scratch builder path "Swap motor" is the ONLY motor control (33 controls
+  enumerated across the app; none other touches the motor or mount), so for a builder that dropdown
+  IS the motor picker, not a what-if. Measured: a 66 mm airframe with "I200W · AeroTech" selected
+  flies 1,033 m, 1.563 kg, 2.45 cal, T/W 19.7:1. Downloading it and unzipping gives one motor,
+  `<designation>H128W</designation>` — the STARTER's. Re-importing that file: **542 m (−47.5%)**,
+  1.377 kg, 2.71 cal, max speed 184 → 117 m/s, flutter 3.3x → 5.2x, T/W 13.5:1. Nose ballast is
+  dropped the same way (45 g set, no ballast mass component in the XML). Everything else round-trips
+  correctly, so the export is faithful about exactly the two things you cannot express any other way.
+  Nothing on screen mentions it; the button's title is just "Save this design as an OpenRocket .ork
+  file", and the comment at `LoftApp.tsx:457` asserts "Any active what-if edits are baked in", which
+  is false for `motorSwap`, `ballastKg` and `recoveryCdScale`.
+  **The fix is not simply "bake them in"** — on the IMPORT path a motor swap genuinely is a
+  hypothetical, and baking it in would make the exported file disagree with the design that was
+  imported. The honest minimum is to NAME what is about to be left out, at the download control, with
+  the values. Whether the builder path should additionally bake them in is a real design question:
+  there, the "as-designed" motor is one the flyer never chose.
+
+- **BLOCKER — reopening your own build from "Your designs" hands back the factory starter.** Built a
+  design (790 m, 4.1 cal, 85 mm fin span), renamed it, clicked "Import another", clicked the design
+  in the shelf: back came **994 m and 1.53 cal — the untouched starter**, every edit gone, the row
+  labelled "New design" so the rename does not identify it either. Cause at `LoftApp.tsx:314-321`:
+  `rememberRecent` stores `designBytes.current`, which on the from-scratch path was set at
+  `LoftApp.tsx:444` to `exportOrk(newDesign())` — the starter's bytes, captured before the first
+  keystroke — and is never refreshed as the build proceeds. CONTROL: the "Pick it back up" banner on
+  the same screen restores the build correctly (790 m, 4.1 cal), so the data exists; the shelf
+  specifically is stale. The on-screen caveat ("any what-if edits you had set are not part of the
+  design") is fair on the import path, where the file IS the design — on the builder path there is no
+  file, so it silently means "the entire rocket you just built".
+  Careful: the obvious fix touches `rememberRecent`, which every design open goes through, and the
+  six traps from the reverted shelf-undo entry below still apply. Refreshing the remembered bytes on
+  a debounce is one option; not shelving an unedited from-scratch design at all is a smaller one.
+
 - **RESOLVED — the sweep now says when its own DESIGN row is not the flight on the next tab.** The
   sweep flies every candidate BALLISTIC (recovery removed) so the rows compare like for like, and the
   footnote always said so. But the row badged as the flyer's OWN design is the anchor every other row

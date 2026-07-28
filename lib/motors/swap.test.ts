@@ -34,6 +34,25 @@ describe("designMotorIdentity", () => {
     }
   });
 
+  it("says whether the design flies at all, so the copy does not claim a flight there isn't", () => {
+    // The offered list is described as "the casing it already flies". On a design whose motor was
+    // never matched that is asserted on the same page as "there is no thrust to fly".
+    expect(designMotorIdentity({ designation: "C11", manufacturer: "Estes", diameter: 0.024 }).resolves).toBe(true);
+    expect(designMotorIdentity({ designation: "J420R", manufacturer: "Aerotech" }).resolves).toBe(true);
+
+    // The committed unresolved-motor fixture's designation, and a design naming no motor at all.
+    expect(designMotorIdentity({ designation: "Z9999-CUSTOM", diameter: 0.029 }).resolves).toBe(false);
+    expect(designMotorIdentity({ diameter: 0.029 }).resolves).toBe(false);
+    // …and that design still gets a casing, from the file — the two signals are independent.
+    expect(designMotorIdentity({ designation: "Z9999-CUSTOM", diameter: 0.029 }).casingMm).toBe(29);
+
+    // A LOOSE match still flies: the simulator uses whatever `resolveMotor` returns, so "does this
+    // design fly?" is a different question from "is the casing safe to infer?".
+    const loose = designMotorIdentity({ designation: "H225-14A-8" });
+    expect(loose.resolves).toBe(true);
+    expect(loose.casingMm).toBe(0);
+  });
+
   it("says nothing rather than guess when the motor is not matched exactly", () => {
     // A bare two-way substring counts as a "designation" match in `resolveMotor`, so this name finds
     // an 18 mm Estes A8. Seeding a casing from that would claim a fit built on a spelling accident.

@@ -250,8 +250,11 @@ const CAPABILITIES: { title: string; body: React.ReactNode }[] = [
     title: "Compare every fitting motor",
     body: (
       <>
-        Fly the airframe on every bundled motor its mount takes, at once: apogee, max speed,
-        rail-exit velocity, thrust-to-weight, stability, flutter margin, and the delay to drill.
+        {/* Not "every motor its mount takes" — the list is the casing the design already flies,
+            which is a narrower and checkable claim. The same sentence was corrected on the sweep
+            itself, the picker's help and the FAQ; this one is the last copy of it. */}
+        Fly the airframe on every bundled motor of the casing it already flies, at once: apogee, max
+        speed, rail-exit velocity, thrust-to-weight, stability, flutter margin, and the delay to drill.
       </>
     ),
   },

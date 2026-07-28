@@ -47,6 +47,12 @@ export interface DesignMotorIdentity {
    *  the sweep marking the design's row by designation alone, which is all an unmatched motor
    *  supports. */
   manufacturer?: string;
+  /** Whether the design's motor resolves to a bundled thrust curve at all — i.e. whether this design
+   *  flies. False on a design whose motor is not in the catalog, where the casing came from the
+   *  file's stated figure instead. The copy branches on this: "the casing of the motor this design
+   *  already flies" is a claim about a flight, and a design with an unmatched motor makes none —
+   *  asserting it on the same page as "there is no thrust to fly" contradicts that page. */
+  resolves: boolean;
 }
 
 /** Identify the design's motor for the swap surfaces.
@@ -71,12 +77,15 @@ export function designMotorIdentity(motor: {
   diameter?: number;
 }): DesignMotorIdentity {
   const statedMm = Math.round((motor.diameter ?? 0) * 1000);
-  if (!motor.designation) return { casingMm: statedMm > 0 ? statedMm : 0 };
+  if (!motor.designation) return { casingMm: statedMm > 0 ? statedMm : 0, resolves: false };
   const hit = resolveMotor({ designation: motor.designation, manufacturer: motor.manufacturer });
   const matched: MotorDbEntry | null = hit?.quality === "exact" ? hit.entry : null;
   return {
     // The file's own figure wins where it has one; the catalog only fills a silence.
     casingMm: statedMm > 0 ? statedMm : Math.round(matched?.curve.diameterMm ?? 0),
     manufacturer: matched ? makerOf(matched) : undefined,
+    // ANY quality, not just exact: a loose match is not good enough to seed a casing from,
+    // but it is what the simulator flies, so it is the honest answer to "does this fly?".
+    resolves: hit !== null,
   };
 }

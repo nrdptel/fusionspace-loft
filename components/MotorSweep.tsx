@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import type { OrkDocument } from "@/lib/ork/import";
 import { overridesFromStored } from "@/lib/sim/run";
-import { type SweepMotor, type MotorSweepRow } from "@/lib/sim/sweep";
+import { ballisticGap, type SweepMotor, type MotorSweepRow } from "@/lib/sim/sweep";
 import { RECOMMENDED_FLUTTER_MARGIN } from "@/lib/sim/flutter";
 import { runMotorSweep } from "@/lib/sim/sweep-client";
 import type { GeometryEdits } from "@/lib/model/edit";
@@ -37,6 +37,7 @@ export default function MotorSweep({
   designMotor,
   designManufacturer,
   designApogee,
+  designMotorFlies,
   ballastKg,
   geometry,
   designKey,
@@ -55,6 +56,10 @@ export default function MotorSweep({
    *  Every sweep row is ballistic, so on a design whose recovery opens before apogee the row badged
    *  DESIGN is not that flight, and the two disagree on screen with nothing saying why. */
   designApogee?: number;
+  /** Whether the design's own motor resolves to a bundled curve. On a design whose motor was never
+   *  matched there is no flight, so "the casing it already flies" would be asserted on a page that
+   *  also says there is no thrust to fly. */
+  designMotorFlies?: boolean;
   /** Active "what-if" nose ballast (kg), applied to every motor in the sweep. */
   ballastKg?: number;
   /** Active builder geometry edits, applied to every motor in the sweep. */
@@ -116,13 +121,17 @@ export default function MotorSweep({
             are not the same number: a 54 mm mount can fly a 38 mm motor in an adapter, and it is the
             38 mm ones that are offered. Saying "fits this mount" claimed the wider set and was
             checkably false against the design file, which states the bore outright. */}
+        {/* &nbsp; between the number and its unit, not a plain space: a JSX text node that starts
+            with a space and contains an HTML entity anywhere in it loses that leading space at build
+            time, which shipped "38mm" here against "38 mm" elsewhere on the same panel. It also
+            stops the figure splitting from its unit across a line. */}
         <span className="text-xs text-zinc-500 dark:text-zinc-400">
-          {options.length} bundled {casingMm} mm motors
+          {options.length} bundled {casingMm}&nbsp;mm motors
         </span>
       </div>
       <p className="mt-1.5 text-sm text-zinc-600 dark:text-zinc-300">
-        Fly this airframe on every bundled motor of the same {casingMm} mm casing it already flies,
-        all at once, and see
+        Fly this airframe on every bundled motor of the {casingMm}&nbsp;mm casing{" "}
+        {designMotorFlies ? "it already flies" : "its file states for its motor"}, all at once, and see
         how apogee, speed, rail-exit velocity, stability, and fin-flutter margin change across them —
         the classic &ldquo;which motor gets me to my target?&rdquo; sweep (and whether a punchier one
         pushes the fins toward flutter), run entirely on your device.
@@ -374,7 +383,8 @@ function SweepTable({
         Each motor flies a ballistic ascent to apogee under the design&apos;s stored launch
         conditions — a like-for-like comparison, not the full recovery flight. Rail-exit velocity and
         thrust-to-weight are the launch-safety numbers to check against your rail and the ~5:1 and
-        ~15&nbsp;m/s (≈50&nbsp;ft/s) rules of thumb. <em>Delay</em> is the ejection delay that deploys
+        ~15&nbsp;m/s (≈50&nbsp;ft/s) rules of thumb. <em>Delay</em>{" "}
+        is the ejection delay that deploys
         at apogee for that motor (burnout&nbsp;→&nbsp;apogee), so you can pick the delay to buy or drill
         for each candidate; a faster motor coasts longer and wants a longer delay. These are estimates
         to verify, never a go/no-go.
