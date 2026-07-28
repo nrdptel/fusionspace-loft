@@ -3,6 +3,57 @@
 Rough edges, missing affordances, and ideas too big for one pass — noticed while working,
 not yet done. Newest first. One line each. Anything here is fair game for the next session.
 
+- **Leaving a design still throws away the work done on it, and the fix was written, verified and
+  REVERTED this run — read this before rewriting it.** The defect: "Import another" (and "Start fresh",
+  same `reset`) is one click that discards the design, every what-if and the session with no
+  confirmation, and the recents shelf — the apparent way back — returns the airframe with an empty edit
+  bag. Measured on the 38 mm sample: a 75 mm fin span and 20 g of nose ballast take apogee 993 m ->
+  881 m, and reopening returns 993 m with `session.edits` `{}`. The reopen path's own comment says it:
+  "the shelf remembers designs, not experiments."
+  The attempted fix — `RecentDesign` gains `edits`/`simIndex`, `reset` stamps them, `onOpenRecent`
+  resumes them, and the shelf badges "N changes" — works for the happy path (verified end to end: badge
+  reads "2 changes", reopening returns 881 m with both fields back) and is NET NEGATIVE because of six
+  things, all reproduced in the built app by review before it was pushed. A confirmation dialog is NOT
+  the answer either; it asks the flyer to approve the loss rather than preventing it.
+  1. **It makes the protected entry the eviction victim.** `loadDoc` skips `rememberRecent` when a
+     `resume` argument is present (`if (bytes && !resume)`), so an entry carrying edits never bumps
+     `openedAt`. Reopening it leaves it at the BOTTOM of a newest-first shelf, and `sort(openedAt)` +
+     `slice(0, MAX_RECENTS)` then drops it first: with 8 entries, reopening the trimmed one, working in
+     it, leaving it and importing one more design deleted it outright — design bytes and trims — while
+     six untouched older entries survived. `MAX_RECENTS_BYTES` (2.5 MB) reaches this at ~5 real .ork
+     files. Before the change a reopen always bumped the timestamp, so the design in hand could never be
+     evicted. **This turns "your trims are dropped" into "your design is deleted" and is why it was
+     reverted.**
+  2. **Every from-scratch design shares one shelf id.** `recentId` is name + base64 length, `onNew`
+     always passes the literal "New design", and `exportOrk(newDesign())` is byte-identical, so the id
+     is always `New design:5436`; renaming changes `doc.rocket.name`, never `fileName`. Verified:
+     building a design, trimming it, leaving it, then starting a second build and leaving that one
+     replaced the first entry — and for a built design the shelf's bytes are just the generic starter,
+     so the edits bag IS the rocket. The collision was harmless before; carrying state makes it
+     destructive. The FAQ's "a build with several variants on the go" cannot hold two builds at all.
+  3. **Any reopen that is not the shelf row wipes the stamp.** `rememberRecent` rebuilds the entry from
+     `{design, name, rocket}`, so clicking the sample button below the shelf, or re-dropping the same
+     file, overwrites the entry with no `edits` field. Verified: badge present, one click on the sample,
+     badge gone permanently.
+  4. **`editCount` is not the app's own definition of edited.** `finSetId` is a SELECTION — `hasActiveEdits`
+     excludes it deliberately ("counting it would withhold the stored-tool comparison") — but it is a
+     real string, so merely clicking a parts row badges an as-designed rocket "1 change", and it cannot
+     be cleared because "Reset to as-designed" never appears for it. Whatever counts must go through
+     `hasActiveEdits`'s notion, not `Object.keys`.
+  5. **Today's-weather is a what-if and is not carried.** `editsActive = scenario === "today" ||
+     hasActiveEdits(edits)` and "Reset to as-designed" clears both, but only `{edits, simIndex}` is
+     stamped and `loadDoc` unconditionally does `setWeather(null); setScenario("design")`. A flyer who
+     geocodes their field and trims against real air gets no badge at all and design-day air back.
+  6. **The shelf's own caption contradicts it.** `ImportPanel` says "Reopening one flies it as saved;
+     any what-if edits you had set are not part of the design" directly under the new badge. The FAQ was
+     updated and this was missed — the caveat in one place and the confident claim in another, on the
+     surface where the decision is actually made.
+  Two implementation notes worth keeping: `loadRecents` rebuilds each entry field by field, so a field
+  named only on the interface is written cleanly and silently dropped on the next read; and the edit bag
+  is a patch spread over the previous bag, so a CLEARED field leaves its key holding `undefined` and any
+  count must filter those out (`JSON.stringify` drops them on the way to storage, so an unfiltered
+  count also disagrees with what comes back).
+
 - The flight-data CSV keeps thrust, drag and dynamic pressure in SI while its kinematic columns follow
   the unit toggle, so an imperial flyer reads max-Q as psi on the Flight card and 19,100 (Pa) in the
   export of the same flight. Every column names its own unit so nothing is ambiguous, and a physics

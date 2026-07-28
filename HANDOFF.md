@@ -118,13 +118,37 @@ table cell, input unit suffix) may end in a metric unit, with a control assertio
 surfaces DO under Metric, so an empty result cannot be a broken selector. Verified the instrument
 separately: it catches 6 of 6 pre-fix strings and 0 of 10 post-fix ones.
 
-**One regression the gate caught, worth remembering.** Converting the wind ±1σ put a parent between
+**Two regressions caught before they shipped, one by the gate and one by review.** Converting the wind ±1σ put a parent between
 `NumberField` and its state, and the parent clamped negatives to 0 — which pre-empted the bound
 `NumberField` applies itself and so silently destroyed the refusal that PR #44 added. `-5` went back
 to reading as a flown 0. `NumberField`'s own comment warns about exactly this ("the bound is applied
 HERE"). **A display↔SI wrapper must convert and nothing else.**
 
+The second was the whole of a fourth increment, and it was **reverted rather than pushed**: making the
+recents shelf carry a design's what-ifs (see *Pick up first* item 0) worked on the happy path and turned
+a "your trims are dropped" defect into a "your design is deleted" one, because the entry holding the
+work stopped bumping its own timestamp and became the first thing evicted. Two review lenses found it
+independently, in the served build, after my own review had missed it and after the gate had gone green
+— 673 unit and 114 e2e all passing on a change that should not ship. **A green gate is not evidence a
+change is a net improvement.** The code is gone; the six specific traps are written up in `BACKLOG.md`
+so the next attempt starts from them.
+
 ## Pick up first
+
+0. **Leaving a design still loses the work on it — and the fix was written, verified and REVERTED this
+   run.** Read the top entry in `BACKLOG.md` in full before touching it. The happy path works (shelf
+   entry badges "2 changes", reopening returns apogee 881 m with both fields back); the reason it did
+   not ship is that it makes the entry carrying the work the FIRST one evicted, because `loadDoc` skips
+   `rememberRecent` when it is given a `resume` argument and so never bumps `openedAt`. Verified in the
+   built app: with a full shelf, reopening a trimmed design, working in it, leaving it and importing one
+   more deleted it outright while six untouched older entries survived. That is a worse defect than the
+   one being fixed. Five more, all reproduced: every from-scratch design shares the shelf id
+   `New design:5436` so a second build replaces the first (and for a built design the edits bag IS the
+   rocket); any reopen that is not the shelf row rewrites the entry without its edits; `editCount`
+   counts `finSetId`, which the app's own `hasActiveEdits` deliberately does not; today's-weather is a
+   what-if and is not carried; and `ImportPanel`'s caption still says the edits are not kept, directly
+   under the new badge. The shape is right and the six traps are named — this is a scoped increment, not
+   a research task.
 
 1. **The Conditions placeholders advertise a launch setup that is not being flown** — hardcoded
    "1.2"/"0"/"0"/"0" under a caption saying blank fields use the design's stored conditions. On one
