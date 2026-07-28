@@ -21,7 +21,7 @@ const round = (n: number, dp: number) => (Number.isFinite(n) ? Math.round(n * 10
  *  clean rail clearance — worth flagging (softly, never as a verdict). */
 const TW_RULE_OF_THUMB = 5;
 
-/** Motor sweep: fly this airframe on every bundled motor that fits its mount, all under one clean
+/** Motor sweep: fly this airframe on every bundled motor of the casing it already flies, under one clean
  *  ballistic baseline, and lay the results side by side — the "which motor gets me to my target?"
  *  question answered at a glance, in the browser. Reuses the same motor-swap the what-if picker
  *  uses, so each row is exactly the flight that picking that motor would produce. It honours the
@@ -35,6 +35,7 @@ export default function MotorSweep({
   units,
   options,
   designMotor,
+  designManufacturer,
   ballastKg,
   geometry,
   designKey,
@@ -46,6 +47,9 @@ export default function MotorSweep({
   options: SweepMotor[];
   /** The design's own motor designation, to mark its row. */
   designMotor: string;
+  /** That motor's manufacturer as the catalog spells it, when it matched exactly. Without it a
+   *  designation-only mark badges every manufacturer's motor of that name as the design's own. */
+  designManufacturer?: string;
   /** Active "what-if" nose ballast (kg), applied to every motor in the sweep. */
   ballastKg?: number;
   /** Active builder geometry edits, applied to every motor in the sweep. */
@@ -58,6 +62,8 @@ export default function MotorSweep({
   const [open, setOpen] = useState(false);
   const [rows, setRows] = useState<MotorSweepRow[] | null>(null);
   const [running, setRunning] = useState(false);
+  // Every option was filtered to one casing, so any of them states it.
+  const casingMm = Math.round((options[0]?.diameter ?? 0) * 1000);
 
   // Run the sweep off the main thread (falls back to synchronous if no worker), so a design's
   // dozens of flights don't freeze the UI. A stale run (inputs changed mid-flight) is ignored.
@@ -78,6 +84,7 @@ export default function MotorSweep({
         ballastKg,
         geometry,
         designMotor,
+        designManufacturer,
       },
       () => !live,
     ).then((r) => {
@@ -100,10 +107,17 @@ export default function MotorSweep({
     >
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="text-lg font-semibold tracking-tight">Compare fitting motors</h2>
-        <span className="text-xs text-zinc-500 dark:text-zinc-400">{options.length} motors fit this mount</span>
+        {/* The list is filtered by the CASING the design flies, not by the mount's bore, and the two
+            are not the same number: a 54 mm mount can fly a 38 mm motor in an adapter, and it is the
+            38 mm ones that are offered. Saying "fits this mount" claimed the wider set and was
+            checkably false against the design file, which states the bore outright. */}
+        <span className="text-xs text-zinc-500 dark:text-zinc-400">
+          {options.length} bundled {casingMm} mm motors
+        </span>
       </div>
       <p className="mt-1.5 text-sm text-zinc-600 dark:text-zinc-300">
-        Fly this airframe on every bundled motor that fits its mount diameter, all at once, and see
+        Fly this airframe on every bundled motor of the same {casingMm} mm casing it already flies,
+        all at once, and see
         how apogee, speed, rail-exit velocity, stability, and fin-flutter margin change across them —
         the classic &ldquo;which motor gets me to my target?&rdquo; sweep (and whether a punchier one
         pushes the fins toward flutter), run entirely on your device.

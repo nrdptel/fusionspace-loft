@@ -52,6 +52,13 @@ export interface MotorSweepOptions {
   geometry?: GeometryEdits;
   /** The design's own motor designation, to mark its row. */
   designMotor?: string;
+  /** The design motor's manufacturer, as the bundled catalog spells it. A designation alone is not
+   *  unique across manufacturers — an 18 mm sweep holds both an Estes C6 and a Quest C6, and marking
+   *  by designation alone badges BOTH as the design's own motor though they fly to different
+   *  apogees, so the table disagrees with itself about which flight the design gets. Supplied
+   *  only when the design's motor was matched exactly; left undefined, marking falls back to the
+   *  designation, which is the best that can be said about an unmatched motor. */
+  designManufacturer?: string;
 }
 
 /** Fly `rocket` on each of `motors` and return one row per motor that flies, sorted by apogee
@@ -84,7 +91,9 @@ export function motorSweep(rocket: Rocket, motors: SweepMotor[], opts: MotorSwee
         flutterMargin: run.result.flutter ? run.result.flutter.worst.margin : Number.NaN,
         // A motor that never really flew (won't clear the rail) has no meaningful apogee delay.
         optimumDelay: Number.isFinite(s.optimumDelay) && s.optimumDelay > 0 ? s.optimumDelay : Number.NaN,
-        isDesign: m.designation === opts.designMotor,
+        isDesign:
+          m.designation === opts.designMotor &&
+          (!opts.designManufacturer || m.manufacturer === opts.designManufacturer),
       });
     } catch {
       // A motor that can't be flown on this airframe is simply left out of the comparison.

@@ -4,6 +4,7 @@ import { importOrk } from "../ork/import";
 import { runFlight, overridesFromStored } from "./run";
 import { motorSweep, parameterSweep, linRange, type SweepMotor } from "./sweep";
 import { allMotors } from "../motors/db";
+import { designMotorIdentity, swapOptions } from "../motors/swap";
 import { primaryFinSpan, primaryFinRootChord, primaryFinTipChord, primaryFinThickness, primaryFinStation, primaryBodyTube } from "../model/edit";
 
 async function load(name: string) {
@@ -141,6 +142,40 @@ describe("motorSweep", () => {
     });
     expect(rows.some((r) => r.designation === "ZZ9999XX")).toBe(false);
     expect(rows.length).toBe(good.length);
+  });
+
+  it("marks one row as the design's own motor, not every maker's motor of that name", async () => {
+    // A designation does not identify a motor. The bundled 18 mm set holds an Estes C6 and a Quest
+    // C6, and they do not fly the same, so badging both as "the design's own" makes the table
+    // disagree with itself about which flight the design actually gets.
+    const doc = await load("demo-single-deploy.ork");
+    const sim = doc.simulations[0];
+    const options = swapOptions(18);
+    const c6s = options.filter((o) => o.designation === "C6");
+    expect(c6s.length, "the 18 mm set no longer carries two C6s — this test needs them").toBe(2);
+
+    const identity = designMotorIdentity({ designation: "C6", manufacturer: "Estes" });
+    const marked = motorSweep(doc.rocket, options, {
+      configId: sim.conditions.configId,
+      overrides: overridesFromStored(sim),
+      designMotor: "C6",
+      designManufacturer: identity.manufacturer,
+    }).filter((r) => r.isDesign);
+    expect(marked.length).toBe(1);
+    // Pin which one, not just that there is one: asserting against `identity.manufacturer` alone
+    // would pass with the two makers swapped.
+    expect(marked[0].manufacturer).toBe("Estes Industries");
+    expect(identity.manufacturer).toBe("Estes Industries");
+
+    // Without the manufacturer there is nothing to tell them apart, and both get badged — which is
+    // what this field exists to prevent, and what every RockSim/RASAero design used to get.
+    const ambiguous = motorSweep(doc.rocket, options, {
+      configId: sim.conditions.configId,
+      overrides: overridesFromStored(sim),
+      designMotor: "C6",
+    }).filter((r) => r.isDesign);
+    expect(ambiguous.length).toBe(2);
+    expect(new Set(ambiguous.map((r) => r.manufacturer)).size).toBe(2);
   });
 });
 

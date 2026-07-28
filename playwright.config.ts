@@ -11,6 +11,13 @@ import { defineConfig, devices } from "@playwright/test";
 
 export default defineConfig({
   testDir: "./e2e",
+  // Playwright's default per-test budget is 30 s, and five tests wait on a session restore with an
+  // explicit `{ timeout: 30_000 }` — the WHOLE budget — before doing anything else, so a slow reload
+  // left nothing for the steps after it and the test timed out mid-click rather than on a real
+  // assertion. Seen once in six full runs on this four-core box, passing 3/3 in isolation; locally
+  // `retries: 0`, so it is a hard red. 60 s leaves headroom after the worst restore observed without
+  // making a genuinely hung test slow to report.
+  timeout: 60_000,
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,

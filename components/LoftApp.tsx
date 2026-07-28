@@ -40,7 +40,7 @@ import {
   defaultPayloadStation,
 } from "@/lib/model/edit";
 import type { SurfaceFinish, NoseShape, FinCrossSection } from "@/lib/model/types";
-import { allMotors } from "@/lib/motors/db";
+import { designMotorIdentity, swapOptions, type SwapOption } from "@/lib/motors/swap";
 import { defaultConditions, type ConditionOverrides } from "@/lib/sim/setup";
 import { fetchConditions, geocode, type WeatherConditions } from "@/lib/weather";
 import {
@@ -145,7 +145,10 @@ function hasActiveEdits(e: Edits): boolean {
  *  Built once per design/config so the picker offers a fitting alternative without editing the file. */
 interface SwapInfo {
   designMotor: string;
-  options: { designation: string; manufacturer: string; diameter: number; motorClass: string }[];
+  /** The design motor's manufacturer as the catalog spells it, set only when the motor matched
+   *  exactly — what tells an Estes C6 from a Quest C6 when the sweep marks the design's own row. */
+  designManufacturer?: string;
+  options: SwapOption[];
 }
 
 export default function LoftApp() {
@@ -686,18 +689,12 @@ export default function LoftApp() {
     const config = pickConfig(doc.rocket, sim?.conditions.configId);
     const motor = config?.instances[0]?.motor;
     if (!motor?.designation) return null;
-    const diaMm = Math.round((motor.diameter ?? 0) * 1000);
+    // Which casing to offer swaps at, and who made the design's motor. RockSim and RASAero state no
+    // casing at all, which used to leave this 0 and withhold both surfaces from every design they
+    // write; see `designMotorIdentity` for what stands in and what deliberately does not.
+    const { casingMm: diaMm, manufacturer: designManufacturer } = designMotorIdentity(motor);
     if (!(diaMm > 0)) return null;
-    const options = allMotors()
-      .filter((m) => Math.round(m.curve.diameterMm) === diaMm)
-      .sort((a, b) => a.curve.totalImpulse - b.curve.totalImpulse)
-      .map((m) => ({
-        designation: m.designation,
-        manufacturer: m.manufacturer ?? m.curve.manufacturer ?? "",
-        diameter: m.curve.diameterMm / 1000,
-        motorClass: m.curve.motorClass,
-      }));
-    return { designMotor: motor.designation, options };
+    return { designMotor: motor.designation, designManufacturer, options: swapOptions(diaMm) };
   }, [doc, simIndex]);
 
   // The design's own dimensions, shown as the starting points for the builder edits.
@@ -965,6 +962,7 @@ export default function LoftApp() {
               }}
               swapOptions={swapInfo?.options}
               designMotor={swapInfo?.designMotor}
+              designManufacturer={swapInfo?.designManufacturer}
               onEditGeometry={applyEdit}
               onSelectFinSet={(id) => applyEdit({ finSetId: id ?? undefined })}
               initialTab={initialTab}
@@ -1511,8 +1509,10 @@ function DesignEditor({
             altitude and a drogue diameter — the main then opens low over a drogue that controls the
             fall from apogee, cutting drift) to trim stability, drag, apogee, or landing.
             It&apos;s a hypothetical change to the design, so the {tool} comparison is hidden while
-            any is set. The geometry fields start from the design&apos;s own dimensions; only motors
-            that fit this airframe&apos;s diameter are offered.
+            any is set. The geometry fields start from the design&apos;s own dimensions; the motors
+            offered are the bundled ones of the same casing as the one this design already flies —
+            that casing demonstrably fits, which a mount&apos;s stated bore does not establish for
+            every motor that would go in it.
           </p>
         </div>
   );

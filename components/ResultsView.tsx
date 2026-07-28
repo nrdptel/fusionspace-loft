@@ -144,6 +144,7 @@ export default function ResultsView({
   geometry,
   swapOptions,
   designMotor,
+  designManufacturer,
   onEditGeometry,
   onSelectFinSet,
   initialTab,
@@ -169,6 +170,9 @@ export default function ResultsView({
   swapOptions?: { designation: string; manufacturer: string; diameter: number; motorClass: string }[];
   /** The design's own motor designation, to mark its row in the sweep. */
   designMotor?: string;
+  /** That motor's manufacturer as the catalog spells it, when it matched exactly — a designation
+   *  alone does not identify a motor, and an 18 mm sweep carries two different C6s. */
+  designManufacturer?: string;
   /** Apply a geometry edit from the diagram's drag handle (e.g. fin station) — the same path a
    *  numeric what-if field uses, so dragging and typing converge on one edit flow. */
   onEditGeometry?: (patch: GeometryEdits) => void;
@@ -701,6 +705,7 @@ export default function ResultsView({
           units={units}
           options={swapOptions}
           designMotor={designMotor ?? ""}
+          designManufacturer={designManufacturer}
           ballastKg={ballastKg}
           geometry={geometry}
         />
