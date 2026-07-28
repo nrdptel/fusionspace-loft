@@ -41,7 +41,7 @@ import {
 } from "@/lib/model/edit";
 import type { SurfaceFinish, NoseShape, FinCrossSection } from "@/lib/model/types";
 import { allMotors } from "@/lib/motors/db";
-import type { ConditionOverrides } from "@/lib/sim/setup";
+import { defaultConditions, type ConditionOverrides } from "@/lib/sim/setup";
 import { fetchConditions, geocode, type WeatherConditions } from "@/lib/weather";
 import {
   clearDiscardedSession,
@@ -59,7 +59,7 @@ import {
   toBase64,
   type RecentDesign,
 } from "@/lib/session";
-import { mToFt, ftToM, mpsToMph, mphToMps } from "@/lib/units";
+import { mToFt, ftToM, mpsToMph, mphToMps, radToDeg } from "@/lib/units";
 import { TOUCH_TARGET } from "@/lib/ui-tokens";
 import { rangeWords, refusedMessage } from "@/lib/what-if";
 import * as d from "@/lib/display";
@@ -510,6 +510,33 @@ export default function LoftApp() {
     [doc, compute, simIndex],
   );
 
+  /** The launch conditions the flight is actually using when the Conditions fields are blank —
+   *  resolved exactly as `makeConditions` resolves them, so what the greyed placeholders advertise is
+   *  what the solver flew. Recomputed with the design and the picked configuration because a stored
+   *  simulation carries its own rail and wind. */
+  const flownConditions = useMemo(() => {
+    const base = defaultConditions();
+    const sim = doc ? (doc.simulations[simIndex] ?? doc.simulations[0]) : undefined;
+    const stored = sim ? overridesFromStored(sim) : undefined;
+    // Today's weather governs elevation while it is on — `compute` above sets exactly that override —
+    // so the elevation placeholder follows it. Rail length and angle are not weather and keep coming
+    // from the design.
+    //
+    // WIND IS DIFFERENT, and advertising a number for it would be the same lie this is fixing. Under
+    // today's weather the solver does not read a surface wind at all: `windAt` returns
+    // `windProfile(altAgl)` whenever a profile is set, and that profile only falls back to the 10 m
+    // anemometer reading below the lowest reported level (~110 m MSL). A 900 m field flying a 15 m/s
+    // gradient wind drifts 324 m while the anemometer says 3 m/s — a flight that really was 3 m/s
+    // drifts 67 m. There is no single flown wind to show, so the field says so instead of naming one.
+    const usingToday = scenario === "today" && weather;
+    return {
+      rodLength: stored?.rodLength ?? base.rodLength,
+      rodAngleDeg: stored?.rodAngleDeg ?? radToDeg(base.rodAngleFromVertical),
+      windSpeed: usingToday ? null : (stored?.windSpeed ?? base.windSpeed),
+      launchAltitude: usingToday ? weather.elevationMsl : (stored?.launchAltitude ?? base.launchAltitude),
+    };
+  }, [doc, simIndex, scenario, weather]);
+
   const applyEdit = (patch: Edits) => {
     const next = { ...edits, ...patch };
     setEdits(next);
@@ -876,6 +903,7 @@ export default function LoftApp() {
             units={units}
             edits={edits}
             onEdit={applyEdit}
+            flown={flownConditions}
             weather={weather}
             scenario={scenario}
             setScenario={(s) => {
@@ -883,9 +911,17 @@ export default function LoftApp() {
               rerun(edits, weather, s);
             }}
             onWeather={(wx) => {
+              // Drop the two condition edits today's weather overrides. `compute` applies them and
+              // then overwrites both with the forecast, so leaving them set left the field greyed out
+              // displaying a number the flight had thrown away: 12 m/s in the box against 7.4 m/s
+              // flown, which is 2,518 m of drift advertised against the 1,563 m actually computed.
+              // `Num`'s own re-sync effect exists to guarantee a field never sits there showing a
+              // value that is not the one in the flight; this is the same rule one level up.
+              const kept = { ...edits, windSpeed: undefined, launchAltitude: undefined };
+              setEdits(kept);
               setWeather(wx);
               setScenario("today");
-              rerun(edits, wx, "today");
+              rerun(kept, wx, "today");
             }}
             busy={busy}
             tool={toolName}
@@ -1486,6 +1522,7 @@ function ConditionsControls({
   units,
   edits,
   onEdit,
+  flown,
   weather,
   scenario,
   setScenario,
@@ -1496,6 +1533,13 @@ function ConditionsControls({
   units: UnitSystem;
   edits: Edits;
   onEdit: (patch: Edits) => void;
+  /** The launch conditions the flight is ACTUALLY using when these fields are blank — the design's
+   *  own stored setup, or the engine's defaults where it stores none. The placeholders render this,
+   *  because `Num` treats a placeholder as a claim about what is being flown: it prints it verbatim
+   *  as "flying X" when it refuses an entry. Hardcoded literals made that claim false — 25 of the 27
+   *  corpus .ork files declare a rod length, one of them 3.048 m against a placeholder of 1.2, where
+   *  rail-exit reads 26 m/s as flown and 16 m/s if the flyer types what was advertised. */
+  flown: { rodLength: number; rodAngleDeg: number; windSpeed: number | null; launchAltitude: number };
   /** The tool whose stored comparison a condition change hides — named by the importer. */
   tool: string;
   weather: WeatherConditions | null;
@@ -1547,7 +1591,7 @@ function ConditionsControls({
           <Num
             label={`Rail length (${lenU})`}
             value={toDispLen(edits.rodLength)}
-            placeholder="1.2"
+            placeholder={toDispLen(flown.rodLength)}
             onChange={(v) => onEdit({ rodLength: fromLen(v) })}
             min={0}
             max={imperial ? 66 : 20}
@@ -1556,7 +1600,7 @@ function ConditionsControls({
           <Num
             label="Rail angle (°)"
             value={edits.rodAngleDeg ?? ""}
-            placeholder="0"
+            placeholder={String(Math.round(flown.rodAngleDeg * 10) / 10)}
             onChange={(v) => onEdit({ rodAngleDeg: v === "" ? undefined : Number(v) })}
             min={0}
             max={45}
@@ -1566,7 +1610,9 @@ function ConditionsControls({
           <Num
             label={`Surface wind (${spdU})`}
             value={toDispSpd(edits.windSpeed)}
-            placeholder="0"
+            // null means today's weather is flying a whole profile rather than one surface wind, so
+            // there is no number this field could honestly advertise.
+            placeholder={flown.windSpeed === null ? "today's profile" : toDispSpd(flown.windSpeed)}
             onChange={(v) => onEdit({ windSpeed: fromSpd(v) })}
             disabled={scenario === "today"}
             min={0}
@@ -1576,7 +1622,7 @@ function ConditionsControls({
           <Num
             label={`Field elev. (${lenU})`}
             value={toDispLen(edits.launchAltitude)}
-            placeholder="0"
+            placeholder={toDispLen(flown.launchAltitude)}
             onChange={(v) => onEdit({ launchAltitude: fromLen(v) })}
             disabled={scenario === "today"}
             min={imperial ? -1400 : -430}
@@ -1585,8 +1631,11 @@ function ConditionsControls({
           />
         </div>
         <p className="text-xs text-zinc-500 dark:text-zinc-400">
-          Blank fields use the design&apos;s stored launch conditions. Changing any field re-flies
-          the design and hides the {tool} comparison (the conditions no longer match).
+          Each greyed value is what the flight is using for that field right now, read at the
+          field&apos;s own precision — the design&apos;s stored setup, or today&apos;s weather where
+          that is on. With today&apos;s weather the wind is a profile that changes with altitude
+          rather than one number, so that field says so instead of naming one. Changing any field
+          re-flies the design and hides the {tool} comparison (the conditions no longer match).
         </p>
 
         <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-900/60">

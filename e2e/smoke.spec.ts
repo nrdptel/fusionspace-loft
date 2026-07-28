@@ -1614,6 +1614,46 @@ test.describe("Loft", () => {
     await expect(offer).not.toContainText("what-if");
   });
 
+  test("the Conditions placeholders advertise the setup that is actually being flown", async ({ page }) => {
+    // They were hardcoded literals — "1.2", "0", "0", "0" — under a caption saying blank fields use
+    // the design's stored launch conditions, and `Num` treats a placeholder as a claim about what is
+    // flown: it prints it verbatim as "flying X" when it refuses an entry. 25 of the 27 corpus .ork
+    // files declare a rod length. On one storing 3.048 m, rail-exit reads 26 m/s as flown and 16 m/s
+    // if the flyer types the advertised 1.2 — a 1.6x gap on the launch-safety number the app's own
+    // ~15 m/s rule of thumb is checked against.
+    await page.goto("/");
+    // A from-scratch design stores no simulations, so the ENGINE's defaults are what fly: 1 m rail,
+    // no wind. That is the number the field must advertise, not a literal that matches neither.
+    await page.getByRole("button", { name: /Start a new design/ }).click();
+    await expect(page.getByRole("tab", { name: "Design" })).toHaveAttribute("aria-selected", "true");
+    const conditions = page.getByText(/^Conditions ·/).first();
+    await conditions.click();
+
+    const field = (re: RegExp) => page.locator("input").and(page.getByLabel(re)).first();
+    await expect(field(/Rail length/)).toHaveAttribute("placeholder", "1.0");
+    await expect(field(/Surface wind/)).toHaveAttribute("placeholder", "0.0");
+
+    // And — the case that actually guards the fix — a design that STORES its own conditions. Without
+    // this the test passes with the resolver replaced by defaultConditions(), i.e. with the reported
+    // defect fully reintroduced for the 25 of 27 corpus .ork files that declare a rod length.
+    await page.getByRole("button", { name: /Import another/ }).click();
+    await page.getByRole("button", { name: /54 mm dual-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+    await page.getByText(/^Conditions ·/).first().click();
+    const storedRail = await field(/Rail length/).getAttribute("placeholder");
+    const storedWind = await field(/Surface wind/).getAttribute("placeholder");
+    expect(parseFloat(storedRail!), "the design's own rail, not the engine default").toBeGreaterThan(1.05);
+    expect(parseFloat(storedWind!), "the design's own wind, not a hardcoded 0").toBeGreaterThan(0);
+
+    // And it converts with the unit toggle, like the label and the max beside it already did —
+    // checked against the metric reading of the SAME design rather than a hardcoded figure, so this
+    // keeps holding if the sample's stored rail ever changes.
+    await page.getByRole("button", { name: "Imperial" }).click();
+    await expect(page.getByLabel(/Rail length \(ft\)/).first()).toBeVisible();
+    const railImperial = parseFloat((await field(/Rail length/).getAttribute("placeholder"))!);
+    expect(railImperial, "the same rail, in feet").toBeCloseTo(parseFloat(storedRail!) * 3.28084, 0);
+  });
+
   test("no value surface is left in metric when Imperial is selected", async ({ page }) => {
     // The class this closes, rather than the four instances of it: a value that never converts at all
     // was invisible to the grep that policed this before, because that grep looked for display->SI
