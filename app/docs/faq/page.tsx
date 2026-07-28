@@ -426,6 +426,13 @@ export default function Faq() {
           <Link href="/docs/validation">Validation</Link> page uses on the bundled designs). Close
           agreement is reassuring; a gap is worth a look, not proof either engine is right.
         </p>
+        <p>
+          A run takes the better part of a minute, and once the runtime has it, <em>Stop</em> ends it —
+          genuinely, by shutting down the Python runtime rather than just stopping the wait, because a
+          WebAssembly CPython cannot be interrupted part-way through a flight. That is why stopping has
+          a price: a later run starts the runtime from scratch and costs what the first one did.
+          Nothing else in Loft is affected, and no partial RocketPy figure is ever shown.
+        </p>
       </QA>
 
       <QA q="It couldn't read my file, or a part was skipped.">

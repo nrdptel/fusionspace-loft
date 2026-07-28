@@ -254,4 +254,193 @@ test.describe("when the second solver stops", () => {
     await expect(panel.getByText("What RocketPy reported")).toHaveCount(0);
     await expect(panel.getByRole("button", { name: "Try RocketPy again" })).toBeVisible();
   });
+
+  // A run that cannot be stopped is a one-way door: the flight is the better part of a minute (15 s
+  // with the runtime already local, ~50 s over a real network), and until now the only exit was a
+  // reload, which drops the loaded design and every what-if set on it.
+  test.describe("stopping a run in flight", () => {
+    // A phone, because that is where the running row had nothing to spare: the stage label and its
+    // aside already filled 390 px, so a Stop beside them is only safe if the row wraps.
+    test.use({ viewport: { width: 390, height: 844 } });
+
+    /** A stand-in worker that reports it has started and then never answers, so the run stays in
+     *  flight for as long as the test needs. It counts its own constructions and terminations, since
+     *  "the runtime actually ended" is the whole claim being tested.
+     *
+     *  The progress message matters: Stop is deliberately withheld until the engine has the run, so a
+     *  worker that said nothing at all would never offer one — which is the correct behaviour and
+     *  would make this a test of the wrong thing. */
+    const silentWorker = (page: import("@playwright/test").Page) =>
+      page.addInitScript(() => {
+        const w = window as unknown as { __rp: { built: number; killed: number }; Worker: unknown };
+        w.__rp = { built: 0, killed: 0 };
+        w.Worker = class {
+          onmessage: ((e: { data: unknown }) => void) | null = null;
+          onerror: ((e: unknown) => void) | null = null;
+          constructor() {
+            w.__rp.built++;
+          }
+          postMessage(m: { id: number }) {
+            // Boot far enough to be stoppable, then go quiet — the flight never comes back.
+            setTimeout(
+              () => this.onmessage?.({ data: { id: m.id, type: "progress", stage: "Loading the Python runtime…" } }),
+              0,
+            );
+          }
+          terminate() {
+            w.__rp.killed++;
+          }
+        };
+      });
+
+    const startARun = async (page: import("@playwright/test").Page) => {
+      await silentWorker(page);
+      await page.goto("/");
+      await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+      await page.getByRole("tab", { name: "Analyze" }).click();
+      const panel = page.getByRole("region", { name: "RocketPy cross-check" });
+      await panel.getByRole("button", { name: "Run RocketPy" }).click();
+      await expect(panel.getByRole("button", { name: "Stop" })).toBeVisible();
+      return panel;
+    };
+
+    const counters = (page: import("@playwright/test").Page) =>
+      page.evaluate(() => (window as unknown as { __rp: { built: number; killed: number } }).__rp);
+
+    test("ends the runtime, says so, and leaves a way back that is not a reload", async ({ page }) => {
+      const panel = await startARun(page);
+      expect((await counters(page)).killed, "nothing terminated before Stop").toBe(0);
+
+      const stop = panel.getByRole("button", { name: "Stop" });
+      expect(Math.round((await stop.boundingBox())!.height), "Stop's hit target").toBeGreaterThanOrEqual(44);
+      // The row wraps rather than pushing the page sideways.
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth),
+        "page overflow while a run is stoppable",
+      ).toBeLessThanOrEqual(0);
+
+      await stop.click();
+
+      // The claim: the worker is genuinely gone. Merely dropping the listener would leave it running
+      // and strand the next run behind the abandoned flight.
+      expect((await counters(page)).killed, "Stop must end the runtime, not just the wait").toBe(1);
+
+      // A stop is not a failure and must not be dressed as one.
+      // The stage is named: a cold run is mostly downloading and installing, not flying.
+      await expect(panel.getByText(/Stopped at .Loading the Python runtime/)).toBeVisible();
+      await expect(panel.getByText(/RocketPy couldn't run/)).toHaveCount(0);
+      // The cost of stopping is stated rather than discovered on the next run.
+      await expect(panel.getByText(/starts it from scratch, so it costs what the first run did/)).toBeVisible();
+      await expect(panel.getByRole("button", { name: "Run RocketPy again" })).toBeVisible();
+      await expect(panel.getByRole("button", { name: "Stop" })).toHaveCount(0);
+    });
+
+    test("gives the next run a fresh runtime rather than queueing it behind the abandoned flight", async ({
+      page,
+    }) => {
+      const panel = await startARun(page);
+      expect((await counters(page)).built).toBe(1);
+      await panel.getByRole("button", { name: "Stop" }).click();
+      await expect(panel.getByRole("button", { name: "Run RocketPy again" })).toBeVisible();
+
+      await panel.getByRole("button", { name: "Run RocketPy again" }).click();
+
+      // A second worker, built from scratch: this is what stops the run after a stop from sitting at
+      // "Preparing…" for the remainder of the flight nobody is waiting for any more.
+      await expect(panel.getByRole("button", { name: "Stop" })).toBeVisible();
+      expect((await counters(page)).built, "the run after a stop boots its own runtime").toBe(2);
+    });
+
+    test("keeps the comparison the panel promised to keep", async ({ page }) => {
+      // The panel's whole reason for holding a result across an edit is that it costs the better part
+      // of a minute: it labels it as the previous design's rather than clearing it, so it can be the
+      // "before" while a flyer edits toward a target. Stop is the one button pressed expecting no side
+      // effects, so it must not be the thing that throws that away.
+      await page.addInitScript(() => {
+        const w = window as unknown as { __rp: { built: number; killed: number }; __answer: boolean; Worker: unknown };
+        w.__rp = { built: 0, killed: 0 };
+        w.__answer = true;
+        w.Worker = class {
+          onmessage: ((e: { data: unknown }) => void) | null = null;
+          onerror: ((e: unknown) => void) | null = null;
+          constructor() {
+            w.__rp.built++;
+          }
+          postMessage(m: { id: number }) {
+            setTimeout(
+              () => this.onmessage?.({ data: { id: m.id, type: "progress", stage: "Loading the Python runtime…" } }),
+              0,
+            );
+            // The second run is left hanging on purpose, so it can be stopped.
+            if (w.__answer)
+              setTimeout(
+                () =>
+                  this.onmessage?.({
+                    data: {
+                      id: m.id,
+                      type: "result",
+                      result: {
+                        apogee: 994,
+                        maxVelocity: 180,
+                        maxMach: 0.53,
+                        timeToApogee: 13.7,
+                        railExitVelocity: 22,
+                        staticMarginLiftoff: 2.1,
+                      },
+                    },
+                  }),
+                10,
+              );
+          }
+          terminate() {
+            w.__rp.killed++;
+          }
+        };
+      });
+      await page.goto("/");
+      await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+      await page.getByRole("tab", { name: "Analyze" }).click();
+      const panel = page.getByRole("region", { name: "RocketPy cross-check" });
+
+      await panel.getByRole("button", { name: "Run RocketPy" }).click();
+      const apogee = panel.getByRole("row", { name: /^Apogee\b/ });
+      await expect(apogee).toBeVisible();
+
+      // Edit the design so the kept result is explicitly labelled as the previous one, then re-run
+      // from that banner and stop it.
+      await page.evaluate(() => {
+        (window as unknown as { __answer: boolean }).__answer = false;
+      });
+      await page.getByRole("tab", { name: "Design" }).click();
+      await page.getByLabel(/Nose ballast/).fill("250");
+      await page.getByRole("tab", { name: "Analyze" }).click();
+      await expect(panel.getByText(/has changed since this ran/)).toBeVisible();
+
+      await panel.getByRole("button", { name: "Run RocketPy again" }).click();
+      await panel.getByRole("button", { name: "Stop" }).click();
+
+      // Stopped, and the earlier figures are still there — said out loud, not left to be noticed.
+      await expect(panel.getByText(/Stopped at /)).toBeVisible();
+      await expect(panel.getByText(/the comparison below is the earlier run/)).toBeVisible();
+      await expect(apogee, "the result that cost a minute survives the Stop").toBeVisible();
+      await expect(panel.getByText(/has changed since this ran/)).toBeVisible();
+    });
+
+    test("ends the run when the flyer leaves the design instead of stranding the next one", async ({ page }) => {
+      // The abandoned flight used to keep the worker's single run chain busy, so the NEXT design's
+      // cross-check sat on "Preparing…" until it finished — 13.5 s when measured, and longer the
+      // earlier the flyer walks away. Workspace tabs keep the panel mounted, so only leaving the
+      // design entirely does this.
+      const panel = await startARun(page);
+      expect((await counters(page)).killed).toBe(0);
+      await expect(panel.getByRole("button", { name: "Stop" })).toBeVisible();
+
+      await page.getByRole("button", { name: /Import another/ }).click();
+      await expect(page.getByRole("button", { name: /38 mm single-deploy/ })).toBeVisible();
+      expect(
+        (await counters(page)).killed,
+        "leaving the design ends the run rather than leaving it to block the next one",
+      ).toBe(1);
+    });
+  });
 });
