@@ -3,18 +3,51 @@
 Rough edges, missing affordances, and ideas too big for one pass — noticed while working,
 not yet done. Newest first. One line each. Anything here is fair game for the next session.
 
-- **UNREPRODUCED, and the first thing to confirm or dismiss next session:** `/docs/faq` did not survive
-  an offline reload on a 390 px phone context in the done-check walk of the shipped build, with 2 console
-  errors — where the service worker precaches 24 assets and 6 routes and a full navigation to a
-  precached route is supposed to work offline. **The probe is the likely culprit rather than the app:**
-  it called `setOffline(true)` immediately after the first load, so the worker may not have activated
-  yet. Re-run it waiting for `navigator.serviceWorker.ready` (and for the precache to settle) before
-  going offline; if it still fails, the offline claim on the docs routes is wrong and that is a real
-  defect on the form factor the project describes as a pad check with no signal. Same walk confirmed an
-  existing entry: /docs/faq is 17x the viewport height on that phone, with 0 px of horizontal overflow.
+- **The shelf's Remove "×" is a 24x44 px destructive control welded to a 240 px Reopen target with a
+  0 px gap, and it is the one control in `ImportPanel` that omits the repo's own `TOUCH_TARGET`
+  token.** One tap permanently deletes that design's stored bytes: 0 confirmations, no undo, and it
+  survives a reload (shelf 2 -> 1 entries, still 1 after reload). Measured at 390x844 and 412x915,
+  identical on both: the destructive control is 9.1-9.5% of its row's width with a 14 px glyph, and 2
+  of the 4 shelf controls under 44 px are both this one. The shelf exists precisely because at the pad
+  the .ork may not be on the phone at all — those bytes can be the only copy. This is now the sharpest
+  remaining one-way door, and it is inconsistent with its own neighbour: leaving a design ships an undo
+  as of this session, deleting one from the shelf does not.
+- **Offline, the RocketPy panel blames itself instead of the network.** With no signal it says
+  "RocketPy couldn't run: The RocketPy worker crashed." — the truth is that the ~40 MB Pyodide runtime
+  is not precached and cannot be fetched. `/pyodide/` appears in 0 of the 34 service-worker cache
+  entries, `navigator.onLine` is false throughout and is never consulted, and the "downloads ~40 MB the
+  first time" hint is shown only in the idle phase, so the single clue that a download was needed is
+  removed by the very failure that explains it. The weather path on the same screen already gets this
+  right ("Couldn't fetch weather (offline, or the service is down)") — 1 of the 2 network-dependent
+  features names the connection. A flyer will re-tap a button that cannot succeed.
+- **The Flight card's stat tiles put the two things you most need to read at the two smallest sizes.**
+  On a phone every read-out's label is 11 px and 15 of 25 render the unit at 12 px against a 20-24 px
+  value — the unit is 50-60% of the value's size. 118 of 239 visible text nodes on that workspace are
+  under 12 px (28 at 9 px). Metric and imperial are both offered and 630 m of drift is a different
+  recovery walk from 630 ft, so a big number whose unit you cannot read in sunlight with gloves on is a
+  number you can act on wrongly. Distinct from the known /docs sub-12 px note, which is prose and
+  formula subscripts.
 
-- **Leaving a design still throws away the work done on it, and the fix was written, verified and
-  REVERTED this run — read this before rewriting it.** The defect: "Import another" (and "Start fresh",
+- **SETTLED — offline works, and the earlier doubt was my probe, not the app.** Under HARD offline
+  (140 wire requests aborted, 120 of them service-worker-originated; control: /robots.txt returns 504
+  len=0, so the offline was real) all six precached routes — `/`, `/docs`, `/docs/faq`,
+  `/docs/methods`, `/docs/limitations`, `/docs/validation` — serve http=200 `fromServiceWorker=true`
+  with byte-identical body text (faq 24,742 chars, methods 40,884, limitations 32,256), CSS applied,
+  React hydrated, 0 uncaught errors. The routes precache within 7 ms of `serviceWorker.ready` (34 cache
+  entries). The previous session's "it fails" came from calling `setOffline(true)` before the worker
+  activated. **And the whole pad check completes offline:** a cold boot of `/` renders the import panel
+  and the shelf, one tap on a shelf row reopens a design in 3.06 s reading Apogee 2,941 m, descent
+  5 m/s under main, drogue 16 m/s, drift 630 m, and an offline round trip to /docs and back (454 ms
+  out, 1,544 ms back) restores the design and the open workspace. It stops nowhere.
+
+- **RESOLVED a different way this session — leaving a design is now undoable.** Kept for the six
+  traps it documents, because they are about the recents shelf's identity and eviction model and every
+  one of them is still true of that shelf. What shipped instead is a single "discarded session" slot:
+  `reset()` stores the session it is about to clear, and the import screen offers to pick it back up.
+  No shelf identity, no eviction, and restoring is the same operation as resuming a session — which is
+  why traps 1, 2, 3 and 6 cannot apply to it. The ORIGINAL entry, with the traps, follows.
+
+- **[SUPERSEDED — the shelf-based approach, and why it was reverted.]** The defect: "Import another" (and "Start fresh",
   same `reset`) is one click that discards the design, every what-if and the session with no
   confirmation, and the recents shelf — the apparent way back — returns the airframe with an empty edit
   bag. Measured on the 38 mm sample: a 75 mm fin span and 20 g of nose ballast take apogee 993 m ->

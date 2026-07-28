@@ -8,6 +8,10 @@ import {
   loadRecents,
   rememberRecent,
   forgetRecent,
+  saveDiscardedSession,
+  loadDiscardedSession,
+  clearDiscardedSession,
+  countWhatIfs,
   clearRecents,
   MAX_RECENTS,
 } from "./session";
@@ -121,6 +125,94 @@ describe("session storage", () => {
     saveSession(session());
     clearSession();
     expect(loadSession()).toBeNull();
+  });
+});
+
+describe("the discarded session", () => {
+  const sess = (over: Partial<import("./session").SavedSession> = {}) => ({
+    v: 1 as const,
+    design: "AAEC",
+    name: "a.ork",
+    opensOn: "flight" as const,
+    units: "metric" as const,
+    simIndex: 0,
+    edits: {},
+    ...over,
+  });
+
+  it("holds the session that was thrown away, and hands it back intact", () => {
+    // "Import another" is one click, from a text link 12 px from the design-name input, and it took
+    // the design, every what-if on it and the session with no confirmation. On the 38 mm sample that
+    // was a 75 mm fin span and 20 g of nose ballast — apogee 993 m -> 881 m — gone.
+    const s = sess({ edits: { finSpan: 0.075, ballastKg: 0.02 }, simIndex: 2, units: "imperial", opensOn: "design" });
+    saveDiscardedSession(s);
+    expect(loadDiscardedSession()).toEqual(s);
+  });
+
+  it("is separate from the live session, so clearing one leaves the other", () => {
+    // The whole point: reset() clears the live session and the discarded slot must survive it, or
+    // there is nothing to pick back up.
+    saveSession(sess({ name: "live.ork" }));
+    saveDiscardedSession(sess({ name: "thrown-away.ork" }));
+    clearSession();
+    expect(loadSession()).toBeNull();
+    expect(loadDiscardedSession()?.name).toBe("thrown-away.ork");
+  });
+
+  it("keeps exactly one level, replaced each time a design is left", () => {
+    saveDiscardedSession(sess({ name: "first.ork" }));
+    saveDiscardedSession(sess({ name: "second.ork" }));
+    expect(loadDiscardedSession()?.name).toBe("second.ork");
+    clearDiscardedSession();
+    expect(loadDiscardedSession()).toBeNull();
+  });
+
+  it("reports whether it stored, so a way back is only offered when there is one", () => {
+    // A design past the size cap is not kept — and the caller needs to know, because offering to
+    // restore a session that was never written is a button that does nothing.
+    expect(saveDiscardedSession(sess())).toBe(true);
+    const huge = sess({ design: "A".repeat(1_500_001) });
+    expect(saveDiscardedSession(huge)).toBe(false);
+    // ...and the earlier slot is left alone rather than half-overwritten.
+    expect(loadDiscardedSession()?.design).toBe("AAEC");
+  });
+
+  it("discards an unreadable or older-schema slot rather than half-reading it", () => {
+    localStorage.setItem("loft.session.discarded", "{not json");
+    expect(loadDiscardedSession()).toBeNull();
+    localStorage.setItem("loft.session.discarded", JSON.stringify({ ...sess(), v: 0 }));
+    expect(loadDiscardedSession()).toBeNull();
+  });
+});
+
+describe("countWhatIfs", () => {
+  const sess = (edits: Record<string, unknown>) => ({
+    v: 1 as const,
+    design: "AAEC",
+    name: "a.ork",
+    opensOn: "flight" as const,
+    units: "metric" as const,
+    simIndex: 0,
+    edits,
+  });
+
+  it("counts the what-ifs a flyer actually set", () => {
+    expect(countWhatIfs(sess({ finSpan: 0.075, ballastKg: 0.02 }))).toBe(2);
+    expect(countWhatIfs(sess({}))).toBe(0);
+  });
+
+  it("does not count a field that was set and then cleared", () => {
+    // The edit bag is a patch spread over the previous bag, so clearing a field leaves its key behind
+    // holding undefined. Counting keys would tell a flyer an as-designed rocket carries changes.
+    expect(countWhatIfs(sess({ finSpan: undefined, noseShape: "" }))).toBe(0);
+    expect(countWhatIfs(sess({ finSpan: 0.075, ballastKg: undefined }))).toBe(1);
+  });
+
+  it("does not count a fin-set SELECTION as a change", () => {
+    // finSetId says which fin set the fields are pointed at. The app's own hasActiveEdits excludes it
+    // deliberately — counting it would badge a rocket that was only looked at.
+    expect(countWhatIfs(sess({ finSetId: "10f70000-0000-0000-0000-000000000007" }))).toBe(0);
+    expect(countWhatIfs(sess({ finSetId: "abc", finSpan: 0.075 }))).toBe(1);
   });
 });
 

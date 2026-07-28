@@ -1494,6 +1494,126 @@ test.describe("Loft", () => {
     await expect.poll(async () => parseFloat((await span.getAttribute("aria-valuenow")) ?? "0")).toBeLessThan(afterDrag);
   });
 
+  test("leaving a design is undoable, and the undo brings the what-ifs with it", async ({ page }) => {
+    // "Import another" is a text-link-styled button 12 px from the design-name input, and one click on
+    // it discarded the loaded design, every what-if on it and the session, with no confirmation and no
+    // way back. Measured on this sample: a 75 mm fin span and 20 g of nose ballast move apogee
+    // 993 m -> 881 m, and that click took all of it.
+    //
+    // The fix is deliberately NOT the recents shelf, which was tried and reverted: hanging per-design
+    // state on a name-and-size-keyed list with an eviction rule made the entry holding the work the
+    // first one evicted. This is one slot holding the session that was just discarded, so restoring it
+    // is the same operation as resuming one.
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+
+    const apogee = async () => {
+      await page.getByRole("tab", { name: "Flight" }).click();
+      const v = page
+        .locator("#panel-flight")
+        .getByText("Apogee", { exact: true })
+        .locator("xpath=following-sibling::div[1]");
+      return parseFloat((await v.first().textContent())!.replace(/[^\d.]/g, ""));
+    };
+    const field = (re: RegExp) => page.locator("input").and(page.getByLabel(re)).first();
+
+    const asDesigned = await apogee();
+    await page.getByRole("tab", { name: "Design" }).click();
+    await field(/Fin span/).fill("75");
+    await field(/Nose ballast/).fill("20");
+    const edited = await apogee();
+    expect(edited, "the what-ifs actually move the flight").toBeLessThan(asDesigned - 50);
+
+    await page.getByRole("button", { name: /Import another/ }).click();
+
+    // The offer names the design and what it is holding, rather than making the flyer press it to
+    // find out — and it counts by the app's own definition of edited, not by keys in a bag.
+    await expect(page.getByText(/You were working on/)).toBeVisible();
+    await expect(page.getByText(/with 2 what-ifs set/)).toBeVisible();
+
+    // It survives a reload of the import screen. That is the pad case: the phone reclaimed the tab and
+    // the design file may not even be on the device.
+    await page.reload();
+    await expect(page.getByText(/You were working on/)).toBeVisible();
+
+    await page.getByRole("button", { name: "Pick it back up" }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+    expect(await apogee(), "the undo restores the flight that was thrown away").toBeCloseTo(edited, 0);
+    await page.getByRole("tab", { name: "Design" }).click();
+    await expect(field(/Fin span/)).toHaveValue("75");
+    await expect(field(/Nose ballast/)).toHaveValue("20");
+
+    // Consumed — checked in STORAGE, not on screen. The import panel only renders when no design is
+    // loaded, so asserting the offer is absent right after restoring one is vacuous: it could not be
+    // visible whatever the slot holds.
+    expect(
+      await page.evaluate(() => localStorage.getItem("loft.session.discarded")),
+      "restoring consumes the slot rather than leaving a stale offer",
+    ).toBeNull();
+  });
+
+  test("a design carrying nothing does not evict the one that was carrying work", async ({ page }) => {
+    // The natural recovery move after a mis-click is to open something else to get oriented. If
+    // leaving THAT overwrote the slot, the move that looks like recovery would be what destroys the
+    // work — so a session with no what-ifs and the design's own motor configuration never displaces
+    // one that has them. The design itself is on the recents shelf either way; the trims are not.
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+    await page.getByRole("tab", { name: "Design" }).click();
+    await page.locator("input").and(page.getByLabel(/Fin span/)).first().fill("75");
+    await page.getByRole("button", { name: /Import another/ }).click();
+    await expect(page.getByText(/with 1 what-if set/)).toBeVisible();
+
+    // Open a different design, change nothing, and leave it again.
+    await page.getByRole("button", { name: /54 mm dual-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+    await page.getByRole("button", { name: /Import another/ }).click();
+
+    // The offer still holds the edited design, not the untouched one.
+    await expect(page.getByText(/with 1 what-if set/)).toBeVisible();
+    await page.getByRole("button", { name: "Pick it back up" }).click();
+    await page.getByRole("tab", { name: "Design" }).click();
+    await expect(page.locator("input").and(page.getByLabel(/Fin span/)).first()).toHaveValue("75");
+  });
+
+  test("offers a renamed design back under the name the flyer gave it", async ({ page }) => {
+    // The offer used to render the FILE name, so a from-scratch build came back as "New design"
+    // however it had been renamed — on the one control whose whole job is to say what it is holding.
+    await page.goto("/");
+    await page.getByRole("button", { name: /Start a new design/ }).click();
+    // A built design opens on the Design workspace, not on a "Design" heading.
+    await expect(page.getByRole("tab", { name: "Design" })).toHaveAttribute("aria-selected", "true");
+    await page.getByLabel("Design name").fill("Osprey II");
+    await page.locator("input").and(page.getByLabel(/Fin span/)).first().fill("90");
+    await page.getByRole("button", { name: /Import another/ }).click();
+    await expect(page.getByText(/You were working on/)).toContainText("Osprey II");
+  });
+
+  test("an as-designed rocket is not reported as carrying what-ifs", async ({ page }) => {
+    // The count has to be the app's own notion of edited. A previous attempt at this feature counted
+    // the keys in the edit bag, which badges a rocket that was only looked at: the bag is a patch
+    // spread over the previous bag, so a cleared field leaves its key behind.
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+    await page.getByRole("tab", { name: "Design" }).click();
+
+    // Set a what-if and clear it again — as-designed, by the app's own gate.
+    const span = page.locator("input").and(page.getByLabel(/Fin span/)).first();
+    await span.fill("75");
+    await span.fill("");
+    await expect(page.getByRole("button", { name: /Reset to as-designed/ })).toHaveCount(0);
+
+    await page.getByRole("button", { name: /Import another/ }).click();
+    // Scoped to the offer itself: the shelf's own caption further down the same screen mentions
+    // what-if edits too, and matching that would make this pass for the wrong reason.
+    const offer = page.getByText(/You were working on/);
+    await expect(offer).toBeVisible();
+    await expect(offer).not.toContainText("what-if");
+  });
+
   test("no value surface is left in metric when Imperial is selected", async ({ page }) => {
     // The class this closes, rather than the four instances of it: a value that never converts at all
     // was invisible to the grep that policed this before, because that grep looked for display->SI

@@ -44,13 +44,18 @@ import { allMotors } from "@/lib/motors/db";
 import type { ConditionOverrides } from "@/lib/sim/setup";
 import { fetchConditions, geocode, type WeatherConditions } from "@/lib/weather";
 import {
+  clearDiscardedSession,
   clearSession,
   forgetRecent,
   fromBase64,
+  loadDiscardedSession,
   loadRecents,
   loadSession,
   rememberRecent,
+  carriesWork,
+  saveDiscardedSession,
   saveSession,
+  type SavedSession,
   toBase64,
   type RecentDesign,
 } from "@/lib/session";
@@ -147,6 +152,10 @@ export default function LoftApp() {
   const [units, setUnits] = useState<UnitSystem>("metric");
   const [doc, setDoc] = useState<OrkDocument | null>(null);
   const [fileName, setFileName] = useState<string>("");
+  /** The session the last "Import another" / "Start fresh" threw away, offered back on the import
+   *  screen. Read on mount rather than during render: localStorage is client-only and the first
+   *  render has to match the server's. */
+  const [discarded, setDiscarded] = useState<SavedSession | null>(null);
   const [run, setRun] = useState<FlightRun | null>(null);
   const [baseline, setBaseline] = useState<FlightRun | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -360,6 +369,45 @@ export default function LoftApp() {
   // Reopen a design from the shelf. Its bytes go back through the ordinary importer, exactly as a
   // restored session does, so a reopened design is byte-for-byte the one that was saved — stored
   // results and all. Its what-if edits are not kept: the shelf remembers designs, not experiments.
+  /** Pick the discarded session back up — the undo for "Import another" / "Start fresh". It runs the
+   *  same path a resumed session does, so what comes back is byte-for-byte the design that was open,
+   *  with its edits, its motor configuration, its units and the workspace it was left on.
+   *
+   *  What it does NOT restore is today's-weather, because the session has never carried that: a
+   *  reload loses it too. Restoring only what a reload restores keeps one rule instead of two. */
+  const onRestoreDiscarded = useCallback(async () => {
+    const saved = loadDiscardedSession();
+    if (!saved) {
+      // Another tab picked it up first, or storage was cleared underneath us. The offer was rendered
+      // from state read at mount, so it can outlive what it points at — say so rather than having the
+      // button quietly do nothing, which is what the sibling failure path below already does.
+      setDiscarded(null);
+      setError("That design was already picked back up somewhere else, so there is nothing to restore.");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const bytes = fromBase64(saved.design);
+      const document = await importDesign(bytes);
+      setUnits(saved.units);
+      loadDoc(document, saved.name, saved.opensOn, bytes, {
+        edits: saved.edits as Edits,
+        simIndex: saved.simIndex,
+      });
+      clearDiscardedSession();
+      setDiscarded(null);
+    } catch {
+      // The bytes no longer import (a format change, a truncated write). Drop the offer rather than
+      // leaving a button that fails every time it is pressed.
+      clearDiscardedSession();
+      setDiscarded(null);
+      setError("What you were working on could no longer be read, so it has been cleared.");
+    } finally {
+      setBusy(false);
+    }
+  }, [loadDoc]);
+
   const onOpenRecent = useCallback(
     async (id: string) => {
       const entry = loadRecents().find((r) => r.id === id);
@@ -503,6 +551,35 @@ export default function LoftApp() {
     setScenario("design");
     setSimIndex(0);
     setRestored(false);
+    // Keep what is being thrown away. This is the app's one destructive act — a single click, from a
+    // text link 12 px from the design-name input — and it took the design, every what-if on it and the
+    // session with it. The slot holds exactly the session that is about to be cleared, so picking it
+    // back up is the same operation as resuming one.
+    if (designBytes.current) {
+      const leaving: SavedSession = {
+        v: 1,
+        design: designBytes.current,
+        name: fileName,
+        rocket: doc?.rocket.name || undefined,
+        opensOn: initialTab,
+        units,
+        simIndex,
+        edits: edits as Record<string, unknown>,
+      };
+      // One slot, so what goes in it matters. A session carrying nothing — no what-ifs, the design's
+      // own motor configuration — must not evict one that carries something: the DESIGN is on the
+      // recents shelf either way, but the trims exist nowhere else. Without this rule the natural
+      // recovery move after a mis-click (open a sample to get oriented, leave it again) is what
+      // destroys the work the offer was holding.
+      const held = loadDiscardedSession();
+      if (carriesWork(leaving) || !held || !carriesWork(held)) {
+        // Only offer a way back that actually exists: a design past the storage cap, or storage
+        // disabled outright, means nothing was kept and a button promising otherwise would do nothing.
+        setDiscarded(saveDiscardedSession(leaving) ? leaving : null);
+      } else {
+        setDiscarded(held);
+      }
+    }
     designBytes.current = null;
     clearSession();
     // No design, no workspace — leave the address on the import screen rather than pointing at a
@@ -518,6 +595,7 @@ export default function LoftApp() {
   // the first render has to match the server's (empty) one.
   useEffect(() => {
     setRecents(loadRecents());
+    setDiscarded(loadDiscardedSession());
   }, []);
 
   useEffect(() => {
@@ -678,6 +756,8 @@ export default function LoftApp() {
             recents={recents}
             onOpenRecent={onOpenRecent}
             onForgetRecent={onForgetRecent}
+            discarded={discarded}
+            onRestoreDiscarded={onRestoreDiscarded}
           />
         </>
       )}
