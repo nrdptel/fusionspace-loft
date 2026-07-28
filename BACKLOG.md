@@ -3,6 +3,24 @@
 Rough edges, missing affordances, and ideas too big for one pass — noticed while working,
 not yet done. Newest first. One line each. Anything here is fair game for the next session.
 
+- **A Conditions placeholder is a READING of the flown value at the field's own display precision, not
+  the value itself — and now that it looks authoritative, typing it back costs something.** Rail length
+  renders to 1 dp (3.048 m shows "3.0", 3.6576 shows "3.7", up to 1.6% off) and surface wind to whole
+  mph in imperial (2.0 m/s shows "4", and 0.599 m/s on `Show-off.CDX1` shows "1", a 25% understatement).
+  Typing the advertised number back is not the no-op it looks like: on `base-drag-hack.ork` in imperial,
+  entering the advertised 4 mph moved drift from 149 ft to 133 ft (−11%), and it trips `hasActiveEdits`,
+  which HIDES the stored OpenRocket/RockSim/RASAero comparison — the app discards its own validation
+  panel in exchange for a value it had just claimed was in force. The old hardcoded "1.2" never invited
+  that because it was obviously not the design's. Options: round-trip-safe display precision on these
+  four fields, or treat an entry equal to the flown value at display precision as no edit at all.
+- **A condition typed and then overridden by today's weather is only DISABLED, not cleared, on the
+  other two fields' pattern.** Fixed this session for surface wind and field elevation — `onWeather`
+  now drops those two edits, because `compute` applied them and then overwrote both with the forecast,
+  leaving a greyed box reading 12 m/s against 7.4 m/s flown (2,518 m of drift advertised against 1,563 m
+  computed). Worth checking whether any OTHER edit is silently overridden the same way when a scenario
+  changes; `Num`'s own re-sync effect exists to guarantee a field never shows a number that is not in
+  the flight, and that rule belongs one level up too.
+
 - **An undo for removing a design from the shelf was written this session and REVERTED — read this
   before rewriting it.** The hit target is fixed (44x44 px, verified at 390x844 and 412x915, 0 of 4
   shelf controls now under target, 0 px horizontal overflow) but the destructive act still has no way
