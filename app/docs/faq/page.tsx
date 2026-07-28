@@ -72,7 +72,11 @@ export default function Faq() {
           re-importing means finding the design file on a phone that may not have it. It is stored on
           your device only, alongside the theme choice — there is no account and nothing is uploaded.
           Loft says so on screen when it restores a session, and <em>Start fresh</em> (or{" "}
-          <em>Import another</em>) ends that session immediately.
+          <em>Import another</em>) ends that session immediately — but not irreversibly: the import
+          screen then offers to pick that design back up, with the what-ifs you had set on it, until
+          you leave another one. One level, so it is a way back from a mis-click rather than a history
+          to curate. It does not carry today&apos;s weather, which no saved session does — a reload
+          loses that too.
         </p>
         <p>
           Separately, the last few designs you have <em>ever</em> opened stay on a shelf under{" "}

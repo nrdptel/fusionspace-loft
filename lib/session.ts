@@ -36,6 +36,13 @@ export interface SavedSession {
   simIndex: number;
   /** Active what-if / builder edits, as the app's own `Edits` shape. */
   edits: Record<string, unknown>;
+  /** The rocket's own name, which a rename changes independently of the file name. Optional because a
+   *  session stored before this existed has none. Used for LABELLING only — the restore path still
+   *  goes through `name`, which is the file identity the rest of the app keys off. Without it a
+   *  from-scratch build is offered back as "New design" however the flyer renamed it, and a renamed
+   *  import is offered back under its original file name. The recents shelf already carries the same
+   *  distinction for the same reason. */
+  rocket?: string;
 }
 
 /** base64 for a byte array, without pulling in a dependency or blowing the argument limit on a
@@ -56,11 +63,13 @@ export function fromBase64(b64: string): Uint8Array {
   return out;
 }
 
-/** Read the saved session, or null if there is none, it is unreadable, or it is from an older
- *  schema. Storage can throw outright (Safari private browsing), so every access is guarded. */
-export function loadSession(): SavedSession | null {
+/** Read one stored session slot, or null if it is absent, unreadable, or from an older schema.
+ *  Rebuilt field by field rather than spread, so hand-edited storage cannot smuggle in a shape the
+ *  app does not expect — which also means a field added to `SavedSession` must be named HERE too, or
+ *  it is written cleanly and silently dropped on the next read. */
+function readSlot(key: string): SavedSession | null {
   try {
-    const raw = localStorage.getItem(KEY);
+    const raw = localStorage.getItem(key);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as SavedSession;
     if (parsed?.v !== 1 || typeof parsed.design !== "string" || !parsed.design) return null;
@@ -73,19 +82,91 @@ export function loadSession(): SavedSession | null {
       units: parsed.units === "imperial" ? "imperial" : "metric",
       simIndex: Number.isInteger(parsed.simIndex) ? parsed.simIndex : 0,
       edits: parsed.edits && typeof parsed.edits === "object" ? parsed.edits : {},
+      rocket: typeof parsed.rocket === "string" && parsed.rocket ? parsed.rocket : undefined,
     };
   } catch {
     return null;
   }
 }
 
-export function saveSession(s: SavedSession): void {
+/** Returns whether the session was actually stored. Callers that put something on SCREEN because of
+ *  it need to know: an offer to restore a session that was never written is a button that does nothing,
+ *  which is worse than not offering it. */
+function writeSlot(key: string, s: SavedSession): boolean {
   try {
-    if (s.design.length > MAX_BYTES) return;
-    localStorage.setItem(KEY, JSON.stringify(s));
+    if (s.design.length > MAX_BYTES) return false;
+    localStorage.setItem(key, JSON.stringify(s));
+    return true;
   } catch {
     // Quota exceeded, or storage disabled entirely. Not remembering the session is a lesser
-    // failure than breaking the app, so this is deliberately silent.
+    // failure than breaking the app, so this stays silent — but it is reported, not swallowed.
+    return false;
+  }
+}
+
+/** Read the saved session, or null if there is none, it is unreadable, or it is from an older
+ *  schema. Storage can throw outright (Safari private browsing), so every access is guarded. */
+export function loadSession(): SavedSession | null {
+  return readSlot(KEY);
+}
+
+export function saveSession(s: SavedSession): void {
+  writeSlot(KEY, s);
+}
+
+/** --- the discarded session -----------------------------------------------------------------
+ *
+ *  One level of undo for the one destructive act in the app. "Import another" and "Start fresh" are
+ *  a single click each — the first is a text link 12 px from the design-name input — and they threw
+ *  away the loaded design, every what-if set on it, and the session, with no confirmation and no way
+ *  back. Measured on the 38 mm sample: a 75 mm fin span and 20 g of nose ballast take apogee from
+ *  993 m to 881 m, and that click returned the flyer to an empty import screen with all of it gone.
+ *
+ *  Deliberately NOT the recent-designs shelf, which was the obvious place and the wrong one. The
+ *  shelf is a "recent files" list keyed by name and size, with an eviction rule; hanging per-design
+ *  state on it made the entry holding the work the first one evicted, gave every from-scratch build
+ *  the same identity, and let any reopen that was not the shelf row wipe the state. This slot has no
+ *  identity model and no eviction: it is literally the session that was just discarded, so restoring
+ *  it is the same operation as resuming a session, and its limits are exactly a reload's limits.
+ *
+ *  Exactly one level, replaced each time a design is left, so it can never grow into a history nobody
+ *  curated. */
+const DISCARDED_KEY = "loft.session.discarded";
+
+export function loadDiscardedSession(): SavedSession | null {
+  return readSlot(DISCARDED_KEY);
+}
+
+/** Returns whether it was stored, so the caller only offers a way back that exists. A design past the
+ *  size cap, or storage that is disabled outright, means there is nothing to offer. */
+export function saveDiscardedSession(s: SavedSession): boolean {
+  return writeSlot(DISCARDED_KEY, s);
+}
+
+/** How many what-ifs a stored session was carrying.
+ *
+ *  Uses the app's OWN definition of edited, which is not "how many keys are in the bag": the edit bag
+ *  is a patch spread over the previous bag, so a field that was set and then CLEARED leaves its key
+ *  behind holding `undefined`; and `finSetId` records which fin set the fields are POINTED AT, not
+ *  that anything was changed. Counting either would tell a flyer their as-designed rocket is carrying
+ *  changes — the same mistake, in the opposite direction, as the gate that hides the stored-tool
+ *  comparison. `hasActiveEdits` in the app applies exactly this rule; keep them in step. */
+export function countWhatIfs(s: SavedSession): number {
+  return Object.entries(s.edits).filter(([k, v]) => k !== "finSetId" && v !== undefined && v !== "").length;
+}
+
+/** Whether a session carries work that exists nowhere else. The DESIGN is on the recents shelf either
+ *  way; the what-ifs and the chosen motor configuration are not, so they are what an undo slot is for.
+ *  Used to stop a session with nothing to lose from evicting one that has something. */
+export function carriesWork(s: SavedSession): boolean {
+  return countWhatIfs(s) > 0 || s.simIndex > 0;
+}
+
+export function clearDiscardedSession(): void {
+  try {
+    localStorage.removeItem(DISCARDED_KEY);
+  } catch {
+    /* storage disabled — nothing to clear */
   }
 }
 

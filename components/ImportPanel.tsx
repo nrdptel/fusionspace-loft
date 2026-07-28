@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 
 import { TOUCH_TARGET } from "@/lib/ui-tokens";
-import type { RecentDesign } from "@/lib/session";
+import { countWhatIfs, type RecentDesign, type SavedSession } from "@/lib/session";
 
 /** The import surface: a large drop zone / file picker for an OpenRocket `.ork`, RockSim
  *  `.rkt` or RASAero `.CDX1`, plus one-tap buttons to load the bundled sample designs so the tool is usable before
@@ -16,11 +16,17 @@ export default function ImportPanel({
   recents,
   onOpenRecent,
   onForgetRecent,
+  discarded,
+  onRestoreDiscarded,
 }: {
   onFile: (file: File) => void;
   onSample: (path: string, label: string) => void;
   onNew: () => void;
   busy: boolean;
+  /** The session the last "Import another" / "Start fresh" threw away, or null. Offered back here
+   *  because this screen is exactly where a flyer lands after that click and realises what it cost. */
+  discarded: SavedSession | null;
+  onRestoreDiscarded: () => void;
   /** Designs opened before, newest first — kept on this device so a build's variants are one tap
    *  away without the file. Empty on a first visit, and on a device with storage turned off. */
   recents: RecentDesign[];
@@ -30,8 +36,40 @@ export default function ImportPanel({
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
 
+  const carried = discarded ? countWhatIfs(discarded) : 0;
+
   return (
     <section aria-label="Import a design">
+      {/* The way back from the one destructive click in the app. It sits ABOVE the drop zone because
+          a flyer who has just lost their work is not looking for a file picker, and it names what it
+          is holding rather than making them press it to find out. */}
+      {discarded && (
+        <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-indigo-300 bg-indigo-50 px-4 py-3 dark:border-indigo-500/40 dark:bg-indigo-500/10">
+          <p className="min-w-0 flex-1 text-sm text-zinc-700 dark:text-zinc-200">
+            You were working on{" "}
+            <span className="font-medium text-zinc-900 dark:text-zinc-100">
+              {/* The rocket's own name, which a rename changes — the file name would offer a build back
+                  as "New design" however the flyer renamed it. */}
+              {discarded.rocket || discarded.name || "a design"}
+            </span>
+            {carried > 0 ? (
+              <>
+                {" "}
+                with {carried} what-if{carried === 1 ? "" : "s"} set
+              </>
+            ) : null}
+            .
+          </p>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={onRestoreDiscarded}
+            className={`rounded-lg bg-indigo-600 px-3.5 py-2 text-sm font-medium text-white transition hover:bg-indigo-500 disabled:opacity-60 ${TOUCH_TARGET}`}
+          >
+            Pick it back up
+          </button>
+        </div>
+      )}
       <div
         onDragOver={(e) => {
           e.preventDefault();
