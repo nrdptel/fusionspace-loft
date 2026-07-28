@@ -1,7 +1,7 @@
 /** Display helpers for the UI. The simulation is SI internally; these convert out for a
  *  chosen unit system and format to honest precision. No verdicts, no false precision. */
 
-import { mToFt, mpsToFtps, mpsToMph, kgToLb } from "./units";
+import { mToFt, mpsToFtps, mpsToMph, kgToLb, paToPsi } from "./units";
 import { storedTag } from "./validation/stored-status";
 
 export type UnitSystem = "metric" | "imperial";
@@ -87,6 +87,12 @@ export function lengthMm(m: number, sys: UnitSystem): Quantity {
   return sys === "imperial"
     ? { value: fmtSmall(m * 39.3701, 1), unit: "in" }
     : { value: fmtSmall(m * 1000, 0), unit: "mm" };
+}
+
+/** Dynamic pressure. Imperial rocketry states max-Q in psi; the SI form is kPa rather than raw
+ *  pascals, which run to five figures on any flight worth the name. */
+export function dynamicPressure(pa: number, sys: UnitSystem): Quantity {
+  return sys === "imperial" ? { value: fmtSmall(paToPsi(pa), 2), unit: "psi" } : { value: fmt(pa / 1000, 1), unit: "kPa" };
 }
 
 export function mach(m: number): Quantity {

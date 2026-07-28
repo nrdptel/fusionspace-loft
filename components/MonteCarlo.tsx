@@ -15,7 +15,7 @@ import {
 } from "@/lib/sim/montecarlo";
 import type { GeometryEdits } from "@/lib/model/edit";
 import { usePersistedNumber } from "@/lib/session";
-import { mToFt, ftToM, mpsToFtps } from "@/lib/units";
+import { mToFt, ftToM, mpsToFtps, mpsToMph, mphToMps } from "@/lib/units";
 import type { CsvCell } from "@/lib/csv";
 import { NumberField } from "./ui";
 import DownloadCsv, { CopyTable } from "./DownloadCsv";
@@ -81,6 +81,13 @@ export default function MonteCarlo({
   const [rodAngleDeg, setRodAngleDeg] = usePersistedNumber("mc.rodAngleDeg", 2);
   const [windSpeedMps, setWindSpeedMps] = usePersistedNumber("mc.windSpeedMps", 2);
   const [result, setResult] = useState<MonteCarloResult | null>(null);
+  // Display <-> SI for the wind sigma, converting and NOTHING else. Deliberately not clamped here:
+  // NumberField applies the bound itself and then says which value it flew instead, and a parent that
+  // "helpfully" resolves an out-of-range entry first is exactly what stops that refusal from ever
+  // being shown — a mistyped "-5" would go back to reading as a flown 0. Rounding is display-only and
+  // imperial-only, so the m/s the model holds is never walked by a toggle.
+  const windDisp = units === "imperial" ? Number(mpsToMph(windSpeedMps).toFixed(1)) : windSpeedMps;
+  const onWindDisp = (v: number) => setWindSpeedMps(units === "imperial" ? mphToMps(v) : v);
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState(0);
   // Waiver/altitude ceiling to check the apogee band against — held in METRES, like every other
@@ -230,12 +237,16 @@ export default function MonteCarlo({
               step={0.5}
               hint="Lean from vertical"
             />
+            {/* Held in m/s like the rest of the model and converted only where it is typed and read —
+                the same shape as the Waiver ceiling below. It was the one unit-bearing input on the
+                page that ignored the toggle: it said "m/s" honestly enough, but it said it directly
+                beside a sibling reading "ft" and a Conditions wind field reading "mph". */}
             <NumberField
               label="Wind speed ±1σ"
-              value={windSpeedMps}
-              onChange={setWindSpeedMps}
-              unit="m/s"
-              step={0.5}
+              value={windDisp}
+              onChange={onWindDisp}
+              unit={units === "imperial" ? "mph" : "m/s"}
+              step={units === "imperial" ? 1 : 0.5}
               hint="Around the nominal wind"
             />
           </div>
