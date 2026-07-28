@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { OrkDocument } from "@/lib/ork/import";
 import type { MotorConfiguration } from "@/lib/model/types";
 import { TOUCH_TARGET } from "@/lib/ui-tokens";
@@ -22,9 +22,28 @@ interface LoftBallistic {
 
 type State =
   | { phase: "idle" }
-  | { phase: "running"; stage: string }
-  | { phase: "done"; loft: LoftBallistic; rp: RocketpyFlightResult }
+  /** `stoppable` is false for the window before the engine has the run — our own four dynamic imports
+   *  and Loft's baseline flight. Nothing exists to stop there, and offering Stop anyway would be a
+   *  button that reports having ended a runtime that was never built. It flips true on the engine's
+   *  first progress message, which only arrives once the worker is real. */
+  | { phase: "running"; stage: string; stoppable: boolean }
+  | { phase: "done" }
+  /** The stage the run was stopped at. RocketPy spends most of a cold run downloading and installing,
+   *  not flying, so a stopped panel that always said "flying" would be describing the wrong thing. */
+  | { phase: "stopped"; stage: string }
   | { phase: "error"; message: string };
+
+/** A completed cross-check, held OUTSIDE the phase so that stopping or failing the next run cannot
+ *  destroy it. The panel promises the previous figures are "kept rather than cleared — that is the
+ *  'before' if you are editing toward a target", and a promise that survives success but not a Stop
+ *  is not a promise. */
+interface Completed {
+  loft: LoftBallistic;
+  rp: RocketpyFlightResult;
+  /** The design it was computed for, so a later edit shows as a difference instead of silently
+   *  invalidating what is on screen. */
+  ranFor: string;
+}
 
 /** Second opinion: fly the design in RocketPy — an independent 6-DOF engine — right in the browser,
  *  and compare it against Loft's own solver. Both fly a ballistic ascent to apogee (recovery
@@ -62,13 +81,20 @@ export default function RocketpyCrossCheck({
   designKey: string;
 }) {
   const [state, setState] = useState<State>({ phase: "idle" });
-  // The design the result on screen was computed for. Captured when the run finishes, so a later
-  // edit makes the difference visible rather than silently invalidating what is shown.
-  const [ranFor, setRanFor] = useState<string | null>(null);
-  const stale = state.phase === "done" && ranFor !== null && ranFor !== designKey;
+  const [done, setDone] = useState<Completed | null>(null);
+  // A run in flight replaces the figures with its own progress; anything else shows the last
+  // completed comparison, whether this panel is idle, stopped or reporting a failure.
+  const showing = state.phase === "running" ? null : done;
+  const stale = showing !== null && showing.ranFor !== designKey;
+  /** The controller for the run in flight, so Stop can reach it. One per run, never reused. */
+  const abortRef = useRef<AbortController | null>(null);
 
   const run = useCallback(async () => {
-    setState({ phase: "running", stage: "Preparing…" });
+    const controller = new AbortController();
+    abortRef.current = controller;
+    setState({ phase: "running", stage: "Preparing…", stoppable: false });
+    // The last stage the engine reported, read in the catch below — so it is declared out here.
+    let reached = "Preparing…";
     try {
       const [
         { buildRocketpySpec },
@@ -113,13 +139,33 @@ export default function RocketpyCrossCheck({
           ? [{ mass: ballastKg, cg: noseBallastStation(editedRocket), ownInertia: 0, source: "Nose ballast" }]
           : [];
       const spec = buildRocketpySpec({ ...doc, rocket: editedRocket }, config, simIndex, extras);
-      const rp = await runRocketpy(spec, { onProgress: (stage) => setState({ phase: "running", stage }) });
-      setState({ phase: "done", loft, rp });
-      setRanFor(designKey);
+      const rp = await runRocketpy(spec, {
+        onProgress: (stage) => {
+          reached = stage;
+          setState({ phase: "running", stage, stoppable: true });
+        },
+        signal: controller.signal,
+      });
+      setDone({ loft, rp, ranFor: designKey });
+      setState({ phase: "done" });
     } catch (e) {
-      setState({ phase: "error", message: e instanceof Error ? e.message : String(e) });
+      // A stop is not a failure, and must not read as one: no traceback, no "couldn't run". Matched
+      // on `name` rather than `instanceof Error` because the abort arrives as a DOMException, whose
+      // place in the Error prototype chain is not something to bet a state transition on.
+      if ((e as { name?: string } | null)?.name === "AbortError") setState({ phase: "stopped", stage: reached });
+      else setState({ phase: "error", message: e instanceof Error ? e.message : String(e) });
     }
   }, [doc, config, simIndex, ballastKg, motorSwap, geometry, designKey]);
+
+  const stop = useCallback(() => abortRef.current?.abort(), []);
+
+  // Leaving the design entirely ends the run. Without this the abandoned flight keeps the shared
+  // worker's single run chain busy, and the NEXT design's cross-check sits on "Preparing…" until the
+  // flight nobody is waiting for finishes — measured at 13.5 s here, and it scales with whatever is
+  // left of the abandoned run. The panel is only unmounted by leaving the design; switching workspace
+  // tabs keeps it mounted (ResultsView keeps the panels alive deliberately), so a run survives a tab
+  // change exactly as before.
+  useEffect(() => () => abortRef.current?.abort(), []);
 
   return (
     <section
@@ -145,16 +191,52 @@ export default function RocketpyCrossCheck({
         stability model. RocketPy runs entirely on your device; the design never leaves the browser.
       </p>
 
+      {/* The row WRAPS: on a 390 px phone the stage label plus its aside already filled the width
+          with nothing to spare, so a Stop beside them had nowhere to go but off the edge. */}
       {state.phase === "running" && (
-        <div className="mt-3 flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-300" role="status">
-          <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent" />
-          <span>{state.stage}</span>
-          <span className="text-xs text-zinc-400">(a minute or so)</span>
+        <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm text-zinc-600 dark:text-zinc-300">
+          {/* The live region is the stage text alone — the button is not something to re-announce
+              every time the stage changes. */}
+          <span className="flex items-center gap-2" role="status">
+            <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent" />
+            <span>{state.stage}</span>
+            <span className="text-xs text-zinc-400">(a minute or so)</span>
+          </span>
+          {/* Offered only once the engine has the run. Before that the only thing in flight is our own
+              module loading and Loft's baseline flight — there is no runtime to end, and a Stop that
+              said it had ended one would be reporting something that never happened. */}
+          {state.stoppable && (
+            <button
+              type="button"
+              onClick={stop}
+              className={`rounded-lg border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-700 transition hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800 ${TOUCH_TARGET}`}
+            >
+              Stop
+            </button>
+          )}
         </div>
       )}
 
       {/* A failure reads before the way out of it, so the button below is the next thing reached. */}
       {state.phase === "error" && <Failure message={state.message} />}
+
+      {/* Stopping is a deliberate act with a price, and the price is named rather than discovered:
+          the runtime is genuinely gone, so the next run starts it over. Saying "stopped waiting" would
+          be the lie — see the note on `runRocketpy`. The stage is named because a cold run spends most
+          of its time downloading and installing, not flying, so "stopped while flying" would usually
+          be describing the wrong thing. */}
+      {state.phase === "stopped" && (
+        <div className="mt-3 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900/60 dark:text-zinc-300">
+          <p>
+            Stopped at &ldquo;{state.stage}&rdquo;. RocketPy reports a finished flight or nothing, so
+            that run produced no figures{showing ? " — the comparison below is the earlier run" : ""}.
+          </p>
+          <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+            Stopping ends the Python runtime, which is what makes it a real stop rather than a
+            cancelled wait. Running again starts it from scratch, so it costs what the first run did.
+          </p>
+        </div>
+      )}
 
       {/* A failed run must leave a way back. RocketPy is CPython under WASM flying a design a flyer
           is actively editing, so failures are ordinary — a geometry it will not take, a runtime that
@@ -162,14 +244,14 @@ export default function RocketpyCrossCheck({
           the page's life, reachable again only by reloading and losing the loaded design. Offering
           the same button is not a retry loop: nothing is re-attempted automatically, and the warm
           worker means a second attempt after a transient failure costs seconds, not the full boot. */}
-      {(state.phase === "idle" || state.phase === "error") && (
+      {(state.phase === "idle" || state.phase === "error" || state.phase === "stopped") && (
         <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1">
           <button
             type="button"
             onClick={run}
             className={`rounded-lg bg-indigo-600 px-3.5 py-2 text-sm font-medium text-white transition hover:bg-indigo-500 ${TOUCH_TARGET}`}
           >
-            {state.phase === "error" ? "Try RocketPy again" : "Run RocketPy"}
+            {state.phase === "idle" ? "Run RocketPy" : state.phase === "stopped" ? "Run RocketPy again" : "Try RocketPy again"}
           </button>
           {/* Only true before the first attempt. After a failure we do not know whether the download
               is the thing that failed, and guessing at the cause is worse than saying nothing. */}
@@ -195,7 +277,7 @@ export default function RocketpyCrossCheck({
           </button>
         </div>
       )}
-      {state.phase === "done" && <Comparison loft={state.loft} rp={state.rp} units={units} />}
+      {showing && <Comparison loft={showing.loft} rp={showing.rp} units={units} />}
     </section>
   );
 }
