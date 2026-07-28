@@ -28,11 +28,19 @@ import { mToFt, mpsToFtps } from "@/lib/units";
 
 const IMPERIAL_LEN = new Set(["Apogee"]);
 const IMPERIAL_SPD = new Set(["Max velocity", "Ground-hit velocity", "Rail-exit velocity", "Deployment velocity"]);
+const IMPERIAL_ACCEL = new Set(["Max acceleration"]);
 
+/** A comparison row in the unit system on screen. The rows that fall through are the ones with no
+ *  imperial form — seconds, Mach, calibers, percentages — NOT the ones nobody has listed yet: max
+ *  acceleration sat in that gap and read "108.4 m/s²" on an otherwise imperial page, on 3 of the
+ *  first 4 corpus designs. Anything with a metric unit and no case here is a bug, so the fall-through
+ *  asserts the unit is already system-neutral rather than quietly passing it along. */
 function convert(label: string, value: number, unit: string, units: UnitSystem): { v: number; u: string } {
   if (units !== "imperial") return { v: value, u: unit };
   if (IMPERIAL_LEN.has(label)) return { v: mToFt(value), u: "ft" };
   if (IMPERIAL_SPD.has(label)) return { v: mpsToFtps(value), u: "ft/s" };
+  // m/s² -> ft/s²: the same factor as m -> ft, since only the length dimension changes.
+  if (IMPERIAL_ACCEL.has(label)) return { v: mpsToFtps(value), u: "ft/s²" };
   return { v: value, u: unit };
 }
 

@@ -40,6 +40,8 @@ export const radToDeg = (rad: number): number => rad * DEG_PER_RAD;
 
 // --- pressure / temperature ---
 export const PA_PER_PSI = 6894.757293168;
+export const paToPsi = (pa: number): number => pa / PA_PER_PSI;
+export const psiToPa = (psi: number): number => psi * PA_PER_PSI;
 export const cToK = (c: number): number => c + 273.15;
 export const kToC = (k: number): number => k - 273.15;
 export const fToC = (f: number): number => ((f - 32) * 5) / 9;

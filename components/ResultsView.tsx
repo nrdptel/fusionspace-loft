@@ -38,9 +38,12 @@ const SOFT_LANDING_TARGET = 5;
 
 /** The whole simulated trajectory as a CSV grid, one row per integration sample — so a flyer can take
  *  the raw flight into a spreadsheet or plot it against an altimeter log. The kinematic columns follow
- *  the chosen unit system (the same toggle the plots use); Mach and drag coefficient are unitless, and
- *  thrust, drag, and dynamic pressure stay in SI (newtons, pascals), matching how the app shows them.
- *  Client-side only, like every other export. */
+ *  the chosen unit system (the same toggle the plots use) and Mach and drag coefficient are unitless,
+ *  while thrust, drag and dynamic pressure stay in SI. That last group is a deliberate choice about the
+ *  export rather than a reflection of the screen: the Flight card states max-Q in kPa or psi with the
+ *  toggle, but this file is a physics record meant to be differentiated and integrated, and newtons and
+ *  pascals are the units those operations expect. Every column names its own unit, so nothing here is
+ *  ambiguous — it is simply not all the same system. Client-side only, like every other export. */
 function flightDataCsv(result: FlightResult, units: UnitSystem): CsvCell[][] {
   const imperial = units === "imperial";
   const len = (m: number) => (imperial ? mToFt(m) : m);
@@ -419,7 +422,7 @@ export default function ResultsView({
           <Stat label="Landing energy" q={d.energy(s.landingEnergy, units)} sub="whole vehicle" />
           <Stat label="Optimum delay" q={d.seconds(s.optimumDelay)} sub="burnout → apogee" />
           <Stat label="Flight time" q={d.seconds(s.flightTime)} />
-          <Stat label="Max dynamic pressure" q={{ value: d.fmt(s.maxDynamicPressure / 1000, 1), unit: "kPa" }} />
+          <Stat label="Max dynamic pressure" q={d.dynamicPressure(s.maxDynamicPressure, units)} />
         </div>
         <RecoverySizingHint run={run} units={units} />
         <BoosterDescentNote run={run} units={units} />

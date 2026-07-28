@@ -1494,6 +1494,73 @@ test.describe("Loft", () => {
     await expect.poll(async () => parseFloat((await span.getAttribute("aria-valuenow")) ?? "0")).toBeLessThan(afterDrag);
   });
 
+  test("no value surface is left in metric when Imperial is selected", async ({ page }) => {
+    // The class this closes, rather than the four instances of it: a value that never converts at all
+    // was invisible to the grep that policed this before, because that grep looked for display->SI
+    // conversions and these sites had none. So the check is a census of what is actually on screen.
+    //
+    // Deliberately scoped to VALUE surfaces — stat tiles, table cells, and the unit suffix beside an
+    // input — not to prose, which quotes the ~15 m/s (=50 ft/s) rail-exit rule of thumb in both
+    // systems on purpose.
+    // The RockSim sample deliberately, NOT the 38 mm one: only a design carrying stored results
+    // renders the Validation panel, and that panel holds the "Max acceleration" row which was one of
+    // the surfaces this guards. On the bundled .ork samples the panel is absent, so the census would
+    // have passed without ever seeing it.
+    await page.goto("/");
+    await page.getByRole("button", { name: /RockSim · 54 mm sport/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+    await expect(
+      page.getByRole("row", { name: /Max acceleration/ }),
+      "the census must actually reach the validation row it guards",
+    ).toBeVisible();
+
+    const census = async () =>
+      page.evaluate(() => {
+        const metric = /(^|\s|\d)(mm|cm|km|m\/s²|m\/s|m|kg|kPa|Pa)$/;
+        const bad: string[] = [];
+        let checked = 0;
+        const visible = (n: Element) => {
+          const panel = n.closest("div[role='tabpanel']");
+          return !(panel && panel.hasAttribute("hidden"));
+        };
+        // Stat tiles and input suffixes put the unit in its own trailing <span>; table cells carry
+        // "<number> <unit>" together.
+        for (const n of document.querySelectorAll("span, td")) {
+          if (!visible(n) || n.children.length > 0) continue;
+          const t = (n.textContent || "").trim();
+          if (!t || t.length > 24) continue;
+          checked++;
+          if (metric.test(t)) bad.push(t);
+        }
+        return { checked, bad };
+      });
+
+    for (const tab of ["Flight", "Design", "Analyze"]) {
+      await page.getByRole("button", { name: "Imperial" }).click();
+      await page.getByRole("tab", { name: tab }).click();
+      if (tab === "Analyze")
+        for (const label of [/Run motor sweep/, /Run parameter sweep|Run sweep/, /Run dispersion/]) {
+          const b = page.getByRole("button", { name: label }).first();
+          if ((await b.count()) > 0) {
+            await b.click();
+            // Wait for the run to actually land. Censusing straight after the click measured only the
+            // dispersion inputs, so the assertion below was vacuous for every sweep table.
+            await expect(page.getByRole("button", { name: label })).toHaveCount(0);
+          }
+        }
+      await expect(page.getByRole("tab", { name: tab })).toHaveAttribute("aria-selected", "true");
+      const imperial = await census();
+      expect(imperial.checked, `${tab}: the census must actually see something`).toBeGreaterThan(10);
+      expect(imperial.bad, `${tab}: metric units still on screen under Imperial`).toEqual([]);
+
+      // The control the census needs to be worth anything: the same surfaces in Metric DO carry
+      // metric units, so an empty list above cannot be a broken selector.
+      await page.getByRole("button", { name: "Metric" }).click();
+      const metric = await census();
+      expect(metric.bad.length, `${tab}: control — metric units present under Metric`).toBeGreaterThan(0);
+    }
+  });
+
   test("every diagram handle reports in the flyer's own units, not always millimetres", async ({ page }) => {
     // Direct manipulation is the one surface where the number IS the feedback: while a handle is
     // being dragged there is nothing else to read. All seven used to report millimetres in both unit
@@ -2397,6 +2464,57 @@ test.describe("Loft", () => {
     await expect(wind).toHaveValue("5");
     await expect(wind).not.toHaveAttribute("aria-invalid", "true");
     await expect(mc.getByText("isn't a value this can fly")).toHaveCount(0);
+  });
+
+  test("the wind dispersion follows the unit toggle without the toggle changing what is flown", async ({
+    page,
+  }) => {
+    // It was the one unit-bearing input on the page that ignored the toggle: it said "m/s" honestly
+    // enough, but it said it directly beside a Waiver ceiling reading "ft" and a Conditions wind field
+    // reading "mph". Converting it puts a parent between the field and its state, which is the shape
+    // that broke the refusal above — so both properties are asserted together here.
+    test.setTimeout(120_000);
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    await page.getByRole("tab", { name: "Analyze" }).click();
+    const mc = page.getByRole("region", { name: "Monte-Carlo dispersion" });
+    await mc.getByRole("button", { name: "Run dispersion" }).click();
+    const wind = mc.locator("input").and(mc.getByLabel("Wind speed ±1σ")).first();
+    const unitSuffix = async () =>
+      (await wind.evaluate((n) => (n.labels?.[0]?.textContent || "").replace(/\s+/g, " "))).match(/m\/s|mph/)?.[0];
+
+    await expect(wind).toHaveValue("2");
+    expect(await unitSuffix()).toBe("m/s");
+
+    // The digits change, because the quantity is being re-expressed rather than reinterpreted.
+    await page.getByRole("button", { name: "Imperial" }).click();
+    expect(await unitSuffix()).toBe("mph");
+    await expect(wind).toHaveValue("4.5"); // 2 m/s = 4.47 mph
+
+    // Toggling repeatedly must not walk the value the model holds. Rounding is display-only.
+    for (let i = 0; i < 3; i++) {
+      await page.getByRole("button", { name: "Metric" }).click();
+      await expect(wind).toHaveValue("2");
+      await page.getByRole("button", { name: "Imperial" }).click();
+      await expect(wind).toHaveValue("4.5");
+    }
+
+    // An entry typed in imperial is stored as the SI value it means: 10 mph = 4.4704 m/s.
+    await wind.fill("10");
+    await wind.blur();
+    await expect(wind).toHaveValue("10");
+    expect(
+      Number(await page.evaluate(() => localStorage.getItem("loft.pref.mc.windSpeedMps"))),
+    ).toBeCloseTo(4.4704, 3);
+
+    // And the refusal still refuses on this side of the toggle — the box does not keep a value that
+    // is not the one being flown.
+    await wind.fill("-5");
+    await wind.blur();
+    await expect(wind).toHaveValue("");
+    await expect(wind).toHaveAttribute("aria-invalid", "true");
+    await expect(mc.getByText("isn't a value this can fly")).toBeVisible();
   });
 
   test("a waiver ceiling keeps meaning the same altitude when the units change", async ({ page }) => {

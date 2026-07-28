@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { changePercent, changeAbsolute, decimalsFor, energy, flutterMargin, fmtSmall, lengthMm, storedRunLabels } from "./display";
+import { changePercent, changeAbsolute, decimalsFor, dynamicPressure, energy, flutterMargin, fmtSmall, lengthMm, storedRunLabels } from "./display";
 import { RECOMMENDED_FLUTTER_MARGIN } from "./sim/flutter";
 
 describe("energy", () => {
@@ -12,6 +12,20 @@ describe("energy", () => {
     expect(energy(4.5, "metric")).toEqual({ value: "4.5", unit: "J" });
     // 5 J ≈ 3.7 ft·lbf — still small, so a decimal is kept in imperial too.
     expect(energy(5, "imperial")).toEqual({ value: "3.7", unit: "ft·lbf" });
+  });
+});
+
+describe("dynamicPressure", () => {
+  it("shows kilopascals in metric and psi in imperial", () => {
+    // 25,500 Pa: 25.5 kPa metric; ÷6894.757 → 3.70 psi imperial. This is the one Flight-card stat of
+    // sixteen that used to read kPa whichever system was selected.
+    expect(dynamicPressure(25_500, "metric")).toEqual({ value: "25.5", unit: "kPa" });
+    expect(dynamicPressure(25_500, "imperial")).toEqual({ value: "3.7", unit: "psi" });
+  });
+  it("keeps enough precision for a low-power flight", () => {
+    // A small Estes-class max-Q is a fraction of a psi; a whole number there would read as zero.
+    expect(dynamicPressure(2_000, "imperial")).toEqual({ value: "0.29", unit: "psi" });
+    expect(dynamicPressure(2_000, "metric")).toEqual({ value: "2", unit: "kPa" });
   });
 });
 

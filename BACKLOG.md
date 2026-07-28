@@ -3,6 +3,49 @@
 Rough edges, missing affordances, and ideas too big for one pass — noticed while working,
 not yet done. Newest first. One line each. Anything here is fair game for the next session.
 
+- The flight-data CSV keeps thrust, drag and dynamic pressure in SI while its kinematic columns follow
+  the unit toggle, so an imperial flyer reads max-Q as psi on the Flight card and 19,100 (Pa) in the
+  export of the same flight. Every column names its own unit so nothing is ambiguous, and a physics
+  record in newtons and pascals is a defensible choice — the docstring now states that reason instead
+  of the stale one ("matching how the app shows them", which stopped being true this run). Worth
+  revisiting only if a flyer asks for a fully imperial export.
+
+- **The Conditions placeholders advertise a launch setup that is not the one being flown**, and this is
+  the next thing to fix. The four are hardcoded literals ("1.2", "0", "0", "0") while the caption below
+  them says "Blank fields use the design's stored launch conditions", and the fields ARE blank on
+  import. `Num`'s own contract makes the placeholder a CLAIM about what is flown — "else the design's
+  own value, which is what the placeholder shows", and `flown = String(value ?? "") || placeholder`
+  prints it verbatim in the refusal message as "flying X" — so a wrong placeholder makes that message
+  lie. Two measurements: a corpus file stores a 5.1816 m rail against a placeholder of 1.2 (rail-exit
+  14 m/s advertised vs 29 m/s stored, on a launch-safety number) and 5.0 m/s wind against 0 (drift 0 m
+  vs 1,307 m); and a from-scratch design flies `defaultConditions().rodLength` = 1.0 m, so the
+  placeholder overstates the rail by 20% and rail-exit velocity by 10% — 64 ft/s blank against 71 ft/s
+  at the advertised 3.9 ft, verified live. **A units-only fix here was tried this run and reverted on
+  purpose:** converting the literal to "3.9" for imperial is arithmetically right and makes a wrong
+  claim PLAUSIBLE, which is worse than the self-evidently broken "1.2 ft" it replaced. The fix is to
+  derive all four placeholders from the resolved conditions the flight actually used, which means
+  threading those into the Conditions panel — it does not currently receive them. The corpus-file
+  numbers are the cold walk's and are not re-measured here; the from-scratch numbers are.
+- **Every numeric input's min/max is decorative on the Conditions and Design what-if fields.** The
+  cold walk measured 7 of 7 visible inputs that declare a max accepting a 10x-over-max value unchanged
+  (rail 201 m, angle 451°, wind 401 m/s, elevation 50,001 m, cluster 121, fin count 121, recovery 101x)
+  and 20 of 20 declaring no enforcement. `NumberField` in the Analyze tools now refuses and says what it
+  flew instead (and that refusal survives a unit conversion, as of this run); `Num` in `LoftApp` does
+  not. That refusal machinery is the pattern to port. NOT re-measured first-hand this run.
+- The Flight card shows max acceleration in g (`d.accel`, system-neutral) while the stored-vs-Loft
+  comparison table shows the same quantity in m/s² — now ft/s² in imperial. Both are labelled and
+  neither is wrong, but they are two units for one number on one page: 15 g against 145.1 m/s² on the
+  38 mm sample. Routing the comparison row through `d.accel` too would settle it, at the cost of
+  changing what metric readers see.
+- `d.lengthMm` renders one decimal of an inch, so a diagram handle reads "2.4 in" where the field
+  beside it reads "2.39" — the same value at two precisions. The handles now match the figure's own
+  caption, which is the consistency that mattered; aligning the field would mean changing the caption
+  too, so it is a deliberate follow-up rather than a leftover.
+- Re-running the RocketPy cross-check discards the previous comparison on FAILURE, though no longer on a
+  stop: `phase: "error"` renders the failure and the preserved result together now, but a second failure
+  after a success still leaves the flyer with a traceback where the "before" used to be. The result is
+  held outside the phase as of this run, so this is a rendering-gate question, not a data-loss one.
+
 - **Information that exists only in a `title=` never reaches a phone.** Measured this run on the
   results view at 412x915: 33 elements carry an explanation the visible text and any `aria-label`
   don't — the four Conditions field teachings (rail length, rail angle, surface wind, field
@@ -46,23 +89,18 @@ not yet done. Newest first. One line each. Anything here is fair game for the ne
   motor sweep and the parameter sweep all have both, and the sort order is not persisted though the
   motor sweep's is (`loft.pref.motorSweep.sort`). Mass & balance has no sortable columns at all, and
   in imperial 4 of its 9 rows collapse to `0 lb` while the % column still shows real values.
-- No analysis can be cancelled: `cancel|stop|abort` matches 0 buttons across all four Analyze tools,
-  including a RocketPy run measured at 50.5 s whose own copy says "a minute or so"; the only exit is
-  a reload, which discards everything. A failed run no longer needs the reload — only a running one
-  does. **The RocketPy one looks like a button and a controller and is not.** `runRocketpy` does take
-  an `AbortSignal`, but it is main-thread only: it stops LISTENING and deliberately leaves the warm
-  worker running (`rocketpy-engine.ts:86`). Meanwhile the worker serialises every run through one
-  `runChain` promise (`public/rocketpy.worker.js:64`) that awaits `runPythonAsync`, which Pyodide
-  cannot interrupt without a SharedArrayBuffer interrupt buffer. So a Stop button wired to the
-  existing signal would clear the spinner and then make the NEXT run sit at "Preparing…" for the
-  remainder of the abandoned flight — worse than no button, and invisible. The three honest routes:
-  terminate the worker outright (a true stop, at the cost of the ~10 s warm boot on the next run),
-  add an interrupt buffer, or say plainly that it only stops waiting. Pick one before writing UI.
-  Whichever it is, the running row has no `flex-wrap` and 0 px of slack at 390 px, so a Stop beside
-  the stage label will overflow a phone unless the row wraps. The motor and parameter sweeps also report no progress at all
-  (only `aria-busy`), while the dispersion study reports "152/300 flown" — same gesture, different
-  feedback. The parameter sweep offers no range or step control: 25 points over an auto range, so
-  "sweep 40–60 mm at 1 mm" — the tenth-use question — cannot be asked.
+- Cancelling an analysis is now measured rather than assumed, and the old entry here overstated it.
+  The RocketPy cross-check HAS a Stop as of this run, and it ends the runtime rather than the wait. The
+  other three do not, and on the evidence they should not: the motor sweep, the parameter sweep and the
+  Monte-Carlo finish in 0.3-2.2 s on both the 38 mm sample and a USLI fullscale design, so a Stop there
+  is a control nobody reaches. `runMotorSweep`/`runParameterSweep`/`runMonteCarlo` all already take an
+  abort predicate and return their partial rows, so if a design ever IS slow enough to need one, the
+  seam exists — but it would have to come with an honest "stopped after N of M" label, because a
+  partial sweep presented as a whole one is worse than no Stop. What is still missing on those three is
+  PROGRESS, not cancellation: the two sweeps report only `aria-busy` while the dispersion study says
+  "152/300 flown". The parameter sweep also offers no range or step control — 25 points over an auto
+  range, so "sweep 40-60 mm at 1 mm", the tenth-use question, cannot be asked.
+
 - Parts table rows carry `tabIndex=0` with `role=null` and `aria-selected`, which is invalid on an
   implicit row outside a grid, and they add 12 stops to the tab order.
 - **Benchmark, configuration picker vs OpenRocket's simulation table.** Theirs is a table with a row
@@ -146,7 +184,8 @@ not yet done. Newest first. One line each. Anything here is fair game for the ne
 - Diagram handles and number fields still disagree on range: the fin-span handle clamps to the
   framed extent (5–84 mm on the 38 mm sample) and reports that as its `aria-valuemax`, while the
   fin-span field accepts 120 mm and computes a perfectly good 4.79 cal. The handle's bound is a
-  framing constraint dressed as a property limit.
+  framing constraint dressed as a property limit. Note the handle's ARIA numbers are in DISPLAY units
+  as of this run, so that 5–84 reads 0.2–3.3 under imperial — measure in metric or convert.
 - RASAero `<Protuberance>` is still unread, but the corpus says it barely matters: the only one
   present (`Complex.Two-Stage`) is 0.25 in² of frontal area against a 4-inch airframe's 12.6 in²,
   so modelling it cannot move that file's +12.4% residual. Lower priority than the entry it
