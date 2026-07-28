@@ -206,4 +206,13 @@ not in force.
   some designs fit no bundled motor, so do not wait on one.
 - `page.route` cannot intercept a module worker's script; replace `window.Worker` in
   `page.addInitScript`. A stand-in must post one `progress` message or the RocketPy Stop never appears.
-- Nothing flaky was seen; the full e2e suite passed on every clean run.
+- **The suite had one flaky test, and the cause was structural.** `the dispersion tolerances are
+  remembered across designs and reloads` failed once in six full runs (passing 3/3 in isolation):
+  it waits on the session-restore banner with an explicit `{ timeout: 30_000 }`, which was the whole
+  default per-test budget, so a slow reload left nothing for the four steps after it and the test
+  timed out mid-click. Four other tests share that shape. Fixed at the root — `playwright.config.ts`
+  now sets `timeout: 60_000`. If you see a bare `locator.click: Test timeout … exceeded` with no
+  failed assertion, suspect this pattern rather than the app.
+- Locally `retries: 0` and `workers: undefined` (= 2 here); CI runs 1 worker with 1 retry, so a flake
+  that is a hard red locally can pass on CI. Do not conclude from a green CI run that a local red was
+  imaginary.
