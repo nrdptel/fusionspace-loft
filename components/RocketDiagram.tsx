@@ -411,9 +411,10 @@ export default function RocketDiagram({
           <>
             {showFin("finStation") && (
             <FinHandle
+              units={units}
               field="finStation"
               label="Fin position"
-              valueText={`${Math.round(finStationNow * 1000)} mm from the nose`}
+              valueText={`${d.q(d.lengthMm(finStationNow, units))} from the nose`}
               title="Drag or use arrow keys to move the fins fore/aft"
               current={finStationNow}
               lo={finLo}
@@ -428,9 +429,10 @@ export default function RocketDiagram({
             )}
             {sweepNow !== undefined && showFin("finSweepLength") && (
               <FinHandle
+                units={units}
                 field="finSweepLength"
                 label="Fin sweep"
-                valueText={`${Math.round(sweepNow * 1000)} mm of tip rake`}
+                valueText={`${d.q(d.lengthMm(sweepNow, units))} of tip rake`}
                 title="Drag or use arrow keys to rake the fin tip fore/aft"
                 current={sweepNow}
                 lo={sweepLo}
@@ -445,9 +447,10 @@ export default function RocketDiagram({
             )}
             {rootChordNow !== undefined && showFin("finRootChord") && (
               <FinHandle
+                units={units}
                 field="finRootChord"
                 label="Fin root chord"
-                valueText={`${Math.round(rootChordNow * 1000)} mm root chord`}
+                valueText={`${d.q(d.lengthMm(rootChordNow, units))} root chord`}
                 title="Drag or use arrow keys to lengthen or shorten the fin root"
                 current={rootChordNow}
                 lo={rootLo}
@@ -462,9 +465,10 @@ export default function RocketDiagram({
             )}
             {tipChordNow !== undefined && showFin("finTipChord") && (
               <FinHandle
+                units={units}
                 field="finTipChord"
                 label="Fin tip chord"
-                valueText={`${Math.round(tipChordNow * 1000)} mm tip chord`}
+                valueText={`${d.q(d.lengthMm(tipChordNow, units))} tip chord`}
                 title="Drag or use arrow keys to lengthen or shorten the fin tip"
                 current={tipChordNow}
                 lo={tipLo}
@@ -479,10 +483,11 @@ export default function RocketDiagram({
             )}
             {spanNow !== undefined && showFin("finSpan") && (
               <FinHandle
+                units={units}
                 field="finSpan"
                 axis="y"
                 label="Fin span"
-                valueText={`${Math.round(spanNow * 1000)} mm semi-span`}
+                valueText={`${d.q(d.lengthMm(spanNow, units))} semi-span`}
                 title="Drag up/down or use arrow keys to resize the fin span"
                 current={spanNow}
                 lo={spanLo}
@@ -505,9 +510,10 @@ export default function RocketDiagram({
         {/* nose-length handle — grab the nose/body joint and stretch or blunt the cone */}
         {onEdit && nosePart && noseLenNow !== undefined && (
           <FinHandle
+            units={units}
             field="noseLength"
             label="Nose length"
-            valueText={`${Math.round(noseLenNow * 1000)} mm long`}
+            valueText={`${d.q(d.lengthMm(noseLenNow, units))} long`}
             title="Drag or use arrow keys to lengthen or shorten the nose cone"
             current={noseLenNow}
             lo={noseLo}
@@ -524,11 +530,12 @@ export default function RocketDiagram({
         {/* body-diameter handle — grab the body wall to resize the caliber, independent of the fins */}
         {onEdit && bodyPart && bodyDiaNow !== undefined && (
           <FinHandle
+            units={units}
             field="bodyDiameter"
             axis="y"
             axisScale={2}
             label="Body diameter"
-            valueText={`${Math.round(bodyDiaNow * 1000)} mm diameter`}
+            valueText={`${d.q(d.lengthMm(bodyDiaNow, units))} diameter`}
             title="Drag up/down or use arrow keys to resize the body diameter"
             current={bodyDiaNow}
             lo={diaLo}
@@ -679,6 +686,7 @@ function FinHandlePicker({
 }
 
 function FinHandle({
+  units,
   field,
   label,
   valueText,
@@ -697,6 +705,10 @@ function FinHandle({
   onActiveChange,
   hitR = 0,
 }: {
+  /** The unit system on screen. A handle is the one place the number IS the feedback — there is
+   *  nothing else to read while dragging — so it reports in the flyer's own units, like the caption
+   *  above it and the field below it. */
+  units: UnitSystem;
   field: "finStation" | "finSweepLength" | "finRootChord" | "finTipChord" | "finSpan" | "bodyDiameter" | "noseLength";
   label: string;
   valueText: string;
@@ -791,6 +803,11 @@ function FinHandle({
 
   useEffect(() => end, [end]); // clean up an in-flight drag on unmount
 
+  /** The handle's numeric ARIA trio, in the unit system on screen. It has to agree with
+   *  `aria-valuetext`: a valuetext in inches over a valuenow in millimetres is two different answers
+   *  to the same question, and a reader that ignores the text announces the one nobody chose. */
+  const ariaNum = (m: number) => (units === "imperial" ? Number((m * 39.3701).toFixed(2)) : Math.round(m * 1000));
+
   return (
     <g
       className={`group touch-none outline-none ${axis === "y" ? "cursor-ns-resize" : "cursor-ew-resize"}`}
@@ -798,9 +815,9 @@ function FinHandle({
       tabIndex={0}
       aria-label={label}
       aria-orientation={axis === "y" ? "vertical" : "horizontal"}
-      aria-valuemin={Math.round(lo * 1000)}
-      aria-valuemax={Math.round(hi * 1000)}
-      aria-valuenow={Math.round(current * 1000)}
+      aria-valuemin={ariaNum(lo)}
+      aria-valuemax={ariaNum(hi)}
+      aria-valuenow={ariaNum(current)}
       aria-valuetext={valueText}
       onFocus={() => setFocused(true)}
       onBlur={() => setFocused(false)}
@@ -867,7 +884,7 @@ function FinHandle({
           textAnchor="middle"
           className="pointer-events-none fill-zinc-800 text-[10px] font-semibold tabular-nums [paint-order:stroke] [stroke:white] [stroke-width:3px] dark:fill-zinc-100 dark:[stroke:#18181b]"
         >
-          {Math.round(current * 1000)} mm
+          {d.q(d.lengthMm(current, units))}
         </text>
       )}
       <title>{title}</title>

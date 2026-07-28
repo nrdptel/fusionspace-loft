@@ -1494,6 +1494,53 @@ test.describe("Loft", () => {
     await expect.poll(async () => parseFloat((await span.getAttribute("aria-valuenow")) ?? "0")).toBeLessThan(afterDrag);
   });
 
+  test("every diagram handle reports in the flyer's own units, not always millimetres", async ({ page }) => {
+    // Direct manipulation is the one surface where the number IS the feedback: while a handle is
+    // being dragged there is nothing else to read. All seven used to report millimetres in both unit
+    // systems — byte-identical strings — while the caption on the same figure said inches and the
+    // typed field 40 px below said inches, so an imperial flyer trimming a fin got a metric number on
+    // the picture and an imperial one in the box for the same dimension.
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+    await page.getByRole("tab", { name: "Design" }).click();
+
+    const handles = page.locator('g[role="slider"]');
+    const metric = await handles.evaluateAll((ns) => ns.map((n) => n.getAttribute("aria-valuetext") ?? ""));
+    expect(metric.length, "the sample offers its fin, nose and body handles").toBeGreaterThanOrEqual(7);
+    expect(metric.every((t) => /\bmm\b/.test(t)), "metric reports millimetres").toBe(true);
+
+    await page.getByRole("button", { name: "Imperial" }).click();
+    const imperial = await handles.evaluateAll((ns) => ns.map((n) => n.getAttribute("aria-valuetext") ?? ""));
+    expect(imperial.filter((t) => /\bmm\b/.test(t)), "no handle still says mm in imperial").toEqual([]);
+    expect(imperial.every((t) => /\bin\b/.test(t)), "every handle reports inches").toBe(true);
+    expect(
+      imperial.filter((t, i) => t === metric[i]),
+      "no handle's readout is unchanged by the unit toggle",
+    ).toEqual([]);
+
+    // The numeric trio agrees with the text it sits beside, rather than staying on the mm scale.
+    const span = page.getByRole("slider", { name: "Fin span" });
+    const now = parseFloat((await span.getAttribute("aria-valuenow")) ?? "0");
+    const shown = parseFloat(((await span.getAttribute("aria-valuetext")) ?? "").replace(/[^\d.]/g, ""));
+    expect(now).toBeCloseTo(shown, 1);
+    expect(now, "an inch figure, not a millimetre one, for a 60 mm semi-span").toBeLessThan(10);
+
+    // And the label drawn on the airframe while the handle is driven says the same thing the field
+    // below it does — this is the pair that used to read "61 mm" against "2.39".
+    await span.focus();
+    await page.keyboard.press("ArrowUp");
+    // textContent, not innerText: an SVG <text> is not an HTMLElement and innerText throws on it.
+    const onCanvas = page.locator("svg text").filter({ hasText: /\bin$/ });
+    await expect(onCanvas.first()).toBeVisible();
+    const canvasIn = parseFloat(((await onCanvas.first().textContent()) ?? "").replace(/[^\d.]/g, ""));
+    const field = page.locator("input").and(page.getByLabel(/Fin span/)).first();
+    expect(canvasIn, "the picture and the field agree on the dimension").toBeCloseTo(
+      parseFloat((await field.inputValue()) || (await field.getAttribute("placeholder")) || "0"),
+      1,
+    );
+  });
+
   test("dragging the body wall out on the diagram widens the caliber and re-flies less stable", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
