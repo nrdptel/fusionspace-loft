@@ -3,6 +3,16 @@
 Rough edges, missing affordances, and ideas too big for one pass — noticed while working,
 not yet done. Newest first. One line each. Anything here is fair game for the next session.
 
+- **UNREPRODUCED, and the first thing to confirm or dismiss next session:** `/docs/faq` did not survive
+  an offline reload on a 390 px phone context in the done-check walk of the shipped build, with 2 console
+  errors — where the service worker precaches 24 assets and 6 routes and a full navigation to a
+  precached route is supposed to work offline. **The probe is the likely culprit rather than the app:**
+  it called `setOffline(true)` immediately after the first load, so the worker may not have activated
+  yet. Re-run it waiting for `navigator.serviceWorker.ready` (and for the precache to settle) before
+  going offline; if it still fails, the offline claim on the docs routes is wrong and that is a real
+  defect on the form factor the project describes as a pad check with no signal. Same walk confirmed an
+  existing entry: /docs/faq is 17x the viewport height on that phone, with 0 px of horizontal overflow.
+
 - **Leaving a design still throws away the work done on it, and the fix was written, verified and
   REVERTED this run — read this before rewriting it.** The defect: "Import another" (and "Start fresh",
   same `reset`) is one click that discards the design, every what-if and the session with no
