@@ -31,9 +31,11 @@ not yet done. Newest first. One line each. Anything here is fair game for the ne
   designation, so a `.rkt` Estes C6 sweep returns two conflicting DESIGN rows (Quest and Estes, 7%
   apart); and any new test must assert WHICH casing was inferred, not merely that a picker exists.
 
-- **FIXED this session: typing back the value a field advertises is now a no-op.** A Conditions
-  placeholder is a READING of the flown value at the field's own display precision, not the value
-  itself, and once it looked authoritative that reading was a trap. Rail length
+- **Typing back the value a Conditions field advertises is NOT the no-op it looks like. Still open —
+  a fix was written this session and reverted, and the shape that would work is at the end of this
+  entry.** A Conditions placeholder is a READING of the flown value at the field's own display
+  precision, not the value itself, and once it looked authoritative that reading became a trap. Rail
+  length
   renders to 1 dp (3.048 m shows "3.0", 3.6576 shows "3.7", up to 1.6% off) and surface wind to whole
   mph in imperial (2.0 m/s shows "4", and 0.599 m/s on `Show-off.CDX1` shows "1", a 25% understatement).
   Typing the advertised number back is not the no-op it looks like: on `base-drag-hack.ork` in imperial,
