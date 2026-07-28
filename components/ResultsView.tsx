@@ -706,6 +706,7 @@ export default function ResultsView({
           options={swapOptions}
           designMotor={designMotor ?? ""}
           designManufacturer={designManufacturer}
+          designApogee={run.result.summary.apogee}
           ballastKg={ballastKg}
           geometry={geometry}
         />

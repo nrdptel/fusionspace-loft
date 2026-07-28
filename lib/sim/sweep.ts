@@ -61,6 +61,29 @@ export interface MotorSweepOptions {
   designManufacturer?: string;
 }
 
+/** How far the design's own sweep row may sit from the flight the flyer actually read before the
+ *  difference is worth naming. A ballistic ascent and a full recovery flight differ slightly on every
+ *  design — the recovery mass is aboard either way — so a small gap is the method, not a discrepancy.
+ *  What matters is the design that DEPLOYS BEFORE APOGEE, where the two are different flights. */
+const BALLISTIC_GAP_THRESHOLD = 0.05;
+
+/** The design's sweep row against its real flight, when the two have genuinely parted company.
+ *
+ *  Every sweep row is ballistic so the rows compare like for like, and the row badged DESIGN is the
+ *  anchor the others are read against. On a design whose recovery opens before apogee that row is NOT
+ *  the flight shown on the Flight card — on the bundled USLI airframe it reads 1,888 m against 342 m —
+ *  and until this existed the two numbers simply disagreed on screen with nothing joining them up.
+ *  Returns null when there is nothing worth saying, so the notice stays a signal. */
+export function ballisticGap(
+  designRowApogee: number | undefined,
+  flownApogee: number | undefined,
+): { sweep: number; flown: number } | null {
+  if (typeof designRowApogee !== "number" || !Number.isFinite(designRowApogee)) return null;
+  if (typeof flownApogee !== "number" || !Number.isFinite(flownApogee) || flownApogee <= 0) return null;
+  const off = Math.abs(designRowApogee - flownApogee) / flownApogee;
+  return off > BALLISTIC_GAP_THRESHOLD ? { sweep: designRowApogee, flown: flownApogee } : null;
+}
+
 /** Fly `rocket` on each of `motors` and return one row per motor that flies, sorted by apogee
  *  (highest first). A motor the airframe can't fly on — an unresolved swap, or a throw from the
  *  solver — is omitted rather than shown as a pad-drop. Every flight is ballistic to apogee under

@@ -3,16 +3,22 @@
 Rough edges, missing affordances, and ideas too big for one pass — noticed while working,
 not yet done. Newest first. One line each. Anything here is fair game for the next session.
 
-- **The sweep's DESIGN row can disagree with the flight on the next tab, and on one design it does so
-  by 5.5x.** The sweep flies every candidate BALLISTIC (recovery removed) so the rows compare like
-  for like, and the panel's footnote says so. But the row badged as the flyer's OWN design is the
-  anchor every other row is read against, and on `FullScaleModelTH.rkt` it reads **1,888 m** while
-  the Flight card one tab away reads **342 m** — that design opens a recovery device before apogee.
-  Measured across all 39 corpus and sample designs whose surfaces are on: this is the only one where
-  the gap exceeds 10%. It is not new behaviour, but it is newly ON SCREEN, because that design had no
-  sweep at all until this session. Fix: when the design's own row departs from the design's real
-  flight by more than a few percent, say so beside the badge ("ballistic — the stored flight deploys
-  before apogee at 342 m"). The number is already computed on the Flight tab.
+- **RESOLVED — the sweep now says when its own DESIGN row is not the flight on the next tab.** The
+  sweep flies every candidate BALLISTIC (recovery removed) so the rows compare like for like, and the
+  footnote always said so. But the row badged as the flyer's OWN design is the anchor every other row
+  is read against, and on `FullScaleModelTH.rkt` it read **1,888 m** while the Flight card one tab
+  away read **342 m** — that design opens a recovery device before apogee. Measured across all 39
+  corpus and sample designs whose sweep renders, it was the only one past 10%. Not new behaviour, but
+  newly ON SCREEN, because that design had no sweep at all until this session. `ballisticGap` in
+  `lib/sim/sweep.ts` names both numbers when they part company by more than 5%, and stays silent
+  otherwise so the notice remains a signal rather than boilerplate.
+
+- **The gate does not type-check the e2e specs, and one of them does not compile.** `npx tsc --noEmit`
+  over the repo reports `e2e/smoke.spec.ts … Property 'labels' does not exist on type 'SVGElement'`;
+  `npm run build` is green because Next type-checks only the app. Pre-existing — the line is present
+  at `e12a149`, before this session's motor work. It means a spec can carry a type error indefinitely,
+  and the one place that would catch it is the command nobody runs. Either add a `tsc --noEmit -p` step
+  over `e2e/` to the gate and fix that cast, or state in `MAINTAINING.md` that specs are unchecked.
 
 - **On a multi-stage design the swap picker varies something the same screen says cannot be varied,
   and a swap silently replaces EVERY stage's motor.** Newly reachable: `Complex.Two-Stage.CDX1` now

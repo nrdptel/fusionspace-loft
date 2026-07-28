@@ -36,6 +36,7 @@ export default function MotorSweep({
   options,
   designMotor,
   designManufacturer,
+  designApogee,
   ballastKg,
   geometry,
   designKey,
@@ -50,6 +51,10 @@ export default function MotorSweep({
   /** That motor's manufacturer as the catalog spells it, when it matched exactly. Without it a
    *  designation-only mark badges every manufacturer's motor of that name as the design's own. */
   designManufacturer?: string;
+  /** The apogee (m) of the flight actually shown on the Flight card — the number the flyer just read.
+   *  Every sweep row is ballistic, so on a design whose recovery opens before apogee the row badged
+   *  DESIGN is not that flight, and the two disagree on screen with nothing saying why. */
+  designApogee?: number;
   /** Active "what-if" nose ballast (kg), applied to every motor in the sweep. */
   ballastKg?: number;
   /** Active builder geometry edits, applied to every motor in the sweep. */
@@ -156,7 +161,7 @@ export default function MotorSweep({
           spinner. It is never left unlabelled: the status line says which it is. */}
       {open && rows !== null && rows.length > 0 && (
         <div aria-busy={running} className={running ? "opacity-50 transition-opacity" : undefined}>
-          <SweepTable rows={rows} units={units} name={doc.rocket.name} />
+          <SweepTable rows={rows} units={units} name={doc.rocket.name} designApogee={designApogee} />
         </div>
       )}
     </section>
@@ -209,7 +214,18 @@ type SortKey = (typeof COLUMNS)[number]["key"];
  *  different column set is discarded rather than leaving the table sorted on nothing. */
 const SORT_CHOICES: readonly string[] = COLUMNS.flatMap((c) => [`${c.key}:asc`, `${c.key}:desc`]);
 
-function SweepTable({ rows, units, name }: { rows: MotorSweepRow[]; units: UnitSystem; name: string }) {
+function SweepTable({
+  rows,
+  units,
+  name,
+  designApogee,
+}: {
+  rows: MotorSweepRow[];
+  units: UnitSystem;
+  name: string;
+  /** The apogee (m) the Flight card shows, so the table can say when its own DESIGN row is not it. */
+  designApogee?: number;
+}) {
   // Which column the table is sorted on is a view the flyer chose deliberately — someone picking a
   // motor on flutter margin is doing that across every design they open, not once. Direction rides
   // along in the same stored value so the pair can't come back inconsistent.
@@ -232,6 +248,10 @@ function SweepTable({ rows, units, name }: { rows: MotorSweepRow[]; units: UnitS
     }
     return String(x).localeCompare(String(y)) * sort.dir;
   });
+  // The design's own row against the flight the flyer actually read — see `ballisticGap` for why a
+  // small difference is the method rather than a discrepancy.
+  const gap = ballisticGap(sorted.find((r) => r.isDesign)?.apogee, designApogee);
+
   // Re-clicking the sorted column flips it; a new column starts the way that column is most
   // useful — biggest first for a number, A→Z for a name.
   const click = (next: SortKey) =>
@@ -337,6 +357,19 @@ function SweepTable({ rows, units, name }: { rows: MotorSweepRow[]; units: UnitS
           </tbody>
         </table>
       </div>
+      {/* The DESIGN row is the anchor every other row is read against, and on a design whose recovery
+          opens before apogee it is NOT the flight shown one tab away — on the bundled USLI airframe
+          the row reads 1,888 m against a flight of 342 m. The methodology note below has always said
+          the sweep is ballistic, but nothing connected that to the specific number the flyer had just
+          read. Only shown when the two actually part company, so it stays a signal. */}
+      {gap && (
+        <p className="mt-2 rounded-lg bg-amber-500/10 px-3 py-2 text-xs text-amber-900 dark:text-amber-200">
+          The <strong>Design</strong> row flies ballistic like every other row here:{" "}
+          {d.q(d.altitude(gap.sweep, units))} against the{" "}
+          {d.q(d.altitude(gap.flown, units))} this design actually flies, because its
+          recovery opens before apogee. Compare the rows with each other, not with the flight above.
+        </p>
+      )}
       <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
         Each motor flies a ballistic ascent to apogee under the design&apos;s stored launch
         conditions — a like-for-like comparison, not the full recovery flight. Rail-exit velocity and

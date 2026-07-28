@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { importOrk } from "../ork/import";
 import { runFlight, overridesFromStored } from "./run";
-import { motorSweep, parameterSweep, linRange, type SweepMotor } from "./sweep";
+import { motorSweep, parameterSweep, linRange, ballisticGap, type SweepMotor } from "./sweep";
 import { allMotors } from "../motors/db";
 import { designMotorIdentity, swapOptions } from "../motors/swap";
 import { primaryFinSpan, primaryFinRootChord, primaryFinTipChord, primaryFinThickness, primaryFinStation, primaryBodyTube } from "../model/edit";
@@ -176,6 +176,31 @@ describe("motorSweep", () => {
     }).filter((r) => r.isDesign);
     expect(ambiguous.length).toBe(2);
     expect(new Set(ambiguous.map((r) => r.manufacturer)).size).toBe(2);
+  });
+});
+
+describe("ballisticGap", () => {
+  it("says nothing when the design's row is the flight the flyer read", () => {
+    // Every row is ballistic, so the design's own row differs a little on any design. That is the
+    // method, not a discrepancy, and naming it every time would make the notice noise.
+    expect(ballisticGap(1000, 1000)).toBeNull();
+    expect(ballisticGap(1020, 1000)).toBeNull();
+    expect(ballisticGap(960, 1000)).toBeNull();
+  });
+
+  it("names both numbers when the design deploys before apogee and the two are different flights", () => {
+    // The measured case: the bundled USLI airframe's row reads 1,888 m against a flight of 342 m.
+    expect(ballisticGap(1888, 342)).toEqual({ sweep: 1888, flown: 342 });
+    // Symmetric — a design that flies HIGHER than its row is just as much a disagreement on screen.
+    expect(ballisticGap(500, 1000)).toEqual({ sweep: 500, flown: 1000 });
+  });
+
+  it("says nothing rather than dividing by a number it does not have", () => {
+    expect(ballisticGap(undefined, 342)).toBeNull();
+    expect(ballisticGap(1888, undefined)).toBeNull();
+    expect(ballisticGap(1888, 0)).toBeNull();
+    expect(ballisticGap(Number.NaN, 342)).toBeNull();
+    expect(ballisticGap(1888, Number.NaN)).toBeNull();
   });
 });
 
