@@ -169,8 +169,10 @@ export default function Faq() {
 
       <QA q="Can I try the design on a different motor?">
         <p>
-          Yes. In the <em>Design workspace</em>, the <em>Motor</em> picker lists the
-          bundled motors that fit this airframe&apos;s mount diameter, grouped by class. Choose one
+          Yes. In the <em>Design workspace</em>, the <em>Motor</em> picker lists the bundled motors
+          of the same casing as the one this design already flies, grouped by class. That casing
+          demonstrably fits the rocket; a mount&apos;s stated bore would not establish the same for
+          every motor that would physically go in it, so the narrower claim is the one made. Choose one
           and Loft re-flies the same rocket on it, so you can compare apogee, speed, rail-exit
           velocity, and stability across motors without editing the file — the classic &ldquo;what
           would a J do here?&rdquo; A cluster keeps its motor count. A compact{" "}
@@ -197,7 +199,7 @@ export default function Faq() {
       <QA q="Can I compare all the motors that fit at once?">
         <p>
           Yes. In the <em>Analyze</em> workspace, <em>Compare fitting motors</em> flies your airframe
-          on every bundled motor that fits its mount diameter — all at once, on your device — and lays them
+          on every bundled motor of the same casing it already flies — all at once, on your device — and lays them
           out highest-apogee first: apogee, max speed, rail-exit velocity, thrust-to-weight,
           stability margin, fin-flutter margin, and the optimum ejection delay for each, with your
           design&apos;s own motor marked. It&apos;s the fast way

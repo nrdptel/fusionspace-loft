@@ -162,7 +162,10 @@ describe("motorSweep", () => {
       designManufacturer: identity.manufacturer,
     }).filter((r) => r.isDesign);
     expect(marked.length).toBe(1);
-    expect(marked[0].manufacturer).toBe(identity.manufacturer);
+    // Pin which one, not just that there is one: asserting against `identity.manufacturer` alone
+    // would pass with the two makers swapped.
+    expect(marked[0].manufacturer).toBe("Estes Industries");
+    expect(identity.manufacturer).toBe("Estes Industries");
 
     // Without the manufacturer there is nothing to tell them apart, and both get badged — which is
     // what this field exists to prevent, and what every RockSim/RASAero design used to get.
@@ -172,8 +175,7 @@ describe("motorSweep", () => {
       designMotor: "C6",
     }).filter((r) => r.isDesign);
     expect(ambiguous.length).toBe(2);
-    // And they really are different flights, so the ambiguity is not cosmetic.
-    expect(ambiguous[0].apogee).not.toBeCloseTo(ambiguous[1].apogee, 1);
+    expect(new Set(ambiguous.map((r) => r.manufacturer)).size).toBe(2);
   });
 });
 

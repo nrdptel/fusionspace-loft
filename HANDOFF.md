@@ -8,7 +8,8 @@ The session is pinned to a working branch, not `main`. **CI does not run on a br
 `test.yml` fires on `push: [main]` and on `pull_request:` only, and `deploy-cloudflare.yml` on
 `push: [main]`. So the sequence that actually ships is: gate locally → push the branch → open a PR
 (that is what makes CI run) → merge on green (that is what deploys). Confirmed again this session on
-PRs #53 and #54.
+PR #53: both jobs ran on the PR and passed, and the squash merge deployed — production served the
+changed chunk minutes later.
 
 **Every merge is a SQUASH, so after each one the working branch and `main` diverge by construction.**
 The branch's commits are not ancestors of `main` even though their content is in it, and an ordinary
@@ -133,7 +134,7 @@ corpus **35 design files, 3/3**. Finished at **682 unit and 122 e2e**, corpus 35
 | | |
 |---|---|
 | **#53** | **A motor could NOT be matched, rather than the opposite.** The "No flight simulated" panel shared one clause between its plural and singular branches, so the singular subject read "This configuration's motor could be matched to a thrust curve in the bundled database, so there is no thrust to fly" — contradicting itself inside one sentence, on the panel whose whole job is to explain why there is no flight. Each branch now carries its own negation, tested against a committed fixture. |
-| **#54** | **Loft's motor tools reach RockSim and RASAero designs.** The swap picker and the motor sweep rendered on **0 of 8** non-OpenRocket corpus designs with nothing on screen saying why, while the same rocket exported as `.ork` offered both. Now **5 of 8** plus the bundled RockSim sample; the other three name no motor Loft can resolve, so they stay off rather than guess. |
+| **the motor-tools PR** | **Loft's motor tools reach RockSim and RASAero designs.** The swap picker and the motor sweep rendered on **0 of 8** non-OpenRocket corpus designs with nothing on screen saying why, while the same rocket exported as `.ork` offered both. Now the **picker on 5 of 8** and the **sweep on 4 of 8**, plus the bundled RockSim sample: three designs name no motor Loft can resolve so they stay off rather than guess, and the two-stage `.CDX1` is held back from the sweep by the pre-existing `!staged` gate. Update this row with its PR number once it merges. |
 
 ## The thing to actually learn from this session
 

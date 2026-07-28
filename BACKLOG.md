@@ -3,15 +3,38 @@
 Rough edges, missing affordances, and ideas too big for one pass — noticed while working,
 not yet done. Newest first. One line each. Anything here is fair game for the next session.
 
+- **The sweep's DESIGN row can disagree with the flight on the next tab, and on one design it does so
+  by 5.5x.** The sweep flies every candidate BALLISTIC (recovery removed) so the rows compare like
+  for like, and the panel's footnote says so. But the row badged as the flyer's OWN design is the
+  anchor every other row is read against, and on `FullScaleModelTH.rkt` it reads **1,888 m** while
+  the Flight card one tab away reads **342 m** — that design opens a recovery device before apogee.
+  Measured across all 39 corpus and sample designs whose surfaces are on: this is the only one where
+  the gap exceeds 10%. It is not new behaviour, but it is newly ON SCREEN, because that design had no
+  sweep at all until this session. Fix: when the design's own row departs from the design's real
+  flight by more than a few percent, say so beside the badge ("ballistic — the stored flight deploys
+  before apogee at 342 m"). The number is already computed on the Flight tab.
+
+- **On a multi-stage design the swap picker varies something the same screen says cannot be varied,
+  and a swap silently replaces EVERY stage's motor.** Newly reachable: `Complex.Two-Stage.CDX1` now
+  gets the picker, while the Analyze tab on that same design explains that its tools are withheld
+  because a staged design's "primary" motor is ambiguous — and `canSweepMotors` is gated on `!staged`
+  for exactly that reason. The picker is not. Related, and measured on the same design: the sweep's
+  DESIGN row is not the design's flight on a multi-instance configuration (1,813 m badged against
+  1,491 m flown), because the swap replaces every instance rather than only the one the swap list was
+  built for. Fix either by gating the picker on `!staged` the way the sweep is, or by swapping only
+  the instance `designMotorIdentity` read and saying so.
+
 - **RESOLVED — the motor tools now render on RockSim and RASAero imports. The fix was NOT the one
   this entry spent two sessions prescribing, and measuring that prescription is what killed it.**
   The defect as measured: the swap picker and the motor sweep rendered on **0 of 8** non-OpenRocket
   corpus designs with nothing on screen saying why, while the SAME rocket exported as `.ork` offered
   both (controlled pair: `OR vs RAS Test 1`, identical N1000W flight, 8,011 m vs 7,646 m). Both are
   gated on the motor casing diameter, and `lib/rkt/adapt.ts:554` and `lib/rasaero/adapt.ts:481,492`
-  hardcode `diameter: 0`. Now **5 of 8**, plus the bundled RockSim sample; the other three name no
-  motor Loft can resolve (two name none at all, one is RASAero's `1/4A2`), so they stay off rather
-  than offer a list built on a guess.
+  hardcode `diameter: 0`. Now the **picker on 5 of 8** and the **sweep on 4 of 8**, plus the bundled
+  RockSim sample. Three designs name no motor Loft can resolve (two name none at all, one is
+  RASAero's `1/4A2`), so they stay off rather than offer a list built on a guess; the fifth,
+  `Complex.Two-Stage.CDX1`, gets the picker but not the sweep, held back by the pre-existing
+  `!staged` gate at `ResultsView.tsx:349`, which does explain itself on screen.
   **Why "read `MotorDia`" was wrong.** This entry said to read RockSim's `MotorDia` and carry it as
   the mount's diameter, treating the catalog as a distant second-best. `MotorDia` is the mount's
   **bore**, not a casing size, and the two are different quantities: `FullScaleModelTH.rkt` declares
@@ -25,8 +48,10 @@ not yet done. Newest first. One line each. Anything here is fair game for the ne
   motor demonstrably fits this rocket, so a bundled motor of the same casing fits it too — the
   identical claim the `.ork` path makes from the file's own figure, and the file's figure still wins
   wherever it has one. The exact gate is load-bearing: a "designation" match is a bare two-way
-  substring test, so `resolveMotor({designation: "H225-14A-8"})` returns an Estes A8 at 18 mm, and a
-  "core" match on `411-I175-WH-14A` lands on a Cesaroni 29 mm.
+  substring test, so `resolveMotor({designation: "H225-14A-8"})` returns an **Estes A8 at 18 mm**,
+  and `411-I175-WH-14A` lands on a Cesaroni `411I175-14A` at 38 mm the same way. (An earlier version
+  of this entry called that second one a "core" match at 29 mm. It is a "designation" match at
+  38 mm — measured, not inherited.)
   Fixed alongside, because turning the sweep on for `.rkt` files exposed it: `motorSweep` badged
   DESIGN by bare designation, so the 18 mm sweep marked both the Estes C6 and the Quest C6 as the
   design's own motor while they fly measurably differently. It now takes the manufacturer too, and

@@ -1509,8 +1509,10 @@ function DesignEditor({
             altitude and a drogue diameter — the main then opens low over a drogue that controls the
             fall from apogee, cutting drift) to trim stability, drag, apogee, or landing.
             It&apos;s a hypothetical change to the design, so the {tool} comparison is hidden while
-            any is set. The geometry fields start from the design&apos;s own dimensions; only motors
-            that fit this airframe&apos;s diameter are offered.
+            any is set. The geometry fields start from the design&apos;s own dimensions; the motors
+            offered are the bundled ones of the same casing as the one this design already flies —
+            that casing demonstrably fits, which a mount&apos;s stated bore does not establish for
+            every motor that would go in it.
           </p>
         </div>
   );

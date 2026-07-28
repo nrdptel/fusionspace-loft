@@ -563,11 +563,13 @@ test.describe("Loft", () => {
     expect(asDesigned).toBeGreaterThan(0);
 
     await page.getByRole("tab", { name: "Design" }).click();
-    const swapTo = offered.find((o) => /\bK/.test(o) && !/J420R/.test(o));
-    expect(swapTo, "no larger-class 38 mm motor to swap to").toBeTruthy();
-    await picker.selectOption({ label: swapTo! });
+    // The options are sorted weakest total impulse first, so the last one is the biggest motor of
+    // this casing — deterministic, unlike matching a class letter that a manufacturer name can also
+    // contain. It carries more impulse than the design's J420R, so the same airframe flies higher.
+    const swapTo = offered[offered.length - 1];
+    expect(swapTo).not.toMatch(/J420R/);
+    await picker.selectOption({ label: swapTo });
     await page.getByRole("tab", { name: "Flight" }).click();
-    // A K motor carries more impulse than the design's J, so the same airframe flies higher.
     await expect.poll(summaryApogee).toBeGreaterThan(asDesigned);
   });
 

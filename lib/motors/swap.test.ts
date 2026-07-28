@@ -55,11 +55,19 @@ describe("designMotorIdentity", () => {
     const c6s = allMotors().filter((m) => m.designation === "C6" && Math.round(m.curve.diameterMm) === 18);
     expect(c6s.length).toBeGreaterThan(1);
 
+    // Pin WHICH maker comes back, not merely that it is one of them — comparing the answer to
+    // itself would pass just as well with the two swapped. The name comes back as the CATALOG
+    // spells it, so it compares equal to a swap option's manufacturer ("Estes Industries", not the
+    // design file's "Estes").
     const estes = designMotorIdentity({ designation: "C6", manufacturer: "Estes" });
-    expect(estes.manufacturer).toBeTruthy();
-    // The name comes back as the CATALOG spells it, so it compares equal to a swap option's own
-    // manufacturer string ("Estes Industries", not the file's "Estes").
+    expect(estes.manufacturer).toBe("Estes Industries");
     expect(c6s.some((m) => (m.manufacturer ?? m.curve.manufacturer ?? "") === estes.manufacturer)).toBe(true);
+
+    // And the mirror case resolves to the OTHER one, so the manufacturer is genuinely being read.
+    const quest = designMotorIdentity({ designation: "C6", manufacturer: "Quest" });
+    expect(quest.manufacturer).toBe("Quest Aerospace");
+    expect(quest.manufacturer).not.toBe(estes.manufacturer);
+    expect(quest.casingMm).toBe(estes.casingMm);
 
     expect(designMotorIdentity({ designation: "1/4A2" }).manufacturer).toBeUndefined();
   });
