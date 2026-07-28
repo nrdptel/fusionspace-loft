@@ -246,6 +246,38 @@ test.describe("when the second solver stops", () => {
     await expect(panel.getByText(/RocketPy couldn't run/)).toHaveCount(0);
   });
 
+  test("names the connection when the run fails with no signal", async ({ page }) => {
+    // RocketPy's ~40 MB runtime is not precached — the service worker excludes /pyodide/, and the
+    // worker script with it — so with no signal the run cannot start and the engine's own words for
+    // that are "The RocketPy worker crashed.", which reads as a defect in the tool or the design. On
+    // the form factor this project describes as a pad check with no signal, that is the difference
+    // between abandoning a cross-check and walking back to the car. The weather control on the same
+    // screen already names the connection.
+    await standInWorker(page, { type: "error", message: "The RocketPy worker crashed." });
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+    await page.getByRole("tab", { name: "Analyze" }).click();
+
+    await page.context().setOffline(true);
+    const panel = page.getByRole("region", { name: "RocketPy cross-check" });
+    await panel.getByRole("button", { name: "Run RocketPy" }).click();
+
+    await expect(panel.getByText(/Your device is offline/)).toBeVisible();
+    await expect(panel.getByText(/about 40 MB the first time/)).toBeVisible();
+    // The engine's own words are still there, unchanged and in full — this adds a fact, it does not
+    // reinterpret one, and a flyer reporting the problem needs RocketPy's message rather than a
+    // paraphrase of it.
+    await expect(panel.getByText("RocketPy couldn't run: The RocketPy worker crashed.")).toBeVisible();
+
+    // Back online, the same failure says nothing about the connection: it is a fact about the moment,
+    // not a diagnosis of the failure.
+    await page.context().setOffline(false);
+    await panel.getByRole("button", { name: "Try RocketPy again" }).click();
+    await expect(panel.getByText("RocketPy couldn't run: The RocketPy worker crashed.")).toBeVisible();
+    await expect(panel.getByText(/Your device is offline/)).toHaveCount(0);
+  });
+
   test("says the one-line failures plainly, with nothing to expand onto themselves", async ({ page }) => {
     // The worker's fallback when a fatal error carries no message of its own. It is not a download
     // failure and is not diagnosed as one — it is repeated exactly, and there is nothing behind it.

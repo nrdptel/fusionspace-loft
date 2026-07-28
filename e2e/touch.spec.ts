@@ -218,4 +218,23 @@ test.describe("phone layout", () => {
     await page.locator("summary", { hasText: /Parts ·/ }).click();
     expect(await scan(), "Design workspace with the parts table open").toEqual([]);
   });
+  test("the shelf's destructive control is a real target, not a sliver beside a big one", async ({ page }) => {
+    // It was 24 px wide against a 230-240 px Reopen in the same row — the only control in the import
+    // panel that omitted the repo's own hit-target token, and the one that deletes.
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("button", { name: /Import another/ })).toBeVisible();
+    await page.getByRole("button", { name: /Import another/ }).click();
+
+    const remove = page.getByRole("button", { name: /^Remove / }).first();
+    await expect(remove).toBeVisible();
+    const box = (await remove.boundingBox())!;
+    expect(Math.round(box.width), "remove is 44 px wide, not a sliver").toBeGreaterThanOrEqual(44);
+    expect(Math.round(box.height), "remove is 44 px tall").toBeGreaterThanOrEqual(44);
+
+    // And the row still fits: widening the delete target must not push the page sideways.
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth),
+    ).toBeLessThanOrEqual(0);
+  });
 });

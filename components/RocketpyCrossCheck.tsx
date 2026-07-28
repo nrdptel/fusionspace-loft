@@ -31,7 +31,12 @@ type State =
   /** The stage the run was stopped at. RocketPy spends most of a cold run downloading and installing,
    *  not flying, so a stopped panel that always said "flying" would be describing the wrong thing. */
   | { phase: "stopped"; stage: string }
-  | { phase: "error"; message: string };
+  /** `offline` records what the BROWSER said at the moment the run failed, not a diagnosis of the
+   *  failure. RocketPy's ~40 MB runtime is not precached (the service worker excludes /pyodide/, and
+   *  the worker script with it), so with no signal the run cannot start and the panel used to report
+   *  the engine's own generic "The RocketPy worker crashed." — which reads as a defect in the tool or
+   *  the design, on the form factor this project describes as a pad check with no signal. */
+  | { phase: "error"; message: string; offline: boolean };
 
 /** A completed cross-check, held OUTSIDE the phase so that stopping or failing the next run cannot
  *  destroy it. The panel promises the previous figures are "kept rather than cleared — that is the
@@ -153,7 +158,15 @@ export default function RocketpyCrossCheck({
       // on `name` rather than `instanceof Error` because the abort arrives as a DOMException, whose
       // place in the Error prototype chain is not something to bet a state transition on.
       if ((e as { name?: string } | null)?.name === "AbortError") setState({ phase: "stopped", stage: reached });
-      else setState({ phase: "error", message: e instanceof Error ? e.message : String(e) });
+      else
+        setState({
+          phase: "error",
+          message: e instanceof Error ? e.message : String(e),
+          // A fact the browser reports, captured now rather than when the panel renders — not a guess
+          // at the cause. `engineFailure` deliberately never classifies a failure; this does not
+          // either, it just says what else was true at the time.
+          offline: typeof navigator !== "undefined" && navigator.onLine === false,
+        });
     }
   }, [doc, config, simIndex, ballastKg, motorSwap, geometry, designKey]);
 
@@ -218,7 +231,7 @@ export default function RocketpyCrossCheck({
       )}
 
       {/* A failure reads before the way out of it, so the button below is the next thing reached. */}
-      {state.phase === "error" && <Failure message={state.message} />}
+      {state.phase === "error" && <Failure message={state.message} offline={state.offline} />}
 
       {/* Stopping is a deliberate act with a price, and the price is named rather than discovered:
           the runtime is genuinely gone, so the next run starts it over. Saying "stopped waiting" would
@@ -293,10 +306,21 @@ export default function RocketpyCrossCheck({
  *  The report is kept in full and unedited — it is the only thing worth attaching to a bug report,
  *  and the frame it names is often more telling than the exception line — but it is folded away and
  *  scrolls inside its own box, with the alignment of Python's `^^^` carets intact. */
-function Failure({ message }: { message: string }) {
+function Failure({ message, offline }: { message: string; offline: boolean }) {
   const { headline, detail } = engineFailure(message);
   return (
     <div className="mt-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-700 dark:text-red-300">
+      {/* What the browser said, before what the engine said. RocketPy's runtime is a ~40 MB download
+          that is not precached, so with no connection the run cannot start at all — and the engine's
+          own words for that are "the worker crashed", which sounds like the tool or the design is at
+          fault. The engine's message is still shown, unchanged and in full: this adds a fact, it does
+          not reinterpret one. */}
+      {offline && (
+        <p className="mb-1 break-words font-medium">
+          Your device is offline, and RocketPy needs to download about 40 MB the first time you run it.
+          That is the likely reason, though what it reported is below.
+        </p>
+      )}
       <p className="break-words">RocketPy couldn&apos;t run: {headline}</p>
       {detail && (
         <details className="group mt-1">

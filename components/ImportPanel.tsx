@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 
-import { TOUCH_TARGET } from "@/lib/ui-tokens";
+import { TOUCH_TARGET, TOUCH_TARGET_SQUARE } from "@/lib/ui-tokens";
 import { countWhatIfs, type RecentDesign, type SavedSession } from "@/lib/session";
 
 /** The import surface: a large drop zone / file picker for an OpenRocket `.ork`, RockSim
@@ -166,7 +166,10 @@ export default function ImportPanel({
                   disabled={busy}
                   onClick={() => onForgetRecent(r.id)}
                   aria-label={`Remove ${r.rocket || r.name} from your designs`}
-                  className="rounded-r-lg border-l border-zinc-200 px-2 text-sm text-zinc-400 transition hover:bg-zinc-50 hover:text-zinc-700 disabled:opacity-60 dark:border-zinc-800 dark:hover:bg-zinc-800/60 dark:hover:text-zinc-200"
+                  // A one-glyph destructive control sitting against a 240 px open target: it needs the
+                  // 44 px minimum in BOTH directions, not just height, or it stays a 24 px-wide delete
+                  // button for a thumb aiming at the row beside it.
+                  className={`flex items-center justify-center rounded-r-lg border-l border-zinc-200 px-2 text-sm text-zinc-400 transition hover:bg-zinc-50 hover:text-zinc-700 disabled:opacity-60 dark:border-zinc-800 dark:hover:bg-zinc-800/60 dark:hover:text-zinc-200 ${TOUCH_TARGET_SQUARE}`}
                 >
                   <span aria-hidden>×</span>
                 </button>
