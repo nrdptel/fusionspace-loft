@@ -3,16 +3,74 @@
 Rough edges, missing affordances, and ideas too big for one pass — noticed while working,
 not yet done. Newest first. One line each. Anything here is fair game for the next session.
 
-- **A Conditions placeholder is a READING of the flown value at the field's own display precision, not
-  the value itself — and now that it looks authoritative, typing it back costs something.** Rail length
+- **Loft's motor tools are silently absent on every RockSim and RASAero import, and the fix is one
+  field away in the .rkt file — a first attempt this session got the source wrong and was REVERTED.**
+  Measured: the swap picker and the motor sweep render on **0 of 8** non-OpenRocket corpus designs
+  with nothing on screen saying why, while the SAME rocket exported as `.ork` offers both (controlled
+  pair: `OR vs RAS Test 1`, identical N1000W flight, 8,011 m vs 7,646 m). Both surfaces are gated on
+  the motor casing diameter, and `lib/rkt/adapt.ts:554` and `lib/rasaero/adapt.ts:481,492` hardcode
+  `diameter: 0`. This is Loft's single strongest surface — fly every fitting motor and tabulate nine
+  sortable columns, which OpenRocket has no equivalent of — withheld from a quarter of the corpus.
+  It also breaks the project's own rule at `ResultsView.tsx:110`: "a panel that simply isn't there
+  reads as a missing feature rather than a modelling limit."
+  **The attempt that failed** inferred the casing from the motor resolved against the bundled catalog.
+  It restored the surfaces (0 → 5 of 8) and was still wrong, because **the RockSim file states the
+  mount size outright and the two disagree**: `public/samples/demo-rocksim.rkt` declares
+  `<IsMotorMount>1</IsMotorMount><MotorDia>54.</MotorDia>` on an `<ID>54</ID>` tube, while the catalog
+  certifies its J420R at 38 mm. The result was a picker of 31 motors of 38 mm casing under a heading
+  reading "54 mm sport", topped by K-motors, excluding every 54 mm motor the file's own mount takes —
+  a wrong claim about physical fit, which is the one thing a swap list must never make. `MotorDia` has
+  **zero hits anywhere in `lib/`**.
+  **The right fix:** read `MotorDia` (and RASAero's equivalent, if it has one) and carry it as the
+  MOUNT's diameter — most likely on the `motorMount` role, not on `MotorSpec.diameter`, which is the
+  motor's own size and has other consumers. The catalog is a distant second-best fallback and must be
+  gated on `resolveMotor(...).quality === "exact"`: a "designation" match is a bare two-way substring
+  test, so `resolveMotor({designation: "H225-14A-8"})` returns an Estes A8 at 18 mm, and a "core"
+  match on `411-I175-WH-14A` lands on a Cesaroni 29 mm — either would seed a mount-fit claim from a
+  guess. Two smaller things to fix while there: `lib/sim/sweep.ts:87` badges DESIGN by bare
+  designation, so a `.rkt` Estes C6 sweep returns two conflicting DESIGN rows (Quest and Estes, 7%
+  apart); and any new test must assert WHICH casing was inferred, not merely that a picker exists.
+
+- **Typing back the value a Conditions field advertises is NOT the no-op it looks like. Still open —
+  a fix was written this session and reverted, and the shape that would work is at the end of this
+  entry.** A Conditions placeholder is a READING of the flown value at the field's own display
+  precision, not the value itself, and once it looked authoritative that reading became a trap. Rail
+  length
   renders to 1 dp (3.048 m shows "3.0", 3.6576 shows "3.7", up to 1.6% off) and surface wind to whole
   mph in imperial (2.0 m/s shows "4", and 0.599 m/s on `Show-off.CDX1` shows "1", a 25% understatement).
   Typing the advertised number back is not the no-op it looks like: on `base-drag-hack.ork` in imperial,
   entering the advertised 4 mph moved drift from 149 ft to 133 ft (−11%), and it trips `hasActiveEdits`,
   which HIDES the stored OpenRocket/RockSim/RASAero comparison — the app discards its own validation
   panel in exchange for a value it had just claimed was in force. The old hardcoded "1.2" never invited
-  that because it was obviously not the design's. Options: round-trip-safe display precision on these
-  four fields, or treat an entry equal to the flown value at display precision as no edit at all.
+  that because it was obviously not the design's. Reproduced first-hand this session on
+  `base-drag-hack.ork` in imperial: the wind field advertises "4", drift as flown is 149 ft, and
+  typing that 4 back gives 133 ft with the OpenRocket comparison row gone.
+  **A fix was written this session and REVERTED — do not repeat it.** It made `Num.commit` treat an
+  entry equal to the placeholder as "leave it as it is". Three certain defects, all measured by review
+  in the built app:
+  1. **The premise is false where a placeholder is not a reading of the flown value.** `Payload pos`
+     advertises `defaultPayloadStation` on the PRISTINE rocket, while `addPayloadMass` places a blank
+     payload using the ALREADY-EDITED one. On the 38 mm sample, imperial: payload 16 oz, body length
+     27.56 → 47.56 in, the field still advertises "23.62" while the payload sits at 33.62 in. Typing
+     23.62 — the flyer pinning the av-bay where the field says it is — was swallowed; typing 23.63
+     landed, moving CG 3.1 in and static margin 2.07 cal. That is a real, separate bug in its own
+     right: **the Payload pos placeholder does not track the edited rocket.**
+  2. **The advertised value becomes the only value that cannot be pinned**, and an entry is the only
+     way to hold a condition constant while sweeping configurations. `USLI2025-FULLSCALE`'s five stored
+     runs are a wind sweep at exactly 0/5/10/15/20 mph; on run #2 the field advertises "5", typing 5
+     was swallowed, and switching configuration then moved the flight to 15 mph silently — drift
+     1,318 → 2,139 ft. The placeholder there is EXACT, so the "it is only a rounded reading"
+     justification does not even apply.
+  3. **Enter left the box asserting a value not in force.** `commit` cleared the model but not
+     `draft`, and the re-sync effect is gated on the field not being focused, so after Enter the input
+     still read "4", styled byte-identically to a pinned edit, while the rest of the page said nothing
+     was edited.
+  The honest fix is the one deferred: **round-trip-safe display precision** on these fields, so the
+  advertised number IS the flown number and typing it back is naturally a no-op. `toDispSpd` renders
+  imperial wind at 0 dp (2.0 m/s → "4" against a flown 4.47 mph, and 0.599 m/s → "1", 25% off) and
+  `toDispLen` at 1 dp. Note also that the machinery for "your entry was not used, here is what is
+  flown" already exists on the same field for out-of-range entries — whatever replaces this should use
+  it rather than discarding an entry in silence.
 - **A condition typed and then overridden by today's weather is only DISABLED, not cleared, on the
   other two fields' pattern.** Fixed this session for surface wind and field elevation — `onWeather`
   now drops those two edits, because `compute` applied them and then overwrote both with the forecast,
@@ -166,12 +224,15 @@ not yet done. Newest first. One line each. Anything here is fair game for the ne
   derive all four placeholders from the resolved conditions the flight actually used, which means
   threading those into the Conditions panel — it does not currently receive them. The corpus-file
   numbers are the cold walk's and are not re-measured here; the from-scratch numbers are.
-- **Every numeric input's min/max is decorative on the Conditions and Design what-if fields.** The
-  cold walk measured 7 of 7 visible inputs that declare a max accepting a 10x-over-max value unchanged
-  (rail 201 m, angle 451°, wind 401 m/s, elevation 50,001 m, cluster 121, fin count 121, recovery 101x)
-  and 20 of 20 declaring no enforcement. `NumberField` in the Analyze tools now refuses and says what it
-  flew instead (and that refusal survives a unit conversion, as of this run); `Num` in `LoftApp` does
-  not. That refusal machinery is the pattern to port. NOT re-measured first-hand this run.
+- **RESOLVED — `Num` DOES enforce its declared bounds; the old entry here was stale and had been
+  carried forward unmeasured for three sessions.** Measured first-hand this session on the 38 mm
+  sample, all four Conditions fields plus the Design what-ifs: of the 24 numeric inputs on screen,
+  7 declare a max and **7 of 7 clamped a 10x-over-max entry** on commit, each setting
+  `aria-invalid=true` and rendering exactly one refusal message naming what is flown instead — rail
+  200→20 m, angle 450→45°, wind 400→40 m/s, elevation 50,000→5,000 m, cluster 120→12, fin count
+  120→12, recovery 100→10x. All 24 declare a min. The enforcement lives in `Num`'s `commit`, which
+  runs on blur or Enter; a probe that types without committing sees the raw text and concludes
+  otherwise, which is the likeliest source of the original claim.
 - The Flight card shows max acceleration in g (`d.accel`, system-neutral) while the stored-vs-Loft
   comparison table shows the same quantity in m/s² — now ft/s² in imperial. Both are labelled and
   neither is wrong, but they are two units for one number on one page: 15 g against 145.1 m/s² on the

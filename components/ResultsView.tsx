@@ -775,13 +775,18 @@ function NoPropulsionNotice({
       <h2 className="text-lg font-semibold tracking-tight">No flight simulated</h2>
       {hasInstances ? (
         <>
+          {/* Each branch carries its own negation. Sharing the clause "could be matched" only reads
+              correctly after "None of …": the singular subject took it verbatim and said "This
+              configuration's motor could be matched to a thrust curve … so there is no thrust to
+              fly" — the opposite of what happened, contradicting itself in the same sentence, on the
+              panel whose whole job is to explain why there is no flight. */}
           <p className="mt-2 text-sm">
             {unresolved.length > 1
-              ? "None of this configuration's motors"
-              : "This configuration's motor"}{" "}
-            could be matched to a thrust curve in the bundled database, so there is no thrust to
-            fly. Rather than show a misleading zero-altitude &ldquo;flight,&rdquo; the flight
-            results, plots, and {tool} comparison are withheld.
+              ? "None of this configuration's motors could be matched"
+              : "This configuration's motor could not be matched"}{" "}
+            to a thrust curve in the bundled database, so there is no thrust to fly. Rather than show
+            a misleading zero-altitude &ldquo;flight,&rdquo; the flight results, plots, and {tool}{" "}
+            comparison are withheld.
           </p>
           <ul className="mt-3 space-y-1 text-sm">
             {unresolved.map((res, i) => (

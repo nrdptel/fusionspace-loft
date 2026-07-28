@@ -1654,6 +1654,25 @@ test.describe("Loft", () => {
     expect(railImperial, "the same rail, in feet").toBeCloseTo(parseFloat(storedRail!) * 3.28084, 0);
   });
 
+  test("says a motor could NOT be matched, rather than the opposite", async ({ page }) => {
+    // The two branches shared the clause "could be matched", which only reads correctly after
+    // "None of …". The singular subject took it verbatim: "This configuration's motor could be
+    // matched to a thrust curve in the bundled database, so there is no thrust to fly" — the opposite
+    // of what happened, contradicting itself in the same sentence, on the panel whose whole job is to
+    // explain why there is no flight.
+    // The COMMITTED fixture, not a corpus file: the corpus is gitignored, so a corpus-driven test
+    // skips on CI and on any public clone — reporting green without executing an assertion, which is
+    // exactly where a reintroduced inverted sentence would go unnoticed.
+    await page.goto("/");
+    await page.setInputFiles('input[type="file"]', resolve(process.cwd(), "e2e/fixtures/unresolved-motor.ork"));
+    const panel = page.getByRole("region", { name: "No flight simulated" });
+    await expect(panel).toBeVisible();
+    await expect(panel).toContainText("could not be matched to a thrust curve");
+    await expect(panel, "the inverted sentence is gone").not.toContainText(
+      "motor could be matched to a thrust curve",
+    );
+  });
+
   test("no value surface is left in metric when Imperial is selected", async ({ page }) => {
     // The class this closes, rather than the four instances of it: a value that never converts at all
     // was invisible to the grep that policed this before, because that grep looked for display->SI
