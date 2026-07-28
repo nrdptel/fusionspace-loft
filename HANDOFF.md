@@ -134,7 +134,7 @@ corpus **35 design files, 3/3**. Finished at **682 unit and 122 e2e**, corpus 35
 | | |
 |---|---|
 | **#53** | **A motor could NOT be matched, rather than the opposite.** The "No flight simulated" panel shared one clause between its plural and singular branches, so the singular subject read "This configuration's motor could be matched to a thrust curve in the bundled database, so there is no thrust to fly" — contradicting itself inside one sentence, on the panel whose whole job is to explain why there is no flight. Each branch now carries its own negation, tested against a committed fixture. |
-| **the motor-tools PR** | **Loft's motor tools reach RockSim and RASAero designs.** The swap picker and the motor sweep rendered on **0 of 8** non-OpenRocket corpus designs with nothing on screen saying why, while the same rocket exported as `.ork` offered both. Now the **picker on 5 of 8** and the **sweep on 4 of 8**, plus the bundled RockSim sample: three designs name no motor Loft can resolve so they stay off rather than guess, and the two-stage `.CDX1` is held back from the sweep by the pre-existing `!staged` gate. Update this row with its PR number once it merges. |
+| **#54** | **Loft's motor tools reach RockSim and RASAero designs.** The swap picker and the motor sweep rendered on **0 of 8** non-OpenRocket corpus designs with nothing on screen saying why, while the same rocket exported as `.ork` offered both. Now the **picker on 5 of 8** and the **sweep on 4 of 8**, plus the bundled RockSim sample: three designs name no motor Loft can resolve so they stay off rather than guess, and the two-stage `.CDX1` is held back from the sweep by the pre-existing `!staged` gate. |
 
 ## The thing to actually learn from this session
 
