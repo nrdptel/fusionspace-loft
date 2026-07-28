@@ -3,33 +3,34 @@
 Rough edges, missing affordances, and ideas too big for one pass — noticed while working,
 not yet done. Newest first. One line each. Anything here is fair game for the next session.
 
-- **Loft's motor tools are silently absent on every RockSim and RASAero import, and the fix is one
-  field away in the .rkt file — a first attempt this session got the source wrong and was REVERTED.**
-  Measured: the swap picker and the motor sweep render on **0 of 8** non-OpenRocket corpus designs
-  with nothing on screen saying why, while the SAME rocket exported as `.ork` offers both (controlled
-  pair: `OR vs RAS Test 1`, identical N1000W flight, 8,011 m vs 7,646 m). Both surfaces are gated on
-  the motor casing diameter, and `lib/rkt/adapt.ts:554` and `lib/rasaero/adapt.ts:481,492` hardcode
-  `diameter: 0`. This is Loft's single strongest surface — fly every fitting motor and tabulate nine
-  sortable columns, which OpenRocket has no equivalent of — withheld from a quarter of the corpus.
-  It also breaks the project's own rule at `ResultsView.tsx:110`: "a panel that simply isn't there
-  reads as a missing feature rather than a modelling limit."
-  **The attempt that failed** inferred the casing from the motor resolved against the bundled catalog.
-  It restored the surfaces (0 → 5 of 8) and was still wrong, because **the RockSim file states the
-  mount size outright and the two disagree**: `public/samples/demo-rocksim.rkt` declares
-  `<IsMotorMount>1</IsMotorMount><MotorDia>54.</MotorDia>` on an `<ID>54</ID>` tube, while the catalog
-  certifies its J420R at 38 mm. The result was a picker of 31 motors of 38 mm casing under a heading
-  reading "54 mm sport", topped by K-motors, excluding every 54 mm motor the file's own mount takes —
-  a wrong claim about physical fit, which is the one thing a swap list must never make. `MotorDia` has
-  **zero hits anywhere in `lib/`**.
-  **The right fix:** read `MotorDia` (and RASAero's equivalent, if it has one) and carry it as the
-  MOUNT's diameter — most likely on the `motorMount` role, not on `MotorSpec.diameter`, which is the
-  motor's own size and has other consumers. The catalog is a distant second-best fallback and must be
-  gated on `resolveMotor(...).quality === "exact"`: a "designation" match is a bare two-way substring
-  test, so `resolveMotor({designation: "H225-14A-8"})` returns an Estes A8 at 18 mm, and a "core"
-  match on `411-I175-WH-14A` lands on a Cesaroni 29 mm — either would seed a mount-fit claim from a
-  guess. Two smaller things to fix while there: `lib/sim/sweep.ts:87` badges DESIGN by bare
-  designation, so a `.rkt` Estes C6 sweep returns two conflicting DESIGN rows (Quest and Estes, 7%
-  apart); and any new test must assert WHICH casing was inferred, not merely that a picker exists.
+- **RESOLVED — the motor tools now render on RockSim and RASAero imports. The fix was NOT the one
+  this entry spent two sessions prescribing, and measuring that prescription is what killed it.**
+  The defect as measured: the swap picker and the motor sweep rendered on **0 of 8** non-OpenRocket
+  corpus designs with nothing on screen saying why, while the SAME rocket exported as `.ork` offered
+  both (controlled pair: `OR vs RAS Test 1`, identical N1000W flight, 8,011 m vs 7,646 m). Both are
+  gated on the motor casing diameter, and `lib/rkt/adapt.ts:554` and `lib/rasaero/adapt.ts:481,492`
+  hardcode `diameter: 0`. Now **5 of 8**, plus the bundled RockSim sample; the other three name no
+  motor Loft can resolve (two name none at all, one is RASAero's `1/4A2`), so they stay off rather
+  than offer a list built on a guess.
+  **Why "read `MotorDia`" was wrong.** This entry said to read RockSim's `MotorDia` and carry it as
+  the mount's diameter, treating the catalog as a distant second-best. `MotorDia` is the mount's
+  **bore**, not a casing size, and the two are different quantities: `FullScaleModelTH.rkt` declares
+  76 mm on the mount of a 75 mm L1940X, and `demo-rocksim.rkt` declares 54 mm while flying a 38 mm
+  J420R through an adapter. A bore is an upper bound, so filtering on it drops the design's OWN motor
+  out of the very list of motors said to fit — the USLI design would have been handed 2 motors,
+  neither of them the one it flies. RASAero states no casing anywhere: its only diameter near the
+  motor is `SustainerNozzleDiameter`, the nozzle exit (2.737 in on a 98 mm N1000W).
+  **What shipped instead** is in `lib/motors/swap.ts`: the casing of the motor the design ALREADY
+  FLIES, looked up in the bundled catalog and gated on `resolveMotor(...).quality === "exact"`. That
+  motor demonstrably fits this rocket, so a bundled motor of the same casing fits it too — the
+  identical claim the `.ork` path makes from the file's own figure, and the file's figure still wins
+  wherever it has one. The exact gate is load-bearing: a "designation" match is a bare two-way
+  substring test, so `resolveMotor({designation: "H225-14A-8"})` returns an Estes A8 at 18 mm, and a
+  "core" match on `411-I175-WH-14A` lands on a Cesaroni 29 mm.
+  Fixed alongside, because turning the sweep on for `.rkt` files exposed it: `motorSweep` badged
+  DESIGN by bare designation, so the 18 mm sweep marked both the Estes C6 and the Quest C6 as the
+  design's own motor while they fly measurably differently. It now takes the manufacturer too, and
+  both spellings are produced by one function so they cannot drift apart.
 
 - **Typing back the value a Conditions field advertises is NOT the no-op it looks like. Still open —
   a fix was written this session and reverted, and the shape that would work is at the end of this

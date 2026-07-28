@@ -35,6 +35,7 @@ export default function MotorSweep({
   units,
   options,
   designMotor,
+  designManufacturer,
   ballastKg,
   geometry,
   designKey,
@@ -46,6 +47,9 @@ export default function MotorSweep({
   options: SweepMotor[];
   /** The design's own motor designation, to mark its row. */
   designMotor: string;
+  /** That motor's manufacturer as the catalog spells it, when it matched exactly. Without it a
+   *  designation-only mark badges every manufacturer's motor of that name as the design's own. */
+  designManufacturer?: string;
   /** Active "what-if" nose ballast (kg), applied to every motor in the sweep. */
   ballastKg?: number;
   /** Active builder geometry edits, applied to every motor in the sweep. */
@@ -78,6 +82,7 @@ export default function MotorSweep({
         ballastKg,
         geometry,
         designMotor,
+        designManufacturer,
       },
       () => !live,
     ).then((r) => {

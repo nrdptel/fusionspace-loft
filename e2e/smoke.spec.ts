@@ -530,6 +530,47 @@ test.describe("Loft", () => {
     await expect(page.getByRole("heading", { name: "RockSim vs Loft" })).toBeVisible();
   });
 
+  test("a RockSim design gets the motor tools, at the casing it actually flies", async ({ page }) => {
+    // RockSim states no motor casing — its MotorDia is the mount's bore — so both motor surfaces
+    // used to be withheld from every .rkt import with nothing on screen saying why.
+    await page.goto("/");
+    await page.getByRole("button", { name: /RockSim · 54 mm sport/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+
+    await page.getByRole("tab", { name: "Analyze" }).click();
+    await expect(page.getByRole("region", { name: "Motor sweep" })).toBeVisible();
+
+    await page.getByRole("tab", { name: "Design" }).click();
+    const picker = page.getByRole("combobox", { name: "Swap motor" });
+    await expect(picker).toBeVisible();
+
+    // At the casing the design ALREADY FLIES, not the 54 mm bore its mount declares. Asserted by
+    // what is offered: its own 38 mm J420R is there to swap back to, and the 24 mm C11 that the
+    // OpenRocket sample flies is not — a bore-derived list would have neither.
+    const offered = await picker.locator("option").allTextContents();
+    expect(offered.some((o) => /J420R/.test(o))).toBe(true);
+    expect(offered.some((o) => /\bC11\b/.test(o))).toBe(false);
+    expect(offered.length).toBeGreaterThan(2);
+
+    // And the picker flies the swap, rather than merely rendering. A control that appears but
+    // changes nothing is worse than one that is honestly absent.
+    const summaryApogee = async () => {
+      const dd = page.getByText("Apogee", { exact: true }).first().locator("xpath=following-sibling::dd");
+      return parseFloat((await dd.innerText()).replace(/[^\d.]/g, ""));
+    };
+    await page.getByRole("tab", { name: "Flight" }).click();
+    const asDesigned = await summaryApogee();
+    expect(asDesigned).toBeGreaterThan(0);
+
+    await page.getByRole("tab", { name: "Design" }).click();
+    const swapTo = offered.find((o) => /\bK/.test(o) && !/J420R/.test(o));
+    expect(swapTo, "no larger-class 38 mm motor to swap to").toBeTruthy();
+    await picker.selectOption({ label: swapTo! });
+    await page.getByRole("tab", { name: "Flight" }).click();
+    // A K motor carries more impulse than the design's J, so the same airframe flies higher.
+    await expect.poll(summaryApogee).toBeGreaterThan(asDesigned);
+  });
+
   test("dual-deploy sample flags transonic and shows two deploy markers", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: /54 mm dual-deploy/ }).click();
