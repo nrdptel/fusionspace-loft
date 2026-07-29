@@ -3,6 +3,31 @@
 Rough edges, missing affordances, and ideas too big for one pass — noticed while working,
 not yet done. Newest first. One line each. Anything here is fair game for the next session.
 
+- **The parts-table caption reads "adds up to 0 kg" for a real 1.4-2.0 kg airframe.**
+  `massByComponent` (`lib/sim/mass.ts:407`) keeps only point masses that carry a `componentId`, and a
+  stage-level `<overridemass>` is pushed at `:381` with no `componentId` — so the whole lumped figure
+  is dropped from the total the diagram's caption sums. Reproduced first-hand in the built export with
+  ZERO edits applied: `Dual parachute deployment.ork` renders **"adds up to 0 kg"** beside a Mass &
+  balance panel reading **1.361 kg** (the lumped `Sustainer` is 1.3608 kg), and `EscapeVelocity.ork`
+  **"0 kg"** against **2 kg**. `02.Two-stage.ork` reads 1.002 kg against 2.533 kg — its lumped `Dart`
+  is 1.5309 kg. The caption is reachable: it lives in the Parts `<details>`, which opens on the
+  summary click or on any part click. It is also the caption that points a flyer AT the other panel by
+  name, so the two numbers are read together. Fix by giving the lumped row a home in
+  `massByComponent` rather than dropping it — the panel beside it already labels such a row with the
+  nearest ancestor that carries the override.
+
+- **RESOLVED this session — the stability trim advice described the file's airframe while every
+  number it was solved against came from the edited one.** `StabilityTrimHint` sits inside the same
+  `<section>` as the summary strip and is fed cp, cgLoaded, liftoffMass and refDiameter from the run,
+  but took its two GEOMETRY reads — `noseBallastStation` and `finStationTrim` — off `doc.rocket`.
+  Measured on the 38 mm sample with fin span cut to 20 mm: it advised moving the fin set **193 mm**
+  aft where the edited airframe needs **287 mm**, 49% short, on a number a flyer acts on by moving
+  parts. Body diameter to 76 mm: 78 mm advised against 104 mm correct. A doubled body length comes out
+  identical either way, which is how it survived the work on the panels around it. Related and NOT
+  fixed: `finStationTrim` reads `primaryFinStation(rocket)` with no selected id (`trim.ts:154`), so on
+  a multi-fin-set design it names the frontmost set rather than the selected one — the same defect the
+  fin what-if fields were fixed for in an earlier session.
+
 - **RESOLVED this session — two panels described a rocket the flyer was not editing.** The summary
   strip's Length read `overallLength(doc.rocket)` while Max diameter, CG, CP and Static margin beside
   it came from the edited run. Measured on the 38 mm sample: doubling a 700 mm body left Length

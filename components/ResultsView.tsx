@@ -668,12 +668,17 @@ export default function ResultsView({
         {designEditor}
 
         {/* Where the dry mass comes from, part by part — transparency into the parsed structure. */}
-        {/* The EDITED rocket, like the diagram above it. Both read the same `structurePointMasses`,
-            so feeding one the edited model and the other the file's own made the two panels on this
-            tab disagree about the same dry mass — while the diagram's caption points at this panel
-            by name for the total, and this panel's own caption says these are the masses the
-            simulator flies. Mass & balance is where a flyer decides how much ballast to add. */}
-        <MassBreakdown rocket={shownRocket} units={units} />
+        {/* The EDITED rocket, like the diagram above it: this panel was describing the file's
+            airframe while the diagram described the one being edited, and Mass & balance is where a
+            flyer decides how much ballast to add and where.
+
+            It does NOT make the two totals agree, and an earlier version of this comment said it
+            did. The diagram's caption sums `massByComponent`, which keeps only point masses that
+            carry a component id and so drops the lumped figure a stage-level mass override emits —
+            on `Dual parachute deployment.ork` and `EscapeVelocity.ork` that caption reads "adds up
+            to 0 kg" against a real 1.361 kg and 2 kg airframe, with no edits applied at all. That is
+            a defect in `massByComponent`, filed separately; it is not what this line fixes. */}
+        <MassBreakdown rocket={shownRocket} units={units} edited={editing} />
       </div>
 
       {/* ANALYZE — the heavier, opt-in tools: an independent second solver, and design-space sweeps. */}
@@ -958,7 +963,7 @@ function RocketSummary({
         )}
       </dl>
 
-      <StabilityTrimHint run={run} doc={doc} units={units} />
+      <StabilityTrimHint run={run} rocket={rocket} units={units} />
       <FlutterFixHint run={run} doc={doc} units={units} geometry={geometry} />
     </section>
   );
@@ -1023,11 +1028,18 @@ function FlutterFixHint({
  *  sweeps: the sweeps plot the whole curve, these answer the one question a flyer actually asks. */
 function StabilityTrimHint({
   run,
-  doc,
+  rocket,
   units,
 }: {
   run: FlightRun;
-  doc: OrkDocument;
+  /** The EDITED rocket, like the strip it sits under. Both goal-seeks are geometry reads — the nose
+   *  station ballast would sit at, and the fin group's own position — and they were taken off the
+   *  design FILE while the margin, mass and reference diameter they are solved against came from the
+   *  edited run. On the 38 mm sample with fin span cut to 20 mm the hint said "move the fin set about
+   *  193 mm aft" where the edited airframe needs 287 mm — 49% short, on a number a flyer acts on by
+   *  moving parts. A doubled body length happens to come out identical, which is why the staleness
+   *  survived the surrounding work: the edit that exposes it is not the one anybody tried. */
+  rocket: Rocket;
   units: UnitSystem;
 }) {
   const r = run.result;
@@ -1038,7 +1050,7 @@ function StabilityTrimHint({
       cgLoaded: r.cgLoaded,
       loadedMass: r.liftoffMass,
       refDiameter: refD,
-      noseStation: noseBallastStation(doc.rocket),
+      noseStation: noseBallastStation(rocket),
     },
     TRIM_TARGET_CAL,
   );
@@ -1050,7 +1062,7 @@ function StabilityTrimHint({
 
   // Thin margin: name the nose ballast, and the weight-free fin-aft move that reaches the same target.
   if (!trim.alreadyMet) {
-    const fin = finStationTrim(doc.rocket, trim.currentMarginCal, r.liftoffMass, refD, TRIM_TARGET_CAL);
+    const fin = finStationTrim(rocket, trim.currentMarginCal, r.liftoffMass, refD, TRIM_TARGET_CAL);
     const finAft =
       fin && fin.feasible && fin.shiftM > 0 ? (
         <> Or move the fin set about {d.q(d.lengthMm(fin.shiftM, units))} aft — weight-free — for the same margin.</>
@@ -1078,7 +1090,7 @@ function StabilityTrimHint({
 
   // Over-stable: the one case nose ballast can't fix — name the fin-forward move that eases it.
   if (trim.currentMarginCal > OVER_STABLE_CAL) {
-    const fin = finStationTrim(doc.rocket, trim.currentMarginCal, r.liftoffMass, refD, OVER_STABLE_TARGET_CAL);
+    const fin = finStationTrim(rocket, trim.currentMarginCal, r.liftoffMass, refD, OVER_STABLE_TARGET_CAL);
     if (fin && fin.feasible && fin.shiftM < 0) {
       return (
         <p className={box}>

@@ -14,9 +14,21 @@ const round = (n: number, dp: number) => (Number.isFinite(n) ? Math.round(n * 10
  *  how it balances. Pure transparency into what Loft parsed — the same per-component point masses the
  *  simulator flies — so a flyer can sanity-check an import (a mistyped wall thickness or a missing
  *  override shows up as a wrong row) and see the dry centre of gravity. Structure only: the motor and
- *  any active what-if add their mass at launch and aren't shown here. Read-only for now; it's also
- *  the component-level view a from-scratch builder will edit. */
-export default function MassBreakdown({ rocket, units }: { rocket: Rocket; units: UnitSystem }) {
+ *  nose ballast add their mass at launch and aren't shown here; an airframe what-if IS, because
+ *  the airframe is what this describes. Read-only for now; it's also the component-level view a
+ *  from-scratch builder will edit. */
+export default function MassBreakdown({
+  rocket,
+  units,
+  edited,
+}: {
+  rocket: Rocket;
+  units: UnitSystem;
+  /** A geometry what-if is in force, so this describes the edited airframe rather than the file's.
+   *  Said on the panel, in the same words and the same badge the diagram above it uses — a mass
+   *  table that silently swapped which rocket it describes is worse than one that never moved. */
+  edited?: boolean;
+}) {
   const points = structurePointMasses(rocket);
   if (points.length === 0) return null;
   const total = combine(points);
@@ -41,8 +53,13 @@ export default function MassBreakdown({ rocket, units }: { rocket: Rocket; units
   return (
     <details className="group rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900/40">
       <summary className="flex cursor-pointer select-none items-center justify-between px-4 py-3 text-sm font-medium text-zinc-700 dark:text-zinc-300">
-        <span>
+        <span className="flex items-center gap-2">
           Mass &amp; balance · dry {d.q(d.mass(total.mass, units))}
+          {edited && (
+            <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-medium text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300">
+              with your edits
+            </span>
+          )}
         </span>
         <span className="text-xs text-zinc-400 transition group-open:rotate-180">▾</span>
       </summary>
@@ -86,11 +103,13 @@ export default function MassBreakdown({ rocket, units }: { rocket: Rocket; units
           </table>
         </div>
         <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
-          Dry structure only — the motor and any active what-if add their mass at launch. Where a
-          component overrides the mass of its whole subassembly, that measured figure stands in for
-          everything inside it (the internals aren&apos;t listed separately). These are the same
-          per-part masses the simulator flies; a wrong row usually means a mistyped dimension or
-          material in the design file.
+          Dry structure only — the motor and nose ballast add their mass at launch and are not
+          shown here. A design what-if that changes the airframe IS shown: resizing a part moves its
+          row, and adding a payload or a drogue adds one, because the structure is what this table
+          describes. Where a component overrides the mass of its whole subassembly, that measured
+          figure stands in for everything inside it (the internals aren&apos;t listed separately).
+          These are the same per-part masses the simulator flies; a wrong row usually means a
+          mistyped dimension or material in the design file.
         </p>
         <div className="mt-2">
           <DownloadCsv rows={csv} name={rocket.name} suffix="mass-breakdown" />

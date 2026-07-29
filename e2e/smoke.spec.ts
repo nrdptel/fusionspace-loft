@@ -3084,6 +3084,9 @@ test.describe("Loft", () => {
     const before = await strip();
     expect(before.length).not.toBe("-");
     expect(before.dry).not.toBe("-");
+    // The CP capture underpins the self-consistency assertion below, and a missed capture yields
+    // "-", which parses to 0 and would make that assertion pass on any length at all.
+    expect(before.cp).not.toBe("-");
 
     const body = page.locator("label").filter({ hasText: /Body length/ }).first().locator("input");
     const design = Number(await body.getAttribute("placeholder"));
@@ -3099,9 +3102,50 @@ test.describe("Loft", () => {
       // ...and the two panels no longer describe different rockets.
       expect(after.dry).not.toBe(before.dry);
       // Self-consistency, which is what made the stale cell visible without knowing the fix: a
-      // centre of pressure cannot sit beyond the airframe it is measured on.
-      const mm = (s: string) => Number(s.replace(/[^\d.]/g, "")) * (/\bcm\b/.test(s) ? 10 : /\bm\b/.test(s) && !/mm/.test(s) ? 1000 : 1);
+      // centre of pressure cannot sit beyond the airframe it is measured on. Both cells have to be
+      // read for this to mean anything — a missed capture is "-", which parses to 0 and would make
+      // the comparison trivially true whatever the length said.
+      expect(after.cp).not.toBe("-");
+      const mm = (s: string) => Number(s.replace(/[^\d.]/g, ""));
+      expect(mm(after.cp)).toBeGreaterThan(0);
       expect(mm(after.length)).toBeGreaterThanOrEqual(mm(after.cp));
+    }).toPass({ timeout: 20_000 });
+  });
+
+  test("the stability trim advice is for the edited airframe, not the file's", async ({ page }) => {
+    // `StabilityTrimHint` sits inside the same section as the summary strip and is fed the edited
+    // run's margin, mass and reference diameter — but took its two GEOMETRY reads, the nose station
+    // and the fin group's own position, off the design file. On the 38 mm sample with fin span cut
+    // to 20 mm it advised moving the fin set about 193 mm aft where the edited airframe needs
+    // 287 mm: 49% short, on a number a flyer acts on by moving parts.
+    //
+    // The edit matters. A doubled body length comes out identical either way, which is how this
+    // survived the work on the panels around it — the edit that exposes it is not the one anybody
+    // tried. Cutting the fin span is.
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+
+    const finMove = async () => {
+      const t = (await page.locator("body").innerText()).replace(/\s+/g, " ");
+      const m = t.match(/move the fin set about ([\d.,]+)\s*(mm|in)/i);
+      return m ? m[1] : null;
+    };
+    await page.getByRole("tab", { name: "Design" }).click();
+    const span = page.locator("label").filter({ hasText: /Fin span/ }).first().locator("input");
+    const design = Number(await span.getAttribute("placeholder"));
+    expect(design).toBeGreaterThan(20);
+
+    await span.fill("20");
+    await span.press("Enter");
+    await span.blur();
+
+    await expect(async () => {
+      const moved = await finMove();
+      expect(moved).not.toBeNull();
+      // The advice for the edited airframe. The file's own rocket asks for a visibly smaller move,
+      // so any figure at or below it means the hint is still describing the design as imported.
+      expect(Number(moved!.replace(/,/g, ""))).toBeGreaterThan(200);
     }).toPass({ timeout: 20_000 });
   });
 
