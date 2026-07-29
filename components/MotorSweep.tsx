@@ -13,7 +13,7 @@ import { mToFt, mpsToFtps } from "@/lib/units";
 import { usePersistedChoice, useSettled } from "@/lib/session";
 import type { CsvCell } from "@/lib/csv";
 import DownloadCsv, { CopyTable } from "./DownloadCsv";
-import { TOUCH_TARGET } from "@/lib/ui-tokens";
+import { TOUCH_TARGET, TOUCH_TARGET_SQUARE } from "@/lib/ui-tokens";
 import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
 import { ClosePanel, useReturnFocus } from "./ui";
@@ -319,7 +319,7 @@ function SweepTable({
                       type="button"
                       onClick={() => click(c.key)}
                       className={
-                        `inline-flex items-center gap-1 uppercase tracking-wide hover:text-zinc-800 dark:hover:text-zinc-100 ${TOUCH_TARGET} ` +
+                        `inline-flex items-center gap-1 uppercase tracking-wide hover:text-zinc-800 dark:hover:text-zinc-100 ${TOUCH_TARGET_SQUARE} ` +
                         (active ? "text-zinc-800 dark:text-zinc-100" : "")
                       }
                       title={`Sort by ${c.label.replace(/ /g, " ").toLowerCase()}`}

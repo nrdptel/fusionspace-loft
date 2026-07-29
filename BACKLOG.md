@@ -3,12 +3,15 @@
 Rough edges, missing affordances, and ideas too big for one pass — noticed while working,
 not yet done. Newest first. One line each. Anything here is fair game for the next session.
 
-- **The hit-target suite measures HEIGHT only, so a control can pass at 37 px wide.** `e2e/touch.spec.ts:181`
-  filters on `r.height >= 44` and never looks at width. Measured on a 390x844 phone: the parts table's
-  sort headers read `Type 37x44` and `Mass 42x44` — under the project's own stated 44x44 minimum in
-  one dimension while the suite reports the workspace clean. `TOUCH_TARGET_SQUARE` already exists for
-  exactly this and is used on the zoom controls; the scan should assert both dimensions, with the
-  same structural exemptions the footer test now uses.
+- **RESOLVED this session — the hit-target suite measured HEIGHT only, so a control could pass at
+  34 px wide.** The scan filtered on `r.height >= 44` and never looked at width. Measured on a
+  390x844 phone, three controls were under the project's own stated 44x44 minimum while the suite
+  reported every workspace clean: the parts table's `Type` (37x44) and `Mass` (42x44) sort headers,
+  and the motor sweep's `T:W` (34x44) — the axis a thumb misses along on a row of adjacent columns.
+  The scan now asserts both dimensions, and the three headers take `TOUCH_TARGET_SQUARE`, which
+  existed for exactly this. Both tables already scrolled inside their own `overflow-x-auto`
+  containers (683 px and 410 px of table in a 324 px container), so the 9-10 px this adds costs no
+  layout: neither workspace scrolls the page sideways, and `sm:min-w-0` leaves desktop at 37x16.
 
 - **RESOLVED this session — a payload added inside an assembly the design has weighed was accepted,
   badged "with your edits", and changed nothing.** A whole-assembly mass override IS the design's

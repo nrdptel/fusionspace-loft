@@ -193,12 +193,19 @@ test.describe("phone layout", () => {
     // 16 px tall on a 390x844 phone — five of the thirteen controls under target on the Flight
     // workspace. They are in scope now. The footer's prose credits still are not, and the separate
     // footer test below draws that line by structure rather than by region.
+    // BOTH dimensions. The scan measured height alone, so a control 37 px wide and 44 px tall was
+    // reported clean — and three were: the parts table's `Type` (37x44) and `Mass` (42x44) sort
+    // headers, and the motor sweep's `T:W` (34x44). A 34 px target is under the 44x44 this file's
+    // own name asserts, in the axis a thumb misses along on a table of adjacent columns. Both tables
+    // already scroll horizontally, so the fix is `TOUCH_TARGET_SQUARE` — which existed for exactly
+    // this and was already used on the zoom controls — and not a layout change.
     const scan = () =>
       page.$$eval("button, input:not([type=hidden]), select, summary, [role=tab]", (ns) =>
         ns
           .map((n) => {
             const r = n.getBoundingClientRect();
-            if (r.width < 4 || r.height < 4 || r.height >= 44) return null;
+            if (r.width < 4 || r.height < 4) return null;
+            if (r.width >= 44 && r.height >= 44) return null;
             if (n.closest("footer")) return null;
             const name = (n.getAttribute("aria-label") || n.textContent || "").replace(/\s+/g, " ").trim().slice(0, 30);
             return `${n.tagName.toLowerCase()}"${name}" ${Math.round(r.width)}x${Math.round(r.height)}`;

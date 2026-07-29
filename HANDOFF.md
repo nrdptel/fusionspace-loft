@@ -217,8 +217,11 @@ is worse than nothing" applies to a verified finding just as much as to a hunch.
 **A negative control that does not compile is not a negative control — and the obvious control is
 often the one that doesn't.** Reverting a value INSIDE a component leaves its prop unread,
 `noUnusedLocals` fails the build, `out/` never changes, and the test passes against still-fixed code.
-Revert at the CALL SITE instead. This bit once this session, exactly as the previous session recorded
-it would.
+Revert at the CALL SITE instead. This bit twice this session, exactly as the previous session
+recorded it would — and the second time was a variant worth naming: swapping `TOUCH_TARGET_SQUARE`
+back to `TOUCH_TARGET` at the call site left the IMPORT unused, which fails the same way. The rule is
+not "revert at the call site", it is **check the control's build exit code before believing its test
+result**. A control whose build returned 1 and whose test returned 0 has told you nothing.
 
 **A JSX text run that spans a line break loses its LEADING space, and the gate cannot see it.** Not
 just the obvious `{expr}` + newline + text case — a plain space that sits MID-LINE in the source is
