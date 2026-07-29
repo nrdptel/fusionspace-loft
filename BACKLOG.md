@@ -317,8 +317,15 @@ not yet done. Newest first. One line each. Anything here is fair game for the ne
     file is; nothing in the import says which, and no bound catches a canopy four times the rocket's
     length. Related: `planBooster` reads only Booster 1 — `IncludeBooster2`, `Booster2Engine`
     (`Show-off.CDX1` carries `A6Q (QU)`) and friends are read by no code, and the drop is not counted
-    in the `droppedBoosters` warning. And `lib/motors/db.ts:114` has `Q` and `QUEST` but not `QU`,
-    the code RASAero actually writes, so a two-character maker key can never match.
+    in the `droppedBoosters` warning. **The `QU` half of this is RESOLVED this session**: the alias
+    table had `Q` and `QUEST` but not `QU`, the code RASAero actually writes, and a two-letter key
+    that misses the table is not an unknown maker — `sameMaker` refuses to prefix-match under three
+    characters, so it is a DISAGREEING one, and a disagreeing manufacturer vetoes the match at every
+    quality. `resolveMotor({ manufacturer: "QU", designation: "C12" })` returned **null** against
+    six bundled Quest motors: no motor, so no flight. Note the honest limit — the only `(QU)` in the
+    corpus is `Show-off.CDX1`'s `Booster2Engine`, and both its `IncludeBooster2` flags are `False`,
+    so no corpus flight reaches it and the fix is verified at unit level only. The rest of this
+    entry (Booster 2 read by no code, `<Size1>`/`<Size2>` unbounded) still stands.
   - **The Monte-Carlo flies the file's stored launch setup, not the flyer's.** `MonteCarlo.tsx:153`
     uses `overridesFromStored(sim)` only, so Conditions edits and the "Today" scenario are absent
     from its nominal while the Flight card's drift uses them. Set surface wind to 20 mph: the Flight

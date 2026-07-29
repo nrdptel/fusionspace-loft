@@ -402,4 +402,19 @@ describe("the catalogued envelope comes from the certification record", () => {
     expect(c!.entry.curve.totalImpulse).toBeGreaterThan(w!.entry.curve.totalImpulse * 1.15);
     expect(c!.entry.curve.lengthMm).toBeGreaterThan(w!.entry.curve.lengthMm);
   });
+
+  it("reads the two-letter maker code RASAero actually writes for Quest", () => {
+    // A short code that misses the alias table is not a maker Loft has never heard of — it is a
+    // maker that DISAGREES, and a disagreeing manufacturer vetoes the match at every quality.
+    // `sameMaker` will not prefix-match under three characters, on purpose, so "qu" could reach
+    // "quest" by no other route: the design simply had no motor, and so no flight. RASAero writes
+    // this code — `Show-off.CDX1` in the corpus carries "A6Q  (QU)".
+    const quest = allMotors().filter((m) => /quest/i.test(m.manufacturer ?? ""));
+    expect(quest.length, "bundled Quest motors to resolve against").toBeGreaterThan(0);
+    for (const code of ["QU", "Q", "Quest", "QUEST"]) {
+      const r = resolveMotor({ manufacturer: code, designation: quest[0].designation });
+      expect(r?.quality, `manufacturer "${code}"`).toBe("exact");
+      expect(r!.entry.designation, `manufacturer "${code}"`).toBe(quest[0].designation);
+    }
+  });
 });

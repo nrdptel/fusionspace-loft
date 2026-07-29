@@ -112,6 +112,13 @@ const MFR_ALIASES: Record<string, string> = {
   ES: "estes",
   ESTES: "estes",
   Q: "quest",
+  // The code RASAero actually writes. `Show-off.CDX1` in the corpus carries "A6Q  (QU)", and
+  // without this line a two-letter key cannot reach Quest by any route: `sameMaker` requires three
+  // characters before it will prefix-match, so "qu" is not an unknown maker that falls through —
+  // it is a KNOWN, DISAGREEING one, and a disagreeing manufacturer vetoes the match at every
+  // quality. `resolveMotor({ manufacturer: "QU", designation: "C12" })` returned null against six
+  // bundled Quest motors, which is no motor and so no flight.
+  QU: "quest",
   QUEST: "quest",
   RR: "roadrunner",
   PP: "publicmissiles",
