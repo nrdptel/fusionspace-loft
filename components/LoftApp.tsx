@@ -40,7 +40,7 @@ import {
   defaultPayloadStation,
 } from "@/lib/model/edit";
 import type { SurfaceFinish, NoseShape, FinCrossSection } from "@/lib/model/types";
-import { designMotorIdentity, swapOptions, type SwapOption } from "@/lib/motors/swap";
+import { designMotorIdentity, swapOptions, swapStillOffered, type SwapOption } from "@/lib/motors/swap";
 import { defaultConditions, type ConditionOverrides } from "@/lib/sim/setup";
 import { fetchConditions, geocode, type WeatherConditions } from "@/lib/weather";
 import {
@@ -151,6 +151,27 @@ function hasActiveEdits(e: Edits): boolean {
  *  thing that makes a design edited: wherever the station does matter, the mass beside it is already
  *  set and already counted. */
 const INERT_EDITS = new Set(["finSetId", "payloadStation"]);
+
+/** The swap picker's contents for one stored configuration: which casing to offer motors at, and
+ *  who made the design's own. A FUNCTION rather than an inline memo because two callers need the
+ *  same answer — the picker that renders the options, and the configuration change that has to
+ *  decide whether a swap already chosen still belongs to the run being selected. Two spellings of
+ *  that question would drift, and the drift is invisible: one of them decides what is FLOWN. */
+function swapInfoFor(doc: OrkDocument, simIndex: number): SwapInfo | null {
+  const sim = doc.simulations[simIndex] ?? doc.simulations[0];
+  // The config Loft actually flies — the stored sim's when it names one, otherwise the design's
+  // default (pickConfig, the same resolution the simulator uses). So a design imported without any
+  // stored simulation — a hand-authored or exported file — still offers same-casing swaps.
+  const config = pickConfig(doc.rocket, sim?.conditions.configId);
+  const motor = config?.instances[0]?.motor;
+  if (!motor?.designation) return null;
+  // Which casing to offer swaps at, and who made the design's motor. RockSim and RASAero state no
+  // casing at all, which used to leave this 0 and withhold both surfaces from every design they
+  // write; see `designMotorIdentity` for what stands in and what deliberately does not.
+  const { casingMm: diaMm, manufacturer: designManufacturer } = designMotorIdentity(motor);
+  if (!(diaMm > 0)) return null;
+  return { designMotor: motor.designation, designManufacturer, options: swapOptions(diaMm) };
+}
 
 /** Same-diameter bundled motors the design could fly, with the design's own motor as the default.
  *  Built once per design/config so the picker offers a fitting alternative without editing the file. */
@@ -597,8 +618,21 @@ export default function LoftApp() {
   const selectConfig = (idx: number) => {
     setSimIndex(idx);
     if (!doc) return;
+    // A motor swap is a choice made against ONE casing, and changing configuration can change the
+    // casing. `swapMotor` applies the swap unconditionally, so a swap chosen for a 38 mm run went on
+    // flying under a 24 mm one — while the picker, rebuilt for the new casing, could no longer show
+    // it and reset itself to blank. Measured on `Punisher Apprentice.ork`, which stores nine
+    // configurations across 24/29/38 mm: swapping the 38 mm H550ST for an H283ST gives 1,068 m,
+    // 36.3:1 and 40 m/s off the rail, and selecting the 24 mm E30T configuration left all three
+    // untouched. That configuration's own numbers are 90 m, 7:1 and 16 m/s. Every figure on the
+    // pad-check surface was a motor the selected configuration cannot take, and the only control
+    // that would have said so was blank. Carry the swap over only where the new configuration still
+    // offers it, which is exactly what the picker is about to show.
+    const keep = swapStillOffered(edits.motorSwap, swapInfoFor(doc, idx)?.options ?? []);
+    const next = keep ? edits : { ...edits, motorSwap: undefined };
+    if (!keep) setEdits(next);
     try {
-      const { run: r, baseline: b } = compute(doc, edits, weather, scenario, idx);
+      const { run: r, baseline: b } = compute(doc, next, weather, scenario, idx);
       setRun(r);
       setBaseline(b);
       setError(null);
@@ -720,22 +754,7 @@ export default function LoftApp() {
 
   // Bundled motors of the same casing diameter as the design's own — the fitting swaps the picker
   // offers. Recomputed only when the design or its selected configuration changes.
-  const swapInfo = useMemo<SwapInfo | null>(() => {
-    if (!doc) return null;
-    const sim = doc.simulations[simIndex] ?? doc.simulations[0];
-    // The config Loft actually flies — the stored sim's when it names one, otherwise the design's
-    // default (pickConfig, the same resolution the simulator uses). So a design imported without any
-    // stored simulation — a hand-authored or exported file — still offers same-casing swaps.
-    const config = pickConfig(doc.rocket, sim?.conditions.configId);
-    const motor = config?.instances[0]?.motor;
-    if (!motor?.designation) return null;
-    // Which casing to offer swaps at, and who made the design's motor. RockSim and RASAero state no
-    // casing at all, which used to leave this 0 and withhold both surfaces from every design they
-    // write; see `designMotorIdentity` for what stands in and what deliberately does not.
-    const { casingMm: diaMm, manufacturer: designManufacturer } = designMotorIdentity(motor);
-    if (!(diaMm > 0)) return null;
-    return { designMotor: motor.designation, designManufacturer, options: swapOptions(diaMm) };
-  }, [doc, simIndex]);
+  const swapInfo = useMemo<SwapInfo | null>(() => (doc ? swapInfoFor(doc, simIndex) : null), [doc, simIndex]);
 
   // The design's own dimensions, shown as the starting points for the builder edits.
   const designDims = useMemo(

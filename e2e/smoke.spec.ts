@@ -3105,6 +3105,36 @@ test.describe("Loft", () => {
     }).toPass({ timeout: 20_000 });
   });
 
+  test("a motor swap survives a configuration change that still offers it", async ({ page }) => {
+    // The wiring half of `swapStillOffered`. The failure it guards needs two configurations of
+    // DIFFERENT casings — on the corpus design that stores nine across 24/29/38 mm, a 38 mm swap
+    // carried onto the 24 mm configuration kept 1,068 m, 36.3:1 and 40 m/s where that configuration's
+    // own numbers are 90 m, 7:1 and 16 m/s, with the picker blank. No committed fixture has two
+    // casings, so the drop path is covered by unit tests and this asserts the other half: a swap the
+    // new configuration DOES offer is carried over rather than thrown away by an over-eager guard.
+    await page.goto("/");
+    await page.getByRole("button", { name: /Motor comparison/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+
+    const config = page.getByLabel(/configuration/i).first();
+    await expect(config).toBeVisible();
+    await page.getByRole("tab", { name: "Design" }).click();
+    const swap = page.getByLabel(/swap motor/i).first();
+    await expect(swap).toBeVisible();
+
+    // Pick a bundled motor (index 0 is "Design motor").
+    await swap.selectOption({ index: 1 });
+    const chosen = await swap.inputValue();
+    expect(chosen).not.toBe("");
+
+    // Both stored configurations here are the same casing, so the choice still applies to the other.
+    await config.selectOption({ index: 1 });
+    await page.getByRole("tab", { name: "Design" }).click();
+    await expect(swap).toHaveValue(chosen);
+    // And it is genuinely being flown, not merely displayed: the design is still an edited one.
+    await expect(page.getByRole("button", { name: "Reset to as-designed" })).toBeVisible();
+  });
+
   test("a refused dispersion says so too, and does not quietly shrink the recovery area", async ({ page }) => {
     // The same defect, one component over and with more riding on it. `NumberField` declared
     // `min={0}` on the input and enforced it nowhere, so a negative ±1σ stayed in the box while

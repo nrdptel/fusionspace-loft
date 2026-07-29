@@ -24,6 +24,30 @@ function makerOf(entry: MotorDbEntry): string {
 }
 
 /** Every bundled motor of the given casing, weakest total impulse first. */
+/** Does a motor swap already chosen still belong to the configuration being selected?
+ *
+ *  A swap is a choice made against ONE casing, and a design's stored configurations can span
+ *  several. `swapMotor` applies whatever swap is in the edit bag unconditionally, so without this a
+ *  swap chosen for a 38 mm run went on flying under a 24 mm one — while the picker, rebuilt for the
+ *  new casing, could not render it and reset itself to blank. Measured on the corpus design that
+ *  stores nine configurations across 24/29/38 mm: 1,068 m, 36.3:1 and 40 m/s off the rail carried
+ *  over onto a configuration whose own figures are 90 m, 7:1 and 16 m/s.
+ *
+ *  An undefined swap is trivially still valid — there is nothing to carry over. A swap that names no
+ *  manufacturer matches on designation alone, which is how the picker's own value round-trips a
+ *  choice made before manufacturers were recorded. */
+export function swapStillOffered(
+  swap: { manufacturer?: string; designation: string } | undefined,
+  options: SwapOption[],
+): boolean {
+  if (swap === undefined) return true;
+  return options.some(
+    (o) =>
+      o.designation === swap.designation &&
+      (swap.manufacturer === undefined || o.manufacturer === swap.manufacturer),
+  );
+}
+
 export function swapOptions(casingMm: number): SwapOption[] {
   if (!(casingMm > 0)) return [];
   return allMotors()
