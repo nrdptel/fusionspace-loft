@@ -1299,6 +1299,76 @@ test.describe("Loft", () => {
     await expect(thickness, "a bare focus and Tab deleted the edit").toHaveValue("0.03");
   });
 
+  test("a launch condition Loft supplied is not presented as one the design specified", async ({ page }) => {
+    // The Conditions caption named two sources for its greyed values — the design's stored setup, or
+    // today's weather. There is a third: `flownConditions` falls through to the engine's defaults for
+    // any field a stored simulation omits, and for every field when the design carries no simulation
+    // at all. A from-scratch build therefore showed rail 1.0, wind 0.0, elev 0.0 under a caption
+    // saying they were the flyer's own setup. Rail length is the one that bites — real designs
+    // declare up to 3.048 m against that 1.0 default, and rail-exit velocity is computed from it.
+    await page.goto("/");
+    await page.getByRole("button", { name: /Start a new design/ }).click();
+    await expect(page.getByRole("tab", { name: "Design" })).toBeVisible({ timeout: 30_000 });
+    await page.getByRole("tab", { name: "Flight" }).click();
+
+    const conditions = page.locator("details").filter({ hasText: /^Conditions/ }).first();
+    // `<details>` keeps its content in the DOM while collapsed, so ask the element, not the text.
+    if (!(await conditions.evaluate((el: HTMLDetailsElement) => el.open))) {
+      await conditions.locator("summary").first().click();
+    }
+
+    // It advertises Loft's defaults…
+    const rail = page.locator("input").and(page.getByLabel(/Rail length/)).first();
+    await expect(rail).toHaveAttribute("placeholder", "1.0");
+    // …and says so, naming every field it is doing it for, in a sentence.
+    await expect(
+      conditions.getByText(
+        /read no rail length, rail angle, surface wind, and field elevation from this design, so those are its own default/,
+      ),
+    ).toBeVisible();
+
+    // The control: a design that DOES carry a launch setup says nothing of the kind.
+    await page.goto("/");
+    await page.getByRole("button", { name: /Import another|54 mm dual-deploy/ }).first().click();
+    if (await page.getByRole("button", { name: /54 mm dual-deploy/ }).count()) {
+      await page.getByRole("button", { name: /54 mm dual-deploy/ }).click();
+    }
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 30_000 });
+    if (!(await conditions.evaluate((el: HTMLDetailsElement) => el.open))) {
+      await conditions.locator("summary").first().click();
+    }
+    await expect(rail).toHaveAttribute("placeholder", "2.0");
+    await expect(conditions.getByText(/Loft read no /)).toHaveCount(0);
+  });
+
+  test("a launch condition the flyer typed is not credited to Loft's defaults", async ({ page }) => {
+    // The note names the greyed value's source, and a typed entry outranks all of them — it is what
+    // the solver flies. Left unfiltered the note kept naming a field the flyer had just set: on a
+    // from-scratch build, typing a 3.048 m rail (rail-exit ~26 m/s against the 1.0 m default's 16)
+    // still read "Loft read no rail length … so those are its own default".
+    await page.goto("/");
+    await page.getByRole("button", { name: /Start a new design/ }).click();
+    await expect(page.getByRole("tab", { name: "Design" })).toBeVisible({ timeout: 30_000 });
+    await page.getByRole("tab", { name: "Flight" }).click();
+
+    const conditions = page.locator("details").filter({ hasText: /^Conditions/ }).first();
+    if (!(await conditions.evaluate((el: HTMLDetailsElement) => el.open))) {
+      await conditions.locator("summary").first().click();
+    }
+    // All four start defaulted, and the note says so.
+    await expect(
+      conditions.getByText(/read no rail length, rail angle, surface wind, and field elevation from this design/),
+    ).toBeVisible();
+
+    const rail = page.locator("input").and(page.getByLabel(/Rail length/)).first();
+    await rail.fill("3.048");
+    await rail.press("Enter");
+
+    // Rail length drops out of the list; the three the flyer has not touched stay in it.
+    await expect(conditions.getByText(/read no rail angle, surface wind, and field elevation/)).toBeVisible();
+    await expect(conditions.getByText(/read no rail length/)).toHaveCount(0);
+  });
+
   test("printing a design gives a flight card, not the whole web page", async ({ page }) => {
     // Printing a design is range paperwork — a card for the RSO, a page for the build notebook.
     // Without print rules it came out as the site: navigation, theme toggle, buttons nobody can
@@ -1745,6 +1815,36 @@ test.describe("Loft", () => {
     await page.locator("input").and(page.getByLabel(/Fin span/)).first().fill("90");
     await page.getByRole("button", { name: /Import another/ }).click();
     await expect(page.getByText(/You were working on/)).toContainText("Osprey II");
+
+    // …and gives it back under that name. The offer read `saved.rocket` while the restore re-imported
+    // the design from its stored bytes, and a rename is the one edit that is not IN those bytes — so
+    // the card named a design it then did not return. On a from-scratch build that is the whole
+    // identity of the thing: it came back as "New design" and downloaded as New-design.ork.
+    await page.getByRole("button", { name: "Pick it back up" }).click();
+    await expect(page.getByLabel("Design name")).toHaveValue("Osprey II");
+    // The what-ifs it was carrying come back with it, as they already did.
+    await page.getByRole("tab", { name: "Design" }).click();
+    await expect(page.locator("input").and(page.getByLabel(/Fin span/)).first()).toHaveValue("90");
+  });
+
+  test("a renamed design is still renamed after a reload", async ({ page }) => {
+    // The other half of the same gap: the session written on every change never carried the rocket
+    // name at all, so a reload re-imported the file and silently returned the design under the name
+    // the flyer had renamed away from — while `Download .ork` names the file from that same field.
+    await page.goto("/");
+    await page.getByRole("button", { name: /54 mm dual-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 30_000 });
+    const original = await page.getByLabel("Design name").inputValue();
+    expect(original).not.toBe("");
+
+    await page.getByLabel("Design name").fill("Osprey III");
+    // Give the session write a beat: it runs off a state change, not off the keystroke.
+    await expect(page.getByRole("heading", { name: "Osprey III" })).toBeVisible();
+
+    await page.reload();
+    await expect(page.getByText(/Picked up where you left off/)).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByLabel("Design name")).toHaveValue("Osprey III");
+    expect(await page.getByLabel("Design name").inputValue()).not.toBe(original);
   });
 
   test("an as-designed rocket is not reported as carrying what-ifs", async ({ page }) => {

@@ -497,6 +497,25 @@ export function adaptRasAeroXml(xml: string): OrkDocument {
     simulations.push(storedSim(sim, site, i, id));
   });
   if (!configurations.length) configurations.push({ id: "default", instances: [] });
+  // `<LaunchSite>` is DESIGN-level in RASAero — one block for the whole file — but it only reached
+  // the model through the per-simulation loop above, so a design with an empty `<SimulationList/>`
+  // threw its entire launch setup away and flew Loft's defaults instead. `Three-stage rocket.CDX1`
+  // in the corpus states a 12 ft rail against a 1.0 m default: 3.66x on the input rail-exit
+  // velocity is computed from, which is the number a pad check turns on. The setup is carried as a
+  // stored simulation with no results, because that is exactly what the file describes — conditions
+  // the design was set up for, and no flight run under them. `hasResults: false` keeps it out of
+  // every comparison, which is what already happens to a stored run the source tool never ran.
+  if (!simulations.length && site) {
+    const setup = storedSim(
+      { name: "", attrs: {}, children: [], text: "" },
+      site,
+      0,
+      configurations[0].id,
+    );
+    if (Object.keys(setup.conditions).length > 1) {
+      simulations.push({ ...setup, name: "Launch site", status: "notsimulated" });
+    }
+  }
 
   // The mount is the aftmost body tube, so the motor sits where it actually sits. The booster's own
   // motor already points at the booster's tube and must keep doing so.

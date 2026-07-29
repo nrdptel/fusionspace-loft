@@ -61,7 +61,7 @@ import {
 } from "@/lib/session";
 import { mToFt, ftToM, mpsToMph, mphToMps, radToDeg } from "@/lib/units";
 import { TOUCH_TARGET } from "@/lib/ui-tokens";
-import { rangeWords, refusedMessage } from "@/lib/what-if";
+import { listWords, rangeWords, refusedMessage } from "@/lib/what-if";
 import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
 
@@ -294,12 +294,20 @@ export default function LoftApp() {
       /** The design's own file bytes, so the session can store exactly what was opened. */
       bytes?: Uint8Array,
       /** A session being restored: its saved edits and configuration, instead of a clean slate. */
-      resume?: { edits: Edits; simIndex: number },
+      resume?: { edits: Edits; simIndex: number; rocket?: string },
     ) => {
       const e = resume?.edits ?? {};
       const idx = resume?.simIndex ?? 0;
+      // A rename lives outside the file bytes — it is the one edit the session cannot recover by
+      // re-importing — so a resumed session puts it back. Without this a reload silently returned
+      // the design under the name in the file, and the "pick it back up" card named a design it
+      // then did not return: it advertises `saved.rocket` while the restore read only the bytes.
+      const restored =
+        resume?.rocket && resume.rocket !== document.rocket.name
+          ? { ...document, rocket: { ...document.rocket, name: resume.rocket } }
+          : document;
       setLoadSerial((n) => n + 1);
-      setDoc(document);
+      setDoc(restored);
       setFileName(name);
       setEdits(e);
       setWeather(null);
@@ -326,7 +334,7 @@ export default function LoftApp() {
         );
       }
       try {
-        const { run: r, baseline: b } = compute(document, e, null, "design", idx);
+        const { run: r, baseline: b } = compute(restored, e, null, "design", idx);
         setRun(r);
         setBaseline(b);
       } catch (err) {
@@ -403,6 +411,7 @@ export default function LoftApp() {
       loadDoc(document, saved.name, saved.opensOn, bytes, {
         edits: saved.edits as Edits,
         simIndex: saved.simIndex,
+        rocket: saved.rocket,
       });
       clearDiscardedSession();
       setDiscarded(null);
@@ -538,11 +547,22 @@ export default function LoftApp() {
     // gradient wind drifts 324 m while the anemometer says 3 m/s — a flight that really was 3 m/s
     // drifts 67 m. There is no single flown wind to show, so the field says so instead of naming one.
     const usingToday = scenario === "today" && weather;
+    // Which fields the DESIGN actually specifies. Everything else falls through to the engine's
+    // defaults above — and a default presented as the flyer's own setup is a claim about their file
+    // that their file never made. A rail length is the case that bites: the default is 1.0 m, real
+    // designs declare up to 3.048 m, and rail-exit velocity is the number the pad check turns on.
+    const defaulted = {
+      rodLength: stored?.rodLength === undefined,
+      rodAngleDeg: stored?.rodAngleDeg === undefined,
+      windSpeed: !usingToday && stored?.windSpeed === undefined,
+      launchAltitude: !usingToday && stored?.launchAltitude === undefined,
+    };
     return {
       rodLength: stored?.rodLength ?? base.rodLength,
       rodAngleDeg: stored?.rodAngleDeg ?? radToDeg(base.rodAngleFromVertical),
       windSpeed: usingToday ? null : (stored?.windSpeed ?? base.windSpeed),
       launchAltitude: usingToday ? weather.elevationMsl : (stored?.launchAltitude ?? base.launchAltitude),
+      defaulted,
     };
   }, [doc, simIndex, scenario, weather]);
 
@@ -647,6 +667,7 @@ export default function LoftApp() {
         loadDoc(document, saved.name, saved.opensOn, bytes, {
           edits: saved.edits as Edits,
           simIndex: saved.simIndex,
+          rocket: saved.rocket,
         });
       } catch {
         // A design Loft can no longer read (a format change, a truncated write) is dropped rather
@@ -669,6 +690,8 @@ export default function LoftApp() {
       v: 1,
       design: designBytes.current,
       name: fileName,
+      // The rename is not in the bytes, so it has to be carried beside them or a reload loses it.
+      rocket: doc.rocket.name || undefined,
       opensOn: initialTab,
       units,
       simIndex,
@@ -1554,7 +1577,16 @@ function ConditionsControls({
    *  as "flying X" when it refuses an entry. Hardcoded literals made that claim false — 25 of the 27
    *  corpus .ork files declare a rod length, one of them 3.048 m against a placeholder of 1.2, where
    *  rail-exit reads 26 m/s as flown and 16 m/s if the flyer types what was advertised. */
-  flown: { rodLength: number; rodAngleDeg: number; windSpeed: number | null; launchAltitude: number };
+  flown: {
+    rodLength: number;
+    rodAngleDeg: number;
+    windSpeed: number | null;
+    launchAltitude: number;
+    /** Which of them the DESIGN does not specify, so they are the engine's defaults rather than
+     *  anything read from the file. Named on screen: a default advertised as the flyer's own setup
+     *  is a claim about their file that their file never made. */
+    defaulted: { rodLength: boolean; rodAngleDeg: boolean; windSpeed: boolean; launchAltitude: boolean };
+  };
   /** The tool whose stored comparison a condition change hides — named by the importer. */
   tool: string;
   weather: WeatherConditions | null;
@@ -1577,6 +1609,22 @@ function ConditionsControls({
     mps === undefined ? "" : d.fmtEditable(imperial ? mpsToMph(mps) : mps, imperial ? 0 : 1);
   const fromLen = (v: string) => (v === "" ? undefined : imperial ? ftToM(Number(v)) : Number(v));
   const fromSpd = (v: string) => (v === "" ? undefined : imperial ? mphToMps(Number(v)) : Number(v));
+
+  // The fields the design leaves unspecified, in the labels the flyer is looking at — and only
+  // while the greyed value is what is on screen. A field the flyer has typed into is flying THEIR
+  // number, which outranks the design's setup and the engine's default both; naming it as a default
+  // would credit Loft with a value the flyer chose, on the same line that exists to stop the
+  // reverse. Its placeholder is not even visible, so there is nothing there to attribute.
+  const defaultedNames = (
+    [
+      ["rodLength", "rail length", edits.rodLength],
+      ["rodAngleDeg", "rail angle", edits.rodAngleDeg],
+      ["windSpeed", "surface wind", edits.windSpeed],
+      ["launchAltitude", "field elevation", edits.launchAltitude],
+    ] as const
+  )
+    .filter(([k, , edit]) => flown.defaulted[k] && edit === undefined)
+    .map(([, label]) => label);
 
   const findWeather = async () => {
     if (!place.trim()) return;
@@ -1650,12 +1698,30 @@ function ConditionsControls({
         </div>
         <p className="text-xs text-zinc-500 dark:text-zinc-400">
           Each greyed value is what the flight is using for that field right now — the design&apos;s
-          stored setup, or today&apos;s weather where that is on. It carries enough decimals to be
-          typed back unchanged, so pinning a field to the value already in force is a no-op rather
-          than a silent edit. With today&apos;s weather the wind is a profile that changes with
-          altitude rather than one number, so that field says so instead of naming one. Changing any
-          field re-flies the design and hides the {tool} comparison (the conditions no longer match).
+          stored setup, today&apos;s weather where that is on, or Loft&apos;s own default where the
+          design specifies nothing. It carries enough decimals to be typed back unchanged, so pinning
+          a field to the value already in force is a no-op rather than a silent edit. With
+          today&apos;s weather the wind is a profile that changes with altitude rather than one
+          number, so that field says so instead of naming one. Changing any field re-flies the design
+          and hides the {tool} comparison (the conditions no longer match).
         </p>
+        {defaultedNames.length > 0 && (
+          // Which fields are Loft's and which are theirs. Without this the caption's three sources
+          // are a menu rather than an answer, and the from-scratch case — where every one of the
+          // four is a default — reads exactly like a design that specified them.
+          //
+          // It says what LOFT READ, not what the file contains, and the difference is load-bearing:
+          // RASAero and RockSim both carry a design-level launch setup that Loft's importers only
+          // reach from inside a per-simulation loop, so a file with no stored simulation loses it.
+          // `Three-stage rocket.CDX1` in the corpus states a 12 ft rail, 7.64° and 3,750 ft and has
+          // an empty `<SimulationList/>`; a note claiming the design specifies none of them would be
+          // flatly false about the file, which is worse than the silence this replaced. The reading
+          // gap itself is a real bug and is in BACKLOG.md with this file named.
+          <p className="text-xs text-amber-700 dark:text-amber-400">
+            Loft read no {listWords(defaultedNames)} from this design, so{" "}
+            {defaultedNames.length === 1 ? "that field is" : "those are"} its own default.
+          </p>
+        )}
 
         <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-900/60">
           <p className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">

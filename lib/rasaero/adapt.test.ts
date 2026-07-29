@@ -177,13 +177,39 @@ describe("adaptRasAeroXml", () => {
     expect(bt.aftRadius).toBeLessThan(bt.foreRadius);
   });
 
-  it("degrades rather than throwing on a design with no simulations", () => {
+  it("keeps the design's launch setup when it stores no simulations", () => {
+    // `<LaunchSite>` is design-level — one block for the whole file — but it only reached the model
+    // through the per-simulation loop, so a design with an empty `<SimulationList/>` threw its
+    // entire launch setup away and flew Loft's defaults. Measured on the corpus's
+    // `Three-stage rocket.CDX1`, which states a 12 ft rail against that 1.0 m default: 3.66x on the
+    // length rail-exit velocity is computed across, which is the number a pad check turns on.
     const bare = DESIGN.replace(/<SimulationList>[\s\S]*<\/SimulationList>/, "<SimulationList />");
     const d = adaptRasAeroXml(bare);
-    expect(d.simulations).toHaveLength(0);
+    expect(d.simulations).toHaveLength(1);
+    const [setup] = d.simulations;
+    expect(setup.conditions.rodLength).toBeCloseTo(8 * 0.3048, 6); // 8 ft, as the file states
+    expect(setup.conditions.rodAngleDeg).toBe(5);
+    expect(setup.conditions.launchAltitude).toBeCloseTo(3848 * 0.3048, 6);
+    expect(setup.conditions.windSpeed).toBeCloseTo(10 * 0.44704, 6);
+    // It is a SETUP, not a run: no results, so it stays out of every stored-tool comparison exactly
+    // as an unrun simulation does, and nothing presents Loft's own numbers as verified against it.
+    expect(setup.hasResults).toBe(false);
+    expect(setup.results).toEqual({});
+    expect(setup.status).toBe("notsimulated");
+
     expect(d.warnings.join(" ")).toMatch(/no launch weight/);
     // No motor, so the run layer withholds the flight rather than reporting a zero-altitude one.
     expect(runFromDocument(d).hasPropulsion).toBe(false);
+  });
+
+  it("does not invent a setup when the design states no launch site either", () => {
+    // The guard has to fire on a real absence and not on every simulation-less design, or it turns
+    // "Loft read nothing" into "Loft read a default and called it the file's".
+    const bare = DESIGN.replace(/<SimulationList>[\s\S]*<\/SimulationList>/, "<SimulationList />").replace(
+      /<LaunchSite>[\s\S]*<\/LaunchSite>/,
+      "",
+    );
+    expect(adaptRasAeroXml(bare).simulations).toHaveLength(0);
   });
 });
 

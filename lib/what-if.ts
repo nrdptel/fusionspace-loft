@@ -25,3 +25,13 @@ export function rangeWords(min?: number, max?: number): string | undefined {
 export function refusedMessage(entry: string, ranged?: string, flown?: string): string {
   return `${entry} isn't a value this can fly${ranged ? ` (${ranged})` : ""}${flown ? ` — flying ${flown}` : ""}.`;
 }
+
+/** A list of field names as a sentence reads it: "a", "a and b", "a, b, and c". Comma-joining alone
+ *  produced "no rail length, rail angle, surface wind, field elevation", which reads as a truncated
+ *  list rather than a complete one — and the sentence it sits in is telling a flyer which of their
+ *  launch numbers their file did not supply, so being read as truncated is the wrong failure. */
+export function listWords(items: string[]): string {
+  if (items.length <= 1) return items[0] ?? "";
+  if (items.length === 2) return `${items[0]} and ${items[1]}`;
+  return `${items.slice(0, -1).join(", ")}, and ${items[items.length - 1]}`;
+}
