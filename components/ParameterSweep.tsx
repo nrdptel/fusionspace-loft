@@ -238,9 +238,13 @@ export default function ParameterSweep({
       live = false;
     };
     // Keyed on the design's value, not the props' identity — see `designKey`. Changing the swept
-    // axis still re-runs; an unrelated re-render no longer restarts the flights.
+    // axis still re-runs; an unrelated re-render no longer restarts the flights. The axis is named
+    // by its KEY and not by `axisDef`: that object is rebuilt from `doc` whenever `doc` changes
+    // identity, so depending on it re-flew all 25 points on every keystroke in the rename field —
+    // the same defect `designKey` fixes one level up, arriving by a different route. The axis's own
+    // bounds move only when the rocket does, which `designKey` already covers.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, axisDef, designKey]);
+  }, [open, axisKey, designKey]);
 
   // A design with no editable dimension (no fins, nose, or body tube) has nothing to sweep.
   if (axes.length === 0) return null;

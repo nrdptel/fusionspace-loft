@@ -179,6 +179,11 @@ export default function LoftApp() {
   const designBytes = useRef<string | null>(null);
   /** True when this design came back from the last session rather than being freshly opened. */
   const [restored, setRestored] = useState(false);
+  /** Bumped once per design load, and by nothing else. The heavy analysis panels key their cached
+   *  answer on "which design is this", and that question has to be answered by the act of loading
+   *  rather than by any field the flyer can edit — the name used to stand in for it, so renaming a
+   *  design re-flew the analysis panels a keystroke at a time. */
+  const [loadSerial, setLoadSerial] = useState(0);
   /** Designs opened before, kept on the device so a flyer working across a build can pick any of
    *  them back up without the file. Read on mount (localStorage is client-only, so the first render
    *  must match the server's empty one) and kept in step as designs are opened and dropped. */
@@ -293,6 +298,7 @@ export default function LoftApp() {
     ) => {
       const e = resume?.edits ?? {};
       const idx = resume?.simIndex ?? 0;
+      setLoadSerial((n) => n + 1);
       setDoc(document);
       setFileName(name);
       setEdits(e);
@@ -928,6 +934,7 @@ export default function LoftApp() {
             <ResultsView
               run={run}
               doc={doc}
+              loadId={loadSerial}
               units={units}
               baseline={baseline}
               simIndex={simIndex}
