@@ -3,8 +3,29 @@
 Rough edges, missing affordances, and ideas too big for one pass — noticed while working,
 not yet done. Newest first. One line each. Anything here is fair game for the next session.
 
-- **RASAero and RockSim state a launch setup at DESIGN level, and Loft only ever reads it from
-  inside a per-simulation loop — so a file with no stored simulation loses it entirely.**
+- **Conditions exposes 4 of the 8 launch parameters Loft already models, and the other 4 are read
+  from real files and flown where a flyer cannot see them.** Benchmarked against OpenRocket's
+  simulation-conditions dialog, which is the tool a flyer would come from. `StoredConditions`
+  (`lib/ork/adapt.ts:76`) carries `baseTempK` and `basePressurePa`; `lib/sim/setup.ts:363,365` carry
+  `rodAzimuthDeg` and `windToDeg`, and `defaultConditions` sets all four. The `.ork` importer reads
+  base temperature and pressure (`lib/ork/adapt.ts:795`) and the RASAero one reads Temperature and
+  Pressure off `<LaunchSite>`. `grep -c` for any of the four in `components/LoftApp.tsx` returns
+  **0**. So a design flown at 3,750 ft on a 95 °F day is flown with those numbers and the panel that
+  exists to say what is being flown does not mention them. Wind DIRECTION is the sharpest: the
+  surface-wind field's own hint says "Direction is a separate thing — a negative speed is not a wind
+  from the other side", which names the gap without closing it, and drift bearing is what sizes a
+  recovery walk. Nothing here is wrong; it is a surface that stops short of the model behind it.
+
+- **The footer's links are 16 px tall on a phone.** Measured on a 390x664 viewport with a design
+  loaded: 13 interactive elements clear no 44 px minimum, and 5 of them are the footer's own links
+  (GitHub 16x60, Docs 16x28, Motor Finder 16x71, Charge 16x40, Window 16x44). The header, tabs, unit
+  toggle, what-if fields and shelf controls all pass — this is the one region the hit-target passes
+  have not reached. The docs nav was flagged separately at 28 px. Same walk found no horizontal
+  overflow, an offline reload that keeps the design with **0** failed requests, and workspace depths
+  of 6.5 / 5.8 / 4.3 screens (Flight / Design / Analyze) — Flight is the one worth splitting first.
+
+- **RESOLVED this session — RASAero and RockSim state a launch setup at DESIGN level, and Loft only
+  ever read it from inside a per-simulation loop, so a file with no stored simulation lost it.**
   `lib/rasaero/adapt.ts:449` finds `<LaunchSite>` once, design-wide, but only reaches it through
   `storedSim(sim, site, i, id)` inside the per-simulation loop at :497. Measured on a corpus file:
   `rasaero__openrocket-repo-rasaero-threestage-cdx1__Three-stage rocket.CDX1` carries
@@ -15,11 +36,12 @@ not yet done. Newest first. One line each. Anything here is fair game for the ne
   same shape — `rocksim__openrocket-repo-rocksim-threestage__rocksimTestRocket2.rkt` carries
   `<LaunchGuideLength>914.4</LaunchGuideLength>` at `<RocketDesign>` level, and nothing under `lib/`
   reads that tag; `lib/rkt/adapt.ts:618` reads only the per-`<SimulationResults>` `LaunchGuideLen`.
-  Fix: lift the design-level launch block out of the per-simulation loop in both adapters and use it
-  as the design's conditions when no stored simulation supplies them. This is a PARSER change — its
-  own gate, its own corpus run, its own push. The Conditions note added this session is worded
-  around this gap on purpose ("Loft read no …", not "this design specifies no …"), because the
-  stronger sentence would be flatly false about that CDX1 file; reword it once this is fixed.
+  Fixed by carrying the design-level block as a stored simulation with no results, in both adapters:
+  the CDX1 now flies 3.6576 m and the .rkt 0.9144 m, with every other corpus design unchanged. The
+  Conditions note still reads "Loft read no …" rather than "this design specifies no …" — keep it
+  that way. The wording is not a workaround for the parser gap; it is the honest claim either way,
+  since Loft cannot know what it failed to read, and the next format with a corner like this one
+  will arrive before anyone notices.
 
 - **The scenario toggle keeps a wind or elevation edit that the flight throws away, in a box the
   flyer cannot then clear.** `LoftApp.tsx:935` — the "As designed"/"Today" segmented control calls
