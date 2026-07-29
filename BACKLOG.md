@@ -3,6 +3,16 @@
 Rough edges, missing affordances, and ideas too big for one pass — noticed while working,
 not yet done. Newest first. One line each. Anything here is fair game for the next session.
 
+- **RESOLVED this session — the parts-table caption read "adds up to 0 kg" for a real 1.4-2.0 kg
+  airframe.** The caption stated the SUM OF ITS OWN COLUMN as the design's dry mass; it now states
+  `dryMassProperties`, the same source the Mass & balance panel reads, and names the part no row can
+  carry. Verified in the built export: `Dual parachute deployment.ork` 0 -> **1.361 kg** (all of it
+  whole-stage), `EscapeVelocity.ork` 0 -> **2 kg**, `02.Two-stage.ork` 1.002 -> **2.533 kg** (1.531 kg
+  whole-stage), and the bundled sample unchanged at 0.6 kg with no note. `massByComponent` itself is
+  unchanged and still keyed by component — a stage override belongs to no component and the table is
+  not missing rows, it is missing a row it cannot have. `e2e/fixtures/stage-weighed.ork` was added so
+  CI can exercise the shape at all: no bundled sample or committed fixture carried a stage-level
+  override, and the sample-based test passes with the defect reintroduced. The original entry follows.
 - **The parts-table caption reads "adds up to 0 kg" for a real 1.4-2.0 kg airframe.**
   `massByComponent` (`lib/sim/mass.ts:407`) keeps only point masses that carry a `componentId`, and a
   stage-level `<overridemass>` is pushed at `:381` with no `componentId` — so the whole lumped figure

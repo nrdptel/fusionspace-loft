@@ -3112,6 +3112,78 @@ test.describe("Loft", () => {
     }).toPass({ timeout: 20_000 });
   });
 
+  test("the parts table's stated dry mass is the design's, and matches the panel beside it", async ({
+    page,
+  }) => {
+    // The caption used to state the SUM OF ITS OWN COLUMN as the design's dry mass. That column is
+    // keyed by component, and a design can state its weight as a whole-STAGE figure that belongs to
+    // no component — so every part reads 0 g "counted in <stage>" and the caption read "adds up to
+    // 0 kg" for a real airframe. Measured on two corpus designs with no edits: 0 kg against 1.361 kg
+    // and 0 kg against 2 kg, each beside a Mass & balance panel stating the true figure.
+    //
+    // No committed fixture carries a stage-level override, so the unit tests pin the gap between the
+    // two functions and this asserts the property that made it visible: the two panels, which point
+    // at each other by name, state the same number.
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    await page.getByRole("tab", { name: "Design" }).click();
+
+    // Both captions live inside disclosures; `innerText` skips a closed one entirely.
+    const details = page.locator("details");
+    for (let i = 0; i < (await details.count()); i++) {
+      const d = details.nth(i);
+      if (!(await d.evaluate((el: HTMLDetailsElement) => el.open))) await d.locator("summary").first().click();
+    }
+
+    const text = (await page.locator("body").innerText()).replace(/\s+/g, " ");
+    const caption = text.match(/dry mass is ([\d.,]+\s*[a-z]+)/i);
+    const panel = text.match(/Mass & balance · dry ([\d.,]+\s*[a-z]+)/i);
+    expect(caption, "the parts table states a dry mass").not.toBeNull();
+    expect(panel, "the mass panel states a dry mass").not.toBeNull();
+    expect(Number(caption![1].replace(/[^\d.]/g, ""))).toBeGreaterThan(0);
+    expect(caption![1]).toBe(panel![1]);
+    // This sample states no whole-stage figure, so the caption must NOT claim one — the note is the
+    // half that only appears where it is true.
+    expect(text).not.toMatch(/stated in the design as a whole-stage figure/);
+  });
+
+  test("a design weighed by the stage still states its mass, and says no row can carry it", async ({
+    page,
+  }) => {
+    // The case no bundled sample has: a design whose weight is stated as a whole-STAGE override.
+    // `massByComponent` is keyed by component, so every part correctly reads 0 g "counted in
+    // Sustainer" — and the caption, which summed that column, read "adds up to 0 kg". Measured on
+    // two real corpus designs before the fix: 0 kg against 1.361 kg, and 0 kg against 2 kg.
+    // `e2e/fixtures/stage-weighed.ork` is the bundled single-deploy design with a 1.234 kg
+    // whole-stage weight added, which is exactly the shape those two files have.
+    await page.goto("/");
+    await page
+      .locator('input[type="file"]')
+      .first()
+      .setInputFiles(resolve(process.cwd(), "e2e/fixtures/stage-weighed.ork"));
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    await page.getByRole("tab", { name: "Design" }).click();
+
+    const details = page.locator("details");
+    for (let i = 0; i < (await details.count()); i++) {
+      const d = details.nth(i);
+      if (!(await d.evaluate((el: HTMLDetailsElement) => el.open))) await d.locator("summary").first().click();
+    }
+    const text = (await page.locator("body").innerText()).replace(/\s+/g, " ");
+
+    // The design's stated weight, not the sum of a column that cannot hold it.
+    const caption = text.match(/dry mass is ([\d.,]+\s*[a-z]+)/i);
+    expect(caption).not.toBeNull();
+    expect(Number(caption![1].replace(/[^\d.]/g, ""))).toBeCloseTo(1.234, 2);
+    // And it says why no row adds up to it, rather than leaving a table of zeros unexplained.
+    expect(text).toMatch(/stated in the design as a whole-stage figure/);
+    // The panel it points at by name agrees.
+    const panel = text.match(/Mass & balance · dry ([\d.,]+\s*[a-z]+)/i);
+    expect(panel).not.toBeNull();
+    expect(caption![1]).toBe(panel![1]);
+  });
+
   test("the stability trim advice is for the edited airframe, not the file's", async ({ page }) => {
     // `StabilityTrimHint` sits inside the same section as the summary strip and is fed the edited
     // run's margin, mass and reference diameter — but took its two GEOMETRY reads, the nose station

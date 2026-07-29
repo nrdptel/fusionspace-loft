@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import type { Rocket, RocketComponent } from "@/lib/model/types";
 import { flattenRocket } from "@/lib/model/geometry";
-import { massByComponent } from "@/lib/sim/mass";
+import { massByComponent, dryMassProperties } from "@/lib/sim/mass";
 import type { MotorMark } from "@/lib/sim/setup";
 import type { GeometryEdits } from "@/lib/model/edit";
 import { TOUCH_TARGET } from "@/lib/ui-tokens";
@@ -153,7 +153,17 @@ export default function GeometryInspector({
   // part can be pointed at on the picture and read with its weight beside its dimensions. Structure
   // only — the motor is layered on at launch and lives in the mass & balance panel.
   const masses = massByComponent(rocket);
-  const dryTotal = [...masses.values()].reduce((a, m) => a + m.mass, 0);
+  // The design's real dry mass, from the same source the Mass & balance panel reads, NOT the sum of
+  // the column below. A design can state its mass as a whole-STAGE override, which belongs to no
+  // component and so gets no row here — every part under it correctly reads 0 g "counted in
+  // <stage>", and summing the column then reports the whole airframe as weightless. Measured with no
+  // edits at all: `Dual parachute deployment.ork` said "adds up to 0 kg" for a 1.361 kg rocket and
+  // `EscapeVelocity.ork` "0 kg" for 2 kg, both beside a panel stating the true figure.
+  const dryTotal = dryMassProperties(rocket).mass;
+  // What no row can account for. Named rather than hidden: a table whose column does not add up to
+  // its own stated total, with nothing saying why, is the worse of the two failures.
+  const columnTotal = [...masses.values()].reduce((a, m) => a + m.mass, 0);
+  const unlisted = dryTotal - columnTotal;
   // Hover previews, a click picks. Picking has to stick: the pointer must leave a shape before you
   // can read anything about it, so a hover-only link meant clicking a part on the diagram told you
   // nothing — the one place it said what the part was sat behind a closed disclosure.
@@ -383,9 +393,17 @@ export default function GeometryInspector({
           picked out — so you can find a part on the picture and read what it is, or the other way
           round. Diameters are shown as <span className="font-mono">⌀</span>; a fin set lists its
           per-fin chords and span. Any column heading sorts the table; the design&apos;s own
-          nose-to-tail order is the default. The mass column is dry structure only — it adds up to{" "}
-          {d.q(d.mass(dryTotal, units))}, with the motor and any what-if ballast layered on at launch
-          in the <em>Mass &amp; balance</em> panel.
+          nose-to-tail order is the default. The mass column is dry structure only; this design&apos;s
+          dry mass is {d.q(d.mass(dryTotal, units))}, with the motor and any what-if ballast layered
+          on at launch in the <em>Mass &amp; balance</em> panel.
+          {unlisted > 1e-6 && (
+            <>
+              {" "}
+              Of that, {d.q(d.mass(unlisted, units))} is stated in the design as a whole-stage figure
+              rather than part by part, so it belongs to no row here — the{" "}
+              <em>Mass &amp; balance</em> panel lists it under the stage&apos;s own name.
+            </>
+          )}
         </p>
         </details>
       </div>
