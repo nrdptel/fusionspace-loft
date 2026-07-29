@@ -3270,6 +3270,59 @@ test.describe("Loft", () => {
     await expect(mc).toContainText("the launch conditions you set");
   });
 
+  test("the motor sweep checks rail exit against the rail you told it about", async ({ page }) => {
+    // The caption invites exactly this: "Rail-exit velocity and thrust-to-weight are the
+    // launch-safety numbers to check against your rail and the ~5:1 and ~15 m/s rules of thumb."
+    // It was flying the rail length in the FILE. Measured on this sample, halving the rail from the
+    // design's 2.0 m to 1.0 m: the K250W's rail exit goes 19 m/s — over the rule — to 13 m/s, under
+    // it. Apogee is untouched at 4,487 m, because rail length does not change how high it goes.
+    test.setTimeout(150_000);
+    await page.goto("/");
+    await page.getByRole("button", { name: /54 mm dual-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+
+    const sweep = page.getByRole("region", { name: "Motor sweep" });
+    // Every rail-exit cell in the table, which is the third speed column on each row.
+    const railExits = async () => {
+      // Data rows only: the caption below the table also contains "m/s" (it cites the ~15 m/s rule)
+      // but carries no tab-separated cells.
+      return (await sweep.innerText())
+        .split("\n")
+        .map((l) => l.split("\t").filter((c) => /m\/s$/.test(c.trim())))
+        .filter((speeds) => speeds.length >= 2)
+        .map((speeds) => Number(speeds[speeds.length - 1].replace(/[^\d.]/g, "")));
+    };
+
+    await page.getByRole("tab", { name: "Analyze" }).click();
+    await sweep.getByRole("button", { name: /Run motor sweep|Compare fitting motors/i }).first().click();
+    await expect(async () => expect((await railExits()).length).toBeGreaterThan(3)).toPass({ timeout: 90_000 });
+    const onDesignRail = await railExits();
+    await expect(sweep).toContainText("the design's stored launch conditions");
+
+    // Tell it the rail is half as long as the file says.
+    await page.getByRole("tab", { name: "Flight" }).click();
+    const conditions = page.locator("details").filter({ hasText: "Conditions" }).first();
+    if (!(await conditions.evaluate((el: HTMLDetailsElement) => el.open))) {
+      await conditions.locator("summary").click();
+    }
+    const rail = page.locator("input").and(page.getByLabel(/Rail length/i)).first();
+    const designRail = Number(await rail.getAttribute("placeholder"));
+    expect(designRail).toBeGreaterThan(1);
+    await rail.fill("1");
+    await rail.press("Enter");
+    await rail.blur();
+
+    await page.getByRole("tab", { name: "Analyze" }).click();
+    await expect(async () => {
+      const shortened = await railExits();
+      expect(shortened.length).toBe(onDesignRail.length);
+      // Every candidate leaves a shorter rail slower. Asserting on the whole column rather than one
+      // row, so a re-ordering of the table cannot make this pass by accident.
+      for (let i = 0; i < shortened.length; i++) expect(shortened[i]).toBeLessThan(onDesignRail[i]);
+    }).toPass({ timeout: 90_000 });
+    await expect(sweep).toContainText("the launch conditions you set");
+  });
+
   test("a motor swap survives a configuration change that still offers it", async ({ page }) => {
     // The wiring half of `swapStillOffered`. The failure it guards needs two configurations of
     // DIFFERENT casings — on the corpus design that stores nine across 24/29/38 mm, a 38 mm swap

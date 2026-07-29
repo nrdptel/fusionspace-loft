@@ -739,6 +739,8 @@ export default function ResultsView({
       {canSweepMotors && (
         <MotorSweep
           designKey={dkey}
+          flownOverrides={flownOverrides}
+          conditionsEdited={conditionsEdited}
           doc={doc}
           simIndex={simIndex}
           units={units}
@@ -756,6 +758,8 @@ export default function ResultsView({
       {!staged && run.hasPropulsion && (
         <ParameterSweep
           designKey={dkey}
+          flownOverrides={flownOverrides}
+          conditionsEdited={conditionsEdited}
           doc={doc}
           simIndex={simIndex}
           units={units}

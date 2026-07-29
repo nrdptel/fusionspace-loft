@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import type { OrkDocument } from "@/lib/ork/import";
 import { overridesFromStored } from "@/lib/sim/run";
+import type { ConditionOverrides } from "@/lib/sim/setup";
 import { type SweepMotor, type MotorSweepRow } from "@/lib/sim/sweep";
 import { RECOMMENDED_FLUTTER_MARGIN } from "@/lib/sim/flutter";
 import { runMotorSweep } from "@/lib/sim/sweep-client";
@@ -40,6 +41,8 @@ export default function MotorSweep({
   ballastKg,
   geometry,
   designKey,
+  flownOverrides,
+  conditionsEdited,
 }: {
   doc: OrkDocument;
   simIndex: number;
@@ -59,7 +62,25 @@ export default function MotorSweep({
    *  so depending on their identity would restart the sweep whenever anything re-renders; this is
    *  their *value*, and it is what decides when the sweep is genuinely out of date. */
   designKey: string;
+  /** The launch conditions the flight in view is flown under. This panel flew the design FILE's
+   *  setup while inviting a comparison against the flyer's own rail. Surface wind is genuinely a
+   *  no-op here — `runFlight` zeroes it for a ballistic run, and the apogee is identical to the
+   *  metre at 3 m/s and at 8.94 m/s — but rail length, rail angle and field elevation are not:
+   *  measured on the 54 mm sample, a 10 deg rail moves the ballistic apogee 2,941 -> 2,852 m
+   *  (-3.0%), a 1,500 m field moves it -> 3,237 m (+10.1%), and shortening the rail 2.0 -> 1.0 m
+   *  drops rail-exit velocity 28.2 -> 19.6 m/s, straight through the ~15 m/s rule of thumb this
+   *  panel's own caption cites. */
+  flownOverrides?: ConditionOverrides;
+  /** True when some of that came from the flyer rather than the file, so the caption can say so. */
+  conditionsEdited?: boolean;
 }) {
+  // Only the conditions a BALLISTIC ascent actually reads. Wind is excluded on purpose: `runFlight`
+  // zeroes it for a ballistic run, so re-flying a whole sweep on a wind edit would throw the work
+  // away for a change measured to alter nothing. This is why the sweeps do not simply join the
+  // dispersion in watching every condition.
+  const o = flownOverrides;
+  const ballisticConditionsKey = [o?.rodLength ?? "", o?.rodAngleDeg ?? "", o?.launchAltitude ?? "", o?.atmosphere ? "atm" : ""].join("|");
+
   const [open, setOpen] = useState(false);
   // Closing unmounts the Close button; focus has to land on the Run button that replaces it.
   const [runRef, returnFocusToRun] = useReturnFocus();
@@ -86,7 +107,7 @@ export default function MotorSweep({
       options,
       {
         configId: sim?.conditions.configId,
-        overrides: sim ? overridesFromStored(sim) : undefined,
+        overrides: flownOverrides ?? (sim ? overridesFromStored(sim) : undefined),
         ballastKg,
         geometry,
         designMotor,
@@ -104,7 +125,7 @@ export default function MotorSweep({
     // Deliberately keyed on the design's value, not on the props' identity — see `designKey`. The
     // sweep re-runs when the design actually changes and survives an unrelated re-render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, designKey]);
+  }, [open, designKey, ballisticConditionsKey]);
 
   return (
     <section
@@ -166,7 +187,7 @@ export default function MotorSweep({
           spinner. It is never left unlabelled: the status line says which it is. */}
       {open && rows !== null && rows.length > 0 && (
         <div aria-busy={running} className={running ? "opacity-50 transition-opacity" : undefined}>
-          <SweepTable rows={rows} units={units} name={doc.rocket.name} />
+          <SweepTable rows={rows} units={units} name={doc.rocket.name} conditionsEdited={conditionsEdited} />
         </div>
       )}
     </section>
@@ -219,7 +240,19 @@ type SortKey = (typeof COLUMNS)[number]["key"];
  *  different column set is discarded rather than leaving the table sorted on nothing. */
 const SORT_CHOICES: readonly string[] = COLUMNS.flatMap((c) => [`${c.key}:asc`, `${c.key}:desc`]);
 
-function SweepTable({ rows, units, name }: { rows: MotorSweepRow[]; units: UnitSystem; name: string }) {
+function SweepTable({
+  rows,
+  units,
+  name,
+  conditionsEdited,
+}: {
+  rows: MotorSweepRow[];
+  units: UnitSystem;
+  name: string;
+  /** Whether the conditions these flights used came from the flyer or from the design file — the
+   *  caption below names which, because it invites a comparison against "your rail". */
+  conditionsEdited?: boolean;
+}) {
   // Which column the table is sorted on is a view the flyer chose deliberately — someone picking a
   // motor on flutter margin is doing that across every design they open, not once. Direction rides
   // along in the same stored value so the pair can't come back inconsistent.
@@ -348,10 +381,13 @@ function SweepTable({ rows, units, name }: { rows: MotorSweepRow[]; units: UnitS
         </table>
       </div>
       <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
-        Each motor flies a ballistic ascent to apogee under the design&apos;s stored launch
-        conditions — a like-for-like comparison, not the full recovery flight. Rail-exit velocity and
+        Each motor flies a ballistic ascent to apogee under{" "}
+        {conditionsEdited ? "the launch conditions you set" : "the design's stored launch conditions"}
+        {" "}— a like-for-like comparison, not the full recovery flight. Rail-exit velocity and
         thrust-to-weight are the launch-safety numbers to check against your rail and the ~5:1 and
-        ~15&nbsp;m/s (≈50&nbsp;ft/s) rules of thumb. <em>Delay</em> is the ejection delay that deploys
+        ~15&nbsp;m/s (≈50&nbsp;ft/s) rules of thumb; the rail here is the one being flown, so
+        shortening it under <em>Conditions</em> moves this column. Surface wind is not read at all —
+        a ballistic ascent has no recovery to drift. <em>Delay</em> is the ejection delay that deploys
         at apogee for that motor (burnout&nbsp;→&nbsp;apogee), so you can pick the delay to buy or drill
         for each candidate; a faster motor coasts longer and wants a longer delay. These are estimates
         to verify, never a go/no-go.

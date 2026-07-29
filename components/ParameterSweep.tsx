@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import type { ConditionOverrides } from "@/lib/sim/setup";
 import type { OrkDocument } from "@/lib/ork/import";
 import { runFlight, overridesFromStored } from "@/lib/sim/run";
 import { linRange, SWEEP_AXES, type SweepAxis, type ParamSweepPoint } from "@/lib/sim/sweep";
@@ -78,8 +79,9 @@ const geometryAxis = (axis: SweepAxis, label: string, base: number): AxisDef => 
  *  metric responds — the response curve behind a single what-if. Reuses the builder's geometry-edit
  *  path, so each point is exactly the flight that dimension would produce; every other active what-if
  *  (ballast, motor swap, the other geometry edits) is held fixed, so the curve isolates one variable.
- *  All flights are ballistic to apogee under the design's stored conditions — the same like-for-like
- *  baseline the motor sweep and RocketPy cross-check use. Runs entirely on the device. */
+ *  All flights are ballistic to apogee under the launch conditions being flown — the design's own
+ *  stored setup with the flyer's Conditions edits on top, the same like-for-like baseline the motor
+ *  sweep uses. Surface wind is not among them: `runFlight` zeroes it for a ballistic run. Runs entirely on the device. */
 export default function ParameterSweep({
   doc,
   simIndex,
@@ -88,6 +90,8 @@ export default function ParameterSweep({
   motorSwap,
   geometry,
   designKey,
+  flownOverrides,
+  conditionsEdited,
 }: {
   doc: OrkDocument;
   simIndex: number;
@@ -99,7 +103,25 @@ export default function ParameterSweep({
    *  so depending on their identity would restart the sweep whenever anything re-renders; this is
    *  their *value*, and it is what decides when the sweep is genuinely out of date. */
   designKey: string;
+  /** The launch conditions the flight in view is flown under. This panel flew the design FILE's
+   *  setup while inviting a comparison against the flyer's own rail. Surface wind is genuinely a
+   *  no-op here — `runFlight` zeroes it for a ballistic run, and the apogee is identical to the
+   *  metre at 3 m/s and at 8.94 m/s — but rail length, rail angle and field elevation are not:
+   *  measured on the 54 mm sample, a 10 deg rail moves the ballistic apogee 2,941 -> 2,852 m
+   *  (-3.0%), a 1,500 m field moves it -> 3,237 m (+10.1%), and shortening the rail 2.0 -> 1.0 m
+   *  drops rail-exit velocity 28.2 -> 19.6 m/s, straight through the ~15 m/s rule of thumb this
+   *  panel's own caption cites. */
+  flownOverrides?: ConditionOverrides;
+  /** True when some of that came from the flyer rather than the file, so the caption can say so. */
+  conditionsEdited?: boolean;
 }) {
+  // Only the conditions a BALLISTIC ascent actually reads. Wind is excluded on purpose: `runFlight`
+  // zeroes it for a ballistic run, so re-flying a whole sweep on a wind edit would throw the work
+  // away for a change measured to alter nothing. This is why the sweeps do not simply join the
+  // dispersion in watching every condition.
+  const o = flownOverrides;
+  const ballisticConditionsKey = [o?.rodLength ?? "", o?.rodAngleDeg ?? "", o?.launchAltitude ?? "", o?.atmosphere ? "atm" : ""].join("|");
+
   // The variables this design can sweep: its geometry (each ranged around its own value) plus nose
   // ballast (0 → a mass-relative max), which any flyable design can take.
   const axes = useMemo<AxisDef[]>(() => {
@@ -149,7 +171,7 @@ export default function ParameterSweep({
     try {
       const b = runFlight(doc.rocket, {
         configId: sim?.conditions.configId,
-        overrides: sim ? overridesFromStored(sim) : undefined,
+        overrides: flownOverrides ?? (sim ? overridesFromStored(sim) : undefined),
         ballistic: true,
         motorSwap,
         geometry,
@@ -170,7 +192,12 @@ export default function ParameterSweep({
       // No ballast axis if the design won't fly a baseline.
     }
     return list;
-  }, [doc, simIndex, motorSwap, geometry]);
+    // `ballisticConditionsKey` stands in for `flownOverrides`, which is rebuilt on every render — the
+    // ballast axis is sized from a baseline FLIGHT, so it has to follow a rail-angle or elevation
+    // change, but depending on the object's identity would resize it on every unrelated re-render.
+    // Same reasoning as `designKey` below: depend on the value, not the reference.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [doc, simIndex, motorSwap, geometry, ballisticConditionsKey]);
 
   // The flutter-margin metric is only meaningful for a design with fins; a finless design drops it.
   // Deliberately NOT asked of the picked set: the question is whether this rocket has fins at all,
@@ -229,7 +256,7 @@ export default function ParameterSweep({
       values,
       {
         configId: sim?.conditions.configId,
-        overrides: sim ? overridesFromStored(sim) : undefined,
+        overrides: flownOverrides ?? (sim ? overridesFromStored(sim) : undefined),
         ballastKg,
         motorSwap,
         baseGeometry: geometry,
@@ -250,7 +277,7 @@ export default function ParameterSweep({
     // the same defect `designKey` fixes one level up, arriving by a different route. The axis's own
     // bounds move only when the rocket does, which `designKey` already covers.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, axisKey, designKey]);
+  }, [open, axisKey, designKey, ballisticConditionsKey]);
 
   // A design with no editable dimension (no fins, nose, or body tube) has nothing to sweep.
   if (axes.length === 0) return null;
@@ -340,7 +367,7 @@ export default function ParameterSweep({
               previous design's, so an edit can be read against what it changed. */}
           {points !== null && points.length > 1 && (
             <div aria-busy={running} className={running ? "opacity-50 transition-opacity" : undefined}>
-              <SweepChart points={points} axis={axisDef} metric={metric} metrics={metrics} units={units} name={doc.rocket.name} />
+              <SweepChart points={points} axis={axisDef} metric={metric} metrics={metrics} units={units} name={doc.rocket.name} conditionsEdited={conditionsEdited} />
             </div>
           )}
           {!running && points !== null && points.length <= 1 && (
@@ -361,6 +388,7 @@ function SweepChart({
   metrics,
   units,
   name,
+  conditionsEdited,
 }: {
   points: ParamSweepPoint[];
   axis: AxisDef;
@@ -368,6 +396,8 @@ function SweepChart({
   metrics: MetricDef[];
   units: UnitSystem;
   name: string;
+  /** Whether the conditions these flights used came from the flyer or from the design file. */
+  conditionsEdited?: boolean;
 }) {
   // X in this axis's own display units (mm/in for a dimension, g/oz for ballast); Y in the metric's.
   const xUnit = axis.xUnit(units);
@@ -398,7 +428,8 @@ function SweepChart({
         yZeroFloor={metric.key !== "staticMarginCal"}
       />
       <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
-        Ballistic ascent to apogee under the design&apos;s stored conditions, {STEPS} flights across
+        Ballistic ascent to apogee under{" "}
+              {conditionsEdited ? "the launch conditions you set" : "the design's stored conditions"}, {STEPS} flights across
         the range; the marker is the design&apos;s own value (no added ballast for that axis). Each
         variable shifts the centre of pressure and the mass its own way — read these as estimates to
         verify, not a go/no-go.
