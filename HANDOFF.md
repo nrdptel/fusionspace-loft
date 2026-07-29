@@ -163,14 +163,21 @@ the content-hashed chunk that carries the new strings (it 404'd before the merge
 | round-trip | A field's greyed placeholder advertised a rounded reading of the value in force: "7" mph against a flown 6.71, and typing it back moved drift 4.31% while hiding the file's own stored comparison. In the Design editor the same rounding DESTROYED data — 0.03 mm redisplayed as "0.0", parsed back as zero, and zero means "no edit". `d.fmtEditable` adds a decimal only where the nominal precision would misstate. |
 | close | The dispersion run and both sweeps had no way to close: 2,195 px against 308 px on a 390 px phone, and 2.5 s of re-flying per design edit. Plus focus return and state reset, both from review. |
 
-**On the working branch, not yet merged:**
+**PR #57, open and gating at the time of writing** — check whether it merged and deployed before
+building on it:
 
 | | |
 |---|---|
-| `fb0d5a6` | Conditions says which of its greyed values Loft supplied and which the design did. A from-scratch build showed rail 1.0 / wind 0 / elev 0 under a caption calling them the flyer's own setup. |
-| `dfef63d` | (record only) names the rename-persistence fix that shipped inside `fb0d5a6` — a rename now survives a reload and a "pick it back up". |
+| `fb0d5a6` | Conditions says which of its greyed values Loft supplied and which the design did. A from-scratch build showed rail 1.0 / wind 0 / elev 0 under a caption calling them the flyer's own setup. Also carries, unmentioned in its own message (`--amend` is blocked here, so `dfef63d` records it): a rename now survives a reload and a "pick it back up". |
 | `7bdec07` | The note says what Loft READ, not what the file contains — see below. |
-| uncommitted | The parser fix behind that wording: design-level launch setup on RASAero and RockSim. |
+| `829c797` | The parser fix behind that wording: design-level launch setup on RASAero and RockSim. 1.0 m default → 3.6576 m on the CDX1, → 0.9144 m on the .rkt, every other corpus design unchanged. |
+| `0614f8f` | The done-check's two measurements, recorded not acted on. |
+
+**The parser diff's independent review did not return inside the 30 minutes it was given**, so its
+checks are mine: units confirmed against a file carrying BOTH tags at the same value (`TubeFins1.rkt`,
+914.4 each way), a before/after rail census over all 35 corpus designs, and an end-to-end walk of both
+affected files in the built export. If you want the second opinion, that diff is the one to hand a
+fresh agent.
 
 ## The thing to actually learn from this session
 
