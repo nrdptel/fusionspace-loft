@@ -585,7 +585,7 @@ function engineSetsIn(container: XmlNode): XmlNode[] {
 
 /** Map one `<SimulationResults>` to Loft's stored-results shape. RockSim stores the kinematic
  *  results in SI already; only the launch-site conditions need unit work. */
-function storedSim(res: XmlNode, index: number): StoredSimulation {
+function storedSim(res: XmlNode, index: number, designRailM?: number): StoredSimulation {
   const results: StoredResults = {};
   let hasResults = false;
   const set = (key: keyof StoredResults, tag: string) => {
@@ -617,6 +617,13 @@ function storedSim(res: XmlNode, index: number): StoredSimulation {
   if (Number.isFinite(angle)) conditions.rodAngleDeg = radToDeg(angle);
   const rail = childNum(res, "LaunchGuideLen", NaN) * MM; // stored in mm
   if (Number.isFinite(rail) && rail > 0.1 && rail < 20) conditions.rodLength = rail;
+  // RockSim states the rail length in two places: per simulation as `LaunchGuideLen`, and once for
+  // the whole design as `<LaunchGuideLength>`. Only the per-simulation one was read, so a run that
+  // omits it lost the design's rail and flew Loft's 1.0 m default instead — `rocksimTestRocket2.rkt`
+  // in the corpus carries a simulation with no `LaunchGuideLen` and a design-level 914.4 mm, an 8.6%
+  // understatement of the length rail-exit velocity is computed over. The per-simulation figure
+  // still wins wherever the file states one; this is the fallback, not a replacement.
+  else if (designRailM !== undefined) conditions.rodLength = designRailM;
 
   return {
     name: (childText(res, "SimulationName") || `Simulation ${index + 1}`).replace(/^\[|\]$/g, ""),
@@ -706,13 +713,18 @@ export function adaptRktXml(xml: string): OrkDocument {
   // simulations reference configurations. Marking the mount also fills its motor-mount role.
   const configs: MotorConfiguration[] = [];
   const simulations: StoredSimulation[] = [];
+  // The design's own rail length, stated once for the whole file in millimetres. Bounded the same
+  // way the per-simulation figure is, so a nonsense value is refused rather than flown.
+  const designRail = n(design, "LaunchGuideLength", NaN) * MM;
+  const designRailM =
+    Number.isFinite(designRail) && designRail > 0.1 && designRail < 20 ? designRail : undefined;
   const resultsList = child(root, "SimulationResultsList");
   const resultNodes = resultsList ? children(resultsList, "SimulationResults") : [];
   resultNodes.forEach((res, i) => {
     const instances = engineSetsIn(res)
       .map((set) => engineInstance(set, ctx))
       .filter((x): x is MotorInstance => x !== null);
-    const sim = storedSim(res, i);
+    const sim = storedSim(res, i, designRailM);
     configs.push({ id: `sim${i}`, name: sim.name, instances });
     simulations.push(sim);
   });
@@ -720,6 +732,22 @@ export function adaptRktXml(xml: string): OrkDocument {
   // A design with no stored simulations (so no motor) still needs a configuration to select; an
   // empty one flies with no propulsion, which the run layer detects and withholds honestly.
   if (configs.length === 0) configs.push({ id: "default", instances: [] });
+  // …but the design's own launch setup is not part of any simulation, and throwing it away with
+  // them left the file's rail length unread. `rocksimTestRocket2.rkt` in the corpus states 914.4 mm
+  // at `<RocketDesign>` level and carries an empty `<SimulationResultsList>`; Loft flew its 1.0 m
+  // default over it, 8.6% short on the length rail-exit velocity is computed across. Carried as a
+  // stored simulation with no results, which is what the file describes: a setup, and no run under
+  // it. `hasResults: false` keeps it out of every comparison, exactly as an unrun stored simulation
+  // already is. The RASAero adapter does the same with its design-level `<LaunchSite>`.
+  if (simulations.length === 0 && designRailM !== undefined) {
+    simulations.push({
+      name: "Launch setup",
+      status: "notsimulated",
+      conditions: { configId: configs[0].id, rodLength: designRailM },
+      results: {},
+      hasResults: false,
+    });
+  }
 
   const rocket: Rocket = {
     name: childText(design, "Name") || "Imported rocket",

@@ -152,36 +152,64 @@ sentence in a doc comment *written in that same diff*. Both were fixed before th
 ## Shipped this session
 
 Baseline before anything changed: lint 0 errors / 1 warning, **682 unit**, build, **122 e2e**, corpus
-**35 design files, 3/3**.
+**35 design files, 3/3**. At the time of writing: **695 unit, 128 e2e**, corpus 35 throughout.
+
+**Merged and live** — PR #56, squash `20ee501`, confirmed serving on loft.fusionspace.co by fetching
+the content-hashed chunk that carries the new strings (it 404'd before the merge):
 
 | | |
 |---|---|
-| `c81dc74` | **A rename no longer throws away every analysis on the page.** The design name was the first field of the analysis cache key, so each keystroke in the rename field re-flew the Monte-Carlo and both sweeps and marked the RocketPy cross-check stale — measured at 4.3 s of dispersion per character on the 54 mm dual-deploy sample. Identity is now a serial bumped by `loadDoc` and by nothing else. Two more holes in the same key, both found by the review of this diff: the parameter sweep depended on the axis OBJECT (rebuilt from `doc`) so it never honoured the key at all, and a motor swap keyed on the designation alone could not tell an Estes C6 from a Quest C6. |
-| `e6056e0` | **The launch conditions are advertised at a precision you can type back.** A Conditions placeholder is a reading of the value being flown; rounded to the field's nominal precision it stopped being true. A design flying 3.0 m/s advertised "7" mph while flying 6.71, and typing the advertised 7 back moved drift 2,066 → 2,155 ft (+4.31%) AND hid the design file's own stored comparison. `d.fmtEditable` grows decimals only until the round trip is within 0.1%. |
+| rename | The design name was the first field of the analysis cache key, so each keystroke re-flew the Monte-Carlo and both sweeps and staled the cross-check — 4.3 s of dispersion per character. Identity is now a serial bumped by `loadDoc`. Review of that diff found two more holes in the same key: the parameter sweep depended on an object rebuilt from the document so it never honoured the key at all, and a swap keyed on the designation alone could not tell an Estes C6 from a Quest C6. |
+| round-trip | A field's greyed placeholder advertised a rounded reading of the value in force: "7" mph against a flown 6.71, and typing it back moved drift 4.31% while hiding the file's own stored comparison. In the Design editor the same rounding DESTROYED data — 0.03 mm redisplayed as "0.0", parsed back as zero, and zero means "no edit". `d.fmtEditable` adds a decimal only where the nominal precision would misstate. |
+| close | The dispersion run and both sweeps had no way to close: 2,195 px against 308 px on a 390 px phone, and 2.5 s of re-flying per design edit. Plus focus return and state reset, both from review. |
+
+**On the working branch, not yet merged:**
+
+| | |
+|---|---|
+| `fb0d5a6` | Conditions says which of its greyed values Loft supplied and which the design did. A from-scratch build showed rail 1.0 / wind 0 / elev 0 under a caption calling them the flyer's own setup. |
+| `dfef63d` | (record only) names the rename-persistence fix that shipped inside `fb0d5a6` — a rename now survives a reload and a "pick it back up". |
+| `7bdec07` | The note says what Loft READ, not what the file contains — see below. |
+| uncommitted | The parser fix behind that wording: design-level launch setup on RASAero and RockSim. |
+
+## The thing to actually learn from this session
+
+**A note that fills a silence can be worse than the silence.** The Conditions note started as "This
+design specifies no rail length…", which reads well and is FALSE on two import paths: RASAero and
+RockSim both state a launch setup at DESIGN level, and Loft's adapters only reached it from inside a
+per-simulation loop. `Three-stage rocket.CDX1` in the corpus states a 12 ft rail, 7.64° and 3,750 ft
+against a self-closing `<SimulationList/>` — the note would have denied all three. Caught by review,
+not by the gate: every test passed both before and after, because no test knew what the file said.
+
+The wording is now "Loft read no …", which is true whichever way the gap falls, and the gap itself is
+fixed in the adapters — measured on the corpus, 1.0 m default → 3.6576 m on that RASAero file and
+→ 0.9144 m on `rocksimTestRocket2.rkt`.
+
+**The general form: when you add a sentence about someone else's data, the sentence is a claim, and
+it needs a source the same way a number does.**
 
 ## Pick up first
 
-1. **The other 20 editable fields have the same round-trip defect `e6056e0` fixed for the 4 Conditions
-   ones.** A census of all 31 (24 `<Num>` in `LoftApp.tsx`, 7 `<NumberField>` in `MonteCarlo.tsx`) is
-   the basis. Worst measured: **fin thickness** — 0.254 mm balsa (a real part a real corpus file
-   specifies) shows "0.3", **+18.11%**, and below 0.05 mm the box reads "0.0" and a bare focus+blur
-   commits "0", which `fromSpan` maps to `undefined` — **the edit is silently deleted**. Second:
-   **body diameter** on a BT-5, 0.01346 m shows "13" → 0.013 m, −3.42% on d and −6.7% on reference
-   area. **Reproduce each before fixing** — the census is a subagent's reading, not a measurement.
-2. **`fromSpan` maps 0 → `undefined`,** so an explicit zero fin sweep (a straight leading edge) can
-   never be committed: typing 0 silently reverts to the design's own sweep.
-3. **The boattail exit placeholder quotes a rounded bound:** a 0.0635 m body advertises `< 64` when
-   63.5 mm is the true ceiling, so 64 mm reads as allowed and is wider than the body. `Num`'s refusal
-   message then prints "flying < 64", which is not a value.
-4. **`Payload pos` placeholder does not track the edited rocket** — 3.1 in of CG and 2.07 cal of
-   static margin between what the field advertises and where a blank payload actually lands. Carried
-   from the previous session, not re-measured.
-5. **The Flight card's stat tiles put the two things you most need to read at the two smallest sizes**
-   — every label 11 px, the unit 12 px against a 20–24 px value, on the surface the whole pad check
-   happens on. 630 m of drift is a different walk from 630 ft.
-6. **Fin flutter still cries wolf** (60 of 113 corpus flights), blocked on a citable shear modulus.
+1. **`fromSpan` and `fromMass` map an entered 0 to `undefined`,** so zero is not a value a flyer can
+   set — a fin sweep of 0 is a straight leading edge and cannot be expressed. A semantics change per
+   field, which is why the round-trip pass did not fold it in.
+2. **The scenario toggle is a second door into the state `onWeather` guards** and leaves a wind edit
+   in a disabled box the flight has thrown away (2,518 m of drift advertised against 1,563 m).
+3. **The boattail exit placeholder quotes a rounded bound** — a 0.0635 m body advertises "< 64" when
+   63.5 mm is the ceiling, so 64 mm reads as allowed and is wider than the body.
+4. **The stored-tool comparison is silently absent on a file that carries no stored results**, which
+   is 3 of the 4 bundled samples — measured directly from the files: `demo-dual-deploy.ork`,
+   `demo-single-deploy.ork` and `demo-multi-config.ork` each have `<simulation>` blocks with zero
+   `<flightdata>`. So the headline cross-check the landing copy promises never appears on the default
+   first run and nothing says why, while three other ways it can go missing each get a panel.
+5. **`Payload pos` placeholder does not track the edited rocket** — 3.1 in of CG and 2.07 cal of
+   static margin between what the field advertises and where a blank payload lands. Not re-measured.
+6. **The Flight card's stat tiles** put the label at 11 px and the unit at 12 px against a 20–24 px
+   value, on the surface the whole pad check happens on. 630 m of drift is a different walk from 630 ft.
 
-`BACKLOG.md` carries the fan-out's ranked queue with measurements — read it before choosing.
+`BACKLOG.md` carries the full ranked queue with measurements — a 4-lens fan-out over the app filed 48
+findings this run and 10 were killed by adversarial verification, including two of the three ranked
+most damaging. Read it before choosing, and reproduce before scoping.
 
 ## Environment notes
 

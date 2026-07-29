@@ -534,3 +534,52 @@ describe("adaptRktXml — a staged RockSim design flies staged", () => {
     expect(run.result.summary.apogee).toBeGreaterThan(100);
   });
 });
+
+describe("adaptRktXml — the design's own launch setup", () => {
+  /** A minimal design carrying RockSim's design-level `<LaunchGuideLength>`, in millimetres. */
+  const design = (sims: string, guide = "<LaunchGuideLength>914.4</LaunchGuideLength>") =>
+    `<RockSimDocument><DesignInformation><RocketDesign><Name>rail</Name>${guide}
+      <Stage3Parts>
+        <NoseCone><Name>Nose</Name><Len>150</Len><BaseDia>54</BaseDia><ShapeCode>1</ShapeCode><CalcMass>120</CalcMass></NoseCone>
+        <BodyTube><Name>Body</Name><Len>600</Len><OD>54</OD><ID>52</ID><CalcMass>200</CalcMass><SerialNo>7</SerialNo></BodyTube>
+      </Stage3Parts>
+    </RocketDesign></DesignInformation>${sims}</RockSimDocument>`;
+
+  it("reads the rail length a design states once for the whole file", () => {
+    // RockSim states the rail in two places: per simulation as `LaunchGuideLen`, and once for the
+    // design as `<LaunchGuideLength>`. Only the per-simulation one was read, so a file with an
+    // empty results list lost its rail entirely — the corpus's `rocksimTestRocket2.rkt` states
+    // 914.4 mm and Loft flew its own 1.0 m default over it.
+    const doc = adaptRktXml(design("<SimulationResultsList />"));
+    expect(doc.simulations).toHaveLength(1);
+    expect(doc.simulations[0].conditions.rodLength).toBeCloseTo(0.9144, 6);
+    // A setup, not a run: nothing here is a result to compare Loft's numbers against.
+    expect(doc.simulations[0].hasResults).toBe(false);
+    expect(doc.simulations[0].status).toBe("notsimulated");
+  });
+
+  it("lets a simulation's own rail length win, and falls back only where it has none", () => {
+    const withOwn = adaptRktXml(
+      design(
+        "<SimulationResultsList><SimulationResults><MaxAltitude>100</MaxAltitude>" +
+          "<LaunchGuideLen>1828.8</LaunchGuideLen></SimulationResults></SimulationResultsList>",
+      ),
+    );
+    expect(withOwn.simulations[0].conditions.rodLength).toBeCloseTo(1.8288, 6);
+
+    const without = adaptRktXml(
+      design("<SimulationResultsList><SimulationResults><MaxAltitude>100</MaxAltitude></SimulationResults></SimulationResultsList>"),
+    );
+    expect(without.simulations[0].conditions.rodLength).toBeCloseTo(0.9144, 6);
+  });
+
+  it("invents nothing when the design states no rail either", () => {
+    // The guard must fire on a real value and not on every simulation-less design, or it turns
+    // "Loft read nothing" into "Loft read a default and called it the file's".
+    const none = adaptRktXml(design("<SimulationResultsList />", ""));
+    expect(none.simulations).toHaveLength(0);
+    // And an out-of-range figure is refused the same way the per-simulation one is.
+    const silly = adaptRktXml(design("<SimulationResultsList />", "<LaunchGuideLength>99000</LaunchGuideLength>"));
+    expect(silly.simulations).toHaveLength(0);
+  });
+});
