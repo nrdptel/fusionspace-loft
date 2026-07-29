@@ -3055,6 +3055,56 @@ test.describe("Loft", () => {
     await expect(page.getByRole("region", { name: /comparison unavailable/i })).toHaveCount(0);
   });
 
+  test("the summary strip and the mass panel describe the rocket that was edited", async ({ page }) => {
+    // Two panels were reading the design straight off the FILE while everything beside them came
+    // from the edited run.
+    //   · The summary strip's Length used `doc.rocket`, so doubling a 700 mm body left it reading
+    //     950 mm next to a centre of pressure of 1,422 mm — 472 mm past the length the same line
+    //     claims. That strip sits above the tabs so an edit's headline effect is legible from any
+    //     workspace, and overall length is what a flyer checks against a rail and a waiver form.
+    //   · Mass & balance was fed `doc.rocket` while the diagram above it got the edited model, so
+    //     the two panels on one tab disagreed about the same dry mass — 0.6 kg against 0.893 kg —
+    //     while the diagram's caption points at this panel by name for the total.
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+
+    const strip = async () => {
+      const t = (await page.locator("body").innerText()).replace(/−/g, "-");
+      const g = (re: RegExp) => (t.match(re) ?? [, "-"])[1]!.trim();
+      return {
+        length: g(/(?:^|\n)Length\n([^\n]*)/i),
+        cp: g(/(?:^|\n)CP\n([^\n]*)/i),
+        dry: g(/dry\s+([\d.,]+\s*\S+)/i),
+      };
+    };
+    // Read both on the Design tab: the strip sits above the tabs and is always visible, but Mass &
+    // balance is inside the Design panel, and `innerText` skips a `hidden` subtree entirely.
+    await page.getByRole("tab", { name: "Design" }).click();
+    const before = await strip();
+    expect(before.length).not.toBe("-");
+    expect(before.dry).not.toBe("-");
+
+    const body = page.locator("label").filter({ hasText: /Body length/ }).first().locator("input");
+    const design = Number(await body.getAttribute("placeholder"));
+    expect(design).toBeGreaterThan(0);
+    await body.fill(String(design * 2));
+    await body.press("Enter");
+    await body.blur();
+
+    await expect(async () => {
+      const after = await strip();
+      // The length followed the edit...
+      expect(after.length).not.toBe(before.length);
+      // ...and the two panels no longer describe different rockets.
+      expect(after.dry).not.toBe(before.dry);
+      // Self-consistency, which is what made the stale cell visible without knowing the fix: a
+      // centre of pressure cannot sit beyond the airframe it is measured on.
+      const mm = (s: string) => Number(s.replace(/[^\d.]/g, "")) * (/\bcm\b/.test(s) ? 10 : /\bm\b/.test(s) && !/mm/.test(s) ? 1000 : 1);
+      expect(mm(after.length)).toBeGreaterThanOrEqual(mm(after.cp));
+    }).toPass({ timeout: 20_000 });
+  });
+
   test("a refused dispersion says so too, and does not quietly shrink the recovery area", async ({ page }) => {
     // The same defect, one component over and with more riding on it. `NumberField` declared
     // `min={0}` on the input and enforced it nowhere, so a negative ±1σ stayed in the box while

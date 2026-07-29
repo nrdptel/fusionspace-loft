@@ -3,6 +3,51 @@
 Rough edges, missing affordances, and ideas too big for one pass — noticed while working,
 not yet done. Newest first. One line each. Anything here is fair game for the next session.
 
+- **RESOLVED this session — two panels described a rocket the flyer was not editing.** The summary
+  strip's Length read `overallLength(doc.rocket)` while Max diameter, CG, CP and Static margin beside
+  it came from the edited run. Measured on the 38 mm sample: doubling a 700 mm body left Length
+  reading **950 mm** next to a centre of pressure of **1,422 mm** — 472 mm past the length the same
+  line claims. That strip sits above the tabs so an edit's headline effect is legible from any
+  workspace, and overall length is what a flyer checks against a rail, a shipping tube and a waiver
+  form. `MassBreakdown` had the same shape one panel over: fed `doc.rocket` while its sibling
+  `GeometryInspector` got the edited model, so the two panels on one tab disagreed about the same dry
+  mass (**0.6 kg against 0.893 kg**) — while the diagram's caption points at that panel by name for
+  the total and the panel's own caption says these are the masses the simulator flies. Both now take
+  the shown rocket. The e2e test asserts a self-consistency the fix does not have to be known to
+  read: a centre of pressure cannot sit beyond the airframe it is measured on.
+
+- **CORRECTION to two entries below — measured, and neither is reachable on any real file.** The
+  fan-out filed both and adversarial verification confirmed the CODE is wrong in each; driving the
+  corpus says the damage is not.
+  - The RASAero `<Pressure>` guard: `Show-off.CDX1` is the only file whose stated pressure passes
+    `> 0` while being impossible, and that design **shows no flight at all** — its motors (`1/4A2`,
+    `C4`) resolve to nothing, so the 14.7x thin atmosphere reaches no displayed number. A guard here
+    would fire on zero reachable designs. **What IS worth chasing, and is new:** across the 4 RASAero
+    corpus files the only plausible value is `OR vs RAS Test 1`'s **29.53 inHg at a 3,848 ft field**,
+    and `atmosphereForGround` inverts that to a sea-level pressure of **1,137 hPa** — 53 hPa above
+    the highest ever recorded on Earth (1,083.8 hPa, Agata, 1968). Read instead as a sea-level
+    altimeter setting it is an ordinary 1,000 hPa. So RASAero's `<Pressure>` is very likely
+    sea-level-referenced and Loft reads it as the pressure AT the field, flying air ~15% too dense.
+    The two tools' own stored apogees on that design (RASAero 22,376 m, OpenRocket 13,910 m) differ
+    by 60%, so they cannot settle it — this needs the RASAero II documentation, not another sweep.
+  - `sepT = phases[nStages - i]` (`simulate.ts:824`) indexes the phase list positionally, which only
+    holds for a full separation ladder; a collapsed table drops one booster's descent readout and
+    gives the other both boosters' mass. Verified on a synthetic fixture. **No corpus design reaches
+    it**: the only two designs whose phase table collapses are `03.Three-stage.ork` and `Three stage
+    low power rocket.ork`, and both are flagged ballistic — no canopy Loft can see — so the descent
+    loop skips them before the index is used. The correct lookup is `phases.find(p => p.stageCount
+    <= i)?.startTime`, and note the mass then belongs to the whole group that leaves at that instant,
+    not to each stage separately: a serial stack parts at ONE joint.
+
+- **`ejectionTime` is `Infinity`, not `undefined`, for a motor that never ignites**
+  (`setup.ts:221` computes `ignitionTime + burnTime + delay`). `ejectionIsPlugged`
+  (`simulate.ts:1006`) tests `m.ejectionTime !== undefined` and so reads "something on this stage
+  does fire" from a motor that never fires, dropping the plugged-motor warning and letting an
+  `ejection`-triggered chute fall back to apogee. This session's detach fix closes it for an unlit
+  stage that IS shed (its motor now carries a finite detach time and is filtered out); it remains for
+  an unlit stage nothing separates above. One line at the source: a motor with a non-finite ignition
+  time has no ejection time.
+
 - **RESOLVED this session — one unlit motor made the whole flight's burnout `Infinity`, and four
   numbers were read off it.** `setup.ts:212` mints `ignitionTime = Infinity` for a motor whose
   trigger can never arrive (a `burnout` event on the bottom-most stage, with nothing beneath it to

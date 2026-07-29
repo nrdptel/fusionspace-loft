@@ -28,6 +28,7 @@ import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
 import { impulseClass } from "@/lib/motors/eng";
 import { overallLength } from "@/lib/model/geometry";
+import type { Rocket } from "@/lib/model/types";
 import { noseBallastStation, configChoices } from "@/lib/sim/run";
 import { motorLayout } from "@/lib/sim/setup";
 import { marginTrim, finStationTrim } from "@/lib/sim/trim";
@@ -367,7 +368,7 @@ export default function ResultsView({
         <NoPropulsionNotice run={run} tool={toolName} swapOptions={swapOptions} doc={doc} />
       )}
 
-      <RocketSummary run={run} doc={doc} units={units} geometry={geometry} />
+      <RocketSummary run={run} doc={doc} rocket={shownRocket} units={units} geometry={geometry} />
 
       {r.warnings.length > 0 && (
         <ul className="space-y-2">
@@ -667,7 +668,12 @@ export default function ResultsView({
         {designEditor}
 
         {/* Where the dry mass comes from, part by part — transparency into the parsed structure. */}
-        <MassBreakdown rocket={doc.rocket} units={units} />
+        {/* The EDITED rocket, like the diagram above it. Both read the same `structurePointMasses`,
+            so feeding one the edited model and the other the file's own made the two panels on this
+            tab disagree about the same dry mass — while the diagram's caption points at this panel
+            by name for the total, and this panel's own caption says these are the masses the
+            simulator flies. Mass & balance is where a flyer decides how much ballast to add. */}
+        <MassBreakdown rocket={shownRocket} units={units} />
       </div>
 
       {/* ANALYZE — the heavier, opt-in tools: an independent second solver, and design-space sweeps. */}
@@ -863,16 +869,24 @@ const FIN_FIELDS_NOUN = "The Design workspace's fin fields";
 function RocketSummary({
   run,
   doc,
+  rocket,
   units,
   geometry,
 }: {
   run: FlightRun;
   doc: OrkDocument;
+  /** The rocket the run describes — the EDITED one while a geometry what-if is set. Every other
+   *  figure in this strip already comes from the run, so reading length off `doc.rocket` made one
+   *  cell quietly describe a different rocket: doubling a 700 mm body left "950 mm" beside a centre
+   *  of pressure of 1,422 mm, which is 472 mm past the length the same line claims. This strip sits
+   *  above the tabs so a design edit's headline effect is legible from any workspace, and overall
+   *  length is what a flyer checks against a rail, a shipping tube and a waiver form. */
+  rocket: Rocket;
   units: UnitSystem;
   geometry?: GeometryEdits;
 }) {
   const r = run.result;
-  const length = overallLength(doc.rocket);
+  const length = overallLength(rocket);
   const dia = r.stability.refRadius * 2;
   return (
     <section className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900/40">
