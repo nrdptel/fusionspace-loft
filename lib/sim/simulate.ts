@@ -955,19 +955,25 @@ function onRail(s: SimState, rodLength: number, rail: Vec3): boolean {
 
 /** When the last motor that actually burns finishes burning.
  *
- *  A motor whose trigger can never arrive — a `burnout` event on the bottom-most stage, with nothing
- *  beneath it to burn out — never burns, so it has no burnout to be the last of. `setup.ts` marks it
- *  by minting `ignitionTime = Infinity`, and it rides as inert mass, which is what the file's own
- *  stored flight shows. Folding that into the maximum made the FLIGHT's burnout `Infinity`, which is
- *  not "later than the others"; it is "never", and four numbers were read off it:
+ *  A motor whose trigger can never arrive never burns, so it has no burnout to be the last of.
+ *  `setup.ts` marks it by minting `ignitionTime = Infinity`, and it rides as inert mass on its own
+ *  stage, which is what the file's own stored flight shows. Two shapes produce it: a `never` event
+ *  on ANY stage, and a `burnout` event on the bottom-most one, which has nothing beneath it to burn
+ *  out. Folding that into the maximum made the FLIGHT's burnout `Infinity`, which is not "later than
+ *  the others"; it is "never", and four numbers were read off it:
  *
  *    - the burnout event never fired (`state.t >= Infinity`), so burnout velocity and altitude sat
  *      at their initial zeros;
  *    - `optimumDelay` came out `max(0, apogeeTime - Infinity)` = 0 s — a confident instruction to
  *      deploy at burnout, on a rocket still 10 s from apogee;
  *    - `burnoutMass` was read at `t = Infinity`, past every casing's detach time, so the descent
- *      mass lost every motor including the inert one still bolted on;
+ *      mass lost every motor;
  *    - and landing energy and the recovery-sizing goal-seek are both computed from that mass.
+ *
+ *  Reading it at a finite time then exposed a second defect underneath, fixed in the same pass in
+ *  `setup.ts`: an unlit stage has no burnout to separate on, so its `detachTime` stayed `Infinity`
+ *  while the phase table correctly shed its airframe with the joint above it — leaving its motor's
+ *  point mass aboard the sustainer for the rest of the flight.
  *
  *  Measured on `03.Three-stage.ork`, the one corpus design that mints the trigger: burnout velocity
  *  0 m/s and optimum delay 0 s beside a 1,452 m apogee reached at 20.8 s. */

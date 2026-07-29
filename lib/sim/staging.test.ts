@@ -601,10 +601,21 @@ describe("the design's own ignition events drive the firing order", () => {
     // The coast from burnout to apogee is a real interval, not a floor at zero.
     expect(s.optimumDelay).toBeGreaterThan(0);
     expect(s.optimumDelay).toBeLessThan(s.timeToApogee);
-    // Burnout mass is read at a finite time, so it still carries the airframe and the motor that
-    // never lit — reading it at `Infinity` fell past every casing's detach time and dropped them all.
+    // Burnout mass is read at a finite time now, and it has to be the mass of the vehicle that is
+    // STILL ATTACHED. The bottom stage of this fixture is shed — the sibling test below asserts the
+    // phases step 3 → 1 — so neither its airframe nor the motor bolted to it is aboard, even though
+    // that motor never lit and so has no burnout of its own to separate on. A `> 0` /
+    // `<= liftoffMass` pair would pass with its point mass still riding along, which is exactly the
+    // state this asserts against.
     expect(result.burnoutMass).toBeGreaterThan(0);
-    expect(result.burnoutMass).toBeLessThanOrEqual(result.liftoffMass);
+    expect(result.burnoutMass).toBeLessThan(result.liftoffMass);
+    const unlit = buildRocketDynamics(rocket, config).motors.find((m) => !Number.isFinite(m.ignitionTime))!;
+    expect(unlit).toBeDefined();
+    // It leaves with its stage, not at `Infinity`, and that is before the flight is over.
+    expect(Number.isFinite(unlit.detachTime!)).toBe(true);
+    expect(unlit.detachTime).toBeLessThan(s.timeToApogee);
+    // And its full loaded mass is genuinely gone from the descent, not merely "some mass is".
+    expect(result.burnoutMass).toBeLessThanOrEqual(result.liftoffMass - unlit.curve.totalMass);
   });
 
   it("drops everything below the joint that parts, not one stage per event", () => {

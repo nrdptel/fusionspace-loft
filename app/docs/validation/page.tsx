@@ -179,8 +179,8 @@ export default async function Validation() {
       <ul>
         <li>time to apogee <strong>1.7%</strong>, rail-exit velocity <strong>1.9%</strong></li>
         <li>max Mach <strong>2.1%</strong>, max velocity <strong>2.3%</strong>, optimum delay <strong>2.7%</strong></li>
-        <li>ground-hit velocity <strong>3.0%</strong>, apogee <strong>3.2%</strong>, flight time and max acceleration <strong>3.3%</strong></li>
-        <li>deployment velocity <strong>6.5%</strong></li>
+        <li>ground-hit velocity <strong>3.0%</strong>, apogee and max acceleration <strong>3.2%</strong>, flight time <strong>3.3%</strong></li>
+        <li>deployment velocity <strong>5.9%</strong></li>
       </ul>
       <p>
         Deployment velocity looks like the outlier and mostly isn&apos;t: it is an{" "}
