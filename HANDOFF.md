@@ -6,8 +6,9 @@ Overwritten each session. What shipped, what is part-way, and what to pick up fi
 
 The session is pinned to a working branch, not `main`. **CI does not run on a branch push.**
 `test.yml` fires on `push: [main]` and on `pull_request:` only, and `deploy-cloudflare.yml` on
-`push: [main]`. So the sequence that actually ships is: gate locally → push the branch → open a PR
-(that is what makes CI run) → merge on green (that is what deploys).
+`push: [main]`. Re-read both `on:` blocks at session start; this session did, and they still say
+that. So the sequence that actually ships is: gate locally → push the branch → open a PR (that is
+what makes CI run) → merge on green (that is what deploys).
 
 **The harness pins a working branch, its name is reused across sessions, and the remote copy is
 DELETED when its PR merges.** This session opened with the remote branch gone and local `HEAD`
@@ -47,10 +48,11 @@ GitHub, authored as `Neer Patel <135655563+nrdptel@users.noreply.github.com>` �
 every future commit and rewrite deployed history. Verified with the owner on 2026-07-26.
 
 **Git identity is wrong out of the box** on a fresh container — it arrives as the harness vendor's
-name and address, which the zero-trace invariant forbids. Set `user.name`/`user.email` per-repo in
-BOTH checkouts to `Neer Patel <135655563+nrdptel@users.noreply.github.com>` before the first commit,
-and check `git log -1 --format='%an <%ae>'` afterwards. Signing works (`gpg.format=ssh`); confirm
-with `git cat-file commit HEAD | grep gpgsig`.
+name and address, which the zero-trace invariant forbids. Confirmed again this session: it came up as
+`Claude <noreply@anthropic.com>`. Set `user.name`/`user.email` per-repo in BOTH checkouts to
+`Neer Patel <135655563+nrdptel@users.noreply.github.com>` before the first commit, and check
+`git log -1 --format='%an <%ae>'` afterwards. Signing works (`gpg.format=ssh`); confirm with
+`git cat-file commit HEAD | grep gpgsig`.
 
 **Read the PR body back after posting it.** The harness appends an italic attribution footer naming
 the tool that wrote it, which the zero-trace invariant forbids on a public artifact.
@@ -61,7 +63,7 @@ explicitly at merge time too, so a squash cannot inherit a body you did not chec
 **403** with the body `{"message":"GitHub access is not enabled for this session..."}` — and that is
 still valid JSON, so a poller doing `d.get("check_runs", [])` counts zero pending and reports **"all
 checks complete"** on a request that was refused. Poll CI with `mcp__github__pull_request_read`
-(`method: get_check_runs`).
+(`method: get_check_runs`), and see the caution about job-level status lag below.
 
 **The clone is shallow**, so every commit count and file history here is a window, not the record.
 
@@ -90,24 +92,18 @@ PW_EXECUTABLE_PATH=/opt/pw-browsers/chromium npx playwright test >>"$G" 2>&1; ec
 
 **Never read a Playwright count through a pipe** — `| tail -20` eats the summary line.
 
-**Prove a new test can fail, and check the BUILD exit while you do it.** This bit twice this session
-and the second one is the subtle one:
+**Prove a new test can fail, and check the BUILD exit while you do it.** A negative control that does
+not compile is not a negative control: `noUnusedLocals` fails the build, `out/` never changes, and
+the test "passes" against the still-fixed code. This session's controls reverted `positive` on the
+rail field and restored the zero-swallowing converter, rebuilt with `BUILD_EXIT=0`, and confirmed
+both new tests went red — then restored from a copy taken before the revert.
 
-1. The first negative control edited `ResultsView` so the fix was reverted — but that left a prop
-   unused, `noUnusedLocals` failed the build, `out/` never changed, and the test "passed" against the
-   still-fixed code. **A negative control that does not compile is not a negative control.**
-2. The second compiled, `BUILD_EXIT=0`, and the test STILL passed — because the assertion compared
-   the sweep's rows before and after, and **a re-run of an unchanged rocket returns rows identical to
-   the ones it replaced.** Asserting on the RESULT could not tell "kept" from "re-flown". The test
-   had to watch the panels' `role="status"` live region — the WORK — instead.
-
-The general rule: when a fix is about *not doing* something, assert on the doing, not on the output.
+**A fix that is about NOT doing something must assert on the doing, not the output.** A re-run of an
+unchanged rocket returns rows identical to the ones it replaced, so comparing results cannot tell
+"kept" from "re-flown"; watch the panels' `role="status"` live region instead.
 
 **A panel on a hidden workspace is out of the accessibility tree.** `getByRole("region", …)` matches
-nothing while another tab is open, so a watcher armed on the Analyze panels sees nothing while you
-are making an edit on Design. That is why the rename test watches the live region (same tab) and the
-ballast control asserts on changed rows (across tabs) — two different observables for two directions
-of the same test.
+nothing while another tab is open.
 
 ## Before you trust a sweep
 
@@ -128,10 +124,15 @@ run that says `1 passed` examined nothing. `--silent=false` matters: vitest 4 sw
 remains the one owner-side action. A test that needs a design file must drive a COMMITTED fixture
 (`e2e/fixtures/`, `fixtures/`, `public/samples/`).
 
+**A useful census shortcut**: the `.ork` container is a plain zip with one `rocket.ork` entry, so
+`unzip -p <file> rocket.ork | grep …` scans the whole corpus from a node script in seconds without
+going through the adapters. Two corpus files are NOT zips (`APEX_K_Dart.ork`,
+`issuiuc-silsim-rocket/rocket.ork` are bare XML) — fall back to reading them directly.
+
 ## Orchestration on this box
 
-**Four cores, so the agent concurrency cap is 2** per workflow. A 4-lens fan-out with per-finding
-verification is ~48 agents and takes well over an hour to drain at that rate — dispatch it FIRST,
+**Four cores, so the agent concurrency cap is 2** per workflow. A 5-lens fan-out with per-finding
+verification is ~20 agents and takes well over an hour to drain at that rate — dispatch it FIRST,
 then do a whole increment while it runs. Do not wait on it.
 
 **Never let a subagent write under `lib/`** — a `lib/*-tmp.test.ts` is collected by vitest AND
@@ -139,95 +140,81 @@ type-checked by the build. Root-level `*-tmp.mjs` is safe from both; the ignore 
 `*-tmp.mjs`, `*-tmp.ts`, `*-tmp.*.ts`. Clean the tree before the final gate and compare lint against
 the baseline: **exactly 1 warning, the deliberate `setDraft` one in `LoftApp.tsx`**.
 
-**A probe that finds nothing may be broken. Print a denominator and a control that must be
-non-zero.** Three probes this session reported a clean bill of health while measuring nothing: one
-never clicked Run and counted an unrelated table's 14 rows; one matched a `<details>` whose content
-is in the DOM while collapsed; one used a busy-detector that never fired on the explicit Run it was
-supposed to calibrate against.
+**A standalone Playwright probe must live in the repo ROOT** to resolve `playwright` from
+`node_modules`. One written to the scratchpad fails with `ERR_MODULE_NOT_FOUND`.
 
-**The second opinion earns its keep — take it EVERY time.** On the first increment it found a real
-hole (the parameter sweep never honoured the cache key at all, by a different route) and a false
-sentence in a doc comment *written in that same diff*. Both were fixed before the push.
+**A probe that finds nothing may be broken. Print a denominator and a control that must be
+non-zero.** Every probe this session opened with a control line naming the design's own value and a
+non-zero change from a known-good entry, before measuring the case under test.
+
+**The second opinion earns its keep — take it EVERY time.** It has found a real hole in the diff that
+produced it more than once, including a false sentence in a doc comment written in that same diff.
 
 ## Shipped this session
 
-Baseline before anything changed: lint 0 errors / 1 warning, **682 unit**, build, **122 e2e**, corpus
-**35 design files, 3/3**. At the time of writing: **695 unit, 128 e2e**, corpus 35 throughout.
+Baseline before anything changed, all four green: lint 0 errors / **1 warning**, **695 unit**, build,
+**128 e2e**, corpus **35 design files, 3/3**.
 
-Both pull requests merged on green CI and are serving.
-
-**A caution about reading CI here, which cost this session nearly an hour.** The checks API reported
-PR #57's e2e job as `in_progress` for twenty minutes after that job had completed green, and it
-happened again on #58 — a job whose steps were ALL `success`, including "Complete job", still
-reported `in_progress` at job level. **Job-level status lags; step-level status does not.** Use
-`actions_list` with `list_workflow_jobs` and read the `steps` array, not `pull_request_read`'s
-`get_check_runs`. Concluding from a stale `in_progress` that a run is stuck nearly ended this
-session with finished, verified work sitting unmerged.
-
-**PR #56, squash `20ee501`** — confirmed serving by fetching the content-hashed chunk carrying its
-new strings (it 404'd before the merge):
+**Increment 1 — a rail of no length, and a zero that no field would take.** Two defects behind one
+mechanism, both reproduced first-hand in the built export before scoping:
 
 | | |
 |---|---|
-| rename | The design name was the first field of the analysis cache key, so each keystroke re-flew the Monte-Carlo and both sweeps and staled the cross-check — 4.3 s of dispersion per character. Identity is now a serial bumped by `loadDoc`. Review of that diff found two more holes in the same key: the parameter sweep depended on an object rebuilt from the document so it never honoured the key at all, and a swap keyed on the designation alone could not tell an Estes C6 from a Quest C6. |
-| round-trip | A field's greyed placeholder advertised a rounded reading of the value in force: "7" mph against a flown 6.71, and typing it back moved drift 4.31% while hiding the file's own stored comparison. In the Design editor the same rounding DESTROYED data — 0.03 mm redisplayed as "0.0", parsed back as zero, and zero means "no edit". `d.fmtEditable` adds a decimal only where the nominal precision would misstate. |
-| close | The dispersion run and both sweeps had no way to close: 2,195 px against 308 px on a 390 px phone, and 2.5 s of re-flying per design edit. Plus focus return and state reset, both from review. |
+| rail | `Rail length` advertised its floor as "0 or more" and meant it. `onRail` is `along < rodLength`, so a 0 m rail is left at t=0 before the motor builds thrust, and the Flight card printed **Rail-exit velocity 0 m/s** with no warning — the number an RSO reads to decide the rocket leaves the rail flying. On the 54 mm dual-deploy sample: 2.0 m → 28 m/s, 3 m → 35 m/s, 0 → 0 m/s. |
+| zero | `fromSpan`/`fromMass` mapped every entered 0 to `undefined`, the spelling of "no edit", so a zero was indistinguishable from a cleared box. `lib/model/edit.ts` had already written down which fields take one — every geometry edit is `> 0` **except `finSweepLength`, which is `>= 0`** because a sweep of zero is a straight leading edge. The one shape the model was written to accept was the one the editor could not build: typing 0 left the box reading "0" while the design's own 90 mm went on flying, apogee unchanged at 2,941 m where 0.5 mm moves it to 2,359 m. |
 
-**PR #57, merged as `1ca7989` and confirmed live** — production build `f0a829ea5191` serves both
-markers (the provenance note's own text, and `LaunchGuideLength` in the adapter), checked by fetching
-the content-hashed chunk:
+The mechanism is a `positive` prop on `Num` plus a three-way split at the call sites, with
+`lib/model/edit.ts` as the authority for which field is which — see the comment above `orNone` in
+`LoftApp.tsx`. `rangeWords` grew an exclusive-lower-bound form so the field's own words changed with
+its behaviour ("more than 0, up to 20", not "0 to 20").
 
-| | |
-|---|---|
-| `fb0d5a6` | Conditions says which of its greyed values Loft supplied and which the design did. A from-scratch build showed rail 1.0 / wind 0 / elev 0 under a caption calling them the flyer's own setup. Also carries, unmentioned in its own message (`--amend` is blocked here, so `dfef63d` records it): a rename now survives a reload and a "pick it back up". |
-| `7bdec07` | The note says what Loft READ, not what the file contains — see below. |
-| `829c797` | The parser fix behind that wording: design-level launch setup on RASAero and RockSim. 1.0 m default → 3.6576 m on the CDX1, → 0.9144 m on the .rkt, every other corpus design unchanged. |
-| `0614f8f` | The done-check's two measurements, recorded not acted on. |
+Gate after: lint 0 errors / 1 warning, **696 unit**, build, **130 e2e**, corpus 35, 3/3.
 
-**The parser diff's independent review did not return inside the 30 minutes it was given**, so its
-checks are mine — that diff is still the best candidate for a fresh pair of eyes: units confirmed against a file carrying BOTH tags at the same value (`TubeFins1.rkt`,
-914.4 each way), a before/after rail census over all 35 corpus designs, and an end-to-end walk of both
-affected files in the built export. If you want the second opinion, that diff is the one to hand a
-fresh agent.
-
-## The thing to actually learn from this session
-
-**A note that fills a silence can be worse than the silence.** The Conditions note started as "This
-design specifies no rail length…", which reads well and is FALSE on two import paths: RASAero and
-RockSim both state a launch setup at DESIGN level, and Loft's adapters only reached it from inside a
-per-simulation loop. `Three-stage rocket.CDX1` in the corpus states a 12 ft rail, 7.64° and 3,750 ft
-against a self-closing `<SimulationList/>` — the note would have denied all three. Caught by review,
-not by the gate: every test passed both before and after, because no test knew what the file said.
-
-The wording is now "Loft read no …", which is true whichever way the gap falls, and the gap itself is
-fixed in the adapters — measured on the corpus, 1.0 m default → 3.6576 m on that RASAero file and
-→ 0.9144 m on `rocksimTestRocket2.rkt`.
-
-**The general form: when you add a sentence about someone else's data, the sentence is a claim, and
-it needs a source the same way a number does.**
+**One existing test regressed and the reason is worth keeping.** "a refused what-if says so, and the
+field shows what is actually flown" passed before only *because* zero was swallowed: typing `-3`
+clamps to `0` at commit, and `onChange("0")` used to arrive as `undefined`. With the converter honest
+and `positive` refusing before the clamp, the negative value that live typing had already pushed at
+the model stayed in the edit bag and the box redisplayed it. **Refusing an entry has to blank the
+field's contribution on the way out**, because typing pushes every keystroke at the model and the
+model silently declines what it cannot use.
 
 ## Pick up first
 
-1. **`fromSpan` and `fromMass` map an entered 0 to `undefined`,** so zero is not a value a flyer can
-   set — a fin sweep of 0 is a straight leading edge and cannot be expressed. A semantics change per
-   field, which is why the round-trip pass did not fold it in.
-2. **The scenario toggle is a second door into the state `onWeather` guards** and leaves a wind edit
-   in a disabled box the flight has thrown away (2,518 m of drift advertised against 1,563 m).
-3. **The boattail exit placeholder quotes a rounded bound** — a 0.0635 m body advertises "< 64" when
-   63.5 mm is the ceiling, so 64 mm reads as allowed and is wider than the body.
-4. **The stored-tool comparison is silently absent on a file that carries no stored results**, which
-   is 3 of the 4 bundled samples — measured directly from the files: `demo-dual-deploy.ork`,
-   `demo-single-deploy.ork` and `demo-multi-config.ork` each have `<simulation>` blocks with zero
-   `<flightdata>`. So the headline cross-check the landing copy promises never appears on the default
-   first run and nothing says why, while three other ways it can go missing each get a panel.
-5. **`Payload pos` placeholder does not track the edited rocket** — 3.1 in of CG and 2.07 cal of
-   static margin between what the field advertises and where a blank payload lands. Not re-measured.
-6. **The Flight card's stat tiles** put the label at 11 px and the unit at 12 px against a 20–24 px
-   value, on the surface the whole pad check happens on. 630 m of drift is a different walk from 630 ft.
+The opening fan-out (five lenses, adversarial verification) filed these. Every one names a corpus
+file — **reproduce before scoping**, several are one grep away:
 
-`BACKLOG.md` carries the full ranked queue with measurements — a 4-lens fan-out over the app filed 48
-findings this run and 10 were killed by adversarial verification, including two of the three ranked
-most damaging. Read it before choosing, and reproduce before scoping.
+1. **`burnoutTime` returns `Infinity` when any motor's ignition trigger resolves to "none"**
+   (`setup.ts:212` mints `ignitionTime = Infinity`), so burnout is never detected: `optimumDelay =
+   max(0, apogeeTime - Infinity)` = **0.0 s**, and `burnoutMass = massAt(Infinity)` drops every
+   casing. Optimum delay is what a flyer drills a delay grain to. Repro:
+   `03.Three-stage.ork` (bottom stage's J315R has `<ignitionevent>burnout</ignitionevent>` with
+   nothing below it).
+2. **A RASAero `<Pressure>` is taken on a bare `> 0` guard** (`lib/rasaero/adapt.ts:371`).
+   `Show-off.CDX1` states `<Pressure>2</Pressure>` → 6,773 Pa → ~0.08 kg/m³ against ~1.17: a 14.7×
+   thin atmosphere flown as an ordinary flight, with no Conditions field exposing temperature or
+   pressure so the flyer can neither see it nor correct it.
+3. **An altitude-triggered recovery device with no stated altitude falls back to `?? 0`**
+   (`simulate.ts:700`), so it "deploys" at the ground and sets `anyRecoveryOpened` — which gates the
+   ballistic-descent warning the code's own comment calls "the most serious thing Loft can flag".
+   Both importers can mint this shape.
+4. **Winds-aloft direction is interpolated without a 0/360 wrap** (`lib/weather.ts:131`), so a wind
+   veering through north between two levels is interpolated the long way and the drift bearing lands
+   on the wrong side of the compass — in the 1000/975/950/925 hPa band where recovery drift lives.
+5. **`.ork` archives carry `thrustcurves/*.rse` and the zip reader discards them**
+   (`lib/ork/zip.ts:92`), so a design is refused a flight for want of a curve the file is carrying:
+   `EscapeVelocity.ork`'s H225-14A and both simulations of `Show-off.CDX1` resolve to nothing.
+6. **`<overridecd>` / `<overridesubcomponentscd>` are read by nothing**, so `Base drag hack
+   (short-wide).ork` — whose own `<comment>` says the technique IS those checkboxes — is billed for
+   drag the file states is zero. `<tabheight>`/`<tablength>` are not read either: 101 g of
+   through-the-wall fin tab missing from the aft end of `Airstart timing.ork`.
+7. **`meanFinChord` is assigned per fin set (ending as the LAST set) while `finThickness` is the MAX
+   across sets** (`aero.ts:451`), so `finThicknessRatio` belongs to no fin and changes if the design's
+   sets are reordered. Same defect pairs `finSweepLength` (last) with `finSpan` (max) at `aero.ts:505`.
+
+`BACKLOG.md` carries the rest with measurements, newest first — including the stored-comparison gap
+on the bundled samples (27 of 27 corpus `.ork` carry `<flightdata>`; **0 of the 3 shipped samples
+do**), which is the highest-leverage craft item and needs no invented numbers, only a sentence on
+screen saying why the panel is absent.
 
 ## Environment notes
 
@@ -236,17 +223,25 @@ most damaging. Read it before choosing, and reproduce before scoping.
   `pgrep` matching a corpse, so `curl` returns `000` while the process "exists":
   `(setsid npx serve -c e2e-serve.json -l 3100 > /path/serve.log 2>&1 < /dev/null &)`.
   Rebuilding swaps `out/` under anything reading :3100.
-- A standalone Playwright probe must live in the repo ROOT to resolve `playwright` from
-  `node_modules`. One written to the scratchpad fails with `ERR_MODULE_NOT_FOUND`.
 - Do not name gate artifacts `*.log` in the repo root — `.gitignore` covers only `npm-debug.log*`.
 - `innerText` throws on an SVG `<text>`; use `textContent`.
 - `getByLabel` matches substrings AND matches a `g[role="slider"]` sharing the name. Use
-  `page.locator("input").and(page.getByLabel(/…/))` when you mean the field.
+  `page.locator("input").and(page.getByLabel(/…/))` when you mean the field, or
+  `page.locator("label").filter({ hasText: /…/ }).first().locator("input")`, which is what the e2e
+  suite uses.
+- A `Stat` card renders its label and its value as sibling `<div>`s, so
+  `getByText("Rail-exit velocity", { exact: true }).locator("xpath=following-sibling::div[1]")` reads
+  the number without matching the label's own text.
 - The design-name field's accessible name is exactly **"Design name"** — `getByLabel(/^name/i)` does
   not match it.
 - **`<details>` keeps its content in the DOM while collapsed**, so `getByText(...).count()` is not a
-  test of whether it is open. Ask the element: `details.evaluate(el => el.open)`.
+  test of whether it is open. Ask the element: `details.evaluate(el => el.open)`. The Conditions
+  panel is one of these and starts closed.
 - Locally `retries: 0` and `workers: undefined` (= 2 here); CI runs 1 worker with 1 retry, so a flake
   that is a hard red locally can pass on CI.
 - `playwright.config.ts` sets `timeout: 60_000` — a bare `locator.click: Test timeout` with no failed
   assertion is usually a slow reload eating the budget, not the app.
+- **Reading CI here has a trap that cost an earlier session an hour.** A job whose steps are ALL
+  `success` can still report `in_progress` at job level for twenty minutes. **Job-level status lags;
+  step-level status does not.** Use `actions_list` with `list_workflow_jobs` and read the `steps`
+  array, not `pull_request_read`'s `get_check_runs`.

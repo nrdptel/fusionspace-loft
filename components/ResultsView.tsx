@@ -12,6 +12,7 @@ import { RECOMMENDED_FLUTTER_MARGIN, thicknessForFlutterMargin } from "@/lib/sim
 import LineChart, { type Series, type Marker } from "./LineChart";
 import FlightViz from "./FlightViz";
 import ValidationPanel from "./ValidationPanel";
+import { noStoredResultsReason } from "@/lib/validation/stored-status";
 import DragCrossCheck from "./DragCrossCheck";
 import RocketpyCrossCheck from "./RocketpyCrossCheck";
 import MotorSweep from "./MotorSweep";
@@ -612,6 +613,18 @@ export default function ResultsView({
           units={units}
         />
       )}
+
+        {/* Why there is no stored comparison at all: the file carries simulations, and not one of
+            them holds a result. Absence is the state that reads as "Loft cannot do this" — and the
+            import screen has just said it can — so say what the file has instead of showing nothing.
+            The reduced-vehicle panel below is gated on a stored result EXISTING, so the two cannot
+            both fire. */}
+        {doc.simulations.length > 0 && !doc.simulations.some((sim) => sim.hasResults) && (
+          <ToolUnavailable
+            title={`${toolName} comparison`}
+            reason={noStoredResultsReason(doc.simulations.map((sim) => sim.status), toolName)!}
+          />
+        )}
 
         {/* Why the metric-by-metric stored comparison is withheld for a design Loft flew reduced. */}
         {doc.flownAsReduced && doc.simulations.some((sim) => sim.hasResults) && (

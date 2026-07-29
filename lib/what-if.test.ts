@@ -14,6 +14,19 @@ describe("rangeWords", () => {
   it("keeps a zero lower bound, which is falsy and easy to drop", () => {
     expect(rangeWords(0, 100)).toBe("0 to 100");
   });
+
+  it("distinguishes a floor the field takes from one it does not", () => {
+    // The difference between these two sentences is the difference between a rail 0 m long being
+    // offered as a legal launch setup and being refused, so the words have to carry it.
+    expect(rangeWords(0, undefined, true)).toBe("more than 0");
+    expect(rangeWords(0, 20, true)).toBe("more than 0, up to 20");
+    // Absent or false leaves the inclusive wording exactly as it was — every existing field reads
+    // the same sentence it read before.
+    expect(rangeWords(0, 20, false)).toBe("0 to 20");
+    expect(rangeWords(0, 20)).toBe("0 to 20");
+    // No lower bound means there is no floor to qualify, exclusive or not.
+    expect(rangeWords(undefined, 12, true)).toBe("up to 12");
+  });
 });
 
 describe("refusedMessage", () => {
