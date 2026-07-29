@@ -347,14 +347,21 @@ not yet done. Newest first. One line each. Anything here is fair game for the ne
     (`ResultsView.tsx:862`); `MassBreakdown` is fed `doc.rocket` while its sibling `GeometryInspector`
     gets `shownRocket` (`ResultsView.tsx:657`), and the Geometry caption points AT the stale panel by
     name while MassBreakdown claims "the same per-part masses the simulator flies".
-  - **The motor sweep flags two launch-safety rules and stays silent on the third.** Rail exit
-    renders unflagged (`MotorSweep.tsx:314`) though the panel's own footnote names the ~15 m/s rule
-    and the Flight tab raises a caution for it. Neither sweep row carries Mach or
-    `extrapolatedTransonic` (`lib/sim/sweep.ts:82`), so the transonic candidate — the one a flyer is
-    tempted by, because the table sorts apogee-descending — presents as confidently as a subsonic
-    one, against `app/docs/page.tsx:52`'s promise to warn. Both existing flags are colour + a `title`
-    on a non-focusable `<td>`: no hover on a phone, nothing for a screen reader (WCAG 1.4.1), and the
-    flutter threshold appears in the tooltip string and in no visible copy.
+  - **PARTLY RESOLVED this session — the motor sweep's launch-safety flags.** Rail exit rendered
+    unflagged though the panel's own caption named the ~15 m/s rule and the Flight tab raised a
+    caution for it; it is checked now, against the SAME threshold, which is one exported constant
+    (`RAIL_EXIT_GUIDELINE_MPS`, with `LIFTOFF_TWR_GUIDELINE` beside it) rather than a literal in the
+    engine and a second copy in the panel. So a motor can no longer pass unmarked here and caution
+    once picked. Both existing flags were colour plus a `title` on a non-focusable `<td>` — no hover
+    on a phone, unreachable by keyboard, nothing for a screen reader (WCAG 1.4.1), the whole signal
+    in one colour channel — and are now a glyph plus an `sr-only` sentence in the row. The Delay
+    column's per-row tooltip went too: it repeated one fact about the COLUMN on every row in an
+    attribute nothing announces, and the caption already says it once.
+
+    **Still open in this entry:** neither sweep row carries Mach or `extrapolatedTransonic`
+    (`lib/sim/sweep.ts:82`), so the transonic candidate — the one a flyer is tempted by, because the
+    table sorts apogee-descending — still presents as confidently as a subsonic one, against
+    `app/docs/page.tsx:52`'s promise to warn. That is the larger half and is untouched.
   - **`.prose-loft table { display: block }`** (`app/globals.css:193`) drops every docs table out of
     the accessibility tree as a table, so `/docs/validation` — the page carrying Loft's own accuracy
     claims — reads as a flat run of numbers with no column names, in a scroll container with no

@@ -256,6 +256,14 @@ a whole lowercase word: `,"([a-z]{2,}(?: [a-z]{2,}){1,4})` where the char before
 closing quote. That returned exactly four true positives and no false ones across the whole app.
 Broadening it to any capitalised word adds only CSS font stacks. Re-run it after any caption edit.
 
+**`sr-only` text escapes an `overflow-x-auto` ancestor and stretches the DOCUMENT.** It is
+`position: absolute`, and an absolutely positioned box is clipped by an ancestor's `overflow` only
+when that ancestor is its containing block — a plain `overflow-x-auto` wrapper is not positioned, so
+it is not. Adding screen-reader text inside a wide scrolling table put 102 px of sideways scroll on
+the whole page at 390 px wide, on the workspace whose point is being usable at the pad. Wrap the
+hidden text in a `relative` span. The e2e caught this one; the DOM probe that only read text would
+not have.
+
 **A probe with no control measures nothing.** The first whole-corpus census shared one browser context
 across 39 files and produced 39 identical rows, because the app restores the last design from storage
 on reload. The version that produced the shipped measurement opens a fresh context per file and prints
@@ -289,9 +297,11 @@ The best next moves, in order:
 4. **`meanFinChord` is the LAST fin set walked while `finThickness` is the MAX** (`aero.ts:451`), so
    the thickness ratio belongs to no fin and changes if the sets are reordered — 8x out on
    `Simulation scripting.ork`, feeding both the fin friction form factor and the wave-drag term.
-5. **The motor sweep flags two launch-safety rules and stays silent on the third**, and both flags it
-   does raise are colour + a `title` on a non-focusable `<td>` — no hover on a phone, nothing for a
-   screen reader.
+5. **Neither motor-sweep row carries Mach or `extrapolatedTransonic`** (`lib/sim/sweep.ts:82`), so
+   the transonic candidate — the one a flyer is tempted by, because the table sorts
+   apogee-descending — presents as confidently as a subsonic one, against `app/docs/page.tsx:52`'s
+   promise to warn. (The flags half of this entry shipped: rail exit is checked now, and all three
+   flags read without colour or hover.)
 6. **`downloadOrk` drops `ballastKg`** while baking payload mass and station in, so the exported file
    is missing the very thing nose ballast exists to fix.
 

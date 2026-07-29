@@ -3366,12 +3366,15 @@ test.describe("Loft", () => {
     // Every rail-exit cell in the table, which is the third speed column on each row.
     const railExits = async () => {
       // Data rows only: the caption below the table also contains "m/s" (it cites the ~15 m/s rule)
-      // but carries no tab-separated cells.
+      // but carries no tab-separated cells. Match the number at the START of a cell rather than an
+      // "m/s" at the END — a flagged rail exit now reads "14 m/s▲ — below the ~15 m/s guideline…",
+      // and an end-anchored test silently dropped exactly the rows the flag fires on, which is the
+      // half of the column this test is about.
       return (await sweep.innerText())
         .split("\n")
-        .map((l) => l.split("\t").filter((c) => /m\/s$/.test(c.trim())))
+        .map((l) => l.split("\t").filter((c) => /^[\d.,]+\s*m\/s/.test(c.trim())))
         .filter((speeds) => speeds.length >= 2)
-        .map((speeds) => Number(speeds[speeds.length - 1].replace(/[^\d.]/g, "")));
+        .map((speeds) => Number((speeds[speeds.length - 1].match(/^[\d.,]+/) ?? ["0"])[0].replace(/,/g, "")));
     };
 
     await page.getByRole("tab", { name: "Analyze" }).click();
@@ -3615,6 +3618,47 @@ test.describe("Loft", () => {
     // 3,000 ft is 914 m: the box now says so, and the answer is the same answer.
     await expect(ceiling).toHaveValue("914");
     await expect(chance).toHaveText(imperial);
+  });
+
+  test("the motor sweep's safety flags are readable without a mouse and without colour", async ({ page }) => {
+    // Two of the three rules were flagged by amber text plus a `title` on the `<td>`. A `<td>` takes
+    // no focus, so the tooltip was unreachable by keyboard; a phone has no hover, and this panel's
+    // stated use is a pad check; and a screen reader was told nothing — the entire signal sat in one
+    // colour channel. The third rule, rail-exit velocity, is named in this panel's own caption and
+    // was checked against not one row, while the engine already raises `low-rail-exit` at the same
+    // threshold on the flown design: a motor could sit here unflagged and caution once picked.
+    test.setTimeout(120_000);
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    await page.getByRole("tab", { name: "Analyze" }).click();
+
+    const sweep = page.getByRole("region", { name: "Motor sweep" });
+    await sweep.getByRole("button", { name: /Run motor sweep/ }).click();
+    await expect(sweep.locator("tbody tr").first()).toBeVisible({ timeout: 60_000 });
+
+    // Each rule states itself in words, in the row it belongs to. Two of the three are reachable on
+    // a COMMITTED design: this sample flags rail exit on six motors and thrust-to-weight on the
+    // F15 and E16, whose margins are 3.7:1 and 4:1. Nothing committed reaches the flutter rule —
+    // every bundled sample sits at 3.6× or better — so that one is asserted through the `title`
+    // count below, which covers its cell too, and was driven directly against four corpus designs
+    // (`A simple model rocket.ork`, `Cherokee-E-5055.ork`, `OR vs RAS Test 1.ork`, `Base drag hack
+    // (short-wide).ork`). Scope these to the tbody: the caption names all three rules, so a check
+    // over the whole panel passes on the caption alone and measures nothing.
+    for (const note of [
+      /below the ~15\s?m\/s .*guideline for a stable rail departure/i,
+      /below the ~5:1 rule of thumb for clean rail clearance/i,
+    ]) {
+      await expect(sweep.locator("tbody"), `flag text: ${note}`).toContainText(note);
+    }
+
+    // And no cell hides an explanation in a `title` a keyboard or a phone cannot reach — including
+    // the flutter cell, which had one and whose flag this suite cannot otherwise reach.
+    expect(await sweep.locator("tbody [title]").count(), "tooltips left in the table body").toBe(0);
+
+    // The marker must not be colour alone: the flagged cell carries a glyph as well as the class.
+    const flagged = sweep.locator("tbody td", { hasText: /below the ~5:1/ }).first();
+    await expect(flagged).toContainText("▲");
   });
 
   test("switching back to today's weather does not leave a wind nothing flies in the box", async ({ page }) => {

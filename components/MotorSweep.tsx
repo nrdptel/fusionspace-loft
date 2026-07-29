@@ -7,6 +7,7 @@ import { overridesFromStored } from "@/lib/sim/run";
 import type { ConditionOverrides } from "@/lib/sim/setup";
 import { type SweepMotor, type MotorSweepRow } from "@/lib/sim/sweep";
 import { RECOMMENDED_FLUTTER_MARGIN } from "@/lib/sim/flutter";
+import { LIFTOFF_TWR_GUIDELINE, RAIL_EXIT_GUIDELINE_MPS } from "@/lib/sim/simulate";
 import { runMotorSweep } from "@/lib/sim/sweep-client";
 import type { GeometryEdits } from "@/lib/model/edit";
 import { mToFt, mpsToFtps } from "@/lib/units";
@@ -20,9 +21,33 @@ import { ClosePanel, useReturnFocus } from "./ui";
 
 const round = (n: number, dp: number) => (Number.isFinite(n) ? Math.round(n * 10 ** dp) / 10 ** dp : "");
 
-/** Below this liftoff thrust-to-weight the rocket is at or under the common HPR rule of thumb for
- *  clean rail clearance — worth flagging (softly, never as a verdict). */
-const TW_RULE_OF_THUMB = 5;
+/** A cell whose value sits under one of the launch-safety rules of thumb.
+ *
+ *  Colour carried the whole flag, and a `title` on a `<td>` carried the whole explanation. A `<td>`
+ *  takes no focus, so the tooltip was unreachable by keyboard; there is no hover on a phone, which is
+ *  the stated use for this panel; and a screen reader was told nothing at all. Amber text alone also
+ *  puts the entire signal in one colour channel. So the marker is a GLYPH the sighted reader can see
+ *  without colour, and the sentence the tooltip used to hide is `sr-only` text on the same cell —
+ *  read aloud in the row it belongs to, rather than sitting in an attribute nothing announces.
+ *
+ *  The wording stays a note, never a verdict: Loft predicts, and a rule of thumb is not a go/no-go. */
+function Flag({ note }: { note: string }) {
+  // `relative` is load-bearing, not decoration. `sr-only` is `position: absolute`, and an absolutely
+  // positioned box is clipped by an ancestor's `overflow` only when that ancestor is its containing
+  // block. The table's `overflow-x-auto` wrapper is not positioned, so without this the hidden text
+  // escaped the scroller, took its position from the initial containing block, and stretched the
+  // DOCUMENT to the table's full 683 px — measured 102 px of sideways scroll on a 390 px phone, on
+  // the workspace whose whole point is being usable at the pad. Positioning it here puts the
+  // containing block back inside the scroller.
+  return (
+    <span className="relative">
+      <span aria-hidden className="ml-1 font-sans text-[10px] font-semibold">
+        &#9650;
+      </span>
+      <span className="sr-only"> — {note}</span>
+    </span>
+  );
+}
 
 /** Motor sweep: fly this airframe on every bundled motor of the casing it already flies, under one clean
  *  ballistic baseline, and lay the results side by side — the "which motor gets me to my target?"
@@ -336,7 +361,11 @@ function SweepTable({
           </thead>
           <tbody className="font-mono">
             {sorted.map((r) => {
-              const lowTW = r.thrustToWeight < TW_RULE_OF_THUMB;
+              const lowTW = r.thrustToWeight < LIFTOFF_TWR_GUIDELINE;
+              // The caption names this rule and the column was never checked against it. The engine
+              // already raises `low-rail-exit` on the flown design at the same threshold, so a motor
+              // could sit in this table unflagged while picking it raised a caution on the next screen.
+              const slowRail = r.railExitVelocity > 0 && r.railExitVelocity < RAIL_EXIT_GUIDELINE_MPS;
               const thinFlutter = Number.isFinite(r.flutterMargin) && r.flutterMargin < RECOMMENDED_FLUTTER_MARGIN;
               return (
                 <tr
@@ -361,15 +390,27 @@ function SweepTable({
                   <td className="py-1.5 pr-4 text-zinc-600 dark:text-zinc-300">{r.motorClass}</td>
                   <td className="py-1.5 pr-4 text-zinc-800 dark:text-zinc-100">{d.q(d.altitude(r.apogee, units))}</td>
                   <td className="py-1.5 pr-4 text-zinc-800 dark:text-zinc-100">{d.q(d.speed(r.maxVelocity, units))}</td>
-                  <td className="py-1.5 pr-4 text-zinc-800 dark:text-zinc-100">{d.q(d.speed(r.railExitVelocity, units))}</td>
+                  <td
+                    className={
+                      "py-1.5 pr-4 " +
+                      (slowRail ? "text-amber-700 dark:text-amber-300" : "text-zinc-800 dark:text-zinc-100")
+                    }
+                  >
+                    {d.q(d.speed(r.railExitVelocity, units))}
+                    {slowRail && (
+                      <Flag note={`below the ~${d.q(d.speed(RAIL_EXIT_GUIDELINE_MPS, units))} guideline for a stable rail departure`} />
+                    )}
+                  </td>
                   <td
                     className={
                       "py-1.5 pr-4 " +
                       (lowTW ? "text-amber-700 dark:text-amber-300" : "text-zinc-800 dark:text-zinc-100")
                     }
-                    title={lowTW ? `Below the ~${TW_RULE_OF_THUMB}:1 rule of thumb for clean rail clearance` : undefined}
                   >
                     {d.fmt(r.thrustToWeight, 1)}
+                    {lowTW && (
+                      <Flag note={`below the ~${LIFTOFF_TWR_GUIDELINE}:1 rule of thumb for clean rail clearance`} />
+                    )}
                   </td>
                   <td className="py-1.5 pr-4 text-zinc-800 dark:text-zinc-100">{d.q(d.calibers(r.staticMarginCal))}</td>
                   <td
@@ -377,18 +418,16 @@ function SweepTable({
                       "py-1.5 pr-4 " +
                       (thinFlutter ? "text-amber-700 dark:text-amber-300" : "text-zinc-800 dark:text-zinc-100")
                     }
-                    title={
-                      thinFlutter
-                        ? `Below the recommended ${RECOMMENDED_FLUTTER_MARGIN}× fin-flutter margin at this speed`
-                        : undefined
-                    }
                   >
                     {Number.isFinite(r.flutterMargin) ? d.flutterMargin(r.flutterMargin) : "—"}
+                    {thinFlutter && (
+                      <Flag note={`below the recommended ${RECOMMENDED_FLUTTER_MARGIN}× fin-flutter margin at this speed`} />
+                    )}
                   </td>
-                  <td
-                    className="py-1.5 text-zinc-800 dark:text-zinc-100"
-                    title="Optimum ejection delay for apogee deployment (burnout → apogee)"
-                  >
+                  {/* No per-cell `title` here either. It repeated one sentence about what the
+                      COLUMN means on every row, in an attribute a keyboard cannot reach and a phone
+                      cannot hover — and the caption below already says the same thing, once. */}
+                  <td className="py-1.5 text-zinc-800 dark:text-zinc-100">
                     {Number.isFinite(r.optimumDelay) ? d.q(d.seconds(r.optimumDelay)) : "—"}
                   </td>
                 </tr>
@@ -400,10 +439,16 @@ function SweepTable({
       <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
         Each motor flies a ballistic ascent to apogee under{" "}
         {conditionsPhrase(conditions, { wind: false })}
-        {" "}— a like-for-like comparison, not the full recovery flight. Rail-exit velocity and
-        thrust-to-weight are the launch-safety numbers to check against your rail and the ~5:1 and
-        ~15&nbsp;m/s (≈50&nbsp;ft/s) rules of thumb; the rail here is the one being flown, so
-        shortening it under <em>Conditions</em> moves this column. Surface wind is not read at all —
+        {" "}— a like-for-like comparison, not the full recovery flight. Rail-exit velocity,
+        thrust-to-weight and fin-flutter margin are the launch-safety numbers, and a{" "}
+        <span aria-hidden className="font-sans font-semibold">
+          &#9650;
+        </span>{" "}
+        marks any that falls under its rule of thumb — the same ~{LIFTOFF_TWR_GUIDELINE}:1,
+        ~15&nbsp;m/s (≈50&nbsp;ft/s) and {RECOMMENDED_FLUTTER_MARGIN}× thresholds the flight itself
+        cautions on, so a motor cannot pass unmarked here and raise a caution once you pick it. The
+        rail is the one being flown, so shortening it under <em>Conditions</em> moves that column.
+        Surface wind is not read at all —
         a ballistic ascent has no recovery to drift. <em>Delay</em>{" "}
         is the ejection delay that deploys at apogee for that motor (burnout&nbsp;→&nbsp;apogee), so
         you can pick the delay to buy or drill for each candidate; a faster motor coasts longer and
