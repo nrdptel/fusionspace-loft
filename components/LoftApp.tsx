@@ -1562,8 +1562,11 @@ function ConditionsControls({
   const imperial = units === "imperial";
   const lenU = imperial ? "ft" : "m";
   const spdU = imperial ? "mph" : "m/s";
-  const toDispLen = (m: number | undefined) => (m === undefined ? "" : imperial ? mToFt(m).toFixed(1) : m.toFixed(1));
-  const toDispSpd = (mps: number | undefined) => (mps === undefined ? "" : imperial ? mpsToMph(mps).toFixed(0) : mps.toFixed(1));
+  // Rendered at round-trip precision, not at a nominal one: these fields advertise the value the
+  // flight is USING, and a number a flyer can type back has to mean what it says. See `fmtEditable`.
+  const toDispLen = (m: number | undefined) => (m === undefined ? "" : d.fmtEditable(imperial ? mToFt(m) : m, 1));
+  const toDispSpd = (mps: number | undefined) =>
+    mps === undefined ? "" : d.fmtEditable(imperial ? mpsToMph(mps) : mps, imperial ? 0 : 1);
   const fromLen = (v: string) => (v === "" ? undefined : imperial ? ftToM(Number(v)) : Number(v));
   const fromSpd = (v: string) => (v === "" ? undefined : imperial ? mphToMps(Number(v)) : Number(v));
 
@@ -1607,7 +1610,7 @@ function ConditionsControls({
           <Num
             label="Rail angle (°)"
             value={edits.rodAngleDeg ?? ""}
-            placeholder={String(Math.round(flown.rodAngleDeg * 10) / 10)}
+            placeholder={d.fmtEditable(flown.rodAngleDeg, 1)}
             onChange={(v) => onEdit({ rodAngleDeg: v === "" ? undefined : Number(v) })}
             min={0}
             max={45}
@@ -1638,11 +1641,12 @@ function ConditionsControls({
           />
         </div>
         <p className="text-xs text-zinc-500 dark:text-zinc-400">
-          Each greyed value is what the flight is using for that field right now, read at the
-          field&apos;s own precision — the design&apos;s stored setup, or today&apos;s weather where
-          that is on. With today&apos;s weather the wind is a profile that changes with altitude
-          rather than one number, so that field says so instead of naming one. Changing any field
-          re-flies the design and hides the {tool} comparison (the conditions no longer match).
+          Each greyed value is what the flight is using for that field right now — the design&apos;s
+          stored setup, or today&apos;s weather where that is on. It carries enough decimals to be
+          typed back unchanged, so pinning a field to the value already in force is a no-op rather
+          than a silent edit. With today&apos;s weather the wind is a profile that changes with
+          altitude rather than one number, so that field says so instead of naming one. Changing any
+          field re-flies the design and hides the {tool} comparison (the conditions no longer match).
         </p>
 
         <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-900/60">

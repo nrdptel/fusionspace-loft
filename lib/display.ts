@@ -41,6 +41,44 @@ export function fmtSmall(n: number, decimals = 1, maxDecimals = decimals + 4): s
   return shown;
 }
 
+/** The fewest decimal places at which a number can be typed back into the field that showed it
+ *  without changing the flight.
+ *
+ *  An editable field's greyed placeholder advertises the value the flight is USING for that field.
+ *  Rounded to the field's nominal precision that stops being true: 0.599 m/s of surface wind
+ *  displayed to whole mph reads "1", 25% under, and typing that 1 back moved drift by 11% — while
+ *  also tripping the "there are edits" flag that hides the design's own stored comparison. The app
+ *  discarded its validation panel in exchange for a value it had just claimed was in force.
+ *
+ *  So the advertised number is grown a decimal at a time until reading it back lands within `tol`
+ *  of the real one, and no further — precision is added only where it is load-bearing, so the
+ *  common case still shows "10" rather than "10.00". `tol` is relative and defaults to 0.1%, which
+ *  is below the resolution of every number the flight reports.
+ *
+ *  This is about a value the flyer can EDIT, which is why it lives apart from `decimalsFor`: that
+ *  one keeps a small read-only number from rounding away to a misleading zero, this one keeps an
+ *  editable one honest about being editable.
+ *
+ *  The cap is four decimals past the field's own precision, which is what a near-calm wind needs:
+ *  0.05 m/s is 0.1118 mph, and three decimals still misses it by 0.14%. Past the cap the shown
+ *  number is the closest this field can state — a limit of the display, not a claim about the
+ *  flight. */
+export function roundTripDecimals(shown: number, decimals = 1, maxDecimals = decimals + 4, tol = 0.001): number {
+  if (!Number.isFinite(shown) || shown === 0) return decimals;
+  for (let dp = decimals; dp < maxDecimals; dp++) {
+    if (Math.abs(Number(shown.toFixed(dp)) - shown) <= Math.abs(shown) * tol) return dp;
+  }
+  return maxDecimals;
+}
+
+/** Format a value for an editable field at that round-trip precision. Deliberately `toFixed` and
+ *  not `fmt`: `fmt` groups thousands, and a field elevation rendered "16,400" is not a number the
+ *  field's own `Number()` parse can read back. */
+export function fmtEditable(shown: number, decimals = 1, maxDecimals = decimals + 4, tol = 0.001): string {
+  if (!Number.isFinite(shown)) return "";
+  return shown.toFixed(roundTripDecimals(shown, decimals, maxDecimals, tol));
+}
+
 export interface Quantity {
   value: string;
   unit: string;
