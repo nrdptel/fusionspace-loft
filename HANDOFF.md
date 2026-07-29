@@ -154,8 +154,18 @@ sentence in a doc comment *written in that same diff*. Both were fixed before th
 Baseline before anything changed: lint 0 errors / 1 warning, **682 unit**, build, **122 e2e**, corpus
 **35 design files, 3/3**. At the time of writing: **695 unit, 128 e2e**, corpus 35 throughout.
 
-**Merged and live** — PR #56, squash `20ee501`, confirmed serving on loft.fusionspace.co by fetching
-the content-hashed chunk that carries the new strings (it 404'd before the merge):
+Both pull requests merged on green CI and are serving.
+
+**A caution about reading CI here, which cost this session nearly an hour.** The checks API reported
+PR #57's e2e job as `in_progress` for twenty minutes after that job had completed green, and it
+happened again on #58 — a job whose steps were ALL `success`, including "Complete job", still
+reported `in_progress` at job level. **Job-level status lags; step-level status does not.** Use
+`actions_list` with `list_workflow_jobs` and read the `steps` array, not `pull_request_read`'s
+`get_check_runs`. Concluding from a stale `in_progress` that a run is stuck nearly ended this
+session with finished, verified work sitting unmerged.
+
+**PR #56, squash `20ee501`** — confirmed serving by fetching the content-hashed chunk carrying its
+new strings (it 404'd before the merge):
 
 | | |
 |---|---|
@@ -163,8 +173,9 @@ the content-hashed chunk that carries the new strings (it 404'd before the merge
 | round-trip | A field's greyed placeholder advertised a rounded reading of the value in force: "7" mph against a flown 6.71, and typing it back moved drift 4.31% while hiding the file's own stored comparison. In the Design editor the same rounding DESTROYED data — 0.03 mm redisplayed as "0.0", parsed back as zero, and zero means "no edit". `d.fmtEditable` adds a decimal only where the nominal precision would misstate. |
 | close | The dispersion run and both sweeps had no way to close: 2,195 px against 308 px on a 390 px phone, and 2.5 s of re-flying per design edit. Plus focus return and state reset, both from review. |
 
-**PR #57, open and gating at the time of writing** — check whether it merged and deployed before
-building on it:
+**PR #57, merged as `1ca7989` and confirmed live** — production build `f0a829ea5191` serves both
+markers (the provenance note's own text, and `LaunchGuideLength` in the adapter), checked by fetching
+the content-hashed chunk:
 
 | | |
 |---|---|
@@ -174,7 +185,7 @@ building on it:
 | `0614f8f` | The done-check's two measurements, recorded not acted on. |
 
 **The parser diff's independent review did not return inside the 30 minutes it was given**, so its
-checks are mine: units confirmed against a file carrying BOTH tags at the same value (`TubeFins1.rkt`,
+checks are mine — that diff is still the best candidate for a fresh pair of eyes: units confirmed against a file carrying BOTH tags at the same value (`TubeFins1.rkt`,
 914.4 each way), a before/after rail census over all 35 corpus designs, and an end-to-end walk of both
 affected files in the built export. If you want the second opinion, that diff is the one to hand a
 fresh agent.
