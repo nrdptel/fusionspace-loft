@@ -433,8 +433,8 @@ Then ship the highest-leverage item from what steps 2–4 produced. Only if all 
 nothing may the run end early, and the report must show what each returned.
 
 **Legitimate early stops**, and say which one:
-- a genuine owner decision blocks everything remaining (AskUserQuestion once, early, then keep
-  shipping whatever is not blocked while you wait);
+- a decision is genuinely unsafe to take alone — see *Unattended operation* below, which is the
+  normal case and which forbids stopping for an ordinary design fork;
 - your local gate is red and you cannot fix forward — report it with output rather than pushing more;
 - every remaining candidate is multi-pass — scope the smallest shippable slice of one instead;
 - the time budget is spent;
@@ -459,6 +459,57 @@ tests, the live site) rather than from recollection.
 - End-of-run: summarize every increment with SHAs and how each was verified, state how many reached
   production versus how many are pending, and name the best next move — in the chat report AND in a
   committed `HANDOFF.md`.
+
+## Unattended operation (assume this is the normal case)
+
+**Assume the same prompt is being run repeatedly for a week or two with nobody reading the output
+until the end.** That is the intended mode. It has one hard consequence: **the prompt carries no
+state, so the repo must carry all of it.** A prompt that names a milestone is wrong within a day,
+because the milestone ships and the prompt keeps asking for it. The prompt says "the next unstarted
+milestone in `ROADMAP.md`"; `ROADMAP.md` says which that is. Keep it that way.
+
+**Never stop to ask.** No `AskUserQuestion` for a design fork, an ordering call, a naming choice, a
+sizing surprise, or a milestone that turns out wrong. There is nobody there, and a run that ends
+waiting is a run that produced nothing. Instead:
+1. take the most defensible option and say plainly why;
+2. record it under *Decisions taken without the owner* in `ROADMAP.md`, with the alternative you
+   rejected, so it can be reversed cheaply rather than re-derived;
+3. state the assumption in the PR body;
+4. keep shipping.
+
+Reserve stopping for a decision that is genuinely unsafe to take alone — one that would destroy work,
+publish something irreversible, spend the owner's money, or make a safety-relevant claim you cannot
+ground. A choice between two reasonable designs is not that. If you find yourself wanting to ask, the
+question almost always has a defensible default; take it and write it down.
+
+**Completion has to be mechanical, not a matter of opinion.** Across many unattended runs the biggest
+failure mode is thrash: one run believes a milestone is finished, the next disagrees and redoes it. So
+**a milestone is not done until its *done when* is pinned by an automated check** — a test that fails
+if the capability regresses. Ship the check with the milestone, name it in `ROADMAP.md`, and treat a
+green check as the answer to "is this done". Where a *done when* genuinely cannot be automated, say so
+in `ROADMAP.md` and pin the closest thing that can be.
+
+**Never re-open a milestone marked shipped** unless a Sev-1 is traced to it. If it delivered less than
+its *done when*, that gap is already recorded as the next milestone's starting point — work the gap
+forward, do not restart the milestone.
+
+**The roadmap must never run dry.** When the last milestone ships, decompose the next area yourself,
+in the order given at the bottom of `ROADMAP.md`, to the same shape as the existing entries — outcome,
+*done when*, size, notes. Do not ask which. Do not fall back to the defect ledger because the roadmap
+looks finished; extending it IS the work in that case, and it takes one increment.
+
+**Nobody is reviewing the pull requests one at a time.** So each PR body must stand alone — what
+changed, the numbers that prove it, what was measured and rejected — and `HANDOFF.md` must carry the
+ARC across runs, not just the current session: which milestones shipped and when, what is in flight,
+what was decided without the owner. Somebody will read a fortnight of this at once.
+
+**If `main` arrives red**, that is a Sev-1 and it preempts everything: fix forward or revert the
+offending commit, and say which. Never build a milestone on top of a red baseline for a week.
+
+**Let the defect ledger grow, within reason.** The one-in-four quota is deliberate and holds across
+runs, not within each one — several consecutive milestone-only runs are correct. But a Sev-1 is never
+deferred, and if the ledger's Sev-1 count is ever above zero at the end of a run, say so at the top of
+the report.
 
 ## Workflow (per increment)
 1. **Orient** — `git fetch`, reconcile against the repo, decide what is weakest or highest-value.
