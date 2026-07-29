@@ -1269,6 +1269,36 @@ test.describe("Loft", () => {
       .not.toBe(rowsBefore.join("|"));
   });
 
+  test("a dimension too small for the field's nominal precision is still the one being flown", async ({ page }) => {
+    // Every editable dimension used to render at a fixed precision, and the box does not merely
+    // DISPLAY that text — `Num` re-syncs an unfocused field to it and commits it on the next blur.
+    // So a thin fin was rounded on screen and then the rounding was written back: 0.03 mm redisplayed
+    // as "0.0", parsed as zero, and zero means "no edit" — a focus and a Tab with nothing typed
+    // deleted it. The same rounding put a real 0.254 mm balsa fin on screen as "0.3", 18% thick.
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 30_000 });
+    await page.getByRole("tab", { name: "Design" }).click();
+
+    // `getByLabel` also matches the diagram's slider handle of the same name — mean the field.
+    const thickness = page.locator("input").and(page.getByLabel(/Fin thickness/)).first();
+    await expect(thickness).toHaveAttribute("placeholder", /\d/); // control: the design states one
+
+    await thickness.fill("0.03");
+    await thickness.press("Enter");
+
+    // Leave the field AND force a re-render, which is what makes the box re-read itself from the
+    // model. Clicking the tab already open changes no state and renders nothing, so it would not.
+    await page.getByRole("tab", { name: "Flight" }).click();
+    await page.getByRole("tab", { name: "Design" }).click();
+    await expect(thickness, "the box states the thickness being flown").toHaveValue("0.03");
+
+    // The destructive part: focus and Tab away, typing nothing.
+    await thickness.click();
+    await page.keyboard.press("Tab");
+    await expect(thickness, "a bare focus and Tab deleted the edit").toHaveValue("0.03");
+  });
+
   test("printing a design gives a flight card, not the whole web page", async ({ page }) => {
     // Printing a design is range paperwork — a card for the RSO, a page for the build notebook.
     // Without print rules it came out as the site: navigation, theme toggle, buttons nobody can

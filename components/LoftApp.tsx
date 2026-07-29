@@ -1093,21 +1093,29 @@ function DesignEditor({
   };
 }) {
   const imperial = units === "imperial";
+  // Every one of these renders a value the flyer can type, so each renders at ROUND-TRIP precision:
+  // `d.fmtEditable` adds a decimal only where the field's nominal precision would misstate what is
+  // being flown. Whole millimetres put a BT-5's 13.46 mm on screen as "13" (−3.4% on the diameter,
+  // −6.7% on the reference area it drives), and tenths of a millimetre put a 0.254 mm balsa fin —
+  // a real part a real corpus file specifies — at "0.3", 18% thick. Worse than misreading it, the
+  // box then COMMITS that reading: `Num` re-syncs an unfocused field to the displayed text and
+  // commits it on the next blur, so a 0.03 mm entry redisplayed as "0.0" was parsed back as zero,
+  // and zero here means "no edit" — a focus and a Tab with nothing typed silently deleted it.
   const lenU = imperial ? "ft" : "m";
-  const toDispLen = (m: number | undefined) => (m === undefined ? "" : imperial ? mToFt(m).toFixed(1) : m.toFixed(1));
+  const toDispLen = (m: number | undefined) => (m === undefined ? "" : d.fmtEditable(imperial ? mToFt(m) : m, 1));
   const fromLen = (v: string) => (v === "" ? undefined : imperial ? ftToM(Number(v)) : Number(v));
   const massU = imperial ? "oz" : "g";
   const toDispMass = (kg: number | undefined) =>
-    kg === undefined ? "" : imperial ? (kg * 35.274).toFixed(1) : (kg * 1000).toFixed(0);
+    kg === undefined ? "" : d.fmtEditable(imperial ? kg * 35.274 : kg * 1000, imperial ? 1 : 0);
   const fromMass = (v: string) =>
     v === "" || Number(v) === 0 ? undefined : imperial ? Number(v) / 35.274 : Number(v) / 1000;
   const spanU = imperial ? "in" : "mm";
   const toDispSpan = (m: number | undefined) =>
-    m === undefined ? "" : imperial ? (m * 39.3701).toFixed(2) : (m * 1000).toFixed(0);
+    m === undefined ? "" : d.fmtEditable(imperial ? m * 39.3701 : m * 1000, imperial ? 2 : 0);
   const fromSpan = (v: string) =>
     v === "" || Number(v) === 0 ? undefined : imperial ? Number(v) / 39.3701 : Number(v) / 1000;
   const toDispThick = (m: number | undefined) =>
-    m === undefined ? "" : imperial ? (m * 39.3701).toFixed(3) : (m * 1000).toFixed(1);
+    m === undefined ? "" : d.fmtEditable(imperial ? m * 39.3701 : m * 1000, imperial ? 3 : 1);
 
   return (
         <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-900/60">
