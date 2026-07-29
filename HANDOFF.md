@@ -153,7 +153,7 @@ produced it more than once, including a false sentence in a doc comment written 
 ## Shipped this session
 
 Baseline before anything changed, all four green: lint 0 errors / **1 warning**, **695 unit**, build,
-**128 e2e**, corpus **35 design files, 3/3**. At the time of writing: **703 unit, 135 e2e**, corpus 35
+**128 e2e**, corpus **35 design files, 3/3**. At the time of writing: **714 unit, 145 e2e**, corpus 35
 throughout.
 
 **Two pull requests merged and confirmed serving; a third open on green CI.** Production was verified
@@ -184,6 +184,18 @@ FILE while everything beside them came from the edited run: doubling a 700 mm bo
 950 mm beside a CP of 1,422 mm, and the two Design-tab panels disagreed about dry mass (0.6 vs
 0.893 kg) while one caption points at the other by name.
 
+It also carries what the Analyze panels SAY about the conditions they flew. A single
+`conditionsEdited` boolean was wrong in both directions: the two ballistic sweeps credited the flyer
+for a surface-wind edit that moved not one row — the motor sweep claimed "the launch conditions you
+set" two sentences before its own caption says "Surface wind is not read at all" — and a fetched
+forecast counted as the flyer's own setup even though `onWeather` clears the edits it overrides and
+greys the fields. A design that states no launch setup was captioned as having stored one, on a page
+already saying in amber that those are Loft's defaults. Now a `ConditionsSource` record and
+`conditionsPhrase(src, { wind })`, so each panel is asked only about what it reads; five phrasings
+confirmed in the rendered DOM. Plus four missing word gaps found by scanning the built chunks
+("25flights across the range", "the OpenRocketcomparison is hidden", "Delayis the ejection delay",
+"the stored OpenRocketresults describe") — see the JSX whitespace note below.
+
 ## What this session learned that is worth keeping
 
 **The second opinion earned its keep on every single diff, and twice it found that MY OWN COMMENT was
@@ -207,6 +219,19 @@ often the one that doesn't.** Reverting a value INSIDE a component leaves its pr
 `noUnusedLocals` fails the build, `out/` never changes, and the test passes against still-fixed code.
 Revert at the CALL SITE instead. This bit once this session, exactly as the previous session recorded
 it would.
+
+**A JSX text run that spans a line break loses its LEADING space, and the gate cannot see it.** Not
+just the obvious `{expr}` + newline + text case — a plain space that sits MID-LINE in the source is
+also eaten as soon as the run wraps, so `, {STEPS} flights across` / newline / `the range;` shipped
+as "25flights across the range". Four instances were live in the built export when this was found.
+Lint, unit, build and e2e were all green on every one of them; the source reads correctly and only
+the transform output is wrong. Write `{" "}` at the end of the line instead of trusting the space.
+
+To find them, scan the BUILT chunks, not the source — the bug does not exist until after the
+transform. The signature is a rendered value followed immediately by a string literal that opens with
+a whole lowercase word: `,"([a-z]{2,}(?: [a-z]{2,}){1,4})` where the char before the comma is not a
+closing quote. That returned exactly four true positives and no false ones across the whole app.
+Broadening it to any capitalised word adds only CSS font stacks. Re-run it after any caption edit.
 
 **A probe with no control measures nothing.** The first whole-corpus census shared one browser context
 across 39 files and produced 39 identical rows, because the app restores the last design from storage

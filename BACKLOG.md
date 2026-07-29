@@ -57,11 +57,49 @@ not yet done. Newest first. One line each. Anything here is fair game for the ne
   area under Today is still the spread of one bearing. Sampling a bearing spread around the forecast's
   own heading would be the real answer and is not done.
 
+- **The RocketPy cross-check flies the FILE's launch conditions while every panel around it flies
+  the flyer's.** `RocketpyCrossCheck.tsx:119` takes `overridesFromStored(sim)` and is never handed
+  `flownOverrides`, though it does honour the design what-ifs (ballast, motor swap, geometry). So
+  with a rail angle or a field elevation typed, the Loft column in that panel is a different flight
+  from the apogee on the Flight card a screen up. Internally the comparison is still apples to
+  apples — both engines fly the stored setup — which is arguably right for a check against the
+  file's own stored results, but nothing on screen says which of the two flights the reader is
+  looking at. Either thread the conditions through or caption it. Not yet measured.
+
+- **A JSX text run that spans a line break loses its LEADING space** — found four shipped instances
+  this session (see RESOLVED below). Worth a lint rule: nothing in the gate catches it, and the
+  source looks correct. The scan that found them reads the built chunks, not the source, because the
+  bug only exists after the transform.
+
 - **The scenario toggle keeps a wind edit the flight discards, and this session made it louder.**
   Pre-existing (`onWeather` clears `edits.windSpeed`/`launchAltitude`; the toggle does not), and now
   all four Analyze panels caption themselves "the launch conditions you set" while the greyed box
   shows a value none of them flew. Fetch weather, switch to As designed, type 12 m/s, switch back:
   the box reads 12 while everything flies the forecast's 7.4.
+
+- **RESOLVED this session — one shared "the flyer edited the conditions" flag had panels claiming
+  credit for edits they never read, and called a fetched forecast the flyer's own setup.** Three
+  Analyze panels took a single `conditionsEdited` boolean. Two of them (motor sweep, parameter
+  sweep) fly BALLISTIC, and `runFlight` zeroes the wind for a ballistic run — so a surface-wind edit
+  flipped both captions to "the launch conditions you set" over a table that was bit-identical.
+  Verified in the built export: with wind set to 9 m/s the motor sweep's caption claimed the flyer's
+  conditions two sentences before its own text says "Surface wind is not read at all". The same flag
+  also counted `scenario === "today"` as an edit, though `onWeather` deliberately CLEARS the two
+  edits it overrides and greys both fields — the flyer set none of it — and it let a design that
+  states no launch setup be captioned "the design's own stored launch conditions" while the
+  Conditions panel said in amber, on the same page, that those are Loft's defaults. Replaced with a
+  `ConditionsSource` record and `conditionsPhrase(src, { wind })` in `lib/what-if.ts`, so each panel
+  is asked only about the fields it reads. All five phrasings confirmed in the rendered DOM.
+
+- **RESOLVED this session — four shipped captions were missing a word gap** ("25flights across the
+  range", "the OpenRocketcomparison is hidden", "Delayis the ejection delay", "the stored
+  OpenRocketresults describe"). One cause: a JSX text run that spans a line break loses its LEADING
+  whitespace, so a plain space before a wrapped continuation does not survive the transform even
+  when the space sits mid-line in the source. Found by scanning the built chunks for a rendered
+  value followed immediately by a string opening with a whole lowercase word; fixed with explicit
+  `{" "}`; the scan now returns zero. Each of the four was confirmed broken and then correct in the
+  rendered DOM, the last of them on `Parallel booster staging.ork`, which is a design that actually
+  reaches the withheld-comparison notice.
 
 - **RESOLVED this session — the dispersion study planned for the day the design file was saved, not
   the flyer's.** `MonteCarlo` built its nominal from `overridesFromStored(sim)` alone, so the four

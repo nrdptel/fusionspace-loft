@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { conditionsPhrase, type ConditionsSource } from "@/lib/what-if";
 import type { OrkDocument } from "@/lib/ork/import";
 import { overridesFromStored } from "@/lib/sim/run";
 import type { ConditionOverrides } from "@/lib/sim/setup";
@@ -59,7 +60,7 @@ export default function MonteCarlo({
   designKey,
   flownOverrides,
   weatherSerial,
-  conditionsEdited,
+  conditions,
 }: {
   doc: OrkDocument;
   simIndex: number;
@@ -83,8 +84,8 @@ export default function MonteCarlo({
   /** Bumped once per forecast fetched — the only thing that can tell one forecast's air from the
    *  next, since an atmosphere and a wind profile are functions with no value to compare. */
   weatherSerial?: number;
-  /** True when some of that came from the flyer rather than the file. */
-  conditionsEdited?: boolean;
+  /** Where each launch condition came from, so this panel names what IT flew. */
+  conditions?: ConditionsSource;
 }) {
   // A key for the CONDITIONS, separate from `designKey`. That shared key is watched by both sweeps
   // and by the RocketPy cross-check, and all three fly BALLISTIC — `runFlight` zeroes the wind for a
@@ -248,9 +249,8 @@ export default function MonteCarlo({
             thing about themselves; this one said nothing while quietly flying the design file's
             setup rather than the flyer's, and the recovery radius is not a number to be vague
             about. */}
-        {conditionsEdited
-          ? "The nominals are the launch conditions you set — the same ones the flight above is using."
-          : "The nominals are the design's own stored launch conditions; change them under Conditions and this re-flies."}
+        The nominals are {conditionsPhrase(conditions, { wind: true })}. Change them under{" "}
+        <em>Conditions</em> and this re-flies.
         {/* Under a wind profile the scatter is NOT a disc over all headings. `windAt` returns the
             profile and never reads the sampled bearing, so every one of the flights drifts on the
             forecast's own wind — the spread is that one day's, not an all-bearings recovery area.

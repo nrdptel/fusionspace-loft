@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Tabs } from "./ui";
 import type { FlightRun } from "@/lib/sim/run";
 import type { ConditionOverrides } from "@/lib/sim/setup";
+import type { ConditionsSource } from "@/lib/what-if";
 import { applyGeometryEdits, hasGeometryEdits, primaryFinGroupIds, type GeometryEdits } from "@/lib/model/edit";
 import { designKey } from "@/lib/model/design-key";
 import { formatLabel, sourceTool, type OrkDocument } from "@/lib/ork/import";
@@ -143,7 +144,7 @@ export default function ResultsView({
   units,
   flownOverrides,
   weatherSerial,
-  conditionsEdited,
+  conditions,
   baseline,
   simIndex = 0,
   ballastKg,
@@ -175,8 +176,9 @@ export default function ResultsView({
    *  atmosphere and wind profile are functions with no value to compare — this is what lets a key
    *  see that the air changed. */
   weatherSerial?: number;
-  /** True when any of that came from the flyer rather than the file, so a panel can say so. */
-  conditionsEdited?: boolean;
+  /** Where each launch condition came from, so each panel names what IT flew rather than sharing one
+   *  flag with panels that read different fields. */
+  conditions?: ConditionsSource;
   /** When a design what-if (nose ballast / motor swap) is active, the same flight without that
    *  change under identical conditions — so the results can show what the change bought. */
   baseline?: FlightRun | null;
@@ -666,7 +668,8 @@ export default function ResultsView({
             <p className="mt-1.5">
               This design contains something Loft flew in simplified form — staging, pods, parallel
               boosters, or a fin type it can&apos;t model (see the warnings above) — so the stored{" "}
-              {toolName} results describe a different flight than the one simulated here. Comparing them
+              {toolName}{" "}
+              results describe a different flight than the one simulated here. Comparing them
               would misstate the engine&apos;s accuracy, so the metric-by-metric comparison is
               withheld — import a design Loft flies complete for a like-for-like check.
             </p>
@@ -759,7 +762,7 @@ export default function ResultsView({
           designKey={dkey}
           flownOverrides={flownOverrides}
           weatherSerial={weatherSerial}
-          conditionsEdited={conditionsEdited}
+          conditions={conditions}
           doc={doc}
           simIndex={simIndex}
           units={units}
@@ -779,7 +782,7 @@ export default function ResultsView({
           designKey={dkey}
           flownOverrides={flownOverrides}
           weatherSerial={weatherSerial}
-          conditionsEdited={conditionsEdited}
+          conditions={conditions}
           doc={doc}
           simIndex={simIndex}
           units={units}
@@ -798,7 +801,7 @@ export default function ResultsView({
           designKey={dkey}
           flownOverrides={flownOverrides}
           weatherSerial={weatherSerial}
-          conditionsEdited={conditionsEdited}
+          conditions={conditions}
           doc={doc}
           simIndex={simIndex}
           units={units}

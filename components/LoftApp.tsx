@@ -1029,13 +1029,26 @@ export default function LoftApp() {
               units={units}
               flownOverrides={flownOverridesNow}
               weatherSerial={weatherSerial}
-              conditionsEdited={
-                edits.rodLength !== undefined ||
-                edits.rodAngleDeg !== undefined ||
-                edits.windSpeed !== undefined ||
-                edits.launchAltitude !== undefined ||
-                scenario === "today"
-              }
+              conditions={{
+                // What each panel should SAY about the nominals it flew. One boolean could not:
+                // it made a surface-wind edit flip the two sweeps' captions to "the launch
+                // conditions you set" while every row was bit-identical — those panels fly
+                // ballistic, and `runFlight` zeroes the wind for a ballistic run — and it made a
+                // fetched forecast read as the flyer's own setup while the fields it filled are
+                // greyed out and un-typeable. Each panel asks only about the fields it reads.
+                railEdited: edits.rodLength !== undefined || edits.rodAngleDeg !== undefined,
+                elevationEdited: edits.launchAltitude !== undefined,
+                windEdited: edits.windSpeed !== undefined,
+                today: scenario === "today" && weather !== null,
+                // And when the design specifies nothing, the nominals are Loft's own defaults, not
+                // "the design's own stored launch conditions" — the Conditions panel already says
+                // so in amber on the same page, so claiming otherwise contradicts it a screen away.
+                defaulted:
+                  flownConditions.defaulted.rodLength &&
+                  flownConditions.defaulted.rodAngleDeg &&
+                  flownConditions.defaulted.windSpeed &&
+                  flownConditions.defaulted.launchAltitude,
+              }}
               baseline={baseline}
               simIndex={simIndex}
               ballastKg={edits.ballastKg}
@@ -1648,11 +1661,11 @@ function DesignEditor({
             position blank sits it mid-body), or switch to dual-deploy (set both a main-deploy
             altitude and a drogue diameter — the main then opens low over a drogue that controls the
             fall from apogee, cutting drift) to trim stability, drag, apogee, or landing.
-            It&apos;s a hypothetical change to the design, so the {tool} comparison is hidden while
-            any is set. The geometry fields start from the design&apos;s own dimensions; the motors
-            offered are the bundled ones of the same casing as the one this design already flies —
-            that casing demonstrably fits, which a mount&apos;s stated bore does not establish for
-            every motor that would go in it.
+            It&apos;s a hypothetical change to the design, so the {tool}{" "}
+            comparison is hidden while any is set. The geometry fields start from the design&apos;s
+            own dimensions; the motors offered are the bundled ones of the same casing as the one
+            this design already flies — that casing demonstrably fits, which a mount&apos;s stated
+            bore does not establish for every motor that would go in it.
           </p>
         </div>
   );

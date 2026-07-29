@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { conditionsPhrase, type ConditionsSource } from "@/lib/what-if";
 import type { OrkDocument } from "@/lib/ork/import";
 import { overridesFromStored } from "@/lib/sim/run";
 import type { ConditionOverrides } from "@/lib/sim/setup";
@@ -29,8 +30,14 @@ const TW_RULE_OF_THUMB = 5;
  *  uses, so each row is exactly the flight that picking that motor would produce. It honours the
  *  active nose-ballast and geometry what-ifs, so the sweep is over the design the flyer is looking
  *  at. Because it's a like-for-like comparison, every motor flies ballistic to apogee under the
- *  design's stored launch conditions (recovery and wind removed), matching the RocketPy
- *  cross-check's methodology. */
+ *  launch conditions being flown — the design's own stored setup with the flyer's Conditions edits
+ *  on top (recovery and wind removed; `runFlight` zeroes the wind for a ballistic run).
+ *
+ *  Not the same conditions as the RocketPy cross-check, which this used to claim to match: that
+ *  panel flies `overridesFromStored(sim)` and never sees a Conditions edit, because its job is to
+ *  put two engines on the design FILE's own flight. The shared half is the method — ballistic to
+ *  apogee, recovery and wind removed — not the numbers, and the two diverge the moment a rail
+ *  angle or a field elevation is typed. */
 export default function MotorSweep({
   doc,
   simIndex,
@@ -43,7 +50,7 @@ export default function MotorSweep({
   designKey,
   flownOverrides,
   weatherSerial,
-  conditionsEdited,
+  conditions,
 }: {
   doc: OrkDocument;
   simIndex: number;
@@ -75,8 +82,8 @@ export default function MotorSweep({
   /** Bumped once per forecast fetched — the only thing that can tell one forecast's air from the
    *  next, since an atmosphere and a wind profile are functions with no value to compare. */
   weatherSerial?: number;
-  /** True when some of that came from the flyer rather than the file, so the caption can say so. */
-  conditionsEdited?: boolean;
+  /** Where each launch condition came from, so this panel names what IT flew. */
+  conditions?: ConditionsSource;
 }) {
   // Only the conditions a BALLISTIC ascent actually reads. Wind is excluded on purpose: `runFlight`
   // zeroes it for a ballistic run, so re-flying a whole sweep on a wind edit would throw the work
@@ -197,7 +204,7 @@ export default function MotorSweep({
           spinner. It is never left unlabelled: the status line says which it is. */}
       {open && rows !== null && rows.length > 0 && (
         <div aria-busy={running} className={running ? "opacity-50 transition-opacity" : undefined}>
-          <SweepTable rows={rows} units={units} name={doc.rocket.name} conditionsEdited={conditionsEdited} />
+          <SweepTable rows={rows} units={units} name={doc.rocket.name} conditions={conditions} />
         </div>
       )}
     </section>
@@ -254,14 +261,14 @@ function SweepTable({
   rows,
   units,
   name,
-  conditionsEdited,
+  conditions,
 }: {
   rows: MotorSweepRow[];
   units: UnitSystem;
   name: string;
   /** Whether the conditions these flights used came from the flyer or from the design file — the
    *  caption below names which, because it invites a comparison against "your rail". */
-  conditionsEdited?: boolean;
+  conditions?: ConditionsSource;
 }) {
   // Which column the table is sorted on is a view the flyer chose deliberately — someone picking a
   // motor on flutter margin is doing that across every design they open, not once. Direction rides
@@ -392,15 +399,15 @@ function SweepTable({
       </div>
       <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
         Each motor flies a ballistic ascent to apogee under{" "}
-        {conditionsEdited ? "the launch conditions you set" : "the design's stored launch conditions"}
+        {conditionsPhrase(conditions, { wind: false })}
         {" "}— a like-for-like comparison, not the full recovery flight. Rail-exit velocity and
         thrust-to-weight are the launch-safety numbers to check against your rail and the ~5:1 and
         ~15&nbsp;m/s (≈50&nbsp;ft/s) rules of thumb; the rail here is the one being flown, so
         shortening it under <em>Conditions</em> moves this column. Surface wind is not read at all —
-        a ballistic ascent has no recovery to drift. <em>Delay</em> is the ejection delay that deploys
-        at apogee for that motor (burnout&nbsp;→&nbsp;apogee), so you can pick the delay to buy or drill
-        for each candidate; a faster motor coasts longer and wants a longer delay. These are estimates
-        to verify, never a go/no-go.
+        a ballistic ascent has no recovery to drift. <em>Delay</em>{" "}
+        is the ejection delay that deploys at apogee for that motor (burnout&nbsp;→&nbsp;apogee), so
+        you can pick the delay to buy or drill for each candidate; a faster motor coasts longer and
+        wants a longer delay. These are estimates to verify, never a go/no-go.
       </p>
       <div className="mt-2">
         {/* Exported in the order on screen — a table you sorted and then exported unsorted is a

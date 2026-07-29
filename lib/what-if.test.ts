@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { listWords, rangeWords, refusedMessage } from "./what-if";
+import { listWords, rangeWords, refusedMessage, conditionsPhrase } from "./what-if";
 
 describe("rangeWords", () => {
   it("says a missing bound in words rather than leaving a dash", () => {
@@ -59,6 +59,53 @@ describe("listWords", () => {
     // The from-scratch case: a design that stores no launch setup at all.
     expect(listWords(["rail length", "rail angle", "surface wind", "field elevation"])).toBe(
       "rail length, rail angle, surface wind, and field elevation",
+    );
+  });
+});
+
+describe("conditionsPhrase", () => {
+  const none = { railEdited: false, elevationEdited: false, windEdited: false, today: false, defaulted: false };
+
+  it("names the file when the flyer changed nothing", () => {
+    expect(conditionsPhrase(none, { wind: true })).toBe("the design's stored launch conditions");
+    expect(conditionsPhrase(undefined, { wind: true })).toBe("the design's stored launch conditions");
+  });
+
+  it("does not credit the flyer for a field this panel never reads", () => {
+    // The two sweeps fly ballistic and `runFlight` zeroes the wind for a ballistic run, so a
+    // surface-wind edit changes not one row. One shared flag flipped their captions to "the launch
+    // conditions you set" while the whole rail-exit column was bit-identical.
+    expect(conditionsPhrase({ ...none, windEdited: true }, { wind: false })).toBe(
+      "the design's stored launch conditions",
+    );
+    expect(conditionsPhrase({ ...none, windEdited: true }, { wind: true })).toBe("the launch conditions you set");
+  });
+
+  it("credits the flyer for the fields every panel does read", () => {
+    for (const src of [{ ...none, railEdited: true }, { ...none, elevationEdited: true }]) {
+      expect(conditionsPhrase(src, { wind: false })).toBe("the launch conditions you set");
+      expect(conditionsPhrase(src, { wind: true })).toBe("the launch conditions you set");
+    }
+  });
+
+  it("does not call a fetched forecast something the flyer set", () => {
+    // `onWeather` CLEARS the two edits it overrides and the panel greys both fields, so under
+    // today's weather the flyer has set none of it.
+    expect(conditionsPhrase({ ...none, today: true }, { wind: true })).toBe("today's weather at your site");
+    expect(conditionsPhrase({ ...none, today: true, railEdited: true }, { wind: true })).toBe(
+      "the launch conditions you set, over today's weather at your site",
+    );
+  });
+
+  it("does not call Loft's own defaults the design's stored conditions", () => {
+    // The Conditions panel says so in amber on the same page; claiming otherwise a screen away is
+    // the page contradicting itself about whose numbers are being flown.
+    expect(conditionsPhrase({ ...none, defaulted: true }, { wind: true })).toBe(
+      "Loft's own default launch conditions — this design states none",
+    );
+    // An edit outranks it: those conditions ARE the flyer's now.
+    expect(conditionsPhrase({ ...none, defaulted: true, railEdited: true }, { wind: true })).toBe(
+      "the launch conditions you set",
     );
   });
 });

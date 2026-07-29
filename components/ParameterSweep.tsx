@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { conditionsPhrase, type ConditionsSource } from "@/lib/what-if";
 import type { ConditionOverrides } from "@/lib/sim/setup";
 import type { OrkDocument } from "@/lib/ork/import";
 import { runFlight, overridesFromStored } from "@/lib/sim/run";
@@ -92,7 +93,7 @@ export default function ParameterSweep({
   designKey,
   flownOverrides,
   weatherSerial,
-  conditionsEdited,
+  conditions,
 }: {
   doc: OrkDocument;
   simIndex: number;
@@ -116,8 +117,8 @@ export default function ParameterSweep({
   /** Bumped once per forecast fetched — the only thing that can tell one forecast's air from the
    *  next, since an atmosphere and a wind profile are functions with no value to compare. */
   weatherSerial?: number;
-  /** True when some of that came from the flyer rather than the file, so the caption can say so. */
-  conditionsEdited?: boolean;
+  /** Where each launch condition came from, so this panel names what IT flew. */
+  conditions?: ConditionsSource;
 }) {
   // Only the conditions a BALLISTIC ascent actually reads. Wind is excluded on purpose: `runFlight`
   // zeroes it for a ballistic run, so re-flying a whole sweep on a wind edit would throw the work
@@ -377,7 +378,7 @@ export default function ParameterSweep({
               previous design's, so an edit can be read against what it changed. */}
           {points !== null && points.length > 1 && (
             <div aria-busy={running} className={running ? "opacity-50 transition-opacity" : undefined}>
-              <SweepChart points={points} axis={axisDef} metric={metric} metrics={metrics} units={units} name={doc.rocket.name} conditionsEdited={conditionsEdited} />
+              <SweepChart points={points} axis={axisDef} metric={metric} metrics={metrics} units={units} name={doc.rocket.name} conditions={conditions} />
             </div>
           )}
           {!running && points !== null && points.length <= 1 && (
@@ -398,7 +399,7 @@ function SweepChart({
   metrics,
   units,
   name,
-  conditionsEdited,
+  conditions,
 }: {
   points: ParamSweepPoint[];
   axis: AxisDef;
@@ -407,7 +408,7 @@ function SweepChart({
   units: UnitSystem;
   name: string;
   /** Whether the conditions these flights used came from the flyer or from the design file. */
-  conditionsEdited?: boolean;
+  conditions?: ConditionsSource;
 }) {
   // X in this axis's own display units (mm/in for a dimension, g/oz for ballast); Y in the metric's.
   const xUnit = axis.xUnit(units);
@@ -439,10 +440,13 @@ function SweepChart({
       />
       <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
         Ballistic ascent to apogee under{" "}
-              {conditionsEdited ? "the launch conditions you set" : "the design's stored conditions"}, {STEPS} flights across
-        the range; the marker is the design&apos;s own value (no added ballast for that axis). Each
-        variable shifts the centre of pressure and the mass its own way — read these as estimates to
-        verify, not a go/no-go.
+        {/* `{" "}` and not a plain space: a JSX text run that spans a line break loses its LEADING
+            whitespace, so `{STEPS} flights` on one line and `the range` on the next shipped as
+            "25flights across the range". The space has to survive the transform, not the source. */}
+        {conditionsPhrase(conditions, { wind: false })}, {STEPS}{" "}
+        flights across the range; the marker is the design&apos;s own value (no added ballast for
+        that axis). Each variable shifts the centre of pressure and the mass its own way — read
+        these as estimates to verify, not a go/no-go.
       </p>
       <div className="mt-2">
         <DownloadCsv rows={csv} name={name} suffix={`sweep-${axis.axis}`} />

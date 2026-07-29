@@ -402,7 +402,8 @@ export default function GeometryInspector({
               {" "}
               Of that, {d.q(d.mass(unlisted, units))} is stated in the design as a whole-stage figure
               rather than part by part, so it belongs to no row here — the{" "}
-              <em>Mass &amp; balance</em> panel lists it under the stage&apos;s own name.
+              <em>Mass &amp; balance</em>{" "}
+              panel lists it under the stage&apos;s own name.
             </>
           )}
         </p>

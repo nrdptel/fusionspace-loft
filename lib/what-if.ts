@@ -43,3 +43,43 @@ export function listWords(items: string[]): string {
   if (items.length === 2) return `${items[0]} and ${items[1]}`;
   return `${items.slice(0, -1).join(", ")}, and ${items[items.length - 1]}`;
 }
+
+/** Where the launch conditions a panel flew actually came from.
+ *
+ *  One boolean was not enough, and the two ways it was wrong point in opposite directions. The two
+ *  sweeps fly BALLISTIC — `runFlight` zeroes the wind for a ballistic run — so a surface-wind edit
+ *  flipped their captions to "the launch conditions you set" while every row was bit-identical: a
+ *  claim about the numbers that the numbers did not support. And a fetched forecast counted as
+ *  "you set", when `onWeather` deliberately CLEARS the two edits it overrides and the panel greys
+ *  both fields: the flyer set none of it. Each panel asks only about the fields it reads. */
+export interface ConditionsSource {
+  /** The flyer set a rail length or a rail angle. */
+  railEdited: boolean;
+  /** The flyer set a field elevation. */
+  elevationEdited: boolean;
+  /** The flyer set a surface wind. A ballistic panel does not read this. */
+  windEdited: boolean;
+  /** Today's weather is supplying the air, the elevation and a wind profile. */
+  today: boolean;
+  /** The design specifies no launch setup at all, so the rest are Loft's own defaults — which the
+   *  Conditions panel already says in amber, so a panel claiming "the design's own stored launch
+   *  conditions" contradicts it a screen away. */
+  defaulted: boolean;
+}
+
+/** What a panel should say about the nominals it flew.
+ *
+ *  @param src   where each condition came from
+ *  @param reads which of them this panel actually reads — a ballistic panel does not read the wind */
+export function conditionsPhrase(
+  src: ConditionsSource | undefined,
+  reads: { wind: boolean },
+): string {
+  if (!src) return "the design's stored launch conditions";
+  const edited = src.railEdited || src.elevationEdited || (reads.wind && src.windEdited);
+  if (edited && src.today) return "the launch conditions you set, over today's weather at your site";
+  if (edited) return "the launch conditions you set";
+  if (src.today) return "today's weather at your site";
+  if (src.defaulted) return "Loft's own default launch conditions — this design states none";
+  return "the design's stored launch conditions";
+}

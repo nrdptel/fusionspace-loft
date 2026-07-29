@@ -3316,7 +3316,7 @@ test.describe("Loft", () => {
     const asDesigned = await radius();
     expect(asDesigned).toBeGreaterThan(0);
     // It says whose conditions those are, which is the half the FAQ was answering for.
-    await expect(mc).toContainText("the design's own stored launch conditions");
+    await expect(mc).toContainText("the design's stored launch conditions");
 
     // Now tell it the field is windier than the file says.
     await page.getByRole("tab", { name: "Flight" }).click();
@@ -3338,6 +3338,17 @@ test.describe("Loft", () => {
       expect(await radius()).toBeGreaterThan(asDesigned! * 1.5);
     }).toPass({ timeout: 150_000 });
     await expect(mc).toContainText("the launch conditions you set");
+
+    // ...and the panel beside it must NOT say the same thing, because it did not fly it. The motor
+    // sweep is BALLISTIC and `runFlight` zeroes the wind for a ballistic run, so that identical wind
+    // edit moved not one of its rows. A single shared "the flyer edited the conditions" flag had it
+    // crediting the flyer over a bit-identical table — a claim about the numbers that the numbers
+    // did not support. Each panel is asked only about the fields it reads.
+    const motors = page.getByRole("region", { name: "Motor sweep" });
+    await motors.getByRole("button", { name: /Run motor sweep/ }).click();
+    await expect(motors.locator("tbody tr").first()).toBeVisible();
+    await expect(motors).toContainText("the design's stored launch conditions");
+    await expect(motors).not.toContainText("the launch conditions you set");
   });
 
   test("the motor sweep checks rail exit against the rail you told it about", async ({ page }) => {

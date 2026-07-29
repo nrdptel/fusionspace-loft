@@ -210,9 +210,12 @@ export default function Faq() {
           The delay column is the burnout-to-apogee time for each motor, so you can see at a glance
           which delay to buy or drill — a faster motor coasts longer and wants a longer one. Any
           active nose-ballast or geometry what-if is applied to every motor, so you&apos;re comparing
-          the design you&apos;re actually looking at. Each row is a ballistic ascent under the
-          design&apos;s stored conditions — estimates to check against the motor&apos;s printed data
-          and your rail, never a go/no-go.
+          the design you&apos;re actually looking at. Each row is a ballistic ascent under the launch
+          conditions in force — the design&apos;s own stored setup, with whatever you have changed
+          under <em>Conditions</em> on top, so shortening your rail moves every rail-exit figure in
+          the table. Surface wind is the one that does not: a ballistic ascent has no recovery to
+          drift, so the rows are identical with it set and unset. These are estimates to check
+          against the motor&apos;s printed data and your rail, never a go/no-go.
         </p>
       </QA>
 
