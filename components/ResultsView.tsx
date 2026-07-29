@@ -142,6 +142,7 @@ export default function ResultsView({
   loadId,
   units,
   flownOverrides,
+  weatherSerial,
   conditionsEdited,
   baseline,
   simIndex = 0,
@@ -170,6 +171,10 @@ export default function ResultsView({
    *  The dispersion study built its own nominal from the file alone, so it answered for a different
    *  day: on the 54 mm sample at 20 mph its recovery radius stayed 1,203 m against a true 2,519 m. */
   flownOverrides?: ConditionOverrides;
+  /** Bumped once per forecast fetched. The panels compare conditions by value, and a forecast's
+   *  atmosphere and wind profile are functions with no value to compare — this is what lets a key
+   *  see that the air changed. */
+  weatherSerial?: number;
   /** True when any of that came from the flyer rather than the file, so a panel can say so. */
   conditionsEdited?: boolean;
   /** When a design what-if (nose ballast / motor swap) is active, the same flight without that
@@ -373,10 +378,10 @@ export default function ResultsView({
   // and apogee 581 m every one unchanged, while the panel wore a "with your edits" badge over a
   // table that had not moved. Three of the 35 corpus designs are that shape. Detected by asking the
   // model rather than by inspecting the tree: mass was added, and the total did not move.
-  const addsMass =
-    (geometry?.payloadMassKg ?? 0) > 0 ||
-    (geometry?.drogueDiameter ?? 0) > 0 ||
-    geometry?.mainParachuteDiameter !== undefined;
+  // Only edits that can ADD structure. A main-chute resize was in this list and can shrink one, so
+  // trimming a canopy on an overridden design popped a notice saying the mass "you added" had been
+  // absorbed — for a change that removed mass.
+  const addsMass = (geometry?.payloadMassKg ?? 0) > 0 || (geometry?.drogueDiameter ?? 0) > 0;
   const massAbsorbed =
     editing && addsMass && Math.abs(dryMassProperties(shownRocket).mass - dryMassProperties(doc.rocket).mass) < 1e-9;
   // The motor casing(s) the flight flew, for drawing inside the aft body — resolved for the shown
@@ -753,6 +758,7 @@ export default function ResultsView({
         <MotorSweep
           designKey={dkey}
           flownOverrides={flownOverrides}
+          weatherSerial={weatherSerial}
           conditionsEdited={conditionsEdited}
           doc={doc}
           simIndex={simIndex}
@@ -772,6 +778,7 @@ export default function ResultsView({
         <ParameterSweep
           designKey={dkey}
           flownOverrides={flownOverrides}
+          weatherSerial={weatherSerial}
           conditionsEdited={conditionsEdited}
           doc={doc}
           simIndex={simIndex}
@@ -790,6 +797,7 @@ export default function ResultsView({
         <MonteCarlo
           designKey={dkey}
           flownOverrides={flownOverrides}
+          weatherSerial={weatherSerial}
           conditionsEdited={conditionsEdited}
           doc={doc}
           simIndex={simIndex}

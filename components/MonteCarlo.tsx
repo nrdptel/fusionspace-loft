@@ -15,7 +15,7 @@ import {
   type Stat,
 } from "@/lib/sim/montecarlo";
 import type { GeometryEdits } from "@/lib/model/edit";
-import { usePersistedNumber } from "@/lib/session";
+import { usePersistedNumber, useSettled } from "@/lib/session";
 import { mToFt, ftToM, mpsToFtps, mpsToMph, mphToMps } from "@/lib/units";
 import type { CsvCell } from "@/lib/csv";
 import { ClosePanel, NumberField, useReturnFocus } from "./ui";
@@ -58,6 +58,7 @@ export default function MonteCarlo({
   geometry,
   designKey,
   flownOverrides,
+  weatherSerial,
   conditionsEdited,
 }: {
   doc: OrkDocument;
@@ -79,17 +80,23 @@ export default function MonteCarlo({
    *  busting a 3,000 m ceiling from 36% to 83%. Those are the numbers a flyer plans a field and a
    *  recovery walk around. */
   flownOverrides?: ConditionOverrides;
+  /** Bumped once per forecast fetched — the only thing that can tell one forecast's air from the
+   *  next, since an atmosphere and a wind profile are functions with no value to compare. */
+  weatherSerial?: number;
   /** True when some of that came from the flyer rather than the file. */
   conditionsEdited?: boolean;
 }) {
-  // A key for the CONDITIONS, separate from `designKey`. The shared key is what the two sweeps and
-  // the RocketPy cross-check also watch, and all three fly ballistic — `runFlight` zeroes the wind
-  // for a ballistic run, so a wind edit measurably changes nothing in them (apogee 2,941 m at 3 m/s
-  // and at 8.94 m/s, identical). Adding conditions to the shared key would throw minutes of their
-  // work away for a change that changed nothing, which is the exact waste `designKey` exists to
-  // avoid. This study is the one that does read the wind, so it watches the conditions itself.
+  // A key for the CONDITIONS, separate from `designKey`. That shared key is watched by both sweeps
+  // and by the RocketPy cross-check, and all three fly BALLISTIC — `runFlight` zeroes the wind for a
+  // ballistic run, so a wind edit measurably changes nothing in them (apogee 2,941 m at 3 m/s and at
+  // 8.94 m/s, identical). Adding the wind to the shared key would throw minutes of their work away
+  // for a change that changed nothing, which is the exact waste `designKey` exists to avoid. So the
+  // sweeps carry their own narrower key covering rail length, rail angle and elevation, and this
+  // study — the one that does read the wind — carries this one. The RocketPy cross-check
+  // deliberately keeps flying the FILE's conditions: it exists to compare two solvers like-for-like
+  // against the design as saved, so the flyer's day is not the question it answers.
   const o = flownOverrides;
-  const conditionsKey = [
+  const conditionsKeyLive = [
     o?.rodLength ?? "",
     o?.rodAngleDeg ?? "",
     o?.rodAzimuthDeg ?? "",
@@ -99,7 +106,14 @@ export default function MonteCarlo({
     // are rebuilt only when a forecast is fetched, which is exactly when this should re-fly.
     o?.windProfile ? "profile" : "",
     o?.atmosphere ? "atm" : "",
+    weatherSerial ?? "",
   ].join("|");
+  // Settled, not live. `Num` calls `onChange` on every keystroke so a value can be typed a digit
+  // at a time, and each intermediate reading is a distinct key — typing "1500" into the field
+  // elevation restarted this panel four times, flying every candidate at 1 m, 15 m and 150 m on the
+  // way. The dispersion's own sigma inputs have been debounced for exactly this reason since they
+  // were added; the launch conditions reach the same panels through the same kind of field.
+  const conditionsKey = useSettled(conditionsKeyLive, conditionsKeyLive);
   // Under today's weather the solver reads a wind PROFILE and never looks at a surface wind, so the
   // spread below cannot be applied to it: `windAt` returns `windProfile(altAgl)` whenever a profile
   // is set. Measured with a constant 8.94 m/s profile over 200 flights, the drift band is
@@ -237,6 +251,18 @@ export default function MonteCarlo({
         {conditionsEdited
           ? "The nominals are the launch conditions you set — the same ones the flight above is using."
           : "The nominals are the design's own stored launch conditions; change them under Conditions and this re-flies."}
+        {/* Under a wind profile the scatter is NOT a disc over all headings. `windAt` returns the
+            profile and never reads the sampled bearing, so every one of the flights drifts on the
+            forecast's own wind — the spread is that one day's, not an all-bearings recovery area.
+            Saying it here because this panel is sold as "how big a recovery area to plan for". */}
+        {windProfileInForce && (
+          <>
+            {" "}
+            Today&apos;s forecast supplies a wind profile, so every flight drifts on its bearings
+            rather than on all of them: this is the spread for that wind, not a circle covering any
+            wind. Switch to <em>As designed</em> for the all-headings recovery area.
+          </>
+        )}
       </p>
 
       {!open && (
@@ -325,13 +351,21 @@ export default function MonteCarlo({
                   <span>Refining — {progress}/{SAMPLES} flown…</span>
                 </div>
               )}
-              <Report
-                result={result}
-                units={units}
-                name={doc.rocket.name}
-                ceilingM={ceilingM}
-                onCeilingM={setCeilingM}
-              />
+              {/* Dimmed and marked busy while a fresh run is in flight, exactly as both sweeps do.
+                  The previous cloud is deliberately kept so an edit can be compared against what it
+                  changed rather than against a spinner — but at full opacity, under a caption that
+                  flips the instant a Conditions field is touched, it read as the answer FOR those
+                  conditions. On the 54 mm sample that is 1,203 m presented as current while the true
+                  figure for the day just entered is 2,519 m. */}
+              <div aria-busy={running} className={running ? "opacity-50 transition-opacity" : undefined}>
+                <Report
+                  result={result}
+                  units={units}
+                  name={doc.rocket.name}
+                  ceilingM={ceilingM}
+                  onCeilingM={setCeilingM}
+                />
+              </div>
             </>
           ) : running || result === null ? (
             <div className="mt-4 flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-300" role="status">

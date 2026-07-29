@@ -639,11 +639,14 @@ export default function Methods() {
         whatever you have changed under <em>Conditions</em> on top, so the dispersion answers for the
         same day the flight above it does rather than for the day the file was saved.
         Impulse, dry mass, and drag are the main drivers of the apogee band; rail angle and wind drive
-        the landing scatter. Under today&apos;s weather the solver flies a whole wind profile rather
-        than one surface figure, so a spread on the surface wind has nothing to vary and that field
-        is greyed out with a note saying so. The
+        the landing scatter. The
         rail-lean and wind <em>directions</em> are sampled uniformly from all bearings, so the landing
-        scatter maps the recovery area regardless of the day&apos;s wind heading. The whole run is
+        scatter maps the recovery area regardless of the day&apos;s wind heading.
+        Under today&apos;s weather that is not so, and the panel says which case it is in: the solver
+        then flies a whole wind profile rather than one surface figure, on the forecast&apos;s own
+        bearings. A spread on the surface wind has nothing to vary — that field is greyed out with a
+        note — and the scatter is the spread of one forecast rather than a disc over all headings, so
+        read it as the recovery area for THAT day rather than for any wind. The whole run is
         driven by a fixed-seed pseudo-random generator, so the same design and the same dispersions
         reproduce the same cloud — a dispersion is a stable property of the design, not wall-clock
         noise. The reported bands are 5th-to-95th percentiles of the flown samples.

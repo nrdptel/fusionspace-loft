@@ -3330,10 +3330,13 @@ test.describe("Loft", () => {
     await wind.blur();
 
     await page.getByRole("tab", { name: "Analyze" }).click();
-    await settle();
-    const windy = await radius();
-    // A materially bigger recovery area — the whole point of telling it the truth about the day.
-    expect(windy!).toBeGreaterThan(asDesigned! * 1.5);
+    // Poll the VALUE, not the spinner. The conditions key is debounced, so for the first third of a
+    // second after the last keystroke there is no run in flight to wait for — a "wait until it stops
+    // refining" check passes immediately and reads the previous cloud. Ask for the answer instead.
+    await expect(async () => {
+      // A materially bigger recovery area — the whole point of telling it the truth about the day.
+      expect(await radius()).toBeGreaterThan(asDesigned! * 1.5);
+    }).toPass({ timeout: 150_000 });
     await expect(mc).toContainText("the launch conditions you set");
   });
 
@@ -3387,6 +3390,53 @@ test.describe("Loft", () => {
       // row, so a re-ordering of the table cannot make this pass by accident.
       for (let i = 0; i < shortened.length; i++) expect(shortened[i]).toBeLessThan(onDesignRail[i]);
     }).toPass({ timeout: 90_000 });
+    await expect(sweep).toContainText("the launch conditions you set");
+  });
+
+  test("typing a launch condition re-flies the sweep once, not once per digit", async ({ page }) => {
+    // The panels key their cached answer on a VALUE so an unrelated re-render cannot throw minutes
+    // of work away. Wiring the launch conditions into that key broke the guarantee from the other
+    // side: `Num` calls `onChange` on every keystroke so a value can be typed a digit at a time, so
+    // each intermediate reading became a distinct key. Measured before the debounce: typing "1500"
+    // into Field elev. drove EIGHT aria-busy transitions on the motor sweep — four full restarts,
+    // each flying every bundled candidate at 1 m, then 15 m, then 150 m, before the field the flyer
+    // meant. After: two, and the sweep still ends up flying what was typed.
+    test.setTimeout(150_000);
+    await page.goto("/");
+    await page.getByRole("button", { name: /54 mm dual-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+
+    const sweep = page.getByRole("region", { name: "Motor sweep" });
+    await page.getByRole("tab", { name: "Analyze" }).click();
+    await sweep.getByRole("button", { name: /Run/i }).first().click();
+    await sweep.getByRole("table").waitFor({ timeout: 120_000 });
+
+    await page.evaluate(() => {
+      (window as unknown as { __busy: number }).__busy = 0;
+      new MutationObserver((ms) => {
+        for (const m of ms) if (m.attributeName === "aria-busy") (window as unknown as { __busy: number }).__busy++;
+      }).observe(document.querySelector('[aria-label="Motor sweep"]')!, {
+        attributes: true,
+        subtree: true,
+        attributeFilter: ["aria-busy"],
+      });
+    });
+
+    await page.getByRole("tab", { name: "Flight" }).click();
+    const conditions = page.locator("details").filter({ hasText: "Conditions" }).first();
+    if (!(await conditions.evaluate((el: HTMLDetailsElement) => el.open))) {
+      await conditions.locator("summary").click();
+    }
+    const elev = page.locator("input").and(page.getByLabel(/Field elev/i)).first();
+    await elev.click();
+    await elev.type("1500", { delay: 120 });
+    await page.waitForTimeout(4000);
+
+    const restarts = await page.evaluate(() => (window as unknown as { __busy: number }).__busy);
+    // One restart is two transitions (busy on, busy off). Four digits must not mean four restarts.
+    expect(restarts, `aria-busy transitions while typing four digits: ${restarts}`).toBeLessThanOrEqual(4);
+    // ...and the answer it settles on is still the flyer's, not a discarded intermediate.
+    await page.getByRole("tab", { name: "Analyze" }).click();
     await expect(sweep).toContainText("the launch conditions you set");
   });
 

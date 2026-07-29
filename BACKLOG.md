@@ -32,6 +32,37 @@ not yet done. Newest first. One line each. Anything here is fair game for the ne
   for exactly this reason (`ResultsView.tsx:349`) is not on the picker. Pre-existing and already noted
   further down this file; recorded here with the measurement.
 
+- **RESOLVED this session — wiring the launch conditions into the analysis panels made every
+  KEYSTROKE restart them.** The panels key their cached answer on a value so an unrelated re-render
+  cannot throw minutes of work away; `Num` calls `onChange` on every keystroke so a value can be typed
+  a digit at a time, so each intermediate reading became a distinct key. Measured on the built export:
+  typing `1500` into Field elev. drove **8 aria-busy transitions** on the motor sweep — four full
+  restarts, each flying every bundled 54 mm candidate at 1 m, then 15 m, then 150 m. Settled at 350 ms
+  through a shared `useSettled`, the same treatment the dispersion's own sigma inputs have always had:
+  **2 transitions**, and the panel still lands on the value that was typed. Found by an independent
+  review of the change that introduced it.
+
+- **RESOLVED this session — a NEW forecast could not change any panel's key.** An atmosphere and a
+  wind profile are FUNCTIONS, so they were folded in as a presence flag; re-fetching at the same site,
+  or fetching another site at the same elevation, left every key byte-identical while the air the
+  flight is flown through was replaced. Air density is the dominant term in a ballistic apogee — the
+  sweeps would have kept the old rows and captioned them as the flyer's. A `weatherSerial`, bumped
+  once per fetch and by nothing else, now carries the identity the value comparison cannot.
+
+- **Under today's weather the dispersion has no wind uncertainty at all, and said the opposite.**
+  `windAt` returns `windProfile(altAgl)` and never reads the sampled bearing, so all 300 flights drift
+  on the forecast's own wind: the scatter is one lobe, not a disc over all headings. `/docs/methods`
+  asserted the opposite one sentence after the new paragraph explaining the profile. Both the page and
+  the panel now say which case they are in — but note this is a DISCLOSURE, not a fix: the recovery
+  area under Today is still the spread of one bearing. Sampling a bearing spread around the forecast's
+  own heading would be the real answer and is not done.
+
+- **The scenario toggle keeps a wind edit the flight discards, and this session made it louder.**
+  Pre-existing (`onWeather` clears `edits.windSpeed`/`launchAltitude`; the toggle does not), and now
+  all four Analyze panels caption themselves "the launch conditions you set" while the greyed box
+  shows a value none of them flew. Fetch weather, switch to As designed, type 12 m/s, switch back:
+  the box reads 12 while everything flies the forecast's 7.4.
+
 - **RESOLVED this session — the dispersion study planned for the day the design file was saved, not
   the flyer's.** `MonteCarlo` built its nominal from `overridesFromStored(sim)` alone, so the four
   Conditions edits and the whole "Today" scenario never reached it, while the Flight card beside it

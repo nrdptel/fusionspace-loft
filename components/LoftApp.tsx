@@ -231,6 +231,13 @@ export default function LoftApp() {
   const [busy, setBusy] = useState(false);
   const [edits, setEdits] = useState<Edits>({});
   const [weather, setWeather] = useState<WeatherConditions | null>(null);
+  /** Bumped once per forecast fetched, and by nothing else. The analysis panels watch the launch
+   *  conditions by VALUE, and a forecast's atmosphere and wind profile are FUNCTIONS — there is no
+   *  value to compare, so a presence flag cannot tell a new forecast from the last one. Re-fetching
+   *  at the same site, or fetching another site at the same elevation, left every key byte-identical
+   *  while the air the flight was flown through was replaced. Air density is the dominant term in a
+   *  ballistic apogee, so the sweeps would have kept the old rows and captioned them as the flyer's. */
+  const [weatherSerial, setWeatherSerial] = useState(0);
   const [scenario, setScenario] = useState<"design" | "today">("design");
   const [simIndex, setSimIndex] = useState(0);
   // Which results workspace a freshly loaded design opens on: an import wants its Flight result up
@@ -1005,6 +1012,8 @@ export default function LoftApp() {
               const kept = { ...edits, windSpeed: undefined, launchAltitude: undefined };
               setEdits(kept);
               setWeather(wx);
+              setWeatherSerial((n) => n + 1);
+      setWeatherSerial((n) => n + 1);
               setScenario("today");
               rerun(kept, wx, "today");
             }}
@@ -1019,6 +1028,7 @@ export default function LoftApp() {
               loadId={loadSerial}
               units={units}
               flownOverrides={flownOverridesNow}
+              weatherSerial={weatherSerial}
               conditionsEdited={
                 edits.rodLength !== undefined ||
                 edits.rodAngleDeg !== undefined ||

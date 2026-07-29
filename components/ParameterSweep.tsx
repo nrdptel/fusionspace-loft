@@ -5,7 +5,7 @@ import type { ConditionOverrides } from "@/lib/sim/setup";
 import type { OrkDocument } from "@/lib/ork/import";
 import { runFlight, overridesFromStored } from "@/lib/sim/run";
 import { linRange, SWEEP_AXES, type SweepAxis, type ParamSweepPoint } from "@/lib/sim/sweep";
-import { usePersistedChoice } from "@/lib/session";
+import { usePersistedChoice, useSettled } from "@/lib/session";
 import { runParameterSweep } from "@/lib/sim/sweep-client";
 import { primaryFinSpan, primaryFinRootChord, primaryFinTipChord, primaryFinThickness, primaryFinStation, primaryFinChord, primaryNose, primaryBodyTube, primaryBodyDiameter, type GeometryEdits } from "@/lib/model/edit";
 import { overallLength } from "@/lib/model/geometry";
@@ -91,6 +91,7 @@ export default function ParameterSweep({
   geometry,
   designKey,
   flownOverrides,
+  weatherSerial,
   conditionsEdited,
 }: {
   doc: OrkDocument;
@@ -112,6 +113,9 @@ export default function ParameterSweep({
    *  drops rail-exit velocity 28.2 -> 19.6 m/s, straight through the ~15 m/s rule of thumb this
    *  panel's own caption cites. */
   flownOverrides?: ConditionOverrides;
+  /** Bumped once per forecast fetched — the only thing that can tell one forecast's air from the
+   *  next, since an atmosphere and a wind profile are functions with no value to compare. */
+  weatherSerial?: number;
   /** True when some of that came from the flyer rather than the file, so the caption can say so. */
   conditionsEdited?: boolean;
 }) {
@@ -120,7 +124,13 @@ export default function ParameterSweep({
   // away for a change measured to alter nothing. This is why the sweeps do not simply join the
   // dispersion in watching every condition.
   const o = flownOverrides;
-  const ballisticConditionsKey = [o?.rodLength ?? "", o?.rodAngleDeg ?? "", o?.launchAltitude ?? "", o?.atmosphere ? "atm" : ""].join("|");
+  const ballisticConditionsKeyLive = [o?.rodLength ?? "", o?.rodAngleDeg ?? "", o?.launchAltitude ?? "", o?.atmosphere ? "atm" : "", weatherSerial ?? ""].join("|");
+  // Settled, not live. `Num` calls `onChange` on every keystroke so a value can be typed a digit
+  // at a time, and each intermediate reading is a distinct key — typing "1500" into the field
+  // elevation restarted this panel four times, flying every candidate at 1 m, 15 m and 150 m on the
+  // way. The dispersion's own sigma inputs have been debounced for exactly this reason since they
+  // were added; the launch conditions reach the same panels through the same kind of field.
+  const ballisticConditionsKey = useSettled(ballisticConditionsKeyLive, ballisticConditionsKeyLive);
 
   // The variables this design can sweep: its geometry (each ranged around its own value) plus nose
   // ballast (0 → a mass-relative max), which any flyable design can take.

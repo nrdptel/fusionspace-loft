@@ -346,3 +346,30 @@ export function clearSession(): void {
     // as above
   }
 }
+
+
+/** A value that lags its input until the input stops changing.
+ *
+ *  The analysis panels key their cached answer on a VALUE rather than a prop's identity, which stops
+ *  an unrelated re-render throwing minutes of work away. That is not enough for a value the flyer
+ *  TYPES: `Num` calls `onChange` on every keystroke so a digit can be entered one at a time, so
+ *  every intermediate reading is a distinct value and a distinct key. Typing "1500" into the field
+ *  elevation restarted the motor sweep four times — measured as eight `aria-busy` transitions —
+ *  flying every bundled candidate at 1 m, then 15 m, then 150 m, before the field the flyer meant.
+ *  The dispersion's own sigma inputs were debounced for exactly this reason; the launch conditions
+ *  reach the same panels and need the same treatment.
+ *
+ *  Compare by VALUE, not identity: the caller passes a string key, so a rebuilt-but-unchanged object
+ *  does not restart the timer. */
+export function useSettled<T>(value: T, key: string, ms = 350): T {
+  const [settled, setSettled] = useState(value);
+  useEffect(() => {
+    const id = setTimeout(() => setSettled(value), ms);
+    return () => clearTimeout(id);
+    // `value` is CAPTURED, not watched: the effect re-arms on the key, and the value it settles to
+    // is the one from the render where the key last changed — which is the same value. Listing it
+    // would re-arm on a rebuilt-but-identical object, which is the whole thing the key avoids.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key, ms]);
+  return settled;
+}
