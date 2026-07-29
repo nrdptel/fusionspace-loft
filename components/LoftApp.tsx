@@ -40,7 +40,7 @@ import {
   defaultPayloadStation,
 } from "@/lib/model/edit";
 import type { SurfaceFinish, NoseShape, FinCrossSection } from "@/lib/model/types";
-import { designMotorIdentity, swapOptions, type SwapOption } from "@/lib/motors/swap";
+import { designMotorIdentity, swapOptions, swapStillOffered, type SwapOption } from "@/lib/motors/swap";
 import { defaultConditions, type ConditionOverrides } from "@/lib/sim/setup";
 import { fetchConditions, geocode, type WeatherConditions } from "@/lib/weather";
 import {
@@ -138,6 +138,40 @@ function hasActiveEdits(e: Edits): boolean {
   return Object.entries(e).some(([k, v]) => !INERT_EDITS.has(k) && v !== undefined && v !== "");
 }
 
+/** The launch conditions a run is actually flown under: the design file's stored setup, then the
+ *  flyer's own edits on top, then today's weather if that scenario is on.
+ *
+ *  A FUNCTION at module level because more than one surface has to fly the same conditions, and the
+ *  Monte-Carlo dispersion is the one that showed why. It built its own nominal straight from
+ *  `overridesFromStored`, so it flew the FILE's launch setup while the Flight card beside it flew
+ *  the flyer's — and the two numbers a flyer plans a field around are the ones that moved. Measured
+ *  on the 54 mm dual-deploy sample with surface wind set to 20 mph: the Flight card's drift went
+ *  630 m to 1,877 m while the dispersion's recovery radius (95%) stayed at 1,203 m against a true
+ *  2,519 m, and its median drift at 593 m against 1,811 m. A 1,500 m field takes the chance of
+ *  busting a 3,000 m ceiling from 36% to 83%. Two spellings of "what is being flown" is exactly the
+ *  drift this file's other shared helpers exist to prevent. */
+function flownOverrides(
+  document: OrkDocument,
+  e: Edits,
+  wx: WeatherConditions | null,
+  scen: "design" | "today",
+  idx: number,
+): ConditionOverrides {
+  const stored = document.simulations[idx] ?? document.simulations[0];
+  const overrides: ConditionOverrides = stored ? { ...overridesFromStored(stored) } : {};
+  if (e.rodLength !== undefined) overrides.rodLength = e.rodLength;
+  if (e.rodAngleDeg !== undefined) overrides.rodAngleDeg = e.rodAngleDeg;
+  if (e.windSpeed !== undefined) overrides.windSpeed = e.windSpeed;
+  if (e.launchAltitude !== undefined) overrides.launchAltitude = e.launchAltitude;
+  if (scen === "today" && wx) {
+    overrides.atmosphere = wx.atmosphere;
+    overrides.windProfile = wx.windProfile;
+    overrides.launchAltitude = wx.elevationMsl;
+    overrides.windSpeed = wx.surfaceWindMps;
+  }
+  return overrides;
+}
+
 /** Keys that can sit in the edit bag without the design being edited.
  *
  *  `finSetId` says which component the fin fields are POINTED AT, not that anything was changed.
@@ -151,6 +185,27 @@ function hasActiveEdits(e: Edits): boolean {
  *  thing that makes a design edited: wherever the station does matter, the mass beside it is already
  *  set and already counted. */
 const INERT_EDITS = new Set(["finSetId", "payloadStation"]);
+
+/** The swap picker's contents for one stored configuration: which casing to offer motors at, and
+ *  who made the design's own. A FUNCTION rather than an inline memo because two callers need the
+ *  same answer — the picker that renders the options, and the configuration change that has to
+ *  decide whether a swap already chosen still belongs to the run being selected. Two spellings of
+ *  that question would drift, and the drift is invisible: one of them decides what is FLOWN. */
+function swapInfoFor(doc: OrkDocument, simIndex: number): SwapInfo | null {
+  const sim = doc.simulations[simIndex] ?? doc.simulations[0];
+  // The config Loft actually flies — the stored sim's when it names one, otherwise the design's
+  // default (pickConfig, the same resolution the simulator uses). So a design imported without any
+  // stored simulation — a hand-authored or exported file — still offers same-casing swaps.
+  const config = pickConfig(doc.rocket, sim?.conditions.configId);
+  const motor = config?.instances[0]?.motor;
+  if (!motor?.designation) return null;
+  // Which casing to offer swaps at, and who made the design's motor. RockSim and RASAero state no
+  // casing at all, which used to leave this 0 and withhold both surfaces from every design they
+  // write; see `designMotorIdentity` for what stands in and what deliberately does not.
+  const { casingMm: diaMm, manufacturer: designManufacturer } = designMotorIdentity(motor);
+  if (!(diaMm > 0)) return null;
+  return { designMotor: motor.designation, designManufacturer, options: swapOptions(diaMm) };
+}
 
 /** Same-diameter bundled motors the design could fly, with the design's own motor as the default.
  *  Built once per design/config so the picker offers a fitting alternative without editing the file. */
@@ -176,6 +231,13 @@ export default function LoftApp() {
   const [busy, setBusy] = useState(false);
   const [edits, setEdits] = useState<Edits>({});
   const [weather, setWeather] = useState<WeatherConditions | null>(null);
+  /** Bumped once per forecast fetched, and by nothing else. The analysis panels watch the launch
+   *  conditions by VALUE, and a forecast's atmosphere and wind profile are FUNCTIONS — there is no
+   *  value to compare, so a presence flag cannot tell a new forecast from the last one. Re-fetching
+   *  at the same site, or fetching another site at the same elevation, left every key byte-identical
+   *  while the air the flight was flown through was replaced. Air density is the dominant term in a
+   *  ballistic apogee, so the sweeps would have kept the old rows and captioned them as the flyer's. */
+  const [weatherSerial, setWeatherSerial] = useState(0);
   const [scenario, setScenario] = useState<"design" | "today">("design");
   const [simIndex, setSimIndex] = useState(0);
   // Which results workspace a freshly loaded design opens on: an import wants its Flight result up
@@ -209,19 +271,7 @@ export default function LoftApp() {
       idx: number,
     ): { run: FlightRun; baseline: FlightRun | null } => {
       const stored = document.simulations[idx] ?? document.simulations[0];
-      const base: ConditionOverrides = stored ? overridesFromStored(stored) : {};
-      const overrides: ConditionOverrides = { ...base };
-      if (e.rodLength !== undefined) overrides.rodLength = e.rodLength;
-      if (e.rodAngleDeg !== undefined) overrides.rodAngleDeg = e.rodAngleDeg;
-      if (e.windSpeed !== undefined) overrides.windSpeed = e.windSpeed;
-      if (e.launchAltitude !== undefined) overrides.launchAltitude = e.launchAltitude;
-      const usingToday = scen === "today" && wx;
-      if (usingToday) {
-        overrides.atmosphere = wx.atmosphere;
-        overrides.windProfile = wx.windProfile;
-        overrides.launchAltitude = wx.elevationMsl;
-        overrides.windSpeed = wx.surfaceWindMps;
-      }
+      const overrides = flownOverrides(document, e, wx, scen, idx);
       const edited = hasActiveEdits(e) || scen === "today";
       const configId = stored?.conditions.configId;
       const run = runFlight(document.rocket, {
@@ -543,6 +593,13 @@ export default function LoftApp() {
    *  resolved exactly as `makeConditions` resolves them, so what the greyed placeholders advertise is
    *  what the solver flew. Recomputed with the design and the picked configuration because a stored
    *  simulation carries its own rail and wind. */
+  /** The conditions the run in view was flown under, as an overrides object — the same one
+   *  `compute` builds, so the dispersion cannot fly a different setup from the Flight card. */
+  const flownOverridesNow = useMemo(
+    () => (doc ? flownOverrides(doc, edits, weather, scenario, simIndex) : undefined),
+    [doc, edits, weather, scenario, simIndex],
+  );
+
   const flownConditions = useMemo(() => {
     const base = defaultConditions();
     const sim = doc ? (doc.simulations[simIndex] ?? doc.simulations[0]) : undefined;
@@ -597,8 +654,21 @@ export default function LoftApp() {
   const selectConfig = (idx: number) => {
     setSimIndex(idx);
     if (!doc) return;
+    // A motor swap is a choice made against ONE casing, and changing configuration can change the
+    // casing. `swapMotor` applies the swap unconditionally, so a swap chosen for a 38 mm run went on
+    // flying under a 24 mm one — while the picker, rebuilt for the new casing, could no longer show
+    // it and reset itself to blank. Measured on `Punisher Apprentice.ork`, which stores nine
+    // configurations across 24/29/38 mm: swapping the 38 mm H550ST for an H283ST gives 1,068 m,
+    // 36.3:1 and 40 m/s off the rail, and selecting the 24 mm E30T configuration left all three
+    // untouched. That configuration's own numbers are 90 m, 7:1 and 16 m/s. Every figure on the
+    // pad-check surface was a motor the selected configuration cannot take, and the only control
+    // that would have said so was blank. Carry the swap over only where the new configuration still
+    // offers it, which is exactly what the picker is about to show.
+    const keep = swapStillOffered(edits.motorSwap, swapInfoFor(doc, idx)?.options ?? []);
+    const next = keep ? edits : { ...edits, motorSwap: undefined };
+    if (!keep) setEdits(next);
     try {
-      const { run: r, baseline: b } = compute(doc, edits, weather, scenario, idx);
+      const { run: r, baseline: b } = compute(doc, next, weather, scenario, idx);
       setRun(r);
       setBaseline(b);
       setError(null);
@@ -720,22 +790,7 @@ export default function LoftApp() {
 
   // Bundled motors of the same casing diameter as the design's own — the fitting swaps the picker
   // offers. Recomputed only when the design or its selected configuration changes.
-  const swapInfo = useMemo<SwapInfo | null>(() => {
-    if (!doc) return null;
-    const sim = doc.simulations[simIndex] ?? doc.simulations[0];
-    // The config Loft actually flies — the stored sim's when it names one, otherwise the design's
-    // default (pickConfig, the same resolution the simulator uses). So a design imported without any
-    // stored simulation — a hand-authored or exported file — still offers same-casing swaps.
-    const config = pickConfig(doc.rocket, sim?.conditions.configId);
-    const motor = config?.instances[0]?.motor;
-    if (!motor?.designation) return null;
-    // Which casing to offer swaps at, and who made the design's motor. RockSim and RASAero state no
-    // casing at all, which used to leave this 0 and withhold both surfaces from every design they
-    // write; see `designMotorIdentity` for what stands in and what deliberately does not.
-    const { casingMm: diaMm, manufacturer: designManufacturer } = designMotorIdentity(motor);
-    if (!(diaMm > 0)) return null;
-    return { designMotor: motor.designation, designManufacturer, options: swapOptions(diaMm) };
-  }, [doc, simIndex]);
+  const swapInfo = useMemo<SwapInfo | null>(() => (doc ? swapInfoFor(doc, simIndex) : null), [doc, simIndex]);
 
   // The design's own dimensions, shown as the starting points for the builder edits.
   const designDims = useMemo(
@@ -944,8 +999,17 @@ export default function LoftApp() {
             weather={weather}
             scenario={scenario}
             setScenario={(s) => {
+              // Switching TO today overrides the same two edits a fetch does, so it has to drop
+              // them for the same reason — see `onWeather` below, whose comment describes exactly
+              // the state this toggle used to produce. Reproduced: fetch a forecast, switch to As
+              // designed, type 12 m/s, switch back. The box read 12.0, greyed out, while the flight
+              // drifted 794 m on the forecast's wind — the 2,518 m that 12 m/s actually gives was
+              // nowhere on screen. Two paths into the same scenario disagreeing is its own defect.
+              const kept =
+                s === "today" ? { ...edits, windSpeed: undefined, launchAltitude: undefined } : edits;
+              if (s === "today") setEdits(kept);
               setScenario(s);
-              rerun(edits, weather, s);
+              rerun(kept, weather, s);
             }}
             onWeather={(wx) => {
               // Drop the two condition edits today's weather overrides. `compute` applies them and
@@ -957,6 +1021,7 @@ export default function LoftApp() {
               const kept = { ...edits, windSpeed: undefined, launchAltitude: undefined };
               setEdits(kept);
               setWeather(wx);
+              setWeatherSerial((n) => n + 1);
               setScenario("today");
               rerun(kept, wx, "today");
             }}
@@ -970,6 +1035,28 @@ export default function LoftApp() {
               doc={doc}
               loadId={loadSerial}
               units={units}
+              flownOverrides={flownOverridesNow}
+              weatherSerial={weatherSerial}
+              conditions={{
+                // What each panel should SAY about the nominals it flew. One boolean could not:
+                // it made a surface-wind edit flip the two sweeps' captions to "the launch
+                // conditions you set" while every row was bit-identical — those panels fly
+                // ballistic, and `runFlight` zeroes the wind for a ballistic run — and it made a
+                // fetched forecast read as the flyer's own setup while the fields it filled are
+                // greyed out and un-typeable. Each panel asks only about the fields it reads.
+                railEdited: edits.rodLength !== undefined || edits.rodAngleDeg !== undefined,
+                elevationEdited: edits.launchAltitude !== undefined,
+                windEdited: edits.windSpeed !== undefined,
+                today: scenario === "today" && weather !== null,
+                // And when the design specifies nothing, the nominals are Loft's own defaults, not
+                // "the design's own stored launch conditions" — the Conditions panel already says
+                // so in amber on the same page, so claiming otherwise contradicts it a screen away.
+                defaulted:
+                  flownConditions.defaulted.rodLength &&
+                  flownConditions.defaulted.rodAngleDeg &&
+                  flownConditions.defaulted.windSpeed &&
+                  flownConditions.defaulted.launchAltitude,
+              }}
               baseline={baseline}
               simIndex={simIndex}
               ballastKg={edits.ballastKg}
@@ -1582,11 +1669,11 @@ function DesignEditor({
             position blank sits it mid-body), or switch to dual-deploy (set both a main-deploy
             altitude and a drogue diameter — the main then opens low over a drogue that controls the
             fall from apogee, cutting drift) to trim stability, drag, apogee, or landing.
-            It&apos;s a hypothetical change to the design, so the {tool} comparison is hidden while
-            any is set. The geometry fields start from the design&apos;s own dimensions; the motors
-            offered are the bundled ones of the same casing as the one this design already flies —
-            that casing demonstrably fits, which a mount&apos;s stated bore does not establish for
-            every motor that would go in it.
+            It&apos;s a hypothetical change to the design, so the {tool}{" "}
+            comparison is hidden while any is set. The geometry fields start from the design&apos;s
+            own dimensions; the motors offered are the bundled ones of the same casing as the one
+            this design already flies — that casing demonstrably fits, which a mount&apos;s stated
+            bore does not establish for every motor that would go in it.
           </p>
         </div>
   );

@@ -299,6 +299,16 @@ export interface SimulateInput {
   dragScale?: number;
 }
 
+/** The two launch-safety rules of thumb this engine cautions against, exported so the panels that
+ *  cite them in prose check the SAME number. The motor sweep carried its own `TW_RULE_OF_THUMB = 5`
+ *  and its caption named the rail-exit guideline it never applied to a single row — two surfaces
+ *  quoting one rule is how they drift apart.
+ *
+ *  Liftoff thrust-to-weight: the 5:1 minimum commonly taught for high-power rockets. */
+export const LIFTOFF_TWR_GUIDELINE = 5;
+/** Rail-exit velocity: the ~50 ft/s guideline for a stable departure, in m/s. */
+export const RAIL_EXIT_GUIDELINE_MPS = 15.24;
+
 const MAX_TIME = 1200; // s, hard cap
 
 /** Integration step ceiling under recovery. Once a canopy is open the vehicle settles to terminal
@@ -1226,17 +1236,18 @@ function buildWarnings(
         "the rocket's mass.",
       severity: "warning",
     });
-  } else if (ctx.motorsPlaced > 0 && ctx.liftoffTWR > 0 && ctx.liftoffTWR < 5) {
+  } else if (ctx.motorsPlaced > 0 && ctx.liftoffTWR > 0 && ctx.liftoffTWR < LIFTOFF_TWR_GUIDELINE) {
     out.push({
       code: "low-thrust-to-weight",
       message:
-        `Liftoff thrust-to-weight ratio is ${ctx.liftoffTWR.toFixed(1)}:1 — below the 5:1 minimum ` +
+        `Liftoff thrust-to-weight ratio is ${ctx.liftoffTWR.toFixed(1)}:1 — below the ` +
+        `${LIFTOFF_TWR_GUIDELINE}:1 minimum ` +
         "commonly taught for high-power rockets. A low ratio gives a slow, wind-sensitive departure; " +
         "make sure the launch rail is long enough to reach a stable speed, or choose a higher-thrust motor.",
       severity: "caution",
     });
   }
-  if (ctx.railExitV > 0 && ctx.railExitV < 15.24) {
+  if (ctx.railExitV > 0 && ctx.railExitV < RAIL_EXIT_GUIDELINE_MPS) {
     out.push({
       code: "low-rail-exit",
       message: `Rail-exit velocity is ${ctx.railExitV.toFixed(1)} m/s — below the ~50 ft/s (15 m/s) guideline for stable rail departure.`,

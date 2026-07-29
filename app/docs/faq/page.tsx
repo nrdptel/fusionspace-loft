@@ -210,9 +210,12 @@ export default function Faq() {
           The delay column is the burnout-to-apogee time for each motor, so you can see at a glance
           which delay to buy or drill — a faster motor coasts longer and wants a longer one. Any
           active nose-ballast or geometry what-if is applied to every motor, so you&apos;re comparing
-          the design you&apos;re actually looking at. Each row is a ballistic ascent under the
-          design&apos;s stored conditions — estimates to check against the motor&apos;s printed data
-          and your rail, never a go/no-go.
+          the design you&apos;re actually looking at. Each row is a ballistic ascent under the launch
+          conditions in force — the design&apos;s own stored setup, with whatever you have changed
+          under <em>Conditions</em> on top, so shortening your rail moves every rail-exit figure in
+          the table. Surface wind is the one that does not: a ballistic ascent has no recovery to
+          drift, so the rows are identical with it set and unset. These are estimates to check
+          against the motor&apos;s printed data and your rail, never a go/no-go.
         </p>
       </QA>
 
@@ -240,8 +243,9 @@ export default function Faq() {
           around their nominal values, and shows the <em>spread</em> instead of a single number: the
           apogee band you can expect (5th to
           95th percentile), the peak-speed band, and the radius from the pad that contains 95% of the
-          landings — the recovery area to plan for. You set the one-sigma spread on each input, so the
-          answer reflects your own conditions. The physics is the same trusted flight each time; the
+          landings — the recovery area to plan for. It flies the launch conditions in force — the
+          design&apos;s stored setup with whatever you changed under <em>Conditions</em> on top — and
+          you set the one-sigma spread on each input, so the answer reflects your own field. The physics is the same trusted flight each time; the
           only thing that varies is the inputs, so it&apos;s an honest way to see how much your apogee
           and landing point move under real-world variability — a good gut-check against a waiver
           ceiling or a field boundary. Enter your altitude limit and it tells you the fraction of the

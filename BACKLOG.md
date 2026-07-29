@@ -3,6 +3,218 @@
 Rough edges, missing affordances, and ideas too big for one pass — noticed while working,
 not yet done. Newest first. One line each. Anything here is fair game for the next session.
 
+- **RESOLVED this session — the hit-target suite measured HEIGHT only, so a control could pass at
+  34 px wide.** The scan filtered on `r.height >= 44` and never looked at width. Measured on a
+  390x844 phone, three controls were under the project's own stated 44x44 minimum while the suite
+  reported every workspace clean: the parts table's `Type` (37x44) and `Mass` (42x44) sort headers,
+  and the motor sweep's `T:W` (34x44) — the axis a thumb misses along on a row of adjacent columns.
+  The scan now asserts both dimensions, and the three headers take `TOUCH_TARGET_SQUARE`, which
+  existed for exactly this. Both tables already scrolled inside their own `overflow-x-auto`
+  containers (683 px and 410 px of table in a 324 px container), so the 9-10 px this adds costs no
+  layout: neither workspace scrolls the page sideways, and `sm:min-w-0` leaves desktop at 37x16.
+
+- **RESOLVED this session — a payload added inside an assembly the design has weighed was accepted,
+  badged "with your edits", and changed nothing.** A whole-assembly mass override IS the design's
+  statement about the total, so the model is right to hold it and OpenRocket does the same — but
+  nothing said so. Measured on `e2e/fixtures/stage-weighed.ork`: a 1,000 g payload on a 1.4 kg rocket
+  left dry mass **1.234 kg**, liftoff mass **1.436 kg** and apogee **581 m** every one unchanged,
+  while the mass panel wore the edited badge over a table that had not moved. A flyer sizing an
+  av-bay would fly a design 70% lighter than the one on the bench. Three of the 35 corpus designs are
+  this shape (`Dual parachute deployment.ork`, `EscapeVelocity.ork`, `02.Two-stage.ork`). Detected by
+  asking the model rather than walking the tree — mass was added and the total did not move — and the
+  panel now names the reason and points at nose ballast, which is added on top rather than inside.
+  Found by an independent review of the change that introduced the badge.
+
+- **A motor swap on a STAGED design replaces every stage's motor, and the swap picker is built from
+  `instances[0]` alone.** `swapMotor` (`lib/sim/run.ts:102`) rewrites every instance, while
+  `swapInfoFor` derives the offered casing from the first. Measured on `Two stage high power
+  rocket.ork`, configuration "I59WN + I357T": selecting G66-LR puts G66-LR in BOTH stages — the
+  resolution strip reads "G66-LR G66-LR" — and apogee goes **1,354 -> 430 m**. This session's
+  configuration-change guard inherits the same blind spot: a swap that fits the sustainer and not the
+  booster is validated against the sustainer alone. The `!staged` gate that withholds the motor SWEEP
+  for exactly this reason (`ResultsView.tsx:349`) is not on the picker. Pre-existing and already noted
+  further down this file; recorded here with the measurement.
+
+- **RESOLVED this session — wiring the launch conditions into the analysis panels made every
+  KEYSTROKE restart them.** The panels key their cached answer on a value so an unrelated re-render
+  cannot throw minutes of work away; `Num` calls `onChange` on every keystroke so a value can be typed
+  a digit at a time, so each intermediate reading became a distinct key. Measured on the built export:
+  typing `1500` into Field elev. drove **8 aria-busy transitions** on the motor sweep — four full
+  restarts, each flying every bundled 54 mm candidate at 1 m, then 15 m, then 150 m. Settled at 350 ms
+  through a shared `useSettled`, the same treatment the dispersion's own sigma inputs have always had:
+  **2 transitions**, and the panel still lands on the value that was typed. Found by an independent
+  review of the change that introduced it.
+
+- **RESOLVED this session — a NEW forecast could not change any panel's key.** An atmosphere and a
+  wind profile are FUNCTIONS, so they were folded in as a presence flag; re-fetching at the same site,
+  or fetching another site at the same elevation, left every key byte-identical while the air the
+  flight is flown through was replaced. Air density is the dominant term in a ballistic apogee — the
+  sweeps would have kept the old rows and captioned them as the flyer's. A `weatherSerial`, bumped
+  once per fetch and by nothing else, now carries the identity the value comparison cannot.
+
+- **Under today's weather the dispersion has no wind uncertainty at all, and said the opposite.**
+  `windAt` returns `windProfile(altAgl)` and never reads the sampled bearing, so all 300 flights drift
+  on the forecast's own wind: the scatter is one lobe, not a disc over all headings. `/docs/methods`
+  asserted the opposite one sentence after the new paragraph explaining the profile. Both the page and
+  the panel now say which case they are in — but note this is a DISCLOSURE, not a fix: the recovery
+  area under Today is still the spread of one bearing. Sampling a bearing spread around the forecast's
+  own heading would be the real answer and is not done.
+
+- **The RocketPy cross-check flies the FILE's launch conditions while every panel around it flies
+  the flyer's.** `RocketpyCrossCheck.tsx:119` takes `overridesFromStored(sim)` and is never handed
+  `flownOverrides`, though it does honour the design what-ifs (ballast, motor swap, geometry). So
+  with a rail angle or a field elevation typed, the Loft column in that panel is a different flight
+  from the apogee on the Flight card a screen up. Internally the comparison is still apples to
+  apples — both engines fly the stored setup — which is arguably right for a check against the
+  file's own stored results, but nothing on screen says which of the two flights the reader is
+  looking at. Either thread the conditions through or caption it. Not yet measured.
+
+- **A JSX text run that spans a line break loses its LEADING space** — found four shipped instances
+  this session (see RESOLVED below). Worth a lint rule: nothing in the gate catches it, and the
+  source looks correct. The scan that found them reads the built chunks, not the source, because the
+  bug only exists after the transform.
+
+- **RESOLVED this session — the scenario toggle kept a wind edit the flight discards.** `onWeather`
+  drops the two edits a forecast overrides and its comment says exactly why; the toggle reached the
+  same scenario by a different door and did not. Measured in the built export on the 54 mm sample:
+  fetch a forecast, switch to As designed, type 12 m/s, switch back to Today — the box read **12.0**,
+  greyed out, while the flight drifted **794 m** on the forecast's wind, and 12 m/s really does give
+  **2,518 m**. The toggle now clears the same two edits the fetch does, so the two paths into Today
+  agree. Covered by the suite's first weather test, with the forecast and geocoding endpoints stubbed
+  so it is not a network test.
+
+- **RESOLVED this session — one shared "the flyer edited the conditions" flag had panels claiming
+  credit for edits they never read, and called a fetched forecast the flyer's own setup.** Three
+  Analyze panels took a single `conditionsEdited` boolean. Two of them (motor sweep, parameter
+  sweep) fly BALLISTIC, and `runFlight` zeroes the wind for a ballistic run — so a surface-wind edit
+  flipped both captions to "the launch conditions you set" over a table that was bit-identical.
+  Verified in the built export: with wind set to 9 m/s the motor sweep's caption claimed the flyer's
+  conditions two sentences before its own text says "Surface wind is not read at all". The same flag
+  also counted `scenario === "today"` as an edit, though `onWeather` deliberately CLEARS the two
+  edits it overrides and greys both fields — the flyer set none of it — and it let a design that
+  states no launch setup be captioned "the design's own stored launch conditions" while the
+  Conditions panel said in amber, on the same page, that those are Loft's defaults. Replaced with a
+  `ConditionsSource` record and `conditionsPhrase(src, { wind })` in `lib/what-if.ts`, so each panel
+  is asked only about the fields it reads. All five phrasings confirmed in the rendered DOM.
+
+- **RESOLVED this session — four shipped captions were missing a word gap** ("25flights across the
+  range", "the OpenRocketcomparison is hidden", "Delayis the ejection delay", "the stored
+  OpenRocketresults describe"). One cause: a JSX text run that spans a line break loses its LEADING
+  whitespace, so a plain space before a wrapped continuation does not survive the transform even
+  when the space sits mid-line in the source. Found by scanning the built chunks for a rendered
+  value followed immediately by a string opening with a whole lowercase word; fixed with explicit
+  `{" "}`; the scan now returns zero. Each of the four was confirmed broken and then correct in the
+  rendered DOM, the last of them on `Parallel booster staging.ork`, which is a design that actually
+  reaches the withheld-comparison notice.
+
+- **RESOLVED this session — the dispersion study planned for the day the design file was saved, not
+  the flyer's.** `MonteCarlo` built its nominal from `overridesFromStored(sim)` alone, so the four
+  Conditions edits and the whole "Today" scenario never reached it, while the Flight card beside it
+  used them. Measured in the built export on the 54 mm dual-deploy sample, surface wind set to
+  8.9408 m/s (20 mph): the card's drift went **630 -> 1,877 m** while the panel's recovery radius
+  (95%) stayed at **1,203 m** against a true **2,519 m** and its median drift at **593 m** against
+  **1,811 m**; landing speed 6 -> 10 m/s. It did not even reset, because `designKey` carries no
+  condition field. `app/docs/faq` then said "the answer reflects your own conditions", which turned an
+  undisclosed defect into a denied one. Now plumbed through one shared `flownOverrides`, with its OWN
+  conditions key — the shared `designKey` is watched by the two sweeps and the RocketPy cross-check,
+  all of which fly ballistic, and `runFlight` zeroes the wind for a ballistic run, so a wind edit
+  measurably changes nothing in them (apogee 2,941 m at 3 m/s and at 8.94 m/s, identical). The panel
+  now also says whose conditions it flew. An independent headless replica of `monteCarlo` predicted
+  2518.7 m and 1811.1 m before the change was written; the browser measured 2,519 m and 1,811 m.
+
+- **The other three stored-conditions surfaces, measured — one of them makes a promise it breaks.**
+  `MotorSweep.tsx:89`, `ParameterSweep.tsx:152,232` and `RocketpyCrossCheck.tsx:119` all fly
+  `overridesFromStored`. Surface wind is a genuine no-op for all three (`run.ts:135` zeroes it for a
+  ballistic run — apogee 2,941 m at 3 m/s and at 8.94 m/s), but rail length, rail angle and field
+  elevation are not: rail 10 deg moves the ballistic apogee 2,941 -> 2,852 m (-3.0%), elevation 1,500 m
+  -> 3,237 m (+10.1%), and rail length 2.0 -> 1.0 m drops rail-exit velocity **28.2 -> 19.6 m/s**,
+  straight through the ~15 m/s rule of thumb. **The motor sweep is the one that breaks a promise**:
+  its caption invites you to check rail-exit "against your rail" while flying the rail length in the
+  FILE. The parameter sweep discloses its baseline plainly ("under the design's stored conditions"),
+  so it is disclosed rather than denied. The RocketPy cross-check is silent about conditions, but
+  stored is arguably the RIGHT choice there — the panel exists to compare two solvers like-for-like
+  against the file — so its fix is wording, not plumbing.
+
+- **RESOLVED this session — the parts-table caption read "adds up to 0 kg" for a real 1.4-2.0 kg
+  airframe.** The caption stated the SUM OF ITS OWN COLUMN as the design's dry mass; it now states
+  `dryMassProperties`, the same source the Mass & balance panel reads, and names the part no row can
+  carry. Verified in the built export: `Dual parachute deployment.ork` 0 -> **1.361 kg** (all of it
+  whole-stage), `EscapeVelocity.ork` 0 -> **2 kg**, `02.Two-stage.ork` 1.002 -> **2.533 kg** (1.531 kg
+  whole-stage), and the bundled sample unchanged at 0.6 kg with no note. `massByComponent` itself is
+  unchanged and still keyed by component — a stage override belongs to no component and the table is
+  not missing rows, it is missing a row it cannot have. `e2e/fixtures/stage-weighed.ork` was added so
+  CI can exercise the shape at all: no bundled sample or committed fixture carried a stage-level
+  override, and the sample-based test passes with the defect reintroduced. The original entry follows.
+- **The parts-table caption reads "adds up to 0 kg" for a real 1.4-2.0 kg airframe.**
+  `massByComponent` (`lib/sim/mass.ts:407`) keeps only point masses that carry a `componentId`, and a
+  stage-level `<overridemass>` is pushed at `:381` with no `componentId` — so the whole lumped figure
+  is dropped from the total the diagram's caption sums. Reproduced first-hand in the built export with
+  ZERO edits applied: `Dual parachute deployment.ork` renders **"adds up to 0 kg"** beside a Mass &
+  balance panel reading **1.361 kg** (the lumped `Sustainer` is 1.3608 kg), and `EscapeVelocity.ork`
+  **"0 kg"** against **2 kg**. `02.Two-stage.ork` reads 1.002 kg against 2.533 kg — its lumped `Dart`
+  is 1.5309 kg. The caption is reachable: it lives in the Parts `<details>`, which opens on the
+  summary click or on any part click. It is also the caption that points a flyer AT the other panel by
+  name, so the two numbers are read together. Fix by giving the lumped row a home in
+  `massByComponent` rather than dropping it — the panel beside it already labels such a row with the
+  nearest ancestor that carries the override.
+
+- **RESOLVED this session — the stability trim advice described the file's airframe while every
+  number it was solved against came from the edited one.** `StabilityTrimHint` sits inside the same
+  `<section>` as the summary strip and is fed cp, cgLoaded, liftoffMass and refDiameter from the run,
+  but took its two GEOMETRY reads — `noseBallastStation` and `finStationTrim` — off `doc.rocket`.
+  Measured on the 38 mm sample with fin span cut to 20 mm: it advised moving the fin set **193 mm**
+  aft where the edited airframe needs **287 mm**, 49% short, on a number a flyer acts on by moving
+  parts. Body diameter to 76 mm: 78 mm advised against 104 mm correct. A doubled body length comes out
+  identical either way, which is how it survived the work on the panels around it. Related and NOT
+  fixed: `finStationTrim` reads `primaryFinStation(rocket)` with no selected id (`trim.ts:154`), so on
+  a multi-fin-set design it names the frontmost set rather than the selected one — the same defect the
+  fin what-if fields were fixed for in an earlier session.
+
+- **RESOLVED this session — two panels described a rocket the flyer was not editing.** The summary
+  strip's Length read `overallLength(doc.rocket)` while Max diameter, CG, CP and Static margin beside
+  it came from the edited run. Measured on the 38 mm sample: doubling a 700 mm body left Length
+  reading **950 mm** next to a centre of pressure of **1,422 mm** — 472 mm past the length the same
+  line claims. That strip sits above the tabs so an edit's headline effect is legible from any
+  workspace, and overall length is what a flyer checks against a rail, a shipping tube and a waiver
+  form. `MassBreakdown` had the same shape one panel over: fed `doc.rocket` while its sibling
+  `GeometryInspector` got the edited model, so the two panels on one tab disagreed about the same dry
+  mass (**0.6 kg against 0.893 kg**) — while the diagram's caption points at that panel by name for
+  the total and the panel's own caption says these are the masses the simulator flies. Both now take
+  the shown rocket. The e2e test asserts a self-consistency the fix does not have to be known to
+  read: a centre of pressure cannot sit beyond the airframe it is measured on.
+
+- **CORRECTION to two entries below — measured, and neither is reachable on any real file.** The
+  fan-out filed both and adversarial verification confirmed the CODE is wrong in each; driving the
+  corpus says the damage is not.
+  - The RASAero `<Pressure>` guard: `Show-off.CDX1` is the only file whose stated pressure passes
+    `> 0` while being impossible, and that design **shows no flight at all** — its motors (`1/4A2`,
+    `C4`) resolve to nothing, so the 14.7x thin atmosphere reaches no displayed number. A guard here
+    would fire on zero reachable designs. **What IS worth chasing, and is new:** across the 4 RASAero
+    corpus files the only plausible value is `OR vs RAS Test 1`'s **29.53 inHg at a 3,848 ft field**,
+    and `atmosphereForGround` inverts that to a sea-level pressure of **1,137 hPa** — 53 hPa above
+    the highest ever recorded on Earth (1,083.8 hPa, Agata, 1968). Read instead as a sea-level
+    altimeter setting it is an ordinary 1,000 hPa. So RASAero's `<Pressure>` is very likely
+    sea-level-referenced and Loft reads it as the pressure AT the field, flying air ~15% too dense.
+    The two tools' own stored apogees on that design (RASAero 22,376 m, OpenRocket 13,910 m) differ
+    by 60%, so they cannot settle it — this needs the RASAero II documentation, not another sweep.
+  - `sepT = phases[nStages - i]` (`simulate.ts:824`) indexes the phase list positionally, which only
+    holds for a full separation ladder; a collapsed table drops one booster's descent readout and
+    gives the other both boosters' mass. Verified on a synthetic fixture. **No corpus design reaches
+    it**: the only two designs whose phase table collapses are `03.Three-stage.ork` and `Three stage
+    low power rocket.ork`, and both are flagged ballistic — no canopy Loft can see — so the descent
+    loop skips them before the index is used. The correct lookup is `phases.find(p => p.stageCount
+    <= i)?.startTime`, and note the mass then belongs to the whole group that leaves at that instant,
+    not to each stage separately: a serial stack parts at ONE joint.
+
+- **`ejectionTime` is `Infinity`, not `undefined`, for a motor that never ignites**
+  (`setup.ts:221` computes `ignitionTime + burnTime + delay`). `ejectionIsPlugged`
+  (`simulate.ts:1006`) tests `m.ejectionTime !== undefined` and so reads "something on this stage
+  does fire" from a motor that never fires, dropping the plugged-motor warning and letting an
+  `ejection`-triggered chute fall back to apogee. This session's detach fix closes it for an unlit
+  stage that IS shed (its motor now carries a finite detach time and is filtered out); it remains for
+  an unlit stage nothing separates above. One line at the source: a motor with a non-finite ignition
+  time has no ejection time.
+
 - **RESOLVED this session — one unlit motor made the whole flight's burnout `Infinity`, and four
   numbers were read off it.** `setup.ts:212` mints `ignitionTime = Infinity` for a motor whose
   trigger can never arrive (a `burnout` event on the bottom-most stage, with nothing beneath it to
@@ -59,19 +271,61 @@ not yet done. Newest first. One line each. Anything here is fair game for the ne
   - **`meanFinChord` is assigned per fin set, ending as the LAST set walked, while `finThickness` on
     the next line is the MAX across sets** (`lib/sim/aero.ts:451`), so `finThicknessRatio` pairs one
     set's thickness with another set's chord — a ratio belonging to no fin, which changes if the
-    design's sets are reordered without changing the rocket. On `Simulation scripting.ork` (an 8 mm
-    50 mm-root set beside 5 mm 495 mm-root sets) t/c ≈ 0.02 where the thick set's own is 0.16 and the
-    big set's 0.0125 — an 8× error into the fin friction form factor (`1 + 2·t/c`) and the wave-drag
-    term (`2.0·t/c`). `finSweepLength` (last) paired with `finSpan` (max) at `aero.ts:505` is the
-    same defect.
+    design's sets are reordered without changing the rocket. `finSweepLength` (last) paired with
+    `finSpan` (max) at `aero.ts:505` is the same defect.
+
+    **Measured, and an area-weighted fix was built and then REVERTED — read this before rebuilding
+    it.** 13 of the 35 corpus designs carry more than one fin set. The mixed pairing produces
+    `Show-off.CDX1` t/c = **1.00** — a fin as thick as its chord — where both its sets are 0.50, and
+    `Mini Honest John.ork` an **unswept** leading edge (0.0°) where its dominant set sweeps 44.5°,
+    taking the full stagnation drag a swept edge does not pay. `Pods--airframes and winglets.ork`
+    reads t/c 0.122 against an area-weighted 0.046.
+
+    Replacing both with planform-area-weighted means (of t/c, and of cos²Λ rather than of Λ) is
+    exactly value-preserving on the 22 single-set designs, and the corpus medians barely move —
+    timeToApogee **1.7 → 1.5%**, maxMach **2.1 → 2.2%**, every other metric unchanged — because the
+    medians are dominated by designs the change cannot touch. Per design, on the 15 comparable
+    stored simulations, 14 moved: `03.Three-stage.ork` apogee **7.57 → 6.89%** and maxMach 3.98 →
+    3.75%, `Simulation scripting.ork` slightly better on all three, and most others ±0.05. But two
+    regress hard: `Complex.Two-Stage.CDX1` apogee **12.40 → 20.35%** and **4.53 → 11.85%**, and
+    `The Red Hunter.ork` **4.44 → 5.66%** (maxV 1.72 → 2.24%).
+
+    The regression is not a bad average, it is the model underneath. `Complex.Two-Stage.CDX1` is a
+    RASAero stress-test carrying six genuinely different sets (chords 1/0.25/1/6/2/4 in, counts
+    3/6/6/5/4/3, per-set t/c 0.20/0.53/0.20/0.025/0.10/0.040) — checked against the raw `<Fin>`
+    nodes, so they are real definitions and not unused template stubs. RASAero models each set on
+    its own; Loft collapses every set into ONE equivalent fin for drag, and no choice of average
+    represents six sets that different. "Last set wins" was not right either — it just happened to
+    land on a sane set on these two files.
+
+    So the honest fix is per-set drag accumulation (each set contributing its own friction form
+    factor and sweep factor over its own wetted area), not a better mean. If a cheaper step is
+    wanted first, the candidate is "the set with the largest planform area supplies BOTH numbers",
+    which at least never yields a ratio belonging to no fin — unmeasured, and it must be run against
+    the same 15 comparable simulations before it goes anywhere near the deploy branch.
+
+- **RESOLVED this session — `npx tsc --noEmit` failed over the whole project** on one untyped
+  `evaluate` callback in `e2e/smoke.spec.ts` (`Property 'labels' does not exist on type
+  'SVGElement | HTMLElement'`). Outside the gate — `npm run lint` and `npm run build` both passed,
+  and neither typechecks the e2e directory — so nothing was broken, but it meant a whole-project
+  typecheck was not a check anyone could run. Typing the callback `HTMLInputElement` clears it, and
+  `tsc --noEmit` now exits 0 across the repo. Found while checking an unrelated change had not
+  introduced one, which is the only reason it was noticed at all: consider adding it to the gate.
   - **RASAero recovery `<Size1>`/`<Size2>` are read as canopy diameter in FEET with no bound.**
     `Complex.Two-Stage.CDX1` states Size1=12, Size2=24 on a 4.06 lb rocket: as feet that is a 7.32 m
     main and a 3.66 m drogue giving **0.94 m/s** under the main. Either the unit is wrong or the
     file is; nothing in the import says which, and no bound catches a canopy four times the rocket's
     length. Related: `planBooster` reads only Booster 1 — `IncludeBooster2`, `Booster2Engine`
     (`Show-off.CDX1` carries `A6Q (QU)`) and friends are read by no code, and the drop is not counted
-    in the `droppedBoosters` warning. And `lib/motors/db.ts:114` has `Q` and `QUEST` but not `QU`,
-    the code RASAero actually writes, so a two-character maker key can never match.
+    in the `droppedBoosters` warning. **The `QU` half of this is RESOLVED this session**: the alias
+    table had `Q` and `QUEST` but not `QU`, the code RASAero actually writes, and a two-letter key
+    that misses the table is not an unknown maker — `sameMaker` refuses to prefix-match under three
+    characters, so it is a DISAGREEING one, and a disagreeing manufacturer vetoes the match at every
+    quality. `resolveMotor({ manufacturer: "QU", designation: "C12" })` returned **null** against
+    six bundled Quest motors: no motor, so no flight. Note the honest limit — the only `(QU)` in the
+    corpus is `Show-off.CDX1`'s `Booster2Engine`, and both its `IncludeBooster2` flags are `False`,
+    so no corpus flight reaches it and the fix is verified at unit level only. The rest of this
+    entry (Booster 2 read by no code, `<Size1>`/`<Size2>` unbounded) still stands.
   - **The Monte-Carlo flies the file's stored launch setup, not the flyer's.** `MonteCarlo.tsx:153`
     uses `overridesFromStored(sim)` only, so Conditions edits and the "Today" scenario are absent
     from its nominal while the Flight card's drift uses them. Set surface wind to 20 mph: the Flight
@@ -93,14 +347,21 @@ not yet done. Newest first. One line each. Anything here is fair game for the ne
     (`ResultsView.tsx:862`); `MassBreakdown` is fed `doc.rocket` while its sibling `GeometryInspector`
     gets `shownRocket` (`ResultsView.tsx:657`), and the Geometry caption points AT the stale panel by
     name while MassBreakdown claims "the same per-part masses the simulator flies".
-  - **The motor sweep flags two launch-safety rules and stays silent on the third.** Rail exit
-    renders unflagged (`MotorSweep.tsx:314`) though the panel's own footnote names the ~15 m/s rule
-    and the Flight tab raises a caution for it. Neither sweep row carries Mach or
-    `extrapolatedTransonic` (`lib/sim/sweep.ts:82`), so the transonic candidate — the one a flyer is
-    tempted by, because the table sorts apogee-descending — presents as confidently as a subsonic
-    one, against `app/docs/page.tsx:52`'s promise to warn. Both existing flags are colour + a `title`
-    on a non-focusable `<td>`: no hover on a phone, nothing for a screen reader (WCAG 1.4.1), and the
-    flutter threshold appears in the tooltip string and in no visible copy.
+  - **PARTLY RESOLVED this session — the motor sweep's launch-safety flags.** Rail exit rendered
+    unflagged though the panel's own caption named the ~15 m/s rule and the Flight tab raised a
+    caution for it; it is checked now, against the SAME threshold, which is one exported constant
+    (`RAIL_EXIT_GUIDELINE_MPS`, with `LIFTOFF_TWR_GUIDELINE` beside it) rather than a literal in the
+    engine and a second copy in the panel. So a motor can no longer pass unmarked here and caution
+    once picked. Both existing flags were colour plus a `title` on a non-focusable `<td>` — no hover
+    on a phone, unreachable by keyboard, nothing for a screen reader (WCAG 1.4.1), the whole signal
+    in one colour channel — and are now a glyph plus an `sr-only` sentence in the row. The Delay
+    column's per-row tooltip went too: it repeated one fact about the COLUMN on every row in an
+    attribute nothing announces, and the caption already says it once.
+
+    **Still open in this entry:** neither sweep row carries Mach or `extrapolatedTransonic`
+    (`lib/sim/sweep.ts:82`), so the transonic candidate — the one a flyer is tempted by, because the
+    table sorts apogee-descending — still presents as confidently as a subsonic one, against
+    `app/docs/page.tsx:52`'s promise to warn. That is the larger half and is untouched.
   - **`.prose-loft table { display: block }`** (`app/globals.css:193`) drops every docs table out of
     the accessibility tree as a table, so `/docs/validation` — the page carrying Loft's own accuracy
     claims — reads as a flat run of numbers with no column names, in a scroll container with no
@@ -202,6 +463,17 @@ not yet done. Newest first. One line each. Anything here is fair game for the ne
   from the other side", which names the gap without closing it, and drift bearing is what sizes a
   recovery walk. Nothing here is wrong; it is a surface that stops short of the model behind it.
 
+- **RESOLVED this session — the footer's navigation links were 16 px tall on a phone.** They are
+  `<nav>` links, not words in a sentence, so the WCAG "inline in a block of text" exemption never
+  covered them — and the hit-target suite excluded the whole footer on exactly that reasoning, which
+  is why the region was never reached. Re-measured on a 390x844 phone with a design loaded: GitHub,
+  Docs, Motor Finder, Charge, Window and Muster now all **44 px tall**, the "A Fusion Space project"
+  link 358x20 -> **358x44**, and desktop unchanged at 16 px because `TOUCH_TARGET` releases at `sm:`.
+  The footer's PROSE credits (ThrustCurve.org, OpenRocket, ADA.gov) are deliberately left at 16 px —
+  they sit inside sentences — and the new test asserts that too, so the line is drawn by structure
+  rather than by region. A fresh phone walk of the whole app now reads: Flight **7 of 34** operable
+  controls under 44 px (was 13), Design 8 of 83 (was 14), Analyze 7 of 37 (was 13); 0 px horizontal
+  overflow everywhere; depths 5.5 / 4.5 / 3.5 screens. The original entry follows.
 - **The footer's links are 16 px tall on a phone.** Measured on a 390x664 viewport with a design
   loaded: 13 interactive elements clear no 44 px minimum, and 5 of them are the footer's own links
   (GitHub 16x60, Docs 16x28, Motor Finder 16x71, Charge 16x40, Window 16x44). The header, tabs, unit

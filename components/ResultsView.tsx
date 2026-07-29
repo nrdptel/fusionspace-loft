@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { Tabs } from "./ui";
 import type { FlightRun } from "@/lib/sim/run";
+import type { ConditionOverrides } from "@/lib/sim/setup";
+import type { ConditionsSource } from "@/lib/what-if";
 import { applyGeometryEdits, hasGeometryEdits, primaryFinGroupIds, type GeometryEdits } from "@/lib/model/edit";
 import { designKey } from "@/lib/model/design-key";
 import { formatLabel, sourceTool, type OrkDocument } from "@/lib/ork/import";
@@ -28,6 +30,8 @@ import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
 import { impulseClass } from "@/lib/motors/eng";
 import { overallLength } from "@/lib/model/geometry";
+import { dryMassProperties } from "@/lib/sim/mass";
+import type { Rocket } from "@/lib/model/types";
 import { noseBallastStation, configChoices } from "@/lib/sim/run";
 import { motorLayout } from "@/lib/sim/setup";
 import { marginTrim, finStationTrim } from "@/lib/sim/trim";
@@ -138,6 +142,9 @@ export default function ResultsView({
   doc,
   loadId,
   units,
+  flownOverrides,
+  weatherSerial,
+  conditions,
   baseline,
   simIndex = 0,
   ballastKg,
@@ -160,6 +167,18 @@ export default function ResultsView({
    *  the rocket (the name) has to stay out of it. */
   loadId: string | number;
   units: UnitSystem;
+  /** The launch conditions the run in view was flown under — the design file's stored setup with the
+   *  flyer's Conditions edits and today's weather folded in, exactly as the Flight card flew them.
+   *  The dispersion study built its own nominal from the file alone, so it answered for a different
+   *  day: on the 54 mm sample at 20 mph its recovery radius stayed 1,203 m against a true 2,519 m. */
+  flownOverrides?: ConditionOverrides;
+  /** Bumped once per forecast fetched. The panels compare conditions by value, and a forecast's
+   *  atmosphere and wind profile are functions with no value to compare — this is what lets a key
+   *  see that the air changed. */
+  weatherSerial?: number;
+  /** Where each launch condition came from, so each panel names what IT flew rather than sharing one
+   *  flag with panels that read different fields. */
+  conditions?: ConditionsSource;
   /** When a design what-if (nose ballast / motor swap) is active, the same flight without that
    *  change under identical conditions — so the results can show what the change bought. */
   baseline?: FlightRun | null;
@@ -354,6 +373,19 @@ export default function ResultsView({
   // the most useful one there is.
   const canSweepMotors = !staged && !!swapOptions && swapOptions.length > 1;
   const shownRocket = editing ? applyGeometryEdits(doc.rocket, geometry) : doc.rocket;
+  // A design can state its weight as a whole-assembly override, and a part added INSIDE that
+  // assembly then weighs nothing — the override IS the design's statement about the total, so the
+  // model is right to hold it. What was wrong is that nothing said so. Measured on a design weighed
+  // by the stage: a 1,000 g payload on a 1.4 kg rocket left dry mass 1.234 kg, liftoff mass 1.436 kg
+  // and apogee 581 m every one unchanged, while the panel wore a "with your edits" badge over a
+  // table that had not moved. Three of the 35 corpus designs are that shape. Detected by asking the
+  // model rather than by inspecting the tree: mass was added, and the total did not move.
+  // Only edits that can ADD structure. A main-chute resize was in this list and can shrink one, so
+  // trimming a canopy on an overridden design popped a notice saying the mass "you added" had been
+  // absorbed — for a change that removed mass.
+  const addsMass = (geometry?.payloadMassKg ?? 0) > 0 || (geometry?.drogueDiameter ?? 0) > 0;
+  const massAbsorbed =
+    editing && addsMass && Math.abs(dryMassProperties(shownRocket).mass - dryMassProperties(doc.rocket).mass) < 1e-9;
   // The motor casing(s) the flight flew, for drawing inside the aft body — resolved for the shown
   // design and its (possibly swapped) config, so the picture matches what was flown.
   const shownMotors = run.hasPropulsion ? motorLayout(shownRocket, run.config) : [];
@@ -367,7 +399,7 @@ export default function ResultsView({
         <NoPropulsionNotice run={run} tool={toolName} swapOptions={swapOptions} doc={doc} />
       )}
 
-      <RocketSummary run={run} doc={doc} units={units} geometry={geometry} />
+      <RocketSummary run={run} doc={doc} rocket={shownRocket} units={units} geometry={geometry} />
 
       {r.warnings.length > 0 && (
         <ul className="space-y-2">
@@ -636,7 +668,8 @@ export default function ResultsView({
             <p className="mt-1.5">
               This design contains something Loft flew in simplified form — staging, pods, parallel
               boosters, or a fin type it can&apos;t model (see the warnings above) — so the stored{" "}
-              {toolName} results describe a different flight than the one simulated here. Comparing them
+              {toolName}{" "}
+              results describe a different flight than the one simulated here. Comparing them
               would misstate the engine&apos;s accuracy, so the metric-by-metric comparison is
               withheld — import a design Loft flies complete for a like-for-like check.
             </p>
@@ -667,7 +700,16 @@ export default function ResultsView({
         {designEditor}
 
         {/* Where the dry mass comes from, part by part — transparency into the parsed structure. */}
-        <MassBreakdown rocket={doc.rocket} units={units} />
+        {/* The EDITED rocket, like the diagram above it: this panel was describing the file's
+            airframe while the diagram described the one being edited, and Mass & balance is where a
+            flyer decides how much ballast to add and where.
+
+            It is not what makes the two totals agree, and an earlier version of this comment said
+            it was. `massByComponent` keeps only point masses that carry a component id, so it drops
+            the lumped figure a stage-level mass override emits; the caption above used to SUM it and
+            read "adds up to 0 kg" against a real 1.361 kg airframe. That is fixed one component
+            over, in `GeometryInspector`, by stating `dryMassProperties` instead — not here. */}
+        <MassBreakdown rocket={shownRocket} units={units} edited={editing} massAbsorbed={massAbsorbed} />
       </div>
 
       {/* ANALYZE — the heavier, opt-in tools: an independent second solver, and design-space sweeps. */}
@@ -718,6 +760,9 @@ export default function ResultsView({
       {canSweepMotors && (
         <MotorSweep
           designKey={dkey}
+          flownOverrides={flownOverrides}
+          weatherSerial={weatherSerial}
+          conditions={conditions}
           doc={doc}
           simIndex={simIndex}
           units={units}
@@ -735,6 +780,9 @@ export default function ResultsView({
       {!staged && run.hasPropulsion && (
         <ParameterSweep
           designKey={dkey}
+          flownOverrides={flownOverrides}
+          weatherSerial={weatherSerial}
+          conditions={conditions}
           doc={doc}
           simIndex={simIndex}
           units={units}
@@ -751,6 +799,9 @@ export default function ResultsView({
       {run.hasPropulsion && (
         <MonteCarlo
           designKey={dkey}
+          flownOverrides={flownOverrides}
+          weatherSerial={weatherSerial}
+          conditions={conditions}
           doc={doc}
           simIndex={simIndex}
           units={units}
@@ -863,16 +914,24 @@ const FIN_FIELDS_NOUN = "The Design workspace's fin fields";
 function RocketSummary({
   run,
   doc,
+  rocket,
   units,
   geometry,
 }: {
   run: FlightRun;
   doc: OrkDocument;
+  /** The rocket the run describes — the EDITED one while a geometry what-if is set. Every other
+   *  figure in this strip already comes from the run, so reading length off `doc.rocket` made one
+   *  cell quietly describe a different rocket: doubling a 700 mm body left "950 mm" beside a centre
+   *  of pressure of 1,422 mm, which is 472 mm past the length the same line claims. This strip sits
+   *  above the tabs so a design edit's headline effect is legible from any workspace, and overall
+   *  length is what a flyer checks against a rail, a shipping tube and a waiver form. */
+  rocket: Rocket;
   units: UnitSystem;
   geometry?: GeometryEdits;
 }) {
   const r = run.result;
-  const length = overallLength(doc.rocket);
+  const length = overallLength(rocket);
   const dia = r.stability.refRadius * 2;
   return (
     <section className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900/40">
@@ -944,7 +1003,7 @@ function RocketSummary({
         )}
       </dl>
 
-      <StabilityTrimHint run={run} doc={doc} units={units} />
+      <StabilityTrimHint run={run} rocket={rocket} units={units} />
       <FlutterFixHint run={run} doc={doc} units={units} geometry={geometry} />
     </section>
   );
@@ -1009,11 +1068,18 @@ function FlutterFixHint({
  *  sweeps: the sweeps plot the whole curve, these answer the one question a flyer actually asks. */
 function StabilityTrimHint({
   run,
-  doc,
+  rocket,
   units,
 }: {
   run: FlightRun;
-  doc: OrkDocument;
+  /** The EDITED rocket, like the strip it sits under. Both goal-seeks are geometry reads — the nose
+   *  station ballast would sit at, and the fin group's own position — and they were taken off the
+   *  design FILE while the margin, mass and reference diameter they are solved against came from the
+   *  edited run. On the 38 mm sample with fin span cut to 20 mm the hint said "move the fin set about
+   *  193 mm aft" where the edited airframe needs 287 mm — 49% short, on a number a flyer acts on by
+   *  moving parts. A doubled body length happens to come out identical, which is why the staleness
+   *  survived the surrounding work: the edit that exposes it is not the one anybody tried. */
+  rocket: Rocket;
   units: UnitSystem;
 }) {
   const r = run.result;
@@ -1024,7 +1090,7 @@ function StabilityTrimHint({
       cgLoaded: r.cgLoaded,
       loadedMass: r.liftoffMass,
       refDiameter: refD,
-      noseStation: noseBallastStation(doc.rocket),
+      noseStation: noseBallastStation(rocket),
     },
     TRIM_TARGET_CAL,
   );
@@ -1036,7 +1102,7 @@ function StabilityTrimHint({
 
   // Thin margin: name the nose ballast, and the weight-free fin-aft move that reaches the same target.
   if (!trim.alreadyMet) {
-    const fin = finStationTrim(doc.rocket, trim.currentMarginCal, r.liftoffMass, refD, TRIM_TARGET_CAL);
+    const fin = finStationTrim(rocket, trim.currentMarginCal, r.liftoffMass, refD, TRIM_TARGET_CAL);
     const finAft =
       fin && fin.feasible && fin.shiftM > 0 ? (
         <> Or move the fin set about {d.q(d.lengthMm(fin.shiftM, units))} aft — weight-free — for the same margin.</>
@@ -1064,7 +1130,7 @@ function StabilityTrimHint({
 
   // Over-stable: the one case nose ballast can't fix — name the fin-forward move that eases it.
   if (trim.currentMarginCal > OVER_STABLE_CAL) {
-    const fin = finStationTrim(doc.rocket, trim.currentMarginCal, r.liftoffMass, refD, OVER_STABLE_TARGET_CAL);
+    const fin = finStationTrim(rocket, trim.currentMarginCal, r.liftoffMass, refD, OVER_STABLE_TARGET_CAL);
     if (fin && fin.feasible && fin.shiftM < 0) {
       return (
         <p className={box}>

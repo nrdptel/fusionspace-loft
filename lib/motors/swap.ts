@@ -23,6 +23,36 @@ function makerOf(entry: MotorDbEntry): string {
   return entry.manufacturer ?? entry.curve.manufacturer ?? "";
 }
 
+/** Does a motor swap already chosen still belong to the configuration being selected?
+ *
+ *  A swap is a choice made against ONE casing, and a design's stored configurations can span
+ *  several. `swapMotor` applies whatever swap is in the edit bag unconditionally, so without this a
+ *  swap chosen for a 38 mm run went on flying under a 24 mm one — while the picker, rebuilt for the
+ *  new casing, could not render it and reset itself to blank. Measured on the corpus design that
+ *  stores nine configurations across 24/29/38 mm: 1,068 m, 36.3:1 and 40 m/s off the rail carried
+ *  over onto a configuration whose own figures are 90 m, 7:1 and 16 m/s.
+ *
+ *  An undefined swap is trivially still valid — there is nothing to carry over.
+ *
+ *  A swap that names NO manufacturer is dropped, and that is deliberate. It is tempting to match it
+ *  on designation alone, but the picker cannot: its `<select>` value is `${manufacturer ?? ""}|
+ *  ${designation}` while every option's is `${o.manufacturer}|${o.designation}`, so a
+ *  manufacturer-less swap composes to `|F67W`, matches no option and renders blank. Keeping such a
+ *  swap would preserve precisely the state this function exists to end — a motor being flown with
+ *  the one control that names it showing nothing — only now on purpose. The pair is reachable: a
+ *  session blob is restored as unvalidated JSON, so a stored edit can arrive without a maker.
+ *
+ *  It also tells two makers' same-designation motors apart, which is the trap the sweep's DESIGN
+ *  badge hit: a bare designation match cannot tell an Estes C6 from a Quest C6. */
+export function swapStillOffered(
+  swap: { manufacturer?: string; designation: string } | undefined,
+  options: SwapOption[],
+): boolean {
+  if (swap === undefined) return true;
+  if (swap.manufacturer === undefined) return false;
+  return options.some((o) => o.designation === swap.designation && o.manufacturer === swap.manufacturer);
+}
+
 /** Every bundled motor of the given casing, weakest total impulse first. */
 export function swapOptions(casingMm: number): SwapOption[] {
   if (!(casingMm > 0)) return [];

@@ -3055,6 +3055,435 @@ test.describe("Loft", () => {
     await expect(page.getByRole("region", { name: /comparison unavailable/i })).toHaveCount(0);
   });
 
+  test("the summary strip and the mass panel describe the rocket that was edited", async ({ page }) => {
+    // Two panels were reading the design straight off the FILE while everything beside them came
+    // from the edited run.
+    //   · The summary strip's Length used `doc.rocket`, so doubling a 700 mm body left it reading
+    //     950 mm next to a centre of pressure of 1,422 mm — 472 mm past the length the same line
+    //     claims. That strip sits above the tabs so an edit's headline effect is legible from any
+    //     workspace, and overall length is what a flyer checks against a rail and a waiver form.
+    //   · Mass & balance was fed `doc.rocket` while the diagram above it got the edited model, so
+    //     the two panels on one tab disagreed about the same dry mass — 0.6 kg against 0.893 kg —
+    //     while the diagram's caption points at this panel by name for the total.
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+
+    const strip = async () => {
+      const t = (await page.locator("body").innerText()).replace(/−/g, "-");
+      const g = (re: RegExp) => (t.match(re) ?? [, "-"])[1]!.trim();
+      return {
+        length: g(/(?:^|\n)Length\n([^\n]*)/i),
+        cp: g(/(?:^|\n)CP\n([^\n]*)/i),
+        dry: g(/dry\s+([\d.,]+\s*\S+)/i),
+      };
+    };
+    // Read both on the Design tab: the strip sits above the tabs and is always visible, but Mass &
+    // balance is inside the Design panel, and `innerText` skips a `hidden` subtree entirely.
+    await page.getByRole("tab", { name: "Design" }).click();
+    const before = await strip();
+    expect(before.length).not.toBe("-");
+    expect(before.dry).not.toBe("-");
+    // The CP capture underpins the self-consistency assertion below, and a missed capture yields
+    // "-", which parses to 0 and would make that assertion pass on any length at all.
+    expect(before.cp).not.toBe("-");
+
+    const body = page.locator("label").filter({ hasText: /Body length/ }).first().locator("input");
+    const design = Number(await body.getAttribute("placeholder"));
+    expect(design).toBeGreaterThan(0);
+    await body.fill(String(design * 2));
+    await body.press("Enter");
+    await body.blur();
+
+    await expect(async () => {
+      const after = await strip();
+      // The length followed the edit...
+      expect(after.length).not.toBe(before.length);
+      // ...and the two panels no longer describe different rockets.
+      expect(after.dry).not.toBe(before.dry);
+      // Self-consistency, which is what made the stale cell visible without knowing the fix: a
+      // centre of pressure cannot sit beyond the airframe it is measured on. Both cells have to be
+      // read for this to mean anything — a missed capture is "-", which parses to 0 and would make
+      // the comparison trivially true whatever the length said.
+      expect(after.cp).not.toBe("-");
+      const mm = (s: string) => Number(s.replace(/[^\d.]/g, ""));
+      expect(mm(after.cp)).toBeGreaterThan(0);
+      expect(mm(after.length)).toBeGreaterThanOrEqual(mm(after.cp));
+    }).toPass({ timeout: 20_000 });
+  });
+
+  test("the parts table's stated dry mass is the design's, and matches the panel beside it", async ({
+    page,
+  }) => {
+    // The caption used to state the SUM OF ITS OWN COLUMN as the design's dry mass. That column is
+    // keyed by component, and a design can state its weight as a whole-STAGE figure that belongs to
+    // no component — so every part reads 0 g "counted in <stage>" and the caption read "adds up to
+    // 0 kg" for a real airframe. Measured on two corpus designs with no edits: 0 kg against 1.361 kg
+    // and 0 kg against 2 kg, each beside a Mass & balance panel stating the true figure.
+    //
+    // No committed fixture carries a stage-level override, so the unit tests pin the gap between the
+    // two functions and this asserts the property that made it visible: the two panels, which point
+    // at each other by name, state the same number.
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    await page.getByRole("tab", { name: "Design" }).click();
+
+    // Both captions live inside disclosures; `innerText` skips a closed one entirely.
+    const details = page.locator("details");
+    for (let i = 0; i < (await details.count()); i++) {
+      const d = details.nth(i);
+      if (!(await d.evaluate((el: HTMLDetailsElement) => el.open))) await d.locator("summary").first().click();
+    }
+
+    const text = (await page.locator("body").innerText()).replace(/\s+/g, " ");
+    const caption = text.match(/dry mass is ([\d.,]+\s*[a-z]+)/i);
+    const panel = text.match(/Mass & balance · dry ([\d.,]+\s*[a-z]+)/i);
+    expect(caption, "the parts table states a dry mass").not.toBeNull();
+    expect(panel, "the mass panel states a dry mass").not.toBeNull();
+    expect(Number(caption![1].replace(/[^\d.]/g, ""))).toBeGreaterThan(0);
+    expect(caption![1]).toBe(panel![1]);
+    // This sample states no whole-stage figure, so the caption must NOT claim one — the note is the
+    // half that only appears where it is true.
+    expect(text).not.toMatch(/stated in the design as a whole-stage figure/);
+  });
+
+  test("a design weighed by the stage still states its mass, and says no row can carry it", async ({
+    page,
+  }) => {
+    // The case no bundled sample has: a design whose weight is stated as a whole-STAGE override.
+    // `massByComponent` is keyed by component, so every part correctly reads 0 g "counted in
+    // Sustainer" — and the caption, which summed that column, read "adds up to 0 kg". Measured on
+    // two real corpus designs before the fix: 0 kg against 1.361 kg, and 0 kg against 2 kg.
+    // `e2e/fixtures/stage-weighed.ork` is the bundled single-deploy design with a 1.234 kg
+    // whole-stage weight added, which is exactly the shape those two files have.
+    await page.goto("/");
+    await page
+      .locator('input[type="file"]')
+      .first()
+      .setInputFiles(resolve(process.cwd(), "e2e/fixtures/stage-weighed.ork"));
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    await page.getByRole("tab", { name: "Design" }).click();
+
+    const details = page.locator("details");
+    for (let i = 0; i < (await details.count()); i++) {
+      const d = details.nth(i);
+      if (!(await d.evaluate((el: HTMLDetailsElement) => el.open))) await d.locator("summary").first().click();
+    }
+    const text = (await page.locator("body").innerText()).replace(/\s+/g, " ");
+
+    // The design's stated weight, not the sum of a column that cannot hold it.
+    const caption = text.match(/dry mass is ([\d.,]+\s*[a-z]+)/i);
+    expect(caption).not.toBeNull();
+    expect(Number(caption![1].replace(/[^\d.]/g, ""))).toBeCloseTo(1.234, 2);
+    // And it says why no row adds up to it, rather than leaving a table of zeros unexplained.
+    expect(text).toMatch(/stated in the design as a whole-stage figure/);
+    // The panel it points at by name agrees.
+    const panel = text.match(/Mass & balance · dry ([\d.,]+\s*[a-z]+)/i);
+    expect(panel).not.toBeNull();
+    expect(caption![1]).toBe(panel![1]);
+  });
+
+  test("a payload the design's own override swallows says so, instead of looking applied", async ({
+    page,
+  }) => {
+    // A design can state its weight as a whole-assembly override, and a part added INSIDE that
+    // assembly then weighs nothing — the override IS the design's statement about the total, so the
+    // model is right to hold it. What was wrong is that nothing said so. Measured on this fixture: a
+    // 1,000 g payload on a 1.4 kg rocket left dry mass 1.234 kg, liftoff mass 1.436 kg and apogee
+    // 581 m every one unchanged, while the mass panel wore a "with your edits" badge over a table
+    // that had not moved. A flyer sizing an av-bay would fly a design 70% lighter than the one on
+    // the bench. Three of the 35 corpus designs are this shape.
+    await page.goto("/");
+    await page
+      .locator('input[type="file"]')
+      .first()
+      .setInputFiles(resolve(process.cwd(), "e2e/fixtures/stage-weighed.ork"));
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    await page.getByRole("tab", { name: "Design" }).click();
+    const details = page.locator("details");
+    for (let i = 0; i < (await details.count()); i++) {
+      const d = details.nth(i);
+      if (!(await d.evaluate((el: HTMLDetailsElement) => el.open))) await d.locator("summary").first().click();
+    }
+
+    const dry = async () => ((await page.locator("body").innerText()).match(/dry ([\d.,]+\s*[a-z]+)/i) ?? [])[1];
+    const before = await dry();
+    expect(before).toBeTruthy();
+    await expect(page.getByText(/mass you added is inside an assembly/)).toHaveCount(0);
+
+    const payload = page.locator("label").filter({ hasText: /^Payload \(/ }).first().locator("input");
+    await payload.fill("1000");
+    await payload.press("Enter");
+    await payload.blur();
+
+    await expect(async () => {
+      // The total genuinely does not move — that is the design's own override, not a bug...
+      expect(await dry()).toBe(before);
+      // ...and the panel where mass is read now says why, rather than badging an unchanged table.
+      await expect(page.getByText(/mass you added is inside an assembly/)).toBeVisible();
+    }).toPass({ timeout: 20_000 });
+  });
+
+  test("a payload the design does NOT override lands, with no such note", async ({ page }) => {
+    // The control for the test above. Same gesture on a design that states no whole-assembly weight:
+    // the kilogram must land, and the note must stay away.
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    await page.getByRole("tab", { name: "Design" }).click();
+    const details = page.locator("details");
+    for (let i = 0; i < (await details.count()); i++) {
+      const d = details.nth(i);
+      if (!(await d.evaluate((el: HTMLDetailsElement) => el.open))) await d.locator("summary").first().click();
+    }
+    const dry = async () => ((await page.locator("body").innerText()).match(/dry ([\d.,]+\s*[a-z]+)/i) ?? [])[1];
+    const before = await dry();
+
+    const payload = page.locator("label").filter({ hasText: /^Payload \(/ }).first().locator("input");
+    await payload.fill("1000");
+    await payload.press("Enter");
+    await payload.blur();
+
+    await expect(async () => {
+      expect(await dry()).not.toBe(before);
+      await expect(page.getByText(/mass you added is inside an assembly/)).toHaveCount(0);
+    }).toPass({ timeout: 20_000 });
+  });
+
+  test("the stability trim advice is for the edited airframe, not the file's", async ({ page }) => {
+    // `StabilityTrimHint` sits inside the same section as the summary strip and is fed the edited
+    // run's margin, mass and reference diameter — but took its two GEOMETRY reads, the nose station
+    // and the fin group's own position, off the design file. On the 38 mm sample with fin span cut
+    // to 20 mm it advised moving the fin set about 193 mm aft where the edited airframe needs
+    // 287 mm: 49% short, on a number a flyer acts on by moving parts.
+    //
+    // The edit matters. A doubled body length comes out identical either way, which is how this
+    // survived the work on the panels around it — the edit that exposes it is not the one anybody
+    // tried. Cutting the fin span is.
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+
+    const finMove = async () => {
+      const t = (await page.locator("body").innerText()).replace(/\s+/g, " ");
+      const m = t.match(/move the fin set about ([\d.,]+)\s*(mm|in)/i);
+      return m ? m[1] : null;
+    };
+    await page.getByRole("tab", { name: "Design" }).click();
+    const span = page.locator("label").filter({ hasText: /Fin span/ }).first().locator("input");
+    const design = Number(await span.getAttribute("placeholder"));
+    expect(design).toBeGreaterThan(20);
+
+    await span.fill("20");
+    await span.press("Enter");
+    await span.blur();
+
+    await expect(async () => {
+      const moved = await finMove();
+      expect(moved).not.toBeNull();
+      // The advice for the edited airframe. The file's own rocket asks for a visibly smaller move,
+      // so any figure at or below it means the hint is still describing the design as imported.
+      expect(Number(moved!.replace(/,/g, ""))).toBeGreaterThan(200);
+    }).toPass({ timeout: 20_000 });
+  });
+
+  test("the dispersion plans for the flyer's field, not the one in the file", async ({ page }) => {
+    // The study built its nominal from `overridesFromStored` alone, so it answered for the day the
+    // design file was saved while the Flight card beside it answered for the flyer's. Measured on
+    // this sample with surface wind set to 8.94 m/s: the card's drift went 630 m → 1,877 m while the
+    // recovery radius (95%) stayed at 1,203 m against a true 2,519 m and the median drift at 593 m
+    // against 1,811 m. Those are the two numbers a flyer sizes a field and a recovery walk against,
+    // and the FAQ said in as many words that they reflected the flyer's own conditions.
+    test.setTimeout(180_000);
+    await page.goto("/");
+    await page.getByRole("button", { name: /54 mm dual-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+
+    const mc = page.getByRole("region", { name: "Monte-Carlo dispersion" });
+    const radius = async () => {
+      const t = (await mc.innerText()).replace(/\s+/g, " ");
+      const m = t.match(/RECOVERY RADIUS \(95%\)\s*([\d,]+)/i);
+      return m ? Number(m[1].replace(/,/g, "")) : null;
+    };
+    const settle = async () => {
+      await page.waitForFunction(() => !/Refining/.test(document.body.innerText), null, { timeout: 150_000 });
+    };
+
+    await page.getByRole("tab", { name: "Analyze" }).click();
+    await mc.getByRole("button", { name: /Run dispersion/i }).click();
+    await settle();
+    const asDesigned = await radius();
+    expect(asDesigned).toBeGreaterThan(0);
+    // It says whose conditions those are, which is the half the FAQ was answering for.
+    await expect(mc).toContainText("the design's stored launch conditions");
+
+    // Now tell it the field is windier than the file says.
+    await page.getByRole("tab", { name: "Flight" }).click();
+    const conditions = page.locator("details").filter({ hasText: "Conditions" }).first();
+    if (!(await conditions.evaluate((el: HTMLDetailsElement) => el.open))) {
+      await conditions.locator("summary").click();
+    }
+    const wind = page.locator("input").and(page.getByLabel(/Surface wind/i)).first();
+    await wind.fill("8.9408");
+    await wind.press("Enter");
+    await wind.blur();
+
+    await page.getByRole("tab", { name: "Analyze" }).click();
+    // Poll the VALUE, not the spinner. The conditions key is debounced, so for the first third of a
+    // second after the last keystroke there is no run in flight to wait for — a "wait until it stops
+    // refining" check passes immediately and reads the previous cloud. Ask for the answer instead.
+    await expect(async () => {
+      // A materially bigger recovery area — the whole point of telling it the truth about the day.
+      expect(await radius()).toBeGreaterThan(asDesigned! * 1.5);
+    }).toPass({ timeout: 150_000 });
+    await expect(mc).toContainText("the launch conditions you set");
+
+    // ...and the panel beside it must NOT say the same thing, because it did not fly it. The motor
+    // sweep is BALLISTIC and `runFlight` zeroes the wind for a ballistic run, so that identical wind
+    // edit moved not one of its rows. A single shared "the flyer edited the conditions" flag had it
+    // crediting the flyer over a bit-identical table — a claim about the numbers that the numbers
+    // did not support. Each panel is asked only about the fields it reads.
+    const motors = page.getByRole("region", { name: "Motor sweep" });
+    await motors.getByRole("button", { name: /Run motor sweep/ }).click();
+    await expect(motors.locator("tbody tr").first()).toBeVisible();
+    await expect(motors).toContainText("the design's stored launch conditions");
+    await expect(motors).not.toContainText("the launch conditions you set");
+  });
+
+  test("the motor sweep checks rail exit against the rail you told it about", async ({ page }) => {
+    // The caption invites exactly this: "Rail-exit velocity and thrust-to-weight are the
+    // launch-safety numbers to check against your rail and the ~5:1 and ~15 m/s rules of thumb."
+    // It was flying the rail length in the FILE. Measured on this sample, halving the rail from the
+    // design's 2.0 m to 1.0 m: the K250W's rail exit goes 19 m/s — over the rule — to 13 m/s, under
+    // it. Apogee is untouched at 4,487 m, because rail length does not change how high it goes.
+    test.setTimeout(150_000);
+    await page.goto("/");
+    await page.getByRole("button", { name: /54 mm dual-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+
+    const sweep = page.getByRole("region", { name: "Motor sweep" });
+    // Every rail-exit cell in the table, which is the third speed column on each row.
+    const railExits = async () => {
+      // Data rows only: the caption below the table also contains "m/s" (it cites the ~15 m/s rule)
+      // but carries no tab-separated cells. Match the number at the START of a cell rather than an
+      // "m/s" at the END — a flagged rail exit now reads "14 m/s▲ — below the ~15 m/s guideline…",
+      // and an end-anchored test silently dropped exactly the rows the flag fires on, which is the
+      // half of the column this test is about.
+      return (await sweep.innerText())
+        .split("\n")
+        .map((l) => l.split("\t").filter((c) => /^[\d.,]+\s*m\/s/.test(c.trim())))
+        .filter((speeds) => speeds.length >= 2)
+        .map((speeds) => Number((speeds[speeds.length - 1].match(/^[\d.,]+/) ?? ["0"])[0].replace(/,/g, "")));
+    };
+
+    await page.getByRole("tab", { name: "Analyze" }).click();
+    await sweep.getByRole("button", { name: /Run motor sweep|Compare fitting motors/i }).first().click();
+    await expect(async () => expect((await railExits()).length).toBeGreaterThan(3)).toPass({ timeout: 90_000 });
+    const onDesignRail = await railExits();
+    await expect(sweep).toContainText("the design's stored launch conditions");
+
+    // Tell it the rail is half as long as the file says.
+    await page.getByRole("tab", { name: "Flight" }).click();
+    const conditions = page.locator("details").filter({ hasText: "Conditions" }).first();
+    if (!(await conditions.evaluate((el: HTMLDetailsElement) => el.open))) {
+      await conditions.locator("summary").click();
+    }
+    const rail = page.locator("input").and(page.getByLabel(/Rail length/i)).first();
+    const designRail = Number(await rail.getAttribute("placeholder"));
+    expect(designRail).toBeGreaterThan(1);
+    await rail.fill("1");
+    await rail.press("Enter");
+    await rail.blur();
+
+    await page.getByRole("tab", { name: "Analyze" }).click();
+    await expect(async () => {
+      const shortened = await railExits();
+      expect(shortened.length).toBe(onDesignRail.length);
+      // Every candidate leaves a shorter rail slower. Asserting on the whole column rather than one
+      // row, so a re-ordering of the table cannot make this pass by accident.
+      for (let i = 0; i < shortened.length; i++) expect(shortened[i]).toBeLessThan(onDesignRail[i]);
+    }).toPass({ timeout: 90_000 });
+    await expect(sweep).toContainText("the launch conditions you set");
+  });
+
+  test("typing a launch condition re-flies the sweep once, not once per digit", async ({ page }) => {
+    // The panels key their cached answer on a VALUE so an unrelated re-render cannot throw minutes
+    // of work away. Wiring the launch conditions into that key broke the guarantee from the other
+    // side: `Num` calls `onChange` on every keystroke so a value can be typed a digit at a time, so
+    // each intermediate reading became a distinct key. Measured before the debounce: typing "1500"
+    // into Field elev. drove EIGHT aria-busy transitions on the motor sweep — four full restarts,
+    // each flying every bundled candidate at 1 m, then 15 m, then 150 m, before the field the flyer
+    // meant. After: two, and the sweep still ends up flying what was typed.
+    test.setTimeout(150_000);
+    await page.goto("/");
+    await page.getByRole("button", { name: /54 mm dual-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+
+    const sweep = page.getByRole("region", { name: "Motor sweep" });
+    await page.getByRole("tab", { name: "Analyze" }).click();
+    await sweep.getByRole("button", { name: /Run/i }).first().click();
+    await sweep.getByRole("table").waitFor({ timeout: 120_000 });
+
+    await page.evaluate(() => {
+      (window as unknown as { __busy: number }).__busy = 0;
+      new MutationObserver((ms) => {
+        for (const m of ms) if (m.attributeName === "aria-busy") (window as unknown as { __busy: number }).__busy++;
+      }).observe(document.querySelector('[aria-label="Motor sweep"]')!, {
+        attributes: true,
+        subtree: true,
+        attributeFilter: ["aria-busy"],
+      });
+    });
+
+    await page.getByRole("tab", { name: "Flight" }).click();
+    const conditions = page.locator("details").filter({ hasText: "Conditions" }).first();
+    if (!(await conditions.evaluate((el: HTMLDetailsElement) => el.open))) {
+      await conditions.locator("summary").click();
+    }
+    const elev = page.locator("input").and(page.getByLabel(/Field elev/i)).first();
+    await elev.click();
+    await elev.type("1500", { delay: 120 });
+    await page.waitForTimeout(4000);
+
+    const restarts = await page.evaluate(() => (window as unknown as { __busy: number }).__busy);
+    // One restart is two transitions (busy on, busy off). Four digits must not mean four restarts.
+    expect(restarts, `aria-busy transitions while typing four digits: ${restarts}`).toBeLessThanOrEqual(4);
+    // ...and the answer it settles on is still the flyer's, not a discarded intermediate.
+    await page.getByRole("tab", { name: "Analyze" }).click();
+    await expect(sweep).toContainText("the launch conditions you set");
+  });
+
+  test("a motor swap survives a configuration change that still offers it", async ({ page }) => {
+    // The wiring half of `swapStillOffered`. The failure it guards needs two configurations of
+    // DIFFERENT casings — on the corpus design that stores nine across 24/29/38 mm, a 38 mm swap
+    // carried onto the 24 mm configuration kept 1,068 m, 36.3:1 and 40 m/s where that configuration's
+    // own numbers are 90 m, 7:1 and 16 m/s, with the picker blank. No committed fixture has two
+    // casings, so the drop path is covered by unit tests and this asserts the other half: a swap the
+    // new configuration DOES offer is carried over rather than thrown away by an over-eager guard.
+    await page.goto("/");
+    await page.getByRole("button", { name: /Motor comparison/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+
+    const config = page.getByLabel(/configuration/i).first();
+    await expect(config).toBeVisible();
+    await page.getByRole("tab", { name: "Design" }).click();
+    const swap = page.getByLabel(/swap motor/i).first();
+    await expect(swap).toBeVisible();
+
+    // Pick a bundled motor (index 0 is "Design motor").
+    await swap.selectOption({ index: 1 });
+    const chosen = await swap.inputValue();
+    expect(chosen).not.toBe("");
+
+    // Both stored configurations here are the same casing, so the choice still applies to the other.
+    await config.selectOption({ index: 1 });
+    await page.getByRole("tab", { name: "Design" }).click();
+    await expect(swap).toHaveValue(chosen);
+    // And it is genuinely being flown, not merely displayed: the design is still an edited one.
+    await expect(page.getByRole("button", { name: "Reset to as-designed" })).toBeVisible();
+  });
+
   test("a refused dispersion says so too, and does not quietly shrink the recovery area", async ({ page }) => {
     // The same defect, one component over and with more riding on it. `NumberField` declared
     // `min={0}` on the input and enforced it nowhere, so a negative ±1σ stayed in the box while
@@ -3109,7 +3538,12 @@ test.describe("Loft", () => {
     await mc.getByRole("button", { name: "Run dispersion" }).click();
     const wind = mc.locator("input").and(mc.getByLabel("Wind speed ±1σ")).first();
     const unitSuffix = async () =>
-      (await wind.evaluate((n) => (n.labels?.[0]?.textContent || "").replace(/\s+/g, " "))).match(/m\/s|mph/)?.[0];
+      // Typed as the input it is: `evaluate`'s node is `SVGElement | HTMLElement`, and `labels`
+      // exists on neither, so an untyped callback here was the one thing in the repo that made
+      // `tsc --noEmit` fail over the whole project.
+      (
+        await wind.evaluate((n: HTMLInputElement) => (n.labels?.[0]?.textContent || "").replace(/\s+/g, " "))
+      ).match(/m\/s|mph/)?.[0];
 
     await expect(wind).toHaveValue("2");
     expect(await unitSuffix()).toBe("m/s");
@@ -3184,5 +3618,120 @@ test.describe("Loft", () => {
     // 3,000 ft is 914 m: the box now says so, and the answer is the same answer.
     await expect(ceiling).toHaveValue("914");
     await expect(chance).toHaveText(imperial);
+  });
+
+  test("the motor sweep's safety flags are readable without a mouse and without colour", async ({ page }) => {
+    // Two of the three rules were flagged by amber text plus a `title` on the `<td>`. A `<td>` takes
+    // no focus, so the tooltip was unreachable by keyboard; a phone has no hover, and this panel's
+    // stated use is a pad check; and a screen reader was told nothing — the entire signal sat in one
+    // colour channel. The third rule, rail-exit velocity, is named in this panel's own caption and
+    // was checked against not one row, while the engine already raises `low-rail-exit` at the same
+    // threshold on the flown design: a motor could sit here unflagged and caution once picked.
+    test.setTimeout(120_000);
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    await page.getByRole("tab", { name: "Analyze" }).click();
+
+    const sweep = page.getByRole("region", { name: "Motor sweep" });
+    await sweep.getByRole("button", { name: /Run motor sweep/ }).click();
+    await expect(sweep.locator("tbody tr").first()).toBeVisible({ timeout: 60_000 });
+
+    // Each rule states itself in words, in the row it belongs to. Two of the three are reachable on
+    // a COMMITTED design: this sample flags rail exit on six motors and thrust-to-weight on the
+    // F15 and E16, whose margins are 3.7:1 and 4:1. Nothing committed reaches the flutter rule —
+    // every bundled sample sits at 3.6× or better — so that one is asserted through the `title`
+    // count below, which covers its cell too, and was driven directly against four corpus designs
+    // (`A simple model rocket.ork`, `Cherokee-E-5055.ork`, `OR vs RAS Test 1.ork`, `Base drag hack
+    // (short-wide).ork`). Scope these to the tbody: the caption names all three rules, so a check
+    // over the whole panel passes on the caption alone and measures nothing.
+    for (const note of [
+      /below the ~15\s?m\/s .*guideline for a stable rail departure/i,
+      /below the ~5:1 rule of thumb for clean rail clearance/i,
+    ]) {
+      await expect(sweep.locator("tbody"), `flag text: ${note}`).toContainText(note);
+    }
+
+    // And no cell hides an explanation in a `title` a keyboard or a phone cannot reach — including
+    // the flutter cell, which had one and whose flag this suite cannot otherwise reach.
+    expect(await sweep.locator("tbody [title]").count(), "tooltips left in the table body").toBe(0);
+
+    // The marker must not be colour alone: the flagged cell carries a glyph as well as the class.
+    const flagged = sweep.locator("tbody td", { hasText: /below the ~5:1/ }).first();
+    await expect(flagged).toContainText("▲");
+  });
+
+  test("switching back to today's weather does not leave a wind nothing flies in the box", async ({ page }) => {
+    // `onWeather` drops the two edits a forecast overrides, and says why: a greyed-out field showing
+    // a number the flight threw away advertises a drift nobody computed. The scenario TOGGLE reached
+    // the same state by a different door and did not. Reproduced in the built export on the 54 mm
+    // dual-deploy sample: fetch a forecast, switch to As designed, type 12 m/s, switch back to
+    // Today. The box read 12.0, greyed, while the flight drifted 794 m on the forecast's own wind —
+    // and 12 m/s really does give 2,518 m, so the number on screen and the number under it were
+    // describing different flights.
+    //
+    // The forecast is stubbed rather than fetched. This is the first e2e over the weather path and
+    // a live call would make it a network test: flaky in CI, and silently green if the API changed
+    // shape. The stub is the smallest response `parseForecast` reads.
+    test.setTimeout(150_000);
+    const WIND_MPS = 4;
+    await page.route("**geocoding-api.open-meteo.com/v1/search*", (route) =>
+      route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          results: [{ name: "Lucerne Valley", latitude: 34.4436, longitude: -116.9711, admin1: "California", country: "United States" }],
+        }),
+      }),
+    );
+    await page.route("**api.open-meteo.com/v1/forecast*", (route) => {
+      // One aloft level is enough to make the profile real; `parseForecast` skips levels whose
+      // three series are absent, so the rest simply do not appear.
+      const hourly: Record<string, number[]> = {
+        wind_speed_1000hPa: [WIND_MPS],
+        wind_direction_1000hPa: [270],
+        geopotential_height_1000hPa: [110],
+        wind_speed_500hPa: [18],
+        wind_direction_500hPa: [270],
+        geopotential_height_500hPa: [5600],
+      };
+      route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          elevation: 1000,
+          current: { temperature_2m: 20, surface_pressure: 900, wind_speed_10m: WIND_MPS, wind_direction_10m: 270 },
+          hourly,
+        }),
+      });
+    });
+
+    await page.goto("/");
+    await page.getByRole("button", { name: /54 mm dual-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+
+    const conditions = page.locator("details").filter({ hasText: "Conditions" }).first();
+    if (!(await conditions.evaluate((el: HTMLDetailsElement) => el.open))) {
+      await conditions.locator("summary").click();
+    }
+    const wind = page.locator("input").and(page.getByLabel(/Surface wind/i)).first();
+
+    await page.getByLabel("Launch site").fill("Lucerne Valley, CA");
+    await page.getByRole("button", { name: "Fetch" }).click();
+    // The forecast is in force once the aloft profile is being reported.
+    await expect(page.getByText(/aloft levels/)).toBeVisible({ timeout: 60_000 });
+    // A fetch greys the field and leaves it empty: the flight is on the forecast, not on a typed value.
+    await expect(wind).toBeDisabled();
+    await expect(wind).toHaveValue("");
+
+    await page.getByRole("button", { name: /^As designed$/ }).click();
+    await expect(wind).toBeEnabled();
+    await wind.fill("12");
+    await wind.press("Enter");
+    await wind.blur();
+    await expect(wind).toHaveValue("12");
+
+    // Back to today: the forecast overrides that 12, so the box must not go on showing it.
+    await page.getByRole("button", { name: /^Today/ }).click();
+    await expect(wind).toBeDisabled();
+    await expect(wind).toHaveValue("");
   });
 });

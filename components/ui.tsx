@@ -248,6 +248,7 @@ export function NumberField({
   max,
   hint,
   placeholder,
+  disabled,
 }: {
   label: string;
   value: number;
@@ -258,6 +259,10 @@ export function NumberField({
   max?: number;
   hint?: React.ReactNode;
   placeholder?: string;
+  /** The spread this field states cannot be applied to what is being flown, so it is greyed with a
+   *  hint saying why — the same shape the Conditions panel uses when today's weather takes over a
+   *  field. A control that demonstrably does nothing must not sit there looking as though it does. */
+  disabled?: boolean;
 }) {
   const [text, setText] = useState(() => display(value));
   /** The refused entry and the value flown in its place, kept only to say so. Both are needed: the
@@ -328,6 +333,7 @@ export function NumberField({
           min={min}
           max={max}
           value={text}
+          disabled={disabled}
           placeholder={placeholder}
           aria-invalid={refused !== null || undefined}
           aria-describedby={describedBy}

@@ -225,6 +225,38 @@ describe("override-subcomponents mass (OpenRocket assembly weight)", () => {
     expect(mp.cg).toBeCloseTo(natural.cg, 6);
   });
 
+  it("leaves a stage override out of the per-component map, so summing it is not the dry mass", () => {
+    // `massByComponent` is keyed by component id, and a STAGE override belongs to no component: it
+    // is pushed as a lumped point mass with no id. Every part under it correctly reads 0 with
+    // `subsumedBy` — but the parts table's caption used to state the SUM OF THAT COLUMN as the
+    // design's dry mass, so a rocket whose whole weight is a stage override read "adds up to 0 kg".
+    // Measured in the built export on two corpus designs with no edits applied: `Dual parachute
+    // deployment.ork` said 0 kg for a real 1.361 kg airframe and `EscapeVelocity.ork` 0 kg for 2 kg.
+    // The caption now states `dryMassProperties` and names the difference; this pins the gap the two
+    // functions genuinely have, so the caption cannot quietly go back to summing the column.
+    const root = tube({}, [ballast(3.0, 0.2)]);
+    const rocket: Rocket = {
+      name: "t",
+      stages: [{ name: "s", components: [root], overrideMass: 1.5, overrideSubcomponents: true }],
+      configurations: [],
+      referenceType: "maximum",
+    };
+    const columnTotal = [...massByComponent(rocket).values()].reduce((a, m) => a + m.mass, 0);
+    expect(columnTotal).toBeCloseTo(0, 6);
+    expect(dryMassProperties(rocket).mass).toBeCloseTo(1.5, 6);
+    // Every component IS listed — at zero, saying where its mass is counted — so the table is not
+    // missing rows, it is missing a row it cannot have.
+    const ids = massByComponent(rocket);
+    expect(ids.get("b")?.subsumedBy).toBe("s");
+
+    // The control: with no stage override, the column and the dry mass agree, so a caption that
+    // states the dry mass is not silently different from the column on an ordinary design.
+    const plain: Rocket = { ...rocket, stages: [{ name: "s", components: [root] }] };
+    const plainColumn = [...massByComponent(plain).values()].reduce((a, m) => a + m.mass, 0);
+    expect(plainColumn).toBeCloseTo(dryMassProperties(plain).mass, 6);
+    expect(plainColumn).toBeGreaterThan(0);
+  });
+
   it("a stage override CG relocates the lumped mass when the design gives one", () => {
     const root = tube({}, [ballast(3.0, 0.2)]);
     const rocket: Rocket = {

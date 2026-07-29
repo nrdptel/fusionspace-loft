@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { conditionsPhrase, type ConditionsSource } from "@/lib/what-if";
 import type { OrkDocument } from "@/lib/ork/import";
 import { overridesFromStored } from "@/lib/sim/run";
+import type { ConditionOverrides } from "@/lib/sim/setup";
 import { runMonteCarlo } from "@/lib/sim/montecarlo-client";
 import {
   exceedanceProbability,
@@ -14,7 +16,7 @@ import {
   type Stat,
 } from "@/lib/sim/montecarlo";
 import type { GeometryEdits } from "@/lib/model/edit";
-import { usePersistedNumber } from "@/lib/session";
+import { usePersistedNumber, useSettled } from "@/lib/session";
 import { mToFt, ftToM, mpsToFtps, mpsToMph, mphToMps } from "@/lib/units";
 import type { CsvCell } from "@/lib/csv";
 import { ClosePanel, NumberField, useReturnFocus } from "./ui";
@@ -56,6 +58,9 @@ export default function MonteCarlo({
   motorSwap,
   geometry,
   designKey,
+  flownOverrides,
+  weatherSerial,
+  conditions,
 }: {
   doc: OrkDocument;
   simIndex: number;
@@ -68,7 +73,56 @@ export default function MonteCarlo({
    *  so depending on their identity would restart the run whenever anything re-renders; this is
    *  their *value*, and it is what decides when the dispersion is genuinely out of date. */
   designKey: string;
+  /** The launch conditions the flight in view was actually flown under. This study built its own
+   *  nominal from the design FILE, so it answered for a different day than the Flight card beside
+   *  it: on the 54 mm dual-deploy sample with surface wind set to 20 mph, the card's drift moved
+   *  630 m to 1,877 m while this panel's recovery radius (95%) stayed at 1,203 m against a true
+   *  2,519 m and its median drift at 593 m against 1,811 m. A 1,500 m field takes the chance of
+   *  busting a 3,000 m ceiling from 36% to 83%. Those are the numbers a flyer plans a field and a
+   *  recovery walk around. */
+  flownOverrides?: ConditionOverrides;
+  /** Bumped once per forecast fetched — the only thing that can tell one forecast's air from the
+   *  next, since an atmosphere and a wind profile are functions with no value to compare. */
+  weatherSerial?: number;
+  /** Where each launch condition came from, so this panel names what IT flew. */
+  conditions?: ConditionsSource;
 }) {
+  // A key for the CONDITIONS, separate from `designKey`. That shared key is watched by both sweeps
+  // and by the RocketPy cross-check, and all three fly BALLISTIC — `runFlight` zeroes the wind for a
+  // ballistic run, so a wind edit measurably changes nothing in them (apogee 2,941 m at 3 m/s and at
+  // 8.94 m/s, identical). Adding the wind to the shared key would throw minutes of their work away
+  // for a change that changed nothing, which is the exact waste `designKey` exists to avoid. So the
+  // sweeps carry their own narrower key covering rail length, rail angle and elevation, and this
+  // study — the one that does read the wind — carries this one. The RocketPy cross-check
+  // deliberately keeps flying the FILE's conditions: it exists to compare two solvers like-for-like
+  // against the design as saved, so the flyer's day is not the question it answers.
+  const o = flownOverrides;
+  const conditionsKeyLive = [
+    o?.rodLength ?? "",
+    o?.rodAngleDeg ?? "",
+    o?.rodAzimuthDeg ?? "",
+    o?.windSpeed ?? "",
+    o?.launchAltitude ?? "",
+    // A wind PROFILE and an atmosphere are functions, so identity is all there is to compare; they
+    // are rebuilt only when a forecast is fetched, which is exactly when this should re-fly.
+    o?.windProfile ? "profile" : "",
+    o?.atmosphere ? "atm" : "",
+    weatherSerial ?? "",
+  ].join("|");
+  // Settled, not live. `Num` calls `onChange` on every keystroke so a value can be typed a digit
+  // at a time, and each intermediate reading is a distinct key — typing "1500" into the field
+  // elevation restarted this panel four times, flying every candidate at 1 m, 15 m and 150 m on the
+  // way. The dispersion's own sigma inputs have been debounced for exactly this reason since they
+  // were added; the launch conditions reach the same panels through the same kind of field.
+  const conditionsKey = useSettled(conditionsKeyLive, conditionsKeyLive);
+  // Under today's weather the solver reads a wind PROFILE and never looks at a surface wind, so the
+  // spread below cannot be applied to it: `windAt` returns `windProfile(altAgl)` whenever a profile
+  // is set. Measured with a constant 8.94 m/s profile over 200 flights, the drift band is
+  // bit-identical at a 0 and a 2 m/s sigma — 1,553 / 1,877 / 2,158 m either way — where without a
+  // profile the same sigma widens it to 1,167 / 1,794 / 2,563 m. A field that demonstrably does
+  // nothing must not sit there looking as though it does.
+  const windProfileInForce = flownOverrides?.windProfile !== undefined;
+
   const [open, setOpen] = useState(false);
   // Closing unmounts the Close button; focus has to land on the Run button that replaces it.
   const [runRef, returnFocusToRun] = useReturnFocus();
@@ -150,7 +204,7 @@ export default function MonteCarlo({
         seed: SEED,
         dispersions: settled,
         configId: sim?.conditions.configId,
-        overrides: sim ? overridesFromStored(sim) : undefined,
+        overrides: flownOverrides ?? (sim ? overridesFromStored(sim) : undefined),
         ballastKg,
         recoveryCdScale,
         motorSwap,
@@ -171,7 +225,7 @@ export default function MonteCarlo({
     // Keyed on the design's value, not the props' identity — see `designKey`. A changed dispersion
     // tolerance still re-flies; an unrelated re-render no longer restarts hundreds of flights.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, settled, designKey]);
+  }, [open, settled, designKey, conditionsKey]);
 
   return (
     <section
@@ -190,7 +244,25 @@ export default function MonteCarlo({
         angle, and wind jittered around their nominal values, and see the <em>spread</em> of the
         outcomes — the apogee band to expect
         and how big a recovery area to plan for. The physics is the same each flight; the uncertainty
-        is your own stated assumptions carried through it, not new precision.
+        is your own stated assumptions carried through it, not new precision.{" "}
+        {/* Which conditions those nominals ARE. The two sweeps beside this panel each say the same
+            thing about themselves; this one said nothing while quietly flying the design file's
+            setup rather than the flyer's, and the recovery radius is not a number to be vague
+            about. */}
+        The nominals are {conditionsPhrase(conditions, { wind: true })}. Change them under{" "}
+        <em>Conditions</em> and this re-flies.
+        {/* Under a wind profile the scatter is NOT a disc over all headings. `windAt` returns the
+            profile and never reads the sampled bearing, so every one of the flights drifts on the
+            forecast's own wind — the spread is that one day's, not an all-bearings recovery area.
+            Saying it here because this panel is sold as "how big a recovery area to plan for". */}
+        {windProfileInForce && (
+          <>
+            {" "}
+            Today&apos;s forecast supplies a wind profile, so every flight drifts on its bearings
+            rather than on all of them: this is the spread for that wind, not a circle covering any
+            wind. Switch to <em>As designed</em> for the all-headings recovery area.
+          </>
+        )}
       </p>
 
       {!open && (
@@ -259,7 +331,12 @@ export default function MonteCarlo({
               onChange={onWindDisp}
               unit={units === "imperial" ? "mph" : "m/s"}
               step={units === "imperial" ? 1 : 0.5}
-              hint="Around the nominal wind"
+              disabled={windProfileInForce}
+              hint={
+                windProfileInForce
+                  ? "Today's weather flies a whole wind profile rather than one surface wind, so a spread on the surface figure has nothing to vary — switch to As designed to use it."
+                  : "Around the nominal wind"
+              }
             />
           </div>
 
@@ -274,13 +351,21 @@ export default function MonteCarlo({
                   <span>Refining — {progress}/{SAMPLES} flown…</span>
                 </div>
               )}
-              <Report
-                result={result}
-                units={units}
-                name={doc.rocket.name}
-                ceilingM={ceilingM}
-                onCeilingM={setCeilingM}
-              />
+              {/* Dimmed and marked busy while a fresh run is in flight, exactly as both sweeps do.
+                  The previous cloud is deliberately kept so an edit can be compared against what it
+                  changed rather than against a spinner — but at full opacity, under a caption that
+                  flips the instant a Conditions field is touched, it read as the answer FOR those
+                  conditions. On the 54 mm sample that is 1,203 m presented as current while the true
+                  figure for the day just entered is 2,519 m. */}
+              <div aria-busy={running} className={running ? "opacity-50 transition-opacity" : undefined}>
+                <Report
+                  result={result}
+                  units={units}
+                  name={doc.rocket.name}
+                  ceilingM={ceilingM}
+                  onCeilingM={setCeilingM}
+                />
+              </div>
             </>
           ) : running || result === null ? (
             <div className="mt-4 flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-300" role="status">

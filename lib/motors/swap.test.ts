@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { designMotorIdentity } from "./swap";
+import { designMotorIdentity, swapStillOffered } from "./swap";
 import { resolveMotor, allMotors } from "./db";
 
 describe("designMotorIdentity", () => {
@@ -70,5 +70,46 @@ describe("designMotorIdentity", () => {
     expect(quest.casingMm).toBe(estes.casingMm);
 
     expect(designMotorIdentity({ designation: "1/4A2" }).manufacturer).toBeUndefined();
+  });
+});
+
+describe("swapStillOffered", () => {
+  const opts = [
+    { designation: "H283ST-15A", manufacturer: "AeroTech", diameter: 0.038, motorClass: "H" },
+    { designation: "H148R", manufacturer: "AeroTech", diameter: 0.038, motorClass: "H" },
+  ];
+
+  it("keeps a swap the new configuration still offers", () => {
+    expect(swapStillOffered({ manufacturer: "AeroTech", designation: "H148R" }, opts)).toBe(true);
+  });
+
+  it("drops a swap the new configuration cannot take", () => {
+    // The case that mattered: a 38 mm choice carried onto a 24 mm configuration, where every number
+    // on the pad-check surface then described a motor that configuration cannot hold.
+    expect(swapStillOffered({ manufacturer: "Estes Industries", designation: "E12" }, opts)).toBe(false);
+    // ...including when the new configuration offers nothing at all.
+    expect(swapStillOffered({ manufacturer: "AeroTech", designation: "H148R" }, [])).toBe(false);
+  });
+
+  it("tells two makers' same-designation motors apart", () => {
+    // The same trap the sweep's DESIGN badge hit: a bare designation match cannot tell an Estes C6
+    // from a Quest C6, and here it would keep a swap the new casing does not actually offer.
+    expect(swapStillOffered({ manufacturer: "Estes Industries", designation: "H148R" }, opts)).toBe(false);
+  });
+
+  it("drops a swap that names no maker, because the picker cannot show one either", () => {
+    // Tempting to match on designation alone. The picker cannot: its value is
+    // `${manufacturer ?? ""}|${designation}` against options spelled `${o.manufacturer}|${o.
+    // designation}`, so a manufacturer-less swap composes to "|H148R", matches no option and renders
+    // blank. Keeping it would preserve exactly the state this function exists to end — a motor being
+    // flown with the only control that names it showing nothing — this time on purpose. Reachable:
+    // a restored session blob is unvalidated JSON, so a stored edit can arrive without a maker.
+    expect(swapStillOffered({ designation: "H148R" }, opts)).toBe(false);
+    expect(swapStillOffered({ designation: "E12" }, opts)).toBe(false);
+  });
+
+  it("has nothing to drop when no swap is set", () => {
+    expect(swapStillOffered(undefined, opts)).toBe(true);
+    expect(swapStillOffered(undefined, [])).toBe(true);
   });
 });
