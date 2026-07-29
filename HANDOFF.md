@@ -48,8 +48,11 @@ GitHub, authored as `Neer Patel <135655563+nrdptel@users.noreply.github.com>` �
 every future commit and rewrite deployed history. Verified with the owner on 2026-07-26.
 
 **Git identity is wrong out of the box** on a fresh container — it arrives as the harness vendor's
-name and address, which the zero-trace invariant forbids. Confirmed again this session: it came up as
-`Claude <noreply@anthropic.com>`. Set `user.name`/`user.email` per-repo in BOTH checkouts to
+own name and `noreply@` address, which the zero-trace invariant forbids. Confirmed again this session:
+it was still the vendor default. The names are not written here on purpose — this file is committed,
+and quoting the forbidden identity to warn about it puts it in the repository just as surely as using
+it would. Check what you actually have with `git config user.email`, and if it is not the address
+below, it is wrong. Set `user.name`/`user.email` per-repo in BOTH checkouts to
 `Neer Patel <135655563+nrdptel@users.noreply.github.com>` before the first commit, and check
 `git log -1 --format='%an <%ae>'` afterwards. Signing works (`gpg.format=ssh`); confirm with
 `git cat-file commit HEAD | grep gpgsig`.
@@ -271,12 +274,21 @@ each design's own name beside its numbers.
 
 ## Pick up first
 
-`BACKLOG.md` carries the full ranked queue with measurements — the opening fan-out filed **53
-findings** across five lenses, 20 went to adversarial verification and **19 survived**. Read it before
-choosing, and reproduce before scoping: two of the verified ones turned out to be unreachable when
-driven against real files, and that is recorded there.
+**Start at `ROADMAP.md`, not here and not in `BACKLOG.md`.** The owner's read at the end of this
+session was that several runs in a row had shipped no new capability, and the repo agreed: eighteen
+merged commits, nine correctness-and-craft fixes, zero features, and fifty-five backlog entries none
+of which proposed one. `ROADMAP.md` now holds the queue and `MAINTAINING.md`'s *Each pass* section now
+makes the next milestone the default goal, with defects preempting only on Sev-1 and capped at one
+increment in four. **The current milestone is R1 — address components by identity rather than by
+role.** Read the measured baseline at the top of `ROADMAP.md` before scoping it.
 
-The best next moves, in order:
+`BACKLOG.md` is a defect ledger to file into and to screen for Sev-1s. It carries real measurements
+worth having — the opening fan-out filed 53 findings across five lenses, 20 went to adversarial
+verification and 19 survived — and reproducing before scoping still applies: two of the verified ones
+turned out to be unreachable when driven against real files, which is recorded there.
+
+The defect entries below were the old ranked queue. They are **not** the next moves any more; they are
+kept because the measurements are real and because R1 owns some of the code they touch:
 
 1. **The Monte-Carlo flies the FILE's launch setup, not the flyer's.** `MonteCarlo.tsx:153` uses
    `overridesFromStored(sim)` only, so Conditions edits and the "Today" scenario never reach the

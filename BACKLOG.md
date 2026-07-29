@@ -1,7 +1,14 @@
 # Backlog
 
-Rough edges, missing affordances, and ideas too big for one pass — noticed while working,
-not yet done. Newest first. One line each. Anything here is fair game for the next session.
+**This is a DEFECT LEDGER, not the work queue.** The queue is `ROADMAP.md`. What is wrong lives here;
+what Loft cannot yet DO lives there. Fifty-five entries accumulated here and not one of them proposed
+a new capability, so a session that treated this file as its queue could only ever ship fixes — which
+is what several runs in a row did.
+
+Read it to file into, and to check for a Sev-1 (a wrong number on a surface a flyer would act on, or
+a one-way door — those preempt the milestone immediately). Everything else waits its turn under the
+one-in-four quota in `MAINTAINING.md`. Rough edges, missing affordances, and findings too big for one
+pass. Newest first.
 
 - **RESOLVED this session — the hit-target suite measured HEIGHT only, so a control could pass at
   34 px wide.** The scan filtered on `r.height >= 44` and never looked at width. Measured on a
