@@ -2863,6 +2863,81 @@ test.describe("Loft", () => {
     await expect(page.locator(`#${msgId}`)).toHaveCount(0);
   });
 
+  test("a rail of no length is refused rather than flown as 0 m/s off the rail", async ({ page }) => {
+    // "Rail length" advertised its floor as "0 or more" and meant it: `onRail` is `along < rodLength`,
+    // so a rail of 0 m is left before the motor has produced any thrust and the flight reports
+    // "Rail-exit velocity 0 m/s". Measured on the 54 mm dual-deploy sample: the design's own 2.0 m
+    // rail gives 28 m/s, and 0 gives 0 m/s with no warning anywhere on the page. That number is the
+    // one a pad check turns on — an RSO reads it to decide the rocket leaves the rail flying — so a
+    // confident zero from an input that cannot mean anything is the worst shape this can take.
+    await page.goto("/");
+    await page.getByRole("button", { name: /54 mm dual-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+
+    // The Stat card: its label, then the sibling holding the number and its unit.
+    const railExit = page.getByText("Rail-exit velocity", { exact: true }).locator("xpath=following-sibling::div[1]");
+    const flown = (await railExit.innerText()).replace(/\s+/g, " ").trim();
+    expect(flown).not.toMatch(/^0(\.0+)? /);
+
+    const conditions = page.locator("details").filter({ hasText: "Conditions" }).first();
+    if (!(await conditions.evaluate((el: HTMLDetailsElement) => el.open))) {
+      await conditions.locator("summary").click();
+    }
+    const rail = conditions.locator("label").filter({ hasText: /Rail length/ }).first().locator("input");
+    const designRail = await rail.getAttribute("placeholder");
+    expect(designRail).toBeTruthy();
+
+    await rail.fill("0");
+    await rail.blur();
+
+    // Refused in the same words every other out-of-range entry uses...
+    await expect(rail).toHaveAttribute("aria-invalid", "true");
+    const msgId = await rail.getAttribute("aria-describedby");
+    const msg = page.locator(`#${msgId}`);
+    await expect(msg).toHaveAttribute("role", "alert");
+    await expect(msg).toContainText("more than 0");
+    await expect(msg).toContainText(designRail!);
+    // ...and the flight is untouched, which is the half that matters: the rail-exit velocity still
+    // reads what the design's own rail produces, not a zero nobody could act on.
+    expect((await railExit.innerText()).replace(/\s+/g, " ").trim()).toBe(flown);
+
+    // A rail that exists lands as an ordinary edit.
+    await rail.fill("3");
+    await rail.press("Enter");
+    await rail.blur();
+    await expect(rail).toHaveValue("3");
+    await expect(rail).not.toHaveAttribute("aria-invalid", "true");
+  });
+
+  test("a fin sweep of zero is a straight leading edge, and it reaches the flight", async ({ page }) => {
+    // `lib/model/edit.ts` guards every geometry edit with `> 0` except this one, which is `>= 0` on
+    // purpose: a sweep length of zero is a straight leading edge, an entirely ordinary fin. The
+    // editor's converter mapped every entered zero to "no edit" before the model could see it, so
+    // the one shape the model was written to accept was the one shape the editor could not build —
+    // and it failed silently, the box sitting on "0" while the design's own 90 mm went on flying.
+    await page.goto("/");
+    await page.getByRole("button", { name: /54 mm dual-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    await page.getByRole("tab", { name: "Design" }).click();
+
+    const sweep = page.locator("label").filter({ hasText: /Fin sweep/ }).first().locator("input");
+    const designSweep = await sweep.getAttribute("placeholder");
+    // The sample has a swept fin, or this test is asserting that zero equals zero.
+    expect(Number(designSweep)).toBeGreaterThan(0);
+
+    await sweep.fill("0");
+    await sweep.press("Enter");
+    await sweep.blur();
+
+    // The entry stands: the box keeps the zero rather than blanking back to the design's own sweep...
+    await expect(sweep).toHaveValue("0");
+    await expect(sweep).not.toHaveAttribute("aria-invalid", "true");
+    // ...and the design is now an edited one, which is what says the flight in view is the edit's.
+    // That button appears only while a what-if is actually set, so it is the app's own answer to
+    // "did this entry become an edit?" rather than a second opinion of the test's.
+    await expect(page.getByRole("button", { name: "Reset to as-designed" })).toBeVisible();
+  });
+
   test("a refused dispersion says so too, and does not quietly shrink the recovery area", async ({ page }) => {
     // The same defect, one component over and with more riding on it. `NumberField` declared
     // `min={0}` on the input and enforced it nowhere, so a negative ±1σ stayed in the box while

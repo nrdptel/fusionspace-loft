@@ -3,6 +3,56 @@
 Rough edges, missing affordances, and ideas too big for one pass — noticed while working,
 not yet done. Newest first. One line each. Anything here is fair game for the next session.
 
+- **A rail length of 0 was flown, and the flight reported "Rail-exit velocity 0 m/s" beside it with
+  no warning — RESOLVED this session.** The field's floor was `min={0}`, which it advertised in
+  words as "0 or more", and `onRail` (`lib/sim/simulate.ts:953`) is `along < rodLength`, so a 0 m
+  rail is left at t=0 with the motor yet to build thrust. Measured in the built export on the 54 mm
+  dual-deploy sample: the design's own 2.0 m rail gives **28 m/s**, 3 m gives 35 m/s, and 0 gives
+  **0 m/s** with nothing on the page saying the input could not mean anything. That is the number an
+  RSO reads to decide the rocket leaves the rail flying, so a confident zero from an impossible input
+  is the worst shape this can take. Fixed by giving `Num` a `positive` floor: the entry is refused in
+  the words every other out-of-range entry already uses, naming what is flown instead.
+
+- **Zero was not a value any design field could take, and the field said nothing when it dropped one
+  — RESOLVED this session, per field.** `fromSpan`/`fromMass` in `LoftApp.tsx` mapped every entered
+  0 to `undefined`, which is the spelling of "no edit", so a zero was indistinguishable from a
+  cleared box. `lib/model/edit.ts` is the authority on which fields take one and it already made the
+  distinction: every geometry edit is guarded `> 0` **except `finSweepLength`, which is `>= 0`**
+  (lines 187 and 461) because a sweep of zero is a straight leading edge. So the one shape the model
+  was written to accept was the one shape the editor could not build. Measured on the 54 mm sample:
+  the design's own 90 mm sweep, typing 0, box left reading "0" while the flight went on using 90 —
+  apogee unchanged at 2,941 m, where 0.5 mm moves it to 2,359 m. `payloadStation` is the second such
+  field: station 0 puts the added mass at the fore edge of the body tube, where blank puts it
+  mid-tube. Both now land; the fields whose unedited value is already zero (nose ballast, added
+  payload, a drogue the design does not carry, boattail length) fold a zero back to blank, since
+  storing it would count as an edit and withhold the stored-tool comparison for a change that changed
+  nothing; the rest refuse it out loud.
+
+- **The stored-tool comparison — the thing the landing copy promises — cannot appear on any bundled
+  `.ork` sample, and nothing says why.** Measured across every `.ork` this session can reach (27 real
+  corpus designs + the 3 shipped samples): **27 of 27 corpus designs carry `<flightdata>`; 0 of the 3
+  samples do.** `demo-dual-deploy`, `demo-single-deploy` and `demo-multi-config` each carry a
+  `<simulation status="external">` holding conditions and no results, so `hasResults` is false,
+  `lib/sim/run.ts:187` skips validation, and `ResultsView.tsx:617`'s "comparison withheld" panel does
+  not fire either — it is gated on `doc.flownAsReduced`. So the default first run shows nothing and
+  explains nothing, under copy in `ImportPanel.tsx:285` that says "Loft shows its result beside those
+  numbers rather than asking you to trust one." Note the three fixtures that DO carry external
+  flight data — `demo-boattail`, `demo-payload-separation`, `demo-quirks` — are exactly the three
+  that are not offered as one-tap examples. Fix by saying why on screen, reading the file's own
+  `status` for the wording; do NOT invent stored numbers for the samples.
+
+- **`ValidationPanel.tsx:20` states as fact something the shipped files contradict.** Its doc comment
+  says `external` is "what the bundled demo designs carry: figures their author estimated, so the
+  panel has something to demonstrate on." All three bundled demos carry `status="external"` with zero
+  `<flightdata>`, so the panel has nothing to demonstrate on and never renders for them. The sentence
+  was true of `fixtures/src/demo-boattail|payload-separation|quirks`, which are not bundled.
+
+- **An edit to `Payload pos` alone marks the design edited and withholds the stored-tool comparison
+  for a change that changes nothing.** `addPayloadMass` (`lib/model/edit.ts:652`) returns the rocket
+  untouched unless `massKg > 0`, but `hasActiveEdits` counts any defined value, so setting a payload
+  station with no payload mass is a no-op that still costs the flyer the cross-check panel. Pre-dates
+  this session's zero work and applies to every value, not just zero.
+
 - **Conditions exposes 4 of the 8 launch parameters Loft already models, and the other 4 are read
   from real files and flown where a flyer cannot see them.** Benchmarked against OpenRocket's
   simulation-conditions dialog, which is the tool a flyer would come from. `StoredConditions`
@@ -55,6 +105,11 @@ not yet done. Newest first. One line each. Anything here is fair game for the ne
   belongs one level up — this is the second door into the same room. The fix is to route both entry
   points through one function that decides what a scenario change does to the edit bag.
 
+- **RESOLVED this session — see the entry at the top of this file, which carries the measurements.**
+  The prescription below was right about the defect and right that the answer is per field; what it
+  did not know is that `lib/model/edit.ts` had already written the per-field answer down, and that
+  the same converter was hiding a REFUSAL as well as a design: a rail of no length was flown rather
+  than refused. The original text follows.
 - **`fromSpan` and `fromMass` map an entered 0 to `undefined`, so zero is not a value a flyer can
   set.** `LoftApp.tsx:1115,1110` — `v === "" || Number(v) === 0 ? undefined : …`. Blank already means
   "use the design's own value", so 0 has a spelling of its own to take, and for at least one field it

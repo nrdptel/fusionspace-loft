@@ -1130,13 +1130,26 @@ function DesignEditor({
   const massU = imperial ? "oz" : "g";
   const toDispMass = (kg: number | undefined) =>
     kg === undefined ? "" : d.fmtEditable(imperial ? kg * 35.274 : kg * 1000, imperial ? 1 : 0);
-  const fromMass = (v: string) =>
-    v === "" || Number(v) === 0 ? undefined : imperial ? Number(v) / 35.274 : Number(v) / 1000;
+  const fromMass = (v: string) => (v === "" ? undefined : imperial ? Number(v) / 35.274 : Number(v) / 1000);
   const spanU = imperial ? "in" : "mm";
   const toDispSpan = (m: number | undefined) =>
     m === undefined ? "" : d.fmtEditable(imperial ? m * 39.3701 : m * 1000, imperial ? 2 : 0);
-  const fromSpan = (v: string) =>
-    v === "" || Number(v) === 0 ? undefined : imperial ? Number(v) / 39.3701 : Number(v) / 1000;
+  const fromSpan = (v: string) => (v === "" ? undefined : imperial ? Number(v) / 39.3701 : Number(v) / 1000);
+  // Blank means "use the design's own value". A zero is a different statement, and these fields want
+  // three different answers to it — so every call site says which of the three it is, and
+  // `lib/model/edit.ts` is the authority, because it is the code that decides what the solver sees:
+  //   · a zero the model FLIES goes through untouched. `finSweepLength >= 0` there is deliberate — a
+  //     sweep of zero is a straight leading edge, an entirely ordinary fin — and a payload at station
+  //     zero sits at the fore end of the body tube rather than its middle. Both were unreachable
+  //     while every zero was thrown away here.
+  //   · a zero on a field whose UNEDITED value is already zero — nose ballast, an added payload, a
+  //     drogue the design does not carry — says exactly what blank says, so `orNone` folds it back to
+  //     blank. Storing it instead would count as an edit and withhold the stored-tool comparison for
+  //     a change that changed nothing.
+  //   · a zero the model will NOT fly never leaves the field at all: `Num`'s `positive` refuses it in
+  //     words. That is the case the old blanket "zero means blank" hid — a refused entry looked
+  //     byte-identical to a cleared one, so the field simply forgot what the flyer had typed.
+  const orNone = (m: number | undefined) => (m === 0 ? undefined : m);
   const toDispThick = (m: number | undefined) =>
     m === undefined ? "" : d.fmtEditable(imperial ? m * 39.3701 : m * 1000, imperial ? 3 : 1);
 
@@ -1235,6 +1248,7 @@ function DesignEditor({
                     placeholder={toDispSpan(designDims.finSpan)}
                     onChange={(v) => onEdit({ finSpan: fromSpan(v) })}
                   min={0}
+                  positive
                   />
                   {designDims.finCount !== undefined && (
                     <Num
@@ -1258,6 +1272,7 @@ function DesignEditor({
                       placeholder={toDispSpan(designDims.finRootChord)}
                       onChange={(v) => onEdit({ finRootChord: fromSpan(v) })}
                     min={0}
+                    positive
                     />
                   )}
                   {designDims.finTipChord !== undefined && (
@@ -1267,6 +1282,7 @@ function DesignEditor({
                       placeholder={toDispSpan(designDims.finTipChord)}
                       onChange={(v) => onEdit({ finTipChord: fromSpan(v) })}
                     min={0}
+                    positive
                     />
                   )}
                   {designDims.finSweepLength !== undefined && (
@@ -1285,6 +1301,7 @@ function DesignEditor({
                       placeholder={toDispSpan(designDims.finStation)}
                       onChange={(v) => onEdit({ finStation: fromSpan(v) })}
                     min={0}
+                    positive
                     />
                   )}
                   {designDims.finThickness !== undefined && (
@@ -1294,6 +1311,7 @@ function DesignEditor({
                       placeholder={toDispThick(designDims.finThickness)}
                       onChange={(v) => onEdit({ finThickness: fromSpan(v) })}
                     min={0}
+                    positive
                     />
                   )}
                   {designDims.finCrossSection !== undefined && (
@@ -1359,6 +1377,7 @@ function DesignEditor({
                       placeholder={toDispSpan(designDims.noseLength)}
                       onChange={(v) => onEdit({ noseLength: fromSpan(v) })}
                     min={0}
+                    positive
                     />
                   )}
                   {designDims.noseShape !== undefined && (
@@ -1388,6 +1407,7 @@ function DesignEditor({
                       placeholder={toDispSpan(designDims.bodyLength)}
                       onChange={(v) => onEdit({ bodyLength: fromSpan(v) })}
                     min={0}
+                    positive
                     />
                   )}
                   {designDims.bodyDiameter !== undefined && (
@@ -1397,6 +1417,7 @@ function DesignEditor({
                       placeholder={toDispSpan(designDims.bodyDiameter)}
                       onChange={(v) => onEdit({ bodyDiameter: fromSpan(v) })}
                     min={0}
+                    positive
                     />
                   )}
                   {designDims.bodyDiameter !== undefined && (
@@ -1404,7 +1425,7 @@ function DesignEditor({
                       label={`Boattail length (${spanU})`}
                       value={toDispSpan(edits.boattailLength)}
                       placeholder="0"
-                      onChange={(v) => onEdit({ boattailLength: fromSpan(v) })}
+                      onChange={(v) => onEdit({ boattailLength: orNone(fromSpan(v)) })}
                     min={0}
                     />
                   )}
@@ -1415,6 +1436,7 @@ function DesignEditor({
                       placeholder={`< ${toDispSpan(designDims.bodyDiameter)}`}
                       onChange={(v) => onEdit({ boattailAftDiameter: fromSpan(v) })}
                     min={0}
+                    positive
                     />
                   )}
                 </div>
@@ -1445,12 +1467,13 @@ function DesignEditor({
                   placeholder="apogee"
                   onChange={(v) => onEdit({ mainDeployAltitude: fromLen(v) })}
                 min={0}
+                positive
                 />
                 <Num
                   label={`Drogue Ø (${spanU})`}
                   value={toDispSpan(edits.drogueDiameter)}
                   placeholder="0"
-                  onChange={(v) => onEdit({ drogueDiameter: fromSpan(v) })}
+                  onChange={(v) => onEdit({ drogueDiameter: orNone(fromSpan(v)) })}
                 min={0}
                 />
                 {designDims.mainParachuteDiameter !== undefined && (
@@ -1460,6 +1483,7 @@ function DesignEditor({
                     placeholder={toDispSpan(designDims.mainParachuteDiameter)}
                     onChange={(v) => onEdit({ mainParachuteDiameter: fromSpan(v) })}
                   min={0}
+                  positive
                   />
                 )}
               </div>
@@ -1474,7 +1498,7 @@ function DesignEditor({
                   label={`Nose ballast (${massU})`}
                   value={toDispMass(edits.ballastKg)}
                   placeholder="0"
-                  onChange={(v) => onEdit({ ballastKg: fromMass(v) })}
+                  onChange={(v) => onEdit({ ballastKg: orNone(fromMass(v)) })}
                 min={0}
                 />
                 {designDims.payloadStation !== undefined && (
@@ -1482,7 +1506,7 @@ function DesignEditor({
                     label={`Payload (${massU})`}
                     value={toDispMass(edits.payloadMassKg)}
                     placeholder="0"
-                    onChange={(v) => onEdit({ payloadMassKg: fromMass(v) })}
+                    onChange={(v) => onEdit({ payloadMassKg: orNone(fromMass(v)) })}
                   min={0}
                   />
                 )}
@@ -1660,6 +1684,7 @@ function ConditionsControls({
             placeholder={toDispLen(flown.rodLength)}
             onChange={(v) => onEdit({ rodLength: fromLen(v) })}
             min={0}
+            positive
             max={imperial ? 66 : 20}
             hint="How much rail guides the rocket before it flies free."
           />
@@ -1791,6 +1816,7 @@ function Num({
   max,
   step,
   hint,
+  positive,
 }: {
   label: string;
   value: string | number;
@@ -1802,6 +1828,12 @@ function Num({
   step?: number;
   /** What the range means, in the flyer's words — shown as the field's tooltip. */
   hint?: string;
+  /** The field describes a part that has to be THERE: a rail with length, a tube with a diameter,
+   *  a fin with thickness. Zero is not a small value of any of those, and the model will not fly
+   *  one — so the field refuses it in words rather than handing over a number that gets dropped
+   *  somewhere the flyer cannot see. Leave it off wherever zero is a real answer: a fin sweep of
+   *  zero is a straight leading edge, and a payload at station zero sits at the top of the tube. */
+  positive?: boolean;
 }) {
   const ref = useRef<HTMLInputElement>(null);
   // What the box shows. It is NOT simply `value`: while the field has focus the flyer owns the
@@ -1837,6 +1869,21 @@ function Num({
       return;
     }
     const bounded = min !== undefined && n < min ? min : max !== undefined && n > max ? max : n;
+    // Zero on a field that needs a part to be there is REFUSED, not pulled to a bound — there is no
+    // nearest legal value to pull it to, and the model would take it and drop it. Dropping it is
+    // what the flyer never sees: entering 0 for the rail length used to fly a rail no rocket ever
+    // leaves and print "Rail-exit velocity 0 m/s" beside it, which is the one number a pad check
+    // turns on. Refusing it says which value is actually in the flight instead.
+    if (positive && bounded === 0) {
+      setRefused(raw);
+      // Blank the field's contribution on the way out. Typing pushes every keystroke at the model,
+      // so an entry that arrives here NEGATIVE has already put a negative dimension in the edit bag;
+      // the model declines to apply it and the box then redisplays it, which is a field asserting a
+      // value nothing is flying — the one thing the re-sync effect below exists to prevent. Blank
+      // means "the design's own value", which is what the refusal message is about to name.
+      onChange("");
+      return;
+    }
     setRefused(bounded !== n ? raw : null);
     if (String(bounded) !== raw) onChange(String(bounded));
   };
@@ -1845,7 +1892,7 @@ function Num({
   // floored at zero and open above — a dimension has no upper limit the editor can name — and
   // "0 to –" reads as a range that failed to load rather than as "no maximum". Shared with the
   // analysis panels' number field so the two never say it differently.
-  const ranged = rangeWords(min, max);
+  const ranged = rangeWords(min, max, positive);
   // What the flight is actually using: the committed edit if there is one, else the design's own
   // value, which is what the placeholder shows. Naming it is the whole point of the message — the
   // complaint is not that the entry was refused, it is not knowing what is being flown instead.
@@ -1872,6 +1919,11 @@ function Num({
         onChange={(e) => {
           setDraft(e.target.value);
           setRefused(null);
+          // A field the model will not fly at zero never sends one, not even in passing. This fires
+          // on every keystroke, so "0" on the way to "0.5" would otherwise reach the model — and a
+          // zero that lands counts as an edit, which is enough on its own to withhold the stored-tool
+          // comparison for a change that changed nothing. The commit path below says so in words.
+          if (positive && e.target.value !== "" && Number(e.target.value) === 0) return;
           onChange(e.target.value);
         }}
         onBlur={(e) => commit(e.target.value)}
