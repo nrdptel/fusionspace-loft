@@ -582,6 +582,31 @@ describe("the design's own ignition events drive the firing order", () => {
     expect(b.motors.some((m) => m.ignitionTime === Infinity)).toBe(true);
   });
 
+  it("reads burnout off the motors that burn, not off one that never lights", () => {
+    // The flight's burnout was `max(ignitionTime + burnTime)` over EVERY motor, and a motor whose
+    // trigger can never arrive carries `ignitionTime = Infinity` — so one unlit motor made the whole
+    // flight's burnout `Infinity`. That is not "later than the others", it is "never", and four
+    // numbers a flyer acts on were read off it. Optimum delay is the sharpest: `max(0, apogee - ∞)`
+    // is 0 s, which reads as "deploy at burnout" on a rocket still climbing.
+    const { rocket, config } = threeStage(["burnout", "launch", "burnout"]);
+    // `threeStage` hands the configuration back separately; `runFlight` resolves it off the design.
+    const { result } = runFlight({ ...rocket, configurations: [config] }, { configId: config.id });
+    const s = result.summary;
+
+    expect(s.apogee).toBeGreaterThan(0);
+    // Burnout happened, was seen, and was logged.
+    expect(s.burnoutVelocity).toBeGreaterThan(0);
+    expect(s.burnoutAltitude).toBeGreaterThan(0);
+    expect(result.events.some((e) => e.type === "burnout")).toBe(true);
+    // The coast from burnout to apogee is a real interval, not a floor at zero.
+    expect(s.optimumDelay).toBeGreaterThan(0);
+    expect(s.optimumDelay).toBeLessThan(s.timeToApogee);
+    // Burnout mass is read at a finite time, so it still carries the airframe and the motor that
+    // never lit — reading it at `Infinity` fell past every casing's detach time and dropped them all.
+    expect(result.burnoutMass).toBeGreaterThan(0);
+    expect(result.burnoutMass).toBeLessThanOrEqual(result.liftoffMass);
+  });
+
   it("drops everything below the joint that parts, not one stage per event", () => {
     // A serial stack separates at ONE joint: when the middle stage goes, the bottom goes with it.
     const { rocket, config } = threeStage(["burnout", "launch", "burnout"]);

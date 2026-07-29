@@ -953,9 +953,30 @@ function onRail(s: SimState, rodLength: number, rail: Vec3): boolean {
   return along < rodLength;
 }
 
+/** When the last motor that actually burns finishes burning.
+ *
+ *  A motor whose trigger can never arrive — a `burnout` event on the bottom-most stage, with nothing
+ *  beneath it to burn out — never burns, so it has no burnout to be the last of. `setup.ts` marks it
+ *  by minting `ignitionTime = Infinity`, and it rides as inert mass, which is what the file's own
+ *  stored flight shows. Folding that into the maximum made the FLIGHT's burnout `Infinity`, which is
+ *  not "later than the others"; it is "never", and four numbers were read off it:
+ *
+ *    - the burnout event never fired (`state.t >= Infinity`), so burnout velocity and altitude sat
+ *      at their initial zeros;
+ *    - `optimumDelay` came out `max(0, apogeeTime - Infinity)` = 0 s — a confident instruction to
+ *      deploy at burnout, on a rocket still 10 s from apogee;
+ *    - `burnoutMass` was read at `t = Infinity`, past every casing's detach time, so the descent
+ *      mass lost every motor including the inert one still bolted on;
+ *    - and landing energy and the recovery-sizing goal-seek are both computed from that mass.
+ *
+ *  Measured on `03.Three-stage.ork`, the one corpus design that mints the trigger: burnout velocity
+ *  0 m/s and optimum delay 0 s beside a 1,452 m apogee reached at 20.8 s. */
 function burnoutTime(motors: ResolvedMotor[]): number {
   let t = 0;
-  for (const m of motors) t = Math.max(t, m.ignitionTime + m.curve.burnTime);
+  for (const m of motors) {
+    if (!Number.isFinite(m.ignitionTime)) continue;
+    t = Math.max(t, m.ignitionTime + m.curve.burnTime);
+  }
   return t;
 }
 
