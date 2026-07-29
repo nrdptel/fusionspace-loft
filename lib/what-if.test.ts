@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { rangeWords, refusedMessage } from "./what-if";
+import { listWords, rangeWords, refusedMessage } from "./what-if";
 
 describe("rangeWords", () => {
   it("says a missing bound in words rather than leaving a dash", () => {
@@ -32,5 +32,20 @@ describe("refusedMessage", () => {
   it("uses a plain apostrophe, the one a screen reader and a test both expect", () => {
     expect(refusedMessage("-3")).toContain("isn't");
     expect(refusedMessage("-3")).not.toContain("’");
+  });
+});
+
+describe("listWords", () => {
+  it("reads as a sentence at every length", () => {
+    expect(listWords([])).toBe("");
+    expect(listWords(["rail length"])).toBe("rail length");
+    expect(listWords(["rail length", "surface wind"])).toBe("rail length and surface wind");
+    expect(listWords(["rail length", "rail angle", "surface wind"])).toBe(
+      "rail length, rail angle, and surface wind",
+    );
+    // The from-scratch case: a design that stores no launch setup at all.
+    expect(listWords(["rail length", "rail angle", "surface wind", "field elevation"])).toBe(
+      "rail length, rail angle, surface wind, and field elevation",
+    );
   });
 });

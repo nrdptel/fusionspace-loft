@@ -3,6 +3,18 @@
 Rough edges, missing affordances, and ideas too big for one pass — noticed while working,
 not yet done. Newest first. One line each. Anything here is fair game for the next session.
 
+- **The scenario toggle keeps a wind or elevation edit that the flight throws away, in a box the
+  flyer cannot then clear.** `LoftApp.tsx:935` — the "As designed"/"Today" segmented control calls
+  `rerun(edits, weather, s)` with `edits` untouched, while the OTHER entry point into the same state,
+  `onWeather` at :939, deliberately drops `edits.windSpeed` and `edits.launchAltitude` first —
+  because `compute` applies them and then overwrites both with the forecast. Repro: load the 54 mm
+  dual-deploy sample, fetch weather for a site, click **As designed**, type Surface wind = 12 into
+  the now-enabled field, click **Today**. The flight is flying the forecast; the box still reads 12,
+  and `disabled={scenario === "today"}` means it cannot be cleared without leaving the scenario. The
+  previous session fixed exactly this for the `onWeather` path and the entry beside it says the rule
+  belongs one level up — this is the second door into the same room. The fix is to route both entry
+  points through one function that decides what a scenario change does to the edit bag.
+
 - **`fromSpan` and `fromMass` map an entered 0 to `undefined`, so zero is not a value a flyer can
   set.** `LoftApp.tsx:1115,1110` — `v === "" || Number(v) === 0 ? undefined : …`. Blank already means
   "use the design's own value", so 0 has a spelling of its own to take, and for at least one field it
