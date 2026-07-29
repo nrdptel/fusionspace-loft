@@ -48,8 +48,11 @@ GitHub, authored as `Neer Patel <135655563+nrdptel@users.noreply.github.com>` �
 every future commit and rewrite deployed history. Verified with the owner on 2026-07-26.
 
 **Git identity is wrong out of the box** on a fresh container — it arrives as the harness vendor's
-name and address, which the zero-trace invariant forbids. Confirmed again this session: it came up as
-`Claude <noreply@anthropic.com>`. Set `user.name`/`user.email` per-repo in BOTH checkouts to
+own name and `noreply@` address, which the zero-trace invariant forbids. Confirmed again this session:
+it was still the vendor default. The names are not written here on purpose — this file is committed,
+and quoting the forbidden identity to warn about it puts it in the repository just as surely as using
+it would. Check what you actually have with `git config user.email`, and if it is not the address
+below, it is wrong. Set `user.name`/`user.email` per-repo in BOTH checkouts to
 `Neer Patel <135655563+nrdptel@users.noreply.github.com>` before the first commit, and check
 `git log -1 --format='%an <%ae>'` afterwards. Signing works (`gpg.format=ssh`); confirm with
 `git cat-file commit HEAD | grep gpgsig`.
@@ -127,9 +130,22 @@ It must print `imports every design file (35 present)`. With no corpus the suite
 run that says `1 passed` examined nothing. `--silent=false` matters: vitest 4 swallows `console.log`.
 **Confirmed this session: 35 files, 3/3.**
 
-**CI still cannot fetch the corpus until a `FIXTURES_TOKEN` repository secret exists.** That secret
-remains the one owner-side action. A test that needs a design file must drive a COMMITTED fixture
-(`e2e/fixtures/`, `fixtures/`, `public/samples/`).
+**`FIXTURES_TOKEN` is set, and the corpus now genuinely gates CI.** Verified in the CI log of the
+`frontend` job, not inferred from the secret existing: `imports every design file (35 present)`, all
+three corpus tests green in 20.0 s, and the accuracy census printed with the same medians as a local
+run (deployment velocity 5.9%, flight time 3.3%, max altitude 3.2%, time to apogee 1.7%, n = 76–97).
+That means **`PUBLISHED_MEDIAN_PCT` is now a real gate** — a change that degrades accuracy past the
+slack fails CI, where before this it silently skipped. Whole `frontend` job: 84 s, 715 tests.
+
+**But only the `frontend` job fetches it — the `e2e` job does not.** So the old rule now applies to
+half the suite: a **vitest** test may drive a corpus design, and an **e2e** test still must drive a
+COMMITTED fixture (`e2e/fixtures/`, `fixtures/`, `public/samples/`). Adding the fetch step to the
+`e2e` job is a two-line change and deliberately not done — nothing uses it yet, and shipping a CI step
+that enables nothing is the speculative work the brief forbids. When an e2e test genuinely needs a
+real design, add the step *and* make that test skip itself when the corpus is absent, or every fork's
+CI goes red.
+
+There are no outstanding owner-side actions.
 
 **A useful census shortcut**: the `.ork` container is a plain zip with one `rocket.ork` entry, so
 `unzip -p <file> rocket.ork | grep …` scans the whole corpus from a node script in seconds without
@@ -271,12 +287,21 @@ each design's own name beside its numbers.
 
 ## Pick up first
 
-`BACKLOG.md` carries the full ranked queue with measurements — the opening fan-out filed **53
-findings** across five lenses, 20 went to adversarial verification and **19 survived**. Read it before
-choosing, and reproduce before scoping: two of the verified ones turned out to be unreachable when
-driven against real files, and that is recorded there.
+**Start at `ROADMAP.md`, not here and not in `BACKLOG.md`.** The owner's read at the end of this
+session was that several runs in a row had shipped no new capability, and the repo agreed: eighteen
+merged commits, nine correctness-and-craft fixes, zero features, and fifty-five backlog entries none
+of which proposed one. `ROADMAP.md` now holds the queue and `MAINTAINING.md`'s *Each pass* section now
+makes the next milestone the default goal, with defects preempting only on Sev-1 and capped at one
+increment in four. **The current milestone is R1 — address components by identity rather than by
+role.** Read the measured baseline at the top of `ROADMAP.md` before scoping it.
 
-The best next moves, in order:
+`BACKLOG.md` is a defect ledger to file into and to screen for Sev-1s. It carries real measurements
+worth having — the opening fan-out filed 53 findings across five lenses, 20 went to adversarial
+verification and 19 survived — and reproducing before scoping still applies: two of the verified ones
+turned out to be unreachable when driven against real files, which is recorded there.
+
+The defect entries below were the old ranked queue. They are **not** the next moves any more; they are
+kept because the measurements are real and because R1 owns some of the code they touch:
 
 1. **The Monte-Carlo flies the FILE's launch setup, not the flyer's.** `MonteCarlo.tsx:153` uses
    `overridesFromStored(sim)` only, so Conditions edits and the "Today" scenario never reach the

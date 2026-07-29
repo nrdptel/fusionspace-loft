@@ -178,9 +178,11 @@ something out that the repo could have told you, write it down before you finish
 ## Session start — the first fifteen minutes
 Do these in order, before scoping increment 1. None is optional; most run concurrently.
 
-1. **Read the repo's own memory.** `HANDOFF.md`, `BACKLOG.md`, `CONTRIBUTING.md`, and
-   `git log --oneline -25`. If `HANDOFF.md` is missing, note it — the last session
-   skipped it and you must not.
+1. **Read the repo's own memory.** `ROADMAP.md` **first** — it holds the queue, and the next
+   unstarted milestone is this run's goal unless the owner named one. Then `HANDOFF.md`,
+   `BACKLOG.md`, `CONTRIBUTING.md`, and `git log --oneline -25`. If `HANDOFF.md` is missing, note it
+   — the last session skipped it and you must not. Read `BACKLOG.md` as a defect ledger to file
+   into and to check for Sev-1s, **not** as the list of what to build.
 
 2. **Probe the environment before you depend on it.** Record the answers and put anything durable in
    *This repo, concretely* above:
@@ -209,8 +211,17 @@ Do these in order, before scoping increment 1. None is optional; most run concur
 5. **Launch the opening fan-out** (below) and, while it runs, do the work you owe anyway: the
    baseline gate (lint, unit, build, e2e — green before you change anything, so an inherited failure
    is a finding rather than a mystery), the corpus link, and reading the code you expect to touch.
-   **Wait for the walks before scoping increment 1.** They take ten minutes of a four-hour run and
-   their ranked output IS your queue; an increment chosen before they land is chosen blind.
+
+   **The fan-out is a Sev-1 screen and a filing exercise — it is NOT your queue.** Your queue is
+   `ROADMAP.md`. This line used to read "their ranked output IS your queue", and that one clause is
+   most of why several runs shipped no capability: a bug hunt always returns findings, so the queue
+   was always defects. Read what comes back, act on Sev-1s at once, file the rest in `BACKLOG.md`,
+   and then go build the milestone. Do not wait on the fan-out to scope increment 1 — the milestone
+   is already known, so start it and let the findings land beside you.
+
+   Aim part of the fan-out at the milestone instead of at defects: what the code you are about to
+   change actually does today, how a mature tool does this same job, and what the smallest shippable
+   slice is. That is the investigation a feature pass needs.
 
 ## Orchestration — how to use parallel agents
 You can fan work out to subagents, each with its own context window. Token cost is not the
@@ -278,27 +289,52 @@ suggests.
 sequence, smallest first, and say in the report that you did.
 
 ## Each pass: one high-leverage increment
-If the owner has not named a focus, choose it yourself, in this priority order:
 
-1. **Correctness / safety / accuracy** — the physics, the importers/parsers, and the honesty of the
-   results, measured against published sources, the results a design file already carries, and
-   external oracles. Driving REAL, in-the-wild design files (the corpus) is the best bug-finder;
-   favor that over speculative model additions. No false precision — a value Loft cannot ground,
-   cite, or reproduce does not ship, least of all a safety-relevant one.
-   **But do not manufacture this work.** If a genuine sweep over real files turns up no finding, say
-   so with the output and move down this list — a speculative guard that fires on zero real files is
-   worse than nothing, and re-litigating settled numbers is padding.
-2. **Craft & product feel** — the bar above. A surface that is correct but reads as unfinished is not
-   done. The cold walks feed this directly.
-3. **Feature depth** — the next endgame-worthy capability: deeper, more accurate sim & aero (toward
-   full 6-DOF when the fundamentals justify it); broader ingestion (RockSim, RocketPy, RASAero,
-   SpaceCAD adapters); the multi-solver cross-check that shows Loft's result beside the file's own
-   and any oracle's; and the in-app rocket builder and visual design editor. Built into the one
-   internal Rocket model, landing on the surface it belongs to — never bolted onto an unrelated view.
-4. **Hardening / testing / performance** — malformed and oddball files, unusual builds, huge models,
-   sweeps/Monte-Carlo that stay fast, graceful degradation, actionable error messages, a11y,
-   offline/PWA, and desktop and mobile layouts that each pull their weight. Heavy compute stays fast
-   in the browser.
+**The default goal is the next unstarted milestone in `ROADMAP.md`.** Not a defect. Unless the owner
+names something else, that milestone is what the run ships, and increments are slices of it.
+
+This used to be a priority list with correctness first, craft second, and feature depth third. That
+list could never reach third place, and the repo proves it: a run of eighteen merged commits shipped
+nine correctness and craft fixes and **zero new capability**, and `BACKLOG.md` grew to fifty-five
+entries of which **none** proposed one. A corpus of real design files and a real UI generate defects
+faster than anyone can clear them, so "finish correctness first" resolves to "never build anything."
+Feature work does not win a competition against a defect queue; it has to be the default, with
+defects preempting it only when they are bad enough.
+
+**What preempts the milestone — Sev-1 only:**
+1. a wrong or unlabelled number on a surface a flyer would act on;
+2. a one-way door — a state a flyer can enter with no way back;
+3. anything that blocks the milestone itself;
+4. a red gate inherited at session start.
+
+Fix those immediately, whatever they cost. **Everything else is filed in `BACKLOG.md` and waits** —
+including findings you are certain about, including ones that would take ten minutes. Filing is not
+deferring the work; letting them absorb the run is how the last several runs ended with nothing new.
+
+**The quota: at most one increment in four may be defect or polish work**, Sev-1 preemptions
+excluded. Reaching that cap means the rest of the run is milestone work or nothing. If the owner names
+a correctness focus, that overrides this — a named focus is always the goal.
+
+**Do not manufacture correctness work.** If a sweep over real files turns up no finding, say so with
+the output. A speculative guard that fires on zero real files is worse than nothing, and
+re-litigating settled numbers is padding. This cut both ways: it was written to stop invented fixes,
+and it was also the licence to keep hunting until something turned up. It does not license that.
+
+**The standing quality bar still holds inside milestone work.** Shipping a capability is not
+permission to ship it unfinished: no false precision, no number that is not the one being flown, and
+the bar above applies to every new surface on the pass that creates it. A feature that lies is worse
+than no feature. What changed is which work the run goes looking for, not how well it is done.
+
+**Other axes, when the roadmap is genuinely blocked** on an owner decision — say which:
+- **Craft & product feel** — the bar above. A surface that is correct but reads as unfinished is not
+  done. The cold walks feed this directly.
+- **Hardening / testing / performance** — malformed and oddball files, unusual builds, huge models,
+  sweeps/Monte-Carlo that stay fast, graceful degradation, actionable error messages, a11y,
+  offline/PWA, and desktop and mobile layouts that each pull their weight. Heavy compute stays fast
+  in the browser.
+- **Deeper physics and ingestion** — toward full 6-DOF when the fundamentals justify it; more
+  adapters; the multi-solver cross-check. These are North Star #1 and belong on the roadmap rather
+  than picked up ad hoc; if one is the right next thing, put it in `ROADMAP.md` and say why.
 
 **Within an axis, rank by damage, not by novelty:**
 1. a one-way door — a state a flyer can enter with no way back;
@@ -347,8 +383,12 @@ adding a speculative guard that fires on zero real files; cosmetic churn with no
 splitting one coherent change into three commits to look busy. Padding is NOT: working the craft bar,
 adding real feature depth, or hardening.
 
-**When the cheap queue drains** — increment ten, fifteen, twenty — three kinds of work are always
-available and none of them is padding:
+**When the cheap queue drains** — increment ten, fifteen, twenty — these are always available and
+none of them is padding. **Take the first one before any of the others:**
+- **Ship the next slice of the roadmap milestone.** This is never unavailable, which is the point: a
+  drained defect queue is not a reason to look for more defects. The three below used to be the whole
+  list, and not one of them produces a capability — that is how a long run reached increment twenty
+  having split files and added tests and built nothing a flyer can use.
 - **Split a file that has become the app.** Promoting one workspace to its own static route is what
   the PRODUCT SHAPE invariant asks for and what unblocks parallel work.
 - **Land the check for a tell you fixed this run without one** — a test that stops it coming back.
@@ -380,13 +420,21 @@ ALL of the following and reported what each produced:
    that ours doesn't.
 4. **Read `BACKLOG.md`** — and correct the entries this run invalidated rather than leaving them to
    mislead.
+5. **Answer this out loud: what can a flyer DO after this run that they could not do before?** Name
+   it in one sentence. If the honest answer is "nothing", say exactly that, say which milestone the
+   run was on, and say what stopped it — an owner decision, a wrongly sized milestone, a Sev-1 that
+   ate the run, or your own choice to keep fixing things. A run of eighteen green commits that adds
+   no capability currently reports as a total success, because nothing in this list asked. Now it
+   does.
+6. **Update `ROADMAP.md`** — mark what shipped against the milestone's *done when*, and record the
+   gap. That gap is the next session's first increment.
 
 Then ship the highest-leverage item from what steps 2–4 produced. Only if all four yield literally
 nothing may the run end early, and the report must show what each returned.
 
 **Legitimate early stops**, and say which one:
-- a genuine owner decision blocks everything remaining (AskUserQuestion once, early, then keep
-  shipping whatever is not blocked while you wait);
+- a decision is genuinely unsafe to take alone — see *Unattended operation* below, which is the
+  normal case and which forbids stopping for an ordinary design fork;
 - your local gate is red and you cannot fix forward — report it with output rather than pushing more;
 - every remaining candidate is multi-pass — scope the smallest shippable slice of one instead;
 - the time budget is spent;
@@ -411,6 +459,66 @@ tests, the live site) rather than from recollection.
 - End-of-run: summarize every increment with SHAs and how each was verified, state how many reached
   production versus how many are pending, and name the best next move — in the chat report AND in a
   committed `HANDOFF.md`.
+
+## Unattended operation (assume this is the normal case)
+
+**Assume the same prompt is being run repeatedly for a week or two with nobody reading the output
+until the end.** That is the intended mode. It has one hard consequence: **the prompt carries no
+state, so the repo must carry all of it.** A prompt that names a milestone is wrong within a day,
+because the milestone ships and the prompt keeps asking for it. The prompt says "the next unstarted
+milestone in `ROADMAP.md`"; `ROADMAP.md` says which that is. Keep it that way.
+
+**Never stop to ask.** No `AskUserQuestion` for a design fork, an ordering call, a naming choice, a
+sizing surprise, or a milestone that turns out wrong. There is nobody there, and a run that ends
+waiting is a run that produced nothing. Instead:
+1. take the most defensible option and say plainly why;
+2. record it under *Decisions taken without the owner* in `ROADMAP.md`, with the alternative you
+   rejected, so it can be reversed cheaply rather than re-derived;
+3. state the assumption in the PR body;
+4. keep shipping.
+
+Reserve stopping for a decision that is genuinely unsafe to take alone — one that would destroy work,
+publish something irreversible, spend the owner's money, or make a safety-relevant claim you cannot
+ground. A choice between two reasonable designs is not that. If you find yourself wanting to ask, the
+question almost always has a defensible default; take it and write it down.
+
+**Completion has to be mechanical, not a matter of opinion.** Across many unattended runs the biggest
+failure mode is thrash: one run believes a milestone is finished, the next disagrees and redoes it. So
+**a milestone is not done until its *done when* is pinned by an automated check** — a test that fails
+if the capability regresses. Ship the check with the milestone, name it in `ROADMAP.md`, and treat a
+green check as the answer to "is this done". Where a *done when* genuinely cannot be automated, say so
+in `ROADMAP.md` and pin the closest thing that can be.
+
+**Never re-open a milestone marked shipped** unless a Sev-1 is traced to it. If it delivered less than
+its *done when*, that gap is already recorded as the next milestone's starting point — work the gap
+forward, do not restart the milestone.
+
+**The roadmap must never run dry.** When the last milestone ships, decompose the next area yourself,
+in the order given at the bottom of `ROADMAP.md`, to the same shape as the existing entries — outcome,
+*done when*, size, notes. Do not ask which. Do not fall back to the defect ledger because the roadmap
+looks finished; extending it IS the work in that case, and it takes one increment.
+
+**Nobody is reviewing the pull requests one at a time.** So each PR body must stand alone — what
+changed, the numbers that prove it, what was measured and rejected — and `HANDOFF.md` must carry the
+ARC across runs, not just the current session: which milestones shipped and when, what is in flight,
+what was decided without the owner. Somebody will read a fortnight of this at once.
+
+**If `main` arrives red**, that is a Sev-1 and it preempts everything: fix forward or revert the
+offending commit, and say which. Never build a milestone on top of a red baseline for a week.
+
+**What actually protects a fortnight of unreviewed merges.** Nobody is reading the diffs, so the
+automated gate is the whole safety net — and it is stronger than it was: `FIXTURES_TOKEN` is set, so
+the real-design corpus and the published accuracy census now run in CI on every pull request. An
+accuracy regression past `CENSUS_SLACK_PCT` fails the build instead of skipping quietly, which is the
+single most valuable check for unattended physics work. Do not weaken it to get a milestone through:
+widening a tolerance, adding a `KNOWN_ISSUES` entry for something this run broke, or skipping a corpus
+case is a regression dressed as a pass. If the corpus blocks a milestone, that is the corpus doing its
+job — fix the cause, or file the milestone's slice as blocked and say so.
+
+**Let the defect ledger grow, within reason.** The one-in-four quota is deliberate and holds across
+runs, not within each one — several consecutive milestone-only runs are correct. But a Sev-1 is never
+deferred, and if the ledger's Sev-1 count is ever above zero at the end of a run, say so at the top of
+the report.
 
 ## Workflow (per increment)
 1. **Orient** — `git fetch`, reconcile against the repo, decide what is weakest or highest-value.
@@ -469,8 +577,13 @@ How it reaches CI:
   fails loudly. Hashing the archive itself would prove nothing: GitHub's generated tarballs are not
   byte-reproducible.
 - With no token the fetch exits 0 and the corpus suite skips itself, so public clones and fork CI stay
-  green. CI runs it before lint with `FIXTURES_TOKEN` as a secret, so the corpus gates every push
-  there — **once that secret exists.** Check whether it does before claiming the corpus gates CI.
+  green. **The secret is set, and the corpus does now gate CI** — confirmed from the `frontend` job's
+  log rather than from the secret's existence: `imports every design file (35 present)`, three corpus
+  tests green, and the accuracy census printed with its usual medians. `PUBLISHED_MEDIAN_PCT` is
+  therefore a live gate, so a change that degrades accuracy past `CENSUS_SLACK_PCT` now fails CI
+  instead of skipping. **Only the `frontend` job fetches it; the `e2e` job does not** — a vitest test
+  may drive a corpus design, an e2e test still needs a committed fixture. Still read the log rather
+  than assuming: a fetch that quietly no-ops leaves the suite skipping itself and reporting green.
 - Re-cutting a snapshot means regenerating `CHECKSUMS.sha256` in the fixtures repo, then bumping
   `commit`, `checksums` and `files` in the lock. The fixtures repo's README carries the commands.
 - A parser fix can land BEFORE the corpus's expected values are regenerated; a committed,
