@@ -3,6 +3,122 @@
 Rough edges, missing affordances, and ideas too big for one pass — noticed while working,
 not yet done. Newest first. One line each. Anything here is fair game for the next session.
 
+- **RESOLVED this session — one unlit motor made the whole flight's burnout `Infinity`, and four
+  numbers were read off it.** `setup.ts:212` mints `ignitionTime = Infinity` for a motor whose
+  trigger can never arrive (a `burnout` event on the bottom-most stage, with nothing beneath it to
+  burn out); it rides as inert mass, which is what the file's own stored flight shows.
+  `burnoutTime` folded that into a `Math.max`, so the FLIGHT's burnout became `Infinity` — not
+  "later than the others", but "never". Measured in the built export on `03.Three-stage.ork`, the
+  one corpus design that mints the trigger: **burnout velocity 0 m/s and optimum delay 0 s beside a
+  1,452 m apogee reached at 20.8 s.** Optimum delay is what a flyer buys or drills a delay grain to,
+  and 0 s reads as "deploy at burnout" on a rocket still ten seconds from apogee. `burnoutMass` was
+  read at `t = Infinity`, past every casing's detach time (`t >= (detachTime ?? Infinity)` and
+  `Infinity >= Infinity` is true), so the descent mass lost every motor — including the inert one
+  still bolted on — and landing energy and the recovery-sizing goal-seek are both computed from it.
+  Fixed by skipping non-finite ignition times. Before/after census across all **39** corpus and
+  sample designs, driven through the built app one isolated browser context each: **1 design
+  changed** — burnout velocity 0 → 181 m/s, optimum delay 0 → 10.8 s, landing energy 40 → 65 J,
+  apogee unchanged at 1,452 m — and 38 unchanged.
+
+- **The opening fan-out this session filed 53 findings across five lenses; 20 went to adversarial
+  verification and 19 survived. The ones not yet worked, in rough damage order.** Every one names a
+  file and a corpus design; reproduce before scoping.
+  - **A RASAero `<Pressure>` is taken on a bare `> 0` guard** (`lib/rasaero/adapt.ts:371`) and fed
+    straight to `atmosphereForGround` via `lib/sim/run.ts:44`. `Show-off.CDX1` states
+    `<Pressure>2</Pressure>` — 2 inHg → 6,773 Pa, 6.7% of sea level → ρ ≈ 0.08 kg/m³ against ~1.17,
+    a **14.7× thin atmosphere** flown as an ordinary flight. `<Temperature>` and `<Altitude>` have
+    no bound at all. Nothing on screen says the atmosphere came from the file, and Conditions
+    exposes neither field, so the flyer can neither see it nor correct it. The RockSim path already
+    bounds rail length to 0.1–20 m (`lib/rkt/adapt.ts:618`); the atmosphere inputs get nothing.
+  - **An altitude-triggered recovery device with no stated altitude falls back to `?? 0`**
+    (`lib/sim/simulate.ts:700`), so its trigger becomes `pos.z <= 0` and it "deploys" at the ground
+    on the last descent step — setting `anyRecoveryOpened`, which gates the ballistic-descent
+    warning the code's own comment calls "the most serious thing Loft can flag". Both importers can
+    mint the shape (`rasaero/adapt.ts:416` when `Altitude2 <= 0`; `ork/adapt.ts:561` via
+    `childNum(...) || undefined`). A ballistic impact is downgraded to a hard-landing caution that
+    advises a larger canopy for a flight where nothing opened.
+  - **Winds-aloft direction is interpolated without a 0/360 wrap** (`lib/weather.ts:131`):
+    `dir = a + (b - a) * f` straight into `windVector`, no unwrap anywhere. For a 350°/10° pair,
+    f=0.5 gives **180°** where the truth is 0° — the vector exactly reversed, wind from due south
+    where it blows from due north. `LEVELS` is deliberately dense at 1000/975/950/925 hPa, the band
+    recovery drift lives in, and the profile fully replaces the surface wind under "Today".
+  - **`.ork` archives carry `thrustcurves/*.rse` and the zip reader discards them**
+    (`lib/ork/zip.ts:92` takes only the first design entry), while `lib/motors/db.ts:4` and
+    `lib/model/types.ts:315` both assert "a .ork never embeds the curve". So a design is refused a
+    flight for want of a curve the file is carrying: `EscapeVelocity.ork`'s H225-14A configuration
+    (stored apogee 524.75 m) and both simulations of `Show-off.CDX1` resolve to nothing.
+  - **`<overridecd>` / `<overridesubcomponentscd>` are read by nothing.** `Base drag hack
+    (short-wide).ork` sets `<overridemass>0.0`, `<overridecg>0.0` AND `<overridecd>0.0` on a 0.2475 m
+    tail flare, and its own `<comment>` says the technique IS those three checkboxes. Loft honours
+    two of three and bills the cone for drag the file states is zero — the design's documented
+    purpose inverted. Neighbouring gap: `<tabheight>`/`<tablength>`/`<tabposition>` are read nowhere
+    either, so **101 g** of through-the-wall fin tab vanishes from the aft end of `Airstart
+    timing.ork` (3 × 0.0682625 × 0.2413 × 0.003 m × 680 kg/m³) and **120 g** from
+    `03.Three-stage.ork`. Fin fillets cost 237 g on `OR vs RAS Test 1.ork` and are at least disclosed
+    at `app/docs/limitations/page.tsx:118`; tabs are disclosed nowhere.
+  - **`meanFinChord` is assigned per fin set, ending as the LAST set walked, while `finThickness` on
+    the next line is the MAX across sets** (`lib/sim/aero.ts:451`), so `finThicknessRatio` pairs one
+    set's thickness with another set's chord — a ratio belonging to no fin, which changes if the
+    design's sets are reordered without changing the rocket. On `Simulation scripting.ork` (an 8 mm
+    50 mm-root set beside 5 mm 495 mm-root sets) t/c ≈ 0.02 where the thick set's own is 0.16 and the
+    big set's 0.0125 — an 8× error into the fin friction form factor (`1 + 2·t/c`) and the wave-drag
+    term (`2.0·t/c`). `finSweepLength` (last) paired with `finSpan` (max) at `aero.ts:505` is the
+    same defect.
+  - **RASAero recovery `<Size1>`/`<Size2>` are read as canopy diameter in FEET with no bound.**
+    `Complex.Two-Stage.CDX1` states Size1=12, Size2=24 on a 4.06 lb rocket: as feet that is a 7.32 m
+    main and a 3.66 m drogue giving **0.94 m/s** under the main. Either the unit is wrong or the
+    file is; nothing in the import says which, and no bound catches a canopy four times the rocket's
+    length. Related: `planBooster` reads only Booster 1 — `IncludeBooster2`, `Booster2Engine`
+    (`Show-off.CDX1` carries `A6Q (QU)`) and friends are read by no code, and the drop is not counted
+    in the `droppedBoosters` warning. And `lib/motors/db.ts:114` has `Q` and `QUEST` but not `QU`,
+    the code RASAero actually writes, so a two-character maker key can never match.
+  - **The Monte-Carlo flies the file's stored launch setup, not the flyer's.** `MonteCarlo.tsx:153`
+    uses `overridesFromStored(sim)` only, so Conditions edits and the "Today" scenario are absent
+    from its nominal while the Flight card's drift uses them. Set surface wind to 20 mph: the Flight
+    card's drift jumps, median drift / recovery radius (95%) / chance over ceiling do not, and the
+    panel does not even reset because `designKey` carries no condition field. `app/docs/faq:244`
+    then states "You set the one-sigma spread on each input, so the answer reflects your own
+    conditions" — which converts an undisclosed defect into a denied one. Recovery radius and the
+    waiver-bust probability are the two numbers a flyer plans a field around.
+  - **A motor swap survives a configuration change it cannot apply to.** `selectConfig`
+    (`LoftApp.tsx:586`) never reconciles `edits.motorSwap` and `swapMotor` applies it
+    unconditionally. On `Punisher Apprentice.ork` (9 configs across 24/29/38 mm casings): swap on the
+    38 mm H550ST run, then select the 24 mm E30T run — the picker shows blank while apogee, T:W,
+    rail exit and optimum delay are still the 38 mm motor's.
+  - **`downloadOrk` bakes payload mass and station into the export but drops `ballastKg` entirely**
+    (`LoftApp.tsx:478`, adjacent fields in one fieldset), with nothing saying so. Nose ballast exists
+    to fix a low static margin, and the exported file is the one a flyer builds to.
+  - **Two panels on the Design tab describe different rockets.** `RocketSummary`'s Length comes from
+    the UNEDITED design while CG, CP and margin beside it come from the edited run
+    (`ResultsView.tsx:862`); `MassBreakdown` is fed `doc.rocket` while its sibling `GeometryInspector`
+    gets `shownRocket` (`ResultsView.tsx:657`), and the Geometry caption points AT the stale panel by
+    name while MassBreakdown claims "the same per-part masses the simulator flies".
+  - **The motor sweep flags two launch-safety rules and stays silent on the third.** Rail exit
+    renders unflagged (`MotorSweep.tsx:314`) though the panel's own footnote names the ~15 m/s rule
+    and the Flight tab raises a caution for it. Neither sweep row carries Mach or
+    `extrapolatedTransonic` (`lib/sim/sweep.ts:82`), so the transonic candidate — the one a flyer is
+    tempted by, because the table sorts apogee-descending — presents as confidently as a subsonic
+    one, against `app/docs/page.tsx:52`'s promise to warn. Both existing flags are colour + a `title`
+    on a non-focusable `<td>`: no hover on a phone, nothing for a screen reader (WCAG 1.4.1), and the
+    flutter threshold appears in the tooltip string and in no visible copy.
+  - **`.prose-loft table { display: block }`** (`app/globals.css:193`) drops every docs table out of
+    the accessibility tree as a table, so `/docs/validation` — the page carrying Loft's own accuracy
+    claims — reads as a flat run of numbers with no column names, in a scroll container with no
+    `tabindex` for a keyboard user.
+  - Rank 3–5, briefly: the flight-log Remove button is a 16 px target that unmounts itself on press
+    (focus falls to `<body>`); the flight-log unit selects are 22 px and the sweep selects 34 px; the
+    docs nav links are 28–30 px; `.rkt` simulation names keep a bracket when RockSim writes a
+    trailing space; the rail-button mass path can never fire; `conditions.windDirectionDeg` reads
+    `<launchroddirection>` while the real `<winddirection>` is read by nothing; RASAero `<Event1>`/
+    `<EventType1>` are ignored (device 1 hardcoded apogee, device 2 altitude); `units` has no
+    `loft.pref.*` entry while the theme, the MC sigmas and both sweep sorts do; the stored-vs-Loft
+    table formats to 1 dp against the stat tiles' 0 dp; every warning string hardcodes SI while the
+    tiles above it convert; the impact speed is called three different names across three surfaces;
+    the MC histogram axis labels use the browser locale rather than `fmt`; the flight-path figure
+    labels `p.x` as "down-range" while Drift is `hypot(x, y)`; `not-found`/`error` have no `#main`
+    for the skip link and `<main>` has no `tabIndex={-1}`; the MC progress live region announces
+    every batch; the parts-table hover read-out announces each row twice.
+
 - **A rail length of 0 was flown, and the flight reported "Rail-exit velocity 0 m/s" beside it with
   no warning — RESOLVED this session.** The field's floor was `min={0}` and it took a 0 and flew it;
   `onRail` (`lib/sim/simulate.ts:953`) is `along < rodLength`, so a 0 m
