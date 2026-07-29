@@ -15,8 +15,12 @@ import { mToFt, mpsToFtps } from "@/lib/units";
  *  OpenRocket writes a status on every simulation, and three of them mean the numbers are not what
  *  they look like:
  *
- *    - `external` — results that did NOT come from its simulator, which is what the bundled demo
- *      designs carry: figures their author estimated, so the panel has something to demonstrate on.
+ *    - `external` — results that did NOT come from its simulator. `fixtures/src/demo-boattail`,
+ *      `demo-payload-separation` and `demo-quirks` carry figures marked this way, so the panel has
+ *      something to demonstrate on. The three designs the app offers as one-tap samples do NOT:
+ *      each carries `<simulation status="external">` holding launch conditions and no `<flightdata>`
+ *      at all, so `hasResults` is false and this panel never renders for them. That absence is
+ *      explained on screen by `noStoredResultsReason`, not by this component.
  *    - `outdated` — a real run, but from before the design was last edited, so it describes an
  *      earlier version of this rocket.
  *    - `notsimulated` / `loaded` — figures the file carries for a simulation the tool does not

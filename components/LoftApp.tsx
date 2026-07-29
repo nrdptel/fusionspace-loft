@@ -135,11 +135,22 @@ interface Edits {
  *  that hides the stored-tool comparison and the button that restores it have to answer the same
  *  question, or clearing a field leaves the comparison hidden with the way back hidden too. */
 function hasActiveEdits(e: Edits): boolean {
-  // `finSetId` says which component the fin fields are POINTED AT, not that anything was changed.
-  // Counting it would withhold the stored-tool comparison — and hide the button that brings it
-  // back — the moment a flyer clicked a fin set to look at it.
-  return Object.entries(e).some(([k, v]) => k !== "finSetId" && v !== undefined && v !== "");
+  return Object.entries(e).some(([k, v]) => !INERT_EDITS.has(k) && v !== undefined && v !== "");
 }
+
+/** Keys that can sit in the edit bag without the design being edited.
+ *
+ *  `finSetId` says which component the fin fields are POINTED AT, not that anything was changed.
+ *  Counting it would withhold the stored-tool comparison — and hide the button that brings it back —
+ *  the moment a flyer clicked a fin set to look at it.
+ *
+ *  `payloadStation` is the same shape one step further out: it places a payload that is not there
+ *  unless `payloadMassKg` is set. `addPayloadMass` returns the rocket untouched without a mass, so a
+ *  station on its own produces a flight byte-identical to the design's, and counting it cost the
+ *  flyer the stored-tool comparison for a change that changed nothing. It can never be the only
+ *  thing that makes a design edited: wherever the station does matter, the mass beside it is already
+ *  set and already counted. */
+const INERT_EDITS = new Set(["finSetId", "payloadStation"]);
 
 /** Same-diameter bundled motors the design could fly, with the design's own motor as the default.
  *  Built once per design/config so the picker offers a fitting alternative without editing the file. */
@@ -1143,9 +1154,11 @@ function DesignEditor({
   //     zero sits at the fore end of the body tube rather than its middle. Both were unreachable
   //     while every zero was thrown away here.
   //   · a zero on a field whose UNEDITED value is already zero — nose ballast, an added payload, a
-  //     drogue the design does not carry — says exactly what blank says, so `orNone` folds it back to
-  //     blank. Storing it instead would count as an edit and withhold the stored-tool comparison for
-  //     a change that changed nothing.
+  //     drogue the design does not carry, either half of a boattail it does not have — says exactly
+  //     what blank says, so `orNone` folds it back to blank. Storing it instead would count as an
+  //     edit and withhold the stored-tool comparison for a change that changed nothing. The two
+  //     boattail fields belong together here: `edit.ts:198` gates them as a PAIR, so a zero on
+  //     either one means "no boattail", which is what leaving both blank already means.
   //   · a zero the model will NOT fly never leaves the field at all: `Num`'s `positive` refuses it in
   //     words. That is the case the old blanket "zero means blank" hid — a refused entry looked
   //     byte-identical to a cleared one, so the field simply forgot what the flyer had typed.
@@ -1434,9 +1447,8 @@ function DesignEditor({
                       label={`Boattail exit (${spanU})`}
                       value={toDispSpan(edits.boattailAftDiameter)}
                       placeholder={`< ${toDispSpan(designDims.bodyDiameter)}`}
-                      onChange={(v) => onEdit({ boattailAftDiameter: fromSpan(v) })}
+                      onChange={(v) => onEdit({ boattailAftDiameter: orNone(fromSpan(v)) })}
                     min={0}
-                    positive
                     />
                   )}
                 </div>
@@ -1842,6 +1854,20 @@ function Num({
   const [draft, setDraft] = useState(String(value ?? ""));
   // The entry that was refused, kept only to say so. Cleared as soon as the flyer types again.
   const [refused, setRefused] = useState<string | null>(null);
+  // What that message's "flying …" named when it was written. A refusal is about ONE entry against
+  // ONE value in the flight, and it has to outlive the commit that raised it — the box has already
+  // resynced by then — but not outlive the flight it describes. Without this the field kept its
+  // amber border, `aria-invalid` and a live `role="alert"` through "Reset to as-designed" and
+  // through a unit switch, still quoting the old value in the old units, and the only way to clear
+  // it was to focus that exact box and type: a state a flyer can walk into with no way back out.
+  // `null` is "not latched yet"; the latched value is whatever `flown` was, which is `undefined` on
+  // a field with no placeholder and nothing edited — a real state, and distinct from not-latched.
+  const against = useRef<string | undefined | null>(null);
+
+  // What the flight is actually using: the committed edit if there is one, else the design's own
+  // value, which is what the placeholder shows. Naming it is the whole point of the message — the
+  // complaint is not that the entry was refused, it is not knowing what is being flown instead.
+  const flown = String(value ?? "") || placeholder;
 
   // The field must never sit there showing a number that is not the one in the flight. It could:
   // the input is controlled by `value`, and an entry the model refuses leaves `value` unchanged, so
@@ -1851,6 +1877,12 @@ function Num({
   // however the parent resolved the entry: accepted, clamped, or dropped.
   useEffect(() => {
     if (document.activeElement !== ref.current) setDraft(String(value ?? ""));
+    // Latch on the render AFTER the refusal, so it records where the commit LEFT the flight rather
+    // than where it found it — `commit` can call `onChange` on its way out, and React batches that
+    // with `setRefused` into one render.
+    if (refused === null) against.current = null;
+    else if (against.current === null) against.current = flown;
+    else if (against.current !== flown) setRefused(null);
   });
 
   /** Commit the typed text. Returns what the model was asked for, which is not always what was
@@ -1876,12 +1908,14 @@ function Num({
     // turns on. Refusing it says which value is actually in the flight instead.
     if (positive && bounded === 0) {
       setRefused(raw);
-      // Blank the field's contribution on the way out. Typing pushes every keystroke at the model,
-      // so an entry that arrives here NEGATIVE has already put a negative dimension in the edit bag;
-      // the model declines to apply it and the box then redisplays it, which is a field asserting a
-      // value nothing is flying — the one thing the re-sync effect below exists to prevent. Blank
-      // means "the design's own value", which is what the refusal message is about to name.
-      onChange("");
+      // Blank the field's contribution ONLY when this entry actually reached the model. Typing
+      // pushes every keystroke at it, so an entry that arrives here NEGATIVE has already put a
+      // negative dimension in the edit bag; the model declines to apply it and the box then
+      // redisplays it, which is a field asserting a value nothing is flying. A literal zero never
+      // got that far — the keystroke handler below withholds it — so blanking on a zero would throw
+      // away a good edit the flyer made earlier and typed over: a committed 25 mm fin span, one "0"
+      // and a Tab, and the 25 is gone with only the global reset to bring anything back.
+      if (n !== 0) onChange("");
       return;
     }
     setRefused(bounded !== n ? raw : null);
@@ -1893,10 +1927,6 @@ function Num({
   // "0 to –" reads as a range that failed to load rather than as "no maximum". Shared with the
   // analysis panels' number field so the two never say it differently.
   const ranged = rangeWords(min, max, positive);
-  // What the flight is actually using: the committed edit if there is one, else the design's own
-  // value, which is what the placeholder shows. Naming it is the whole point of the message — the
-  // complaint is not that the entry was refused, it is not knowing what is being flown instead.
-  const flown = String(value ?? "") || placeholder;
   const msgId = `${label.replace(/[^a-z]+/gi, "-").toLowerCase()}-refused`;
 
   return (

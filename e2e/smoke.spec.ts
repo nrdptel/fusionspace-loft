@@ -2864,8 +2864,8 @@ test.describe("Loft", () => {
   });
 
   test("a rail of no length is refused rather than flown as 0 m/s off the rail", async ({ page }) => {
-    // "Rail length" advertised its floor as "0 or more" and meant it: `onRail` is `along < rodLength`,
-    // so a rail of 0 m is left before the motor has produced any thrust and the flight reports
+    // "Rail length" took a 0 and flew it. `onRail` is `along < rodLength`, so a rail of 0 m is left
+    // before the motor has produced any thrust and the flight reports
     // "Rail-exit velocity 0 m/s". Measured on the 54 mm dual-deploy sample: the design's own 2.0 m
     // rail gives 28 m/s, and 0 gives 0 m/s with no warning anywhere on the page. That number is the
     // one a pad check turns on — an RSO reads it to decide the rocket leaves the rail flying — so a
@@ -2918,8 +2918,29 @@ test.describe("Loft", () => {
     await page.goto("/");
     await page.getByRole("button", { name: /54 mm dual-deploy/ }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
-    await page.getByRole("tab", { name: "Design" }).click();
 
+    // Read the flight BEFORE the edit, on the workspace that shows it. Asserting only that the box
+    // keeps its "0" would pass just as well if the model went on dropping the zero the way it did
+    // before — the entry has to be shown reaching the solver.
+    // Read it out of the results section's own text rather than by walking siblings from the label:
+    // "Apogee" labels a Stat card, a validation row AND the what-if delta table, and the delta table
+    // only exists once an edit is set — so a sibling walk anchored on the first match reads a
+    // different element before and after the very edit under test.
+    const results = page.getByRole("region", { name: "Results" });
+    const apogee = async () => {
+      // `innerText` returns CSS-TRANSFORMED text, and the Stat label carries `uppercase` — so the
+      // string here reads "APOGEE" even though `getByText("Apogee")` matches the DOM node fine.
+      // Anchored on a line start so "TIME TO APOGEE" cannot stand in for it.
+      const m = (await results.innerText()).match(/(?:^|\n)Apogee\n([\d,.]+)\s*(m|ft)\b/i);
+      return m ? `${m[1]} ${m[2]}` : null;
+    };
+    // The flight runs asynchronously after the sample loads, so the heading is on screen before the
+    // numbers are — wait for the card itself, not just the workspace.
+    await expect(results.getByText("Apogee", { exact: true }).first()).toBeVisible({ timeout: 20_000 });
+    const asDesigned = await apogee();
+    expect(asDesigned).toBeTruthy();
+
+    await page.getByRole("tab", { name: "Design" }).click();
     const sweep = page.locator("label").filter({ hasText: /Fin sweep/ }).first().locator("input");
     const designSweep = await sweep.getAttribute("placeholder");
     // The sample has a swept fin, or this test is asserting that zero equals zero.
@@ -2932,10 +2953,106 @@ test.describe("Loft", () => {
     // The entry stands: the box keeps the zero rather than blanking back to the design's own sweep...
     await expect(sweep).toHaveValue("0");
     await expect(sweep).not.toHaveAttribute("aria-invalid", "true");
-    // ...and the design is now an edited one, which is what says the flight in view is the edit's.
-    // That button appears only while a what-if is actually set, so it is the app's own answer to
-    // "did this entry become an edit?" rather than a second opinion of the test's.
+    // ...the design is now an edited one, which is what says the flight in view is the edit's...
     await expect(page.getByRole("button", { name: "Reset to as-designed" })).toBeVisible();
+    // ...and the flight itself moved, which is the only proof the zero reached the solver. Measured
+    // on this sample: 2,941 m as designed, 2,359 m with the leading edge straightened.
+    await page.getByRole("tab", { name: "Flight" }).click();
+    await expect(async () => expect(await apogee()).not.toBe(asDesigned)).toPass({ timeout: 20_000 });
+  });
+
+  test("a refused zero keeps the edit it was typed over, and lets go once the flight moves", async ({ page }) => {
+    // Two ways a refusal used to cost more than the entry that caused it.
+    //   1. `commit` blanked the field on every refusal, but a literal zero never reaches the model —
+    //      the keystroke handler withholds it — so blanking threw away whatever the flyer had
+    //      committed earlier and typed over. A 25 mm fin span, one "0" and a Tab, and the 25 was
+    //      gone with only the global reset to bring anything back.
+    //   2. The refusal outlived the flight it described. Nothing cleared it but a keystroke in that
+    //      same box, so it survived "Reset to as-designed" — and with the edit wiped by (1) that
+    //      button was not even on screen, leaving an amber, aria-invalid field quoting a value
+    //      nobody could get back to.
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    await page.getByRole("tab", { name: "Design" }).click();
+
+    const span = page.locator("label").filter({ hasText: /Fin span/ }).first().locator("input");
+    const design = await span.getAttribute("placeholder");
+
+    await span.fill("25");
+    await span.blur();
+    await expect(span).toHaveValue("25");
+
+    await span.fill("0");
+    await span.blur();
+    // The zero is refused and named — and the 25 is still what is being flown.
+    await expect(span).toHaveAttribute("aria-invalid", "true");
+    const msg = page.locator(`#${await span.getAttribute("aria-describedby")}`);
+    await expect(msg).toContainText("more than 0");
+    await expect(msg).toContainText("flying 25");
+    await expect(span).toHaveValue("25");
+
+    // Clearing the edit clears the complaint about it: the message named 25, and 25 is gone.
+    await page.getByRole("button", { name: "Reset to as-designed" }).click();
+    await expect(span).toHaveValue("");
+    await expect(span).not.toHaveAttribute("aria-invalid", "true");
+    await expect(page.locator(`#${await span.getAttribute("aria-describedby")}`)).toHaveCount(0);
+    await expect(span).toHaveAttribute("placeholder", design!);
+  });
+
+  test("a payload station with no payload is not an edit, and does not cost the stored comparison", async ({
+    page,
+  }) => {
+    // `addPayloadMass` returns the rocket untouched unless a mass is set, so a station on its own
+    // flies a design byte-identical to the file's — while `hasActiveEdits` counted it and withheld
+    // the stored-tool comparison for it. Newly reachable at zero once zeros stopped being swallowed,
+    // but true of every value.
+    await page.goto("/");
+    await page.getByRole("button", { name: /RockSim · 54 mm sport/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    const comparison = page.getByRole("region", { name: "Validation" });
+    await expect(comparison).toBeVisible();
+
+    await page.getByRole("tab", { name: "Design" }).click();
+    const pos = page.locator("label").filter({ hasText: /Payload pos/ }).first().locator("input");
+    await pos.fill("0");
+    await pos.blur();
+    await expect(pos).toHaveValue("0");
+
+    // The design is not edited by it, so the comparison it would have hidden is still there.
+    await expect(page.getByRole("button", { name: "Reset to as-designed" })).toHaveCount(0);
+    await page.getByRole("tab", { name: "Flight" }).click();
+    await expect(comparison).toBeVisible();
+  });
+
+  test("a design whose file stores no results says so, instead of showing nothing", async ({ page }) => {
+    // All three bundled .ork samples carry `<simulation status="external">` holding launch
+    // conditions and no `<flightdata>` at all, so `hasResults` is false and the stored-tool
+    // comparison never renders for them — 0 of the 3 shipped samples, against 27 of the 27 real
+    // corpus designs that do carry results. The import screen promises that comparison in as many
+    // words, so its silent absence on every default first run read as a capability Loft lacks.
+    await page.goto("/");
+    await page.getByRole("button", { name: /54 mm dual-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+
+    const note = page.getByRole("region", { name: /comparison unavailable/i });
+    await expect(note).toBeVisible();
+    await expect(note).toContainText("holds its launch setup and no results");
+    // It passes on what the file itself says, rather than only reporting an absence...
+    await expect(note).toContainText("not OpenRocket's own simulator output");
+    // ...and names the cross-check that does not need the file to carry anything.
+    await expect(note).toContainText("RocketPy cross-check under Analyze");
+    // The comparison panel itself is genuinely absent — the note stands in for it, not beside it.
+    await expect(page.getByRole("region", { name: "Validation" })).toHaveCount(0);
+  });
+
+  test("a design whose file does store results gets the comparison, not the note", async ({ page }) => {
+    // The control for the test above: same surface, a sample that carries stored results.
+    await page.goto("/");
+    await page.getByRole("button", { name: /RockSim · 54 mm sport/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    await expect(page.getByRole("region", { name: "Validation" })).toBeVisible();
+    await expect(page.getByRole("region", { name: /comparison unavailable/i })).toHaveCount(0);
   });
 
   test("a refused dispersion says so too, and does not quietly shrink the recovery area", async ({ page }) => {

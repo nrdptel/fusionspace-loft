@@ -32,6 +32,45 @@ export function storedTag(status: string | undefined): string | null {
   }
 }
 
+/** Why there is no stored comparison AT ALL — which is a different statement from one that exists
+ *  and carries a caveat, and needs its own sentence.
+ *
+ *  A design file can carry a simulation that holds only its SETUP. OpenRocket saves a simulation's
+ *  launch conditions whether or not it has ever been run; a `.rkt` can carry a configuration with no
+ *  `<SimulationResults>`. Loft then has nothing to put beside its own numbers and the panel is
+ *  simply absent — which reads as a capability Loft lacks rather than as a fact about the file, and
+ *  the import screen has just promised the opposite in as many words.
+ *
+ *  This is not a rare shape on the way in. All three bundled `.ork` samples are exactly it: each
+ *  carries `<simulation status="external">` with no `<flightdata>` at all. So the comparison that
+ *  copy leads with is missing on every default first run, while 27 of the 27 real in-the-wild
+ *  `.ork` designs in the corpus carry stored results and show it.
+ *
+ *  @param statuses the source tool's own status for each stored simulation, in file order
+ *  @param tool     the tool that wrote the file, named by the importer — never assumed */
+export function noStoredResultsReason(statuses: (string | undefined)[], tool: string): string | null {
+  const n = statuses.length;
+  if (n === 0) return null;
+  const held =
+    n === 1
+      ? "a simulation that holds its launch setup and no results"
+      : `${n} simulations that hold their launch setup and no results`;
+  // Say what the FILE says, where it says anything — the same rule the caveats above follow. An
+  // `external` simulation with nothing in it is the file stating that these were never its own
+  // simulator's numbers, which is worth passing on rather than flattening into "no results".
+  const said = statuses.every((s) => s === "external")
+    ? `, marked in it as not ${tool}'s own simulator output`
+    : statuses.some((s) => s === "notsimulated" || s === "loaded")
+      ? `, which ${tool} marks as not run`
+      : "";
+  return (
+    `This design carries ${held}${said}, so there is nothing stored in the file to put beside Loft's ` +
+    `own numbers above. Import a design whose ${tool} simulation has been run and the comparison ` +
+    `appears here — or open the RocketPy cross-check under Analyze, which flies the design in an ` +
+    `independent solver and needs nothing stored in the file.`
+  );
+}
+
 export function storedCaveat(status: string | undefined, tool: string): string | null {
   switch (status) {
     case "outdated":

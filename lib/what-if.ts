@@ -11,10 +11,12 @@
 /** A field's range in words. A bound the field doesn't have is SAID, not left as a dash: most of
  *  these are floored at zero and open above, and "0 to –" reads as a range that failed to load.
  *
- *  `minExclusive` is the difference between "0 or more" and "more than 0", and on these fields it
- *  is not a nicety: a rail of no length, a body tube of no diameter and a fin of no thickness are
- *  not small values, they are absent parts, and a field that advertises "0 or more" has told the
- *  flyer that zero is one of the answers it takes. */
+ *  `minExclusive` is the difference between "0 or more" and "more than 0". A body tube of no
+ *  diameter and a fin of no thickness are not small values, they are absent parts, and a field whose
+ *  range reads "0 or more" has told the flyer that zero is one of the answers it takes. The wording
+ *  also carries the refusal: `refusedMessage` quotes this string back when an entry is turned down,
+ *  which for these fields is the only place the range is ever said out loud — the field's tooltip
+ *  shows its `hint` instead wherever it has one. */
 export function rangeWords(min?: number, max?: number, minExclusive?: boolean): string | undefined {
   if (min !== undefined && max !== undefined)
     return minExclusive ? `more than ${min}, up to ${max}` : `${min} to ${max}`;
