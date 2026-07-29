@@ -183,10 +183,16 @@ test.describe("phone layout", () => {
     // touches on the way there: the sticky header, the Conditions row, the Analyze run buttons and
     // the motor-sweep sort headers were 30-36 px, and the two disclosure rows 16-20 px.
     //
-    // Excluded, deliberately, and each for a reason rather than to make the test pass: the footer's
-    // links and inline prose links are text bound by their line height, not controls; the file input
-    // is 1x1 and sr-only behind a visible 44 px trigger; the skip link is offscreen until focused;
-    // and the wordmark is exempted by the header test above.
+    // Excluded, deliberately, and each for a reason rather than to make the test pass: an inline
+    // prose link is text bound by its line height and carries the WCAG "inline in a block of text"
+    // exemption; the file input is 1x1 and sr-only behind a visible 44 px trigger; the skip link is
+    // offscreen until focused; and the wordmark is exempted by the header test above.
+    //
+    // The footer used to be excluded WHOLESALE on that reasoning, and the reasoning did not fit:
+    // its `<nav>` row is six standalone navigation links, not words in a sentence, and they measured
+    // 16 px tall on a 390x844 phone — five of the thirteen controls under target on the Flight
+    // workspace. They are in scope now. The footer's prose credits still are not, and the separate
+    // footer test below draws that line by structure rather than by region.
     const scan = () =>
       page.$$eval("button, input:not([type=hidden]), select, summary, [role=tab]", (ns) =>
         ns
@@ -218,6 +224,38 @@ test.describe("phone layout", () => {
     await page.locator("summary", { hasText: /Parts ·/ }).click();
     expect(await scan(), "Design workspace with the parts table open").toEqual([]);
   });
+  test("the footer's navigation links are targets, not 16 px of text", async ({ page }) => {
+    // The one region the hit-target passes never reached. Measured on a 390x844 phone with a design
+    // loaded, before this: GitHub 60x16, Docs 28x16, Motor Finder 71x16, Charge 40x16, Window 44x16
+    // — five of the thirteen controls under target on the Flight workspace, on the surface the whole
+    // pad check happens on.
+    //
+    // The line is drawn by STRUCTURE, not by region: a link inside the footer's `<nav>` is a
+    // navigation control and needs a target; the credit links further down sit inside sentences and
+    // carry the WCAG "inline in a block of text" exemption, so they are read separately and asserted
+    // to have been left alone — a blanket footer rule is what let the nav row sit at 16 px.
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+
+    const sizes = (sel: string) =>
+      page.$$eval(sel, (ns) =>
+        ns
+          .map((n) => n.getBoundingClientRect())
+          .filter((r) => r.width > 0 && r.height > 0)
+          .map((r) => Math.round(r.height)),
+      );
+
+    const nav = await sizes("footer nav a");
+    expect(nav.length, "the footer has navigation links to measure").toBeGreaterThan(3);
+    expect(nav.filter((h) => h < 44), `footer nav link heights: ${nav.join(", ")}`).toEqual([]);
+
+    // The prose credits are deliberately untouched — growing them would put gaps in a sentence.
+    const prose = await sizes("footer p a");
+    expect(prose.length, "the footer has prose links to measure").toBeGreaterThan(0);
+    expect(prose.every((h) => h < 44), `prose link heights: ${prose.join(", ")}`).toBe(true);
+  });
+
   test("the shelf's destructive control is a real target, not a sliver beside a big one", async ({ page }) => {
     // It was 24 px wide against a 230-240 px Reopen in the same row — the only control in the import
     // panel that omitted the repo's own hit-target token, and the one that deletes.

@@ -3,6 +3,13 @@
 Rough edges, missing affordances, and ideas too big for one pass — noticed while working,
 not yet done. Newest first. One line each. Anything here is fair game for the next session.
 
+- **The hit-target suite measures HEIGHT only, so a control can pass at 37 px wide.** `e2e/touch.spec.ts:181`
+  filters on `r.height >= 44` and never looks at width. Measured on a 390x844 phone: the parts table's
+  sort headers read `Type 37x44` and `Mass 42x44` — under the project's own stated 44x44 minimum in
+  one dimension while the suite reports the workspace clean. `TOUCH_TARGET_SQUARE` already exists for
+  exactly this and is used on the zoom controls; the scan should assert both dimensions, with the
+  same structural exemptions the footer test now uses.
+
 - **RESOLVED this session — a payload added inside an assembly the design has weighed was accepted,
   badged "with your edits", and changed nothing.** A whole-assembly mass override IS the design's
   statement about the total, so the model is right to hold it and OpenRocket does the same — but
@@ -332,6 +339,17 @@ not yet done. Newest first. One line each. Anything here is fair game for the ne
   from the other side", which names the gap without closing it, and drift bearing is what sizes a
   recovery walk. Nothing here is wrong; it is a surface that stops short of the model behind it.
 
+- **RESOLVED this session — the footer's navigation links were 16 px tall on a phone.** They are
+  `<nav>` links, not words in a sentence, so the WCAG "inline in a block of text" exemption never
+  covered them — and the hit-target suite excluded the whole footer on exactly that reasoning, which
+  is why the region was never reached. Re-measured on a 390x844 phone with a design loaded: GitHub,
+  Docs, Motor Finder, Charge, Window and Muster now all **44 px tall**, the "A Fusion Space project"
+  link 358x20 -> **358x44**, and desktop unchanged at 16 px because `TOUCH_TARGET` releases at `sm:`.
+  The footer's PROSE credits (ThrustCurve.org, OpenRocket, ADA.gov) are deliberately left at 16 px —
+  they sit inside sentences — and the new test asserts that too, so the line is drawn by structure
+  rather than by region. A fresh phone walk of the whole app now reads: Flight **7 of 34** operable
+  controls under 44 px (was 13), Design 8 of 83 (was 14), Analyze 7 of 37 (was 13); 0 px horizontal
+  overflow everywhere; depths 5.5 / 4.5 / 3.5 screens. The original entry follows.
 - **The footer's links are 16 px tall on a phone.** Measured on a 390x664 viewport with a design
   loaded: 13 interactive elements clear no 44 px minimum, and 5 of them are the footer's own links
   (GitHub 16x60, Docs 16x28, Motor Finder 16x71, Charge 16x40, Window 16x44). The header, tabs, unit
