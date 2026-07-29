@@ -92,6 +92,13 @@ PW_EXECUTABLE_PATH=/opt/pw-browsers/chromium npx playwright test >>"$G" 2>&1; ec
 
 **Never read a Playwright count through a pipe** — `| tail -20` eats the summary line.
 
+**`Target page, context or browser has been closed` is the box, not the code.** It appeared once this
+session on a commit that changed only markdown, on a test that had passed minutes earlier and passed
+again alone and in a clean full run. The cause was a probe's own Chromium still running alongside the
+suite. Tell it apart from a real failure by the shape: a genuine failure names an assertion and its
+received value, this one names no expectation at all. Re-run before believing it — and do not leave a
+probe browser open while the suite runs.
+
 **Prove a new test can fail, and check the BUILD exit while you do it.** A negative control that does
 not compile is not a negative control: `noUnusedLocals` fails the build, `out/` never changes, and
 the test "passes" against the still-fixed code. This session's controls reverted `positive` on the
@@ -153,7 +160,7 @@ produced it more than once, including a false sentence in a doc comment written 
 ## Shipped this session
 
 Baseline before anything changed, all four green: lint 0 errors / **1 warning**, **695 unit**, build,
-**128 e2e**, corpus **35 design files, 3/3**. At the time of writing: **714 unit, 145 e2e**, corpus 35
+**128 e2e**, corpus **35 design files, 3/3**. At the time of writing: **714 unit, 146 e2e**, corpus 35
 throughout.
 
 **Two pull requests merged and confirmed serving; a third open on green CI.** Production was verified
@@ -195,6 +202,19 @@ already saying in amber that those are Loft's defaults. Now a `ConditionsSource`
 confirmed in the rendered DOM. Plus four missing word gaps found by scanning the built chunks
 ("25flights across the range", "the OpenRocketcomparison is hidden", "Delayis the ejection delay",
 "the stored OpenRocketresults describe") — see the JSX whitespace note below.
+
+Then three smaller ones. The hit-target suite measured HEIGHT only, so three sort headers sat at
+37x44, 42x44 and 34x44 while every workspace reported clean; the scan asserts both dimensions now and
+the three take `TOUCH_TARGET_SQUARE`. The scenario TOGGLE kept a wind edit the flight discards, though
+`onWeather` drops it by the same door and says why — fetch a forecast, switch to As designed, type
+12 m/s, switch back, and the box read 12.0 greyed while the flight drifted 794 m on the forecast's
+own wind (12 m/s gives 2,518 m). And one untyped `evaluate` callback in the e2e suite had been making
+`tsc --noEmit` fail over the whole repository, so that check was not runnable at all; it exits 0 now.
+
+**One change was measured and deliberately NOT shipped**, which is recorded in `BACKLOG.md` in full
+because it cost real work to establish: the area-weighted fin-set aggregation. Read that entry before
+rebuilding it — it improves `03.Three-stage.ork` and doubles the error on `Complex.Two-Stage.CDX1`,
+and the reason is that Loft collapses every fin set into one equivalent fin, which no average fixes.
 
 ## What this session learned that is worth keeping
 
