@@ -3611,4 +3611,78 @@ test.describe("Loft", () => {
     await expect(ceiling).toHaveValue("914");
     await expect(chance).toHaveText(imperial);
   });
+
+  test("switching back to today's weather does not leave a wind nothing flies in the box", async ({ page }) => {
+    // `onWeather` drops the two edits a forecast overrides, and says why: a greyed-out field showing
+    // a number the flight threw away advertises a drift nobody computed. The scenario TOGGLE reached
+    // the same state by a different door and did not. Reproduced in the built export on the 54 mm
+    // dual-deploy sample: fetch a forecast, switch to As designed, type 12 m/s, switch back to
+    // Today. The box read 12.0, greyed, while the flight drifted 794 m on the forecast's own wind —
+    // and 12 m/s really does give 2,518 m, so the number on screen and the number under it were
+    // describing different flights.
+    //
+    // The forecast is stubbed rather than fetched. This is the first e2e over the weather path and
+    // a live call would make it a network test: flaky in CI, and silently green if the API changed
+    // shape. The stub is the smallest response `parseForecast` reads.
+    test.setTimeout(150_000);
+    const WIND_MPS = 4;
+    await page.route("**geocoding-api.open-meteo.com/v1/search*", (route) =>
+      route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          results: [{ name: "Lucerne Valley", latitude: 34.4436, longitude: -116.9711, admin1: "California", country: "United States" }],
+        }),
+      }),
+    );
+    await page.route("**api.open-meteo.com/v1/forecast*", (route) => {
+      // One aloft level is enough to make the profile real; `parseForecast` skips levels whose
+      // three series are absent, so the rest simply do not appear.
+      const hourly: Record<string, number[]> = {
+        wind_speed_1000hPa: [WIND_MPS],
+        wind_direction_1000hPa: [270],
+        geopotential_height_1000hPa: [110],
+        wind_speed_500hPa: [18],
+        wind_direction_500hPa: [270],
+        geopotential_height_500hPa: [5600],
+      };
+      route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          elevation: 1000,
+          current: { temperature_2m: 20, surface_pressure: 900, wind_speed_10m: WIND_MPS, wind_direction_10m: 270 },
+          hourly,
+        }),
+      });
+    });
+
+    await page.goto("/");
+    await page.getByRole("button", { name: /54 mm dual-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+
+    const conditions = page.locator("details").filter({ hasText: "Conditions" }).first();
+    if (!(await conditions.evaluate((el: HTMLDetailsElement) => el.open))) {
+      await conditions.locator("summary").click();
+    }
+    const wind = page.locator("input").and(page.getByLabel(/Surface wind/i)).first();
+
+    await page.getByLabel("Launch site").fill("Lucerne Valley, CA");
+    await page.getByRole("button", { name: "Fetch" }).click();
+    // The forecast is in force once the aloft profile is being reported.
+    await expect(page.getByText(/aloft levels/)).toBeVisible({ timeout: 60_000 });
+    // A fetch greys the field and leaves it empty: the flight is on the forecast, not on a typed value.
+    await expect(wind).toBeDisabled();
+    await expect(wind).toHaveValue("");
+
+    await page.getByRole("button", { name: /^As designed$/ }).click();
+    await expect(wind).toBeEnabled();
+    await wind.fill("12");
+    await wind.press("Enter");
+    await wind.blur();
+    await expect(wind).toHaveValue("12");
+
+    // Back to today: the forecast overrides that 12, so the box must not go on showing it.
+    await page.getByRole("button", { name: /^Today/ }).click();
+    await expect(wind).toBeDisabled();
+    await expect(wind).toHaveValue("");
+  });
 });

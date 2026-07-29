@@ -74,11 +74,14 @@ not yet done. Newest first. One line each. Anything here is fair game for the ne
   source looks correct. The scan that found them reads the built chunks, not the source, because the
   bug only exists after the transform.
 
-- **The scenario toggle keeps a wind edit the flight discards, and this session made it louder.**
-  Pre-existing (`onWeather` clears `edits.windSpeed`/`launchAltitude`; the toggle does not), and now
-  all four Analyze panels caption themselves "the launch conditions you set" while the greyed box
-  shows a value none of them flew. Fetch weather, switch to As designed, type 12 m/s, switch back:
-  the box reads 12 while everything flies the forecast's 7.4.
+- **RESOLVED this session — the scenario toggle kept a wind edit the flight discards.** `onWeather`
+  drops the two edits a forecast overrides and its comment says exactly why; the toggle reached the
+  same scenario by a different door and did not. Measured in the built export on the 54 mm sample:
+  fetch a forecast, switch to As designed, type 12 m/s, switch back to Today — the box read **12.0**,
+  greyed out, while the flight drifted **794 m** on the forecast's wind, and 12 m/s really does give
+  **2,518 m**. The toggle now clears the same two edits the fetch does, so the two paths into Today
+  agree. Covered by the suite's first weather test, with the forecast and geocoding endpoints stubbed
+  so it is not a network test.
 
 - **RESOLVED this session — one shared "the flyer edited the conditions" flag had panels claiming
   credit for edits they never read, and called a fetched forecast the flyer's own setup.** Three

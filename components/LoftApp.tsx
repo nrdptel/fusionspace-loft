@@ -999,8 +999,17 @@ export default function LoftApp() {
             weather={weather}
             scenario={scenario}
             setScenario={(s) => {
+              // Switching TO today overrides the same two edits a fetch does, so it has to drop
+              // them for the same reason — see `onWeather` below, whose comment describes exactly
+              // the state this toggle used to produce. Reproduced: fetch a forecast, switch to As
+              // designed, type 12 m/s, switch back. The box read 12.0, greyed out, while the flight
+              // drifted 794 m on the forecast's wind — the 2,518 m that 12 m/s actually gives was
+              // nowhere on screen. Two paths into the same scenario disagreeing is its own defect.
+              const kept =
+                s === "today" ? { ...edits, windSpeed: undefined, launchAltitude: undefined } : edits;
+              if (s === "today") setEdits(kept);
               setScenario(s);
-              rerun(edits, weather, s);
+              rerun(kept, weather, s);
             }}
             onWeather={(wx) => {
               // Drop the two condition edits today's weather overrides. `compute` applies them and
@@ -1013,7 +1022,6 @@ export default function LoftApp() {
               setEdits(kept);
               setWeather(wx);
               setWeatherSerial((n) => n + 1);
-      setWeatherSerial((n) => n + 1);
               setScenario("today");
               rerun(kept, wx, "today");
             }}
