@@ -130,9 +130,22 @@ It must print `imports every design file (35 present)`. With no corpus the suite
 run that says `1 passed` examined nothing. `--silent=false` matters: vitest 4 swallows `console.log`.
 **Confirmed this session: 35 files, 3/3.**
 
-**CI still cannot fetch the corpus until a `FIXTURES_TOKEN` repository secret exists.** That secret
-remains the one owner-side action. A test that needs a design file must drive a COMMITTED fixture
-(`e2e/fixtures/`, `fixtures/`, `public/samples/`).
+**`FIXTURES_TOKEN` is set, and the corpus now genuinely gates CI.** Verified in the CI log of the
+`frontend` job, not inferred from the secret existing: `imports every design file (35 present)`, all
+three corpus tests green in 20.0 s, and the accuracy census printed with the same medians as a local
+run (deployment velocity 5.9%, flight time 3.3%, max altitude 3.2%, time to apogee 1.7%, n = 76–97).
+That means **`PUBLISHED_MEDIAN_PCT` is now a real gate** — a change that degrades accuracy past the
+slack fails CI, where before this it silently skipped. Whole `frontend` job: 84 s, 715 tests.
+
+**But only the `frontend` job fetches it — the `e2e` job does not.** So the old rule now applies to
+half the suite: a **vitest** test may drive a corpus design, and an **e2e** test still must drive a
+COMMITTED fixture (`e2e/fixtures/`, `fixtures/`, `public/samples/`). Adding the fetch step to the
+`e2e` job is a two-line change and deliberately not done — nothing uses it yet, and shipping a CI step
+that enables nothing is the speculative work the brief forbids. When an e2e test genuinely needs a
+real design, add the step *and* make that test skip itself when the corpus is absent, or every fork's
+CI goes red.
+
+There are no outstanding owner-side actions.
 
 **A useful census shortcut**: the `.ork` container is a plain zip with one `rocket.ork` entry, so
 `unzip -p <file> rocket.ork | grep …` scans the whole corpus from a node script in seconds without

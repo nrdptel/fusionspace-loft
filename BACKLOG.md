@@ -1021,11 +1021,16 @@ pass. Newest first.
   a selected part opening its own fields — that is the gap that keeps the editor feeling like a
   viewer with fields beside it. It needs the edits model to grow past one flat bag of ~26 global
   fields ("the" fin set, "the" nose) to something addressed per component id.
-- The corpus fetch is wired — `fixtures.lock.json`, `scripts/fetch-fixtures.mjs`, an npm script and a
-  CI step — but CI still fetches nothing until a `FIXTURES_TOKEN` repository secret exists. That is
-  the one owner-side action left; until then the suite gates only a machine that already has the
-  files. The network path itself is the one branch never exercised here (no real token in the
-  sandbox); the local-tarball, tampered-file, moved-snapshot and no-token paths all are.
+- **RESOLVED — the corpus gates CI.** The fetch was wired (`fixtures.lock.json`,
+  `scripts/fetch-fixtures.mjs`, an npm script and a CI step) and waiting on a `FIXTURES_TOKEN`
+  repository secret, which the owner has now set. Verified from the `frontend` job's log rather than
+  from the secret existing: `imports every design file (35 present)`, three corpus tests green in
+  20.0 s, census medians matching a local run. So `PUBLISHED_MEDIAN_PCT` is a live gate now — an
+  accuracy regression past `CENSUS_SLACK_PCT` fails CI where it previously skipped — and the network
+  branch of the fetch, the one branch never exercised from this sandbox, is exercised on every push.
+  Remaining, and small: the **`e2e` job does not fetch the corpus**, so e2e tests still need committed
+  fixtures. Adding the step is two lines; it is not done because nothing uses it yet, and whichever
+  test first needs it must skip itself when the corpus is absent or every fork's CI goes red.
 - A no-recovery descent is a tumble, not a dart. On `FullScaleModelTH.rkt`'s plugged configuration
   Loft comes in at 152 m/s against RockSim's 83 m/s: both agree nothing opened, but RockSim models
   the unstable body's drag and Loft flies it nose-down. Worth a tumbling-drag model for the

@@ -209,6 +209,13 @@ Unattended runs do not stop to ask (see *Unattended operation* in `MAINTAINING.m
 that would otherwise have been a question goes here, with the option rejected, so it can be reversed
 cheaply instead of re-derived. Newest first.
 
+- **2026-07-29 — the `e2e` CI job is left without a corpus fetch.** `FIXTURES_TOKEN` is set and the
+  `frontend` job now fetches and gates on all 35 real designs, but the `e2e` job still has no fetch
+  step, so e2e tests continue to need committed fixtures. Adding it is two lines. Rejected doing it
+  now: no e2e test uses a corpus design, so the step would enable nothing today, and shipping a CI
+  step that changes no outcome is exactly the speculative work `MAINTAINING.md` forbids. Whichever
+  test first needs a real design should add the step *and* skip itself when the corpus is absent —
+  without that, every fork's CI goes red, since forks have no secret.
 - **2026-07-29 — R1–R6 ordered editor-first, structural before visual polish.** The owner chose
   "in-browser builder/editor" as the milestone and a Sev-1-only defect quota; the decomposition into
   six milestones, their order, and their sizes are mine. Rejected: starting at R3 (add a component)

@@ -506,6 +506,15 @@ what was decided without the owner. Somebody will read a fortnight of this at on
 **If `main` arrives red**, that is a Sev-1 and it preempts everything: fix forward or revert the
 offending commit, and say which. Never build a milestone on top of a red baseline for a week.
 
+**What actually protects a fortnight of unreviewed merges.** Nobody is reading the diffs, so the
+automated gate is the whole safety net — and it is stronger than it was: `FIXTURES_TOKEN` is set, so
+the real-design corpus and the published accuracy census now run in CI on every pull request. An
+accuracy regression past `CENSUS_SLACK_PCT` fails the build instead of skipping quietly, which is the
+single most valuable check for unattended physics work. Do not weaken it to get a milestone through:
+widening a tolerance, adding a `KNOWN_ISSUES` entry for something this run broke, or skipping a corpus
+case is a regression dressed as a pass. If the corpus blocks a milestone, that is the corpus doing its
+job — fix the cause, or file the milestone's slice as blocked and say so.
+
 **Let the defect ledger grow, within reason.** The one-in-four quota is deliberate and holds across
 runs, not within each one — several consecutive milestone-only runs are correct. But a Sev-1 is never
 deferred, and if the ledger's Sev-1 count is ever above zero at the end of a run, say so at the top of
@@ -568,8 +577,13 @@ How it reaches CI:
   fails loudly. Hashing the archive itself would prove nothing: GitHub's generated tarballs are not
   byte-reproducible.
 - With no token the fetch exits 0 and the corpus suite skips itself, so public clones and fork CI stay
-  green. CI runs it before lint with `FIXTURES_TOKEN` as a secret, so the corpus gates every push
-  there — **once that secret exists.** Check whether it does before claiming the corpus gates CI.
+  green. **The secret is set, and the corpus does now gate CI** — confirmed from the `frontend` job's
+  log rather than from the secret's existence: `imports every design file (35 present)`, three corpus
+  tests green, and the accuracy census printed with its usual medians. `PUBLISHED_MEDIAN_PCT` is
+  therefore a live gate, so a change that degrades accuracy past `CENSUS_SLACK_PCT` now fails CI
+  instead of skipping. **Only the `frontend` job fetches it; the `e2e` job does not** — a vitest test
+  may drive a corpus design, an e2e test still needs a committed fixture. Still read the log rather
+  than assuming: a fetch that quietly no-ops leaves the suite skipping itself and reporting green.
 - Re-cutting a snapshot means regenerating `CHECKSUMS.sha256` in the fixtures repo, then bumping
   `commit`, `checksums` and `files` in the lock. The fixtures repo's README carries the commands.
 - A parser fix can land BEFORE the corpus's expected values are regenerated; a committed,
