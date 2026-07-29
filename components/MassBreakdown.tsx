@@ -21,6 +21,7 @@ export default function MassBreakdown({
   rocket,
   units,
   edited,
+  massAbsorbed,
 }: {
   rocket: Rocket;
   units: UnitSystem;
@@ -28,6 +29,11 @@ export default function MassBreakdown({
    *  Said on the panel, in the same words and the same badge the diagram above it uses — a mass
    *  table that silently swapped which rocket it describes is worse than one that never moved. */
   edited?: boolean;
+  /** Mass was added by a what-if and the design's total did not move, because the design states its
+   *  weight as a whole-assembly override and the added part sits inside it. The model is right to
+   *  hold the stated figure — that is what an override means — but the flyer has just typed a
+   *  kilogram into a field and every number stayed put, so the panel where mass is read says why. */
+  massAbsorbed?: boolean;
 }) {
   const points = structurePointMasses(rocket);
   if (points.length === 0) return null;
@@ -104,13 +110,23 @@ export default function MassBreakdown({
         </div>
         <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
           Dry structure only — the motor and nose ballast add their mass at launch and are not
-          shown here. A design what-if that changes the airframe IS shown: resizing a part moves its
-          row, and adding a payload or a drogue adds one, because the structure is what this table
-          describes. Where a component overrides the mass of its whole subassembly, that measured
-          figure stands in for everything inside it (the internals aren&apos;t listed separately).
+          shown here; they are in the flight&apos;s liftoff mass above. A design what-if that changes
+          the airframe is shown here — resizing a part moves its row, and adding a payload or a
+          drogue adds one — unless the design overrides the mass of the assembly the part sits in.
+          Where a component or a stage states the mass of its whole subassembly, that measured figure
+          stands in for everything inside it (the internals aren&apos;t listed separately), and
+          anything added inside it is covered by the same figure.
           These are the same per-part masses the simulator flies; a wrong row usually means a
           mistyped dimension or material in the design file.
         </p>
+        {massAbsorbed && (
+          <p className="mt-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-800 dark:text-amber-200">
+            The mass you added is inside an assembly whose weight this design states outright, so it
+            does not change the total — the design&apos;s own figure stands for everything in there,
+            and the flight above is flown at that figure. To fly the extra weight, use{" "}
+            <em>Nose ballast</em>, which is added on top rather than inside.
+          </p>
+        )}
         <div className="mt-2">
           <DownloadCsv rows={csv} name={rocket.name} suffix="mass-breakdown" />
           <CopyTable rows={csv} />

@@ -3,6 +3,28 @@
 Rough edges, missing affordances, and ideas too big for one pass — noticed while working,
 not yet done. Newest first. One line each. Anything here is fair game for the next session.
 
+- **RESOLVED this session — a payload added inside an assembly the design has weighed was accepted,
+  badged "with your edits", and changed nothing.** A whole-assembly mass override IS the design's
+  statement about the total, so the model is right to hold it and OpenRocket does the same — but
+  nothing said so. Measured on `e2e/fixtures/stage-weighed.ork`: a 1,000 g payload on a 1.4 kg rocket
+  left dry mass **1.234 kg**, liftoff mass **1.436 kg** and apogee **581 m** every one unchanged,
+  while the mass panel wore the edited badge over a table that had not moved. A flyer sizing an
+  av-bay would fly a design 70% lighter than the one on the bench. Three of the 35 corpus designs are
+  this shape (`Dual parachute deployment.ork`, `EscapeVelocity.ork`, `02.Two-stage.ork`). Detected by
+  asking the model rather than walking the tree — mass was added and the total did not move — and the
+  panel now names the reason and points at nose ballast, which is added on top rather than inside.
+  Found by an independent review of the change that introduced the badge.
+
+- **A motor swap on a STAGED design replaces every stage's motor, and the swap picker is built from
+  `instances[0]` alone.** `swapMotor` (`lib/sim/run.ts:102`) rewrites every instance, while
+  `swapInfoFor` derives the offered casing from the first. Measured on `Two stage high power
+  rocket.ork`, configuration "I59WN + I357T": selecting G66-LR puts G66-LR in BOTH stages — the
+  resolution strip reads "G66-LR G66-LR" — and apogee goes **1,354 -> 430 m**. This session's
+  configuration-change guard inherits the same blind spot: a swap that fits the sustainer and not the
+  booster is validated against the sustainer alone. The `!staged` gate that withholds the motor SWEEP
+  for exactly this reason (`ResultsView.tsx:349`) is not on the picker. Pre-existing and already noted
+  further down this file; recorded here with the measurement.
+
 - **RESOLVED this session — the dispersion study planned for the day the design file was saved, not
   the flyer's.** `MonteCarlo` built its nominal from `overridesFromStored(sim)` alone, so the four
   Conditions edits and the whole "Today" scenario never reached it, while the Flight card beside it

@@ -394,8 +394,9 @@ export default function GeometryInspector({
           round. Diameters are shown as <span className="font-mono">⌀</span>; a fin set lists its
           per-fin chords and span. Any column heading sorts the table; the design&apos;s own
           nose-to-tail order is the default. The mass column is dry structure only; this design&apos;s
-          dry mass is {d.q(d.mass(dryTotal, units))}, with the motor and any what-if ballast layered
-          on at launch in the <em>Mass &amp; balance</em> panel.
+          dry mass is {d.q(d.mass(dryTotal, units))}; the motor and any what-if ballast are added on
+          top of it at launch and are in the flight&apos;s liftoff mass, not in this column or in the{" "}
+          <em>Mass &amp; balance</em> panel, which breaks the same dry figure down part by part.
           {unlisted > 1e-6 && (
             <>
               {" "}

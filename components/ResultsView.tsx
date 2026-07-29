@@ -29,6 +29,7 @@ import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
 import { impulseClass } from "@/lib/motors/eng";
 import { overallLength } from "@/lib/model/geometry";
+import { dryMassProperties } from "@/lib/sim/mass";
 import type { Rocket } from "@/lib/model/types";
 import { noseBallastStation, configChoices } from "@/lib/sim/run";
 import { motorLayout } from "@/lib/sim/setup";
@@ -365,6 +366,19 @@ export default function ResultsView({
   // the most useful one there is.
   const canSweepMotors = !staged && !!swapOptions && swapOptions.length > 1;
   const shownRocket = editing ? applyGeometryEdits(doc.rocket, geometry) : doc.rocket;
+  // A design can state its weight as a whole-assembly override, and a part added INSIDE that
+  // assembly then weighs nothing — the override IS the design's statement about the total, so the
+  // model is right to hold it. What was wrong is that nothing said so. Measured on a design weighed
+  // by the stage: a 1,000 g payload on a 1.4 kg rocket left dry mass 1.234 kg, liftoff mass 1.436 kg
+  // and apogee 581 m every one unchanged, while the panel wore a "with your edits" badge over a
+  // table that had not moved. Three of the 35 corpus designs are that shape. Detected by asking the
+  // model rather than by inspecting the tree: mass was added, and the total did not move.
+  const addsMass =
+    (geometry?.payloadMassKg ?? 0) > 0 ||
+    (geometry?.drogueDiameter ?? 0) > 0 ||
+    geometry?.mainParachuteDiameter !== undefined;
+  const massAbsorbed =
+    editing && addsMass && Math.abs(dryMassProperties(shownRocket).mass - dryMassProperties(doc.rocket).mass) < 1e-9;
   // The motor casing(s) the flight flew, for drawing inside the aft body — resolved for the shown
   // design and its (possibly swapped) config, so the picture matches what was flown.
   const shownMotors = run.hasPropulsion ? motorLayout(shownRocket, run.config) : [];
@@ -682,13 +696,12 @@ export default function ResultsView({
             airframe while the diagram described the one being edited, and Mass & balance is where a
             flyer decides how much ballast to add and where.
 
-            It does NOT make the two totals agree, and an earlier version of this comment said it
-            did. The diagram's caption sums `massByComponent`, which keeps only point masses that
-            carry a component id and so drops the lumped figure a stage-level mass override emits —
-            on `Dual parachute deployment.ork` and `EscapeVelocity.ork` that caption reads "adds up
-            to 0 kg" against a real 1.361 kg and 2 kg airframe, with no edits applied at all. That is
-            a defect in `massByComponent`, filed separately; it is not what this line fixes. */}
-        <MassBreakdown rocket={shownRocket} units={units} edited={editing} />
+            It is not what makes the two totals agree, and an earlier version of this comment said
+            it was. `massByComponent` keeps only point masses that carry a component id, so it drops
+            the lumped figure a stage-level mass override emits; the caption above used to SUM it and
+            read "adds up to 0 kg" against a real 1.361 kg airframe. That is fixed one component
+            over, in `GeometryInspector`, by stating `dryMassProperties` instead — not here. */}
+        <MassBreakdown rocket={shownRocket} units={units} edited={editing} massAbsorbed={massAbsorbed} />
       </div>
 
       {/* ANALYZE — the heavier, opt-in tools: an independent second solver, and design-space sweeps. */}

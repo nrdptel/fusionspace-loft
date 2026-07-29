@@ -97,10 +97,14 @@ describe("swapStillOffered", () => {
     expect(swapStillOffered({ manufacturer: "Estes Industries", designation: "H148R" }, opts)).toBe(false);
   });
 
-  it("matches on designation alone when the swap names no maker", () => {
-    // A choice stored before manufacturers were recorded still round-trips rather than being
-    // silently dropped on every configuration change.
-    expect(swapStillOffered({ designation: "H148R" }, opts)).toBe(true);
+  it("drops a swap that names no maker, because the picker cannot show one either", () => {
+    // Tempting to match on designation alone. The picker cannot: its value is
+    // `${manufacturer ?? ""}|${designation}` against options spelled `${o.manufacturer}|${o.
+    // designation}`, so a manufacturer-less swap composes to "|H148R", matches no option and renders
+    // blank. Keeping it would preserve exactly the state this function exists to end — a motor being
+    // flown with the only control that names it showing nothing — this time on purpose. Reachable:
+    // a restored session blob is unvalidated JSON, so a stored edit can arrive without a maker.
+    expect(swapStillOffered({ designation: "H148R" }, opts)).toBe(false);
     expect(swapStillOffered({ designation: "E12" }, opts)).toBe(false);
   });
 

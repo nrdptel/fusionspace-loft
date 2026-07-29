@@ -3184,6 +3184,73 @@ test.describe("Loft", () => {
     expect(caption![1]).toBe(panel![1]);
   });
 
+  test("a payload the design's own override swallows says so, instead of looking applied", async ({
+    page,
+  }) => {
+    // A design can state its weight as a whole-assembly override, and a part added INSIDE that
+    // assembly then weighs nothing — the override IS the design's statement about the total, so the
+    // model is right to hold it. What was wrong is that nothing said so. Measured on this fixture: a
+    // 1,000 g payload on a 1.4 kg rocket left dry mass 1.234 kg, liftoff mass 1.436 kg and apogee
+    // 581 m every one unchanged, while the mass panel wore a "with your edits" badge over a table
+    // that had not moved. A flyer sizing an av-bay would fly a design 70% lighter than the one on
+    // the bench. Three of the 35 corpus designs are this shape.
+    await page.goto("/");
+    await page
+      .locator('input[type="file"]')
+      .first()
+      .setInputFiles(resolve(process.cwd(), "e2e/fixtures/stage-weighed.ork"));
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    await page.getByRole("tab", { name: "Design" }).click();
+    const details = page.locator("details");
+    for (let i = 0; i < (await details.count()); i++) {
+      const d = details.nth(i);
+      if (!(await d.evaluate((el: HTMLDetailsElement) => el.open))) await d.locator("summary").first().click();
+    }
+
+    const dry = async () => ((await page.locator("body").innerText()).match(/dry ([\d.,]+\s*[a-z]+)/i) ?? [])[1];
+    const before = await dry();
+    expect(before).toBeTruthy();
+    await expect(page.getByText(/mass you added is inside an assembly/)).toHaveCount(0);
+
+    const payload = page.locator("label").filter({ hasText: /^Payload \(/ }).first().locator("input");
+    await payload.fill("1000");
+    await payload.press("Enter");
+    await payload.blur();
+
+    await expect(async () => {
+      // The total genuinely does not move — that is the design's own override, not a bug...
+      expect(await dry()).toBe(before);
+      // ...and the panel where mass is read now says why, rather than badging an unchanged table.
+      await expect(page.getByText(/mass you added is inside an assembly/)).toBeVisible();
+    }).toPass({ timeout: 20_000 });
+  });
+
+  test("a payload the design does NOT override lands, with no such note", async ({ page }) => {
+    // The control for the test above. Same gesture on a design that states no whole-assembly weight:
+    // the kilogram must land, and the note must stay away.
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    await page.getByRole("tab", { name: "Design" }).click();
+    const details = page.locator("details");
+    for (let i = 0; i < (await details.count()); i++) {
+      const d = details.nth(i);
+      if (!(await d.evaluate((el: HTMLDetailsElement) => el.open))) await d.locator("summary").first().click();
+    }
+    const dry = async () => ((await page.locator("body").innerText()).match(/dry ([\d.,]+\s*[a-z]+)/i) ?? [])[1];
+    const before = await dry();
+
+    const payload = page.locator("label").filter({ hasText: /^Payload \(/ }).first().locator("input");
+    await payload.fill("1000");
+    await payload.press("Enter");
+    await payload.blur();
+
+    await expect(async () => {
+      expect(await dry()).not.toBe(before);
+      await expect(page.getByText(/mass you added is inside an assembly/)).toHaveCount(0);
+    }).toPass({ timeout: 20_000 });
+  });
+
   test("the stability trim advice is for the edited airframe, not the file's", async ({ page }) => {
     // `StabilityTrimHint` sits inside the same section as the summary strip and is fed the edited
     // run's margin, mass and reference diameter — but took its two GEOMETRY reads, the nose station
