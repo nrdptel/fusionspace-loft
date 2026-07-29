@@ -199,13 +199,40 @@ export function buildRocketDynamics(rocket: Rocket, config: MotorConfiguration):
     else detachT[i] = burnoutSep + sepDelay;
   }
 
+  // Phases: the stack starts whole; each separation (in time order) drops the current bottom
+  // stage, so the attached count steps N → N-1 → … → 1.
+  const phases: StagePhase[] = [{ startTime: 0, stageCount: nStages }];
+  // A serial stack parts at ONE joint: separating stage i takes everything below it with it, so
+  // the attached count becomes i, not one fewer. With every stage separating in turn that is the
+  // same N → N-1 → … → 1 sequence as before; it differs only when a stage stays attached, where
+  // decrementing would otherwise leave a phantom stage aboard after the joint above it parted.
+  const seps = detachT
+    .map((t, i) => ({ t, i }))
+    .filter((x) => Number.isFinite(x.t) && x.i > 0)
+    .sort((a, b) => a.t - b.t);
+  let count = nStages;
+  for (const { t, i } of seps) {
+    if (i >= count) continue; // already gone with an earlier separation above it
+    // Everything from this joint down leaves at once — that is what `count = i` says — so the
+    // MOTORS down there leave with it. A stage that has no separation of its own still goes with
+    // the joint above it (an unlit stage has no burnout to trigger on, so `detachT` left it at
+    // `Infinity`), and that gap put its motor's point mass on the sustainer for the whole flight
+    // while its airframe was correctly shed. Measured on `03.Three-stage.ork`: the shed Booster 2's
+    // J315R is 0.85 kg of a reported 3.25 kg descent mass, against an attached 2.40 kg — and the
+    // recovery goal-seek sizes a canopy off exactly that figure.
+    for (let j = i; j < count; j++) detachT[j] = Math.min(detachT[j], t);
+    count = i;
+    phases.push({ startTime: t, stageCount: count });
+  }
+
   const motors: ResolvedMotor[] = [];
   for (const p of placed) {
     // `launch` fires at liftoff wherever the motor sits in the stack — a design can light a
     // middle stage first, which the serial "bottom stage lights at launch" default would get
-    // wrong. `none` means the design gave the motor a trigger that never arrives (a burnout
-    // event with nothing below it to burn out); it rides as inert mass, which is what the
-    // file's own stored flight shows.
+    // wrong. `none` means the design gave the motor a trigger that never arrives — a `never`
+    // event on any stage, or a `burnout` event on the bottom-most one with nothing below it to
+    // burn out. It rides as inert mass for as long as its own stage is attached, which is what
+    // the file's own stored flight shows.
     const ignitionTime =
       p.trigger === "launch"
         ? p.ignitionDelay
@@ -224,24 +251,6 @@ export function buildRocketDynamics(rocket: Rocket, config: MotorConfiguration):
       plugged: p.plugged || undefined,
     };
     for (let i = 0; i < p.count; i++) motors.push(resolved);
-  }
-
-  // Phases: the stack starts whole; each separation (in time order) drops the current bottom
-  // stage, so the attached count steps N → N-1 → … → 1.
-  const phases: StagePhase[] = [{ startTime: 0, stageCount: nStages }];
-  // A serial stack parts at ONE joint: separating stage i takes everything below it with it, so
-  // the attached count becomes i, not one fewer. With every stage separating in turn that is the
-  // same N → N-1 → … → 1 sequence as before; it differs only when a stage stays attached, where
-  // decrementing would otherwise leave a phantom stage aboard after the joint above it parted.
-  const seps = detachT
-    .map((t, i) => ({ t, i }))
-    .filter((x) => Number.isFinite(x.t) && x.i > 0)
-    .sort((a, b) => a.t - b.t);
-  let count = nStages;
-  for (const { t, i } of seps) {
-    if (i >= count) continue; // already gone with an earlier separation above it
-    count = i;
-    phases.push({ startTime: t, stageCount: count });
   }
 
   // Recovery devices ride with the final (top) stage, which is the vehicle whose descent is

@@ -79,8 +79,8 @@ const PUBLISHED_MEDIAN_PCT: Record<string, number> = {
   groundHitVelocity: 3.0,
   maxAltitude: 3.2,
   flightTime: 3.3,
-  maxAcceleration: 3.3,
-  deploymentVelocity: 6.5,
+  maxAcceleration: 3.2,
+  deploymentVelocity: 5.9,
 };
 
 /** How far a metric may drift past its published figure before the page counts as stale. Wide
