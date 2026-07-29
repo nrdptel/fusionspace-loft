@@ -240,8 +240,9 @@ export default function Faq() {
           around their nominal values, and shows the <em>spread</em> instead of a single number: the
           apogee band you can expect (5th to
           95th percentile), the peak-speed band, and the radius from the pad that contains 95% of the
-          landings — the recovery area to plan for. You set the one-sigma spread on each input, so the
-          answer reflects your own conditions. The physics is the same trusted flight each time; the
+          landings — the recovery area to plan for. It flies the launch conditions in force — the
+          design&apos;s stored setup with whatever you changed under <em>Conditions</em> on top — and
+          you set the one-sigma spread on each input, so the answer reflects your own field. The physics is the same trusted flight each time; the
           only thing that varies is the inputs, so it&apos;s an honest way to see how much your apogee
           and landing point move under real-world variability — a good gut-check against a waiver
           ceiling or a field boundary. Enter your altitude limit and it tells you the fraction of the

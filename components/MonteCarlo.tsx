@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { OrkDocument } from "@/lib/ork/import";
 import { overridesFromStored } from "@/lib/sim/run";
+import type { ConditionOverrides } from "@/lib/sim/setup";
 import { runMonteCarlo } from "@/lib/sim/montecarlo-client";
 import {
   exceedanceProbability,
@@ -56,6 +57,8 @@ export default function MonteCarlo({
   motorSwap,
   geometry,
   designKey,
+  flownOverrides,
+  conditionsEdited,
 }: {
   doc: OrkDocument;
   simIndex: number;
@@ -68,7 +71,43 @@ export default function MonteCarlo({
    *  so depending on their identity would restart the run whenever anything re-renders; this is
    *  their *value*, and it is what decides when the dispersion is genuinely out of date. */
   designKey: string;
+  /** The launch conditions the flight in view was actually flown under. This study built its own
+   *  nominal from the design FILE, so it answered for a different day than the Flight card beside
+   *  it: on the 54 mm dual-deploy sample with surface wind set to 20 mph, the card's drift moved
+   *  630 m to 1,877 m while this panel's recovery radius (95%) stayed at 1,203 m against a true
+   *  2,519 m and its median drift at 593 m against 1,811 m. A 1,500 m field takes the chance of
+   *  busting a 3,000 m ceiling from 36% to 83%. Those are the numbers a flyer plans a field and a
+   *  recovery walk around. */
+  flownOverrides?: ConditionOverrides;
+  /** True when some of that came from the flyer rather than the file. */
+  conditionsEdited?: boolean;
 }) {
+  // A key for the CONDITIONS, separate from `designKey`. The shared key is what the two sweeps and
+  // the RocketPy cross-check also watch, and all three fly ballistic — `runFlight` zeroes the wind
+  // for a ballistic run, so a wind edit measurably changes nothing in them (apogee 2,941 m at 3 m/s
+  // and at 8.94 m/s, identical). Adding conditions to the shared key would throw minutes of their
+  // work away for a change that changed nothing, which is the exact waste `designKey` exists to
+  // avoid. This study is the one that does read the wind, so it watches the conditions itself.
+  const o = flownOverrides;
+  const conditionsKey = [
+    o?.rodLength ?? "",
+    o?.rodAngleDeg ?? "",
+    o?.rodAzimuthDeg ?? "",
+    o?.windSpeed ?? "",
+    o?.launchAltitude ?? "",
+    // A wind PROFILE and an atmosphere are functions, so identity is all there is to compare; they
+    // are rebuilt only when a forecast is fetched, which is exactly when this should re-fly.
+    o?.windProfile ? "profile" : "",
+    o?.atmosphere ? "atm" : "",
+  ].join("|");
+  // Under today's weather the solver reads a wind PROFILE and never looks at a surface wind, so the
+  // spread below cannot be applied to it: `windAt` returns `windProfile(altAgl)` whenever a profile
+  // is set. Measured with a constant 8.94 m/s profile over 200 flights, the drift band is
+  // bit-identical at a 0 and a 2 m/s sigma — 1,553 / 1,877 / 2,158 m either way — where without a
+  // profile the same sigma widens it to 1,167 / 1,794 / 2,563 m. A field that demonstrably does
+  // nothing must not sit there looking as though it does.
+  const windProfileInForce = flownOverrides?.windProfile !== undefined;
+
   const [open, setOpen] = useState(false);
   // Closing unmounts the Close button; focus has to land on the Run button that replaces it.
   const [runRef, returnFocusToRun] = useReturnFocus();
@@ -150,7 +189,7 @@ export default function MonteCarlo({
         seed: SEED,
         dispersions: settled,
         configId: sim?.conditions.configId,
-        overrides: sim ? overridesFromStored(sim) : undefined,
+        overrides: flownOverrides ?? (sim ? overridesFromStored(sim) : undefined),
         ballastKg,
         recoveryCdScale,
         motorSwap,
@@ -171,7 +210,7 @@ export default function MonteCarlo({
     // Keyed on the design's value, not the props' identity — see `designKey`. A changed dispersion
     // tolerance still re-flies; an unrelated re-render no longer restarts hundreds of flights.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, settled, designKey]);
+  }, [open, settled, designKey, conditionsKey]);
 
   return (
     <section
@@ -190,7 +229,14 @@ export default function MonteCarlo({
         angle, and wind jittered around their nominal values, and see the <em>spread</em> of the
         outcomes — the apogee band to expect
         and how big a recovery area to plan for. The physics is the same each flight; the uncertainty
-        is your own stated assumptions carried through it, not new precision.
+        is your own stated assumptions carried through it, not new precision.{" "}
+        {/* Which conditions those nominals ARE. The two sweeps beside this panel each say the same
+            thing about themselves; this one said nothing while quietly flying the design file's
+            setup rather than the flyer's, and the recovery radius is not a number to be vague
+            about. */}
+        {conditionsEdited
+          ? "The nominals are the launch conditions you set — the same ones the flight above is using."
+          : "The nominals are the design's own stored launch conditions; change them under Conditions and this re-flies."}
       </p>
 
       {!open && (
@@ -259,7 +305,12 @@ export default function MonteCarlo({
               onChange={onWindDisp}
               unit={units === "imperial" ? "mph" : "m/s"}
               step={units === "imperial" ? 1 : 0.5}
-              hint="Around the nominal wind"
+              disabled={windProfileInForce}
+              hint={
+                windProfileInForce
+                  ? "Today's weather flies a whole wind profile rather than one surface wind, so a spread on the surface figure has nothing to vary — switch to As designed to use it."
+                  : "Around the nominal wind"
+              }
             />
           </div>
 

@@ -138,6 +138,40 @@ function hasActiveEdits(e: Edits): boolean {
   return Object.entries(e).some(([k, v]) => !INERT_EDITS.has(k) && v !== undefined && v !== "");
 }
 
+/** The launch conditions a run is actually flown under: the design file's stored setup, then the
+ *  flyer's own edits on top, then today's weather if that scenario is on.
+ *
+ *  A FUNCTION at module level because more than one surface has to fly the same conditions, and the
+ *  Monte-Carlo dispersion is the one that showed why. It built its own nominal straight from
+ *  `overridesFromStored`, so it flew the FILE's launch setup while the Flight card beside it flew
+ *  the flyer's — and the two numbers a flyer plans a field around are the ones that moved. Measured
+ *  on the 54 mm dual-deploy sample with surface wind set to 20 mph: the Flight card's drift went
+ *  630 m to 1,877 m while the dispersion's recovery radius (95%) stayed at 1,203 m against a true
+ *  2,519 m, and its median drift at 593 m against 1,811 m. A 1,500 m field takes the chance of
+ *  busting a 3,000 m ceiling from 36% to 83%. Two spellings of "what is being flown" is exactly the
+ *  drift this file's other shared helpers exist to prevent. */
+function flownOverrides(
+  document: OrkDocument,
+  e: Edits,
+  wx: WeatherConditions | null,
+  scen: "design" | "today",
+  idx: number,
+): ConditionOverrides {
+  const stored = document.simulations[idx] ?? document.simulations[0];
+  const overrides: ConditionOverrides = stored ? { ...overridesFromStored(stored) } : {};
+  if (e.rodLength !== undefined) overrides.rodLength = e.rodLength;
+  if (e.rodAngleDeg !== undefined) overrides.rodAngleDeg = e.rodAngleDeg;
+  if (e.windSpeed !== undefined) overrides.windSpeed = e.windSpeed;
+  if (e.launchAltitude !== undefined) overrides.launchAltitude = e.launchAltitude;
+  if (scen === "today" && wx) {
+    overrides.atmosphere = wx.atmosphere;
+    overrides.windProfile = wx.windProfile;
+    overrides.launchAltitude = wx.elevationMsl;
+    overrides.windSpeed = wx.surfaceWindMps;
+  }
+  return overrides;
+}
+
 /** Keys that can sit in the edit bag without the design being edited.
  *
  *  `finSetId` says which component the fin fields are POINTED AT, not that anything was changed.
@@ -230,19 +264,7 @@ export default function LoftApp() {
       idx: number,
     ): { run: FlightRun; baseline: FlightRun | null } => {
       const stored = document.simulations[idx] ?? document.simulations[0];
-      const base: ConditionOverrides = stored ? overridesFromStored(stored) : {};
-      const overrides: ConditionOverrides = { ...base };
-      if (e.rodLength !== undefined) overrides.rodLength = e.rodLength;
-      if (e.rodAngleDeg !== undefined) overrides.rodAngleDeg = e.rodAngleDeg;
-      if (e.windSpeed !== undefined) overrides.windSpeed = e.windSpeed;
-      if (e.launchAltitude !== undefined) overrides.launchAltitude = e.launchAltitude;
-      const usingToday = scen === "today" && wx;
-      if (usingToday) {
-        overrides.atmosphere = wx.atmosphere;
-        overrides.windProfile = wx.windProfile;
-        overrides.launchAltitude = wx.elevationMsl;
-        overrides.windSpeed = wx.surfaceWindMps;
-      }
+      const overrides = flownOverrides(document, e, wx, scen, idx);
       const edited = hasActiveEdits(e) || scen === "today";
       const configId = stored?.conditions.configId;
       const run = runFlight(document.rocket, {
@@ -564,6 +586,13 @@ export default function LoftApp() {
    *  resolved exactly as `makeConditions` resolves them, so what the greyed placeholders advertise is
    *  what the solver flew. Recomputed with the design and the picked configuration because a stored
    *  simulation carries its own rail and wind. */
+  /** The conditions the run in view was flown under, as an overrides object — the same one
+   *  `compute` builds, so the dispersion cannot fly a different setup from the Flight card. */
+  const flownOverridesNow = useMemo(
+    () => (doc ? flownOverrides(doc, edits, weather, scenario, simIndex) : undefined),
+    [doc, edits, weather, scenario, simIndex],
+  );
+
   const flownConditions = useMemo(() => {
     const base = defaultConditions();
     const sim = doc ? (doc.simulations[simIndex] ?? doc.simulations[0]) : undefined;
@@ -989,6 +1018,14 @@ export default function LoftApp() {
               doc={doc}
               loadId={loadSerial}
               units={units}
+              flownOverrides={flownOverridesNow}
+              conditionsEdited={
+                edits.rodLength !== undefined ||
+                edits.rodAngleDeg !== undefined ||
+                edits.windSpeed !== undefined ||
+                edits.launchAltitude !== undefined ||
+                scenario === "today"
+              }
               baseline={baseline}
               simIndex={simIndex}
               ballastKg={edits.ballastKg}

@@ -3221,6 +3221,55 @@ test.describe("Loft", () => {
     }).toPass({ timeout: 20_000 });
   });
 
+  test("the dispersion plans for the flyer's field, not the one in the file", async ({ page }) => {
+    // The study built its nominal from `overridesFromStored` alone, so it answered for the day the
+    // design file was saved while the Flight card beside it answered for the flyer's. Measured on
+    // this sample with surface wind set to 8.94 m/s: the card's drift went 630 m → 1,877 m while the
+    // recovery radius (95%) stayed at 1,203 m against a true 2,519 m and the median drift at 593 m
+    // against 1,811 m. Those are the two numbers a flyer sizes a field and a recovery walk against,
+    // and the FAQ said in as many words that they reflected the flyer's own conditions.
+    test.setTimeout(180_000);
+    await page.goto("/");
+    await page.getByRole("button", { name: /54 mm dual-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+
+    const mc = page.getByRole("region", { name: "Monte-Carlo dispersion" });
+    const radius = async () => {
+      const t = (await mc.innerText()).replace(/\s+/g, " ");
+      const m = t.match(/RECOVERY RADIUS \(95%\)\s*([\d,]+)/i);
+      return m ? Number(m[1].replace(/,/g, "")) : null;
+    };
+    const settle = async () => {
+      await page.waitForFunction(() => !/Refining/.test(document.body.innerText), null, { timeout: 150_000 });
+    };
+
+    await page.getByRole("tab", { name: "Analyze" }).click();
+    await mc.getByRole("button", { name: /Run dispersion/i }).click();
+    await settle();
+    const asDesigned = await radius();
+    expect(asDesigned).toBeGreaterThan(0);
+    // It says whose conditions those are, which is the half the FAQ was answering for.
+    await expect(mc).toContainText("the design's own stored launch conditions");
+
+    // Now tell it the field is windier than the file says.
+    await page.getByRole("tab", { name: "Flight" }).click();
+    const conditions = page.locator("details").filter({ hasText: "Conditions" }).first();
+    if (!(await conditions.evaluate((el: HTMLDetailsElement) => el.open))) {
+      await conditions.locator("summary").click();
+    }
+    const wind = page.locator("input").and(page.getByLabel(/Surface wind/i)).first();
+    await wind.fill("8.9408");
+    await wind.press("Enter");
+    await wind.blur();
+
+    await page.getByRole("tab", { name: "Analyze" }).click();
+    await settle();
+    const windy = await radius();
+    // A materially bigger recovery area — the whole point of telling it the truth about the day.
+    expect(windy!).toBeGreaterThan(asDesigned! * 1.5);
+    await expect(mc).toContainText("the launch conditions you set");
+  });
+
   test("a motor swap survives a configuration change that still offers it", async ({ page }) => {
     // The wiring half of `swapStillOffered`. The failure it guards needs two configurations of
     // DIFFERENT casings — on the corpus design that stores nine across 24/29/38 mm, a 38 mm swap

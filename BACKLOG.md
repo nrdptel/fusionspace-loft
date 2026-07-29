@@ -3,6 +3,34 @@
 Rough edges, missing affordances, and ideas too big for one pass — noticed while working,
 not yet done. Newest first. One line each. Anything here is fair game for the next session.
 
+- **RESOLVED this session — the dispersion study planned for the day the design file was saved, not
+  the flyer's.** `MonteCarlo` built its nominal from `overridesFromStored(sim)` alone, so the four
+  Conditions edits and the whole "Today" scenario never reached it, while the Flight card beside it
+  used them. Measured in the built export on the 54 mm dual-deploy sample, surface wind set to
+  8.9408 m/s (20 mph): the card's drift went **630 -> 1,877 m** while the panel's recovery radius
+  (95%) stayed at **1,203 m** against a true **2,519 m** and its median drift at **593 m** against
+  **1,811 m**; landing speed 6 -> 10 m/s. It did not even reset, because `designKey` carries no
+  condition field. `app/docs/faq` then said "the answer reflects your own conditions", which turned an
+  undisclosed defect into a denied one. Now plumbed through one shared `flownOverrides`, with its OWN
+  conditions key — the shared `designKey` is watched by the two sweeps and the RocketPy cross-check,
+  all of which fly ballistic, and `runFlight` zeroes the wind for a ballistic run, so a wind edit
+  measurably changes nothing in them (apogee 2,941 m at 3 m/s and at 8.94 m/s, identical). The panel
+  now also says whose conditions it flew. An independent headless replica of `monteCarlo` predicted
+  2518.7 m and 1811.1 m before the change was written; the browser measured 2,519 m and 1,811 m.
+
+- **The other three stored-conditions surfaces, measured — one of them makes a promise it breaks.**
+  `MotorSweep.tsx:89`, `ParameterSweep.tsx:152,232` and `RocketpyCrossCheck.tsx:119` all fly
+  `overridesFromStored`. Surface wind is a genuine no-op for all three (`run.ts:135` zeroes it for a
+  ballistic run — apogee 2,941 m at 3 m/s and at 8.94 m/s), but rail length, rail angle and field
+  elevation are not: rail 10 deg moves the ballistic apogee 2,941 -> 2,852 m (-3.0%), elevation 1,500 m
+  -> 3,237 m (+10.1%), and rail length 2.0 -> 1.0 m drops rail-exit velocity **28.2 -> 19.6 m/s**,
+  straight through the ~15 m/s rule of thumb. **The motor sweep is the one that breaks a promise**:
+  its caption invites you to check rail-exit "against your rail" while flying the rail length in the
+  FILE. The parameter sweep discloses its baseline plainly ("under the design's stored conditions"),
+  so it is disclosed rather than denied. The RocketPy cross-check is silent about conditions, but
+  stored is arguably the RIGHT choice there — the panel exists to compare two solvers like-for-like
+  against the file — so its fix is wording, not plumbing.
+
 - **RESOLVED this session — the parts-table caption read "adds up to 0 kg" for a real 1.4-2.0 kg
   airframe.** The caption stated the SUM OF ITS OWN COLUMN as the design's dry mass; it now states
   `dryMassProperties`, the same source the Mass & balance panel reads, and names the part no row can

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { Tabs } from "./ui";
 import type { FlightRun } from "@/lib/sim/run";
+import type { ConditionOverrides } from "@/lib/sim/setup";
 import { applyGeometryEdits, hasGeometryEdits, primaryFinGroupIds, type GeometryEdits } from "@/lib/model/edit";
 import { designKey } from "@/lib/model/design-key";
 import { formatLabel, sourceTool, type OrkDocument } from "@/lib/ork/import";
@@ -139,6 +140,8 @@ export default function ResultsView({
   doc,
   loadId,
   units,
+  flownOverrides,
+  conditionsEdited,
   baseline,
   simIndex = 0,
   ballastKg,
@@ -161,6 +164,13 @@ export default function ResultsView({
    *  the rocket (the name) has to stay out of it. */
   loadId: string | number;
   units: UnitSystem;
+  /** The launch conditions the run in view was flown under — the design file's stored setup with the
+   *  flyer's Conditions edits and today's weather folded in, exactly as the Flight card flew them.
+   *  The dispersion study built its own nominal from the file alone, so it answered for a different
+   *  day: on the 54 mm sample at 20 mph its recovery radius stayed 1,203 m against a true 2,519 m. */
+  flownOverrides?: ConditionOverrides;
+  /** True when any of that came from the flyer rather than the file, so a panel can say so. */
+  conditionsEdited?: boolean;
   /** When a design what-if (nose ballast / motor swap) is active, the same flight without that
    *  change under identical conditions — so the results can show what the change bought. */
   baseline?: FlightRun | null;
@@ -762,6 +772,8 @@ export default function ResultsView({
       {run.hasPropulsion && (
         <MonteCarlo
           designKey={dkey}
+          flownOverrides={flownOverrides}
+          conditionsEdited={conditionsEdited}
           doc={doc}
           simIndex={simIndex}
           units={units}
