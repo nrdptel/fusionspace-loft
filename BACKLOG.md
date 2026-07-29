@@ -3,6 +3,24 @@
 Rough edges, missing affordances, and ideas too big for one pass — noticed while working,
 not yet done. Newest first. One line each. Anything here is fair game for the next session.
 
+- **RASAero and RockSim state a launch setup at DESIGN level, and Loft only ever reads it from
+  inside a per-simulation loop — so a file with no stored simulation loses it entirely.**
+  `lib/rasaero/adapt.ts:449` finds `<LaunchSite>` once, design-wide, but only reaches it through
+  `storedSim(sim, site, i, id)` inside the per-simulation loop at :497. Measured on a corpus file:
+  `rasaero__openrocket-repo-rasaero-threestage-cdx1__Three-stage rocket.CDX1` carries
+  `<LaunchSite>` with `RodLength 12` (ft), `RodAngle 7.64`, `Altitude 3750` (ft) and `WindSpeed 0`,
+  and a self-closing `<SimulationList/>` — zero simulations. Loft imports it with `simulations: []`
+  and flies its own 1.0 m rail, 0°, 0 m instead: the rail is understated **3.66x** on the input
+  rail-exit velocity is computed from, which is the number a pad check turns on. RockSim has the
+  same shape — `rocksim__openrocket-repo-rocksim-threestage__rocksimTestRocket2.rkt` carries
+  `<LaunchGuideLength>914.4</LaunchGuideLength>` at `<RocketDesign>` level, and nothing under `lib/`
+  reads that tag; `lib/rkt/adapt.ts:618` reads only the per-`<SimulationResults>` `LaunchGuideLen`.
+  Fix: lift the design-level launch block out of the per-simulation loop in both adapters and use it
+  as the design's conditions when no stored simulation supplies them. This is a PARSER change — its
+  own gate, its own corpus run, its own push. The Conditions note added this session is worded
+  around this gap on purpose ("Loft read no …", not "this design specifies no …"), because the
+  stronger sentence would be flatly false about that CDX1 file; reword it once this is fixed.
+
 - **The scenario toggle keeps a wind or elevation edit that the flight throws away, in a box the
   flyer cannot then clear.** `LoftApp.tsx:935` — the "As designed"/"Today" segmented control calls
   `rerun(edits, weather, s)` with `edits` untouched, while the OTHER entry point into the same state,

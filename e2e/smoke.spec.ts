@@ -1323,7 +1323,7 @@ test.describe("Loft", () => {
     // …and says so, naming every field it is doing it for, in a sentence.
     await expect(
       conditions.getByText(
-        /specifies no rail length, rail angle, surface wind, and field elevation, so those are Loft's default/,
+        /read no rail length, rail angle, surface wind, and field elevation from this design, so those are its own default/,
       ),
     ).toBeVisible();
 
@@ -1338,14 +1338,14 @@ test.describe("Loft", () => {
       await conditions.locator("summary").first().click();
     }
     await expect(rail).toHaveAttribute("placeholder", "2.0");
-    await expect(conditions.getByText(/specifies no /)).toHaveCount(0);
+    await expect(conditions.getByText(/Loft read no /)).toHaveCount(0);
   });
 
   test("a launch condition the flyer typed is not credited to Loft's defaults", async ({ page }) => {
     // The note names the greyed value's source, and a typed entry outranks all of them — it is what
     // the solver flies. Left unfiltered the note kept naming a field the flyer had just set: on a
     // from-scratch build, typing a 3.048 m rail (rail-exit ~26 m/s against the 1.0 m default's 16)
-    // still read "this design specifies no rail length … so those are Loft's default".
+    // still read "Loft read no rail length … so those are its own default".
     await page.goto("/");
     await page.getByRole("button", { name: /Start a new design/ }).click();
     await expect(page.getByRole("tab", { name: "Design" })).toBeVisible({ timeout: 30_000 });
@@ -1357,7 +1357,7 @@ test.describe("Loft", () => {
     }
     // All four start defaulted, and the note says so.
     await expect(
-      conditions.getByText(/specifies no rail length, rail angle, surface wind, and field elevation/),
+      conditions.getByText(/read no rail length, rail angle, surface wind, and field elevation from this design/),
     ).toBeVisible();
 
     const rail = page.locator("input").and(page.getByLabel(/Rail length/)).first();
@@ -1365,8 +1365,8 @@ test.describe("Loft", () => {
     await rail.press("Enter");
 
     // Rail length drops out of the list; the three the flyer has not touched stay in it.
-    await expect(conditions.getByText(/specifies no rail angle, surface wind, and field elevation/)).toBeVisible();
-    await expect(conditions.getByText(/specifies no rail length/)).toHaveCount(0);
+    await expect(conditions.getByText(/read no rail angle, surface wind, and field elevation/)).toBeVisible();
+    await expect(conditions.getByText(/read no rail length/)).toHaveCount(0);
   });
 
   test("printing a design gives a flight card, not the whole web page", async ({ page }) => {

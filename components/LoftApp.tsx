@@ -1709,10 +1709,17 @@ function ConditionsControls({
           // Which fields are Loft's and which are theirs. Without this the caption's three sources
           // are a menu rather than an answer, and the from-scratch case — where every one of the
           // four is a default — reads exactly like a design that specified them.
+          //
+          // It says what LOFT READ, not what the file contains, and the difference is load-bearing:
+          // RASAero and RockSim both carry a design-level launch setup that Loft's importers only
+          // reach from inside a per-simulation loop, so a file with no stored simulation loses it.
+          // `Three-stage rocket.CDX1` in the corpus states a 12 ft rail, 7.64° and 3,750 ft and has
+          // an empty `<SimulationList/>`; a note claiming the design specifies none of them would be
+          // flatly false about the file, which is worse than the silence this replaced. The reading
+          // gap itself is a real bug and is in BACKLOG.md with this file named.
           <p className="text-xs text-amber-700 dark:text-amber-400">
-            This design specifies no {listWords(defaultedNames)}, so{" "}
-            {defaultedNames.length === 1 ? "that field is" : "those are"}{" "}
-            Loft&apos;s default rather than anything read from the file.
+            Loft read no {listWords(defaultedNames)} from this design, so{" "}
+            {defaultedNames.length === 1 ? "that field is" : "those are"} its own default.
           </p>
         )}
 
