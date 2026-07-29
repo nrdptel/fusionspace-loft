@@ -154,10 +154,15 @@ sentence in a doc comment *written in that same diff*. Both were fixed before th
 Baseline before anything changed: lint 0 errors / 1 warning, **682 unit**, build, **122 e2e**, corpus
 **35 design files, 3/3**. At the time of writing: **695 unit, 128 e2e**, corpus 35 throughout.
 
-Both pull requests merged on green CI and are serving. **A caution about the checks API:** it
-reported PR #57's e2e job as `in_progress` for twenty minutes after that job had actually completed
-green — the job's own `completed_at` was already set. A stale `in_progress` is not evidence a run is
-still going; read `completed_at`, or the run via `actions_list`, before concluding a check is stuck.
+Both pull requests merged on green CI and are serving.
+
+**A caution about reading CI here, which cost this session nearly an hour.** The checks API reported
+PR #57's e2e job as `in_progress` for twenty minutes after that job had completed green, and it
+happened again on #58 — a job whose steps were ALL `success`, including "Complete job", still
+reported `in_progress` at job level. **Job-level status lags; step-level status does not.** Use
+`actions_list` with `list_workflow_jobs` and read the `steps` array, not `pull_request_read`'s
+`get_check_runs`. Concluding from a stale `in_progress` that a run is stuck nearly ended this
+session with finished, verified work sitting unmerged.
 
 **PR #56, squash `20ee501`** — confirmed serving by fetching the content-hashed chunk carrying its
 new strings (it 404'd before the merge):
