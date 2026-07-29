@@ -237,4 +237,47 @@ test.describe("phone layout", () => {
       await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth),
     ).toBeLessThanOrEqual(0);
   });
+  test("every heavy analysis panel can be closed again, at a real touch size", async ({ page }) => {
+    // The dispersion run and the two sweeps opened on a Run button and offered nothing that closed
+    // them: `setOpen(true)` with no `setOpen(false)` anywhere. Once opened they stayed open for the
+    // session — the dispersion panel alone measured 2,195 px open against 308 px closed on a 390 px
+    // phone, and an open panel
+    // re-flies on every design edit (2.5 s per nose-ballast change, on the main thread).
+    await page.goto("/");
+    await page.getByRole("button", { name: /54 mm dual-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 30_000 });
+    await page.getByRole("tab", { name: "Analyze" }).click();
+
+    const panels: [string, RegExp][] = [
+      ["Motor sweep", /Run motor sweep/],
+      ["Parameter sweep", /Run parameter sweep/],
+      ["Monte-Carlo dispersion", /Run dispersion/],
+    ];
+
+    for (const [label, run] of panels) {
+      const panel = page.getByRole("region", { name: label });
+      const heightOf = async () =>
+        Math.round((await panel.evaluate((el) => el.getBoundingClientRect().height)) as number);
+
+      const closed = await heightOf();
+      await panel.getByRole("button", { name: run }).click();
+      const close = panel.getByRole("button", { name: /^Close/ });
+      await expect(close, `${label} offers no way back out`).toBeVisible();
+
+      const box = (await close.boundingBox())!;
+      expect(Math.round(box.height), `${label} Close height`).toBeGreaterThanOrEqual(44);
+
+      expect(await heightOf(), `${label} did not grow when opened`).toBeGreaterThan(closed);
+      await close.click();
+      // Back to the offer, not to a collapsed panel still holding an answer for a design that can
+      // now change underneath it.
+      await expect(panel.getByRole("button", { name: run })).toBeVisible();
+      expect(await heightOf(), `${label} did not shrink when closed`).toBeLessThanOrEqual(closed);
+    }
+
+    // And nothing about the new control pushes the phone layout sideways.
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth),
+    ).toBeLessThanOrEqual(0);
+  });
 });

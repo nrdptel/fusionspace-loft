@@ -14,6 +14,7 @@ import LineChart from "./LineChart";
 import DownloadCsv, { CopyTable } from "./DownloadCsv";
 import { TOUCH_TARGET } from "@/lib/ui-tokens";
 import type { UnitSystem } from "@/lib/display";
+import { ClosePanel } from "./ui";
 
 const round = (n: number, dp: number) => (Number.isFinite(n) ? Math.round(n * 10 ** dp) / 10 ** dp : "");
 
@@ -256,7 +257,10 @@ export default function ParameterSweep({
     >
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="text-lg font-semibold tracking-tight">Sweep a parameter</h2>
-        <span className="text-xs text-zinc-500 dark:text-zinc-400">how one dimension changes the flight</span>
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-zinc-500 dark:text-zinc-400">how one dimension changes the flight</span>
+          {open && <ClosePanel onClose={() => setOpen(false)} what="the parameter sweep" />}
+        </div>
       </div>
       <p className="mt-1.5 text-sm text-zinc-600 dark:text-zinc-300">
         Vary one of the design&apos;s dimensions across a range and see how apogee, speed, stability,

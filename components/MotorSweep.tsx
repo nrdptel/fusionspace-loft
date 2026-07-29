@@ -14,6 +14,7 @@ import DownloadCsv, { CopyTable } from "./DownloadCsv";
 import { TOUCH_TARGET } from "@/lib/ui-tokens";
 import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
+import { ClosePanel } from "./ui";
 
 const round = (n: number, dp: number) => (Number.isFinite(n) ? Math.round(n * 10 ** dp) / 10 ** dp : "");
 
@@ -111,9 +112,12 @@ export default function MotorSweep({
             are not the same number: a 54 mm mount can fly a 38 mm motor in an adapter, and it is the
             38 mm ones that are offered. Saying "fits this mount" claimed the wider set and was
             checkably false against the design file, which states the bore outright. */}
-        <span className="text-xs text-zinc-500 dark:text-zinc-400">
-          {options.length} bundled {casingMm} mm motors
-        </span>
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-zinc-500 dark:text-zinc-400">
+            {options.length} bundled {casingMm} mm motors
+          </span>
+          {open && <ClosePanel onClose={() => setOpen(false)} what="the motor sweep" />}
+        </div>
       </div>
       <p className="mt-1.5 text-sm text-zinc-600 dark:text-zinc-300">
         Fly this airframe on every bundled motor of the same {casingMm} mm casing it already flies,

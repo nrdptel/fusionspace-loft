@@ -17,7 +17,7 @@ import type { GeometryEdits } from "@/lib/model/edit";
 import { usePersistedNumber } from "@/lib/session";
 import { mToFt, ftToM, mpsToFtps, mpsToMph, mphToMps } from "@/lib/units";
 import type { CsvCell } from "@/lib/csv";
-import { NumberField } from "./ui";
+import { ClosePanel, NumberField } from "./ui";
 import DownloadCsv, { CopyTable } from "./DownloadCsv";
 import { TOUCH_TARGET } from "@/lib/ui-tokens";
 import * as d from "@/lib/display";
@@ -172,7 +172,10 @@ export default function MonteCarlo({
     >
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="text-lg font-semibold tracking-tight">Flight dispersion (Monte-Carlo)</h2>
-        <span className="text-xs text-zinc-500 dark:text-zinc-400">{SAMPLES} flights on your device</span>
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-zinc-500 dark:text-zinc-400">{SAMPLES} flights on your device</span>
+          {open && <ClosePanel onClose={() => setOpen(false)} what="the dispersion run" />}
+        </div>
       </div>
       <p className="mt-1.5 text-sm text-zinc-600 dark:text-zinc-300">
         Fly this design hundreds of times with the motor impulse, dry mass, aerodynamic drag, rail
