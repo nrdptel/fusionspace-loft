@@ -3535,7 +3535,12 @@ test.describe("Loft", () => {
     await mc.getByRole("button", { name: "Run dispersion" }).click();
     const wind = mc.locator("input").and(mc.getByLabel("Wind speed ±1σ")).first();
     const unitSuffix = async () =>
-      (await wind.evaluate((n) => (n.labels?.[0]?.textContent || "").replace(/\s+/g, " "))).match(/m\/s|mph/)?.[0];
+      // Typed as the input it is: `evaluate`'s node is `SVGElement | HTMLElement`, and `labels`
+      // exists on neither, so an untyped callback here was the one thing in the repo that made
+      // `tsc --noEmit` fail over the whole project.
+      (
+        await wind.evaluate((n: HTMLInputElement) => (n.labels?.[0]?.textContent || "").replace(/\s+/g, " "))
+      ).match(/m\/s|mph/)?.[0];
 
     await expect(wind).toHaveValue("2");
     expect(await unitSuffix()).toBe("m/s");

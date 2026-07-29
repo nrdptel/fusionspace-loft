@@ -304,11 +304,13 @@ not yet done. Newest first. One line each. Anything here is fair game for the ne
     which at least never yields a ratio belonging to no fin — unmeasured, and it must be run against
     the same 15 comparable simulations before it goes anywhere near the deploy branch.
 
-- **`npx tsc --noEmit` fails on `e2e/smoke.spec.ts:3538`** — `Property 'labels' does not exist on
-  type 'SVGElement | HTMLElement'`. Pre-existing and outside the gate (`npm run lint` and
-  `npm run build` both pass, and neither typechecks the e2e directory), so nothing is broken today,
-  but it means a whole-project typecheck is not currently a usable check. Narrow the locator or cast
-  to `HTMLInputElement`.
+- **RESOLVED this session — `npx tsc --noEmit` failed over the whole project** on one untyped
+  `evaluate` callback in `e2e/smoke.spec.ts` (`Property 'labels' does not exist on type
+  'SVGElement | HTMLElement'`). Outside the gate — `npm run lint` and `npm run build` both passed,
+  and neither typechecks the e2e directory — so nothing was broken, but it meant a whole-project
+  typecheck was not a check anyone could run. Typing the callback `HTMLInputElement` clears it, and
+  `tsc --noEmit` now exits 0 across the repo. Found while checking an unrelated change had not
+  introduced one, which is the only reason it was noticed at all: consider adding it to the gate.
   - **RASAero recovery `<Size1>`/`<Size2>` are read as canopy diameter in FEET with no bound.**
     `Complex.Two-Stage.CDX1` states Size1=12, Size2=24 on a 4.06 lb rocket: as feet that is a 7.32 m
     main and a 3.66 m drogue giving **0.94 m/s** under the main. Either the unit is wrong or the
