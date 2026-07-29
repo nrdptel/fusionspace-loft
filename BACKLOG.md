@@ -268,11 +268,44 @@ not yet done. Newest first. One line each. Anything here is fair game for the ne
   - **`meanFinChord` is assigned per fin set, ending as the LAST set walked, while `finThickness` on
     the next line is the MAX across sets** (`lib/sim/aero.ts:451`), so `finThicknessRatio` pairs one
     set's thickness with another set's chord — a ratio belonging to no fin, which changes if the
-    design's sets are reordered without changing the rocket. On `Simulation scripting.ork` (an 8 mm
-    50 mm-root set beside 5 mm 495 mm-root sets) t/c ≈ 0.02 where the thick set's own is 0.16 and the
-    big set's 0.0125 — an 8× error into the fin friction form factor (`1 + 2·t/c`) and the wave-drag
-    term (`2.0·t/c`). `finSweepLength` (last) paired with `finSpan` (max) at `aero.ts:505` is the
-    same defect.
+    design's sets are reordered without changing the rocket. `finSweepLength` (last) paired with
+    `finSpan` (max) at `aero.ts:505` is the same defect.
+
+    **Measured, and an area-weighted fix was built and then REVERTED — read this before rebuilding
+    it.** 13 of the 35 corpus designs carry more than one fin set. The mixed pairing produces
+    `Show-off.CDX1` t/c = **1.00** — a fin as thick as its chord — where both its sets are 0.50, and
+    `Mini Honest John.ork` an **unswept** leading edge (0.0°) where its dominant set sweeps 44.5°,
+    taking the full stagnation drag a swept edge does not pay. `Pods--airframes and winglets.ork`
+    reads t/c 0.122 against an area-weighted 0.046.
+
+    Replacing both with planform-area-weighted means (of t/c, and of cos²Λ rather than of Λ) is
+    exactly value-preserving on the 22 single-set designs, and the corpus medians barely move —
+    timeToApogee **1.7 → 1.5%**, maxMach **2.1 → 2.2%**, every other metric unchanged — because the
+    medians are dominated by designs the change cannot touch. Per design, on the 15 comparable
+    stored simulations, 14 moved: `03.Three-stage.ork` apogee **7.57 → 6.89%** and maxMach 3.98 →
+    3.75%, `Simulation scripting.ork` slightly better on all three, and most others ±0.05. But two
+    regress hard: `Complex.Two-Stage.CDX1` apogee **12.40 → 20.35%** and **4.53 → 11.85%**, and
+    `The Red Hunter.ork` **4.44 → 5.66%** (maxV 1.72 → 2.24%).
+
+    The regression is not a bad average, it is the model underneath. `Complex.Two-Stage.CDX1` is a
+    RASAero stress-test carrying six genuinely different sets (chords 1/0.25/1/6/2/4 in, counts
+    3/6/6/5/4/3, per-set t/c 0.20/0.53/0.20/0.025/0.10/0.040) — checked against the raw `<Fin>`
+    nodes, so they are real definitions and not unused template stubs. RASAero models each set on
+    its own; Loft collapses every set into ONE equivalent fin for drag, and no choice of average
+    represents six sets that different. "Last set wins" was not right either — it just happened to
+    land on a sane set on these two files.
+
+    So the honest fix is per-set drag accumulation (each set contributing its own friction form
+    factor and sweep factor over its own wetted area), not a better mean. If a cheaper step is
+    wanted first, the candidate is "the set with the largest planform area supplies BOTH numbers",
+    which at least never yields a ratio belonging to no fin — unmeasured, and it must be run against
+    the same 15 comparable simulations before it goes anywhere near the deploy branch.
+
+- **`npx tsc --noEmit` fails on `e2e/smoke.spec.ts:3538`** — `Property 'labels' does not exist on
+  type 'SVGElement | HTMLElement'`. Pre-existing and outside the gate (`npm run lint` and
+  `npm run build` both pass, and neither typechecks the e2e directory), so nothing is broken today,
+  but it means a whole-project typecheck is not currently a usable check. Narrow the locator or cast
+  to `HTMLInputElement`.
   - **RASAero recovery `<Size1>`/`<Size2>` are read as canopy diameter in FEET with no bound.**
     `Complex.Two-Stage.CDX1` states Size1=12, Size2=24 on a 4.06 lb rocket: as feet that is a 7.32 m
     main and a 3.66 m drogue giving **0.94 m/s** under the main. Either the unit is wrong or the
