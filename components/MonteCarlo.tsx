@@ -17,7 +17,7 @@ import type { GeometryEdits } from "@/lib/model/edit";
 import { usePersistedNumber } from "@/lib/session";
 import { mToFt, ftToM, mpsToFtps, mpsToMph, mphToMps } from "@/lib/units";
 import type { CsvCell } from "@/lib/csv";
-import { ClosePanel, NumberField } from "./ui";
+import { ClosePanel, NumberField, useReturnFocus } from "./ui";
 import DownloadCsv, { CopyTable } from "./DownloadCsv";
 import { TOUCH_TARGET } from "@/lib/ui-tokens";
 import * as d from "@/lib/display";
@@ -70,6 +70,8 @@ export default function MonteCarlo({
   designKey: string;
 }) {
   const [open, setOpen] = useState(false);
+  // Closing unmounts the Close button; focus has to land on the Run button that replaces it.
+  const [runRef, returnFocusToRun] = useReturnFocus();
   // Dispersion 1σ inputs, with common planning defaults: a ~5% motor total-impulse band, a couple
   // of degrees of rail lean, and a couple of m/s of wind variability. All editable — and kept,
   // because they are the flyer's own standing assumptions about their build quality and their
@@ -128,7 +130,13 @@ export default function MonteCarlo({
   // main thread (batched) so the page stays responsive; a stale run is abandoned between batches.
   useEffect(() => {
     if (!open) {
+      // Everything the panel SHOWS resets, not only the result. `running` and `progress` used to
+      // survive a close, and the reopen renders before this effect does — so the panel painted
+      // "Flying 300 — 296 done…" for a run in which no flight had yet been made. Unreachable while
+      // `open` was one-way; the close control is what put live values in this branch.
       setResult(null);
+      setRunning(false);
+      setProgress(0);
       return;
     }
     let live = true;
@@ -174,7 +182,7 @@ export default function MonteCarlo({
         <h2 className="text-lg font-semibold tracking-tight">Flight dispersion (Monte-Carlo)</h2>
         <div className="flex items-center gap-3">
           <span className="text-xs text-zinc-500 dark:text-zinc-400">{SAMPLES} flights on your device</span>
-          {open && <ClosePanel onClose={() => setOpen(false)} what="the dispersion run" />}
+          {open && <ClosePanel onClose={() => { setOpen(false); returnFocusToRun(); }} what="the dispersion run" />}
         </div>
       </div>
       <p className="mt-1.5 text-sm text-zinc-600 dark:text-zinc-300">
@@ -189,6 +197,7 @@ export default function MonteCarlo({
         <div className="mt-3">
           <button
             type="button"
+            ref={runRef}
             onClick={() => setOpen(true)}
             className={`rounded-lg bg-indigo-600 px-3.5 py-2 text-sm font-medium text-white transition hover:bg-indigo-500 ${TOUCH_TARGET}`}
           >

@@ -14,7 +14,7 @@ import LineChart from "./LineChart";
 import DownloadCsv, { CopyTable } from "./DownloadCsv";
 import { TOUCH_TARGET } from "@/lib/ui-tokens";
 import type { UnitSystem } from "@/lib/display";
-import { ClosePanel } from "./ui";
+import { ClosePanel, useReturnFocus } from "./ui";
 
 const round = (n: number, dp: number) => (Number.isFinite(n) ? Math.round(n * 10 ** dp) / 10 ** dp : "");
 
@@ -183,6 +183,8 @@ export default function ParameterSweep({
   );
 
   const [open, setOpen] = useState(false);
+  // Closing unmounts the Close button; focus has to land on the Run button that replaces it.
+  const [runRef, returnFocusToRun] = useReturnFocus();
   // Which dimension to sweep and what to plot are a view the flyer set up, not a result — so they
   // are remembered. A stored choice this design can't offer (no fins, so no flutter margin; an axis
   // its geometry doesn't have) falls back to the default rather than selecting nothing.
@@ -211,7 +213,10 @@ export default function ParameterSweep({
   // held-fixed what-if) re-runs the flights. A stale run is abandoned between batches.
   useEffect(() => {
     if (!open || !axisDef) {
+      // `running` resets with the points: it is stale the moment the panel closes, and the reopen
+      // renders before this effect runs. See the same branch in MonteCarlo.
       setPoints(null);
+      setRunning(false);
       return;
     }
     let live = true;
@@ -259,7 +264,7 @@ export default function ParameterSweep({
         <h2 className="text-lg font-semibold tracking-tight">Sweep a parameter</h2>
         <div className="flex items-center gap-3">
           <span className="text-xs text-zinc-500 dark:text-zinc-400">how one dimension changes the flight</span>
-          {open && <ClosePanel onClose={() => setOpen(false)} what="the parameter sweep" />}
+          {open && <ClosePanel onClose={() => { setOpen(false); returnFocusToRun(); }} what="the parameter sweep" />}
         </div>
       </div>
       <p className="mt-1.5 text-sm text-zinc-600 dark:text-zinc-300">
@@ -272,6 +277,7 @@ export default function ParameterSweep({
         <div className="mt-3">
           <button
             type="button"
+            ref={runRef}
             onClick={() => setOpen(true)}
             className={`rounded-lg bg-indigo-600 px-3.5 py-2 text-sm font-medium text-white transition hover:bg-indigo-500 ${TOUCH_TARGET}`}
           >

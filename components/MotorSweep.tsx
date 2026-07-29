@@ -14,7 +14,7 @@ import DownloadCsv, { CopyTable } from "./DownloadCsv";
 import { TOUCH_TARGET } from "@/lib/ui-tokens";
 import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
-import { ClosePanel } from "./ui";
+import { ClosePanel, useReturnFocus } from "./ui";
 
 const round = (n: number, dp: number) => (Number.isFinite(n) ? Math.round(n * 10 ** dp) / 10 ** dp : "");
 
@@ -61,6 +61,8 @@ export default function MotorSweep({
   designKey: string;
 }) {
   const [open, setOpen] = useState(false);
+  // Closing unmounts the Close button; focus has to land on the Run button that replaces it.
+  const [runRef, returnFocusToRun] = useReturnFocus();
   const [rows, setRows] = useState<MotorSweepRow[] | null>(null);
   const [running, setRunning] = useState(false);
   // Every option was filtered to one casing, so any of them states it.
@@ -70,7 +72,10 @@ export default function MotorSweep({
   // dozens of flights don't freeze the UI. A stale run (inputs changed mid-flight) is ignored.
   useEffect(() => {
     if (!open) {
+      // `running` resets with the rows: it is stale the moment the panel closes, and the reopen
+      // renders before this effect runs. See the same branch in MonteCarlo.
       setRows(null);
+      setRunning(false);
       return;
     }
     let live = true;
@@ -116,7 +121,7 @@ export default function MotorSweep({
           <span className="text-xs text-zinc-500 dark:text-zinc-400">
             {options.length} bundled {casingMm} mm motors
           </span>
-          {open && <ClosePanel onClose={() => setOpen(false)} what="the motor sweep" />}
+          {open && <ClosePanel onClose={() => { setOpen(false); returnFocusToRun(); }} what="the motor sweep" />}
         </div>
       </div>
       <p className="mt-1.5 text-sm text-zinc-600 dark:text-zinc-300">
@@ -131,6 +136,7 @@ export default function MotorSweep({
         <div className="mt-3">
           <button
             type="button"
+            ref={runRef}
             onClick={() => setOpen(true)}
             className={`rounded-lg bg-indigo-600 px-3.5 py-2 text-sm font-medium text-white transition hover:bg-indigo-500 ${TOUCH_TARGET}`}
           >
