@@ -14,6 +14,7 @@ import LineChart from "./LineChart";
 import DownloadCsv, { CopyTable } from "./DownloadCsv";
 import { TOUCH_TARGET } from "@/lib/ui-tokens";
 import type { UnitSystem } from "@/lib/display";
+import { ClosePanel, useReturnFocus } from "./ui";
 
 const round = (n: number, dp: number) => (Number.isFinite(n) ? Math.round(n * 10 ** dp) / 10 ** dp : "");
 
@@ -182,6 +183,8 @@ export default function ParameterSweep({
   );
 
   const [open, setOpen] = useState(false);
+  // Closing unmounts the Close button; focus has to land on the Run button that replaces it.
+  const [runRef, returnFocusToRun] = useReturnFocus();
   // Which dimension to sweep and what to plot are a view the flyer set up, not a result — so they
   // are remembered. A stored choice this design can't offer (no fins, so no flutter margin; an axis
   // its geometry doesn't have) falls back to the default rather than selecting nothing.
@@ -210,7 +213,10 @@ export default function ParameterSweep({
   // held-fixed what-if) re-runs the flights. A stale run is abandoned between batches.
   useEffect(() => {
     if (!open || !axisDef) {
+      // `running` resets with the points: it is stale the moment the panel closes, and the reopen
+      // renders before this effect runs. See the same branch in MonteCarlo.
       setPoints(null);
+      setRunning(false);
       return;
     }
     let live = true;
@@ -238,9 +244,13 @@ export default function ParameterSweep({
       live = false;
     };
     // Keyed on the design's value, not the props' identity — see `designKey`. Changing the swept
-    // axis still re-runs; an unrelated re-render no longer restarts the flights.
+    // axis still re-runs; an unrelated re-render no longer restarts the flights. The axis is named
+    // by its KEY and not by `axisDef`: that object is rebuilt from `doc` whenever `doc` changes
+    // identity, so depending on it re-flew all 25 points on every keystroke in the rename field —
+    // the same defect `designKey` fixes one level up, arriving by a different route. The axis's own
+    // bounds move only when the rocket does, which `designKey` already covers.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, axisDef, designKey]);
+  }, [open, axisKey, designKey]);
 
   // A design with no editable dimension (no fins, nose, or body tube) has nothing to sweep.
   if (axes.length === 0) return null;
@@ -252,7 +262,10 @@ export default function ParameterSweep({
     >
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="text-lg font-semibold tracking-tight">Sweep a parameter</h2>
-        <span className="text-xs text-zinc-500 dark:text-zinc-400">how one dimension changes the flight</span>
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-zinc-500 dark:text-zinc-400">how one dimension changes the flight</span>
+          {open && <ClosePanel onClose={() => { setOpen(false); returnFocusToRun(); }} what="the parameter sweep" />}
+        </div>
       </div>
       <p className="mt-1.5 text-sm text-zinc-600 dark:text-zinc-300">
         Vary one of the design&apos;s dimensions across a range and see how apogee, speed, stability,
@@ -264,6 +277,7 @@ export default function ParameterSweep({
         <div className="mt-3">
           <button
             type="button"
+            ref={runRef}
             onClick={() => setOpen(true)}
             className={`rounded-lg bg-indigo-600 px-3.5 py-2 text-sm font-medium text-white transition hover:bg-indigo-500 ${TOUCH_TARGET}`}
           >

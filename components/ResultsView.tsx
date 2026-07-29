@@ -135,6 +135,7 @@ const SEVERITY: Record<string, string> = {
 export default function ResultsView({
   run,
   doc,
+  loadId,
   units,
   baseline,
   simIndex = 0,
@@ -153,6 +154,10 @@ export default function ResultsView({
 }: {
   run: FlightRun;
   doc: OrkDocument;
+  /** Which design is loaded, as a token that changes on load and on nothing else — see `designKey`.
+   *  The heavy panels cache an answer against it, so anything the flyer can edit without changing
+   *  the rocket (the name) has to stay out of it. */
+  loadId: string | number;
   units: UnitSystem;
   /** When a design what-if (nose ballast / motor swap) is active, the same flight without that
    *  change under identical conditions — so the results can show what the change bought. */
@@ -341,7 +346,7 @@ export default function ResultsView({
   const editing = !!(geometry && hasGeometryEdits(geometry));
   // What the Analyze panels are keyed on: change any of it and a completed run no longer describes
   // the design on screen, so the panel resets rather than showing a stale answer as a current one.
-  const dkey = designKey({ name: doc.rocket.name, simIndex, configId: run.config.id, ballastKg, recoveryCdScale, motorSwap, geometry });
+  const dkey = designKey({ loadId, simIndex, configId: run.config.id, ballastKg, recoveryCdScale, motorSwap, geometry });
   const staged = (doc.rocket.stages?.length ?? 1) > 1;
   // The motor sweep flies the bundled candidates itself rather than the design's own configuration,
   // so it is the one Analyze tool that still works when no motor resolved — and on that design it is

@@ -1186,6 +1186,119 @@ test.describe("Loft", () => {
     await expect(flutterHeader).toHaveAttribute("aria-sort", "descending");
   });
 
+  test("renaming a design keeps the analyses that were already flown", async ({ page }) => {
+    // The name is metadata: it touches neither the airframe nor the flight. It used to be the first
+    // field of the analysis cache key, so every keystroke in the rename field re-flew the motor
+    // sweep, both other panels, and marked the cross-check stale — 4.3 s of Monte-Carlo per
+    // character on the dual-deploy sample, and a flyer naming a design types more than one.
+    await page.goto("/");
+    await page.getByRole("button", { name: /54 mm dual-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+    await page.getByRole("tab", { name: "Analyze" }).click();
+
+    // What has to be asserted is the WORK, not the rows: a re-run of an unchanged rocket returns
+    // rows identical to the ones it replaced, so comparing them cannot tell "kept" from "re-flown".
+    // The dispersion panel announces its flights through a live region, so watch that instead.
+    const mc = page.getByRole("region", { name: /dispersion/i });
+    const psweep = page.getByRole("region", { name: "Parameter sweep" });
+    // Both heavy panels at once: they re-fly for different reasons (the dispersion on the shared
+    // design key, the parameter sweep on its own axis object) and a rename must move neither.
+    const flying = page.locator(
+      'section[aria-label="Monte-Carlo dispersion"] [role="status"], section[aria-label="Parameter sweep"] [role="status"]',
+    );
+    /** Was the panel ever seen mid-flight during `act`? Sampled, because a run is transient: it
+     *  announces itself for as long as it flies and then the live region goes away again. */
+    const flewDuring = async (act: () => Promise<void>, samples = 150) => {
+      let seen = false;
+      const watch = (async () => {
+        for (let i = 0; i < samples; i++) {
+          if ((await flying.count()) > 0) { seen = true; return; }
+          await page.waitForTimeout(100);
+        }
+      })();
+      await act();
+      await watch;
+      return seen;
+    };
+
+    await psweep.getByRole("button", { name: /Run parameter sweep/ }).click();
+    await mc.getByRole("button", { name: /Run dispersion/ }).click();
+    expect(await flewDuring(async () => {})).toBe(true); // control: they do announce their flights
+    await expect(flying).toHaveCount(0, { timeout: 60_000 }); // both settled
+    await expect(psweep.locator("svg").first()).toBeVisible(); // and the sweep really has a curve
+
+    const motors = page.getByRole("region", { name: "Motor sweep" });
+    await motors.getByRole("button", { name: /Run motor sweep/ }).click();
+    await expect(motors.locator("tbody tr").first()).toBeVisible();
+    // Sort by a column too: a re-run comes back in the default order, so this covers the view the
+    // flyer set up and not only the numbers in it.
+    await motors.getByRole("button", { name: /^Delay/ }).click();
+    await expect(motors.locator('th[aria-sort="descending"]')).toHaveCount(1);
+    const rowsBefore = await motors.locator("tbody tr").allInnerTexts();
+    expect(rowsBefore.length).toBeGreaterThan(3);
+
+    // Type a whole word into the name, one character at a time — the real interaction.
+    const name = page.getByLabel("Design name");
+    const reflewOnRename = await flewDuring(async () => {
+      await name.click();
+      await name.press("End");
+      await name.pressSequentially(" mk2", { delay: 40 });
+      // Keep watching past the typing: a re-fly triggered by the last keystroke would start here.
+      await page.waitForTimeout(3_000);
+    }, 60);
+    await expect(name).toHaveValue(/mk2$/);
+    expect(reflewOnRename).toBe(false);
+
+    // And the sweep kept both its numbers and the order they were put in.
+    expect(await motors.locator("tbody tr").allInnerTexts()).toEqual(rowsBefore);
+    await expect(motors.locator('th[aria-sort="descending"]')).toHaveCount(1);
+
+    // The control in the other direction: a change that IS the rocket still re-flies everything, so
+    // this cannot pass by disconnecting the key from the design altogether. It is asserted on the
+    // sweep's numbers rather than on the live region, because the edit lives on another workspace
+    // and a hidden panel is out of the accessibility tree while the change is being made — but 50 g
+    // in the nose moves the CG, so unlike a rename it genuinely changes every row.
+    await page.getByRole("tab", { name: "Design" }).click();
+    // `getByLabel` also matches the diagram's slider handle of the same name — mean the field.
+    const ballast = page.locator("input").and(page.getByLabel(/Nose ballast/i)).first();
+    await ballast.fill("50");
+    await ballast.press("Enter");
+    await page.getByRole("tab", { name: "Analyze" }).click();
+    await expect
+      .poll(async () => (await motors.locator("tbody tr").allInnerTexts()).join("|"), { timeout: 30_000 })
+      .not.toBe(rowsBefore.join("|"));
+  });
+
+  test("a dimension too small for the field's nominal precision is still the one being flown", async ({ page }) => {
+    // Every editable dimension used to render at a fixed precision, and the box does not merely
+    // DISPLAY that text — `Num` re-syncs an unfocused field to it and commits it on the next blur.
+    // So a thin fin was rounded on screen and then the rounding was written back: 0.03 mm redisplayed
+    // as "0.0", parsed as zero, and zero means "no edit" — a focus and a Tab with nothing typed
+    // deleted it. The same rounding put a real 0.254 mm balsa fin on screen as "0.3", 18% thick.
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 30_000 });
+    await page.getByRole("tab", { name: "Design" }).click();
+
+    // `getByLabel` also matches the diagram's slider handle of the same name — mean the field.
+    const thickness = page.locator("input").and(page.getByLabel(/Fin thickness/)).first();
+    await expect(thickness).toHaveAttribute("placeholder", /\d/); // control: the design states one
+
+    await thickness.fill("0.03");
+    await thickness.press("Enter");
+
+    // Leave the field AND force a re-render, which is what makes the box re-read itself from the
+    // model. Clicking the tab already open changes no state and renders nothing, so it would not.
+    await page.getByRole("tab", { name: "Flight" }).click();
+    await page.getByRole("tab", { name: "Design" }).click();
+    await expect(thickness, "the box states the thickness being flown").toHaveValue("0.03");
+
+    // The destructive part: focus and Tab away, typing nothing.
+    await thickness.click();
+    await page.keyboard.press("Tab");
+    await expect(thickness, "a bare focus and Tab deleted the edit").toHaveValue("0.03");
+  });
+
   test("printing a design gives a flight card, not the whole web page", async ({ page }) => {
     // Printing a design is range paperwork — a card for the RSO, a page for the build notebook.
     // Without print rules it came out as the site: navigation, theme toggle, buttons nobody can

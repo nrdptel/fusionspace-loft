@@ -3,6 +3,40 @@
 Rough edges, missing affordances, and ideas too big for one pass — noticed while working,
 not yet done. Newest first. One line each. Anything here is fair game for the next session.
 
+- **`fromSpan` and `fromMass` map an entered 0 to `undefined`, so zero is not a value a flyer can
+  set.** `LoftApp.tsx:1115,1110` — `v === "" || Number(v) === 0 ? undefined : …`. Blank already means
+  "use the design's own value", so 0 has a spelling of its own to take, and for at least one field it
+  is a real design: a fin sweep length of 0 is a straight leading edge. Typing 0 there silently
+  reverts to the design's own sweep with nothing said. This is also the second half of the
+  fin-thickness data loss fixed this session — that fix stopped the box from ROUNDING an entry down
+  to "0.0", but an entry the flyer genuinely types as 0 still vanishes. Deliberately not changed in
+  the same pass: it is a semantics change per field (0 g of ballast and 0 mm of nose are not alike),
+  not a formatting one.
+
+- **The boattail exit placeholder quotes a rounded bound as if it were the limit.** `LoftApp.tsx:1392`
+  renders `` `< ${toDispSpan(designDims.bodyDiameter)}` ``, so a 0.0635 m body advertises "< 64" when
+  63.5 mm is the ceiling: 64 mm reads as allowed and is wider than the body it exits. `Num`'s refusal
+  message then prints it verbatim as "flying < 64", which is not a value. Round a QUOTED BOUND down,
+  never to nearest — the rest of the round-trip work this session made the value fields honest and
+  left this one bound behind.
+
+- **The remaining `.toFixed` display paths that feed an editable box, after this session's two
+  passes.** The census covered all 31 editable numeric fields (24 `<Num>` in `LoftApp.tsx`, 7
+  `<NumberField>` in `MonteCarlo.tsx`). The four Conditions fields and the Design editor's shared
+  `toDispLen`/`toDispMass`/`toDispSpan`/`toDispThick` now use `d.fmtEditable`. Still hand-rolled and
+  unaudited: `MonteCarlo.tsx:91`'s `windDisp` (`mpsToMph(x).toFixed(1)`) — its own comment says the
+  rounding is display-only and imperial-only, which is the same claim the Conditions fields made
+  before they were measured. Measure it before assuming either way.
+
+- **`Num` commits a value nobody typed.** `LoftApp.tsx:1755`'s re-sync effect writes the displayed
+  text back into the draft whenever the field is not focused, and `commit` calls `onChange` whenever
+  `String(Number(raw)) !== raw` — true for every trailing-zero string ("10.0" → "10", "0.010" →
+  "0.01"). A bare Tab-through therefore writes to the model. It is value-preserving now that the
+  display round-trips, so nothing is currently lost by it, but it is a live edit produced by focus
+  alone and it trips whatever watches for edits. `NumberField` in `ui.tsx` does NOT have this shape —
+  its `commit` returns early when `bounded === n` — so the two siblings disagree about what a commit
+  is.
+
 - **The sweep's DESIGN row can disagree with the flight on the next tab, and on one design it does so
   by 5.5x.** The sweep flies every candidate BALLISTIC (recovery removed) so the rows compare like
   for like, and the panel's footnote says so. But the row badged as the flyer's OWN design is the
@@ -57,9 +91,17 @@ not yet done. Newest first. One line each. Anything here is fair game for the ne
   design's own motor while they fly measurably differently. It now takes the manufacturer too, and
   both spellings are produced by one function so they cannot drift apart.
 
-- **Typing back the value a Conditions field advertises is NOT the no-op it looks like. Still open —
-  a fix was written this session and reverted, and the shape that would work is at the end of this
-  entry.** A Conditions placeholder is a READING of the flown value at the field's own display
+- **RESOLVED — typing back the value a Conditions field advertises is now the no-op it looks like.**
+  The deferred fix at the foot of this entry is what shipped: `d.fmtEditable` in `lib/display.ts`
+  grows a reading a decimal at a time until it round-trips within 0.1%, so the advertised number IS
+  the flown number. Measured in the built export on the 54 mm dual-deploy sample, imperial: the wind
+  field used to advertise "7" against a flown 6.71 mph, and typing that 7 back moved drift 2,066 →
+  2,155 ft (+4.31%); it now advertises "6.71" and typing it back is a 0.00% change. The same helper
+  then went to the Design editor's `toDispLen`/`toDispMass`/`toDispSpan`/`toDispThick`, where the
+  identical defect was destroying data rather than merely misstating it — see the fin-thickness note
+  at the top of this file. **The rest of this entry is kept because its three sub-findings are still
+  live and one of them is a separate open bug.** The original text follows.
+  A Conditions placeholder is a READING of the flown value at the field's own display
   precision, not the value itself, and once it looked authoritative that reading became a trap. Rail
   length
   renders to 1 dp (3.048 m shows "3.0", 3.6576 shows "3.7", up to 1.6% off) and surface wind to whole
@@ -91,8 +133,9 @@ not yet done. Newest first. One line each. Anything here is fair game for the ne
      `draft`, and the re-sync effect is gated on the field not being focused, so after Enter the input
      still read "4", styled byte-identically to a pinned edit, while the rest of the page said nothing
      was edited.
-  The honest fix is the one deferred: **round-trip-safe display precision** on these fields, so the
-  advertised number IS the flown number and typing it back is naturally a no-op. `toDispSpd` renders
+  The honest fix is the one deferred — **round-trip-safe display precision** on these fields, so the
+  advertised number IS the flown number and typing it back is naturally a no-op — and that is what
+  shipped; the measurements below are the pre-fix ones this entry was written from. `toDispSpd` renders
   imperial wind at 0 dp (2.0 m/s → "4" against a flown 4.47 mph, and 0.599 m/s → "1", 25% off) and
   `toDispLen` at 1 dp. Note also that the machinery for "your entry was not used, here is what is
   flown" already exists on the same field for out-of-range entries — whatever replaces this should use

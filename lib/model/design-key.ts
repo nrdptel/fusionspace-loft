@@ -11,15 +11,26 @@
 import type { GeometryEdits } from "./edit";
 
 export interface FlownDesign {
-  /** The design's own name — changing which design is loaded changes this. */
-  name: string;
+  /** Which design is loaded, as an opaque token minted once per load. It is deliberately NOT the
+   *  design's name: the name is editable metadata that touches neither the airframe nor the flight,
+   *  and keying on it made every keystroke in the rename field re-fly the Monte-Carlo and both
+   *  sweeps, and mark the RocketPy cross-check stale — that one is button-driven and never re-runs
+   *  itself, so it kept its figures under a staleness label the flyer could only clear by fetching
+   *  the engine again. Either way it is the "throw minutes of work away for a change that changed
+   *  nothing" this key exists to prevent. */
+  loadId: string | number;
   /** The motor configuration being flown, and which stored simulation's conditions it uses. */
   configId?: string;
   simIndex: number;
   /** Flight what-ifs that are not part of the airframe. */
   ballastKg?: number;
   recoveryCdScale?: number;
-  motorSwap?: { designation: string };
+  /** Carries the manufacturer as well as the designation, because a designation alone does not
+   *  identify a motor: an 18 mm swap list holds both an Estes C6 and a Quest C6, and they fly
+   *  measurably differently. Keyed on the designation alone, swapping between them left every heavy
+   *  panel showing the previous motor's flight as the current one. `motorSweep` already had to take
+   *  the manufacturer for the same reason. */
+  motorSwap?: { manufacturer?: string; designation: string };
   /** Every structural what-if, whatever the editor grows. */
   geometry?: GeometryEdits;
 }
@@ -54,12 +65,12 @@ export function designKey(d: FlownDesign): string {
     .map((k) => `${k}=${g[k] ?? ""}`)
     .join(",");
   return [
-    d.name,
+    d.loadId,
     d.configId ?? "",
     d.simIndex,
     d.ballastKg ?? 0,
     d.recoveryCdScale ?? 1,
-    d.motorSwap?.designation ?? "",
+    d.motorSwap ? `${d.motorSwap.manufacturer ?? ""}|${d.motorSwap.designation}` : "",
     edits,
   ].join(":");
 }

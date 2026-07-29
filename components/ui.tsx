@@ -145,6 +145,60 @@ export function Chip({ label, value }: { label: string; value: string }) {
   );
 }
 
+/** Hand focus to the control that REPLACES the one that just vanished.
+ *
+ *  Closing a panel unmounts the Close button while it is the focused element, and a removed element
+ *  takes focus with it: the browser falls back to `<body>`, so a keyboard or screen-reader user who
+ *  closed a panel near the bottom of Analyze was thrown back to the top of the document with no way
+ *  to tell what had happened. The Run button that takes its place does not exist until the state
+ *  change has rendered, so the focus is asked for and then applied on the render that produces it.
+ *
+ *  Wire it as: `ref` on the Run button, `returnFocus()` in the Close handler. */
+export function useReturnFocus(): [React.RefObject<HTMLButtonElement | null>, () => void] {
+  const ref = useRef<HTMLButtonElement>(null);
+  const [pending, setPending] = useState(false);
+  useEffect(() => {
+    if (!pending) return;
+    ref.current?.focus();
+    setPending(false);
+  }, [pending]);
+  // A pair rather than an object: reading `x.ref` in the JSX below is a property access during
+  // render, which the react-hooks rules refuse ("Cannot access refs during render"). Destructured
+  // from a tuple at the call site it is an ordinary binding the caller only ever hands to `ref=`.
+  return [ref, () => setPending(true)];
+}
+
+/** The way back out of a heavy analysis panel.
+ *
+ *  The dispersion run and the two sweeps each open on a Run button and, until this existed, offered
+ *  nothing that closed them again: once opened they stayed open for the rest of the session. That
+ *  cost twice. On a 390 px phone the open dispersion panel measured 2,195 px against 308 px closed
+ *  — two and a half screens a flyer scrolls past on every visit to Analyze. And an open panel
+ *  re-flies whenever the design changes, so an ordinary nose-ballast edit re-ran hundreds of
+ *  flights: 2.5 s of blocked work per edit, per open panel, for a result nobody was reading.
+ *
+ *  Closing discards the result rather than keeping it. A kept result would be a number computed for
+ *  a design the flyer can go on to change, sitting behind a collapsed panel with nothing on screen
+ *  saying so — and the panels exist to avoid exactly that. The Run button coming back is what says
+ *  it: the panel is offering the run again, not hiding an answer. */
+export function ClosePanel({ onClose, what }: { onClose: () => void; what: string }) {
+  return (
+    <button
+      type="button"
+      onClick={onClose}
+      aria-label={`Close ${what}`}
+      className={
+        "rounded-lg border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-700 transition " +
+        "hover:bg-zinc-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 " +
+        "focus-visible:outline-indigo-500 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800 " +
+        TOUCH_TARGET
+      }
+    >
+      Close
+    </button>
+  );
+}
+
 /** A collapsible "show your work" disclosure — the transparency pattern used throughout. */
 export function Disclosure({
   summary,

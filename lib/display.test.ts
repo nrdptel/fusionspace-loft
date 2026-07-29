@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { changePercent, changeAbsolute, decimalsFor, dynamicPressure, energy, flutterMargin, fmtSmall, lengthMm, storedRunLabels } from "./display";
+import { changePercent, changeAbsolute, decimalsFor, dynamicPressure, energy, flutterMargin, fmtEditable, fmtSmall, lengthMm, roundTripDecimals, storedRunLabels } from "./display";
+import { mToFt, mpsToMph } from "./units";
 import { RECOMMENDED_FLUTTER_MARGIN } from "./sim/flutter";
 
 describe("energy", () => {
@@ -219,5 +220,60 @@ describe("storedRunLabels", () => {
   it("falls back to the run's name when it has no motors and no stored apogee", () => {
     expect(storedRunLabels([run(0, [], "Simulation 1")], "metric")).toEqual(["Simulation 1"]);
     expect(storedRunLabels([run(0, [], "")], "metric")).toEqual(["Configuration"]);
+  });
+});
+
+describe("roundTripDecimals / fmtEditable", () => {
+  it("leaves a number alone when the field's own precision already states it", () => {
+    // 10 ft of rail, 4 m/s of wind: nothing to add, and adding it would be noise.
+    expect(fmtEditable(10, 1)).toBe("10.0");
+    expect(fmtEditable(4, 0)).toBe("4");
+    expect(roundTripDecimals(2.5, 1)).toBe(1);
+  });
+
+  it("grows precision until the advertised number is the flown one", () => {
+    // The measured trap: 0.599 m/s of surface wind on Show-off.CDX1, in imperial. Whole mph
+    // advertised "1" — 25% under the 1.34 mph actually being flown.
+    const mph = mpsToMph(0.599);
+    expect(mph.toFixed(0)).toBe("1"); // what it used to say
+    expect(fmtEditable(mph, 0)).toBe("1.34");
+    expect(Math.abs(Number(fmtEditable(mph, 0)) - mph) / mph).toBeLessThanOrEqual(0.001);
+  });
+
+  it("does the same for a rail length that is a round number in the other system", () => {
+    // 3.048 m is exactly 10 ft. Metric at 1 dp advertised "3.0" — 1.6% short.
+    expect((3.048).toFixed(1)).toBe("3.0");
+    expect(fmtEditable(3.048, 1)).toBe("3.05");
+    expect(fmtEditable(mToFt(3.048), 1)).toBe("10.0");
+  });
+
+  it("never grows past its cap, and treats zero and non-finite values as the plain case", () => {
+    // Below what the cap can state, it stops rather than printing forever — and says the closest
+    // number it has, which is a limit of the field and not a claim about the flight.
+    expect(roundTripDecimals(0.00033, 1)).toBe(5);
+    expect(fmtEditable(0.00033, 1)).toBe("0.00033");
+    // 0.1% is reached at three decimals for a third of a unit, so the cap never comes into it.
+    expect(roundTripDecimals(1 / 3, 1)).toBe(3);
+    expect(roundTripDecimals(0, 1)).toBe(1);
+    expect(roundTripDecimals(Number.NaN, 1)).toBe(1);
+    expect(fmtEditable(Number.POSITIVE_INFINITY, 1)).toBe("");
+  });
+
+  it("keeps the result parseable by the field that reads it back", () => {
+    // `fmt` would group thousands, and Number("16,400") is NaN — so a field elevation at the top of
+    // its range has to come out as digits and a point, nothing else.
+    for (const v of [16400, 1234.5678, 0.599, 3.048, 90]) {
+      expect(fmtEditable(v, 1)).toMatch(/^-?\d+(\.\d+)?$/);
+      expect(Number.isFinite(Number(fmtEditable(v, 1)))).toBe(true);
+    }
+  });
+
+  it("holds the round trip within tolerance across a sweep of real values", () => {
+    // A blanket guarantee rather than five spot checks: for anything a Conditions field can hold,
+    // reading the advertised number back lands within 0.1% of what is flown.
+    for (let mps = 0.05; mps <= 40; mps += 0.05) {
+      const shown = Number(fmtEditable(mpsToMph(mps), 0));
+      expect(Math.abs(shown - mpsToMph(mps)) / mpsToMph(mps)).toBeLessThanOrEqual(0.001);
+    }
   });
 });
