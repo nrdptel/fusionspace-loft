@@ -4,13 +4,28 @@
 wrong, and left to itself it will absorb every run, because a real corpus and a real UI produce
 defects faster than anyone fixes them. What Loft still cannot DO lives here.
 
-Read this at session start, alongside `HANDOFF.md`. Unless the owner names something else, the next
-unstarted milestone below is the run's goal. See *Each pass* in `MAINTAINING.md` for how defect work
-preempts it (Sev-1 only) and how much of a run it may take (one increment in four).
+Read this at session start, alongside `HANDOFF.md`, `DESIGN.md` and `COMPETITION.md`. See *Each pass*
+in `MAINTAINING.md` for how defect work preempts a milestone (Sev-1 only).
 
-One milestone at a time, in order. Do not skip ahead: each one is a prerequisite for the next, and
-that is why they are ordered rather than listed. A milestone is finished when a flyer can do the
-thing — not when the code exists.
+## Two tracks, and a run ships from both
+
+**The queue has two tracks, and they alternate.** This replaced a single capability-only queue on
+2026-07-30, for a measured reason: the R-track shipped three milestones in two sessions and the app
+still read as one long scrolling page with twelve different card treatments on it. Capability was
+never the bottleneck. **What a flyer can do** and **what the tool feels like to use** are different
+work, and a queue containing only the first can only ever ship the first.
+
+- **R-track — capability.** What a flyer can DO that they could not before. R1–R3 shipped; R4 is next.
+- **P-track — product and craft.** What makes it a tool a stranger picks up, trusts, and keeps using:
+  shape, design system, first run, form factor, documentation, discoverability.
+
+**A run takes the next unstarted milestone from EACH track, and ships both.** Not one or the other.
+Start with whichever is smaller so something lands early, then take the other. If a run has time for
+only one, take the P-track milestone — the R-track has three shipped milestones of momentum and the
+P-track has none, and that imbalance is the thing being corrected.
+
+A milestone from either track is finished when **a flyer can do the thing, or see the difference** —
+not when the code exists. Within a track, do not skip ahead: each is a prerequisite for the next.
 
 **This file is the run's only state.** The prompt is deliberately stateless — it says "the next
 unstarted milestone", never a number — because the same prompt is run for a week or two unattended and
@@ -353,7 +368,7 @@ moves the static margin by sliding alone.
 
 ## R4 — Reorder and restack
 
-**Status:** NOT STARTED — next milestone.
+**Status:** NOT STARTED — the next R-track milestone.
 
 **Outcome.** Nose-to-tail order is editable, not fixed at import.
 
@@ -399,36 +414,166 @@ pinned.
 
 ---
 
-## After R6 — extend this file yourself, in this order
+## P1 — One design system, adopted
+
+**Status:** NOT STARTED — the next P-track milestone.
+
+**Outcome.** The app reads as one considered product rather than a collection of surfaces built on
+different days.
+
+**Done when** `DESIGN.md`'s compliance block (§9) runs clean and is **pinned by a test**: zero
+`rounded-lg`, one card treatment rather than twelve, zero off-scale spacing values, `text-sm`
+outnumbering `text-xs`, and every component importing its containers, buttons and fields from
+`components/ui.tsx` rather than hand-rolling them. A flyer sees consistent spacing, one button
+hierarchy, and the same card everywhere.
+
+**Notes.** Not a repaint — an extraction. `components/ui.tsx` exists with 8 exports and 5 of 23
+components use it; `Chip` and `Disclosure` are exported and imported nowhere. The work is to grow it
+into the vocabulary `DESIGN.md` §5 names (`Card`, `Panel`, `Section`, `Button` with its three weights,
+`DataTable`, `Readout`, `Figure`, the five states), then convert surfaces onto it. Convert in slices —
+one surface per increment, each shipped green — never one sweeping diff. **Ship the lint rule or test
+with the first slice**, so the drift cannot return while the conversion is still in progress.
+
+**The measurement that made this a milestone** (2026-07-30): 12+ distinct card treatments; three
+radius values for one role; `text-xs` and `text-sm` disagreeing between the two sibling apps.
+
+**Size.** 4–6 increments.
+
+---
+
+## P2 — Workspaces as routes
+
+**Status:** NOT STARTED
+
+**Outcome.** Loft is shaped like an application, not a scrolling page.
+
+**Done when** import, build/edit, simulate, sweep/Monte-Carlo and validate/cross-check are distinct
+static routes with one navigation spine that shows where the flyer is; the design and its results
+survive moving between them; every route deep-links and reloads into the same state; and no route is
+more than two screens deep to its primary answer. Pinned by e2e over each route plus a static-export
+assertion.
+
+**Notes.** This was R8, five milestones away, and it is the single largest structural reason the app
+reads as assembled. It is also what the PRODUCT SHAPE invariant already requires and what
+`MAINTAINING.md`'s orchestration section names as the blocker on parallel authoring — "parallel
+authoring is impossible while two files are the whole app." `components/LoftApp.tsx` is 2577 lines
+and carries every job. Moving it up is the highest-leverage single change on either track.
+
+Keep navigation and layout above the model: the core and solver stay ignorant of pages, tabs and form
+factor. Multi-view is multi-route, never multi-server.
+
+**Depends on** P1 — converting surfaces onto shared primitives first means the split moves components
+rather than rewriting them.
+
+**Size.** 4–6 increments.
+
+---
+
+## P3 — A stranger's first five minutes
+
+**Status:** NOT STARTED
+
+**Outcome.** Someone who has never heard of Loft gets to a flight they believe in, without being told
+how.
+
+**Done when** a first-time visitor can, without instruction: understand what the tool is within one
+screen; fly a real example in one click without supplying a file; import their own design and be told
+plainly what was and was not understood about it; and find the methods, limitations and validation
+pages from where the question arises rather than from a footer. Pinned by an e2e walkthrough that
+starts at a cold load with empty storage and reaches a flown, explained result.
+
+**Notes.** Sample designs already exist in `public/samples/` and are under-used. The measurement that
+matters is steps and dead ends, not looks: count the clicks from cold load to a flown flight, and
+count the states a first-timer can reach that explain nothing. The README is 4.7 KB against the
+sibling app's 27 KB — the front door is thin in both senses.
+
+**Size.** 3–4 increments.
+
+---
+
+## P4 — A touch-native builder
+
+**Status:** NOT STARTED
+
+**Outcome.** A phone at the pad is a first-class tool, not a rescaled desktop.
+
+**Done when** a flyer can, one-handed and offline on a 390 px viewport, complete the three things a
+range day actually needs — pick a motor, check stability, sanity-check a delay — with zero controls
+under 44 px and zero states reachable only by hover. Pinned by a mobile-viewport e2e that asserts both
+counts and walks all three journeys.
+
+**Notes.** This was R7. Decompose by what a flyer needs to DO at the pad, not by auditing the desktop
+layout at a narrow width — capability first, hit targets are the finish rather than the substance.
+`DESIGN.md` §8 is the contract.
+
+**Size.** 4–6 increments.
+
+---
+
+## P5 — Ready for the public
+
+**Status:** NOT STARTED
+
+**Outcome.** Someone can find Loft, understand it, use it, trust it, and tell someone else about it.
+
+**Done when** the README shows what the tool does with images rather than describing it; the landing
+surface states the three things Loft does that no competitor does (`COMPETITION.md`'s standing
+conclusion) instead of leaving a flyer to discover them; there is a visible changelog and a versioned
+release the flyer can see in the UI; a limitations page a sceptic can read before trusting a number;
+and a working way to report a bug or request a format from inside the app. Pinned by link-checking and
+a build-time assertion that the version shown matches the release.
+
+**Notes.** The suite is free, client-side and genuinely differentiated, and none of that is legible
+from outside. This is the milestone that converts the work into users. Keep the ecosystem consistency
+invariant: whatever ships here ships in both apps.
+
+**Size.** 3–5 increments.
+
+---
+
+## After R6 and P5 — extend this file yourself, in this order
 
 **Do not ask which of these to do, and do not fall back to the defect ledger because the list above
-is finished.** When R6 ships, take R7 from the order below and decompose it here to the same shape as
-R1–R6 — outcome, *done when*, size, notes — then start it. That decomposition is one increment's work
-and it IS the work when the roadmap is dry. The order is a standing decision, changeable by the owner
-at any time; absent that, it holds.
+is finished.** When a track's last milestone ships, take the next from that track's order below and
+decompose it here to the same shape — outcome, *done when*, size, notes — then start it. That
+decomposition is one increment's work and it IS the work when a track is dry. **A dry R-track is not a
+reason to skip the P-track or vice versa** — extend the dry one and keep alternating. The order is a
+standing decision, changeable by the owner at any time; absent that, it holds.
 
-**R7 — A touch-native builder.** R1–R6 target the desktop workbench, where direct manipulation is
-precise. A thumb at the range is a different tool, and `MAINTAINING.md`'s two-form-factor rule says it
-gets its own considered design rather than a rescaled one. Decompose it by asking what a flyer needs
-to DO at the pad — pick a motor, check stability, sanity-check a delay — not by auditing the desktop
-layout at 390 px. First it is a capability question; hit targets are the finish, not the substance.
+### R-track, after R6
 
-**R8 — Workspaces as routes.** Split the single scrolling page into distinct static routes per job:
-import, build, simulate, sweep, validate. This ships little visible capability by itself, which is why
-it is not first — but by R7 the builder will have made the main page unmanageable, and that is the
-moment it pays for itself. Multi-view is multi-route, never multi-server.
-
-**R9 — Per-set fin drag, and the honest aero the builder needs.** Once a flyer can add fin sets, the
+**R7 — Per-set fin drag, and the honest aero the builder needs.** Once a flyer can add fin sets, the
 model that collapses every set into one equivalent fin is no longer a modelling nicety — it is wrong
 about a rocket they just built. The measurement is already in `BACKLOG.md`: t/c of 1.00 on a real
 file, an unswept flag on 44.5° fins, and a naive area-weighted fix that doubles the error on a
 six-set design. Also the unread `<overridecd>` and fin-tab tags.
 
-**R10 — The multi-solver cross-check as a first-class view.** North Star #1: Loft's result beside the
-file's own stored numbers and an external oracle's, agreement building confidence and disagreement
-flagged rather than hidden. Wants R8's routes to live on.
+**R8 — Component and material catalogues.** `COMPETITION.md` rows 2 and 3: OpenRocket picks real
+commercial parts by vendor and part number and derives mass from a material's density; Loft types
+every dimension by hand. This turns authoring from measurement into selection and grounds every mass
+number. Needs a licence-clean data source — establish that first, it may be the whole first increment.
 
-Beyond R10, decompose from the North Star in `MAINTAINING.md` and record why you chose what you chose.
+**R9 — The multi-solver cross-check as a first-class view.** North Star #1: Loft's result beside the
+file's own stored numbers and an external oracle's, agreement building confidence and disagreement
+flagged rather than hidden. Wants P2's routes to live on. `COMPETITION.md` row 19 — this is the thing
+nothing else in the field does, and today it is a panel rather than a view.
+
+**R10 — Toward 6-DOF.** `COMPETITION.md` row 9. The state is already 6-DOF-ready. Decompose only when
+the fundamentals justify it, and only against published, citable sources.
+
+### P-track, after P5
+
+**P6 — Instrument what flyers actually hit.** Client-side, keyless, privacy-preserving: which imports
+fail, which formats arrive, where a journey is abandoned. Today every priority is inferred from a
+corpus and a cold walk rather than from use. This is deliberately after P5, because it needs users to
+have something to measure.
+
+**P7 — The suite as one product.** Loft and Debrief cross-refer, share a design system and a nav
+idiom, and a flyer who designs in one and analyses in the other never feels they changed tools. Some
+of this lands earlier in `DESIGN.md` §10; this is the milestone that finishes it.
+
+Beyond these, decompose from the North Star in `MAINTAINING.md` and from `COMPETITION.md`'s standing
+`GAP` rows, and record why you chose what you chose.
 
 ---
 
@@ -438,6 +583,18 @@ Unattended runs do not stop to ask (see *Unattended operation* in `MAINTAINING.m
 that would otherwise have been a question goes here, with the option rejected, so it can be reversed
 cheaply instead of re-derived. Newest first.
 
+- **2026-07-30 — the queue was split into two alternating tracks, and product/craft work was made
+  queue-legal rather than quota-capped.** The owner directed the shift: the products "still look and
+  feel like thrown together" projects rather than something the public can pick up, against
+  OpenRocket, RocketPy and the vendor tools. The decomposition is mine. Rejected raising the old
+  one-in-four polish quota to a half: the quota was never the real constraint — `ROADMAP.md` was, and
+  it contained no polish milestone to spend a quota on, so raising the cap would have licensed more
+  defect-clearing rather than more product work. Rejected appending the P-track after R6, which is
+  where the equivalent items already sat as R7/R8 and where they had been sitting untouched while
+  three R-milestones shipped past them. Alternation is mechanical, which is the property that makes a
+  rule survive an unattended run; a preference is not. Old R7 (touch) became P4 and old R8 (routes)
+  became P2 and moved up sharply — routes are an invariant violation today and the named blocker on
+  parallel authoring, so they were the wrong thing to have scheduled fifth.
 - **2026-07-30 — an authored transition between two same-caliber sections runs STRAIGHT THROUGH rather
   than contracting.** Rejected contracting by the corpus median everywhere: measured over all 91 body
   tubes in the starter plus the corpus, 38 of them have a neighbour behind at the same caliber, and

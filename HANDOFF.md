@@ -2,18 +2,51 @@
 
 Overwritten each session. What shipped, what is part-way, and what to pick up first.
 
+## Read this first: the queue now has TWO tracks
+
+**`ROADMAP.md` was restructured on 2026-07-30 and a run now ships from both tracks, alternating.**
+This is the single thing to understand before scoping anything.
+
+| track | next unstarted |
+|---|---|
+| **R — capability** | R4 — reorder and restack |
+| **P — product & craft** | **P1 — one design system, adopted** |
+
+The owner's direction was that both apps still read as thrown-together rather than as products the
+public can pick up, measured against OpenRocket, RocketPy and the vendor tools. The cause was
+structural, not effort: `ROADMAP.md` was the queue and it contained **only** capability milestones, so
+a hands-off run could not ship product work as its main job — and the old "one increment in four may
+be defect **or polish** work" quota capped the very thing that was missing. The quota now covers only
+*unqueued* defect work; craft with a *done when* is a P-track milestone and is not capped.
+
+**Two new files, both binding, both to be read at session start:**
+- **`DESIGN.md`** — the design system: tokens, type and spacing scale, component vocabulary, the five
+  required states, number presentation, product shape, the touch contract. **Read it before writing a
+  component.** Both repos carry an identical copy; a change to one is a change to both, same run.
+- **`COMPETITION.md`** — the accumulating gap against OpenRocket, RocketPy, RASAero and RockSim. The
+  done-check now requires one row added or resolved per run.
+
+**P1 is the next P-track milestone and it is an extraction, not a repaint.** `components/ui.tsx` has
+8 exports and only 5 of 23 components import it; `Chip` and `Disclosure` are imported nowhere. Grow it
+into the vocabulary `DESIGN.md` §5 names, convert one surface per increment, and **ship the pinning
+check with the first slice** so the drift cannot return mid-conversion.
+
 ## The arc so far
 
 | milestone | state |
 |---|---|
 | R1 — address components by identity | SHIPPED 2026-07-30 |
 | R2 — delete a component, and undo it | SHIPPED 2026-07-30 |
-| R3 — add a component | **SHIPPED 2026-07-30** (this session) |
-| R4 — reorder and restack | NOT STARTED — the next milestone |
+| R3 — add a component | SHIPPED 2026-07-30 |
+| R4 — reorder and restack | NOT STARTED — next on the R-track |
+| P1 — one design system, adopted | NOT STARTED — next on the P-track |
 
-Three milestones have now shipped in two sessions and the editor has gone from a parametric tweaker
-over a fixed tree to something that can grow one. `ROADMAP.md` carries what each delivered against
-its *done when* and the gap that became the next one's starting point; read it first.
+Three capability milestones shipped in two sessions and the editor has gone from a parametric tweaker
+over a fixed tree to something that can grow one. What did **not** move in that time is what the app
+feels like: it is still one 2577-line page carrying every job, with 12+ card treatments on it. That
+asymmetry is exactly what the two-track queue exists to correct. `ROADMAP.md` carries what each
+milestone delivered against its *done when* and the gap that became the next one's starting point;
+read it first.
 
 ## Where the work is
 
