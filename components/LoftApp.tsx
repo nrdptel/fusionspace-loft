@@ -34,6 +34,7 @@ import {
   primaryNoseShape,
   primaryBodyTube,
   primaryBodyDiameter,
+  aftmostBodyDiameter,
   primaryFinish,
   primaryAirframeMaterial,
   SURFACE_FINISHES,
@@ -834,10 +835,15 @@ export default function LoftApp() {
             noseShape: primaryNoseShape(doc.rocket),
             // The body readbacks take the picked tube for the same reason the fin ones take the
             // picked set: the value the field shows to edit FROM has to be the part the edit is
-            // written TO. 20 of the 27 real OpenRocket designs in the corpus carry several tubes.
+            // written TO. 23 of the 35 corpus designs carry several tubes as Loft imports them.
             bodyLength: primaryBodyTube(doc.rocket, edits.bodyTubeId)?.length,
             bodyDiameter: primaryBodyDiameter(doc.rocket, edits.bodyTubeId),
             bodyTubePart: primaryBodyTubePart(doc.rocket, edits.bodyTubeId),
+            // The boattail's exit is validated against the tube the cone ATTACHES to — the aft-most one
+            // — so the bound the field advertises has to come from there too. Quoting the picked tube's
+            // caliber promised a limit the validator never used, and a value inside the advertised
+            // range was then a silent no-op.
+            boattailFairsTo: aftmostBodyDiameter(doc.rocket),
             unreachableBodyTubes: unreachableBodyTubeCount(doc.rocket),
             finish: primaryFinish(doc.rocket),
             airframeMaterial: primaryAirframeMaterial(doc.rocket),
@@ -868,6 +874,7 @@ export default function LoftApp() {
             bodyDiameter: undefined,
             bodyTubePart: undefined,
             unreachableBodyTubes: 0,
+            boattailFairsTo: undefined,
             finish: undefined,
             airframeMaterial: undefined,
             mainParachuteDiameter: undefined,
@@ -1132,7 +1139,13 @@ export default function LoftApp() {
               // A pick re-aims the fields that describe THAT kind of part and leaves the rest alone.
               // The routing lives in the edit model rather than here, so the panel that reports the
               // pick does not also have to know which fields a body tube or a fin set drives.
-              onSelectPart={(id) => applyEdit(aimEditsAt(doc.rocket, id))}
+              onSelectPart={(id) => {
+                // A pick that aims nothing — a coupler, a centring ring — must not commit an edit
+                // patch. An empty one still replaced the edits object, re-flew the whole design and
+                // rewrote the saved session, so reading a part cost a flight.
+                const patch = aimEditsAt(doc.rocket, id);
+                if (Object.keys(patch).length) applyEdit(patch);
+              }}
               initialTab={initialTab}
               onWorkspaceChange={setInitialTab}
               designEditor={
@@ -1248,6 +1261,7 @@ function DesignEditor({
     bodyDiameter?: number;
     bodyTubePart?: AimedPart;
     unreachableBodyTubes: number;
+    boattailFairsTo?: number;
     finish?: SurfaceFinish;
     airframeMaterial?: string;
     mainParachuteDiameter?: number;
@@ -1527,8 +1541,8 @@ function DesignEditor({
                   Nose &amp; body
                 </legend>
                 {designDims.unreachableBodyTubes > 0 && (
-                  // A staged, podded or coupler-split airframe is several tubes end to end — 20 of the
-                  // 27 real OpenRocket designs in the corpus are. Say which one the length field is
+                  // A staged, podded or coupler-split airframe is several tubes end to end — 23 of the
+                  // 35 corpus designs are, as Loft imports them. Say which one the length field is
                   // holding, and say plainly that the caliber field is NOT one tube's: it scales the
                   // whole outer airframe, and a note implying otherwise would be the more misleading
                   // of the two.
@@ -1605,7 +1619,7 @@ function DesignEditor({
                     <Num
                       label={`Boattail exit (${spanU})`}
                       value={toDispSpan(edits.boattailAftDiameter)}
-                      placeholder={`< ${toDispSpan(designDims.bodyDiameter)}`}
+                      placeholder={`< ${toDispSpan(designDims.boattailFairsTo ?? designDims.bodyDiameter)}`}
                       onChange={(v) => onEdit({ boattailAftDiameter: orNone(fromSpan(v)) })}
                     min={0}
                     />

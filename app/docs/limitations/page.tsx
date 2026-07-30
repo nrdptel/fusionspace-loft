@@ -143,15 +143,23 @@ export default function Limitations() {
         centroid for an arbitrary outline).
       </p>
 
-      <h3>Design what-ifs address a resolved role, not an arbitrary component</h3>
+      <h3>Design what-ifs address the part you pick — for three kinds of part, not all of them</h3>
       <p>
         The Design workspace&apos;s what-ifs are a fixed set of fields, and most of them address one
-        component that Loft resolves from the design by role: the <em>frontmost</em> fin set, the
-        frontmost nose cone, the <em>longest</em> body tube, the largest parachute. That is what the
-        field beside the diagram reads its starting value from, and — since this pass — it bounds
-        what the field changes. Some fields are deliberately whole-airframe instead: surface finish
-        and airframe material apply to the entire tree, body diameter scales the whole outer mould
-        line, and motor cluster count applies to every mount.
+        component. Pick a <strong>fin set</strong>, a <strong>body tube</strong> or a{" "}
+        <strong>parachute</strong> — on the diagram or in the parts list — and the fields that describe
+        that kind of part aim themselves at it: the field reads its starting value from that part, the
+        edit is written to that part, and the panel names which part it is holding. With nothing picked
+        each falls back to the role it always resolved — the frontmost fin set, the longest body tube,
+        the largest canopy — so a design nobody has clicked flies exactly as it did.
+      </p>
+      <p>
+        Some fields are deliberately <em>wider</em> than one part, and each says so where it sits:
+        surface finish and airframe material apply to the whole tree; body diameter reads the picked
+        tube but scales the entire outer mould line, so the airframe stays faired rather than stepping
+        at one tube; fin position slides every set together, keeping the design&apos;s spacing; and
+        motor cluster count applies to every mount. A boattail is anchored to the <em>aft-most</em> tube
+        whatever is picked, because a tail cone part-way up an airframe is not a tail cone.
       </p>
       <p>
         It matters for fins because real designs carry several sets and mean two different things by
@@ -170,16 +178,32 @@ export default function Limitations() {
         together and the design keeps its spacing.
       </p>
       <p>
-        Fins are the first role that escaped this: measured over the 27 OpenRocket files in the
-        corpus, 10 carry more than one fin set and 19 sets could not be reached at all before a set
-        could be picked — now none. Every other role is still fixed. A second nose cone, a body tube
-        that is not the longest, a parachute that is not the largest: none of them can be addressed,
-        and the parts list stays read-only. Getting there means addressing edits per component id
-        for every role rather than only for fins, which is the direction the in-app editor is headed.
-        The fin-flutter fix hint names the worst-margin set, which on a staged design is often not
-        the one the fields are aimed at — across the corpus that hint fires on 60 flights and 16 of
-        them name a set outside the selected group. It says so rather than pointing at a field that
-        would change a different set, and picking that set is now a way to act on it.
+        Body tubes and canopies now work the same way, and the reach is most of the corpus:{" "}
+        <strong>23 of the 35</strong> in-the-wild designs carry more than one body tube as Loft imports
+        them, <strong>17</strong> more than one parachute — every dual-deploy design does, by definition
+        — and <strong>13</strong> more than one fin set. Before a part could be picked, every tube but
+        the longest and every canopy but the largest were unreachable: a flyer aiming to shrink a drogue
+        resized the main instead, which moves landing speed and landing energy.
+      </p>
+      <p>
+        <strong>What is still fixed.</strong> Nose cones, transitions and mass objects are not
+        addressable. For nose cones that costs nothing measurable — no corpus design has more than one
+        after import — but transitions and mass objects have no editor field at all, so there is nothing
+        yet to point at one: 7 designs carry several transitions and 15 several mass objects, and none of
+        them can be resized. The parts list also stays read-only, and nothing can be added, removed or
+        reordered. Those are the next steps for the in-app editor, and they need edits expressed as
+        operations on a component tree rather than a fixed set of fields.
+      </p>
+      <p>
+        One consequence worth knowing, because it follows from the fields being a fixed set rather than
+        a per-part record: a field holds ONE value at a time, so with a length or span already typed,
+        picking another part of the same kind re-aims that value onto the part you just picked. The panel
+        names the part it is holding, so this is visible rather than silent — but it means picking a tube
+        to read it while an edit is live does change which tube the edit applies to. The fin-flutter fix
+        hint names the worst-margin set, which on a staged design is often not the one the fields are
+        aimed at — across the corpus that hint fires on 60 flights and 16 of them name a set outside the
+        selected group. It says so rather than pointing at a field that would change a different set,
+        and picking that set is a way to act on it.
       </p>
 
       <h3>Tube fins are modelled as ducts, and read ~1 caliber conservative</h3>

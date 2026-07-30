@@ -91,10 +91,13 @@ export interface GeometryEdits {
    *  back to. Like `finSetId` this is a SELECTION, not an edit: on its own it changes no geometry, so
    *  `hasGeometryEdits` ignores it and a design with only a selection set is flown untouched.
    *
-   *  It matters because 20 of the 27 real OpenRocket designs in the corpus carry more than one body
-   *  tube — `Two stage high power rocket.ork` has eight, `03.Three-stage.ork` nine — and until now
-   *  every one of them but the longest was unreachable: `Body length` silently resized whichever tube
-   *  happened to be longest, however far from the part the flyer had picked. */
+   *  It matters because 23 of the 35 corpus designs carry more than one body tube AS LOFT IMPORTS THEM
+   *  — `Two stage high power rocket.ork` eight, `03.Three-stage.ork` nine — and until now every one of
+   *  them but the longest was unreachable: `Body length` silently resized whichever tube happened to be
+   *  longest, however far from the part the flyer had picked. (Counting raw `<bodytube>` tags instead
+   *  gives 20 of the 27 `.ork`, which overstates the reach: three of those designs keep tubes inside pod
+   *  or parallel-stage assemblies the importer declines to fly, and a part that is not imported is not a
+   *  part a flyer can pick.) */
   bodyTubeId?: string;
   /** Which recovery canopy the recovery fields describe and edit. Undefined means the design's main
    *  parachute — the largest by canopy area — which is what the panel has always used and what every
@@ -760,13 +763,23 @@ export function primaryFinish(rocket: Rocket): SurfaceFinish {
  *
  *  Top-level only, because that is the list the insert can splice into; a nested tube has no
  *  unambiguous aft slot and the caller skips the boattail rather than placing it wrongly. */
-function aftmostBodyTube(rocket: Rocket): BodyTube | undefined {
+export function aftmostBodyTube(rocket: Rocket): BodyTube | undefined {
   const topLevel = new Set(rocket.stages.flatMap((s) => s.components.map((c) => c.id)));
   const tubes = flattenRocket(rocket).filter(
     (p) => p.component.kind === "bodytube" && topLevel.has(p.component.id),
   );
   if (!tubes.length) return undefined;
   return tubes.reduce((a, b) => (b.xFore + b.length > a.xFore + a.length ? b : a)).component as BodyTube;
+}
+
+/** The caliber a boattail would fair to — the aft-most top-level tube's outer diameter (m). The field
+ *  that bounds the cone's exit has to quote THIS, not the picked tube's: the exit is validated against
+ *  the tube the cone attaches to, and a placeholder naming a different component promises a bound the
+ *  validator does not use, so a value inside the advertised range is silently ignored. Undefined for a
+ *  design with no top-level body tube, which is also the case where no boattail can be added. */
+export function aftmostBodyDiameter(rocket: Rocket): number | undefined {
+  const tube = aftmostBodyTube(rocket);
+  return tube ? tube.outerRadius * 2 : undefined;
 }
 
 /** Append a conical boattail after the airframe's aft-most body tube. Sized from the *edited* tube, so

@@ -2797,8 +2797,8 @@ test.describe("Loft", () => {
   test("picking a body tube aims the body fields at it, and the length lands there only", async ({ page }) => {
     // `Body length` used to resolve "the" body tube as the LONGEST one, so on a design with several
     // every tube but that one was unreachable: the flyer clicks the booster tube, types a length, and
-    // the sustainer tube resizes instead. 20 of the 27 real OpenRocket designs in the corpus carry
-    // more than one body tube. `two-stage-firm-booster.ork` is two — 600 mm at station 200 and
+    // the sustainer tube resizes instead. 23 of the 35 corpus designs carry more than one body tube as
+    // Loft imports them. `two-stage-firm-booster.ork` is two — 600 mm at station 200 and
     // 500 mm at station 800 — and names them both "body", so the panel has to say which it is holding
     // by where it sits rather than by a name that distinguishes nothing.
     await page.goto("/");

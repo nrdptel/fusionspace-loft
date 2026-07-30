@@ -27,6 +27,7 @@ import {
   AIRFRAME_MATERIALS,
   unreachableFinSetCount,
   unreachableBodyTubeCount,
+  aftmostBodyDiameter,
   unreachableParachuteCount,
   primaryParachutePart,
   aimsOf,
@@ -1414,5 +1415,30 @@ describe("a structural add stays where it belongs, whatever tube is picked", () 
     expect(primaryBodyTube(rocket)!.name).toBe("Upper"); // the longest is the FORWARD one
     const edited = applyGeometryEdits(rocket, { boattailLength: 0.04, boattailAftDiameter: 0.03 });
     expect(stations(edited).has(`${aft.component.id}-boattail`)).toBe(true);
+  });
+});
+
+describe("the boattail's advertised bound is the bound that is enforced", () => {
+  it("quotes the tube the cone attaches to, not the tube that happens to be picked", async () => {
+    // The exit is validated against the tube the cone attaches to (`aftRadius < tube.outerRadius`), so a
+    // field quoting a DIFFERENT component's caliber promises a limit the validator never applies — and a
+    // value inside the advertised range is then a silent no-op, the worst of the three outcomes.
+    // `demo-quirks.ork`: the aft tube is ⌀44 mm, the forward (and longest) one ⌀66 mm.
+    const rocket = await load("demo-quirks.ork");
+    const tubes = flattenRocket(rocket).filter((p) => p.component.kind === "bodytube");
+    const fwd = tubes[0].component.id;
+
+    const fairsTo = aftmostBodyDiameter(rocket)!;
+    expect(fairsTo).toBeCloseTo(0.044, 9);
+    // Not the same as the picked tube's caliber, so the two really can disagree.
+    expect(primaryBodyDiameter(rocket, fwd)).toBeCloseTo(0.066, 9);
+
+    // A value under the ADVERTISED bound is accepted and builds a cone...
+    const ok = applyGeometryEdits(rocket, { boattailLength: 0.05, boattailAftDiameter: fairsTo * 0.8 });
+    expect(flattenRocket(ok).some((p) => p.component.id.endsWith("-boattail"))).toBe(true);
+    // ...and one at or above it is refused, which is exactly why the field must not advertise the wider
+    // tube: 60 mm sits inside the forward tube's 66 mm and is silently dropped.
+    const refused = applyGeometryEdits(rocket, { boattailLength: 0.05, boattailAftDiameter: 0.06 });
+    expect(flattenRocket(refused).some((p) => p.component.id.endsWith("-boattail"))).toBe(false);
   });
 });
