@@ -160,27 +160,37 @@ configuration alongside the edits, because three controls move more than the edi
 an undo that restored two of the three would hand back a rocket that never existed. Two limits, both
 disclosed on `/docs/limitations`: 100 steps, and the stack does not survive a reload.
 
-**What is left is the mass-object leg of the *done when*, and it is not a walk — it is two defects.**
-Both were found by driving all 56 mass objects in the corpus, and both are in R2's own delete surface:
+**The mass-object leg is DONE, and it was not a walk — it was two defects**, both found by driving all
+56 mass objects in the corpus through the delete surface, and both fixed and pinned:
 
-1. **Removing the mass object a RASAero import synthesises zeroes the airframe.** Every `.CDX1` import
-   mints one `masscomponent` named "Airframe (stated launch weight)" carrying the whole airframe mass
-   (`lib/rasaero/adapt.ts`), and nothing refuses removing it: `Show-off.CDX1` goes from 453.6 g dry to
-   **0.0 g** with its CG pinned at the nose tip, and `Complex.Two-Stage.CDX1` flips from +1.78 cal to
-   **−0.92 cal** and still reports a confident 1,423 m flight. 3 of the 4 RASAero designs are in this
-   state.
-2. **On a stage-override design a removal sheds no mass at all, silently.** Where a stage carries
-   `overrideMass` + `overrideSubcomponents`, the lumped stage mass is fixed while its CG is recomputed
-   from what is left — so removing `EscapeVelocity.ork`'s 141.7 g "Avionics" leaves dry mass at exactly
-   2000.0 g while the margin moves 4.461 → 4.312 cal. That is R2's *done when* ("see stability, dry mass
-   and apogee move") failing on the mass half, with nothing on screen saying so.
+1. **Removing the mass object a RASAero import synthesises zeroed the airframe.** Every `.CDX1` import
+   mints one `masscomponent` named "Airframe (stated launch weight)" carrying the whole airframe mass,
+   because the format states one launch weight and no per-part masses and the internal model has nowhere
+   else to hold it. Nothing refused removing it: `Show-off.CDX1` went from 453.6 g dry to **0.0 g** with
+   its CG pinned at the nose tip, and `Complex.Two-Stage.CDX1` flipped from +1.78 cal to **−0.92 cal**
+   and still reported a confident 1,423 m. 3 of the 4 RASAero designs were in that state. The model now
+   marks such a point mass `standsForAirframe` and `removalRefusal` refuses it in a sentence — the same
+   class as the last body tube, a structural impossibility rather than an unwise choice. Re-driven after
+   the fix: **52 mass objects still removable, 0 leaving a weightless design.**
+2. **On a stage-override design a removal sheds no mass at all, and nothing said so.** Where a stage
+   carries `overrideMass` + `overrideSubcomponents` the lumped mass is fixed while its CG is recomputed
+   from what is left, so removing `EscapeVelocity.ork`'s 141.7 g "Avionics" leaves dry mass at exactly
+   2000.0 g while the margin moves 4.461 → 4.312 cal. The model is right — that is what an override
+   means — so the fix is the sentence, not the number: `statedMassHolder` names the assembly or stage
+   whose stated weight covers a part, the parts panel says so **before** the click, and the mass panel
+   says so after, mirroring the notice the add side already had. Re-driven: **1 of 52 removals sheds no
+   mass, and it is disclosed.**
 
-Then walk the *done when* end to end on
+Pinned by `lib/model/edit.test.ts` (`a part that is not a part`, `what states a part's mass`) and the
+e2e cases *a removal the design's own stated weight swallows says so, before and after the click* and
+*the point mass that IS a RASAero design's weight cannot be removed, and it says why*.
+
+What is left of the *done when*: walk it end to end on
 `corpus/openrocket/openrocket__openrocket-repo-sim-scripting-largehpr__Simulation scripting.ork` — the one
 corpus design that is single-stage and lets all three named parts go: fin set → 2,458 m / 3.08 cal, mass
 object → 2,399 m / 1.58 cal, aft tube → 3,244 m / 3.17 cal, from 2,348 m / 2.09 cal.
 
-**Size.** 3–5 increments. **Four used so far.**
+**Size.** 3–5 increments. **Five used so far.**
 
 ---
 

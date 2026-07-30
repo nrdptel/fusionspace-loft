@@ -218,6 +218,16 @@ export interface MassComponent extends ComponentBase {
   radius?: number;
   /** "altimeter" | "flightcomputer" | "ballast" | "battery" | "recoveryhardware" | "payload" */
   massType?: string;
+  /** True when this point mass stands in for a whole airframe's weight rather than for a part a
+   *  flyer could take out of it.
+   *
+   *  A RASAero `.CDX1` carries no materials and no per-part masses — the flyer types one launch
+   *  weight and CG per simulation — so its adapter puts the whole stated weight into a single mass
+   *  component just to have somewhere in the one internal model to hold it. That component is the
+   *  design's mass, not a payload sitting in the design, and removing it leaves a weightless rocket
+   *  with its CG at the nose tip that the solver goes on flying. It is the same class as the last
+   *  body tube: not an unwise choice a flyer is entitled to make, but a structural impossibility. */
+  standsForAirframe?: boolean;
 }
 
 export type DeployEvent =

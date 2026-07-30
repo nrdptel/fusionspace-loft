@@ -306,6 +306,39 @@ function collectSubtree(roots: RocketComponent[]): Set<RocketComponent> {
   return set;
 }
 
+/** What states the mass covering this component, or null when nothing does — the assembly's or the
+ *  stage's own name, ready to put in a sentence.
+ *
+ *  Asked by the surfaces that offer an edit, so a panel does not have to walk the tree itself and get
+ *  a different answer from the solver. A design can state a measured weight for a whole assembly, and
+ *  then a part inside it weighs nothing on its own: adding one does not raise the total (which the
+ *  mass panel already says) and REMOVING one does not lower it. That second half had nothing saying
+ *  so. Measured on `EscapeVelocity.ork`, weighed at stage level: removing its 141.7 g "Avionics"
+ *  leaves dry mass at exactly 2000.0 g while the margin moves 4.461 → 4.312 cal — the model is right,
+ *  because that is what an override means, but a flyer who deletes a part and watches the mass not
+ *  move has been told nothing. */
+export function statedMassHolder(rocket: Rocket, id: string): string | null {
+  // Wrapped rather than returned bare, because "found it, nothing covers it" and "did not find it"
+  // are both null and mean opposite things.
+  const search = (cs: RocketComponent[], covering: string | null): { holder: string | null } | null => {
+    for (const c of cs) {
+      // A component's OWN override is not what covers it — that figure goes with it when it is
+      // removed. Only an ancestor's does, and the OUTERMOST one wins, exactly as
+      // `structurePointMasses` resolves it: a nested override inside an already-subsumed subtree
+      // contributes nothing and must not be the one named.
+      if (c.id === id) return { holder: covering };
+      const hit = search(c.children, covering ?? (overridesSubtreeMass(c) ? c.name || "this assembly" : null));
+      if (hit) return hit;
+    }
+    return null;
+  };
+  for (const stage of rocket.stages) {
+    const hit = search(stage.components, stageOverridesSubtreeMass(stage) ? stage.name || "this stage" : null);
+    if (hit) return hit.holder;
+  }
+  return null;
+}
+
 /** The dry structural point masses of the rocket (everything except the motor). Computed
  *  once per design; the motor is layered on per time step by the simulator.
  *

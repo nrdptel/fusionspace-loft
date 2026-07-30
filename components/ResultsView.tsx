@@ -30,7 +30,7 @@ import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
 import { impulseClass } from "@/lib/motors/eng";
 import { overallLength } from "@/lib/model/geometry";
-import { dryMassProperties } from "@/lib/sim/mass";
+import { dryMassProperties, statedMassHolder } from "@/lib/sim/mass";
 import type { Rocket } from "@/lib/model/types";
 import { noseBallastStation, configChoices } from "@/lib/sim/run";
 import { motorLayout } from "@/lib/sim/setup";
@@ -393,6 +393,16 @@ export default function ResultsView({
   const addsMass = (geometry?.payloadMassKg ?? 0) > 0 || (geometry?.drogueDiameter ?? 0) > 0;
   const massAbsorbed =
     editing && addsMass && Math.abs(dryMassProperties(shownRocket).mass - dryMassProperties(doc.rocket).mass) < 1e-9;
+  // The same rule read the other way, which had nothing saying so: a part REMOVED from inside a
+  // stated assembly does not lower the total either. Judged against the pristine design with only the
+  // removals applied, so a dimension edit that adds mass elsewhere cannot mask the difference — and
+  // asked of the model (`statedMassHolder`) rather than inferred from a total that did not move, so a
+  // genuinely weightless part coming out does not raise a notice about an override that isn't there.
+  // Measured on `EscapeVelocity.ork`: its 141.7 g "Avionics" leaves dry mass at exactly 2000.0 g while
+  // the static margin moves 4.461 → 4.312 cal.
+  const massHeldBy = (geometry?.removedIds ?? [])
+    .map((id) => statedMassHolder(doc.rocket, id))
+    .find((holder): holder is string => holder !== null);
   // The motor casing(s) the flight flew, for drawing inside the aft body — resolved for the shown
   // design and its (possibly swapped) config, so the picture matches what was flown.
   const shownMotors = run.hasPropulsion ? motorLayout(shownRocket, run.config) : [];
@@ -720,7 +730,13 @@ export default function ResultsView({
             the lumped figure a stage-level mass override emits; the caption above used to SUM it and
             read "adds up to 0 kg" against a real 1.361 kg airframe. That is fixed one component
             over, in `GeometryInspector`, by stating `dryMassProperties` instead — not here. */}
-        <MassBreakdown rocket={shownRocket} units={units} edited={editing} massAbsorbed={massAbsorbed} />
+        <MassBreakdown
+          rocket={shownRocket}
+          units={units}
+          edited={editing}
+          massAbsorbed={massAbsorbed}
+          massHeldBy={massHeldBy}
+        />
       </div>
 
       {/* ANALYZE — the heavier, opt-in tools: an independent second solver, and design-space sweeps. */}

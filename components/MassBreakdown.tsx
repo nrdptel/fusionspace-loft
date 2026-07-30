@@ -22,6 +22,7 @@ export default function MassBreakdown({
   units,
   edited,
   massAbsorbed,
+  massHeldBy,
 }: {
   rocket: Rocket;
   units: UnitSystem;
@@ -34,6 +35,11 @@ export default function MassBreakdown({
    *  hold the stated figure — that is what an override means — but the flyer has just typed a
    *  kilogram into a field and every number stayed put, so the panel where mass is read says why. */
   massAbsorbed?: boolean;
+  /** The assembly or stage whose stated weight covers a part the flyer has REMOVED, or undefined. The
+   *  mirror of `massAbsorbed`: the total does not fall either, and the panel where mass is read is
+   *  where that has to be said. Carries the holder's own name rather than a boolean, because "the
+   *  design states this" is not actionable and "Sustainer states this" is. */
+  massHeldBy?: string;
 }) {
   const points = structurePointMasses(rocket);
   if (points.length === 0) return null;
@@ -119,6 +125,15 @@ export default function MassBreakdown({
           These are the same per-part masses the simulator flies; a wrong row usually means a
           mistyped dimension or material in the design file.
         </p>
+        {massHeldBy && (
+          <p className="mt-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-800 dark:text-amber-200">
+            A part you removed was inside {massHeldBy}, whose weight this design states outright — so
+            the dry total above is unchanged. The stated figure stands for everything in there whether
+            or not the part is, and the flight is flown at that figure. What the removal does move is
+            the balance: the design&apos;s own weight is now spread over what is left, so the centre of
+            gravity and the stability margin have changed.
+          </p>
+        )}
         {massAbsorbed && (
           <p className="mt-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-800 dark:text-amber-200">
             The mass you added is inside an assembly whose weight this design states outright, so it

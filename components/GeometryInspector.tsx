@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Rocket, RocketComponent } from "@/lib/model/types";
 import { flattenRocket } from "@/lib/model/geometry";
-import { massByComponent, dryMassProperties } from "@/lib/sim/mass";
+import { massByComponent, dryMassProperties, statedMassHolder } from "@/lib/sim/mass";
 import type { MotorMark } from "@/lib/sim/setup";
 import type { GeometryEdits } from "@/lib/model/edit";
 import { TOUCH_TARGET, TOUCH_TARGET_SQUARE } from "@/lib/ui-tokens";
@@ -346,6 +346,18 @@ export default function GeometryInspector({
                   "this part"}
               </button>
             )}
+          </p>
+        )}
+        {/* Said BEFORE the click, where the flyer is deciding, rather than left to be inferred from a
+            total that did not move. A design can state a measured weight for a whole assembly, and a
+            part inside it then weighs nothing of its own — so this removal moves the balance and not
+            the mass. The model is right to hold the stated figure; what was missing is the sentence.
+            Measured on `EscapeVelocity.ork`: removing its 141.7 g "Avionics" leaves dry mass at exactly
+            2000.0 g while the static margin moves 4.461 → 4.312 cal. */}
+        {onRemove && selectedId && !refuseRemoval?.(selectedId) && statedMassHolder(rocket, selectedId) && (
+          <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400" role="status">
+            This design states {statedMassHolder(rocket, selectedId)}&apos;s weight as a whole, so it
+            counts no mass for the parts inside — removing this one will move the balance, not the total.
           </p>
         )}
         {onEdit && (

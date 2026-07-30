@@ -3566,6 +3566,79 @@ test.describe("Loft", () => {
     expect(caption![1]).toBe(panel![1]);
   });
 
+  test("a removal the design's own stated weight swallows says so, before and after the click", async ({
+    page,
+  }) => {
+    // The mirror of the payload case below, and the half R2's delete surface shipped without. Where a
+    // stage states its weight outright, a part inside it weighs nothing of its own — so a removal moves
+    // the balance and NOT the mass, and nothing said so. Measured on the real corpus: removing
+    // `EscapeVelocity.ork`'s 141.7 g "Avionics" leaves dry mass at exactly 2000.0 g while the static
+    // margin moves 4.461 → 4.312 cal. R2's *done when* is "delete it, see stability, dry mass and apogee
+    // move"; on a design of this shape the mass does not, and a flyer is owed the reason rather than a
+    // total that sits still.
+    await page.goto("/");
+    await page
+      .locator('input[type="file"]')
+      .first()
+      .setInputFiles(resolve(process.cwd(), "e2e/fixtures/stage-weighed.ork"));
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    await page.getByRole("tab", { name: "Design" }).click();
+    await page.locator("summary", { hasText: /Parts ·/ }).click();
+
+    const partsTable = page.locator("table").filter({ hasText: "Dimensions" });
+    const fins = partsTable.locator("tr").filter({ hasText: /fins/i }).first();
+    await fins.click();
+
+    // Said BEFORE the click, where the flyer is deciding.
+    await expect(page.getByText(/counts no mass for the parts inside/)).toBeVisible();
+    await expect(page.getByText(/move the balance, not the total/)).toBeVisible();
+
+    await page.getByRole("button", { name: /^Remove / }).click();
+
+    // And after it, on the panel where mass is read — the same place the added-mass case says it.
+    const details = page.locator("details");
+    for (let i = 0; i < (await details.count()); i++) {
+      const dd = details.nth(i);
+      if (!(await dd.evaluate((el: HTMLDetailsElement) => el.open))) await dd.locator("summary").first().click();
+    }
+    await expect(page.getByText(/A part you removed was inside/)).toBeVisible();
+    await expect(page.getByText(/the dry total above is unchanged/)).toBeVisible();
+  });
+
+  test("the point mass that IS a RASAero design's weight cannot be removed, and it says why", async ({
+    page,
+  }) => {
+    // A `.CDX1` carries no materials and no per-part masses — the flyer types one launch weight and CG
+    // per simulation — so the adapter puts the whole stated weight into a single mass component,
+    // because that is the only place the one internal model has to hold it. It is not a part inside the
+    // design; it IS the design's mass. Measured on the real corpus before this refusal: removing it took
+    // `Show-off.CDX1` from 453.6 g dry to 0.0 g with its CG at the nose tip, and flipped
+    // `Complex.Two-Stage.CDX1` from +1.78 caliber to −0.92 — both still flown, both reported with a
+    // confident apogee. 3 of the 4 RASAero designs in the corpus are that shape.
+    await page.goto("/");
+    await page
+      .locator('input[type="file"]')
+      .first()
+      .setInputFiles(resolve(process.cwd(), "e2e/fixtures/demo-rasaero.CDX1"));
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    await page.getByRole("tab", { name: "Design" }).click();
+    await page.locator("summary", { hasText: /Parts ·/ }).click();
+
+    const airframe = page
+      .locator("table")
+      .filter({ hasText: "Dimensions" })
+      .locator("tr")
+      .filter({ hasText: /stated launch weight/ })
+      .first();
+    await airframe.click();
+
+    // No Remove control — a reason instead, as a sentence, exactly as the last body tube gets one.
+    await expect(page.getByRole("button", { name: /^Remove / })).toHaveCount(0);
+    const why = page.getByText(/whole stated weight/);
+    await expect(why).toBeVisible();
+    await expect(why).toContainText("no mass at all");
+  });
+
   test("a payload the design's own override swallows says so, instead of looking applied", async ({
     page,
   }) => {

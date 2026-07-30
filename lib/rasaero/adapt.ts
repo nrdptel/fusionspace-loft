@@ -556,6 +556,10 @@ export function adaptRasAeroXml(xml: string): OrkDocument {
       // put the mass outside the rocket.
       placement: { method: "absolute", offset: Math.min(Math.max(0, station), Math.max(0, total)) },
       mass,
+      // This IS the design's weight, not a part inside it — see `standsForAirframe`. Removing it in
+      // the editor took `Show-off.CDX1` from 453.6 g dry to 0.0 g with its CG at the nose tip, and the
+      // solver flew it.
+      standsForAirframe: true,
       children: [],
     };
     (components.find((c) => c.kind === "bodytube") ?? components[0]).children.push(airframe);
@@ -584,6 +588,7 @@ export function adaptRasAeroXml(xml: string): OrkDocument {
       kind: "masscomponent",
       placement: { method: "absolute", offset: Math.min(Math.max(total, station), boosterEnd) },
       mass,
+      standsForAirframe: true,
       children: [],
     };
     (boosterTube ?? boosterParts[0]).children.push(booster);

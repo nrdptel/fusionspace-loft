@@ -52,7 +52,7 @@ import type {
 import { overallLength } from "./geometry";
 import { newDesign } from "./starter";
 import { runFlight } from "../sim/run";
-import { dryMassProperties } from "../sim/mass";
+import { dryMassProperties, statedMassHolder } from "../sim/mass";
 import { exportOrk } from "../ork/export";
 import { defaultPayloadStation } from "./edit";
 import { recoverySizing } from "../sim/recovery";
@@ -1443,6 +1443,99 @@ describe("the boattail's advertised bound is the bound that is enforced", () => 
     // tube: 60 mm sits inside the forward tube's 66 mm and is silently dropped.
     const refused = applyGeometryEdits(rocket, { boattailLength: 0.05, boattailAftDiameter: 0.06 });
     expect(flattenRocket(refused).some((p) => p.component.id.endsWith("-boattail"))).toBe(false);
+  });
+});
+
+describe("a part that is not a part", () => {
+  it("refuses to remove the point mass that stands for a whole airframe", async () => {
+    // A RASAero `.CDX1` carries no materials and no per-part masses — the flyer types one launch
+    // weight and CG per simulation — so the adapter puts the whole stated weight into a single mass
+    // component, which is the only place the one internal model has to hold it. Removing it is not an
+    // unwise edit a flyer is entitled to make; it leaves a rocket with no mass at all. Measured on the
+    // real corpus before the refusal: `Show-off.CDX1` went 453.6 g dry → 0.0 g with its CG at the nose
+    // tip, `OR vs RAS Test 1.CDX1` 4368.8 g → 0.0 g, and `Complex.Two-Stage.CDX1` flipped +1.78 cal →
+    // −0.92 cal and was still flown, reporting a confident 1,423 m. 3 of the 4 RASAero designs in the
+    // corpus are that shape. Pinned on the committed fixture, not on `corpus/`, which is absent on
+    // every fork and public clone.
+    const doc = await importOrk(readFileSync(resolve(process.cwd(), "e2e/fixtures/demo-rasaero.CDX1")));
+    const airframe = flattenRocket(doc.rocket).find((p) => p.component.name.includes("stated launch weight"))!;
+    expect(airframe, "the fixture must carry the synthesised airframe mass").toBeTruthy();
+    expect((airframe.component as { standsForAirframe?: boolean }).standsForAirframe).toBe(true);
+
+    const why = removalRefusal(doc.rocket, airframe.component.id);
+    expect(why).toMatch(/whole stated weight/);
+    expect(why).toMatch(/no mass at all/);
+
+    // And the design still weighs what it weighed — the guard is the refusal, so this is the number
+    // the refusal exists to protect.
+    expect(dryMassProperties(doc.rocket).mass).toBeGreaterThan(0);
+  });
+
+  it("still allows removing an ordinary mass object", async () => {
+    // The control: the refusal is about the synthesised airframe alone. A real payload or ballast is
+    // a part, and 26 of the 35 corpus designs carry at least one.
+    const doc = await importOrk(readFileSync(resolve(process.cwd(), "fixtures/demo-quirks.ork")));
+    const masses = flattenRocket(doc.rocket).filter((p) => p.component.kind === "masscomponent");
+    expect(masses.length, "the fixture must carry a mass object").toBeGreaterThan(0);
+    for (const m of masses) expect(removalRefusal(doc.rocket, m.component.id)).toBe(null);
+  });
+});
+
+describe("what states a part's mass", () => {
+  it("names the stage whose stated weight covers a part inside it", async () => {
+    // The disclosure R2's delete surface needed. Where a stage states its own weight, a part inside it
+    // weighs nothing of its own — so a removal moves the balance and NOT the total, and before this
+    // nothing said so. Measured on the real corpus: removing `EscapeVelocity.ork`'s 141.7 g "Avionics"
+    // leaves dry mass at exactly 2000.0 g while the static margin moves 4.461 → 4.312 cal.
+    const doc = await importOrk(readFileSync(resolve(process.cwd(), "e2e/fixtures/stage-weighed.ork")));
+    const inside = flattenRocket(doc.rocket).find((p) => p.component.kind === "bodytube")!;
+    const holder = statedMassHolder(doc.rocket, inside.component.id);
+    expect(holder, "the fixture's stage must state its own weight").toBeTruthy();
+
+    // And the claim the sentence makes is true of the model: the mass does not move, the balance does.
+    const before = dryMassProperties(doc.rocket);
+    const fins = flattenRocket(doc.rocket).find((p) => p.component.kind.endsWith("finset"))!;
+    const after = dryMassProperties(applyGeometryEdits(doc.rocket, { removedIds: [fins.component.id] }));
+    expect(after.mass).toBeCloseTo(before.mass, 9);
+    expect(after.cg).not.toBeCloseTo(before.cg, 6);
+  });
+
+  it("says nothing about a design that states no assembly weight", async () => {
+    // The control, and the reason this asks the model rather than watching for a total that did not
+    // move: a genuinely weightless part coming out must not raise a notice about an override that is
+    // not there.
+    const doc = await importOrk(readFileSync(resolve(process.cwd(), "fixtures/demo-single-deploy.ork")));
+    for (const p of flattenRocket(doc.rocket)) expect(statedMassHolder(doc.rocket, p.component.id)).toBe(null);
+  });
+
+  it("does not name a component's own override — that figure goes with it", () => {
+    // Only an ANCESTOR's stated weight covers a part. A component that states its own subtree mass
+    // still takes that figure away when it is removed, so naming it as the holder would be the
+    // opposite of the truth. Built here rather than read from a fixture because no committed design
+    // carries a component-level whole-assembly override, and the distinction is worth pinning.
+    const inner = {
+      id: "inner",
+      name: "Avionics",
+      kind: "masscomponent" as const,
+      placement: { method: "absolute" as const, offset: 0.2 },
+      mass: 0.1,
+      children: [],
+    };
+    const bay = {
+      id: "bay",
+      name: "Payload Bay",
+      kind: "bodytube" as const,
+      placement: { method: "after" as const, offset: 0 },
+      length: 0.3,
+      outerRadius: 0.03,
+      overrideMass: 0.5,
+      overrideSubcomponents: true,
+      children: [inner],
+    };
+    const rocket = { name: "t", stages: [{ name: "Sustainer", components: [bay] }] } as unknown as Rocket;
+    expect(statedMassHolder(rocket, "inner")).toBe("Payload Bay");
+    expect(statedMassHolder(rocket, "bay")).toBe(null);
+    expect(statedMassHolder(rocket, "nothing-here")).toBe(null);
   });
 });
 

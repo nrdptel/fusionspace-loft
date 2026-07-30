@@ -1089,6 +1089,14 @@ function liveIds(rocket: Rocket): Set<string> {
 export function removalRefusal(rocket: Rocket, id: string): string | null {
   const target = flattenRocket(rocket).find((p) => p.component.id === id);
   if (!target) return "That part is no longer in this design.";
+  // A point mass that stands for a whole airframe's stated weight is the design's mass, not a part
+  // inside it — a RASAero file states one launch weight and no per-part masses, so the adapter has
+  // nowhere else in the model to put it. Removing it left `Show-off.CDX1` at 0.0 g dry with its CG at
+  // the nose tip and `Complex.Two-Stage.CDX1` at −0.92 caliber, both still flown and both reported
+  // with a confident apogee. 3 of the 4 RASAero designs in the corpus are that shape.
+  if (target.component.kind === "masscomponent" && target.component.standsForAirframe) {
+    return `${target.component.name} is this design's whole stated weight, not a part inside it — this file states one launch weight and no per-part masses, so removing it would leave a rocket with no mass at all. Change the weight in the file, or edit a design that carries its own materials.`;
+  }
   if (target.component.kind === "bodytube") {
     // Counted within the target's OWN stage, not across the design. A staged rocket is several airframes
     // flown in sequence, so "the design still has a tube" is no comfort to a sustainer that no longer
