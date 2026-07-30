@@ -926,13 +926,20 @@ pass. Newest first.
 - The diagram drag handles freeze their range at grab time: pulling fin span up 30 px moves 29→41 mm
   and the next 30 px moves nothing (6 consecutive samples at 41), with `aria-valuemax` jumping 41→58
   only on release. Half a long drag is dead travel.
-- `primaryFinSetName`'s positional fallback ("fin set 2") numbers by `flattenRocket` order, but the
-  parts table can be re-sorted by name/type/station/mass — so after sorting by mass, "fin set 2" is
-  not the second fin row on screen. It also names one component while the fields edit its whole
-  appearance-group, so on a design with two identical pairs the note names one set and changes two.
-- Still no undo anywhere: Ctrl+Z after a handle drag does nothing, and the only escape is "Reset to
-  as-designed", which discards every edit at once. Ten flights in, that is a stack of trims and one
-  all-or-nothing exit.
+- **RESOLVED 2026-07-30 (R1) — `primaryFinSetName`'s positional fallback.** It numbered by
+  `flattenRocket` order while the parts table beside it can be re-sorted by name/type/station/mass, and it
+  named one component while the fields edit a whole appearance-group. Replaced by `AimedPart {name, station,
+  covers}`: the design's own name where that distinguishes the part, otherwise its STATION — true under
+  every sort — and the group size stated outright. Pinned by `lib/model/edit.test.ts`'s `naming the part the
+  fields are holding` suite. The old function is gone, so this entry describes code that no longer exists.
+- **NARROWED 2026-07-30 (R2) — undo exists for REMOVALS, and only for removals.** Deleting a part is
+  undoable by name (`Restore <part>`), because `removedIds` is an ordered list and the model rebuilds from
+  the pristine design. Everything else is unchanged and the entry still stands for it: Ctrl+Z after a handle
+  drag does nothing, a typed dimension and a motor swap cannot be stepped back, and the only escape from
+  those is still "Reset to as-designed", which discards every edit at once. Ten flights in, that is still a
+  stack of trims and one all-or-nothing exit. **This is what remains of R2's *done when*** and the shape is
+  already right for it: every edit is a value in one bag applied to a pristine design, so an undo stack is a
+  stack of `Edits` snapshots in `LoftApp`, not a diffing problem.
 - Parts table gaps measured this run: every column sorts one direction only (a second click returns
   to design order, so there is no lightest-first), there is no Copy or CSV while Mass & balance, the
   motor sweep and the parameter sweep all have both, and the sort order is not persisted though the
