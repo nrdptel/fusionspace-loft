@@ -49,6 +49,22 @@ export interface FlownDesign {
  *  A selection field the registry does not know is treated as a plain edit and stays IN the key. That is
  *  the safe direction to be wrong in: a panel resets when it did not strictly have to, rather than
  *  showing one part's numbers as another's. */
+/** One edit's value, serialised STRUCTURALLY rather than by string interpolation.
+ *
+ *  `${v}` on an object — or on an array of objects — gives "[object Object]", so every value of that
+ *  shape collapses to the same token and the key stops moving. That was invisible while every field was
+ *  a scalar or a list of ids; the moment the editor grew a list of AUTHORED PARTS, resizing one left the
+ *  key identical and the heavy panels kept an answer computed for a different rocket. Measured: a design
+ *  with one authored 300 mm tube and the same design with it at 400 mm produced the same key.
+ *
+ *  This is the failure mode the whole module exists to prevent, arriving through the serialiser instead
+ *  of through a missing field — which is why it survived a helper that walks the object rather than
+ *  naming its fields. */
+function value(v: unknown): string {
+  if (v === undefined || v === null) return "";
+  return typeof v === "object" ? JSON.stringify(v) : String(v);
+}
+
 export function designKey(d: FlownDesign): string {
   const g = (d.geometry ?? {}) as Record<string, unknown>;
   // A selection on its own alters no geometry, so it stays out of the key: a Monte-Carlo already
@@ -62,7 +78,7 @@ export function designKey(d: FlownDesign): string {
   const edits = Object.keys(g)
     .filter((k) => !(k in AIM_SLOTS) || aimMatters(k))
     .sort()
-    .map((k) => `${k}=${g[k] ?? ""}`)
+    .map((k) => `${k}=${value(g[k])}`)
     .join(",");
   return [
     d.loadId,

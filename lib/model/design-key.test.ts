@@ -43,6 +43,28 @@ describe("designKey", () => {
     );
   });
 
+  it("moves when a structural value CHANGES, not just when one appears", () => {
+    // The trap in walking the object: the walk found the field, and the serialiser threw the value
+    // away. `${v}` on an array of objects gives "[object Object]", so every list of authored parts
+    // collapsed to one token — authoring a part moved the key, and then resizing that part did not.
+    // A Monte-Carlo run against a 300 mm section would have kept its answer while the section became
+    // 600 mm, which is precisely the "another design's numbers as this one's" this module prevents.
+    const withPart = (length: number) =>
+      key({ geometry: { added: [{ id: "x", kind: "bodytube", after: "t", length }] } as never });
+    expect(withPart(0.3)).not.toBe(key());
+    expect(withPart(0.4)).not.toBe(withPart(0.3));
+    // Two parts is not one part, and the order they were authored in is part of the design.
+    const two = key({
+      geometry: {
+        added: [
+          { id: "x", kind: "bodytube", after: "t", length: 0.3 },
+          { id: "y", kind: "bodytube", after: "x", length: 0.3 },
+        ],
+      } as never,
+    });
+    expect(two).not.toBe(withPart(0.3));
+  });
+
   it("covers a geometry edit by walking the object, not by listing fields", () => {
     // The point of the shared key: a field added to the editor is covered without being named here,
     // which is exactly what the four hand-written copies got wrong.
