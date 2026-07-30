@@ -18,6 +18,7 @@ import type {
 } from "../model/types";
 import type { OrkDocument } from "./import";
 import { storeZip } from "./zipwrite";
+import { uniqueUuidFrom } from "../model/id";
 
 /** Internal finish → OpenRocket `<finish>` token (the inverse of the importer's parseFinish). */
 const FINISH_OUT: Record<SurfaceFinish, string> = {
@@ -146,10 +147,35 @@ function clusterXml(clusterCount: number | undefined, pad: string): string {
   return clusterCount && clusterCount > 1 ? `${pad}<clusterconfiguration>${clusterCount}-ring</clusterconfiguration>\n` : "";
 }
 
+/** Ids for the elements the internal model does not carry one for — the rocket and its stages. A
+ *  `Rocket` has no id and neither does a `Stage`, so there is nothing to preserve and a per-export
+ *  counter is the honest answer. Reset at the top of `serializeRocketXml`, so the same design always
+ *  serialises byte-identically. COMPONENT ids are different: they come from the component itself, via
+ *  `componentId` below. */
 let uid = 0;
 function nextUuid(): string {
-  uid += 1;
-  return `10f70000-0000-4000-8000-${String(uid).padStart(12, "0")}`;
+  let out: string;
+  do {
+    uid += 1;
+    out = `10f70000-0000-4000-8000-${String(uid).padStart(12, "0")}`;
+  } while (writtenIds.has(out));
+  writtenIds.add(out);
+  return out;
+}
+
+/** Every id written in this serialisation, so nothing can be given the same one twice. The rocket and
+ *  stage mints above share it: their values land in different elements, so a clash would be harmless, but
+ *  a single set costs nothing and removes the question — and it is uniqueness WITHIN a file that the
+ *  format requires. Reset alongside `uid`. */
+let writtenIds = new Set<string>();
+
+/** The `<id>` to write for a component: its OWN id, which is the whole point — a design exported and
+ *  re-imported has to come back as the same parts, or an aim or an operation addressed at one of them
+ *  resolves to nothing. Non-UUID ids (the adapters' positional fallbacks, and the derived ids a
+ *  structural add mints) go through `uniqueUuidFrom`, which derives a stable UUID rather than a fresh
+ *  one. See `lib/model/id.ts` for why the shape is not negotiable. */
+function componentId(c: { id: string }): string {
+  return uniqueUuidFrom(c.id, writtenIds);
 }
 
 /** Motors indexed by the id of the mount they sit in, so a mount component can emit its `<motor>`s. */
@@ -198,7 +224,7 @@ function childrenXml(cs: RocketComponent[], motors: MotorsByMount, depth: number
 function componentXml(c: RocketComponent, motors: MotorsByMount, depth: number): string {
   const pad = "  ".repeat(depth);
   const p = pad + "  ";
-  const head = `${pad}<${c.kind}>\n${p}<name>${esc(c.name)}</name>\n${p}<id>${nextUuid()}</id>\n`;
+  const head = `${pad}<${c.kind}>\n${p}<name>${esc(c.name)}</name>\n${p}<id>${componentId(c)}</id>\n`;
   const common = axialXml(c.placement, p) + finishXml(c.finish, p) + materialXml(c.material, p);
   const overrides = overrideXml(c, p);
   const kids = childrenXml(c.children, motors, depth + 1);
@@ -271,7 +297,7 @@ function componentXml(c: RocketComponent, motors: MotorsByMount, depth: number):
       // difference; the true freeform planform is not recoverable. tip = 2·area/height − root.
       const tip = c.height > 0 ? Math.max(0, (2 * c.area) / c.height - c.rootChord) : c.rootChord;
       return (
-        `${pad}<trapezoidfinset>\n${p}<name>${esc(c.name)}</name>\n${p}<id>${nextUuid()}</id>\n` +
+        `${pad}<trapezoidfinset>\n${p}<name>${esc(c.name)}</name>\n${p}<id>${componentId(c)}</id>\n` +
         common + overrides +
         `${p}<fincount>${c.finCount}</fincount>\n` +
         `${p}<thickness>${num(c.thickness)}</thickness>\n` +
@@ -408,6 +434,7 @@ function configsXml(rocket: Rocket): string {
 /** Serialize a rocket to OpenRocket 1.10 XML. Stable output (deterministic ids, no wall-clock). */
 export function serializeRocketXml(rocket: Rocket): string {
   uid = 0;
+  writtenIds = new Set();
   const motors = indexMotors(rocket);
   const stages = rocket.stages
     .map((s) => {

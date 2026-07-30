@@ -25,12 +25,34 @@ const FIBREGLASS: Material = { name: "fibreglass", density: 1850, type: "bulk" }
 const G10: Material = { name: "G10 fibreglass", density: 1850, type: "bulk" };
 const RIPSTOP: Material = { name: "ripstop nylon", density: 60, type: "surface" };
 
+/** The starter's component ids. Literal and UUID-shaped, in Loft's own reserved namespace, with the
+ *  trailing field numbering the part so they stay legible in a debugger.
+ *
+ *  UUID-shaped because a design built here is persisted as its OWN exported `.ork` bytes, so these ids go
+ *  through `<id>` and come back — and every `<id>` in every real design in the corpus is a UUID (see
+ *  `lib/model/id.ts` for the measurement). They were the words `nose`, `body`, `av`, `chute`, `mount` and
+ *  `fins`, which the exporter therefore could not write, so it minted fresh ones and every reload of a
+ *  built design came back with different identity: a saved selection resolved to nothing and silently
+ *  re-aimed at the design's primary part.
+ *
+ *  LITERAL rather than derived, because these are the one set of ids that must never move. A saved
+ *  session holds them, so computing them would tie every stored design to the exact hash function that
+ *  produced them. */
+const ID = {
+  nose: "10f70001-0000-4000-8000-000000000001",
+  body: "10f70001-0000-4000-8000-000000000002",
+  avionics: "10f70001-0000-4000-8000-000000000003",
+  chute: "10f70001-0000-4000-8000-000000000004",
+  mount: "10f70001-0000-4000-8000-000000000005",
+  fins: "10f70001-0000-4000-8000-000000000006",
+} as const;
+
 /** Build a fresh, flyable starter design (a new internal model, not parsed from any file). */
 export function newDesign(): OrkDocument {
   const R = 0.027; // 54 mm airframe outer radius
 
   const avionics: MassComponent = {
-    id: "av",
+    id: ID.avionics,
     name: "Altimeter + battery",
     kind: "masscomponent",
     placement: { method: "top", offset: 0.05 },
@@ -41,7 +63,7 @@ export function newDesign(): OrkDocument {
     children: [],
   };
   const chute: Parachute = {
-    id: "chute",
+    id: ID.chute,
     name: "Main parachute",
     kind: "parachute",
     placement: { method: "top", offset: 0.14 },
@@ -54,7 +76,7 @@ export function newDesign(): OrkDocument {
     children: [],
   };
   const mount: InnerTube = {
-    id: "mount",
+    id: ID.mount,
     name: "Motor mount",
     kind: "innertube",
     placement: { method: "bottom", offset: 0 },
@@ -66,7 +88,7 @@ export function newDesign(): OrkDocument {
     children: [],
   };
   const fins: TrapezoidFinSet = {
-    id: "fins",
+    id: ID.fins,
     name: "Fins",
     kind: "trapezoidfinset",
     placement: { method: "bottom", offset: 0 },
@@ -82,7 +104,7 @@ export function newDesign(): OrkDocument {
     children: [],
   };
   const body: BodyTube = {
-    id: "body",
+    id: ID.body,
     name: "Body tube",
     kind: "bodytube",
     placement: { method: "after", offset: 0 },
@@ -94,7 +116,7 @@ export function newDesign(): OrkDocument {
     children: [avionics, chute, mount, fins],
   };
   const nose: NoseCone = {
-    id: "nose",
+    id: ID.nose,
     name: "Nose cone",
     kind: "nosecone",
     placement: { method: "after", offset: 0 },
@@ -112,7 +134,7 @@ export function newDesign(): OrkDocument {
     name: "H128W",
     instances: [
       {
-        mountId: "mount",
+        mountId: ID.mount,
         motor: {
           manufacturer: "AeroTech",
           designation: "H128W",

@@ -118,7 +118,9 @@ one and the drogue was unreachable on all of them.
 
 ## R2 — Delete a component, and undo it
 
-**Status:** NOT STARTED
+**Status:** IN PROGRESS — current milestone. Its prerequisite is done: component ids now survive an
+export/re-import round trip, pinned by `lib/model/id.test.ts`. The operation model and undo are the
+remaining work.
 
 **Outcome.** The flyer can remove a part and watch the flight answer change.
 
@@ -132,12 +134,15 @@ is where the operation-based edit model gets built and proven. **Undo ships with
 parametric edits are recoverable by retyping a number, and a deletion is not. Undo/redo over the
 operation list is the whole reason to have an operation list.
 
-**Start with id stability, before any operation.** R1 left a measured defect that R2 cannot build on: a
-from-scratch design's ids are re-minted every reload (`lib/ork/export.ts` writes `nextUuid()` rather than
-the component's own id, and a built design's session bytes are an export). An operation list keyed on ids
-that change under it is not a foundation. R1 also left the addressing machinery R2 needs — `AIM_SLOTS`,
-`aimEditsAt`, `aimsOf`, `AimedPart` in `lib/model/edit.ts` — so the pick surface is done and what remains
-is the operation model itself.
+**Id stability is DONE** — it was R2's first increment, because an operation list keyed on ids that change
+underneath it is not a foundation. `lib/ork/export.ts` writes each component's own id instead of minting a
+fresh one; the starter's six ids are literal UUIDs so they are writable; and `lib/model/id.ts` derives a
+stable UUID for the positional ids the adapters fall back to and for the ids a structural add mints. Pinned
+by `lib/model/id.test.ts`, which asserts the round trip preserves identity, that a stored aim still resolves
+through it, and that nothing Loft writes into `<id>` can be malformed.
+
+What remains is the operation model itself and undo over it. The addressing machinery is already there from
+R1 — `AIM_SLOTS`, `aimEditsAt`, `aimsOf`, `AimedPart` in `lib/model/edit.ts` — so the pick surface is done.
 
 **Size.** 3–5 increments.
 
