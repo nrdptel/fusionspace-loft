@@ -118,12 +118,19 @@ one and the drogue was unreachable on all of them.
 
 ## R2 — Delete a component, and undo it
 
-**Status:** IN PROGRESS — current milestone. Two of its three parts are done and pinned: component ids
-survive an export/re-import round trip (`lib/model/id.test.ts`), and a flyer can remove any component and
+**Status:** IN PROGRESS — current milestone. Three of its four parts are done and pinned: component ids
+survive an export/re-import round trip (`lib/model/id.test.ts`), a flyer can remove any component and
 undo it (`lib/model/edit.test.ts`'s `removing a component` suite, plus the e2e cases *removing a part
 re-flies the design, and the removal is undoable* and *the last body tube cannot be removed, and it says
-why*). What is left of the *done when*: undo covers only removals, not every edit, and the parts named in
-it should be walked on a real multi-part corpus design rather than the committed fixtures.
+why*), and **undo now covers every edit rather than only removals** — pinned by `lib/model/history.test.ts`
+(17 cases) and by four e2e cases: *a typed dimension is undoable, and redoable — not only a removal*,
+*one undo takes back a whole gesture, not one frame of it*, *one undo never takes back two gestures on two
+different parts*, and *clearing every what-if is itself undoable*. Each was proved able to fail by a
+negative control with its BUILD_EXIT checked.
+
+What is left of the *done when*: **the mass-object leg**. Measured on the corpus, removing a mass object
+reaches further than either other leg (26 of 35 designs carry one, 15 carry two or more, 56 in total) and
+it has never been driven — and two of the three cases it produces are wrong. See the notes below.
 
 **Outcome.** The flyer can remove a part and watch the flight answer change.
 
@@ -144,10 +151,36 @@ stable UUID for the positional ids the adapters fall back to and for the ids a s
 by `lib/model/id.test.ts`, which asserts the round trip preserves identity, that a stored aim still resolves
 through it, and that nothing Loft writes into `<id>` can be malformed.
 
-What remains is the operation model itself and undo over it. The addressing machinery is already there from
-R1 — `AIM_SLOTS`, `aimEditsAt`, `aimsOf`, `AimedPart` in `lib/model/edit.ts` — so the pick surface is done.
+**Undo over the whole edit history is DONE.** `lib/model/history.ts` is a pure, generic snapshot stack:
+every what-if is already a value in one bag applied to a pristine design, so a step is a copy of that bag
+and there is nothing to diff or invert. What it adds is what a bare stack does not give you — a LABEL
+("Undo removing Payload Bay"), RUN COALESCING so one drag of a diagram handle is one undo rather than the
+two hundred frames it fired, and a depth cap. `WhatIf` carries the weather, the scenario and the motor
+configuration alongside the edits, because three controls move more than the edit bag in a single act and
+an undo that restored two of the three would hand back a rocket that never existed. Two limits, both
+disclosed on `/docs/limitations`: 100 steps, and the stack does not survive a reload.
 
-**Size.** 3–5 increments.
+**What is left is the mass-object leg of the *done when*, and it is not a walk — it is two defects.**
+Both were found by driving all 56 mass objects in the corpus, and both are in R2's own delete surface:
+
+1. **Removing the mass object a RASAero import synthesises zeroes the airframe.** Every `.CDX1` import
+   mints one `masscomponent` named "Airframe (stated launch weight)" carrying the whole airframe mass
+   (`lib/rasaero/adapt.ts`), and nothing refuses removing it: `Show-off.CDX1` goes from 453.6 g dry to
+   **0.0 g** with its CG pinned at the nose tip, and `Complex.Two-Stage.CDX1` flips from +1.78 cal to
+   **−0.92 cal** and still reports a confident 1,423 m flight. 3 of the 4 RASAero designs are in this
+   state.
+2. **On a stage-override design a removal sheds no mass at all, silently.** Where a stage carries
+   `overrideMass` + `overrideSubcomponents`, the lumped stage mass is fixed while its CG is recomputed
+   from what is left — so removing `EscapeVelocity.ork`'s 141.7 g "Avionics" leaves dry mass at exactly
+   2000.0 g while the margin moves 4.461 → 4.312 cal. That is R2's *done when* ("see stability, dry mass
+   and apogee move") failing on the mass half, with nothing on screen saying so.
+
+Then walk the *done when* end to end on
+`corpus/openrocket/openrocket__openrocket-repo-sim-scripting-largehpr__Simulation scripting.ork` — the one
+corpus design that is single-stage and lets all three named parts go: fin set → 2,458 m / 3.08 cal, mass
+object → 2,399 m / 1.58 cal, aft tube → 3,244 m / 3.17 cal, from 2,348 m / 2.09 cal.
+
+**Size.** 3–5 increments. **Four used so far.**
 
 ---
 
@@ -258,6 +291,22 @@ Unattended runs do not stop to ask (see *Unattended operation* in `MAINTAINING.m
 that would otherwise have been a question goes here, with the option rejected, so it can be reversed
 cheaply instead of re-derived. Newest first.
 
+- **2026-07-30 — the undo stack is not persisted across a reload, and a pick is not an undo step.**
+  Rejected persisting it: the saved session is written to `localStorage` on every keystroke and
+  `writeSlot` caps only the design bytes, so an unbounded stack of snapshots fails at the quota — and
+  that failure is caught and returns false, losing the WHOLE session write rather than just the stack.
+  The desktop tools do not persist undo across a save either. Rejected recording picks: a selection
+  changes no geometry (it is already in `INERT_EDIT_FIELDS`), no editor a flyer has used makes selection
+  undoable, and recording it would bury the edits under the clicks that led to them. Both are stated on
+  `/docs/limitations` rather than left to be discovered.
+- **2026-07-30 — a gesture boundary is inferred from the patch's field names plus a 900 ms window, not
+  taken from the drag handle's own pointer-down/up.** `RocketDiagram`'s `onActiveChange` reports the real
+  boundary and is wired to only 2 of the 7 handles, for freezing the SVG frame. Rejected threading it
+  through all seven and into the history for now: the inference is right for every gesture measured, and
+  the one case where it was wrong — a pick between two drags on the same field merging them into one step
+  — is fixed at the real cause (`endRun`, called by any change that records nothing) rather than by
+  guessing at a clock. Taking the true boundaries is the better design and belongs with the field-blur
+  boundary too; filed rather than half-done.
 - **2026-07-30 — R1 aimed body tubes, fin sets and canopies, and deliberately NOT nose cones,
   transitions or mass objects.** R1's notes named "nose, tubes, transitions and mass objects". Measured
   after import across the 35-design corpus: 23 designs carry several body tubes, 17 several parachutes,

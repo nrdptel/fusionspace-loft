@@ -210,6 +210,22 @@ export default function Limitations() {
         airframe is fine; reading the apogee off it is not.
       </p>
       <p>
+        <strong>Every edit is undoable, not only a removal.</strong> Undo and redo sit in the design
+        header and name what they will do — &ldquo;Undo the fin span&rdquo;, &ldquo;Undo removing
+        Payload Bay&rdquo; — and{" "}
+        <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Z</kbd>, <kbd>Shift</kbd>+<kbd>Z</kbd> and <kbd>Ctrl</kbd>+
+        <kbd>Y</kbd> drive them from the keyboard, except inside a text box, where the shortcut still
+        belongs to the box. One gesture is
+        one undo: a drag of a diagram handle applies its field on every animation frame and a number
+        typed digit by digit applies one per keystroke, and both come back as a single step to where the
+        gesture began. &ldquo;Reset to as-designed&rdquo; is a step like any other, so clearing every
+        what-if at once no longer throws the work away irrecoverably. Two limits: the stack holds the
+        last <strong>100</strong> steps, and it does <strong>not survive a reload</strong> — a resumed
+        session comes back with its edits applied and an empty history, the same as the desktop tools,
+        which do not persist undo across a save either. Picking a part is not an undo step; it aims the
+        fields at another component without changing the rocket.
+      </p>
+      <p>
         One consequence worth knowing, because it follows from the fields being a fixed set rather than
         a per-part record: a field holds ONE value at a time, so with a length or span already typed,
         picking another part of the same kind re-aims that value onto the part you just picked. The panel

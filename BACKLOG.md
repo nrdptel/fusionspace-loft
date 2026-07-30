@@ -10,6 +10,37 @@ a one-way door — those preempt the milestone immediately). Everything else wai
 one-in-four quota in `MAINTAINING.md`. Rough edges, missing affordances, and findings too big for one
 pass. Newest first.
 
+- **Ctrl+Z inside a number box grows the undo stack instead of shrinking it.** The shortcut handler bails
+  out on `INPUT`/`TEXTAREA`/`SELECT`/contenteditable so a flyer part-way through typing keeps their own text
+  undo — but the what-if number fields push every keystroke at the model, so the browser's native text undo
+  fires an `input` event, React's `onChange` runs, and `applyEdit` records a step. The visible result is
+  still right (the value goes back and the flight follows it), which is why this is filed rather than fixed:
+  the stack grows by one where it should shrink by one. Reproduce: focus Fin span, type 60, wait a second,
+  press Ctrl+Z without leaving the field, watch the Undo label. The real fix is the field-blur boundary
+  below, which would let the shortcut work in the box without the field and the flight disagreeing.
+- **The undo stack infers a gesture boundary from a 900 ms clock, and two real boundaries are sitting
+  unused.** `RocketDiagram`'s `onActiveChange(true/false)` is an exact pointer-down/up bracket and is passed
+  to only 2 of the 7 handles (for freezing the SVG frame); a number field's `onBlur` is the exact typing
+  boundary and is not reported at all. Consequence, measured: typing "0.075" digit by digit with more than
+  900 ms between keystrokes leaves 5 undo steps rather than 1, and some of them restore an intermediate
+  value the flyer never meant to fly. Threading both into `commitWhatIf` as an explicit run key would
+  replace the clock for every gesture the app can actually see.
+- **Renaming a design is the one header control that is not on the undo stack.** `renameDesign` calls
+  `setDoc` directly, so it never reaches `commitWhatIf`. The name is persisted to the session and is what
+  `Download .ork` names the file, and OpenRocket puts renames on the same stack ("Rename configuration(s)").
+  Reproduce: rename a design, click outside the box, press Ctrl+Z — the name stays. Cheap once the rename
+  is routed through the same commit path; it needs the document, not just the edit bag, in the snapshot.
+- **Leaving a design and clearing an edit are two different undos with two different depths.** The what-if
+  stack is 100 deep, labelled and keyboard-driven; "Import another" is undone by a separate one-level
+  `localStorage` slot with its own wording, and the shortcut is unbound on the import screen entirely
+  (the handler is gated on `doc`). Reproduce: make edits, click "Import another", press Ctrl+Z — nothing.
+  One Edit ▸ Undo covering both is what a hobbyist expects from every desktop tool.
+- **Two large corpus designs make the removal and undo labels ambiguous, because parts share a name.**
+  `USLI2025-FULLSCALE` carries 7 mass objects all named "Mass Component" (1360.8 g, 3.0 g, 3.0 g, 992.2 g,
+  166.2 g, 166.2 g, 166.2 g), `Base drag hack` two identical "Tungsten .5 oz Nose Weight", and
+  `FullScaleModelTH.rkt` two named "Mass". Both the Remove button and "Undo removing Mass Component" then
+  name a part the flyer cannot tell from six others. `primaryBodyTubePart` already solves exactly this for
+  tubes by falling back to the station; mass objects need the same.
 - **A nose-less design is flown at a fineness-3 ogive's nose drag, because there is no flat-face model.**
   `lib/sim/aero.ts` sets `noseFineness = haveNose && noseDiameter > 0 ? noseLength / noseDiameter : 3`, and
   its own comment says so. Now that a flyer can REMOVE the nose cone (R2), that fallback is reachable by a

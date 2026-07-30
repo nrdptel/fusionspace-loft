@@ -2875,10 +2875,182 @@ test.describe("Loft", () => {
     await expect.poll(margin, { timeout: 20000 }).toBeLessThan(before);
 
     // Undo names the part it will put back, and puts it back exactly.
-    await page.getByRole("button", { name: /^Restore / }).click();
+    await page.getByRole("button", { name: /^Undo removing / }).click();
     await expect.poll(margin, { timeout: 20000 }).toBe(before);
     await page.getByRole("tab", { name: "Design" }).click();
     await expect(partsTable.locator("tr").filter({ hasText: /Trapezoidal fins/ })).toHaveCount(2);
+  });
+
+  test("a typed dimension is undoable, and redoable — not only a removal", async ({ page }) => {
+    // R2's done-when read strictly: undo over the EDIT HISTORY, not over one field. Before this the
+    // only way back from a typed dimension was "Reset to as-designed", which discards everything else
+    // with it — a way out of one state that walks into a worse one.
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+
+    const apogee = async () => {
+      const txt = await page
+        .getByLabel("Results")
+        .getByText("Apogee", { exact: true })
+        .locator("xpath=following-sibling::div")
+        .innerText();
+      return parseFloat(txt.replace(/[^\d.]/g, ""));
+    };
+    const asDesigned = await apogee();
+    expect(asDesigned).toBeGreaterThan(0);
+
+    // Nothing has been done yet, so there is nothing to undo — and the control says so rather than
+    // vanishing, so its place on the header does not move under the pointer.
+    const undo = page.getByRole("button", { name: /^Undo/ });
+    await expect(undo).toBeDisabled();
+
+    await page.getByRole("tab", { name: "Design" }).click();
+    const finThickness = page.getByLabel(/Fin thickness/);
+    const designThickness = parseFloat((await finThickness.getAttribute("placeholder")) ?? "0");
+    expect(designThickness).toBeGreaterThan(0);
+    await finThickness.fill((designThickness * 3).toFixed(1));
+    await page.getByRole("tab", { name: "Flight" }).click();
+    await expect.poll(apogee, { timeout: 20000 }).toBeLessThan(asDesigned);
+
+    // The control NAMES what it will take back. "Undo" alone asks the flyer to remember what they did.
+    await expect(undo).toBeEnabled();
+    await expect(undo).toHaveText(/the fin thickness/);
+    await undo.click();
+    await expect.poll(apogee, { timeout: 20000 }).toBe(asDesigned);
+    // ...and the field it undid went back with the flight, rather than sitting there asserting a
+    // number nothing is flying.
+    await page.getByRole("tab", { name: "Design" }).click();
+    await expect(page.getByLabel(/Fin thickness/)).toHaveValue("");
+
+    // Redo puts it back. Undo without redo is half a control: an undo pressed once too often is
+    // itself a state with no way out.
+    const redo = page.getByRole("button", { name: /^Redo/ });
+    await expect(redo).toBeEnabled();
+    await redo.click();
+    await page.getByRole("tab", { name: "Flight" }).click();
+    await expect.poll(apogee, { timeout: 20000 }).toBeLessThan(asDesigned);
+  });
+
+  test("one undo takes back a whole gesture, not one frame of it", async ({ page }) => {
+    // A drag handle applies a patch on every animation frame, and a held arrow key repeats. Recorded
+    // one commit per frame, the undo stack would be hundreds of steps of a few tenths of a millimetre
+    // each and every earlier edit would be buried under one gesture.
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    await page.getByRole("tab", { name: "Design" }).click();
+
+    // The diagram's fin-position handle is a real slider: focusable, and arrow keys nudge it. Each
+    // nudge is its own edit commit, exactly as each frame of a drag is.
+    const handle = page.getByRole("slider", { name: /Fin position/ }).first();
+    await expect(handle).toBeVisible();
+    const stationOf = async () => Number(await handle.getAttribute("aria-valuenow"));
+    const before = await stationOf();
+
+    // Forward, not aft: this design's fins sit at the tail, where the handle is already against its
+    // limit and an aft nudge applies the same value it already has.
+    await handle.focus();
+    for (let i = 0; i < 12; i++) await handle.press("ArrowLeft");
+    await expect.poll(stationOf, { timeout: 20000 }).toBeLessThan(before);
+
+    // ONE undo returns to where the gesture started — not to the eleventh nudge.
+    await page.getByRole("button", { name: /^Undo/ }).click();
+    await expect.poll(stationOf, { timeout: 20000 }).toBe(before);
+  });
+
+  test("one undo never takes back two gestures on two different parts", async ({ page }) => {
+    // Picking a part records nothing — a selection is not an undoable act — so nothing closed the
+    // gesture that came before it, and a span typed on one fin set, a pick of the other, and a span
+    // typed on that one all carried the same field name inside the coalescing window and merged into
+    // ONE step. Measured on the pure model before the fix: one undo landed back on fin set A, taking
+    // back both gestures and re-aiming the fields at the first part.
+    await page.goto("/");
+    await page
+      .getByLabel(/^Choose an OpenRocket/)
+      .setInputFiles(resolve(process.cwd(), "e2e/fixtures/two-stage-firm-booster.ork"));
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    await page.getByRole("tab", { name: "Design" }).click();
+    await page.locator("summary", { hasText: /Parts ·/ }).click();
+
+    const partsTable = page.locator("table").filter({ hasText: "Dimensions" });
+    const finRows = partsTable.locator("tr").filter({ hasText: /Trapezoidal fins/ });
+    await expect(finRows).toHaveCount(2);
+    const span = page.getByLabel(/Fin span/).and(page.locator("input"));
+
+    await finRows.first().click();
+    await span.fill("70");
+    await finRows.nth(1).click();
+    await span.fill("40");
+
+    // One undo takes back only the SECOND set's span. Before the fix it took back both and the fields
+    // came back aimed at the first set.
+    await page.getByRole("button", { name: /^Undo the fin span/ }).click();
+    await expect(span).toHaveValue("70");
+    // A second undo takes back the first, and only then is there nothing left.
+    await page.getByRole("button", { name: /^Undo the fin span/ }).click();
+    await expect(span).toHaveValue("");
+  });
+
+  test("clearing every what-if is itself undoable", async ({ page }) => {
+    // "Reset to as-designed" is the app's one bulk discard: it takes the removals, the dimensions and
+    // the conditions in a single click. It was the only way back from an edit, and it had no way back
+    // of its own — a one-way door reached from the control that existed to be a way out.
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+
+    const apogee = async () => {
+      const txt = await page
+        .getByLabel("Results")
+        .getByText("Apogee", { exact: true })
+        .locator("xpath=following-sibling::div")
+        .innerText();
+      return parseFloat(txt.replace(/[^\d.]/g, ""));
+    };
+    const asDesigned = await apogee();
+
+    await page.getByRole("tab", { name: "Design" }).click();
+    const finThickness = page.getByLabel(/Fin thickness/);
+    const designThickness = parseFloat((await finThickness.getAttribute("placeholder")) ?? "0");
+    await finThickness.fill((designThickness * 3).toFixed(1));
+    await page.getByRole("tab", { name: "Flight" }).click();
+    await expect.poll(apogee, { timeout: 20000 }).toBeLessThan(asDesigned);
+    const edited = await apogee();
+
+    await page.getByRole("button", { name: "Reset to as-designed" }).click();
+    await expect.poll(apogee, { timeout: 20000 }).toBe(asDesigned);
+
+    // The reset names itself, and gives the work back.
+    const undo = page.getByRole("button", { name: /^Undo/ });
+    await expect(undo).toHaveText(/the reset/);
+    await undo.click();
+    await expect.poll(apogee, { timeout: 20000 }).toBe(edited);
+  });
+
+  test("the keyboard shortcut undoes, and leaves a text box's own undo alone", async ({ page }) => {
+    // Every editor a flyer has used binds this, and a builder that only offers a button is one they
+    // have to go looking for. The exception matters as much: part-way through typing a dimension,
+    // the shortcut belongs to the box, not to the rocket.
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    await page.getByRole("tab", { name: "Design" }).click();
+
+    const finThickness = page.getByLabel(/Fin thickness/);
+    const designThickness = parseFloat((await finThickness.getAttribute("placeholder")) ?? "0");
+    await finThickness.fill((designThickness * 3).toFixed(1));
+    await expect(page.getByRole("button", { name: /^Undo the fin thickness/ })).toBeEnabled();
+
+    // Focus is still in the number box, so the shortcut is the box's: the edit stands.
+    await page.keyboard.press("ControlOrMeta+z");
+    await expect(page.getByRole("button", { name: /^Undo the fin thickness/ })).toBeEnabled();
+
+    // Outside a text box it is the design's.
+    await finThickness.blur();
+    await page.keyboard.press("ControlOrMeta+z");
+    await expect(page.getByRole("button", { name: /^Undo$/ })).toBeDisabled();
+    await expect(page.getByLabel(/Fin thickness/)).toHaveValue("");
   });
 
   test("the last body tube cannot be removed, and it says why", async ({ page }) => {
