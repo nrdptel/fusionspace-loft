@@ -289,6 +289,15 @@ export default function RocketDiagram({
   // and it blunts, with everything downstream restacking. Bounds keep it a nose rather than a
   // needle or a disc, always including today's length.
   const nose = onEdit ? primaryNose(rocket) : undefined;
+  // Body-length handle geometry — the aft edge of the PICKED tube, on the centreline so it cannot sit
+  // under the diameter handle (which rides the top wall at mid-length) or the fin handles (which ride
+  // the fin planform). It is the one dimension of a tube that had no grip at all: `Body length` could
+  // only be typed, which is a gap the moment a flyer authors a tube and wants to size it by eye.
+  const bodyLenNow = onEdit ? bodyTube?.length : undefined;
+  const bodyLenLo = bodyLenNow !== undefined ? Math.min(bodyLenNow, 0.02) : 0;
+  const bodyLenHi = bodyLenNow !== undefined ? Math.max(bodyLenNow * 2, 20 * (bodyTube?.outerRadius ?? 0.05)) : 0;
+  const lenCx = bodyPart ? X(bodyPart.profile[bodyPart.profile.length - 1][0]) : 0;
+
   const noseLenNow = nose?.length;
   const noseLo = noseLenNow !== undefined ? Math.min(noseLenNow, 0.02) : 0;
   const noseHi = noseLenNow !== undefined ? Math.max(noseLenNow * 2, 12 * (nose?.aftRadius ?? 0.05)) : 0;
@@ -530,6 +539,34 @@ export default function RocketDiagram({
           />
         )}
 
+        {/* body-length handle — grab the tube's aft edge and stretch it. Everything behind it restacks,
+            exactly as the number field already does, so the picture and the field are one edit.
+
+            A FINE-pointer grip only, for the same measured reason the five fin handles collapse to one
+            on a touch layout: at a phone's fit width the airframe is about eleven pixels tall, so every
+            grip on the body is inside every other grip's 44 px target. The phone suite caught it as
+            soon as this handle existed — the fin root chord's own centre resolved to "Body length" —
+            and a control that steals another control's centre is worse than one that is not there. On
+            a phone the tube's length stays the number field, which is a real control at a real size. */}
+        {onEdit && !coarse && bodyPart && bodyLenNow !== undefined && (
+          <FinHandle
+            units={units}
+            field="bodyLength"
+            label="Body length"
+            valueText={`${d.q(d.lengthMm(bodyLenNow, units))} long`}
+            title="Drag or use arrow keys to lengthen or shorten this body tube"
+            current={bodyLenNow}
+            lo={bodyLenLo}
+            hi={bodyLenHi}
+            cx={lenCx}
+            cy={centerY}
+            s={s}
+            padX={padX}
+            onEdit={onEdit}
+            hitR={hitR}
+          />
+        )}
+
         {/* body-diameter handle — grab the body wall to resize the caliber, independent of the fins */}
         {onEdit && bodyPart && bodyDiaNow !== undefined && (
           <FinHandle
@@ -712,7 +749,15 @@ function FinHandle({
    *  nothing else to read while dragging — so it reports in the flyer's own units, like the caption
    *  above it and the field below it. */
   units: UnitSystem;
-  field: "finStation" | "finSweepLength" | "finRootChord" | "finTipChord" | "finSpan" | "bodyDiameter" | "noseLength";
+  field:
+    | "finStation"
+    | "finSweepLength"
+    | "finRootChord"
+    | "finTipChord"
+    | "finSpan"
+    | "bodyDiameter"
+    | "bodyLength"
+    | "noseLength";
   label: string;
   valueText: string;
   title: string;

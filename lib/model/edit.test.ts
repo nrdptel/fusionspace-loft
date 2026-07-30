@@ -38,10 +38,12 @@ import {
   primaryBodyTubePart,
   aimEditsAt,
   removalRefusal,
+  newPartId,
   aimsClearedByRemoving,
   hasGeometryEdits,
 } from "./edit";
 import type {
+  BodyTube,
   GenericFinSet,
   Transition,
   Parachute,
@@ -52,7 +54,8 @@ import type {
 import { overallLength } from "./geometry";
 import { newDesign } from "./starter";
 import { runFlight } from "../sim/run";
-import { dryMassProperties } from "../sim/mass";
+import { dryMassProperties, statedMassHolder } from "../sim/mass";
+import { isUuidShaped } from "./id";
 import { exportOrk } from "../ork/export";
 import { defaultPayloadStation } from "./edit";
 import { recoverySizing } from "../sim/recovery";
@@ -1443,6 +1446,399 @@ describe("the boattail's advertised bound is the bound that is enforced", () => 
     // tube: 60 mm sits inside the forward tube's 66 mm and is silently dropped.
     const refused = applyGeometryEdits(rocket, { boattailLength: 0.05, boattailAftDiameter: 0.06 });
     expect(flattenRocket(refused).some((p) => p.component.id.endsWith("-boattail"))).toBe(false);
+  });
+});
+
+describe("a motor cluster and a body length on the same tube", () => {
+  it("both apply, rather than whichever branch ran first", async () => {
+    // A component can be BOTH a motor mount and something else the editor changes: on a
+    // minimum-diameter design the mount IS a body tube. The cluster used to be its own early-returning
+    // branch below the length branch, so the length won and the cluster was dropped in silence — while
+    // the Motors field, which reads the edit bag, went on saying three.
+    //
+    // Measured on `01.One-stage.ork`, whose mount is a body tube: `motorClusterCount: 3` alone flies
+    // three motors at 1,243 m and thrust-to-weight 33.1; the same edit plus a body length on that tube
+    // flew ONE, at 692 m and 19.0. Motor count is the number a flyer plans a flight around.
+    // `demo-quirks.ork` is the committed fixture of the same shape — its mount is a body tube — so the
+    // pin runs where the corpus is absent.
+    const doc = await importOrk(readFileSync(resolve(process.cwd(), "fixtures/demo-quirks.ork")));
+    const mount = flattenRocket(doc.rocket).find((p) => "motorMount" in p.component && p.component.motorMount)!.component;
+    expect(mount.kind, "the fixture's mount must BE a body tube").toBe("bodytube");
+
+    const clusterOnly = applyGeometryEdits(doc.rocket, { motorClusterCount: 3 });
+    expect(primaryMotorClusterCount(clusterOnly)).toBe(3);
+
+    const both = applyGeometryEdits(doc.rocket, {
+      motorClusterCount: 3,
+      bodyTubeId: mount.id,
+      bodyLength: (mount as BodyTube).length * 1.5,
+    });
+    expect(primaryMotorClusterCount(both), "the cluster must survive a length edit on its own tube").toBe(3);
+    expect(primaryBodyTube(both, mount.id)!.length).toBeCloseTo((mount as BodyTube).length * 1.5, 9);
+
+    // And it reaches the flight, not just the model: three motors is three motors' thrust.
+    const one = runFlight(doc.rocket, {}).result.summary;
+    const three = runFlight(both, {}).result.summary;
+    expect(three.thrustToWeight).toBeGreaterThan(one.thrustToWeight * 1.5);
+    expect(three.apogee).toBeGreaterThan(one.apogee);
+  });
+
+  it("leaves a design whose mount is an inner tube exactly as it was", async () => {
+    // The control: the defect only ever bit where one component wore both roles.
+    const doc = await importOrk(readFileSync(resolve(process.cwd(), "fixtures/demo-single-deploy.ork")));
+    expect(flattenRocket(doc.rocket).find((p) => "motorMount" in p.component && p.component.motorMount)!.component.kind).toBe("innertube");
+    const tube = primaryBodyTube(doc.rocket)!;
+    const both = applyGeometryEdits(doc.rocket, {
+      motorClusterCount: 3,
+      bodyTubeId: tube.id,
+      bodyLength: tube.length * 1.5,
+    });
+    expect(primaryMotorClusterCount(both)).toBe(3);
+    expect(primaryBodyTube(both, tube.id)!.length).toBeCloseTo(tube.length * 1.5, 9);
+  });
+});
+
+describe("adding a component", () => {
+  const tubes = (r: Rocket) => flattenRocket(r).filter((p) => p.component.kind === "bodytube");
+
+  it("puts an authored tube behind the one it names, faired to it", async () => {
+    // R3's capability, and the first edit that is an OPERATION rather than a value: there is no field
+    // in the flat patch for a part that does not exist yet. The caliber is inherited rather than typed
+    // because a tube that does not fair to the airframe it joins is a step in the outer mould line —
+    // a different drag and a different stability, on a design nobody meant to draw.
+    const doc = await importOrk(readFileSync(resolve(process.cwd(), "fixtures/demo-single-deploy.ork")));
+    const before = tubes(doc.rocket);
+    expect(before.length).toBe(1);
+    const host = before[0].component as BodyTube;
+
+    const id = newPartId(doc.rocket, undefined, host.id);
+    const built = applyGeometryEdits(doc.rocket, {
+      added: [{ id, kind: "bodytube", after: host.id, length: 0.25 }],
+    });
+
+    const after = tubes(built);
+    expect(after.length).toBe(2);
+    const mine = after.find((p) => p.component.id === id)!;
+    expect((mine.component as BodyTube).length).toBeCloseTo(0.25, 9);
+    expect((mine.component as BodyTube).outerRadius).toBeCloseTo(host.outerRadius, 9);
+    expect(mine.component.material?.name).toBe(host.material?.name);
+    expect(mine.component.finish).toBe(host.finish);
+    // Behind it, not in front: the airframe is longer by exactly the length authored.
+    expect(mine.xFore).toBeGreaterThan(before[0].xFore);
+    expect(overallLength(built)).toBeCloseTo(overallLength(doc.rocket) + 0.25, 9);
+  });
+
+  it("flies, weighs and balances as a longer rocket", async () => {
+    // "Have the stability and mass panels describe the rocket they just built" — asserted through the
+    // model the panels read, not by eye. A part that draws but weighs nothing would pass a shape test
+    // and fly a lie.
+    const doc = await importOrk(readFileSync(resolve(process.cwd(), "fixtures/demo-single-deploy.ork")));
+    const host = tubes(doc.rocket)[0].component;
+    const id = newPartId(doc.rocket, undefined, host.id);
+    const built = applyGeometryEdits(doc.rocket, {
+      added: [{ id, kind: "bodytube", after: host.id, length: 0.25 }],
+    });
+
+    const bare = dryMassProperties(doc.rocket);
+    const grown = dryMassProperties(built);
+    expect(grown.mass).toBeGreaterThan(bare.mass);
+    expect(grown.cg).not.toBeCloseTo(bare.cg, 6);
+    // And it actually flies: a heavier, longer, draggier rocket does not climb as high, and it is the
+    // stability the panels report that moves, not just a number in the model.
+    const flown = runFlight(built, {}).result;
+    const bareFlight = runFlight(doc.rocket, {}).result;
+    expect(flown.summary.apogee).toBeGreaterThan(0);
+    expect(flown.summary.apogee).toBeLessThan(bareFlight.summary.apogee);
+    expect(flown.staticMarginCal).not.toBeCloseTo(bareFlight.staticMarginCal, 3);
+  });
+
+  it("is editable, removable and aimable exactly like an imported part", async () => {
+    // The architecture invariant: authoring produces the SAME model the importers produce, so every
+    // mechanism that already exists works on it without knowing it was authored.
+    const doc = await importOrk(readFileSync(resolve(process.cwd(), "fixtures/demo-single-deploy.ork")));
+    const host = tubes(doc.rocket)[0].component;
+    const id = newPartId(doc.rocket, undefined, host.id);
+    const added = [{ id, kind: "bodytube" as const, after: host.id, length: 0.25 }];
+
+    // Aimed at, and edited.
+    const built = applyGeometryEdits(doc.rocket, { added });
+    expect(aimEditsAt(built, id).bodyTubeId).toBe(id);
+    const longer = applyGeometryEdits(doc.rocket, { added, bodyTubeId: id, bodyLength: 0.4 });
+    expect(primaryBodyTube(longer, id)!.length).toBeCloseTo(0.4, 9);
+
+    // Removed by the same list that removes an imported part, and the design is back to one tube.
+    const gone = applyGeometryEdits(doc.rocket, { added, removedIds: [id] });
+    expect(tubes(gone).length).toBe(1);
+    // And it is not the LAST tube, so removing the design's own one is allowed now that there are two.
+    expect(removalRefusal(built, host.id)).toBe(null);
+  });
+
+  it("keeps an authored part when its neighbour is removed, and drops one whose anchor never existed", async () => {
+    // Two different situations, and they must not be confused. Adds are applied BEFORE removals, so a
+    // part authored behind a tube is a SIBLING of it: removing that tube leaves the flyer's own part in
+    // place and moves it forward, which is the least surprising thing that can happen to a part
+    // somebody deliberately made. What IS dropped is an entry whose anchor is not in the design at all
+    // — a stale `after` from a restored session — because the anchor is the only thing that says where
+    // the part goes, and re-anchoring it at the aft end would move a flyer's part without saying so.
+    const doc = await importOrk(readFileSync(resolve(process.cwd(), "e2e/fixtures/two-stage-firm-booster.ork")));
+    const host = tubes(doc.rocket)[0].component;
+    const id = newPartId(doc.rocket, undefined, host.id);
+    const added = [{ id, kind: "bodytube" as const, after: host.id, length: 0.2 }];
+    expect(tubes(applyGeometryEdits(doc.rocket, { added })).length).toBe(tubes(doc.rocket).length + 1);
+
+    const neighbourGone = applyGeometryEdits(doc.rocket, { added, removedIds: [host.id] });
+    expect(flattenRocket(neighbourGone).some((p) => p.component.id === id)).toBe(true);
+    expect(flattenRocket(neighbourGone).some((p) => p.component.id === host.id)).toBe(false);
+
+    const stale = applyGeometryEdits(doc.rocket, {
+      added: [{ id, kind: "bodytube", after: "a-part-no-design-has", length: 0.2 }],
+    });
+    expect(flattenRocket(stale).some((p) => p.component.id === id)).toBe(false);
+  });
+
+  it("refuses a length that is not a part, and an anchor with no caliber to inherit", async () => {
+    const doc = await importOrk(readFileSync(resolve(process.cwd(), "fixtures/demo-single-deploy.ork")));
+    const host = tubes(doc.rocket)[0].component;
+    const n = tubes(doc.rocket).length;
+    for (const length of [0, -0.1, Number.NaN]) {
+      const out = applyGeometryEdits(doc.rocket, {
+        added: [{ id: "x", kind: "bodytube", after: host.id, length }],
+      });
+      expect(tubes(out).length, `length ${length} must not build a tube`).toBe(n);
+    }
+    // A fin set has no diameter to fair to, so there is nothing to inherit and nothing is built.
+    const fins = flattenRocket(doc.rocket).find((p) => p.component.kind.endsWith("finset"))!;
+    const out = applyGeometryEdits(doc.rocket, {
+      added: [{ id: "y", kind: "bodytube", after: fins.component.id, length: 0.2 }],
+    });
+    expect(tubes(out).length).toBe(n);
+  });
+
+  it("mints a stable, UUID-shaped, unique id", async () => {
+    // Derived rather than random, so the same sequence of edits produces the same ids — which is what
+    // lets a stored aim, a removal and an undo still point at the right part after a reload. And
+    // UUID-shaped so the authored part can be exported to `.ork` and re-imported as itself.
+    const doc = await importOrk(readFileSync(resolve(process.cwd(), "fixtures/demo-single-deploy.ork")));
+    const host = tubes(doc.rocket)[0].component;
+    const first = newPartId(doc.rocket, undefined, host.id);
+    expect(first).toBe(newPartId(doc.rocket, undefined, host.id));
+    expect(isUuidShaped(first)).toBe(true);
+    const one = [{ id: first, kind: "bodytube" as const, after: host.id, length: 0.2 }];
+    const second = newPartId(doc.rocket, one, host.id);
+    expect(second).not.toBe(first);
+    expect(isUuidShaped(second)).toBe(true);
+  });
+
+  it("never gives an authored tube a material without a wall to go with it", async () => {
+    // The quietest wrong number this milestone could ship. `lib/sim/mass.ts` models a tube that has a
+    // material and no wall thickness as a SOLID ROD — measured on a hand-built part, 2.13x the mass and
+    // 72% off the apogee, with no error raised anywhere. Inheritance alone does not protect against it,
+    // so the pair travels together by construction.
+    //
+    // Measured across the corpus: of 90 body tubes, exactly 12 carry neither wall nor material, and all
+    // 12 are the RASAero ones — that format states no materials at all and its geometry is deliberately
+    // massless, with the weight carried by a separate point mass. So a tube authored on such a design
+    // is massless like its neighbours, which is the consistent answer, not a missing one.
+    const rasaero = await importOrk(readFileSync(resolve(process.cwd(), "e2e/fixtures/demo-rasaero.CDX1")));
+    const host = tubes(rasaero.rocket)[0].component as BodyTube;
+    expect(host.thickness, "the fixture's own tubes must be the wall-less kind").toBeFalsy();
+    const id = newPartId(rasaero.rocket, undefined, host.id);
+    const built = applyGeometryEdits(rasaero.rocket, {
+      added: [{ id, kind: "bodytube", after: host.id, length: 0.2 }],
+    });
+    const mine = flattenRocket(built).find((p) => p.component.id === id)!.component as BodyTube;
+    expect(mine.thickness).toBeUndefined();
+    expect(mine.material).toBeUndefined();
+    // The design still weighs exactly what its stated launch weight says — the authored tube adds
+    // geometry, and the file's own figure is what carries the mass, as it does for every other part.
+    expect(dryMassProperties(built).mass).toBeCloseTo(dryMassProperties(rasaero.rocket).mass, 9);
+
+    // And where the design DOES state a wall, both come across.
+    const ork = await importOrk(readFileSync(resolve(process.cwd(), "fixtures/demo-single-deploy.ork")));
+    const walled = tubes(ork.rocket)[0].component as BodyTube;
+    expect(walled.thickness).toBeGreaterThan(0);
+    const id2 = newPartId(ork.rocket, undefined, walled.id);
+    const grown = applyGeometryEdits(ork.rocket, {
+      added: [{ id: id2, kind: "bodytube", after: walled.id, length: 0.2 }],
+    });
+    const theirs = flattenRocket(grown).find((p) => p.component.id === id2)!.component as BodyTube;
+    expect(theirs.thickness).toBeCloseTo(walled.thickness!, 9);
+    expect(theirs.material?.density).toBe(walled.material?.density);
+  });
+
+  it("mounts an authored fin set INSIDE the tube it was added to, cloned from the design's own", async () => {
+    // Fins are mounted ON a tube, not stacked behind it, so this kind goes inside the anchor rather
+    // than beside it. Cloned from the design's own set rather than derived from invented proportions:
+    // "another one of these, here" is the gesture, and it is the only default that is a fact about
+    // this rocket instead of a number somebody chose. All 35 corpus designs carry at least one set,
+    // and so does the starter, so a source exists on every design a flyer can reach.
+    const doc = await importOrk(readFileSync(resolve(process.cwd(), "fixtures/demo-single-deploy.ork")));
+    const src = flattenRocket(doc.rocket).find((p) => p.component.kind === "trapezoidfinset")!
+      .component as TrapezoidFinSet;
+    const host = flattenRocket(doc.rocket).find((p) => p.component.kind === "bodytube")!.component;
+
+    const id = newPartId(doc.rocket, undefined, host.id);
+    const built = applyGeometryEdits(doc.rocket, {
+      added: [{ id, kind: "trapezoidfinset", after: host.id, length: 0 }],
+    });
+
+    const mine = flattenRocket(built).find((p) => p.component.id === id)!.component as TrapezoidFinSet;
+    expect(mine.kind).toBe("trapezoidfinset");
+    expect(mine.finCount).toBe(src.finCount);
+    expect(mine.rootChord).toBeCloseTo(src.rootChord, 9);
+    expect(mine.tipChord).toBeCloseTo(src.tipChord, 9);
+    expect(mine.height).toBeCloseTo(src.height, 9);
+    expect(mine.thickness).toBe(src.thickness);
+    expect(mine.material?.density).toBe(src.material?.density);
+    // Inside the tube, not beside it — a fin set in a stage's top-level list is not on the airframe.
+    const parent = flattenRocket(built).find((p) => p.component.children.some((c) => c.id === id))!;
+    expect(parent.component.id).toBe(host.id);
+    // Aft-aligned, so the picture matches the gesture.
+    expect(mine.placement.method).toBe("bottom");
+  });
+
+  it("makes a design with two fin rings more stable, and it flies", async () => {
+    // The reason to author a fin set at all: it is the structural add that moves stability most, and
+    // R3's *done when* asks the panels to describe the rocket the flyer just built.
+    const doc = await importOrk(readFileSync(resolve(process.cwd(), "fixtures/demo-single-deploy.ork")));
+    const host = flattenRocket(doc.rocket).find((p) => p.component.kind === "bodytube")!.component;
+    const id = newPartId(doc.rocket, undefined, host.id);
+    const built = applyGeometryEdits(doc.rocket, {
+      added: [{ id, kind: "trapezoidfinset", after: host.id, length: 0 }],
+    });
+
+    const before = runFlight(doc.rocket, {}).result;
+    const after = runFlight(built, {}).result;
+    // More fin area aft is more normal force aft: a thicker static margin.
+    expect(after.staticMarginCal).toBeGreaterThan(before.staticMarginCal);
+    // And heavier and draggier, so it does not climb as high.
+    expect(dryMassProperties(built).mass).toBeGreaterThan(dryMassProperties(doc.rocket).mass);
+    expect(after.summary.apogee).toBeGreaterThan(0);
+    expect(after.summary.apogee).toBeLessThan(before.summary.apogee);
+  });
+
+  it("builds nothing where there is no set to copy, and nothing where the anchor is not a tube", async () => {
+    const doc = await importOrk(readFileSync(resolve(process.cwd(), "fixtures/demo-single-deploy.ork")));
+    const fins = flattenRocket(doc.rocket).find((p) => p.component.kind === "trapezoidfinset")!.component;
+    const n = flattenRocket(doc.rocket).length;
+    // Fins do not mount on fins.
+    const onFins = applyGeometryEdits(doc.rocket, {
+      added: [{ id: "a", kind: "trapezoidfinset", after: fins.id, length: 0 }],
+    });
+    expect(flattenRocket(onFins).length).toBe(n);
+    // And the clone's source is the design as it stood when the part was authored, not after a later
+    // removal: adds are applied BEFORE removals — the order that lets an authored part be removed by
+    // id — so a flyer who copies a ring and then deletes the original keeps the copy they made. The
+    // alternative, cloning from a design the set had already left, would silently build nothing.
+    const host = flattenRocket(doc.rocket).find((p) => p.component.kind === "bodytube")!.component;
+    const copied = applyGeometryEdits(doc.rocket, {
+      added: [{ id: "b", kind: "trapezoidfinset", after: host.id, length: 0 }],
+      removedIds: [fins.id],
+    });
+    const kept = flattenRocket(copied).find((p) => p.component.id === "b")!.component as TrapezoidFinSet;
+    expect(kept.rootChord).toBeCloseTo((fins as TrapezoidFinSet).rootChord, 9);
+    expect(flattenRocket(copied).some((p) => p.component.id === fins.id)).toBe(false);
+  });
+
+  it("counts as an edit, so every surface knows the design is no longer the file's", async () => {
+    // `hasGeometryEdits` gates the stored-tool comparison and the "with your edits" badge. A structural
+    // add that did not count would leave a rocket with a part the file never had, presented beside the
+    // file's own stored numbers as though it were the same design.
+    expect(hasGeometryEdits({ added: [{ id: "a", kind: "bodytube", after: "b", length: 0.2 }] })).toBe(true);
+    expect(hasGeometryEdits({ added: [] })).toBe(false);
+  });
+});
+
+describe("a part that is not a part", () => {
+  it("refuses to remove the point mass that stands for a whole airframe", async () => {
+    // A RASAero `.CDX1` carries no materials and no per-part masses — the flyer types one launch
+    // weight and CG per simulation — so the adapter puts the whole stated weight into a single mass
+    // component, which is the only place the one internal model has to hold it. Removing it is not an
+    // unwise edit a flyer is entitled to make; it leaves a rocket with no mass at all. Measured on the
+    // real corpus before the refusal: `Show-off.CDX1` went 453.6 g dry → 0.0 g with its CG at the nose
+    // tip, `OR vs RAS Test 1.CDX1` 4368.8 g → 0.0 g, and `Complex.Two-Stage.CDX1` flipped +1.78 cal →
+    // −0.92 cal and was still flown, reporting a confident 1,423 m. 3 of the 4 RASAero designs in the
+    // corpus are that shape. Pinned on the committed fixture, not on `corpus/`, which is absent on
+    // every fork and public clone.
+    const doc = await importOrk(readFileSync(resolve(process.cwd(), "e2e/fixtures/demo-rasaero.CDX1")));
+    const airframe = flattenRocket(doc.rocket).find((p) => p.component.name.includes("stated launch weight"))!;
+    expect(airframe, "the fixture must carry the synthesised airframe mass").toBeTruthy();
+    expect((airframe.component as { standsForAirframe?: boolean }).standsForAirframe).toBe(true);
+
+    const why = removalRefusal(doc.rocket, airframe.component.id);
+    expect(why).toMatch(/whole stated weight/);
+    expect(why).toMatch(/no mass at all/);
+
+    // And the design still weighs what it weighed — the guard is the refusal, so this is the number
+    // the refusal exists to protect.
+    expect(dryMassProperties(doc.rocket).mass).toBeGreaterThan(0);
+  });
+
+  it("still allows removing an ordinary mass object", async () => {
+    // The control: the refusal is about the synthesised airframe alone. A real payload or ballast is
+    // a part, and 26 of the 35 corpus designs carry at least one.
+    const doc = await importOrk(readFileSync(resolve(process.cwd(), "fixtures/demo-quirks.ork")));
+    const masses = flattenRocket(doc.rocket).filter((p) => p.component.kind === "masscomponent");
+    expect(masses.length, "the fixture must carry a mass object").toBeGreaterThan(0);
+    for (const m of masses) expect(removalRefusal(doc.rocket, m.component.id)).toBe(null);
+  });
+});
+
+describe("what states a part's mass", () => {
+  it("names the stage whose stated weight covers a part inside it", async () => {
+    // The disclosure R2's delete surface needed. Where a stage states its own weight, a part inside it
+    // weighs nothing of its own — so a removal moves the balance and NOT the total, and before this
+    // nothing said so. Measured on the real corpus: removing `EscapeVelocity.ork`'s 141.7 g "Avionics"
+    // leaves dry mass at exactly 2000.0 g while the static margin moves 4.461 → 4.312 cal.
+    const doc = await importOrk(readFileSync(resolve(process.cwd(), "e2e/fixtures/stage-weighed.ork")));
+    const inside = flattenRocket(doc.rocket).find((p) => p.component.kind === "bodytube")!;
+    const holder = statedMassHolder(doc.rocket, inside.component.id);
+    expect(holder, "the fixture's stage must state its own weight").toBeTruthy();
+
+    // And the claim the sentence makes is true of the model: the mass does not move, the balance does.
+    const before = dryMassProperties(doc.rocket);
+    const fins = flattenRocket(doc.rocket).find((p) => p.component.kind.endsWith("finset"))!;
+    const after = dryMassProperties(applyGeometryEdits(doc.rocket, { removedIds: [fins.component.id] }));
+    expect(after.mass).toBeCloseTo(before.mass, 9);
+    expect(after.cg).not.toBeCloseTo(before.cg, 6);
+  });
+
+  it("says nothing about a design that states no assembly weight", async () => {
+    // The control, and the reason this asks the model rather than watching for a total that did not
+    // move: a genuinely weightless part coming out must not raise a notice about an override that is
+    // not there.
+    const doc = await importOrk(readFileSync(resolve(process.cwd(), "fixtures/demo-single-deploy.ork")));
+    for (const p of flattenRocket(doc.rocket)) expect(statedMassHolder(doc.rocket, p.component.id)).toBe(null);
+  });
+
+  it("does not name a component's own override — that figure goes with it", () => {
+    // Only an ANCESTOR's stated weight covers a part. A component that states its own subtree mass
+    // still takes that figure away when it is removed, so naming it as the holder would be the
+    // opposite of the truth. Built here rather than read from a fixture because no committed design
+    // carries a component-level whole-assembly override, and the distinction is worth pinning.
+    const inner = {
+      id: "inner",
+      name: "Avionics",
+      kind: "masscomponent" as const,
+      placement: { method: "absolute" as const, offset: 0.2 },
+      mass: 0.1,
+      children: [],
+    };
+    const bay = {
+      id: "bay",
+      name: "Payload Bay",
+      kind: "bodytube" as const,
+      placement: { method: "after" as const, offset: 0 },
+      length: 0.3,
+      outerRadius: 0.03,
+      overrideMass: 0.5,
+      overrideSubcomponents: true,
+      children: [inner],
+    };
+    const rocket = { name: "t", stages: [{ name: "Sustainer", components: [bay] }] } as unknown as Rocket;
+    expect(statedMassHolder(rocket, "inner")).toBe("Payload Bay");
+    expect(statedMassHolder(rocket, "bay")).toBe(null);
+    expect(statedMassHolder(rocket, "nothing-here")).toBe(null);
   });
 });
 

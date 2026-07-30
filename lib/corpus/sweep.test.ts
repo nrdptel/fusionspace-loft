@@ -29,6 +29,9 @@ import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { importDesign } from "../ork/import";
 import { runFromDocument, overridesFromStored } from "../sim/run";
+import { flattenRocket } from "../model/geometry";
+import { applyGeometryEdits, removalRefusal } from "../model/edit";
+import { dryMassProperties, massByComponent, statedMassHolder } from "../sim/mass";
 
 const CORPUS_DIR = process.env.LOFT_CORPUS_DIR ?? resolve(process.cwd(), "corpus");
 const TOLERANCE_PCT = 12;
@@ -130,6 +133,51 @@ suite("real-design corpus", () => {
       }
     }
     expect(failures, "design files that failed to import").toEqual([]);
+  }, 300_000);
+
+  it("never lets a removal leave a design with no mass, and says so when it moves none", async () => {
+    // R2's delete surface, held to its *done when* — "delete it, see stability, dry mass and apogee
+    // move" — across every real design rather than the two committed fixtures. It runs here, in the
+    // corpus suite, precisely because it needs real files: the case it exists for was only reachable
+    // on formats and overrides the synthetic fixtures do not have. On a clone with no corpus this
+    // whole suite skips itself, so a fork's CI stays green.
+    //
+    // Two rules, and both were broken when this was first driven over all 56 mass objects:
+    //   1. no removal may leave a weightless design. Every `.CDX1` import mints one point mass
+    //      carrying the entire stated launch weight, and removing it took `Show-off.CDX1` to 0.0 g
+    //      dry with its CG at the nose tip and flipped `Complex.Two-Stage.CDX1` to −0.92 caliber,
+    //      both still flown with a confident apogee;
+    //   2. a removal that sheds NO mass must be explained by something in the model — a stated
+    //      whole-assembly weight — rather than being a total that silently sits still.
+    const weightless: string[] = [];
+    const unexplained: string[] = [];
+    let driven = 0;
+
+    for (const f of files) {
+      const doc = await importDesign(new Uint8Array(readFileSync(f.path)));
+      const before = dryMassProperties(doc.rocket);
+      if (!(before.mass > 0)) continue; // a design with no mass to begin with proves nothing here
+      for (const p of flattenRocket(doc.rocket)) {
+        if (removalRefusal(doc.rocket, p.component.id)) continue;
+        driven++;
+        const after = dryMassProperties(applyGeometryEdits(doc.rocket, { removedIds: [p.component.id] }));
+        const where = `${shortName(f.name)} · "${p.component.name}" (${p.component.kind})`;
+        if (!(after.mass > 0)) weightless.push(where);
+        // Only a part that HAD mass is expected to shed any — a launch lug or a coupler weighing
+        // nothing sheds nothing for an honest reason, and a notice about an override that is not
+        // there would be worse than silence.
+        const own = massByComponent(doc.rocket).get(p.component.id)?.mass ?? 0;
+        if (own > 1e-9 && Math.abs(before.mass - after.mass) < 1e-9 && !statedMassHolder(doc.rocket, p.component.id)) {
+          unexplained.push(`${where} — ${(own * 1000).toFixed(1)} g removed, dry total unmoved`);
+        }
+      }
+    }
+
+    // The denominator, printed so a run that examined nothing cannot read like a pass.
+    console.log(`removable parts driven across ${files.length} design files: ${driven}`);
+    expect(driven, "no removable part was driven — the sweep proves nothing").toBeGreaterThan(100);
+    expect(weightless, "removals that left a design with no mass at all").toEqual([]);
+    expect(unexplained, "removals that shed a part's mass without the total moving, and nothing says why").toEqual([]);
   }, 300_000);
 
   it("flies every stored simulation and agrees on apogee and speed", async () => {

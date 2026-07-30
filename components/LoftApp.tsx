@@ -21,6 +21,9 @@ import {
   unreachableParachuteCount,
   aimEditsAt,
   removalRefusal,
+  newPartId,
+  type AddedPart,
+  type GeometryEdits,
   aimsClearedByRemoving,
   isEditedValue,
   type AimedPart,
@@ -50,6 +53,17 @@ import {
   primaryParachute,
   defaultPayloadStation,
 } from "@/lib/model/edit";
+import {
+  commit as commitHistory,
+  undo as undoHistory,
+  redo as redoHistory,
+  endRun,
+  undoLabel,
+  redoLabel,
+  describeEdit,
+  EMPTY_HISTORY,
+  type History,
+} from "@/lib/model/history";
 import type { SurfaceFinish, NoseShape, FinCrossSection } from "@/lib/model/types";
 import { designMotorIdentity, swapOptions, swapStillOffered, type SwapOption } from "@/lib/motors/swap";
 import { defaultConditions, type ConditionOverrides } from "@/lib/sim/setup";
@@ -71,12 +85,25 @@ import {
   type RecentDesign,
 } from "@/lib/session";
 import { mToFt, ftToM, mpsToMph, mphToMps, radToDeg } from "@/lib/units";
-import { TOUCH_TARGET } from "@/lib/ui-tokens";
+import { TOUCH_TARGET, TOUCH_TARGET_SQUARE } from "@/lib/ui-tokens";
 import { listWords, rangeWords, refusedMessage } from "@/lib/what-if";
 import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
 
 /** Friendly labels for the surface-finish picker (smoothest → roughest). */
+/** The design header's small secondary buttons — Download, Undo, Redo, Reset. One constant because
+ *  four hand-copied class strings is how a row of buttons ends up with three different heights. */
+const HEADER_BUTTON =
+  "inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-2.5 py-1 text-xs font-medium " +
+  "text-zinc-700 transition hover:border-indigo-400 hover:text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 " +
+  `dark:text-zinc-300 dark:hover:text-zinc-100 ${TOUCH_TARGET}`;
+/** Undo/redo: the same button, plus a disabled state and a square 44 px minimum. It carries only a
+ *  glyph on a phone (see the header), and a one-glyph control clears the height minimum while landing
+ *  at 32 px wide — which is not a target a gloved thumb can hit. */
+const UNDO_BUTTON =
+  `${HEADER_BUTTON} justify-center ${TOUCH_TARGET_SQUARE} ` +
+  "aria-disabled:opacity-40 aria-disabled:hover:border-zinc-300 dark:aria-disabled:hover:border-zinc-700";
+
 const FINISH_LABELS: Record<SurfaceFinish, string> = {
   mirror: "Mirror",
   polished: "Polished",
@@ -112,6 +139,8 @@ interface Edits {
   parachuteId?: string;
   /** Components removed from the design, oldest first. An ordered list, so undo is dropping the last. */
   removedIds?: string[];
+  /** Parts the flyer authored, oldest first — see `AddedPart` in the edit model. */
+  added?: AddedPart[];
   rodLength?: number; // m
   rodAngleDeg?: number;
   windSpeed?: number; // m/s
@@ -142,6 +171,60 @@ interface Edits {
   motorClusterCount?: number; // builder edit: how many motors the mount holds (cluster)
   payloadMassKg?: number; // builder edit: add a payload/av-bay point mass (kg)
   payloadStation?: number; // builder edit: where the added payload sits (m from nose; blank = mid-body)
+}
+
+/** Which keys of `Edits` describe the FLIGHT rather than the airframe. Everything else is geometry.
+ *
+ *  Named as the short list rather than the long one on purpose. Three places need the geometry half of
+ *  the edit bag — the flight, the panels, and the `.ork` export — and all three spelled it out field by
+ *  field, thirty lines each. Adding `added` to two of the three is what that costs: the mass panel grew
+ *  a 310 mm section and put 142 g on the design while the Flight card went on reporting the apogee of a
+ *  rocket without it, which is precisely the "two surfaces disagreeing about what is being flown"
+ *  defect the rest of this file exists to prevent. The airframe list grows with the editor; this one
+ *  does not, so deriving from it means the next field is covered by having been added. */
+const FLIGHT_ONLY_EDITS: ReadonlySet<string> = new Set([
+  "rodLength",
+  "rodAngleDeg",
+  "windSpeed",
+  "launchAltitude",
+  "ballastKg",
+  "recoveryCdScale",
+  "motorSwap",
+]);
+
+/** The geometry half of the edit bag — everything the airframe is built from, and nothing transient. */
+function geometryOf(e: Edits): GeometryEdits {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(e)) if (!FLIGHT_ONLY_EDITS.has(k)) out[k] = v;
+  return out as GeometryEdits;
+}
+
+/** Everything one undo has to put back — the whole of "what is being flown", not just the edit bag.
+ *
+ *  Three of the controls move more than the edits in a single act: switching to today's weather drops
+ *  the two condition edits it overrides, "Reset to as-designed" clears the weather and the scenario
+ *  with the edits, and picking another motor configuration drops a swap the new casing cannot take. An
+ *  undo that restored the edits and left the rest would hand the flyer a rocket that never existed —
+ *  the exact class of defect the rest of this file exists to prevent — so the snapshot is the set. */
+interface WhatIf {
+  edits: Edits;
+  weather: WeatherConditions | null;
+  scenario: "design" | "today";
+  simIndex: number;
+}
+
+/** Did this actually change what is being flown? A drag handle maps a pointer POSITION rather than a
+ *  delta, so one already at the end of its range goes on applying its field every frame, and an arrow
+ *  key pressed against a limit applies it too. Recording those would leave undo steps that undo
+ *  nothing the flyer can see — a control that says it will take back the fin position and then does
+ *  not is worse than one that is greyed out. Shallow by design: a fresh object in a field (a motor
+ *  swap) counts as a change, which errs toward offering an undo rather than swallowing one. */
+function movedWhatIf(a: WhatIf, b: WhatIf): boolean {
+  if (a.weather !== b.weather || a.scenario !== b.scenario || a.simIndex !== b.simIndex) return true;
+  const x = a.edits as Record<string, unknown>;
+  const y = b.edits as Record<string, unknown>;
+  for (const k of new Set([...Object.keys(x), ...Object.keys(y)])) if (x[k] !== y[k]) return true;
+  return false;
 }
 
 /** Is any what-if actually set? `applyEdit` merges patches, so clearing a field leaves its key
@@ -234,6 +317,9 @@ export default function LoftApp() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [edits, setEdits] = useState<Edits>({});
+  /** Where the flyer has been, so they can go back. Reset by loading a design and by nothing else —
+   *  an undo stack that survived a load would offer to restore one design's edits onto another. */
+  const [history, setHistory] = useState<History<WhatIf>>(EMPTY_HISTORY as History<WhatIf>);
   const [weather, setWeather] = useState<WeatherConditions | null>(null);
   /** Bumped once per forecast fetched, and by nothing else. The analysis panels watch the launch
    *  conditions by VALUE, and a forecast's atmosphere and wind profile are FUNCTIONS — there is no
@@ -284,35 +370,7 @@ export default function LoftApp() {
         ballastKg: e.ballastKg,
         recoveryCdScale: e.recoveryCdScale,
         motorSwap: e.motorSwap,
-        geometry: {
-          finSetId: e.finSetId,
-          bodyTubeId: e.bodyTubeId,
-          parachuteId: e.parachuteId,
-          removedIds: e.removedIds,
-          finSpan: e.finSpan,
-          finCount: e.finCount,
-          finRootChord: e.finRootChord,
-          finTipChord: e.finTipChord,
-          finSweepLength: e.finSweepLength,
-          finStation: e.finStation,
-          finThickness: e.finThickness,
-          finCrossSection: e.finCrossSection,
-          finMaterial: e.finMaterial,
-          noseLength: e.noseLength,
-          noseShape: e.noseShape,
-          bodyLength: e.bodyLength,
-          bodyDiameter: e.bodyDiameter,
-          finish: e.finish,
-          airframeMaterial: e.airframeMaterial,
-          boattailLength: e.boattailLength,
-          boattailAftDiameter: e.boattailAftDiameter,
-          mainDeployAltitude: e.mainDeployAltitude,
-          drogueDiameter: e.drogueDiameter,
-          mainParachuteDiameter: e.mainParachuteDiameter,
-          motorClusterCount: e.motorClusterCount,
-          payloadMassKg: e.payloadMassKg,
-          payloadStation: e.payloadStation,
-        },
+        geometry: geometryOf(e),
         // Validate only when flying the design's own stored conditions unchanged, and only when
         // Loft flew the complete design — a simplified vehicle (staging/pods/parallel/cluster)
         // wouldn't match the stored results, so the comparison would be misleading. Any edit —
@@ -378,6 +436,10 @@ export default function LoftApp() {
       setDoc(restored);
       setFileName(name);
       setEdits(e);
+      // A load is where the history starts, not a step in it. Carrying a stack across a load would
+      // offer to restore one design's edits onto another — and the session that resumes here arrives
+      // with its edits already applied, so its own past is not ours to replay.
+      setHistory(EMPTY_HISTORY as History<WhatIf>);
       setWeather(null);
       setScenario("design");
       setSimIndex(idx);
@@ -543,35 +605,7 @@ export default function LoftApp() {
     // Bake in the builder's structural (geometry) edits so the saved airframe matches what's shown.
     // Transient flight what-ifs (ballast, motor swap, recovery scale, launch conditions) are not
     // part of the design and are left out.
-    const geometry = {
-      finSetId: edits.finSetId,
-      bodyTubeId: edits.bodyTubeId,
-      parachuteId: edits.parachuteId,
-      removedIds: edits.removedIds,
-      finSpan: edits.finSpan,
-      finCount: edits.finCount,
-      finRootChord: edits.finRootChord,
-      finTipChord: edits.finTipChord,
-      finSweepLength: edits.finSweepLength,
-      finStation: edits.finStation,
-      finThickness: edits.finThickness,
-      finCrossSection: edits.finCrossSection,
-      finMaterial: edits.finMaterial,
-      noseLength: edits.noseLength,
-      noseShape: edits.noseShape,
-      bodyLength: edits.bodyLength,
-      bodyDiameter: edits.bodyDiameter,
-      finish: edits.finish,
-      airframeMaterial: edits.airframeMaterial,
-      boattailLength: edits.boattailLength,
-      boattailAftDiameter: edits.boattailAftDiameter,
-      mainDeployAltitude: edits.mainDeployAltitude,
-      drogueDiameter: edits.drogueDiameter,
-      mainParachuteDiameter: edits.mainParachuteDiameter,
-      motorClusterCount: edits.motorClusterCount,
-      payloadMassKg: edits.payloadMassKg,
-      payloadStation: edits.payloadStation,
-    };
+    const geometry = geometryOf(edits);
     const rocket = hasGeometryEdits(geometry) ? applyGeometryEdits(doc.rocket, geometry) : doc.rocket;
     const bytes = exportOrk({ ...doc, rocket });
     const base =
@@ -584,11 +618,14 @@ export default function LoftApp() {
     URL.revokeObjectURL(url);
   }, [doc, edits, fileName]);
 
-  const rerun = useCallback(
-    (e: Edits, wx: WeatherConditions | null, scen: "design" | "today") => {
+  /** Fly a what-if state. Takes the configuration index from the state rather than from the component,
+   *  because an undo can move it: restoring the edits of a step taken under another configuration while
+   *  flying the current one is a flight neither the flyer nor the file ever asked for. */
+  const fly = useCallback(
+    (w: WhatIf) => {
       if (!doc) return;
       try {
-        const { run: r, baseline: b } = compute(doc, e, wx, scen, simIndex);
+        const { run: r, baseline: b } = compute(doc, w.edits, w.weather, w.scenario, w.simIndex);
         setRun(r);
         setBaseline(b);
         setError(null);
@@ -596,7 +633,7 @@ export default function LoftApp() {
         setError(err instanceof Error ? err.message : "Could not simulate.");
       }
     },
-    [doc, compute, simIndex],
+    [doc, compute],
   );
 
   /** The launch conditions the flight is actually using when the Conditions fields are blank —
@@ -644,10 +681,45 @@ export default function LoftApp() {
     };
   }, [doc, simIndex, scenario, weather]);
 
-  const applyEdit = (patch: Edits) => {
-    const next = { ...edits, ...patch };
-    setEdits(next);
-    rerun(next, weather, scenario);
+  /** THE one path that changes what is being flown. Every control routes through it — a number box, a
+   *  drag handle, a removal, the scenario toggle, the configuration picker — so that "can this be
+   *  undone?" has one answer for all of them instead of one per control.
+   *
+   *  `action` is what the undo control will say it is taking back, and the key that decides whether
+   *  this extends the gesture already in progress or starts a new step. `null` records nothing: that is
+   *  for a PICK, which aims the fields at another part without changing the rocket. Selection is not an
+   *  undoable act in any editor a flyer has used, and recording it would bury the edits under it. */
+  const commitWhatIf = (next: WhatIf, action: { label: string; key: string } | null) => {
+    const before: WhatIf = { edits, weather, scenario, simIndex };
+    if (action && movedWhatIf(before, next)) {
+      setHistory((h) => commitHistory(h, before, action.label, action.key, Date.now()));
+    } else {
+      // A change that records nothing still ENDS the gesture before it. Without this a pick recorded
+      // nothing AND closed nothing, so a span dragged on one fin set, a pick of another, and a span
+      // dragged on that one all shared the key `finSpan` inside the window and merged into a single
+      // step — one undo took back both gestures and re-aimed the fields at the first part.
+      setHistory(endRun);
+    }
+    setEdits(next.edits);
+    setWeather(next.weather);
+    setScenario(next.scenario);
+    setSimIndex(next.simIndex);
+    fly(next);
+  };
+
+  const applyEdit = (patch: Edits, action?: { label?: string; key?: string } | null) => {
+    // A patch's field names are the gesture: every frame of a fin-span drag and every keystroke in the
+    // span box arrive as `{ finSpan }`, so they share a key and merge into one undo. A caller with
+    // something better to say — which part it removed — passes its own, and a key of its own so two
+    // removals a moment apart stay separately undoable.
+    const named =
+      action === null
+        ? null
+        : {
+            label: action?.label ?? describeEdit(patch as Record<string, unknown>),
+            key: action?.key ?? Object.keys(patch).sort().join(","),
+          };
+    commitWhatIf({ edits: { ...edits, ...patch }, weather, scenario, simIndex }, named);
   };
 
   // Clear every what-if — design edits, condition edits, and today's-weather — and re-fly the design
@@ -655,10 +727,10 @@ export default function LoftApp() {
   // build-by-editing loop: one step back to the untouched design without unloading it.
   const editsActive = scenario === "today" || hasActiveEdits(edits);
   const resetEdits = () => {
-    setEdits({});
-    setWeather(null);
-    setScenario("design");
-    rerun({}, null, "design");
+    commitWhatIf({ edits: {}, weather: null, scenario: "design", simIndex }, {
+      label: "the reset",
+      key: "reset",
+    });
   };
 
   // Remove a component. The id is APPENDED to an ordered list rather than applied to the tree, so the
@@ -670,8 +742,8 @@ export default function LoftApp() {
    *  drogue, a payload bay) and those are appended AFTER the prune, so `removedIds` can never take one.
    *  Offering to remove a part the mechanism cannot touch is a button that does nothing. */
   const removableFrom = useMemo(
-    () => (doc ? applyGeometryEdits(doc.rocket, { removedIds: edits.removedIds }) : null),
-    [doc, edits.removedIds],
+    () => (doc ? applyGeometryEdits(doc.rocket, { added: edits.added, removedIds: edits.removedIds }) : null),
+    [doc, edits.added, edits.removedIds],
   );
 
   /** Why this part cannot be removed, or null. The panel asks THIS rather than judging for itself, so the
@@ -684,35 +756,128 @@ export default function LoftApp() {
   const removeComponent = (id: string) => {
     if (!doc || !removableFrom) return;
     if (removalRefusal(removableFrom, id)) return;
+    // Named after the part, from the PRISTINE design: by the time the undo control renders the label the
+    // part is gone from the model on screen, and "Undo the design" for a deletion asks the flyer to
+    // remember what they deleted. Keyed by the id so two removals a moment apart never merge into one
+    // step — a deleted part is the one edit retyping a number cannot bring back.
+    const name = flattenRocket(doc.rocket).find((p) => p.component.id === id)?.component.name;
     // Clearing the aims the removal invalidates is not tidiness: an absolute dimension edit still aimed at
     // a part that is gone re-lands on whatever the role fallback resolves to. Measured on
     // `two-stage-firm-booster.ork` — a 77 mm span aimed at the second fin set moved the surviving 50.0 mm
     // set to 77.0 mm the moment the aimed set was removed, with the field still reading 77.
-    applyEdit({
-      ...aimsClearedByRemoving(removableFrom, edits, id),
-      removedIds: [...(edits.removedIds ?? []), id],
-    });
+    applyEdit(
+      {
+        ...aimsClearedByRemoving(removableFrom, edits, id),
+        removedIds: [...(edits.removedIds ?? []), id],
+      },
+      { label: `removing ${name || "the part"}`, key: `remove:${id}` },
+    );
   };
 
-  /** The most recently removed component, by the pristine design's own name for it — the shown model no
-   *  longer has the part, so the label has to come from the design as imported. */
-  const lastRemoved = useMemo(() => {
-    const ids = edits.removedIds ?? [];
-    if (!doc || !ids.length) return null;
-    const id = ids[ids.length - 1];
-    const c = flattenRocket(doc.rocket).find((p) => p.component.id === id)?.component;
-    return { id, name: c?.name || "the part" };
-  }, [doc, edits.removedIds]);
-
-  const undoRemoval = () => {
-    const ids = edits.removedIds ?? [];
-    if (!ids.length) return;
-    applyEdit({ removedIds: ids.slice(0, -1) });
+  /** Author a part behind the one the flyer picked. The gesture is "another one of these, here": the
+   *  part it goes behind is the part on screen, and everything the new part can inherit — caliber, wall,
+   *  material, finish — comes from that neighbour rather than from a modal wall of number fields. The
+   *  numbers are the confirmation: the fields re-aim at the new part the moment it exists, so the very
+   *  next thing the flyer types changes what they just made.
+   *
+   *  The default length is HALF the neighbour's, floored at one caliber. Proportionate to the design, so
+   *  a 4-inch airframe gets a section and a 24 mm one gets a coupler rather than both getting the same
+   *  invented number; visible enough that the panels the milestone names actually move — one caliber on
+   *  the starter design added 25 g and left apogee and margin reading the same to the digit shown, which
+   *  is a capability a flyer cannot see; and never so long that it re-proportions the rocket before
+   *  anyone has said what it is for. The floor is there because half of a very short tube is a seam. */
+  const addPartAfter = (afterId: string, kind: AddedPart["kind"] = "bodytube") => {
+    if (!doc || !removableFrom) return;
+    const anchor = flattenRocket(removableFrom).find((p) => p.component.id === afterId)?.component;
+    if (!anchor || anchor.kind !== "bodytube") return;
+    const id = newPartId(doc.rocket, edits.added, afterId);
+    const part: AddedPart =
+      kind === "trapezoidfinset"
+        ? { id, kind, after: afterId, length: 0, name: "Fins" }
+        : { id, kind: "bodytube", after: afterId, length: Math.max(anchor.length / 2, 2 * anchor.outerRadius) };
+    // Aim the body fields at it in the same commit, so one undo takes back the part AND the aim rather
+    // than leaving the fields holding a part that no longer exists.
+    applyEdit(
+      { added: [...(edits.added ?? []), part], ...aimEditsAt(applyGeometryEdits(doc.rocket, {
+        added: [...(edits.added ?? []), part],
+        removedIds: edits.removedIds,
+      }), id) },
+      { label: kind === "trapezoidfinset" ? "adding a fin set" : "adding a body tube", key: `add:${id}` },
+    );
   };
+
+  /** Step back one action, and forward again. The whole what-if state moves together — see `WhatIf` —
+   *  so a step taken under today's weather or another motor configuration comes back under the same
+   *  ones, rather than restoring the edits into whatever is on screen now. */
+  const undoStep = () => {
+    const back = undoHistory(history, { edits, weather, scenario, simIndex });
+    if (!back) return;
+    setHistory(back.history);
+    setEdits(back.state.edits);
+    setWeather(back.state.weather);
+    setScenario(back.state.scenario);
+    setSimIndex(back.state.simIndex);
+    fly(back.state);
+  };
+
+  const redoStep = () => {
+    const forward = redoHistory(history, { edits, weather, scenario, simIndex });
+    if (!forward) return;
+    setHistory(forward.history);
+    setEdits(forward.state.edits);
+    setWeather(forward.state.weather);
+    setScenario(forward.state.scenario);
+    setSimIndex(forward.state.simIndex);
+    fly(forward.state);
+  };
+
+  const canUndo = undoLabel(history);
+  const canRedo = redoLabel(history);
+
+  /** How to spell the undo modifier for this keyboard. Set after mount, never during render: the
+   *  static export is built once and served to every platform, so deciding it at render time would
+   *  make the first client render disagree with the server's HTML. */
+  const [modKey, setModKey] = useState("Ctrl");
+  useEffect(() => {
+    if (typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent)) {
+      setModKey("⌘");
+    }
+  }, []);
+
+  // The shortcut every editor has. Held in a ref so the listener is registered once rather than
+  // re-bound on every edit — and so a key pressed mid-drag still sees the current stack.
+  const shortcutRef = useRef({ undoStep, redoStep });
+  useEffect(() => {
+    shortcutRef.current = { undoStep, redoStep };
+  });
+  useEffect(() => {
+    if (!doc) return;
+    const onKey = (ev: KeyboardEvent) => {
+      const k = ev.key.toLowerCase();
+      // Ctrl+Y is redo too, not only Shift+Z. It is what OpenRocket binds on a PC, and a hobbyist
+      // arriving from it presses it first — a shortcut that silently does nothing reads as a broken
+      // undo rather than as a shortcut this app spells differently.
+      const wants = k === "z" ? (ev.shiftKey ? "redo" : "undo") : k === "y" && !ev.shiftKey ? "redo" : null;
+      if (!wants || !(ev.metaKey || ev.ctrlKey) || ev.altKey) return;
+      // Never steal the shortcut from a text box: a flyer part-way through typing a design name or a
+      // dimension expects Ctrl+Z to undo their typing, not to re-fly the rocket. The number fields
+      // push every keystroke at the model, so the two would fight over the same gesture.
+      const el = ev.target as HTMLElement | null;
+      const tag = el?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || el?.isContentEditable) return;
+      ev.preventDefault();
+      if (wants === "redo") shortcutRef.current.redoStep();
+      else shortcutRef.current.undoStep();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [doc]);
 
   const selectConfig = (idx: number) => {
-    setSimIndex(idx);
-    if (!doc) return;
+    if (!doc) {
+      setSimIndex(idx);
+      return;
+    }
     // A motor swap is a choice made against ONE casing, and changing configuration can change the
     // casing. `swapMotor` applies the swap unconditionally, so a swap chosen for a 38 mm run went on
     // flying under a 24 mm one — while the picker, rebuilt for the new casing, could no longer show
@@ -723,17 +888,14 @@ export default function LoftApp() {
     // pad-check surface was a motor the selected configuration cannot take, and the only control
     // that would have said so was blank. Carry the swap over only where the new configuration still
     // offers it, which is exactly what the picker is about to show.
+    // Undoable for the same reason: dropping the swap is a change the flyer did not type and cannot
+    // retype from the picker, because the picker for the new casing no longer offers that motor. One
+    // step back is the only way to see it again.
     const keep = swapStillOffered(edits.motorSwap, swapInfoFor(doc, idx)?.options ?? []);
-    const next = keep ? edits : { ...edits, motorSwap: undefined };
-    if (!keep) setEdits(next);
-    try {
-      const { run: r, baseline: b } = compute(doc, next, weather, scenario, idx);
-      setRun(r);
-      setBaseline(b);
-      setError(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not simulate.");
-    }
+    commitWhatIf(
+      { edits: keep ? edits : { ...edits, motorSwap: undefined }, weather, scenario, simIndex: idx },
+      { label: "the motor configuration", key: "simIndex" },
+    );
   };
 
   const reset = () => {
@@ -743,6 +905,7 @@ export default function LoftApp() {
     setError(null);
     setFileName("");
     setEdits({});
+    setHistory(EMPTY_HISTORY as History<WhatIf>);
     setWeather(null);
     setScenario("design");
     setSimIndex(0);
@@ -851,48 +1014,58 @@ export default function LoftApp() {
   // offers. Recomputed only when the design or its selected configuration changes.
   const swapInfo = useMemo<SwapInfo | null>(() => (doc ? swapInfoFor(doc, simIndex) : null), [doc, simIndex]);
 
+  const designBase = removableFrom ?? doc?.rocket;
   // The design's own dimensions, shown as the starting points for the builder edits.
+  //
+  // Read from the design plus the flyer's STRUCTURE (`removableFrom` — the pristine design with the
+  // parts they have authored and without the ones they have removed) rather than from the imported
+  // file. A part the flyer just built is not in the file, so resolving an aim against the file fell
+  // back to the design's primary part and advertised ITS value: add a tube to the starter design and
+  // the Body length field offered 620 mm as "the design's own" for a section 44 mm long. A field must
+  // never sit there showing a number that is not the one in the flight, and a placeholder is that field
+  // saying what the part currently is. The dimension edits are still excluded, which is what makes
+  // these the values to edit FROM.
   const designDims = useMemo(
     () =>
-      doc
+      doc && designBase
         ? {
             // Every fin readback takes the selected set, so the value the field shows to edit FROM
             // is the same set the edit is written TO. Undefined selection = the frontmost set.
-            finSpan: primaryFinSpan(doc.rocket, edits.finSetId),
-            unreachableFinSets: unreachableFinSetCount(doc.rocket, edits.finSetId),
-            finSetPart: primaryFinSetPart(doc.rocket, edits.finSetId),
-            finCount: primaryFinCount(doc.rocket, edits.finSetId),
-            finRootChord: primaryFinRootChord(doc.rocket, edits.finSetId),
-            finTipChord: primaryFinTipChord(doc.rocket, edits.finSetId),
-            finSweepLength: primaryFinSweep(doc.rocket, edits.finSetId),
-            finStation: primaryFinStation(doc.rocket, edits.finSetId),
-            finThickness: primaryFinThickness(doc.rocket, edits.finSetId),
-            finCrossSection: primaryFinCrossSection(doc.rocket, edits.finSetId),
-            finMaterial: primaryFinMaterial(doc.rocket, edits.finSetId),
-            noseLength: primaryNose(doc.rocket)?.length,
-            noseShape: primaryNoseShape(doc.rocket),
+            finSpan: primaryFinSpan(designBase, edits.finSetId),
+            unreachableFinSets: unreachableFinSetCount(designBase, edits.finSetId),
+            finSetPart: primaryFinSetPart(designBase, edits.finSetId),
+            finCount: primaryFinCount(designBase, edits.finSetId),
+            finRootChord: primaryFinRootChord(designBase, edits.finSetId),
+            finTipChord: primaryFinTipChord(designBase, edits.finSetId),
+            finSweepLength: primaryFinSweep(designBase, edits.finSetId),
+            finStation: primaryFinStation(designBase, edits.finSetId),
+            finThickness: primaryFinThickness(designBase, edits.finSetId),
+            finCrossSection: primaryFinCrossSection(designBase, edits.finSetId),
+            finMaterial: primaryFinMaterial(designBase, edits.finSetId),
+            noseLength: primaryNose(designBase)?.length,
+            noseShape: primaryNoseShape(designBase),
             // The body readbacks take the picked tube for the same reason the fin ones take the
             // picked set: the value the field shows to edit FROM has to be the part the edit is
             // written TO. 23 of the 35 corpus designs carry several tubes as Loft imports them.
-            bodyLength: primaryBodyTube(doc.rocket, edits.bodyTubeId)?.length,
-            bodyDiameter: primaryBodyDiameter(doc.rocket, edits.bodyTubeId),
-            bodyTubePart: primaryBodyTubePart(doc.rocket, edits.bodyTubeId),
+            bodyLength: primaryBodyTube(designBase, edits.bodyTubeId)?.length,
+            bodyDiameter: primaryBodyDiameter(designBase, edits.bodyTubeId),
+            bodyTubePart: primaryBodyTubePart(designBase, edits.bodyTubeId),
             // The boattail's exit is validated against the tube the cone ATTACHES to — the aft-most one
             // — so the bound the field advertises has to come from there too. Quoting the picked tube's
             // caliber promised a limit the validator never used, and a value inside the advertised
             // range was then a silent no-op.
-            boattailFairsTo: aftmostBodyDiameter(doc.rocket),
-            unreachableBodyTubes: unreachableBodyTubeCount(doc.rocket),
-            finish: primaryFinish(doc.rocket),
-            airframeMaterial: primaryAirframeMaterial(doc.rocket),
+            boattailFairsTo: aftmostBodyDiameter(designBase),
+            unreachableBodyTubes: unreachableBodyTubeCount(designBase),
+            finish: primaryFinish(designBase),
+            airframeMaterial: primaryAirframeMaterial(designBase),
             // The recovery readbacks take the picked canopy, so the diameter a field shows to edit
             // FROM is the canopy the resize is written TO. 17 of the 35 corpus designs carry more
             // than one — every dual-deploy design does — and the drogue was unreachable on all.
-            mainParachuteDiameter: primaryParachute(doc.rocket, edits.parachuteId)?.diameter,
-            parachutePart: primaryParachutePart(doc.rocket, edits.parachuteId),
-            unreachableParachutes: unreachableParachuteCount(doc.rocket),
-            motorClusterCount: primaryMotorClusterCount(doc.rocket),
-            payloadStation: defaultPayloadStation(doc.rocket, edits.bodyTubeId),
+            mainParachuteDiameter: primaryParachute(designBase, edits.parachuteId)?.diameter,
+            parachutePart: primaryParachutePart(designBase, edits.parachuteId),
+            unreachableParachutes: unreachableParachuteCount(designBase),
+            motorClusterCount: primaryMotorClusterCount(designBase),
+            payloadStation: defaultPayloadStation(designBase, edits.bodyTubeId),
           }
         : {
             finSpan: undefined,
@@ -924,7 +1097,7 @@ export default function LoftApp() {
     // The fin and body readbacks take their selected part, so both selections are real dependencies:
     // without them the panel keeps showing the primary part's numbers while the edit writes to the
     // picked one.
-    [doc, edits.finSetId, edits.bodyTubeId, edits.parachuteId],
+    [doc, designBase, edits.finSetId, edits.bodyTubeId, edits.parachuteId],
   );
 
   return (
@@ -970,13 +1143,27 @@ export default function LoftApp() {
       {doc && (
         <div className="space-y-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
+            {/* On a phone this row is icons and the design's name; the words come back at `sm:`. Undo
+                and redo took it past 390 px — measured, the five controls wanted 518 px of a 358 px
+                row — and the two ways out are both worse than shortening the labels: overflowing puts
+                a horizontal scrollbar under every workspace, and wrapping to a second row costs 48 px
+                of height that pushed the diagram's drag handles below the fold, where a tap at a
+                handle's own centre resolved to nothing at all. Deliberately NOT `flex-wrap`: a wrapping
+                row wraps before it shrinks, so the name field kept its full 176 px and the row went to
+                two lines anyway. Nowrap plus the field's own `min-w-0` lets it give up the width
+                instead, which is the right thing to spend — a name is readable at half its width and a
+                44 px control is not tappable at half of its. */}
+            <div className="flex min-w-0 items-center gap-3">
               <button
                 type="button"
                 onClick={reset}
-                className={`inline-flex items-center gap-1.5 text-sm text-zinc-600 underline underline-offset-2 hover:text-zinc-900 dark:text-zinc-300 dark:hover:text-white ${TOUCH_TARGET}`}
+                className={
+                  "inline-flex items-center justify-center gap-1.5 text-sm text-zinc-600 hover:text-zinc-900 " +
+                  `dark:text-zinc-300 dark:hover:text-white sm:underline sm:underline-offset-2 ${TOUCH_TARGET_SQUARE}`
+                }
               >
-                <span aria-hidden>←</span> Import another
+                <span aria-hidden>←</span>
+                <span className="sr-only sm:not-sr-only">Import another</span>
               </button>
               <input
                 type="text"
@@ -996,31 +1183,61 @@ export default function LoftApp() {
                 type="button"
                 onClick={downloadOrk}
                 title="Save this design as an OpenRocket .ork file"
-                className={`inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-2.5 py-1 text-xs font-medium text-zinc-700 transition hover:border-indigo-400 hover:text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:text-zinc-100 ${TOUCH_TARGET}`}
+                className={`${HEADER_BUTTON} justify-center ${TOUCH_TARGET_SQUARE}`}
               >
-                Download .ork
+                <span aria-hidden className="sm:hidden">
+                  ↓
+                </span>
+                <span className="sr-only sm:not-sr-only">Download .ork</span>
               </button>
-              {lastRemoved && (
-                // Undo for the one edit that is not recoverable by retyping it. It names the part, because
-                // "Undo" alone asks the flyer to remember what they did — and the part is no longer on the
-                // diagram to remind them.
+              {/* Undo and redo over every edit, not only the deletions. Each NAMES what it will do,
+                  because "Undo" alone asks the flyer to remember what they last did — and after a
+                  removal the part is no longer on the diagram to remind them. Disabled rather than
+                  hidden: a control that appears and disappears as the stack empties is one a flyer
+                  has to hunt for, and its position on the header would move under the pointer.
+
+                  The name is carried as `sr-only` text on a phone rather than as an `aria-label`, and
+                  that is deliberate on both counts. A phone header has room for the glyph and a 44 px
+                  target and nothing else — with the words in, the row wanted 518 px of a 358 px line —
+                  so the label has to leave the layout without leaving the accessibility tree. And an
+                  `aria-label` naming a field is a SECOND control answering to that field's name:
+                  "Undo the rail length" is matched by anything looking up "Rail length", so the box a
+                  flyer's voice control or a test means to reach stops being the only match. Visible
+                  text (however small) names the button without joining that lookup. */}
+              <span className="inline-flex items-center gap-1">
+                {/* `aria-disabled`, not `disabled`. A disabled button leaves the accessibility tree
+                    and drops focus to <body>, and the moment it empties is exactly when a keyboard
+                    user is stepping back through a mistake — press Enter once too often and your
+                    place in the page is gone. Announced as unavailable, still reachable by Tab. */}
                 <button
                   type="button"
-                  onClick={undoRemoval}
-                  title="Put the last removed part back and re-fly the design"
-                  className={`inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-2.5 py-1 text-xs font-medium text-zinc-700 transition hover:border-indigo-400 hover:text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:text-zinc-100 ${TOUCH_TARGET}`}
+                  onClick={undoStep}
+                  aria-disabled={!canUndo || undefined}
+                  title={canUndo ? `Undo ${canUndo} (${modKey}+Z)` : "Nothing to undo"}
+                  className={UNDO_BUTTON}
                 >
-                  Restore {lastRemoved.name}
+                  <span aria-hidden>↶</span>
+                  <span className="sr-only sm:not-sr-only">Undo{canUndo ? ` ${canUndo}` : ""}</span>
                 </button>
-              )}
+                <button
+                  type="button"
+                  onClick={redoStep}
+                  aria-disabled={!canRedo || undefined}
+                  title={canRedo ? `Redo ${canRedo} (${modKey}+Shift+Z)` : "Nothing to redo"}
+                  className={UNDO_BUTTON}
+                >
+                  <span aria-hidden>↷</span>
+                  <span className="sr-only">Redo{canRedo ? ` ${canRedo}` : ""}</span>
+                </button>
+              </span>
               {editsActive && (
                 <button
                   type="button"
                   onClick={resetEdits}
                   title="Clear every what-if and re-fly the design as the file describes it"
-                  className={`inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-2.5 py-1 text-xs font-medium text-zinc-700 transition hover:border-indigo-400 hover:text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:text-zinc-100 ${TOUCH_TARGET}`}
+                  className={`${HEADER_BUTTON} shrink-0`}
                 >
-                  Reset to as-designed
+                  Reset<span className="sr-only sm:not-sr-only">&nbsp;to as-designed</span>
                 </button>
               )}
             </div>
@@ -1100,9 +1317,13 @@ export default function LoftApp() {
               // nowhere on screen. Two paths into the same scenario disagreeing is its own defect.
               const kept =
                 s === "today" ? { ...edits, windSpeed: undefined, launchAltitude: undefined } : edits;
-              if (s === "today") setEdits(kept);
-              setScenario(s);
-              rerun(kept, weather, s);
+              // Undoable because it DROPS edits the flyer typed. Switching to today discards the wind
+              // and elevation they set, and switching back does not bring them back — the way back was
+              // "Reset to as-designed", which also discards everything else.
+              commitWhatIf({ edits: kept, weather, scenario: s, simIndex }, {
+                label: "the weather scenario",
+                key: "scenario",
+              });
             }}
             onWeather={(wx) => {
               // Drop the two condition edits today's weather overrides. `compute` applies them and
@@ -1112,11 +1333,11 @@ export default function LoftApp() {
               // `Num`'s own re-sync effect exists to guarantee a field never sits there showing a
               // value that is not the one in the flight; this is the same rule one level up.
               const kept = { ...edits, windSpeed: undefined, launchAltitude: undefined };
-              setEdits(kept);
-              setWeather(wx);
               setWeatherSerial((n) => n + 1);
-              setScenario("today");
-              rerun(kept, wx, "today");
+              commitWhatIf({ edits: kept, weather: wx, scenario: "today", simIndex }, {
+                label: "the forecast",
+                key: "weather",
+              });
             }}
             busy={busy}
             tool={toolName}
@@ -1155,35 +1376,7 @@ export default function LoftApp() {
               ballastKg={edits.ballastKg}
               recoveryCdScale={edits.recoveryCdScale}
               motorSwap={edits.motorSwap}
-              geometry={{
-                finSetId: edits.finSetId,
-                bodyTubeId: edits.bodyTubeId,
-                parachuteId: edits.parachuteId,
-                removedIds: edits.removedIds,
-                finSpan: edits.finSpan,
-                finCount: edits.finCount,
-                finRootChord: edits.finRootChord,
-                finTipChord: edits.finTipChord,
-                finSweepLength: edits.finSweepLength,
-                finStation: edits.finStation,
-                finThickness: edits.finThickness,
-                finCrossSection: edits.finCrossSection,
-                finMaterial: edits.finMaterial,
-                noseLength: edits.noseLength,
-                noseShape: edits.noseShape,
-                bodyLength: edits.bodyLength,
-                bodyDiameter: edits.bodyDiameter,
-                finish: edits.finish,
-                airframeMaterial: edits.airframeMaterial,
-                boattailLength: edits.boattailLength,
-                boattailAftDiameter: edits.boattailAftDiameter,
-                mainDeployAltitude: edits.mainDeployAltitude,
-                drogueDiameter: edits.drogueDiameter,
-                mainParachuteDiameter: edits.mainParachuteDiameter,
-                motorClusterCount: edits.motorClusterCount,
-                payloadMassKg: edits.payloadMassKg,
-                payloadStation: edits.payloadStation,
-              }}
+              geometry={geometryOf(edits)}
               swapOptions={swapInfo?.options}
               designMotor={swapInfo?.designMotor}
               designManufacturer={swapInfo?.designManufacturer}
@@ -1192,13 +1385,18 @@ export default function LoftApp() {
               // The routing lives in the edit model rather than here, so the panel that reports the
               // pick does not also have to know which fields a body tube or a fin set drives.
               onRemovePart={removeComponent}
+              onAddAfter={addPartAfter}
               refuseRemoval={refuseRemoval}
               onSelectPart={(id) => {
                 // A pick that aims nothing — a coupler, a centring ring — must not commit an edit
                 // patch. An empty one still replaced the edits object, re-flew the whole design and
                 // rewrote the saved session, so reading a part cost a flight.
+                // `null` keeps it out of the undo stack. A pick aims the fields at another part; it
+                // changes nothing about the rocket (see `INERT_EDIT_FIELDS`), and no editor a flyer
+                // has used makes selection undoable. Recording it would bury the edits under the
+                // clicks that led to them.
                 const patch = aimEditsAt(doc.rocket, id);
-                if (Object.keys(patch).length) applyEdit(patch);
+                if (Object.keys(patch).length) applyEdit(patch, null);
               }}
               initialTab={initialTab}
               onWorkspaceChange={setInitialTab}
@@ -2126,6 +2324,28 @@ function Num({
     else if (against.current !== flown) setRefused(null);
   });
 
+  /** Would this entry be refused or pulled to a bound? Then it must not reach the model even in
+   *  passing.
+   *
+   *  Typing pushes every keystroke at the flight, and the range was applied only at the COMMIT — so
+   *  between the keystroke and the blur the solver was flying a number the field itself calls
+   *  impossible. Measured on the 38 mm sample: typing −5 into Rail length put "Rail-exit velocity
+   *  0 m/s" on the pad-check surface, with no refusal shown, for as long as the flyer left the cursor
+   *  in the box. That is the one number a pad check turns on. It also left an impossible value sitting
+   *  in the edit bag, which undo could later restore as though it had been a state worth returning to.
+   *
+   *  Digit-by-digit entry is untouched: "1" on the way to "12" is inside the range and lands as before.
+   *  What is withheld is a COMPLETE number the field would not accept — the same rule the commit path
+   *  applies, asked one step earlier. The literal zero on a positive field was already withheld this
+   *  way; this is that rule generalised rather than a new one. */
+  const wouldNotFly = (raw: string) => {
+    if (raw === "") return false;
+    const n = Number(raw);
+    if (!Number.isFinite(n)) return true;
+    const bounded = min !== undefined && n < min ? min : max !== undefined && n > max ? max : n;
+    return bounded !== n || (positive === true && bounded <= 0);
+  };
+
   /** Commit the typed text. Returns what the model was asked for, which is not always what was
    *  typed: a value outside the range is pulled to the nearest bound rather than refused outright,
    *  because the flyer's intent ("as thin as it goes") is legible and a bound is a real answer. */
@@ -2149,14 +2369,12 @@ function Num({
     // turns on. Refusing it says which value is actually in the flight instead.
     if (positive && bounded === 0) {
       setRefused(raw);
-      // Blank the field's contribution ONLY when this entry actually reached the model. Typing
-      // pushes every keystroke at it, so an entry that arrives here NEGATIVE has already put a
-      // negative dimension in the edit bag; the model declines to apply it and the box then
-      // redisplays it, which is a field asserting a value nothing is flying. A literal zero never
-      // got that far — the keystroke handler below withholds it — so blanking on a zero would throw
-      // away a good edit the flyer made earlier and typed over: a committed 25 mm fin span, one "0"
-      // and a Tab, and the 25 is gone with only the global reset to bring anything back.
-      if (n !== 0) onChange("");
+      // Nothing to undo at the model: `wouldNotFly` withheld this entry at the keystroke, so it never
+      // reached the flight and there is nothing of it to blank. Blanking anyway is what the earlier
+      // version had to do — a negative DID reach the model then — and doing it now would throw away a
+      // good edit the flyer made earlier and typed over: a committed 25 mm fin span, one "-3" and a
+      // Tab, and the 25 would be gone with only the global reset to bring anything back. The box
+      // re-syncs to what is flown on its own; the message above says which value that is.
       return;
     }
     setRefused(bounded !== n ? raw : null);
@@ -2190,11 +2408,12 @@ function Num({
         onChange={(e) => {
           setDraft(e.target.value);
           setRefused(null);
-          // A field the model will not fly at zero never sends one, not even in passing. This fires
-          // on every keystroke, so "0" on the way to "0.5" would otherwise reach the model — and a
+          // A value this field would not accept never reaches the flight, not even in passing. This
+          // fires on every keystroke, so without it "0" on the way to "0.5" reaches the model — and a
           // zero that lands counts as an edit, which is enough on its own to withhold the stored-tool
-          // comparison for a change that changed nothing. The commit path below says so in words.
-          if (positive && e.target.value !== "" && Number(e.target.value) === 0) return;
+          // comparison for a change that changed nothing — while a typed −5 flew a rail no rocket
+          // leaves and printed 0 m/s beside it. The commit path below says so in words.
+          if (wouldNotFly(e.target.value)) return;
           onChange(e.target.value);
         }}
         onBlur={(e) => commit(e.target.value)}

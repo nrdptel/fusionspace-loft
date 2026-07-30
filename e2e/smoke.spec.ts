@@ -2560,7 +2560,9 @@ test.describe("Loft", () => {
     // Stretch the main body tube on the Design workspace — a builder geometry edit. The field starts
     // from the design's span; flip back to Flight to read the new apogee.
     await page.getByRole("tab", { name: "Design" }).click();
-    const bodyLength = page.getByLabel(/Body length/);
+    // The input, not the diagram's grip: both are named "Body length" now that a tube's length can be
+    // dragged, exactly as Fin span and Nose length have been for a while. `getByLabel` matches both.
+    const bodyLength = page.locator("input").and(page.getByLabel(/Body length/));
     await expect(bodyLength).toBeVisible();
     const designBody = parseFloat((await bodyLength.getAttribute("placeholder")) ?? "0");
     expect(designBody).toBeGreaterThan(0);
@@ -2834,6 +2836,146 @@ test.describe("Loft", () => {
     expect((await lengthsOf())[0], "the tube that was not picked must not change").toBe(before[0]);
   });
 
+  test("a flyer can add a second fin ring, and the stability panel describes it", async ({ page }) => {
+    // The structural add that moves stability most, and the second kind R3's *done when* names. The
+    // ring is CLONED from the design's own set rather than derived from invented proportions —
+    // "another one of these, here" is the gesture, and it is the only default that is a fact about
+    // this rocket instead of a number somebody chose. Fins mount ON a tube, so it goes inside the
+    // anchor rather than behind it.
+    await page.goto("/");
+    await page.getByRole("button", { name: "Start a new design" }).click();
+    await page.getByRole("tab", { name: "Flight" }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+
+    const margin = async () => {
+      const t = await page.getByText("Static margin", { exact: true }).locator("xpath=following-sibling::dd").innerText();
+      return parseFloat(t.replace(/[^\d.]/g, ""));
+    };
+    const before = await margin();
+    expect(before).toBeGreaterThan(0);
+
+    await page.getByRole("tab", { name: "Design" }).click();
+    await page.locator("summary", { hasText: /Parts ·/ }).click();
+    const partsTable = page.locator("table").filter({ hasText: "Dimensions" });
+    const finRows = partsTable.locator("tr").filter({ hasText: /Trapezoidal fins/ });
+    await expect(finRows).toHaveCount(1);
+
+    await partsTable.locator("tr").filter({ hasText: /Body tube/ }).first().click();
+    await page.getByRole("button", { name: /Add fins to this tube/ }).click();
+
+    // Two rings now, and the second matches the first — the same dimensions, in the same row text.
+    await expect(finRows).toHaveCount(2);
+    const dims = await finRows.allInnerTexts();
+    const shape = (t: string) => (t.match(/root [\d.]+ ?mm, tip [\d.]+ ?mm, span [\d.]+ ?mm/) ?? [""])[0];
+    expect(shape(dims[0])).toBeTruthy();
+    expect(shape(dims[1])).toBe(shape(dims[0]));
+
+    // And the panel a flyer reads stability off describes the rocket they just built.
+    await page.getByRole("tab", { name: "Flight" }).click();
+    await expect.poll(margin, { timeout: 20000 }).toBeGreaterThan(before);
+
+    // Undoable by name, back to one ring.
+    await page.getByRole("button", { name: /^Undo adding a fin set/ }).click();
+    await expect.poll(margin, { timeout: 20000 }).toBe(before);
+    await page.getByRole("tab", { name: "Design" }).click();
+    await expect(finRows).toHaveCount(1);
+  });
+
+  test("a tube's length can be dragged on the diagram, not only typed", async ({ page }) => {
+    // R3's *done when* asks for a part placed "by direct manipulation". A tube's length was the one
+    // dimension of an airframe with no grip at all — every other body and fin dimension already had
+    // one — so a flyer who had just authored a section could only size it by typing a number at it.
+    // The grip drives the same edit the field does, so the picture and the field are one edit and the
+    // aim decides which tube either of them lands on.
+    await page.goto("/");
+    await page.getByRole("button", { name: "Start a new design" }).click();
+    await page.getByRole("tab", { name: "Design" }).click();
+
+    const handle = page.getByRole("slider", { name: "Body length" });
+    await expect(handle).toBeVisible();
+    const lengthOf = async () => Number(await handle.getAttribute("aria-valuenow"));
+    const before = await lengthOf();
+    expect(before).toBeGreaterThan(0);
+
+    // Arrow keys are the keyboard path every handle here has; each nudge is a real edit commit.
+    await handle.focus();
+    for (let i = 0; i < 10; i++) await handle.press("ArrowRight");
+    await expect.poll(lengthOf, { timeout: 20000 }).toBeGreaterThan(before);
+
+    // The number field agrees — it is the same edit, so the two cannot drift.
+    const bodyLength = page.locator("label").filter({ hasText: /Body length/ }).first().locator("input");
+    await expect.poll(async () => Number(await bodyLength.inputValue()), { timeout: 20000 }).toBeGreaterThan(before);
+
+    // And one undo takes the whole gesture back, not one nudge of it.
+    await page.getByRole("button", { name: /^Undo the body length/ }).click();
+    await expect.poll(lengthOf, { timeout: 20000 }).toBe(before);
+  });
+
+  test("a flyer can add a body tube the design never had, and take it back", async ({ page }) => {
+    // R3's first capability, and the first edit that is an OPERATION rather than a value: the flat patch
+    // has no field for a part that does not exist yet. The gesture is "another one of these, here" — the
+    // new tube goes behind the one on screen and inherits its caliber, wall, material and finish, because
+    // a tube that does not fair to the airframe it joins is a step in the outer mould line and a design
+    // nobody meant to draw.
+    await page.goto("/");
+    await page.getByRole("button", { name: "Start a new design" }).click();
+    await page.getByRole("tab", { name: "Flight" }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+
+    const apogee = async () => {
+      const txt = await page
+        .getByLabel("Results")
+        .getByText("Apogee", { exact: true })
+        .locator("xpath=following-sibling::div")
+        .innerText();
+      return parseFloat(txt.replace(/[^\d.]/g, ""));
+    };
+    const margin = async () => {
+      const t = await page.getByText("Static margin", { exact: true }).locator("xpath=following-sibling::dd").innerText();
+      return parseFloat(t.replace(/[^\d.]/g, ""));
+    };
+    const dry = async () =>
+      parseFloat((((await page.locator("body").innerText()).match(/Mass & balance · dry ([\d.]+)/) ?? [])[1] ?? "0"));
+
+    const asBuilt = { apogee: await apogee(), margin: await margin() };
+    expect(asBuilt.apogee).toBeGreaterThan(0);
+
+    await page.getByRole("tab", { name: "Design" }).click();
+    await page.locator("summary", { hasText: /Parts ·/ }).click();
+    const partsTable = page.locator("table").filter({ hasText: "Dimensions" });
+    const tubes = partsTable.locator("tr").filter({ hasText: /Body tube/ });
+    await expect(tubes).toHaveCount(1);
+    const dryBefore = await dry();
+
+    await tubes.first().click();
+    await page.getByRole("button", { name: /Add a tube behind this/ }).click();
+
+    // The part is in the design, it weighs something, and — the half that matters — the FLIGHT moved
+    // with it. The mass panel and the Flight card read the airframe through different paths, and an
+    // earlier version of this had the panel grow a 310 mm section and put 142 g on the design while the
+    // Flight card went on reporting the apogee of a rocket without it.
+    await expect(tubes).toHaveCount(2);
+    await expect.poll(dry, { timeout: 20000 }).toBeGreaterThan(dryBefore);
+    await page.getByRole("tab", { name: "Flight" }).click();
+    await expect.poll(apogee, { timeout: 20000 }).toBeLessThan(asBuilt.apogee);
+    expect(await margin()).toBeLessThan(asBuilt.margin);
+
+    // The fields re-aimed at the part that was just made, so the very next thing typed changes it —
+    // and the placeholder advertises ITS length, not the design's own tube's.
+    await page.getByRole("tab", { name: "Design" }).click();
+    const bodyLength = page.locator("label").filter({ hasText: /Body length/ }).first().locator("input");
+    const advertised = parseFloat((await bodyLength.getAttribute("placeholder")) ?? "0");
+    expect(advertised).toBeGreaterThan(0);
+    expect(advertised).toBeLessThan(620); // the starter's own tube; the authored one is half of it
+
+    // And it is undoable, by name, back to the design that never had it.
+    await expect(page.getByRole("button", { name: /^Undo adding a body tube/ })).toBeEnabled();
+    await page.getByRole("button", { name: /^Undo adding a body tube/ }).click();
+    await expect(tubes).toHaveCount(1);
+    await page.getByRole("tab", { name: "Flight" }).click();
+    await expect.poll(apogee, { timeout: 20000 }).toBe(asBuilt.apogee);
+  });
+
   test("removing a part re-flies the design, and the removal is undoable", async ({ page }) => {
     // R2's capability. A parametric edit is recoverable by retyping a number; a deletion is not, which is
     // why undo ships with it rather than after it. `two-stage-firm-booster.ork` has two fin sets, so one
@@ -2875,10 +3017,182 @@ test.describe("Loft", () => {
     await expect.poll(margin, { timeout: 20000 }).toBeLessThan(before);
 
     // Undo names the part it will put back, and puts it back exactly.
-    await page.getByRole("button", { name: /^Restore / }).click();
+    await page.getByRole("button", { name: /^Undo removing / }).click();
     await expect.poll(margin, { timeout: 20000 }).toBe(before);
     await page.getByRole("tab", { name: "Design" }).click();
     await expect(partsTable.locator("tr").filter({ hasText: /Trapezoidal fins/ })).toHaveCount(2);
+  });
+
+  test("a typed dimension is undoable, and redoable — not only a removal", async ({ page }) => {
+    // R2's done-when read strictly: undo over the EDIT HISTORY, not over one field. Before this the
+    // only way back from a typed dimension was "Reset to as-designed", which discards everything else
+    // with it — a way out of one state that walks into a worse one.
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+
+    const apogee = async () => {
+      const txt = await page
+        .getByLabel("Results")
+        .getByText("Apogee", { exact: true })
+        .locator("xpath=following-sibling::div")
+        .innerText();
+      return parseFloat(txt.replace(/[^\d.]/g, ""));
+    };
+    const asDesigned = await apogee();
+    expect(asDesigned).toBeGreaterThan(0);
+
+    // Nothing has been done yet, so there is nothing to undo — and the control says so rather than
+    // vanishing, so its place on the header does not move under the pointer.
+    const undo = page.getByRole("button", { name: /^Undo/ });
+    await expect(undo).toBeDisabled();
+
+    await page.getByRole("tab", { name: "Design" }).click();
+    const finThickness = page.getByLabel(/Fin thickness/);
+    const designThickness = parseFloat((await finThickness.getAttribute("placeholder")) ?? "0");
+    expect(designThickness).toBeGreaterThan(0);
+    await finThickness.fill((designThickness * 3).toFixed(1));
+    await page.getByRole("tab", { name: "Flight" }).click();
+    await expect.poll(apogee, { timeout: 20000 }).toBeLessThan(asDesigned);
+
+    // The control NAMES what it will take back. "Undo" alone asks the flyer to remember what they did.
+    await expect(undo).toBeEnabled();
+    await expect(undo).toHaveText(/the fin thickness/);
+    await undo.click();
+    await expect.poll(apogee, { timeout: 20000 }).toBe(asDesigned);
+    // ...and the field it undid went back with the flight, rather than sitting there asserting a
+    // number nothing is flying.
+    await page.getByRole("tab", { name: "Design" }).click();
+    await expect(page.getByLabel(/Fin thickness/)).toHaveValue("");
+
+    // Redo puts it back. Undo without redo is half a control: an undo pressed once too often is
+    // itself a state with no way out.
+    const redo = page.getByRole("button", { name: /^Redo/ });
+    await expect(redo).toBeEnabled();
+    await redo.click();
+    await page.getByRole("tab", { name: "Flight" }).click();
+    await expect.poll(apogee, { timeout: 20000 }).toBeLessThan(asDesigned);
+  });
+
+  test("one undo takes back a whole gesture, not one frame of it", async ({ page }) => {
+    // A drag handle applies a patch on every animation frame, and a held arrow key repeats. Recorded
+    // one commit per frame, the undo stack would be hundreds of steps of a few tenths of a millimetre
+    // each and every earlier edit would be buried under one gesture.
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    await page.getByRole("tab", { name: "Design" }).click();
+
+    // The diagram's fin-position handle is a real slider: focusable, and arrow keys nudge it. Each
+    // nudge is its own edit commit, exactly as each frame of a drag is.
+    const handle = page.getByRole("slider", { name: /Fin position/ }).first();
+    await expect(handle).toBeVisible();
+    const stationOf = async () => Number(await handle.getAttribute("aria-valuenow"));
+    const before = await stationOf();
+
+    // Forward, not aft: this design's fins sit at the tail, where the handle is already against its
+    // limit and an aft nudge applies the same value it already has.
+    await handle.focus();
+    for (let i = 0; i < 12; i++) await handle.press("ArrowLeft");
+    await expect.poll(stationOf, { timeout: 20000 }).toBeLessThan(before);
+
+    // ONE undo returns to where the gesture started — not to the eleventh nudge.
+    await page.getByRole("button", { name: /^Undo/ }).click();
+    await expect.poll(stationOf, { timeout: 20000 }).toBe(before);
+  });
+
+  test("one undo never takes back two gestures on two different parts", async ({ page }) => {
+    // Picking a part records nothing — a selection is not an undoable act — so nothing closed the
+    // gesture that came before it, and a span typed on one fin set, a pick of the other, and a span
+    // typed on that one all carried the same field name inside the coalescing window and merged into
+    // ONE step. Measured on the pure model before the fix: one undo landed back on fin set A, taking
+    // back both gestures and re-aiming the fields at the first part.
+    await page.goto("/");
+    await page
+      .getByLabel(/^Choose an OpenRocket/)
+      .setInputFiles(resolve(process.cwd(), "e2e/fixtures/two-stage-firm-booster.ork"));
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    await page.getByRole("tab", { name: "Design" }).click();
+    await page.locator("summary", { hasText: /Parts ·/ }).click();
+
+    const partsTable = page.locator("table").filter({ hasText: "Dimensions" });
+    const finRows = partsTable.locator("tr").filter({ hasText: /Trapezoidal fins/ });
+    await expect(finRows).toHaveCount(2);
+    const span = page.getByLabel(/Fin span/).and(page.locator("input"));
+
+    await finRows.first().click();
+    await span.fill("70");
+    await finRows.nth(1).click();
+    await span.fill("40");
+
+    // One undo takes back only the SECOND set's span. Before the fix it took back both and the fields
+    // came back aimed at the first set.
+    await page.getByRole("button", { name: /^Undo the fin span/ }).click();
+    await expect(span).toHaveValue("70");
+    // A second undo takes back the first, and only then is there nothing left.
+    await page.getByRole("button", { name: /^Undo the fin span/ }).click();
+    await expect(span).toHaveValue("");
+  });
+
+  test("clearing every what-if is itself undoable", async ({ page }) => {
+    // "Reset to as-designed" is the app's one bulk discard: it takes the removals, the dimensions and
+    // the conditions in a single click. It was the only way back from an edit, and it had no way back
+    // of its own — a one-way door reached from the control that existed to be a way out.
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+
+    const apogee = async () => {
+      const txt = await page
+        .getByLabel("Results")
+        .getByText("Apogee", { exact: true })
+        .locator("xpath=following-sibling::div")
+        .innerText();
+      return parseFloat(txt.replace(/[^\d.]/g, ""));
+    };
+    const asDesigned = await apogee();
+
+    await page.getByRole("tab", { name: "Design" }).click();
+    const finThickness = page.getByLabel(/Fin thickness/);
+    const designThickness = parseFloat((await finThickness.getAttribute("placeholder")) ?? "0");
+    await finThickness.fill((designThickness * 3).toFixed(1));
+    await page.getByRole("tab", { name: "Flight" }).click();
+    await expect.poll(apogee, { timeout: 20000 }).toBeLessThan(asDesigned);
+    const edited = await apogee();
+
+    await page.getByRole("button", { name: "Reset to as-designed" }).click();
+    await expect.poll(apogee, { timeout: 20000 }).toBe(asDesigned);
+
+    // The reset names itself, and gives the work back.
+    const undo = page.getByRole("button", { name: /^Undo/ });
+    await expect(undo).toHaveText(/the reset/);
+    await undo.click();
+    await expect.poll(apogee, { timeout: 20000 }).toBe(edited);
+  });
+
+  test("the keyboard shortcut undoes, and leaves a text box's own undo alone", async ({ page }) => {
+    // Every editor a flyer has used binds this, and a builder that only offers a button is one they
+    // have to go looking for. The exception matters as much: part-way through typing a dimension,
+    // the shortcut belongs to the box, not to the rocket.
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    await page.getByRole("tab", { name: "Design" }).click();
+
+    const finThickness = page.getByLabel(/Fin thickness/);
+    const designThickness = parseFloat((await finThickness.getAttribute("placeholder")) ?? "0");
+    await finThickness.fill((designThickness * 3).toFixed(1));
+    await expect(page.getByRole("button", { name: /^Undo the fin thickness/ })).toBeEnabled();
+
+    // Focus is still in the number box, so the shortcut is the box's: the edit stands.
+    await page.keyboard.press("ControlOrMeta+z");
+    await expect(page.getByRole("button", { name: /^Undo the fin thickness/ })).toBeEnabled();
+
+    // Outside a text box it is the design's.
+    await finThickness.blur();
+    await page.keyboard.press("ControlOrMeta+z");
+    await expect(page.getByRole("button", { name: /^Undo$/ })).toBeDisabled();
+    await expect(page.getByLabel(/Fin thickness/)).toHaveValue("");
   });
 
   test("the last body tube cannot be removed, and it says why", async ({ page }) => {
@@ -3033,6 +3347,47 @@ test.describe("Loft", () => {
     const after = await spanOf();
     expect(after[1], "the edited set keeps its edit").toBe("77");
     expect(after[0], "the set that was never picked must not inherit it").toBe(before[0]);
+  });
+
+  test("a value the field cannot fly never reaches the flight, not even mid-keystroke", async ({ page }) => {
+    // The range was applied at the COMMIT and typing pushed every keystroke straight at the model, so
+    // between the keystroke and the blur the solver flew a number the field itself calls impossible.
+    // Measured on this sample: typing −5 into Rail length put "Rail-exit velocity 0 m/s" on the
+    // pad-check surface — the one number a pad check turns on — with no refusal shown, for as long as
+    // the flyer left the cursor in the box. It also left that value in the edit bag, where undo could
+    // later restore it as though it had been a state worth returning to; after the undo the box read
+    // −5.0, the rail exit read 0 m/s, and the refusal message was gone.
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+
+    const railExit = async () =>
+      (
+        await page
+          .getByText("Rail-exit velocity", { exact: true })
+          .locator("xpath=following-sibling::div[1]")
+          .innerText()
+      ).trim();
+    const asDesigned = await railExit();
+    expect(parseFloat(asDesigned)).toBeGreaterThan(0);
+
+    await page.locator("summary", { hasText: /conditions/i }).first().click();
+    const rail = page.locator("label").filter({ hasText: /Rail length/ }).first().locator("input");
+    await rail.fill("-5");
+
+    // Still in the box, nothing committed — and the flight is untouched.
+    await expect(rail).toBeFocused();
+    await expect.poll(railExit, { timeout: 10000 }).toBe(asDesigned);
+
+    // On the way out it says so, and the flight is still untouched.
+    await rail.blur();
+    await expect(rail).toHaveValue("");
+    await expect(rail).toHaveAttribute("aria-invalid", "true");
+    await expect.poll(railExit, { timeout: 10000 }).toBe(asDesigned);
+
+    // And there is nothing to undo, because nothing a flyer would want back ever happened. Before
+    // this, "Undo the rail length" put −5 back into the flight and cleared the warning with it.
+    await expect(page.getByRole("button", { name: /^Undo$/ })).toBeDisabled();
   });
 
   test("a refused what-if says so, and the field shows what is actually flown", async ({ page }) => {
@@ -3392,6 +3747,79 @@ test.describe("Loft", () => {
     const panel = text.match(/Mass & balance · dry ([\d.,]+\s*[a-z]+)/i);
     expect(panel).not.toBeNull();
     expect(caption![1]).toBe(panel![1]);
+  });
+
+  test("a removal the design's own stated weight swallows says so, before and after the click", async ({
+    page,
+  }) => {
+    // The mirror of the payload case below, and the half R2's delete surface shipped without. Where a
+    // stage states its weight outright, a part inside it weighs nothing of its own — so a removal moves
+    // the balance and NOT the mass, and nothing said so. Measured on the real corpus: removing
+    // `EscapeVelocity.ork`'s 141.7 g "Avionics" leaves dry mass at exactly 2000.0 g while the static
+    // margin moves 4.461 → 4.312 cal. R2's *done when* is "delete it, see stability, dry mass and apogee
+    // move"; on a design of this shape the mass does not, and a flyer is owed the reason rather than a
+    // total that sits still.
+    await page.goto("/");
+    await page
+      .locator('input[type="file"]')
+      .first()
+      .setInputFiles(resolve(process.cwd(), "e2e/fixtures/stage-weighed.ork"));
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    await page.getByRole("tab", { name: "Design" }).click();
+    await page.locator("summary", { hasText: /Parts ·/ }).click();
+
+    const partsTable = page.locator("table").filter({ hasText: "Dimensions" });
+    const fins = partsTable.locator("tr").filter({ hasText: /fins/i }).first();
+    await fins.click();
+
+    // Said BEFORE the click, where the flyer is deciding.
+    await expect(page.getByText(/counts no mass for the parts inside/)).toBeVisible();
+    await expect(page.getByText(/move the balance, not the total/)).toBeVisible();
+
+    await page.getByRole("button", { name: /^Remove / }).click();
+
+    // And after it, on the panel where mass is read — the same place the added-mass case says it.
+    const details = page.locator("details");
+    for (let i = 0; i < (await details.count()); i++) {
+      const dd = details.nth(i);
+      if (!(await dd.evaluate((el: HTMLDetailsElement) => el.open))) await dd.locator("summary").first().click();
+    }
+    await expect(page.getByText(/A part you removed was inside/)).toBeVisible();
+    await expect(page.getByText(/the dry total above is unchanged/)).toBeVisible();
+  });
+
+  test("the point mass that IS a RASAero design's weight cannot be removed, and it says why", async ({
+    page,
+  }) => {
+    // A `.CDX1` carries no materials and no per-part masses — the flyer types one launch weight and CG
+    // per simulation — so the adapter puts the whole stated weight into a single mass component,
+    // because that is the only place the one internal model has to hold it. It is not a part inside the
+    // design; it IS the design's mass. Measured on the real corpus before this refusal: removing it took
+    // `Show-off.CDX1` from 453.6 g dry to 0.0 g with its CG at the nose tip, and flipped
+    // `Complex.Two-Stage.CDX1` from +1.78 caliber to −0.92 — both still flown, both reported with a
+    // confident apogee. 3 of the 4 RASAero designs in the corpus are that shape.
+    await page.goto("/");
+    await page
+      .locator('input[type="file"]')
+      .first()
+      .setInputFiles(resolve(process.cwd(), "e2e/fixtures/demo-rasaero.CDX1"));
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    await page.getByRole("tab", { name: "Design" }).click();
+    await page.locator("summary", { hasText: /Parts ·/ }).click();
+
+    const airframe = page
+      .locator("table")
+      .filter({ hasText: "Dimensions" })
+      .locator("tr")
+      .filter({ hasText: /stated launch weight/ })
+      .first();
+    await airframe.click();
+
+    // No Remove control — a reason instead, as a sentence, exactly as the last body tube gets one.
+    await expect(page.getByRole("button", { name: /^Remove / })).toHaveCount(0);
+    const why = page.getByText(/whole stated weight/);
+    await expect(why).toBeVisible();
+    await expect(why).toContainText("no mass at all");
   });
 
   test("a payload the design's own override swallows says so, instead of looking applied", async ({

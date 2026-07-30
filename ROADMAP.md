@@ -118,12 +118,18 @@ one and the drogue was unreachable on all of them.
 
 ## R2 — Delete a component, and undo it
 
-**Status:** IN PROGRESS — current milestone. Two of its three parts are done and pinned: component ids
-survive an export/re-import round trip (`lib/model/id.test.ts`), and a flyer can remove any component and
-undo it (`lib/model/edit.test.ts`'s `removing a component` suite, plus the e2e cases *removing a part
-re-flies the design, and the removal is undoable* and *the last body tube cannot be removed, and it says
-why*). What is left of the *done when*: undo covers only removals, not every edit, and the parts named in
-it should be walked on a real multi-part corpus design rather than the committed fixtures.
+**Status:** SHIPPED 2026-07-30 — pinned by `lib/model/id.test.ts` (ids survive an export/re-import round
+trip), `lib/model/edit.test.ts` (the `removing a component`, `a part that is not a part` and `what states a
+part's mass` suites), `lib/model/history.test.ts` (17 cases over the undo stack), `lib/corpus/sweep.test.ts`'s
+*never lets a removal leave a design with no mass, and says so when it moves none* (536 removable parts across
+all 35 real designs, and it skips itself where the corpus is absent), and nine e2e cases in
+`e2e/smoke.spec.ts`: *removing a part re-flies the design, and the removal is undoable*, *the last body tube
+cannot be removed, and it says why*, *a typed dimension is undoable, and redoable*, *one undo takes back a
+whole gesture, not one frame of it*, *one undo never takes back two gestures on two different parts*,
+*clearing every what-if is itself undoable*, *the keyboard shortcut undoes, and leaves a text box's own undo
+alone*, *a removal the design's own stated weight swallows says so, before and after the click*, and *the
+point mass that IS a RASAero design's weight cannot be removed, and it says why*. Every one was proved able
+to fail by a negative control with its BUILD_EXIT checked.
 
 **Outcome.** The flyer can remove a part and watch the flight answer change.
 
@@ -144,16 +150,97 @@ stable UUID for the positional ids the adapters fall back to and for the ids a s
 by `lib/model/id.test.ts`, which asserts the round trip preserves identity, that a stored aim still resolves
 through it, and that nothing Loft writes into `<id>` can be malformed.
 
-What remains is the operation model itself and undo over it. The addressing machinery is already there from
-R1 — `AIM_SLOTS`, `aimEditsAt`, `aimsOf`, `AimedPart` in `lib/model/edit.ts` — so the pick surface is done.
+**Undo over the whole edit history is DONE.** `lib/model/history.ts` is a pure, generic snapshot stack:
+every what-if is already a value in one bag applied to a pristine design, so a step is a copy of that bag
+and there is nothing to diff or invert. What it adds is what a bare stack does not give you — a LABEL
+("Undo removing Payload Bay"), RUN COALESCING so one drag of a diagram handle is one undo rather than the
+two hundred frames it fired, and a depth cap. `WhatIf` carries the weather, the scenario and the motor
+configuration alongside the edits, because three controls move more than the edit bag in a single act and
+an undo that restored two of the three would hand back a rocket that never existed. Two limits, both
+disclosed on `/docs/limitations`: 100 steps, and the stack does not survive a reload.
 
-**Size.** 3–5 increments.
+**The mass-object leg is DONE, and it was not a walk — it was two defects**, both found by driving all
+56 mass objects in the corpus through the delete surface, and both fixed and pinned:
+
+1. **Removing the mass object a RASAero import synthesises zeroed the airframe.** Every `.CDX1` import
+   mints one `masscomponent` named "Airframe (stated launch weight)" carrying the whole airframe mass,
+   because the format states one launch weight and no per-part masses and the internal model has nowhere
+   else to hold it. Nothing refused removing it: `Show-off.CDX1` went from 453.6 g dry to **0.0 g** with
+   its CG pinned at the nose tip, and `Complex.Two-Stage.CDX1` flipped from +1.78 cal to **−0.92 cal**
+   and still reported a confident 1,423 m. 3 of the 4 RASAero designs were in that state. The model now
+   marks such a point mass `standsForAirframe` and `removalRefusal` refuses it in a sentence — the same
+   class as the last body tube, a structural impossibility rather than an unwise choice. Re-driven after
+   the fix: **52 mass objects still removable, 0 leaving a weightless design.**
+2. **On a stage-override design a removal sheds no mass at all, and nothing said so.** Where a stage
+   carries `overrideMass` + `overrideSubcomponents` the lumped mass is fixed while its CG is recomputed
+   from what is left, so removing `EscapeVelocity.ork`'s 141.7 g "Avionics" leaves dry mass at exactly
+   2000.0 g while the margin moves 4.461 → 4.312 cal. The model is right — that is what an override
+   means — so the fix is the sentence, not the number: `statedMassHolder` names the assembly or stage
+   whose stated weight covers a part, the parts panel says so **before** the click, and the mass panel
+   says so after, mirroring the notice the add side already had. Re-driven: **1 of 52 removals sheds no
+   mass, and it is disclosed.**
+
+Pinned by `lib/model/edit.test.ts` (`a part that is not a part`, `what states a part's mass`) and the
+e2e cases *a removal the design's own stated weight swallows says so, before and after the click* and
+*the point mass that IS a RASAero design's weight cannot be removed, and it says why*.
+
+**What the *done when* actually did, walked in the built export on a real design.**
+`Simulation scripting.ork` — 1 stage, 4 fin sets, 2 mass objects, 3 body tubes, flying 2,348 m at 2.09 cal
+on 7.012 kg dry:
+
+| removed | apogee | margin | dry | undo |
+|---|---|---|---|---|
+| fin set "CONTROL" | 2,458 m | 3.08 cal (flagged HIGH) | 6.957 kg | back to the exact prior model |
+| mass object "Nose cone payload" | 2,399 m | 1.58 cal | 6.362 kg | back to the exact prior model |
+| aft body tube | no flight, and it says why | — | 4.672 kg | back to the exact prior model |
+
+The aft tube is the interesting one: it carries the motor mount, so removing it leaves a design with no
+propulsion — which Loft reports as such rather than inventing a flight for it, exactly as the removal rules
+already say it should. On that same design, taking tubes away until one is left refuses the last with
+*"This is the only body tube left, and an airframe needs one…"*.
+
+**The gap, which is R3's starting point rather than a reason to re-open this.** Undo is a stack of edit-bag
+snapshots, not an operation list. It delivers everything R2's *done when* asks and it is the right shape for
+a flat patch — but R3 adds parts, and "add" is the first edit that cannot be expressed as a value in that
+bag. The snapshot stack survives the transition unchanged (a snapshot of an operation list is still a
+snapshot); what does not is `GeometryEdits`. Two smaller gaps, both filed with measurements in `BACKLOG.md`:
+the gesture boundary is still inferred from a clock rather than taken from the drag handle's own
+pointer-down/up, and a rename is the one header control that is not on the stack.
+
+**Size.** 3–5 increments. **Took 4.**
 
 ---
 
 ## R3 — Add a component
 
-**Status:** NOT STARTED
+**Status:** IN PROGRESS — current milestone. The operation model is in and two kinds ship: a flyer can
+author a **body tube** behind any tube, and a **fin set** onto any tube, from the diagram or the parts
+list — and each flies, weighs, draws, exports, is aimable, is removable and is undoable by name. The
+fin ring is cloned from the design's own set rather than derived from invented proportions, which is the
+only default that is a fact about the rocket rather than a number somebody chose; all 35 corpus designs
+carry a set and so does the starter, so a source always exists. Pinned by `lib/model/edit.test.ts`'s
+`adding a component` suite (11 cases) and the e2e cases *a flyer can add a body tube the design never had,
+and take it back* and *a flyer can add a second fin ring, and the stability panel describes it*. A tube's length is now
+draggable on the diagram too — the one airframe dimension that had no grip — pinned by *a tube's length
+can be dragged on the diagram, not only typed*. Still to come: transitions and mass objects, and moving a
+part to another station rather than only sizing it where it was added.
+
+**The shape, decided and shipped.** `GeometryEdits.added` is an ordered list of `AddedPart` — an id, a
+kind, the id of the component it sits behind, and the one dimension no neighbour can supply. Everything
+else is inherited from that neighbour, which is what makes the gesture "another one of these, here"
+rather than a modal wall of number fields. Two things it gets right that the three existing flat adds
+(boattail, drogue, payload) do not, and both were measured on real designs:
+
+- **Identity.** The flat adds derive their id from their anchor (`${tube.id}-boattail`), so removing the
+  anchor silently renames the part: on `01.One-stage.ork`, removing the aft tube moves the boattail to
+  station 0.4429 with the id `c2-boattail` instead of `c4-boattail`. A part whose id moves cannot be
+  aimed at, removed or undone. `AddedPart` mints its own, derived from the design so it survives a reload.
+- **An anchor that is a part, not a role.** The payload anchors on "the longest tube", so an unaimed
+  `bodyLength` moves it: on the same design, shrinking one tube jumps the payload from station 816 mm to
+  316 mm while the field goes on advertising 816.
+
+Applied BEFORE removals, so an authored part can be removed by id like any other, and before the
+dimension edits, so `bodyTubeId` can aim at it and `bodyLength` can change it.
 
 **Outcome. The milestone that makes Loft a builder.** The flyer can grow an airframe that did not
 come from a file.
@@ -258,6 +345,22 @@ Unattended runs do not stop to ask (see *Unattended operation* in `MAINTAINING.m
 that would otherwise have been a question goes here, with the option rejected, so it can be reversed
 cheaply instead of re-derived. Newest first.
 
+- **2026-07-30 — the undo stack is not persisted across a reload, and a pick is not an undo step.**
+  Rejected persisting it: the saved session is written to `localStorage` on every keystroke and
+  `writeSlot` caps only the design bytes, so an unbounded stack of snapshots fails at the quota — and
+  that failure is caught and returns false, losing the WHOLE session write rather than just the stack.
+  The desktop tools do not persist undo across a save either. Rejected recording picks: a selection
+  changes no geometry (it is already in `INERT_EDIT_FIELDS`), no editor a flyer has used makes selection
+  undoable, and recording it would bury the edits under the clicks that led to them. Both are stated on
+  `/docs/limitations` rather than left to be discovered.
+- **2026-07-30 — a gesture boundary is inferred from the patch's field names plus a 900 ms window, not
+  taken from the drag handle's own pointer-down/up.** `RocketDiagram`'s `onActiveChange` reports the real
+  boundary and is wired to only 2 of the 7 handles, for freezing the SVG frame. Rejected threading it
+  through all seven and into the history for now: the inference is right for every gesture measured, and
+  the one case where it was wrong — a pick between two drags on the same field merging them into one step
+  — is fixed at the real cause (`endRun`, called by any change that records nothing) rather than by
+  guessing at a clock. Taking the true boundaries is the better design and belongs with the field-blur
+  boundary too; filed rather than half-done.
 - **2026-07-30 — R1 aimed body tubes, fin sets and canopies, and deliberately NOT nose cones,
   transitions or mass objects.** R1's notes named "nose, tubes, transitions and mass objects". Measured
   after import across the 35-design corpus: 23 designs carry several body tubes, 17 several parachutes,
