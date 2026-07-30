@@ -3207,6 +3207,47 @@ test.describe("Loft", () => {
     expect(after[0], "the set that was never picked must not inherit it").toBe(before[0]);
   });
 
+  test("a value the field cannot fly never reaches the flight, not even mid-keystroke", async ({ page }) => {
+    // The range was applied at the COMMIT and typing pushed every keystroke straight at the model, so
+    // between the keystroke and the blur the solver flew a number the field itself calls impossible.
+    // Measured on this sample: typing −5 into Rail length put "Rail-exit velocity 0 m/s" on the
+    // pad-check surface — the one number a pad check turns on — with no refusal shown, for as long as
+    // the flyer left the cursor in the box. It also left that value in the edit bag, where undo could
+    // later restore it as though it had been a state worth returning to; after the undo the box read
+    // −5.0, the rail exit read 0 m/s, and the refusal message was gone.
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+
+    const railExit = async () =>
+      (
+        await page
+          .getByText("Rail-exit velocity", { exact: true })
+          .locator("xpath=following-sibling::div[1]")
+          .innerText()
+      ).trim();
+    const asDesigned = await railExit();
+    expect(parseFloat(asDesigned)).toBeGreaterThan(0);
+
+    await page.locator("summary", { hasText: /conditions/i }).first().click();
+    const rail = page.locator("label").filter({ hasText: /Rail length/ }).first().locator("input");
+    await rail.fill("-5");
+
+    // Still in the box, nothing committed — and the flight is untouched.
+    await expect(rail).toBeFocused();
+    await expect.poll(railExit, { timeout: 10000 }).toBe(asDesigned);
+
+    // On the way out it says so, and the flight is still untouched.
+    await rail.blur();
+    await expect(rail).toHaveValue("");
+    await expect(rail).toHaveAttribute("aria-invalid", "true");
+    await expect.poll(railExit, { timeout: 10000 }).toBe(asDesigned);
+
+    // And there is nothing to undo, because nothing a flyer would want back ever happened. Before
+    // this, "Undo the rail length" put −5 back into the flight and cleared the warning with it.
+    await expect(page.getByRole("button", { name: /^Undo$/ })).toBeDisabled();
+  });
+
   test("a refused what-if says so, and the field shows what is actually flown", async ({ page }) => {
     // The field is controlled by the committed edit, so an entry the model refuses left `value`
     // unchanged — React never re-rendered the node and the refused text sat there looking like the

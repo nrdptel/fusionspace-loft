@@ -223,7 +223,9 @@ export default function Limitations() {
         last <strong>100</strong> steps, and it does <strong>not survive a reload</strong> — a resumed
         session comes back with its edits applied and an empty history, the same as the desktop tools,
         which do not persist undo across a save either. Picking a part is not an undo step; it aims the
-        fields at another component without changing the rocket.
+        fields at another component without changing the rocket. Nor is an entry the field refuses: a
+        value outside a field&apos;s range never reaches the flight at all, so there is no impossible
+        state for an undo to return to.
       </p>
       <p>
         One consequence worth knowing, because it follows from the fields being a fixed set rather than

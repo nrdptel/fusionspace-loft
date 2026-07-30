@@ -2334,6 +2334,28 @@ function Num({
     else if (against.current !== flown) setRefused(null);
   });
 
+  /** Would this entry be refused or pulled to a bound? Then it must not reach the model even in
+   *  passing.
+   *
+   *  Typing pushes every keystroke at the flight, and the range was applied only at the COMMIT — so
+   *  between the keystroke and the blur the solver was flying a number the field itself calls
+   *  impossible. Measured on the 38 mm sample: typing −5 into Rail length put "Rail-exit velocity
+   *  0 m/s" on the pad-check surface, with no refusal shown, for as long as the flyer left the cursor
+   *  in the box. That is the one number a pad check turns on. It also left an impossible value sitting
+   *  in the edit bag, which undo could later restore as though it had been a state worth returning to.
+   *
+   *  Digit-by-digit entry is untouched: "1" on the way to "12" is inside the range and lands as before.
+   *  What is withheld is a COMPLETE number the field would not accept — the same rule the commit path
+   *  applies, asked one step earlier. The literal zero on a positive field was already withheld this
+   *  way; this is that rule generalised rather than a new one. */
+  const wouldNotFly = (raw: string) => {
+    if (raw === "") return false;
+    const n = Number(raw);
+    if (!Number.isFinite(n)) return true;
+    const bounded = min !== undefined && n < min ? min : max !== undefined && n > max ? max : n;
+    return bounded !== n || (positive === true && bounded <= 0);
+  };
+
   /** Commit the typed text. Returns what the model was asked for, which is not always what was
    *  typed: a value outside the range is pulled to the nearest bound rather than refused outright,
    *  because the flyer's intent ("as thin as it goes") is legible and a bound is a real answer. */
@@ -2357,14 +2379,12 @@ function Num({
     // turns on. Refusing it says which value is actually in the flight instead.
     if (positive && bounded === 0) {
       setRefused(raw);
-      // Blank the field's contribution ONLY when this entry actually reached the model. Typing
-      // pushes every keystroke at it, so an entry that arrives here NEGATIVE has already put a
-      // negative dimension in the edit bag; the model declines to apply it and the box then
-      // redisplays it, which is a field asserting a value nothing is flying. A literal zero never
-      // got that far — the keystroke handler below withholds it — so blanking on a zero would throw
-      // away a good edit the flyer made earlier and typed over: a committed 25 mm fin span, one "0"
-      // and a Tab, and the 25 is gone with only the global reset to bring anything back.
-      if (n !== 0) onChange("");
+      // Nothing to undo at the model: `wouldNotFly` withheld this entry at the keystroke, so it never
+      // reached the flight and there is nothing of it to blank. Blanking anyway is what the earlier
+      // version had to do — a negative DID reach the model then — and doing it now would throw away a
+      // good edit the flyer made earlier and typed over: a committed 25 mm fin span, one "-3" and a
+      // Tab, and the 25 would be gone with only the global reset to bring anything back. The box
+      // re-syncs to what is flown on its own; the message above says which value that is.
       return;
     }
     setRefused(bounded !== n ? raw : null);
@@ -2398,11 +2418,12 @@ function Num({
         onChange={(e) => {
           setDraft(e.target.value);
           setRefused(null);
-          // A field the model will not fly at zero never sends one, not even in passing. This fires
-          // on every keystroke, so "0" on the way to "0.5" would otherwise reach the model — and a
+          // A value this field would not accept never reaches the flight, not even in passing. This
+          // fires on every keystroke, so without it "0" on the way to "0.5" reaches the model — and a
           // zero that lands counts as an edit, which is enough on its own to withhold the stored-tool
-          // comparison for a change that changed nothing. The commit path below says so in words.
-          if (positive && e.target.value !== "" && Number(e.target.value) === 0) return;
+          // comparison for a change that changed nothing — while a typed −5 flew a rail no rocket
+          // leaves and printed 0 m/s beside it. The commit path below says so in words.
+          if (wouldNotFly(e.target.value)) return;
           onChange(e.target.value);
         }}
         onBlur={(e) => commit(e.target.value)}
