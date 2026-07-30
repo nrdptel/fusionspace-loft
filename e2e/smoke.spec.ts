@@ -2921,6 +2921,12 @@ test.describe("Loft", () => {
     await expect(
       page.getByText(/Body length.*describes and changes the tube 800 mm from the nose/),
     ).toBeVisible();
+    // And the restored aim is IDENTIFIED, not just asserted: the row the fields are holding is picked
+    // out on the diagram and in the table. Without that the editor comes back claiming to be aimed at
+    // a part nothing on screen points to, while the drag handles do sit on it — two surfaces
+    // disagreeing about one pick.
+    await expect(rows2.nth(1)).toHaveAttribute("aria-selected", "true");
+    await expect(rows2.nth(0)).toHaveAttribute("aria-selected", "false");
   });
 
   test("an active fin edit stays on its set when you click something else", async ({ page }) => {

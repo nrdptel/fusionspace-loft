@@ -848,7 +848,7 @@ export default function LoftApp() {
             parachutePart: primaryParachutePart(doc.rocket, edits.parachuteId),
             unreachableParachutes: unreachableParachuteCount(doc.rocket),
             motorClusterCount: primaryMotorClusterCount(doc.rocket),
-            payloadStation: defaultPayloadStation(doc.rocket),
+            payloadStation: defaultPayloadStation(doc.rocket, edits.bodyTubeId),
           }
         : {
             finSpan: undefined,

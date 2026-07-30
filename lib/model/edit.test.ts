@@ -1346,3 +1346,73 @@ describe("the aim registry is the one list", () => {
     for (const v of Object.values(aims)) expect(typeof v === "string" || v === undefined).toBe(true);
   });
 });
+
+describe("a structural add stays where it belongs, whatever tube is picked", () => {
+  /** Every component's station, keyed by id, so a test can say where a part landed. */
+  const stations = (r: Rocket) => new Map(flattenRocket(r).map((p) => [p.component.id, p.xFore]));
+
+  it("puts the boattail on the tail even when a picked tube is lengthened past the longest", async () => {
+    // `demo-quirks.ork` is a 500 mm forward tube ahead of a 450 mm aft tube, so the LONGEST tube is
+    // already the forward one — the committed fixture that reproduces the shape without the corpus,
+    // which is gitignored and absent on a fork.
+    //
+    // The live version was measured on `01.One-stage.ork` (a 254 mm payload tube ahead of a 610 mm body
+    // tube, where "longest" did stand in for "aft" until `bodyLength` became aimed): picking the
+    // forward tube and taking it to 700 mm made it the longest, and the tail cone moved with it to
+    // station 889 mm, contracting 54 mm to 40 mm and re-expanding through the transition behind it.
+    // The solver flies that, so base drag, CP, CG and apogee all came from a rocket nobody asked for.
+    const rocket = await load("demo-quirks.ork");
+    const tubes = flattenRocket(rocket).filter((p) => p.component.kind === "bodytube");
+    expect(tubes.length).toBe(2);
+    const fwd = tubes[0].component.id;
+    const aft = tubes[1].component.id;
+
+    const add = { boattailLength: 0.05, boattailAftDiameter: 0.03 };
+    const noPick = applyGeometryEdits(rocket, add);
+    const picked = applyGeometryEdits(rocket, { ...add, bodyTubeId: fwd, bodyLength: 0.9 });
+
+    // Either way the boattail hangs off the AFT tube, never the forward one.
+    expect(stations(noPick).has(`${aft}-boattail`)).toBe(true);
+    expect(stations(picked).has(`${aft}-boattail`)).toBe(true);
+    expect(stations(picked).has(`${fwd}-boattail`)).toBe(false);
+    // And it sits behind the aft tube's own trailing edge, not part-way up the airframe.
+    const st = stations(picked);
+    const aftPlaced = flattenRocket(picked).find((p) => p.component.id === aft)!;
+    expect(st.get(`${aft}-boattail`)!).toBeCloseTo(aftPlaced.xFore + aftPlaced.length, 6);
+    // The forward tube really did grow past the aft one, so the case is live rather than side-stepped.
+    expect(flattenRocket(picked).find((p) => p.component.id === fwd)!.length).toBeCloseTo(0.9, 9);
+  });
+
+  it("puts the payload in the tube that is picked, and says where that is", async () => {
+    const rocket = await load("demo-quirks.ork");
+    const tubes = flattenRocket(rocket).filter((p) => p.component.kind === "bodytube");
+    const mount = tubes.find((p) => p.component.name === "Motor mount body")!.component.id;
+    const upper = tubes.find((p) => p.component.name === "Upper")!.component.id;
+
+    // Blank station, no pick: the bay goes in the primary (longest) tube, as it always has.
+    const none = applyGeometryEdits(rocket, { payloadMassKg: 0.3 });
+    expect(stations(none).has(`${upper}-payload`)).toBe(true);
+
+    // Blank station with the aft tube picked: the bay goes THERE...
+    const aimed = applyGeometryEdits(rocket, { bodyTubeId: mount, payloadMassKg: 0.3 });
+    expect(stations(aimed).has(`${mount}-payload`)).toBe(true);
+    expect(stations(aimed).has(`${upper}-payload`)).toBe(false);
+    // ...and the field's placeholder names the same tube's mid-point, so a blank and what a blank does
+    // agree. They did not: the station field went on advertising the primary tube's mid-point.
+    const placeholder = defaultPayloadStation(rocket, mount)!;
+    expect(stations(aimed).get(`${mount}-payload`)!).toBeCloseTo(placeholder, 9);
+    expect(defaultPayloadStation(rocket)).not.toBeCloseTo(placeholder, 6);
+  });
+
+  it("resolves the aft-most tube by station, not by length", async () => {
+    // The distinction is the whole fix: `demo-quirks.ork`'s aft tube (450 mm) is SHORTER than its
+    // forward one (500 mm), so anything resolving "longest" picks the wrong end unaided.
+    const rocket = await load("demo-quirks.ork");
+    const tubes = flattenRocket(rocket).filter((p) => p.component.kind === "bodytube");
+    const aft = tubes.reduce((a, b) => (b.xFore > a.xFore ? b : a));
+    expect(aft.component.name).toBe("Motor mount body");
+    expect(primaryBodyTube(rocket)!.name).toBe("Upper"); // the longest is the FORWARD one
+    const edited = applyGeometryEdits(rocket, { boattailLength: 0.04, boattailAftDiameter: 0.03 });
+    expect(stations(edited).has(`${aft.component.id}-boattail`)).toBe(true);
+  });
+});

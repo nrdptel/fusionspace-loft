@@ -178,16 +178,29 @@ export default function GeometryInspector({
   // body fields at another part, treating any of them as "the pick" would drag the highlight straight
   // back off whichever the flyer clicked last — so the previous map is kept and compared slot by slot.
   const aimSig = JSON.stringify(aims ?? {});
-  const lastAims = useRef(aimSig);
+  // Seeded EMPTY, not with the aims present at mount, so the first run sees a restored session's aim as
+  // a move and shows it as the pick. Seeded with them, the mount-time comparison found nothing moved and
+  // a resumed session came back asserting the fields were aimed at a part that nothing on the diagram or
+  // in the parts table identified — while the drag handles did sit on it. Two surfaces disagreeing about
+  // the same pick.
+  const lastAims = useRef("{}");
   useEffect(() => {
     const was: Record<string, string | undefined> = JSON.parse(lastAims.current);
     lastAims.current = aimSig;
-    const now = aims ?? {};
-    const moved = [...new Set([...Object.keys(was), ...Object.keys(now)])].find((k) => was[k] !== now[k]);
-    if (moved === undefined) return;
-    // An aim that moved TO a part shows as the pick. An aim the model CLEARED only clears the pick
-    // when that is the part it was aiming through — a part the flyer is merely reading stays picked.
-    setSelectedId((cur) => (now[moved] ? now[moved]! : cur === was[moved] ? null : cur));
+    const now: Record<string, string | undefined> = aims ?? {};
+    const moved = [...new Set([...Object.keys(was), ...Object.keys(now)])].filter((k) => was[k] !== now[k]);
+    if (!moved.length) return;
+    setSelectedId((cur) => {
+      // An aim that moved TO a part shows as the pick.
+      const aimed = moved.map((k) => now[k]).find(Boolean);
+      if (aimed) return aimed;
+      // Otherwise every aim that moved was CLEARED — "Reset to as-designed" clears them all at once, so
+      // more than one moves in a single commit. Drop the pick only when it is a part one of them was
+      // aiming through; a part the flyer is merely reading stays picked. Examining only the first moved
+      // slot left a picked tube highlighted with no aim behind it, after which the next click on that
+      // row toggled the highlight OFF instead of aiming, so it took two clicks to aim at it again.
+      return moved.some((k) => was[k] === cur) ? null : cur;
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [aimSig]);
 

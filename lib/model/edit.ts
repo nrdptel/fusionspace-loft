@@ -747,16 +747,35 @@ export function primaryFinish(rocket: Rocket): SurfaceFinish {
   return "unfinished";
 }
 
-/** Append a conical boattail after the design's primary body tube. Sized from the *edited* tube, so
+/** The airframe's aft-most top-level body tube — the one a tail cone belongs behind.
+ *
+ *  Deliberately neither the longest tube nor the picked one. Not the picked one because a boattail
+ *  CONTRACTS the base, so putting one behind whatever tube a flyer happened to be reading inserts a
+ *  step part-way up the airframe, which then re-expands through the parts aft of it — geometry the
+ *  solver dutifully flies. Not the longest either, which is what this used to resolve: once `bodyLength`
+ *  became aimed at a picked tube, lengthening a forward tube past the longest moved the tail cone with
+ *  it. Measured on `01.One-stage.ork` (a 254 mm payload tube ahead of a 610 mm body tube): picking the
+ *  forward tube and taking it to 700 mm put the boattail at station 889 mm, contracting 54 mm to 40 mm
+ *  and re-expanding through the transition behind it, instead of at 1,121 mm on the tail.
+ *
+ *  Top-level only, because that is the list the insert can splice into; a nested tube has no
+ *  unambiguous aft slot and the caller skips the boattail rather than placing it wrongly. */
+function aftmostBodyTube(rocket: Rocket): BodyTube | undefined {
+  const topLevel = new Set(rocket.stages.flatMap((s) => s.components.map((c) => c.id)));
+  const tubes = flattenRocket(rocket).filter(
+    (p) => p.component.kind === "bodytube" && topLevel.has(p.component.id),
+  );
+  if (!tubes.length) return undefined;
+  return tubes.reduce((a, b) => (b.xFore + b.length > a.xFore + a.length ? b : a)).component as BodyTube;
+}
+
+/** Append a conical boattail after the airframe's aft-most body tube. Sized from the *edited* tube, so
  *  it fairs to whatever diameter the other what-ifs left (e.g. after a caliber change), and its exit
  *  is clamped just inside the body so it can only contract, never flare. Skips silently when there's
  *  no top-level body tube to attach to, or the requested exit isn't a valid contraction — the caller
  *  keeps the un-boattailed design rather than a malformed one. */
 function addBoattail(rocket: Rocket, length: number, aftRadius: number): Rocket {
-  // Deliberately NOT the picked tube: a boattail contracts the base, so putting one behind a tube the
-  // flyer happens to be reading would insert a step part-way up the airframe. It belongs at the aft,
-  // and the primary tube stands in for that.
-  const tube = primaryBodyTube(rocket);
+  const tube = aftmostBodyTube(rocket);
   if (!tube || !(length > 0) || !(aftRadius > 0) || !(aftRadius < tube.outerRadius)) return rocket;
   const boattail: Transition = {
     id: `${tube.id}-boattail`,
@@ -787,8 +806,8 @@ function addBoattail(rocket: Rocket, length: number, aftRadius: number): Rocket 
 
 /** A sensible default station (m from the nose tip) for an added payload: the mid-point of the main
  *  body tube, a typical avionics-bay location. Undefined for a design with no body tube. */
-export function defaultPayloadStation(rocket: Rocket): number | undefined {
-  const tube = primaryBodyTube(rocket);
+export function defaultPayloadStation(rocket: Rocket, selectedId?: string): number | undefined {
+  const tube = primaryBodyTube(rocket, selectedId);
   if (!tube) return undefined;
   const placed = flattenRocket(rocket).find((p) => p.component.id === tube.id);
   return placed ? placed.xFore + placed.length / 2 : undefined;
@@ -799,8 +818,18 @@ export function defaultPayloadStation(rocket: Rocket): number | undefined {
  *  clamped to stay within the tube — so it adds to the loaded mass and shifts the CG toward its
  *  station without disturbing the external airframe. Exports as an `.ork` mass object. Skips silently
  *  when there's no body tube to hold it or the mass isn't positive, so the caller keeps the design. */
-function addPayloadMass(rocket: Rocket, massKg: number, station: number | undefined): Rocket {
-  const tube = primaryBodyTube(rocket);
+function addPayloadMass(
+  rocket: Rocket,
+  massKg: number,
+  station: number | undefined,
+  selectedId?: string,
+): Rocket {
+  // The picked tube, so a blank station puts the bay in the tube the flyer is holding and the field's
+  // placeholder can say where that is. Resolved by role instead, the bay jumped tube the moment a
+  // length edit made a different one the longest: on `01.One-stage.ork`, picking the forward tube and
+  // taking it to 700 mm moved the payload from station 816 mm to 539 mm while the field went on
+  // advertising 816.
+  const tube = primaryBodyTube(rocket, selectedId);
   if (!tube || !(massKg > 0)) return rocket;
   const placed = flattenRocket(rocket).find((p) => p.component.id === tube.id);
   if (!placed) return rocket;
@@ -1010,7 +1039,7 @@ export function applyGeometryEdits(rocket: Rocket, edits: GeometryEdits): Rocket
   // Payload add: a point mass inside the (already-edited) body tube, so its station tracks whatever
   // the length/diameter edits left.
   if (edits.payloadMassKg !== undefined && edits.payloadMassKg > 0) {
-    out = addPayloadMass(out, edits.payloadMassKg, edits.payloadStation);
+    out = addPayloadMass(out, edits.payloadMassKg, edits.payloadStation, edits.bodyTubeId);
   }
   return out;
 }
