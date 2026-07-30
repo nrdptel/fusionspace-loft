@@ -37,6 +37,8 @@ import {
   primaryFinSetPart,
   primaryBodyTubePart,
   aimEditsAt,
+  removalRefusal,
+  aimsClearedByRemoving,
   hasGeometryEdits,
 } from "./edit";
 import type {
@@ -50,6 +52,7 @@ import type {
 import { overallLength } from "./geometry";
 import { newDesign } from "./starter";
 import { runFlight } from "../sim/run";
+import { dryMassProperties } from "../sim/mass";
 import { exportOrk } from "../ork/export";
 import { defaultPayloadStation } from "./edit";
 import { recoverySizing } from "../sim/recovery";
@@ -1440,5 +1443,218 @@ describe("the boattail's advertised bound is the bound that is enforced", () => 
     // tube: 60 mm sits inside the forward tube's 66 mm and is silently dropped.
     const refused = applyGeometryEdits(rocket, { boattailLength: 0.05, boattailAftDiameter: 0.06 });
     expect(flattenRocket(refused).some((p) => p.component.id.endsWith("-boattail"))).toBe(false);
+  });
+});
+
+describe("removing a component", () => {
+  const parts = (r: Rocket) => flattenRocket(r).map((p) => p.component);
+  const ids = (r: Rocket) => parts(r).map((c) => c.id);
+  const byName = (r: Rocket, name: string) => parts(r).find((c) => c.name === name)!;
+
+  it("takes the part and everything mounted inside it", async () => {
+    // `demo-quirks.ork`'s forward tube holds a coupler, a mass object and a streamer. Deleting the tube
+    // has to take them: a part cannot stay mounted inside something that is gone.
+    const rocket = await load("demo-quirks.ork");
+    const upper = byName(rocket, "Upper");
+    const inside = upper.children.map((c) => c.id);
+    expect(inside.length).toBeGreaterThan(1);
+
+    const after = applyGeometryEdits(rocket, { removedIds: [upper.id] });
+    expect(ids(after)).not.toContain(upper.id);
+    for (const id of inside) expect(ids(after), `${id} was mounted inside the removed tube`).not.toContain(id);
+    // Everything else survives.
+    expect(ids(after)).toContain(byName(rocket, "Motor mount body").id);
+    // Non-destructive.
+    expect(ids(rocket)).toContain(upper.id);
+  });
+
+  it("changes the flight — mass, stability and apogee all move", async () => {
+    const rocket = await load("demo-single-deploy.ork");
+    const fins = parts(rocket).find((c) => c.kind === "trapezoidfinset")!;
+    const gone = applyGeometryEdits(rocket, { removedIds: [fins.id] });
+    const before = runFlight(rocket, {}).result;
+    const after = runFlight(gone, {}).result;
+    // Losing the fins sheds their structural mass...
+    expect(dryMassProperties(gone).mass).toBeLessThan(dryMassProperties(rocket).mass);
+    expect(after.liftoffMass).toBeLessThan(before.liftoffMass);
+    // ...and their normal force, so the rocket is far less stable and flies higher on less drag and mass.
+    expect(after.staticMarginCal).toBeLessThan(before.staticMarginCal);
+    expect(after.summary.apogee).toBeGreaterThan(before.summary.apogee);
+  });
+
+  it("drops a motor left without its mount rather than flying it at the nose tip", async () => {
+    // The silent-wrong-flight case. `lib/sim/setup.ts` resolves an unknown mount to undefined and places
+    // the motor's mass at station 0, so a dangling instance is worse than no motor at all.
+    const rocket = await load("demo-single-deploy.ork");
+    const mount = parts(rocket).find((c) => "motorMount" in c && c.motorMount)!;
+    const referenced = rocket.configurations.flatMap((c) => c.instances).filter((i) => i.mountId === mount.id);
+    expect(referenced.length).toBeGreaterThan(0);
+
+    const after = applyGeometryEdits(rocket, { removedIds: [mount.id] });
+    expect(after.configurations.flatMap((c) => c.instances).map((i) => i.mountId)).not.toContain(mount.id);
+    // The configuration itself stays, so the picker still lists it and the run says what is missing.
+    expect(after.configurations.length).toBe(rocket.configurations.length);
+    // And the flight reports no propulsion rather than a motor at the nose.
+    expect(runFlight(after, {}).hasPropulsion).toBe(false);
+  });
+
+  it("re-resolves every role against what is left", async () => {
+    // Delete the longest tube and the body fields must describe the longest of the REST, not a part that
+    // is gone — the roles resolve after the prune, which is the whole reason removals are applied first.
+    const rocket = await load("demo-quirks.ork");
+    const upper = byName(rocket, "Upper");
+    expect(primaryBodyTube(rocket)!.id).toBe(upper.id);
+    const after = applyGeometryEdits(rocket, { removedIds: [upper.id] });
+    expect(primaryBodyTube(after)!.name).toBe("Motor mount body");
+    // An aim naming the removed part falls back rather than resolving to nothing.
+    expect(primaryBodyTube(after, upper.id)!.name).toBe("Motor mount body");
+  });
+
+  it("is undone exactly by dropping the last id — the design comes back identical", async () => {
+    // Undo, and why the removals are an ordered LIST. The model is always rebuilt from the pristine design
+    // plus the bag, so popping an entry restores the design before that deletion with nothing to diff.
+    const rocket = await load("demo-quirks.ork");
+    const a = byName(rocket, "Motor mount body").id;
+    const b = parts(rocket).find((c) => c.kind === "tubecoupler")!.id;
+
+    const one = applyGeometryEdits(rocket, { removedIds: [b] });
+    const two = applyGeometryEdits(rocket, { removedIds: [b, a] });
+    expect(ids(two).length).toBeLessThan(ids(one).length);
+
+    // Undo the second deletion: back to exactly the one-deletion model.
+    const undone = applyGeometryEdits(rocket, { removedIds: [b] });
+    expect(ids(undone)).toEqual(ids(one));
+    expect(JSON.stringify(undone)).toBe(JSON.stringify(one));
+    // Undo the first too: back to the pristine design, part for part.
+    expect(ids(applyGeometryEdits(rocket, { removedIds: [] }))).toEqual(ids(rocket));
+  });
+
+  it("refuses the last body tube, with a sentence saying why", async () => {
+    const rocket = await load("demo-quirks.ork");
+    const upper = byName(rocket, "Upper").id;
+    const mount = byName(rocket, "Motor mount body").id;
+    // Two tubes: either may go.
+    expect(removalRefusal(rocket, upper)).toBeNull();
+    expect(removalRefusal(rocket, mount)).toBeNull();
+
+    // One gone, and the other is refused — judged against the design AS SHOWN, not the pristine one.
+    const oneLeft = applyGeometryEdits(rocket, { removedIds: [upper] });
+    const why = removalRefusal(oneLeft, mount);
+    expect(why).toBeTruthy();
+    expect(why).toMatch(/only body tube/);
+    expect(why).toMatch(/[.!]$/); // a sentence, not a code
+  });
+
+  it("allows the parts a refusal would be a verdict about", async () => {
+    // The nose (a flat-faced tube is buildable) and the only motor mount (no propulsion is a fact Loft
+    // already reports). Refusing either would be Loft issuing a go/no-go, which it does not do.
+    const rocket = await load("demo-single-deploy.ork");
+    const nose = parts(rocket).find((c) => c.kind === "nosecone")!;
+    const mount = parts(rocket).find((c) => "motorMount" in c && c.motorMount)!;
+    expect(removalRefusal(rocket, nose.id)).toBeNull();
+    expect(removalRefusal(rocket, mount.id)).toBeNull();
+    expect(removalRefusal(rocket, "no-such-component")).toMatch(/no longer in this design/);
+  });
+
+  it("counts as an edit, so nothing presents the design as unmodified", async () => {
+    const rocket = await load("demo-quirks.ork");
+    const coupler = parts(rocket).find((c) => c.kind === "tubecoupler")!;
+    expect(hasGeometryEdits({ removedIds: [coupler.id] })).toBe(true);
+    expect(hasGeometryEdits({ removedIds: [] })).toBe(false);
+    expect(INERT_EDIT_FIELDS.has("removedIds"), "a removal is a change, not a selection").toBe(false);
+  });
+});
+
+describe("a removal cannot re-land an edit on a different part", () => {
+  it("drops the aim AND the values it was pointing, so the surviving part is untouched", async () => {
+    // The destructive case, and it is silent. The role fallback is deliberate — a stale id from a restored
+    // session must not disable the fields — so an aim naming a removed part falls back to the primary one,
+    // and an ABSOLUTE value then lands there. Measured before the fix on this fixture: aim the fin fields
+    // at the second set, type a 77 mm span, remove that set, and the surviving 50.0 mm set became 77.0 mm
+    // with the field still reading 77. Clearing the aim alone does NOT fix it: unaimed, the span still
+    // resolves to the primary set. The values have to go with the aim.
+    const bytes = new Uint8Array(
+      readFileSync(resolve(process.cwd(), "e2e/fixtures", "two-stage-firm-booster.ork")),
+    );
+    const rocket = (await importOrk(bytes)).rocket;
+    const fins = flattenRocket(rocket).filter((p) => p.component.kind === "trapezoidfinset");
+    expect(fins.length).toBe(2);
+    const [a, b] = fins.map((p) => p.component as TrapezoidFinSet);
+    const survivorSpan = a.height;
+
+    // The aim works: only the second set moves.
+    const aimed = applyGeometryEdits(rocket, { finSetId: b.id, finSpan: 0.077 });
+    const aimedSpans = flattenRocket(aimed)
+      .filter((p) => p.component.kind === "trapezoidfinset")
+      .map((p) => (p.component as TrapezoidFinSet).height);
+    expect(aimedSpans).toContain(0.077);
+    expect(aimedSpans.filter((h) => Math.abs(h - survivorSpan) < 1e-9).length).toBe(1);
+
+    // Remove the aimed set while that span is live. The survivor must not inherit it.
+    const gone = applyGeometryEdits(rocket, { finSetId: b.id, finSpan: 0.077, removedIds: [b.id] });
+    const left = flattenRocket(gone).filter((p) => p.component.kind === "trapezoidfinset");
+    expect(left.length).toBe(1);
+    expect((left[0].component as TrapezoidFinSet).height).toBeCloseTo(survivorSpan, 9);
+    // And the readback agrees, so no surface shows a number that is not being flown.
+    expect(primaryFinSpan(gone, b.id)).toBeCloseTo(survivorSpan, 9);
+  });
+
+  it("clears every field the aim targeted, for every slot in the registry", async () => {
+    const rocket = await load("demo-dual-deploy.ork");
+    const chute = flattenRocket(rocket).find((p) => p.component.kind === "parachute")!.component;
+    const patch = aimsClearedByRemoving(rocket, { parachuteId: chute.id, mainParachuteDiameter: 1.4 }, chute.id);
+    expect(patch.parachuteId).toBeUndefined();
+    for (const f of AIM_SLOTS.parachuteId.targets) {
+      expect(Object.prototype.hasOwnProperty.call(patch, f), `${f} must be cleared too`).toBe(true);
+    }
+    // An aim pointing elsewhere is left alone: removing one part must not disarm another role's edit.
+    const other = aimsClearedByRemoving(rocket, { finSetId: "some-fin", finSpan: 0.05 }, chute.id);
+    expect(Object.keys(other)).toEqual([]);
+  });
+
+  it("clears an aim naming a part that goes as a CHILD of the removed one", async () => {
+    // Removing a body tube takes its fin set, and the fin aim names the fin set rather than the tube.
+    const rocket = await load("demo-single-deploy.ork");
+    const tube = flattenRocket(rocket).find((p) => p.component.kind === "bodytube")!.component;
+    const fin = flattenRocket(rocket).find((p) => p.component.kind === "trapezoidfinset")!.component;
+    expect(tube.children.some((c) => c.id === fin.id), "the fixture must mount the fins in the tube").toBe(true);
+    const patch = aimsClearedByRemoving(rocket, { finSetId: fin.id, finSpan: 0.077 }, tube.id);
+    expect(patch.finSetId).toBeUndefined();
+    expect(Object.prototype.hasOwnProperty.call(patch, "finSpan")).toBe(true);
+  });
+});
+
+describe("the last body tube is counted per STAGE", () => {
+  it("refuses a stage's only tube even when the design has others", async () => {
+    // A staged rocket is several airframes flown in sequence, so "the design still has a tube" is no
+    // comfort to a sustainer that no longer does. `two-stage-firm-booster.ork` carries one tube per stage,
+    // and a whole-design count found two and allowed the removal that left a stage with none.
+    const bytes = new Uint8Array(
+      readFileSync(resolve(process.cwd(), "e2e/fixtures", "two-stage-firm-booster.ork")),
+    );
+    const rocket = (await importOrk(bytes)).rocket;
+    expect(rocket.stages.length).toBe(2);
+    const tubes = flattenRocket(rocket).filter((p) => p.component.kind === "bodytube");
+    expect(tubes.length).toBe(2);
+
+    for (const t of tubes) {
+      const why = removalRefusal(rocket, t.component.id);
+      expect(why, "every stage's only tube is refused").toBeTruthy();
+      expect(why).toMatch(/only body tube/);
+      // It names WHICH stage, since "the only one" is false of the design as a whole.
+      expect(why).toMatch(/Sustainer|Booster/);
+    }
+  });
+
+  it("says nothing about a stage on a single-stage design", async () => {
+    const rocket = await load("demo-quirks.ork");
+    expect(rocket.stages.length).toBe(1);
+    const upper = flattenRocket(rocket).find((p) => p.component.name === "Upper")!.component.id;
+    expect(removalRefusal(rocket, upper)).toBeNull(); // two tubes in the one stage
+    const oneLeft = applyGeometryEdits(rocket, { removedIds: [upper] });
+    const mount = flattenRocket(oneLeft).find((p) => p.component.kind === "bodytube")!.component.id;
+    const why = removalRefusal(oneLeft, mount)!;
+    expect(why).toMatch(/only body tube left, and an airframe needs one/);
+    expect(why).not.toMatch(/ in /); // no stage clause where there is only one stage
   });
 });

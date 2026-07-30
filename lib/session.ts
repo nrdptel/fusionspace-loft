@@ -14,7 +14,7 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
-import { INERT_EDIT_FIELDS } from "./model/edit";
+import { isEditedValue } from "./model/edit";
 
 const KEY = "loft.session";
 /** localStorage is typically a ~5 MB budget for the whole origin, and base64 costs a third on top
@@ -158,9 +158,7 @@ export function saveDiscardedSession(s: SavedSession): boolean {
  *  what-if here while the app went on treating it as inert. `hasActiveEdits` in the app applies the
  *  same set. */
 export function countWhatIfs(s: SavedSession): number {
-  return Object.entries(s.edits).filter(
-    ([k, v]) => !INERT_EDIT_FIELDS.has(k) && v !== undefined && v !== "",
-  ).length;
+  return Object.entries(s.edits).filter(([k, v]) => isEditedValue(k, v)).length;
 }
 
 /** Whether a session carries work that exists nowhere else. The DESIGN is on the recents shelf either

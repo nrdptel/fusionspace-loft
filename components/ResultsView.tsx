@@ -156,6 +156,8 @@ export default function ResultsView({
   designManufacturer,
   onEditGeometry,
   onSelectPart,
+  onRemovePart,
+  refuseRemoval,
   initialTab,
   onWorkspaceChange,
   designEditor,
@@ -204,6 +206,11 @@ export default function ResultsView({
   /** Told which part the flyer picked in the parts table or on the diagram, so the editor's fields
    *  describe and edit that part. Which fields a pick re-aims is the edit model's call. */
   onSelectPart?: (id: string) => void;
+  /** Remove a component from the design — the structural half of editing. */
+  onRemovePart?: (id: string) => void;
+  /** Why a part cannot be removed, or null. Asked of the app rather than judged in the panel, so the reason
+   *  shown and the guard that enforces it cannot disagree about which design they are judging. */
+  refuseRemoval?: (id: string) => string | null;
   /** Which workspace to open on. An import lands on its flight result; a from-scratch build lands on
    *  the editable Design surface, and a resumed session lands where it was left. Read once at mount
    *  — the view remounts on every design load. */
@@ -692,6 +699,8 @@ export default function ResultsView({
           motors={shownMotors}
           onEdit={onEditGeometry}
           onSelectPart={onSelectPart}
+          onRemove={onRemovePart}
+          refuseRemoval={refuseRemoval}
           // The aim map, so a role added to the edit model needs no new prop on the way down. Projected
           // through the registry, never the raw bag: a typed span is not an aim.
           aims={geometry ? aimsOf(geometry) : undefined}

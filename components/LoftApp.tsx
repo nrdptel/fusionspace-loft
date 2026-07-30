@@ -8,6 +8,7 @@ import { Segmented } from "./ui";
 import { importDesign, sourceTool, type OrkDocument } from "@/lib/ork/import";
 import { newDesign } from "@/lib/model/starter";
 import { exportOrk } from "@/lib/ork/export";
+import { flattenRocket } from "@/lib/model/geometry";
 import { runFlight, pickConfig, overridesFromStored, configChoices, type FlightRun, type ConfigChoice } from "@/lib/sim/run";
 import { storedTag } from "@/lib/validation/stored-status";
 import {
@@ -19,7 +20,9 @@ import {
   primaryParachutePart,
   unreachableParachuteCount,
   aimEditsAt,
-  INERT_EDIT_FIELDS,
+  removalRefusal,
+  aimsClearedByRemoving,
+  isEditedValue,
   type AimedPart,
   primaryFinCount,
   primaryFinStation,
@@ -107,6 +110,8 @@ interface Edits {
   bodyTubeId?: string;
   /** Which canopy the recovery fields describe and edit. A selection, not an edit — as above. */
   parachuteId?: string;
+  /** Components removed from the design, oldest first. An ordered list, so undo is dropping the last. */
+  removedIds?: string[];
   rodLength?: number; // m
   rodAngleDeg?: number;
   windSpeed?: number; // m/s
@@ -147,7 +152,7 @@ interface Edits {
  *  that hides the stored-tool comparison and the button that restores it have to answer the same
  *  question, or clearing a field leaves the comparison hidden with the way back hidden too. */
 function hasActiveEdits(e: Edits): boolean {
-  return Object.entries(e).some(([k, v]) => !INERT_EDITS.has(k) && v !== undefined && v !== "");
+  return Object.entries(e).some(([k, v]) => isEditedValue(k, v));
 }
 
 /** The launch conditions a run is actually flown under: the design file's stored setup, then the
@@ -184,24 +189,6 @@ function flownOverrides(
   return overrides;
 }
 
-/** Keys that can sit in the edit bag without the design being edited.
- *
- *  Every selection field — `finSetId`, `bodyTubeId`, `parachuteId` — says which component its fields
- *  are POINTED AT, not that anything was changed. Counting one would withhold the stored-tool
- *  comparison — and hide the button that brings it back — the moment a flyer clicked a part to look
- *  at it.
- *
- *  `payloadStation` is the same shape one step further out: it places a payload that is not there
- *  unless `payloadMassKg` is set. `addPayloadMass` returns the rocket untouched without a mass, so a
- *  station on its own produces a flight byte-identical to the design's, and counting it cost the
- *  flyer the stored-tool comparison for a change that changed nothing. It can never be the only
- *  thing that makes a design edited: wherever the station does matter, the mass beside it is already
- *  set and already counted.
- *
- *  Defined once in `lib/model/edit.ts` and shared with the saved session's own what-if count, which
- *  used to spell out `finSetId` alone — so a second selection field would have read as a what-if
- *  there while the app treated it as inert here. */
-const INERT_EDITS = INERT_EDIT_FIELDS;
 
 /** The swap picker's contents for one stored configuration: which casing to offer motors at, and
  *  who made the design's own. A FUNCTION rather than an inline memo because two callers need the
@@ -301,6 +288,7 @@ export default function LoftApp() {
           finSetId: e.finSetId,
           bodyTubeId: e.bodyTubeId,
           parachuteId: e.parachuteId,
+          removedIds: e.removedIds,
           finSpan: e.finSpan,
           finCount: e.finCount,
           finRootChord: e.finRootChord,
@@ -559,6 +547,7 @@ export default function LoftApp() {
       finSetId: edits.finSetId,
       bodyTubeId: edits.bodyTubeId,
       parachuteId: edits.parachuteId,
+      removedIds: edits.removedIds,
       finSpan: edits.finSpan,
       finCount: edits.finCount,
       finRootChord: edits.finRootChord,
@@ -670,6 +659,55 @@ export default function LoftApp() {
     setWeather(null);
     setScenario("design");
     rerun({}, null, "design");
+  };
+
+  // Remove a component. The id is APPENDED to an ordered list rather than applied to the tree, so the
+  // pristine design stays the only source of truth and the deletion is undoable by dropping the entry —
+  // the same shape every other what-if has, and the reason a deletion could be offered at all. A
+  // parametric edit is recoverable by retyping a number; a deleted part is not.
+  /** The design a removal is judged and applied against: the pristine one with the removals so far taken
+   *  out. NOT the fully-edited model the diagram shows — the dimension edits can ADD parts (a boattail, a
+   *  drogue, a payload bay) and those are appended AFTER the prune, so `removedIds` can never take one.
+   *  Offering to remove a part the mechanism cannot touch is a button that does nothing. */
+  const removableFrom = useMemo(
+    () => (doc ? applyGeometryEdits(doc.rocket, { removedIds: edits.removedIds }) : null),
+    [doc, edits.removedIds],
+  );
+
+  /** Why this part cannot be removed, or null. The panel asks THIS rather than judging for itself, so the
+   *  reason it shows and the guard that enforces it cannot disagree about which design they are judging. */
+  const refuseRemoval = useCallback(
+    (id: string) => (removableFrom ? removalRefusal(removableFrom, id) : "No design is loaded."),
+    [removableFrom],
+  );
+
+  const removeComponent = (id: string) => {
+    if (!doc || !removableFrom) return;
+    if (removalRefusal(removableFrom, id)) return;
+    // Clearing the aims the removal invalidates is not tidiness: an absolute dimension edit still aimed at
+    // a part that is gone re-lands on whatever the role fallback resolves to. Measured on
+    // `two-stage-firm-booster.ork` — a 77 mm span aimed at the second fin set moved the surviving 50.0 mm
+    // set to 77.0 mm the moment the aimed set was removed, with the field still reading 77.
+    applyEdit({
+      ...aimsClearedByRemoving(removableFrom, edits, id),
+      removedIds: [...(edits.removedIds ?? []), id],
+    });
+  };
+
+  /** The most recently removed component, by the pristine design's own name for it — the shown model no
+   *  longer has the part, so the label has to come from the design as imported. */
+  const lastRemoved = useMemo(() => {
+    const ids = edits.removedIds ?? [];
+    if (!doc || !ids.length) return null;
+    const id = ids[ids.length - 1];
+    const c = flattenRocket(doc.rocket).find((p) => p.component.id === id)?.component;
+    return { id, name: c?.name || "the part" };
+  }, [doc, edits.removedIds]);
+
+  const undoRemoval = () => {
+    const ids = edits.removedIds ?? [];
+    if (!ids.length) return;
+    applyEdit({ removedIds: ids.slice(0, -1) });
   };
 
   const selectConfig = (idx: number) => {
@@ -962,6 +1000,19 @@ export default function LoftApp() {
               >
                 Download .ork
               </button>
+              {lastRemoved && (
+                // Undo for the one edit that is not recoverable by retyping it. It names the part, because
+                // "Undo" alone asks the flyer to remember what they did — and the part is no longer on the
+                // diagram to remind them.
+                <button
+                  type="button"
+                  onClick={undoRemoval}
+                  title="Put the last removed part back and re-fly the design"
+                  className={`inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-2.5 py-1 text-xs font-medium text-zinc-700 transition hover:border-indigo-400 hover:text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:text-zinc-100 ${TOUCH_TARGET}`}
+                >
+                  Restore {lastRemoved.name}
+                </button>
+              )}
               {editsActive && (
                 <button
                   type="button"
@@ -1108,6 +1159,7 @@ export default function LoftApp() {
                 finSetId: edits.finSetId,
                 bodyTubeId: edits.bodyTubeId,
                 parachuteId: edits.parachuteId,
+                removedIds: edits.removedIds,
                 finSpan: edits.finSpan,
                 finCount: edits.finCount,
                 finRootChord: edits.finRootChord,
@@ -1139,6 +1191,8 @@ export default function LoftApp() {
               // A pick re-aims the fields that describe THAT kind of part and leaves the rest alone.
               // The routing lives in the edit model rather than here, so the panel that reports the
               // pick does not also have to know which fields a body tube or a fin set drives.
+              onRemovePart={removeComponent}
+              refuseRemoval={refuseRemoval}
               onSelectPart={(id) => {
                 // A pick that aims nothing — a coupler, a centring ring — must not commit an edit
                 // patch. An empty one still replaced the edits object, re-flew the whole design and

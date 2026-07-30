@@ -10,6 +10,35 @@ a one-way door — those preempt the milestone immediately). Everything else wai
 one-in-four quota in `MAINTAINING.md`. Rough edges, missing affordances, and findings too big for one
 pass. Newest first.
 
+- **A nose-less design is flown at a fineness-3 ogive's nose drag, because there is no flat-face model.**
+  `lib/sim/aero.ts` sets `noseFineness = haveNose && noseDiameter > 0 ? noseLength / noseDiameter : 3`, and
+  its own comment says so. Now that a flyer can REMOVE the nose cone (R2), that fallback is reachable by a
+  deliberate act rather than only by an odd import, so the optimism is stated on `/docs/limitations` instead
+  of left implicit. The fix is a real blunt-body term; until then the page says not to read an apogee off a
+  nose-less rocket.
+- **The parameter sweep's axes are resolved from the PRISTINE design, so an axis can outlive the part it
+  varies.** `components/ParameterSweep.tsx` builds `axes` from `doc.rocket`, not from the edited model, so
+  after removing a fin set the fin axes are still offered and the sweep plots a flat line — a response curve
+  for a dimension nothing has. Same shape for the flutter metric. Found by the pre-push review; not fixed
+  here because the sweep needs the shown rocket threaded to it, which is its own increment.
+- **After the only motor mount is removed, the motor pickers still offer motors.** `swapInfo` and
+  `configChoices` come from the pristine `doc.rocket`, so the swap picker and the configuration picker keep
+  listing options for a design that now has no mount. The flight itself is honest ("This configuration has
+  no motor assigned, so there is no thrust to fly" — verified on `USLI2025-FULLSCALE-10.15 (2).ork`), so
+  this is a control offering something inert rather than a wrong number.
+- **The baseline / what-if delta strip does not treat a removal as a what-if.** `hasWhatIf` in
+  `components/LoftApp.tsx` lists every design edit except `removedIds`, so a removal produces `baseline =
+  null` and the before/after strip never renders for the one edit whose effect is largest.
+- **A successful removal can leave the stale-id refusal sentence on screen.** `GeometryInspector`'s local
+  `selectedId` is not cleared when the picked part is removed, and the aim-sync effect does not fire because
+  no aim moved, so the panel can render "That part is no longer in this design." in amber immediately after
+  a removal that worked. Cosmetic but confusing: it reads as a failure.
+- **On a design whose stage carries `overrideMass` + `overrideSubcomponents`, a removal sheds no mass and
+  nothing says so.** The stage's stated figure replaces the sum of its parts, so deleting a part inside it
+  changes the mass by zero. The existing "mass absorbed" notice is gated on the ADD cases (payload, drogue),
+  so a removal gets no equivalent. `Dual parachute deployment.ork` and `EscapeVelocity.ork` are the corpus
+  designs that state mass this way.
+
 - **Benchmark against OpenRocket: the parts list is FLAT where theirs is a tree, and 9 of 35 designs pay
   for it.** OpenRocket presents components as a hierarchy with the stage as an explicit parent, so a part
   is identified by where it sits in the structure. Loft's parts table has Component, Type, Station, Mass
@@ -926,13 +955,20 @@ pass. Newest first.
 - The diagram drag handles freeze their range at grab time: pulling fin span up 30 px moves 29→41 mm
   and the next 30 px moves nothing (6 consecutive samples at 41), with `aria-valuemax` jumping 41→58
   only on release. Half a long drag is dead travel.
-- `primaryFinSetName`'s positional fallback ("fin set 2") numbers by `flattenRocket` order, but the
-  parts table can be re-sorted by name/type/station/mass — so after sorting by mass, "fin set 2" is
-  not the second fin row on screen. It also names one component while the fields edit its whole
-  appearance-group, so on a design with two identical pairs the note names one set and changes two.
-- Still no undo anywhere: Ctrl+Z after a handle drag does nothing, and the only escape is "Reset to
-  as-designed", which discards every edit at once. Ten flights in, that is a stack of trims and one
-  all-or-nothing exit.
+- **RESOLVED 2026-07-30 (R1) — `primaryFinSetName`'s positional fallback.** It numbered by
+  `flattenRocket` order while the parts table beside it can be re-sorted by name/type/station/mass, and it
+  named one component while the fields edit a whole appearance-group. Replaced by `AimedPart {name, station,
+  covers}`: the design's own name where that distinguishes the part, otherwise its STATION — true under
+  every sort — and the group size stated outright. Pinned by `lib/model/edit.test.ts`'s `naming the part the
+  fields are holding` suite. The old function is gone, so this entry describes code that no longer exists.
+- **NARROWED 2026-07-30 (R2) — undo exists for REMOVALS, and only for removals.** Deleting a part is
+  undoable by name (`Restore <part>`), because `removedIds` is an ordered list and the model rebuilds from
+  the pristine design. Everything else is unchanged and the entry still stands for it: Ctrl+Z after a handle
+  drag does nothing, a typed dimension and a motor swap cannot be stepped back, and the only escape from
+  those is still "Reset to as-designed", which discards every edit at once. Ten flights in, that is still a
+  stack of trims and one all-or-nothing exit. **This is what remains of R2's *done when*** and the shape is
+  already right for it: every edit is a value in one bag applied to a pristine design, so an undo stack is a
+  stack of `Edits` snapshots in `LoftApp`, not a diffing problem.
 - Parts table gaps measured this run: every column sorts one direction only (a second click returns
   to design order, so there is no lightest-first), there is no Copy or CSV while Mass & balance, the
   motor sweep and the parameter sweep all have both, and the sort order is not persisted though the
