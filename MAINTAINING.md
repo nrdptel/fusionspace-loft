@@ -795,6 +795,25 @@ git merge-base --is-ancestor origin/main HEAD && echo "main is behind you"
   push. Do it once the branch holds a coherent body of verified work, not after every increment.
   Neutral title, project voice, a body that says what changed and how it was verified.
 
+**If you have NO GitHub tooling at all, the work still ships to the branch — and you say so loudly.**
+A scheduled or triggered session may start without the GitHub tools this section assumes, while `git`
+push and fetch keep working through their own path. That combination is the dangerous one: you can
+commit and push all run, and open nothing, so a fortnight of green work sits where no flyer can reach
+it. Confirm which tools you actually have at session start (it is already step 2 of *Session start*)
+and, if there are none:
+1. **Run the full gate and push the branch anyway.** Verified work on a branch is recoverable; work
+   lost with the container is not.
+2. **Do NOT push to `main` to route around it.** The deploy fires on any push to `main` without
+   waiting for a test, and CI is where the real-design corpus and the accuracy census run — checks a
+   sandbox without `FIXTURES_TOKEN` cannot reproduce locally. A direct push would deploy physics that
+   nothing validated. Delayed delivery is the safe failure; an unverified live deploy is not.
+3. **Put it at the TOP of `HANDOFF.md` and at the top of the report**, in one line the owner can act
+   on: how many verified increments are waiting, on which branch, and that opening and merging one
+   pull request is all that is needed. Under the SHIPPED-MEANS-REACHABLE invariant this counts as
+   pending, never as shipped.
+4. **Keep going.** Missing tooling is a fact to state and route around, not a stop condition. The next
+   session continues on the same branch.
+
 **Know whether CI runs on your ref, and say so.** Read the `on:` block of every file in
 `.github/workflows/` before your first push and state the answer in increment 1's summary. If nothing
 fires for your ref, your local gate is the only gate — run it in full every time, with no exception
