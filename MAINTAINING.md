@@ -242,6 +242,20 @@ Do these in order, before scoping increment 1. None is optional; most run concur
 
 3. **Establish where work lands** — measured, not assumed. See *How this ships*.
 
+   **And list the OPEN pull requests before you scope anything.** An earlier run's verified work can
+   sit open for days: nobody is reviewing, the branch it came from is gone from your container, and
+   nothing else in this list would ever mention it. Measured 2026-07-30: two were open here and two on
+   the sibling repo, the oldest from 2026-07-28, and **one carried an unmerged Sev-1** — a physically
+   impossible peak speed that the headline withheld but the events table, the data CSV and the compare
+   chart all published. Under SHIPPED-MEANS-REACHABLE that is not shipped, however green it was.
+
+   For each open pull request, decide and say which: **merge it** if it is still correct against
+   today's `main` and its checks pass; **rebase and re-gate** it if it has gone stale; **close it with
+   a reason** if a later change superseded it — check whether the capability already landed by another
+   route before assuming it did not. A superseded pull request may still carry something unique, so
+   read the diff rather than the title: the one closed here as superseded also carried a script that
+   found 79 real defects on the live docs pages, and closing it blind would have lost that.
+
 4. **Make the corpus real.** It is gitignored and usually absent at session start:
    `npm run fetch-fixtures` with a token, or link a local fixtures checkout into `corpus/`, one
    directory per source tool. Then run the corpus suite in verbose mode and **confirm it names the
