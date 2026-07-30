@@ -10,6 +10,21 @@ a one-way door — those preempt the milestone immediately). Everything else wai
 one-in-four quota in `MAINTAINING.md`. Rough edges, missing affordances, and findings too big for one
 pass. Newest first.
 
+- **The Transition exit placeholder goes stale under a whole-airframe caliber change.** The transition
+  readbacks come off the structure base (the design plus the flyer's adds and removals, without their
+  dimension edits) while `bodyDiameter` rescales every transition's fore and aft radius in the flown
+  model — so the box offers a caliber nothing is flying while the parts table two inches above shows the
+  real one. Reproduce on `APEX_K_Dart.ork`: set Body diameter to 1.4x, then read the parts row
+  (`→ 98.0 mm`) beside the Transition exit box (`70.0`). All 25 corpus transitions disagree once a
+  caliber edit is live, worst 165.1 shown against 247.6 flown on `Complex.Two-Stage.CDX1`. Every other
+  readback is immune because `bodyDiameter` is the only edit that rescales another field's subject; the
+  fix is to scale the transition readback by the same factor the flight uses.
+- **Narrowing a transition's exit strands its aft shoulder outside the cone.** `withTransitionExit`
+  sets `aftRadius` and leaves `aftShoulderRadius` where it was, so `lib/sim/mass.ts` goes on charging
+  the shoulder's mass at the old radius and the diagram draws a cone the shoulder no longer fits.
+  3 of the 25 corpus transitions reach that state at a plausible typed exit (e.g.
+  `github-issuiuc-silsim-rocket__rocket.ork`). Small in kilograms, but it is a part a flyer can neither
+  see nor reach, and the honest fix is to clamp the shoulder to the new exit.
 - **A dual-deploy drogue is a canopy the flyer can see, click, and not reach.** `drogueDiameter` +
   `mainDeployAltitude` add a second parachute inside `applyDimensionEdits`, AFTER the tree every aim is
   resolved against, so it is in the parts table and on the diagram but in neither `removableFrom` nor

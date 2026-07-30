@@ -161,6 +161,8 @@ export const EDIT_ACTIONS: Readonly<Record<string, string>> = {
   boattailAftDiameter: "the boattail diameter",
   transitionLength: "the transition length",
   transitionAftDiameter: "the transition exit",
+  massObjectMass: "the mass",
+  massObjectStation: "the mass position",
   // Mass and motor
   payloadMassKg: "the payload mass",
   payloadStation: "the payload position",

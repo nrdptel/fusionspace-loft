@@ -78,11 +78,13 @@ function SortHeader({
 
 /** The authoring controls in the parts panel. One constant so a second one cannot arrive at a
  *  different height from the first. */
-/** The smallest mould-line step worth a sentence, in metres of DIAMETER. The corpus's own smallest is
- *  0.076 mm — a rounding artefact of a design stated in inches, not a step anyone built — and the
- *  median real one is 11.75 mm, so 0.5 mm separates the two without a judgement call. Below it the
- *  notice would fire on arithmetic rather than on geometry, and a flag that cries wolf teaches flyers
- *  to ignore it. */
+/** The smallest mould-line step worth a sentence, in metres of DIAMETER.
+ *
+ *  Measured across the 35-design corpus: 33 joints step at all, and the sample falls into two groups
+ *  with nothing between them — six from 0.0004 to 0.292 mm, which are rounding artefacts of designs
+ *  stated in inches rather than steps anyone built, and 27 of 0.800 mm and up, median 12.70 mm. 0.5 mm sits
+ *  in that gap, so the threshold is read off the data rather than chosen. Below it the notice would
+ *  fire on arithmetic instead of on geometry, and a flag that cries wolf teaches flyers to ignore it. */
 const STEP_NOTICE_M = 0.0005;
 
 const ADD_BUTTON =
@@ -403,6 +405,18 @@ export default function GeometryInspector({
                 fairs exactly to it and CLOSES a step, which is what 17 of the 25 corpus transitions
                 do. With nothing behind it, it is a tail cone, and the label says so rather than making
                 the flyer find out by clicking. */}
+            {/* The non-structural weight that decides where a rocket balances — an av-bay, a tracker,
+                nose ballast. It mounts INSIDE the tube rather than behind it, so unlike the other three
+                it needs a station, and the corpus supplies one: a third of the way down the part
+                holding it, which is where a real bay sits. */}
+            <button
+              type="button"
+              onClick={() => onAddAfter(selectedId, "masscomponent")}
+              title="Add a mass object inside this tube — electronics, a tracker, ballast — and re-fly the design"
+              className={`${ADD_BUTTON} ml-1.5`}
+            >
+              <span aria-hidden>+</span> Add a mass inside this
+            </button>
             <button
               type="button"
               onClick={() => onAddAfter(selectedId, "transition")}
@@ -418,8 +432,8 @@ export default function GeometryInspector({
             boattail's — and none at all for a bare radius step, which has no length to take an angle
             over. So a step is a real geometry Loft flies optimistically, and saying nothing about it
             is the shape of silence the brief forbids. It is not exotic and it is not something the
-            editor invents: measured across the 35-design corpus, 31 of 115 touching airframe joints
-            already step, in 11 of the 35 designs, by a median 11.75 mm of diameter and up to 82.55 mm.
+            editor invents: measured across the 35-design corpus, 33 of the 115 joints this can judge
+            already step, in 13 of the 35 designs, by a median 11.75 mm of diameter and up to 82.55 mm.
             OpenRocket warns on exactly this; Loft has never said a word. */}
         {selectedId && stepBehind !== undefined && Math.abs(stepBehind) > STEP_NOTICE_M && (
           <p className="mt-1 text-xs text-amber-700 dark:text-amber-400" role="status">
@@ -434,10 +448,11 @@ export default function GeometryInspector({
             the mass. The model is right to hold the stated figure; what was missing is the sentence.
             Measured on `EscapeVelocity.ork`: removing its 141.7 g "Avionics" leaves dry mass at exactly
             2000.0 g while the static margin moves 4.461 → 4.312 cal. */}
-        {onRemove && selectedId && !refuseRemoval?.(selectedId) && statedMassHolder(rocket, selectedId) && (
+        {selectedId && statedMassHolder(rocket, selectedId) && (
           <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400" role="status">
             This design states {statedMassHolder(rocket, selectedId)}&apos;s weight as a whole, so it
-            counts no mass for the parts inside — removing this one will move the balance, not the total.
+            counts no mass for the parts inside — adding a part here, or removing one, moves the balance
+            and not the total.
           </p>
         )}
         {onEdit && (

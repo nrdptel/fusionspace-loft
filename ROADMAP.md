@@ -213,9 +213,9 @@ pointer-down/up, and a rename is the one header control that is not on the stack
 
 ## R3 — Add a component
 
-**Status:** IN PROGRESS — current milestone. The operation model is in and **three of the four kinds
-ship**: a flyer can author a **body tube** behind any tube, a **fin set** onto any tube, and a
-**transition** behind any tube, from the diagram or the parts list — and each flies, weighs, draws,
+**Status:** IN PROGRESS — current milestone. The operation model is in and **all four kinds its *done
+when* names now ship**: a flyer can author a **body tube** behind any tube, a **fin set** onto any tube, a
+**transition** behind any tube, and a **mass object** inside any tube, from the diagram or the parts list — and each flies, weighs, draws,
 exports, is aimable, is removable and is undoable by name. The fin ring is cloned from the design's own
 set rather than derived from invented proportions, which is the only default that is a fact about the
 rocket rather than a number somebody chose; all 35 corpus designs carry a set and so does the starter, so
@@ -223,8 +223,9 @@ a source always exists. Pinned by `lib/model/edit.test.ts`'s `adding a component
 e2e cases *a flyer can add a body tube the design never had, and take it back* and *a flyer can add a
 second fin ring, and the stability panel describes it*. A tube's length is now draggable on the diagram
 too — the one airframe dimension that had no grip — pinned by *a tube's length can be dragged on the
-diagram, not only typed*. **Still to come: a mass object, and moving a part to another station rather
-than only sizing it where it was added.**
+diagram, not only typed*. **Still to come: placing a part by DIRECT MANIPULATION rather than by picking
+its anchor — the *done when* asks for a station chosen on the diagram, and today a mass object's station
+is typed.**
 
 **The transition leg is DONE**, and it brought transitions into the editor at all — they were
 role-addressed, unaimable and had no field, so on the 12 of 35 corpus designs that carry one (25 in
@@ -238,22 +239,55 @@ version of the default was wrong on 38 of them:
 
 | position | n | what it builds |
 |---|---|---|
-| nothing behind the anchor | 38 | a tail cone, contracting to the corpus median 0.754 of its fore diameter over γ = 2.294 |
-| a part behind it at another caliber | 15 | fairs exactly to that part, closing a step the design already had |
-| a part behind it at the same caliber | 38 | straight through — contracting here opened a step at the joint BEHIND the new part |
+| nothing behind the anchor | 28 | a tail cone, contracting to the corpus median 0.7446 of its fore diameter over γ = 2.2938 |
+| a part behind it at another caliber | 17 | fairs exactly to that part, closing a step the design already had |
+| a part behind it at the same caliber | 46 | straight through — contracting here opened a step at the joint BEHIND the new part |
 
 That last row is the measurement worth keeping: a contraction there produced a stepped airframe nobody
-drew on 38 of 91 positions. A zero-taper transition is not a contrivance to avoid it — 4 of the 25 corpus
-transitions are exactly that, a section in the mould line. Re-driven after the fix: 91/91 build, 91/91
-removable, **0 open a step**. On the starter a tail cone buys **+28.3 m** of apogee (993.6 → 1022.0 m) for
-+12.2 g.
+drew on half the positions the gesture is offered. A zero-taper transition is not a contrivance to avoid
+it — 4 of the 25 corpus transitions are exactly that, a section in the mould line. Re-driven after the
+fix: 91/91 build, 91/91 removable, 91/91 aimable, **0 open a step**. On the starter a tail cone buys
+**+29.33 m** of apogee (993.64 → 1022.97 m) for +12.58 g.
+
+**The census above is the CORRECTED one, and the correction is the interesting part.** `nextTopLevel`
+originally searched a single stage's top-level list, so the last tube of a booster read as having nothing
+behind it and the gesture built a contracting tail cone in the MIDDLE of a multi-stage rocket. Measured:
+all 12 stage boundaries in the corpus are joined end to end with no gap, 10 of the 91 anchors were
+mis-read, and 10 authored transitions opened a real step — the worst 77.4 mm on `02.Two-stage.ork`. The
+same bug made `mouldLineStep` silent at every one of those 12 boundaries, including the 82.55 mm step
+that is the largest in the corpus and the one the docs quote. Found by the pre-push review, not by the
+gate.
 
 **And the step itself is now stated.** Loft models a transition's own slope (Niskanen eq. 3.86 for a
 shoulder, 3.88 for a boattail) and has **no drag term at all for a bare radius step**, which has no length
 to take an angle over — OpenRocket warns on exactly this and Loft never said a word. `mouldLineStep` names
 the step behind the picked part and the panel says by how much and that the drag there is optimistic. It
-is not a state the editor invents: **31 of 115** touching airframe joints in the corpus already step, in
-11 of the 35 designs, by a median 11.75 mm of diameter and up to 82.55 mm.
+is not a state the editor invents: **33 of the 115** joints it can judge already step, in 13 of the 35
+designs, by a median 11.75 mm of diameter and up to 82.55 mm. The notice fires above 0.5 mm, which is read
+off the data rather than chosen: the 33 fall into six of 0.0004–0.292 mm (rounding artefacts of designs
+stated in inches) and 27 of 0.800 mm and up, median 12.70 mm, with nothing in between.
+
+**The mass-object leg is DONE.** A point mass is the dominant non-structural weight on most designs and
+the one kind whose placement IS a station — it mounts INSIDE the part that carries it, which 56 of the 56
+corpus mass objects do (none is a top-level stage child). Both defaults are the corpus's medians: the
+weight is 45 g (the median of the 52 that are real parts rather than a stated airframe weight; q25 5 g,
+q75 498 g) and the station is 0.3251 of the host's length — the median offset among the 16 placed `top`
+inside a body tube, and where an av-bay actually sits. `top` rather than `absolute` (12 of 56) because an
+absolute station pins a mass in space while the airframe moves underneath it.
+
+`AIM_SLOTS.massObjectId` aims a `massObjectMass` and a `massObjectStation` at the picked one — 26 of 35
+designs carry a mass object and not one could be reached before. The station is expressed as a station
+from the nose tip, which is what a flyer reads off the diagram, and clamped into the part holding it: a
+point mass outside the airframe would still be FLOWN, since the solver puts mass wherever the tree says.
+The fallback deliberately skips a point mass that stands for a whole airframe's stated weight — on 3 of
+the 4 RASAero designs that is also the heaviest thing in the model, so an unguarded "heaviest" would land
+on it every time and offer a design's own measurement as a what-if.
+
+Driven across all 91 body tubes in the starter and the corpus: 91/91 build, 91/91 removable, 91/91
+aimable, **0 placed outside the part holding them**, station median 0.3251 of the host. **10 of the 91 add
+no mass at all** — the design states that assembly's weight as a whole — and that is now said on the
+parts panel before the click and on the mass panel after it, where only the removal half was stated
+before.
 
 **The shape, decided and shipped.** `GeometryEdits.added` is an ordered list of `AddedPart` — an id, a
 kind, the id of the component it sits behind, and the one dimension no neighbour can supply. Everything

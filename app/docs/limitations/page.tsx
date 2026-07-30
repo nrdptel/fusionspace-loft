@@ -202,15 +202,25 @@ export default function Limitations() {
         boattail&apos;s) but has <em>no drag term at all for a bare step</em>, which has no length to take
         an angle over. Where a step is present the parts panel says so and by how much, and the drag there
         should be read as optimistic. This is not a state the editor invents: across the corpus,{" "}
-        <strong>31 of 115</strong> touching airframe joints already step, in 11 of the 35 designs, by a
-        median 11.75&nbsp;mm of diameter and up to 82.55&nbsp;mm.
+        <strong>33 of the 115</strong> airframe joints Loft can judge already step, in 13 of the 35
+        designs, by a median 11.75&nbsp;mm of diameter and up to 82.55&nbsp;mm — including the largest,
+        which is a joint between two stages.
       </p>
       <p>
-        <strong>What is still fixed.</strong> Nose cones and mass objects are not addressable. For nose
-        cones that costs nothing measurable — no corpus design has more than one after import — but mass
-        objects have no editor field at all, so there is nothing yet to point at one: 15 designs carry
-        several and none of them can be resized or moved. Nothing can be <em>reordered</em> either — that
-        is the next step for the in-app editor.
+        <strong>Mass objects are addressable too.</strong> A point mass — an altimeter, a tracker, nose
+        ballast — is usually the dominant non-structural weight on a design, and 26 of the 35 corpus
+        designs carry one, 56 in all. Picking one aims a <em>weight</em> and a <em>position</em> at it;
+        the position is a station from the nose tip and is clamped to stay inside the part holding it,
+        because a point mass floating outside the airframe would still be flown. With nothing picked the
+        fields hold the heaviest one a flyer could actually state — deliberately skipping the point mass
+        a RASAero import mints to carry a whole stated launch weight, which is the design&apos;s own
+        measurement rather than ballast anyone chose.
+      </p>
+      <p>
+        <strong>What is still fixed.</strong> Nose cones are not addressable, which costs nothing
+        measurable — no corpus design has more than one after import. Nothing can be <em>reordered</em>{" "}
+        yet: a part is authored behind the one you picked and stays there, so building an airframe
+        means picking anchors in order. That is the next step for the in-app editor.
       </p>
       <p>
         <strong>Removing a part does work</strong>, on any component, and it is undoable: pick a part on
@@ -244,7 +254,18 @@ export default function Limitations() {
         rather than inventing a step. The editor&apos;s fields aim at the new part the moment it exists,
         so the next number typed changes what you just made; each add is one undo step, named after the
         kind; and an authored part is removable, exportable and re-importable like any other, because it
-        is the same internal model an imported part lands in.
+        is the same internal model an imported part lands in. A <strong>mass object</strong> is the
+        fourth kind and the one whose placement <em>is</em> a station: it mounts inside the tube you
+        picked, at 0.3251 of its length — the median of the 16 real mass objects in the corpus placed
+        that way inside a body tube — carrying the corpus&apos;s median weight of 45&nbsp;g until you say
+        otherwise.
+      </p>
+      <p>
+        One thing worth knowing before you read a total that did not move: where a design states the
+        weight of a whole assembly or stage outright, Loft counts no mass for the parts inside it — so a
+        part added there, or removed from there, changes the balance and not the total. The design is
+        right and the model is following it; the panels say so, before the click and after it. Across
+        the corpus that covers 10 of the 91 places a mass object can be added.
       </p>
       <p>
         <strong>Every edit is undoable, not only a removal.</strong> Undo and redo sit in the design

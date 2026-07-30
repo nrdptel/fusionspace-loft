@@ -3025,8 +3025,8 @@ test.describe("Loft", () => {
     // boattail they had just asked for by typing two numbers into fields that create one.
     //
     // With nothing behind the anchor the gesture makes a tail cone, contracting to the corpus median
-    // of the 14 contracting transitions (0.754 of the diameter it starts at). That is the base-drag
-    // lever: on the starter design it buys +28.3 m of apogee for +12.2 g.
+    // of the 14 contracting transitions (0.7446 of the diameter it starts at). That is the base-drag
+    // lever: on the starter design it buys +29.33 m of apogee (993.64 to 1022.97 m) for +12.58 g.
     await page.goto("/");
     await page.getByRole("button", { name: "Start a new design" }).click();
     await page.getByRole("tab", { name: "Flight" }).click();
@@ -3074,6 +3074,61 @@ test.describe("Loft", () => {
     await expect(cones).toHaveCount(0);
     await page.getByRole("tab", { name: "Flight" }).click();
     await expect.poll(apogee, { timeout: 20000 }).toBe(asBuilt);
+  });
+
+  test("a flyer can add a mass object, weigh it, and slide it along the airframe", async ({ page }) => {
+    // R3's fourth kind, and the one whose placement IS a station: a point mass has to be told where it
+    // sits, unlike a tube that lands behind its anchor. The corpus decides the default — a third of the
+    // way down the part holding it: 0.3251 of its length, the median of the 16 corpus masses placed
+    // that way inside a body tube.
+    await page.goto("/");
+    await page.getByRole("button", { name: "Start a new design" }).click();
+    await page.getByRole("tab", { name: "Flight" }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    const margin = async () => {
+      const t = await page.getByText("Static margin", { exact: true }).locator("xpath=following-sibling::dd").innerText();
+      return parseFloat(t.replace(/[^\d.]/g, ""));
+    };
+    const asBuilt = await margin();
+    expect(asBuilt).toBeGreaterThan(0);
+
+    await page.getByRole("tab", { name: "Design" }).click();
+    await page.locator("summary", { hasText: /Parts ·/ }).click();
+    const partsTable = page.locator("table").filter({ hasText: "Dimensions" });
+    // The starter already carries one (its altimeter + battery), so this counts rather than presumes.
+    const rows = partsTable.locator("tr").filter({ hasText: /Mass object/ });
+    await expect(rows).toHaveCount(1);
+
+    await partsTable.locator("tr").filter({ hasText: /Body tube/ }).first().click();
+    await page.getByRole("button", { name: /Add a mass inside this/ }).click();
+    await expect(rows).toHaveCount(2);
+
+    // The mass fields aimed at it the moment it existed, so its own weight is what they advertise.
+    const massField = page.locator("label").filter({ hasText: /^Mass \(/ }).first().locator("input");
+    const posField = page.locator("label").filter({ hasText: /Mass pos/ }).first().locator("input");
+    await expect(massField).toHaveAttribute("placeholder", /45/);
+    const seated = parseFloat((await posField.getAttribute("placeholder")) ?? "0");
+    expect(seated).toBeGreaterThan(0);
+
+    // Weighing it moves the balance — the number a flyer adds ballast to change.
+    await massField.fill("400");
+    await page.getByRole("tab", { name: "Flight" }).click();
+    await expect.poll(margin, { timeout: 20000 }).not.toBe(asBuilt);
+    const heavy = await margin();
+
+    // And sliding it forward moves the balance again, the other way: mass ahead of the CG pulls it up.
+    await page.getByRole("tab", { name: "Design" }).click();
+    await posField.fill(String(Math.round(seated / 2)));
+    await page.getByRole("tab", { name: "Flight" }).click();
+    await expect.poll(margin, { timeout: 20000 }).not.toBe(heavy);
+
+    // Each step is its own undo, named after what it did.
+    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("button", { name: /^Undo the mass position/ }).click();
+    await page.getByRole("button", { name: /^Undo the mass\b/ }).click();
+    await expect(massField).toHaveAttribute("placeholder", /45/);
+    await page.getByRole("button", { name: /^Undo adding a mass object/ }).click();
+    await expect(rows).toHaveCount(1);
   });
 
   test("clicking a part the flyer authored aims the fields back at it", async ({ page }) => {
@@ -3910,9 +3965,10 @@ test.describe("Loft", () => {
     const fins = partsTable.locator("tr").filter({ hasText: /fins/i }).first();
     await fins.click();
 
-    // Said BEFORE the click, where the flyer is deciding.
+    // Said BEFORE the click, where the flyer is deciding. The sentence covers authoring too now — a
+    // part BUILT inside a stated assembly weighs nothing either, for the same reason.
     await expect(page.getByText(/counts no mass for the parts inside/)).toBeVisible();
-    await expect(page.getByText(/move the balance, not the total/)).toBeVisible();
+    await expect(page.getByText(/moves the balance and not the total/)).toBeVisible();
 
     await page.getByRole("button", { name: /^Remove / }).click();
 
@@ -3922,7 +3978,7 @@ test.describe("Loft", () => {
       const dd = details.nth(i);
       if (!(await dd.evaluate((el: HTMLDetailsElement) => el.open))) await dd.locator("summary").first().click();
     }
-    await expect(page.getByText(/A part you removed was inside/)).toBeVisible();
+    await expect(page.getByText(/A part you added or removed was inside/)).toBeVisible();
     await expect(page.getByText(/the dry total above is unchanged/)).toBeVisible();
   });
 

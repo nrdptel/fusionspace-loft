@@ -403,7 +403,13 @@ export default function ResultsView({
   // genuinely weightless part coming out does not raise a notice about an override that isn't there.
   // Measured on `EscapeVelocity.ork`: its 141.7 g "Avionics" leaves dry mass at exactly 2000.0 g while
   // the static margin moves 4.461 → 4.312 cal.
-  const massHeldBy = (geometry?.removedIds ?? [])
+  //
+  // Authoring reads the same way and needed the same sentence: a part built INSIDE a stated assembly
+  // weighs nothing either, because the design's own figure already covers whatever is in there. Driving
+  // an authored 45 g mass object into all 91 body tubes across the starter and the corpus, 10 of them
+  // moved the dry total not at all. Judged on the anchor, since the authored part is not in the
+  // pristine design to ask about.
+  const massHeldBy = [...(geometry?.removedIds ?? []), ...(geometry?.added ?? []).map((a) => a.after)]
     .map((id) => statedMassHolder(doc.rocket, id))
     .find((holder): holder is string => holder !== null);
   // The motor casing(s) the flight flew, for drawing inside the aft body — resolved for the shown

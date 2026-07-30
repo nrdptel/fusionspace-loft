@@ -23,6 +23,9 @@ import {
   primaryTransition,
   primaryTransitionPart,
   mouldLineStep,
+  primaryMassObject,
+  primaryMassObjectStation,
+  aimsClearedByAiming,
   primaryNoseShape,
   primaryBodyDiameter,
   primaryBodyTube,
@@ -49,6 +52,7 @@ import {
 } from "./edit";
 import type {
   BodyTube,
+  MassComponent,
   GenericFinSet,
   NoseCone,
   Transition,
@@ -1805,9 +1809,9 @@ describe("authoring a transition", () => {
   it("builds a tail cone where nothing sits behind the anchor, and the flight follows it", async () => {
     // The base-drag lever. A blunt-based rocket loses most of its pressure drag to the base, and
     // contracting it is the classic fix — so this is the one position where a contraction is what the
-    // gesture is asking for. The exit is the corpus median of the 14 contracting transitions, 0.754 of
-    // the diameter it starts at, over a slenderness of 2.294; both are facts about real designs rather
-    // than numbers anyone chose.
+    // gesture is asking for. The exit is the corpus median of the 14 contracting transitions, 0.7446
+    // of the diameter it starts at, over a slenderness of 2.2938; both are facts about real designs
+    // rather than numbers anyone chose.
     const doc = await load(SINGLE);
     const tube = primaryBodyTube(doc.rocket)!;
     const { id, edits } = author(doc.rocket, tube.id);
@@ -1816,7 +1820,7 @@ describe("authoring a transition", () => {
     const made = trans(built).find((p) => p.component.id === id)!.component as Transition;
     expect(made.shape).toBe("conical");
     expect(made.foreRadius).toBeCloseTo(tube.outerRadius, 9);
-    expect(made.aftRadius).toBeCloseTo(tube.outerRadius * 0.754, 6);
+    expect(made.aftRadius).toBeCloseTo(tube.outerRadius * 0.7446, 6);
     expect(made.aftRadius).toBeLessThan(made.foreRadius);
     // It weighs something and it makes the rocket longer by its own length.
     expect(dryMassProperties(built).mass).toBeGreaterThan(dryMassProperties(doc.rocket).mass);
@@ -1824,7 +1828,7 @@ describe("authoring a transition", () => {
   });
 
   it("fairs exactly to the part behind it, closing a step the design already had", () => {
-    // 15 of the 91 body tubes across the starter and the corpus have a neighbour at another caliber.
+    // 17 of the 91 body tubes across the starter and the corpus have a neighbour at another caliber.
     // Nothing is chosen there: the exit is read off that neighbour, so the transition closes a step
     // rather than adding one.
     const nose: NoseCone = {
@@ -1856,7 +1860,7 @@ describe("authoring a transition", () => {
   });
 
   it("runs straight through between two parts already at the same caliber, opening no step", () => {
-    // 38 of those 91 positions. Contracting here would put a step at the joint BEHIND the new part —
+    // 46 of those 91 positions. Contracting here would put a step at the joint BEHIND the new part —
     // a stepped airframe nobody drew. A zero-taper transition is not a contrivance to avoid that:
     // 4 of the 25 corpus transitions are exactly this, a section in the mould line. The exit field is
     // aimed at it the moment it exists, so the next keystroke is what shapes it.
@@ -1929,8 +1933,8 @@ describe("authoring a transition", () => {
   it("says where the mould line steps, and stays quiet where it does not", async () => {
     // Loft models a transition's own slope (Niskanen 3.86 for a shoulder, 3.88 for a boattail) and has
     // no drag term at all for a bare radius step, which has no length to take an angle over. Measured
-    // across the 35-design corpus, 31 of 115 touching airframe joints already step, in 11 designs, by
-    // a median 11.75 mm of diameter — so this is a sentence the imported designs needed too.
+    // across the 35-design corpus, 33 of the 115 joints it can judge already step, in 13 designs, by a
+    // median 11.75 mm of diameter — so this is a sentence the imported designs needed too.
     const doc = await load(SINGLE);
     const tube = primaryBodyTube(doc.rocket)!;
     const { id, edits } = author(doc.rocket, tube.id);
@@ -1938,6 +1942,148 @@ describe("authoring a transition", () => {
     expect(mouldLineStep(applyGeometryEdits(doc.rocket, edits), id)).toBeUndefined();
     // The tube in front of it fairs to it exactly.
     expect(mouldLineStep(applyGeometryEdits(doc.rocket, edits), tube.id)).toBeCloseTo(0, 9);
+  });
+});
+
+/** The ids a component holds directly, so a test can say a part is a CHILD and not a sibling. */
+function tubeChildren(r: Rocket, id: string): string[] {
+  return flattenRocket(r).find((p) => p.component.id === id)?.component.children.map((c) => c.id) ?? [];
+}
+
+describe("what an aim moving off a part invalidates", () => {
+  it("keeps a whole-airframe caliber, and drops the dimensions that described the part it left", async () => {
+    // Re-aiming clears the absolute values the old aim was pointing, because they described a part the
+    // fields are no longer holding. `bodyDiameter` is the exception in the registry and the reason the
+    // registry needed a way to say so: it reads the picked tube's caliber but scales the WHOLE outer
+    // airframe to hit it, deliberately, so it goes on meaning the same thing after the aim moves.
+    // Clearing it made authoring a tube snap the airframe back to its imported caliber — measured on
+    // `OR vs RAS Test 1.ork`, 142.2 mm reverting to 101.6 mm and apogee 5,938 m to 7,276 m.
+    const doc = await importOrk(readFileSync(resolve(process.cwd(), "fixtures/demo-single-deploy.ork")));
+    const tube = primaryBodyTube(doc.rocket)!;
+    const held = { bodyTubeId: tube.id, bodyLength: 0.4, bodyDiameter: 0.08, finSpan: 0.06 };
+    const moved = aimsClearedByAiming(held, { bodyTubeId: "somewhere-else" });
+
+    expect(moved).toHaveProperty("bodyLength", undefined); // described the tube the aim left
+    expect(moved).not.toHaveProperty("bodyDiameter"); // describes the whole airframe, so it stays
+    expect(moved).not.toHaveProperty("finSpan"); // a different slot entirely
+
+    // And it really does survive the round trip through the model.
+    const after = applyGeometryEdits(doc.rocket, { ...held, ...moved, bodyTubeId: tube.id });
+    expect(primaryBodyDiameter(after, tube.id)).toBeCloseTo(0.08, 9);
+  });
+
+  it("moves nothing when the aim has not actually changed", async () => {
+    const doc = await importOrk(readFileSync(resolve(process.cwd(), "fixtures/demo-single-deploy.ork")));
+    const tube = primaryBodyTube(doc.rocket)!;
+    const held = { bodyTubeId: tube.id, bodyLength: 0.4 };
+    expect(aimsClearedByAiming(held, { bodyTubeId: tube.id })).toEqual({});
+    expect(aimsClearedByAiming(held, {})).toEqual({});
+  });
+});
+
+describe("authoring a mass object", () => {
+  const SINGLE = "fixtures/demo-single-deploy.ork";
+  const load = async (f: string) => importOrk(readFileSync(resolve(process.cwd(), f)));
+  const masses = (r: Rocket) => flattenRocket(r).filter((p) => p.component.kind === "masscomponent");
+  const author = (r: Rocket, after: string) => {
+    const id = newPartId(r, undefined, after);
+    return { id, edits: { added: [{ id, kind: "masscomponent" as const, after, length: 0, name: "Mass object" }] } };
+  };
+
+  it("mounts inside the part it names, a third of the way down it", async () => {
+    // A point mass is the one kind whose placement IS a station, so unlike a tube it cannot land at
+    // {after, 0}. The corpus supplies the answer: of the 56 mass objects in it, 31 are placed `top`
+    // inside their parent, and the median offset among the 16 inside a body tube is 0.3251 of that
+    // tube's length — a third of the way down, which is where an av-bay actually sits. `top` rather
+    // than `absolute` (12 of 56) because an absolute station pins the mass in space while the airframe
+    // moves underneath it.
+    const doc = await load(SINGLE);
+    const tube = primaryBodyTube(doc.rocket)!;
+    const host = flattenRocket(doc.rocket).find((p) => p.component.id === tube.id)!;
+    const { id, edits } = author(doc.rocket, tube.id);
+    const built = applyGeometryEdits(doc.rocket, edits);
+
+    const made = masses(built).find((p) => p.component.id === id)!;
+    expect(made.component.placement.method).toBe("top");
+    expect(made.xFore).toBeCloseTo(host.xFore + host.length * 0.3251, 9);
+    // Inside its host, not hanging off the airframe.
+    expect(made.xFore).toBeGreaterThanOrEqual(host.xFore);
+    expect(made.xFore).toBeLessThanOrEqual(host.xFore + host.length);
+    // And it is a child of that tube rather than a sibling, which is what 56 of 56 corpus masses are.
+    expect(tubeChildren(built, tube.id)).toContain(id);
+  });
+
+  it("weighs the corpus median until the flyer says otherwise, and the flight follows", async () => {
+    const doc = await load(SINGLE);
+    const tube = primaryBodyTube(doc.rocket)!;
+    const { id, edits } = author(doc.rocket, tube.id);
+    const built = applyGeometryEdits(doc.rocket, edits);
+
+    const bare = dryMassProperties(doc.rocket);
+    const withIt = dryMassProperties(built);
+    expect(withIt.mass - bare.mass).toBeCloseTo(0.045, 9);
+    // It pulls the balance toward where it sits.
+    expect(withIt.cg).not.toBeCloseTo(bare.cg, 6);
+
+    // Stating a weight replaces it, and nothing else moves.
+    const stated = applyGeometryEdits(doc.rocket, { ...edits, massObjectId: id, massObjectMass: 0.4 });
+    expect(dryMassProperties(stated).mass - bare.mass).toBeCloseTo(0.4, 9);
+    expect(overallLength(stated)).toBeCloseTo(overallLength(doc.rocket), 9);
+  });
+
+  it("takes a station from the nose tip, clamped to stay inside the part holding it", async () => {
+    // The field speaks the number a flyer reads off the diagram — a station from the nose — and the
+    // model stores an offset inside the host. A mass placed outside the airframe would still be FLOWN,
+    // because the solver puts mass wherever the tree says, so the clamp is the difference between a CG
+    // that can be trusted and one computed from a rocket nobody could build.
+    const doc = await load(SINGLE);
+    const tube = primaryBodyTube(doc.rocket)!;
+    const host = flattenRocket(doc.rocket).find((p) => p.component.id === tube.id)!;
+    const { id, edits } = author(doc.rocket, tube.id);
+    const at = (station: number) => {
+      const out = applyGeometryEdits(doc.rocket, { ...edits, massObjectId: id, massObjectStation: station });
+      return flattenRocket(out).find((p) => p.component.id === id)!.xFore;
+    };
+    // Asked for a station inside the host, it goes exactly there.
+    const inside = host.xFore + host.length * 0.6;
+    expect(at(inside)).toBeCloseTo(inside, 9);
+    // Ahead of the host, it stops at its fore end; behind it, at its aft end.
+    expect(at(0)).toBeCloseTo(host.xFore, 9);
+    expect(at(overallLength(doc.rocket) * 4)).toBeCloseTo(host.xFore + host.length, 9);
+    // The readback is the same station the edit produced, so the field cannot show one and fly another.
+    const out = applyGeometryEdits(doc.rocket, { ...edits, massObjectId: id, massObjectStation: inside });
+    expect(primaryMassObjectStation(out, id)).toBeCloseTo(inside, 9);
+  });
+
+  it("is aimable, and never falls back to a point mass that IS a design's stated weight", async () => {
+    // A RASAero `.CDX1` states one launch weight and no per-part masses, so its adapter mints a single
+    // point mass to hold the whole airframe. Offering to retype that as if it were ballast would
+    // present a design's own measurement as a what-if — and on 3 of the 4 RASAero designs it is also
+    // the heaviest thing in the model, so an unguarded "heaviest" fallback lands on it every time.
+    const doc = await load(SINGLE);
+    const tube = primaryBodyTube(doc.rocket)!;
+    const { id, edits } = author(doc.rocket, tube.id);
+    const built = applyGeometryEdits(doc.rocket, edits);
+    expect(aimEditsAt(built, id)).toEqual({ massObjectId: id });
+    expect(primaryMassObject(built, id)!.id).toBe(id);
+    expect(removalRefusal(built, id)).toBeNull();
+
+    const airframe: MassComponent = {
+      id: "stated", name: "Airframe (stated launch weight)", kind: "masscomponent",
+      placement: { method: "top", offset: 0 }, mass: 5, standsForAirframe: true, children: [],
+    };
+    const holder: BodyTube = {
+      id: "b", name: "Body", kind: "bodytube", placement: { method: "after", offset: 0 },
+      length: 0.5, outerRadius: 0.03, children: [airframe],
+    };
+    const rasaero: Rocket = {
+      name: "stated", stages: [{ name: "S", components: [holder] }],
+      configurations: [], referenceType: "maximum",
+    };
+    // Nothing to aim at: the only point mass in the design is the design's own weight.
+    expect(primaryMassObject(rasaero)).toBeUndefined();
+    // Picking it still refuses removal, which is R2's rule and unchanged.
+    expect(removalRefusal(rasaero, "stated")).not.toBeNull();
   });
 });
 

@@ -127,11 +127,11 @@ export default function MassBreakdown({
         </p>
         {massHeldBy && (
           <p className="mt-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-800 dark:text-amber-200">
-            A part you removed was inside {massHeldBy}, whose weight this design states outright — so
-            the dry total above is unchanged. The stated figure stands for everything in there whether
-            or not the part is, and the flight is flown at that figure. What the removal does move is
-            the balance: the design&apos;s own weight is now spread over what is left, so the centre of
-            gravity and the stability margin have changed.
+            A part you added or removed was inside {massHeldBy}, whose weight this design states
+            outright — so the dry total above is unchanged. The stated figure stands for everything in
+            there whether or not that part is, and the flight is flown at that figure. What the change
+            does move is the balance: the design&apos;s own weight is now spread over a different set of
+            parts, so the centre of gravity and the stability margin have changed.
           </p>
         )}
         {massAbsorbed && (

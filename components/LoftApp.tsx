@@ -24,6 +24,10 @@ import {
   primaryTransition,
   primaryTransitionPart,
   unreachableTransitionCount,
+  primaryMassObject,
+  primaryMassObjectPart,
+  primaryMassObjectStation,
+  unreachableMassObjectCount,
   transitionDefaults,
   authoredTransitionName,
   removalRefusal,
@@ -144,6 +148,7 @@ const ADD_LABEL: Readonly<Record<AddedPart["kind"], string>> = {
   bodytube: "adding a body tube",
   trapezoidfinset: "adding a fin set",
   transition: "adding a transition",
+  masscomponent: "adding a mass object",
 };
 
 interface Edits {
@@ -153,6 +158,8 @@ interface Edits {
   bodyTubeId?: string;
   /** Which transition the transition fields describe and edit. A selection, not an edit — as above. */
   transitionId?: string;
+  /** Which mass object the mass fields describe and edit. A selection, not an edit — as above. */
+  massObjectId?: string;
   /** Which canopy the recovery fields describe and edit. A selection, not an edit — as above. */
   parachuteId?: string;
   /** Components removed from the design, oldest first. An ordered list, so undo is dropping the last. */
@@ -181,6 +188,8 @@ interface Edits {
   bodyDiameter?: number; // builder edit: the picked tube's outer diameter (m); scales the airframe to it
   transitionLength?: number; // builder edit: the picked transition's length (m)
   transitionAftDiameter?: number; // builder edit: the picked transition's exit diameter (m)
+  massObjectMass?: number; // builder edit: the picked mass object's weight (kg)
+  massObjectStation?: number; // builder edit: where it sits (m from the nose tip)
   finish?: SurfaceFinish; // builder edit: whole-airframe surface finish
   airframeMaterial?: string; // builder edit: airframe-shell material key (AIRFRAME_MATERIALS)
   boattailLength?: number; // builder edit: add a conical boattail of this length (m) at the aft
@@ -403,29 +412,14 @@ export default function LoftApp() {
       // so the results can show what the change bought — apogee, speed, and stability deltas —
       // instead of numbers in isolation. Condition edits alone (rod, wind, weather) don't alter the
       // design, so they get no baseline.
+      // Derived, not listed. This is the fourth place that has to answer "is this design edited?"
+      // and the only one that was still spelling the fields out one by one — so the two transition
+      // fields landed without it and a flyer who reshaped a tail cone got no delta card at all, which
+      // is precisely the number that change exists to show. `hasGeometryEdits` is the one predicate
+      // (it also knows which fields only count in pairs); ballast and a motor swap are the two design
+      // what-ifs that are not geometry.
       const hasWhatIf =
-        e.ballastKg !== undefined ||
-        e.motorSwap !== undefined ||
-        e.finSpan !== undefined ||
-        e.finCount !== undefined ||
-        e.finRootChord !== undefined ||
-        e.finTipChord !== undefined ||
-        e.finSweepLength !== undefined ||
-        e.finStation !== undefined ||
-        e.finThickness !== undefined ||
-        e.finCrossSection !== undefined ||
-        e.finMaterial !== undefined ||
-        e.noseLength !== undefined ||
-        e.noseShape !== undefined ||
-        e.bodyLength !== undefined ||
-        e.bodyDiameter !== undefined ||
-        e.finish !== undefined ||
-        e.airframeMaterial !== undefined ||
-        (e.boattailLength !== undefined && e.boattailAftDiameter !== undefined) ||
-        (e.mainDeployAltitude !== undefined && e.drogueDiameter !== undefined) ||
-        e.mainParachuteDiameter !== undefined ||
-        e.motorClusterCount !== undefined ||
-        e.payloadMassKg !== undefined;
+        e.ballastKg !== undefined || e.motorSwap !== undefined || hasGeometryEdits(geometryOf(e));
       const baseline = hasWhatIf ? runFlight(document.rocket, { configId, overrides }) : null;
       return { run, baseline };
     },
@@ -822,6 +816,11 @@ export default function LoftApp() {
       const d = transitionDefaults(removableFrom, afterId);
       if (!d) return;
       part = { id, kind, after: afterId, length: d.length, name: authoredTransitionName(removableFrom, afterId) };
+    } else if (kind === "masscomponent") {
+      // Weight and station both come from the corpus's medians (see `buildAdded`), and the mass fields
+      // aim at the part immediately, so the next keystroke replaces the starting weight rather than
+      // a modal asking for it before anything exists to see.
+      part = { id, kind, after: afterId, length: 0, name: "Mass object" };
     } else {
       part = { id, kind: "bodytube", after: afterId, length: Math.max(anchor.length / 2, 2 * anchor.outerRadius) };
     }
@@ -1096,6 +1095,12 @@ export default function LoftApp() {
             })(),
             transitionPart: primaryTransitionPart(designBase, edits.transitionId),
             unreachableTransitions: unreachableTransitionCount(designBase),
+            // 26 of the 35 corpus designs carry a mass object, 56 in all, and until now not one could
+            // be reached: the only mass a flyer could state was a payload the editor adds.
+            massObjectMass: primaryMassObject(designBase, edits.massObjectId)?.mass,
+            massObjectStation: primaryMassObjectStation(designBase, edits.massObjectId),
+            massObjectPart: primaryMassObjectPart(designBase, edits.massObjectId),
+            unreachableMassObjects: unreachableMassObjectCount(designBase),
             finish: primaryFinish(designBase),
             airframeMaterial: primaryAirframeMaterial(designBase),
             // The recovery readbacks take the picked canopy, so the diameter a field shows to edit
@@ -1130,6 +1135,10 @@ export default function LoftApp() {
             transitionAftDiameter: undefined,
             transitionPart: undefined,
             unreachableTransitions: 0,
+            massObjectMass: undefined,
+            massObjectStation: undefined,
+            massObjectPart: undefined,
+            unreachableMassObjects: 0,
             finish: undefined,
             airframeMaterial: undefined,
             mainParachuteDiameter: undefined,
@@ -1141,7 +1150,7 @@ export default function LoftApp() {
     // The fin and body readbacks take their selected part, so both selections are real dependencies:
     // without them the panel keeps showing the primary part's numbers while the edit writes to the
     // picked one.
-    [doc, designBase, edits.finSetId, edits.bodyTubeId, edits.transitionId, edits.parachuteId],
+    [doc, designBase, edits.finSetId, edits.bodyTubeId, edits.transitionId, edits.massObjectId, edits.parachuteId],
   );
 
   return (
@@ -1575,6 +1584,10 @@ function DesignEditor({
     transitionAftDiameter?: number;
     transitionPart?: AimedPart;
     unreachableTransitions: number;
+    massObjectMass?: number;
+    massObjectStation?: number;
+    massObjectPart?: AimedPart;
+    unreachableMassObjects: number;
     finish?: SurfaceFinish;
     airframeMaterial?: string;
     mainParachuteDiameter?: number;
@@ -1618,6 +1631,7 @@ function DesignEditor({
   const bodyPhrase = partPhrase(designDims.bodyTubePart, "tube");
   const chutePhrase = partPhrase(designDims.parachutePart, "canopy");
   const transPhrase = partPhrase(designDims.transitionPart, "transition");
+  const massPhrase = partPhrase(designDims.massObjectPart, "mass object");
   // Blank means "use the design's own value". A zero is a different statement, and these fields want
   // three different answers to it — so every call site says which of the three it is, and
   // `lib/model/edit.ts` is the authority, because it is the code that decides what the solver sees:
@@ -2039,7 +2053,35 @@ function DesignEditor({
               <legend className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
                 Mass &amp; finish
               </legend>
+              {designDims.unreachableMassObjects > 0 && (
+                // 26 of the 35 corpus designs carry a mass object and 15 carry several — an av-bay, a
+                // tracker, a nose weight, shear pins. The fields hold exactly one of them.
+                <p className="mb-2 text-xs text-zinc-500 dark:text-zinc-400">
+                  This design has {designDims.unreachableMassObjects} other mass{" "}
+                  {designDims.unreachableMassObjects === 1 ? "object" : "objects"}.{" "}
+                  <em>Mass</em> and <em>Mass pos</em> describe and change {massPhrase}; to work on
+                  another, pick it on the diagram or in the parts table above.
+                </p>
+              )}
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                {designDims.massObjectMass !== undefined && (
+                  <Num
+                    label={`Mass (${massU})`}
+                    value={toDispMass(edits.massObjectMass)}
+                    placeholder={toDispMass(designDims.massObjectMass)}
+                    onChange={(v) => onEdit({ massObjectMass: fromMass(v) })}
+                    min={0}
+                  />
+                )}
+                {designDims.massObjectStation !== undefined && (
+                  <Num
+                    label={`Mass pos (${spanU})`}
+                    value={toDispSpan(edits.massObjectStation)}
+                    placeholder={toDispSpan(designDims.massObjectStation)}
+                    onChange={(v) => onEdit({ massObjectStation: fromSpan(v) })}
+                    min={0}
+                  />
+                )}
                 <Num
                   label={`Nose ballast (${massU})`}
                   value={toDispMass(edits.ballastKg)}
