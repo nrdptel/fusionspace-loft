@@ -662,6 +662,12 @@ How it reaches CI:
 and **the deploy does not gate on the test workflow.** The container is ephemeral and re-cloned each
 session, so commit and push anything worth keeping.
 
+**Branch naming: `feature/<short-topic>`.** Use whatever branch the harness pins when it pins one —
+that is a contract with the tooling, not a preference. When you choose the name yourself, use the
+`feature/` prefix. Do NOT derive a prefix from the name of whatever tool is doing the work: a branch
+carrying a vendor's name cannot be written into a commit message, a PR body, or this manual without
+breaking the zero-trace invariant, which makes it awkward to refer to for its whole life.
+
 **Always ship through a pull request. Never push straight to `main`.** The deploy fires on any push to
 `main` whether or not a test ever ran, so a direct push deploys unverified. A pull request is the only
 thing that guarantees the full suite runs first — and here that includes the real-design corpus and
