@@ -201,9 +201,13 @@ export default function Limitations() {
         no longer exists would otherwise be flown with its mass at the nose tip. One structural rule is
         enforced: the <strong>last body tube cannot be removed</strong>, and the panel says why instead of
         producing a rocket with no body and a confident number computed from it. Removing the nose cone or
-        the only motor mount IS allowed — a flat-faced tube is a buildable if draggy rocket, and a design
-        with no propulsion is something Loft already reports rather than inventing a flight for. Refusing
-        what is merely unwise would be a go/no-go verdict, which Loft does not give.
+        the only motor mount IS allowed, because refusing what is merely unwise would be a go/no-go verdict
+        and Loft does not give those — a design with no propulsion is something it already reports rather
+        than inventing a flight for. One caveat on the nose, since it is the kind of thing that should not
+        be discovered by surprise: Loft has <strong>no flat-face drag model</strong>, and flies a nose-less
+        vehicle at a moderate fineness-3 ogive&apos;s nose drag instead. So a rocket with its nose removed
+        is flown more optimistically than it would really fly. Removing a nose to see the rest of the
+        airframe is fine; reading the apogee off it is not.
       </p>
       <p>
         One consequence worth knowing, because it follows from the fields being a fixed set rather than

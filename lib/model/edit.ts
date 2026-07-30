@@ -372,6 +372,23 @@ export function aimsOf(e: GeometryEdits): Readonly<Record<string, string | undef
   return out;
 }
 
+/** Does this entry in an edit bag represent an actual change?
+ *
+ *  The ONE predicate. Three places have to answer "is this design edited?" the same way — the app's
+ *  `hasActiveEdits`, the saved session's `countWhatIfs`, and this module — and they had drifted twice over.
+ *  A selection field says which part the fields point at, not that anything changed. The bag is a patch
+ *  spread over the previous one, so a field set and then CLEARED leaves its key holding `undefined`. And an
+ *  EMPTY ARRAY is not a change: undoing the last removal leaves `removedIds: []`, which a bare
+ *  `v !== undefined && v !== ""` test reads as a value — so a design restored to pristine went on reading as
+ *  edited, withholding the stored-tool comparison and hiding the button that brings it back. Fixing that in
+ *  one of the three and not the others is exactly how this drifts, so there is now only one. */
+export function isEditedValue(key: string, value: unknown): boolean {
+  if (INERT_EDIT_FIELDS.has(key)) return false;
+  if (value === undefined || value === "") return false;
+  if (Array.isArray(value) && value.length === 0) return false;
+  return true;
+}
+
 /** Which edit target a pick on `id` moves. Picking a part aims the fields that describe THAT KIND of
  *  part at it and leaves every other aim alone: a flyer who has set fin set 2's span and then clicks a
  *  body tube to read it must not have that span silently re-applied to fin set 1. A part no field
@@ -992,6 +1009,57 @@ function withMainParachuteDiameter(rocket: Rocket, diameter: number, selectedId?
   return { ...rocket, stages: rocket.stages.map((s) => ({ ...s, components: transform(s.components) })) };
 }
 
+/** Every id a removal of `id` would take: the part and everything mounted inside it. */
+function subtreeIds(rocket: Rocket, id: string): Set<string> {
+  const out = new Set<string>();
+  const collect = (c: RocketComponent): void => {
+    out.add(c.id);
+    for (const ch of c.children) collect(ch);
+  };
+  const find = (list: RocketComponent[]): boolean => {
+    for (const c of list) {
+      if (c.id === id) {
+        collect(c);
+        return true;
+      }
+      if (find(c.children)) return true;
+    }
+    return false;
+  };
+  for (const st of rocket.stages) if (find(st.components)) break;
+  return out;
+}
+
+/** The aim slots that must be cleared when `id` is removed, as a patch to merge into the edit bag.
+ *
+ *  Without this a removal is silently destructive in the one way this editor has worked hardest to
+ *  prevent. An aim naming a component that no longer exists falls back to the role default — that
+ *  fallback is deliberate, so a stale id from a restored session cannot disable the fields — and an
+ *  ABSOLUTE dimension edit then lands on whatever the fallback resolves to. Measured on
+ *  `two-stage-firm-booster.ork`: aim the fin fields at the second set, type a 77 mm span, remove that
+ *  set, and the surviving set goes from 50.0 mm to 77.0 mm. A different fin changes, with the field
+ *  still reading 77.
+ *
+ *  Covers the whole subtree, because a removal takes what is mounted inside the part: deleting a body
+ *  tube takes its fin set, and the fin aim names the fin set rather than the tube. */
+export function aimsClearedByRemoving(rocket: Rocket, edits: GeometryEdits, id: string): GeometryEdits {
+  const gone = subtreeIds(rocket, id);
+  const bag = edits as Record<string, unknown>;
+  const patch: Record<string, undefined> = {};
+  for (const [slot, def] of Object.entries(AIM_SLOTS)) {
+    const aimed = bag[slot];
+    if (typeof aimed === "string" && gone.has(aimed)) {
+      patch[slot] = undefined;
+      // The VALUES go too, not just the aim. They are absolute numbers read off a part that is about to
+      // stop existing, and an unaimed absolute value still resolves to the primary part — so leaving them
+      // is how the edit lands on a different component. Emptying the fields also keeps the panel honest:
+      // it stops showing a number that is not the one being flown.
+      for (const field of def.targets) patch[field] = undefined;
+    }
+  }
+  return patch as GeometryEdits;
+}
+
 /** Every component id in a design, so a reference to one can be checked for still existing. */
 function liveIds(rocket: Rocket): Set<string> {
   const out = new Set<string>();
@@ -1012,15 +1080,28 @@ function liveIds(rocket: Rocket): Set<string> {
  *  because the pristine design had two.
  *
  *  Deliberately short: the only structural rule is that an airframe needs a body. Removing the nose is
- *  allowed (a flat-faced tube is a buildable, if draggy, rocket), and so is removing the only motor
- *  mount — that leaves a design with no propulsion, which Loft already reports as such rather than
- *  inventing a flight. Refusing what is merely unwise would be a verdict, and Loft does not give those. */
+ *  allowed — a blunt-nosed rocket is a real thing to build — though the drag it is then flown at is
+ *  optimistic: `lib/sim/aero.ts` has no flat-face model and falls back to a moderate fineness-3 ogive for a
+ *  nose-less vehicle, which is documented on the limitations page rather than hidden behind a refusal.
+ *  Removing the only motor mount is allowed too: that leaves a design with no propulsion, which Loft
+ *  already reports as such rather than inventing a flight for it. Refusing what is merely unwise would be
+ *  a verdict, and Loft does not give those. */
 export function removalRefusal(rocket: Rocket, id: string): string | null {
-  const parts = flattenRocket(rocket);
-  const target = parts.find((p) => p.component.id === id);
+  const target = flattenRocket(rocket).find((p) => p.component.id === id);
   if (!target) return "That part is no longer in this design.";
-  if (target.component.kind === "bodytube" && parts.filter((p) => p.component.kind === "bodytube").length <= 1) {
-    return "This is the only body tube left, and an airframe needs one — a rocket without it has no body to fly. Remove something else, or add a tube first.";
+  if (target.component.kind === "bodytube") {
+    // Counted within the target's OWN stage, not across the design. A staged rocket is several airframes
+    // flown in sequence, so "the design still has a tube" is no comfort to a sustainer that no longer
+    // does: on `two-stage-firm-booster.ork` — one tube per stage — a whole-design count found two and
+    // allowed the removal that left stage 0 with none.
+    const stage = rocket.stages.find((st) => subtreeIds({ ...rocket, stages: [st] }, id).size > 0);
+    const inStage = stage
+      ? flattenRocket({ ...rocket, stages: [stage] }).filter((p) => p.component.kind === "bodytube").length
+      : 0;
+    if (inStage <= 1) {
+      const which = rocket.stages.length > 1 && stage ? ` in ${stage.name || "this stage"}` : "";
+      return `This is the only body tube left${which}, and an airframe needs one — a rocket without it has no body to fly. Remove something else, or add a tube first.`;
+    }
   }
   return null;
 }
@@ -1057,7 +1138,38 @@ function applyRemovals(rocket: Rocket, removedIds?: readonly string[]): Rocket {
  *
  *  Removals come first and the dimension edits are applied to what is left — see `applyRemovals`. */
 export function applyGeometryEdits(rocket: Rocket, edits: GeometryEdits): Rocket {
-  return applyDimensionEdits(applyRemovals(rocket, edits.removedIds), edits);
+  return applyDimensionEdits(applyRemovals(rocket, edits.removedIds), withoutRemovedAims(edits));
+}
+
+/** Drop any aim naming a component this same bag removes — and the values that aim was pointing.
+ *
+ *  Clearing the aim alone is NOT enough, and getting that wrong is the whole defect. The role fallback is
+ *  deliberate (a stale id from a restored session must not disable the fields), so an unaimed span still
+ *  resolves to the primary set — meaning a 77 mm span typed for the set the flyer just deleted lands on a
+ *  surviving set instead. Measured on `two-stage-firm-booster.ork`: aim the fin fields at the second set,
+ *  type 77 mm, remove that set, and the surviving 50.0 mm set became 77.0 mm.
+ *
+ *  So the values go with the aim. That is the honest answer: those numbers described a part that no longer
+ *  exists, and the fields then read the surviving part's own dimensions rather than a value nothing is
+ *  flying. This is why `AIM_SLOTS` pairs each aim with the fields it targets.
+ *
+ *  The app does the same when it appends the removal, so the UI's fields empty in step and never show a
+ *  number that is not being flown. This is the model refusing to build a wrong rocket from a bag it is
+ *  handed anyway — it decides what the solver sees, so it does not rely on a caller having been careful. */
+function withoutRemovedAims(edits: GeometryEdits): GeometryEdits {
+  if (!edits.removedIds?.length) return edits;
+  const gone = new Set(edits.removedIds);
+  const bag = edits as Record<string, unknown>;
+  let out: Record<string, unknown> | null = null;
+  for (const [slot, def] of Object.entries(AIM_SLOTS)) {
+    const aimed = bag[slot];
+    if (typeof aimed === "string" && gone.has(aimed)) {
+      out = out ?? { ...bag };
+      out[slot] = undefined;
+      for (const field of def.targets) out[field] = undefined;
+    }
+  }
+  return (out ?? edits) as GeometryEdits;
 }
 
 /** The dimension half of the edit bag, applied to a design whose removals have already been taken out. */

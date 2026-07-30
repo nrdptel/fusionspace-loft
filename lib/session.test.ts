@@ -268,3 +268,25 @@ describe("the recent-designs shelf", () => {
     expect(loadRecents()).toEqual([]);
   });
 });
+
+describe("an emptied removal list is not a what-if", () => {
+  const sess = (edits: Record<string, unknown>): import("./session").SavedSession => ({
+    v: 1,
+    design: "AAEC",
+    name: "a.ork",
+    opensOn: "flight",
+    units: "metric",
+    simIndex: 0,
+    edits,
+  });
+
+  it("counts a design restored to pristine as unedited", () => {
+    // Undoing the last removal leaves `removedIds: []`, and a bare `v !== undefined && v !== ""` test says
+    // an empty array is a value — so the design read as edited after being restored to pristine, which
+    // withholds the stored-tool comparison and hides the button that brings it back. The model's own
+    // `hasGeometryEdits` already required a non-empty list; the two answering differently is the drift a
+    // single shared definition exists to prevent.
+    expect(countWhatIfs(sess({ removedIds: [] }))).toBe(0);
+    expect(countWhatIfs(sess({ removedIds: ["some-component"] }))).toBe(1);
+  });
+});

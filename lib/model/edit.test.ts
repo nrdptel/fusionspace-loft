@@ -38,6 +38,7 @@ import {
   primaryBodyTubePart,
   aimEditsAt,
   removalRefusal,
+  aimsClearedByRemoving,
   hasGeometryEdits,
 } from "./edit";
 import type {
@@ -1561,5 +1562,99 @@ describe("removing a component", () => {
     expect(hasGeometryEdits({ removedIds: [coupler.id] })).toBe(true);
     expect(hasGeometryEdits({ removedIds: [] })).toBe(false);
     expect(INERT_EDIT_FIELDS.has("removedIds"), "a removal is a change, not a selection").toBe(false);
+  });
+});
+
+describe("a removal cannot re-land an edit on a different part", () => {
+  it("drops the aim AND the values it was pointing, so the surviving part is untouched", async () => {
+    // The destructive case, and it is silent. The role fallback is deliberate — a stale id from a restored
+    // session must not disable the fields — so an aim naming a removed part falls back to the primary one,
+    // and an ABSOLUTE value then lands there. Measured before the fix on this fixture: aim the fin fields
+    // at the second set, type a 77 mm span, remove that set, and the surviving 50.0 mm set became 77.0 mm
+    // with the field still reading 77. Clearing the aim alone does NOT fix it: unaimed, the span still
+    // resolves to the primary set. The values have to go with the aim.
+    const bytes = new Uint8Array(
+      readFileSync(resolve(process.cwd(), "e2e/fixtures", "two-stage-firm-booster.ork")),
+    );
+    const rocket = (await importOrk(bytes)).rocket;
+    const fins = flattenRocket(rocket).filter((p) => p.component.kind === "trapezoidfinset");
+    expect(fins.length).toBe(2);
+    const [a, b] = fins.map((p) => p.component as TrapezoidFinSet);
+    const survivorSpan = a.height;
+
+    // The aim works: only the second set moves.
+    const aimed = applyGeometryEdits(rocket, { finSetId: b.id, finSpan: 0.077 });
+    const aimedSpans = flattenRocket(aimed)
+      .filter((p) => p.component.kind === "trapezoidfinset")
+      .map((p) => (p.component as TrapezoidFinSet).height);
+    expect(aimedSpans).toContain(0.077);
+    expect(aimedSpans.filter((h) => Math.abs(h - survivorSpan) < 1e-9).length).toBe(1);
+
+    // Remove the aimed set while that span is live. The survivor must not inherit it.
+    const gone = applyGeometryEdits(rocket, { finSetId: b.id, finSpan: 0.077, removedIds: [b.id] });
+    const left = flattenRocket(gone).filter((p) => p.component.kind === "trapezoidfinset");
+    expect(left.length).toBe(1);
+    expect((left[0].component as TrapezoidFinSet).height).toBeCloseTo(survivorSpan, 9);
+    // And the readback agrees, so no surface shows a number that is not being flown.
+    expect(primaryFinSpan(gone, b.id)).toBeCloseTo(survivorSpan, 9);
+  });
+
+  it("clears every field the aim targeted, for every slot in the registry", async () => {
+    const rocket = await load("demo-dual-deploy.ork");
+    const chute = flattenRocket(rocket).find((p) => p.component.kind === "parachute")!.component;
+    const patch = aimsClearedByRemoving(rocket, { parachuteId: chute.id, mainParachuteDiameter: 1.4 }, chute.id);
+    expect(patch.parachuteId).toBeUndefined();
+    for (const f of AIM_SLOTS.parachuteId.targets) {
+      expect(Object.prototype.hasOwnProperty.call(patch, f), `${f} must be cleared too`).toBe(true);
+    }
+    // An aim pointing elsewhere is left alone: removing one part must not disarm another role's edit.
+    const other = aimsClearedByRemoving(rocket, { finSetId: "some-fin", finSpan: 0.05 }, chute.id);
+    expect(Object.keys(other)).toEqual([]);
+  });
+
+  it("clears an aim naming a part that goes as a CHILD of the removed one", async () => {
+    // Removing a body tube takes its fin set, and the fin aim names the fin set rather than the tube.
+    const rocket = await load("demo-single-deploy.ork");
+    const tube = flattenRocket(rocket).find((p) => p.component.kind === "bodytube")!.component;
+    const fin = flattenRocket(rocket).find((p) => p.component.kind === "trapezoidfinset")!.component;
+    expect(tube.children.some((c) => c.id === fin.id), "the fixture must mount the fins in the tube").toBe(true);
+    const patch = aimsClearedByRemoving(rocket, { finSetId: fin.id, finSpan: 0.077 }, tube.id);
+    expect(patch.finSetId).toBeUndefined();
+    expect(Object.prototype.hasOwnProperty.call(patch, "finSpan")).toBe(true);
+  });
+});
+
+describe("the last body tube is counted per STAGE", () => {
+  it("refuses a stage's only tube even when the design has others", async () => {
+    // A staged rocket is several airframes flown in sequence, so "the design still has a tube" is no
+    // comfort to a sustainer that no longer does. `two-stage-firm-booster.ork` carries one tube per stage,
+    // and a whole-design count found two and allowed the removal that left a stage with none.
+    const bytes = new Uint8Array(
+      readFileSync(resolve(process.cwd(), "e2e/fixtures", "two-stage-firm-booster.ork")),
+    );
+    const rocket = (await importOrk(bytes)).rocket;
+    expect(rocket.stages.length).toBe(2);
+    const tubes = flattenRocket(rocket).filter((p) => p.component.kind === "bodytube");
+    expect(tubes.length).toBe(2);
+
+    for (const t of tubes) {
+      const why = removalRefusal(rocket, t.component.id);
+      expect(why, "every stage's only tube is refused").toBeTruthy();
+      expect(why).toMatch(/only body tube/);
+      // It names WHICH stage, since "the only one" is false of the design as a whole.
+      expect(why).toMatch(/Sustainer|Booster/);
+    }
+  });
+
+  it("says nothing about a stage on a single-stage design", async () => {
+    const rocket = await load("demo-quirks.ork");
+    expect(rocket.stages.length).toBe(1);
+    const upper = flattenRocket(rocket).find((p) => p.component.name === "Upper")!.component.id;
+    expect(removalRefusal(rocket, upper)).toBeNull(); // two tubes in the one stage
+    const oneLeft = applyGeometryEdits(rocket, { removedIds: [upper] });
+    const mount = flattenRocket(oneLeft).find((p) => p.component.kind === "bodytube")!.component.id;
+    const why = removalRefusal(oneLeft, mount)!;
+    expect(why).toMatch(/only body tube left, and an airframe needs one/);
+    expect(why).not.toMatch(/ in /); // no stage clause where there is only one stage
   });
 });

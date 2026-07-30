@@ -5,7 +5,7 @@ import type { Rocket, RocketComponent } from "@/lib/model/types";
 import { flattenRocket } from "@/lib/model/geometry";
 import { massByComponent, dryMassProperties } from "@/lib/sim/mass";
 import type { MotorMark } from "@/lib/sim/setup";
-import { removalRefusal, type GeometryEdits } from "@/lib/model/edit";
+import type { GeometryEdits } from "@/lib/model/edit";
 import { TOUCH_TARGET, TOUCH_TARGET_SQUARE } from "@/lib/ui-tokens";
 import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
@@ -119,6 +119,7 @@ export default function GeometryInspector({
   onEdit,
   onSelectPart,
   onRemove,
+  refuseRemoval,
   aims,
 }: {
   rocket: Rocket;
@@ -144,6 +145,10 @@ export default function GeometryInspector({
    *  without an editor stays read-only. The panel asks `removalRefusal` first and shows the reason instead
    *  of the control when there is one — a button that silently does nothing is worse than no button. */
   onRemove?: (id: string) => void;
+  /** Why the picked part cannot be removed, or null — asked of the caller, which owns the design a removal
+   *  is judged against. The panel judging for itself let the two disagree: it read the fully-edited model,
+   *  which contains parts a dimension edit ADDED and the removal mechanism cannot take. */
+  refuseRemoval?: (id: string) => string | null;
   /** Every component id the edit model is currently aimed at, keyed by its aim slot. Passed back in so
    *  the pick shown here and the parts the fields describe cannot drift apart — a restored session
    *  arrives with an aim and no pick, and "Reset to as-designed" clears the aims without clearing the
@@ -324,9 +329,9 @@ export default function GeometryInspector({
             visible. A refusal replaces it with the reason. */}
         {onRemove && selectedId && (
           <p className="mt-1 text-xs">
-            {removalRefusal(rocket, selectedId) ? (
+            {refuseRemoval?.(selectedId) ? (
               <span className="text-amber-700 dark:text-amber-400" role="status">
-                {removalRefusal(rocket, selectedId)}
+                {refuseRemoval(selectedId)}
               </span>
             ) : (
               <button

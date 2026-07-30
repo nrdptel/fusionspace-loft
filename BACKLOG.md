@@ -10,6 +10,35 @@ a one-way door — those preempt the milestone immediately). Everything else wai
 one-in-four quota in `MAINTAINING.md`. Rough edges, missing affordances, and findings too big for one
 pass. Newest first.
 
+- **A nose-less design is flown at a fineness-3 ogive's nose drag, because there is no flat-face model.**
+  `lib/sim/aero.ts` sets `noseFineness = haveNose && noseDiameter > 0 ? noseLength / noseDiameter : 3`, and
+  its own comment says so. Now that a flyer can REMOVE the nose cone (R2), that fallback is reachable by a
+  deliberate act rather than only by an odd import, so the optimism is stated on `/docs/limitations` instead
+  of left implicit. The fix is a real blunt-body term; until then the page says not to read an apogee off a
+  nose-less rocket.
+- **The parameter sweep's axes are resolved from the PRISTINE design, so an axis can outlive the part it
+  varies.** `components/ParameterSweep.tsx` builds `axes` from `doc.rocket`, not from the edited model, so
+  after removing a fin set the fin axes are still offered and the sweep plots a flat line — a response curve
+  for a dimension nothing has. Same shape for the flutter metric. Found by the pre-push review; not fixed
+  here because the sweep needs the shown rocket threaded to it, which is its own increment.
+- **After the only motor mount is removed, the motor pickers still offer motors.** `swapInfo` and
+  `configChoices` come from the pristine `doc.rocket`, so the swap picker and the configuration picker keep
+  listing options for a design that now has no mount. The flight itself is honest ("This configuration has
+  no motor assigned, so there is no thrust to fly" — verified on `USLI2025-FULLSCALE-10.15 (2).ork`), so
+  this is a control offering something inert rather than a wrong number.
+- **The baseline / what-if delta strip does not treat a removal as a what-if.** `hasWhatIf` in
+  `components/LoftApp.tsx` lists every design edit except `removedIds`, so a removal produces `baseline =
+  null` and the before/after strip never renders for the one edit whose effect is largest.
+- **A successful removal can leave the stale-id refusal sentence on screen.** `GeometryInspector`'s local
+  `selectedId` is not cleared when the picked part is removed, and the aim-sync effect does not fire because
+  no aim moved, so the panel can render "That part is no longer in this design." in amber immediately after
+  a removal that worked. Cosmetic but confusing: it reads as a failure.
+- **On a design whose stage carries `overrideMass` + `overrideSubcomponents`, a removal sheds no mass and
+  nothing says so.** The stage's stated figure replaces the sum of its parts, so deleting a part inside it
+  changes the mass by zero. The existing "mass absorbed" notice is gated on the ADD cases (payload, drogue),
+  so a removal gets no equivalent. `Dual parachute deployment.ork` and `EscapeVelocity.ork` are the corpus
+  designs that state mass this way.
+
 - **Benchmark against OpenRocket: the parts list is FLAT where theirs is a tree, and 9 of 35 designs pay
   for it.** OpenRocket presents components as a hierarchy with the stage as an explicit parent, so a part
   is identified by where it sits in the structure. Loft's parts table has Component, Type, Station, Mass
