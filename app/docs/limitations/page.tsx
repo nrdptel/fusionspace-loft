@@ -219,8 +219,11 @@ export default function Limitations() {
       <p>
         <strong>A mass object can also be slid along the airframe on the diagram</strong>, not only
         typed — it is the one kind whose whole geometry is a station, so it is the one that most needs a
-        grip. The handle is a real slider: focusable, arrow keys nudge it, and the whole drag is one
-        undo. It is bounded by the part holding it, because the model clamps the station there anyway.
+        grip. The handle is a real slider: focusable, arrow keys nudge it, and the drag is one undo. It
+        is bounded by the part holding it, and the station you ask for is the station that is flown —
+        or, if you ask for one outside that part, the nearest point inside it. Both the field and the
+        grip speak an absolute station from the nose tip, and both are resolved against the airframe as
+        it will actually fly, so a length edit elsewhere cannot move the mass out from under them.
       </p>
       <p>
         <strong>What is still fixed.</strong> Nose cones are not addressable, which costs nothing

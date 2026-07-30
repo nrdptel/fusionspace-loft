@@ -10,6 +10,24 @@ a one-way door — those preempt the milestone immediately). Everything else wai
 one-in-four quota in `MAINTAINING.md`. Rough edges, missing affordances, and findings too big for one
 pass. Newest first.
 
+- **Dragging the Mass position grip past its end splits one gesture into two undos.** A frame beyond
+  `lo`/`hi` emits the value the previous frame already emitted, `movedWhatIf` sees no change, and
+  `endRun` closes the coalescing run — so overshooting and coming back leaves two "Undo the mass
+  position" steps for one drag. The grip's range is only the part holding the mass, so overshoot is the
+  ordinary gesture rather than an edge case. Reproduce on the starter: drag the mass past the tube's aft
+  end, hold there a moment, drag back inside, then press Undo twice. The e2e only nudges with ArrowLeft,
+  which never clamps, so it cannot see this. The fix is for a clamped frame to extend the run rather
+  than close it — `endRun` is called by any commit that records nothing, and a no-op inside a live drag
+  is not the same thing as a deliberate boundary.
+- **Authoring one part hides the controls for authoring the next.** The three add buttons render only
+  while the picked part is a body tube, and every add re-aims the fields at the part it just made — so
+  after "Add a transition behind this" the transition is selected, it is not a tube, and all three
+  buttons vanish. Building an airframe therefore costs a re-pick between every gesture. Reproduce:
+  Start a new design → Design → Parts → click the body tube → Add a transition behind this → the row
+  of add buttons is gone. This is the tell the OpenRocket benchmark already named — their palette
+  GREYS OUT what cannot attach to the current selection, so the flyer learns the rule, where Loft's
+  controls simply disappear and teach nothing. Disabled-with-a-reason is the fix, and it applies to
+  the fin-set control too (hidden outright when a design has no set to clone).
 - **The Transition exit placeholder goes stale under a whole-airframe caliber change.** The transition
   readbacks come off the structure base (the design plus the flyer's adds and removals, without their
   dimension edits) while `bodyDiameter` rescales every transition's fore and aft radius in the flown

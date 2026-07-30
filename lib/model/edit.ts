@@ -417,7 +417,12 @@ export function primaryMassObject(rocket: Rocket, selectedId?: string): MassComp
     .map((p) => p.component)
     .filter((c): c is MassComponent => c.kind === "masscomponent");
   if (!masses.length) return undefined;
-  const picked = selectedId ? masses.find((c) => c.id === selectedId) : undefined;
+  // A pick is refused on the same grounds the fallback avoids it, and the same grounds `removalRefusal`
+  // refuses to delete it: a point mass that stands in for a whole airframe's stated weight is not a part
+  // sitting in the design, it IS the design's mass. Offering to restate or to SLIDE it would present a
+  // measurement the file makes as a what-if — and sliding it is the worse of the two, because a lumped
+  // CG has no station a flyer could move it to. 4 such masses across 3 RASAero designs in the corpus.
+  const picked = selectedId ? masses.find((c) => c.id === selectedId && !c.standsForAirframe) : undefined;
   if (picked) return picked;
   const real = masses.filter((c) => !c.standsForAirframe);
   if (!real.length) return undefined;
@@ -1052,17 +1057,31 @@ function withTransitionExit(c: RocketComponent, id: string, aftRadius: number): 
   return { ...c, children: c.children.map((k) => withTransitionExit(k, id, aftRadius)) };
 }
 
-/** Turn a station (m from the nose tip) into an offset inside the part holding the mass, clamped so the
- *  mass stays within it. A point mass placed outside the airframe would still be flown — the solver puts
- *  mass wherever the tree says — so this is the difference between a CG a flyer can trust and one
- *  computed from a rocket that could not be built. */
-function clampMassOffset(rocket: Rocket, placed: Positioned, station: number): number {
-  const parentFore = placed.xFore - placed.component.placement.offset;
-  // The holder's extent, taken from the flattened tree so it is the edited length rather than a stale
-  // one. Falls back to the whole airframe where the parent cannot be resolved.
-  const host = flattenRocket(rocket).find((p) => p.component.children.some((c) => c.id === placed.component.id));
-  const span = host ? host.length : Math.max(0, placed.xFore);
-  return Math.max(0, Math.min(span, station - parentFore));
+/** Put one mass object at an absolute station (m from the nose tip), clamped to stay inside the part
+ *  holding it.
+ *
+ *  Takes the WHOLE rocket rather than a placement, because both numbers the conversion needs — where
+ *  the host begins and how long it is — are read off the tree it is given, not inferred from the mass's
+ *  own offset. Inferring them is what made this wrong for every placement method except `top`, and wrong
+ *  again under any live length edit. A point mass placed outside the airframe would still be FLOWN: the
+ *  solver puts mass wherever the tree says. This clamp is the difference between a CG a flyer can trust
+ *  and one computed from a rocket that could not be built.
+ *
+ *  The method is rewritten to `top` on the way through, so the mass then behaves like one a flyer
+ *  placed: measured from the fore end of the part carrying it, and staying put in it when the airframe
+ *  around it changes. */
+function withMassStation(rocket: Rocket, id: string, station: number): Rocket {
+  const flat = flattenRocket(rocket);
+  const host = flat.find((p) => p.component.children.some((c) => c.id === id));
+  if (!host || !(host.length > 0)) return rocket;
+  const offset = Math.max(0, Math.min(host.length, station - host.xFore));
+  return {
+    ...rocket,
+    stages: rocket.stages.map((s) => ({
+      ...s,
+      components: s.components.map((c) => withMassObject(c, id, undefined, offset)),
+    })),
+  };
 }
 
 /** Set one mass object's weight and/or its offset inside its parent, wherever it sits in the tree. */
@@ -1850,23 +1869,9 @@ function applyDimensionEdits(rocket: Rocket, edits: GeometryEdits): Rocket {
   if (edits.transitionLength !== undefined && edits.transitionLength > 0 && transTarget) {
     lengths.set(transTarget.id, edits.transitionLength);
   }
-  // A mass object's weight and station. The station arrives as an absolute distance from the nose tip —
-  // what the field shows and what a flyer reads off the diagram — and is stored as an offset inside the
-  // part holding it, clamped to stay there, because a point mass floating outside the airframe is not a
-  // rocket anyone built. Resolved from the design base for the same reason every other aim is.
+  // Which mass object the mass fields are holding. Resolved here, from the design base, for the same
+  // reason every other aim is — but APPLIED at the very end, once the tree has its final geometry.
   const massTarget = primaryMassObject(rocket, edits.massObjectId);
-  const massPlaced = massTarget ? flattenRocket(rocket).find((p) => p.component.id === massTarget.id) : undefined;
-  const massEdit =
-    massTarget && massPlaced
-      ? {
-          id: massTarget.id,
-          mass: edits.massObjectMass !== undefined && edits.massObjectMass >= 0 ? edits.massObjectMass : undefined,
-          offset:
-            edits.massObjectStation !== undefined && edits.massObjectStation >= 0
-              ? clampMassOffset(rocket, massPlaced, edits.massObjectStation)
-              : undefined,
-        }
-      : undefined;
   // The exit is applied LAST, after the whole-airframe caliber scale, so an absolute diameter typed
   // here is the one flown even when `bodyDiameter` is also set — the same precedence the boattail's
   // exit already has, and the only one under which the field is not showing a number nothing is using.
@@ -1910,8 +1915,8 @@ function applyDimensionEdits(rocket: Rocket, edits: GeometryEdits): Rocket {
     if (airframeMaterial) geo = withAirframeMaterial(geo, airframeMaterial);
     if (radiusScale !== 1) geo = scaleAirframeRadii(geo, radiusScale);
     if (transExit) geo = withTransitionExit(geo, transExit.id, transExit.aftRadius);
-    if (massEdit && (massEdit.mass !== undefined || massEdit.offset !== undefined)) {
-      geo = withMassObject(geo, massEdit.id, massEdit.mass, massEdit.offset);
+    if (massTarget && edits.massObjectMass !== undefined && edits.massObjectMass >= 0) {
+      geo = withMassObject(geo, massTarget.id, edits.massObjectMass, undefined);
     }
     return geo;
   };
@@ -1940,6 +1945,26 @@ function applyDimensionEdits(rocket: Rocket, edits: GeometryEdits): Rocket {
   // the length/diameter edits left.
   if (edits.payloadMassKg !== undefined && edits.payloadMassKg > 0) {
     out = addPayloadMass(out, edits.payloadMassKg, edits.payloadStation, edits.bodyTubeId);
+  }
+  // The mass object's STATION, last of all and against the tree that is actually flown.
+  //
+  // It arrives as an absolute distance from the nose tip — what the field shows and what a flyer reads
+  // off the diagram — and has to become an offset inside the part holding it. Both halves of that
+  // conversion are facts about the FINAL geometry, so resolving them any earlier is wrong in two ways
+  // that were both reachable and both measured:
+  //
+  //  - the host's fore station was derived as `mass.xFore − placement.offset`, which is only true for
+  //    a `top` placement. Of the 56 corpus mass objects 31 are `top`, 12 `absolute`, 8 `bottom` and 5
+  //    `middle` — so on 4 of the 24 designs the grip would appear on, the station it read was not the
+  //    station flown, and on 3 of those every position along the whole travel landed the mass on ONE
+  //    station: a grip that moves the CG once and then never again.
+  //  - the host's extent came from the pre-dimension-edit tree, so any live length edit shifted it.
+  //    Measured on the starter, in a flyer's normal build order: take the nose from 220 mm to 440 mm,
+  //    then ask for station 595 mm, and the mass flies at 815 mm. Shrink the body tube from 620 mm to
+  //    207 mm with the mass parked at its aft end and it flies at 840 mm on a 427 mm rocket — the
+  //    point mass outside the airframe this clamp exists to prevent, with a confident apogee over it.
+  if (massTarget && edits.massObjectStation !== undefined && edits.massObjectStation >= 0) {
+    out = withMassStation(out, massTarget.id, edits.massObjectStation);
   }
   return out;
 }

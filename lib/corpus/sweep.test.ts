@@ -37,6 +37,8 @@ import {
   transitionDefaults,
   newPartId,
   aimEditsAt,
+  primaryMassObject,
+  primaryNose,
 } from "../model/edit";
 import { dryMassProperties, massByComponent, statedMassHolder } from "../sim/mass";
 
@@ -233,7 +235,9 @@ suite("real-design corpus", () => {
     const floating: string[] = [];
     const stuck: string[] = [];
     const unaimable: string[] = [];
+    const misplaced: string[] = [];
     let driven = 0;
+    let stations = 0;
 
     for (const f of files) {
       const doc = await importDesign(new Uint8Array(readFileSync(f.path)));
@@ -284,15 +288,55 @@ suite("real-design corpus", () => {
         if (removalRefusal(withMass, mid)) stuck.push(`${where} (mass object)`);
         if (aimEditsAt(withMass, mid).massObjectId !== mid) unaimable.push(`${where} (mass object)`);
       }
+
+      // --- a mass object's STATION, on the design's OWN masses ------------------------------
+      // Rule 5, and the one the first version of this sweep could not see: the grip and the field
+      // both speak an absolute station from the nose tip, so the station a flyer asks for must be
+      // the station that is flown — or, where it falls outside the part holding the mass, the
+      // nearest point inside it. Driven on the design's own mass objects rather than an authored
+      // one, because the failure was in how the HOST is resolved and imported masses use all four
+      // placement methods (31 top, 12 absolute, 8 bottom, 5 middle across the corpus) where an
+      // authored one is always `top`. Driven with a length edit live underneath, because the other
+      // half of the failure was reading the host's extent from the pre-edit tree — and shaping the
+      // airframe before placing the mass is the ordinary build order.
+      const own = primaryMassObject(pristine);
+      const ownHost = own
+        ? flattenRocket(pristine).find((p) => p.component.children.some((c) => c.id === own.id))
+        : undefined;
+      if (!own || !ownHost || !(ownHost.length > 0)) continue;
+      const nose = primaryNose(pristine);
+      for (const t of [0, 0.25, 0.5, 0.75, 1]) {
+        const want = ownHost.xFore + ownHost.length * t;
+        for (const alsoEdit of [{}, nose ? { noseLength: nose.length * 1.6 } : {}]) {
+          stations++;
+          const moved = applyGeometryEdits(pristine, {
+            ...alsoEdit,
+            massObjectId: own.id,
+            massObjectStation: want,
+          });
+          const at = flattenRocket(moved).find((p) => p.component.id === own.id)?.xFore;
+          const host = flattenRocket(moved).find((p) => p.component.children.some((c) => c.id === own.id));
+          if (at === undefined || !host) continue;
+          const clamped = Math.max(host.xFore, Math.min(host.xFore + host.length, want));
+          if (Math.abs(at - clamped) > 1e-6) {
+            misplaced.push(
+              `${shortName(f.name)} · "${own.name}" (${own.placement.method}) — asked ${(want * 1000).toFixed(1)} mm, flown ${(at * 1000).toFixed(1)} mm, host ${(host.xFore * 1000).toFixed(1)}–${((host.xFore + host.length) * 1000).toFixed(1)} mm`,
+            );
+          }
+        }
+      }
     }
 
     // The denominator, printed so a run that examined nothing cannot read like a pass.
     console.log(`authored parts driven across ${files.length} design files: ${driven}`);
+    console.log(`mass-object stations driven across ${files.length} design files: ${stations}`);
     expect(driven, "no part was authored — the sweep proves nothing").toBeGreaterThan(100);
+    expect(stations, "no mass station was driven — that half of the sweep proves nothing").toBeGreaterThan(100);
     expect(openedAStep, "authored transitions that opened a mould-line step the design did not have").toEqual([]);
     expect(floating, "authored mass objects placed outside the part holding them").toEqual([]);
     expect(stuck, "authored parts that cannot be removed again").toEqual([]);
     expect(unaimable, "authored parts the editor's fields cannot be aimed at").toEqual([]);
+    expect(misplaced, "mass objects flown at a station other than the one asked for").toEqual([]);
   }, 300_000);
 
   it("flies every stored simulation and agrees on apogee and speed", async () => {
