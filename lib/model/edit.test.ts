@@ -22,6 +22,7 @@ import {
   transitionDefaults,
   primaryTransition,
   primaryTransitionPart,
+  authoredTransitionName,
   mouldLineStep,
   primaryMassObject,
   primaryMassObjectStation,
@@ -1803,8 +1804,32 @@ describe("authoring a transition", () => {
   const author = (r: Rocket, after: string, name?: string) => {
     const id = newPartId(r, undefined, after);
     const d = transitionDefaults(r, after)!;
-    return { id, edits: { added: [{ id, kind: "transition" as const, after, length: d.length, name }] } };
+    // The name is decided ONCE at authoring, exactly as the app does it, so a cone with nothing behind
+    // it is a "Tail cone" and one between two sections is a "Transition".
+    const label = name ?? authoredTransitionName(r, after);
+    return { id, edits: { added: [{ id, kind: "transition" as const, after, length: d.length, name: label }] } };
   };
+
+  it("names what it built: a tail cone where nothing follows, a transition where something does", () => {
+    const mk = (id: string, r: number): BodyTube => ({
+      id, name: id, kind: "bodytube", placement: { method: "after", offset: 0 },
+      length: 0.3, outerRadius: r, children: [],
+    });
+    const one: Rocket = { name: "one", stages: [{ name: "S", components: [mk("a", 0.03)] }], configurations: [], referenceType: "maximum" };
+    const two: Rocket = { name: "two", stages: [{ name: "S", components: [mk("a", 0.03), mk("b", 0.02)] }], configurations: [], referenceType: "maximum" };
+    expect(authoredTransitionName(one, "a")).toBe("Tail cone");
+    expect(authoredTransitionName(two, "a")).toBe("Transition");
+    // Across a STAGE boundary the airframe still continues, so the last tube of a booster is not the
+    // end of the rocket — the case that shipped a contracting cone into the middle of a stack.
+    const staged: Rocket = {
+      name: "staged",
+      stages: [{ name: "Sustainer", components: [mk("a", 0.03)] }, { name: "Booster", components: [mk("b", 0.05)] }],
+      configurations: [],
+      referenceType: "maximum",
+    };
+    expect(authoredTransitionName(staged, "a")).toBe("Transition");
+    expect(transitionDefaults(staged, "a")!.aftRadius).toBeCloseTo(0.05, 9);
+  });
 
   it("builds a tail cone where nothing sits behind the anchor, and the flight follows it", async () => {
     // The base-drag lever. A blunt-based rocket loses most of its pressure drag to the base, and
@@ -1894,7 +1919,12 @@ describe("authoring a transition", () => {
     // Picking it aims the transition fields at it, and nothing else.
     expect(aimEditsAt(built, id)).toEqual({ transitionId: id });
     expect(primaryTransition(built, id)!.id).toBe(id);
-    expect(primaryTransitionPart(built, id)?.covers).toBe(1);
+    // The panel names the part it is holding, by the design's own name where that distinguishes it.
+    expect(primaryTransitionPart(built, id)?.name).toBe("Tail cone");
+    expect(primaryTransitionPart(built, id)?.station).toBeCloseTo(
+      flattenRocket(built).find((p) => p.component.id === id)!.xFore,
+      9,
+    );
 
     // Both fields change exactly that part.
     const shaped = applyGeometryEdits(doc.rocket, {
@@ -1938,10 +1968,34 @@ describe("authoring a transition", () => {
     const doc = await load(SINGLE);
     const tube = primaryBodyTube(doc.rocket)!;
     const { id, edits } = author(doc.rocket, tube.id);
+    const built = applyGeometryEdits(doc.rocket, edits);
+    // Assert the part is THERE before asking about its joint: `mouldLineStep` returns undefined for a
+    // component it cannot find, so this assertion passes for the wrong reason on a build that never
+    // made the cone at all.
+    expect(flattenRocket(built).find((p) => p.component.id === id)).toBeTruthy();
     // A tail cone has nothing behind it, so there is no joint to judge.
-    expect(mouldLineStep(applyGeometryEdits(doc.rocket, edits), id)).toBeUndefined();
+    expect(mouldLineStep(built, id)).toBeUndefined();
     // The tube in front of it fairs to it exactly.
-    expect(mouldLineStep(applyGeometryEdits(doc.rocket, edits), tube.id)).toBeCloseTo(0, 9);
+    expect(mouldLineStep(built, tube.id)).toBeCloseTo(0, 9);
+    // And a joint that DOES step is reported, with its size and its sign.
+    const stepped: Rocket = {
+      name: "stepped",
+      stages: [
+        {
+          name: "S",
+          components: [
+            { id: "n", name: "Nose", kind: "nosecone", placement: { method: "top", offset: 0 }, length: 0.1, aftRadius: 0.03, shape: "ogive", children: [] } as NoseCone,
+            { id: "wide", name: "Wide", kind: "bodytube", placement: { method: "after", offset: 0 }, length: 0.3, outerRadius: 0.03, children: [] } as BodyTube,
+            { id: "narrow", name: "Narrow", kind: "bodytube", placement: { method: "after", offset: 0 }, length: 0.3, outerRadius: 0.02, children: [] } as BodyTube,
+          ],
+        },
+      ],
+      configurations: [],
+      referenceType: "maximum",
+    };
+    expect(mouldLineStep(stepped, "wide")).toBeCloseTo(-0.02, 9); // steps IN by 20 mm of diameter
+    expect(mouldLineStep(stepped, "narrow")).toBeUndefined(); // nothing behind it
+    expect(mouldLineStep(stepped, "n")).toBeCloseTo(0, 9); // the nose fairs to the tube
   });
 });
 

@@ -3052,24 +3052,30 @@ test.describe("Loft", () => {
     await page.getByRole("button", { name: /Add a transition behind this/ }).click();
     await expect(cones).toHaveCount(1);
     // The dimension line says it contracts: a fore diameter larger than the exit.
-    await expect(cones.first()).toContainText(/⌀\s*54[^→]*→\s*⌀\s*4[01]/);
+    // The parts table rounds to whole millimetres, so the constant is pinned on the field's own
+    // readback below, which carries round-trip precision. Here it is enough that the cone contracts.
+    await expect(cones.first()).toContainText(/⌀\s*54[^→]*→\s*⌀\s*40\b/);
 
     // Contracting the base is worth altitude, and the Flight card moves with it.
     await page.getByRole("tab", { name: "Flight" }).click();
-    await expect.poll(apogee, { timeout: 20000 }).toBeGreaterThan(asBuilt);
+    // +29.33 m on the starter, measured; assert most of it rather than any epsilon above zero.
+    await expect.poll(apogee, { timeout: 20000 }).toBeGreaterThan(asBuilt + 20);
 
     // The fields aimed at it the moment it existed, so the very next number typed shapes THAT part.
     await page.getByRole("tab", { name: "Design" }).click();
     const exit = page.locator("label").filter({ hasText: /Transition exit/ }).first().locator("input");
-    await expect(exit).toHaveAttribute("placeholder", /4[01]/);
+    // 54.00 mm x 0.7446 = 40.2 mm. Anchored and to the tenth: the previous /4[01]/ accepted anything
+    // from 40.0 to 41.99 — a 4.9% window on the one constant this case exists to hold — and being
+    // unanchored it also matched "540".
+    await expect(exit).toHaveAttribute("placeholder", /^40(\.2\d*)?$/);
     await exit.fill("20");
     await expect(cones.first()).toContainText(/→\s*⌀\s*20/);
-    // Narrowing the exit under the part behind it is impossible here — nothing is behind it — so no
-    // step notice fires. It does on a joint that steps; that is covered in the model tests.
+    // Nothing sits behind a tail cone, so there is no joint to judge and the step notice stays silent.
+    await expect(page.getByText(/The airframe steps/)).toHaveCount(0);
 
     // And it is undoable, by name, back to the design that never had it.
     await page.getByRole("button", { name: /^Undo the transition exit/ }).click();
-    await expect(cones.first()).toContainText(/→\s*⌀\s*4[01]/);
+    await expect(cones.first()).toContainText(/→\s*⌀\s*40\b/);
     await page.getByRole("button", { name: /^Undo adding a transition/ }).click();
     await expect(cones).toHaveCount(0);
     await page.getByRole("tab", { name: "Flight" }).click();
@@ -3129,6 +3135,58 @@ test.describe("Loft", () => {
     await expect(massField).toHaveAttribute("placeholder", /45/);
     await page.getByRole("button", { name: /^Undo adding a mass object/ }).click();
     await expect(rows).toHaveCount(1);
+  });
+
+  test("the parts panel says where the airframe steps, and how far", async ({ page }) => {
+    // The user-visible half of the mould-line work, and it had no test at all. Loft models a
+    // transition's own slope (Niskanen 3.86 for a shoulder, 3.88 for a boattail) and has no drag term
+    // for a bare radius step — which has no length to take an angle over — so a step is flown
+    // optimistically, and saying nothing about it is the silence the brief forbids. 33 of the 115
+    // airframe joints in the real corpus already step, in 13 of the 35 designs.
+    //
+    // Driven through the editor rather than through a fixture that arrives stepped, because that is
+    // the case the new fields make reachable: nothing aft of a transition follows its exit, so
+    // narrowing one opens a step at the joint behind it, and the flyer is owed the sentence.
+    await page.goto("/");
+    await page
+      .getByLabel(/^Choose an OpenRocket/)
+      .setInputFiles(resolve(process.cwd(), "fixtures/demo-quirks.ork"));
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    await page.getByRole("tab", { name: "Design" }).click();
+    await page.locator("summary", { hasText: /Parts ·/ }).click();
+
+    const partsTable = page.locator("table").filter({ hasText: "Dimensions" });
+    const tubes = partsTable.locator("tr").filter({ hasText: /Body tube/ });
+    await expect(tubes).toHaveCount(2);
+    const notice = page.getByText(/The airframe steps/);
+
+    // A transition authored between two sections at the same caliber runs straight through, so it
+    // opens nothing and nothing is said. (This fixture already carries a boattail, so count rather
+    // than presume.)
+    const cones = partsTable.locator("tr").filter({ hasText: /Transition/ });
+    const had = await cones.count();
+    await tubes.first().click();
+    await page.getByRole("button", { name: /Add a transition behind this/ }).click();
+    await expect(cones).toHaveCount(had + 1);
+    await expect(notice).toHaveCount(0);
+
+    // Narrow its exit and the joint behind it steps — by exactly the difference, and it says so.
+    const exit = page.locator("label").filter({ hasText: /Transition exit/ }).first().locator("input");
+    const before = parseFloat((await exit.getAttribute("placeholder")) ?? "0");
+    expect(before).toBeGreaterThan(20);
+    await exit.fill(String(Math.round(before - 10)));
+
+    await expect(notice).toHaveCount(1);
+    const said = (await notice.first().innerText()).trim();
+    expect(said).toMatch(/steps out by [\d.]+ mm of diameter at the joint behind this part/);
+    expect(said).toMatch(/no drag term for a bare step/);
+    // The size is the real one, not a placeholder: the exit came down by ~10 mm, so the airframe
+    // steps back OUT by that much where the next tube begins.
+    expect(parseFloat((said.match(/by ([\d.]+) mm/) ?? [])[1] ?? "0")).toBeGreaterThan(8);
+
+    // Undo it and the sentence goes with it — a notice that outlives its cause is worse than none.
+    await page.getByRole("button", { name: /^Undo the transition exit/ }).click();
+    await expect(notice).toHaveCount(0);
   });
 
   test("clicking a part the flyer authored aims the fields back at it", async ({ page }) => {

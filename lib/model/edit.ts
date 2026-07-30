@@ -1450,6 +1450,12 @@ export function aimsClearedByRemoving(rocket: Rocket, edits: GeometryEdits, id: 
  *  snapped back to 620.0 mm and the brand-new 310.0 mm one became 400.0 mm, with the field still
  *  reading 400 and nothing saying which part it had moved to.
  *
+ *  This is for an aim that moves because a part was AUTHORED — not for a pick. Picking another part of
+ *  the same kind deliberately re-aims a live value onto it, which is a decision already recorded in
+ *  `ROADMAP.md`: the panel names the part the fields are holding, so it is visible rather than silent,
+ *  and reading one part while editing another is a thing flyers do. An add is different in kind — the
+ *  aim moves without being asked, onto a part that did not exist a moment ago.
+ *
  *  Only the slots the aim patch actually moves are cleared, so a span typed for a fin set survives
  *  authoring a body tube — and within a slot, only the targets that are dimensions of the part the aim
  *  just left. `bodyDiameter` is not one: it scales the whole outer airframe and goes on meaning the
@@ -1725,10 +1731,17 @@ function buildAdded(
     default: {
       // A kind added to `AddedPart` and not to this switch used to fall off the end returning
       // `undefined`, which typechecked only because the return type is nullable — so the part was
-      // dropped by `applyAdds` with nothing said on any surface. This makes the fifth kind a
-      // compile error instead of a silent no-op.
+      // dropped by `applyAdds` with nothing said on any surface. The `never` binding makes the fifth
+      // kind a compile error instead of a silent no-op.
+      //
+      // It must still RETURN NULL, not the binding. `return unreachable` compiles, but at runtime the
+      // value is the kind STRING, which is truthy — so `applyAdds` destructures `{component, inside}`
+      // off it and splices `undefined` into the stage list, and the app throws instead of dropping one
+      // part. That is reachable rather than theoretical: `lib/session.ts` restores the edit bag from
+      // `localStorage` wholesale, so a session saved by a newer build would white-screen an older one.
       const unreachable: never = part.kind;
-      return unreachable;
+      void unreachable;
+      return null;
     }
   }
 }

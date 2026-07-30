@@ -30,7 +30,14 @@ import { join, resolve } from "node:path";
 import { importDesign } from "../ork/import";
 import { runFromDocument, overridesFromStored } from "../sim/run";
 import { flattenRocket } from "../model/geometry";
-import { applyGeometryEdits, removalRefusal } from "../model/edit";
+import type { Rocket, RocketComponent } from "../model/types";
+import {
+  applyGeometryEdits,
+  removalRefusal,
+  transitionDefaults,
+  newPartId,
+  aimEditsAt,
+} from "../model/edit";
 import { dryMassProperties, massByComponent, statedMassHolder } from "../sim/mass";
 
 const CORPUS_DIR = process.env.LOFT_CORPUS_DIR ?? resolve(process.cwd(), "corpus");
@@ -118,6 +125,31 @@ function corpusFiles(): { path: string; name: string }[] {
  *  recognises and what KNOWN_ISSUES is keyed on. */
 const shortName = (name: string): string => name.split("__").pop() ?? name;
 
+/** How far the outer mould line steps at the joint immediately behind `id`, in metres of DIAMETER,
+ *  computed from the flattened geometry alone.
+ *
+ *  Deliberately NOT `mouldLineStep`: this suite exists to catch what the app's own adjacency gets
+ *  wrong, and asking the suspect where its neighbours are cannot do that. Adjacency here is "the next
+ *  body part whose fore station is this one's aft station", which is a fact about the drawing rather
+ *  than about any list. 0 when nothing touches it. */
+function stepBehind(rocket: Rocket, id: string): number {
+  const bodies = flattenRocket(rocket)
+    .filter((p) => p.component.kind === "nosecone" || p.component.kind === "bodytube" || p.component.kind === "transition")
+    .sort((a, b) => a.xFore - b.xFore);
+  const self = bodies.find((p) => p.component.id === id);
+  if (!self) return 0;
+  const aftOf = (c: RocketComponent) =>
+    c.kind === "bodytube" ? c.outerRadius : c.kind === "nosecone" || c.kind === "transition" ? c.aftRadius : undefined;
+  const foreOf = (c: RocketComponent) =>
+    c.kind === "bodytube" ? c.outerRadius : c.kind === "transition" ? c.foreRadius : 0;
+  const next = bodies.find(
+    (p) => p.component.id !== id && Math.abs(p.xFore - (self.xFore + self.length)) < 1e-6,
+  );
+  const mine = aftOf(self.component);
+  if (!next || mine === undefined) return 0;
+  return 2 * (foreOf(next.component) - mine);
+}
+
 const files = corpusFiles();
 const suite = files.length ? describe : describe.skip;
 
@@ -178,6 +210,89 @@ suite("real-design corpus", () => {
     expect(driven, "no removable part was driven — the sweep proves nothing").toBeGreaterThan(100);
     expect(weightless, "removals that left a design with no mass at all").toEqual([]);
     expect(unexplained, "removals that shed a part's mass without the total moving, and nothing says why").toEqual([]);
+  }, 300_000);
+
+  it("never authors a part that opens a step, floats outside its host, or cannot be taken back", async () => {
+    // R3's authoring surface, held across every real design rather than the two committed fixtures —
+    // and it exists because the synthetic fixtures could not have caught what shipped. Every unit test
+    // in `edit.test.ts` authors onto a single-stage design or a hand-built three-component literal, so
+    // a bug that only appears where a STAGE ENDS passed a full green gate: `nextTopLevel` searched one
+    // stage's list, the last tube of a booster read as having nothing behind it, and "add a transition"
+    // built a contracting tail cone in the middle of a multi-stage rocket — 10 of 91 anchors, worst
+    // opening a 77.4 mm step on `02.Two-stage.ork`. Real files are the only place that is reachable:
+    // 9 of the 35 corpus designs are multi-stage and 12 stage boundaries sit between their sections.
+    //
+    // Four rules, one per way an authored part can be wrong:
+    //   1. a transition never opens a mould-line step that was not already there. Loft has no drag
+    //      term for a bare radius step, so a shape the gesture INVENTS is a shape flown optimistically;
+    //   2. a mass object sits inside the part holding it — the solver puts mass wherever the tree says,
+    //      so one placed outside the airframe is still flown, at a CG nobody could build;
+    //   3. everything authored is removable, or the flyer is in a state with no way back;
+    //   4. everything authored is aimable, or the fields silently edit some other part.
+    const openedAStep: string[] = [];
+    const floating: string[] = [];
+    const stuck: string[] = [];
+    const unaimable: string[] = [];
+    let driven = 0;
+
+    for (const f of files) {
+      const doc = await importDesign(new Uint8Array(readFileSync(f.path)));
+      const pristine = doc.rocket;
+      for (const anchor of flattenRocket(pristine)) {
+        if (anchor.component.kind !== "bodytube") continue;
+        const where = `${shortName(f.name)} · behind "${anchor.component.name}"`;
+
+        // --- a transition -------------------------------------------------------------------
+        const d = transitionDefaults(pristine, anchor.component.id);
+        if (d) {
+          const id = newPartId(pristine, undefined, anchor.component.id);
+          const built = applyGeometryEdits(pristine, {
+            added: [{ id, kind: "transition", after: anchor.component.id, length: d.length }],
+          });
+          const made = flattenRocket(built).find((p) => p.component.id === id);
+          if (made) {
+            driven++;
+            // Measured from the flattened STATIONS, not through `mouldLineStep` — a test that shares
+            // the helper under suspicion is blind in exactly the way the code is. Proved: reverting
+            // `nextTopLevel` to its single-stage search leaves this suite green if the step is asked
+            // of `mouldLineStep`, because that function goes blind at the same boundary. Walking the
+            // geometry instead catches all 10 mis-read anchors.
+            const wasThere = stepBehind(pristine, anchor.component.id);
+            const nowThere = stepBehind(built, id);
+            // Only a step the gesture INTRODUCED counts: closing one the design already had is the
+            // whole point of the part, and a boundary that already stepped is not this test's business.
+            if (Math.abs(nowThere) > 0.0005 && Math.abs(nowThere) > Math.abs(wasThere) + 1e-9) {
+              openedAStep.push(`${where} — ${(Math.abs(nowThere) * 1000).toFixed(1)} mm of diameter`);
+            }
+            if (removalRefusal(built, id)) stuck.push(`${where} (transition)`);
+            if (aimEditsAt(built, id).transitionId !== id) unaimable.push(`${where} (transition)`);
+          }
+        }
+
+        // --- a mass object ------------------------------------------------------------------
+        const mid = newPartId(pristine, undefined, anchor.component.id);
+        const withMass = applyGeometryEdits(pristine, {
+          added: [{ id: mid, kind: "masscomponent", after: anchor.component.id, length: 0 }],
+        });
+        const mass = flattenRocket(withMass).find((p) => p.component.id === mid);
+        if (!mass) continue;
+        driven++;
+        const host = flattenRocket(withMass).find((p) => p.component.id === anchor.component.id)!;
+        if (mass.xFore < host.xFore - 1e-9 || mass.xFore > host.xFore + host.length + 1e-9) {
+          floating.push(`${where} — station ${(mass.xFore * 1000).toFixed(1)} mm, host ${(host.xFore * 1000).toFixed(1)}–${((host.xFore + host.length) * 1000).toFixed(1)} mm`);
+        }
+        if (removalRefusal(withMass, mid)) stuck.push(`${where} (mass object)`);
+        if (aimEditsAt(withMass, mid).massObjectId !== mid) unaimable.push(`${where} (mass object)`);
+      }
+    }
+
+    // The denominator, printed so a run that examined nothing cannot read like a pass.
+    console.log(`authored parts driven across ${files.length} design files: ${driven}`);
+    expect(driven, "no part was authored — the sweep proves nothing").toBeGreaterThan(100);
+    expect(openedAStep, "authored transitions that opened a mould-line step the design did not have").toEqual([]);
+    expect(floating, "authored mass objects placed outside the part holding them").toEqual([]);
+    expect(stuck, "authored parts that cannot be removed again").toEqual([]);
+    expect(unaimable, "authored parts the editor's fields cannot be aimed at").toEqual([]);
   }, 300_000);
 
   it("flies every stored simulation and agrees on apogee and speed", async () => {
