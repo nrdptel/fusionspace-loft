@@ -659,8 +659,15 @@ How it reaches CI:
 
 ## How this ships
 `main` is the production branch: commits on it build and deploy to loft.fusionspace.co automatically,
-and the deploy does not gate on the test workflow — your pre-push gate does. The container is
-ephemeral and re-cloned each session, so commit and push anything worth keeping.
+and **the deploy does not gate on the test workflow.** The container is ephemeral and re-cloned each
+session, so commit and push anything worth keeping.
+
+**Always ship through a pull request. Never push straight to `main`.** The deploy fires on any push to
+`main` whether or not a test ever ran, so a direct push deploys unverified. A pull request is the only
+thing that guarantees the full suite runs first — and here that includes the real-design corpus and
+the published accuracy census, which are the checks that catch a physics regression. Merging on green
+is pre-authorised; skipping the PR is not. This matters most in the mode this repo now assumes:
+unreviewed merges, for a fortnight, straight to a live site.
 
 **Establish the path by measurement, before the first commit — and after a fetch:**
 ```
@@ -669,7 +676,8 @@ git branch --show-current
 git rev-list --count origin/main..HEAD        # only meaningful after the fetch
 git merge-base --is-ancestor origin/main HEAD && echo "main is behind you"
 ```
-- **On `main`:** push; it deploys. Verify the live URL last, since it lags the push.
+- **On `main`:** do not push. Branch, open a PR, merge on green — see above. If you find yourself on
+  `main` with commits, push them to a branch and open the PR from there.
 - **On another branch** — the harness pins you to one more often than not: you are not pushing to
   production. Find out whether main is nonetheless tracking your branch; if `origin/main` is an
   ancestor of HEAD, earlier work has been fast-forwarded onto it and the real lag is
