@@ -189,84 +189,90 @@ produced it more than once, including a false sentence in a doc comment written 
 
 ## Shipped this session
 
-**The run's goal was `ROADMAP.md`'s current milestone, and it shipped: R2 — delete a component, and undo
-it.** It is marked SHIPPED there with the checks that pin it named, and the gap it leaves is written up as
-R3's starting point. **R3 is now IN PROGRESS**; its first increment had not landed at the time of writing.
+**Two milestones. R2 — delete a component, and undo it — is SHIPPED. R3 — add a component — is IN
+PROGRESS with two of its four kinds in.** Both are marked in `ROADMAP.md` with the checks that pin them.
 
 Baseline before anything changed, all four green: lint 0 errors / **1 warning** (the standing `setDraft`
-one), **772 unit** (769 + the 3 corpus tests), build, **152 e2e**, corpus **35 design files, 3/3**. At the
-end: **795 unit, 160 e2e**, corpus 35 files **4/4** — the fourth is new, below.
+one), **772 unit**, build, **152 e2e**, corpus **35 design files, 3/3**. At the end: **808 unit, 163 e2e**,
+corpus 35 files **4/4** — the fourth is this run's delete-surface sweep.
 
-**Four commits on the working branch, each gated in full and pushed on its own, all four under PR #68.**
+**Eight commits on the working branch, each gated in full and pushed on its own, all under PR #68.**
 
 | | |
 |---|---|
-| undo everything | `lib/model/history.ts` — a pure, generic snapshot stack with a LABEL, RUN COALESCING and a depth cap. Every what-if was already a value in one bag over a pristine design, so a step is a copy of that bag. The snapshot is `{edits, weather, scenario, simIndex}`, because three controls move more than the edit bag in one act. Ctrl/⌘+Z, Shift+Z, Ctrl+Y. "Reset to as-designed" is a step like any other. |
-| the delete surface's mass | A RASAero import mints one point mass carrying the WHOLE stated launch weight (the format has no per-part masses), and it could be deleted — 453.6 g dry → 0.0 g, CG at the nose tip, still flown. `standsForAirframe` + a refusal. And a removal inside a stated whole-assembly weight sheds nothing: now said before the click and after it. |
-| a Sev-1 the review found | Typing −5 into Rail length flew a 0 m/s rail exit **while the cursor was still in the box** — the range was applied at the COMMIT and typing pushed every keystroke at the model. Pre-existing; the undo work made it reachable again with the warning stripped. The keystroke handler now withholds any complete number the commit path would refuse. |
-| the corpus pin, and R2 done | A new corpus test drives **536 removable parts across all 35 real designs**. It found a second door to the RASAero defect on its first run: that point mass hangs off the first body tube, so removing THAT tube deleted the design's whole weight. `Show-off.CDX1` has two tubes, so the last-tube refusal never fired. |
+| undo everything | `lib/model/history.ts` — a pure, generic snapshot stack with a LABEL, RUN COALESCING, an explicit way to CLOSE a run, and a depth cap. The snapshot is `{edits, weather, scenario, simIndex}`. Ctrl/⌘+Z, Shift+Z, Ctrl+Y. "Reset to as-designed" is a step like any other. |
+| the delete surface's mass | A RASAero import mints one point mass carrying the WHOLE stated launch weight, and it could be deleted (453.6 g dry → 0.0 g, CG at the nose tip, still flown). `standsForAirframe` + a refusal. A removal inside a stated whole-assembly weight sheds nothing: now said before the click and after it. |
+| Sev-1: an impossible entry | Typing −5 into Rail length flew a 0 m/s rail exit **while the cursor was still in the box**. Pre-existing; the undo work made it reachable again with the warning stripped. The keystroke handler now withholds any complete number the commit path would refuse. |
+| the corpus pin, R2 done | A new corpus test drives **536 removable parts across all 35 real designs**, and found a second door to the RASAero defect on its first run: that point mass hangs off the first body tube. |
+| R3: authoring a tube | `GeometryEdits.added` — an ordered list of `AddedPart`: an id, a kind, the id of the part it sits behind, and the one dimension no neighbour can supply. The first edit that is an OPERATION rather than a value. |
+| Sev-1: a motor cluster | On a minimum-diameter design the mount IS a body tube, and a length edit on it dropped a 3-motor cluster to 1 — 1,243 m at T/W 33.1 became 692 m at 19.0 while the Motors field still read 3. |
+| a grip for tube length | The one airframe dimension with no direct manipulation. Fine-pointer only: the phone suite failed the moment a fourth grip joined the body — the fin root chord's own centre resolved to "Body length". |
+| R3: authoring a fin ring | Cloned from the design's own set. Fins mount ON a tube, so this is a second placement mode: INSIDE the anchor rather than beside it. |
 
-**R2's *done when*, walked in the built export on `Simulation scripting.ork`** (4 fin sets, 2 mass objects,
-3 body tubes; 2,348 m / 2.09 cal / 7.012 kg dry): fin set "CONTROL" → 2,458 m / 3.08 cal / 6.957 kg; mass
-object "Nose cone payload" → 2,399 m / 1.58 cal / 6.362 kg; aft body tube → 4.672 kg and NO FLIGHT, because
-it carries the motor mount and Loft reports a design with no propulsion rather than inventing one. Every undo
-returned to the exact prior model. Taking tubes away until one is left refuses the last with its sentence.
+**The placement rules are the corpus's, not invented.** Measured across 569 components: a new top-level
+body part is `{after, 0}` — **150/150, zero exceptions**, and 112/112 in the `.ork` subset where the method
+is read from the file rather than forced by the adapter. A fin set is `{bottom, 0}` as a CHILD of its tube
+(43 of 64, and 61 of 64 parents are body tubes). A mass object is `top` + a **non-zero** station in 49 of
+56 — so unlike a tube's, its add gesture has to ask for one. That is the design note for the next kind.
 
 ## What this session learned that is worth keeping
 
-**The pre-push second opinion found a Sev-1 in code that had already passed a full green gate.** Typing −5
-into a rail-length box flew 0 m/s off the rail with no warning, for as long as the cursor stayed in the box.
-A green gate is not a review; take the second opinion every time, and give each agent a DIFFERENT lens —
-"can a flyer get a wrong number" is the one that found it, and neither of the other two did.
+**The pre-push second opinion found a Sev-1 in code that had already passed a full green gate.** Take it
+every time, and give each agent a DIFFERENT lens — "can a flyer get a wrong number" is the one that found
+it; neither of the other two did.
 
 **A sweep over EVERY part beats a probe over the part you suspected.** The hand-written probe drove all 56
 mass objects and cleared the design. The corpus test, which drives all 536 removable parts, found on its
-first run that the same weight could be deleted from ABOVE by taking the body tube it hangs off. Write the
-broad check before believing the narrow probe.
+first run that the same weight could be deleted from ABOVE by taking the body tube it hangs off.
 
-**`getByLabel` matches an `aria-label` SUBSTRING, so a label naming a field makes a second control answer to
-that field's name.** "Undo the rail length" was matched by every `getByLabel(/Rail length/)` in the suite,
-and it came first in the document. The fix is not to patch thirty locators: put the label in `sr-only` TEXT
-instead of `aria-label` — the accessible name is the same, and `getByLabel` does not match text content.
+**A field that a hand-maintained list projects will drift, and the drift is invisible.** Three places
+needed the geometry half of the edit bag — the flight, the panels, the `.ork` export — each spelled out
+field by field. Adding one field to two of the three grew a 310 mm section on the mass panel while the
+Flight card reported the apogee of a rocket without it. `geometryOf` derives it by removing the seven
+flight-only fields instead.
 
-**Measure the phone header before adding to it.** Two buttons took the design header from fitting to wanting
-518 px of a 358 px row. Overflowing puts a horizontal scrollbar under every workspace; wrapping costs 48 px
-of height, which pushed the diagram's drag handles below the fold and made `elementFromPoint` at a handle's
-own centre return null. And **`flex-wrap` wraps BEFORE it shrinks** — the name field kept its full 176 px and
-the row went to two lines anyway. Nowrap plus `min-w-0` on the row AND the field is what actually fits.
+**`getByLabel` matches an `aria-label` SUBSTRING**, so a label naming a field makes a second control answer
+to that field's name. Put the label in `sr-only` TEXT instead — same accessible name, and `getByLabel` does
+not match text content. (Where a control genuinely shares a name with a field — the diagram's grips do —
+the suite's own idiom is `page.locator("input").and(page.getByLabel(...))`.)
 
-**`aria-disabled` rather than `disabled` on a toolbar button.** A disabled button leaves the accessibility
-tree and drops focus to `<body>` — and for undo, the moment the stack empties is exactly when a keyboard user
-is stepping back through a mistake. Playwright's `toBeDisabled()` matches `aria-disabled` too, and its
-actionability check refuses to click one, so the e2e reads the same.
+**Measure the phone header before adding to it, and know that `flex-wrap` wraps BEFORE it shrinks.** Two
+buttons took the design header from fitting to wanting 518 px of a 358 px row. Wrapping cost 48 px of
+height and pushed the diagram's grips below the fold, where `elementFromPoint` at a grip's own centre
+returns null. Nowrap plus `min-w-0` on the row AND the field is what actually fits.
 
-**A negative control that keeps every symbol referenced.** Seven controls this session, all with BUILD_EXIT
-0 checked: revert the rule INSIDE the function (`at - open.at < 0 && COALESCE_MS > 0`), invert a call-site
-condition (`if (action && !movedWhatIf(...))`), bind a shortcut to the wrong key, or AND in a term that is
-never true (`&& target.component.mass < 0`). Never revert at the call site — `noUnusedLocals` fails the
-build, `out/` never changes, and the test then passes against still-correct code.
+**`aria-disabled` rather than `disabled` on a toolbar button** — a disabled button leaves the accessibility
+tree and drops focus to `<body>`, and for undo that is exactly when a keyboard user is stepping back
+through a mistake. Playwright's `toBeDisabled()` matches it and its actionability check refuses to click it.
+
+**Eleven negative controls this session, all with BUILD_EXIT 0 checked.** The four shapes that work:
+revert the rule INSIDE the function (`at - open.at < 0 && COALESCE_MS > 0`), invert a call-site condition
+(`if (action && !movedWhatIf(...))`), AND in a term that is never true (`&& target.component.mass < 0`),
+or bind a handler to the wrong key. Never revert at the call site — `noUnusedLocals` fails the build,
+`out/` never changes, and the test then passes against still-correct code.
 
 ## Pick up first
 
 **Start at `ROADMAP.md`.** R1 and R2 are SHIPPED. **R3 — add a component — is IN PROGRESS and is the run's
-goal.** Its *done when*: start from the starter design, add a second body tube, a transition, a fin set and a
-mass object, place each at a station by direct manipulation, fly it, and have the stability and mass panels
-describe the rocket you just built.
+goal.** Two of the four kinds its *done when* names are in (a body tube, a fin set); **a transition and a
+mass object are not**, and neither is moving a part to another station rather than only sizing it where it
+was added.
 
-**R3's pivot, named in `ROADMAP.md` and confirmed by R2.** `GeometryEdits` is a flat patch of ~30 optional
-scalars. It cannot express "add a body tube": there is no field for a part that does not exist, and no way to
-say WHICH of three. Loft already adds three components through that patch — a boattail, a dual-deploy drogue
-and a payload point mass — and each is a special case with one instance and a hard-coded anchor. Read
-`addBoattail`, `applyDualDeploy` and `addPayloadMass` in `lib/model/edit.ts` before designing the general
-one; `addBoattail`'s anchor is the cautionary tale (it keyed on the LONGEST tube, which broke the moment
-`bodyLength` could be aimed).
+**The next kind is the interesting one.** A mass object's placement IS a station (measured above), so its
+add gesture has to ask for one — unlike a tube's, which lands `{after, 0}` and needs nothing. And neither a
+transition nor a mass object is AIMABLE yet: R1 deliberately left both role-addressed because no editor
+field pointed at either, so authoring one means giving it a field to change and an aim slot to hold it.
+`AIM_SLOTS` in `lib/model/edit.ts` is the registry; adding a row is the whole mechanism.
 
-**The undo stack survives that transition unchanged** — a snapshot of an operation list is still a snapshot —
-so R3 does not have to rebuild it.
+**A ceiling worth knowing before you design it.** A part stacked BESIDE its anchor can only go in a stage's
+top-level list — `applyAdds` skips a nested anchor, the same rule `addBoattail` already applies. A part
+mounted INSIDE its anchor (a fin set) has no such limit. Real designs nest, so "add a part inside this bay"
+needs that lifted.
 
 `BACKLOG.md` is a defect ledger to file into and screen for Sev-1s. **Its Sev-1 count is zero at the end of
-this run** — the one that was found (the rail length) was fixed, not filed. Its five newest entries are this
-session's, each with the measurement that makes it actionable.
+this run** — both that were found were fixed, not filed. Its newest entries are this session's, each with
+the measurement that makes it actionable, including the phone cold walk (rail-exit velocity sits 174% of a
+screen down on a 6.7-screen Flight workspace) and the OpenRocket benchmark of the authoring palette.
 
 ## Environment notes
 

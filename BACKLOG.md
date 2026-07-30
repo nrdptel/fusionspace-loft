@@ -10,6 +10,25 @@ a one-way door — those preempt the milestone immediately). Everything else wai
 one-in-four quota in `MAINTAINING.md`. Rough edges, missing affordances, and findings too big for one
 pass. Newest first.
 
+- **On a phone the pad-check number is nearly two screens below the fold.** Cold-walked at an iPhone 13
+  viewport (390x664) on the built export of the SHA this run shipped: the Flight workspace is **6.7 screens
+  deep**, "Apogee" sits at y=486 (73% of a screen down), "Static margin" at y=617, and **"Rail-exit
+  velocity" at y=1157 — 174% of a screen down**. The stated phone use is a pad check with gloves on, and
+  rail-exit velocity is the number that check turns on. Nothing is wrong or missing; it is far, which is
+  the "phone layout is the desktop squeezed" tell measured rather than asserted. Page overflow is 0 px on
+  every workspace, so this is ordering and density, not a layout break. R7 material.
+- **Nine site-chrome links are under the 44 px touch minimum, on every workspace.** Measured on the same
+  walk: `Docs` 28x44, `Charge` 40x44, `Muster` 39x44, `Loft` 44x32, `Skip to content` 32x16, and the three
+  footer links (`ThrustCurve.org` 90x16, `OpenRocket` 70x16, `ADA.gov` 60x16). The touch suite scopes to the
+  app's own controls, so the header and footer have never been held to the rule the rest of the app is.
+- **The authoring palette does not teach the tree the way OpenRocket's does.** Benchmarked: OpenRocket puts
+  an "Add new component" palette of icon buttons beside the tree and **greys out** the kinds that cannot
+  attach to the current selection — a nose cone is disabled while a fin set is selected — so the palette
+  teaches what can hold what. Loft shows or hides its two controls instead, which is correct but silent: a
+  flyer who picks a fin set sees nothing and learns nothing about why. Two more from the same benchmark:
+  the new part should open **selected and highlighted on the diagram** (Loft aims the fields at it but does
+  not light it up), and a mass object's placement **is** a station — `top` + a non-zero offset in 49 of the
+  56 real ones — so unlike a tube's, its add gesture has to ask for one.
 - **The three flat structural adds re-anchor themselves under an edit or a removal, silently.** Measured
   on `01.One-stage.ork`: removing the aft body tube moves the boattail to station 0.4429 and renames it
   `c2-boattail`; a `payloadMassKg` with an unaimed `bodyLength` jumps the payload from station 816 mm to
