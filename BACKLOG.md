@@ -10,6 +10,19 @@ a one-way door — those preempt the milestone immediately). Everything else wai
 one-in-four quota in `MAINTAINING.md`. Rough edges, missing affordances, and findings too big for one
 pass. Newest first.
 
+- **79 spaces are missing from the served docs pages, and the check that was supposed to catch them could
+  not see them.** The JSX text-run bug this repo already tracks (a run spanning a line break loses its
+  leading space) was only ever looked for in the CLIENT CHUNKS — a rendered value followed by a lowercase
+  word. Every route here is a static export, so the prerendered `/docs` pages were invisible to it, and the
+  element form of the same bug had accumulated freely: `</em>slides`, `</code>stores`, `</strong>model`.
+  Verified in the served text, not just the markup — `/docs/faq` reads "Fin positionslides every fin set",
+  "motor configurationpicker above the results" and "Fin flutter (est.)speed and the margin".
+  `scripts/check-text-gaps.mjs` now detects both forms and exits 1; it reports **79** after the one instance
+  this run introduced was fixed. Spread over faq, limitations, methods and validation. Not fixed in the same
+  increment because each needs locating in the source and a judgement about where the `{" "}` goes, and 79 of
+  those is its own pass — the script makes it a mechanical pass rather than an archaeological one, and it
+  belongs in the gate once the count is zero.
+
 - **A nose-less design is flown at a fineness-3 ogive's nose drag, because there is no flat-face model.**
   `lib/sim/aero.ts` sets `noseFineness = haveNose && noseDiameter > 0 ? noseLength / noseDiameter : 3`, and
   its own comment says so. Now that a flyer can REMOVE the nose cone (R2), that fallback is reachable by a
@@ -961,14 +974,17 @@ pass. Newest first.
   covers}`: the design's own name where that distinguishes the part, otherwise its STATION — true under
   every sort — and the group size stated outright. Pinned by `lib/model/edit.test.ts`'s `naming the part the
   fields are holding` suite. The old function is gone, so this entry describes code that no longer exists.
-- **NARROWED 2026-07-30 (R2) — undo exists for REMOVALS, and only for removals.** Deleting a part is
-  undoable by name (`Restore <part>`), because `removedIds` is an ordered list and the model rebuilds from
-  the pristine design. Everything else is unchanged and the entry still stands for it: Ctrl+Z after a handle
-  drag does nothing, a typed dimension and a motor swap cannot be stepped back, and the only escape from
-  those is still "Reset to as-designed", which discards every edit at once. Ten flights in, that is still a
-  stack of trims and one all-or-nothing exit. **This is what remains of R2's *done when*** and the shape is
-  already right for it: every edit is a value in one bag applied to a pristine design, so an undo stack is a
-  stack of `Edits` snapshots in `LoftApp`, not a diffing problem.
+- **RESOLVED 2026-07-30 (R2) — undo and redo cover every edit.** This read "still no undo anywhere: Ctrl+Z
+  after a handle drag does nothing, and the only escape is Reset to as-designed, which discards every edit at
+  once. Ten flights in, that is a stack of trims and one all-or-nothing exit." All of it is addressed.
+  `lib/model/edit-history.ts` keeps a stack of `Edits` snapshots — no diffing and nothing to invert, because
+  every what-if is a value in one bag applied to a pristine design. Ctrl/Cmd+Z and Ctrl/Cmd+Shift+Z work, and
+  are deliberately NOT intercepted inside a text field, where the browser's own text undo is the right one.
+  "Reset to as-designed" is itself one undoable step, so the one control that was a one-way door for
+  everything now has something behind it. Coalescing was the load-bearing part rather than a nicety: `Num`
+  fires on every keystroke and a diagram handle on every pointer move, so a typed "1500" is four commits and
+  a drag is dozens — consecutive edits to the same field within 800 ms collapse into the one step a flyer
+  would call a change, which is asserted by two tests that go red when the window is set to 0.
 - Parts table gaps measured this run: every column sorts one direction only (a second click returns
   to design order, so there is no lightest-first), there is no Copy or CSV while Mass & balance, the
   motor sweep and the parameter sweep all have both, and the sort order is not persisted though the

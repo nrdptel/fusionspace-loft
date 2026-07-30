@@ -118,12 +118,14 @@ one and the drogue was unreachable on all of them.
 
 ## R2 — Delete a component, and undo it
 
-**Status:** IN PROGRESS — current milestone. Two of its three parts are done and pinned: component ids
-survive an export/re-import round trip (`lib/model/id.test.ts`), and a flyer can remove any component and
-undo it (`lib/model/edit.test.ts`'s `removing a component` suite, plus the e2e cases *removing a part
-re-flies the design, and the removal is undoable* and *the last body tube cannot be removed, and it says
-why*). What is left of the *done when*: undo covers only removals, not every edit, and the parts named in
-it should be walked on a real multi-part corpus design rather than the committed fixtures.
+**Status:** SHIPPED 2026-07-30 — pinned by `lib/model/edit.test.ts` (the `removing a component`,
+`a removal cannot re-land an edit on a different part` and `the last body tube is counted per STAGE` suites),
+`lib/model/edit-history.test.ts` (14 cases over undo, redo, coalescing and the bounded stack) and
+`lib/model/id.test.ts` (identity through a save, which the operation had to stand on). Five e2e cases:
+*removing a part re-flies the design, and the removal is undoable*, *the last body tube cannot be removed, and
+it says why*, *a typed edit and a drag are both undoable, and redoable*, *Reset to as-designed is no longer a
+one-way door*, and *Ctrl+Z steps back a change made on the diagram*. Every one was proved able to fail by a
+negative control with its BUILD_EXIT checked.
 
 **Outcome.** The flyer can remove a part and watch the flight answer change.
 
@@ -132,22 +134,31 @@ stability, dry mass and apogee move, and undo the deletion back to the exact pri
 deleting the last body tube is refused with a sentence saying why rather than producing a rocket that
 cannot fly.
 
-**Notes.** The simplest structural operation: nothing new to author and no placement question, so it
-is where the operation-based edit model gets built and proven. **Undo ships with it, not after it** —
-parametric edits are recoverable by retyping a number, and a deletion is not. Undo/redo over the
-operation list is the whole reason to have an operation list.
+**Size.** 3–5 increments. **Took 4.**
 
-**Id stability is DONE** — it was R2's first increment, because an operation list keyed on ids that change
-underneath it is not a foundation. `lib/ork/export.ts` writes each component's own id instead of minting a
-fresh one; the starter's six ids are literal UUIDs so they are writable; and `lib/model/id.ts` derives a
-stable UUID for the positional ids the adapters fall back to and for the ids a structural add mints. Pinned
-by `lib/model/id.test.ts`, which asserts the round trip preserves identity, that a stored aim still resolves
-through it, and that nothing Loft writes into `<id>` can be malformed.
+**What shipped against the *done when*.** All of it, and walked on real corpus designs rather than only on
+fixtures: a **mass object** removes and restores by name on `USLI2025-FULLSCALE-10.15 (2).ork` (7 → 6), an
+**aft body tube** on `03.Three-stage.ork` (still flies, 1,483 m), a **fin set** in the e2e with the static
+margin measured before and after. Undo returns the exact prior model — the test asserts structural equality,
+not just the visible numbers — because the model is rebuilt from the pristine design plus the edit bag.
 
-What remains is the operation model itself and undo over it. The addressing machinery is already there from
-R1 — `AIM_SLOTS`, `aimEditsAt`, `aimsOf`, `AimedPart` in `lib/model/edit.ts` — so the pick surface is done.
+Undo went wider than the *done when* asked, and the milestone's notes are why: "undo/redo over the operation
+list is the whole reason to have an operation list." It covers **every** edit now, not just removals — a
+typed dimension, a drag handle, a motor swap, and "Reset to as-designed" itself.
 
-**Size.** 3–5 increments.
+**The gap, which is R3's starting point rather than a reason to re-open this.**
+
+- **Six review findings are filed in `BACKLOG.md`, none of them a wrong number a flyer would act on.** The
+  sharpest: the parameter sweep resolves its axes from the PRISTINE design, so an axis outlives the part it
+  varies and plots a flat line as a response curve. It wants the shown rocket threaded into the sweep, which
+  is its own increment.
+- **A nose-less design is flown at a fineness-3 ogive's nose drag.** `lib/sim/aero.ts` has no flat-face term.
+  Reachable by a deliberate act now that a nose can be removed, so it is stated on `/docs/limitations`
+  instead of left implicit — but it is real optimism in a number, and it belongs in the aero work R9 holds.
+- **The operation model is a removal list, not a general `insert`/`move`/`set`.** That is deliberate and
+  sufficient here: removals are the only structural operation R2 needs, and an ordered list of them IS an
+  operation list with undo over it. R3 (add) and R4 (reorder) are where the other operations arrive, and the
+  history module is already general over the whole bag rather than over removals.
 
 ---
 

@@ -71,8 +71,8 @@ export default function Faq() {
           &ldquo;body&rdquo; and every fin set &ldquo;fin set&rdquo;. Two edits are deliberately
           wider than one part, and both say so: <em>Body diameter</em> reads the tube you picked but
           scales the whole outer airframe to that caliber, so the mould line stays faired rather than
-          stepping at one tube; and <em>Fin position</em> slides every fin set together, keeping the
-          design&apos;s spacing. Picking a part to read it never moves an edit you already set on
+          stepping at one tube; and <em>Fin position</em>{" "}
+          slides every fin set together, keeping the design&apos;s spacing. Picking a part to read it never moves an edit you already set on
           another — the aim only follows a pick for the fields that part drives — and the aim is saved
           with your session, so a reload comes back pointed at the same part.
         </p>
@@ -83,6 +83,16 @@ export default function Faq() {
           mounted inside the part, so deleting a body tube takes its motor mount, fins and parachute with
           it. The one thing Loft refuses is removing the <em>last</em> body tube, and it says why rather
           than flying a rocket with no body.
+        </p>
+        <p className="mt-2">
+          <strong>Every edit steps back</strong>, not just a removal — <em>Undo</em> and <em>Redo</em> sit
+          beside <em>Reset to as-designed</em>, and <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Z</kbd> and{" "}
+          <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd>{" "}
+          do the same. A whole typed number is one step, and so is a whole drag on the diagram — you get back
+          the change you made, not the keystrokes it took. Inside a text box the browser&apos;s own undo still
+          works on the text, which is the one you want there. <em>Reset to as-designed</em>{" "}
+          is a step too, so discarding every what-if at once is no longer a one-way door. Undo does not carry
+          today&apos;s weather, which no saved state does.
         </p>
       </QA>
 

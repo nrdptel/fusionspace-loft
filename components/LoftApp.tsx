@@ -9,6 +9,16 @@ import { importDesign, sourceTool, type OrkDocument } from "@/lib/ork/import";
 import { newDesign } from "@/lib/model/starter";
 import { exportOrk } from "@/lib/ork/export";
 import { flattenRocket } from "@/lib/model/geometry";
+import {
+  canRedo,
+  canUndo,
+  commitEdit,
+  commitReplacement,
+  emptyHistory,
+  redoEdit,
+  undoEdit,
+  type EditHistory,
+} from "@/lib/model/edit-history";
 import { runFlight, pickConfig, overridesFromStored, configChoices, type FlightRun, type ConfigChoice } from "@/lib/sim/run";
 import { storedTag } from "@/lib/validation/stored-status";
 import {
@@ -234,6 +244,10 @@ export default function LoftApp() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [edits, setEdits] = useState<Edits>({});
+  /** Undo/redo over the whole edit bag. Every what-if is a value in one object applied to a pristine
+   *  design, so a history is a stack of those objects — nothing to invert and nothing that can drift,
+   *  because each entry rebuilds the model from the design as imported. */
+  const [history, setHistory] = useState<EditHistory<Edits>>(() => emptyHistory<Edits>());
   const [weather, setWeather] = useState<WeatherConditions | null>(null);
   /** Bumped once per forecast fetched, and by nothing else. The analysis panels watch the launch
    *  conditions by VALUE, and a forecast's atmosphere and wind profile are FUNCTIONS — there is no
@@ -378,6 +392,9 @@ export default function LoftApp() {
       setDoc(restored);
       setFileName(name);
       setEdits(e);
+      // A history belongs to the design it was built on. A restored session brings its edits back but
+      // not the steps that made them, so there is nothing honest to step back INTO.
+      setHistory(emptyHistory<Edits>());
       setWeather(null);
       setScenario("design");
       setSimIndex(idx);
@@ -646,6 +663,10 @@ export default function LoftApp() {
 
   const applyEdit = (patch: Edits) => {
     const next = { ...edits, ...patch };
+    // Recorded BEFORE the change, and coalesced by field: `Num` fires on every keystroke and a diagram
+    // handle fires on every pointer move, so without that a flyer's typed "1500" is four steps back and a
+    // drag is dozens. See `lib/model/edit-history.ts`.
+    setHistory((h) => commitEdit(h, edits, patch, Date.now()));
     setEdits(next);
     rerun(next, weather, scenario);
   };
@@ -655,11 +676,38 @@ export default function LoftApp() {
   // build-by-editing loop: one step back to the untouched design without unloading it.
   const editsActive = scenario === "today" || hasActiveEdits(edits);
   const resetEdits = () => {
+    // Its own step, never coalesced: this is the one control that used to be a one-way door for
+    // everything, and it is now the step a flyer most wants back.
+    setHistory((h) => commitReplacement(h, edits));
     setEdits({});
     setWeather(null);
     setScenario("design");
     rerun({}, null, "design");
   };
+
+  /** Step back through the edit history, and forward again. The weather scenario is deliberately NOT part
+   *  of it: a forecast is fetched, not typed, and no saved state carries it — so stepping back into a
+   *  state that was flown on weather this session no longer has would put a number on screen that nothing
+   *  could reproduce. Undo covers the design and condition edits, which are the ones a flyer builds with. */
+  const undoEdits = useCallback(() => {
+    setHistory((h) => {
+      const step = undoEdit(h, edits);
+      if (!step) return h;
+      setEdits(step.edits);
+      rerun(step.edits, weather, scenario);
+      return step.history;
+    });
+  }, [edits, weather, scenario, rerun]);
+
+  const redoEdits = useCallback(() => {
+    setHistory((h) => {
+      const step = redoEdit(h, edits);
+      if (!step) return h;
+      setEdits(step.edits);
+      rerun(step.edits, weather, scenario);
+      return step.history;
+    });
+  }, [edits, weather, scenario, rerun]);
 
   // Remove a component. The id is APPENDED to an ordered list rather than applied to the tree, so the
   // pristine design stays the only source of truth and the deletion is undoable by dropping the entry —
@@ -694,21 +742,47 @@ export default function LoftApp() {
     });
   };
 
-  /** The most recently removed component, by the pristine design's own name for it — the shown model no
-   *  longer has the part, so the label has to come from the design as imported. */
-  const lastRemoved = useMemo(() => {
-    const ids = edits.removedIds ?? [];
-    if (!doc || !ids.length) return null;
-    const id = ids[ids.length - 1];
-    const c = flattenRocket(doc.rocket).find((p) => p.component.id === id)?.component;
-    return { id, name: c?.name || "the part" };
-  }, [doc, edits.removedIds]);
+  /** What one step back would do, in the flyer's words.
+   *
+   *  A removal is named, because it is the step where a generic "Undo" costs the most: the part is no
+   *  longer on the diagram to remind them what they took, and the name has to come from the PRISTINE
+   *  design since the shown model no longer has it. Every other step says "Undo" — the field it changed is
+   *  on screen with its value, so naming it would restate what the flyer can already see. */
+  const undoLabel = useMemo(() => {
+    if (!canUndo(history) || !doc) return null;
+    const prev = history.past[history.past.length - 1];
+    const nowIds = edits.removedIds ?? [];
+    const prevIds = prev.removedIds ?? [];
+    if (nowIds.length === prevIds.length + 1) {
+      const id = nowIds[nowIds.length - 1];
+      const c = flattenRocket(doc.rocket).find((p) => p.component.id === id)?.component;
+      return `Restore ${c?.name || "the part"}`;
+    }
+    return "Undo";
+  }, [history, edits.removedIds, doc]);
 
-  const undoRemoval = () => {
-    const ids = edits.removedIds ?? [];
-    if (!ids.length) return;
-    applyEdit({ removedIds: ids.slice(0, -1) });
-  };
+  // Ctrl/Cmd+Z and Ctrl/Cmd+Shift+Z, which is what a flyer reaches for and what `BACKLOG.md` recorded as
+  // doing nothing after a handle drag. Deliberately NOT intercepted while a text field or a select has
+  // focus: there the browser's own undo is the right one — a flyer stepping back through characters they
+  // just typed does not mean "step back through my design".
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+      const t = e.target as HTMLElement | null;
+      const tag = t?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || t?.isContentEditable) return;
+      const key = e.key.toLowerCase();
+      if (key === "z" && !e.shiftKey) {
+        e.preventDefault();
+        undoEdits();
+      } else if ((key === "z" && e.shiftKey) || key === "y") {
+        e.preventDefault();
+        redoEdits();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [undoEdits, redoEdits]);
 
   const selectConfig = (idx: number) => {
     setSimIndex(idx);
@@ -1000,17 +1074,24 @@ export default function LoftApp() {
               >
                 Download .ork
               </button>
-              {lastRemoved && (
-                // Undo for the one edit that is not recoverable by retyping it. It names the part, because
-                // "Undo" alone asks the flyer to remember what they did — and the part is no longer on the
-                // diagram to remind them.
+              {undoLabel && (
                 <button
                   type="button"
-                  onClick={undoRemoval}
-                  title="Put the last removed part back and re-fly the design"
+                  onClick={undoEdits}
+                  title="Step back one change and re-fly the design (Ctrl+Z)"
                   className={`inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-2.5 py-1 text-xs font-medium text-zinc-700 transition hover:border-indigo-400 hover:text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:text-zinc-100 ${TOUCH_TARGET}`}
                 >
-                  Restore {lastRemoved.name}
+                  {undoLabel}
+                </button>
+              )}
+              {canRedo(history) && (
+                <button
+                  type="button"
+                  onClick={redoEdits}
+                  title="Step forward again and re-fly the design (Ctrl+Shift+Z)"
+                  className={`inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-2.5 py-1 text-xs font-medium text-zinc-700 transition hover:border-indigo-400 hover:text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:text-zinc-100 ${TOUCH_TARGET}`}
+                >
+                  Redo
                 </button>
               )}
               {editsActive && (

@@ -194,7 +194,7 @@ export default function Limitations() {
         steps for the in-app editor.
       </p>
       <p>
-        <strong>Removing a part does work</strong>, on any component, and it is undoable: pick a part on
+        <strong>Removing a part does work</strong>, on any component, and every edit is undoable: pick a part on
         the diagram or in the parts list and the panel offers to remove it, naming the part it will take.
         The removal takes everything mounted inside it — a body tube goes with its motor mount, its fins and
         its parachute — and drops any motor left without a mount, because a motor pointing at a mount that

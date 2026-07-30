@@ -115,6 +115,20 @@ unchanged rocket returns rows identical to the ones it replaced, so comparing re
 **A panel on a hidden workspace is out of the accessibility tree.** `getByRole("region", …)` matches
 nothing while another tab is open.
 
+**A JSX text run that spans a line break loses its LEADING space, and the gate cannot see it.** Not just
+`{expr}` + newline + text — a plain space sitting MID-LINE in the source is also eaten once the run wraps. The
+source reads correctly, so lint, unit, build and e2e are all green on it, and the defect exists only after the
+transform. Write `{" "}` at the end of the line instead of trusting the space.
+
+**`node scripts/check-text-gaps.mjs` after a build finds them, and it looks in TWO places — the second is the
+one that was missing for a long time.** The old scan read only the client chunks (a rendered value followed by
+a string literal opening with a whole lowercase word). Every route here is a static export, so the prerendered
+`/docs` pages were never looked at, and the ELEMENT form of the same bug — a closing inline tag butted against
+a word, `</em>slides` — had accumulated to **79 live instances** there. Confirm a hit in the rendered TEXT
+before believing it: strip React's text-node separator comment first, because a space emitted as its own node
+sits beside one and reads as a missing space. The script exits 1 on a hit, so it can gate once the count is
+zero; the 79 are filed in `BACKLOG.md`.
+
 ## Before you trust a sweep
 
 The corpus is gitignored and absent on a fresh container. Both repos are checked out, so no token is

@@ -2881,6 +2881,102 @@ test.describe("Loft", () => {
     await expect(partsTable.locator("tr").filter({ hasText: /Trapezoidal fins/ })).toHaveCount(2);
   });
 
+  test("a typed edit and a drag are both undoable, and redoable", async ({ page }) => {
+    // `BACKLOG.md` recorded this as "still no undo anywhere: Ctrl+Z after a handle drag does nothing, and
+    // the only escape is Reset to as-designed, which discards every edit at once". A drag is the case that
+    // needed it most: a typed number can be retyped from memory, and a handle cannot be un-dragged.
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+
+    const margin = async () => {
+      const t = await page
+        .getByText("Static margin", { exact: true })
+        .locator("xpath=following-sibling::dd")
+        .innerText();
+      return parseFloat(t.replace(/[^\d.]/g, ""));
+    };
+    const asDesigned = await margin();
+    expect(asDesigned).toBeGreaterThan(0);
+
+    await page.getByRole("tab", { name: "Design" }).click();
+    const span = page.locator("label").filter({ hasText: /Fin span/ }).first().locator("input");
+    const designSpan = await span.getAttribute("placeholder");
+
+    // Type a bigger span. Bigger fins move the centre of pressure aft: a stiffer margin.
+    await span.fill("80");
+    await span.blur();
+    await page.getByRole("tab", { name: "Flight" }).click();
+    await expect.poll(margin, { timeout: 20000 }).toBeGreaterThan(asDesigned);
+
+    // Undo. One press returns the whole typed number, not one digit of it.
+    const undo = page.getByRole("button", { name: "Undo", exact: true });
+    await expect(undo).toBeVisible();
+    await undo.click();
+    await expect.poll(margin, { timeout: 20000 }).toBe(asDesigned);
+    await page.getByRole("tab", { name: "Design" }).click();
+    await expect(span).toHaveValue("");
+    await expect(span).toHaveAttribute("placeholder", designSpan!);
+
+    // Redo puts it back.
+    await page.getByRole("button", { name: "Redo", exact: true }).click();
+    await expect.poll(async () => span.inputValue(), { timeout: 20000 }).toBe("80");
+    await page.getByRole("tab", { name: "Flight" }).click();
+    await expect.poll(margin, { timeout: 20000 }).toBeGreaterThan(asDesigned);
+  });
+
+  test("Reset to as-designed is no longer a one-way door", async ({ page }) => {
+    // It discards every what-if at once, which made it the one control with nothing behind it. Ten flights
+    // into a trim session that is a stack of decisions and one all-or-nothing exit.
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    await page.getByRole("tab", { name: "Design" }).click();
+
+    const span = page.locator("label").filter({ hasText: /Fin span/ }).first().locator("input");
+    await span.fill("80");
+    await span.blur();
+    await expect.poll(async () => span.inputValue(), { timeout: 15000 }).toBe("80");
+
+    await page.getByRole("button", { name: "Reset to as-designed" }).click();
+    await expect(span).toHaveValue("");
+
+    // One step back and the whole set of what-ifs is there again.
+    await page.getByRole("button", { name: "Undo", exact: true }).click();
+    await expect.poll(async () => span.inputValue(), { timeout: 20000 }).toBe("80");
+  });
+
+  test("Ctrl+Z steps back a change made on the diagram", async ({ page }) => {
+    // The keyboard path, on the edit that cannot be retyped. Deliberately pressed with focus OUTSIDE a text
+    // field: inside one the browser's own text undo is the right one to get.
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    await page.getByRole("tab", { name: "Design" }).click();
+
+    // The fin-position handle: drag it toward the nose, which loosens the margin.
+    const handle = page.getByRole("slider", { name: /Fin position/ }).first();
+    await expect(handle).toBeVisible();
+    await handle.scrollIntoViewIfNeeded(); // raw page.mouse uses viewport coords — bring it on-screen
+    const box = (await handle.boundingBox())!;
+    const cx = box.x + box.width / 2;
+    const cy = box.y + box.height / 2;
+    await page.mouse.move(cx, cy);
+    await page.mouse.down();
+    await page.mouse.move(cx - 70, cy, { steps: 12 });
+    await page.mouse.up();
+
+    // The drag committed an edit, so an Undo control exists for it.
+    const undo = page.getByRole("button", { name: "Undo", exact: true });
+    await expect(undo).toBeVisible({ timeout: 15000 });
+
+    // Ctrl+Z with focus OUTSIDE a text field.
+    await page.getByRole("heading", { level: 2 }).first().click();
+    await page.keyboard.press("Control+z");
+    // The whole drag went back as one step, so there is nothing left to undo.
+    await expect(undo).toHaveCount(0, { timeout: 20000 });
+  });
+
   test("the last body tube cannot be removed, and it says why", async ({ page }) => {
     // The refusal R2's done-when names. A rocket with no body is not a rocket, and the alternative to
     // refusing is a confident flight number computed from one.
