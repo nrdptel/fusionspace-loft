@@ -3189,6 +3189,49 @@ test.describe("Loft", () => {
     await expect(notice).toHaveCount(0);
   });
 
+  test("a mass object can be slid along the airframe on the diagram, not only typed", async ({ page }) => {
+    // R3's *done when* asks for a part placed "at a station by direct manipulation", and a point mass
+    // is the one kind whose whole geometry IS a station — so it is the one that most needs a grip.
+    // The handle rides the mark already drawn for it and is bounded by the part holding it, because
+    // the model clamps the station into its host anyway and a grip that could be dragged past the end
+    // would stick at a value the pointer had left behind.
+    await page.goto("/");
+    await page.getByRole("button", { name: "Start a new design" }).click();
+    await page.getByRole("tab", { name: "Flight" }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    const margin = async () => {
+      const t = await page.getByText("Static margin", { exact: true }).locator("xpath=following-sibling::dd").innerText();
+      return parseFloat(t.replace(/[^\d.]/g, ""));
+    };
+    const asBuilt = await margin();
+
+    await page.getByRole("tab", { name: "Design" }).click();
+    await page.locator("summary", { hasText: /Parts ·/ }).click();
+    const partsTable = page.locator("table").filter({ hasText: "Dimensions" });
+    // Pick the starter's own altimeter, so this exercises an IMPORTED mass and not only an authored one.
+    await partsTable.locator("tr").filter({ hasText: /Mass object/ }).first().click();
+
+    const grip = page.getByRole("slider", { name: /Mass position/ });
+    await expect(grip).toBeVisible();
+
+    // It is a real slider: focusable, and the arrow keys move it.
+    const posField = page.locator("label").filter({ hasText: /Mass pos/ }).first().locator("input");
+    const seated = parseFloat((await posField.getAttribute("placeholder")) ?? "0");
+    expect(seated).toBeGreaterThan(0);
+
+    await grip.focus();
+    for (let i = 0; i < 12; i++) await page.keyboard.press("ArrowLeft");
+    // Nudging it forward moves the balance — mass ahead of the CG pulls the CG up and the margin with it.
+    await expect.poll(async () => parseFloat((await posField.inputValue()) || "0"), { timeout: 15000 }).toBeLessThan(seated);
+    await page.getByRole("tab", { name: "Flight" }).click();
+    await expect.poll(margin, { timeout: 20000 }).not.toBe(asBuilt);
+
+    // And it is one undo, by name, not twelve.
+    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("button", { name: /^Undo the mass position/ }).click();
+    await expect(posField).toHaveValue("");
+  });
+
   test("clicking a part the flyer authored aims the fields back at it", async ({ page }) => {
     // A pick is judged against the design the flyer is LOOKING at — the import plus their own structure
     // — and not against the import alone. Judged against the import, a part they authored is not in the

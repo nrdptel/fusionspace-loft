@@ -213,7 +213,17 @@ pointer-down/up, and a rename is the one header control that is not on the stack
 
 ## R3 — Add a component
 
-**Status:** IN PROGRESS — current milestone. The operation model is in and **all four kinds its *done
+**Status:** SHIPPED 2026-07-30 — pinned by `lib/model/edit.test.ts`'s `adding a component` (11 cases),
+`authoring a transition` (7) and `authoring a mass object` (4) suites, by `what an aim moving off a part
+invalidates` (2), by `lib/corpus/sweep.test.ts`'s *never authors a part that opens a step, floats outside
+its host, or cannot be taken back* — which drives **180 authored parts across all 35 real designs** and
+skips itself where the corpus is absent — and by six e2e cases: *a flyer can add a body tube the design
+never had, and take it back*, *a flyer can add a second fin ring, and the stability panel describes it*,
+*a flyer can add a tail cone the design never had, shape it, and take it back*, *a flyer can add a mass
+object, weigh it, and slide it along the airframe*, *a mass object can be slid along the airframe on the
+diagram, not only typed*, and *the parts panel says where the airframe steps, and how far*. Every one was
+proved able to fail by a negative control applied inside the function under test, with its BUILD_EXIT
+checked. The operation model is in and **all four kinds its *done
 when* names now ship**: a flyer can author a **body tube** behind any tube, a **fin set** onto any tube, a
 **transition** behind any tube, and a **mass object** inside any tube, from the diagram or the parts list — and each flies, weighs, draws,
 exports, is aimable, is removable and is undoable by name. The fin ring is cloned from the design's own
@@ -223,9 +233,8 @@ a source always exists. Pinned by `lib/model/edit.test.ts`'s `adding a component
 e2e cases *a flyer can add a body tube the design never had, and take it back* and *a flyer can add a
 second fin ring, and the stability panel describes it*. A tube's length is now draggable on the diagram
 too — the one airframe dimension that had no grip — pinned by *a tube's length can be dragged on the
-diagram, not only typed*. **Still to come: placing a part by DIRECT MANIPULATION rather than by picking
-its anchor — the *done when* asks for a station chosen on the diagram, and today a mass object's station
-is typed.**
+diagram, not only typed*, and a mass object's station is draggable on the diagram too — pinned by *a mass
+object can be slid along the airframe on the diagram, not only typed*.
 
 **The transition leg is DONE**, and it brought transitions into the editor at all — they were
 role-addressed, unaimable and had no field, so on the 12 of 35 corpus designs that carry one (25 in
@@ -318,13 +327,33 @@ it), sane material and dimension defaults inherited from the neighbouring part, 
 for a geometry that cannot fly. Resist a modal wall of number fields: the add gesture belongs on the
 diagram, with the numbers as confirmation.
 
-**Size.** 5–8 increments.
+**What shipped against the *done when*.** A flyer can start from the starter design, add a second body
+tube, a transition, a fin set and a mass object; place the mass object at a station by dragging it along
+the diagram; fly the result; and read the rocket they built in the stability and mass panels. Measured on
+the starter: a tail cone buys +29.33 m of apogee (993.64 → 1022.97 m) for +12.58 g, and a 45 g mass object
+moves the static margin by sliding alone.
+
+**The gap, which is R4's starting point rather than a reason to re-open this.**
+
+- **Only a mass object has a station to drag.** The other three kinds are placed by choosing an ANCHOR —
+  "behind this part", "onto this tube" — and then sized where they landed. That is the honest reading of
+  the *done when* for a stacked airframe, where a body part's station is not a free variable but the sum of
+  what is in front of it; moving one is reordering, which is exactly R4. A mass object is different
+  because it mounts INSIDE a part, so its station is a real degree of freedom, and that is the one the
+  diagram now exposes.
+- **An authored part can still only go in a stage's TOP-LEVEL list** for the kinds that stack beside their
+  anchor. A mass object, which mounts inside, has no such limit. Real designs nest, so "add a part inside
+  this bay" needs the ceiling lifted; filed in `BACKLOG.md`.
+- **A nose cone is still role-addressed**, deliberately: no corpus design has more than one after import,
+  so an id would address nothing.
+
+**Size.** 5–8 increments. **Took 7.**
 
 ---
 
 ## R4 — Reorder and restack
 
-**Status:** NOT STARTED
+**Status:** NOT STARTED — next milestone.
 
 **Outcome.** Nose-to-tail order is editable, not fixed at import.
 

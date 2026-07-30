@@ -321,6 +321,7 @@ export default function GeometryInspector({
           onEdit={onEdit}
           selectedFinSetId={aims?.finSetId}
           selectedBodyTubeId={aims?.bodyTubeId}
+          selectedMassObjectId={aims?.massObjectId}
         />
         {/* What you just pointed at. Reserved height so hovering across the airframe doesn't make
             everything below it jump. */}

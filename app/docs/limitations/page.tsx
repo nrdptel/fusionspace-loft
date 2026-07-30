@@ -217,10 +217,18 @@ export default function Limitations() {
         measurement rather than ballast anyone chose.
       </p>
       <p>
+        <strong>A mass object can also be slid along the airframe on the diagram</strong>, not only
+        typed — it is the one kind whose whole geometry is a station, so it is the one that most needs a
+        grip. The handle is a real slider: focusable, arrow keys nudge it, and the whole drag is one
+        undo. It is bounded by the part holding it, because the model clamps the station there anyway.
+      </p>
+      <p>
         <strong>What is still fixed.</strong> Nose cones are not addressable, which costs nothing
         measurable — no corpus design has more than one after import. Nothing can be <em>reordered</em>{" "}
-        yet: a part is authored behind the one you picked and stays there, so building an airframe
-        means picking anchors in order. That is the next step for the in-app editor.
+        yet: the other three kinds are placed by choosing an anchor — behind this part, onto this tube —
+        and sized where they landed, because on a stacked airframe a body part&apos;s station is the sum
+        of what sits in front of it rather than a free number. Moving one is reordering, and that is the
+        next step for the in-app editor.
       </p>
       <p>
         <strong>Removing a part does work</strong>, on any component, and it is undoable: pick a part on
