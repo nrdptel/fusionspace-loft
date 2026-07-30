@@ -276,6 +276,13 @@ screen down on a 6.7-screen Flight workspace) and the OpenRocket benchmark of th
 
 ## Environment notes
 
+- **The zero-trace sweep has one standing false positive, and it is not ours.** `grep -ri` over `out/`
+  hits `out/pyodide/pyodide-lock.json`, which is Pyodide's own index of the wheels its distribution can
+  install — `openai` is one of several thousand PyPI package names in it. It is vendored build output,
+  untracked (`git ls-files` finds it 0 times), and already served in production, so it predates any of
+  this. Editing a third-party lockfile to remove a package name would corrupt the index. Sweep the
+  TRACKED tree (`git grep`) and treat that one file as out of scope.
+
 - Serve the built export on :3100 for probes and agents; the e2e suite owns :3000. **Start it with
   `setsid` and `< /dev/null`** — `nohup … &` from a Bash tool call dies with the call and leaves
   `pgrep` matching a corpse, so `curl` returns `000` while the process "exists":
