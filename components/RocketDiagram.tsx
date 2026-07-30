@@ -10,8 +10,10 @@ import {
   primaryBodyTube,
   primaryBodyDiameter,
   primaryNose,
+  primaryMassObject,
   type GeometryEdits,
 } from "@/lib/model/edit";
+import { flattenRocket } from "@/lib/model/geometry";
 import type { MotorMark } from "@/lib/sim/setup";
 import { useMeasuredWidth } from "./LineChart";
 import { TOUCH_TARGET_SQUARE } from "@/lib/ui-tokens";
@@ -52,6 +54,7 @@ export default function RocketDiagram({
   onEdit,
   selectedFinSetId,
   selectedBodyTubeId,
+  selectedMassObjectId,
 }: {
   rocket: Rocket;
   units: UnitSystem;
@@ -81,6 +84,7 @@ export default function RocketDiagram({
    *  snap the edited part to the read part's dimensions on the first nudge. */
   selectedFinSetId?: string;
   selectedBodyTubeId?: string;
+  selectedMassObjectId?: string;
 }) {
   const uid = useId();
   // A drag-frozen vertical extent, set while a vertical resize handle is being dragged (the fin SPAN
@@ -283,6 +287,22 @@ export default function RocketDiagram({
   const diaHi = bodyDiaNow !== undefined ? Math.max(bodyDiaNow, 2 * frameExtent) : 0;
   const diaCx = bodyPart ? X((bodyPart.profile[0][0] + bodyPart.profile[bodyPart.profile.length - 1][0]) / 2) : 0;
   const diaCy = bodyPart ? top(bodyR) : 0;
+
+  // Mass-object handle. A point mass is the one part whose whole geometry IS a station, so it is the
+  // one that most needs a grip — R3's *done when* asks for a part placed "at a station by direct
+  // manipulation", and a typed millimetre is not that. It rides the centreline on the mark already
+  // drawn for it, and its bounds are the part holding it: the model clamps the station into its host
+  // anyway (a point mass outside the airframe would still be flown), so a handle that could be dragged
+  // past the end would stick at a value the pointer had left behind.
+  const massNow = onEdit ? primaryMassObject(rocket, selectedMassObjectId) : undefined;
+  const massPlaced = massNow ? flattenRocket(rocket).find((p) => p.component.id === massNow.id) : undefined;
+  const massHost = massNow
+    ? flattenRocket(rocket).find((p) => p.component.children.some((c) => c.id === massNow.id))
+    : undefined;
+  const massStationNow = massPlaced?.xFore;
+  const massLo = massHost ? massHost.xFore : 0;
+  const massHi = massHost ? massHost.xFore + massHost.length : 0;
+  const massCx = massStationNow !== undefined ? X(massStationNow) : 0;
 
   // Nose-length handle. The nose/body joint is the one place on the silhouette where the nose's
   // length is a visible edge, so that is where it goes: drag it aft and the cone stretches, forward
@@ -567,6 +587,29 @@ export default function RocketDiagram({
           />
         )}
 
+        {/* mass-object handle — slide the picked point mass along the airframe. Fine-pointer only, for
+            the same reason the tube-length grip is: it rides the centreline where the fin handles and
+            the CG/CP marks already live, and on a coarse pointer a 44 px target there swallows theirs.
+            On a phone the station stays the number field, which is a real control at a real size. */}
+        {onEdit && !coarse && massStationNow !== undefined && massHi > massLo && (
+          <FinHandle
+            units={units}
+            field="massObjectStation"
+            label="Mass position"
+            valueText={`${d.q(d.lengthMm(massStationNow, units))} from the nose`}
+            title="Drag or use arrow keys to slide this mass along the airframe"
+            current={massStationNow}
+            lo={massLo}
+            hi={massHi}
+            cx={massCx}
+            cy={centerY}
+            s={s}
+            padX={padX}
+            onEdit={onEdit}
+            hitR={hitR}
+          />
+        )}
+
         {/* body-diameter handle — grab the body wall to resize the caliber, independent of the fins */}
         {onEdit && bodyPart && bodyDiaNow !== undefined && (
           <FinHandle
@@ -757,7 +800,8 @@ function FinHandle({
     | "finSpan"
     | "bodyDiameter"
     | "bodyLength"
-    | "noseLength";
+    | "noseLength"
+    | "massObjectStation";
   label: string;
   valueText: string;
   title: string;

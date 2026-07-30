@@ -5,7 +5,7 @@ import type { Rocket, RocketComponent } from "@/lib/model/types";
 import { flattenRocket } from "@/lib/model/geometry";
 import { massByComponent, dryMassProperties, statedMassHolder } from "@/lib/sim/mass";
 import type { MotorMark } from "@/lib/sim/setup";
-import type { GeometryEdits } from "@/lib/model/edit";
+import { mouldLineStep, type AddedPart, type GeometryEdits } from "@/lib/model/edit";
 import { TOUCH_TARGET, TOUCH_TARGET_SQUARE } from "@/lib/ui-tokens";
 import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
@@ -78,6 +78,15 @@ function SortHeader({
 
 /** The authoring controls in the parts panel. One constant so a second one cannot arrive at a
  *  different height from the first. */
+/** The smallest mould-line step worth a sentence, in metres of DIAMETER.
+ *
+ *  Measured across the 35-design corpus: 33 joints step at all, and the sample falls into two groups
+ *  with nothing between them — six from 0.0004 to 0.292 mm, which are rounding artefacts of designs
+ *  stated in inches rather than steps anyone built, and 27 of 0.800 mm and up, median 12.70 mm. 0.5 mm sits
+ *  in that gap, so the threshold is read off the data rather than chosen. Below it the notice would
+ *  fire on arithmetic instead of on geometry, and a flag that cries wolf teaches flyers to ignore it. */
+const STEP_NOTICE_M = 0.0005;
+
 const ADD_BUTTON =
   "inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-2.5 py-1 font-medium " +
   "text-zinc-700 transition hover:border-indigo-400 hover:text-indigo-700 dark:border-zinc-700 " +
@@ -156,7 +165,7 @@ export default function GeometryInspector({
   /** Author a part behind the picked one. Offered only on a part something can be built onto — today
    *  a body tube, whose caliber the new one fairs to. A control that appears on every part and does
    *  nothing on most of them is worse than one that appears where it works. */
-  onAddAfter?: (id: string, kind?: "bodytube" | "trapezoidfinset") => void;
+  onAddAfter?: (id: string, kind?: AddedPart["kind"]) => void;
   /** Why the picked part cannot be removed, or null — asked of the caller, which owns the design a removal
    *  is judged against. The panel judging for itself let the two disagree: it read the fully-edited model,
    *  which contains parts a dimension edit ADDED and the removal mechanism cannot take. */
@@ -244,6 +253,9 @@ export default function GeometryInspector({
   };
   const activeId = hoveredId ?? selectedId;
   const active = parts.find((p) => p.component.id === activeId);
+  // Judged on the model being flown, which is the one this panel draws, so a step the flyer just
+  // opened by typing an exit diameter is stated by the same render that shows the new shape.
+  const stepBehind = selectedId ? mouldLineStep(rocket, selectedId) : undefined;
 
   // The table's rows in the chosen order. Sorting is stable against the design order, so parts that
   // tie on a column still read nose-to-tail rather than shuffling.
@@ -309,6 +321,7 @@ export default function GeometryInspector({
           onEdit={onEdit}
           selectedFinSetId={aims?.finSetId}
           selectedBodyTubeId={aims?.bodyTubeId}
+          selectedMassObjectId={aims?.massObjectId}
         />
         {/* What you just pointed at. Reserved height so hovering across the airframe doesn't make
             everything below it jump. */}
@@ -388,6 +401,46 @@ export default function GeometryInspector({
                 <span aria-hidden>+</span> Add fins to this tube
               </button>
             )}
+            {/* The part that changes caliber. Its exit is a fact about the design wherever the design
+                supplies one — a part already sitting behind this at another caliber means the cone
+                fairs exactly to it and CLOSES a step, which is what 17 of the 25 corpus transitions
+                do. With nothing behind it, it is a tail cone, and the label says so rather than making
+                the flyer find out by clicking. */}
+            {/* The non-structural weight that decides where a rocket balances — an av-bay, a tracker,
+                nose ballast. It mounts INSIDE the tube rather than behind it, so unlike the other three
+                it needs a station, and the corpus supplies one: a third of the way down the part
+                holding it, which is where a real bay sits. */}
+            <button
+              type="button"
+              onClick={() => onAddAfter(selectedId, "masscomponent")}
+              title="Add a mass object inside this tube — electronics, a tracker, ballast — and re-fly the design"
+              className={`${ADD_BUTTON} ml-1.5`}
+            >
+              <span aria-hidden>+</span> Add a mass inside this
+            </button>
+            <button
+              type="button"
+              onClick={() => onAddAfter(selectedId, "transition")}
+              title="Add a transition behind this — faired to what follows it, or contracting into a tail cone where nothing does — and re-fly the design"
+              className={`${ADD_BUTTON} ml-1.5`}
+            >
+              <span aria-hidden>+</span> Add a transition behind this
+            </button>
+          </p>
+        )}
+        {/* Where the outer mould line STEPS behind the part you are holding, and by how much.
+            Loft's drag model has a term for a transition's own slope — a shoulder's joint angle, a
+            boattail's — and none at all for a bare radius step, which has no length to take an angle
+            over. So a step is a real geometry Loft flies optimistically, and saying nothing about it
+            is the shape of silence the brief forbids. It is not exotic and it is not something the
+            editor invents: measured across the 35-design corpus, 33 of the 115 joints this can judge
+            already step, in 13 of the 35 designs, by a median 11.75 mm of diameter and up to 82.55 mm.
+            OpenRocket warns on exactly this; Loft has never said a word. */}
+        {selectedId && stepBehind !== undefined && Math.abs(stepBehind) > STEP_NOTICE_M && (
+          <p className="mt-1 text-xs text-amber-700 dark:text-amber-400" role="status">
+            The airframe steps {stepBehind > 0 ? "out" : "in"} by {d.q(d.lengthMm(Math.abs(stepBehind), units))}{" "}
+            of diameter at the joint behind this part. Loft models a transition&apos;s own slope but has
+            no drag term for a bare step, so the drag here is read optimistically.
           </p>
         )}
         {/* Said BEFORE the click, where the flyer is deciding, rather than left to be inferred from a
@@ -396,10 +449,11 @@ export default function GeometryInspector({
             the mass. The model is right to hold the stated figure; what was missing is the sentence.
             Measured on `EscapeVelocity.ork`: removing its 141.7 g "Avionics" leaves dry mass at exactly
             2000.0 g while the static margin moves 4.461 → 4.312 cal. */}
-        {onRemove && selectedId && !refuseRemoval?.(selectedId) && statedMassHolder(rocket, selectedId) && (
+        {selectedId && statedMassHolder(rocket, selectedId) && (
           <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400" role="status">
             This design states {statedMassHolder(rocket, selectedId)}&apos;s weight as a whole, so it
-            counts no mass for the parts inside — removing this one will move the balance, not the total.
+            counts no mass for the parts inside — adding a part here, or removing one, moves the balance
+            and not the total.
           </p>
         )}
         {onEdit && (

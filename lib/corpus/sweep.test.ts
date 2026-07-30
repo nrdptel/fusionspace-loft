@@ -30,7 +30,16 @@ import { join, resolve } from "node:path";
 import { importDesign } from "../ork/import";
 import { runFromDocument, overridesFromStored } from "../sim/run";
 import { flattenRocket } from "../model/geometry";
-import { applyGeometryEdits, removalRefusal } from "../model/edit";
+import type { Rocket, RocketComponent } from "../model/types";
+import {
+  applyGeometryEdits,
+  removalRefusal,
+  transitionDefaults,
+  newPartId,
+  aimEditsAt,
+  primaryMassObject,
+  primaryNose,
+} from "../model/edit";
 import { dryMassProperties, massByComponent, statedMassHolder } from "../sim/mass";
 
 const CORPUS_DIR = process.env.LOFT_CORPUS_DIR ?? resolve(process.cwd(), "corpus");
@@ -118,6 +127,33 @@ function corpusFiles(): { path: string; name: string }[] {
  *  recognises and what KNOWN_ISSUES is keyed on. */
 const shortName = (name: string): string => name.split("__").pop() ?? name;
 
+/** How far the outer mould line steps at the joint immediately behind `id`, in metres of DIAMETER,
+ *  computed from the flattened geometry alone.
+ *
+ *  Deliberately NOT `mouldLineStep`: this suite exists to catch what the app's own adjacency gets
+ *  wrong, and asking the suspect where its neighbours are cannot do that. Adjacency here is "the next
+ *  body part whose fore station is this one's aft station", which is a fact about the drawing rather
+ *  than about any list. 0 when nothing touches it. */
+const isBodyPart = (k: string) => k === "nosecone" || k === "bodytube" || k === "transition";
+
+function stepBehind(rocket: Rocket, id: string): number {
+  const bodies = flattenRocket(rocket)
+    .filter((p) => isBodyPart(p.component.kind))
+    .sort((a, b) => a.xFore - b.xFore);
+  const self = bodies.find((p) => p.component.id === id);
+  if (!self) return 0;
+  const aftOf = (c: RocketComponent) =>
+    c.kind === "bodytube" ? c.outerRadius : c.kind === "nosecone" || c.kind === "transition" ? c.aftRadius : undefined;
+  const foreOf = (c: RocketComponent) =>
+    c.kind === "bodytube" ? c.outerRadius : c.kind === "transition" ? c.foreRadius : 0;
+  const next = bodies.find(
+    (p) => p.component.id !== id && Math.abs(p.xFore - (self.xFore + self.length)) < 1e-6,
+  );
+  const mine = aftOf(self.component);
+  if (!next || mine === undefined) return 0;
+  return 2 * (foreOf(next.component) - mine);
+}
+
 const files = corpusFiles();
 const suite = files.length ? describe : describe.skip;
 
@@ -178,6 +214,170 @@ suite("real-design corpus", () => {
     expect(driven, "no removable part was driven — the sweep proves nothing").toBeGreaterThan(100);
     expect(weightless, "removals that left a design with no mass at all").toEqual([]);
     expect(unexplained, "removals that shed a part's mass without the total moving, and nothing says why").toEqual([]);
+  }, 300_000);
+
+  it("never authors a part that opens a step, floats outside its host, or cannot be taken back", async () => {
+    // R3's authoring surface, held across every real design rather than the two committed fixtures —
+    // and it exists because the synthetic fixtures could not have caught what shipped. Every unit test
+    // in `edit.test.ts` authors onto a single-stage design or a hand-built three-component literal, so
+    // a bug that only appears where a STAGE ENDS passed a full green gate: `nextTopLevel` searched one
+    // stage's list, the last tube of a booster read as having nothing behind it, and "add a transition"
+    // built a contracting tail cone in the middle of a multi-stage rocket — 10 of 91 anchors, worst
+    // opening a 77.4 mm step on `02.Two-stage.ork`. Real files are the only place that is reachable:
+    // 9 of the 35 corpus designs are multi-stage and 12 stage boundaries sit between their sections.
+    //
+    // Four rules, one per way an authored part can be wrong:
+    //   1. a transition never opens a mould-line step that was not already there. Loft has no drag
+    //      term for a bare radius step, so a shape the gesture INVENTS is a shape flown optimistically;
+    //   2. a mass object sits inside the part holding it — the solver puts mass wherever the tree says,
+    //      so one placed outside the airframe is still flown, at a CG nobody could build;
+    //   3. everything authored is removable, or the flyer is in a state with no way back;
+    //   4. everything authored is aimable, or the fields silently edit some other part.
+    const openedAStep: string[] = [];
+    const floating: string[] = [];
+    const stuck: string[] = [];
+    const unaimable: string[] = [];
+    const misplaced: string[] = [];
+    const shapeless: string[] = [];
+    const misanchored: string[] = [];
+    let driven = 0;
+    let transMade = 0;
+    let massMade = 0;
+    let stations = 0;
+
+    for (const f of files) {
+      const doc = await importDesign(new Uint8Array(readFileSync(f.path)));
+      const pristine = doc.rocket;
+      for (const anchor of flattenRocket(pristine)) {
+        if (anchor.component.kind !== "bodytube") continue;
+        const where = `${shortName(f.name)} · behind "${anchor.component.name}"`;
+
+        // --- a transition -------------------------------------------------------------------
+        const d = transitionDefaults(pristine, anchor.component.id);
+        if (d) {
+          const id = newPartId(pristine, undefined, anchor.component.id);
+          const built = applyGeometryEdits(pristine, {
+            added: [{ id, kind: "transition", after: anchor.component.id, length: d.length }],
+          });
+          const made = flattenRocket(built).find((p) => p.component.id === id);
+          if (made) {
+            driven++;
+            transMade++;
+            // Measured from the flattened STATIONS, not through `mouldLineStep` — a test that shares
+            // the helper under suspicion is blind in exactly the way the code is. Proved: reverting
+            // `nextTopLevel` to its single-stage search leaves this suite green if the step is asked
+            // of `mouldLineStep`, because that function goes blind at the same boundary. Walking the
+            // geometry instead catches all 10 mis-read anchors.
+            //
+            // BOTH joints, and with no excuse for a design that already stepped. An earlier version
+            // only judged the aft joint and only when the step grew, which excused exactly the 17
+            // step-closing anchors the fairing branch exists for — deleting that branch outright fired
+            // the rule at 0 of 90. The rule is simply that an authored transition fairs at both ends:
+            // to its anchor in front, and to whatever follows it, or nothing follows and there is no
+            // joint to judge.
+            const nowThere = stepBehind(built, id);
+            if (Math.abs(nowThere) > 0.0005) {
+              openedAStep.push(`${where} — aft joint steps ${(Math.abs(nowThere) * 1000).toFixed(1)} mm of diameter`);
+            }
+            const foreJoint = stepBehind(built, anchor.component.id);
+            if (Math.abs(foreJoint) > 0.0005) {
+              openedAStep.push(`${where} — fore joint steps ${(Math.abs(foreJoint) * 1000).toFixed(1)} mm of diameter`);
+            }
+            // What was built has to BE a transition: a positive length, and — where nothing follows —
+            // an exit narrower than its entry, which is the base-drag lever the part exists for.
+            const c = made.component as { length: number; foreRadius: number; aftRadius: number };
+            if (!(c.length > 0)) shapeless.push(`${where} — length ${(c.length * 1000).toFixed(2)} mm`);
+            if (!(c.foreRadius > 0) || !(c.aftRadius > 0)) {
+              shapeless.push(`${where} — radii ${(c.foreRadius * 2000).toFixed(1)}→${(c.aftRadius * 2000).toFixed(1)} mm`);
+            }
+            const follows = flattenRocket(built).some(
+              (q) => Math.abs(q.xFore - (made.xFore + made.length)) < 1e-6 && isBodyPart(q.component.kind),
+            );
+            if (!follows && !(c.aftRadius < c.foreRadius - 1e-9)) {
+              shapeless.push(`${where} — a tail cone that does not contract (${(c.foreRadius * 2000).toFixed(1)}→${(c.aftRadius * 2000).toFixed(1)} mm)`);
+            }
+            // And it sits immediately behind the part it names, not merely somewhere in the stage.
+            if (Math.abs(made.xFore - (anchor.xFore + anchor.length)) > 1e-6) {
+              misanchored.push(`${where} — landed at ${(made.xFore * 1000).toFixed(1)} mm, anchor ends at ${((anchor.xFore + anchor.length) * 1000).toFixed(1)} mm`);
+            }
+            if (removalRefusal(built, id)) stuck.push(`${where} (transition)`);
+            if (aimEditsAt(built, id).transitionId !== id) unaimable.push(`${where} (transition)`);
+          }
+        }
+
+        // --- a mass object ------------------------------------------------------------------
+        const mid = newPartId(pristine, undefined, anchor.component.id);
+        const withMass = applyGeometryEdits(pristine, {
+          added: [{ id: mid, kind: "masscomponent", after: anchor.component.id, length: 0 }],
+        });
+        const mass = flattenRocket(withMass).find((p) => p.component.id === mid);
+        if (!mass) continue;
+        driven++;
+        massMade++;
+        const host = flattenRocket(withMass).find((p) => p.component.id === anchor.component.id)!;
+        if (mass.xFore < host.xFore - 1e-9 || mass.xFore > host.xFore + host.length + 1e-9) {
+          floating.push(`${where} — station ${(mass.xFore * 1000).toFixed(1)} mm, host ${(host.xFore * 1000).toFixed(1)}–${((host.xFore + host.length) * 1000).toFixed(1)} mm`);
+        }
+        // A mass object with no mass is not a mass object, and it is the one number the part is for.
+        const built = mass.component as { mass: number };
+        if (!(built.mass > 0)) shapeless.push(`${where} — a mass object weighing ${(built.mass * 1000).toFixed(2)} g`);
+        if (removalRefusal(withMass, mid)) stuck.push(`${where} (mass object)`);
+        if (aimEditsAt(withMass, mid).massObjectId !== mid) unaimable.push(`${where} (mass object)`);
+      }
+
+      // --- a mass object's STATION, on the design's OWN masses ------------------------------
+      // Rule 5, and the one the first version of this sweep could not see: the grip and the field
+      // both speak an absolute station from the nose tip, so the station a flyer asks for must be
+      // the station that is flown — or, where it falls outside the part holding the mass, the
+      // nearest point inside it. Driven on the design's own mass objects rather than an authored
+      // one, because the failure was in how the HOST is resolved and imported masses use all four
+      // placement methods (31 top, 12 absolute, 8 bottom, 5 middle across the corpus) where an
+      // authored one is always `top`. Driven with a length edit live underneath, because the other
+      // half of the failure was reading the host's extent from the pre-edit tree — and shaping the
+      // airframe before placing the mass is the ordinary build order.
+      const own = primaryMassObject(pristine);
+      const ownHost = own
+        ? flattenRocket(pristine).find((p) => p.component.children.some((c) => c.id === own.id))
+        : undefined;
+      if (!own || !ownHost || !(ownHost.length > 0)) continue;
+      const nose = primaryNose(pristine);
+      for (const t of [0, 0.25, 0.5, 0.75, 1]) {
+        const want = ownHost.xFore + ownHost.length * t;
+        for (const alsoEdit of [{}, nose ? { noseLength: nose.length * 1.6 } : {}]) {
+          stations++;
+          const moved = applyGeometryEdits(pristine, {
+            ...alsoEdit,
+            massObjectId: own.id,
+            massObjectStation: want,
+          });
+          const at = flattenRocket(moved).find((p) => p.component.id === own.id)?.xFore;
+          const host = flattenRocket(moved).find((p) => p.component.children.some((c) => c.id === own.id));
+          if (at === undefined || !host) continue;
+          const clamped = Math.max(host.xFore, Math.min(host.xFore + host.length, want));
+          if (Math.abs(at - clamped) > 1e-6) {
+            misplaced.push(
+              `${shortName(f.name)} · "${own.name}" (${own.placement.method}) — asked ${(want * 1000).toFixed(1)} mm, flown ${(at * 1000).toFixed(1)} mm, host ${(host.xFore * 1000).toFixed(1)}–${((host.xFore + host.length) * 1000).toFixed(1)} mm`,
+            );
+          }
+        }
+      }
+    }
+
+    // The denominator, printed so a run that examined nothing cannot read like a pass.
+    // Denominators PER BRANCH, printed and asserted separately. One merged counter passed at 135 with
+    // the transition branch half dead, and could not say which half.
+    console.log(`authored parts driven across ${files.length} design files: ${driven} (${transMade} transitions, ${massMade} mass objects)`);
+    console.log(`mass-object stations driven across ${files.length} design files: ${stations}`);
+    expect(transMade, "no transition was authored — that branch proves nothing").toBeGreaterThan(80);
+    expect(massMade, "no mass object was authored — that branch proves nothing").toBeGreaterThan(80);
+    expect(stations, "no mass station was driven — that branch proves nothing").toBeGreaterThan(100);
+    expect(openedAStep, "authored transitions that opened a mould-line step the design did not have").toEqual([]);
+    expect(floating, "authored mass objects placed outside the part holding them").toEqual([]);
+    expect(stuck, "authored parts that cannot be removed again").toEqual([]);
+    expect(unaimable, "authored parts the editor's fields cannot be aimed at").toEqual([]);
+    expect(misplaced, "mass objects flown at a station other than the one asked for").toEqual([]);
+    expect(shapeless, "authored parts built without the dimension that makes them that part").toEqual([]);
+    expect(misanchored, "authored parts that did not land immediately behind the part they name").toEqual([]);
   }, 300_000);
 
   it("flies every stored simulation and agrees on apogee and speed", async () => {

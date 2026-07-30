@@ -87,16 +87,22 @@ export interface AddedPart {
    *  exported to `.ork` and re-imported as itself — see `lib/model/id.ts` for why that shape. */
   id: string;
   /** What to build. The switch in `buildAdded` is where the rest arrive. */
-  kind: "bodytube" | "trapezoidfinset";
+  kind: "bodytube" | "trapezoidfinset" | "transition" | "masscomponent";
   /** The component this goes immediately AFTER, in its stage's own top-level list. An id rather than an
    *  index or a role, so it still means the same part after a length edit, a removal, or a reload. */
   after: string;
   /** Length (m) — a tube's own length, and the one dimension a neighbour cannot supply: inheriting it
    *  would silently double the airframe, and zero is not a part. Ignored by kinds that have no length
-   *  of their own to choose; a fin set copies the design's own. */
+   *  of their own to choose; a fin set copies the design's own, and a transition takes the length its
+   *  own diameter change implies (see `transitionDefaults`). */
   length: number;
   /** What to call it on the diagram and in the parts list. */
   name?: string;
+  /** Mass (kg) — a point mass's own weight, and what `length` is to a tube: the one number no
+   *  neighbour can supply, because nothing about the airframe implies how heavy an altimeter is.
+   *  Ignored by every other kind. Its STATION is not here: it is derived from the anchor at every
+   *  apply (see `massObjectStation`), so a bay stays where it sits in a tube that is later resized. */
+  mass?: number;
 }
 
 export interface GeometryEdits {
@@ -123,6 +129,24 @@ export interface GeometryEdits {
    *  or parallel-stage assemblies the importer declines to fly, and a part that is not imported is not a
    *  part a flyer can pick.) */
   bodyTubeId?: string;
+  /** Which transition the transition fields describe and edit. Undefined means the design's frontmost
+   *  one, which is what every readback below falls back to. A SELECTION, not an edit, exactly like the
+   *  other aims.
+   *
+   *  It matters because a transition is where an airframe changes caliber, and 12 of the 35 corpus
+   *  designs carry one — 25 in all, 17 of them between two body sections and 8 at the tail — and until
+   *  now not one of them could be touched. The only transition a flyer could shape was a boattail they
+   *  had just asked for by typing two numbers into fields that create one; a transition the design
+   *  came with was read-only. */
+  transitionId?: string;
+  /** Which mass object the mass fields describe and edit. Undefined means the design's heaviest one a
+   *  flyer could actually take out — the point mass a RASAero import synthesises to hold a whole stated
+   *  launch weight is not a part, and aiming a mass field at it would offer to retype a design's own
+   *  weight as if it were ballast. A SELECTION, not an edit, like the other aims.
+   *
+   *  It matters because 26 of the 35 corpus designs carry a mass object, 56 in all, and not one of them
+   *  could be reached: the only mass a flyer could state was a payload the editor ADDS. */
+  massObjectId?: string;
   /** Which recovery canopy the recovery fields describe and edit. Undefined means the design's main
    *  parachute — the largest by canopy area — which is what the panel has always used and what every
    *  readback below still falls back to. A SELECTION, not an edit, exactly like the two above.
@@ -207,6 +231,30 @@ export interface GeometryEdits {
    *  one of them were widened alone, so the picked tube sets the TARGET and the airframe follows it.
    *  Undefined leaves it. */
   bodyDiameter?: number;
+  /** Absolute length (m) for the transition `transitionId` names — the frontmost when nothing is
+   *  picked. Only that one transition resizes; everything aft of it restacks, exactly as a body
+   *  tube's length does. This is the fairing-angle lever: a boattail's own pressure drag fades to
+   *  nothing as it lengthens (Niskanen eq. 3.88 interpolates over γ = L / 2·ΔR, full base drag at
+   *  γ ≤ 1 and none at γ ≥ 3), and a shoulder's grows as it shortens. Undefined leaves it. */
+  transitionLength?: number;
+  /** Absolute exit (aft) diameter (m) of the transition `transitionId` names. The caliber the
+   *  airframe steps TO — the number a transition exists to set.
+   *
+   *  Applied AFTER the whole-airframe caliber scale, so a diameter typed here is the one flown even
+   *  when `bodyDiameter` is also set. Nothing aft of the transition follows it: Loft has no mechanism
+   *  that resizes parts a flyer did not pick, and inventing one would silently re-caliber an airframe
+   *  from a single field. Where that leaves the mould line stepping at the joint behind it, the panel
+   *  says so and by how much — see `mouldLineStep`. Undefined leaves it. */
+  transitionAftDiameter?: number;
+  /** Absolute mass (kg) of the mass object `massObjectId` names. The dominant non-structural weight on
+   *  most designs — electronics, tracker, ballast, nose weight — so it moves loaded mass, the CG and
+   *  therefore the static margin, and the apogee with them. Undefined leaves it. */
+  massObjectMass?: number;
+  /** Where that mass object sits, as a station (m) from the nose tip. Clamped to stay inside the part
+   *  holding it, because a point mass floating outside the airframe is not a rocket anyone built.
+   *  Unlike `payloadStation` this is NOT inert: it moves the CG, which is the whole reason to have it.
+   *  Undefined leaves the mass where the design puts it. */
+  massObjectStation?: number;
   /** Surface finish applied to the whole airframe (drives skin-friction drag). Undefined leaves
    *  each component's own finish. */
   finish?: SurfaceFinish;
@@ -273,6 +321,10 @@ export function hasGeometryEdits(e: GeometryEdits): boolean {
     e.noseShape !== undefined ||
     (e.bodyLength !== undefined && e.bodyLength > 0) ||
     (e.bodyDiameter !== undefined && e.bodyDiameter > 0) ||
+    (e.transitionLength !== undefined && e.transitionLength > 0) ||
+    (e.transitionAftDiameter !== undefined && e.transitionAftDiameter > 0) ||
+    (e.massObjectMass !== undefined && e.massObjectMass >= 0) ||
+    (e.massObjectStation !== undefined && e.massObjectStation >= 0) ||
     e.finish !== undefined ||
     (e.airframeMaterial !== undefined && AIRFRAME_MATERIALS.some((m) => m.key === e.airframeMaterial)) ||
     (e.boattailLength !== undefined && e.boattailLength > 0 &&
@@ -328,6 +380,79 @@ export function unreachableBodyTubeCount(rocket: Rocket): number {
   return Math.max(0, tubes.length - 1);
 }
 
+/** The transition the panel is about: the one picked, or the design's frontmost when nothing is.
+ *
+ *  Every transition readback and the transition edit path resolve through this one function, for the
+ *  same reason the tube and fin ones do: the value shown to edit FROM and the part the edit is written
+ *  TO can never name different components. Frontmost rather than "the biggest step" or "the aft-most",
+ *  because the fallback's job is to be predictable — the panel names which one it is holding either
+ *  way. A selection naming a transition this design doesn't have falls back rather than resolving to
+ *  nothing, so a stale id from a restored session cannot silently disable the fields. */
+export function primaryTransition(rocket: Rocket, selectedId?: string): Transition | undefined {
+  const trans = flattenRocket(rocket)
+    .map((p) => p.component)
+    .filter((c): c is Transition => c.kind === "transition");
+  if (!trans.length) return undefined;
+  const picked = selectedId ? trans.find((c) => c.id === selectedId) : undefined;
+  return picked ?? trans[0];
+}
+
+/** How many transitions sit OUTSIDE the one the transition fields describe. 0 means the fields speak
+ *  for the only one the design has. */
+export function unreachableTransitionCount(rocket: Rocket): number {
+  return Math.max(0, flattenRocket(rocket).filter((p) => p.component.kind === "transition").length - 1);
+}
+
+/** The mass object the mass fields are about: the one picked, or the design's heaviest REMOVABLE one
+ *  when nothing is.
+ *
+ *  Heaviest rather than frontmost because that is the one a flyer is looking for — the av-bay or the
+ *  nose weight, not a 3 g shear-pin entry — and it is the one whose station moves the CG most. The
+ *  fallback deliberately skips a point mass that stands in for a whole airframe's weight: a RASAero
+ *  import mints one to hold the launch weight the format states, and offering to retype that as if it
+ *  were ballast would present a design's own measurement as a what-if. On 3 of the 4 RASAero designs
+ *  it is also the heaviest thing in the model, so an unguarded fallback would land on it every time. */
+export function primaryMassObject(rocket: Rocket, selectedId?: string): MassComponent | undefined {
+  const masses = flattenRocket(rocket)
+    .map((p) => p.component)
+    .filter((c): c is MassComponent => c.kind === "masscomponent");
+  if (!masses.length) return undefined;
+  // A pick is refused on the same grounds the fallback avoids it, and the same grounds `removalRefusal`
+  // refuses to delete it: a point mass that stands in for a whole airframe's stated weight is not a part
+  // sitting in the design, it IS the design's mass. Offering to restate or to SLIDE it would present a
+  // measurement the file makes as a what-if — and sliding it is the worse of the two, because a lumped
+  // CG has no station a flyer could move it to. 4 such masses across 3 RASAero designs in the corpus.
+  const picked = selectedId ? masses.find((c) => c.id === selectedId && !c.standsForAirframe) : undefined;
+  if (picked) return picked;
+  const real = masses.filter((c) => !c.standsForAirframe);
+  if (!real.length) return undefined;
+  return real.reduce((best, c) => (c.mass > best.mass ? c : best), real[0]);
+}
+
+/** Which mass object the mass fields are holding. Always one. Undefined for a design with none a
+ *  flyer could state. */
+export function primaryMassObjectPart(rocket: Rocket, selectedId?: string): AimedPart | undefined {
+  const masses = flattenRocket(rocket).filter((p) => p.component.kind === "masscomponent");
+  if (!masses.length) return undefined;
+  const picked = primaryMassObject(rocket, selectedId);
+  if (!picked) return undefined;
+  const seed = masses.find((p) => p.component.id === picked.id) ?? masses[0];
+  return aimedPart(seed, masses, 1);
+}
+
+/** Where that mass object sits — its station (m) from the nose tip — so the field shows the value it
+ *  edits FROM. Undefined when there is none to hold. */
+export function primaryMassObjectStation(rocket: Rocket, selectedId?: string): number | undefined {
+  const picked = primaryMassObject(rocket, selectedId);
+  if (!picked) return undefined;
+  return flattenRocket(rocket).find((p) => p.component.id === picked.id)?.xFore;
+}
+
+/** How many mass objects sit OUTSIDE the one the mass fields describe. */
+export function unreachableMassObjectCount(rocket: Rocket): number {
+  return Math.max(0, flattenRocket(rocket).filter((p) => p.component.kind === "masscomponent").length - 1);
+}
+
 /** The design's primary (frontmost) fin set, if any. */
 /** The fin set the panel is about: the one selected, or the frontmost when nothing is.
  *
@@ -363,6 +488,14 @@ export interface AimSlot {
   kinds: readonly ComponentKind[];
   /** The value fields whose target this slot decides. Empty would make the slot pointless. */
   targets: readonly string[];
+  /** Targets that describe MORE than the part the slot names, so re-aiming the slot does not
+   *  invalidate them. `bodyDiameter` is the one: it reads the picked tube's caliber but scales the
+   *  whole outer airframe to hit it, deliberately, so that a design stepping through a transition
+   *  cannot come apart. It therefore still means what it meant after the aim moves — which is why
+   *  clearing it on a re-aim was a regression that snapped 35 of 35 corpus designs back to their
+   *  imported caliber. A REMOVAL is the other case and still clears it: the scale is computed from
+   *  the aimed tube, so with that tube gone the same number would resolve to a different factor. */
+  groupWide?: readonly string[];
 }
 export const AIM_SLOTS: Readonly<Record<string, AimSlot>> = {
   finSetId: {
@@ -379,7 +512,9 @@ export const AIM_SLOTS: Readonly<Record<string, AimSlot>> = {
       "finMaterial",
     ],
   },
-  bodyTubeId: { kinds: ["bodytube"], targets: ["bodyLength", "bodyDiameter"] },
+  bodyTubeId: { kinds: ["bodytube"], targets: ["bodyLength", "bodyDiameter"], groupWide: ["bodyDiameter"] },
+  transitionId: { kinds: ["transition"], targets: ["transitionLength", "transitionAftDiameter"] },
+  massObjectId: { kinds: ["masscomponent"], targets: ["massObjectMass", "massObjectStation"] },
   parachuteId: {
     kinds: ["parachute"],
     targets: ["mainParachuteDiameter", "mainDeployAltitude", "drogueDiameter"],
@@ -537,6 +672,16 @@ export function primaryBodyTubePart(rocket: Rocket, selectedId?: string): AimedP
   const tube = primaryBodyTube(rocket, selectedId);
   const seed = tubes.find((p) => p.component.id === tube?.id) ?? tubes[0];
   return aimedPart(seed, tubes, 1);
+}
+
+/** Which transition the transition fields are holding. Always one — both fields change exactly the
+ *  picked part — so `covers` is 1. Undefined for a design with no transition. */
+export function primaryTransitionPart(rocket: Rocket, selectedId?: string): AimedPart | undefined {
+  const trans = flattenRocket(rocket).filter((p) => p.component.kind === "transition");
+  if (!trans.length) return undefined;
+  const picked = primaryTransition(rocket, selectedId);
+  const seed = trans.find((p) => p.component.id === picked?.id) ?? trans[0];
+  return aimedPart(seed, trans, 1);
 }
 
 /** The design's primary fin set's semi-span (m), for showing the flyer the current value to edit
@@ -903,6 +1048,206 @@ function addBoattail(rocket: Rocket, length: number, aftRadius: number): Rocket 
   return inserted ? { ...rocket, stages } : rocket;
 }
 
+/** Set one transition's exit radius, wherever it sits in the tree. Only the aft end moves: the fore end
+ *  is the joint with the part in front, and changing it would un-fair the airframe at a joint the flyer
+ *  did not touch. */
+function withTransitionExit(c: RocketComponent, id: string, aftRadius: number): RocketComponent {
+  if (c.id === id && c.kind === "transition") return { ...c, aftRadius };
+  if (!c.children.length) return c;
+  return { ...c, children: c.children.map((k) => withTransitionExit(k, id, aftRadius)) };
+}
+
+/** Put one mass object at an absolute station (m from the nose tip), clamped to stay inside the part
+ *  holding it.
+ *
+ *  Takes the WHOLE rocket rather than a placement, because both numbers the conversion needs — where
+ *  the host begins and how long it is — are read off the tree it is given, not inferred from the mass's
+ *  own offset. Inferring them is what made this wrong for every placement method except `top`, and wrong
+ *  again under any live length edit. A point mass placed outside the airframe would still be FLOWN: the
+ *  solver puts mass wherever the tree says. This clamp is the difference between a CG a flyer can trust
+ *  and one computed from a rocket that could not be built.
+ *
+ *  The method is rewritten to `top` on the way through, so the mass then behaves like one a flyer
+ *  placed: measured from the fore end of the part carrying it, and staying put in it when the airframe
+ *  around it changes. */
+function withMassStation(rocket: Rocket, id: string, station: number): Rocket {
+  const flat = flattenRocket(rocket);
+  const host = flat.find((p) => p.component.children.some((c) => c.id === id));
+  if (!host || !(host.length > 0)) return rocket;
+  const offset = Math.max(0, Math.min(host.length, station - host.xFore));
+  return {
+    ...rocket,
+    stages: rocket.stages.map((s) => ({
+      ...s,
+      components: s.components.map((c) => withMassObject(c, id, undefined, offset)),
+    })),
+  };
+}
+
+/** Set one mass object's weight and/or its offset inside its parent, wherever it sits in the tree. */
+function withMassObject(
+  c: RocketComponent,
+  id: string,
+  mass: number | undefined,
+  offset: number | undefined,
+): RocketComponent {
+  if (c.id === id && c.kind === "masscomponent") {
+    return {
+      ...c,
+      ...(mass !== undefined ? { mass } : {}),
+      ...(offset !== undefined ? { placement: { ...c.placement, method: "top" as const, offset } } : {}),
+    };
+  }
+  if (!c.children.length) return c;
+  return { ...c, children: c.children.map((k) => withMassObject(k, id, mass, offset)) };
+}
+
+/** The outer radius a part presents at its AFT face, or undefined for a part that is not on the outer
+ *  mould line at all (a coupler, a fin set, a point mass). This is the joint diameter a part stacked
+ *  behind it has to fair to. */
+function aftOuterRadius(c: RocketComponent): number | undefined {
+  return c.kind === "bodytube"
+    ? c.outerRadius
+    : c.kind === "nosecone" || c.kind === "transition"
+      ? c.aftRadius
+      : undefined;
+}
+
+/** The outer radius a part presents at its FORE face. A nose cone comes to a point, so 0. */
+function foreOuterRadius(c: RocketComponent): number | undefined {
+  return c.kind === "bodytube"
+    ? c.outerRadius
+    : c.kind === "transition"
+      ? c.foreRadius
+      : c.kind === "nosecone"
+        ? 0
+        : undefined;
+}
+
+/** The part that sits immediately behind `afterId` in the airframe's nose-to-tail chain, if any.
+ *
+ *  Top-level components only, because that is the only list a part can be stacked into (see
+ *  `applyAdds`), so it is also the only list whose neighbour a new part has to fair to — but ACROSS
+ *  stage boundaries, because a stack is one airframe until it separates. Searching one stage's list
+ *  read the last tube of a booster as having nothing behind it, which is how an "add a tail cone"
+ *  gesture put a contracting cone in the MIDDLE of a multi-stage rocket. Measured over the starter plus
+ *  the corpus: 12 stage boundaries, all 12 joined end to end with no gap, and 10 of the 91 body tubes
+ *  mis-read — the worst opening a 77.4 mm step on `02.Two-stage.ork`. */
+function nextTopLevel(rocket: Rocket, afterId: string): RocketComponent | undefined {
+  const chain = rocket.stages.flatMap((s) => s.components);
+  const i = chain.findIndex((c) => c.id === afterId);
+  return i === -1 ? undefined : chain[i + 1];
+}
+
+/** How far the mould line steps at the joint immediately behind a component — the difference in
+ *  DIAMETER (m) between what it presents at its aft face and what the next part presents at its fore
+ *  face. 0 when they fair, undefined when there is no joint to judge (nothing follows, or one of the
+ *  two is not on the outer mould line).
+ *
+ *  Worth stating because Loft's drag model has a term for a transition's OWN slope — Niskanen eq. 3.86
+ *  for a shoulder, 3.88 for a boattail, both a function of the joint angle — and none at all for a bare
+ *  radius step, which has no length to take an angle over. A step is not exotic: measured across the
+ *  35-design corpus, 33 of the 115 joints it can judge already step, in 13 of the 35 designs, by a
+ *  median 11.75 mm of diameter and up to 82.55 mm. So this is not a guard against a value the editor
+ *  invents; it is the sentence that was missing for the designs that arrive with one. */
+export function mouldLineStep(rocket: Rocket, id: string): number | undefined {
+  const flat = flattenRocket(rocket);
+  const self = flat.find((p) => p.component.id === id);
+  if (!self) return undefined;
+  const mine = aftOuterRadius(self.component);
+  const next = nextTopLevel(rocket, id);
+  const theirs = next ? foreOuterRadius(next) : undefined;
+  if (mine === undefined || theirs === undefined) return undefined;
+  // Only a joint the two parts actually share: a gap between them is a different geometry, and one
+  // Loft does not model either. All 12 stage boundaries in the corpus pass this — a stack is joined
+  // until it separates — so a boundary step is reported like any other.
+  const placed = flat.find((p) => p.component.id === next?.id);
+  if (!placed || Math.abs(placed.xFore - (self.xFore + self.length)) > 1e-6) return undefined;
+  return 2 * (theirs - mine);
+}
+
+/** How much narrower a transition authored with nothing behind it should exit, as a fraction of the
+ *  diameter it starts at, and how long it should be for that change.
+ *
+ *  Both are the corpus's medians rather than numbers anyone chose, which is the same standard the
+ *  authored fin ring is held to (it is cloned from the design's own set). Measured across the 25
+ *  transitions in the 35-design corpus: 14 contract, 7 flare and 4 run straight through; the 14
+ *  contracting ones exit at a median 0.7446 of the diameter they start at, over a median
+ *  γ = L / 2·ΔR of 2.2938 — on the gentle side of the γ ≥ 3 at which a boattail's own pressure drag
+ *  has faded to nothing (Niskanen eq. 3.88). Both medians are over the CONTRACTING subset; γ across
+ *  all 21 tapered transitions is 2.7609, which is a different statistic.
+ *
+ *  The floor is the shortest real transition in the corpus, 6.35 mm, so that closing a step of a few
+ *  ten-thousandths of a millimetre — the smallest in the corpus is 0.0004 mm, a rounding artefact of
+ *  a design stated in inches — cannot mint a part too small to see, click or take back out. */
+const TRANSITION_CONTRACTION = 0.7446;
+const TRANSITION_SLENDERNESS = 2.2938;
+const TRANSITION_MIN_LENGTH = 0.00635;
+/** The corpus's median transition length, for the one case with no diameter change to derive one
+ *  from: a section between two parts already at the same caliber. Measured over the same 25. */
+const TRANSITION_MEDIAN_LENGTH = 0.01905;
+
+/** What an authored point mass weighs and where it sits before the flyer says otherwise, both the
+ *  corpus's own medians over its 56 mass objects.
+ *
+ *  The mass is the median of the 52 that are real parts rather than a whole airframe's stated weight
+ *  (q25 5 g, q75 498 g — the spread is why this is a starting point and not a guess to leave alone; the
+ *  field is aimed at the new part the moment it exists). The station is a fraction of the length of the
+ *  part holding it: the median offset among the 16 corpus masses placed `top` inside a body tube is
+ *  0.3251 of that tube's length. A third of the way down is where an av-bay actually goes. */
+const MASS_OBJECT_DEFAULT_KG = 0.045;
+const MASS_OBJECT_STATION_FRACTION = 0.3251;
+
+/** The transition an "add one behind this" gesture should build: what it starts at, what it exits at,
+ *  and the length that change implies. Undefined when the anchor presents no outer diameter to start
+ *  from — a coupler, a fin set, a point mass — which is also the case where no transition can be
+ *  faired to it.
+ *
+ *  The exit is decided by the airframe, never invented, and there are exactly three positions an
+ *  anchor can be in. Measured by driving all 91 body tubes in the starter plus the 35-design corpus:
+ *
+ *   - **Nothing behind it (28 of 91).** A tail cone, contracting to the corpus median of the 14
+ *     contracting transitions — 0.7446 of the diameter it starts at, over γ = L/2·ΔR of 2.2938. This
+ *     is the base-drag lever, and the only position where a contraction is what the flyer is asking
+ *     for.
+ *   - **A part behind it at a different caliber (17 of 91).** The transition fairs EXACTLY to it and
+ *     closes a step the design already had. Nothing is chosen; the number is read off the neighbour.
+ *   - **A part behind it at the same caliber (46 of 91).** Straight through, fore = aft, at the
+ *     corpus's median transition length. Contracting here would open a step at the joint BEHIND the
+ *     new part — a stepped airframe nobody drew, on half the positions the gesture is offered.
+ *     A zero-taper transition is not a contrivance to avoid that: 4 of the 25 corpus transitions are
+ *     exactly this, a section in the mould line. The exit field is aimed at the part the moment it
+ *     exists, so the very next keystroke is what shapes it — the numbers are the confirmation, and
+ *     the gesture is putting the part there. */
+export function transitionDefaults(
+  rocket: Rocket,
+  afterId: string,
+): { foreRadius: number; aftRadius: number; length: number } | undefined {
+  const anchor = flattenRocket(rocket).find((p) => p.component.id === afterId)?.component;
+  if (!anchor) return undefined;
+  const foreRadius = aftOuterRadius(anchor);
+  if (!(foreRadius !== undefined && foreRadius > 0)) return undefined;
+  const next = nextTopLevel(rocket, afterId);
+  const theirs = next ? foreOuterRadius(next) : undefined;
+  const aftRadius =
+    theirs !== undefined && theirs > 0
+      ? theirs // fair to the neighbour, whether that closes a step or leaves it straight through
+      : foreRadius * TRANSITION_CONTRACTION; // nothing behind it: a tail cone
+  const taper = Math.abs(foreRadius - aftRadius);
+  const length =
+    taper > 1e-6
+      ? Math.max(TRANSITION_SLENDERNESS * 2 * taper, TRANSITION_MIN_LENGTH)
+      : TRANSITION_MEDIAN_LENGTH;
+  return { foreRadius, aftRadius, length };
+}
+
+/** What to call a transition authored behind `afterId`, decided once at birth and then carried on the
+ *  `AddedPart` so it cannot drift when the design changes underneath it. A cone with nothing behind it
+ *  is a tail cone in every flyer's vocabulary; one between two sections is a transition. */
+export function authoredTransitionName(rocket: Rocket, afterId: string): string {
+  return nextTopLevel(rocket, afterId) ? "Transition" : "Tail cone";
+}
+
 /** A sensible default station (m from the nose tip) for an added payload: the mid-point of the main
  *  body tube, a typical avionics-bay location. Undefined for a design with no body tube. */
 export function defaultPayloadStation(rocket: Rocket, selectedId?: string): number | undefined {
@@ -1114,6 +1459,43 @@ export function aimsClearedByRemoving(rocket: Rocket, edits: GeometryEdits, id: 
   return patch as GeometryEdits;
 }
 
+/** The values to clear when an aim MOVES to a part that was just authored — the mirror of
+ *  `aimsClearedByRemoving`, and for the same reason.
+ *
+ *  An absolute dimension in the bag describes the part the fields were holding a moment ago. Re-aiming
+ *  them at a new part without clearing it does not leave the number where it was: it re-lands it on the
+ *  part that has just been made, and the one it was typed for reverts. Measured on the starter design —
+ *  aim at its 620.0 mm body tube, type 400 mm, then author a tube behind it: the design's own tube
+ *  snapped back to 620.0 mm and the brand-new 310.0 mm one became 400.0 mm, with the field still
+ *  reading 400 and nothing saying which part it had moved to.
+ *
+ *  This is for an aim that moves because a part was AUTHORED — not for a pick. Picking another part of
+ *  the same kind deliberately re-aims a live value onto it, which is a decision already recorded in
+ *  `ROADMAP.md`: the panel names the part the fields are holding, so it is visible rather than silent,
+ *  and reading one part while editing another is a thing flyers do. An add is different in kind — the
+ *  aim moves without being asked, onto a part that did not exist a moment ago.
+ *
+ *  Only the slots the aim patch actually moves are cleared, so a span typed for a fin set survives
+ *  authoring a body tube — and within a slot, only the targets that are dimensions of the part the aim
+ *  just left. `bodyDiameter` is not one: it scales the whole outer airframe and goes on meaning the
+ *  same thing wherever the aim points, so clearing it snapped 35 of 35 corpus designs back to their
+ *  imported caliber the moment a tube was authored. Worst measured, `OR vs RAS Test 1.ork`:
+ *  142.2 mm reverting to 101.6 mm and apogee 5,938 m to 7,276 m, from a click that adds a part. */
+export function aimsClearedByAiming(edits: GeometryEdits, aim: GeometryEdits): GeometryEdits {
+  const bag = edits as Record<string, unknown>;
+  const moving = aim as Record<string, unknown>;
+  const patch: Record<string, undefined> = {};
+  for (const [slot, def] of Object.entries(AIM_SLOTS)) {
+    if (moving[slot] === undefined || moving[slot] === bag[slot]) continue;
+    const wider = new Set(def.groupWide ?? []);
+    for (const field of def.targets) {
+      if (wider.has(field)) continue;
+      if (bag[field] !== undefined) patch[field] = undefined;
+    }
+  }
+  return patch as GeometryEdits;
+}
+
 /** Every component id in a design, so a reference to one can be checked for still existing. */
 function liveIds(rocket: Rocket): Set<string> {
   const out = new Set<string>();
@@ -1210,6 +1592,21 @@ function applyRemovals(rocket: Rocket, removedIds?: readonly string[]): Rocket {
   return { ...pruned, configurations };
 }
 
+/** The design plus the flyer's STRUCTURE — the parts they authored, without the ones they removed —
+ *  and none of their dimension edits.
+ *
+ *  ONE spelling, exported, because several surfaces need exactly this tree and reaching for the
+ *  IMPORTED design instead is a specific, repeatable defect rather than a style difference: an aim
+ *  naming a part the flyer authored resolves to nothing in the import, and every `primary*` resolver
+ *  then quietly falls back to the design's own primary part. What the surface READS and what the edit
+ *  CHANGES are two different components from that moment on.
+ *
+ *  The dimension edits are excluded on purpose: this is the base a field or a sweep axis edits FROM,
+ *  and those are the thing being varied. */
+export function structureOf(rocket: Rocket, edits: GeometryEdits): Rocket {
+  return applyGeometryEdits(rocket, { added: edits.added, removedIds: edits.removedIds });
+}
+
 /** Return a design with the geometry edits applied. The original rocket is untouched (a fresh tree
  *  is returned only where something changed), so callers can keep the imported model pristine.
  *
@@ -1264,18 +1661,66 @@ function buildAdded(
       },
     };
   }
+  if (part.kind === "masscomponent") {
+    // A point mass is mounted INSIDE the part that carries it — 56 of 56 in the corpus have a parent,
+    // none is a top-level stage child — so this is the fin set's placement mode, not the tube's.
+    //
+    // Its station is DERIVED here rather than frozen onto the entry, so a bay stays a third of the way
+    // down the tube that holds it when that tube is later resized. `top` is the modal corpus method
+    // (31 of 56) and the only one that keeps meaning the same thing under a length edit; `absolute`
+    // (12 of 56) would pin it in space while the airframe moved underneath.
+    const host = "length" in after && typeof after.length === "number" ? after.length : 0;
+    if (!(host > 0)) return null;
+    const mass = part.mass !== undefined && part.mass >= 0 ? part.mass : MASS_OBJECT_DEFAULT_KG;
+    return {
+      inside: true,
+      component: {
+        id: part.id,
+        name: part.name || "Mass object",
+        kind: "masscomponent",
+        placement: { method: "top", offset: host * MASS_OBJECT_STATION_FRACTION },
+        mass,
+        massType: "payload",
+        children: [],
+      },
+    };
+  }
   if (!(part.length > 0)) return null;
   switch (part.kind) {
+    case "transition": {
+      // A transition is the one part whose whole purpose is that its two ends differ, so unlike a tube
+      // it cannot inherit its caliber wholesale — it inherits the FORE end and derives the exit. Both
+      // come from `transitionDefaults`, re-resolved here rather than frozen onto the `AddedPart`, so a
+      // cone stays faired to the airframe through a later caliber edit instead of being a step the
+      // flyer never typed. Its LENGTH is the birth value on the entry, exactly like a tube's, and
+      // `transitionLength` is what changes it afterwards.
+      const d = transitionDefaults(rocket, part.after);
+      if (!d) return null;
+      const wall = "thickness" in after && after.thickness !== undefined && after.thickness > 0 ? after.thickness : undefined;
+      return {
+        inside: false,
+        component: {
+          id: part.id,
+          name: part.name || "Transition",
+          kind: "transition",
+          placement: { method: "after", offset: 0 },
+          length: part.length,
+          foreRadius: d.foreRadius,
+          aftRadius: d.aftRadius,
+          // Conical, because 22 of the 25 transitions in the corpus are (2 ogive, 1 power) and because
+          // a cone is the only contour whose joint angle a flyer can read straight off the diagram.
+          shape: "conical",
+          ...(wall !== undefined ? { thickness: wall, ...(after.material ? { material: after.material } : {}) } : {}),
+          ...(after.finish ? { finish: after.finish } : {}),
+          children: [],
+        },
+      };
+    }
     case "bodytube": {
       // The caliber has to come from the airframe, not from the flyer: a tube that does not fair to the
       // part it joins is a step in the outer mould line, which changes the drag and the stability of a
       // design nobody meant to draw. `aftRadius` on a nose or transition IS the joint diameter there.
-      const radius =
-        after.kind === "bodytube"
-          ? after.outerRadius
-          : after.kind === "nosecone" || after.kind === "transition"
-            ? after.aftRadius
-            : undefined;
+      const radius = aftOuterRadius(after);
       if (!(radius !== undefined && radius > 0)) return null;
       // The wall and the material travel TOGETHER, and a wall of nothing takes the material with it.
       // `lib/sim/mass.ts` models a tube that has a material and no wall as a SOLID ROD — measured on a
@@ -1301,6 +1746,21 @@ function buildAdded(
         children: [],
         },
       };
+    }
+    default: {
+      // A kind added to `AddedPart` and not to this switch used to fall off the end returning
+      // `undefined`, which typechecked only because the return type is nullable — so the part was
+      // dropped by `applyAdds` with nothing said on any surface. The `never` binding makes the fifth
+      // kind a compile error instead of a silent no-op.
+      //
+      // It must still RETURN NULL, not the binding. `return unreachable` compiles, but at runtime the
+      // value is the kind STRING, which is truthy — so `applyAdds` destructures `{component, inside}`
+      // off it and splices `undefined` into the stage list, and the app throws instead of dropping one
+      // part. That is reachable rather than theoretical: `lib/session.ts` restores the edit bag from
+      // `localStorage` wholesale, so a session saved by a newer build would white-screen an older one.
+      const unreachable: never = part.kind;
+      void unreachable;
+      return null;
     }
   }
 }
@@ -1403,6 +1863,22 @@ function applyDimensionEdits(rocket: Rocket, edits: GeometryEdits): Rocket {
     const tube = primaryBodyTube(rocket, edits.bodyTubeId);
     if (tube) lengths.set(tube.id, edits.bodyLength);
   }
+  // A transition's length rides the same map as a tube's — everything aft of it restacks either way,
+  // because placement is relative and `flattenRocket` recomputes the stations from the tree.
+  const transTarget = primaryTransition(rocket, edits.transitionId);
+  if (edits.transitionLength !== undefined && edits.transitionLength > 0 && transTarget) {
+    lengths.set(transTarget.id, edits.transitionLength);
+  }
+  // Which mass object the mass fields are holding. Resolved here, from the design base, for the same
+  // reason every other aim is — but APPLIED at the very end, once the tree has its final geometry.
+  const massTarget = primaryMassObject(rocket, edits.massObjectId);
+  // The exit is applied LAST, after the whole-airframe caliber scale, so an absolute diameter typed
+  // here is the one flown even when `bodyDiameter` is also set — the same precedence the boattail's
+  // exit already has, and the only one under which the field is not showing a number nothing is using.
+  const transExit =
+    edits.transitionAftDiameter !== undefined && edits.transitionAftDiameter > 0 && transTarget
+      ? { id: transTarget.id, aftRadius: edits.transitionAftDiameter / 2 }
+      : undefined;
   const finish = edits.finish;
   const matOpt = AIRFRAME_MATERIALS.find((m) => m.key === edits.airframeMaterial);
   const airframeMaterial: Material | undefined = matOpt
@@ -1438,6 +1914,10 @@ function applyDimensionEdits(rocket: Rocket, edits: GeometryEdits): Rocket {
     if (finish) geo = withFinish(geo, finish);
     if (airframeMaterial) geo = withAirframeMaterial(geo, airframeMaterial);
     if (radiusScale !== 1) geo = scaleAirframeRadii(geo, radiusScale);
+    if (transExit) geo = withTransitionExit(geo, transExit.id, transExit.aftRadius);
+    if (massTarget && edits.massObjectMass !== undefined && edits.massObjectMass >= 0) {
+      geo = withMassObject(geo, massTarget.id, edits.massObjectMass, undefined);
+    }
     return geo;
   };
   const edited: Rocket = {
@@ -1465,6 +1945,26 @@ function applyDimensionEdits(rocket: Rocket, edits: GeometryEdits): Rocket {
   // the length/diameter edits left.
   if (edits.payloadMassKg !== undefined && edits.payloadMassKg > 0) {
     out = addPayloadMass(out, edits.payloadMassKg, edits.payloadStation, edits.bodyTubeId);
+  }
+  // The mass object's STATION, last of all and against the tree that is actually flown.
+  //
+  // It arrives as an absolute distance from the nose tip — what the field shows and what a flyer reads
+  // off the diagram — and has to become an offset inside the part holding it. Both halves of that
+  // conversion are facts about the FINAL geometry, so resolving them any earlier is wrong in two ways
+  // that were both reachable and both measured:
+  //
+  //  - the host's fore station was derived as `mass.xFore − placement.offset`, which is only true for
+  //    a `top` placement. Of the 56 corpus mass objects 31 are `top`, 12 `absolute`, 8 `bottom` and 5
+  //    `middle` — so on 4 of the 24 designs the grip would appear on, the station it read was not the
+  //    station flown, and on 3 of those every position along the whole travel landed the mass on ONE
+  //    station: a grip that moves the CG once and then never again.
+  //  - the host's extent came from the pre-dimension-edit tree, so any live length edit shifted it.
+  //    Measured on the starter, in a flyer's normal build order: take the nose from 220 mm to 440 mm,
+  //    then ask for station 595 mm, and the mass flies at 815 mm. Shrink the body tube from 620 mm to
+  //    207 mm with the mass parked at its aft end and it flies at 840 mm on a 427 mm rocket — the
+  //    point mass outside the airframe this clamp exists to prevent, with a confident apogee over it.
+  if (massTarget && edits.massObjectStation !== undefined && edits.massObjectStation >= 0) {
+    out = withMassStation(out, massTarget.id, edits.massObjectStation);
   }
   return out;
 }

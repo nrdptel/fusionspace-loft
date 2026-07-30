@@ -186,12 +186,52 @@ export default function Limitations() {
         resized the main instead, which moves landing speed and landing energy.
       </p>
       <p>
-        <strong>What is still fixed.</strong> Nose cones, transitions and mass objects are not
-        addressable. For nose cones that costs nothing measurable — no corpus design has more than one
-        after import — but transitions and mass objects have no editor field at all, so there is nothing
-        yet to point at one: 7 designs carry several transitions and 15 several mass objects, and none of
-        them can be resized. Nothing can be <em>added</em> or <em>reordered</em> either — those are the next
-        steps for the in-app editor.
+        <strong>Transitions are addressable too</strong>, and authorable. A transition is where an
+        airframe changes caliber; 12 of the 35 corpus designs carry one, 25 in all, and until recently
+        not one could be touched. Picking one aims a <em>length</em> and an <em>exit diameter</em> at it.
+        The exit is absolute and is applied after the whole-airframe caliber scale, so the number in the
+        box is the one being flown even when body diameter is also set. The fore end is the joint with
+        the part in front and is deliberately left alone: moving it would un-fair a joint you did not
+        touch.
+      </p>
+      <p>
+        <strong>Nothing aft of a transition follows its exit diameter.</strong> Loft has no mechanism
+        that resizes parts you did not pick, and inventing one would silently re-caliber an airframe from
+        a single field. So narrowing an exit can leave the outer mould line <em>stepping</em> at the joint
+        behind it — and Loft models a transition&apos;s own slope (a shoulder&apos;s joint angle, a
+        boattail&apos;s) but has <em>no drag term at all for a bare step</em>, which has no length to take
+        an angle over. Where a step is present the parts panel says so and by how much, and the drag there
+        should be read as optimistic. This is not a state the editor invents: across the corpus,{" "}
+        <strong>33 of the 115</strong> airframe joints Loft can judge already step, in 13 of the 35
+        designs, by a median 11.75&nbsp;mm of diameter and up to 82.55&nbsp;mm — including the largest,
+        which is a joint between two stages.
+      </p>
+      <p>
+        <strong>Mass objects are addressable too.</strong> A point mass — an altimeter, a tracker, nose
+        ballast — is usually the dominant non-structural weight on a design, and 26 of the 35 corpus
+        designs carry one, 56 in all. Picking one aims a <em>weight</em> and a <em>position</em> at it;
+        the position is a station from the nose tip and is clamped to stay inside the part holding it,
+        because a point mass floating outside the airframe would still be flown. With nothing picked the
+        fields hold the heaviest one a flyer could actually state — deliberately skipping the point mass
+        a RASAero import mints to carry a whole stated launch weight, which is the design&apos;s own
+        measurement rather than ballast anyone chose.
+      </p>
+      <p>
+        <strong>A mass object can also be slid along the airframe on the diagram</strong>, not only
+        typed — it is the one kind whose whole geometry is a station, so it is the one that most needs a
+        grip. The handle is a real slider: focusable, arrow keys nudge it, and the drag is one undo. It
+        is bounded by the part holding it, and the station you ask for is the station that is flown —
+        or, if you ask for one outside that part, the nearest point inside it. Both the field and the
+        grip speak an absolute station from the nose tip, and both are resolved against the airframe as
+        it will actually fly, so a length edit elsewhere cannot move the mass out from under them.
+      </p>
+      <p>
+        <strong>What is still fixed.</strong> Nose cones are not addressable, which costs nothing
+        measurable — no corpus design has more than one after import. Nothing can be <em>reordered</em>{" "}
+        yet: the other three kinds are placed by choosing an anchor — behind this part, onto this tube —
+        and sized where they landed, because on a stacked airframe a body part&apos;s station is the sum
+        of what sits in front of it rather than a free number. Moving one is reordering, and that is the
+        next step for the in-app editor.
       </p>
       <p>
         <strong>Removing a part does work</strong>, on any component, and it is undoable: pick a part on
@@ -208,6 +248,35 @@ export default function Limitations() {
         vehicle at a moderate fineness-3 ogive&apos;s nose drag instead. So a rocket with its nose removed
         is flown more optimistically than it would really fly. Removing a nose to see the rest of the
         airframe is fine; reading the apogee off it is not.
+      </p>
+      <p>
+        <strong>Adding a part works too, for three kinds so far.</strong> Pick a body tube and the panel
+        offers to put another <strong>body tube</strong> behind it, a <strong>fin set</strong> onto it, or
+        a <strong>transition</strong> behind it. The gesture is &ldquo;another one of these, here&rdquo;
+        rather than a form: the new part inherits what its neighbour can supply and derives the rest from
+        the design, because a shape nobody drew is worse than one more field. A tube takes its caliber,
+        wall, material and finish from the part it joins. A fin ring is <em>cloned</em> from the
+        design&apos;s own set, so it matches the fins already flying — every corpus design carries one and
+        so does the starter, and where a design genuinely has none the control is not offered rather than
+        a shape being invented. A transition reads its exit off the airframe: it fairs to whatever sits
+        behind the anchor, and where nothing does it becomes a tail cone contracting to the median of the
+        real contracting transitions in the corpus. Where a design supplies no answer at all — two
+        sections already at the same caliber — it runs straight through and waits for you to shape it,
+        rather than inventing a step. The editor&apos;s fields aim at the new part the moment it exists,
+        so the next number typed changes what you just made; each add is one undo step, named after the
+        kind; and an authored part is removable, exportable and re-importable like any other, because it
+        is the same internal model an imported part lands in. A <strong>mass object</strong> is the
+        fourth kind and the one whose placement <em>is</em> a station: it mounts inside the tube you
+        picked, at 0.3251 of its length — the median of the 16 real mass objects in the corpus placed
+        that way inside a body tube — carrying the corpus&apos;s median weight of 45&nbsp;g until you say
+        otherwise.
+      </p>
+      <p>
+        One thing worth knowing before you read a total that did not move: where a design states the
+        weight of a whole assembly or stage outright, Loft counts no mass for the parts inside it — so a
+        part added there, or removed from there, changes the balance and not the total. The design is
+        right and the model is following it; the panels say so, before the click and after it. Across
+        the corpus that covers 10 of the 91 places a mass object can be added.
       </p>
       <p>
         <strong>Every edit is undoable, not only a removal.</strong> Undo and redo sit in the design

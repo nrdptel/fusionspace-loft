@@ -10,6 +10,55 @@ a one-way door — those preempt the milestone immediately). Everything else wai
 one-in-four quota in `MAINTAINING.md`. Rough edges, missing affordances, and findings too big for one
 pass. Newest first.
 
+- **Dragging the Mass position grip past its end splits one gesture into two undos.** A frame beyond
+  `lo`/`hi` emits the value the previous frame already emitted, `movedWhatIf` sees no change, and
+  `endRun` closes the coalescing run — so overshooting and coming back leaves two "Undo the mass
+  position" steps for one drag. The grip's range is only the part holding the mass, so overshoot is the
+  ordinary gesture rather than an edge case. Reproduce on the starter: drag the mass past the tube's aft
+  end, hold there a moment, drag back inside, then press Undo twice. The e2e only nudges with ArrowLeft,
+  which never clamps, so it cannot see this. The fix is for a clamped frame to extend the run rather
+  than close it — `endRun` is called by any commit that records nothing, and a no-op inside a live drag
+  is not the same thing as a deliberate boundary.
+- **Authoring one part hides the controls for authoring the next.** The three add buttons render only
+  while the picked part is a body tube, and every add re-aims the fields at the part it just made — so
+  after "Add a transition behind this" the transition is selected, it is not a tube, and all three
+  buttons vanish. Building an airframe therefore costs a re-pick between every gesture. Reproduce:
+  Start a new design → Design → Parts → click the body tube → Add a transition behind this → the row
+  of add buttons is gone. This is the tell the OpenRocket benchmark already named — their palette
+  GREYS OUT what cannot attach to the current selection, so the flyer learns the rule, where Loft's
+  controls simply disappear and teach nothing. Disabled-with-a-reason is the fix, and it applies to
+  the fin-set control too (hidden outright when a design has no set to clone).
+- **The Transition exit placeholder goes stale under a whole-airframe caliber change.** The transition
+  readbacks come off the structure base (the design plus the flyer's adds and removals, without their
+  dimension edits) while `bodyDiameter` rescales every transition's fore and aft radius in the flown
+  model — so the box offers a caliber nothing is flying while the parts table two inches above shows the
+  real one. Reproduce on `APEX_K_Dart.ork`: set Body diameter to 1.4x, then read the parts row
+  (`→ 98.0 mm`) beside the Transition exit box (`70.0`). All 25 corpus transitions disagree once a
+  caliber edit is live, worst 165.1 shown against 247.6 flown on `Complex.Two-Stage.CDX1`. Every other
+  readback is immune because `bodyDiameter` is the only edit that rescales another field's subject; the
+  fix is to scale the transition readback by the same factor the flight uses.
+- **Narrowing a transition's exit strands its aft shoulder outside the cone.** `withTransitionExit`
+  sets `aftRadius` and leaves `aftShoulderRadius` where it was, so `lib/sim/mass.ts` goes on charging
+  the shoulder's mass at the old radius and the diagram draws a cone the shoulder no longer fits.
+  3 of the 25 corpus transitions reach that state at a plausible typed exit (e.g.
+  `github-issuiuc-silsim-rocket__rocket.ork`). Small in kilograms, but it is a part a flyer can neither
+  see nor reach, and the honest fix is to clamp the shoulder to the new exit.
+- **A dual-deploy drogue is a canopy the flyer can see, click, and not reach.** `drogueDiameter` +
+  `mainDeployAltitude` add a second parachute inside `applyDimensionEdits`, AFTER the tree every aim is
+  resolved against, so it is in the parts table and on the diagram but in neither `removableFrom` nor
+  the aim base. Clicking it highlights the row and moves no aim, and the recovery fields go on
+  describing the Main. `unreachableParachuteCount(designBase)` counts 0 for the same reason, so the
+  Recovery panel is headed plain "Recovery" while two canopies are flying — the one heading whose job
+  is to say another canopy exists. Reproduce: any design → set Main deploy alt and Drogue Ø → Design →
+  click "Drogue" in the parts table → the Main chute Ø field still reads the main's diameter. The class
+  fix is the one R3 is building: a drogue authored through `added` mints its own id and lands in the
+  structure base like any other part.
+- **A pick that changes no aim still re-flies the design and rewrites the saved session.** The guard in
+  `onSelectPart` rejects only an EMPTY patch, so clicking a part whose aim is already held commits a bag
+  identical to the one in state — `commitWhatIf` runs, `fly()` runs, and the `edits`-keyed save effect
+  writes `localStorage`. The comment two lines above says exactly this must not happen ("reading a part
+  cost a flight"). Reproduce: click one body tube, click another, click the first again — three flights
+  for two aims. One-line fix: commit only when some key in the patch differs from the value held.
 - **On a phone the pad-check number is nearly two screens below the fold.** Cold-walked at an iPhone 13
   viewport (390x664) on the built export of the SHA this run shipped: the Flight workspace is **6.7 screens
   deep**, "Apogee" sits at y=486 (73% of a screen down), "Static margin" at y=617, and **"Rail-exit

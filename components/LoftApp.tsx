@@ -20,11 +20,22 @@ import {
   primaryParachutePart,
   unreachableParachuteCount,
   aimEditsAt,
+  structureOf,
+  primaryTransition,
+  primaryTransitionPart,
+  unreachableTransitionCount,
+  primaryMassObject,
+  primaryMassObjectPart,
+  primaryMassObjectStation,
+  unreachableMassObjectCount,
+  transitionDefaults,
+  authoredTransitionName,
   removalRefusal,
   newPartId,
   type AddedPart,
   type GeometryEdits,
   aimsClearedByRemoving,
+  aimsClearedByAiming,
   isEditedValue,
   type AimedPart,
   primaryFinCount,
@@ -130,11 +141,25 @@ const FIN_CROSS_SECTION_LABELS: Record<FinCrossSection, string> = {
   airfoil: "Airfoil",
 };
 
+/** What an undo control calls each authoring gesture. A table rather than a chain of ternaries, so a
+ *  fourth kind is one row and cannot be added to the switch and forgotten here — an unlabelled add
+ *  reads as "Undo adding a part", which is exactly the label a flyer cannot act on. */
+const ADD_LABEL: Readonly<Record<AddedPart["kind"], string>> = {
+  bodytube: "adding a body tube",
+  trapezoidfinset: "adding a fin set",
+  transition: "adding a transition",
+  masscomponent: "adding a mass object",
+};
+
 interface Edits {
   /** Which fin set the fin fields describe and edit. A selection, not an edit — see hasActiveEdits. */
   finSetId?: string;
   /** Which body tube the body fields describe and edit. A selection, not an edit — as above. */
   bodyTubeId?: string;
+  /** Which transition the transition fields describe and edit. A selection, not an edit — as above. */
+  transitionId?: string;
+  /** Which mass object the mass fields describe and edit. A selection, not an edit — as above. */
+  massObjectId?: string;
   /** Which canopy the recovery fields describe and edit. A selection, not an edit — as above. */
   parachuteId?: string;
   /** Components removed from the design, oldest first. An ordered list, so undo is dropping the last. */
@@ -161,6 +186,10 @@ interface Edits {
   noseShape?: NoseShape; // builder edit: nose-cone contour
   bodyLength?: number; // builder edit: the picked body tube's length (m)
   bodyDiameter?: number; // builder edit: the picked tube's outer diameter (m); scales the airframe to it
+  transitionLength?: number; // builder edit: the picked transition's length (m)
+  transitionAftDiameter?: number; // builder edit: the picked transition's exit diameter (m)
+  massObjectMass?: number; // builder edit: the picked mass object's weight (kg)
+  massObjectStation?: number; // builder edit: where it sits (m from the nose tip)
   finish?: SurfaceFinish; // builder edit: whole-airframe surface finish
   airframeMaterial?: string; // builder edit: airframe-shell material key (AIRFRAME_MATERIALS)
   boattailLength?: number; // builder edit: add a conical boattail of this length (m) at the aft
@@ -383,29 +412,14 @@ export default function LoftApp() {
       // so the results can show what the change bought — apogee, speed, and stability deltas —
       // instead of numbers in isolation. Condition edits alone (rod, wind, weather) don't alter the
       // design, so they get no baseline.
+      // Derived, not listed. This is the fourth place that has to answer "is this design edited?"
+      // and the only one that was still spelling the fields out one by one — so the two transition
+      // fields landed without it and a flyer who reshaped a tail cone got no delta card at all, which
+      // is precisely the number that change exists to show. `hasGeometryEdits` is the one predicate
+      // (it also knows which fields only count in pairs); ballast and a motor swap are the two design
+      // what-ifs that are not geometry.
       const hasWhatIf =
-        e.ballastKg !== undefined ||
-        e.motorSwap !== undefined ||
-        e.finSpan !== undefined ||
-        e.finCount !== undefined ||
-        e.finRootChord !== undefined ||
-        e.finTipChord !== undefined ||
-        e.finSweepLength !== undefined ||
-        e.finStation !== undefined ||
-        e.finThickness !== undefined ||
-        e.finCrossSection !== undefined ||
-        e.finMaterial !== undefined ||
-        e.noseLength !== undefined ||
-        e.noseShape !== undefined ||
-        e.bodyLength !== undefined ||
-        e.bodyDiameter !== undefined ||
-        e.finish !== undefined ||
-        e.airframeMaterial !== undefined ||
-        (e.boattailLength !== undefined && e.boattailAftDiameter !== undefined) ||
-        (e.mainDeployAltitude !== undefined && e.drogueDiameter !== undefined) ||
-        e.mainParachuteDiameter !== undefined ||
-        e.motorClusterCount !== undefined ||
-        e.payloadMassKg !== undefined;
+        e.ballastKg !== undefined || e.motorSwap !== undefined || hasGeometryEdits(geometryOf(e));
       const baseline = hasWhatIf ? runFlight(document.rocket, { configId, overrides }) : null;
       return { run, baseline };
     },
@@ -742,7 +756,7 @@ export default function LoftApp() {
    *  drogue, a payload bay) and those are appended AFTER the prune, so `removedIds` can never take one.
    *  Offering to remove a part the mechanism cannot touch is a button that does nothing. */
   const removableFrom = useMemo(
-    () => (doc ? applyGeometryEdits(doc.rocket, { added: edits.added, removedIds: edits.removedIds }) : null),
+    () => (doc ? structureOf(doc.rocket, { added: edits.added, removedIds: edits.removedIds }) : null),
     [doc, edits.added, edits.removedIds],
   );
 
@@ -791,18 +805,33 @@ export default function LoftApp() {
     const anchor = flattenRocket(removableFrom).find((p) => p.component.id === afterId)?.component;
     if (!anchor || anchor.kind !== "bodytube") return;
     const id = newPartId(doc.rocket, edits.added, afterId);
-    const part: AddedPart =
-      kind === "trapezoidfinset"
-        ? { id, kind, after: afterId, length: 0, name: "Fins" }
-        : { id, kind: "bodytube", after: afterId, length: Math.max(anchor.length / 2, 2 * anchor.outerRadius) };
-    // Aim the body fields at it in the same commit, so one undo takes back the part AND the aim rather
-    // than leaving the fields holding a part that no longer exists.
+    let part: AddedPart;
+    if (kind === "trapezoidfinset") {
+      part = { id, kind, after: afterId, length: 0, name: "Fins" };
+    } else if (kind === "transition") {
+      // The length a transition's own diameter change implies, not a fraction of its neighbour: a cone
+      // is defined by the step it makes, so the corpus's slenderness is the number that belongs here.
+      // The name is decided ONCE, here, and carried on the entry — deciding it at every apply would let
+      // a cone rename itself the moment another part was authored behind it.
+      const d = transitionDefaults(removableFrom, afterId);
+      if (!d) return;
+      part = { id, kind, after: afterId, length: d.length, name: authoredTransitionName(removableFrom, afterId) };
+    } else if (kind === "masscomponent") {
+      // Weight and station both come from the corpus's medians (see `buildAdded`), and the mass fields
+      // aim at the part immediately, so the next keystroke replaces the starting weight rather than
+      // a modal asking for it before anything exists to see.
+      part = { id, kind, after: afterId, length: 0, name: "Mass object" };
+    } else {
+      part = { id, kind: "bodytube", after: afterId, length: Math.max(anchor.length / 2, 2 * anchor.outerRadius) };
+    }
+    // Aim the fields for that KIND at it in the same commit, so one undo takes back the part AND the aim
+    // rather than leaving the fields holding a part that no longer exists — and clear the absolute
+    // dimensions that aim was pointing, which otherwise re-land on the part just made.
+    const nextAdded = [...(edits.added ?? []), part];
+    const aim = aimEditsAt(structureOf(doc.rocket, { added: nextAdded, removedIds: edits.removedIds }), id);
     applyEdit(
-      { added: [...(edits.added ?? []), part], ...aimEditsAt(applyGeometryEdits(doc.rocket, {
-        added: [...(edits.added ?? []), part],
-        removedIds: edits.removedIds,
-      }), id) },
-      { label: kind === "trapezoidfinset" ? "adding a fin set" : "adding a body tube", key: `add:${id}` },
+      { added: nextAdded, ...aimsClearedByAiming(edits, aim), ...aim },
+      { label: ADD_LABEL[kind] ?? "adding a part", key: `add:${id}` },
     );
   };
 
@@ -1056,6 +1085,22 @@ export default function LoftApp() {
             // range was then a silent no-op.
             boattailFairsTo: aftmostBodyDiameter(designBase),
             unreachableBodyTubes: unreachableBodyTubeCount(designBase),
+            // The transition readbacks take the picked one for the same reason every other aim does:
+            // the value shown to edit FROM has to be the part the edit is written TO. 12 of the 35
+            // corpus designs carry a transition and none of them could be reached until now.
+            transitionLength: primaryTransition(designBase, edits.transitionId)?.length,
+            transitionAftDiameter: (() => {
+              const t = primaryTransition(designBase, edits.transitionId);
+              return t ? t.aftRadius * 2 : undefined;
+            })(),
+            transitionPart: primaryTransitionPart(designBase, edits.transitionId),
+            unreachableTransitions: unreachableTransitionCount(designBase),
+            // 26 of the 35 corpus designs carry a mass object, 56 in all, and until now not one could
+            // be reached: the only mass a flyer could state was a payload the editor adds.
+            massObjectMass: primaryMassObject(designBase, edits.massObjectId)?.mass,
+            massObjectStation: primaryMassObjectStation(designBase, edits.massObjectId),
+            massObjectPart: primaryMassObjectPart(designBase, edits.massObjectId),
+            unreachableMassObjects: unreachableMassObjectCount(designBase),
             finish: primaryFinish(designBase),
             airframeMaterial: primaryAirframeMaterial(designBase),
             // The recovery readbacks take the picked canopy, so the diameter a field shows to edit
@@ -1086,6 +1131,14 @@ export default function LoftApp() {
             bodyTubePart: undefined,
             unreachableBodyTubes: 0,
             boattailFairsTo: undefined,
+            transitionLength: undefined,
+            transitionAftDiameter: undefined,
+            transitionPart: undefined,
+            unreachableTransitions: 0,
+            massObjectMass: undefined,
+            massObjectStation: undefined,
+            massObjectPart: undefined,
+            unreachableMassObjects: 0,
             finish: undefined,
             airframeMaterial: undefined,
             mainParachuteDiameter: undefined,
@@ -1097,7 +1150,7 @@ export default function LoftApp() {
     // The fin and body readbacks take their selected part, so both selections are real dependencies:
     // without them the panel keeps showing the primary part's numbers while the edit writes to the
     // picked one.
-    [doc, designBase, edits.finSetId, edits.bodyTubeId, edits.parachuteId],
+    [doc, designBase, edits.finSetId, edits.bodyTubeId, edits.transitionId, edits.massObjectId, edits.parachuteId],
   );
 
   return (
@@ -1395,7 +1448,20 @@ export default function LoftApp() {
                 // changes nothing about the rocket (see `INERT_EDIT_FIELDS`), and no editor a flyer
                 // has used makes selection undoable. Recording it would bury the edits under the
                 // clicks that led to them.
-                const patch = aimEditsAt(doc.rocket, id);
+                //
+                // Judged against `removableFrom` — the design plus the flyer's STRUCTURE — and not the
+                // pristine import, for the same reason the Remove button is. A part the flyer AUTHORED
+                // is not in `doc.rocket`, so picking one aimed NOTHING: the diagram highlighted the new
+                // tube while the body fields went on holding whichever tube they held before, and the
+                // next length typed landed there. On the starter design: add a tube behind its own
+                // 620.0 mm one (the new tube is half of it, 310.0 mm), click the 620 mm tube, click
+                // back onto the authored one, type 400 mm — the authored tube stayed 310.0 mm and the
+                // design's own became 400.0 mm, with the diagram highlighting the part that did not
+                // move. The three parts a DIMENSION edit adds (a boattail, a drogue, a payload bay)
+                // are still not aimable, and deliberately: they are appended after this tree, so no
+                // aim can reach them — which is the same rule that already stops the Remove button
+                // offering to take one out.
+                const patch = removableFrom ? aimEditsAt(removableFrom, id) : {};
                 if (Object.keys(patch).length) applyEdit(patch, null);
               }}
               initialTab={initialTab}
@@ -1514,6 +1580,14 @@ function DesignEditor({
     bodyTubePart?: AimedPart;
     unreachableBodyTubes: number;
     boattailFairsTo?: number;
+    transitionLength?: number;
+    transitionAftDiameter?: number;
+    transitionPart?: AimedPart;
+    unreachableTransitions: number;
+    massObjectMass?: number;
+    massObjectStation?: number;
+    massObjectPart?: AimedPart;
+    unreachableMassObjects: number;
     finish?: SurfaceFinish;
     airframeMaterial?: string;
     mainParachuteDiameter?: number;
@@ -1556,6 +1630,8 @@ function DesignEditor({
   const finPhrase = partPhrase(designDims.finSetPart, "set");
   const bodyPhrase = partPhrase(designDims.bodyTubePart, "tube");
   const chutePhrase = partPhrase(designDims.parachutePart, "canopy");
+  const transPhrase = partPhrase(designDims.transitionPart, "transition");
+  const massPhrase = partPhrase(designDims.massObjectPart, "mass object");
   // Blank means "use the design's own value". A zero is a different statement, and these fields want
   // three different answers to it — so every call site says which of the three it is, and
   // `lib/model/edit.ts` is the authority, because it is the code that decides what the solver sees:
@@ -1807,6 +1883,16 @@ function DesignEditor({
                     line stays faired.
                   </p>
                 )}
+                {designDims.unreachableTransitions > 0 && (
+                  // A design that steps caliber more than once — a payload shoulder and a tail cone —
+                  // has several, and the fields hold exactly one of them.
+                  <p className="mb-2 text-xs text-zinc-500 dark:text-zinc-400">
+                    This design has {designDims.unreachableTransitions} other{" "}
+                    {designDims.unreachableTransitions === 1 ? "transition" : "transitions"}.{" "}
+                    <em>Transition length</em> and <em>Transition exit</em> describe and change{" "}
+                    {transPhrase}; to edit another, pick it on the diagram or in the parts table above.
+                  </p>
+                )}
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                   {designDims.noseLength !== undefined && (
                     <Num
@@ -1856,6 +1942,29 @@ function DesignEditor({
                       onChange={(v) => onEdit({ bodyDiameter: fromSpan(v) })}
                     min={0}
                     positive
+                    />
+                  )}
+                  {/* A transition is where an airframe changes caliber, and until now not one could be
+                      touched — 12 of the 35 corpus designs carry one, 25 in all. Shown only when the
+                      design has one to hold: a field for a part that is not there teaches nothing. */}
+                  {designDims.transitionLength !== undefined && (
+                    <Num
+                      label={`Transition length (${spanU})`}
+                      value={toDispSpan(edits.transitionLength)}
+                      placeholder={toDispSpan(designDims.transitionLength)}
+                      onChange={(v) => onEdit({ transitionLength: fromSpan(v) })}
+                      min={0}
+                      positive
+                    />
+                  )}
+                  {designDims.transitionAftDiameter !== undefined && (
+                    <Num
+                      label={`Transition exit (${spanU})`}
+                      value={toDispSpan(edits.transitionAftDiameter)}
+                      placeholder={toDispSpan(designDims.transitionAftDiameter)}
+                      onChange={(v) => onEdit({ transitionAftDiameter: fromSpan(v) })}
+                      min={0}
+                      positive
                     />
                   )}
                   {designDims.bodyDiameter !== undefined && (
@@ -1944,7 +2053,35 @@ function DesignEditor({
               <legend className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
                 Mass &amp; finish
               </legend>
+              {designDims.unreachableMassObjects > 0 && (
+                // 26 of the 35 corpus designs carry a mass object and 15 carry several — an av-bay, a
+                // tracker, a nose weight, shear pins. The fields hold exactly one of them.
+                <p className="mb-2 text-xs text-zinc-500 dark:text-zinc-400">
+                  This design has {designDims.unreachableMassObjects} other mass{" "}
+                  {designDims.unreachableMassObjects === 1 ? "object" : "objects"}.{" "}
+                  <em>Mass</em> and <em>Mass pos</em> describe and change {massPhrase}; to work on
+                  another, pick it on the diagram or in the parts table above.
+                </p>
+              )}
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                {designDims.massObjectMass !== undefined && (
+                  <Num
+                    label={`Mass (${massU})`}
+                    value={toDispMass(edits.massObjectMass)}
+                    placeholder={toDispMass(designDims.massObjectMass)}
+                    onChange={(v) => onEdit({ massObjectMass: fromMass(v) })}
+                    min={0}
+                  />
+                )}
+                {designDims.massObjectStation !== undefined && (
+                  <Num
+                    label={`Mass pos (${spanU})`}
+                    value={toDispSpan(edits.massObjectStation)}
+                    placeholder={toDispSpan(designDims.massObjectStation)}
+                    onChange={(v) => onEdit({ massObjectStation: fromSpan(v) })}
+                    min={0}
+                  />
+                )}
                 <Num
                   label={`Nose ballast (${massU})`}
                   value={toDispMass(edits.ballastKg)}

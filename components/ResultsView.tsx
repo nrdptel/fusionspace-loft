@@ -6,7 +6,7 @@ import { Tabs } from "./ui";
 import type { FlightRun } from "@/lib/sim/run";
 import type { ConditionOverrides } from "@/lib/sim/setup";
 import type { ConditionsSource } from "@/lib/what-if";
-import { applyGeometryEdits, hasGeometryEdits, primaryFinGroupIds, aimsOf, type GeometryEdits } from "@/lib/model/edit";
+import { applyGeometryEdits, hasGeometryEdits, primaryFinGroupIds, structureOf, aimsOf, type AddedPart, type GeometryEdits } from "@/lib/model/edit";
 import { designKey } from "@/lib/model/design-key";
 import { formatLabel, sourceTool, type OrkDocument } from "@/lib/ork/import";
 import type { FlightResult } from "@/lib/sim/simulate";
@@ -210,7 +210,7 @@ export default function ResultsView({
   /** Remove a component from the design — the structural half of editing. */
   onRemovePart?: (id: string) => void;
   /** Author a part behind the picked one. Given only where editing is offered, like `onRemovePart`. */
-  onAddAfter?: (id: string, kind?: "bodytube" | "trapezoidfinset") => void;
+  onAddAfter?: (id: string, kind?: AddedPart["kind"]) => void;
   /** Why a part cannot be removed, or null. Asked of the app rather than judged in the panel, so the reason
    *  shown and the guard that enforces it cannot disagree about which design they are judging. */
   refuseRemoval?: (id: string) => string | null;
@@ -403,7 +403,13 @@ export default function ResultsView({
   // genuinely weightless part coming out does not raise a notice about an override that isn't there.
   // Measured on `EscapeVelocity.ork`: its 141.7 g "Avionics" leaves dry mass at exactly 2000.0 g while
   // the static margin moves 4.461 → 4.312 cal.
-  const massHeldBy = (geometry?.removedIds ?? [])
+  //
+  // Authoring reads the same way and needed the same sentence: a part built INSIDE a stated assembly
+  // weighs nothing either, because the design's own figure already covers whatever is in there. Driving
+  // an authored 45 g mass object into all 91 body tubes across the starter and the corpus, 10 of them
+  // moved the dry total not at all. Judged on the anchor, since the authored part is not in the
+  // pristine design to ask about.
+  const massHeldBy = [...(geometry?.removedIds ?? []), ...(geometry?.added ?? []).map((a) => a.after)]
     .map((id) => statedMassHolder(doc.rocket, id))
     .find((holder): holder is string => holder !== null);
   // The motor casing(s) the flight flew, for drawing inside the aft body — resolved for the shown
@@ -1067,7 +1073,12 @@ function FlutterFixHint({
   // corpus this hint fires on 60 flights and 16 of them name a set the fields cannot reach — and
   // those are the worst margins in the set (0.08x, 0.21x, 0.29x). Telling a flyer to thicken fins
   // the panel will not touch is worse than saying nothing, on a warning that is safety-relevant.
-  const editable = primaryFinGroupIds(doc.rocket, geometry?.finSetId).has(f.worst.finId);
+  // Judged on the design plus the flyer's structure, not the import: a fin ring the flyer AUTHORED is
+  // not in the imported file, so this said the fields "describe a different fin set on this design, so
+  // they can't make this change — it has to go back to the design file" about a set the fields would in
+  // fact have changed. On the one hint that is safety-relevant, and about the only fin set a
+  // from-scratch design might have.
+  const editable = primaryFinGroupIds(structureOf(doc.rocket, geometry ?? {}), geometry?.finSetId).has(f.worst.finId);
 
   return (
     <p className="mt-3 text-xs text-zinc-500 dark:text-zinc-400">

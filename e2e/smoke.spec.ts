@@ -2170,6 +2170,49 @@ test.describe("Loft", () => {
     await expect(panel.getByRole("img", { name: /Apogee.*versus.*Fin root chord/i })).toBeVisible();
   });
 
+  test("a sweep's axis describes the part it is actually resizing, even when the flyer built it", async ({ page }) => {
+    // Every sweep axis is swept as an ABSOLUTE value written through the same edit path the panels
+    // use, which resolves each aim against the parts the flyer has authored. The axis BASE was read
+    // off the imported design instead, where an authored part does not exist — so the aim fell back
+    // to the design's own primary part. Measured on the starter with a tube authored behind its own:
+    // the axis was based on the 620.0 mm design tube and spanned 310–1085 mm with the "design's own"
+    // marker at 620 mm, while every one of the 25 flights resized the 310.0 mm authored tube. The
+    // whole plotted curve and its marker described a rocket that was never flown.
+    await page.goto("/");
+    await page.getByRole("button", { name: "Start a new design" }).click();
+    await page.getByRole("tab", { name: "Design" }).click();
+    await page.locator("summary", { hasText: /Parts ·/ }).click();
+    const partsTable = page.locator("table").filter({ hasText: "Dimensions" });
+    const tubes = partsTable.locator("tr").filter({ hasText: /Body tube/ });
+    await expect(tubes).toHaveCount(1);
+    await tubes.first().click();
+    await page.getByRole("button", { name: /Add a tube behind this/ }).click();
+    await expect(tubes).toHaveCount(2);
+
+    await page.getByRole("tab", { name: "Analyze" }).click();
+    const panel = page.getByRole("region", { name: "Parameter sweep" });
+    await panel.getByRole("button", { name: /Run parameter sweep/ }).click();
+    await panel.getByLabel("Sweep variable").selectOption("bodyLength");
+    await expect(panel.getByRole("img", { name: /versus.*Body length/i })).toBeVisible({ timeout: 20000 });
+
+    // The x ticks are the chart's own statement of what it swept. `textContent`, not `innerText` —
+    // the latter throws on an SVG <text>.
+    const xTicks = async () => {
+      const texts = await panel.locator('svg text[text-anchor="middle"]').all();
+      const out: number[] = [];
+      for (const t of texts) {
+        const v = parseFloat(((await t.textContent()) ?? "").replace(/[^\d.-]/g, ""));
+        if (Number.isFinite(v)) out.push(v);
+      }
+      return out;
+    };
+    const ticks = await xTicks();
+    expect(ticks.length).toBeGreaterThan(2);
+    // The authored tube is half the starter's 620 mm, so its axis tops out near 540 mm. Based on the
+    // design's own tube instead it reaches 1085 mm, which is what this separates.
+    expect(Math.max(...ticks)).toBeLessThan(700);
+  });
+
   test("Monte-Carlo dispersion flies the design and reports the spread", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
@@ -2976,6 +3019,257 @@ test.describe("Loft", () => {
     await expect.poll(apogee, { timeout: 20000 }).toBe(asBuilt.apogee);
   });
 
+  test("a flyer can add a tail cone the design never had, shape it, and take it back", async ({ page }) => {
+    // R3's third kind. A transition is where an airframe changes caliber, and until now a flyer could
+    // neither author one nor touch one a design arrived with — the only cone they could shape was a
+    // boattail they had just asked for by typing two numbers into fields that create one.
+    //
+    // With nothing behind the anchor the gesture makes a tail cone, contracting to the corpus median
+    // of the 14 contracting transitions (0.7446 of the diameter it starts at). That is the base-drag
+    // lever: on the starter design it buys +29.33 m of apogee (993.64 to 1022.97 m) for +12.58 g.
+    await page.goto("/");
+    await page.getByRole("button", { name: "Start a new design" }).click();
+    await page.getByRole("tab", { name: "Flight" }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    const apogee = async () => {
+      const txt = await page
+        .getByLabel("Results")
+        .getByText("Apogee", { exact: true })
+        .locator("xpath=following-sibling::div")
+        .innerText();
+      return parseFloat(txt.replace(/[^\d.]/g, ""));
+    };
+    const asBuilt = await apogee();
+    expect(asBuilt).toBeGreaterThan(0);
+
+    await page.getByRole("tab", { name: "Design" }).click();
+    await page.locator("summary", { hasText: /Parts ·/ }).click();
+    const partsTable = page.locator("table").filter({ hasText: "Dimensions" });
+    const cones = partsTable.locator("tr").filter({ hasText: /Transition/ });
+    await expect(cones).toHaveCount(0);
+
+    await partsTable.locator("tr").filter({ hasText: /Body tube/ }).first().click();
+    await page.getByRole("button", { name: /Add a transition behind this/ }).click();
+    await expect(cones).toHaveCount(1);
+    // The dimension line says it contracts: a fore diameter larger than the exit.
+    // The parts table rounds to whole millimetres, so the constant is pinned on the field's own
+    // readback below, which carries round-trip precision. Here it is enough that the cone contracts.
+    await expect(cones.first()).toContainText(/⌀\s*54[^→]*→\s*⌀\s*40\b/);
+
+    // Contracting the base is worth altitude, and the Flight card moves with it.
+    await page.getByRole("tab", { name: "Flight" }).click();
+    // +29.33 m on the starter, measured; assert most of it rather than any epsilon above zero.
+    await expect.poll(apogee, { timeout: 20000 }).toBeGreaterThan(asBuilt + 20);
+
+    // The fields aimed at it the moment it existed, so the very next number typed shapes THAT part.
+    await page.getByRole("tab", { name: "Design" }).click();
+    const exit = page.locator("label").filter({ hasText: /Transition exit/ }).first().locator("input");
+    // 54.00 mm x 0.7446 = 40.2 mm. Anchored and to the tenth: the previous /4[01]/ accepted anything
+    // from 40.0 to 41.99 — a 4.9% window on the one constant this case exists to hold — and being
+    // unanchored it also matched "540".
+    await expect(exit).toHaveAttribute("placeholder", /^40(\.2\d*)?$/);
+    await exit.fill("20");
+    await expect(cones.first()).toContainText(/→\s*⌀\s*20/);
+    // Nothing sits behind a tail cone, so there is no joint to judge and the step notice stays silent.
+    await expect(page.getByText(/The airframe steps/)).toHaveCount(0);
+
+    // And it is undoable, by name, back to the design that never had it.
+    await page.getByRole("button", { name: /^Undo the transition exit/ }).click();
+    await expect(cones.first()).toContainText(/→\s*⌀\s*40\b/);
+    await page.getByRole("button", { name: /^Undo adding a transition/ }).click();
+    await expect(cones).toHaveCount(0);
+    await page.getByRole("tab", { name: "Flight" }).click();
+    await expect.poll(apogee, { timeout: 20000 }).toBe(asBuilt);
+  });
+
+  test("a flyer can add a mass object, weigh it, and slide it along the airframe", async ({ page }) => {
+    // R3's fourth kind, and the one whose placement IS a station: a point mass has to be told where it
+    // sits, unlike a tube that lands behind its anchor. The corpus decides the default — a third of the
+    // way down the part holding it: 0.3251 of its length, the median of the 16 corpus masses placed
+    // that way inside a body tube.
+    await page.goto("/");
+    await page.getByRole("button", { name: "Start a new design" }).click();
+    await page.getByRole("tab", { name: "Flight" }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    const margin = async () => {
+      const t = await page.getByText("Static margin", { exact: true }).locator("xpath=following-sibling::dd").innerText();
+      return parseFloat(t.replace(/[^\d.]/g, ""));
+    };
+    const asBuilt = await margin();
+    expect(asBuilt).toBeGreaterThan(0);
+
+    await page.getByRole("tab", { name: "Design" }).click();
+    await page.locator("summary", { hasText: /Parts ·/ }).click();
+    const partsTable = page.locator("table").filter({ hasText: "Dimensions" });
+    // The starter already carries one (its altimeter + battery), so this counts rather than presumes.
+    const rows = partsTable.locator("tr").filter({ hasText: /Mass object/ });
+    await expect(rows).toHaveCount(1);
+
+    await partsTable.locator("tr").filter({ hasText: /Body tube/ }).first().click();
+    await page.getByRole("button", { name: /Add a mass inside this/ }).click();
+    await expect(rows).toHaveCount(2);
+
+    // The mass fields aimed at it the moment it existed, so its own weight is what they advertise.
+    const massField = page.locator("label").filter({ hasText: /^Mass \(/ }).first().locator("input");
+    const posField = page.locator("label").filter({ hasText: /Mass pos/ }).first().locator("input");
+    await expect(massField).toHaveAttribute("placeholder", /45/);
+    const seated = parseFloat((await posField.getAttribute("placeholder")) ?? "0");
+    expect(seated).toBeGreaterThan(0);
+
+    // Weighing it moves the balance — the number a flyer adds ballast to change.
+    await massField.fill("400");
+    await page.getByRole("tab", { name: "Flight" }).click();
+    await expect.poll(margin, { timeout: 20000 }).not.toBe(asBuilt);
+    const heavy = await margin();
+
+    // And sliding it forward moves the balance again, the other way: mass ahead of the CG pulls it up.
+    await page.getByRole("tab", { name: "Design" }).click();
+    await posField.fill(String(Math.round(seated / 2)));
+    await page.getByRole("tab", { name: "Flight" }).click();
+    await expect.poll(margin, { timeout: 20000 }).not.toBe(heavy);
+
+    // Each step is its own undo, named after what it did.
+    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("button", { name: /^Undo the mass position/ }).click();
+    await page.getByRole("button", { name: /^Undo the mass\b/ }).click();
+    await expect(massField).toHaveAttribute("placeholder", /45/);
+    await page.getByRole("button", { name: /^Undo adding a mass object/ }).click();
+    await expect(rows).toHaveCount(1);
+  });
+
+  test("the parts panel says where the airframe steps, and how far", async ({ page }) => {
+    // The user-visible half of the mould-line work, and it had no test at all. Loft models a
+    // transition's own slope (Niskanen 3.86 for a shoulder, 3.88 for a boattail) and has no drag term
+    // for a bare radius step — which has no length to take an angle over — so a step is flown
+    // optimistically, and saying nothing about it is the silence the brief forbids. 33 of the 115
+    // airframe joints in the real corpus already step, in 13 of the 35 designs.
+    //
+    // Driven through the editor rather than through a fixture that arrives stepped, because that is
+    // the case the new fields make reachable: nothing aft of a transition follows its exit, so
+    // narrowing one opens a step at the joint behind it, and the flyer is owed the sentence.
+    await page.goto("/");
+    await page
+      .getByLabel(/^Choose an OpenRocket/)
+      .setInputFiles(resolve(process.cwd(), "fixtures/demo-quirks.ork"));
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    await page.getByRole("tab", { name: "Design" }).click();
+    await page.locator("summary", { hasText: /Parts ·/ }).click();
+
+    const partsTable = page.locator("table").filter({ hasText: "Dimensions" });
+    const tubes = partsTable.locator("tr").filter({ hasText: /Body tube/ });
+    await expect(tubes).toHaveCount(2);
+    const notice = page.getByText(/The airframe steps/);
+
+    // A transition authored between two sections at the same caliber runs straight through, so it
+    // opens nothing and nothing is said. (This fixture already carries a boattail, so count rather
+    // than presume.)
+    const cones = partsTable.locator("tr").filter({ hasText: /Transition/ });
+    const had = await cones.count();
+    await tubes.first().click();
+    await page.getByRole("button", { name: /Add a transition behind this/ }).click();
+    await expect(cones).toHaveCount(had + 1);
+    await expect(notice).toHaveCount(0);
+
+    // Narrow its exit and the joint behind it steps — by exactly the difference, and it says so.
+    const exit = page.locator("label").filter({ hasText: /Transition exit/ }).first().locator("input");
+    const before = parseFloat((await exit.getAttribute("placeholder")) ?? "0");
+    expect(before).toBeGreaterThan(20);
+    await exit.fill(String(Math.round(before - 10)));
+
+    await expect(notice).toHaveCount(1);
+    const said = (await notice.first().innerText()).trim();
+    expect(said).toMatch(/steps out by [\d.]+ mm of diameter at the joint behind this part/);
+    expect(said).toMatch(/no drag term for a bare step/);
+    // The size is the real one, not a placeholder: the exit came down by ~10 mm, so the airframe
+    // steps back OUT by that much where the next tube begins.
+    expect(parseFloat((said.match(/by ([\d.]+) mm/) ?? [])[1] ?? "0")).toBeGreaterThan(8);
+
+    // Undo it and the sentence goes with it — a notice that outlives its cause is worse than none.
+    await page.getByRole("button", { name: /^Undo the transition exit/ }).click();
+    await expect(notice).toHaveCount(0);
+  });
+
+  test("a mass object can be slid along the airframe on the diagram, not only typed", async ({ page }) => {
+    // R3's *done when* asks for a part placed "at a station by direct manipulation", and a point mass
+    // is the one kind whose whole geometry IS a station — so it is the one that most needs a grip.
+    // The handle rides the mark already drawn for it and is bounded by the part holding it, because
+    // the model clamps the station into its host anyway and a grip that could be dragged past the end
+    // would stick at a value the pointer had left behind.
+    await page.goto("/");
+    await page.getByRole("button", { name: "Start a new design" }).click();
+    await page.getByRole("tab", { name: "Flight" }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    const margin = async () => {
+      const t = await page.getByText("Static margin", { exact: true }).locator("xpath=following-sibling::dd").innerText();
+      return parseFloat(t.replace(/[^\d.]/g, ""));
+    };
+    const asBuilt = await margin();
+
+    await page.getByRole("tab", { name: "Design" }).click();
+    await page.locator("summary", { hasText: /Parts ·/ }).click();
+    const partsTable = page.locator("table").filter({ hasText: "Dimensions" });
+    // Pick the starter's own altimeter, so this exercises an IMPORTED mass and not only an authored one.
+    await partsTable.locator("tr").filter({ hasText: /Mass object/ }).first().click();
+
+    const grip = page.getByRole("slider", { name: /Mass position/ });
+    await expect(grip).toBeVisible();
+
+    // It is a real slider: focusable, and the arrow keys move it.
+    const posField = page.locator("label").filter({ hasText: /Mass pos/ }).first().locator("input");
+    const seated = parseFloat((await posField.getAttribute("placeholder")) ?? "0");
+    expect(seated).toBeGreaterThan(0);
+
+    await grip.focus();
+    for (let i = 0; i < 12; i++) await page.keyboard.press("ArrowLeft");
+    // Nudging it forward moves the balance — mass ahead of the CG pulls the CG up and the margin with it.
+    await expect.poll(async () => parseFloat((await posField.inputValue()) || "0"), { timeout: 15000 }).toBeLessThan(seated);
+    await page.getByRole("tab", { name: "Flight" }).click();
+    await expect.poll(margin, { timeout: 20000 }).not.toBe(asBuilt);
+
+    // And it is one undo, by name, not twelve.
+    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("button", { name: /^Undo the mass position/ }).click();
+    await expect(posField).toHaveValue("");
+  });
+
+  test("clicking a part the flyer authored aims the fields back at it", async ({ page }) => {
+    // A pick is judged against the design the flyer is LOOKING at — the import plus their own structure
+    // — and not against the import alone. Judged against the import, a part they authored is not in the
+    // tree at all, so the pick aimed NOTHING: the diagram highlighted the new tube while the body fields
+    // went on holding whichever tube they held before, and the next length typed landed there. That is
+    // exactly the sequence below, and before the fix it ended with the authored tube still at its own
+    // 310.0 mm and the design's own 620.0 mm tube at 400.0 mm — while the diagram highlighted the one
+    // that had not moved.
+    await page.goto("/");
+    await page.getByRole("button", { name: "Start a new design" }).click();
+    await page.getByRole("tab", { name: "Design" }).click();
+    await page.locator("summary", { hasText: /Parts ·/ }).click();
+    const partsTable = page.locator("table").filter({ hasText: "Dimensions" });
+    const tubes = partsTable.locator("tr").filter({ hasText: /Body tube/ });
+    await expect(tubes).toHaveCount(1);
+
+    await tubes.first().click();
+    await page.getByRole("button", { name: /Add a tube behind this/ }).click();
+    await expect(tubes).toHaveCount(2);
+
+    // The placeholder is the readback of whichever tube the body fields are holding, so it names the aim.
+    const bodyLength = page.locator("label").filter({ hasText: /Body length/ }).first().locator("input");
+    const advertised = async () => parseFloat((await bodyLength.getAttribute("placeholder")) ?? "0");
+    const authoredLen = await advertised();
+    expect(authoredLen).toBeGreaterThan(0);
+
+    // Read the design's own tube, then come back to the one that was authored.
+    await tubes.nth(0).click();
+    await expect.poll(advertised, { timeout: 15000 }).toBeGreaterThan(authoredLen);
+    await tubes.nth(1).click();
+    await expect.poll(advertised, { timeout: 15000 }).toBeCloseTo(authoredLen, 1);
+
+    // And the next length typed changes THAT tube, not the one the fields were holding a click ago.
+    await bodyLength.fill("400");
+    await expect(tubes.nth(1)).toContainText(/L 400/);
+    await expect(tubes.nth(0)).not.toContainText(/L 400/);
+  });
+
   test("removing a part re-flies the design, and the removal is undoable", async ({ page }) => {
     // R2's capability. A parametric edit is recoverable by retyping a number; a deletion is not, which is
     // why undo ships with it rather than after it. `two-stage-firm-booster.ork` has two fin sets, so one
@@ -3772,9 +4066,10 @@ test.describe("Loft", () => {
     const fins = partsTable.locator("tr").filter({ hasText: /fins/i }).first();
     await fins.click();
 
-    // Said BEFORE the click, where the flyer is deciding.
+    // Said BEFORE the click, where the flyer is deciding. The sentence covers authoring too now — a
+    // part BUILT inside a stated assembly weighs nothing either, for the same reason.
     await expect(page.getByText(/counts no mass for the parts inside/)).toBeVisible();
-    await expect(page.getByText(/move the balance, not the total/)).toBeVisible();
+    await expect(page.getByText(/moves the balance and not the total/)).toBeVisible();
 
     await page.getByRole("button", { name: /^Remove / }).click();
 
@@ -3784,7 +4079,7 @@ test.describe("Loft", () => {
       const dd = details.nth(i);
       if (!(await dd.evaluate((el: HTMLDetailsElement) => el.open))) await dd.locator("summary").first().click();
     }
-    await expect(page.getByText(/A part you removed was inside/)).toBeVisible();
+    await expect(page.getByText(/A part you added or removed was inside/)).toBeVisible();
     await expect(page.getByText(/the dry total above is unchanged/)).toBeVisible();
   });
 
