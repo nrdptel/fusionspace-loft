@@ -10,6 +10,18 @@ a one-way door — those preempt the milestone immediately). Everything else wai
 one-in-four quota in `MAINTAINING.md`. Rough edges, missing affordances, and findings too big for one
 pass. Newest first.
 
+- **Benchmark against OpenRocket: the parts list is FLAT where theirs is a tree, and 9 of 35 designs pay
+  for it.** OpenRocket presents components as a hierarchy with the stage as an explicit parent, so a part
+  is identified by where it sits in the structure. Loft's parts table has Component, Type, Station, Mass
+  and Dimensions — **no stage column and no nesting** — so on a staged design with repeated names the
+  station is the only discriminator. Measured: 9 of the 35 corpus designs have more than one stage AND
+  parts sharing a type+name; the worst is `Two stage high power rocket.ork`, 2 stages and 47 parts, of
+  which **33** share a type+name with another (Bulkhead x10, Tube Coupler x9, Centering Ring x8). R1
+  fixed the half a flyer acts on — the editor names the part it is HOLDING, by station where the name does
+  not distinguish it — but a flyer scanning the list to find a part still cannot tell a booster bulkhead
+  from a sustainer one. A stage column is the cheap version; the tree is the real one, and it is what R2's
+  delete and R4's reorder will both want a surface for.
+
 - **A from-scratch design's component ids are re-minted on every reload, so a stored aim matches nothing.**
   Measured with a probe: `newDesign()` gives its parts the ids `nose`, `body`, `av`, `chute`, `mount`; a
   built design's session bytes are `exportOrk(document)` (`components/LoftApp.tsx`, the "Start fresh"
