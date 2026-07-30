@@ -696,6 +696,16 @@ How it reaches CI:
   whose name you cannot change, never repeat that name inside a committed file. Sweep the tree AND
   the served site before finishing. This applies to everything a subagent writes — you own its output.
 
+  **The ONE exception, and it is a filename only.** The repo root carries a pointer file whose NAME
+  is the harness vendor's, because the harness auto-loads a file of that name and no other — without
+  it, a session that forgets to name this manual starts with no instructions at all. The owner weighed
+  that against this invariant on 2026-07-30 and chose to keep it. It is deliberate, it is the only
+  exception, and **it is not to be "fixed"**: deleting it is a regression, not a cleanup. Its contents
+  are a single import of `AGENTS.md`, which is tool-neutral and holds the actual guidance, so nothing
+  but the filename ever carries the exception. Keep it that way — never move content into it, and
+  never add a second vendor-named path (no vendor-named directory, settings file, or hook). Everything
+  else in this invariant stands unchanged.
+
   **And to text you did not write.** A harness may append an attribution footer to anything it posts
   to GitHub on your behalf — a pull request body, a review, an issue comment. It has. Read back every
   PR body, title and comment after posting it and strip anything that lands there, because a public
