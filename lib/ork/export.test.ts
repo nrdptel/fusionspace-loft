@@ -196,6 +196,57 @@ describe("exportOrk — real-design features round-trip (regression)", () => {
     expect(after.apogee).toBeCloseTo(before.apogee, 0);
   });
 
+  it("keeps the mass a design STATED for a part, rather than the one Loft computes", async () => {
+    // Six element kinds were written without their `<overridemass>` — mass objects, parachutes,
+    // streamers, lugs, rail buttons and shock cords — so a stated mass was silently replaced on a
+    // round trip by the one Loft derives from the part's material. Measured across the 27 real `.ork`
+    // designs in the corpus: 5 changed dry mass on a download → re-import, and on `USLI2025-FULLSCALE`
+    // the shock cord's stated 304.0 g came back as its computed 2,220.7 g — 12,620.2 g → 14,528.7 g,
+    // +15.1% on the whole design, with the CG moving 60.8 mm and nothing said anywhere.
+    //
+    // A stated mass is something the flyer put on a scale; a computed one is a guess from a density.
+    // The shock cord is the sharpest case because a long tubular-nylon harness computes enormous.
+    const doc = newDesign();
+    const tube = doc.rocket.stages[0].components.find((c) => c.kind === "bodytube") as BodyTube;
+    const cord: MinorComponent = {
+      id: "8e0f9b62-3a5c-4d71-9c2e-1f0a7b4d5e63",
+      name: "Harness",
+      kind: "shockcord",
+      placement: { method: "top", offset: 0.1 },
+      // What the material would compute to, and what the flyer actually weighed.
+      mass: 2.2207,
+      overrideMass: 0.304,
+      children: [],
+    };
+    const ballast: MassComponent = {
+      id: "5b1c7d90-64ae-4f28-8d13-90c6e2a4f7b1",
+      name: "Nose weight",
+      kind: "masscomponent",
+      placement: { method: "top", offset: 0.05 },
+      mass: 0.02,
+      overrideMass: 0.05,
+      children: [],
+    };
+    const rocket = {
+      ...doc.rocket,
+      stages: doc.rocket.stages.map((s) => ({
+        ...s,
+        components: s.components.map((c) => (c.id === tube.id ? { ...c, children: [...c.children, cord, ballast] } : c)),
+      })),
+    };
+    const before = flight({ ...doc, rocket });
+    const back = await importOrk(exportOrk({ ...doc, rocket }));
+    const find = (id: string) =>
+      back.rocket.stages
+        .flatMap((s) => s.components)
+        .flatMap((c) => [c, ...c.children])
+        .find((c) => c.id === id);
+    expect(find(cord.id)?.overrideMass).toBeCloseTo(0.304, 6);
+    expect(find(ballast.id)?.overrideMass).toBeCloseTo(0.05, 6);
+    // And the number that actually matters: the design still weighs what it weighed.
+    expect(flight(back).dryMass).toBeCloseTo(before.dryMass, 6);
+  });
+
   it("preserves a per-configuration stage-separation override", async () => {
     const doc = newDesign();
     // Give the (single) stage a per-config separation override and round-trip it. Even on a

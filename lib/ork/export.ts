@@ -220,7 +220,15 @@ function childrenXml(cs: RocketComponent[], motors: MotorsByMount, depth: number
   );
 }
 
-/** Serialize one component (and its subtree) to its OpenRocket element. */
+/** Serialize one component (and its subtree) to its OpenRocket element.
+ *
+ *  Every case writes `overrides`. Six of them did not, and the mass a design STATED for those parts
+ *  was silently replaced on a round trip by the one Loft computes from their material. Measured across
+ *  the 27 real `.ork` designs in the corpus: 5 changed dry mass on a download → re-import, and on
+ *  `USLI2025-FULLSCALE` the shock cord's stated 304.0 g became its computed 2,220.7 g — the whole
+ *  design going 12,620.2 g → 14,528.7 g, +15.1%, with the CG moving 60.8 mm, and nothing said. A
+ *  stated mass is a measurement the flyer put on the scale; a computed one is a guess from a density.
+ *  Replacing the first with the second is the worst direction that trade can go. */
 function componentXml(c: RocketComponent, motors: MotorsByMount, depth: number): string {
   const pad = "  ".repeat(depth);
   const p = pad + "  ";
@@ -343,7 +351,7 @@ function componentXml(c: RocketComponent, motors: MotorsByMount, depth: number):
       );
     case "masscomponent":
       return (
-        head + common +
+        head + common + overrides +
         `${p}<mass>${num(c.mass)}</mass>\n` +
         (c.length !== undefined ? `${p}<packedlength>${num(c.length)}</packedlength>\n` : "") +
         (c.radius !== undefined ? `${p}<packedradius>${num(c.radius)}</packedradius>\n` : "") +
@@ -352,19 +360,19 @@ function componentXml(c: RocketComponent, motors: MotorsByMount, depth: number):
       );
     case "parachute":
       return (
-        head + common +
+        head + common + overrides +
         `${p}<cd>${num(c.cd)}</cd>\n` +
         `${p}<diameter>${num(c.diameter)}</diameter>\n` +
         `${p}<deployevent>${DEPLOY_OUT[c.deployEvent]}</deployevent>\n` +
         (c.deployAltitude !== undefined ? `${p}<deployaltitude>${num(c.deployAltitude)}</deployaltitude>\n` : "") +
         (c.deployDelay !== undefined ? `${p}<deploydelay>${num(c.deployDelay)}</deploydelay>\n` : "") +
         deployConfigsXml(c.deployConfigs, p) +
-        (c.mass ? `${p}<overridemass>${num(c.mass)}</overridemass>\n` : "") +
+        (c.overrideMass === undefined && c.mass ? `${p}<overridemass>${num(c.mass)}</overridemass>\n` : "") +
         close
       );
     case "streamer":
       return (
-        head + common +
+        head + common + overrides +
         `${p}<cd>${num(c.cd)}</cd>\n` +
         `${p}<striplength>${num(c.stripLength)}</striplength>\n` +
         `${p}<stripwidth>${num(c.stripWidth)}</stripwidth>\n` +
@@ -372,7 +380,7 @@ function componentXml(c: RocketComponent, motors: MotorsByMount, depth: number):
         (c.deployAltitude !== undefined ? `${p}<deployaltitude>${num(c.deployAltitude)}</deployaltitude>\n` : "") +
         (c.deployDelay !== undefined ? `${p}<deploydelay>${num(c.deployDelay)}</deploydelay>\n` : "") +
         deployConfigsXml(c.deployConfigs, p) +
-        (c.mass ? `${p}<overridemass>${num(c.mass)}</overridemass>\n` : "") +
+        (c.overrideMass === undefined && c.mass ? `${p}<overridemass>${num(c.mass)}</overridemass>\n` : "") +
         close
       );
     case "launchlug":
@@ -382,7 +390,7 @@ function componentXml(c: RocketComponent, motors: MotorsByMount, depth: number):
       // multiplies by the instance count) rather than recomputing it from a thickness we don't have.
       const count = c.instanceCount ?? 1;
       return (
-        head + common +
+        head + common + overrides +
         (c.radius !== undefined ? `${p}<radius>${num(c.radius)}</radius>\n` : "") +
         (c.length !== undefined ? `${p}<length>${num(c.length)}</length>\n` : "") +
         (c.mass !== undefined ? `${p}<mass>${num(c.mass / count)}</mass>\n` : "") +
@@ -395,7 +403,7 @@ function componentXml(c: RocketComponent, motors: MotorsByMount, depth: number):
       // import), so write it as an explicit mass — the importer's fallback when no cord length is
       // present — preserving the mass through the round-trip.
       return (
-        head + common +
+        head + common + overrides +
         (c.mass !== undefined ? `${p}<mass>${num(c.mass)}</mass>\n` : "") +
         (c.length !== undefined ? `${p}<packedlength>${num(c.length)}</packedlength>\n` : "") +
         close
