@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Rocket, RocketComponent } from "@/lib/model/types";
 import { flattenRocket } from "@/lib/model/geometry";
 import { massByComponent, dryMassProperties } from "@/lib/sim/mass";
@@ -23,9 +23,6 @@ import RocketDiagram from "./RocketDiagram";
  *  flyer reads their own rocket in, and the default. The rest sort a column, heaviest/longest first
  *  on the numeric ones, because that is the question being asked when you sort them. */
 type PartSort = "design" | "name" | "type" | "station" | "mass";
-
-/** The component kinds the fin fields can describe. A pick on anything else leaves them alone. */
-const FIN_SET_KINDS = new Set(["trapezoidfinset", "ellipticalfinset", "freeformfinset"]);
 
 const KIND_LABEL: Record<string, string> = {
   nosecone: "Nose cone",
@@ -120,8 +117,8 @@ export default function GeometryInspector({
   edited = false,
   motors,
   onEdit,
-  onSelectFinSet,
-  selectedFinSetId,
+  onSelectPart,
+  aims,
 }: {
   rocket: Rocket;
   units: UnitSystem;
@@ -137,16 +134,17 @@ export default function GeometryInspector({
   motors?: MotorMark[];
   /** When provided, the diagram exposes a drag handle that applies a geometry edit (fin station). */
   onEdit?: (patch: GeometryEdits) => void;
-  /** Told which fin set the flyer picked, so the fin fields can describe and edit THAT set rather
-   *  than always the frontmost. Fires with null when the pick is released or lands on a part that
-   *  is not a fin set — picking a body tube must not leave the fin fields pointed somewhere the
-   *  flyer can no longer see they picked. Picking is a view concern and stays owned here; only the
-   *  fin-set half of it is anything the edit model needs to know. */
-  onSelectFinSet?: (id: string | null) => void;
-  /** The fin set the edit model is currently aimed at. Passed back in so the pick shown here and
-   *  the set the fields describe cannot drift apart — a restored session arrives with a selection
-   *  and no pick, and "Reset to as-designed" clears the selection without clearing the pick. */
-  selectedFinSetId?: string;
+  /** Told which part the flyer picked, so the editor's fields can describe and edit THAT part rather
+   *  than always the design's primary one. Fires on every sticky pick and never on a release; which
+   *  fields a pick re-aims — and which picks re-aim nothing — is the edit model's call
+   *  (`aimEditsAt`), not this panel's. Picking is a view concern and stays owned here. */
+  onSelectPart?: (id: string) => void;
+  /** Every component id the edit model is currently aimed at, keyed by its aim slot. Passed back in so
+   *  the pick shown here and the parts the fields describe cannot drift apart — a restored session
+   *  arrives with an aim and no pick, and "Reset to as-designed" clears the aims without clearing the
+   *  pick. Taken as the whole map rather than one prop per slot: the editor grows a slot per role, and
+   *  a prop list that grows with it is a list to forget to extend. */
+  aims?: Readonly<Record<string, string | undefined>>;
 }) {
   const parts = flattenRocket(rocket);
   // Each part's own dry mass, keyed by the same component id the diagram and the table share, so a
@@ -171,24 +169,41 @@ export default function GeometryInspector({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [partsOpen, setPartsOpen] = useState(false);
   const [sort, setSort] = useState<PartSort>("design");
-  // Keep the pick shown here in step with the selection the edit model holds. Two paths move it
-  // without a click: restoring a session arrives with a selection and no pick, and "Reset to
-  // as-designed" clears the selection while the row stays highlighted — after which the next click
-  // on that row toggles it OFF and the flyer has to click twice to aim at it again.
+  // Keep the pick shown here in step with the aims the edit model holds. Two paths move one without a
+  // click: restoring a session arrives with an aim and no pick, and "Reset to as-designed" clears the
+  // aims while the row stays highlighted — after which the next click on that row toggles it OFF and
+  // the flyer has to click twice to aim at it again.
+  //
+  // What matters is which aim MOVED, not which is set. With the fin fields aimed at one set and the
+  // body fields at another part, treating any of them as "the pick" would drag the highlight straight
+  // back off whichever the flyer clicked last — so the previous map is kept and compared slot by slot.
+  const aimSig = JSON.stringify(aims ?? {});
+  // Seeded EMPTY, not with the aims present at mount, so the first run sees a restored session's aim as
+  // a move and shows it as the pick. Seeded with them, the mount-time comparison found nothing moved and
+  // a resumed session came back asserting the fields were aimed at a part that nothing on the diagram or
+  // in the parts table identified — while the drag handles did sit on it. Two surfaces disagreeing about
+  // the same pick.
+  const lastAims = useRef("{}");
   useEffect(() => {
+    const was: Record<string, string | undefined> = JSON.parse(lastAims.current);
+    lastAims.current = aimSig;
+    const now: Record<string, string | undefined> = aims ?? {};
+    const moved = [...new Set([...Object.keys(was), ...Object.keys(now)])].filter((k) => was[k] !== now[k]);
+    if (!moved.length) return;
     setSelectedId((cur) => {
-      if (selectedFinSetId) return selectedFinSetId;
-      // Only a fin pick is the model's to clear; a body tube the flyer is reading stays picked.
-      return cur && FIN_SET_KINDS.has(parts.find((x) => x.component.id === cur)?.component.kind ?? "")
-        ? null
-        : cur;
+      // An aim that moved TO a part shows as the pick.
+      const aimed = moved.map((k) => now[k]).find(Boolean);
+      if (aimed) return aimed;
+      // Otherwise every aim that moved was CLEARED — "Reset to as-designed" clears them all at once, so
+      // more than one moves in a single commit. Drop the pick only when it is a part one of them was
+      // aiming through; a part the flyer is merely reading stays picked. Examining only the first moved
+      // slot left a picked tube highlighted with no aim behind it, after which the next click on that
+      // row toggled the highlight OFF instead of aiming, so it took two clicks to aim at it again.
+      return moved.some((k) => was[k] === cur) ? null : cur;
     });
-    // `parts` is derived from `rocket` each render; keying on the selection alone is what we want.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedFinSetId]);
+  }, [aimSig]);
 
-  const isFinSetId = (id: string) =>
-    FIN_SET_KINDS.has(parts.find((p) => p.component.id === id)?.component.kind ?? "");
   // The diagram, a table row click and a row's Enter/Space all pick the same way, so they go through
   // one toggle — three copies could not stay in step once picking gained a second effect.
   //
@@ -196,14 +211,14 @@ export default function GeometryInspector({
   // and React double-invokes it in development, so calling out from inside it re-flew the design
   // twice per pick and updated a parent mid-render.
   //
-  // Only a FIN SET pick moves the fin target, and nothing clears it. Clearing on a body-tube pick
-  // would silently re-aim an active fin edit at the frontmost set — the flyer sets set 2's span to
-  // 77 mm, clicks a tube to read it, and set 1 becomes 77 mm instead. The legend names the set the
-  // fields describe, so leaving it aimed is visible, not hidden.
+  // A pick is reported, and a RELEASE is not. Reporting a release would silently re-aim an active edit
+  // at the design's primary part — the flyer sets set 2's span to 77 mm, clicks the row again to stop
+  // picking it out, and set 1 becomes 77 mm instead. The legend names the part the fields describe, so
+  // leaving it aimed is visible rather than hidden.
   const pick = (id: string) => {
     const next = selectedId === id ? null : id;
     setSelectedId(next);
-    if (next && isFinSetId(next)) onSelectFinSet?.(next);
+    if (next) onSelectPart?.(next);
   };
   const activeId = hoveredId ?? selectedId;
   const active = parts.find((p) => p.component.id === activeId);
@@ -270,7 +285,8 @@ export default function GeometryInspector({
           }}
           motors={motors}
           onEdit={onEdit}
-          selectedFinSetId={selectedFinSetId}
+          selectedFinSetId={aims?.finSetId}
+          selectedBodyTubeId={aims?.bodyTubeId}
         />
         {/* What you just pointed at. Reserved height so hovering across the airframe doesn't make
             everything below it jump. */}

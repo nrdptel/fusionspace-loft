@@ -10,6 +10,63 @@ a one-way door — those preempt the milestone immediately). Everything else wai
 one-in-four quota in `MAINTAINING.md`. Rough edges, missing affordances, and findings too big for one
 pass. Newest first.
 
+- **Benchmark against OpenRocket: the parts list is FLAT where theirs is a tree, and 9 of 35 designs pay
+  for it.** OpenRocket presents components as a hierarchy with the stage as an explicit parent, so a part
+  is identified by where it sits in the structure. Loft's parts table has Component, Type, Station, Mass
+  and Dimensions — **no stage column and no nesting** — so on a staged design with repeated names the
+  station is the only discriminator. Measured: 9 of the 35 corpus designs have more than one stage AND
+  parts sharing a type+name; the worst is `Two stage high power rocket.ork`, 2 stages and 47 parts, of
+  which **33** share a type+name with another (Bulkhead x10, Tube Coupler x9, Centering Ring x8). R1
+  fixed the half a flyer acts on — the editor names the part it is HOLDING, by station where the name does
+  not distinguish it — but a flyer scanning the list to find a part still cannot tell a booster bulkhead
+  from a sustainer one. A stage column is the cheap version; the tree is the real one, and it is what R2's
+  delete and R4's reorder will both want a surface for.
+
+- **A from-scratch design's component ids are re-minted on every reload, so a stored aim matches nothing.**
+  Measured with a probe: `newDesign()` gives its parts the ids `nose`, `body`, `av`, `chute`, `mount`; a
+  built design's session bytes are `exportOrk(document)` (`components/LoftApp.tsx`, the "Start fresh"
+  path), and `lib/ork/export.ts`'s `nextUuid()` writes `10f70000-0000-4000-8000-000000000002` upward
+  instead of `c.id` — so the re-imported model carries entirely different ids and an aim saved before the
+  reload resolves to nothing, falling back to the longest tube / largest canopy. Two exports of one design
+  ARE identical (the counter resets per export), so this is the export/live boundary, not repeat exports.
+  Harmless today only because the starter carries one body tube and one fin set. It is a hard blocker for
+  R2, whose operation list addresses ids, and it is recorded in `ROADMAP.md` as R2's first task. The fix
+  is to write `c.id` when it is already UUID-shaped and to make the starter's ids UUID-shaped, so the
+  round trip preserves them; an imported design is unaffected either way, since its session stores the
+  original bytes and a re-parse of the same bytes re-derives the same ids.
+- **The caliber drag handle's upper bound comes from the WIDEST part, not the tube it resizes.**
+  `components/RocketDiagram.tsx`: `diaHi = max(bodyDiaNow, 2 * frameExtent)` with `frameExtent` derived
+  from the airframe's maximum extent, while the handle now sits on the PICKED tube. On a narrow picked
+  tube the handle can therefore scale the whole outer airframe well past the frozen frame, and the comment
+  above it claims the bounds "keep the wall inside the framed extent". Found by the pre-push review; not
+  fixed because the bound is a drag range rather than a number a flyer reads, and the same handle's
+  freeze-frame behaviour is already filed above.
+- **`lib/sim/trim.ts` computes the fin-position trim advice from the FRONTMOST set, not the picked one.**
+  Carried over from an earlier session's entry and re-checked this run: `primaryFinStation(rocket)` with no
+  selected id. The pre-push review's own correction is worth keeping — the millimetre figure the panel
+  prints is `targetStation - station0`, so the seed cancels and the number is right. What is actually wrong
+  is `feasible: targetStation > 0`, which is judged against the frontmost set's station, and the sentence
+  saying "the fin set" without naming which. R1 shipped `primaryFinSetPart`, so naming it is now cheap.
+- **A field holds one value, so picking another part of the same kind re-aims a live edit onto it.**
+  With `bodyLength` set to 640 mm on the aft tube, clicking the forward tube to read its mass re-aims that
+  640 mm onto the forward tube. Identical on fin sets, which shipped earlier, and inherent to an edit model
+  that is a flat patch of absolute values rather than a per-part record. NOT a defect to patch in place: it
+  is visible (the panel names the part it is holding) and it is what R2's operation list removes. Recorded
+  on `/docs/limitations` as a stated consequence rather than left for a flyer to discover.
+- **The importer drops pod-mounted and parallel-stage components, and R1's second named design is mostly
+  pods.** `Pods--airframes and winglets.ork` declares 3 body tubes, 3 nose cones and 6 fin sets; Loft
+  imports 1, 1 and 5. The omission is disclosed at import ("This design has pods, which aren't simulated
+  yet — only the primary stack was flown"), so no number is presented as complete — but the parts a flyer
+  can click are only the ones that survived. 2 corpus designs carry `<podset>` and 1 a `<parallelstage>`.
+  Ingestion work, not editor work; it wants its own roadmap entry rather than a slice of one.
+- **`primaryFinSet`'s "frontmost" is a DOCUMENT-order claim, and it is false on 3 designs.**
+  `flattenRocket` pushes as it walks and never sorts, so `fins[0]` is the first in file order, not the
+  most forward. Measured: `Mini Honest John.ork` has `fins[0]` at x=156.2 mm with a set at 124.5 mm ahead
+  of it; `The Red Hunter.ork` `fins[0]` at 385.0 mm against a freeform set at 202.0 mm. R1 removed the
+  user-visible half of this — the panel names a set by its STATION now, which is true whatever the walk
+  order — but the doc comments in `lib/model/edit.ts` still say "frontmost" and the fallback is still
+  document-order.
+
 - **RESOLVED this session — the hit-target suite measured HEIGHT only, so a control could pass at
   34 px wide.** The scan filtered on `r.height >= 44` and never looked at width. Measured on a
   390x844 phone, three controls were under the project's own stated 44x44 minimum while the suite

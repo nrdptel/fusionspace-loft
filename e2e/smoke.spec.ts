@@ -2794,6 +2794,141 @@ test.describe("Loft", () => {
     expect((await spanOf())[0], "the set that was not picked must not change").toBe(before[0]);
   });
 
+  test("picking a body tube aims the body fields at it, and the length lands there only", async ({ page }) => {
+    // `Body length` used to resolve "the" body tube as the LONGEST one, so on a design with several
+    // every tube but that one was unreachable: the flyer clicks the booster tube, types a length, and
+    // the sustainer tube resizes instead. 23 of the 35 corpus designs carry more than one body tube as
+    // Loft imports them. `two-stage-firm-booster.ork` is two — 600 mm at station 200 and
+    // 500 mm at station 800 — and names them both "body", so the panel has to say which it is holding
+    // by where it sits rather than by a name that distinguishes nothing.
+    await page.goto("/");
+    await page
+      .getByLabel(/^Choose an OpenRocket/)
+      .setInputFiles(resolve(process.cwd(), "e2e/fixtures/two-stage-firm-booster.ork"));
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    await page.getByRole("tab", { name: "Design" }).click();
+    await page.locator("summary", { hasText: /Parts ·/ }).click();
+
+    const tubeRows = page.locator("tr").filter({ hasText: /Body tube/ });
+    await expect(tubeRows).toHaveCount(2);
+    const lengthsOf = async () =>
+      (await tubeRows.allTextContents()).map((t) => t.replace(/\s+/g, " ").match(/L ([\d,]+) mm/)?.[1] ?? "?");
+    const before = await lengthsOf();
+    expect(before[0]).not.toBe("?");
+    expect(before[0]).not.toBe(before[1]); // the two tubes really are different lengths
+
+    // The field starts on the design's primary (longest) tube.
+    const bodyField = page.locator("label").filter({ hasText: /Body length/ }).first().locator("input");
+    await expect(bodyField).toHaveAttribute("placeholder", before[0]);
+
+    // Aim the fields at the SECOND tube. The field now describes it...
+    await tubeRows.nth(1).click();
+    await expect(bodyField).toHaveAttribute("placeholder", before[1]);
+    // ...and the panel says which tube it is holding, by station, since both are called "body".
+    await expect(page.getByText(/Body length.*describes and changes the tube 800 mm from the nose/)).toBeVisible();
+
+    // Edit it. Only the picked tube moves.
+    await bodyField.fill("640");
+    await bodyField.blur();
+    await expect.poll(async () => (await lengthsOf())[1], { timeout: 15000 }).toBe("640");
+    expect((await lengthsOf())[0], "the tube that was not picked must not change").toBe(before[0]);
+  });
+
+  test("picking a canopy aims the recovery fields at it — the drogue, not always the main", async ({ page }) => {
+    // The recovery fields resolved "the" parachute as the LARGEST by canopy area, so on any
+    // dual-deploy design the drogue was unreachable: a flyer aiming to shrink the drogue resized the
+    // main instead. 17 of the 35 corpus designs carry more than one canopy — every dual-deploy design
+    // does, by definition — and the numbers it moves are landing speed and landing energy.
+    await page.goto("/");
+    await page.getByRole("button", { name: /54 mm dual-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+
+    // The under-drogue descent rate, which is the drogue's whole job.
+    const results = page.getByLabel("Results");
+    const drogueRate = async () => {
+      const t = await results
+        .getByText("Drogue descent", { exact: true })
+        .locator("xpath=following-sibling::div[1]")
+        .innerText();
+      return parseFloat(t.replace(/[^\d.]/g, ""));
+    };
+    const rate0 = await drogueRate();
+    expect(rate0).toBeGreaterThan(0);
+
+    await page.getByRole("tab", { name: "Design" }).click();
+    await page.locator("summary", { hasText: /Parts ·/ }).click();
+
+    // With nothing picked the field describes the MAIN — the largest canopy.
+    const canopy = page.locator("label").filter({ hasText: /Main chute Ø/ }).first().locator("input");
+    const mainPlaceholder = await canopy.getAttribute("placeholder");
+    expect(mainPlaceholder).toBeTruthy();
+
+    // Pick the drogue. The field now describes IT, and the panel says which canopy it is holding.
+    await page.locator("tr").filter({ hasText: /Drogue parachute/ }).first().click();
+    await expect.poll(async () => canopy.getAttribute("placeholder"), { timeout: 15000 }).not.toBe(mainPlaceholder);
+    const droguePlaceholder = await canopy.getAttribute("placeholder");
+    await expect(page.getByText(/describe and.*change Drogue parachute/)).toBeVisible();
+
+    // Resize it. A bigger drogue slows the descent under the drogue — the number the picked canopy
+    // owns. Aimed at the main instead, this figure would not move at all.
+    await canopy.fill(String(Math.round(parseFloat(droguePlaceholder!.replace(/[^\d.]/g, "")) * 2)));
+    await canopy.blur();
+    await page.getByRole("tab", { name: "Flight" }).click();
+    await expect.poll(drogueRate, { timeout: 20000 }).toBeLessThan(rate0);
+  });
+
+  test("a body-tube pick survives a re-fly and a reload", async ({ page }) => {
+    // The aim is part of the design's saved state, so a phone that reclaims the tab mid-trim comes
+    // back pointed at the same part. Without that, a reload silently re-aims the body fields at the
+    // longest tube while the number in the box is still the one typed for another.
+    await page.goto("/");
+    await page
+      .getByLabel(/^Choose an OpenRocket/)
+      .setInputFiles(resolve(process.cwd(), "e2e/fixtures/two-stage-firm-booster.ork"));
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    await page.getByRole("tab", { name: "Design" }).click();
+    await page.locator("summary", { hasText: /Parts ·/ }).click();
+
+    const tubeRows = page.locator("tr").filter({ hasText: /Body tube/ });
+    const lengthsOf = async () =>
+      (await tubeRows.allTextContents()).map((t) => t.replace(/\s+/g, " ").match(/L ([\d,]+) mm/)?.[1] ?? "?");
+    const before = await lengthsOf();
+
+    await tubeRows.nth(1).click();
+    const bodyField = page.locator("label").filter({ hasText: /Body length/ }).first().locator("input");
+    await bodyField.fill("640");
+    await bodyField.blur();
+    // The edit re-flies the design — that is the "survives a re-fly" half: the aim is still on tube 2
+    // afterwards, so the field goes on describing the tube it changed.
+    await expect.poll(async () => (await lengthsOf())[1], { timeout: 15000 }).toBe("640");
+    await expect(bodyField).toHaveValue("640");
+
+    // A restored session opens on the workspace it was left on, so wait on the resume notice rather
+    // than on a workspace heading, then make sure we are on Design.
+    await page.reload();
+    await expect(page.getByText(/Picked up where you left off/)).toBeVisible({ timeout: 30_000 });
+    await page.getByRole("tab", { name: "Design" }).click();
+    await page.locator("summary", { hasText: /Parts ·/ }).click();
+
+    const rows2 = page.locator("tr").filter({ hasText: /Body tube/ });
+    const lengths2 = (await rows2.allTextContents()).map(
+      (t) => t.replace(/\s+/g, " ").match(/L ([\d,]+) mm/)?.[1] ?? "?",
+    );
+    // The edited tube kept its edit and the other kept its own length...
+    expect(lengths2[1]).toBe("640");
+    expect(lengths2[0]).toBe(before[0]);
+    // ...and the aim came back with it, so the panel still names the tube the field is holding.
+    await expect(
+      page.getByText(/Body length.*describes and changes the tube 800 mm from the nose/),
+    ).toBeVisible();
+    // And the restored aim is IDENTIFIED, not just asserted: the row the fields are holding is picked
+    // out on the diagram and in the table. Without that the editor comes back claiming to be aimed at
+    // a part nothing on screen points to, while the drag handles do sit on it — two surfaces
+    // disagreeing about one pick.
+    await expect(rows2.nth(1)).toHaveAttribute("aria-selected", "true");
+    await expect(rows2.nth(0)).toHaveAttribute("aria-selected", "false");
+  });
+
   test("an active fin edit stays on its set when you click something else", async ({ page }) => {
     // The destructive version of this is silent: with the fin fields aimed at set 2 and a span set,
     // clicking a body tube to read it cleared the target, so the same 77 mm re-applied to set 1 —

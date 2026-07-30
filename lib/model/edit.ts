@@ -7,7 +7,7 @@
  *  nose cone or body tube automatically shifts everything downstream and recomputes mass, drag,
  *  centre of pressure, and motor position. Fin span moves the centre of pressure (stability). */
 
-import type { Rocket, RocketComponent, NoseCone, BodyTube, Transition, Parachute, Material, SurfaceFinish, NoseShape, FinCrossSection, MotorMount, MassComponent } from "./types";
+import type { Rocket, RocketComponent, ComponentKind, NoseCone, BodyTube, Transition, Parachute, Material, SurfaceFinish, NoseShape, FinCrossSection, MotorMount, MassComponent } from "./types";
 import { flattenRocket } from "./geometry";
 import type { Positioned } from "./geometry";
 
@@ -86,6 +86,28 @@ export interface GeometryEdits {
    *  — every set indistinguishable from it — so a ring the file stores as three parts resizes
    *  together, exactly as before. */
   finSetId?: string;
+  /** Which body tube the body fields describe and edit. Undefined means the design's primary tube —
+   *  the longest — which is what the panel has always used and what every readback below still falls
+   *  back to. Like `finSetId` this is a SELECTION, not an edit: on its own it changes no geometry, so
+   *  `hasGeometryEdits` ignores it and a design with only a selection set is flown untouched.
+   *
+   *  It matters because 23 of the 35 corpus designs carry more than one body tube AS LOFT IMPORTS THEM
+   *  — `Two stage high power rocket.ork` eight, `03.Three-stage.ork` nine — and until now every one of
+   *  them but the longest was unreachable: `Body length` silently resized whichever tube happened to be
+   *  longest, however far from the part the flyer had picked. (Counting raw `<bodytube>` tags instead
+   *  gives 20 of the 27 `.ork`, which overstates the reach: three of those designs keep tubes inside pod
+   *  or parallel-stage assemblies the importer declines to fly, and a part that is not imported is not a
+   *  part a flyer can pick.) */
+  bodyTubeId?: string;
+  /** Which recovery canopy the recovery fields describe and edit. Undefined means the design's main
+   *  parachute — the largest by canopy area — which is what the panel has always used and what every
+   *  readback below still falls back to. A SELECTION, not an edit, exactly like the two above.
+   *
+   *  It matters more than either: 17 of the 35 corpus designs carry more than one parachute — every
+   *  dual-deploy design does, by definition — and the drogue was unreachable on all of them. A flyer
+   *  who picked the drogue and resized it resized the MAIN instead, which moves landing speed and
+   *  landing energy, the two numbers recovery sizing exists to get right. */
+  parachuteId?: string;
   /** Absolute fin semi-span (root→tip height, m) for the fin group the panel describes — the
    *  primary set and any set indistinguishable from it. Undefined leaves fins as-is. */
   finSpan?: number;
@@ -123,12 +145,16 @@ export interface GeometryEdits {
   /** Nose-cone contour for the design's nose (drives nose pressure and wave drag). Chosen from the
    *  picker as a canonical instance of the shape. Undefined leaves it. */
   noseShape?: NoseShape;
-  /** Absolute length (m) for the design's primary (longest) body tube. Undefined leaves it. */
+  /** Absolute length (m) for the body tube `bodyTubeId` names — the longest when nothing is picked.
+   *  Only that one tube resizes; everything aft of it restacks. Undefined leaves it. */
   bodyLength?: number;
-  /** Target outer diameter (m) of the design's primary body tube. The whole outer airframe (nose
+  /** Target outer diameter (m) of the body tube `bodyTubeId` names. The whole outer airframe (nose
    *  base, every body tube, transitions and their shoulders) scales by the same factor to hit it,
    *  keeping the mould line faired — the "same design in a wider/narrower tube" what-if. Fins, the
-   *  nose profile, the motor, and internal fittings keep their size. Undefined leaves it. */
+   *  nose profile, the motor, and internal fittings keep their size. Unlike `bodyLength` this stays
+   *  group-wide on purpose: a design whose tubes step down through a transition would come apart if
+   *  one of them were widened alone, so the picked tube sets the TARGET and the airframe follows it.
+   *  Undefined leaves it. */
   bodyDiameter?: number;
   /** Surface finish applied to the whole airframe (drives skin-friction drag). Undefined leaves
    *  each component's own finish. */
@@ -177,6 +203,7 @@ export interface GeometryEdits {
   payloadStation?: number;
 }
 
+
 /** True when at least one edit actually changes something. */
 export function hasGeometryEdits(e: GeometryEdits): boolean {
   return (
@@ -217,19 +244,35 @@ export function primaryNoseShape(rocket: Rocket): NoseShape | undefined {
   return primaryNose(rocket)?.shape;
 }
 
-/** The design's primary body tube — the longest, i.e. the main airframe. */
-export function primaryBodyTube(rocket: Rocket): BodyTube | undefined {
+/** The body tube the panel is about: the one picked, or the design's primary tube — the longest, i.e.
+ *  the main airframe — when nothing is.
+ *
+ *  Every body readback and the body edit path resolve through this one function, so the value shown to
+ *  edit FROM and the tube the edit is written TO can never name different components. A selection
+ *  naming a tube this design doesn't have falls back to the longest rather than resolving to nothing —
+ *  a stale id from a restored session must not silently disable the body fields. */
+export function primaryBodyTube(rocket: Rocket, selectedId?: string): BodyTube | undefined {
   const tubes = flattenRocket(rocket)
     .map((p) => p.component)
     .filter((c): c is BodyTube => c.kind === "bodytube");
-  return tubes.length ? tubes.reduce((a, b) => (b.length > a.length ? b : a)) : undefined;
+  if (!tubes.length) return undefined;
+  const picked = selectedId ? tubes.find((c) => c.id === selectedId) : undefined;
+  return picked ?? tubes.reduce((a, b) => (b.length > a.length ? b : a));
 }
 
-/** The design's primary body-tube outer diameter (m) — the caliber a flyer reads the rocket by, and
- *  the value the diameter what-if scales from. Undefined for a tubeless design. */
-export function primaryBodyDiameter(rocket: Rocket): number | undefined {
-  const tube = primaryBodyTube(rocket);
+/** The picked body tube's outer diameter (m) — the caliber a flyer reads the rocket by, and the value
+ *  the diameter what-if scales from. Undefined for a tubeless design. */
+export function primaryBodyDiameter(rocket: Rocket, selectedId?: string): number | undefined {
+  const tube = primaryBodyTube(rocket, selectedId);
   return tube ? tube.outerRadius * 2 : undefined;
+}
+
+/** How many body tubes sit OUTSIDE the one the body fields describe — the tubes a flyer can see on
+ *  the diagram but cannot reach from this panel without picking one. 0 means the fields speak for the
+ *  whole airframe. */
+export function unreachableBodyTubeCount(rocket: Rocket): number {
+  const tubes = flattenRocket(rocket).filter((p) => p.component.kind === "bodytube");
+  return Math.max(0, tubes.length - 1);
 }
 
 /** The design's primary (frontmost) fin set, if any. */
@@ -250,6 +293,82 @@ const FIN_SET_KINDS = ["trapezoidfinset", "ellipticalfinset", "freeformfinset"] 
 
 function isFinSet(c: RocketComponent) {
   return (FIN_SET_KINDS as readonly string[]).includes(c.kind);
+}
+
+/** The editor's aim registry: for each selection field, which component kinds a pick on them aims it
+ *  at, and which value fields' target it decides.
+ *
+ *  ONE table, because four separate lists were already drifting apart. "Which fields does a pick
+ *  re-aim", "which keys are inert", "which selection matters to the design key", and "which panel
+ *  names the part it holds" used to be spelled out independently, and every new selection field had to
+ *  be added to all four. Missing one fails silently and differently each time: an inert key counted as
+ *  a what-if withholds the stored-tool comparison and hides the button that restores it, while a
+ *  missing design-key entry leaves a Monte-Carlo presenting one part's numbers after the flyer has
+ *  aimed the edit at another. */
+export interface AimSlot {
+  /** Component kinds a pick on which aims this slot. */
+  kinds: readonly ComponentKind[];
+  /** The value fields whose target this slot decides. Empty would make the slot pointless. */
+  targets: readonly string[];
+}
+export const AIM_SLOTS: Readonly<Record<string, AimSlot>> = {
+  finSetId: {
+    kinds: FIN_SET_KINDS,
+    targets: [
+      "finSpan",
+      "finCount",
+      "finRootChord",
+      "finTipChord",
+      "finSweepLength",
+      "finStation",
+      "finThickness",
+      "finCrossSection",
+      "finMaterial",
+    ],
+  },
+  bodyTubeId: { kinds: ["bodytube"], targets: ["bodyLength", "bodyDiameter"] },
+  parachuteId: {
+    kinds: ["parachute"],
+    targets: ["mainParachuteDiameter", "mainDeployAltitude", "drogueDiameter"],
+  },
+};
+
+/** Edit-bag keys that say which component the fields are POINTED AT, or where a part that is not there
+ *  yet would go — never that anything changed. Counting one as an edit would withhold the stored-tool
+ *  comparison, and hide the button that brings it back, the moment a flyer clicked a part to look at it.
+ *
+ *  Derived from the registry, plus `payloadStation`, which is inert for a different reason: it places a
+ *  payload that does not exist without `payloadMassKg`, so on its own it produces a flight
+ *  byte-identical to the design's. Exported because three places have to answer "is this design
+ *  edited?" the same way — the app's `hasActiveEdits`, the saved session's what-if count, and this
+ *  module — and three spellings of it drift. One of them decides what a flyer is told is being flown. */
+export const INERT_EDIT_FIELDS: ReadonlySet<string> = new Set([
+  ...Object.keys(AIM_SLOTS),
+  "payloadStation",
+]);
+
+/** Just the aims out of an edit bag, keyed by slot — what a view needs to show which part each group of
+ *  fields is holding, with none of the values. Projected through the registry rather than handed the
+ *  whole bag: passing every field would let a value edit masquerade as an aim, and "the aim moved" would
+ *  then fire on a typed span with a number where a component id belongs. */
+export function aimsOf(e: GeometryEdits): Readonly<Record<string, string | undefined>> {
+  const out: Record<string, string | undefined> = {};
+  for (const slot of Object.keys(AIM_SLOTS)) out[slot] = (e as Record<string, unknown>)[slot] as string | undefined;
+  return out;
+}
+
+/** Which edit target a pick on `id` moves. Picking a part aims the fields that describe THAT KIND of
+ *  part at it and leaves every other aim alone: a flyer who has set fin set 2's span and then clicks a
+ *  body tube to read it must not have that span silently re-applied to fin set 1. A part no field
+ *  describes — a coupler, a centring ring, a launch lug — returns an empty patch, so merely reading it
+ *  moves no aim at all. */
+export function aimEditsAt(rocket: Rocket, id: string): GeometryEdits {
+  const c = flattenRocket(rocket).find((p) => p.component.id === id)?.component;
+  if (!c) return {};
+  for (const [slot, def] of Object.entries(AIM_SLOTS)) {
+    if ((def.kinds as readonly string[]).includes(c.kind)) return { [slot]: id };
+  }
+  return {};
 }
 
 /** Identity of a fin set as a flyer would see it: where it sits and what it looks like. Two sets
@@ -301,22 +420,53 @@ export function unreachableFinSetCount(rocket: Rocket, selectedId?: string): num
   return fins.length - primaryFinGroupIds(rocket, selectedId).size;
 }
 
-/** The primary fin set's own name, so a design with sets the panel cannot reach can say which one
- *  its fields describe rather than labelling them all "Fins". Falls back to a positional name,
- *  since real files name every set alike ("Fin set", "Trapezoidal fin set"). */
-export function primaryFinSetName(rocket: Rocket, selectedId?: string): string | undefined {
+/** How a panel should name the part its fields are aimed at, so a design with parts the panel cannot
+ *  reach can say WHICH one it is holding rather than labelling them all "Fins" or "Body".
+ *
+ *  `name` is the design's own, and only when that name tells this part apart from the others it has to
+ *  be distinguished from — real files name every part alike ("Fin set", "Body tube"), and a shared name
+ *  distinguishes nothing. Otherwise the caller names the part by `station`, where its fore edge sits on
+ *  the airframe. That replaces a positional name ("fin set 2"), which was wrong twice over: it counted
+ *  in `flattenRocket` order while the parts table beside it can be re-sorted by name, type, station or
+ *  mass, so "fin set 2" was not the second fin row on screen; and it named one component while the fin
+ *  fields edit its whole appearance-group, so on a design with two identical pairs it named one set and
+ *  changed two. A station is stable under every sort, is what a flyer reads off the diagram, and
+ *  `covers` states the group size outright instead of implying 1. */
+export interface AimedPart {
+  /** The design's own name for the part, when it distinguishes it. Undefined ⇒ name it by `station`. */
+  name?: string;
+  /** Station of the part's fore edge (m from the nose tip). */
+  station: number;
+  /** How many components the fields actually change — more than 1 where the aim resolves to a group
+   *  of indistinguishable parts that must move together. */
+  covers: number;
+}
+
+/** Build the label for one resolved part. `peers` are the parts it must be told apart from. */
+function aimedPart(seed: Positioned, peers: Positioned[], covers: number): AimedPart {
+  const own = seed.component.name?.trim();
+  const shared = !!own && peers.filter((p) => p.component.name?.trim() === own).length > 1;
+  return { name: own && !shared ? own : undefined, station: seed.xFore, covers };
+}
+
+/** Which fin set the fin fields are holding, and how many sets they change. Undefined for a finless
+ *  design. */
+export function primaryFinSetPart(rocket: Rocket, selectedId?: string): AimedPart | undefined {
   const fins = flattenRocket(rocket).filter((p) => isFinSet(p.component));
   if (!fins.length) return undefined;
-  const found = selectedId ? fins.findIndex((p) => p.component.id === selectedId) : 0;
-  const at = found >= 0 ? found : 0;
-  const own = fins[at].component.name?.trim();
-  // A name shared with the sets it must be told apart from distinguishes nothing — and real files
-  // name every set alike ("Fin set", "Trapezoidal fin set").
-  const shared = !!own && fins.filter((p) => p.component.name?.trim() === own).length > 1;
-  if (own && !shared) return own;
-  // So fall back to where the set sits. "The frontmost set" is only honest for the default: once a
-  // flyer has picked the third set, calling it the frontmost names the wrong fins.
-  return at === 0 ? "the frontmost set" : `fin set ${at + 1}`;
+  const group = primaryFinGroupIds(rocket, selectedId);
+  const seed = (selectedId ? fins.find((p) => p.component.id === selectedId) : undefined) ?? fins[0];
+  return aimedPart(seed, fins, Math.max(1, group.size));
+}
+
+/** Which body tube the body fields are holding. Always one tube — `bodyLength` resizes exactly the
+ *  picked part — so `covers` is 1. Undefined for a tubeless design. */
+export function primaryBodyTubePart(rocket: Rocket, selectedId?: string): AimedPart | undefined {
+  const tubes = flattenRocket(rocket).filter((p) => p.component.kind === "bodytube");
+  if (!tubes.length) return undefined;
+  const tube = primaryBodyTube(rocket, selectedId);
+  const seed = tubes.find((p) => p.component.id === tube?.id) ?? tubes[0];
+  return aimedPart(seed, tubes, 1);
 }
 
 /** The design's primary fin set's semi-span (m), for showing the flyer the current value to edit
@@ -542,7 +692,9 @@ function withAirframeMaterial(c: RocketComponent, material: Material): RocketCom
 }
 
 /** The airframe's representative shell material name — the primary body tube's, for the picker's
- *  "as designed" label. Undefined when the primary tube carries no named material. */
+ *  "as designed" label. Undefined when the primary tube carries no named material. Takes no selection:
+ *  the material edit is whole-airframe by design, so a label naming one picked tube's stock would
+ *  describe less than the control changes. */
 export function primaryAirframeMaterial(rocket: Rocket): string | undefined {
   return primaryBodyTube(rocket)?.material?.name;
 }
@@ -598,13 +750,45 @@ export function primaryFinish(rocket: Rocket): SurfaceFinish {
   return "unfinished";
 }
 
-/** Append a conical boattail after the design's primary body tube. Sized from the *edited* tube, so
+/** The airframe's aft-most top-level body tube — the one a tail cone belongs behind.
+ *
+ *  Deliberately neither the longest tube nor the picked one. Not the picked one because a boattail
+ *  CONTRACTS the base, so putting one behind whatever tube a flyer happened to be reading inserts a
+ *  step part-way up the airframe, which then re-expands through the parts aft of it — geometry the
+ *  solver dutifully flies. Not the longest either, which is what this used to resolve: once `bodyLength`
+ *  became aimed at a picked tube, lengthening a forward tube past the longest moved the tail cone with
+ *  it. Measured on `01.One-stage.ork` (a 254 mm payload tube ahead of a 610 mm body tube): picking the
+ *  forward tube and taking it to 700 mm put the boattail at station 889 mm, contracting 54 mm to 40 mm
+ *  and re-expanding through the transition behind it, instead of at 1,121 mm on the tail.
+ *
+ *  Top-level only, because that is the list the insert can splice into; a nested tube has no
+ *  unambiguous aft slot and the caller skips the boattail rather than placing it wrongly. */
+export function aftmostBodyTube(rocket: Rocket): BodyTube | undefined {
+  const topLevel = new Set(rocket.stages.flatMap((s) => s.components.map((c) => c.id)));
+  const tubes = flattenRocket(rocket).filter(
+    (p) => p.component.kind === "bodytube" && topLevel.has(p.component.id),
+  );
+  if (!tubes.length) return undefined;
+  return tubes.reduce((a, b) => (b.xFore + b.length > a.xFore + a.length ? b : a)).component as BodyTube;
+}
+
+/** The caliber a boattail would fair to — the aft-most top-level tube's outer diameter (m). The field
+ *  that bounds the cone's exit has to quote THIS, not the picked tube's: the exit is validated against
+ *  the tube the cone attaches to, and a placeholder naming a different component promises a bound the
+ *  validator does not use, so a value inside the advertised range is silently ignored. Undefined for a
+ *  design with no top-level body tube, which is also the case where no boattail can be added. */
+export function aftmostBodyDiameter(rocket: Rocket): number | undefined {
+  const tube = aftmostBodyTube(rocket);
+  return tube ? tube.outerRadius * 2 : undefined;
+}
+
+/** Append a conical boattail after the airframe's aft-most body tube. Sized from the *edited* tube, so
  *  it fairs to whatever diameter the other what-ifs left (e.g. after a caliber change), and its exit
  *  is clamped just inside the body so it can only contract, never flare. Skips silently when there's
  *  no top-level body tube to attach to, or the requested exit isn't a valid contraction — the caller
  *  keeps the un-boattailed design rather than a malformed one. */
 function addBoattail(rocket: Rocket, length: number, aftRadius: number): Rocket {
-  const tube = primaryBodyTube(rocket);
+  const tube = aftmostBodyTube(rocket);
   if (!tube || !(length > 0) || !(aftRadius > 0) || !(aftRadius < tube.outerRadius)) return rocket;
   const boattail: Transition = {
     id: `${tube.id}-boattail`,
@@ -635,8 +819,8 @@ function addBoattail(rocket: Rocket, length: number, aftRadius: number): Rocket 
 
 /** A sensible default station (m from the nose tip) for an added payload: the mid-point of the main
  *  body tube, a typical avionics-bay location. Undefined for a design with no body tube. */
-export function defaultPayloadStation(rocket: Rocket): number | undefined {
-  const tube = primaryBodyTube(rocket);
+export function defaultPayloadStation(rocket: Rocket, selectedId?: string): number | undefined {
+  const tube = primaryBodyTube(rocket, selectedId);
   if (!tube) return undefined;
   const placed = flattenRocket(rocket).find((p) => p.component.id === tube.id);
   return placed ? placed.xFore + placed.length / 2 : undefined;
@@ -647,8 +831,18 @@ export function defaultPayloadStation(rocket: Rocket): number | undefined {
  *  clamped to stay within the tube — so it adds to the loaded mass and shifts the CG toward its
  *  station without disturbing the external airframe. Exports as an `.ork` mass object. Skips silently
  *  when there's no body tube to hold it or the mass isn't positive, so the caller keeps the design. */
-function addPayloadMass(rocket: Rocket, massKg: number, station: number | undefined): Rocket {
-  const tube = primaryBodyTube(rocket);
+function addPayloadMass(
+  rocket: Rocket,
+  massKg: number,
+  station: number | undefined,
+  selectedId?: string,
+): Rocket {
+  // The picked tube, so a blank station puts the bay in the tube the flyer is holding and the field's
+  // placeholder can say where that is. Resolved by role instead, the bay jumped tube the moment a
+  // length edit made a different one the longest: on `01.One-stage.ork`, picking the forward tube and
+  // taking it to 700 mm moved the payload from station 816 mm to 539 mm while the field went on
+  // advertising 816.
+  const tube = primaryBodyTube(rocket, selectedId);
   if (!tube || !(massKg > 0)) return rocket;
   const placed = flattenRocket(rocket).find((p) => p.component.id === tube.id);
   if (!placed) return rocket;
@@ -672,25 +866,56 @@ function addPayloadMass(rocket: Rocket, massKg: number, station: number | undefi
   return { ...rocket, stages: rocket.stages.map((s) => ({ ...s, components: attach(s.components) })) };
 }
 
-/** The design's main parachute — the largest by canopy area, the one that sets the landing speed.
- *  Undefined for a design with no parachute (a streamer- or tumble-recovery design). */
-export function primaryParachute(rocket: Rocket): Parachute | undefined {
+/** The canopy the recovery fields are about: the one picked, or the design's main parachute — the
+ *  largest by canopy area, the one that sets the landing speed — when nothing is.
+ *
+ *  Every recovery readback and every recovery edit resolve through this one function, so the value a
+ *  field shows to edit FROM cannot name a different canopy from the one the edit is written TO. A
+ *  selection naming a parachute this design doesn't have falls back to the largest rather than
+ *  resolving to nothing. Undefined for a design with no parachute (a streamer- or tumble-recovery
+ *  design). */
+export function primaryParachute(rocket: Rocket, selectedId?: string): Parachute | undefined {
   const chutes = flattenRocket(rocket)
     .map((p) => p.component)
     .filter((c): c is Parachute => c.kind === "parachute");
   if (!chutes.length) return undefined;
+  const picked = selectedId ? chutes.find((c) => c.id === selectedId) : undefined;
+  if (picked) return picked;
   const areaOf = (c: Parachute) => c.area ?? (Math.PI / 4) * c.diameter * c.diameter;
   return chutes.reduce((best, c) => (areaOf(c) > areaOf(best) ? c : best), chutes[0]);
 }
 
-/** Convert a design to dual-deploy: the main (largest) parachute deploys at `mainAltitude` (AGL, m)
- *  instead of at apogee, and a drogue of `drogueDiameter` (m) is added at apogee to control the
- *  descent down to it. This is the standard high-power recovery — a fast, low-drift fall under the
+/** How many canopies sit OUTSIDE the one the recovery fields describe — the ones a flyer can see in the
+ *  parts list but cannot reach from this panel without picking one. 0 means the fields speak for the
+ *  design's whole recovery. */
+export function unreachableParachuteCount(rocket: Rocket): number {
+  const chutes = flattenRocket(rocket).filter((p) => p.component.kind === "parachute");
+  return Math.max(0, chutes.length - 1);
+}
+
+/** Which canopy the recovery fields are holding. Always one, so `covers` is 1. Undefined for a design
+ *  with no parachute. */
+export function primaryParachutePart(rocket: Rocket, selectedId?: string): AimedPart | undefined {
+  const chutes = flattenRocket(rocket).filter((p) => p.component.kind === "parachute");
+  if (!chutes.length) return undefined;
+  const chute = primaryParachute(rocket, selectedId);
+  const seed = chutes.find((p) => p.component.id === chute?.id) ?? chutes[0];
+  return aimedPart(seed, chutes, 1);
+}
+
+/** Convert a design to dual-deploy: the canopy `parachuteId` names — the largest when nothing is
+ *  picked — deploys at `mainAltitude` (AGL, m) instead of at apogee, and a drogue of `drogueDiameter`
+ *  (m) is added at apogee to control the descent down to it. This is the standard high-power recovery — a fast, low-drift fall under the
  *  drogue, then a soft landing under the main — and it feeds the existing dual-deploy safety
  *  readouts (the main's under-drogue opening speed, the reduced drift). Skips silently when there's
  *  no parachute to promote or the inputs aren't a valid pair, so the caller keeps the design as-is. */
-function applyDualDeploy(rocket: Rocket, mainAltitude: number, drogueDiameter: number): Rocket {
-  const main = primaryParachute(rocket);
+function applyDualDeploy(
+  rocket: Rocket,
+  mainAltitude: number,
+  drogueDiameter: number,
+  selectedId?: string,
+): Rocket {
+  const main = primaryParachute(rocket, selectedId);
   if (!main || !(mainAltitude > 0) || !(drogueDiameter > 0)) return rocket;
   // Canopy mass scales with area (≈ diameter²), so a smaller drogue is proportionally lighter.
   const drogueMass = main.mass * Math.min(1, (drogueDiameter / main.diameter) ** 2);
@@ -728,14 +953,15 @@ function applyDualDeploy(rocket: Rocket, mainAltitude: number, drogueDiameter: n
   return { ...rocket, stages: rocket.stages.map((s) => ({ ...s, components: transform(s.components) })) };
 }
 
-/** Resize the design's main (largest) parachute to a target canopy `diameter` (m), scaling the
- *  canopy mass with its area (∝ diameter²) so a bigger chute is proportionally heavier. The mass
+/** Resize the canopy `parachuteId` names — the largest when nothing is picked — to a target
+ *  `diameter` (m), scaling its mass with its area (∝ diameter²) so a bigger chute is proportionally
+ *  heavier. The mass
  *  basis is the parachute's own effective diameter (from an explicit `area` if it carries one, else
  *  its `diameter`), so a RockSim chute stored as an area resizes correctly too. Any explicit `area`
  *  is cleared so the new diameter drives the descent. Skips silently when there's no parachute or
  *  the diameter isn't positive, leaving the design as-is. */
-function withMainParachuteDiameter(rocket: Rocket, diameter: number): Rocket {
-  const main = primaryParachute(rocket);
+function withMainParachuteDiameter(rocket: Rocket, diameter: number, selectedId?: string): Rocket {
+  const main = primaryParachute(rocket, selectedId);
   if (!main || !(diameter > 0)) return rocket;
   const oldD = main.area ? Math.sqrt((4 * main.area) / Math.PI) : main.diameter;
   if (!(oldD > 0)) return rocket;
@@ -762,7 +988,7 @@ export function applyGeometryEdits(rocket: Rocket, edits: GeometryEdits): Rocket
     if (nose) lengths.set(nose.id, edits.noseLength);
   }
   if (edits.bodyLength !== undefined && edits.bodyLength > 0) {
-    const tube = primaryBodyTube(rocket);
+    const tube = primaryBodyTube(rocket, edits.bodyTubeId);
     if (tube) lengths.set(tube.id, edits.bodyLength);
   }
   const finish = edits.finish;
@@ -772,9 +998,12 @@ export function applyGeometryEdits(rocket: Rocket, edits: GeometryEdits): Rocket
     : undefined;
   // Diameter what-if: the factor that takes the pristine primary tube to the target diameter, then
   // applied to the whole outer airframe so it stays faired. 1 (no scaling) when unset or degenerate.
+  // The factor comes from the PICKED tube, like the field's own readback: seeding it from the longest
+  // tube while the field displayed the picked one turned "make this 54 mm" into a scale computed off
+  // another part's caliber, so the tube the flyer was looking at landed anywhere but 54 mm.
   let radiusScale = 1;
   if (edits.bodyDiameter !== undefined && edits.bodyDiameter > 0) {
-    const tube = primaryBodyTube(rocket);
+    const tube = primaryBodyTube(rocket, edits.bodyTubeId);
     if (tube && tube.outerRadius > 0) radiusScale = edits.bodyDiameter / 2 / tube.outerRadius;
   }
   // Fin-position what-if: how far to shift the fin group so the SELECTED set's fore edge lands on
@@ -809,19 +1038,21 @@ export function applyGeometryEdits(rocket: Rocket, edits: GeometryEdits): Rocket
   if (edits.boattailLength !== undefined && edits.boattailAftDiameter !== undefined) {
     out = addBoattail(out, edits.boattailLength, edits.boattailAftDiameter / 2);
   }
-  // Recovery resize: set the main (largest) parachute to a target diameter. Applied before any
-  // dual-deploy promotion, so a resized main is the canopy promoted to the altitude deployment.
+  // Recovery resize: set the picked canopy (the largest when none is) to a target diameter. Applied
+  // before any dual-deploy promotion, so a resized canopy is the one promoted to the altitude
+  // deployment. Both resolve the same aim, so with one set the promotion cannot drift onto another
+  // canopy just because the resize made a different one the largest.
   if (edits.mainParachuteDiameter !== undefined && edits.mainParachuteDiameter > 0) {
-    out = withMainParachuteDiameter(out, edits.mainParachuteDiameter);
+    out = withMainParachuteDiameter(out, edits.mainParachuteDiameter, edits.parachuteId);
   }
   // Recovery add: convert to dual-deploy (main at altitude + a drogue at apogee).
   if (edits.mainDeployAltitude !== undefined && edits.drogueDiameter !== undefined) {
-    out = applyDualDeploy(out, edits.mainDeployAltitude, edits.drogueDiameter);
+    out = applyDualDeploy(out, edits.mainDeployAltitude, edits.drogueDiameter, edits.parachuteId);
   }
   // Payload add: a point mass inside the (already-edited) body tube, so its station tracks whatever
   // the length/diameter edits left.
   if (edits.payloadMassKg !== undefined && edits.payloadMassKg > 0) {
-    out = addPayloadMass(out, edits.payloadMassKg, edits.payloadStation);
+    out = addPayloadMass(out, edits.payloadMassKg, edits.payloadStation, edits.bodyTubeId);
   }
   return out;
 }

@@ -166,6 +166,13 @@ the baseline: **exactly 1 warning, the deliberate `setDraft` one in `LoftApp.tsx
 **A standalone Playwright probe must live in the repo ROOT** to resolve `playwright` from
 `node_modules`. One written to the scratchpad fails with `ERR_MODULE_NOT_FOUND`.
 
+**To drive the real model from a throwaway script, use `npx vite-node <name>-tmp.mjs` from the repo root.**
+It resolves the `.ts` sources directly, so a probe can `import { importOrk } from "./lib/ork/import.ts"`
+and walk `flattenRocket` without a build. Two gotchas: `importOrk` wants the ZIP bytes, not the XML
+(`exportOrk` returns a `Uint8Array` you can pass straight back in), and the silhouette's export is
+`rocketOutline`, not `buildSilhouette`. `*-tmp.mjs` in the ROOT is covered by the ignore glob and is safe
+from both vitest and the build — never put one under `lib/`.
+
 **A probe that finds nothing may be broken. Print a denominator and a control that must be
 non-zero.** Every probe this session opened with a control line naming the design's own value and a
 non-zero change from a known-good entry, before measuring the case under test.
@@ -175,160 +182,105 @@ produced it more than once, including a false sentence in a doc comment written 
 
 ## Shipped this session
 
-Baseline before anything changed, all four green: lint 0 errors / **1 warning**, **695 unit**, build,
-**128 e2e**, corpus **35 design files, 3/3**. At the time of writing: **714 unit, 146 e2e**, corpus 35
-throughout.
+**The run's goal was `ROADMAP.md`'s next milestone, and it shipped: R1 — address components by identity,
+not by role.** It is marked SHIPPED there with the checks that pin it named, and the gap it left is
+written up as R2's starting point rather than as a reason to re-open it.
 
-**Two pull requests merged and confirmed serving; a third open on green CI.** Production was verified
-by fetching the content-hashed chunks from `loft.fusionspace.co` and grepping them for strings the
-change introduced — `holds its launch setup and no results`, `RocketPy cross-check under Analyze`,
-`isn't a value this can fly` and the new `more than ` bound wording are all live.
+Baseline before anything changed, all four green: lint 0 errors / **1 warning** (the standing `setDraft`
+one), **715 unit**, build, **147 e2e**, corpus **35 design files, 3/3**. One e2e failed in the opening
+full run — `picking a fin set aims the fin fields at it` — with `Target page, context or browser has been
+closed` and no failed assertion, exactly the box-not-code signature this file already describes; it passed
+alone on the re-run. At the end: **748 unit, 150 e2e**, corpus 35 throughout.
 
-**PR #59, squash `37cbd8f`.** Three defects a flyer meets on the way in.
+**Four commits on the working branch.** Each was gated in full and pushed on its own.
 
 | | |
 |---|---|
-| rail | A rail length of 0 was flown. `onRail` is `along < rodLength`, so a 0 m rail is left at t=0 before the motor builds thrust, and the Flight card printed **Rail-exit velocity 0 m/s** with no warning — the number an RSO reads to decide the rocket leaves the rail flying. 2.0 m → 28 m/s, 3 m → 35 m/s, 0 → 0 m/s. |
-| zero | `fromSpan`/`fromMass` mapped every entered 0 to `undefined`, the spelling of "no edit". `lib/model/edit.ts` had already written down which fields take one — every geometry edit is `> 0` except `finSweepLength`, which is `>= 0` — so the one shape the model was written to accept was the one the editor could not build. `Num` gains `positive`; call sites split three ways with the model as the authority. |
-| absence | 27 of 27 real corpus `.ork` carry stored results; **0 of the 3 shipped samples do**, so the cross-check the import screen promises is missing on every default first run and present on every real file. `noStoredResultsReason` says what the file carries and names the RocketPy cross-check. No stored figures were invented. |
+| body tubes | `Body length`/`Body diameter` resolved "the" tube as the LONGEST, so every other tube was unreachable — **23 of the 35 corpus designs** carry more than one as Loft imports them. `bodyTubeId` now aims them, and the panel names the tube by the design's own name or, where a file calls every tube "body", by its station. |
+| canopies | The recovery fields resolved "the" parachute as the LARGEST, so the drogue was unreachable on every dual-deploy design — **17 of 35**. `parachuteId` aims them. On the bundled 54 mm sample, doubling the drogue moves the under-drogue descent off 16 m/s; aimed at the main it does not move at all. |
+| one registry | `AIM_SLOTS` maps each aim to the component kinds that move it and the value fields whose target it decides. `aimEditsAt`, `INERT_EDIT_FIELDS` and the design key are all derived from it, replacing three hand-maintained lists that the third role would have had to be added to correctly. |
+| the review's Sev-1s | Three defects the pre-push review found in the first two commits, all reproduced before being fixed. See below — the first one is the one worth reading. |
 
-**PR #60, squash `96145b0`.** Two defects in one sentinel, the second exposed by fixing the first.
-A motor whose trigger can never arrive carries `ignitionTime = Infinity`; `burnoutTime` folded it into
-a maximum, so the FLIGHT's burnout became `Infinity` — burnout velocity 0, optimum delay floored to
-0 s, burnout mass read past every detach time. Reading it at a finite time then exposed a stage whose
-airframe was shed while its motor's point mass rode the sustainer down. On `03.Three-stage.ork`:
-burnout mass 1.973 → 3.254 → **2.403 kg**, landing energy 40 → 65 → **37 J**, apogee 1,452 →
-**1,482 m**. Corpus medians improved (deployment velocity 6.5 → **5.9%**, n=76; max acceleration
-3.3 → **3.2%**, n=94) and `/docs/validation` plus the suite's `PUBLISHED_MEDIAN_PCT` were updated to
-match.
+**The pre-push review found a Sev-1 that the comment in the same diff denied.** `addBoattail` and
+`addPayloadMass` anchored on the LONGEST body tube, which stood in for "the aft of the airframe" only
+while nothing could change which tube was longest — and aiming `bodyLength` broke exactly that. Measured
+on `01.One-stage.ork` (a 254 mm payload tube ahead of a 610 mm body tube): pick the forward tube, take it
+to 700 mm, add a tail cone, and it lands at station **889 mm**, contracting 54 mm to 40 mm and
+re-expanding through the transition behind it, instead of at 1,121 mm on the tail. The solver flies that.
+The payload bay jumped tube in the same edit, 816 → 539 mm, while its own station field went on
+advertising 816. A boattail anchors to `aftmostBodyTube` (by station, not length) now; the payload follows
+the pick, and `defaultPayloadStation` takes the same pick so a blank and what a blank does agree.
 
-**PR #61, open.** The summary strip's Length and the Mass & balance panel both read the design off the
-FILE while everything beside them came from the edited run: doubling a 700 mm body left Length at
-950 mm beside a CP of 1,422 mm, and the two Design-tab panels disagreed about dry mass (0.6 vs
-0.893 kg) while one caption points at the other by name.
+Two more from the same review: the pick-sync ref was seeded with the aims present at mount, so a restored
+session came back holding a part nothing on screen identified (a regression against the behaviour before
+any of this); and "Reset to as-designed" moves every aim in one commit while only the first moved slot was
+examined, leaving a highlight with no aim behind it and a row that took two clicks to aim at again.
 
-It also carries what the Analyze panels SAY about the conditions they flew. A single
-`conditionsEdited` boolean was wrong in both directions: the two ballistic sweeps credited the flyer
-for a surface-wind edit that moved not one row — the motor sweep claimed "the launch conditions you
-set" two sentences before its own caption says "Surface wind is not read at all" — and a fetched
-forecast counted as the flyer's own setup even though `onWeather` clears the edits it overrides and
-greys the fields. A design that states no launch setup was captioned as having stored one, on a page
-already saying in amber that those are Loft's defaults. Now a `ConditionsSource` record and
-`conditionsPhrase(src, { wind })`, so each panel is asked only about what it reads; five phrasings
-confirmed in the rendered DOM. Plus four missing word gaps found by scanning the built chunks
-("25flights across the range", "the OpenRocketcomparison is hidden", "Delayis the ejection delay",
-"the stored OpenRocketresults describe") — see the JSX whitespace note below.
-
-Then three smaller ones. The hit-target suite measured HEIGHT only, so three sort headers sat at
-37x44, 42x44 and 34x44 while every workspace reported clean; the scan asserts both dimensions now and
-the three take `TOUCH_TARGET_SQUARE`. The scenario TOGGLE kept a wind edit the flight discards, though
-`onWeather` drops it by the same door and says why — fetch a forecast, switch to As designed, type
-12 m/s, switch back, and the box read 12.0 greyed while the flight drifted 794 m on the forecast's
-own wind (12 m/s gives 2,518 m). And one untyped `evaluate` callback in the e2e suite had been making
-`tsc --noEmit` fail over the whole repository, so that check was not runnable at all; it exits 0 now.
-
-**One change was measured and deliberately NOT shipped**, which is recorded in `BACKLOG.md` in full
-because it cost real work to establish: the area-weighted fin-set aggregation. Read that entry before
-rebuilding it — it improves `03.Three-stage.ork` and doubles the error on `Complex.Two-Stage.CDX1`,
-and the reason is that Loft collapses every fin set into one equivalent fin, which no average fixes.
+**A number in three committed places was wrong, and the review caught it.** "20 of the 27 real OpenRocket
+designs carry more than one body tube" is the raw `<bodytube>` TAG count. What Loft imports is **17 of
+27**, because three of those designs keep tubes inside pod or parallel-stage assemblies the importer
+declines to fly — and a part that is not imported is not a part a flyer can pick. Across all 35 importable
+files the figure is **23**. Corrected in the code comments, the e2e comment and `/docs/limitations`; the
+commit messages that quote 20 stand as written, which is why this note exists.
 
 ## What this session learned that is worth keeping
 
-**The second opinion earned its keep on every single diff, and twice it found that MY OWN COMMENT was
-the defect.** On the zero work it found a refused zero throwing away the edit it was typed over, a
-refusal outliving the flight it described with no way to clear it, and a payload station counting as
-an edit. On the burnout work, two independent lenses said the same thing: the doc comment I wrote
-asserted as correct the very defect underneath it, and the test I wrote pinned the wrong descent mass
-with a comment explaining why it was right. Neither would have been caught by the gate — every test
-passed before and after.
+**Take the second opinion, and give each agent a DIFFERENT lens.** Three lenses (edit-model correctness,
+surface consistency, does-a-flyer-get-a-wrong-number) converged on the same top finding by three different
+routes, and the one that found the boattail defect found it by reading the comment I had written beside it
+and checking whether the code still did what it said. The redundant version of that fan-out would have
+found one of the three.
 
-**Drive the corpus before believing a verified finding's SEVERITY.** Adversarial verification
-establishes that the code is wrong; it does not establish that anyone can reach it. Two rank-2
-findings this session were real in the code and unreachable in practice: the RASAero pressure guard
-(the only file with an impossible pressure shows no flight at all, because its motors do not resolve)
-and the booster-descent phase index (the only designs whose phase table collapses are flagged
-ballistic before the index is used). The manual's "a speculative guard that fires on zero real files
-is worse than nothing" applies to a verified finding just as much as to a hunch.
+**A negative control whose BUILD exits 1 establishes nothing — and the obvious control is the one that
+does.** Reverting the boattail anchor at the call site left `aftmostBodyTube` unused, `noUnusedLocals`
+failed the build, and `out/` never changed. Redone by reverting the rule INSIDE the helper so everything
+stayed referenced. This file already warned about it and it still caught me once; check the exit code, do
+not reason about whether this particular revert could leave something unused.
 
-**A negative control that does not compile is not a negative control — and the obvious control is
-often the one that doesn't.** Reverting a value INSIDE a component leaves its prop unread,
-`noUnusedLocals` fails the build, `out/` never changes, and the test passes against still-fixed code.
-Revert at the CALL SITE instead. This bit twice this session, exactly as the previous session
-recorded it would — and the second time was a variant worth naming: swapping `TOUCH_TARGET_SQUARE`
-back to `TOUCH_TARGET` at the call site left the IMPORT unused, which fails the same way. The rule is
-not "revert at the call site", it is **check the control's build exit code before believing its test
-result**. A control whose build returned 1 and whose test returned 0 has told you nothing.
+**A pin that reads `corpus/` is not a pin.** The corpus is gitignored and absent on every fork and public
+clone, so a `readFileSync` under `corpus/` is a hard ENOENT there — a red CI for people who have done
+nothing wrong — while `lib/corpus/sweep.test.ts` skips itself instead. A milestone's proof has to run on
+`fixtures/` or `e2e/fixtures/`. `fixtures/demo-quirks.ork` turned out to reproduce the exact shape needed
+(a 450 mm aft tube behind a 500 mm forward one, so "longest" points at the wrong end), which is worth
+knowing before reaching for a corpus design.
 
-**A JSX text run that spans a line break loses its LEADING space, and the gate cannot see it.** Not
-just the obvious `{expr}` + newline + text case — a plain space that sits MID-LINE in the source is
-also eaten as soon as the run wraps, so `, {STEPS} flights across` / newline / `the range;` shipped
-as "25flights across the range". Four instances were live in the built export when this was found.
-Lint, unit, build and e2e were all green on every one of them; the source reads correctly and only
-the transform output is wrong. Write `{" "}` at the end of the line instead of trusting the space.
+**Measure the model, not the file.** `demo-quirks.ork` declares three body tubes and imports as two — the
+third is inside a pod assembly. Every count I took from raw XML was wrong in the same direction, including
+the one that reached three committed files. Count what `flattenRocket` returns.
 
-To find them, scan the BUILT chunks, not the source — the bug does not exist until after the
-transform. The signature is a rendered value followed immediately by a string literal that opens with
-a whole lowercase word: `,"([a-z]{2,}(?: [a-z]{2,}){1,4})` where the char before the comma is not a
-closing quote. That returned exactly four true positives and no false ones across the whole app.
-Broadening it to any capitalised word adds only CSS font stacks. Re-run it after any caption edit.
+**A whole-map dependency is a trap when the map carries values.** Passing the edit bag down as "the aims"
+would have let a typed span read as an aim, with a number where a component id belongs. `aimsOf` projects
+through the registry so only aims can move. The same shape one level up: a per-slot comparison is needed
+because more than one aim moves in a single commit, and examining the first moved slot silently drops the
+rest.
 
-**`sr-only` text escapes an `overflow-x-auto` ancestor and stretches the DOCUMENT.** It is
-`position: absolute`, and an absolutely positioned box is clipped by an ancestor's `overflow` only
-when that ancestor is its containing block — a plain `overflow-x-auto` wrapper is not positioned, so
-it is not. Adding screen-reader text inside a wide scrolling table put 102 px of sideways scroll on
-the whole page at 390 px wide, on the workspace whose point is being usable at the pad. Wrap the
-hidden text in a `relative` span. The e2e caught this one; the DOM probe that only read text would
-not have.
-
-**A probe with no control measures nothing.** The first whole-corpus census shared one browser context
-across 39 files and produced 39 identical rows, because the app restores the last design from storage
-on reload. The version that produced the shipped measurement opens a fresh context per file and prints
-each design's own name beside its numbers.
+**Reach is measured after import, and it decides scope.** R1's notes asked for nose cones. Zero corpus
+designs have more than one after import, so a `noseId` would have been a mechanism addressing nothing;
+canopies, which the notes did not mention, were the widest-reaching case at 17 of 35 and the only one that
+moves a safety number. The list in the roadmap is a starting point for a measurement, not the measurement.
 
 ## Pick up first
 
-**Start at `ROADMAP.md`, not here and not in `BACKLOG.md`.** The owner's read at the end of this
-session was that several runs in a row had shipped no new capability, and the repo agreed: eighteen
-merged commits, nine correctness-and-craft fixes, zero features, and fifty-five backlog entries none
-of which proposed one. `ROADMAP.md` now holds the queue and `MAINTAINING.md`'s *Each pass* section now
-makes the next milestone the default goal, with defects preempting only on Sev-1 and capped at one
-increment in four. **The current milestone is R1 — address components by identity rather than by
-role.** Read the measured baseline at the top of `ROADMAP.md` before scoping it.
+**Start at `ROADMAP.md`.** R1 is SHIPPED; **the next unstarted milestone is R2 — delete a component, and
+undo it**, and R2's notes now name its first task explicitly.
 
-`BACKLOG.md` is a defect ledger to file into and to screen for Sev-1s. It carries real measurements
-worth having — the opening fan-out filed 53 findings across five lenses, 20 went to adversarial
-verification and 19 survived — and reproducing before scoping still applies: two of the verified ones
-turned out to be unreachable when driven against real files, which is recorded there.
+**R2's first increment is not a delete — it is id stability.** A from-scratch design's component ids are
+re-minted on every reload (`lib/ork/export.ts` writes `nextUuid()` rather than `c.id`, and a built
+design's session bytes are an export), so an aim saved before a reload resolves to nothing. An operation
+list keyed on ids that change underneath it is not a foundation. The probe and the measured id sequence
+are in `BACKLOG.md`'s newest entry. Everything else R2 needs from the pick surface exists: `AIM_SLOTS`,
+`aimEditsAt`, `aimsOf` and `AimedPart` in `lib/model/edit.ts`, and a parts list and diagram that both
+report a pick through one funnel.
 
-The defect entries below were the old ranked queue. They are **not** the next moves any more; they are
-kept because the measurements are real and because R1 owns some of the code they touch:
+**Do not re-open R1.** Its gap is written up in `ROADMAP.md` under the milestone: pods are an ingestion
+feature and want their own entry; nose cones are measured at 0 designs and deliberately unaimed;
+transitions and mass objects arrive with the field that edits them.
 
-1. **The Monte-Carlo flies the FILE's launch setup, not the flyer's.** `MonteCarlo.tsx:153` uses
-   `overridesFromStored(sim)` only, so Conditions edits and the "Today" scenario never reach the
-   dispersion study while the Flight card's drift does use them — and the panel does not even reset,
-   because `designKey` carries no condition field. `app/docs/faq:244` then says "You set the
-   one-sigma spread on each input, so the answer reflects your own conditions", which turns an
-   undisclosed defect into a denied one. Recovery radius and the waiver-bust probability are the two
-   numbers a flyer plans a field around. Both sibling Analyze panels already state which conditions
-   they used.
-2. **A motor swap survives a configuration change it cannot apply to.** `LoftApp.tsx:586` never
-   reconciles `edits.motorSwap`. On `Punisher Apprentice.ork` (9 configs across 24/29/38 mm casings):
-   swap on the 38 mm run, select the 24 mm run — the picker blanks while every number on the pad-check
-   surface is still the 38 mm motor's.
-3. **`<overridecd>` and the fin-tab tags are read by nothing.** `Base drag hack (short-wide).ork`
-   states `<overridecd>0.0` on a tail flare and its own comment says the technique IS that checkbox;
-   Loft bills the cone for drag the file says is zero. `<tabheight>`/`<tablength>` cost **101 g** on
-   `Airstart timing.ork` and **120 g** on `03.Three-stage.ork`, undisclosed anywhere.
-4. **`meanFinChord` is the LAST fin set walked while `finThickness` is the MAX** (`aero.ts:451`), so
-   the thickness ratio belongs to no fin and changes if the sets are reordered — 8x out on
-   `Simulation scripting.ork`, feeding both the fin friction form factor and the wave-drag term.
-5. **Neither motor-sweep row carries Mach or `extrapolatedTransonic`** (`lib/sim/sweep.ts:82`), so
-   the transonic candidate — the one a flyer is tempted by, because the table sorts
-   apogee-descending — presents as confidently as a subsonic one, against `app/docs/page.tsx:52`'s
-   promise to warn. (The flags half of this entry shipped: rail exit is checked now, and all three
-   flags read without colour or hover.)
-6. **`downloadOrk` drops `ballastKg`** while baking payload mass and station in, so the exported file
-   is missing the very thing nose ballast exists to fix.
+`BACKLOG.md` is a defect ledger to file into and to screen for Sev-1s. **Its Sev-1 count is zero at the
+end of this run** — the three the review raised were fixed and pinned within the run. Its six newest
+entries are this session's, each with the measurement that makes it actionable, and the entry about a live
+edit following a same-kind pick is deliberately marked as something R2 removes rather than something to
+patch.
 
 ## Environment notes
 

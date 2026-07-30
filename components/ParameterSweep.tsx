@@ -8,7 +8,7 @@ import { runFlight, overridesFromStored } from "@/lib/sim/run";
 import { linRange, SWEEP_AXES, type SweepAxis, type ParamSweepPoint } from "@/lib/sim/sweep";
 import { usePersistedChoice, useSettled } from "@/lib/session";
 import { runParameterSweep } from "@/lib/sim/sweep-client";
-import { primaryFinSpan, primaryFinRootChord, primaryFinTipChord, primaryFinThickness, primaryFinStation, primaryFinChord, primaryNose, primaryBodyTube, primaryBodyDiameter, type GeometryEdits } from "@/lib/model/edit";
+import { AIM_SLOTS, primaryFinSpan, primaryFinRootChord, primaryFinTipChord, primaryFinThickness, primaryFinStation, primaryFinChord, primaryNose, primaryBodyTube, primaryBodyDiameter, type GeometryEdits } from "@/lib/model/edit";
 import { overallLength } from "@/lib/model/geometry";
 import { mToFt, mToIn, mpsToFtps, kgToG, G_PER_OZ } from "@/lib/units";
 import type { CsvCell } from "@/lib/csv";
@@ -172,9 +172,12 @@ export default function ParameterSweep({
     }
     const nose = primaryNose(doc.rocket)?.length;
     if (nose && nose > 0) list.push(geometryAxis("noseLength", "Nose length", nose));
-    const body = primaryBodyTube(doc.rocket)?.length;
+    // Both body axes are swept as ABSOLUTE values written to the picked tube, so like the fin axes
+    // their base has to be that tube's own dimension — a curve based on the longest tube's length
+    // while the sweep resizes a different one has the wrong rocket on its x-axis.
+    const body = primaryBodyTube(doc.rocket, geometry?.bodyTubeId)?.length;
     if (body && body > 0) list.push(geometryAxis("bodyLength", "Body length", body));
-    const dia = primaryBodyDiameter(doc.rocket);
+    const dia = primaryBodyDiameter(doc.rocket, geometry?.bodyTubeId);
     if (dia && dia > 0) list.push(geometryAxis("bodyDiameter", "Body diameter", dia));
     // Nose ballast: range 0 → ~40% of the design's liftoff mass, sized from one baseline flight so
     // the trim sweep spans a sensible amount of weight for this particular rocket.
@@ -245,6 +248,12 @@ export default function ParameterSweep({
 
   const axisDef = axes.find((a) => a.axis === axisKey) ?? axes[0];
   const metric = metrics.find((m) => m.key === metricKey) ?? metrics[0];
+  // Which component the swept axis is aimed at, when it is an aimed one. Read from the edit model's own
+  // registry rather than listed here, so an axis that becomes aimed later is covered without a change.
+  const axisAimSlot = Object.entries(AIM_SLOTS).find(([, def]) => def.targets.includes(axisKey))?.[0];
+  const axisAimId = axisAimSlot
+    ? ((geometry as Record<string, unknown> | undefined)?.[axisAimSlot] as string | undefined)
+    : undefined;
 
   // Fly the sweep for the selected variable, in the background so the UI stays responsive. Switching
   // the plotted METRIC re-reads these points without re-flying; only changing the variable (or a
@@ -281,14 +290,20 @@ export default function ParameterSweep({
     return () => {
       live = false;
     };
-    // Keyed on the design's value, not the props' identity — see `designKey`. Changing the swept
+    // Keyed on the design's value, not the props' identity — see `designKey`.
+    //
+    // `axisAimId` is a dependency in its own right because `designKey` deliberately ignores a bare aim:
+    // a pick alone changes no geometry, so a Monte-Carlo already flown still describes the design on
+    // screen. But this axis is swept as an ABSOLUTE value written to the aimed part, so moving that pick
+    // re-bases the x-axis and the design's own marker — and without this the plotted curve went on
+    // describing the part the flyer had aimed away from. Changing the swept
     // axis still re-runs; an unrelated re-render no longer restarts the flights. The axis is named
     // by its KEY and not by `axisDef`: that object is rebuilt from `doc` whenever `doc` changes
     // identity, so depending on it re-flew all 25 points on every keystroke in the rename field —
     // the same defect `designKey` fixes one level up, arriving by a different route. The axis's own
     // bounds move only when the rocket does, which `designKey` already covers.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, axisKey, designKey, ballisticConditionsKey]);
+  }, [open, axisKey, axisAimId, designKey, ballisticConditionsKey]);
 
   // A design with no editable dimension (no fins, nose, or body tube) has nothing to sweep.
   if (axes.length === 0) return null;

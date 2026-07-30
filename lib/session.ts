@@ -14,6 +14,7 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
+import { INERT_EDIT_FIELDS } from "./model/edit";
 
 const KEY = "loft.session";
 /** localStorage is typically a ~5 MB budget for the whole origin, and base64 costs a third on top
@@ -147,12 +148,19 @@ export function saveDiscardedSession(s: SavedSession): boolean {
  *
  *  Uses the app's OWN definition of edited, which is not "how many keys are in the bag": the edit bag
  *  is a patch spread over the previous bag, so a field that was set and then CLEARED leaves its key
- *  behind holding `undefined`; and `finSetId` records which fin set the fields are POINTED AT, not
- *  that anything was changed. Counting either would tell a flyer their as-designed rocket is carrying
- *  changes — the same mistake, in the opposite direction, as the gate that hides the stored-tool
- *  comparison. `hasActiveEdits` in the app applies exactly this rule; keep them in step. */
+ *  behind holding `undefined`; and a selection field records which component the fields are POINTED
+ *  AT, not that anything was changed. Counting either would tell a flyer their as-designed rocket is
+ *  carrying changes — the same mistake, in the opposite direction, as the gate that hides the
+ *  stored-tool comparison.
+ *
+ *  The selection fields come from `INERT_EDIT_FIELDS` rather than being spelled out here: this used to
+ *  name `finSetId` alone, so the second selection field the editor grew would have counted as a
+ *  what-if here while the app went on treating it as inert. `hasActiveEdits` in the app applies the
+ *  same set. */
 export function countWhatIfs(s: SavedSession): number {
-  return Object.entries(s.edits).filter(([k, v]) => k !== "finSetId" && v !== undefined && v !== "").length;
+  return Object.entries(s.edits).filter(
+    ([k, v]) => !INERT_EDIT_FIELDS.has(k) && v !== undefined && v !== "",
+  ).length;
 }
 
 /** Whether a session carries work that exists nowhere else. The DESIGN is on the recents shelf either

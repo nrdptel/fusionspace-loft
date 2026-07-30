@@ -55,6 +55,29 @@ export default function Faq() {
         </p>
       </QA>
 
+      <QA q="My design has several body tubes or fin sets — which one do the edit fields change?">
+        <p>
+          The one you <strong>pick</strong>. Click a part on the side-view diagram, or its row in the
+          parts table beneath it, and the fields that describe that kind of part aim themselves at it:{" "}
+          <em>Body length</em> then resizes that tube and no other, and the fin fields describe and
+          change that fin set. Most real designs are several tubes end to end — a payload bay, a
+          coupler, a motor mount, a booster — so without this every tube but the longest was out of
+          reach, and every fin set but the frontmost.
+        </p>
+        <p className="mt-2">
+          When there is more than one to choose from, the editor <strong>says which part it is
+          holding</strong> — by the design&apos;s own name for it where that name tells it apart, and
+          otherwise by where it sits on the airframe, since real files tend to call every tube
+          &ldquo;body&rdquo; and every fin set &ldquo;fin set&rdquo;. Two edits are deliberately
+          wider than one part, and both say so: <em>Body diameter</em> reads the tube you picked but
+          scales the whole outer airframe to that caliber, so the mould line stays faired rather than
+          stepping at one tube; and <em>Fin position</em> slides every fin set together, keeping the
+          design&apos;s spacing. Picking a part to read it never moves an edit you already set on
+          another — the aim only follows a pick for the fields that part drives — and the aim is saved
+          with your session, so a reload comes back pointed at the same part.
+        </p>
+      </QA>
+
       <QA q="Is my design uploaded anywhere?">
         <p>
           No. Parsing, the motor database, and the whole simulation run on your device. Nothing about

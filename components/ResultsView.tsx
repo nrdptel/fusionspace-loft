@@ -6,7 +6,7 @@ import { Tabs } from "./ui";
 import type { FlightRun } from "@/lib/sim/run";
 import type { ConditionOverrides } from "@/lib/sim/setup";
 import type { ConditionsSource } from "@/lib/what-if";
-import { applyGeometryEdits, hasGeometryEdits, primaryFinGroupIds, type GeometryEdits } from "@/lib/model/edit";
+import { applyGeometryEdits, hasGeometryEdits, primaryFinGroupIds, aimsOf, type GeometryEdits } from "@/lib/model/edit";
 import { designKey } from "@/lib/model/design-key";
 import { formatLabel, sourceTool, type OrkDocument } from "@/lib/ork/import";
 import type { FlightResult } from "@/lib/sim/simulate";
@@ -155,7 +155,7 @@ export default function ResultsView({
   designMotor,
   designManufacturer,
   onEditGeometry,
-  onSelectFinSet,
+  onSelectPart,
   initialTab,
   onWorkspaceChange,
   designEditor,
@@ -201,9 +201,9 @@ export default function ResultsView({
   /** Apply a geometry edit from the diagram's drag handle (e.g. fin station) — the same path a
    *  numeric what-if field uses, so dragging and typing converge on one edit flow. */
   onEditGeometry?: (patch: GeometryEdits) => void;
-  /** Told which fin set the flyer picked in the parts table or on the diagram, so the fin fields
-   *  describe and edit that set. Null clears it back to the frontmost. */
-  onSelectFinSet?: (id: string | null) => void;
+  /** Told which part the flyer picked in the parts table or on the diagram, so the editor's fields
+   *  describe and edit that part. Which fields a pick re-aims is the edit model's call. */
+  onSelectPart?: (id: string) => void;
   /** Which workspace to open on. An import lands on its flight result; a from-scratch build lands on
    *  the editable Design surface, and a resumed session lands where it was left. Read once at mount
    *  — the view remounts on every design load. */
@@ -691,8 +691,10 @@ export default function ResultsView({
           edited={editing}
           motors={shownMotors}
           onEdit={onEditGeometry}
-          onSelectFinSet={onSelectFinSet}
-          selectedFinSetId={geometry?.finSetId}
+          onSelectPart={onSelectPart}
+          // The aim map, so a role added to the edit model needs no new prop on the way down. Projected
+          // through the registry, never the raw bag: a typed span is not an aim.
+          aims={geometry ? aimsOf(geometry) : undefined}
         />
 
         {/* The editing surface, right below the diagram it changes — fly a different motor, add

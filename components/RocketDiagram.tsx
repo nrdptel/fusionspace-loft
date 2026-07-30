@@ -51,6 +51,7 @@ export default function RocketDiagram({
   motors,
   onEdit,
   selectedFinSetId,
+  selectedBodyTubeId,
 }: {
   rocket: Rocket;
   units: UnitSystem;
@@ -75,10 +76,11 @@ export default function RocketDiagram({
    *  exactly what a numeric what-if field does — so building by dragging and building by typing share
    *  one path. */
   onEdit?: (patch: GeometryEdits) => void;
-  /** Which fin set the fin fields — and therefore these handles — are aimed at. The handles emit
-   *  ABSOLUTE values, so reading them off a different set than the edit writes to would snap the
-   *  edited set to the read set's dimensions on the first nudge. */
+  /** Which fin set and body tube the editor's fields — and therefore these handles — are aimed at. The
+   *  handles emit ABSOLUTE values, so reading one off a different part than the edit writes to would
+   *  snap the edited part to the read part's dimensions on the first nudge. */
   selectedFinSetId?: string;
+  selectedBodyTubeId?: string;
 }) {
   const uid = useId();
   // A drag-frozen vertical extent, set while a vertical resize handle is being dragged (the fin SPAN
@@ -267,13 +269,14 @@ export default function RocketDiagram({
 
   // Diameter handle (pull the body wall outward to resize the caliber). Like the span it drags
   // VERTICALLY, rides the reserved headroom, and freezes the frame while dragging. It sits on the top
-  // wall at the primary body tube's mid-station and drives `bodyDiameter`, which scales the whole
-  // outer airframe to that caliber — the lever that sets the reference area (and so the drag and the
-  // stability, measured in calibers). Its value is a diameter, so the pointer→radius map is doubled
-  // (axisScale 2). Independent of the fins, so a finless design still gets it. Bounds keep the wall
-  // inside the framed extent and off zero, always including today's caliber.
-  const bodyTube = onEdit ? primaryBodyTube(rocket) : undefined;
-  const bodyDiaNow = onEdit ? primaryBodyDiameter(rocket) : undefined;
+  // wall at the picked body tube's mid-station — the primary tube when nothing is picked — and drives
+  // `bodyDiameter`, which scales the whole outer airframe to that caliber: the lever that sets the
+  // reference area (and so the drag and the stability, measured in calibers). Its value is a diameter,
+  // so the pointer→radius map is doubled (axisScale 2). Independent of the fins, so a finless design
+  // still gets it. Bounds keep the wall inside the framed extent and off zero, always including
+  // today's caliber.
+  const bodyTube = onEdit ? primaryBodyTube(rocket, selectedBodyTubeId) : undefined;
+  const bodyDiaNow = onEdit ? primaryBodyDiameter(rocket, selectedBodyTubeId) : undefined;
   const bodyPart = bodyTube ? o.parts.find((p) => p.id === bodyTube.id) : undefined;
   const bodyR = bodyTube ? bodyTube.outerRadius : 0;
   const diaLo = bodyDiaNow !== undefined ? Math.min(bodyDiaNow, 0.01) : 0;

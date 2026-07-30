@@ -63,7 +63,12 @@ when the new path covers them.
 
 ## R1 — Address components by identity, not by role
 
-**Status:** IN PROGRESS — current milestone
+**Status:** SHIPPED 2026-07-30 — pinned by `lib/model/edit.test.ts` (the `body tubes are addressed by
+identity`, `the recovery fields address the canopy you picked`, `aimEditsAt`, `naming the part the fields
+are holding` and `the aim registry is the one list` suites) and by three e2e cases in `e2e/smoke.spec.ts`:
+*picking a body tube aims the body fields at it*, *a body-tube pick survives a re-fly and a reload*, and
+*picking a canopy aims the recovery fields at it*. Every one was proved able to fail by a negative control
+with its BUILD_EXIT checked.
 
 **Outcome.** The editor edits the part the flyer picked, on every design, including ones with several
 tubes, transitions, or fin sets.
@@ -78,7 +83,36 @@ objects. This ships visible value on multi-part designs (today they silently edi
 while being the prerequisite for everything after it. `primaryFinSetName`'s positional fallback has a
 known defect filed in `BACKLOG.md` — fix it here, since this milestone owns that code.
 
-**Size.** 2–4 increments.
+**Size.** 2–4 increments. **Took 4.**
+
+**What shipped against the *done when*.** A flyer can open `Two stage high power rocket.ork`, click any
+of its 8 body tubes or either fin set on the diagram or in the parts list, and edit *that* one; the panel
+names which part it is holding; and the aim survives a re-fly and a reload. Measured on that design:
+8/8 tubes clickable, 8/8 edits landing on exactly the picked tube, each named by the design's own name
+("Payload Bay", "Sustainer Forward Airframe", …). Canopies came too — 17 of 35 designs carry more than
+one and the drogue was unreachable on all of them.
+
+**The gap, which is R2's starting point rather than a reason to re-open this.**
+
+- **`Pods--airframes and winglets.ork` is only partly reachable, and not for an editor reason.** The file
+  declares 3 body tubes, 3 nose cones and 6 fin sets; the importer carries through 1, 1 and 5, because
+  `<podset>` assemblies are not simulated. That omission is already disclosed at import ("This design has
+  pods, which aren't simulated yet — only the primary stack was flown"), so nothing is silently missing —
+  but a part that is not imported is not a part a flyer can click. Pods are an ingestion feature, and they
+  belong on the roadmap in their own right rather than inside an editor milestone.
+- **Nose cones, transitions and mass objects are still role-addressed.** Deliberate, and measured: no
+  corpus design has more than one nose cone after import, so a `noseId` would address nothing; and
+  transitions (7 designs) and mass objects (15) have no editor field at all, so there is nothing yet to
+  aim. They arrive with the field that edits them, which is R3/R4 work.
+- **A field holds one value, so picking another part of the same kind re-aims a live edit onto it.**
+  Inherent to a flat patch of absolute values and identical on fins, which shipped earlier. It is visible
+  rather than silent — the panel names the part it is holding — and it is what R2's operation list makes
+  go away.
+- **A from-scratch design's component ids do not survive a reload.** Measured: the starter's ids are
+  `nose`, `body`, `av`, `chute`, `mount`; a built design's session bytes are `exportOrk(document)`, which
+  writes freshly minted `10f70000-…` ids, so the re-imported model carries different ids and a stored aim
+  matches nothing. Harmless today because the starter has one tube and one fin set, and a hard blocker for
+  R2: an operation list addresses ids. **Fix this first in R2.** Filed in `BACKLOG.md` with the probe.
 
 ---
 
@@ -97,6 +131,13 @@ cannot fly.
 is where the operation-based edit model gets built and proven. **Undo ships with it, not after it** —
 parametric edits are recoverable by retyping a number, and a deletion is not. Undo/redo over the
 operation list is the whole reason to have an operation list.
+
+**Start with id stability, before any operation.** R1 left a measured defect that R2 cannot build on: a
+from-scratch design's ids are re-minted every reload (`lib/ork/export.ts` writes `nextUuid()` rather than
+the component's own id, and a built design's session bytes are an export). An operation list keyed on ids
+that change under it is not a foundation. R1 also left the addressing machinery R2 needs — `AIM_SLOTS`,
+`aimEditsAt`, `aimsOf`, `AimedPart` in `lib/model/edit.ts` — so the pick surface is done and what remains
+is the operation model itself.
 
 **Size.** 3–5 increments.
 
@@ -209,6 +250,25 @@ Unattended runs do not stop to ask (see *Unattended operation* in `MAINTAINING.m
 that would otherwise have been a question goes here, with the option rejected, so it can be reversed
 cheaply instead of re-derived. Newest first.
 
+- **2026-07-30 — R1 aimed body tubes, fin sets and canopies, and deliberately NOT nose cones,
+  transitions or mass objects.** R1's notes named "nose, tubes, transitions and mass objects". Measured
+  after import across the 35-design corpus: 23 designs carry several body tubes, 17 several parachutes,
+  13 several fin sets — and **0** carry more than one nose cone. Rejected adding a `noseId`: it is a
+  mechanism with nothing to address, and the count is what decides that, not the symmetry of the list.
+  Transitions (7 designs) and mass objects (15) were rejected for a different reason: no editor field
+  addresses either, so aiming precedes the thing being aimed. Parachutes replaced them in the slice
+  because they were the widest-reaching case of all and they move landing speed and landing energy.
+- **2026-07-30 — the aim of each role is its own field, not one shared selection.** Rejected a single
+  `selectedId`: with edits keyed only by role, picking a body tube would move the one aim off the fin set,
+  and an absolute fin span already typed would then resolve against a tube — the field blanks while the
+  value goes on being flown. The per-role aims are what let a flyer read one part while editing another,
+  and there is an e2e pinning exactly that. The cost is one registry row per role, and `AIM_SLOTS` is the
+  registry so it is one row and not four hand-maintained lists.
+- **2026-07-30 — pins live in committed fixtures, never in `corpus/`.** A test reading `corpus/` fails
+  with ENOENT wherever the corpus is absent — every fork, every public clone — so it cannot be a
+  milestone's proof. Rejected pinning R1 on the two designs its *done when* names; the corpus measurement
+  is quoted in the test's comment and the assertion runs on `fixtures/demo-quirks.ork` and
+  `e2e/fixtures/two-stage-firm-booster.ork`, which reproduce the same shape.
 - **2026-07-29 — the `e2e` CI job is left without a corpus fetch.** `FIXTURES_TOKEN` is set and the
   `frontend` job now fetches and gates on all 35 real designs, but the `e2e` job still has no fetch
   step, so e2e tests continue to need committed fixtures. Adding it is two lines. Rejected doing it

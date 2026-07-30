@@ -188,8 +188,8 @@ export default function MotorSweep({
         </div>
       </div>
       <p className="mt-1.5 text-sm text-zinc-600 dark:text-zinc-300">
-        Fly this airframe on every bundled motor of the same {casingMm} mm casing it already flies,
-        all at once, and see
+        Fly this airframe on every bundled motor of the same {casingMm}{" "}
+        mm casing it already flies, all at once, and see
         how apogee, speed, rail-exit velocity, stability, and fin-flutter margin change across them —
         the classic &ldquo;which motor gets me to my target?&rdquo; sweep (and whether a punchier one
         pushes the fins toward flutter), run entirely on your device.

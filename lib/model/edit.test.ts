@@ -26,7 +26,17 @@ import {
   primaryAirframeMaterial,
   AIRFRAME_MATERIALS,
   unreachableFinSetCount,
+  unreachableBodyTubeCount,
+  aftmostBodyDiameter,
+  unreachableParachuteCount,
+  primaryParachutePart,
+  aimsOf,
+  AIM_SLOTS,
+  INERT_EDIT_FIELDS,
   primaryFinGroupIds,
+  primaryFinSetPart,
+  primaryBodyTubePart,
+  aimEditsAt,
   hasGeometryEdits,
 } from "./edit";
 import type {
@@ -996,5 +1006,439 @@ describe("applyGeometryEdits — airframe material", () => {
     expect(AIRFRAME_MATERIALS.length).toBeGreaterThan(3);
     expect(AIRFRAME_MATERIALS.map((m) => m.key)).toContain("fibreglass");
     for (const m of AIRFRAME_MATERIALS) expect(m.density).toBeGreaterThan(0);
+  });
+});
+
+describe("body tubes are addressed by identity, not by role", () => {
+  /** Every body tube on a design, nose-to-tail, with the station the flatten puts it at. */
+  const tubesOf = (r: Rocket) => flattenRocket(r).filter((p) => p.component.kind === "bodytube");
+  const lenOf = (p: { component: RocketComponent }) => (p.component as { length: number }).length;
+
+  it("resolves the picked tube, and falls back to the longest without a pick", async () => {
+    // Measured, not assumed: `demo-quirks.ork` imports as two body tubes — Upper, 0.50 m at
+    // ⌀66 mm, and Motor mount body, 0.45 m at ⌀44 mm, with a transition between them. (The file's
+    // third tube is inside a pod assembly the importer does not carry through.) The longest is
+    // Upper, so that is what "the primary body tube" has always meant.
+    const rocket = await load("demo-quirks.ork");
+    const tubes = tubesOf(rocket);
+    expect(tubes.length).toBe(2);
+
+    expect(primaryBodyTube(rocket)!.name).toBe("Upper");
+    for (const t of tubes) expect(primaryBodyTube(rocket, t.component.id)!.id).toBe(t.component.id);
+    // A stale id from a restored session must not disable the body fields — it falls back rather
+    // than resolving to nothing.
+    expect(primaryBodyTube(rocket, "no-such-component")!.name).toBe("Upper");
+  });
+
+  it("resizes the PICKED tube and leaves every other tube alone", async () => {
+    const rocket = await load("demo-quirks.ork");
+    const target = tubesOf(rocket).find((p) => p.component.name === "Motor mount body")!;
+    const other = tubesOf(rocket).find((p) => p.component.name === "Upper")!;
+    const otherLen0 = lenOf(other);
+
+    const edited = applyGeometryEdits(rocket, { bodyTubeId: target.component.id, bodyLength: 0.8 });
+
+    // The picked tube took the value...
+    expect(primaryBodyTube(edited, target.component.id)!.length).toBeCloseTo(0.8, 9);
+    // ...and the tube the edit was NOT aimed at is untouched — including the longest one, which is
+    // what the edit used to hit whatever the flyer had picked.
+    expect(primaryBodyTube(edited, other.component.id)!.length).toBeCloseTo(otherLen0, 9);
+    // The whole airframe stretches by the same 0.35 m, so the edit really did reach the flight.
+    expect(overallLength(edited)).toBeCloseTo(overallLength(rocket) + 0.35, 6);
+    // Non-destructive.
+    expect(lenOf(tubesOf(rocket).find((p) => p.component.id === target.component.id)!)).toBeCloseTo(0.45, 9);
+  });
+
+  it("without a pick still resizes the longest tube — the old behaviour is the default", async () => {
+    const rocket = await load("demo-quirks.ork");
+    const upper = tubesOf(rocket).find((p) => p.component.name === "Upper")!;
+    const mount = tubesOf(rocket).find((p) => p.component.name === "Motor mount body")!;
+    const edited = applyGeometryEdits(rocket, { bodyLength: 0.9 });
+    expect(primaryBodyTube(edited, upper.component.id)!.length).toBeCloseTo(0.9, 9);
+    expect(primaryBodyTube(edited, mount.component.id)!.length).toBeCloseTo(0.45, 9);
+  });
+
+  it("seeds the caliber scale from the picked tube, so that tube hits the target diameter", async () => {
+    const rocket = await load("demo-quirks.ork");
+    const mount = tubesOf(rocket).find((p) => p.component.name === "Motor mount body")!;
+    const mountDia0 = primaryBodyDiameter(rocket, mount.component.id)!;
+    const upperDia0 = primaryBodyDiameter(rocket)!;
+    expect(mountDia0).toBeCloseTo(0.044, 9);
+    expect(upperDia0).toBeCloseTo(0.066, 9); // the two calibers really do differ
+
+    const target = 0.06;
+    const edited = applyGeometryEdits(rocket, { bodyTubeId: mount.component.id, bodyDiameter: target });
+    // The tube the field was reading is the tube that lands on the number typed into it. Seeded from
+    // the longest tube instead, this came out at 0.040 m — the flyer types 60 mm and gets 40.
+    expect(primaryBodyDiameter(edited, mount.component.id)).toBeCloseTo(target, 9);
+    // The rest of the outer airframe follows by the SAME factor, so the mould line stays faired —
+    // this edit is deliberately group-wide, and the panel says so.
+    const f = target / mountDia0;
+    expect(primaryBodyDiameter(edited)!).toBeCloseTo(upperDia0 * f, 9);
+  });
+
+  it("a body-tube pick on its own is not an edit and flies the design untouched", async () => {
+    const rocket = await load("demo-quirks.ork");
+    const mount = tubesOf(rocket).find((p) => p.component.name === "Motor mount body")!;
+    expect(hasGeometryEdits({ bodyTubeId: mount.component.id })).toBe(false);
+    expect(applyGeometryEdits(rocket, { bodyTubeId: mount.component.id })).toBe(rocket);
+  });
+
+  it("counts the tubes the body fields cannot reach without a pick", async () => {
+    expect(unreachableBodyTubeCount(await load("demo-quirks.ork"))).toBe(1);
+    expect(unreachableBodyTubeCount(await load("demo-single-deploy.ork"))).toBe(0);
+  });
+});
+
+describe("aimEditsAt — which fields a pick re-aims", () => {
+  it("aims the body fields at a body tube and the fin fields at a fin set", async () => {
+    const rocket = await load("demo-quirks.ork");
+    const parts = flattenRocket(rocket);
+    const tube = parts.find((p) => p.component.kind === "bodytube")!;
+    const fin = parts.find((p) => p.component.kind.endsWith("finset"))!;
+
+    expect(aimEditsAt(rocket, tube.component.id)).toEqual({ bodyTubeId: tube.component.id });
+    expect(aimEditsAt(rocket, fin.component.id)).toEqual({ finSetId: fin.component.id });
+  });
+
+  it("re-aims nothing for a part no field describes, or for an id the design does not have", async () => {
+    // `demo-quirks.ork` carries a tube coupler, a mass object, a streamer and a transition — parts a
+    // flyer reads on the diagram and that no editor field describes. Reading one must move no aim.
+    const rocket = await load("demo-quirks.ork");
+    const coupler = flattenRocket(rocket).find((p) => p.component.kind === "tubecoupler")!;
+    expect(coupler, "the fixture needs a part that drives no field").toBeTruthy();
+    expect(aimEditsAt(rocket, coupler.component.id)).toEqual({});
+    expect(aimEditsAt(rocket, "no-such-component")).toEqual({});
+  });
+
+  it("leaves the other aim alone, so an active edit cannot follow an unrelated pick", async () => {
+    // The destructive version of this is silent: with the fin fields aimed at one set and a span set,
+    // a body-tube pick that cleared the fin aim would re-apply that span to the frontmost set — a
+    // different fin changes, with the field still reading the value the flyer typed.
+    const rocket = await load("demo-quirks.ork");
+    const parts = flattenRocket(rocket);
+    const fin = parts.find((p) => p.component.kind.endsWith("finset"))!;
+    const tube = parts.find((p) => p.component.kind === "bodytube")!;
+    const merged = { finSetId: fin.component.id, ...aimEditsAt(rocket, tube.component.id) };
+    expect(merged.finSetId).toBe(fin.component.id);
+    expect(merged.bodyTubeId).toBe(tube.component.id);
+  });
+});
+
+describe("naming the part the fields are holding", () => {
+  it("uses the design's own name when it tells the part apart", async () => {
+    const rocket = await load("demo-quirks.ork");
+    const mount = flattenRocket(rocket).find((p) => p.component.name === "Motor mount body")!;
+    expect(primaryBodyTubePart(rocket, mount.component.id)!.name).toBe("Motor mount body");
+    expect(primaryBodyTubePart(rocket)!.name).toBe("Upper");
+  });
+
+  it("names by station when the design names every tube alike", async () => {
+    // Real files do: `two-stage-firm-booster.ork` calls both of its tubes "body". A shared name
+    // distinguishes nothing, so the label falls back to where the part sits — which, unlike the
+    // positional name this replaced, stays true however the parts table beside it is sorted.
+    const bytes = new Uint8Array(
+      readFileSync(resolve(process.cwd(), "e2e/fixtures", "two-stage-firm-booster.ork")),
+    );
+    const rocket = (await importOrk(bytes)).rocket;
+    const tubes = flattenRocket(rocket).filter((p) => p.component.kind === "bodytube");
+    expect(tubes.length).toBe(2);
+    expect(new Set(tubes.map((p) => p.component.name)).size).toBe(1); // both called the same thing
+
+    for (const t of tubes) {
+      const part = primaryBodyTubePart(rocket, t.component.id)!;
+      expect(part.name).toBeUndefined();
+      expect(part.station).toBeCloseTo(t.xFore, 9);
+      expect(part.covers).toBe(1);
+    }
+    // And the two stations differ, so the two labels differ — the whole point of naming by station.
+    expect(primaryBodyTubePart(rocket, tubes[0].component.id)!.station).toBeCloseTo(0.2, 6);
+    expect(primaryBodyTubePart(rocket, tubes[1].component.id)!.station).toBeCloseTo(0.8, 6);
+  });
+
+  it("states how many fin sets the fin fields change, rather than naming one and changing several", async () => {
+    // `ARC payload rocket.ork` in the corpus is one 3-fin ring stored as three 1-fin sets: the fin
+    // fields must move all three together, and a label naming one set claimed they moved one.
+    // Reproduced here by duplicating a ring at its own station.
+    const rocket = await load("demo-single-deploy.ork");
+    const fin = flattenRocket(rocket).find((p) => p.component.kind === "trapezoidfinset")!;
+    const addTwin = (list: RocketComponent[]): RocketComponent[] =>
+      list.map((c) =>
+        c.children.some((ch) => ch.id === fin.component.id)
+          ? {
+              ...c,
+              children: [
+                ...c.children,
+                { ...(fin.component as TrapezoidFinSet), id: `${fin.component.id}-twin` },
+              ],
+            }
+          : c.children.length
+            ? { ...c, children: addTwin(c.children) }
+            : c,
+      );
+    const twinned: Rocket = {
+      ...rocket,
+      stages: rocket.stages.map((s) => ({ ...s, components: addTwin(s.components) })),
+    };
+    expect(primaryFinGroupIds(twinned, fin.component.id).size).toBe(2);
+    expect(primaryFinSetPart(twinned, fin.component.id)!.covers).toBe(2);
+    // A single-set design says 1, so the caller only has something to disclose when there is one.
+    expect(primaryFinSetPart(rocket, fin.component.id)!.covers).toBe(1);
+  });
+
+  it("is undefined on a design with no such part", async () => {
+    const rocket = await load("demo-single-deploy.ork");
+    const strip = (list: RocketComponent[]): RocketComponent[] =>
+      list
+        .filter((c) => !c.kind.endsWith("finset"))
+        .map((c) => (c.children.length ? { ...c, children: strip(c.children) } : c));
+    const finless: Rocket = {
+      ...rocket,
+      stages: rocket.stages.map((s) => ({ ...s, components: strip(s.components) })),
+    };
+    expect(primaryFinSetPart(finless)).toBeUndefined();
+    expect(primaryBodyTubePart(finless)).toBeDefined();
+  });
+});
+
+describe("the recovery fields address the canopy you picked", () => {
+  const chutesOf = (r: Rocket) => flattenRocket(r).filter((p) => p.component.kind === "parachute");
+  /** The design's canopies by name, so a test can say which one it meant. */
+  const byName = (r: Rocket, name: string) =>
+    chutesOf(r).find((p) => p.component.name === name)!.component as Parachute;
+
+  it("resolves the picked canopy, and falls back to the largest without a pick", async () => {
+    // `demo-dual-deploy.ork`: a 1.22 m main and a 0.46 m drogue — the shape 17 of the 35 corpus
+    // designs have, since every dual-deploy design carries two canopies by definition.
+    const rocket = await load("demo-dual-deploy.ork");
+    expect(chutesOf(rocket).length).toBe(2);
+
+    expect(primaryParachute(rocket)!.name).toBe("Main parachute");
+    for (const c of chutesOf(rocket)) {
+      expect(primaryParachute(rocket, c.component.id)!.id).toBe(c.component.id);
+    }
+    // A stale id must not disable the recovery fields.
+    expect(primaryParachute(rocket, "no-such-component")!.name).toBe("Main parachute");
+  });
+
+  it("resizes the PICKED canopy and leaves the other alone", async () => {
+    const rocket = await load("demo-dual-deploy.ork");
+    const drogue = byName(rocket, "Drogue parachute");
+    const mainD0 = byName(rocket, "Main parachute").diameter;
+
+    const edited = applyGeometryEdits(rocket, {
+      parachuteId: drogue.id,
+      mainParachuteDiameter: 0.9,
+    });
+    // The canopy the field was reading is the one that took the number. Without the aim this landed
+    // on the main instead — the flyer shrinks a drogue and the main changes.
+    expect(primaryParachute(edited, drogue.id)!.diameter).toBeCloseTo(0.9, 9);
+    expect(byName(edited, "Main parachute").diameter).toBeCloseTo(mainD0, 9);
+    // Canopy mass scales with area, so the resized chute got heavier by (0.9/0.46)².
+    expect(primaryParachute(edited, drogue.id)!.mass).toBeCloseTo(drogue.mass * (0.9 / drogue.diameter) ** 2, 9);
+    // Non-destructive.
+    expect(byName(rocket, "Drogue parachute").diameter).toBeCloseTo(drogue.diameter, 9);
+  });
+
+  it("without a pick still resizes the largest canopy — the old behaviour is the default", async () => {
+    const rocket = await load("demo-dual-deploy.ork");
+    const drogueD0 = byName(rocket, "Drogue parachute").diameter;
+    const edited = applyGeometryEdits(rocket, { mainParachuteDiameter: 1.6 });
+    expect(byName(edited, "Main parachute").diameter).toBeCloseTo(1.6, 9);
+    expect(byName(edited, "Drogue parachute").diameter).toBeCloseTo(drogueD0, 9);
+  });
+
+  it("changes the flight: resizing the picked canopy moves the landing speed", async () => {
+    // The reason this matters rather than being tidy. Landing speed and landing energy are what
+    // recovery sizing exists to get right, and the drogue sets the descent from apogee to the main.
+    const rocket = await load("demo-dual-deploy.ork");
+    const drogue = byName(rocket, "Drogue parachute");
+    const base = runFlight(rocket, {}).result;
+    const bigger = runFlight(
+      applyGeometryEdits(rocket, { parachuteId: drogue.id, mainParachuteDiameter: drogue.diameter * 2 }),
+      {},
+    ).result;
+    // A larger drogue slows the descent, so the flight lasts longer.
+    expect(bigger.summary.flightTime).toBeGreaterThan(base.summary.flightTime);
+  });
+
+  it("promotes the canopy you picked to the altitude deployment", async () => {
+    const rocket = await load("demo-dual-deploy.ork");
+    const drogue = byName(rocket, "Drogue parachute");
+    const edited = applyGeometryEdits(rocket, {
+      parachuteId: drogue.id,
+      mainDeployAltitude: 200,
+      drogueDiameter: 0.3,
+    });
+    const promoted = primaryParachute(edited, drogue.id)!;
+    expect(promoted.deployEvent).toBe("altitude");
+    expect(promoted.deployAltitude).toBeCloseTo(200, 9);
+  });
+
+  it("a canopy pick on its own is not an edit and flies the design untouched", async () => {
+    const rocket = await load("demo-dual-deploy.ork");
+    const drogue = byName(rocket, "Drogue parachute");
+    expect(hasGeometryEdits({ parachuteId: drogue.id })).toBe(false);
+    expect(applyGeometryEdits(rocket, { parachuteId: drogue.id })).toBe(rocket);
+  });
+
+  it("counts the canopies the recovery fields cannot reach without a pick", async () => {
+    expect(unreachableParachuteCount(await load("demo-dual-deploy.ork"))).toBe(1);
+    expect(unreachableParachuteCount(await load("demo-single-deploy.ork"))).toBe(0);
+  });
+
+  it("names the canopy it is holding", async () => {
+    const rocket = await load("demo-dual-deploy.ork");
+    const drogue = byName(rocket, "Drogue parachute");
+    expect(primaryParachutePart(rocket, drogue.id)!.name).toBe("Drogue parachute");
+    expect(primaryParachutePart(rocket)!.name).toBe("Main parachute");
+    expect(primaryParachutePart(rocket, drogue.id)!.covers).toBe(1);
+  });
+
+  it("aims the recovery fields at a canopy and nothing else at one", async () => {
+    const rocket = await load("demo-dual-deploy.ork");
+    const drogue = byName(rocket, "Drogue parachute");
+    expect(aimEditsAt(rocket, drogue.id)).toEqual({ parachuteId: drogue.id });
+  });
+});
+
+describe("the aim registry is the one list", () => {
+  it("makes every selection field inert, so a pick is never counted as a what-if", () => {
+    for (const slot of Object.keys(AIM_SLOTS)) {
+      expect(INERT_EDIT_FIELDS.has(slot), `${slot} must be inert`).toBe(true);
+      expect(hasGeometryEdits({ [slot]: "some-id" })).toBe(false);
+    }
+    // And the one inert field that is not an aim stays inert.
+    expect(INERT_EDIT_FIELDS.has("payloadStation")).toBe(true);
+  });
+
+  it("gives every slot at least one value field, and never shares one between slots", () => {
+    const seen = new Map<string, string>();
+    for (const [slot, def] of Object.entries(AIM_SLOTS)) {
+      expect(def.targets.length, `${slot} aims nothing`).toBeGreaterThan(0);
+      expect(def.kinds.length, `${slot} matches no kind`).toBeGreaterThan(0);
+      for (const t of def.targets) {
+        // A field aimed by two slots would have two answers to "which part does this land on".
+        expect(seen.has(t), `${t} is aimed by both ${seen.get(t)} and ${slot}`).toBe(false);
+        seen.set(t, slot);
+      }
+    }
+  });
+
+  it("never routes one component kind to two slots", () => {
+    const seen = new Map<string, string>();
+    for (const [slot, def] of Object.entries(AIM_SLOTS)) {
+      for (const k of def.kinds) {
+        expect(seen.has(k), `${k} would aim both ${seen.get(k)} and ${slot}`).toBe(false);
+        seen.set(k, slot);
+      }
+    }
+  });
+
+  it("projects only the aims out of an edit bag, never a value", async () => {
+    const rocket = await load("demo-dual-deploy.ork");
+    const chute = flattenRocket(rocket).find((p) => p.component.kind === "parachute")!.component.id;
+    const aims = aimsOf({ parachuteId: chute, finSpan: 0.05, bodyLength: 0.4, payloadStation: 0.2 });
+    expect(aims.parachuteId).toBe(chute);
+    expect(aims.finSetId).toBeUndefined();
+    // The values must not leak through: a view watching this map for "the aim moved" would otherwise
+    // fire on a typed span, with a number where a component id belongs.
+    expect(Object.keys(aims).sort()).toEqual(Object.keys(AIM_SLOTS).sort());
+    for (const v of Object.values(aims)) expect(typeof v === "string" || v === undefined).toBe(true);
+  });
+});
+
+describe("a structural add stays where it belongs, whatever tube is picked", () => {
+  /** Every component's station, keyed by id, so a test can say where a part landed. */
+  const stations = (r: Rocket) => new Map(flattenRocket(r).map((p) => [p.component.id, p.xFore]));
+
+  it("puts the boattail on the tail even when a picked tube is lengthened past the longest", async () => {
+    // `demo-quirks.ork` is a 500 mm forward tube ahead of a 450 mm aft tube, so the LONGEST tube is
+    // already the forward one — the committed fixture that reproduces the shape without the corpus,
+    // which is gitignored and absent on a fork.
+    //
+    // The live version was measured on `01.One-stage.ork` (a 254 mm payload tube ahead of a 610 mm body
+    // tube, where "longest" did stand in for "aft" until `bodyLength` became aimed): picking the
+    // forward tube and taking it to 700 mm made it the longest, and the tail cone moved with it to
+    // station 889 mm, contracting 54 mm to 40 mm and re-expanding through the transition behind it.
+    // The solver flies that, so base drag, CP, CG and apogee all came from a rocket nobody asked for.
+    const rocket = await load("demo-quirks.ork");
+    const tubes = flattenRocket(rocket).filter((p) => p.component.kind === "bodytube");
+    expect(tubes.length).toBe(2);
+    const fwd = tubes[0].component.id;
+    const aft = tubes[1].component.id;
+
+    const add = { boattailLength: 0.05, boattailAftDiameter: 0.03 };
+    const noPick = applyGeometryEdits(rocket, add);
+    const picked = applyGeometryEdits(rocket, { ...add, bodyTubeId: fwd, bodyLength: 0.9 });
+
+    // Either way the boattail hangs off the AFT tube, never the forward one.
+    expect(stations(noPick).has(`${aft}-boattail`)).toBe(true);
+    expect(stations(picked).has(`${aft}-boattail`)).toBe(true);
+    expect(stations(picked).has(`${fwd}-boattail`)).toBe(false);
+    // And it sits behind the aft tube's own trailing edge, not part-way up the airframe.
+    const st = stations(picked);
+    const aftPlaced = flattenRocket(picked).find((p) => p.component.id === aft)!;
+    expect(st.get(`${aft}-boattail`)!).toBeCloseTo(aftPlaced.xFore + aftPlaced.length, 6);
+    // The forward tube really did grow past the aft one, so the case is live rather than side-stepped.
+    expect(flattenRocket(picked).find((p) => p.component.id === fwd)!.length).toBeCloseTo(0.9, 9);
+  });
+
+  it("puts the payload in the tube that is picked, and says where that is", async () => {
+    const rocket = await load("demo-quirks.ork");
+    const tubes = flattenRocket(rocket).filter((p) => p.component.kind === "bodytube");
+    const mount = tubes.find((p) => p.component.name === "Motor mount body")!.component.id;
+    const upper = tubes.find((p) => p.component.name === "Upper")!.component.id;
+
+    // Blank station, no pick: the bay goes in the primary (longest) tube, as it always has.
+    const none = applyGeometryEdits(rocket, { payloadMassKg: 0.3 });
+    expect(stations(none).has(`${upper}-payload`)).toBe(true);
+
+    // Blank station with the aft tube picked: the bay goes THERE...
+    const aimed = applyGeometryEdits(rocket, { bodyTubeId: mount, payloadMassKg: 0.3 });
+    expect(stations(aimed).has(`${mount}-payload`)).toBe(true);
+    expect(stations(aimed).has(`${upper}-payload`)).toBe(false);
+    // ...and the field's placeholder names the same tube's mid-point, so a blank and what a blank does
+    // agree. They did not: the station field went on advertising the primary tube's mid-point.
+    const placeholder = defaultPayloadStation(rocket, mount)!;
+    expect(stations(aimed).get(`${mount}-payload`)!).toBeCloseTo(placeholder, 9);
+    expect(defaultPayloadStation(rocket)).not.toBeCloseTo(placeholder, 6);
+  });
+
+  it("resolves the aft-most tube by station, not by length", async () => {
+    // The distinction is the whole fix: `demo-quirks.ork`'s aft tube (450 mm) is SHORTER than its
+    // forward one (500 mm), so anything resolving "longest" picks the wrong end unaided.
+    const rocket = await load("demo-quirks.ork");
+    const tubes = flattenRocket(rocket).filter((p) => p.component.kind === "bodytube");
+    const aft = tubes.reduce((a, b) => (b.xFore > a.xFore ? b : a));
+    expect(aft.component.name).toBe("Motor mount body");
+    expect(primaryBodyTube(rocket)!.name).toBe("Upper"); // the longest is the FORWARD one
+    const edited = applyGeometryEdits(rocket, { boattailLength: 0.04, boattailAftDiameter: 0.03 });
+    expect(stations(edited).has(`${aft.component.id}-boattail`)).toBe(true);
+  });
+});
+
+describe("the boattail's advertised bound is the bound that is enforced", () => {
+  it("quotes the tube the cone attaches to, not the tube that happens to be picked", async () => {
+    // The exit is validated against the tube the cone attaches to (`aftRadius < tube.outerRadius`), so a
+    // field quoting a DIFFERENT component's caliber promises a limit the validator never applies — and a
+    // value inside the advertised range is then a silent no-op, the worst of the three outcomes.
+    // `demo-quirks.ork`: the aft tube is ⌀44 mm, the forward (and longest) one ⌀66 mm.
+    const rocket = await load("demo-quirks.ork");
+    const tubes = flattenRocket(rocket).filter((p) => p.component.kind === "bodytube");
+    const fwd = tubes[0].component.id;
+
+    const fairsTo = aftmostBodyDiameter(rocket)!;
+    expect(fairsTo).toBeCloseTo(0.044, 9);
+    // Not the same as the picked tube's caliber, so the two really can disagree.
+    expect(primaryBodyDiameter(rocket, fwd)).toBeCloseTo(0.066, 9);
+
+    // A value under the ADVERTISED bound is accepted and builds a cone...
+    const ok = applyGeometryEdits(rocket, { boattailLength: 0.05, boattailAftDiameter: fairsTo * 0.8 });
+    expect(flattenRocket(ok).some((p) => p.component.id.endsWith("-boattail"))).toBe(true);
+    // ...and one at or above it is refused, which is exactly why the field must not advertise the wider
+    // tube: 60 mm sits inside the forward tube's 66 mm and is silently dropped.
+    const refused = applyGeometryEdits(rocket, { boattailLength: 0.05, boattailAftDiameter: 0.06 });
+    expect(flattenRocket(refused).some((p) => p.component.id.endsWith("-boattail"))).toBe(false);
   });
 });
