@@ -1097,6 +1097,21 @@ export function removalRefusal(rocket: Rocket, id: string): string | null {
   if (target.component.kind === "masscomponent" && target.component.standsForAirframe) {
     return `${target.component.name} is this design's whole stated weight, not a part inside it — this file states one launch weight and no per-part masses, so removing it would leave a rocket with no mass at all. Change the weight in the file, or edit a design that carries its own materials.`;
   }
+  // And the same weight cannot be taken out from ABOVE. A removal takes everything mounted inside the
+  // part, and the adapter has to hang that point mass off some component — the first body tube — so
+  // removing THAT tube deleted the design's entire weight just as surely. Found by sweeping every
+  // removable part of all 35 corpus designs rather than every mass object: `Show-off.CDX1` carries two
+  // tubes, so the last-tube refusal did not fire, and taking the first one left 0.0 g dry.
+  const inside = flattenRocket(rocket).find(
+    (p) =>
+      p.component.kind === "masscomponent" &&
+      p.component.standsForAirframe &&
+      p.component.id !== id &&
+      subtreeIds(rocket, id).has(p.component.id),
+  );
+  if (inside) {
+    return `This design's whole stated weight (${inside.component.name}) is carried inside ${target.component.name}, and removing a part takes everything mounted in it — so this would leave a rocket with no mass at all. This file states one launch weight and no per-part masses, so there is no weight for Loft to keep behind.`;
+  }
   if (target.component.kind === "bodytube") {
     // Counted within the target's OWN stage, not across the design. A staged rocket is several airframes
     // flown in sequence, so "the design still has a tube" is no comfort to a sustainer that no longer

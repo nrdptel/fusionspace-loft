@@ -118,19 +118,18 @@ one and the drogue was unreachable on all of them.
 
 ## R2 — Delete a component, and undo it
 
-**Status:** IN PROGRESS — current milestone. Three of its four parts are done and pinned: component ids
-survive an export/re-import round trip (`lib/model/id.test.ts`), a flyer can remove any component and
-undo it (`lib/model/edit.test.ts`'s `removing a component` suite, plus the e2e cases *removing a part
-re-flies the design, and the removal is undoable* and *the last body tube cannot be removed, and it says
-why*), and **undo now covers every edit rather than only removals** — pinned by `lib/model/history.test.ts`
-(17 cases) and by four e2e cases: *a typed dimension is undoable, and redoable — not only a removal*,
-*one undo takes back a whole gesture, not one frame of it*, *one undo never takes back two gestures on two
-different parts*, and *clearing every what-if is itself undoable*. Each was proved able to fail by a
-negative control with its BUILD_EXIT checked.
-
-What is left of the *done when*: **the mass-object leg**. Measured on the corpus, removing a mass object
-reaches further than either other leg (26 of 35 designs carry one, 15 carry two or more, 56 in total) and
-it has never been driven — and two of the three cases it produces are wrong. See the notes below.
+**Status:** SHIPPED 2026-07-30 — pinned by `lib/model/id.test.ts` (ids survive an export/re-import round
+trip), `lib/model/edit.test.ts` (the `removing a component`, `a part that is not a part` and `what states a
+part's mass` suites), `lib/model/history.test.ts` (17 cases over the undo stack), `lib/corpus/sweep.test.ts`'s
+*never lets a removal leave a design with no mass, and says so when it moves none* (536 removable parts across
+all 35 real designs, and it skips itself where the corpus is absent), and nine e2e cases in
+`e2e/smoke.spec.ts`: *removing a part re-flies the design, and the removal is undoable*, *the last body tube
+cannot be removed, and it says why*, *a typed dimension is undoable, and redoable*, *one undo takes back a
+whole gesture, not one frame of it*, *one undo never takes back two gestures on two different parts*,
+*clearing every what-if is itself undoable*, *the keyboard shortcut undoes, and leaves a text box's own undo
+alone*, *a removal the design's own stated weight swallows says so, before and after the click*, and *the
+point mass that IS a RASAero design's weight cannot be removed, and it says why*. Every one was proved able
+to fail by a negative control with its BUILD_EXIT checked.
 
 **Outcome.** The flyer can remove a part and watch the flight answer change.
 
@@ -185,18 +184,36 @@ Pinned by `lib/model/edit.test.ts` (`a part that is not a part`, `what states a 
 e2e cases *a removal the design's own stated weight swallows says so, before and after the click* and
 *the point mass that IS a RASAero design's weight cannot be removed, and it says why*.
 
-What is left of the *done when*: walk it end to end on
-`corpus/openrocket/openrocket__openrocket-repo-sim-scripting-largehpr__Simulation scripting.ork` — the one
-corpus design that is single-stage and lets all three named parts go: fin set → 2,458 m / 3.08 cal, mass
-object → 2,399 m / 1.58 cal, aft tube → 3,244 m / 3.17 cal, from 2,348 m / 2.09 cal.
+**What the *done when* actually did, walked in the built export on a real design.**
+`Simulation scripting.ork` — 1 stage, 4 fin sets, 2 mass objects, 3 body tubes, flying 2,348 m at 2.09 cal
+on 7.012 kg dry:
 
-**Size.** 3–5 increments. **Five used so far.**
+| removed | apogee | margin | dry | undo |
+|---|---|---|---|---|
+| fin set "CONTROL" | 2,458 m | 3.08 cal (flagged HIGH) | 6.957 kg | back to the exact prior model |
+| mass object "Nose cone payload" | 2,399 m | 1.58 cal | 6.362 kg | back to the exact prior model |
+| aft body tube | no flight, and it says why | — | 4.672 kg | back to the exact prior model |
+
+The aft tube is the interesting one: it carries the motor mount, so removing it leaves a design with no
+propulsion — which Loft reports as such rather than inventing a flight for it, exactly as the removal rules
+already say it should. On that same design, taking tubes away until one is left refuses the last with
+*"This is the only body tube left, and an airframe needs one…"*.
+
+**The gap, which is R3's starting point rather than a reason to re-open this.** Undo is a stack of edit-bag
+snapshots, not an operation list. It delivers everything R2's *done when* asks and it is the right shape for
+a flat patch — but R3 adds parts, and "add" is the first edit that cannot be expressed as a value in that
+bag. The snapshot stack survives the transition unchanged (a snapshot of an operation list is still a
+snapshot); what does not is `GeometryEdits`. Two smaller gaps, both filed with measurements in `BACKLOG.md`:
+the gesture boundary is still inferred from a clock rather than taken from the drag handle's own
+pointer-down/up, and a rename is the one header control that is not on the stack.
+
+**Size.** 3–5 increments. **Took 4.**
 
 ---
 
 ## R3 — Add a component
 
-**Status:** NOT STARTED
+**Status:** IN PROGRESS — current milestone.
 
 **Outcome. The milestone that makes Loft a builder.** The flyer can grow an airframe that did not
 come from a file.
