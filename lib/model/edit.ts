@@ -9,6 +9,7 @@
 
 import type { Rocket, RocketComponent, ComponentKind, NoseCone, BodyTube, Transition, Parachute, Material, SurfaceFinish, NoseShape, FinCrossSection, MotorMount, MassComponent } from "./types";
 import { flattenRocket } from "./geometry";
+import { uniqueUuidFrom } from "./id";
 import type { Positioned } from "./geometry";
 
 /** Selectable nose-cone shapes, for the builder's nose picker. Ordered by how a flyer thinks of
@@ -75,6 +76,28 @@ export const SURFACE_FINISHES: SurfaceFinish[] = [
   "rough",
 ];
 
+/** One part the flyer authored. Deliberately a THIN record: an id, what kind it is, what it sits behind,
+ *  and the one dimension that has no sensible neighbour to inherit. Everything else — diameter, wall,
+ *  material, finish — comes from the part it was added after, because a new tube that does not fair to
+ *  the airframe it joins is a geometry no flyer meant to draw, and because a modal wall of number fields
+ *  is exactly what the roadmap says to resist. The numbers are the confirmation, not the gesture: once
+ *  the part is there, the editor's existing fields aim at it and change it. */
+export interface AddedPart {
+  /** Minted once when the part is authored, and stable from then on. UUID-shaped, so the part can be
+   *  exported to `.ork` and re-imported as itself — see `lib/model/id.ts` for why that shape. */
+  id: string;
+  /** What to build. One kind for now; the switch in `buildAdded` is where the rest arrive. */
+  kind: "bodytube";
+  /** The component this goes immediately AFTER, in its stage's own top-level list. An id rather than an
+   *  index or a role, so it still means the same part after a length edit, a removal, or a reload. */
+  after: string;
+  /** Length (m). The one dimension a neighbour cannot supply: inheriting it would silently double the
+   *  airframe, and zero is not a part. */
+  length: number;
+  /** What to call it on the diagram and in the parts list. */
+  name?: string;
+}
+
 export interface GeometryEdits {
   /** Which fin set the fin fields describe and edit. Undefined means the frontmost one, which is
    *  what the panel has always used and what every readback below still falls back to. This is a
@@ -122,6 +145,19 @@ export interface GeometryEdits {
    *  places the motor's mass at station 0, at the nose tip, which is a wrong flight rather than no
    *  flight. */
   removedIds?: string[];
+  /** Parts the flyer AUTHORED rather than imported, oldest first.
+   *
+   *  The first edit that is an operation rather than a value. Everything else in this bag is a scalar
+   *  standing for "the design, but with this dimension changed" — a shape that cannot express "add a
+   *  body tube", because there is no field for a part that does not exist yet and no way to say WHICH
+   *  of three. Loft has added components before (a boattail, a dual-deploy drogue, a payload point
+   *  mass) but each is a special case with one instance and a hard-coded anchor; this is the general
+   *  one, and the flat fields keep working beside it until the operation path covers them.
+   *
+   *  An ordered LIST for the same reason `removedIds` is: the order is what makes it undoable, since
+   *  the model is always rebuilt from the pristine design plus this bag. Each entry carries its own id,
+   *  minted once, so an aim, a removal and an undo all address the same part across rebuilds. */
+  added?: AddedPart[];
   /** Absolute fin semi-span (root→tip height, m) for the fin group the panel describes — the
    *  primary set and any set indistinguishable from it. Undefined leaves fins as-is. */
   finSpan?: number;
@@ -222,6 +258,7 @@ export interface GeometryEdits {
 export function hasGeometryEdits(e: GeometryEdits): boolean {
   return (
     (e.removedIds !== undefined && e.removedIds.length > 0) ||
+    (e.added !== undefined && e.added.length > 0) ||
     (e.finSpan !== undefined && e.finSpan > 0) ||
     (e.finCount !== undefined && e.finCount >= 1) ||
     (e.finRootChord !== undefined && e.finRootChord > 0) ||
@@ -1161,7 +1198,97 @@ function applyRemovals(rocket: Rocket, removedIds?: readonly string[]): Rocket {
  *
  *  Removals come first and the dimension edits are applied to what is left — see `applyRemovals`. */
 export function applyGeometryEdits(rocket: Rocket, edits: GeometryEdits): Rocket {
-  return applyDimensionEdits(applyRemovals(rocket, edits.removedIds), withoutRemovedAims(edits));
+  // ADDS FIRST, then removals, then the dimension edits. The order is not arbitrary and each step of it
+  // was chosen against a case:
+  //  - adds before removals, so a part the flyer authored can be REMOVED by id like any other. The
+  //    other way round, `removedIds` is applied to a tree the added part is not in yet, and the one
+  //    part a flyer is most likely to want back is the one they cannot take out.
+  //  - adds before the dimension edits, so `bodyTubeId` can aim at an authored tube and `bodyLength`
+  //    edits it — the whole point of authoring being an edit of the same model, not a second mechanism.
+  //    It also means `aftmostBodyTube`, which anchors a boattail, sees a tube that was added behind it.
+  return applyDimensionEdits(
+    applyRemovals(applyAdds(rocket, edits.added), edits.removedIds),
+    withoutRemovedAims(edits),
+  );
+}
+
+/** Build the component one authored part describes, inheriting everything it can from the neighbour it
+ *  was added after. Returns null when the entry describes nothing buildable. */
+function buildAdded(part: AddedPart, after: RocketComponent): RocketComponent | null {
+  if (!(part.length > 0)) return null;
+  switch (part.kind) {
+    case "bodytube": {
+      // The caliber has to come from the airframe, not from the flyer: a tube that does not fair to the
+      // part it joins is a step in the outer mould line, which changes the drag and the stability of a
+      // design nobody meant to draw. `aftRadius` on a nose or transition IS the joint diameter there.
+      const radius =
+        after.kind === "bodytube"
+          ? after.outerRadius
+          : after.kind === "nosecone" || after.kind === "transition"
+            ? after.aftRadius
+            : undefined;
+      if (!(radius !== undefined && radius > 0)) return null;
+      // The wall and the material travel TOGETHER, and a wall of nothing takes the material with it.
+      // `lib/sim/mass.ts` models a tube that has a material and no wall as a SOLID ROD — measured on a
+      // hand-built part, 2.13× the mass and 72% off the apogee, with no error anywhere — so a part
+      // that inherited one without the other would be the quietest wrong number this milestone could
+      // ship. Measured across the corpus: of 90 body tubes, exactly 12 carry neither, and all 12 are
+      // the RASAero ones, whose geometry is deliberately massless because the format states no
+      // materials at all and the weight is carried by a separate point mass. So inheriting the pair is
+      // right on every real design: a real wall where the design states one, and the same massless
+      // geometry as its neighbours where it does not.
+      const wall = "thickness" in after && after.thickness !== undefined && after.thickness > 0 ? after.thickness : undefined;
+      return {
+        id: part.id,
+        name: part.name || "Body tube",
+        kind: "bodytube",
+        placement: { method: "after", offset: 0 },
+        length: part.length,
+        outerRadius: radius,
+        ...(wall !== undefined ? { thickness: wall, ...(after.material ? { material: after.material } : {}) } : {}),
+        ...(after.finish ? { finish: after.finish } : {}),
+        children: [],
+      };
+    }
+  }
+}
+
+/** Splice every authored part into the design, each immediately behind the part it names.
+ *
+ *  An entry whose anchor is not in the design is DROPPED rather than placed somewhere else: the anchor
+ *  is the only thing that says where the part goes, and putting it at the aft end instead would move a
+ *  flyer's part without saying so. That happens when the anchor was itself removed, which is a state a
+ *  flyer can reach and undo, so silence about it is wrong only if it were permanent — and it is not. */
+function applyAdds(rocket: Rocket, added?: readonly AddedPart[]): Rocket {
+  if (!added?.length) return rocket;
+  let out = rocket;
+  for (const part of added) {
+    const anchor = flattenRocket(out).find((p) => p.component.id === part.after)?.component;
+    if (!anchor) continue;
+    const built = buildAdded(part, anchor);
+    if (!built) continue;
+    let placed = false;
+    const stages = out.stages.map((s) => {
+      const idx = s.components.findIndex((c) => c.id === part.after);
+      if (idx === -1) return s;
+      placed = true;
+      return { ...s, components: [...s.components.slice(0, idx + 1), built, ...s.components.slice(idx + 1)] };
+    });
+    // A nested anchor — a tube inside a tube, which real designs do have — has no unambiguous aft slot
+    // in a top-level list, so the part is skipped rather than placed somewhere it was not asked for.
+    // The same rule `addBoattail` already applies, for the same reason.
+    if (placed) out = { ...out, stages };
+  }
+  return out;
+}
+
+/** A UUID-shaped id for a newly authored part, unique within the design it is joining. Derived from the
+ *  design's own shape rather than random, so the same sequence of edits produces the same ids — which is
+ *  what lets a stored aim, a removal and an undo all still point at the right part after a reload. */
+export function newPartId(rocket: Rocket, added: readonly AddedPart[] | undefined, after: string): string {
+  const taken = new Set(flattenRocket(rocket).map((p) => p.component.id));
+  for (const a of added ?? []) taken.add(a.id);
+  return uniqueUuidFrom(`added:${after}:${taken.size}`, taken);
 }
 
 /** Drop any aim naming a component this same bag removes — and the values that aim was pointing.

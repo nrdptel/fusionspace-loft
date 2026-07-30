@@ -21,6 +21,9 @@ import {
   unreachableParachuteCount,
   aimEditsAt,
   removalRefusal,
+  newPartId,
+  type AddedPart,
+  type GeometryEdits,
   aimsClearedByRemoving,
   isEditedValue,
   type AimedPart,
@@ -136,6 +139,8 @@ interface Edits {
   parachuteId?: string;
   /** Components removed from the design, oldest first. An ordered list, so undo is dropping the last. */
   removedIds?: string[];
+  /** Parts the flyer authored, oldest first — see `AddedPart` in the edit model. */
+  added?: AddedPart[];
   rodLength?: number; // m
   rodAngleDeg?: number;
   windSpeed?: number; // m/s
@@ -166,6 +171,32 @@ interface Edits {
   motorClusterCount?: number; // builder edit: how many motors the mount holds (cluster)
   payloadMassKg?: number; // builder edit: add a payload/av-bay point mass (kg)
   payloadStation?: number; // builder edit: where the added payload sits (m from nose; blank = mid-body)
+}
+
+/** Which keys of `Edits` describe the FLIGHT rather than the airframe. Everything else is geometry.
+ *
+ *  Named as the short list rather than the long one on purpose. Three places need the geometry half of
+ *  the edit bag — the flight, the panels, and the `.ork` export — and all three spelled it out field by
+ *  field, thirty lines each. Adding `added` to two of the three is what that costs: the mass panel grew
+ *  a 310 mm section and put 142 g on the design while the Flight card went on reporting the apogee of a
+ *  rocket without it, which is precisely the "two surfaces disagreeing about what is being flown"
+ *  defect the rest of this file exists to prevent. The airframe list grows with the editor; this one
+ *  does not, so deriving from it means the next field is covered by having been added. */
+const FLIGHT_ONLY_EDITS: ReadonlySet<string> = new Set([
+  "rodLength",
+  "rodAngleDeg",
+  "windSpeed",
+  "launchAltitude",
+  "ballastKg",
+  "recoveryCdScale",
+  "motorSwap",
+]);
+
+/** The geometry half of the edit bag — everything the airframe is built from, and nothing transient. */
+function geometryOf(e: Edits): GeometryEdits {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(e)) if (!FLIGHT_ONLY_EDITS.has(k)) out[k] = v;
+  return out as GeometryEdits;
 }
 
 /** Everything one undo has to put back — the whole of "what is being flown", not just the edit bag.
@@ -339,35 +370,7 @@ export default function LoftApp() {
         ballastKg: e.ballastKg,
         recoveryCdScale: e.recoveryCdScale,
         motorSwap: e.motorSwap,
-        geometry: {
-          finSetId: e.finSetId,
-          bodyTubeId: e.bodyTubeId,
-          parachuteId: e.parachuteId,
-          removedIds: e.removedIds,
-          finSpan: e.finSpan,
-          finCount: e.finCount,
-          finRootChord: e.finRootChord,
-          finTipChord: e.finTipChord,
-          finSweepLength: e.finSweepLength,
-          finStation: e.finStation,
-          finThickness: e.finThickness,
-          finCrossSection: e.finCrossSection,
-          finMaterial: e.finMaterial,
-          noseLength: e.noseLength,
-          noseShape: e.noseShape,
-          bodyLength: e.bodyLength,
-          bodyDiameter: e.bodyDiameter,
-          finish: e.finish,
-          airframeMaterial: e.airframeMaterial,
-          boattailLength: e.boattailLength,
-          boattailAftDiameter: e.boattailAftDiameter,
-          mainDeployAltitude: e.mainDeployAltitude,
-          drogueDiameter: e.drogueDiameter,
-          mainParachuteDiameter: e.mainParachuteDiameter,
-          motorClusterCount: e.motorClusterCount,
-          payloadMassKg: e.payloadMassKg,
-          payloadStation: e.payloadStation,
-        },
+        geometry: geometryOf(e),
         // Validate only when flying the design's own stored conditions unchanged, and only when
         // Loft flew the complete design — a simplified vehicle (staging/pods/parallel/cluster)
         // wouldn't match the stored results, so the comparison would be misleading. Any edit —
@@ -602,35 +605,7 @@ export default function LoftApp() {
     // Bake in the builder's structural (geometry) edits so the saved airframe matches what's shown.
     // Transient flight what-ifs (ballast, motor swap, recovery scale, launch conditions) are not
     // part of the design and are left out.
-    const geometry = {
-      finSetId: edits.finSetId,
-      bodyTubeId: edits.bodyTubeId,
-      parachuteId: edits.parachuteId,
-      removedIds: edits.removedIds,
-      finSpan: edits.finSpan,
-      finCount: edits.finCount,
-      finRootChord: edits.finRootChord,
-      finTipChord: edits.finTipChord,
-      finSweepLength: edits.finSweepLength,
-      finStation: edits.finStation,
-      finThickness: edits.finThickness,
-      finCrossSection: edits.finCrossSection,
-      finMaterial: edits.finMaterial,
-      noseLength: edits.noseLength,
-      noseShape: edits.noseShape,
-      bodyLength: edits.bodyLength,
-      bodyDiameter: edits.bodyDiameter,
-      finish: edits.finish,
-      airframeMaterial: edits.airframeMaterial,
-      boattailLength: edits.boattailLength,
-      boattailAftDiameter: edits.boattailAftDiameter,
-      mainDeployAltitude: edits.mainDeployAltitude,
-      drogueDiameter: edits.drogueDiameter,
-      mainParachuteDiameter: edits.mainParachuteDiameter,
-      motorClusterCount: edits.motorClusterCount,
-      payloadMassKg: edits.payloadMassKg,
-      payloadStation: edits.payloadStation,
-    };
+    const geometry = geometryOf(edits);
     const rocket = hasGeometryEdits(geometry) ? applyGeometryEdits(doc.rocket, geometry) : doc.rocket;
     const bytes = exportOrk({ ...doc, rocket });
     const base =
@@ -767,8 +742,8 @@ export default function LoftApp() {
    *  drogue, a payload bay) and those are appended AFTER the prune, so `removedIds` can never take one.
    *  Offering to remove a part the mechanism cannot touch is a button that does nothing. */
   const removableFrom = useMemo(
-    () => (doc ? applyGeometryEdits(doc.rocket, { removedIds: edits.removedIds }) : null),
-    [doc, edits.removedIds],
+    () => (doc ? applyGeometryEdits(doc.rocket, { added: edits.added, removedIds: edits.removedIds }) : null),
+    [doc, edits.added, edits.removedIds],
   );
 
   /** Why this part cannot be removed, or null. The panel asks THIS rather than judging for itself, so the
@@ -796,6 +771,35 @@ export default function LoftApp() {
         removedIds: [...(edits.removedIds ?? []), id],
       },
       { label: `removing ${name || "the part"}`, key: `remove:${id}` },
+    );
+  };
+
+  /** Author a part behind the one the flyer picked. The gesture is "another one of these, here": the
+   *  part it goes behind is the part on screen, and everything the new part can inherit — caliber, wall,
+   *  material, finish — comes from that neighbour rather than from a modal wall of number fields. The
+   *  numbers are the confirmation: the fields re-aim at the new part the moment it exists, so the very
+   *  next thing the flyer types changes what they just made.
+   *
+   *  The default length is HALF the neighbour's, floored at one caliber. Proportionate to the design, so
+   *  a 4-inch airframe gets a section and a 24 mm one gets a coupler rather than both getting the same
+   *  invented number; visible enough that the panels the milestone names actually move — one caliber on
+   *  the starter design added 25 g and left apogee and margin reading the same to the digit shown, which
+   *  is a capability a flyer cannot see; and never so long that it re-proportions the rocket before
+   *  anyone has said what it is for. The floor is there because half of a very short tube is a seam. */
+  const addPartAfter = (afterId: string) => {
+    if (!doc || !removableFrom) return;
+    const anchor = flattenRocket(removableFrom).find((p) => p.component.id === afterId)?.component;
+    if (!anchor || anchor.kind !== "bodytube") return;
+    const id = newPartId(doc.rocket, edits.added, afterId);
+    const part: AddedPart = { id, kind: "bodytube", after: afterId, length: Math.max(anchor.length / 2, 2 * anchor.outerRadius) };
+    // Aim the body fields at it in the same commit, so one undo takes back the part AND the aim rather
+    // than leaving the fields holding a part that no longer exists.
+    applyEdit(
+      { added: [...(edits.added ?? []), part], ...aimEditsAt(applyGeometryEdits(doc.rocket, {
+        added: [...(edits.added ?? []), part],
+        removedIds: edits.removedIds,
+      }), id) },
+      { label: "adding a body tube", key: `add:${id}` },
     );
   };
 
@@ -1007,48 +1011,58 @@ export default function LoftApp() {
   // offers. Recomputed only when the design or its selected configuration changes.
   const swapInfo = useMemo<SwapInfo | null>(() => (doc ? swapInfoFor(doc, simIndex) : null), [doc, simIndex]);
 
+  const designBase = removableFrom ?? doc?.rocket;
   // The design's own dimensions, shown as the starting points for the builder edits.
+  //
+  // Read from the design plus the flyer's STRUCTURE (`removableFrom` — the pristine design with the
+  // parts they have authored and without the ones they have removed) rather than from the imported
+  // file. A part the flyer just built is not in the file, so resolving an aim against the file fell
+  // back to the design's primary part and advertised ITS value: add a tube to the starter design and
+  // the Body length field offered 620 mm as "the design's own" for a section 44 mm long. A field must
+  // never sit there showing a number that is not the one in the flight, and a placeholder is that field
+  // saying what the part currently is. The dimension edits are still excluded, which is what makes
+  // these the values to edit FROM.
   const designDims = useMemo(
     () =>
-      doc
+      doc && designBase
         ? {
             // Every fin readback takes the selected set, so the value the field shows to edit FROM
             // is the same set the edit is written TO. Undefined selection = the frontmost set.
-            finSpan: primaryFinSpan(doc.rocket, edits.finSetId),
-            unreachableFinSets: unreachableFinSetCount(doc.rocket, edits.finSetId),
-            finSetPart: primaryFinSetPart(doc.rocket, edits.finSetId),
-            finCount: primaryFinCount(doc.rocket, edits.finSetId),
-            finRootChord: primaryFinRootChord(doc.rocket, edits.finSetId),
-            finTipChord: primaryFinTipChord(doc.rocket, edits.finSetId),
-            finSweepLength: primaryFinSweep(doc.rocket, edits.finSetId),
-            finStation: primaryFinStation(doc.rocket, edits.finSetId),
-            finThickness: primaryFinThickness(doc.rocket, edits.finSetId),
-            finCrossSection: primaryFinCrossSection(doc.rocket, edits.finSetId),
-            finMaterial: primaryFinMaterial(doc.rocket, edits.finSetId),
-            noseLength: primaryNose(doc.rocket)?.length,
-            noseShape: primaryNoseShape(doc.rocket),
+            finSpan: primaryFinSpan(designBase, edits.finSetId),
+            unreachableFinSets: unreachableFinSetCount(designBase, edits.finSetId),
+            finSetPart: primaryFinSetPart(designBase, edits.finSetId),
+            finCount: primaryFinCount(designBase, edits.finSetId),
+            finRootChord: primaryFinRootChord(designBase, edits.finSetId),
+            finTipChord: primaryFinTipChord(designBase, edits.finSetId),
+            finSweepLength: primaryFinSweep(designBase, edits.finSetId),
+            finStation: primaryFinStation(designBase, edits.finSetId),
+            finThickness: primaryFinThickness(designBase, edits.finSetId),
+            finCrossSection: primaryFinCrossSection(designBase, edits.finSetId),
+            finMaterial: primaryFinMaterial(designBase, edits.finSetId),
+            noseLength: primaryNose(designBase)?.length,
+            noseShape: primaryNoseShape(designBase),
             // The body readbacks take the picked tube for the same reason the fin ones take the
             // picked set: the value the field shows to edit FROM has to be the part the edit is
             // written TO. 23 of the 35 corpus designs carry several tubes as Loft imports them.
-            bodyLength: primaryBodyTube(doc.rocket, edits.bodyTubeId)?.length,
-            bodyDiameter: primaryBodyDiameter(doc.rocket, edits.bodyTubeId),
-            bodyTubePart: primaryBodyTubePart(doc.rocket, edits.bodyTubeId),
+            bodyLength: primaryBodyTube(designBase, edits.bodyTubeId)?.length,
+            bodyDiameter: primaryBodyDiameter(designBase, edits.bodyTubeId),
+            bodyTubePart: primaryBodyTubePart(designBase, edits.bodyTubeId),
             // The boattail's exit is validated against the tube the cone ATTACHES to — the aft-most one
             // — so the bound the field advertises has to come from there too. Quoting the picked tube's
             // caliber promised a limit the validator never used, and a value inside the advertised
             // range was then a silent no-op.
-            boattailFairsTo: aftmostBodyDiameter(doc.rocket),
-            unreachableBodyTubes: unreachableBodyTubeCount(doc.rocket),
-            finish: primaryFinish(doc.rocket),
-            airframeMaterial: primaryAirframeMaterial(doc.rocket),
+            boattailFairsTo: aftmostBodyDiameter(designBase),
+            unreachableBodyTubes: unreachableBodyTubeCount(designBase),
+            finish: primaryFinish(designBase),
+            airframeMaterial: primaryAirframeMaterial(designBase),
             // The recovery readbacks take the picked canopy, so the diameter a field shows to edit
             // FROM is the canopy the resize is written TO. 17 of the 35 corpus designs carry more
             // than one — every dual-deploy design does — and the drogue was unreachable on all.
-            mainParachuteDiameter: primaryParachute(doc.rocket, edits.parachuteId)?.diameter,
-            parachutePart: primaryParachutePart(doc.rocket, edits.parachuteId),
-            unreachableParachutes: unreachableParachuteCount(doc.rocket),
-            motorClusterCount: primaryMotorClusterCount(doc.rocket),
-            payloadStation: defaultPayloadStation(doc.rocket, edits.bodyTubeId),
+            mainParachuteDiameter: primaryParachute(designBase, edits.parachuteId)?.diameter,
+            parachutePart: primaryParachutePart(designBase, edits.parachuteId),
+            unreachableParachutes: unreachableParachuteCount(designBase),
+            motorClusterCount: primaryMotorClusterCount(designBase),
+            payloadStation: defaultPayloadStation(designBase, edits.bodyTubeId),
           }
         : {
             finSpan: undefined,
@@ -1080,7 +1094,7 @@ export default function LoftApp() {
     // The fin and body readbacks take their selected part, so both selections are real dependencies:
     // without them the panel keeps showing the primary part's numbers while the edit writes to the
     // picked one.
-    [doc, edits.finSetId, edits.bodyTubeId, edits.parachuteId],
+    [doc, designBase, edits.finSetId, edits.bodyTubeId, edits.parachuteId],
   );
 
   return (
@@ -1359,35 +1373,7 @@ export default function LoftApp() {
               ballastKg={edits.ballastKg}
               recoveryCdScale={edits.recoveryCdScale}
               motorSwap={edits.motorSwap}
-              geometry={{
-                finSetId: edits.finSetId,
-                bodyTubeId: edits.bodyTubeId,
-                parachuteId: edits.parachuteId,
-                removedIds: edits.removedIds,
-                finSpan: edits.finSpan,
-                finCount: edits.finCount,
-                finRootChord: edits.finRootChord,
-                finTipChord: edits.finTipChord,
-                finSweepLength: edits.finSweepLength,
-                finStation: edits.finStation,
-                finThickness: edits.finThickness,
-                finCrossSection: edits.finCrossSection,
-                finMaterial: edits.finMaterial,
-                noseLength: edits.noseLength,
-                noseShape: edits.noseShape,
-                bodyLength: edits.bodyLength,
-                bodyDiameter: edits.bodyDiameter,
-                finish: edits.finish,
-                airframeMaterial: edits.airframeMaterial,
-                boattailLength: edits.boattailLength,
-                boattailAftDiameter: edits.boattailAftDiameter,
-                mainDeployAltitude: edits.mainDeployAltitude,
-                drogueDiameter: edits.drogueDiameter,
-                mainParachuteDiameter: edits.mainParachuteDiameter,
-                motorClusterCount: edits.motorClusterCount,
-                payloadMassKg: edits.payloadMassKg,
-                payloadStation: edits.payloadStation,
-              }}
+              geometry={geometryOf(edits)}
               swapOptions={swapInfo?.options}
               designMotor={swapInfo?.designMotor}
               designManufacturer={swapInfo?.designManufacturer}
@@ -1396,6 +1382,7 @@ export default function LoftApp() {
               // The routing lives in the edit model rather than here, so the panel that reports the
               // pick does not also have to know which fields a body tube or a fin set drives.
               onRemovePart={removeComponent}
+              onAddAfter={addPartAfter}
               refuseRemoval={refuseRemoval}
               onSelectPart={(id) => {
                 // A pick that aims nothing — a coupler, a centring ring — must not commit an edit

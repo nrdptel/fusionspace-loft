@@ -189,133 +189,84 @@ produced it more than once, including a false sentence in a doc comment written 
 
 ## Shipped this session
 
-**The run's goal was `ROADMAP.md`'s next milestone, and it shipped: R1 — address components by identity,
-not by role.** It is marked SHIPPED there with the checks that pin it named, and the gap it left is
-written up as R2's starting point rather than as a reason to re-open it.
+**The run's goal was `ROADMAP.md`'s current milestone, and it shipped: R2 — delete a component, and undo
+it.** It is marked SHIPPED there with the checks that pin it named, and the gap it leaves is written up as
+R3's starting point. **R3 is now IN PROGRESS**; its first increment had not landed at the time of writing.
 
 Baseline before anything changed, all four green: lint 0 errors / **1 warning** (the standing `setDraft`
-one), **715 unit**, build, **147 e2e**, corpus **35 design files, 3/3**. One e2e failed in the opening
-full run — `picking a fin set aims the fin fields at it` — with `Target page, context or browser has been
-closed` and no failed assertion, exactly the box-not-code signature this file already describes; it passed
-alone on the re-run. At the end: **748 unit, 150 e2e**, corpus 35 throughout.
+one), **772 unit** (769 + the 3 corpus tests), build, **152 e2e**, corpus **35 design files, 3/3**. At the
+end: **795 unit, 160 e2e**, corpus 35 files **4/4** — the fourth is new, below.
 
-**Four commits on the working branch.** Each was gated in full and pushed on its own.
+**Four commits on the working branch, each gated in full and pushed on its own, all four under PR #68.**
 
 | | |
 |---|---|
-| body tubes | `Body length`/`Body diameter` resolved "the" tube as the LONGEST, so every other tube was unreachable — **23 of the 35 corpus designs** carry more than one as Loft imports them. `bodyTubeId` now aims them, and the panel names the tube by the design's own name or, where a file calls every tube "body", by its station. |
-| canopies | The recovery fields resolved "the" parachute as the LARGEST, so the drogue was unreachable on every dual-deploy design — **17 of 35**. `parachuteId` aims them. On the bundled 54 mm sample, doubling the drogue moves the under-drogue descent off 16 m/s; aimed at the main it does not move at all. |
-| one registry | `AIM_SLOTS` maps each aim to the component kinds that move it and the value fields whose target it decides. `aimEditsAt`, `INERT_EDIT_FIELDS` and the design key are all derived from it, replacing three hand-maintained lists that the third role would have had to be added to correctly. |
-| the review's Sev-1s | Three defects the pre-push review found in the first two commits, all reproduced before being fixed. See below — the first one is the one worth reading. |
+| undo everything | `lib/model/history.ts` — a pure, generic snapshot stack with a LABEL, RUN COALESCING and a depth cap. Every what-if was already a value in one bag over a pristine design, so a step is a copy of that bag. The snapshot is `{edits, weather, scenario, simIndex}`, because three controls move more than the edit bag in one act. Ctrl/⌘+Z, Shift+Z, Ctrl+Y. "Reset to as-designed" is a step like any other. |
+| the delete surface's mass | A RASAero import mints one point mass carrying the WHOLE stated launch weight (the format has no per-part masses), and it could be deleted — 453.6 g dry → 0.0 g, CG at the nose tip, still flown. `standsForAirframe` + a refusal. And a removal inside a stated whole-assembly weight sheds nothing: now said before the click and after it. |
+| a Sev-1 the review found | Typing −5 into Rail length flew a 0 m/s rail exit **while the cursor was still in the box** — the range was applied at the COMMIT and typing pushed every keystroke at the model. Pre-existing; the undo work made it reachable again with the warning stripped. The keystroke handler now withholds any complete number the commit path would refuse. |
+| the corpus pin, and R2 done | A new corpus test drives **536 removable parts across all 35 real designs**. It found a second door to the RASAero defect on its first run: that point mass hangs off the first body tube, so removing THAT tube deleted the design's whole weight. `Show-off.CDX1` has two tubes, so the last-tube refusal never fired. |
 
-**Then R2 started, and two of its three parts are in.** They are on the working branch under a second pull
-request, NOT yet merged at the time of writing — check `git log origin/main` before believing otherwise.
-
-| | |
-|---|---|
-| ids survive a save | A design built here is persisted as its OWN exported `.ork` bytes, and the exporter discarded each component's id and minted a fresh one — so every reload came back as different parts and a saved aim matched nothing. The exporter writes `c.id` now; the starter's six ids are literal UUIDs; `lib/model/id.ts` derives a stable UUID for anything that is not one. **423 `<id>` elements across the 27 corpus designs, 0 non-UUID, 0 not version 4** — that measurement is why the shape is not negotiable. |
-| remove and undo | `GeometryEdits.removedIds` is an ordered list, so undo is dropping the last entry and the model rebuilds from the pristine design. A removal takes everything mounted inside the part AND any motor left without a mount — `lib/sim/setup.ts` resolves an unknown mount to `undefined` and puts the motor's mass at station 0, which is a wrong flight rather than an absent one. The last body tube is refused with a sentence. |
-
-**The pre-push review found a Sev-1 that the comment in the same diff denied.** `addBoattail` and
-`addPayloadMass` anchored on the LONGEST body tube, which stood in for "the aft of the airframe" only
-while nothing could change which tube was longest — and aiming `bodyLength` broke exactly that. Measured
-on `01.One-stage.ork` (a 254 mm payload tube ahead of a 610 mm body tube): pick the forward tube, take it
-to 700 mm, add a tail cone, and it lands at station **889 mm**, contracting 54 mm to 40 mm and
-re-expanding through the transition behind it, instead of at 1,121 mm on the tail. The solver flies that.
-The payload bay jumped tube in the same edit, 816 → 539 mm, while its own station field went on
-advertising 816. A boattail anchors to `aftmostBodyTube` (by station, not length) now; the payload follows
-the pick, and `defaultPayloadStation` takes the same pick so a blank and what a blank does agree.
-
-Two more from the same review: the pick-sync ref was seeded with the aims present at mount, so a restored
-session came back holding a part nothing on screen identified (a regression against the behaviour before
-any of this); and "Reset to as-designed" moves every aim in one commit while only the first moved slot was
-examined, leaving a highlight with no aim behind it and a row that took two clicks to aim at again.
-
-**A number in three committed places was wrong, and the review caught it.** "20 of the 27 real OpenRocket
-designs carry more than one body tube" is the raw `<bodytube>` TAG count. What Loft imports is **17 of
-27**, because three of those designs keep tubes inside pod or parallel-stage assemblies the importer
-declines to fly — and a part that is not imported is not a part a flyer can pick. Across all 35 importable
-files the figure is **23**. Corrected in the code comments, the e2e comment and `/docs/limitations`; the
-commit messages that quote 20 stand as written, which is why this note exists.
+**R2's *done when*, walked in the built export on `Simulation scripting.ork`** (4 fin sets, 2 mass objects,
+3 body tubes; 2,348 m / 2.09 cal / 7.012 kg dry): fin set "CONTROL" → 2,458 m / 3.08 cal / 6.957 kg; mass
+object "Nose cone payload" → 2,399 m / 1.58 cal / 6.362 kg; aft body tube → 4.672 kg and NO FLIGHT, because
+it carries the motor mount and Loft reports a design with no propulsion rather than inventing one. Every undo
+returned to the exact prior model. Taking tubes away until one is left refuses the last with its sentence.
 
 ## What this session learned that is worth keeping
 
-**Take the second opinion, and give each agent a DIFFERENT lens.** Three lenses (edit-model correctness,
-surface consistency, does-a-flyer-get-a-wrong-number) converged on the same top finding by three different
-routes, and the one that found the boattail defect found it by reading the comment I had written beside it
-and checking whether the code still did what it said. The redundant version of that fan-out would have
-found one of the three.
+**The pre-push second opinion found a Sev-1 in code that had already passed a full green gate.** Typing −5
+into a rail-length box flew 0 m/s off the rail with no warning, for as long as the cursor stayed in the box.
+A green gate is not a review; take the second opinion every time, and give each agent a DIFFERENT lens —
+"can a flyer get a wrong number" is the one that found it, and neither of the other two did.
 
-**A negative control whose BUILD exits 1 establishes nothing — and the obvious control is the one that
-does.** Reverting the boattail anchor at the call site left `aftmostBodyTube` unused, `noUnusedLocals`
-failed the build, and `out/` never changed. Redone by reverting the rule INSIDE the helper so everything
-stayed referenced. This file already warned about it and it still caught me once; check the exit code, do
-not reason about whether this particular revert could leave something unused.
+**A sweep over EVERY part beats a probe over the part you suspected.** The hand-written probe drove all 56
+mass objects and cleared the design. The corpus test, which drives all 536 removable parts, found on its
+first run that the same weight could be deleted from ABOVE by taking the body tube it hangs off. Write the
+broad check before believing the narrow probe.
 
-**A pin that reads `corpus/` is not a pin.** The corpus is gitignored and absent on every fork and public
-clone, so a `readFileSync` under `corpus/` is a hard ENOENT there — a red CI for people who have done
-nothing wrong — while `lib/corpus/sweep.test.ts` skips itself instead. A milestone's proof has to run on
-`fixtures/` or `e2e/fixtures/`. `fixtures/demo-quirks.ork` turned out to reproduce the exact shape needed
-(a 450 mm aft tube behind a 500 mm forward one, so "longest" points at the wrong end), which is worth
-knowing before reaching for a corpus design.
+**`getByLabel` matches an `aria-label` SUBSTRING, so a label naming a field makes a second control answer to
+that field's name.** "Undo the rail length" was matched by every `getByLabel(/Rail length/)` in the suite,
+and it came first in the document. The fix is not to patch thirty locators: put the label in `sr-only` TEXT
+instead of `aria-label` — the accessible name is the same, and `getByLabel` does not match text content.
 
-**Measure the model, not the file.** `demo-quirks.ork` declares three body tubes and imports as two — the
-third is inside a pod assembly. Every count I took from raw XML was wrong in the same direction, including
-the one that reached three committed files. Count what `flattenRocket` returns.
+**Measure the phone header before adding to it.** Two buttons took the design header from fitting to wanting
+518 px of a 358 px row. Overflowing puts a horizontal scrollbar under every workspace; wrapping costs 48 px
+of height, which pushed the diagram's drag handles below the fold and made `elementFromPoint` at a handle's
+own centre return null. And **`flex-wrap` wraps BEFORE it shrinks** — the name field kept its full 176 px and
+the row went to two lines anyway. Nowrap plus `min-w-0` on the row AND the field is what actually fits.
 
-**A whole-map dependency is a trap when the map carries values.** Passing the edit bag down as "the aims"
-would have let a typed span read as an aim, with a number where a component id belongs. `aimsOf` projects
-through the registry so only aims can move. The same shape one level up: a per-slot comparison is needed
-because more than one aim moves in a single commit, and examining the first moved slot silently drops the
-rest.
+**`aria-disabled` rather than `disabled` on a toolbar button.** A disabled button leaves the accessibility
+tree and drops focus to `<body>` — and for undo, the moment the stack empties is exactly when a keyboard user
+is stepping back through a mistake. Playwright's `toBeDisabled()` matches `aria-disabled` too, and its
+actionability check refuses to click one, so the e2e reads the same.
 
-**A subagent wrote under `lib/` after being told it was read-only, and it broke a gate.** A review agent
-left `lib/model/zz-repro.test.ts` in the repo. Vitest collected it and eslint failed on it, so a gate run
-reported 6 errors and an inflated 48 files / 758 tests — a red gate and wrong numbers, from a file that was
-not mine. The instruction is not the defence: **run `git status --porcelain` immediately before the final
-gate and again before quoting any test count.** Telling the agent to put probes under /tmp with an absolute
-path, and saying why, made the next fan-out behave.
-
-**A negative control that does not compile is the single most repeated trap in this repo, and it caught me
-four times in one session.** Every time it was the same shape: reverting at the CALL SITE left the helper
-unused, `noUnusedLocals` failed the build, `out/` never changed, and the e2e then passed against
-still-correct code — which looks exactly like a control that established something. `if (false && …)` fails
-the same way. What works is reverting the RULE INSIDE the function so every symbol stays referenced (change
-`<= 1` to `<= 0`, swap the reduce's comparator, `void` the call and return the old value). Check the exit
-code every time; do not reason about whether this particular revert could leave something unused.
-
-**Reach is measured after import, and it decides scope.** R1's notes asked for nose cones. Zero corpus
-designs have more than one after import, so a `noseId` would have been a mechanism addressing nothing;
-canopies, which the notes did not mention, were the widest-reaching case at 17 of 35 and the only one that
-moves a safety number. The list in the roadmap is a starting point for a measurement, not the measurement.
+**A negative control that keeps every symbol referenced.** Seven controls this session, all with BUILD_EXIT
+0 checked: revert the rule INSIDE the function (`at - open.at < 0 && COALESCE_MS > 0`), invert a call-site
+condition (`if (action && !movedWhatIf(...))`), bind a shortcut to the wrong key, or AND in a term that is
+never true (`&& target.component.mass < 0`). Never revert at the call site — `noUnusedLocals` fails the
+build, `out/` never changes, and the test then passes against still-correct code.
 
 ## Pick up first
 
-**Start at `ROADMAP.md`.** R1 is SHIPPED and merged and live. **R2 is IN PROGRESS with two of its three
-parts done**, both pinned; the third is the gap below.
+**Start at `ROADMAP.md`.** R1 and R2 are SHIPPED. **R3 — add a component — is IN PROGRESS and is the run's
+goal.** Its *done when*: start from the starter design, add a second body tube, a transition, a fin set and a
+mass object, place each at a station by direct manipulation, fly it, and have the stability and mass panels
+describe the rocket you just built.
 
-**R2's remaining work, in order.**
-1. **Undo covers removals only.** A handle drag, a typed dimension, a motor swap — none can be undone, and
-   the only way back is "Reset to as-designed", which discards everything at once. That is a filed defect and
-   it is also R2's *done when* read strictly: undo over the edit history, not over one field. The shape is
-   already right for it — every edit is a value in one bag applied to a pristine design, so an undo stack is
-   a stack of `Edits` snapshots in `LoftApp`, not a diffing problem.
-2. **Walk the *done when*'s own parts on a real design.** It names a fin set, a mass object and an aft body
-   tube. The pins run on committed fixtures deliberately (a test reading the gitignored `corpus/` hard-fails
-   on every fork), so the corpus walk is a cold-walk step rather than a test — and mass objects specifically
-   have not been driven.
-3. Then R3, which is where the roadmap's *add a component* lives.
+**R3's pivot, named in `ROADMAP.md` and confirmed by R2.** `GeometryEdits` is a flat patch of ~30 optional
+scalars. It cannot express "add a body tube": there is no field for a part that does not exist, and no way to
+say WHICH of three. Loft already adds three components through that patch — a boattail, a dual-deploy drogue
+and a payload point mass — and each is a special case with one instance and a hard-coded anchor. Read
+`addBoattail`, `applyDualDeploy` and `addPayloadMass` in `lib/model/edit.ts` before designing the general
+one; `addBoattail`'s anchor is the cautionary tale (it keyed on the LONGEST tube, which broke the moment
+`bodyLength` could be aimed).
 
-**Do not re-open R1.** Its gap is recorded under the milestone in `ROADMAP.md`: pods are an ingestion feature
-wanting their own entry; nose cones are measured at 0 designs and deliberately unaimed; transitions and mass
-objects arrive with the field that edits them.
+**The undo stack survives that transition unchanged** — a snapshot of an operation list is still a snapshot —
+so R3 does not have to rebuild it.
 
-`BACKLOG.md` is a defect ledger to file into and to screen for Sev-1s. **Its Sev-1 count is zero at the end
-of this run.** Its seven newest entries are this session's, each with the measurement that makes it
-actionable, including the OpenRocket component-tree benchmark (9 of 35 designs have several stages AND parts
-sharing a type+name; `Two stage high power rocket.ork` has 33 of 47 parts sharing one) and the entry about a
-live edit following a same-kind pick, which is marked as something R2's operation model removes rather than
-something to patch.
+`BACKLOG.md` is a defect ledger to file into and screen for Sev-1s. **Its Sev-1 count is zero at the end of
+this run** — the one that was found (the rail length) was fixed, not filed. Its five newest entries are this
+session's, each with the measurement that makes it actionable.
 
 ## Environment notes
 

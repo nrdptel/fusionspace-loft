@@ -2834,6 +2834,71 @@ test.describe("Loft", () => {
     expect((await lengthsOf())[0], "the tube that was not picked must not change").toBe(before[0]);
   });
 
+  test("a flyer can add a body tube the design never had, and take it back", async ({ page }) => {
+    // R3's first capability, and the first edit that is an OPERATION rather than a value: the flat patch
+    // has no field for a part that does not exist yet. The gesture is "another one of these, here" — the
+    // new tube goes behind the one on screen and inherits its caliber, wall, material and finish, because
+    // a tube that does not fair to the airframe it joins is a step in the outer mould line and a design
+    // nobody meant to draw.
+    await page.goto("/");
+    await page.getByRole("button", { name: "Start a new design" }).click();
+    await page.getByRole("tab", { name: "Flight" }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+
+    const apogee = async () => {
+      const txt = await page
+        .getByLabel("Results")
+        .getByText("Apogee", { exact: true })
+        .locator("xpath=following-sibling::div")
+        .innerText();
+      return parseFloat(txt.replace(/[^\d.]/g, ""));
+    };
+    const margin = async () => {
+      const t = await page.getByText("Static margin", { exact: true }).locator("xpath=following-sibling::dd").innerText();
+      return parseFloat(t.replace(/[^\d.]/g, ""));
+    };
+    const dry = async () =>
+      parseFloat((((await page.locator("body").innerText()).match(/Mass & balance · dry ([\d.]+)/) ?? [])[1] ?? "0"));
+
+    const asBuilt = { apogee: await apogee(), margin: await margin() };
+    expect(asBuilt.apogee).toBeGreaterThan(0);
+
+    await page.getByRole("tab", { name: "Design" }).click();
+    await page.locator("summary", { hasText: /Parts ·/ }).click();
+    const partsTable = page.locator("table").filter({ hasText: "Dimensions" });
+    const tubes = partsTable.locator("tr").filter({ hasText: /Body tube/ });
+    await expect(tubes).toHaveCount(1);
+    const dryBefore = await dry();
+
+    await tubes.first().click();
+    await page.getByRole("button", { name: /Add a tube behind this/ }).click();
+
+    // The part is in the design, it weighs something, and — the half that matters — the FLIGHT moved
+    // with it. The mass panel and the Flight card read the airframe through different paths, and an
+    // earlier version of this had the panel grow a 310 mm section and put 142 g on the design while the
+    // Flight card went on reporting the apogee of a rocket without it.
+    await expect(tubes).toHaveCount(2);
+    await expect.poll(dry, { timeout: 20000 }).toBeGreaterThan(dryBefore);
+    await page.getByRole("tab", { name: "Flight" }).click();
+    await expect.poll(apogee, { timeout: 20000 }).toBeLessThan(asBuilt.apogee);
+    expect(await margin()).toBeLessThan(asBuilt.margin);
+
+    // The fields re-aimed at the part that was just made, so the very next thing typed changes it —
+    // and the placeholder advertises ITS length, not the design's own tube's.
+    await page.getByRole("tab", { name: "Design" }).click();
+    const bodyLength = page.locator("label").filter({ hasText: /Body length/ }).first().locator("input");
+    const advertised = parseFloat((await bodyLength.getAttribute("placeholder")) ?? "0");
+    expect(advertised).toBeGreaterThan(0);
+    expect(advertised).toBeLessThan(620); // the starter's own tube; the authored one is half of it
+
+    // And it is undoable, by name, back to the design that never had it.
+    await expect(page.getByRole("button", { name: /^Undo adding a body tube/ })).toBeEnabled();
+    await page.getByRole("button", { name: /^Undo adding a body tube/ }).click();
+    await expect(tubes).toHaveCount(1);
+    await page.getByRole("tab", { name: "Flight" }).click();
+    await expect.poll(apogee, { timeout: 20000 }).toBe(asBuilt.apogee);
+  });
+
   test("removing a part re-flies the design, and the removal is undoable", async ({ page }) => {
     // R2's capability. A parametric edit is recoverable by retyping a number; a deletion is not, which is
     // why undo ships with it rather than after it. `two-stage-firm-booster.ork` has two fin sets, so one

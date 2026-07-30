@@ -213,7 +213,29 @@ pointer-down/up, and a rename is the one header control that is not on the stack
 
 ## R3 — Add a component
 
-**Status:** IN PROGRESS — current milestone.
+**Status:** IN PROGRESS — current milestone. The operation model is in and the first kind ships: a flyer
+can author a **body tube** behind any tube on the diagram or in the parts list, and it flies, weighs,
+draws, exports, is aimable, is removable and is undoable by name. Pinned by `lib/model/edit.test.ts`'s
+`adding a component` suite (8 cases) and the e2e case *a flyer can add a body tube the design never had,
+and take it back*. Still to come: transitions, fin sets and mass objects, and placing a part at a station
+by direct manipulation rather than by which part it was added behind.
+
+**The shape, decided and shipped.** `GeometryEdits.added` is an ordered list of `AddedPart` — an id, a
+kind, the id of the component it sits behind, and the one dimension no neighbour can supply. Everything
+else is inherited from that neighbour, which is what makes the gesture "another one of these, here"
+rather than a modal wall of number fields. Two things it gets right that the three existing flat adds
+(boattail, drogue, payload) do not, and both were measured on real designs:
+
+- **Identity.** The flat adds derive their id from their anchor (`${tube.id}-boattail`), so removing the
+  anchor silently renames the part: on `01.One-stage.ork`, removing the aft tube moves the boattail to
+  station 0.4429 with the id `c2-boattail` instead of `c4-boattail`. A part whose id moves cannot be
+  aimed at, removed or undone. `AddedPart` mints its own, derived from the design so it survives a reload.
+- **An anchor that is a part, not a role.** The payload anchors on "the longest tube", so an unaimed
+  `bodyLength` moves it: on the same design, shrinking one tube jumps the payload from station 816 mm to
+  316 mm while the field goes on advertising 816.
+
+Applied BEFORE removals, so an authored part can be removed by id like any other, and before the
+dimension edits, so `bodyTubeId` can aim at it and `bodyLength` can change it.
 
 **Outcome. The milestone that makes Loft a builder.** The flyer can grow an airframe that did not
 come from a file.

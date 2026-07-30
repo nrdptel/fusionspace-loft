@@ -157,6 +157,7 @@ export default function ResultsView({
   onEditGeometry,
   onSelectPart,
   onRemovePart,
+  onAddAfter,
   refuseRemoval,
   initialTab,
   onWorkspaceChange,
@@ -208,6 +209,8 @@ export default function ResultsView({
   onSelectPart?: (id: string) => void;
   /** Remove a component from the design — the structural half of editing. */
   onRemovePart?: (id: string) => void;
+  /** Author a part behind the picked one. Given only where editing is offered, like `onRemovePart`. */
+  onAddAfter?: (id: string) => void;
   /** Why a part cannot be removed, or null. Asked of the app rather than judged in the panel, so the reason
    *  shown and the guard that enforces it cannot disagree about which design they are judging. */
   refuseRemoval?: (id: string) => string | null;
@@ -710,6 +713,7 @@ export default function ResultsView({
           onEdit={onEditGeometry}
           onSelectPart={onSelectPart}
           onRemove={onRemovePart}
+          onAddAfter={onAddAfter}
           refuseRemoval={refuseRemoval}
           // The aim map, so a role added to the edit model needs no new prop on the way down. Projected
           // through the registry, never the raw bag: a typed span is not an aim.

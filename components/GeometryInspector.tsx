@@ -119,6 +119,7 @@ export default function GeometryInspector({
   onEdit,
   onSelectPart,
   onRemove,
+  onAddAfter,
   refuseRemoval,
   aims,
 }: {
@@ -145,6 +146,10 @@ export default function GeometryInspector({
    *  without an editor stays read-only. The panel asks `removalRefusal` first and shows the reason instead
    *  of the control when there is one — a button that silently does nothing is worse than no button. */
   onRemove?: (id: string) => void;
+  /** Author a part behind the picked one. Offered only on a part something can be built onto — today
+   *  a body tube, whose caliber the new one fairs to. A control that appears on every part and does
+   *  nothing on most of them is worse than one that appears where it works. */
+  onAddAfter?: (id: string) => void;
   /** Why the picked part cannot be removed, or null — asked of the caller, which owns the design a removal
    *  is judged against. The panel judging for itself let the two disagree: it read the fully-edited model,
    *  which contains parts a dimension edit ADDED and the removal mechanism cannot take. */
@@ -346,6 +351,23 @@ export default function GeometryInspector({
                   "this part"}
               </button>
             )}
+          </p>
+        )}
+        {/* Authoring, beside the deletion: the two structural acts sit together, on the part they are
+            about. "Add a tube behind this" rather than an Add ▾ menu, because the gesture is "another
+            one of these, here" — the part it goes behind is the one on screen, the new part inherits
+            its caliber, wall, material and finish, and the editor's fields re-aim at it the moment it
+            exists. The numbers are the confirmation, not the gesture. */}
+        {onAddAfter && selectedId && parts.find((x) => x.component.id === selectedId)?.component.kind === "bodytube" && (
+          <p className="mt-1 text-xs">
+            <button
+              type="button"
+              onClick={() => onAddAfter(selectedId)}
+              title="Add a body tube immediately behind this one, faired to it, and re-fly the design"
+              className={`inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-2.5 py-1 font-medium text-zinc-700 transition hover:border-indigo-400 hover:text-indigo-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:border-indigo-500 dark:hover:text-indigo-400 ${TOUCH_TARGET}`}
+            >
+              <span aria-hidden>+</span> Add a tube behind this
+            </button>
           </p>
         )}
         {/* Said BEFORE the click, where the flyer is deciding, rather than left to be inferred from a
