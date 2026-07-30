@@ -163,6 +163,13 @@ type-checked by the build. Root-level `*-tmp.mjs` is safe from both; the ignore 
 `*-tmp.mjs`, `*-tmp.ts`, `*-tmp.*.ts`. Clean the tree before the final gate and compare lint against
 the baseline: **exactly 1 warning, the deliberate `setDraft` one in `LoftApp.tsx`**.
 
+**Saying "you are read-only" is not enough — one did it anyway this session** (`lib/model/zz-repro.test.ts`),
+and the gate came back with 6 lint errors and an inflated test count from a file that was not mine. Tell the
+agent explicitly to put probes under `/tmp` and run them with `npx vite-node` on an absolute path, say WHY
+(vitest collects and eslint checks anything under `lib/`), and then run **`git status --porcelain`
+immediately before the final gate and again before quoting a test count.** The later fan-outs, given that
+wording, stayed out.
+
 **A standalone Playwright probe must live in the repo ROOT** to resolve `playwright` from
 `node_modules`. One written to the scratchpad fails with `ERR_MODULE_NOT_FOUND`.
 
@@ -200,6 +207,14 @@ alone on the re-run. At the end: **748 unit, 150 e2e**, corpus 35 throughout.
 | canopies | The recovery fields resolved "the" parachute as the LARGEST, so the drogue was unreachable on every dual-deploy design — **17 of 35**. `parachuteId` aims them. On the bundled 54 mm sample, doubling the drogue moves the under-drogue descent off 16 m/s; aimed at the main it does not move at all. |
 | one registry | `AIM_SLOTS` maps each aim to the component kinds that move it and the value fields whose target it decides. `aimEditsAt`, `INERT_EDIT_FIELDS` and the design key are all derived from it, replacing three hand-maintained lists that the third role would have had to be added to correctly. |
 | the review's Sev-1s | Three defects the pre-push review found in the first two commits, all reproduced before being fixed. See below — the first one is the one worth reading. |
+
+**Then R2 started, and two of its three parts are in.** They are on the working branch under a second pull
+request, NOT yet merged at the time of writing — check `git log origin/main` before believing otherwise.
+
+| | |
+|---|---|
+| ids survive a save | A design built here is persisted as its OWN exported `.ork` bytes, and the exporter discarded each component's id and minted a fresh one — so every reload came back as different parts and a saved aim matched nothing. The exporter writes `c.id` now; the starter's six ids are literal UUIDs; `lib/model/id.ts` derives a stable UUID for anything that is not one. **423 `<id>` elements across the 27 corpus designs, 0 non-UUID, 0 not version 4** — that measurement is why the shape is not negotiable. |
+| remove and undo | `GeometryEdits.removedIds` is an ordered list, so undo is dropping the last entry and the model rebuilds from the pristine design. A removal takes everything mounted inside the part AND any motor left without a mount — `lib/sim/setup.ts` resolves an unknown mount to `undefined` and puts the motor's mass at station 0, which is a wrong flight rather than an absent one. The last body tube is refused with a sentence. |
 
 **The pre-push review found a Sev-1 that the comment in the same diff denied.** `addBoattail` and
 `addPayloadMass` anchored on the LONGEST body tube, which stood in for "the aft of the airframe" only
@@ -254,6 +269,21 @@ through the registry so only aims can move. The same shape one level up: a per-s
 because more than one aim moves in a single commit, and examining the first moved slot silently drops the
 rest.
 
+**A subagent wrote under `lib/` after being told it was read-only, and it broke a gate.** A review agent
+left `lib/model/zz-repro.test.ts` in the repo. Vitest collected it and eslint failed on it, so a gate run
+reported 6 errors and an inflated 48 files / 758 tests — a red gate and wrong numbers, from a file that was
+not mine. The instruction is not the defence: **run `git status --porcelain` immediately before the final
+gate and again before quoting any test count.** Telling the agent to put probes under /tmp with an absolute
+path, and saying why, made the next fan-out behave.
+
+**A negative control that does not compile is the single most repeated trap in this repo, and it caught me
+four times in one session.** Every time it was the same shape: reverting at the CALL SITE left the helper
+unused, `noUnusedLocals` failed the build, `out/` never changed, and the e2e then passed against
+still-correct code — which looks exactly like a control that established something. `if (false && …)` fails
+the same way. What works is reverting the RULE INSIDE the function so every symbol stays referenced (change
+`<= 1` to `<= 0`, swap the reduce's comparator, `void` the call and return the old value). Check the exit
+code every time; do not reason about whether this particular revert could leave something unused.
+
 **Reach is measured after import, and it decides scope.** R1's notes asked for nose cones. Zero corpus
 designs have more than one after import, so a `noseId` would have been a mechanism addressing nothing;
 canopies, which the notes did not mention, were the widest-reaching case at 17 of 35 and the only one that
@@ -261,26 +291,31 @@ moves a safety number. The list in the roadmap is a starting point for a measure
 
 ## Pick up first
 
-**Start at `ROADMAP.md`.** R1 is SHIPPED; **the next unstarted milestone is R2 — delete a component, and
-undo it**, and R2's notes now name its first task explicitly.
+**Start at `ROADMAP.md`.** R1 is SHIPPED and merged and live. **R2 is IN PROGRESS with two of its three
+parts done**, both pinned; the third is the gap below.
 
-**R2's first increment is not a delete — it is id stability.** A from-scratch design's component ids are
-re-minted on every reload (`lib/ork/export.ts` writes `nextUuid()` rather than `c.id`, and a built
-design's session bytes are an export), so an aim saved before a reload resolves to nothing. An operation
-list keyed on ids that change underneath it is not a foundation. The probe and the measured id sequence
-are in `BACKLOG.md`'s newest entry. Everything else R2 needs from the pick surface exists: `AIM_SLOTS`,
-`aimEditsAt`, `aimsOf` and `AimedPart` in `lib/model/edit.ts`, and a parts list and diagram that both
-report a pick through one funnel.
+**R2's remaining work, in order.**
+1. **Undo covers removals only.** A handle drag, a typed dimension, a motor swap — none can be undone, and
+   the only way back is "Reset to as-designed", which discards everything at once. That is a filed defect and
+   it is also R2's *done when* read strictly: undo over the edit history, not over one field. The shape is
+   already right for it — every edit is a value in one bag applied to a pristine design, so an undo stack is
+   a stack of `Edits` snapshots in `LoftApp`, not a diffing problem.
+2. **Walk the *done when*'s own parts on a real design.** It names a fin set, a mass object and an aft body
+   tube. The pins run on committed fixtures deliberately (a test reading the gitignored `corpus/` hard-fails
+   on every fork), so the corpus walk is a cold-walk step rather than a test — and mass objects specifically
+   have not been driven.
+3. Then R3, which is where the roadmap's *add a component* lives.
 
-**Do not re-open R1.** Its gap is written up in `ROADMAP.md` under the milestone: pods are an ingestion
-feature and want their own entry; nose cones are measured at 0 designs and deliberately unaimed;
-transitions and mass objects arrive with the field that edits them.
+**Do not re-open R1.** Its gap is recorded under the milestone in `ROADMAP.md`: pods are an ingestion feature
+wanting their own entry; nose cones are measured at 0 designs and deliberately unaimed; transitions and mass
+objects arrive with the field that edits them.
 
-`BACKLOG.md` is a defect ledger to file into and to screen for Sev-1s. **Its Sev-1 count is zero at the
-end of this run** — the three the review raised were fixed and pinned within the run. Its six newest
-entries are this session's, each with the measurement that makes it actionable, and the entry about a live
-edit following a same-kind pick is deliberately marked as something R2 removes rather than something to
-patch.
+`BACKLOG.md` is a defect ledger to file into and to screen for Sev-1s. **Its Sev-1 count is zero at the end
+of this run.** Its seven newest entries are this session's, each with the measurement that makes it
+actionable, including the OpenRocket component-tree benchmark (9 of 35 designs have several stages AND parts
+sharing a type+name; `Two stage high power rocket.ork` has 33 of 47 parts sharing one) and the entry about a
+live edit following a same-kind pick, which is marked as something R2's operation model removes rather than
+something to patch.
 
 ## Environment notes
 
