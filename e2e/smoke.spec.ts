@@ -3019,6 +3019,63 @@ test.describe("Loft", () => {
     await expect.poll(apogee, { timeout: 20000 }).toBe(asBuilt.apogee);
   });
 
+  test("a flyer can add a tail cone the design never had, shape it, and take it back", async ({ page }) => {
+    // R3's third kind. A transition is where an airframe changes caliber, and until now a flyer could
+    // neither author one nor touch one a design arrived with — the only cone they could shape was a
+    // boattail they had just asked for by typing two numbers into fields that create one.
+    //
+    // With nothing behind the anchor the gesture makes a tail cone, contracting to the corpus median
+    // of the 14 contracting transitions (0.754 of the diameter it starts at). That is the base-drag
+    // lever: on the starter design it buys +28.3 m of apogee for +12.2 g.
+    await page.goto("/");
+    await page.getByRole("button", { name: "Start a new design" }).click();
+    await page.getByRole("tab", { name: "Flight" }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    const apogee = async () => {
+      const txt = await page
+        .getByLabel("Results")
+        .getByText("Apogee", { exact: true })
+        .locator("xpath=following-sibling::div")
+        .innerText();
+      return parseFloat(txt.replace(/[^\d.]/g, ""));
+    };
+    const asBuilt = await apogee();
+    expect(asBuilt).toBeGreaterThan(0);
+
+    await page.getByRole("tab", { name: "Design" }).click();
+    await page.locator("summary", { hasText: /Parts ·/ }).click();
+    const partsTable = page.locator("table").filter({ hasText: "Dimensions" });
+    const cones = partsTable.locator("tr").filter({ hasText: /Transition/ });
+    await expect(cones).toHaveCount(0);
+
+    await partsTable.locator("tr").filter({ hasText: /Body tube/ }).first().click();
+    await page.getByRole("button", { name: /Add a transition behind this/ }).click();
+    await expect(cones).toHaveCount(1);
+    // The dimension line says it contracts: a fore diameter larger than the exit.
+    await expect(cones.first()).toContainText(/⌀\s*54[^→]*→\s*⌀\s*4[01]/);
+
+    // Contracting the base is worth altitude, and the Flight card moves with it.
+    await page.getByRole("tab", { name: "Flight" }).click();
+    await expect.poll(apogee, { timeout: 20000 }).toBeGreaterThan(asBuilt);
+
+    // The fields aimed at it the moment it existed, so the very next number typed shapes THAT part.
+    await page.getByRole("tab", { name: "Design" }).click();
+    const exit = page.locator("label").filter({ hasText: /Transition exit/ }).first().locator("input");
+    await expect(exit).toHaveAttribute("placeholder", /4[01]/);
+    await exit.fill("20");
+    await expect(cones.first()).toContainText(/→\s*⌀\s*20/);
+    // Narrowing the exit under the part behind it is impossible here — nothing is behind it — so no
+    // step notice fires. It does on a joint that steps; that is covered in the model tests.
+
+    // And it is undoable, by name, back to the design that never had it.
+    await page.getByRole("button", { name: /^Undo the transition exit/ }).click();
+    await expect(cones.first()).toContainText(/→\s*⌀\s*4[01]/);
+    await page.getByRole("button", { name: /^Undo adding a transition/ }).click();
+    await expect(cones).toHaveCount(0);
+    await page.getByRole("tab", { name: "Flight" }).click();
+    await expect.poll(apogee, { timeout: 20000 }).toBe(asBuilt);
+  });
+
   test("clicking a part the flyer authored aims the fields back at it", async ({ page }) => {
     // A pick is judged against the design the flyer is LOOKING at — the import plus their own structure
     // — and not against the import alone. Judged against the import, a part they authored is not in the

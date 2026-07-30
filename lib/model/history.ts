@@ -159,6 +159,8 @@ export const EDIT_ACTIONS: Readonly<Record<string, string>> = {
   airframeMaterial: "the airframe material",
   boattailLength: "the boattail",
   boattailAftDiameter: "the boattail diameter",
+  transitionLength: "the transition length",
+  transitionAftDiameter: "the transition exit",
   // Mass and motor
   payloadMassKg: "the payload mass",
   payloadStation: "the payload position",

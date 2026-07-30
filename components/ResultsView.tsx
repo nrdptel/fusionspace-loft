@@ -6,7 +6,7 @@ import { Tabs } from "./ui";
 import type { FlightRun } from "@/lib/sim/run";
 import type { ConditionOverrides } from "@/lib/sim/setup";
 import type { ConditionsSource } from "@/lib/what-if";
-import { applyGeometryEdits, hasGeometryEdits, primaryFinGroupIds, structureOf, aimsOf, type GeometryEdits } from "@/lib/model/edit";
+import { applyGeometryEdits, hasGeometryEdits, primaryFinGroupIds, structureOf, aimsOf, type AddedPart, type GeometryEdits } from "@/lib/model/edit";
 import { designKey } from "@/lib/model/design-key";
 import { formatLabel, sourceTool, type OrkDocument } from "@/lib/ork/import";
 import type { FlightResult } from "@/lib/sim/simulate";
@@ -210,7 +210,7 @@ export default function ResultsView({
   /** Remove a component from the design — the structural half of editing. */
   onRemovePart?: (id: string) => void;
   /** Author a part behind the picked one. Given only where editing is offered, like `onRemovePart`. */
-  onAddAfter?: (id: string, kind?: "bodytube" | "trapezoidfinset") => void;
+  onAddAfter?: (id: string, kind?: AddedPart["kind"]) => void;
   /** Why a part cannot be removed, or null. Asked of the app rather than judged in the panel, so the reason
    *  shown and the guard that enforces it cannot disagree about which design they are judging. */
   refuseRemoval?: (id: string) => string | null;

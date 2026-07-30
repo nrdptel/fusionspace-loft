@@ -213,17 +213,47 @@ pointer-down/up, and a rename is the one header control that is not on the stack
 
 ## R3 — Add a component
 
-**Status:** IN PROGRESS — current milestone. The operation model is in and two kinds ship: a flyer can
-author a **body tube** behind any tube, and a **fin set** onto any tube, from the diagram or the parts
-list — and each flies, weighs, draws, exports, is aimable, is removable and is undoable by name. The
-fin ring is cloned from the design's own set rather than derived from invented proportions, which is the
-only default that is a fact about the rocket rather than a number somebody chose; all 35 corpus designs
-carry a set and so does the starter, so a source always exists. Pinned by `lib/model/edit.test.ts`'s
-`adding a component` suite (11 cases) and the e2e cases *a flyer can add a body tube the design never had,
-and take it back* and *a flyer can add a second fin ring, and the stability panel describes it*. A tube's length is now
-draggable on the diagram too — the one airframe dimension that had no grip — pinned by *a tube's length
-can be dragged on the diagram, not only typed*. Still to come: transitions and mass objects, and moving a
-part to another station rather than only sizing it where it was added.
+**Status:** IN PROGRESS — current milestone. The operation model is in and **three of the four kinds
+ship**: a flyer can author a **body tube** behind any tube, a **fin set** onto any tube, and a
+**transition** behind any tube, from the diagram or the parts list — and each flies, weighs, draws,
+exports, is aimable, is removable and is undoable by name. The fin ring is cloned from the design's own
+set rather than derived from invented proportions, which is the only default that is a fact about the
+rocket rather than a number somebody chose; all 35 corpus designs carry a set and so does the starter, so
+a source always exists. Pinned by `lib/model/edit.test.ts`'s `adding a component` suite (11 cases) and the
+e2e cases *a flyer can add a body tube the design never had, and take it back* and *a flyer can add a
+second fin ring, and the stability panel describes it*. A tube's length is now draggable on the diagram
+too — the one airframe dimension that had no grip — pinned by *a tube's length can be dragged on the
+diagram, not only typed*. **Still to come: a mass object, and moving a part to another station rather
+than only sizing it where it was added.**
+
+**The transition leg is DONE**, and it brought transitions into the editor at all — they were
+role-addressed, unaimable and had no field, so on the 12 of 35 corpus designs that carry one (25 in
+total) not a single one could be touched. `AIM_SLOTS.transitionId` aims a `transitionLength` and a
+`transitionAftDiameter` at the picked one; the exit is applied AFTER the whole-airframe caliber scale, so
+an absolute diameter typed there is the one flown even when `bodyDiameter` is also set.
+
+The authored transition's exit is decided by the airframe and never invented. Driving all **91** body
+tubes across the starter and the corpus found exactly three positions an anchor can be in, and the first
+version of the default was wrong on 38 of them:
+
+| position | n | what it builds |
+|---|---|---|
+| nothing behind the anchor | 38 | a tail cone, contracting to the corpus median 0.754 of its fore diameter over γ = 2.294 |
+| a part behind it at another caliber | 15 | fairs exactly to that part, closing a step the design already had |
+| a part behind it at the same caliber | 38 | straight through — contracting here opened a step at the joint BEHIND the new part |
+
+That last row is the measurement worth keeping: a contraction there produced a stepped airframe nobody
+drew on 38 of 91 positions. A zero-taper transition is not a contrivance to avoid it — 4 of the 25 corpus
+transitions are exactly that, a section in the mould line. Re-driven after the fix: 91/91 build, 91/91
+removable, **0 open a step**. On the starter a tail cone buys **+28.3 m** of apogee (993.6 → 1022.0 m) for
++12.2 g.
+
+**And the step itself is now stated.** Loft models a transition's own slope (Niskanen eq. 3.86 for a
+shoulder, 3.88 for a boattail) and has **no drag term at all for a bare radius step**, which has no length
+to take an angle over — OpenRocket warns on exactly this and Loft never said a word. `mouldLineStep` names
+the step behind the picked part and the panel says by how much and that the drag there is optimistic. It
+is not a state the editor invents: **31 of 115** touching airframe joints in the corpus already step, in
+11 of the 35 designs, by a median 11.75 mm of diameter and up to 82.55 mm.
 
 **The shape, decided and shipped.** `GeometryEdits.added` is an ordered list of `AddedPart` — an id, a
 kind, the id of the component it sits behind, and the one dimension no neighbour can supply. Everything
@@ -345,6 +375,22 @@ Unattended runs do not stop to ask (see *Unattended operation* in `MAINTAINING.m
 that would otherwise have been a question goes here, with the option rejected, so it can be reversed
 cheaply instead of re-derived. Newest first.
 
+- **2026-07-30 — an authored transition between two same-caliber sections runs STRAIGHT THROUGH rather
+  than contracting.** Rejected contracting by the corpus median everywhere: measured over all 91 body
+  tubes in the starter plus the corpus, 38 of them have a neighbour behind at the same caliber, and
+  contracting there put a step at the joint BEHIND the new part — a stepped airframe nobody drew, on
+  42% of the positions the gesture is offered, every time. Also rejected not offering the gesture in
+  that position at all (OpenRocket greys out what cannot attach): a flyer inserting a transition
+  mid-airframe wants to step the caliber, and the exit field is aimed at the new part the moment it
+  exists, so one keystroke shapes it. The zero-taper part is real, not a placeholder — 4 of the 25
+  corpus transitions are exactly that.
+- **2026-07-30 — changing a transition's exit does NOT resize anything aft of it; the step is disclosed
+  instead.** Rejected scaling the airframe behind the transition to follow, which is what OpenRocket's
+  `auto` diameters do: Loft has no auto binding, and re-calibering parts the flyer did not pick from a
+  single field is a bigger surprise than a visible step. Rejected refusing the value: a step is a real
+  geometry that real designs have — 31 of 115 corpus joints already step. So the step is measured and
+  said, on the part panel and on `/docs/limitations`, along with the fact that Loft's drag model has no
+  term for one.
 - **2026-07-30 — the undo stack is not persisted across a reload, and a pick is not an undo step.**
   Rejected persisting it: the saved session is written to `localStorage` on every keystroke and
   `writeSlot` caps only the design bytes, so an unbounded stack of snapshots fails at the quota — and

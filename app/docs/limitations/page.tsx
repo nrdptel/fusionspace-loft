@@ -186,12 +186,31 @@ export default function Limitations() {
         resized the main instead, which moves landing speed and landing energy.
       </p>
       <p>
-        <strong>What is still fixed.</strong> Nose cones, transitions and mass objects are not
-        addressable. For nose cones that costs nothing measurable — no corpus design has more than one
-        after import — but transitions and mass objects have no editor field at all, so there is nothing
-        yet to point at one: 7 designs carry several transitions and 15 several mass objects, and none of
-        them can be resized. Nothing can be <em>added</em> or <em>reordered</em> either — those are the next
-        steps for the in-app editor.
+        <strong>Transitions are addressable too</strong>, and authorable. A transition is where an
+        airframe changes caliber; 12 of the 35 corpus designs carry one, 25 in all, and until recently
+        not one could be touched. Picking one aims a <em>length</em> and an <em>exit diameter</em> at it.
+        The exit is absolute and is applied after the whole-airframe caliber scale, so the number in the
+        box is the one being flown even when body diameter is also set. The fore end is the joint with
+        the part in front and is deliberately left alone: moving it would un-fair a joint you did not
+        touch.
+      </p>
+      <p>
+        <strong>Nothing aft of a transition follows its exit diameter.</strong> Loft has no mechanism
+        that resizes parts you did not pick, and inventing one would silently re-caliber an airframe from
+        a single field. So narrowing an exit can leave the outer mould line <em>stepping</em> at the joint
+        behind it — and Loft models a transition&apos;s own slope (a shoulder&apos;s joint angle, a
+        boattail&apos;s) but has <em>no drag term at all for a bare step</em>, which has no length to take
+        an angle over. Where a step is present the parts panel says so and by how much, and the drag there
+        should be read as optimistic. This is not a state the editor invents: across the corpus,{" "}
+        <strong>31 of 115</strong> touching airframe joints already step, in 11 of the 35 designs, by a
+        median 11.75&nbsp;mm of diameter and up to 82.55&nbsp;mm.
+      </p>
+      <p>
+        <strong>What is still fixed.</strong> Nose cones and mass objects are not addressable. For nose
+        cones that costs nothing measurable — no corpus design has more than one after import — but mass
+        objects have no editor field at all, so there is nothing yet to point at one: 15 designs carry
+        several and none of them can be resized or moved. Nothing can be <em>reordered</em> either — that
+        is the next step for the in-app editor.
       </p>
       <p>
         <strong>Removing a part does work</strong>, on any component, and it is undoable: pick a part on
@@ -208,6 +227,24 @@ export default function Limitations() {
         vehicle at a moderate fineness-3 ogive&apos;s nose drag instead. So a rocket with its nose removed
         is flown more optimistically than it would really fly. Removing a nose to see the rest of the
         airframe is fine; reading the apogee off it is not.
+      </p>
+      <p>
+        <strong>Adding a part works too, for three kinds so far.</strong> Pick a body tube and the panel
+        offers to put another <strong>body tube</strong> behind it, a <strong>fin set</strong> onto it, or
+        a <strong>transition</strong> behind it. The gesture is &ldquo;another one of these, here&rdquo;
+        rather than a form: the new part inherits what its neighbour can supply and derives the rest from
+        the design, because a shape nobody drew is worse than one more field. A tube takes its caliber,
+        wall, material and finish from the part it joins. A fin ring is <em>cloned</em> from the
+        design&apos;s own set, so it matches the fins already flying — every corpus design carries one and
+        so does the starter, and where a design genuinely has none the control is not offered rather than
+        a shape being invented. A transition reads its exit off the airframe: it fairs to whatever sits
+        behind the anchor, and where nothing does it becomes a tail cone contracting to the median of the
+        real contracting transitions in the corpus. Where a design supplies no answer at all — two
+        sections already at the same caliber — it runs straight through and waits for you to shape it,
+        rather than inventing a step. The editor&apos;s fields aim at the new part the moment it exists,
+        so the next number typed changes what you just made; each add is one undo step, named after the
+        kind; and an authored part is removable, exportable and re-importable like any other, because it
+        is the same internal model an imported part lands in.
       </p>
       <p>
         <strong>Every edit is undoable, not only a removal.</strong> Undo and redo sit in the design

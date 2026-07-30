@@ -19,6 +19,10 @@ import {
   FIN_MATERIALS,
   primaryNose,
   structureOf,
+  transitionDefaults,
+  primaryTransition,
+  primaryTransitionPart,
+  mouldLineStep,
   primaryNoseShape,
   primaryBodyDiameter,
   primaryBodyTube,
@@ -46,6 +50,7 @@ import {
 import type {
   BodyTube,
   GenericFinSet,
+  NoseCone,
   Transition,
   Parachute,
   Rocket,
@@ -1784,6 +1789,155 @@ describe("adding a component", () => {
     // file's own stored numbers as though it were the same design.
     expect(hasGeometryEdits({ added: [{ id: "a", kind: "bodytube", after: "b", length: 0.2 }] })).toBe(true);
     expect(hasGeometryEdits({ added: [] })).toBe(false);
+  });
+});
+
+describe("authoring a transition", () => {
+  const SINGLE = "fixtures/demo-single-deploy.ork";
+  const load = async (f: string) => importOrk(readFileSync(resolve(process.cwd(), f)));
+  const trans = (r: Rocket) => flattenRocket(r).filter((p) => p.component.kind === "transition");
+  const author = (r: Rocket, after: string, name?: string) => {
+    const id = newPartId(r, undefined, after);
+    const d = transitionDefaults(r, after)!;
+    return { id, edits: { added: [{ id, kind: "transition" as const, after, length: d.length, name }] } };
+  };
+
+  it("builds a tail cone where nothing sits behind the anchor, and the flight follows it", async () => {
+    // The base-drag lever. A blunt-based rocket loses most of its pressure drag to the base, and
+    // contracting it is the classic fix — so this is the one position where a contraction is what the
+    // gesture is asking for. The exit is the corpus median of the 14 contracting transitions, 0.754 of
+    // the diameter it starts at, over a slenderness of 2.294; both are facts about real designs rather
+    // than numbers anyone chose.
+    const doc = await load(SINGLE);
+    const tube = primaryBodyTube(doc.rocket)!;
+    const { id, edits } = author(doc.rocket, tube.id);
+    const built = applyGeometryEdits(doc.rocket, edits);
+
+    const made = trans(built).find((p) => p.component.id === id)!.component as Transition;
+    expect(made.shape).toBe("conical");
+    expect(made.foreRadius).toBeCloseTo(tube.outerRadius, 9);
+    expect(made.aftRadius).toBeCloseTo(tube.outerRadius * 0.754, 6);
+    expect(made.aftRadius).toBeLessThan(made.foreRadius);
+    // It weighs something and it makes the rocket longer by its own length.
+    expect(dryMassProperties(built).mass).toBeGreaterThan(dryMassProperties(doc.rocket).mass);
+    expect(overallLength(built)).toBeCloseTo(overallLength(doc.rocket) + made.length, 9);
+  });
+
+  it("fairs exactly to the part behind it, closing a step the design already had", () => {
+    // 15 of the 91 body tubes across the starter and the corpus have a neighbour at another caliber.
+    // Nothing is chosen there: the exit is read off that neighbour, so the transition closes a step
+    // rather than adding one.
+    const nose: NoseCone = {
+      id: "n", name: "Nose", kind: "nosecone", placement: { method: "top", offset: 0 },
+      length: 0.1, aftRadius: 0.03, shape: "ogive", children: [],
+    };
+    const fore: BodyTube = {
+      id: "fore", name: "Fore", kind: "bodytube", placement: { method: "after", offset: 0 },
+      length: 0.3, outerRadius: 0.03, thickness: 0.001, children: [],
+    };
+    const aft: BodyTube = {
+      id: "aft", name: "Aft", kind: "bodytube", placement: { method: "after", offset: 0 },
+      length: 0.3, outerRadius: 0.02, thickness: 0.001, children: [],
+    };
+    const rocket: Rocket = {
+      name: "stepped", stages: [{ name: "S", components: [nose, fore, aft] }],
+      configurations: [], referenceType: "maximum",
+    };
+    // The design steps 60 mm down to 40 mm at that joint, and says so.
+    expect(mouldLineStep(rocket, "fore")).toBeCloseTo(-0.02, 9);
+
+    const { id, edits } = author(rocket, "fore");
+    const built = applyGeometryEdits(rocket, edits);
+    const made = trans(built).find((p) => p.component.id === id)!.component as Transition;
+    expect(made.foreRadius).toBeCloseTo(0.03, 9);
+    expect(made.aftRadius).toBeCloseTo(0.02, 9);
+    // ...and the joint behind the new part now fairs, which is the whole point.
+    expect(mouldLineStep(built, id)).toBeCloseTo(0, 9);
+  });
+
+  it("runs straight through between two parts already at the same caliber, opening no step", () => {
+    // 38 of those 91 positions. Contracting here would put a step at the joint BEHIND the new part —
+    // a stepped airframe nobody drew. A zero-taper transition is not a contrivance to avoid that:
+    // 4 of the 25 corpus transitions are exactly this, a section in the mould line. The exit field is
+    // aimed at it the moment it exists, so the next keystroke is what shapes it.
+    const nose: NoseCone = {
+      id: "n", name: "Nose", kind: "nosecone", placement: { method: "top", offset: 0 },
+      length: 0.1, aftRadius: 0.03, shape: "ogive", children: [],
+    };
+    const mk = (id: string): BodyTube => ({
+      id, name: id, kind: "bodytube", placement: { method: "after", offset: 0 },
+      length: 0.3, outerRadius: 0.03, thickness: 0.001, children: [],
+    });
+    const rocket: Rocket = {
+      name: "even", stages: [{ name: "S", components: [nose, mk("fore"), mk("aft")] }],
+      configurations: [], referenceType: "maximum",
+    };
+    const { id, edits } = author(rocket, "fore");
+    const built = applyGeometryEdits(rocket, edits);
+    const made = trans(built).find((p) => p.component.id === id)!.component as Transition;
+    expect(made.foreRadius).toBeCloseTo(made.aftRadius, 12);
+    expect(made.length).toBeGreaterThan(0);
+    expect(mouldLineStep(built, id)).toBeCloseTo(0, 12);
+    expect(mouldLineStep(built, "fore")).toBeCloseTo(0, 12);
+  });
+
+  it("is a part like any other: aimable, editable, removable", async () => {
+    const doc = await load(SINGLE);
+    const tube = primaryBodyTube(doc.rocket)!;
+    const { id, edits } = author(doc.rocket, tube.id);
+    const built = applyGeometryEdits(doc.rocket, edits);
+
+    // Picking it aims the transition fields at it, and nothing else.
+    expect(aimEditsAt(built, id)).toEqual({ transitionId: id });
+    expect(primaryTransition(built, id)!.id).toBe(id);
+    expect(primaryTransitionPart(built, id)?.covers).toBe(1);
+
+    // Both fields change exactly that part.
+    const shaped = applyGeometryEdits(doc.rocket, {
+      ...edits, transitionId: id, transitionLength: 0.08, transitionAftDiameter: 0.02,
+    });
+    const made = trans(shaped).find((p) => p.component.id === id)!.component as Transition;
+    expect(made.length).toBeCloseTo(0.08, 9);
+    expect(made.aftRadius).toBeCloseTo(0.01, 9);
+    // The fore end is the joint with the part in front and is left alone.
+    expect(made.foreRadius).toBeCloseTo(tube.outerRadius, 9);
+    // Everything aft restacks off the new length rather than overlapping it.
+    expect(overallLength(shaped)).toBeCloseTo(overallLength(doc.rocket) + 0.08, 9);
+
+    // And it comes back out.
+    expect(removalRefusal(built, id)).toBeNull();
+    const gone = applyGeometryEdits(doc.rocket, { ...edits, removedIds: [id] });
+    expect(trans(gone).find((p) => p.component.id === id)).toBeUndefined();
+  });
+
+  it("flies the exit diameter that was typed, even under a whole-airframe caliber change", async () => {
+    // `bodyDiameter` scales the entire outer airframe to keep the mould line faired, transitions
+    // included. An exit typed as an absolute number has to survive that or the field is sitting there
+    // showing a diameter nothing is flying — which is the one thing a number box may never do.
+    const doc = await load(SINGLE);
+    const tube = primaryBodyTube(doc.rocket)!;
+    const { id, edits } = author(doc.rocket, tube.id);
+    const both = applyGeometryEdits(doc.rocket, {
+      ...edits, transitionId: id, transitionAftDiameter: 0.022, bodyDiameter: tube.outerRadius * 2 * 1.4,
+    });
+    const made = trans(both).find((p) => p.component.id === id)!.component as Transition;
+    expect(made.aftRadius).toBeCloseTo(0.011, 9);
+    // The fore end DID follow the airframe, so the cone still fairs to the tube in front of it.
+    expect(made.foreRadius).toBeCloseTo(tube.outerRadius * 1.4, 9);
+  });
+
+  it("says where the mould line steps, and stays quiet where it does not", async () => {
+    // Loft models a transition's own slope (Niskanen 3.86 for a shoulder, 3.88 for a boattail) and has
+    // no drag term at all for a bare radius step, which has no length to take an angle over. Measured
+    // across the 35-design corpus, 31 of 115 touching airframe joints already step, in 11 designs, by
+    // a median 11.75 mm of diameter — so this is a sentence the imported designs needed too.
+    const doc = await load(SINGLE);
+    const tube = primaryBodyTube(doc.rocket)!;
+    const { id, edits } = author(doc.rocket, tube.id);
+    // A tail cone has nothing behind it, so there is no joint to judge.
+    expect(mouldLineStep(applyGeometryEdits(doc.rocket, edits), id)).toBeUndefined();
+    // The tube in front of it fairs to it exactly.
+    expect(mouldLineStep(applyGeometryEdits(doc.rocket, edits), tube.id)).toBeCloseTo(0, 9);
   });
 });
 

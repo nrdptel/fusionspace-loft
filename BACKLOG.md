@@ -26,12 +26,6 @@ pass. Newest first.
   writes `localStorage`. The comment two lines above says exactly this must not happen ("reading a part
   cost a flight"). Reproduce: click one body tube, click another, click the first again — three flights
   for two aims. One-line fix: commit only when some key in the patch differs from the value held.
-- **Authoring a part re-aims the fields without clearing the absolute dimension already typed into
-  them**, so the number moves to the new part and the old one silently reverts. Reproduce on the
-  starter: aim at the 620.0 mm body tube, type 400 mm, then "Add a tube behind this" — the design's own
-  tube snaps back to 620.0 mm and the authored 310.0 mm one becomes 400.0 mm, with the field still
-  reading 400. `aimsClearedByRemoving` exists to prevent exactly this shape on a removal and has no
-  counterpart on an add; `AIM_SLOTS[slot].targets` already names the fields to clear.
 - **On a phone the pad-check number is nearly two screens below the fold.** Cold-walked at an iPhone 13
   viewport (390x664) on the built export of the SHA this run shipped: the Flight workspace is **6.7 screens
   deep**, "Apogee" sits at y=486 (73% of a screen down), "Static margin" at y=617, and **"Rail-exit

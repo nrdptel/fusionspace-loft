@@ -87,13 +87,14 @@ export interface AddedPart {
    *  exported to `.ork` and re-imported as itself — see `lib/model/id.ts` for why that shape. */
   id: string;
   /** What to build. The switch in `buildAdded` is where the rest arrive. */
-  kind: "bodytube" | "trapezoidfinset";
+  kind: "bodytube" | "trapezoidfinset" | "transition";
   /** The component this goes immediately AFTER, in its stage's own top-level list. An id rather than an
    *  index or a role, so it still means the same part after a length edit, a removal, or a reload. */
   after: string;
   /** Length (m) — a tube's own length, and the one dimension a neighbour cannot supply: inheriting it
    *  would silently double the airframe, and zero is not a part. Ignored by kinds that have no length
-   *  of their own to choose; a fin set copies the design's own. */
+   *  of their own to choose; a fin set copies the design's own, and a transition takes the length its
+   *  own diameter change implies (see `transitionDefaults`). */
   length: number;
   /** What to call it on the diagram and in the parts list. */
   name?: string;
@@ -123,6 +124,16 @@ export interface GeometryEdits {
    *  or parallel-stage assemblies the importer declines to fly, and a part that is not imported is not a
    *  part a flyer can pick.) */
   bodyTubeId?: string;
+  /** Which transition the transition fields describe and edit. Undefined means the design's frontmost
+   *  one, which is what every readback below falls back to. A SELECTION, not an edit, exactly like the
+   *  other aims.
+   *
+   *  It matters because a transition is where an airframe changes caliber, and 12 of the 35 corpus
+   *  designs carry one — 25 in all, 17 of them between two body sections and 8 at the tail — and until
+   *  now not one of them could be touched. The only transition a flyer could shape was a boattail they
+   *  had just asked for by typing two numbers into fields that create one; a transition the design
+   *  came with was read-only. */
+  transitionId?: string;
   /** Which recovery canopy the recovery fields describe and edit. Undefined means the design's main
    *  parachute — the largest by canopy area — which is what the panel has always used and what every
    *  readback below still falls back to. A SELECTION, not an edit, exactly like the two above.
@@ -207,6 +218,21 @@ export interface GeometryEdits {
    *  one of them were widened alone, so the picked tube sets the TARGET and the airframe follows it.
    *  Undefined leaves it. */
   bodyDiameter?: number;
+  /** Absolute length (m) for the transition `transitionId` names — the frontmost when nothing is
+   *  picked. Only that one transition resizes; everything aft of it restacks, exactly as a body
+   *  tube's length does. This is the fairing-angle lever: a boattail's own pressure drag fades to
+   *  nothing as it lengthens (Niskanen eq. 3.88 interpolates over γ = L / 2·ΔR, full base drag at
+   *  γ ≤ 1 and none at γ ≥ 3), and a shoulder's grows as it shortens. Undefined leaves it. */
+  transitionLength?: number;
+  /** Absolute exit (aft) diameter (m) of the transition `transitionId` names. The caliber the
+   *  airframe steps TO — the number a transition exists to set.
+   *
+   *  Applied AFTER the whole-airframe caliber scale, so a diameter typed here is the one flown even
+   *  when `bodyDiameter` is also set. Nothing aft of the transition follows it: Loft has no mechanism
+   *  that resizes parts a flyer did not pick, and inventing one would silently re-caliber an airframe
+   *  from a single field. Where that leaves the mould line stepping at the joint behind it, the panel
+   *  says so and by how much — see `mouldLineStep`. Undefined leaves it. */
+  transitionAftDiameter?: number;
   /** Surface finish applied to the whole airframe (drives skin-friction drag). Undefined leaves
    *  each component's own finish. */
   finish?: SurfaceFinish;
@@ -273,6 +299,8 @@ export function hasGeometryEdits(e: GeometryEdits): boolean {
     e.noseShape !== undefined ||
     (e.bodyLength !== undefined && e.bodyLength > 0) ||
     (e.bodyDiameter !== undefined && e.bodyDiameter > 0) ||
+    (e.transitionLength !== undefined && e.transitionLength > 0) ||
+    (e.transitionAftDiameter !== undefined && e.transitionAftDiameter > 0) ||
     e.finish !== undefined ||
     (e.airframeMaterial !== undefined && AIRFRAME_MATERIALS.some((m) => m.key === e.airframeMaterial)) ||
     (e.boattailLength !== undefined && e.boattailLength > 0 &&
@@ -328,6 +356,29 @@ export function unreachableBodyTubeCount(rocket: Rocket): number {
   return Math.max(0, tubes.length - 1);
 }
 
+/** The transition the panel is about: the one picked, or the design's frontmost when nothing is.
+ *
+ *  Every transition readback and the transition edit path resolve through this one function, for the
+ *  same reason the tube and fin ones do: the value shown to edit FROM and the part the edit is written
+ *  TO can never name different components. Frontmost rather than "the biggest step" or "the aft-most",
+ *  because the fallback's job is to be predictable — the panel names which one it is holding either
+ *  way. A selection naming a transition this design doesn't have falls back rather than resolving to
+ *  nothing, so a stale id from a restored session cannot silently disable the fields. */
+export function primaryTransition(rocket: Rocket, selectedId?: string): Transition | undefined {
+  const trans = flattenRocket(rocket)
+    .map((p) => p.component)
+    .filter((c): c is Transition => c.kind === "transition");
+  if (!trans.length) return undefined;
+  const picked = selectedId ? trans.find((c) => c.id === selectedId) : undefined;
+  return picked ?? trans[0];
+}
+
+/** How many transitions sit OUTSIDE the one the transition fields describe. 0 means the fields speak
+ *  for the only one the design has. */
+export function unreachableTransitionCount(rocket: Rocket): number {
+  return Math.max(0, flattenRocket(rocket).filter((p) => p.component.kind === "transition").length - 1);
+}
+
 /** The design's primary (frontmost) fin set, if any. */
 /** The fin set the panel is about: the one selected, or the frontmost when nothing is.
  *
@@ -380,6 +431,7 @@ export const AIM_SLOTS: Readonly<Record<string, AimSlot>> = {
     ],
   },
   bodyTubeId: { kinds: ["bodytube"], targets: ["bodyLength", "bodyDiameter"] },
+  transitionId: { kinds: ["transition"], targets: ["transitionLength", "transitionAftDiameter"] },
   parachuteId: {
     kinds: ["parachute"],
     targets: ["mainParachuteDiameter", "mainDeployAltitude", "drogueDiameter"],
@@ -537,6 +589,16 @@ export function primaryBodyTubePart(rocket: Rocket, selectedId?: string): AimedP
   const tube = primaryBodyTube(rocket, selectedId);
   const seed = tubes.find((p) => p.component.id === tube?.id) ?? tubes[0];
   return aimedPart(seed, tubes, 1);
+}
+
+/** Which transition the transition fields are holding. Always one — both fields change exactly the
+ *  picked part — so `covers` is 1. Undefined for a design with no transition. */
+export function primaryTransitionPart(rocket: Rocket, selectedId?: string): AimedPart | undefined {
+  const trans = flattenRocket(rocket).filter((p) => p.component.kind === "transition");
+  if (!trans.length) return undefined;
+  const picked = primaryTransition(rocket, selectedId);
+  const seed = trans.find((p) => p.component.id === picked?.id) ?? trans[0];
+  return aimedPart(seed, trans, 1);
 }
 
 /** The design's primary fin set's semi-span (m), for showing the flyer the current value to edit
@@ -903,6 +965,141 @@ function addBoattail(rocket: Rocket, length: number, aftRadius: number): Rocket 
   return inserted ? { ...rocket, stages } : rocket;
 }
 
+/** Set one transition's exit radius, wherever it sits in the tree. Only the aft end moves: the fore end
+ *  is the joint with the part in front, and changing it would un-fair the airframe at a joint the flyer
+ *  did not touch. */
+function withTransitionExit(c: RocketComponent, id: string, aftRadius: number): RocketComponent {
+  if (c.id === id && c.kind === "transition") return { ...c, aftRadius };
+  if (!c.children.length) return c;
+  return { ...c, children: c.children.map((k) => withTransitionExit(k, id, aftRadius)) };
+}
+
+/** The outer radius a part presents at its AFT face, or undefined for a part that is not on the outer
+ *  mould line at all (a coupler, a fin set, a point mass). This is the joint diameter a part stacked
+ *  behind it has to fair to. */
+function aftOuterRadius(c: RocketComponent): number | undefined {
+  return c.kind === "bodytube"
+    ? c.outerRadius
+    : c.kind === "nosecone" || c.kind === "transition"
+      ? c.aftRadius
+      : undefined;
+}
+
+/** The outer radius a part presents at its FORE face. A nose cone comes to a point, so 0. */
+function foreOuterRadius(c: RocketComponent): number | undefined {
+  return c.kind === "bodytube"
+    ? c.outerRadius
+    : c.kind === "transition"
+      ? c.foreRadius
+      : c.kind === "nosecone"
+        ? 0
+        : undefined;
+}
+
+/** The part that sits immediately behind `afterId` in its stage's own top-level list, if any. Top-level
+ *  because that is the only list a part can be stacked into (see `applyAdds`), so it is also the only
+ *  list whose neighbour a new part has to fair to. */
+function nextTopLevel(rocket: Rocket, afterId: string): RocketComponent | undefined {
+  for (const s of rocket.stages) {
+    const i = s.components.findIndex((c) => c.id === afterId);
+    if (i !== -1) return s.components[i + 1];
+  }
+  return undefined;
+}
+
+/** How far the mould line steps at the joint immediately behind a component — the difference in
+ *  DIAMETER (m) between what it presents at its aft face and what the next part presents at its fore
+ *  face. 0 when they fair, undefined when there is no joint to judge (nothing follows, or one of the
+ *  two is not on the outer mould line).
+ *
+ *  Worth stating because Loft's drag model has a term for a transition's OWN slope — Niskanen eq. 3.86
+ *  for a shoulder, 3.88 for a boattail, both a function of the joint angle — and none at all for a bare
+ *  radius step, which has no length to take an angle over. A step is not exotic: measured across the
+ *  35-design corpus, 31 of 115 touching airframe joints already step, in 11 of the 35 designs, by a
+ *  median 11.75 mm of diameter and up to 82.55 mm. So this is not a guard against a value the editor
+ *  invents; it is the sentence that was missing for the designs that arrive with one. */
+export function mouldLineStep(rocket: Rocket, id: string): number | undefined {
+  const flat = flattenRocket(rocket);
+  const self = flat.find((p) => p.component.id === id);
+  if (!self) return undefined;
+  const mine = aftOuterRadius(self.component);
+  const next = nextTopLevel(rocket, id);
+  const theirs = next ? foreOuterRadius(next) : undefined;
+  if (mine === undefined || theirs === undefined) return undefined;
+  // Only a joint the two parts actually share: a gap between them is a different geometry, and one
+  // Loft does not model either.
+  const placed = flat.find((p) => p.component.id === next?.id);
+  if (!placed || Math.abs(placed.xFore - (self.xFore + self.length)) > 1e-6) return undefined;
+  return 2 * (theirs - mine);
+}
+
+/** How much narrower a transition authored with nothing behind it should exit, as a fraction of the
+ *  diameter it starts at, and how long it should be for that change.
+ *
+ *  Both are the corpus's medians rather than numbers anyone chose, which is the same standard the
+ *  authored fin ring is held to (it is cloned from the design's own set). Measured across the 25
+ *  transitions in the 35-design corpus: 14 contract, 7 flare and 4 run straight through; the 14
+ *  contracting ones exit at a median 0.754 of the diameter they start at, over a median
+ *  γ = L / 2·ΔR of 2.294 — which is also, not by coincidence, close to the γ ≥ 3 at which a
+ *  boattail's own pressure drag has faded to nothing (Niskanen eq. 3.88). The shortest real
+ *  transition in the corpus is 6 mm, which is the floor a step-closing shoulder is held to so a
+ *  0.076 mm step cannot mint a part too small to see, click or take back out. */
+const TRANSITION_CONTRACTION = 0.754;
+const TRANSITION_SLENDERNESS = 2.294;
+const TRANSITION_MIN_LENGTH = 0.006;
+/** The corpus's median transition length, for the one case with no diameter change to derive one
+ *  from: a section between two parts already at the same caliber. Measured over the same 25. */
+const TRANSITION_MEDIAN_LENGTH = 0.019;
+
+/** The transition an "add one behind this" gesture should build: what it starts at, what it exits at,
+ *  and the length that change implies. Undefined when the anchor presents no outer diameter to start
+ *  from — a coupler, a fin set, a point mass — which is also the case where no transition can be
+ *  faired to it.
+ *
+ *  The exit is decided by the airframe, never invented, and there are exactly three positions an
+ *  anchor can be in. Measured by driving all 91 body tubes in the starter plus the 35-design corpus:
+ *
+ *   - **Nothing behind it (38 of 91).** A tail cone, contracting to the corpus median of the 14
+ *     contracting transitions — 0.754 of the diameter it starts at, over γ = L/2·ΔR of 2.294. This is
+ *     the base-drag lever, and the only position where a contraction is what the flyer is asking for.
+ *   - **A part behind it at a different caliber (15 of 91).** The transition fairs EXACTLY to it and
+ *     closes a step the design already had. Nothing is chosen; the number is read off the neighbour.
+ *   - **A part behind it at the same caliber (38 of 91).** Straight through, fore = aft, at the
+ *     corpus's median transition length. Contracting here would open a step at the joint BEHIND the
+ *     new part — a stepped airframe nobody drew, on 38 of the 91 positions the gesture is offered.
+ *     A zero-taper transition is not a contrivance to avoid that: 4 of the 25 corpus transitions are
+ *     exactly this, a section in the mould line. The exit field is aimed at the part the moment it
+ *     exists, so the very next keystroke is what shapes it — the numbers are the confirmation, and
+ *     the gesture is putting the part there. */
+export function transitionDefaults(
+  rocket: Rocket,
+  afterId: string,
+): { foreRadius: number; aftRadius: number; length: number } | undefined {
+  const anchor = flattenRocket(rocket).find((p) => p.component.id === afterId)?.component;
+  if (!anchor) return undefined;
+  const foreRadius = aftOuterRadius(anchor);
+  if (!(foreRadius !== undefined && foreRadius > 0)) return undefined;
+  const next = nextTopLevel(rocket, afterId);
+  const theirs = next ? foreOuterRadius(next) : undefined;
+  const aftRadius =
+    theirs !== undefined && theirs > 0
+      ? theirs // fair to the neighbour, whether that closes a step or leaves it straight through
+      : foreRadius * TRANSITION_CONTRACTION; // nothing behind it: a tail cone
+  const taper = Math.abs(foreRadius - aftRadius);
+  const length =
+    taper > 1e-6
+      ? Math.max(TRANSITION_SLENDERNESS * 2 * taper, TRANSITION_MIN_LENGTH)
+      : TRANSITION_MEDIAN_LENGTH;
+  return { foreRadius, aftRadius, length };
+}
+
+/** What to call a transition authored behind `afterId`, decided once at birth and then carried on the
+ *  `AddedPart` so it cannot drift when the design changes underneath it. A cone with nothing behind it
+ *  is a tail cone in every flyer's vocabulary; one between two sections is a transition. */
+export function authoredTransitionName(rocket: Rocket, afterId: string): string {
+  return nextTopLevel(rocket, afterId) ? "Transition" : "Tail cone";
+}
+
 /** A sensible default station (m from the nose tip) for an added payload: the mid-point of the main
  *  body tube, a typical avionics-bay location. Undefined for a design with no body tube. */
 export function defaultPayloadStation(rocket: Rocket, selectedId?: string): number | undefined {
@@ -1114,6 +1311,29 @@ export function aimsClearedByRemoving(rocket: Rocket, edits: GeometryEdits, id: 
   return patch as GeometryEdits;
 }
 
+/** The values to clear when an aim MOVES to a part that was just authored — the mirror of
+ *  `aimsClearedByRemoving`, and for the same reason.
+ *
+ *  An absolute dimension in the bag describes the part the fields were holding a moment ago. Re-aiming
+ *  them at a new part without clearing it does not leave the number where it was: it re-lands it on the
+ *  part that has just been made, and the one it was typed for reverts. Measured on the starter design —
+ *  aim at its 620.0 mm body tube, type 400 mm, then author a tube behind it: the design's own tube
+ *  snapped back to 620.0 mm and the brand-new 310.0 mm one became 400.0 mm, with the field still
+ *  reading 400 and nothing saying which part it had moved to.
+ *
+ *  Only the slots the aim patch actually moves are cleared, so a span typed for a fin set survives
+ *  authoring a body tube. */
+export function aimsClearedByAiming(edits: GeometryEdits, aim: GeometryEdits): GeometryEdits {
+  const bag = edits as Record<string, unknown>;
+  const moving = aim as Record<string, unknown>;
+  const patch: Record<string, undefined> = {};
+  for (const [slot, def] of Object.entries(AIM_SLOTS)) {
+    if (moving[slot] === undefined || moving[slot] === bag[slot]) continue;
+    for (const field of def.targets) if (bag[field] !== undefined) patch[field] = undefined;
+  }
+  return patch as GeometryEdits;
+}
+
 /** Every component id in a design, so a reference to one can be checked for still existing. */
 function liveIds(rocket: Rocket): Set<string> {
   const out = new Set<string>();
@@ -1281,16 +1501,40 @@ function buildAdded(
   }
   if (!(part.length > 0)) return null;
   switch (part.kind) {
+    case "transition": {
+      // A transition is the one part whose whole purpose is that its two ends differ, so unlike a tube
+      // it cannot inherit its caliber wholesale — it inherits the FORE end and derives the exit. Both
+      // come from `transitionDefaults`, re-resolved here rather than frozen onto the `AddedPart`, so a
+      // cone stays faired to the airframe through a later caliber edit instead of being a step the
+      // flyer never typed. Its LENGTH is the birth value on the entry, exactly like a tube's, and
+      // `transitionLength` is what changes it afterwards.
+      const d = transitionDefaults(rocket, part.after);
+      if (!d) return null;
+      const wall = "thickness" in after && after.thickness !== undefined && after.thickness > 0 ? after.thickness : undefined;
+      return {
+        inside: false,
+        component: {
+          id: part.id,
+          name: part.name || "Transition",
+          kind: "transition",
+          placement: { method: "after", offset: 0 },
+          length: part.length,
+          foreRadius: d.foreRadius,
+          aftRadius: d.aftRadius,
+          // Conical, because 22 of the 25 transitions in the corpus are (2 ogive, 1 power) and because
+          // a cone is the only contour whose joint angle a flyer can read straight off the diagram.
+          shape: "conical",
+          ...(wall !== undefined ? { thickness: wall, ...(after.material ? { material: after.material } : {}) } : {}),
+          ...(after.finish ? { finish: after.finish } : {}),
+          children: [],
+        },
+      };
+    }
     case "bodytube": {
       // The caliber has to come from the airframe, not from the flyer: a tube that does not fair to the
       // part it joins is a step in the outer mould line, which changes the drag and the stability of a
       // design nobody meant to draw. `aftRadius` on a nose or transition IS the joint diameter there.
-      const radius =
-        after.kind === "bodytube"
-          ? after.outerRadius
-          : after.kind === "nosecone" || after.kind === "transition"
-            ? after.aftRadius
-            : undefined;
+      const radius = aftOuterRadius(after);
       if (!(radius !== undefined && radius > 0)) return null;
       // The wall and the material travel TOGETHER, and a wall of nothing takes the material with it.
       // `lib/sim/mass.ts` models a tube that has a material and no wall as a SOLID ROD — measured on a
@@ -1316,6 +1560,14 @@ function buildAdded(
         children: [],
         },
       };
+    }
+    default: {
+      // A kind added to `AddedPart` and not to this switch used to fall off the end returning
+      // `undefined`, which typechecked only because the return type is nullable — so the part was
+      // dropped by `applyAdds` with nothing said on any surface. This makes the fifth kind a
+      // compile error instead of a silent no-op.
+      const unreachable: never = part.kind;
+      return unreachable;
     }
   }
 }
@@ -1418,6 +1670,19 @@ function applyDimensionEdits(rocket: Rocket, edits: GeometryEdits): Rocket {
     const tube = primaryBodyTube(rocket, edits.bodyTubeId);
     if (tube) lengths.set(tube.id, edits.bodyLength);
   }
+  // A transition's length rides the same map as a tube's — everything aft of it restacks either way,
+  // because placement is relative and `flattenRocket` recomputes the stations from the tree.
+  const transTarget = primaryTransition(rocket, edits.transitionId);
+  if (edits.transitionLength !== undefined && edits.transitionLength > 0 && transTarget) {
+    lengths.set(transTarget.id, edits.transitionLength);
+  }
+  // The exit is applied LAST, after the whole-airframe caliber scale, so an absolute diameter typed
+  // here is the one flown even when `bodyDiameter` is also set — the same precedence the boattail's
+  // exit already has, and the only one under which the field is not showing a number nothing is using.
+  const transExit =
+    edits.transitionAftDiameter !== undefined && edits.transitionAftDiameter > 0 && transTarget
+      ? { id: transTarget.id, aftRadius: edits.transitionAftDiameter / 2 }
+      : undefined;
   const finish = edits.finish;
   const matOpt = AIRFRAME_MATERIALS.find((m) => m.key === edits.airframeMaterial);
   const airframeMaterial: Material | undefined = matOpt
@@ -1453,6 +1718,7 @@ function applyDimensionEdits(rocket: Rocket, edits: GeometryEdits): Rocket {
     if (finish) geo = withFinish(geo, finish);
     if (airframeMaterial) geo = withAirframeMaterial(geo, airframeMaterial);
     if (radiusScale !== 1) geo = scaleAirframeRadii(geo, radiusScale);
+    if (transExit) geo = withTransitionExit(geo, transExit.id, transExit.aftRadius);
     return geo;
   };
   const edited: Rocket = {

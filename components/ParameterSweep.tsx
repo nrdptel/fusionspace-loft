@@ -230,9 +230,11 @@ export default function ParameterSweep({
   // and every fin set carries a thickness, so routing it through the selection only made the answer
   // look as if it moved with the picker when it cannot. (It also read a value it did not depend on,
   // which is what eslint was pointing at.)
+  // It reads the STRUCTURE base rather than the import so a design whose only fin set the flyer built
+  // still offers the flutter metric — on a from-scratch design that is the only fin set there is.
   const metrics = useMemo(
     () => (primaryFinThickness(axisBase) !== undefined ? METRICS : METRICS.filter((m) => m.key !== "flutterMargin")),
-    [doc],
+    [axisBase],
   );
 
   const [open, setOpen] = useState(false);
