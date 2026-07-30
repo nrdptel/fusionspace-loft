@@ -1449,6 +1449,55 @@ describe("the boattail's advertised bound is the bound that is enforced", () => 
   });
 });
 
+describe("a motor cluster and a body length on the same tube", () => {
+  it("both apply, rather than whichever branch ran first", async () => {
+    // A component can be BOTH a motor mount and something else the editor changes: on a
+    // minimum-diameter design the mount IS a body tube. The cluster used to be its own early-returning
+    // branch below the length branch, so the length won and the cluster was dropped in silence — while
+    // the Motors field, which reads the edit bag, went on saying three.
+    //
+    // Measured on `01.One-stage.ork`, whose mount is a body tube: `motorClusterCount: 3` alone flies
+    // three motors at 1,243 m and thrust-to-weight 33.1; the same edit plus a body length on that tube
+    // flew ONE, at 692 m and 19.0. Motor count is the number a flyer plans a flight around.
+    // `demo-quirks.ork` is the committed fixture of the same shape — its mount is a body tube — so the
+    // pin runs where the corpus is absent.
+    const doc = await importOrk(readFileSync(resolve(process.cwd(), "fixtures/demo-quirks.ork")));
+    const mount = flattenRocket(doc.rocket).find((p) => p.component.motorMount)!.component;
+    expect(mount.kind, "the fixture's mount must BE a body tube").toBe("bodytube");
+
+    const clusterOnly = applyGeometryEdits(doc.rocket, { motorClusterCount: 3 });
+    expect(primaryMotorClusterCount(clusterOnly)).toBe(3);
+
+    const both = applyGeometryEdits(doc.rocket, {
+      motorClusterCount: 3,
+      bodyTubeId: mount.id,
+      bodyLength: (mount as BodyTube).length * 1.5,
+    });
+    expect(primaryMotorClusterCount(both), "the cluster must survive a length edit on its own tube").toBe(3);
+    expect(primaryBodyTube(both, mount.id)!.length).toBeCloseTo((mount as BodyTube).length * 1.5, 9);
+
+    // And it reaches the flight, not just the model: three motors is three motors' thrust.
+    const one = runFlight(doc.rocket, {}).result.summary;
+    const three = runFlight(both, {}).result.summary;
+    expect(three.thrustToWeight).toBeGreaterThan(one.thrustToWeight * 1.5);
+    expect(three.apogee).toBeGreaterThan(one.apogee);
+  });
+
+  it("leaves a design whose mount is an inner tube exactly as it was", async () => {
+    // The control: the defect only ever bit where one component wore both roles.
+    const doc = await importOrk(readFileSync(resolve(process.cwd(), "fixtures/demo-single-deploy.ork")));
+    expect(flattenRocket(doc.rocket).find((p) => p.component.motorMount)!.component.kind).toBe("innertube");
+    const tube = primaryBodyTube(doc.rocket)!;
+    const both = applyGeometryEdits(doc.rocket, {
+      motorClusterCount: 3,
+      bodyTubeId: tube.id,
+      bodyLength: tube.length * 1.5,
+    });
+    expect(primaryMotorClusterCount(both)).toBe(3);
+    expect(primaryBodyTube(both, tube.id)!.length).toBeCloseTo(tube.length * 1.5, 9);
+  });
+});
+
 describe("adding a component", () => {
   const tubes = (r: Rocket) => flattenRocket(r).filter((p) => p.component.kind === "bodytube");
 

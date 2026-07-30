@@ -637,6 +637,23 @@ function editComponent(
     ? c.children.map((child) => editComponent(child, e, lengths, finShift, finTargetIds))
     : c.children;
 
+  /** Apply the motor-cluster edit to whatever this component has become.
+   *
+   *  A component can be BOTH a motor mount and something else the editor changes: on a
+   *  minimum-diameter design the mount IS a body tube. The cluster used to be its own early-returning
+   *  branch below the length branch, so whichever ran first won and the other was dropped in silence.
+   *  Measured on `01.One-stage.ork`, whose mount is a body tube: `motorClusterCount: 3` alone flies
+   *  three motors — 1,243 m, thrust-to-weight 33.1 — and the same edit with a body length on that tube
+   *  flies ONE, at 692 m and 19.0, while the Motors field goes on reading 3. Motor count is the number
+   *  a flyer plans a flight around, so a field saying three over a flight of one is the shape of defect
+   *  this file's other shared helpers exist to prevent. */
+  const clustered = (x: RocketComponent): RocketComponent => {
+    if (!(e.motorClusterCount !== undefined && e.motorClusterCount >= 1)) return x;
+    if (!("motorMount" in x) || !x.motorMount) return x;
+    const n = Math.round(e.motorClusterCount);
+    return { ...x, motorMount: { ...x.motorMount, clusterCount: n > 1 ? n : undefined } };
+  };
+
   const newLen = lengths.get(c.id);
   // The nose cone takes both a length override and a shape change (the aero reads both), so handle it
   // before the generic length branch. A shape change installs that shape's canonical parameter.
@@ -651,15 +668,14 @@ function editComponent(
     };
   }
   if (newLen !== undefined && "length" in c) {
-    return { ...c, length: newLen, children };
+    return clustered({ ...c, length: newLen, children });
   }
 
   // Motor cluster count: how many motors the mount holds, set on every motor mount (a from-scratch
   // or single-stage design has one). Flown as N identical coaxial motors — N× thrust and motor
-  // mass; 1 flies a single motor. A motor mount takes no other geometry edit, so return early.
+  // mass; 1 flies a single motor.
   if (e.motorClusterCount !== undefined && e.motorClusterCount >= 1 && "motorMount" in c && c.motorMount) {
-    const n = Math.round(e.motorClusterCount);
-    return { ...c, motorMount: { ...c.motorMount, clusterCount: n > 1 ? n : undefined }, children };
+    return clustered({ ...c, children });
   }
 
   const isFin = c.kind === "trapezoidfinset" || c.kind === "ellipticalfinset" || c.kind === "freeformfinset";

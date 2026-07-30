@@ -10,14 +10,6 @@ a one-way door — those preempt the milestone immediately). Everything else wai
 one-in-four quota in `MAINTAINING.md`. Rough edges, missing affordances, and findings too big for one
 pass. Newest first.
 
-- **A body-length edit aimed at the motor-mount tube silently drops a motor cluster back to one.**
-  `editComponent` in `lib/model/edit.ts` returns from the `newLen !== undefined && "length" in c` branch
-  before it reaches the motor-mount branch, so the two edits cannot both apply to one component. Measured
-  on `01.One-stage.ork`, whose mount IS a body tube: `motorClusterCount: 3` alone flies 3 motors;
-  `motorClusterCount: 3` plus a `bodyLength` on that tube flies **1**, with the length applied. A design
-  with the mount in an inner tube is unaffected. Worth checking whether the cluster field still reads 3
-  while 1 is flown — if it does this is a Sev-1 rather than a defect, since motor count is the number a
-  flyer plans a flight around.
 - **The three flat structural adds re-anchor themselves under an edit or a removal, silently.** Measured
   on `01.One-stage.ork`: removing the aft body tube moves the boattail to station 0.4429 and renames it
   `c2-boattail`; a `payloadMassKg` with an unaimed `bodyLength` jumps the payload from station 816 mm to
