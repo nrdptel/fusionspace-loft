@@ -108,6 +108,20 @@ export interface GeometryEdits {
    *  who picked the drogue and resized it resized the MAIN instead, which moves landing speed and
    *  landing energy, the two numbers recovery sizing exists to get right. */
   parachuteId?: string;
+  /** Components the flyer has removed, oldest first — the design's structural deletions.
+   *
+   *  An ordered LIST rather than a set, because the order is what makes it undoable: dropping the last
+   *  entry restores exactly the design before that deletion, since the model is always rebuilt from the
+   *  pristine one plus this bag. That is the same property the flat dimension fields have (retype the
+   *  number and you are back) and the reason a deletion needed it more: a number can be retyped from
+   *  memory and a deleted part cannot.
+   *
+   *  Removing a component takes everything mounted inside it — a body tube goes with its motor mount,
+   *  its fins and its parachute — and drops any motor whose mount went with it. A motor left pointing at
+   *  a mount that no longer exists is not inert: `lib/sim/setup.ts` resolves the mount to undefined and
+   *  places the motor's mass at station 0, at the nose tip, which is a wrong flight rather than no
+   *  flight. */
+  removedIds?: string[];
   /** Absolute fin semi-span (root→tip height, m) for the fin group the panel describes — the
    *  primary set and any set indistinguishable from it. Undefined leaves fins as-is. */
   finSpan?: number;
@@ -207,6 +221,7 @@ export interface GeometryEdits {
 /** True when at least one edit actually changes something. */
 export function hasGeometryEdits(e: GeometryEdits): boolean {
   return (
+    (e.removedIds !== undefined && e.removedIds.length > 0) ||
     (e.finSpan !== undefined && e.finSpan > 0) ||
     (e.finCount !== undefined && e.finCount >= 1) ||
     (e.finRootChord !== undefined && e.finRootChord > 0) ||
@@ -977,9 +992,76 @@ function withMainParachuteDiameter(rocket: Rocket, diameter: number, selectedId?
   return { ...rocket, stages: rocket.stages.map((s) => ({ ...s, components: transform(s.components) })) };
 }
 
+/** Every component id in a design, so a reference to one can be checked for still existing. */
+function liveIds(rocket: Rocket): Set<string> {
+  const out = new Set<string>();
+  const walk = (list: RocketComponent[]): void => {
+    for (const c of list) {
+      out.add(c.id);
+      walk(c.children);
+    }
+  };
+  for (const s of rocket.stages) walk(s.components);
+  return out;
+}
+
+/** Why `id` cannot be removed from `rocket`, as a sentence for the flyer, or null when it can.
+ *
+ *  Judged against the design AS SHOWN — the model with any earlier removals already applied — so on a
+ *  two-tube airframe the first tube goes and the second is refused, rather than both being allowed
+ *  because the pristine design had two.
+ *
+ *  Deliberately short: the only structural rule is that an airframe needs a body. Removing the nose is
+ *  allowed (a flat-faced tube is a buildable, if draggy, rocket), and so is removing the only motor
+ *  mount — that leaves a design with no propulsion, which Loft already reports as such rather than
+ *  inventing a flight. Refusing what is merely unwise would be a verdict, and Loft does not give those. */
+export function removalRefusal(rocket: Rocket, id: string): string | null {
+  const parts = flattenRocket(rocket);
+  const target = parts.find((p) => p.component.id === id);
+  if (!target) return "That part is no longer in this design.";
+  if (target.component.kind === "bodytube" && parts.filter((p) => p.component.kind === "bodytube").length <= 1) {
+    return "This is the only body tube left, and an airframe needs one — a rocket without it has no body to fly. Remove something else, or add a tube first.";
+  }
+  return null;
+}
+
+/** Drop the removed components, everything mounted inside them, and any motor left without a mount.
+ *
+ *  Applied BEFORE the dimension edits, so every role resolves against the design that is actually left:
+ *  delete the longest tube and `Body length` describes the longest of the rest, not a part that is gone.
+ *  An aim naming a removed component falls back the same way a stale id from a restored session does. */
+function applyRemovals(rocket: Rocket, removedIds?: readonly string[]): Rocket {
+  if (!removedIds?.length) return rocket;
+  const gone = new Set(removedIds);
+  const prune = (list: RocketComponent[]): RocketComponent[] =>
+    list
+      .filter((c) => !gone.has(c.id))
+      .map((c) => (c.children.length ? { ...c, children: prune(c.children) } : c));
+  const stages = rocket.stages.map((s) => ({ ...s, components: prune(s.components) }));
+  const pruned: Rocket = { ...rocket, stages };
+  const alive = liveIds(pruned);
+  // A motor whose mount went with the part is dropped, not left dangling: `lib/sim/setup.ts` resolves an
+  // unknown mount to undefined and puts the motor's mass at station 0 — the nose tip — which is a wrong
+  // flight rather than an absent one. The configuration itself stays, so the picker still lists it and the
+  // run reports honestly that there is nothing left to burn.
+  const configurations = rocket.configurations.map((cfg) =>
+    cfg.instances.every((i) => alive.has(i.mountId))
+      ? cfg
+      : { ...cfg, instances: cfg.instances.filter((i) => alive.has(i.mountId)) },
+  );
+  return { ...pruned, configurations };
+}
+
 /** Return a design with the geometry edits applied. The original rocket is untouched (a fresh tree
- *  is returned only where something changed), so callers can keep the imported model pristine. */
+ *  is returned only where something changed), so callers can keep the imported model pristine.
+ *
+ *  Removals come first and the dimension edits are applied to what is left — see `applyRemovals`. */
 export function applyGeometryEdits(rocket: Rocket, edits: GeometryEdits): Rocket {
+  return applyDimensionEdits(applyRemovals(rocket, edits.removedIds), edits);
+}
+
+/** The dimension half of the edit bag, applied to a design whose removals have already been taken out. */
+function applyDimensionEdits(rocket: Rocket, edits: GeometryEdits): Rocket {
   if (!hasGeometryEdits(edits)) return rocket;
   // Resolve which components the length edits target, once, from the pristine design.
   const lengths = new Map<string, number>();

@@ -76,6 +76,14 @@ export default function Faq() {
           another — the aim only follows a pick for the fields that part drives — and the aim is saved
           with your session, so a reload comes back pointed at the same part.
         </p>
+        <p className="mt-2">
+          You can also <strong>remove</strong> the part you picked, and put it back: the panel offers to
+          remove it by name, and a <em>Restore</em> control brings the last one back — named too, because
+          the part is no longer on the diagram to remind you what you took. A removal carries everything
+          mounted inside the part, so deleting a body tube takes its motor mount, fins and parachute with
+          it. The one thing Loft refuses is removing the <em>last</em> body tube, and it says why rather
+          than flying a rocket with no body.
+        </p>
       </QA>
 
       <QA q="Is my design uploaded anywhere?">

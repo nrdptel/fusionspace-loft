@@ -5,7 +5,7 @@ import type { Rocket, RocketComponent } from "@/lib/model/types";
 import { flattenRocket } from "@/lib/model/geometry";
 import { massByComponent, dryMassProperties } from "@/lib/sim/mass";
 import type { MotorMark } from "@/lib/sim/setup";
-import type { GeometryEdits } from "@/lib/model/edit";
+import { removalRefusal, type GeometryEdits } from "@/lib/model/edit";
 import { TOUCH_TARGET, TOUCH_TARGET_SQUARE } from "@/lib/ui-tokens";
 import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
@@ -118,6 +118,7 @@ export default function GeometryInspector({
   motors,
   onEdit,
   onSelectPart,
+  onRemove,
   aims,
 }: {
   rocket: Rocket;
@@ -139,6 +140,10 @@ export default function GeometryInspector({
    *  fields a pick re-aims — and which picks re-aim nothing — is the edit model's call
    *  (`aimEditsAt`), not this panel's. Picking is a view concern and stays owned here. */
   onSelectPart?: (id: string) => void;
+  /** Remove the picked component from the design. Given only where editing is offered, so a design shown
+   *  without an editor stays read-only. The panel asks `removalRefusal` first and shows the reason instead
+   *  of the control when there is one — a button that silently does nothing is worse than no button. */
+  onRemove?: (id: string) => void;
   /** Every component id the edit model is currently aimed at, keyed by its aim slot. Passed back in so
    *  the pick shown here and the parts the fields describe cannot drift apart — a restored session
    *  arrives with an aim and no pick, and "Reset to as-designed" clears the aims without clearing the
@@ -313,6 +318,31 @@ export default function GeometryInspector({
             </span>
           )}
         </p>
+        {/* Removing the part that is picked. It sits with the line that names the part rather than in the
+            editor below, because "this one, gone" is a statement about the thing you are pointing at —
+            and it is the only destructive control on this panel, so it stays where its subject is
+            visible. A refusal replaces it with the reason. */}
+        {onRemove && selectedId && (
+          <p className="mt-1 text-xs">
+            {removalRefusal(rocket, selectedId) ? (
+              <span className="text-amber-700 dark:text-amber-400" role="status">
+                {removalRefusal(rocket, selectedId)}
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={() => onRemove(selectedId)}
+                title="Remove this part from the design and re-fly it"
+                className={`inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-2.5 py-1 font-medium text-zinc-700 transition hover:border-rose-400 hover:text-rose-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:border-rose-500 dark:hover:text-rose-400 ${TOUCH_TARGET}`}
+              >
+                Remove{" "}
+                {parts.find((x) => x.component.id === selectedId)?.component.name ||
+                  KIND_LABEL[parts.find((x) => x.component.id === selectedId)?.component.kind ?? ""] ||
+                  "this part"}
+              </button>
+            )}
+          </p>
+        )}
         {onEdit && (
           <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
             Grab a handle to reshape the design right on the picture — slide the fin group fore or aft,

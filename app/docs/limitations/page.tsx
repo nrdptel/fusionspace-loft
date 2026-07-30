@@ -190,9 +190,20 @@ export default function Limitations() {
         addressable. For nose cones that costs nothing measurable — no corpus design has more than one
         after import — but transitions and mass objects have no editor field at all, so there is nothing
         yet to point at one: 7 designs carry several transitions and 15 several mass objects, and none of
-        them can be resized. The parts list also stays read-only, and nothing can be added, removed or
-        reordered. Those are the next steps for the in-app editor, and they need edits expressed as
-        operations on a component tree rather than a fixed set of fields.
+        them can be resized. Nothing can be <em>added</em> or <em>reordered</em> either — those are the next
+        steps for the in-app editor.
+      </p>
+      <p>
+        <strong>Removing a part does work</strong>, on any component, and it is undoable: pick a part on
+        the diagram or in the parts list and the panel offers to remove it, naming the part it will take.
+        The removal takes everything mounted inside it — a body tube goes with its motor mount, its fins and
+        its parachute — and drops any motor left without a mount, because a motor pointing at a mount that
+        no longer exists would otherwise be flown with its mass at the nose tip. One structural rule is
+        enforced: the <strong>last body tube cannot be removed</strong>, and the panel says why instead of
+        producing a rocket with no body and a confident number computed from it. Removing the nose cone or
+        the only motor mount IS allowed — a flat-faced tube is a buildable if draggy rocket, and a design
+        with no propulsion is something Loft already reports rather than inventing a flight for. Refusing
+        what is merely unwise would be a go/no-go verdict, which Loft does not give.
       </p>
       <p>
         One consequence worth knowing, because it follows from the fields being a fixed set rather than

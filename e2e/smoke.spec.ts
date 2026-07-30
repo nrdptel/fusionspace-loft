@@ -2834,6 +2834,81 @@ test.describe("Loft", () => {
     expect((await lengthsOf())[0], "the tube that was not picked must not change").toBe(before[0]);
   });
 
+  test("removing a part re-flies the design, and the removal is undoable", async ({ page }) => {
+    // R2's capability. A parametric edit is recoverable by retyping a number; a deletion is not, which is
+    // why undo ships with it rather than after it. `two-stage-firm-booster.ork` has two fin sets, so one
+    // can go without hitting the last-body-tube refusal.
+    await page.goto("/");
+    await page
+      .getByLabel(/^Choose an OpenRocket/)
+      .setInputFiles(resolve(process.cwd(), "e2e/fixtures/two-stage-firm-booster.ork"));
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+
+    const margin = async () => {
+      const t = await page
+        .getByText("Static margin", { exact: true })
+        .locator("xpath=following-sibling::dd")
+        .innerText();
+      return parseFloat(t.replace(/[^\d.]/g, ""));
+    };
+    const before = await margin();
+    expect(before).toBeGreaterThan(0);
+
+    await page.getByRole("tab", { name: "Design" }).click();
+    await page.locator("summary", { hasText: /Parts ·/ }).click();
+
+    // Pick a fin set and remove it. The control names the part it will take. The rows are scoped to the
+    // PARTS table by its own Dimensions column: a collapsed `<details>` keeps the Mass & balance table in
+    // the DOM, so a bare `tr` filter matches rows in both.
+    const partsTable = page.locator("table").filter({ hasText: "Dimensions" });
+    const finRows = partsTable.locator("tr").filter({ hasText: /Trapezoidal fins/ });
+    await expect(finRows).toHaveCount(2);
+    await finRows.first().click();
+    const remove = page.getByRole("button", { name: /^Remove / });
+    await expect(remove).toBeVisible();
+    await remove.click();
+
+    // The part is gone from the design...
+    await expect(partsTable.locator("tr").filter({ hasText: /Trapezoidal fins/ })).toHaveCount(1);
+    // ...and the flight answer moved: fewer fins is less normal force, so a thinner static margin.
+    await page.getByRole("tab", { name: "Flight" }).click();
+    await expect.poll(margin, { timeout: 20000 }).toBeLessThan(before);
+
+    // Undo names the part it will put back, and puts it back exactly.
+    await page.getByRole("button", { name: /^Restore / }).click();
+    await expect.poll(margin, { timeout: 20000 }).toBe(before);
+    await page.getByRole("tab", { name: "Design" }).click();
+    await expect(partsTable.locator("tr").filter({ hasText: /Trapezoidal fins/ })).toHaveCount(2);
+  });
+
+  test("the last body tube cannot be removed, and it says why", async ({ page }) => {
+    // The refusal R2's done-when names. A rocket with no body is not a rocket, and the alternative to
+    // refusing is a confident flight number computed from one.
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    await page.getByRole("tab", { name: "Design" }).click();
+    await page.locator("summary", { hasText: /Parts ·/ }).click();
+
+    // Scoped to the parts table by its Dimensions column — a collapsed `<details>` keeps Mass & balance
+    // in the DOM and it lists this design's tube by the same name.
+    const tubeRows = page
+      .locator("table")
+      .filter({ hasText: "Dimensions" })
+      .locator("tr")
+      .filter({ hasText: /Body tube/ });
+    await expect(tubeRows).toHaveCount(1); // the sample is a single-tube airframe
+    await tubeRows.first().click();
+
+    // No Remove control — a reason instead, as a sentence.
+    await expect(page.getByRole("button", { name: /^Remove / })).toHaveCount(0);
+    const why = page.getByText(/only body tube left/);
+    await expect(why).toBeVisible();
+    await expect(why).toContainText("an airframe needs one");
+    // And the part is still there, on the diagram and in the table.
+    await expect(tubeRows).toHaveCount(1);
+  });
+
   test("picking a canopy aims the recovery fields at it — the drogue, not always the main", async ({ page }) => {
     // The recovery fields resolved "the" parachute as the LARGEST by canopy area, so on any
     // dual-deploy design the drogue was unreachable: a flyer aiming to shrink the drogue resized the

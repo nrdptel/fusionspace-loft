@@ -118,9 +118,12 @@ one and the drogue was unreachable on all of them.
 
 ## R2 — Delete a component, and undo it
 
-**Status:** IN PROGRESS — current milestone. Its prerequisite is done: component ids now survive an
-export/re-import round trip, pinned by `lib/model/id.test.ts`. The operation model and undo are the
-remaining work.
+**Status:** IN PROGRESS — current milestone. Two of its three parts are done and pinned: component ids
+survive an export/re-import round trip (`lib/model/id.test.ts`), and a flyer can remove any component and
+undo it (`lib/model/edit.test.ts`'s `removing a component` suite, plus the e2e cases *removing a part
+re-flies the design, and the removal is undoable* and *the last body tube cannot be removed, and it says
+why*). What is left of the *done when*: undo covers only removals, not every edit, and the parts named in
+it should be walked on a real multi-part corpus design rather than the committed fixtures.
 
 **Outcome.** The flyer can remove a part and watch the flight answer change.
 
