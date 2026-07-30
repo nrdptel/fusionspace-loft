@@ -134,9 +134,11 @@ const shortName = (name: string): string => name.split("__").pop() ?? name;
  *  wrong, and asking the suspect where its neighbours are cannot do that. Adjacency here is "the next
  *  body part whose fore station is this one's aft station", which is a fact about the drawing rather
  *  than about any list. 0 when nothing touches it. */
+const isBodyPart = (k: string) => k === "nosecone" || k === "bodytube" || k === "transition";
+
 function stepBehind(rocket: Rocket, id: string): number {
   const bodies = flattenRocket(rocket)
-    .filter((p) => p.component.kind === "nosecone" || p.component.kind === "bodytube" || p.component.kind === "transition")
+    .filter((p) => isBodyPart(p.component.kind))
     .sort((a, b) => a.xFore - b.xFore);
   const self = bodies.find((p) => p.component.id === id);
   if (!self) return 0;
@@ -236,7 +238,11 @@ suite("real-design corpus", () => {
     const stuck: string[] = [];
     const unaimable: string[] = [];
     const misplaced: string[] = [];
+    const shapeless: string[] = [];
+    const misanchored: string[] = [];
     let driven = 0;
+    let transMade = 0;
+    let massMade = 0;
     let stations = 0;
 
     for (const f of files) {
@@ -256,17 +262,43 @@ suite("real-design corpus", () => {
           const made = flattenRocket(built).find((p) => p.component.id === id);
           if (made) {
             driven++;
+            transMade++;
             // Measured from the flattened STATIONS, not through `mouldLineStep` — a test that shares
             // the helper under suspicion is blind in exactly the way the code is. Proved: reverting
             // `nextTopLevel` to its single-stage search leaves this suite green if the step is asked
             // of `mouldLineStep`, because that function goes blind at the same boundary. Walking the
             // geometry instead catches all 10 mis-read anchors.
-            const wasThere = stepBehind(pristine, anchor.component.id);
+            //
+            // BOTH joints, and with no excuse for a design that already stepped. An earlier version
+            // only judged the aft joint and only when the step grew, which excused exactly the 17
+            // step-closing anchors the fairing branch exists for — deleting that branch outright fired
+            // the rule at 0 of 90. The rule is simply that an authored transition fairs at both ends:
+            // to its anchor in front, and to whatever follows it, or nothing follows and there is no
+            // joint to judge.
             const nowThere = stepBehind(built, id);
-            // Only a step the gesture INTRODUCED counts: closing one the design already had is the
-            // whole point of the part, and a boundary that already stepped is not this test's business.
-            if (Math.abs(nowThere) > 0.0005 && Math.abs(nowThere) > Math.abs(wasThere) + 1e-9) {
-              openedAStep.push(`${where} — ${(Math.abs(nowThere) * 1000).toFixed(1)} mm of diameter`);
+            if (Math.abs(nowThere) > 0.0005) {
+              openedAStep.push(`${where} — aft joint steps ${(Math.abs(nowThere) * 1000).toFixed(1)} mm of diameter`);
+            }
+            const foreJoint = stepBehind(built, anchor.component.id);
+            if (Math.abs(foreJoint) > 0.0005) {
+              openedAStep.push(`${where} — fore joint steps ${(Math.abs(foreJoint) * 1000).toFixed(1)} mm of diameter`);
+            }
+            // What was built has to BE a transition: a positive length, and — where nothing follows —
+            // an exit narrower than its entry, which is the base-drag lever the part exists for.
+            const c = made.component as { length: number; foreRadius: number; aftRadius: number };
+            if (!(c.length > 0)) shapeless.push(`${where} — length ${(c.length * 1000).toFixed(2)} mm`);
+            if (!(c.foreRadius > 0) || !(c.aftRadius > 0)) {
+              shapeless.push(`${where} — radii ${(c.foreRadius * 2000).toFixed(1)}→${(c.aftRadius * 2000).toFixed(1)} mm`);
+            }
+            const follows = flattenRocket(built).some(
+              (q) => Math.abs(q.xFore - (made.xFore + made.length)) < 1e-6 && isBodyPart(q.component.kind),
+            );
+            if (!follows && !(c.aftRadius < c.foreRadius - 1e-9)) {
+              shapeless.push(`${where} — a tail cone that does not contract (${(c.foreRadius * 2000).toFixed(1)}→${(c.aftRadius * 2000).toFixed(1)} mm)`);
+            }
+            // And it sits immediately behind the part it names, not merely somewhere in the stage.
+            if (Math.abs(made.xFore - (anchor.xFore + anchor.length)) > 1e-6) {
+              misanchored.push(`${where} — landed at ${(made.xFore * 1000).toFixed(1)} mm, anchor ends at ${((anchor.xFore + anchor.length) * 1000).toFixed(1)} mm`);
             }
             if (removalRefusal(built, id)) stuck.push(`${where} (transition)`);
             if (aimEditsAt(built, id).transitionId !== id) unaimable.push(`${where} (transition)`);
@@ -281,10 +313,14 @@ suite("real-design corpus", () => {
         const mass = flattenRocket(withMass).find((p) => p.component.id === mid);
         if (!mass) continue;
         driven++;
+        massMade++;
         const host = flattenRocket(withMass).find((p) => p.component.id === anchor.component.id)!;
         if (mass.xFore < host.xFore - 1e-9 || mass.xFore > host.xFore + host.length + 1e-9) {
           floating.push(`${where} — station ${(mass.xFore * 1000).toFixed(1)} mm, host ${(host.xFore * 1000).toFixed(1)}–${((host.xFore + host.length) * 1000).toFixed(1)} mm`);
         }
+        // A mass object with no mass is not a mass object, and it is the one number the part is for.
+        const built = mass.component as { mass: number };
+        if (!(built.mass > 0)) shapeless.push(`${where} — a mass object weighing ${(built.mass * 1000).toFixed(2)} g`);
         if (removalRefusal(withMass, mid)) stuck.push(`${where} (mass object)`);
         if (aimEditsAt(withMass, mid).massObjectId !== mid) unaimable.push(`${where} (mass object)`);
       }
@@ -328,15 +364,20 @@ suite("real-design corpus", () => {
     }
 
     // The denominator, printed so a run that examined nothing cannot read like a pass.
-    console.log(`authored parts driven across ${files.length} design files: ${driven}`);
+    // Denominators PER BRANCH, printed and asserted separately. One merged counter passed at 135 with
+    // the transition branch half dead, and could not say which half.
+    console.log(`authored parts driven across ${files.length} design files: ${driven} (${transMade} transitions, ${massMade} mass objects)`);
     console.log(`mass-object stations driven across ${files.length} design files: ${stations}`);
-    expect(driven, "no part was authored — the sweep proves nothing").toBeGreaterThan(100);
-    expect(stations, "no mass station was driven — that half of the sweep proves nothing").toBeGreaterThan(100);
+    expect(transMade, "no transition was authored — that branch proves nothing").toBeGreaterThan(80);
+    expect(massMade, "no mass object was authored — that branch proves nothing").toBeGreaterThan(80);
+    expect(stations, "no mass station was driven — that branch proves nothing").toBeGreaterThan(100);
     expect(openedAStep, "authored transitions that opened a mould-line step the design did not have").toEqual([]);
     expect(floating, "authored mass objects placed outside the part holding them").toEqual([]);
     expect(stuck, "authored parts that cannot be removed again").toEqual([]);
     expect(unaimable, "authored parts the editor's fields cannot be aimed at").toEqual([]);
     expect(misplaced, "mass objects flown at a station other than the one asked for").toEqual([]);
+    expect(shapeless, "authored parts built without the dimension that makes them that part").toEqual([]);
+    expect(misanchored, "authored parts that did not land immediately behind the part they name").toEqual([]);
   }, 300_000);
 
   it("flies every stored simulation and agrees on apogee and speed", async () => {
