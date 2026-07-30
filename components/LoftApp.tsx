@@ -1395,7 +1395,17 @@ export default function LoftApp() {
                 // changes nothing about the rocket (see `INERT_EDIT_FIELDS`), and no editor a flyer
                 // has used makes selection undoable. Recording it would bury the edits under the
                 // clicks that led to them.
-                const patch = aimEditsAt(doc.rocket, id);
+                //
+                // Judged against `removableFrom` — the design plus the flyer's STRUCTURE — and not the
+                // pristine import, for the same reason the Remove button is. A part the flyer AUTHORED
+                // is not in `doc.rocket`, so picking one aimed NOTHING: the diagram highlighted the new
+                // tube while the body fields went on holding whichever tube they held before, and the
+                // next length typed landed there. Measured on `fixtures/demo-quirks.ork`: author a tube
+                // behind "Upper", click "Upper", click the authored tube, type 400 mm — the authored
+                // tube stayed 120.0 mm and "Upper" became 400.0 mm. The two dimension-added parts a
+                // flyer can see (a boattail, a payload bay) are still not aimable, and deliberately:
+                // they are appended after this tree, so no aim could reach them either.
+                const patch = removableFrom ? aimEditsAt(removableFrom, id) : {};
                 if (Object.keys(patch).length) applyEdit(patch, null);
               }}
               initialTab={initialTab}

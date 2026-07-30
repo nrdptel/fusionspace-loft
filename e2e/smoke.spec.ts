@@ -2976,6 +2976,43 @@ test.describe("Loft", () => {
     await expect.poll(apogee, { timeout: 20000 }).toBe(asBuilt.apogee);
   });
 
+  test("clicking a part the flyer authored aims the fields back at it", async ({ page }) => {
+    // A pick is judged against the design the flyer is LOOKING at — the import plus their own structure
+    // — and not against the import alone. Judged against the import, a part they authored is not in the
+    // tree at all, so the pick aimed NOTHING: the diagram highlighted the new tube while the body fields
+    // went on holding whichever tube they held before, and the next length typed landed there. Measured
+    // on `fixtures/demo-quirks.ork` before the fix: author a tube behind "Upper", click "Upper", click
+    // the authored tube, type 400 mm — the authored tube stayed 120.0 mm and "Upper" became 400.0 mm.
+    await page.goto("/");
+    await page.getByRole("button", { name: "Start a new design" }).click();
+    await page.getByRole("tab", { name: "Design" }).click();
+    await page.locator("summary", { hasText: /Parts ·/ }).click();
+    const partsTable = page.locator("table").filter({ hasText: "Dimensions" });
+    const tubes = partsTable.locator("tr").filter({ hasText: /Body tube/ });
+    await expect(tubes).toHaveCount(1);
+
+    await tubes.first().click();
+    await page.getByRole("button", { name: /Add a tube behind this/ }).click();
+    await expect(tubes).toHaveCount(2);
+
+    // The placeholder is the readback of whichever tube the body fields are holding, so it names the aim.
+    const bodyLength = page.locator("label").filter({ hasText: /Body length/ }).first().locator("input");
+    const advertised = async () => parseFloat((await bodyLength.getAttribute("placeholder")) ?? "0");
+    const authoredLen = await advertised();
+    expect(authoredLen).toBeGreaterThan(0);
+
+    // Read the design's own tube, then come back to the one that was authored.
+    await tubes.nth(0).click();
+    await expect.poll(advertised, { timeout: 15000 }).toBeGreaterThan(authoredLen);
+    await tubes.nth(1).click();
+    await expect.poll(advertised, { timeout: 15000 }).toBeCloseTo(authoredLen, 1);
+
+    // And the next length typed changes THAT tube, not the one the fields were holding a click ago.
+    await bodyLength.fill("400");
+    await expect(tubes.nth(1)).toContainText(/L 400/);
+    await expect(tubes.nth(0)).not.toContainText(/L 400/);
+  });
+
   test("removing a part re-flies the design, and the removal is undoable", async ({ page }) => {
     // R2's capability. A parametric edit is recoverable by retyping a number; a deletion is not, which is
     // why undo ships with it rather than after it. `two-stage-firm-booster.ork` has two fin sets, so one
