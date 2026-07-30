@@ -9,6 +9,7 @@
  *  per panel: a what-if added to the editor then reset one panel and silently failed to reset the
  *  other three. */
 import type { GeometryEdits } from "./edit";
+import { AIM_SLOTS } from "./edit";
 
 export interface FlownDesign {
   /** Which design is loaded, as an opaque token minted once per load. It is deliberately NOT the
@@ -39,25 +40,15 @@ export interface FlownDesign {
  *  the target of. While any of ITS value fields is set, moving that selection moves the edit onto a
  *  different component, which IS a different rocket.
  *
- *  Kept per role rather than as one pooled test: with the two selections pooled, picking a fin set
- *  would have thrown away a Monte-Carlo because a body-length edit happened to be active, and picking
- *  a body tube would have done the same to a design whose only edit was a fin span — minutes of work
- *  discarded for a click that changed nothing about the rocket. */
-const SELECTION_TARGETS: Record<string, readonly string[]> = {
-  finSetId: [
-    "finSpan",
-    "finCount",
-    "finRootChord",
-    "finTipChord",
-    "finSweepLength",
-    "finStation",
-    "finThickness",
-    "finCrossSection",
-    "finMaterial",
-  ],
-  bodyTubeId: ["bodyLength", "bodyDiameter"],
-};
-
+ *  Read from the edit model's own aim registry rather than restated here. Kept per role rather than as
+ *  one pooled test: with the selections pooled, picking a fin set would have thrown away a Monte-Carlo
+ *  because a body-length edit happened to be active, and picking a canopy would have done the same to a
+ *  design whose only edit was a fin span — minutes of work discarded for a click that changed nothing
+ *  about the rocket.
+ *
+ *  A selection field the registry does not know is treated as a plain edit and stays IN the key. That is
+ *  the safe direction to be wrong in: a panel resets when it did not strictly have to, rather than
+ *  showing one part's numbers as another's. */
 export function designKey(d: FlownDesign): string {
   const g = (d.geometry ?? {}) as Record<string, unknown>;
   // A selection on its own alters no geometry, so it stays out of the key: a Monte-Carlo already
@@ -67,9 +58,9 @@ export function designKey(d: FlownDesign): string {
   // different rocket, and a panel that kept its results would be presenting another design's numbers
   // as this one's.
   const aimMatters = (k: string) =>
-    (SELECTION_TARGETS[k] ?? []).some((f) => g[f] !== undefined && g[f] !== "");
+    (AIM_SLOTS[k]?.targets ?? []).some((f) => g[f] !== undefined && g[f] !== "");
   const edits = Object.keys(g)
-    .filter((k) => !(k in SELECTION_TARGETS) || aimMatters(k))
+    .filter((k) => !(k in AIM_SLOTS) || aimMatters(k))
     .sort()
     .map((k) => `${k}=${g[k] ?? ""}`)
     .join(",");

@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { designKey } from "./design-key";
+import { AIM_SLOTS } from "./edit";
 
 const key = (over: Partial<Parameters<typeof designKey>[0]> = {}) =>
   designKey({ loadId: 1, simIndex: 0, configId: "c", ...over });
@@ -93,7 +94,25 @@ describe("designKey", () => {
     );
   });
 
-  it("keeps the two selections independent, so one role's edit does not make the other's pick matter", () => {
+  it("ignores a bare aim but not one that aims an active edit — for every slot in the registry", () => {
+    // Registry-driven so a role added to the edit model cannot quietly skip this check. Miss a slot
+    // here and the failure is invisible: a panel keeps one part's numbers after the flyer has aimed
+    // the edit at another.
+    const base = { loadId: 1, simIndex: 0 };
+    for (const [slot, def] of Object.entries(AIM_SLOTS)) {
+      expect(designKey({ ...base, geometry: { [slot]: "a" } }), `bare ${slot} must not change the key`).toBe(
+        designKey({ ...base, geometry: {} }),
+      );
+      for (const field of def.targets) {
+        expect(
+          designKey({ ...base, geometry: { [slot]: "a", [field]: 0.05 } }),
+          `${slot} must matter once ${field} is set`,
+        ).not.toBe(designKey({ ...base, geometry: { [slot]: "b", [field]: 0.05 } }));
+      }
+    }
+  });
+
+  it("keeps the aims independent, so one role's edit does not make another's pick matter", () => {
     // Pooled, this cost minutes of work for a click that changed nothing: with a body-length edit
     // active, picking a fin set would have reset every heavy panel, and with a fin-span edit active,
     // picking a body tube would have done the same.

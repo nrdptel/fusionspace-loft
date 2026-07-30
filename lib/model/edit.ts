@@ -7,7 +7,7 @@
  *  nose cone or body tube automatically shifts everything downstream and recomputes mass, drag,
  *  centre of pressure, and motor position. Fin span moves the centre of pressure (stability). */
 
-import type { Rocket, RocketComponent, NoseCone, BodyTube, Transition, Parachute, Material, SurfaceFinish, NoseShape, FinCrossSection, MotorMount, MassComponent } from "./types";
+import type { Rocket, RocketComponent, ComponentKind, NoseCone, BodyTube, Transition, Parachute, Material, SurfaceFinish, NoseShape, FinCrossSection, MotorMount, MassComponent } from "./types";
 import { flattenRocket } from "./geometry";
 import type { Positioned } from "./geometry";
 
@@ -96,6 +96,15 @@ export interface GeometryEdits {
    *  every one of them but the longest was unreachable: `Body length` silently resized whichever tube
    *  happened to be longest, however far from the part the flyer had picked. */
   bodyTubeId?: string;
+  /** Which recovery canopy the recovery fields describe and edit. Undefined means the design's main
+   *  parachute — the largest by canopy area — which is what the panel has always used and what every
+   *  readback below still falls back to. A SELECTION, not an edit, exactly like the two above.
+   *
+   *  It matters more than either: 17 of the 35 corpus designs carry more than one parachute — every
+   *  dual-deploy design does, by definition — and the drogue was unreachable on all of them. A flyer
+   *  who picked the drogue and resized it resized the MAIN instead, which moves landing speed and
+   *  landing energy, the two numbers recovery sizing exists to get right. */
+  parachuteId?: string;
   /** Absolute fin semi-span (root→tip height, m) for the fin group the panel describes — the
    *  primary set and any set indistinguishable from it. Undefined leaves fins as-is. */
   finSpan?: number;
@@ -191,28 +200,6 @@ export interface GeometryEdits {
   payloadStation?: number;
 }
 
-/** Edit-bag keys that say which component the fields are POINTED AT, or where a part that is not
- *  there yet would go — never that anything changed. Counting one as an edit would withhold the
- *  stored-tool comparison, and hide the button that brings it back, the moment a flyer clicked a part
- *  to look at it.
- *
- *  Exported because three places have to answer "is this design edited?" the same way — the app's
- *  `hasActiveEdits`, the saved session's edit count, and this module — and three spellings of it
- *  drift. One of them decides what a flyer is told is being flown. */
-export const INERT_EDIT_FIELDS: ReadonlySet<string> = new Set(["finSetId", "bodyTubeId", "payloadStation"]);
-
-/** Which edit target a pick on `id` moves. Picking a part aims the fields that describe THAT KIND of
- *  part at it and leaves every other aim alone: a flyer who has set fin set 2's span and then clicks a
- *  body tube to read it must not have that span silently re-applied to fin set 1. A part no field
- *  describes — a coupler, a parachute, a centring ring — returns an empty patch, so merely reading it
- *  moves no aim at all. */
-export function aimEditsAt(rocket: Rocket, id: string): GeometryEdits {
-  const c = flattenRocket(rocket).find((p) => p.component.id === id)?.component;
-  if (!c) return {};
-  if (isFinSet(c)) return { finSetId: id };
-  if (c.kind === "bodytube") return { bodyTubeId: id };
-  return {};
-}
 
 /** True when at least one edit actually changes something. */
 export function hasGeometryEdits(e: GeometryEdits): boolean {
@@ -303,6 +290,82 @@ const FIN_SET_KINDS = ["trapezoidfinset", "ellipticalfinset", "freeformfinset"] 
 
 function isFinSet(c: RocketComponent) {
   return (FIN_SET_KINDS as readonly string[]).includes(c.kind);
+}
+
+/** The editor's aim registry: for each selection field, which component kinds a pick on them aims it
+ *  at, and which value fields' target it decides.
+ *
+ *  ONE table, because four separate lists were already drifting apart. "Which fields does a pick
+ *  re-aim", "which keys are inert", "which selection matters to the design key", and "which panel
+ *  names the part it holds" used to be spelled out independently, and every new selection field had to
+ *  be added to all four. Missing one fails silently and differently each time: an inert key counted as
+ *  a what-if withholds the stored-tool comparison and hides the button that restores it, while a
+ *  missing design-key entry leaves a Monte-Carlo presenting one part's numbers after the flyer has
+ *  aimed the edit at another. */
+export interface AimSlot {
+  /** Component kinds a pick on which aims this slot. */
+  kinds: readonly ComponentKind[];
+  /** The value fields whose target this slot decides. Empty would make the slot pointless. */
+  targets: readonly string[];
+}
+export const AIM_SLOTS: Readonly<Record<string, AimSlot>> = {
+  finSetId: {
+    kinds: FIN_SET_KINDS,
+    targets: [
+      "finSpan",
+      "finCount",
+      "finRootChord",
+      "finTipChord",
+      "finSweepLength",
+      "finStation",
+      "finThickness",
+      "finCrossSection",
+      "finMaterial",
+    ],
+  },
+  bodyTubeId: { kinds: ["bodytube"], targets: ["bodyLength", "bodyDiameter"] },
+  parachuteId: {
+    kinds: ["parachute"],
+    targets: ["mainParachuteDiameter", "mainDeployAltitude", "drogueDiameter"],
+  },
+};
+
+/** Edit-bag keys that say which component the fields are POINTED AT, or where a part that is not there
+ *  yet would go — never that anything changed. Counting one as an edit would withhold the stored-tool
+ *  comparison, and hide the button that brings it back, the moment a flyer clicked a part to look at it.
+ *
+ *  Derived from the registry, plus `payloadStation`, which is inert for a different reason: it places a
+ *  payload that does not exist without `payloadMassKg`, so on its own it produces a flight
+ *  byte-identical to the design's. Exported because three places have to answer "is this design
+ *  edited?" the same way — the app's `hasActiveEdits`, the saved session's what-if count, and this
+ *  module — and three spellings of it drift. One of them decides what a flyer is told is being flown. */
+export const INERT_EDIT_FIELDS: ReadonlySet<string> = new Set([
+  ...Object.keys(AIM_SLOTS),
+  "payloadStation",
+]);
+
+/** Just the aims out of an edit bag, keyed by slot — what a view needs to show which part each group of
+ *  fields is holding, with none of the values. Projected through the registry rather than handed the
+ *  whole bag: passing every field would let a value edit masquerade as an aim, and "the aim moved" would
+ *  then fire on a typed span with a number where a component id belongs. */
+export function aimsOf(e: GeometryEdits): Readonly<Record<string, string | undefined>> {
+  const out: Record<string, string | undefined> = {};
+  for (const slot of Object.keys(AIM_SLOTS)) out[slot] = (e as Record<string, unknown>)[slot] as string | undefined;
+  return out;
+}
+
+/** Which edit target a pick on `id` moves. Picking a part aims the fields that describe THAT KIND of
+ *  part at it and leaves every other aim alone: a flyer who has set fin set 2's span and then clicks a
+ *  body tube to read it must not have that span silently re-applied to fin set 1. A part no field
+ *  describes — a coupler, a centring ring, a launch lug — returns an empty patch, so merely reading it
+ *  moves no aim at all. */
+export function aimEditsAt(rocket: Rocket, id: string): GeometryEdits {
+  const c = flattenRocket(rocket).find((p) => p.component.id === id)?.component;
+  if (!c) return {};
+  for (const [slot, def] of Object.entries(AIM_SLOTS)) {
+    if ((def.kinds as readonly string[]).includes(c.kind)) return { [slot]: id };
+  }
+  return {};
 }
 
 /** Identity of a fin set as a flyer would see it: where it sits and what it looks like. Two sets
@@ -761,25 +824,56 @@ function addPayloadMass(rocket: Rocket, massKg: number, station: number | undefi
   return { ...rocket, stages: rocket.stages.map((s) => ({ ...s, components: attach(s.components) })) };
 }
 
-/** The design's main parachute — the largest by canopy area, the one that sets the landing speed.
- *  Undefined for a design with no parachute (a streamer- or tumble-recovery design). */
-export function primaryParachute(rocket: Rocket): Parachute | undefined {
+/** The canopy the recovery fields are about: the one picked, or the design's main parachute — the
+ *  largest by canopy area, the one that sets the landing speed — when nothing is.
+ *
+ *  Every recovery readback and every recovery edit resolve through this one function, so the value a
+ *  field shows to edit FROM cannot name a different canopy from the one the edit is written TO. A
+ *  selection naming a parachute this design doesn't have falls back to the largest rather than
+ *  resolving to nothing. Undefined for a design with no parachute (a streamer- or tumble-recovery
+ *  design). */
+export function primaryParachute(rocket: Rocket, selectedId?: string): Parachute | undefined {
   const chutes = flattenRocket(rocket)
     .map((p) => p.component)
     .filter((c): c is Parachute => c.kind === "parachute");
   if (!chutes.length) return undefined;
+  const picked = selectedId ? chutes.find((c) => c.id === selectedId) : undefined;
+  if (picked) return picked;
   const areaOf = (c: Parachute) => c.area ?? (Math.PI / 4) * c.diameter * c.diameter;
   return chutes.reduce((best, c) => (areaOf(c) > areaOf(best) ? c : best), chutes[0]);
 }
 
-/** Convert a design to dual-deploy: the main (largest) parachute deploys at `mainAltitude` (AGL, m)
- *  instead of at apogee, and a drogue of `drogueDiameter` (m) is added at apogee to control the
- *  descent down to it. This is the standard high-power recovery — a fast, low-drift fall under the
+/** How many canopies sit OUTSIDE the one the recovery fields describe — the ones a flyer can see in the
+ *  parts list but cannot reach from this panel without picking one. 0 means the fields speak for the
+ *  design's whole recovery. */
+export function unreachableParachuteCount(rocket: Rocket): number {
+  const chutes = flattenRocket(rocket).filter((p) => p.component.kind === "parachute");
+  return Math.max(0, chutes.length - 1);
+}
+
+/** Which canopy the recovery fields are holding. Always one, so `covers` is 1. Undefined for a design
+ *  with no parachute. */
+export function primaryParachutePart(rocket: Rocket, selectedId?: string): AimedPart | undefined {
+  const chutes = flattenRocket(rocket).filter((p) => p.component.kind === "parachute");
+  if (!chutes.length) return undefined;
+  const chute = primaryParachute(rocket, selectedId);
+  const seed = chutes.find((p) => p.component.id === chute?.id) ?? chutes[0];
+  return aimedPart(seed, chutes, 1);
+}
+
+/** Convert a design to dual-deploy: the canopy `parachuteId` names — the largest when nothing is
+ *  picked — deploys at `mainAltitude` (AGL, m) instead of at apogee, and a drogue of `drogueDiameter`
+ *  (m) is added at apogee to control the descent down to it. This is the standard high-power recovery — a fast, low-drift fall under the
  *  drogue, then a soft landing under the main — and it feeds the existing dual-deploy safety
  *  readouts (the main's under-drogue opening speed, the reduced drift). Skips silently when there's
  *  no parachute to promote or the inputs aren't a valid pair, so the caller keeps the design as-is. */
-function applyDualDeploy(rocket: Rocket, mainAltitude: number, drogueDiameter: number): Rocket {
-  const main = primaryParachute(rocket);
+function applyDualDeploy(
+  rocket: Rocket,
+  mainAltitude: number,
+  drogueDiameter: number,
+  selectedId?: string,
+): Rocket {
+  const main = primaryParachute(rocket, selectedId);
   if (!main || !(mainAltitude > 0) || !(drogueDiameter > 0)) return rocket;
   // Canopy mass scales with area (≈ diameter²), so a smaller drogue is proportionally lighter.
   const drogueMass = main.mass * Math.min(1, (drogueDiameter / main.diameter) ** 2);
@@ -817,14 +911,15 @@ function applyDualDeploy(rocket: Rocket, mainAltitude: number, drogueDiameter: n
   return { ...rocket, stages: rocket.stages.map((s) => ({ ...s, components: transform(s.components) })) };
 }
 
-/** Resize the design's main (largest) parachute to a target canopy `diameter` (m), scaling the
- *  canopy mass with its area (∝ diameter²) so a bigger chute is proportionally heavier. The mass
+/** Resize the canopy `parachuteId` names — the largest when nothing is picked — to a target
+ *  `diameter` (m), scaling its mass with its area (∝ diameter²) so a bigger chute is proportionally
+ *  heavier. The mass
  *  basis is the parachute's own effective diameter (from an explicit `area` if it carries one, else
  *  its `diameter`), so a RockSim chute stored as an area resizes correctly too. Any explicit `area`
  *  is cleared so the new diameter drives the descent. Skips silently when there's no parachute or
  *  the diameter isn't positive, leaving the design as-is. */
-function withMainParachuteDiameter(rocket: Rocket, diameter: number): Rocket {
-  const main = primaryParachute(rocket);
+function withMainParachuteDiameter(rocket: Rocket, diameter: number, selectedId?: string): Rocket {
+  const main = primaryParachute(rocket, selectedId);
   if (!main || !(diameter > 0)) return rocket;
   const oldD = main.area ? Math.sqrt((4 * main.area) / Math.PI) : main.diameter;
   if (!(oldD > 0)) return rocket;
@@ -901,14 +996,16 @@ export function applyGeometryEdits(rocket: Rocket, edits: GeometryEdits): Rocket
   if (edits.boattailLength !== undefined && edits.boattailAftDiameter !== undefined) {
     out = addBoattail(out, edits.boattailLength, edits.boattailAftDiameter / 2);
   }
-  // Recovery resize: set the main (largest) parachute to a target diameter. Applied before any
-  // dual-deploy promotion, so a resized main is the canopy promoted to the altitude deployment.
+  // Recovery resize: set the picked canopy (the largest when none is) to a target diameter. Applied
+  // before any dual-deploy promotion, so a resized canopy is the one promoted to the altitude
+  // deployment. Both resolve the same aim, so with one set the promotion cannot drift onto another
+  // canopy just because the resize made a different one the largest.
   if (edits.mainParachuteDiameter !== undefined && edits.mainParachuteDiameter > 0) {
-    out = withMainParachuteDiameter(out, edits.mainParachuteDiameter);
+    out = withMainParachuteDiameter(out, edits.mainParachuteDiameter, edits.parachuteId);
   }
   // Recovery add: convert to dual-deploy (main at altitude + a drogue at apogee).
   if (edits.mainDeployAltitude !== undefined && edits.drogueDiameter !== undefined) {
-    out = applyDualDeploy(out, edits.mainDeployAltitude, edits.drogueDiameter);
+    out = applyDualDeploy(out, edits.mainDeployAltitude, edits.drogueDiameter, edits.parachuteId);
   }
   // Payload add: a point mass inside the (already-edited) body tube, so its station tracks whatever
   // the length/diameter edits left.

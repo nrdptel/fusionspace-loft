@@ -27,6 +27,11 @@ import {
   AIRFRAME_MATERIALS,
   unreachableFinSetCount,
   unreachableBodyTubeCount,
+  unreachableParachuteCount,
+  primaryParachutePart,
+  aimsOf,
+  AIM_SLOTS,
+  INERT_EDIT_FIELDS,
   primaryFinGroupIds,
   primaryFinSetPart,
   primaryBodyTubePart,
@@ -1192,5 +1197,152 @@ describe("naming the part the fields are holding", () => {
     };
     expect(primaryFinSetPart(finless)).toBeUndefined();
     expect(primaryBodyTubePart(finless)).toBeDefined();
+  });
+});
+
+describe("the recovery fields address the canopy you picked", () => {
+  const chutesOf = (r: Rocket) => flattenRocket(r).filter((p) => p.component.kind === "parachute");
+  /** The design's canopies by name, so a test can say which one it meant. */
+  const byName = (r: Rocket, name: string) =>
+    chutesOf(r).find((p) => p.component.name === name)!.component as Parachute;
+
+  it("resolves the picked canopy, and falls back to the largest without a pick", async () => {
+    // `demo-dual-deploy.ork`: a 1.22 m main and a 0.46 m drogue — the shape 17 of the 35 corpus
+    // designs have, since every dual-deploy design carries two canopies by definition.
+    const rocket = await load("demo-dual-deploy.ork");
+    expect(chutesOf(rocket).length).toBe(2);
+
+    expect(primaryParachute(rocket)!.name).toBe("Main parachute");
+    for (const c of chutesOf(rocket)) {
+      expect(primaryParachute(rocket, c.component.id)!.id).toBe(c.component.id);
+    }
+    // A stale id must not disable the recovery fields.
+    expect(primaryParachute(rocket, "no-such-component")!.name).toBe("Main parachute");
+  });
+
+  it("resizes the PICKED canopy and leaves the other alone", async () => {
+    const rocket = await load("demo-dual-deploy.ork");
+    const drogue = byName(rocket, "Drogue parachute");
+    const mainD0 = byName(rocket, "Main parachute").diameter;
+
+    const edited = applyGeometryEdits(rocket, {
+      parachuteId: drogue.id,
+      mainParachuteDiameter: 0.9,
+    });
+    // The canopy the field was reading is the one that took the number. Without the aim this landed
+    // on the main instead — the flyer shrinks a drogue and the main changes.
+    expect(primaryParachute(edited, drogue.id)!.diameter).toBeCloseTo(0.9, 9);
+    expect(byName(edited, "Main parachute").diameter).toBeCloseTo(mainD0, 9);
+    // Canopy mass scales with area, so the resized chute got heavier by (0.9/0.46)².
+    expect(primaryParachute(edited, drogue.id)!.mass).toBeCloseTo(drogue.mass * (0.9 / drogue.diameter) ** 2, 9);
+    // Non-destructive.
+    expect(byName(rocket, "Drogue parachute").diameter).toBeCloseTo(drogue.diameter, 9);
+  });
+
+  it("without a pick still resizes the largest canopy — the old behaviour is the default", async () => {
+    const rocket = await load("demo-dual-deploy.ork");
+    const drogueD0 = byName(rocket, "Drogue parachute").diameter;
+    const edited = applyGeometryEdits(rocket, { mainParachuteDiameter: 1.6 });
+    expect(byName(edited, "Main parachute").diameter).toBeCloseTo(1.6, 9);
+    expect(byName(edited, "Drogue parachute").diameter).toBeCloseTo(drogueD0, 9);
+  });
+
+  it("changes the flight: resizing the picked canopy moves the landing speed", async () => {
+    // The reason this matters rather than being tidy. Landing speed and landing energy are what
+    // recovery sizing exists to get right, and the drogue sets the descent from apogee to the main.
+    const rocket = await load("demo-dual-deploy.ork");
+    const drogue = byName(rocket, "Drogue parachute");
+    const base = runFlight(rocket, {}).result;
+    const bigger = runFlight(
+      applyGeometryEdits(rocket, { parachuteId: drogue.id, mainParachuteDiameter: drogue.diameter * 2 }),
+      {},
+    ).result;
+    // A larger drogue slows the descent, so the flight lasts longer.
+    expect(bigger.summary.flightTime).toBeGreaterThan(base.summary.flightTime);
+  });
+
+  it("promotes the canopy you picked to the altitude deployment", async () => {
+    const rocket = await load("demo-dual-deploy.ork");
+    const drogue = byName(rocket, "Drogue parachute");
+    const edited = applyGeometryEdits(rocket, {
+      parachuteId: drogue.id,
+      mainDeployAltitude: 200,
+      drogueDiameter: 0.3,
+    });
+    const promoted = primaryParachute(edited, drogue.id)!;
+    expect(promoted.deployEvent).toBe("altitude");
+    expect(promoted.deployAltitude).toBeCloseTo(200, 9);
+  });
+
+  it("a canopy pick on its own is not an edit and flies the design untouched", async () => {
+    const rocket = await load("demo-dual-deploy.ork");
+    const drogue = byName(rocket, "Drogue parachute");
+    expect(hasGeometryEdits({ parachuteId: drogue.id })).toBe(false);
+    expect(applyGeometryEdits(rocket, { parachuteId: drogue.id })).toBe(rocket);
+  });
+
+  it("counts the canopies the recovery fields cannot reach without a pick", async () => {
+    expect(unreachableParachuteCount(await load("demo-dual-deploy.ork"))).toBe(1);
+    expect(unreachableParachuteCount(await load("demo-single-deploy.ork"))).toBe(0);
+  });
+
+  it("names the canopy it is holding", async () => {
+    const rocket = await load("demo-dual-deploy.ork");
+    const drogue = byName(rocket, "Drogue parachute");
+    expect(primaryParachutePart(rocket, drogue.id)!.name).toBe("Drogue parachute");
+    expect(primaryParachutePart(rocket)!.name).toBe("Main parachute");
+    expect(primaryParachutePart(rocket, drogue.id)!.covers).toBe(1);
+  });
+
+  it("aims the recovery fields at a canopy and nothing else at one", async () => {
+    const rocket = await load("demo-dual-deploy.ork");
+    const drogue = byName(rocket, "Drogue parachute");
+    expect(aimEditsAt(rocket, drogue.id)).toEqual({ parachuteId: drogue.id });
+  });
+});
+
+describe("the aim registry is the one list", () => {
+  it("makes every selection field inert, so a pick is never counted as a what-if", () => {
+    for (const slot of Object.keys(AIM_SLOTS)) {
+      expect(INERT_EDIT_FIELDS.has(slot), `${slot} must be inert`).toBe(true);
+      expect(hasGeometryEdits({ [slot]: "some-id" })).toBe(false);
+    }
+    // And the one inert field that is not an aim stays inert.
+    expect(INERT_EDIT_FIELDS.has("payloadStation")).toBe(true);
+  });
+
+  it("gives every slot at least one value field, and never shares one between slots", () => {
+    const seen = new Map<string, string>();
+    for (const [slot, def] of Object.entries(AIM_SLOTS)) {
+      expect(def.targets.length, `${slot} aims nothing`).toBeGreaterThan(0);
+      expect(def.kinds.length, `${slot} matches no kind`).toBeGreaterThan(0);
+      for (const t of def.targets) {
+        // A field aimed by two slots would have two answers to "which part does this land on".
+        expect(seen.has(t), `${t} is aimed by both ${seen.get(t)} and ${slot}`).toBe(false);
+        seen.set(t, slot);
+      }
+    }
+  });
+
+  it("never routes one component kind to two slots", () => {
+    const seen = new Map<string, string>();
+    for (const [slot, def] of Object.entries(AIM_SLOTS)) {
+      for (const k of def.kinds) {
+        expect(seen.has(k), `${k} would aim both ${seen.get(k)} and ${slot}`).toBe(false);
+        seen.set(k, slot);
+      }
+    }
+  });
+
+  it("projects only the aims out of an edit bag, never a value", async () => {
+    const rocket = await load("demo-dual-deploy.ork");
+    const chute = flattenRocket(rocket).find((p) => p.component.kind === "parachute")!.component.id;
+    const aims = aimsOf({ parachuteId: chute, finSpan: 0.05, bodyLength: 0.4, payloadStation: 0.2 });
+    expect(aims.parachuteId).toBe(chute);
+    expect(aims.finSetId).toBeUndefined();
+    // The values must not leak through: a view watching this map for "the aim moved" would otherwise
+    // fire on a typed span, with a number where a component id belongs.
+    expect(Object.keys(aims).sort()).toEqual(Object.keys(AIM_SLOTS).sort());
+    for (const v of Object.values(aims)) expect(typeof v === "string" || v === undefined).toBe(true);
   });
 });

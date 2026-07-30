@@ -16,6 +16,8 @@ import {
   primaryFinSetPart,
   primaryBodyTubePart,
   unreachableBodyTubeCount,
+  primaryParachutePart,
+  unreachableParachuteCount,
   aimEditsAt,
   INERT_EDIT_FIELDS,
   type AimedPart,
@@ -102,6 +104,8 @@ interface Edits {
   finSetId?: string;
   /** Which body tube the body fields describe and edit. A selection, not an edit — as above. */
   bodyTubeId?: string;
+  /** Which canopy the recovery fields describe and edit. A selection, not an edit — as above. */
+  parachuteId?: string;
   rodLength?: number; // m
   rodAngleDeg?: number;
   windSpeed?: number; // m/s
@@ -181,9 +185,10 @@ function flownOverrides(
 
 /** Keys that can sit in the edit bag without the design being edited.
  *
- *  `finSetId` and `bodyTubeId` say which component their fields are POINTED AT, not that anything was
- *  changed. Counting one would withhold the stored-tool comparison — and hide the button that brings
- *  it back — the moment a flyer clicked a part to look at it.
+ *  Every selection field — `finSetId`, `bodyTubeId`, `parachuteId` — says which component its fields
+ *  are POINTED AT, not that anything was changed. Counting one would withhold the stored-tool
+ *  comparison — and hide the button that brings it back — the moment a flyer clicked a part to look
+ *  at it.
  *
  *  `payloadStation` is the same shape one step further out: it places a payload that is not there
  *  unless `payloadMassKg` is set. `addPayloadMass` returns the rocket untouched without a mass, so a
@@ -294,6 +299,7 @@ export default function LoftApp() {
         geometry: {
           finSetId: e.finSetId,
           bodyTubeId: e.bodyTubeId,
+          parachuteId: e.parachuteId,
           finSpan: e.finSpan,
           finCount: e.finCount,
           finRootChord: e.finRootChord,
@@ -551,6 +557,7 @@ export default function LoftApp() {
     const geometry = {
       finSetId: edits.finSetId,
       bodyTubeId: edits.bodyTubeId,
+      parachuteId: edits.parachuteId,
       finSpan: edits.finSpan,
       finCount: edits.finCount,
       finRootChord: edits.finRootChord,
@@ -834,7 +841,12 @@ export default function LoftApp() {
             unreachableBodyTubes: unreachableBodyTubeCount(doc.rocket),
             finish: primaryFinish(doc.rocket),
             airframeMaterial: primaryAirframeMaterial(doc.rocket),
-            mainParachuteDiameter: primaryParachute(doc.rocket)?.diameter,
+            // The recovery readbacks take the picked canopy, so the diameter a field shows to edit
+            // FROM is the canopy the resize is written TO. 17 of the 35 corpus designs carry more
+            // than one — every dual-deploy design does — and the drogue was unreachable on all.
+            mainParachuteDiameter: primaryParachute(doc.rocket, edits.parachuteId)?.diameter,
+            parachutePart: primaryParachutePart(doc.rocket, edits.parachuteId),
+            unreachableParachutes: unreachableParachuteCount(doc.rocket),
             motorClusterCount: primaryMotorClusterCount(doc.rocket),
             payloadStation: defaultPayloadStation(doc.rocket),
           }
@@ -859,13 +871,15 @@ export default function LoftApp() {
             finish: undefined,
             airframeMaterial: undefined,
             mainParachuteDiameter: undefined,
+            parachutePart: undefined,
+            unreachableParachutes: 0,
             motorClusterCount: undefined,
             payloadStation: undefined,
           },
     // The fin and body readbacks take their selected part, so both selections are real dependencies:
     // without them the panel keeps showing the primary part's numbers while the edit writes to the
     // picked one.
-    [doc, edits.finSetId, edits.bodyTubeId],
+    [doc, edits.finSetId, edits.bodyTubeId, edits.parachuteId],
   );
 
   return (
@@ -1086,6 +1100,7 @@ export default function LoftApp() {
               geometry={{
                 finSetId: edits.finSetId,
                 bodyTubeId: edits.bodyTubeId,
+                parachuteId: edits.parachuteId,
                 finSpan: edits.finSpan,
                 finCount: edits.finCount,
                 finRootChord: edits.finRootChord,
@@ -1236,6 +1251,8 @@ function DesignEditor({
     finish?: SurfaceFinish;
     airframeMaterial?: string;
     mainParachuteDiameter?: number;
+    parachutePart?: AimedPart;
+    unreachableParachutes: number;
     motorClusterCount?: number;
     payloadStation?: number;
   };
@@ -1272,6 +1289,7 @@ function DesignEditor({
   };
   const finPhrase = partPhrase(designDims.finSetPart, "set");
   const bodyPhrase = partPhrase(designDims.bodyTubePart, "tube");
+  const chutePhrase = partPhrase(designDims.parachutePart, "canopy");
   // Blank means "use the design's own value". A zero is a different statement, and these fields want
   // three different answers to it — so every call site says which of the three it is, and
   // `lib/model/edit.ts` is the authority, because it is the code that decides what the solver sees:
@@ -1598,8 +1616,22 @@ function DesignEditor({
 
             <fieldset className="min-w-0 border-0 p-0">
               <legend className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-                Recovery
+                {designDims.unreachableParachutes > 0 ? `Recovery — ${chutePhrase}` : "Recovery"}
               </legend>
+              {designDims.unreachableParachutes > 0 && (
+                // Every dual-deploy design carries two canopies, and the fields used to resolve "the"
+                // parachute as the LARGEST — so on 17 of the 35 corpus designs the drogue could not be
+                // reached at all, and a flyer aiming to shrink it resized the main instead. That moves
+                // landing speed and landing energy, which is what recovery sizing exists to get right.
+                <p className="mb-2 text-xs text-zinc-500 dark:text-zinc-400">
+                  This design has {designDims.unreachableParachutes} other{" "}
+                  {designDims.unreachableParachutes === 1 ? "canopy" : "canopies"}.{" "}
+                  <em>Main chute Ø</em>, <em>Main deploy alt</em> and <em>Drogue Ø</em> describe and{" "}
+                  change {chutePhrase}; to work on another, pick it in the parts table above.{" "}
+                  <em>Recovery size</em> is a scale on every deployed canopy, so it is the one control{" "}
+                  here that is not about one of them.
+                </p>
+              )}
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                 <Num
                   label="Recovery size (×)"

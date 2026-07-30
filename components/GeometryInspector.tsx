@@ -118,8 +118,7 @@ export default function GeometryInspector({
   motors,
   onEdit,
   onSelectPart,
-  selectedFinSetId,
-  selectedBodyTubeId,
+  aims,
 }: {
   rocket: Rocket;
   units: UnitSystem;
@@ -140,11 +139,12 @@ export default function GeometryInspector({
    *  fields a pick re-aims — and which picks re-aim nothing — is the edit model's call
    *  (`aimEditsAt`), not this panel's. Picking is a view concern and stays owned here. */
   onSelectPart?: (id: string) => void;
-  /** The fin set and body tube the edit model is currently aimed at. Passed back in so the pick shown
-   *  here and the parts the fields describe cannot drift apart — a restored session arrives with an
-   *  aim and no pick, and "Reset to as-designed" clears the aim without clearing the pick. */
-  selectedFinSetId?: string;
-  selectedBodyTubeId?: string;
+  /** Every component id the edit model is currently aimed at, keyed by its aim slot. Passed back in so
+   *  the pick shown here and the parts the fields describe cannot drift apart — a restored session
+   *  arrives with an aim and no pick, and "Reset to as-designed" clears the aims without clearing the
+   *  pick. Taken as the whole map rather than one prop per slot: the editor grows a slot per role, and
+   *  a prop list that grows with it is a list to forget to extend. */
+  aims?: Readonly<Record<string, string | undefined>>;
 }) {
   const parts = flattenRocket(rocket);
   // Each part's own dry mass, keyed by the same component id the diagram and the table share, so a
@@ -174,24 +174,22 @@ export default function GeometryInspector({
   // aims while the row stays highlighted — after which the next click on that row toggles it OFF and
   // the flyer has to click twice to aim at it again.
   //
-  // What matters is which aim MOVED, not which is set. With the fin fields aimed at set 2 and the body
-  // fields at tube 3, treating either as "the pick" would drag the highlight straight back off
-  // whichever the flyer clicked last, so the previous pair is kept and compared.
-  const aims = `${selectedFinSetId ?? ""}|${selectedBodyTubeId ?? ""}`;
-  const lastAims = useRef(aims);
+  // What matters is which aim MOVED, not which is set. With the fin fields aimed at one set and the
+  // body fields at another part, treating any of them as "the pick" would drag the highlight straight
+  // back off whichever the flyer clicked last — so the previous map is kept and compared slot by slot.
+  const aimSig = JSON.stringify(aims ?? {});
+  const lastAims = useRef(aimSig);
   useEffect(() => {
-    const [wasFin, wasTube] = lastAims.current.split("|");
-    lastAims.current = aims;
-    const finMoved = selectedFinSetId !== (wasFin || undefined);
-    const tubeMoved = selectedBodyTubeId !== (wasTube || undefined);
-    if (!finMoved && !tubeMoved) return;
-    const now = finMoved ? selectedFinSetId : selectedBodyTubeId;
-    const before = finMoved ? wasFin : wasTube;
+    const was: Record<string, string | undefined> = JSON.parse(lastAims.current);
+    lastAims.current = aimSig;
+    const now = aims ?? {};
+    const moved = [...new Set([...Object.keys(was), ...Object.keys(now)])].find((k) => was[k] !== now[k]);
+    if (moved === undefined) return;
     // An aim that moved TO a part shows as the pick. An aim the model CLEARED only clears the pick
     // when that is the part it was aiming through — a part the flyer is merely reading stays picked.
-    setSelectedId((cur) => (now ? now : cur === before ? null : cur));
+    setSelectedId((cur) => (now[moved] ? now[moved]! : cur === was[moved] ? null : cur));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedFinSetId, selectedBodyTubeId]);
+  }, [aimSig]);
 
   // The diagram, a table row click and a row's Enter/Space all pick the same way, so they go through
   // one toggle — three copies could not stay in step once picking gained a second effect.
@@ -274,8 +272,8 @@ export default function GeometryInspector({
           }}
           motors={motors}
           onEdit={onEdit}
-          selectedFinSetId={selectedFinSetId}
-          selectedBodyTubeId={selectedBodyTubeId}
+          selectedFinSetId={aims?.finSetId}
+          selectedBodyTubeId={aims?.bodyTubeId}
         />
         {/* What you just pointed at. Reserved height so hovering across the airframe doesn't make
             everything below it jump. */}

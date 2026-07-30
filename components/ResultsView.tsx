@@ -6,7 +6,7 @@ import { Tabs } from "./ui";
 import type { FlightRun } from "@/lib/sim/run";
 import type { ConditionOverrides } from "@/lib/sim/setup";
 import type { ConditionsSource } from "@/lib/what-if";
-import { applyGeometryEdits, hasGeometryEdits, primaryFinGroupIds, type GeometryEdits } from "@/lib/model/edit";
+import { applyGeometryEdits, hasGeometryEdits, primaryFinGroupIds, aimsOf, type GeometryEdits } from "@/lib/model/edit";
 import { designKey } from "@/lib/model/design-key";
 import { formatLabel, sourceTool, type OrkDocument } from "@/lib/ork/import";
 import type { FlightResult } from "@/lib/sim/simulate";
@@ -692,8 +692,9 @@ export default function ResultsView({
           motors={shownMotors}
           onEdit={onEditGeometry}
           onSelectPart={onSelectPart}
-          selectedFinSetId={geometry?.finSetId}
-          selectedBodyTubeId={geometry?.bodyTubeId}
+          // The aim map, so a role added to the edit model needs no new prop on the way down. Projected
+          // through the registry, never the raw bag: a typed span is not an aim.
+          aims={geometry ? aimsOf(geometry) : undefined}
         />
 
         {/* The editing surface, right below the diagram it changes — fly a different motor, add

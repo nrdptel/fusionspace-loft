@@ -2834,6 +2834,49 @@ test.describe("Loft", () => {
     expect((await lengthsOf())[0], "the tube that was not picked must not change").toBe(before[0]);
   });
 
+  test("picking a canopy aims the recovery fields at it — the drogue, not always the main", async ({ page }) => {
+    // The recovery fields resolved "the" parachute as the LARGEST by canopy area, so on any
+    // dual-deploy design the drogue was unreachable: a flyer aiming to shrink the drogue resized the
+    // main instead. 17 of the 35 corpus designs carry more than one canopy — every dual-deploy design
+    // does, by definition — and the numbers it moves are landing speed and landing energy.
+    await page.goto("/");
+    await page.getByRole("button", { name: /54 mm dual-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+
+    // The under-drogue descent rate, which is the drogue's whole job.
+    const results = page.getByLabel("Results");
+    const drogueRate = async () => {
+      const t = await results
+        .getByText("Drogue descent", { exact: true })
+        .locator("xpath=following-sibling::div[1]")
+        .innerText();
+      return parseFloat(t.replace(/[^\d.]/g, ""));
+    };
+    const rate0 = await drogueRate();
+    expect(rate0).toBeGreaterThan(0);
+
+    await page.getByRole("tab", { name: "Design" }).click();
+    await page.locator("summary", { hasText: /Parts ·/ }).click();
+
+    // With nothing picked the field describes the MAIN — the largest canopy.
+    const canopy = page.locator("label").filter({ hasText: /Main chute Ø/ }).first().locator("input");
+    const mainPlaceholder = await canopy.getAttribute("placeholder");
+    expect(mainPlaceholder).toBeTruthy();
+
+    // Pick the drogue. The field now describes IT, and the panel says which canopy it is holding.
+    await page.locator("tr").filter({ hasText: /Drogue parachute/ }).first().click();
+    await expect.poll(async () => canopy.getAttribute("placeholder"), { timeout: 15000 }).not.toBe(mainPlaceholder);
+    const droguePlaceholder = await canopy.getAttribute("placeholder");
+    await expect(page.getByText(/describe and.*change Drogue parachute/)).toBeVisible();
+
+    // Resize it. A bigger drogue slows the descent under the drogue — the number the picked canopy
+    // owns. Aimed at the main instead, this figure would not move at all.
+    await canopy.fill(String(Math.round(parseFloat(droguePlaceholder!.replace(/[^\d.]/g, "")) * 2)));
+    await canopy.blur();
+    await page.getByRole("tab", { name: "Flight" }).click();
+    await expect.poll(drogueRate, { timeout: 20000 }).toBeLessThan(rate0);
+  });
+
   test("a body-tube pick survives a re-fly and a reload", async ({ page }) => {
     // The aim is part of the design's saved state, so a phone that reclaims the tab mid-trim comes
     // back pointed at the same part. Without that, a reload silently re-aims the body fields at the
