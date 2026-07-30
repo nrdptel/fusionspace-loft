@@ -6,7 +6,7 @@ import { Tabs } from "./ui";
 import type { FlightRun } from "@/lib/sim/run";
 import type { ConditionOverrides } from "@/lib/sim/setup";
 import type { ConditionsSource } from "@/lib/what-if";
-import { applyGeometryEdits, hasGeometryEdits, primaryFinGroupIds, aimsOf, type GeometryEdits } from "@/lib/model/edit";
+import { applyGeometryEdits, hasGeometryEdits, primaryFinGroupIds, structureOf, aimsOf, type GeometryEdits } from "@/lib/model/edit";
 import { designKey } from "@/lib/model/design-key";
 import { formatLabel, sourceTool, type OrkDocument } from "@/lib/ork/import";
 import type { FlightResult } from "@/lib/sim/simulate";
@@ -1067,7 +1067,12 @@ function FlutterFixHint({
   // corpus this hint fires on 60 flights and 16 of them name a set the fields cannot reach — and
   // those are the worst margins in the set (0.08x, 0.21x, 0.29x). Telling a flyer to thicken fins
   // the panel will not touch is worse than saying nothing, on a warning that is safety-relevant.
-  const editable = primaryFinGroupIds(doc.rocket, geometry?.finSetId).has(f.worst.finId);
+  // Judged on the design plus the flyer's structure, not the import: a fin ring the flyer AUTHORED is
+  // not in the imported file, so this said the fields "describe a different fin set on this design, so
+  // they can't make this change — it has to go back to the design file" about a set the fields would in
+  // fact have changed. On the one hint that is safety-relevant, and about the only fin set a
+  // from-scratch design might have.
+  const editable = primaryFinGroupIds(structureOf(doc.rocket, geometry ?? {}), geometry?.finSetId).has(f.worst.finId);
 
   return (
     <p className="mt-3 text-xs text-zinc-500 dark:text-zinc-400">

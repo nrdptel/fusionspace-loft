@@ -2170,6 +2170,49 @@ test.describe("Loft", () => {
     await expect(panel.getByRole("img", { name: /Apogee.*versus.*Fin root chord/i })).toBeVisible();
   });
 
+  test("a sweep's axis describes the part it is actually resizing, even when the flyer built it", async ({ page }) => {
+    // Every sweep axis is swept as an ABSOLUTE value written through the same edit path the panels
+    // use, which resolves each aim against the parts the flyer has authored. The axis BASE was read
+    // off the imported design instead, where an authored part does not exist — so the aim fell back
+    // to the design's own primary part. Measured on the starter with a tube authored behind its own:
+    // the axis was based on the 620.0 mm design tube and spanned 310–1085 mm with the "design's own"
+    // marker at 620 mm, while every one of the 25 flights resized the 310.0 mm authored tube. The
+    // whole plotted curve and its marker described a rocket that was never flown.
+    await page.goto("/");
+    await page.getByRole("button", { name: "Start a new design" }).click();
+    await page.getByRole("tab", { name: "Design" }).click();
+    await page.locator("summary", { hasText: /Parts ·/ }).click();
+    const partsTable = page.locator("table").filter({ hasText: "Dimensions" });
+    const tubes = partsTable.locator("tr").filter({ hasText: /Body tube/ });
+    await expect(tubes).toHaveCount(1);
+    await tubes.first().click();
+    await page.getByRole("button", { name: /Add a tube behind this/ }).click();
+    await expect(tubes).toHaveCount(2);
+
+    await page.getByRole("tab", { name: "Analyze" }).click();
+    const panel = page.getByRole("region", { name: "Parameter sweep" });
+    await panel.getByRole("button", { name: /Run parameter sweep/ }).click();
+    await panel.getByLabel("Sweep variable").selectOption("bodyLength");
+    await expect(panel.getByRole("img", { name: /versus.*Body length/i })).toBeVisible({ timeout: 20000 });
+
+    // The x ticks are the chart's own statement of what it swept. `textContent`, not `innerText` —
+    // the latter throws on an SVG <text>.
+    const xTicks = async () => {
+      const texts = await panel.locator('svg text[text-anchor="middle"]').all();
+      const out: number[] = [];
+      for (const t of texts) {
+        const v = parseFloat(((await t.textContent()) ?? "").replace(/[^\d.-]/g, ""));
+        if (Number.isFinite(v)) out.push(v);
+      }
+      return out;
+    };
+    const ticks = await xTicks();
+    expect(ticks.length).toBeGreaterThan(2);
+    // The authored tube is half the starter's 620 mm, so its axis tops out near 540 mm. Based on the
+    // design's own tube instead it reaches 1085 mm, which is what this separates.
+    expect(Math.max(...ticks)).toBeLessThan(700);
+  });
+
   test("Monte-Carlo dispersion flies the design and reports the spread", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
@@ -2980,9 +3023,10 @@ test.describe("Loft", () => {
     // A pick is judged against the design the flyer is LOOKING at — the import plus their own structure
     // — and not against the import alone. Judged against the import, a part they authored is not in the
     // tree at all, so the pick aimed NOTHING: the diagram highlighted the new tube while the body fields
-    // went on holding whichever tube they held before, and the next length typed landed there. Measured
-    // on `fixtures/demo-quirks.ork` before the fix: author a tube behind "Upper", click "Upper", click
-    // the authored tube, type 400 mm — the authored tube stayed 120.0 mm and "Upper" became 400.0 mm.
+    // went on holding whichever tube they held before, and the next length typed landed there. That is
+    // exactly the sequence below, and before the fix it ended with the authored tube still at its own
+    // 310.0 mm and the design's own 620.0 mm tube at 400.0 mm — while the diagram highlighted the one
+    // that had not moved.
     await page.goto("/");
     await page.getByRole("button", { name: "Start a new design" }).click();
     await page.getByRole("tab", { name: "Design" }).click();

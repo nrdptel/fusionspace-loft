@@ -8,7 +8,7 @@ import { runFlight, overridesFromStored } from "@/lib/sim/run";
 import { linRange, SWEEP_AXES, type SweepAxis, type ParamSweepPoint } from "@/lib/sim/sweep";
 import { usePersistedChoice, useSettled } from "@/lib/session";
 import { runParameterSweep } from "@/lib/sim/sweep-client";
-import { AIM_SLOTS, primaryFinSpan, primaryFinRootChord, primaryFinTipChord, primaryFinThickness, primaryFinStation, primaryFinChord, primaryNose, primaryBodyTube, primaryBodyDiameter, type GeometryEdits } from "@/lib/model/edit";
+import { AIM_SLOTS, structureOf, primaryFinSpan, primaryFinRootChord, primaryFinTipChord, primaryFinThickness, primaryFinStation, primaryFinChord, primaryNose, primaryBodyTube, primaryBodyDiameter, type GeometryEdits } from "@/lib/model/edit";
 import { overallLength } from "@/lib/model/geometry";
 import { mToFt, mToIn, mpsToFtps, kgToG, G_PER_OZ } from "@/lib/units";
 import type { CsvCell } from "@/lib/csv";
@@ -135,21 +135,33 @@ export default function ParameterSweep({
 
   // The variables this design can sweep: its geometry (each ranged around its own value) plus nose
   // ballast (0 → a mass-relative max), which any flyable design can take.
+  // The design plus the flyer's STRUCTURE. Every axis below is swept as an ABSOLUTE value written
+  // through `applyGeometryEdits`, which resolves each aim against the parts the flyer has authored —
+  // so the base has to be read off the same tree, or the curve's x-axis is one part's dimension while
+  // the flights vary another's. Measured on the starter design with a tube authored behind its own:
+  // the Body-length axis was based on the 620.0 mm design tube and spanned 310–1085 mm with the
+  // "design's own" marker at 620 mm, while every point resized the 310.0 mm authored tube. The whole
+  // plotted curve and its marker described a rocket that was never flown.
+  const axisBase = useMemo(
+    () => structureOf(doc.rocket, geometry ?? {}),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [doc.rocket, geometry?.added, geometry?.removedIds],
+  );
   const axes = useMemo<AxisDef[]>(() => {
     const list: AxisDef[] = [];
     // Each axis is swept as an ABSOLUTE value written to the selected fin set, so its base has to
     // be that set's dimension. Reading the frontmost set's span while writing the selected one
     // plotted a curve whose x-axis was not the span of the fin being changed.
-    const span = primaryFinSpan(doc.rocket, geometry?.finSetId);
+    const span = primaryFinSpan(axisBase, geometry?.finSetId);
     if (span && span > 0) list.push(geometryAxis("finSpan", "Fin span", span));
     // The chord axes (trapezoidal fins only) are the fin-area levers a flyer can also drag on the
     // diagram — sweeping them plots the "how big should my fins be?" response. Tip chord can be zero
     // on a delta, which has no range to sweep, so it's offered only when the design carries one.
-    const rootChord = primaryFinRootChord(doc.rocket, geometry?.finSetId);
+    const rootChord = primaryFinRootChord(axisBase, geometry?.finSetId);
     if (rootChord && rootChord > 0) list.push(geometryAxis("finRootChord", "Fin root chord", rootChord));
-    const tipChord = primaryFinTipChord(doc.rocket, geometry?.finSetId);
+    const tipChord = primaryFinTipChord(axisBase, geometry?.finSetId);
     if (tipChord && tipChord > 0) list.push(geometryAxis("finTipChord", "Fin tip chord", tipChord));
-    const thickness = primaryFinThickness(doc.rocket, geometry?.finSetId);
+    const thickness = primaryFinThickness(axisBase, geometry?.finSetId);
     if (thickness && thickness > 0) list.push(geometryAxis("finThickness", "Fin thickness", thickness));
     // Fin position: a station, not a size, so it ranges as an absolute band (±35% of the body
     // length) around the design value rather than a percentage. The band is then clamped to keep
@@ -157,11 +169,11 @@ export default function ParameterSweep({
     // nose and its aft (trailing) edge no further back than the tail — so the curve never implies
     // stability you could only get by hanging the fins off the end (for tail-mounted fins that
     // makes it a forward-only sweep, which is the honest range).
-    const finStation = primaryFinStation(doc.rocket, geometry?.finSetId);
-    const finChord = primaryFinChord(doc.rocket, geometry?.finSetId);
-    const bodyForStation = primaryBodyTube(doc.rocket)?.length;
-    const airframeLen = overallLength(doc.rocket);
-    const noseLen = primaryNose(doc.rocket)?.length ?? 0;
+    const finStation = primaryFinStation(axisBase, geometry?.finSetId);
+    const finChord = primaryFinChord(axisBase, geometry?.finSetId);
+    const bodyForStation = primaryBodyTube(axisBase)?.length;
+    const airframeLen = overallLength(axisBase);
+    const noseLen = primaryNose(axisBase)?.length ?? 0;
     if (finStation && finStation > 0 && bodyForStation && bodyForStation > 0 && finChord && finChord > 0 && airframeLen > 0) {
       const band = 0.35 * bodyForStation;
       const lo = Math.max(0.02, noseLen, finStation - band);
@@ -170,14 +182,14 @@ export default function ParameterSweep({
         list.push({ axis: "finStation", label: "Fin position", base: finStation, lo, hi, xToNumber: lengthX, xUnit: lengthUnit });
       }
     }
-    const nose = primaryNose(doc.rocket)?.length;
+    const nose = primaryNose(axisBase)?.length;
     if (nose && nose > 0) list.push(geometryAxis("noseLength", "Nose length", nose));
     // Both body axes are swept as ABSOLUTE values written to the picked tube, so like the fin axes
     // their base has to be that tube's own dimension — a curve based on the longest tube's length
     // while the sweep resizes a different one has the wrong rocket on its x-axis.
-    const body = primaryBodyTube(doc.rocket, geometry?.bodyTubeId)?.length;
+    const body = primaryBodyTube(axisBase, geometry?.bodyTubeId)?.length;
     if (body && body > 0) list.push(geometryAxis("bodyLength", "Body length", body));
-    const dia = primaryBodyDiameter(doc.rocket, geometry?.bodyTubeId);
+    const dia = primaryBodyDiameter(axisBase, geometry?.bodyTubeId);
     if (dia && dia > 0) list.push(geometryAxis("bodyDiameter", "Body diameter", dia));
     // Nose ballast: range 0 → ~40% of the design's liftoff mass, sized from one baseline flight so
     // the trim sweep spans a sensible amount of weight for this particular rocket.
@@ -219,7 +231,7 @@ export default function ParameterSweep({
   // look as if it moved with the picker when it cannot. (It also read a value it did not depend on,
   // which is what eslint was pointing at.)
   const metrics = useMemo(
-    () => (primaryFinThickness(doc.rocket) !== undefined ? METRICS : METRICS.filter((m) => m.key !== "flutterMargin")),
+    () => (primaryFinThickness(axisBase) !== undefined ? METRICS : METRICS.filter((m) => m.key !== "flutterMargin")),
     [doc],
   );
 

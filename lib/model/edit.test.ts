@@ -18,6 +18,7 @@ import {
   primaryFinMaterial,
   FIN_MATERIALS,
   primaryNose,
+  structureOf,
   primaryNoseShape,
   primaryBodyDiameter,
   primaryBodyTube,
@@ -1495,6 +1496,43 @@ describe("a motor cluster and a body length on the same tube", () => {
     });
     expect(primaryMotorClusterCount(both)).toBe(3);
     expect(primaryBodyTube(both, tube.id)!.length).toBeCloseTo(tube.length * 1.5, 9);
+  });
+});
+
+describe("the base a surface reads FROM", () => {
+  // Every panel and every sweep axis shows a value to edit FROM and then writes the edit TO whatever
+  // the aim resolves to. Read those two off different trees and they name different components: an
+  // aim at a part the flyer AUTHORED resolves to nothing in the imported design, so every `primary*`
+  // resolver falls back to the design's own primary part. `structureOf` is the one tree where both
+  // agree, and this is the invariant that says so.
+  it("resolves an aim at an authored part to that part, where the import cannot", async () => {
+    const doc = await importOrk(readFileSync(resolve(process.cwd(), "fixtures/demo-single-deploy.ork")));
+    const anchor = flattenRocket(doc.rocket).find((p) => p.component.kind === "bodytube")!.component;
+    const id = newPartId(doc.rocket, undefined, anchor.id);
+    const edits = { added: [{ id, kind: "bodytube" as const, after: anchor.id, length: 0.11 }], bodyTubeId: id };
+
+    // The imported design cannot see the part, so the aim silently falls back.
+    const fromImport = primaryBodyTube(doc.rocket, edits.bodyTubeId);
+    expect(fromImport).toBeTruthy();
+    expect(fromImport!.id).not.toBe(id);
+
+    // The design plus the flyer's structure resolves it, and to the same part the edit lands on.
+    const base = structureOf(doc.rocket, edits);
+    expect(primaryBodyTube(base, edits.bodyTubeId)!.id).toBe(id);
+    expect(primaryBodyTube(base, edits.bodyTubeId)!.length).toBeCloseTo(0.11, 9);
+    const flown = applyGeometryEdits(doc.rocket, { ...edits, bodyLength: 0.4 });
+    expect(flattenRocket(flown).find((p) => p.component.id === id)!.component).toMatchObject({ length: 0.4 });
+    // ...and the part the import would have named is left alone.
+    expect(flattenRocket(flown).find((p) => p.component.id === fromImport!.id)!.component).toMatchObject({
+      length: fromImport!.length,
+    });
+  });
+
+  it("leaves the dimension edits out, so it is a base and not the result", async () => {
+    const doc = await importOrk(readFileSync(resolve(process.cwd(), "fixtures/demo-single-deploy.ork")));
+    const tube = primaryBodyTube(doc.rocket)!;
+    const base = structureOf(doc.rocket, { bodyLength: tube.length * 2 });
+    expect(primaryBodyTube(base)!.length).toBeCloseTo(tube.length, 9);
   });
 });
 

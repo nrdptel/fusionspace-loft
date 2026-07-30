@@ -1400,11 +1400,14 @@ export default function LoftApp() {
                 // pristine import, for the same reason the Remove button is. A part the flyer AUTHORED
                 // is not in `doc.rocket`, so picking one aimed NOTHING: the diagram highlighted the new
                 // tube while the body fields went on holding whichever tube they held before, and the
-                // next length typed landed there. Measured on `fixtures/demo-quirks.ork`: author a tube
-                // behind "Upper", click "Upper", click the authored tube, type 400 mm — the authored
-                // tube stayed 120.0 mm and "Upper" became 400.0 mm. The two dimension-added parts a
-                // flyer can see (a boattail, a payload bay) are still not aimable, and deliberately:
-                // they are appended after this tree, so no aim could reach them either.
+                // next length typed landed there. On the starter design: add a tube behind its own
+                // 620.0 mm one (the new tube is half of it, 310.0 mm), click the 620 mm tube, click
+                // back onto the authored one, type 400 mm — the authored tube stayed 310.0 mm and the
+                // design's own became 400.0 mm, with the diagram highlighting the part that did not
+                // move. The three parts a DIMENSION edit adds (a boattail, a drogue, a payload bay)
+                // are still not aimable, and deliberately: they are appended after this tree, so no
+                // aim can reach them — which is the same rule that already stops the Remove button
+                // offering to take one out.
                 const patch = removableFrom ? aimEditsAt(removableFrom, id) : {};
                 if (Object.keys(patch).length) applyEdit(patch, null);
               }}

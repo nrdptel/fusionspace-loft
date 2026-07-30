@@ -1210,6 +1210,21 @@ function applyRemovals(rocket: Rocket, removedIds?: readonly string[]): Rocket {
   return { ...pruned, configurations };
 }
 
+/** The design plus the flyer's STRUCTURE — the parts they authored, without the ones they removed —
+ *  and none of their dimension edits.
+ *
+ *  ONE spelling, exported, because several surfaces need exactly this tree and reaching for the
+ *  IMPORTED design instead is a specific, repeatable defect rather than a style difference: an aim
+ *  naming a part the flyer authored resolves to nothing in the import, and every `primary*` resolver
+ *  then quietly falls back to the design's own primary part. What the surface READS and what the edit
+ *  CHANGES are two different components from that moment on.
+ *
+ *  The dimension edits are excluded on purpose: this is the base a field or a sweep axis edits FROM,
+ *  and those are the thing being varied. */
+export function structureOf(rocket: Rocket, edits: GeometryEdits): Rocket {
+  return applyGeometryEdits(rocket, { added: edits.added, removedIds: edits.removedIds });
+}
+
 /** Return a design with the geometry edits applied. The original rocket is untouched (a fresh tree
  *  is returned only where something changed), so callers can keep the imported model pristine.
  *

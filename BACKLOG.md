@@ -10,6 +10,28 @@ a one-way door — those preempt the milestone immediately). Everything else wai
 one-in-four quota in `MAINTAINING.md`. Rough edges, missing affordances, and findings too big for one
 pass. Newest first.
 
+- **A dual-deploy drogue is a canopy the flyer can see, click, and not reach.** `drogueDiameter` +
+  `mainDeployAltitude` add a second parachute inside `applyDimensionEdits`, AFTER the tree every aim is
+  resolved against, so it is in the parts table and on the diagram but in neither `removableFrom` nor
+  the aim base. Clicking it highlights the row and moves no aim, and the recovery fields go on
+  describing the Main. `unreachableParachuteCount(designBase)` counts 0 for the same reason, so the
+  Recovery panel is headed plain "Recovery" while two canopies are flying — the one heading whose job
+  is to say another canopy exists. Reproduce: any design → set Main deploy alt and Drogue Ø → Design →
+  click "Drogue" in the parts table → the Main chute Ø field still reads the main's diameter. The class
+  fix is the one R3 is building: a drogue authored through `added` mints its own id and lands in the
+  structure base like any other part.
+- **A pick that changes no aim still re-flies the design and rewrites the saved session.** The guard in
+  `onSelectPart` rejects only an EMPTY patch, so clicking a part whose aim is already held commits a bag
+  identical to the one in state — `commitWhatIf` runs, `fly()` runs, and the `edits`-keyed save effect
+  writes `localStorage`. The comment two lines above says exactly this must not happen ("reading a part
+  cost a flight"). Reproduce: click one body tube, click another, click the first again — three flights
+  for two aims. One-line fix: commit only when some key in the patch differs from the value held.
+- **Authoring a part re-aims the fields without clearing the absolute dimension already typed into
+  them**, so the number moves to the new part and the old one silently reverts. Reproduce on the
+  starter: aim at the 620.0 mm body tube, type 400 mm, then "Add a tube behind this" — the design's own
+  tube snaps back to 620.0 mm and the authored 310.0 mm one becomes 400.0 mm, with the field still
+  reading 400. `aimsClearedByRemoving` exists to prevent exactly this shape on a removal and has no
+  counterpart on an add; `AIM_SLOTS[slot].targets` already names the fields to clear.
 - **On a phone the pad-check number is nearly two screens below the fold.** Cold-walked at an iPhone 13
   viewport (390x664) on the built export of the SHA this run shipped: the Flight workspace is **6.7 screens
   deep**, "Apogee" sits at y=486 (73% of a screen down), "Static margin" at y=617, and **"Rail-exit
