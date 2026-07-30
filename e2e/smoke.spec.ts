@@ -2836,6 +2836,51 @@ test.describe("Loft", () => {
     expect((await lengthsOf())[0], "the tube that was not picked must not change").toBe(before[0]);
   });
 
+  test("a flyer can add a second fin ring, and the stability panel describes it", async ({ page }) => {
+    // The structural add that moves stability most, and the second kind R3's *done when* names. The
+    // ring is CLONED from the design's own set rather than derived from invented proportions —
+    // "another one of these, here" is the gesture, and it is the only default that is a fact about
+    // this rocket instead of a number somebody chose. Fins mount ON a tube, so it goes inside the
+    // anchor rather than behind it.
+    await page.goto("/");
+    await page.getByRole("button", { name: "Start a new design" }).click();
+    await page.getByRole("tab", { name: "Flight" }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+
+    const margin = async () => {
+      const t = await page.getByText("Static margin", { exact: true }).locator("xpath=following-sibling::dd").innerText();
+      return parseFloat(t.replace(/[^\d.]/g, ""));
+    };
+    const before = await margin();
+    expect(before).toBeGreaterThan(0);
+
+    await page.getByRole("tab", { name: "Design" }).click();
+    await page.locator("summary", { hasText: /Parts ·/ }).click();
+    const partsTable = page.locator("table").filter({ hasText: "Dimensions" });
+    const finRows = partsTable.locator("tr").filter({ hasText: /Trapezoidal fins/ });
+    await expect(finRows).toHaveCount(1);
+
+    await partsTable.locator("tr").filter({ hasText: /Body tube/ }).first().click();
+    await page.getByRole("button", { name: /Add fins to this tube/ }).click();
+
+    // Two rings now, and the second matches the first — the same dimensions, in the same row text.
+    await expect(finRows).toHaveCount(2);
+    const dims = await finRows.allInnerTexts();
+    const shape = (t: string) => (t.match(/root [\d.]+ ?mm, tip [\d.]+ ?mm, span [\d.]+ ?mm/) ?? [""])[0];
+    expect(shape(dims[0])).toBeTruthy();
+    expect(shape(dims[1])).toBe(shape(dims[0]));
+
+    // And the panel a flyer reads stability off describes the rocket they just built.
+    await page.getByRole("tab", { name: "Flight" }).click();
+    await expect.poll(margin, { timeout: 20000 }).toBeGreaterThan(before);
+
+    // Undoable by name, back to one ring.
+    await page.getByRole("button", { name: /^Undo adding a fin set/ }).click();
+    await expect.poll(margin, { timeout: 20000 }).toBe(before);
+    await page.getByRole("tab", { name: "Design" }).click();
+    await expect(finRows).toHaveCount(1);
+  });
+
   test("a tube's length can be dragged on the diagram, not only typed", async ({ page }) => {
     // R3's *done when* asks for a part placed "by direct manipulation". A tube's length was the one
     // dimension of an airframe with no grip at all — every other body and fin dimension already had

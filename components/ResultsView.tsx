@@ -210,7 +210,7 @@ export default function ResultsView({
   /** Remove a component from the design — the structural half of editing. */
   onRemovePart?: (id: string) => void;
   /** Author a part behind the picked one. Given only where editing is offered, like `onRemovePart`. */
-  onAddAfter?: (id: string) => void;
+  onAddAfter?: (id: string, kind?: "bodytube" | "trapezoidfinset") => void;
   /** Why a part cannot be removed, or null. Asked of the app rather than judged in the panel, so the reason
    *  shown and the guard that enforces it cannot disagree about which design they are judging. */
   refuseRemoval?: (id: string) => string | null;

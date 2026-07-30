@@ -86,13 +86,14 @@ export interface AddedPart {
   /** Minted once when the part is authored, and stable from then on. UUID-shaped, so the part can be
    *  exported to `.ork` and re-imported as itself — see `lib/model/id.ts` for why that shape. */
   id: string;
-  /** What to build. One kind for now; the switch in `buildAdded` is where the rest arrive. */
-  kind: "bodytube";
+  /** What to build. The switch in `buildAdded` is where the rest arrive. */
+  kind: "bodytube" | "trapezoidfinset";
   /** The component this goes immediately AFTER, in its stage's own top-level list. An id rather than an
    *  index or a role, so it still means the same part after a length edit, a removal, or a reload. */
   after: string;
-  /** Length (m). The one dimension a neighbour cannot supply: inheriting it would silently double the
-   *  airframe, and zero is not a part. */
+  /** Length (m) — a tube's own length, and the one dimension a neighbour cannot supply: inheriting it
+   *  would silently double the airframe, and zero is not a part. Ignored by kinds that have no length
+   *  of their own to choose; a fin set copies the design's own. */
   length: number;
   /** What to call it on the diagram and in the parts list. */
   name?: string;
@@ -1229,8 +1230,40 @@ export function applyGeometryEdits(rocket: Rocket, edits: GeometryEdits): Rocket
 }
 
 /** Build the component one authored part describes, inheriting everything it can from the neighbour it
- *  was added after. Returns null when the entry describes nothing buildable. */
-function buildAdded(part: AddedPart, after: RocketComponent): RocketComponent | null {
+ *  was added after, and say where it goes: BESIDE that neighbour in its stage's list, or INSIDE it.
+ *  Returns null when the entry describes nothing buildable. */
+function buildAdded(
+  part: AddedPart,
+  after: RocketComponent,
+  rocket: Rocket,
+): { component: RocketComponent; inside: boolean } | null {
+  if (part.kind === "trapezoidfinset") {
+    // Fins are mounted ON a tube, not stacked behind it, so this one goes INSIDE the anchor.
+    //
+    // Cloned from the design's own primary set rather than derived from invented proportions. "Another
+    // one of these, here" is the whole gesture, and it is the only default that is a fact about this
+    // rocket instead of a number somebody chose: root chord, tip, sweep, span, count, thickness, edge
+    // cross-section and stock all come across, so the new ring matches the one already flying. Every
+    // one of the 35 corpus designs carries at least one fin set, and so does the starter, so a source
+    // exists on every design a flyer can reach; where one genuinely does not, nothing is built and the
+    // control is not offered rather than a shape being invented.
+    if (after.kind !== "bodytube") return null;
+    const src = flattenRocket(rocket).find((p) => p.component.kind === "trapezoidfinset")?.component;
+    if (!src || src.kind !== "trapezoidfinset") return null;
+    return {
+      inside: true,
+      component: {
+        ...src,
+        id: part.id,
+        name: part.name || "Fins",
+        // Aft-aligned inside the tube it is mounted on, which is where a fin set sits and what makes
+        // the picture match the gesture. Cloning the source's own placement would carry an offset
+        // measured inside a different part.
+        placement: { method: "bottom", offset: 0 },
+        children: [],
+      },
+    };
+  }
   if (!(part.length > 0)) return null;
   switch (part.kind) {
     case "bodytube": {
@@ -1255,6 +1288,8 @@ function buildAdded(part: AddedPart, after: RocketComponent): RocketComponent | 
       // geometry as its neighbours where it does not.
       const wall = "thickness" in after && after.thickness !== undefined && after.thickness > 0 ? after.thickness : undefined;
       return {
+        inside: false,
+        component: {
         id: part.id,
         name: part.name || "Body tube",
         kind: "bodytube",
@@ -1264,6 +1299,7 @@ function buildAdded(part: AddedPart, after: RocketComponent): RocketComponent | 
         ...(wall !== undefined ? { thickness: wall, ...(after.material ? { material: after.material } : {}) } : {}),
         ...(after.finish ? { finish: after.finish } : {}),
         children: [],
+        },
       };
     }
   }
@@ -1281,9 +1317,25 @@ function applyAdds(rocket: Rocket, added?: readonly AddedPart[]): Rocket {
   for (const part of added) {
     const anchor = flattenRocket(out).find((p) => p.component.id === part.after)?.component;
     if (!anchor) continue;
-    const built = buildAdded(part, anchor);
-    if (!built) continue;
+    const made = buildAdded(part, anchor, out);
+    if (!made) continue;
+    const { component: built, inside } = made;
     let placed = false;
+    // A part mounted INSIDE its anchor can go anywhere the anchor is, nested or not, so it walks the
+    // whole tree. A part stacked BESIDE it needs an unambiguous slot in a top-level list.
+    if (inside) {
+      const mount = (list: RocketComponent[]): RocketComponent[] =>
+        list.map((c) => {
+          if (c.id === part.after) {
+            placed = true;
+            return { ...c, children: [...c.children, built] };
+          }
+          return c.children.length ? { ...c, children: mount(c.children) } : c;
+        });
+      const nested = out.stages.map((s) => ({ ...s, components: mount(s.components) }));
+      if (placed) out = { ...out, stages: nested };
+      continue;
+    }
     const stages = out.stages.map((s) => {
       const idx = s.components.findIndex((c) => c.id === part.after);
       if (idx === -1) return s;

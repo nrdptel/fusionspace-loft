@@ -1666,6 +1666,80 @@ describe("adding a component", () => {
     expect(theirs.material?.density).toBe(walled.material?.density);
   });
 
+  it("mounts an authored fin set INSIDE the tube it was added to, cloned from the design's own", async () => {
+    // Fins are mounted ON a tube, not stacked behind it, so this kind goes inside the anchor rather
+    // than beside it. Cloned from the design's own set rather than derived from invented proportions:
+    // "another one of these, here" is the gesture, and it is the only default that is a fact about
+    // this rocket instead of a number somebody chose. All 35 corpus designs carry at least one set,
+    // and so does the starter, so a source exists on every design a flyer can reach.
+    const doc = await importOrk(readFileSync(resolve(process.cwd(), "fixtures/demo-single-deploy.ork")));
+    const src = flattenRocket(doc.rocket).find((p) => p.component.kind === "trapezoidfinset")!
+      .component as TrapezoidFinSet;
+    const host = flattenRocket(doc.rocket).find((p) => p.component.kind === "bodytube")!.component;
+
+    const id = newPartId(doc.rocket, undefined, host.id);
+    const built = applyGeometryEdits(doc.rocket, {
+      added: [{ id, kind: "trapezoidfinset", after: host.id, length: 0 }],
+    });
+
+    const mine = flattenRocket(built).find((p) => p.component.id === id)!.component as TrapezoidFinSet;
+    expect(mine.kind).toBe("trapezoidfinset");
+    expect(mine.finCount).toBe(src.finCount);
+    expect(mine.rootChord).toBeCloseTo(src.rootChord, 9);
+    expect(mine.tipChord).toBeCloseTo(src.tipChord, 9);
+    expect(mine.height).toBeCloseTo(src.height, 9);
+    expect(mine.thickness).toBe(src.thickness);
+    expect(mine.material?.density).toBe(src.material?.density);
+    // Inside the tube, not beside it — a fin set in a stage's top-level list is not on the airframe.
+    const parent = flattenRocket(built).find((p) => p.component.children.some((c) => c.id === id))!;
+    expect(parent.component.id).toBe(host.id);
+    // Aft-aligned, so the picture matches the gesture.
+    expect(mine.placement.method).toBe("bottom");
+  });
+
+  it("makes a design with two fin rings more stable, and it flies", async () => {
+    // The reason to author a fin set at all: it is the structural add that moves stability most, and
+    // R3's *done when* asks the panels to describe the rocket the flyer just built.
+    const doc = await importOrk(readFileSync(resolve(process.cwd(), "fixtures/demo-single-deploy.ork")));
+    const host = flattenRocket(doc.rocket).find((p) => p.component.kind === "bodytube")!.component;
+    const id = newPartId(doc.rocket, undefined, host.id);
+    const built = applyGeometryEdits(doc.rocket, {
+      added: [{ id, kind: "trapezoidfinset", after: host.id, length: 0 }],
+    });
+
+    const before = runFlight(doc.rocket, {}).result;
+    const after = runFlight(built, {}).result;
+    // More fin area aft is more normal force aft: a thicker static margin.
+    expect(after.staticMarginCal).toBeGreaterThan(before.staticMarginCal);
+    // And heavier and draggier, so it does not climb as high.
+    expect(dryMassProperties(built).mass).toBeGreaterThan(dryMassProperties(doc.rocket).mass);
+    expect(after.summary.apogee).toBeGreaterThan(0);
+    expect(after.summary.apogee).toBeLessThan(before.summary.apogee);
+  });
+
+  it("builds nothing where there is no set to copy, and nothing where the anchor is not a tube", async () => {
+    const doc = await importOrk(readFileSync(resolve(process.cwd(), "fixtures/demo-single-deploy.ork")));
+    const fins = flattenRocket(doc.rocket).find((p) => p.component.kind === "trapezoidfinset")!.component;
+    const n = flattenRocket(doc.rocket).length;
+    // Fins do not mount on fins.
+    const onFins = applyGeometryEdits(doc.rocket, {
+      added: [{ id: "a", kind: "trapezoidfinset", after: fins.id, length: 0 }],
+    });
+    expect(flattenRocket(onFins).length).toBe(n);
+    // And the clone's source is the design as it stood when the part was authored, not after a later
+    // removal: adds are applied BEFORE removals — the order that lets an authored part be removed by
+    // id — so a flyer who copies a ring and then deletes the original keeps the copy they made. The
+    // alternative, cloning from a design the set had already left, would silently build nothing.
+    const host = flattenRocket(doc.rocket).find((p) => p.component.kind === "bodytube")!.component;
+    const copied = applyGeometryEdits(doc.rocket, {
+      added: [{ id: "b", kind: "trapezoidfinset", after: host.id, length: 0 }],
+      removedIds: [fins.id],
+    });
+    const kept = flattenRocket(copied).find((p) => p.component.id === "b")!.component as TrapezoidFinSet;
+    expect(kept.rootChord).toBeCloseTo((fins as TrapezoidFinSet).rootChord, 9);
+    expect(flattenRocket(copied).some((p) => p.component.id === fins.id)).toBe(false);
+  });
+
   it("counts as an edit, so every surface knows the design is no longer the file's", async () => {
     // `hasGeometryEdits` gates the stored-tool comparison and the "with your edits" badge. A structural
     // add that did not count would leave a rocket with a part the file never had, presented beside the

@@ -213,14 +213,17 @@ pointer-down/up, and a rename is the one header control that is not on the stack
 
 ## R3 — Add a component
 
-**Status:** IN PROGRESS — current milestone. The operation model is in and the first kind ships: a flyer
-can author a **body tube** behind any tube on the diagram or in the parts list, and it flies, weighs,
-draws, exports, is aimable, is removable and is undoable by name. Pinned by `lib/model/edit.test.ts`'s
-`adding a component` suite (8 cases) and the e2e case *a flyer can add a body tube the design never had,
-and take it back*. A tube's length is now
+**Status:** IN PROGRESS — current milestone. The operation model is in and two kinds ship: a flyer can
+author a **body tube** behind any tube, and a **fin set** onto any tube, from the diagram or the parts
+list — and each flies, weighs, draws, exports, is aimable, is removable and is undoable by name. The
+fin ring is cloned from the design's own set rather than derived from invented proportions, which is the
+only default that is a fact about the rocket rather than a number somebody chose; all 35 corpus designs
+carry a set and so does the starter, so a source always exists. Pinned by `lib/model/edit.test.ts`'s
+`adding a component` suite (11 cases) and the e2e cases *a flyer can add a body tube the design never had,
+and take it back* and *a flyer can add a second fin ring, and the stability panel describes it*. A tube's length is now
 draggable on the diagram too — the one airframe dimension that had no grip — pinned by *a tube's length
-can be dragged on the diagram, not only typed*. Still to come: transitions, fin sets and mass objects,
-and moving a part to another station rather than only sizing it where it was added.
+can be dragged on the diagram, not only typed*. Still to come: transitions and mass objects, and moving a
+part to another station rather than only sizing it where it was added.
 
 **The shape, decided and shipped.** `GeometryEdits.added` is an ordered list of `AddedPart` — an id, a
 kind, the id of the component it sits behind, and the one dimension no neighbour can supply. Everything

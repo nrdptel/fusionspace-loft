@@ -786,12 +786,15 @@ export default function LoftApp() {
    *  the starter design added 25 g and left apogee and margin reading the same to the digit shown, which
    *  is a capability a flyer cannot see; and never so long that it re-proportions the rocket before
    *  anyone has said what it is for. The floor is there because half of a very short tube is a seam. */
-  const addPartAfter = (afterId: string) => {
+  const addPartAfter = (afterId: string, kind: AddedPart["kind"] = "bodytube") => {
     if (!doc || !removableFrom) return;
     const anchor = flattenRocket(removableFrom).find((p) => p.component.id === afterId)?.component;
     if (!anchor || anchor.kind !== "bodytube") return;
     const id = newPartId(doc.rocket, edits.added, afterId);
-    const part: AddedPart = { id, kind: "bodytube", after: afterId, length: Math.max(anchor.length / 2, 2 * anchor.outerRadius) };
+    const part: AddedPart =
+      kind === "trapezoidfinset"
+        ? { id, kind, after: afterId, length: 0, name: "Fins" }
+        : { id, kind: "bodytube", after: afterId, length: Math.max(anchor.length / 2, 2 * anchor.outerRadius) };
     // Aim the body fields at it in the same commit, so one undo takes back the part AND the aim rather
     // than leaving the fields holding a part that no longer exists.
     applyEdit(
@@ -799,7 +802,7 @@ export default function LoftApp() {
         added: [...(edits.added ?? []), part],
         removedIds: edits.removedIds,
       }), id) },
-      { label: "adding a body tube", key: `add:${id}` },
+      { label: kind === "trapezoidfinset" ? "adding a fin set" : "adding a body tube", key: `add:${id}` },
     );
   };
 

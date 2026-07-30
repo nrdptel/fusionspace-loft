@@ -76,6 +76,13 @@ function SortHeader({
   );
 }
 
+/** The authoring controls in the parts panel. One constant so a second one cannot arrive at a
+ *  different height from the first. */
+const ADD_BUTTON =
+  "inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-2.5 py-1 font-medium " +
+  "text-zinc-700 transition hover:border-indigo-400 hover:text-indigo-700 dark:border-zinc-700 " +
+  `dark:bg-zinc-900 dark:text-zinc-300 dark:hover:border-indigo-500 dark:hover:text-indigo-400 ${TOUCH_TARGET}`;
+
 /** What kind of part this is, in the reader's words. */
 const kindLabel = (c: RocketComponent): string => KIND_LABEL[c.kind] ?? c.kind;
 
@@ -149,7 +156,7 @@ export default function GeometryInspector({
   /** Author a part behind the picked one. Offered only on a part something can be built onto — today
    *  a body tube, whose caliber the new one fairs to. A control that appears on every part and does
    *  nothing on most of them is worse than one that appears where it works. */
-  onAddAfter?: (id: string) => void;
+  onAddAfter?: (id: string, kind?: "bodytube" | "trapezoidfinset") => void;
   /** Why the picked part cannot be removed, or null — asked of the caller, which owns the design a removal
    *  is judged against. The panel judging for itself let the two disagree: it read the fully-edited model,
    *  which contains parts a dimension edit ADDED and the removal mechanism cannot take. */
@@ -364,10 +371,23 @@ export default function GeometryInspector({
               type="button"
               onClick={() => onAddAfter(selectedId)}
               title="Add a body tube immediately behind this one, faired to it, and re-fly the design"
-              className={`inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-2.5 py-1 font-medium text-zinc-700 transition hover:border-indigo-400 hover:text-indigo-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:border-indigo-500 dark:hover:text-indigo-400 ${TOUCH_TARGET}`}
+              className={ADD_BUTTON}
             >
               <span aria-hidden>+</span> Add a tube behind this
             </button>
+            {/* Only where there is a set to copy — the new ring is cloned from the design's own rather
+                than derived from invented proportions, so a design with no fins has no source and the
+                control is not offered. All 35 corpus designs carry one, and so does the starter. */}
+            {parts.some((x) => x.component.kind === "trapezoidfinset") && (
+              <button
+                type="button"
+                onClick={() => onAddAfter(selectedId, "trapezoidfinset")}
+                title="Add a fin set to this tube, matching the design's own fins, and re-fly it"
+                className={`${ADD_BUTTON} ml-1.5`}
+              >
+                <span aria-hidden>+</span> Add fins to this tube
+              </button>
+            )}
           </p>
         )}
         {/* Said BEFORE the click, where the flyer is deciding, rather than left to be inferred from a
