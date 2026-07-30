@@ -36,6 +36,18 @@ npm run test:e2e                # Playwright + an axe audit; run after a build
 npm run fetch-fixtures          # the real-design corpus (needs FIXTURES_TOKEN)
 ```
 
+- **This project runs in a per-project cloud environment**, and the environment — not the repo —
+  carries the secrets, the network policy and any cached setup. Two consequences that have already
+  bitten:
+  - **`FIXTURES_TOKEN` is set in CI but was NOT set in the environment** (measured 2026-07-30). So CI
+    gates on all 35 real designs while every interactive and scheduled run works *without* the corpus,
+    and the suite skips itself rather than saying so. **Check it at session start**
+    (`[ -n "$FIXTURES_TOKEN" ]`) and, if it is missing, say so at the TOP of the report as an
+    owner-level fix — adding it to the environment's variables is one action and it arms the corpus
+    for every future run. Do not report a corpus sweep you did not actually run.
+  - **Whatever you install by hand is paid for again next session** unless it is in the environment's
+    setup script. If you find yourself running the same install every run, that belongs in the setup
+    script, and saying so in the report is the fix.
 - **The corpus** is not in this repo. `npm run fetch-fixtures` pulls the snapshot pinned in
   `fixtures.lock.json` and hash-verifies it. With no token it exits 0 and the corpus suite skips
   itself — so confirm the suite names its fixture count before you trust a sweep. If a fixtures
@@ -650,7 +662,11 @@ the report.
 The companion PRIVATE repo `nrdptel/loft-fixtures` holds real, in-the-wild design files across many
 tools (OpenRocket, RockSim, RASAero, RocketPy, …) and build types (single/multi-stage, clustered,
 min-diameter, tube-fin, boattail, pods, and more), each with provenance and ground truth in
-`manifest.csv` and `SOURCES.md`. **Your session has BOTH repos checked out**, so you can drive the
+`manifest.csv` and `SOURCES.md`. **Do NOT assume it is checked out — measure.** That claim used to be
+stated flatly here and it is false in the cloud environment this project actually runs in: on
+2026-07-30 the container held this repo and its sibling app and no fixtures checkout, while
+`FIXTURES_TOKEN` was unset, so `npm run fetch-fixtures` exits 0 and the corpus suite skips itself. When
+a checkout IS present you can drive the
 real corpus directly. It is your sharpest bug-finder: prefer running real files over speculative
 model additions, and any new in-the-wild design belongs in it as a fixture, with provenance and
 licensing recorded at the time you add it.
