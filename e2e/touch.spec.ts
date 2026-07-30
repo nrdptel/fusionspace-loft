@@ -148,7 +148,11 @@ test.describe("phone layout", () => {
 
     const picker = page.getByRole("group", { name: "Fin handle" });
     await expect(picker).toBeVisible();
-    // One fin handle, plus the nose and body handles, which sit far enough apart to coexist.
+    // One fin handle, plus the nose and the body-diameter handles, which sit far enough apart to
+    // coexist. The body-LENGTH grip is deliberately absent here and present on a mouse layout: this
+    // very check is what decided that, by reporting the fin root chord's own centre resolving to
+    // "Body length" the moment a fourth grip joined the body. At a phone's fit width the airframe is
+    // about eleven pixels tall, so every grip on it is inside every other grip's 44 px target.
     await expect(page.locator('g[role="slider"]')).toHaveCount(3);
 
     const check = async () => {

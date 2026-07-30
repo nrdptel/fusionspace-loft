@@ -2560,7 +2560,9 @@ test.describe("Loft", () => {
     // Stretch the main body tube on the Design workspace — a builder geometry edit. The field starts
     // from the design's span; flip back to Flight to read the new apogee.
     await page.getByRole("tab", { name: "Design" }).click();
-    const bodyLength = page.getByLabel(/Body length/);
+    // The input, not the diagram's grip: both are named "Body length" now that a tube's length can be
+    // dragged, exactly as Fin span and Nose length have been for a while. `getByLabel` matches both.
+    const bodyLength = page.locator("input").and(page.getByLabel(/Body length/));
     await expect(bodyLength).toBeVisible();
     const designBody = parseFloat((await bodyLength.getAttribute("placeholder")) ?? "0");
     expect(designBody).toBeGreaterThan(0);
@@ -2832,6 +2834,36 @@ test.describe("Loft", () => {
     await bodyField.blur();
     await expect.poll(async () => (await lengthsOf())[1], { timeout: 15000 }).toBe("640");
     expect((await lengthsOf())[0], "the tube that was not picked must not change").toBe(before[0]);
+  });
+
+  test("a tube's length can be dragged on the diagram, not only typed", async ({ page }) => {
+    // R3's *done when* asks for a part placed "by direct manipulation". A tube's length was the one
+    // dimension of an airframe with no grip at all — every other body and fin dimension already had
+    // one — so a flyer who had just authored a section could only size it by typing a number at it.
+    // The grip drives the same edit the field does, so the picture and the field are one edit and the
+    // aim decides which tube either of them lands on.
+    await page.goto("/");
+    await page.getByRole("button", { name: "Start a new design" }).click();
+    await page.getByRole("tab", { name: "Design" }).click();
+
+    const handle = page.getByRole("slider", { name: "Body length" });
+    await expect(handle).toBeVisible();
+    const lengthOf = async () => Number(await handle.getAttribute("aria-valuenow"));
+    const before = await lengthOf();
+    expect(before).toBeGreaterThan(0);
+
+    // Arrow keys are the keyboard path every handle here has; each nudge is a real edit commit.
+    await handle.focus();
+    for (let i = 0; i < 10; i++) await handle.press("ArrowRight");
+    await expect.poll(lengthOf, { timeout: 20000 }).toBeGreaterThan(before);
+
+    // The number field agrees — it is the same edit, so the two cannot drift.
+    const bodyLength = page.locator("label").filter({ hasText: /Body length/ }).first().locator("input");
+    await expect.poll(async () => Number(await bodyLength.inputValue()), { timeout: 20000 }).toBeGreaterThan(before);
+
+    // And one undo takes the whole gesture back, not one nudge of it.
+    await page.getByRole("button", { name: /^Undo the body length/ }).click();
+    await expect.poll(lengthOf, { timeout: 20000 }).toBe(before);
   });
 
   test("a flyer can add a body tube the design never had, and take it back", async ({ page }) => {

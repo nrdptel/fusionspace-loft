@@ -385,9 +385,10 @@ export default function GeometryInspector({
         {onEdit && (
           <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
             Grab a handle to reshape the design right on the picture — slide the fin group fore or aft,
-            pull a fin tip up to resize the span, pull the body wall out to resize the caliber, drag
-            the nose/body joint to lengthen or blunt the nose, or (on straight-edged fins) rake the tip
-            or resize the root and tip chords by their corner handles. The design re-flies live, so the
+            pull a fin tip up to resize the span, pull the body wall out to resize the caliber, drag the
+            tube&apos;s aft edge to lengthen it, drag the nose/body joint to lengthen or blunt the nose,
+            or (on straight-edged fins) rake the tip or resize the root and tip chords by their corner
+            handles. The design re-flies live, so the
             margin updates as you drag; arrow keys nudge a focused handle a hundredth of its range, and
             Shift makes that ten times bigger.
           </p>

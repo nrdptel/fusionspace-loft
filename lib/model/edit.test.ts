@@ -1462,7 +1462,7 @@ describe("a motor cluster and a body length on the same tube", () => {
     // `demo-quirks.ork` is the committed fixture of the same shape — its mount is a body tube — so the
     // pin runs where the corpus is absent.
     const doc = await importOrk(readFileSync(resolve(process.cwd(), "fixtures/demo-quirks.ork")));
-    const mount = flattenRocket(doc.rocket).find((p) => p.component.motorMount)!.component;
+    const mount = flattenRocket(doc.rocket).find((p) => "motorMount" in p.component && p.component.motorMount)!.component;
     expect(mount.kind, "the fixture's mount must BE a body tube").toBe("bodytube");
 
     const clusterOnly = applyGeometryEdits(doc.rocket, { motorClusterCount: 3 });
@@ -1486,7 +1486,7 @@ describe("a motor cluster and a body length on the same tube", () => {
   it("leaves a design whose mount is an inner tube exactly as it was", async () => {
     // The control: the defect only ever bit where one component wore both roles.
     const doc = await importOrk(readFileSync(resolve(process.cwd(), "fixtures/demo-single-deploy.ork")));
-    expect(flattenRocket(doc.rocket).find((p) => p.component.motorMount)!.component.kind).toBe("innertube");
+    expect(flattenRocket(doc.rocket).find((p) => "motorMount" in p.component && p.component.motorMount)!.component.kind).toBe("innertube");
     const tube = primaryBodyTube(doc.rocket)!;
     const both = applyGeometryEdits(doc.rocket, {
       motorClusterCount: 3,
