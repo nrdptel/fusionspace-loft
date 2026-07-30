@@ -13,7 +13,12 @@ import { storedTag } from "@/lib/validation/stored-status";
 import {
   primaryFinSpan,
   unreachableFinSetCount,
-  primaryFinSetName,
+  primaryFinSetPart,
+  primaryBodyTubePart,
+  unreachableBodyTubeCount,
+  aimEditsAt,
+  INERT_EDIT_FIELDS,
+  type AimedPart,
   primaryFinCount,
   primaryFinStation,
   primaryMotorClusterCount,
@@ -95,6 +100,8 @@ const FIN_CROSS_SECTION_LABELS: Record<FinCrossSection, string> = {
 interface Edits {
   /** Which fin set the fin fields describe and edit. A selection, not an edit — see hasActiveEdits. */
   finSetId?: string;
+  /** Which body tube the body fields describe and edit. A selection, not an edit — as above. */
+  bodyTubeId?: string;
   rodLength?: number; // m
   rodAngleDeg?: number;
   windSpeed?: number; // m/s
@@ -113,8 +120,8 @@ interface Edits {
   finMaterial?: string; // builder edit: fin material key (FIN_MATERIALS) — density + flutter stiffness
   noseLength?: number; // builder edit: nose-cone length (m)
   noseShape?: NoseShape; // builder edit: nose-cone contour
-  bodyLength?: number; // builder edit: primary body-tube length (m)
-  bodyDiameter?: number; // builder edit: primary body-tube outer diameter (m); scales the airframe
+  bodyLength?: number; // builder edit: the picked body tube's length (m)
+  bodyDiameter?: number; // builder edit: the picked tube's outer diameter (m); scales the airframe to it
   finish?: SurfaceFinish; // builder edit: whole-airframe surface finish
   airframeMaterial?: string; // builder edit: airframe-shell material key (AIRFRAME_MATERIALS)
   boattailLength?: number; // builder edit: add a conical boattail of this length (m) at the aft
@@ -174,17 +181,21 @@ function flownOverrides(
 
 /** Keys that can sit in the edit bag without the design being edited.
  *
- *  `finSetId` says which component the fin fields are POINTED AT, not that anything was changed.
- *  Counting it would withhold the stored-tool comparison — and hide the button that brings it back —
- *  the moment a flyer clicked a fin set to look at it.
+ *  `finSetId` and `bodyTubeId` say which component their fields are POINTED AT, not that anything was
+ *  changed. Counting one would withhold the stored-tool comparison — and hide the button that brings
+ *  it back — the moment a flyer clicked a part to look at it.
  *
  *  `payloadStation` is the same shape one step further out: it places a payload that is not there
  *  unless `payloadMassKg` is set. `addPayloadMass` returns the rocket untouched without a mass, so a
  *  station on its own produces a flight byte-identical to the design's, and counting it cost the
  *  flyer the stored-tool comparison for a change that changed nothing. It can never be the only
  *  thing that makes a design edited: wherever the station does matter, the mass beside it is already
- *  set and already counted. */
-const INERT_EDITS = new Set(["finSetId", "payloadStation"]);
+ *  set and already counted.
+ *
+ *  Defined once in `lib/model/edit.ts` and shared with the saved session's own what-if count, which
+ *  used to spell out `finSetId` alone — so a second selection field would have read as a what-if
+ *  there while the app treated it as inert here. */
+const INERT_EDITS = INERT_EDIT_FIELDS;
 
 /** The swap picker's contents for one stored configuration: which casing to offer motors at, and
  *  who made the design's own. A FUNCTION rather than an inline memo because two callers need the
@@ -282,6 +293,7 @@ export default function LoftApp() {
         motorSwap: e.motorSwap,
         geometry: {
           finSetId: e.finSetId,
+          bodyTubeId: e.bodyTubeId,
           finSpan: e.finSpan,
           finCount: e.finCount,
           finRootChord: e.finRootChord,
@@ -538,6 +550,7 @@ export default function LoftApp() {
     // part of the design and are left out.
     const geometry = {
       finSetId: edits.finSetId,
+      bodyTubeId: edits.bodyTubeId,
       finSpan: edits.finSpan,
       finCount: edits.finCount,
       finRootChord: edits.finRootChord,
@@ -801,7 +814,7 @@ export default function LoftApp() {
             // is the same set the edit is written TO. Undefined selection = the frontmost set.
             finSpan: primaryFinSpan(doc.rocket, edits.finSetId),
             unreachableFinSets: unreachableFinSetCount(doc.rocket, edits.finSetId),
-            finSetName: primaryFinSetName(doc.rocket, edits.finSetId),
+            finSetPart: primaryFinSetPart(doc.rocket, edits.finSetId),
             finCount: primaryFinCount(doc.rocket, edits.finSetId),
             finRootChord: primaryFinRootChord(doc.rocket, edits.finSetId),
             finTipChord: primaryFinTipChord(doc.rocket, edits.finSetId),
@@ -812,8 +825,13 @@ export default function LoftApp() {
             finMaterial: primaryFinMaterial(doc.rocket, edits.finSetId),
             noseLength: primaryNose(doc.rocket)?.length,
             noseShape: primaryNoseShape(doc.rocket),
-            bodyLength: primaryBodyTube(doc.rocket)?.length,
-            bodyDiameter: primaryBodyDiameter(doc.rocket),
+            // The body readbacks take the picked tube for the same reason the fin ones take the
+            // picked set: the value the field shows to edit FROM has to be the part the edit is
+            // written TO. 20 of the 27 real OpenRocket designs in the corpus carry several tubes.
+            bodyLength: primaryBodyTube(doc.rocket, edits.bodyTubeId)?.length,
+            bodyDiameter: primaryBodyDiameter(doc.rocket, edits.bodyTubeId),
+            bodyTubePart: primaryBodyTubePart(doc.rocket, edits.bodyTubeId),
+            unreachableBodyTubes: unreachableBodyTubeCount(doc.rocket),
             finish: primaryFinish(doc.rocket),
             airframeMaterial: primaryAirframeMaterial(doc.rocket),
             mainParachuteDiameter: primaryParachute(doc.rocket)?.diameter,
@@ -823,7 +841,7 @@ export default function LoftApp() {
         : {
             finSpan: undefined,
             unreachableFinSets: 0,
-            finSetName: undefined,
+            finSetPart: undefined,
             finCount: undefined,
             finRootChord: undefined,
             finTipChord: undefined,
@@ -836,15 +854,18 @@ export default function LoftApp() {
             noseShape: undefined,
             bodyLength: undefined,
             bodyDiameter: undefined,
+            bodyTubePart: undefined,
+            unreachableBodyTubes: 0,
             finish: undefined,
             airframeMaterial: undefined,
             mainParachuteDiameter: undefined,
             motorClusterCount: undefined,
             payloadStation: undefined,
           },
-    // The fin readbacks take the selected set, so the selection is a real dependency: without it
-    // the panel keeps showing the frontmost set's numbers while the edit writes to the picked one.
-    [doc, edits.finSetId],
+    // The fin and body readbacks take their selected part, so both selections are real dependencies:
+    // without them the panel keeps showing the primary part's numbers while the edit writes to the
+    // picked one.
+    [doc, edits.finSetId, edits.bodyTubeId],
   );
 
   return (
@@ -1064,6 +1085,7 @@ export default function LoftApp() {
               motorSwap={edits.motorSwap}
               geometry={{
                 finSetId: edits.finSetId,
+                bodyTubeId: edits.bodyTubeId,
                 finSpan: edits.finSpan,
                 finCount: edits.finCount,
                 finRootChord: edits.finRootChord,
@@ -1092,7 +1114,10 @@ export default function LoftApp() {
               designMotor={swapInfo?.designMotor}
               designManufacturer={swapInfo?.designManufacturer}
               onEditGeometry={applyEdit}
-              onSelectFinSet={(id) => applyEdit({ finSetId: id ?? undefined })}
+              // A pick re-aims the fields that describe THAT kind of part and leaves the rest alone.
+              // The routing lives in the edit model rather than here, so the panel that reports the
+              // pick does not also have to know which fields a body tube or a fin set drives.
+              onSelectPart={(id) => applyEdit(aimEditsAt(doc.rocket, id))}
               initialTab={initialTab}
               onWorkspaceChange={setInitialTab}
               designEditor={
@@ -1193,7 +1218,7 @@ function DesignEditor({
   designDims: {
     finSpan?: number;
     unreachableFinSets: number;
-    finSetName?: string;
+    finSetPart?: AimedPart;
     finCount?: number;
     finRootChord?: number;
     finTipChord?: number;
@@ -1206,6 +1231,8 @@ function DesignEditor({
     noseShape?: NoseShape;
     bodyLength?: number;
     bodyDiameter?: number;
+    bodyTubePart?: AimedPart;
+    unreachableBodyTubes: number;
     finish?: SurfaceFinish;
     airframeMaterial?: string;
     mainParachuteDiameter?: number;
@@ -1233,6 +1260,18 @@ function DesignEditor({
   const toDispSpan = (m: number | undefined) =>
     m === undefined ? "" : d.fmtEditable(imperial ? m * 39.3701 : m * 1000, imperial ? 2 : 0);
   const fromSpan = (v: string) => (v === "" ? undefined : imperial ? Number(v) / 39.3701 : Number(v) / 1000);
+  // How to refer to the part a group of fields is holding. The design's own name where that name tells
+  // it apart from its siblings; otherwise where the part SITS, which is what a flyer reads off the
+  // diagram and the one description that stays true however the parts table beside it is sorted — a
+  // positional name ("fin set 2") did not, and it also named one part while the fin fields change a
+  // whole appearance-group, so the group size is stated outright rather than implied.
+  const partPhrase = (p: AimedPart | undefined, noun: string): string => {
+    if (!p) return `the ${noun}`;
+    const where = p.name ?? `the ${noun} ${d.q(d.lengthMm(p.station, units))} from the nose`;
+    return p.covers > 1 ? `${where} (${p.covers} parts, changed together)` : where;
+  };
+  const finPhrase = partPhrase(designDims.finSetPart, "set");
+  const bodyPhrase = partPhrase(designDims.bodyTubePart, "tube");
   // Blank means "use the design's own value". A zero is a different statement, and these fields want
   // three different answers to it — so every call site says which of the three it is, and
   // `lib/model/edit.ts` is the authority, because it is the code that decides what the solver sees:
@@ -1328,7 +1367,7 @@ function DesignEditor({
             {designDims.finSpan !== undefined && (
               <fieldset className="min-w-0 border-0 p-0">
                 <legend className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-                  {designDims.unreachableFinSets > 0 ? `Fins — ${designDims.finSetName}` : "Fins"}
+                  {designDims.unreachableFinSets > 0 ? `Fins — ${finPhrase}` : "Fins"}
                 </legend>
                 {designDims.unreachableFinSets > 0 && (
                   // A staged or podded design carries sets that legitimately differ. These fields
@@ -1336,8 +1375,8 @@ function DesignEditor({
                   // rather than letting one unlabelled control stand for all of them.
                   <p className="mb-2 text-xs text-zinc-500 dark:text-zinc-400">
                     This design has {designDims.unreachableFinSets} other fin{" "}
-                    {designDims.unreachableFinSets === 1 ? "set" : "sets"} with different dimensions.
-                    These fields describe and change {designDims.finSetName}; to edit another, pick it
+                    {designDims.unreachableFinSets === 1 ? "set" : "sets"} with different dimensions.{" "}
+                    These fields describe and change {finPhrase}; to edit another, pick it{" "}
                     on the diagram or in the parts table above. Fin position moves all of them together.
                   </p>
                 )}
@@ -1469,6 +1508,21 @@ function DesignEditor({
                 <legend className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
                   Nose &amp; body
                 </legend>
+                {designDims.unreachableBodyTubes > 0 && (
+                  // A staged, podded or coupler-split airframe is several tubes end to end — 20 of the
+                  // 27 real OpenRocket designs in the corpus are. Say which one the length field is
+                  // holding, and say plainly that the caliber field is NOT one tube's: it scales the
+                  // whole outer airframe, and a note implying otherwise would be the more misleading
+                  // of the two.
+                  <p className="mb-2 text-xs text-zinc-500 dark:text-zinc-400">
+                    This design has {designDims.unreachableBodyTubes} other body{" "}
+                    {designDims.unreachableBodyTubes === 1 ? "tube" : "tubes"}.{" "}
+                    <em>Body length</em> describes and changes {bodyPhrase}; to edit another, pick it{" "}
+                    on the diagram or in the parts table above. <em>Body diameter</em> reads that same{" "}
+                    tube, but scales the whole outer airframe to the caliber you give it, so the mould{" "}
+                    line stays faired.
+                  </p>
+                )}
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                   {designDims.noseLength !== undefined && (
                     <Num

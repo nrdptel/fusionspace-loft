@@ -2794,6 +2794,92 @@ test.describe("Loft", () => {
     expect((await spanOf())[0], "the set that was not picked must not change").toBe(before[0]);
   });
 
+  test("picking a body tube aims the body fields at it, and the length lands there only", async ({ page }) => {
+    // `Body length` used to resolve "the" body tube as the LONGEST one, so on a design with several
+    // every tube but that one was unreachable: the flyer clicks the booster tube, types a length, and
+    // the sustainer tube resizes instead. 20 of the 27 real OpenRocket designs in the corpus carry
+    // more than one body tube. `two-stage-firm-booster.ork` is two — 600 mm at station 200 and
+    // 500 mm at station 800 — and names them both "body", so the panel has to say which it is holding
+    // by where it sits rather than by a name that distinguishes nothing.
+    await page.goto("/");
+    await page
+      .getByLabel(/^Choose an OpenRocket/)
+      .setInputFiles(resolve(process.cwd(), "e2e/fixtures/two-stage-firm-booster.ork"));
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    await page.getByRole("tab", { name: "Design" }).click();
+    await page.locator("summary", { hasText: /Parts ·/ }).click();
+
+    const tubeRows = page.locator("tr").filter({ hasText: /Body tube/ });
+    await expect(tubeRows).toHaveCount(2);
+    const lengthsOf = async () =>
+      (await tubeRows.allTextContents()).map((t) => t.replace(/\s+/g, " ").match(/L ([\d,]+) mm/)?.[1] ?? "?");
+    const before = await lengthsOf();
+    expect(before[0]).not.toBe("?");
+    expect(before[0]).not.toBe(before[1]); // the two tubes really are different lengths
+
+    // The field starts on the design's primary (longest) tube.
+    const bodyField = page.locator("label").filter({ hasText: /Body length/ }).first().locator("input");
+    await expect(bodyField).toHaveAttribute("placeholder", before[0]);
+
+    // Aim the fields at the SECOND tube. The field now describes it...
+    await tubeRows.nth(1).click();
+    await expect(bodyField).toHaveAttribute("placeholder", before[1]);
+    // ...and the panel says which tube it is holding, by station, since both are called "body".
+    await expect(page.getByText(/Body length.*describes and changes the tube 800 mm from the nose/)).toBeVisible();
+
+    // Edit it. Only the picked tube moves.
+    await bodyField.fill("640");
+    await bodyField.blur();
+    await expect.poll(async () => (await lengthsOf())[1], { timeout: 15000 }).toBe("640");
+    expect((await lengthsOf())[0], "the tube that was not picked must not change").toBe(before[0]);
+  });
+
+  test("a body-tube pick survives a re-fly and a reload", async ({ page }) => {
+    // The aim is part of the design's saved state, so a phone that reclaims the tab mid-trim comes
+    // back pointed at the same part. Without that, a reload silently re-aims the body fields at the
+    // longest tube while the number in the box is still the one typed for another.
+    await page.goto("/");
+    await page
+      .getByLabel(/^Choose an OpenRocket/)
+      .setInputFiles(resolve(process.cwd(), "e2e/fixtures/two-stage-firm-booster.ork"));
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    await page.getByRole("tab", { name: "Design" }).click();
+    await page.locator("summary", { hasText: /Parts ·/ }).click();
+
+    const tubeRows = page.locator("tr").filter({ hasText: /Body tube/ });
+    const lengthsOf = async () =>
+      (await tubeRows.allTextContents()).map((t) => t.replace(/\s+/g, " ").match(/L ([\d,]+) mm/)?.[1] ?? "?");
+    const before = await lengthsOf();
+
+    await tubeRows.nth(1).click();
+    const bodyField = page.locator("label").filter({ hasText: /Body length/ }).first().locator("input");
+    await bodyField.fill("640");
+    await bodyField.blur();
+    // The edit re-flies the design — that is the "survives a re-fly" half: the aim is still on tube 2
+    // afterwards, so the field goes on describing the tube it changed.
+    await expect.poll(async () => (await lengthsOf())[1], { timeout: 15000 }).toBe("640");
+    await expect(bodyField).toHaveValue("640");
+
+    // A restored session opens on the workspace it was left on, so wait on the resume notice rather
+    // than on a workspace heading, then make sure we are on Design.
+    await page.reload();
+    await expect(page.getByText(/Picked up where you left off/)).toBeVisible({ timeout: 30_000 });
+    await page.getByRole("tab", { name: "Design" }).click();
+    await page.locator("summary", { hasText: /Parts ·/ }).click();
+
+    const rows2 = page.locator("tr").filter({ hasText: /Body tube/ });
+    const lengths2 = (await rows2.allTextContents()).map(
+      (t) => t.replace(/\s+/g, " ").match(/L ([\d,]+) mm/)?.[1] ?? "?",
+    );
+    // The edited tube kept its edit and the other kept its own length...
+    expect(lengths2[1]).toBe("640");
+    expect(lengths2[0]).toBe(before[0]);
+    // ...and the aim came back with it, so the panel still names the tube the field is holding.
+    await expect(
+      page.getByText(/Body length.*describes and changes the tube 800 mm from the nose/),
+    ).toBeVisible();
+  });
+
   test("an active fin edit stays on its set when you click something else", async ({ page }) => {
     // The destructive version of this is silent: with the fin fields aimed at set 2 and a span set,
     // clicking a body tube to read it cleared the target, so the same 77 mm re-applied to set 1 —

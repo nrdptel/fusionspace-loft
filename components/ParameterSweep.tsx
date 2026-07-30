@@ -172,9 +172,12 @@ export default function ParameterSweep({
     }
     const nose = primaryNose(doc.rocket)?.length;
     if (nose && nose > 0) list.push(geometryAxis("noseLength", "Nose length", nose));
-    const body = primaryBodyTube(doc.rocket)?.length;
+    // Both body axes are swept as ABSOLUTE values written to the picked tube, so like the fin axes
+    // their base has to be that tube's own dimension — a curve based on the longest tube's length
+    // while the sweep resizes a different one has the wrong rocket on its x-axis.
+    const body = primaryBodyTube(doc.rocket, geometry?.bodyTubeId)?.length;
     if (body && body > 0) list.push(geometryAxis("bodyLength", "Body length", body));
-    const dia = primaryBodyDiameter(doc.rocket);
+    const dia = primaryBodyDiameter(doc.rocket, geometry?.bodyTubeId);
     if (dia && dia > 0) list.push(geometryAxis("bodyDiameter", "Body diameter", dia));
     // Nose ballast: range 0 → ~40% of the design's liftoff mass, sized from one baseline flight so
     // the trim sweep spans a sensible amount of weight for this particular rocket.

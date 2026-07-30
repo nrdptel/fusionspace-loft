@@ -75,4 +75,34 @@ describe("designKey", () => {
       designKey({ ...base, geometry: { finSetId: "b", finSpan: 0.05 } }),
     );
   });
+
+  it("ignores a bare body-tube selection but not one that aims an active body edit", () => {
+    const base = { loadId: 1, simIndex: 0 };
+    expect(designKey({ ...base, geometry: { bodyTubeId: "a" } })).toBe(
+      designKey({ ...base, geometry: { bodyTubeId: "b" } }),
+    );
+    expect(designKey({ ...base, geometry: { bodyTubeId: "a" } })).toBe(designKey({ ...base, geometry: {} }));
+    // A length edit lands on the tube the selection names, so the same length on a different tube is
+    // a different rocket.
+    expect(designKey({ ...base, geometry: { bodyTubeId: "a", bodyLength: 0.5 } })).not.toBe(
+      designKey({ ...base, geometry: { bodyTubeId: "b", bodyLength: 0.5 } }),
+    );
+    // ...and so does the caliber, which reads the picked tube even though it scales the airframe.
+    expect(designKey({ ...base, geometry: { bodyTubeId: "a", bodyDiameter: 0.06 } })).not.toBe(
+      designKey({ ...base, geometry: { bodyTubeId: "b", bodyDiameter: 0.06 } }),
+    );
+  });
+
+  it("keeps the two selections independent, so one role's edit does not make the other's pick matter", () => {
+    // Pooled, this cost minutes of work for a click that changed nothing: with a body-length edit
+    // active, picking a fin set would have reset every heavy panel, and with a fin-span edit active,
+    // picking a body tube would have done the same.
+    const base = { loadId: 1, simIndex: 0 };
+    expect(designKey({ ...base, geometry: { bodyLength: 0.5, finSetId: "a" } })).toBe(
+      designKey({ ...base, geometry: { bodyLength: 0.5, finSetId: "b" } }),
+    );
+    expect(designKey({ ...base, geometry: { finSpan: 0.05, bodyTubeId: "a" } })).toBe(
+      designKey({ ...base, geometry: { finSpan: 0.05, bodyTubeId: "b" } }),
+    );
+  });
 });

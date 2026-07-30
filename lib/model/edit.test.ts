@@ -26,7 +26,11 @@ import {
   primaryAirframeMaterial,
   AIRFRAME_MATERIALS,
   unreachableFinSetCount,
+  unreachableBodyTubeCount,
   primaryFinGroupIds,
+  primaryFinSetPart,
+  primaryBodyTubePart,
+  aimEditsAt,
   hasGeometryEdits,
 } from "./edit";
 import type {
@@ -996,5 +1000,197 @@ describe("applyGeometryEdits — airframe material", () => {
     expect(AIRFRAME_MATERIALS.length).toBeGreaterThan(3);
     expect(AIRFRAME_MATERIALS.map((m) => m.key)).toContain("fibreglass");
     for (const m of AIRFRAME_MATERIALS) expect(m.density).toBeGreaterThan(0);
+  });
+});
+
+describe("body tubes are addressed by identity, not by role", () => {
+  /** Every body tube on a design, nose-to-tail, with the station the flatten puts it at. */
+  const tubesOf = (r: Rocket) => flattenRocket(r).filter((p) => p.component.kind === "bodytube");
+  const lenOf = (p: { component: RocketComponent }) => (p.component as { length: number }).length;
+
+  it("resolves the picked tube, and falls back to the longest without a pick", async () => {
+    // Measured, not assumed: `demo-quirks.ork` imports as two body tubes — Upper, 0.50 m at
+    // ⌀66 mm, and Motor mount body, 0.45 m at ⌀44 mm, with a transition between them. (The file's
+    // third tube is inside a pod assembly the importer does not carry through.) The longest is
+    // Upper, so that is what "the primary body tube" has always meant.
+    const rocket = await load("demo-quirks.ork");
+    const tubes = tubesOf(rocket);
+    expect(tubes.length).toBe(2);
+
+    expect(primaryBodyTube(rocket)!.name).toBe("Upper");
+    for (const t of tubes) expect(primaryBodyTube(rocket, t.component.id)!.id).toBe(t.component.id);
+    // A stale id from a restored session must not disable the body fields — it falls back rather
+    // than resolving to nothing.
+    expect(primaryBodyTube(rocket, "no-such-component")!.name).toBe("Upper");
+  });
+
+  it("resizes the PICKED tube and leaves every other tube alone", async () => {
+    const rocket = await load("demo-quirks.ork");
+    const target = tubesOf(rocket).find((p) => p.component.name === "Motor mount body")!;
+    const other = tubesOf(rocket).find((p) => p.component.name === "Upper")!;
+    const otherLen0 = lenOf(other);
+
+    const edited = applyGeometryEdits(rocket, { bodyTubeId: target.component.id, bodyLength: 0.8 });
+
+    // The picked tube took the value...
+    expect(primaryBodyTube(edited, target.component.id)!.length).toBeCloseTo(0.8, 9);
+    // ...and the tube the edit was NOT aimed at is untouched — including the longest one, which is
+    // what the edit used to hit whatever the flyer had picked.
+    expect(primaryBodyTube(edited, other.component.id)!.length).toBeCloseTo(otherLen0, 9);
+    // The whole airframe stretches by the same 0.35 m, so the edit really did reach the flight.
+    expect(overallLength(edited)).toBeCloseTo(overallLength(rocket) + 0.35, 6);
+    // Non-destructive.
+    expect(lenOf(tubesOf(rocket).find((p) => p.component.id === target.component.id)!)).toBeCloseTo(0.45, 9);
+  });
+
+  it("without a pick still resizes the longest tube — the old behaviour is the default", async () => {
+    const rocket = await load("demo-quirks.ork");
+    const upper = tubesOf(rocket).find((p) => p.component.name === "Upper")!;
+    const mount = tubesOf(rocket).find((p) => p.component.name === "Motor mount body")!;
+    const edited = applyGeometryEdits(rocket, { bodyLength: 0.9 });
+    expect(primaryBodyTube(edited, upper.component.id)!.length).toBeCloseTo(0.9, 9);
+    expect(primaryBodyTube(edited, mount.component.id)!.length).toBeCloseTo(0.45, 9);
+  });
+
+  it("seeds the caliber scale from the picked tube, so that tube hits the target diameter", async () => {
+    const rocket = await load("demo-quirks.ork");
+    const mount = tubesOf(rocket).find((p) => p.component.name === "Motor mount body")!;
+    const mountDia0 = primaryBodyDiameter(rocket, mount.component.id)!;
+    const upperDia0 = primaryBodyDiameter(rocket)!;
+    expect(mountDia0).toBeCloseTo(0.044, 9);
+    expect(upperDia0).toBeCloseTo(0.066, 9); // the two calibers really do differ
+
+    const target = 0.06;
+    const edited = applyGeometryEdits(rocket, { bodyTubeId: mount.component.id, bodyDiameter: target });
+    // The tube the field was reading is the tube that lands on the number typed into it. Seeded from
+    // the longest tube instead, this came out at 0.040 m — the flyer types 60 mm and gets 40.
+    expect(primaryBodyDiameter(edited, mount.component.id)).toBeCloseTo(target, 9);
+    // The rest of the outer airframe follows by the SAME factor, so the mould line stays faired —
+    // this edit is deliberately group-wide, and the panel says so.
+    const f = target / mountDia0;
+    expect(primaryBodyDiameter(edited)!).toBeCloseTo(upperDia0 * f, 9);
+  });
+
+  it("a body-tube pick on its own is not an edit and flies the design untouched", async () => {
+    const rocket = await load("demo-quirks.ork");
+    const mount = tubesOf(rocket).find((p) => p.component.name === "Motor mount body")!;
+    expect(hasGeometryEdits({ bodyTubeId: mount.component.id })).toBe(false);
+    expect(applyGeometryEdits(rocket, { bodyTubeId: mount.component.id })).toBe(rocket);
+  });
+
+  it("counts the tubes the body fields cannot reach without a pick", async () => {
+    expect(unreachableBodyTubeCount(await load("demo-quirks.ork"))).toBe(1);
+    expect(unreachableBodyTubeCount(await load("demo-single-deploy.ork"))).toBe(0);
+  });
+});
+
+describe("aimEditsAt — which fields a pick re-aims", () => {
+  it("aims the body fields at a body tube and the fin fields at a fin set", async () => {
+    const rocket = await load("demo-quirks.ork");
+    const parts = flattenRocket(rocket);
+    const tube = parts.find((p) => p.component.kind === "bodytube")!;
+    const fin = parts.find((p) => p.component.kind.endsWith("finset"))!;
+
+    expect(aimEditsAt(rocket, tube.component.id)).toEqual({ bodyTubeId: tube.component.id });
+    expect(aimEditsAt(rocket, fin.component.id)).toEqual({ finSetId: fin.component.id });
+  });
+
+  it("re-aims nothing for a part no field describes, or for an id the design does not have", async () => {
+    // `demo-quirks.ork` carries a tube coupler, a mass object, a streamer and a transition — parts a
+    // flyer reads on the diagram and that no editor field describes. Reading one must move no aim.
+    const rocket = await load("demo-quirks.ork");
+    const coupler = flattenRocket(rocket).find((p) => p.component.kind === "tubecoupler")!;
+    expect(coupler, "the fixture needs a part that drives no field").toBeTruthy();
+    expect(aimEditsAt(rocket, coupler.component.id)).toEqual({});
+    expect(aimEditsAt(rocket, "no-such-component")).toEqual({});
+  });
+
+  it("leaves the other aim alone, so an active edit cannot follow an unrelated pick", async () => {
+    // The destructive version of this is silent: with the fin fields aimed at one set and a span set,
+    // a body-tube pick that cleared the fin aim would re-apply that span to the frontmost set — a
+    // different fin changes, with the field still reading the value the flyer typed.
+    const rocket = await load("demo-quirks.ork");
+    const parts = flattenRocket(rocket);
+    const fin = parts.find((p) => p.component.kind.endsWith("finset"))!;
+    const tube = parts.find((p) => p.component.kind === "bodytube")!;
+    const merged = { finSetId: fin.component.id, ...aimEditsAt(rocket, tube.component.id) };
+    expect(merged.finSetId).toBe(fin.component.id);
+    expect(merged.bodyTubeId).toBe(tube.component.id);
+  });
+});
+
+describe("naming the part the fields are holding", () => {
+  it("uses the design's own name when it tells the part apart", async () => {
+    const rocket = await load("demo-quirks.ork");
+    const mount = flattenRocket(rocket).find((p) => p.component.name === "Motor mount body")!;
+    expect(primaryBodyTubePart(rocket, mount.component.id)!.name).toBe("Motor mount body");
+    expect(primaryBodyTubePart(rocket)!.name).toBe("Upper");
+  });
+
+  it("names by station when the design names every tube alike", async () => {
+    // Real files do: `two-stage-firm-booster.ork` calls both of its tubes "body". A shared name
+    // distinguishes nothing, so the label falls back to where the part sits — which, unlike the
+    // positional name this replaced, stays true however the parts table beside it is sorted.
+    const bytes = new Uint8Array(
+      readFileSync(resolve(process.cwd(), "e2e/fixtures", "two-stage-firm-booster.ork")),
+    );
+    const rocket = (await importOrk(bytes)).rocket;
+    const tubes = flattenRocket(rocket).filter((p) => p.component.kind === "bodytube");
+    expect(tubes.length).toBe(2);
+    expect(new Set(tubes.map((p) => p.component.name)).size).toBe(1); // both called the same thing
+
+    for (const t of tubes) {
+      const part = primaryBodyTubePart(rocket, t.component.id)!;
+      expect(part.name).toBeUndefined();
+      expect(part.station).toBeCloseTo(t.xFore, 9);
+      expect(part.covers).toBe(1);
+    }
+    // And the two stations differ, so the two labels differ — the whole point of naming by station.
+    expect(primaryBodyTubePart(rocket, tubes[0].component.id)!.station).toBeCloseTo(0.2, 6);
+    expect(primaryBodyTubePart(rocket, tubes[1].component.id)!.station).toBeCloseTo(0.8, 6);
+  });
+
+  it("states how many fin sets the fin fields change, rather than naming one and changing several", async () => {
+    // `ARC payload rocket.ork` in the corpus is one 3-fin ring stored as three 1-fin sets: the fin
+    // fields must move all three together, and a label naming one set claimed they moved one.
+    // Reproduced here by duplicating a ring at its own station.
+    const rocket = await load("demo-single-deploy.ork");
+    const fin = flattenRocket(rocket).find((p) => p.component.kind === "trapezoidfinset")!;
+    const addTwin = (list: RocketComponent[]): RocketComponent[] =>
+      list.map((c) =>
+        c.children.some((ch) => ch.id === fin.component.id)
+          ? {
+              ...c,
+              children: [
+                ...c.children,
+                { ...(fin.component as TrapezoidFinSet), id: `${fin.component.id}-twin` },
+              ],
+            }
+          : c.children.length
+            ? { ...c, children: addTwin(c.children) }
+            : c,
+      );
+    const twinned: Rocket = {
+      ...rocket,
+      stages: rocket.stages.map((s) => ({ ...s, components: addTwin(s.components) })),
+    };
+    expect(primaryFinGroupIds(twinned, fin.component.id).size).toBe(2);
+    expect(primaryFinSetPart(twinned, fin.component.id)!.covers).toBe(2);
+    // A single-set design says 1, so the caller only has something to disclose when there is one.
+    expect(primaryFinSetPart(rocket, fin.component.id)!.covers).toBe(1);
+  });
+
+  it("is undefined on a design with no such part", async () => {
+    const rocket = await load("demo-single-deploy.ork");
+    const strip = (list: RocketComponent[]): RocketComponent[] =>
+      list
+        .filter((c) => !c.kind.endsWith("finset"))
+        .map((c) => (c.children.length ? { ...c, children: strip(c.children) } : c));
+    const finless: Rocket = {
+      ...rocket,
+      stages: rocket.stages.map((s) => ({ ...s, components: strip(s.components) })),
+    };
+    expect(primaryFinSetPart(finless)).toBeUndefined();
+    expect(primaryBodyTubePart(finless)).toBeDefined();
   });
 });
