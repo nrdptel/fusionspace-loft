@@ -2,16 +2,24 @@
 
 The standing brief for whoever is working on Loft: who you are on this project, what the bar is, and
 how work ships. It is deliberately status-free — no roadmap, no file list, no "current state" — so it
-cannot go stale. Everything concrete lives in the repo: `HANDOFF.md` for what the last session did,
-`BACKLOG.md` for what it noticed and didn't do.
+cannot go stale. Everything concrete lives in the repo:
+
+| file | holds |
+|---|---|
+| `ROADMAP.md` | **the queue** — two tracks, R (capability) and P (product & craft). A run ships from both. |
+| `DESIGN.md` | **how it must look and behave** — tokens, scale, component vocabulary, states, product shape. Binding. |
+| `COMPETITION.md` | **the tracked gap** against OpenRocket, RocketPy, RASAero, RockSim. Feeds the roadmap. |
+| `HANDOFF.md` | what the last session did, and the arc across sessions. |
+| `BACKLOG.md` | a defect ledger to file into — **not** a plan. |
 
 **Read this first, in full, before touching anything.** A session opens by pointing at it, and adds a
 budget when the work is meant to run long:
 
-> Follow MAINTAINING.md. AUTOPILOT: 4h · FOCUS: mobile
+> Follow MAINTAINING.md. AUTOPILOT: 8h
 
 Nothing after the pointer means a single verified increment. The grammar is in *Duration & long runs*
-below.
+below. The prompt names no milestone and no goal on purpose — this repo carries all of that, and a
+prompt that named a milestone would be wrong the day it ships.
 
 ## This repo, concretely
 
@@ -33,8 +41,21 @@ npm run fetch-fixtures          # the real-design corpus (needs FIXTURES_TOKEN)
   itself — so confirm the suite names its fixture count before you trust a sweep. If a fixtures
   checkout is already on disk beside this repo, linking its per-tool directories into `corpus/` works
   just as well.
-- **Playwright** may need `PW_EXECUTABLE_PATH` pointed at a pre-installed Chromium in a sandbox; do
-  not run `playwright install` there.
+- **Playwright: prefer the browser this repo's Playwright manages, and only fall back to
+  `PW_EXECUTABLE_PATH`.** Measured 2026-07-30: `@playwright/test` is 1.61.1 here and manages
+  **chromium-1228**, while the sandbox's pre-installed `/opt/pw-browsers/chromium` was **1194**.
+  Pointing `PW_EXECUTABLE_PATH` at it — which this repo's own notes have told every session to do —
+  ran all 169 e2e tests against a build 34 revisions off the one the suite was written against. They
+  passed on both, so nothing is currently masked; the hazard is that a mismatch changes browser
+  behaviour *without failing loudly*. The sibling repo learned this the expensive way (a mismatched
+  build changed service-worker offline handling and cost a session a wrong diagnosis) and now guards
+  against it in `playwright.config.ts`. **So: try plain `npx playwright test` first.** If the managed
+  browser is missing, `npx playwright install chromium` fetches it in about a minute (~114 MB) and
+  succeeds through the proxy — the blanket "never run `playwright install` in a sandbox" advice
+  assumes the right build is already present, and when it is not, that advice does not apply. Use
+  `PW_EXECUTABLE_PATH` only when the install genuinely cannot run, and **say in the report which
+  revision the suite actually ran against.**
+  *Porting the sibling's revision guard into this repo's config is filed in `BACKLOG.md`.*
 - **The clone may be shallow.** Check `git rev-parse --is-shallow-repository` before quoting any
   commit count or file history — on a shallow clone both are a window, not the record.
 - **Throwaway probes** are named `*-tmp.*` and gitignored. Check the glob covers the exact name you
@@ -178,11 +199,13 @@ something out that the repo could have told you, write it down before you finish
 ## Session start — the first fifteen minutes
 Do these in order, before scoping increment 1. None is optional; most run concurrently.
 
-1. **Read the repo's own memory.** `ROADMAP.md` **first** — it holds the queue, and the next
-   unstarted milestone is this run's goal unless the owner named one. Then `HANDOFF.md`,
-   `BACKLOG.md`, `CONTRIBUTING.md`, and `git log --oneline -25`. If `HANDOFF.md` is missing, note it
-   — the last session skipped it and you must not. Read `BACKLOG.md` as a defect ledger to file
-   into and to check for Sev-1s, **not** as the list of what to build.
+1. **Read the repo's own memory.** `ROADMAP.md` **first** — it holds the two-track queue, and the next
+   unstarted milestone on EACH track is this run's goal unless the owner named one. Then `DESIGN.md`
+   (the authority on how anything you build must look and behave — read it before you write a
+   component, not after), `HANDOFF.md`, `COMPETITION.md`, `BACKLOG.md`, `CONTRIBUTING.md`, and
+   `git log --oneline -25`. If `HANDOFF.md` is missing, note it — the last session skipped it and you
+   must not. Read `BACKLOG.md` as a defect ledger to file into and to check for Sev-1s, **not** as the
+   list of what to build.
 
 2. **Probe the environment before you depend on it.** Record the answers and put anything durable in
    *This repo, concretely* above:
@@ -228,6 +251,13 @@ You can fan work out to subagents, each with its own context window. Token cost 
 constraint; your context and your attention are. Delegate anything that means **reading a lot and
 concluding a little**. Keep everything that means **deciding and shipping**.
 
+**Where a harness offers a heavier orchestration mode** — a multi-agent workflow engine, a directive
+that turns every task into a fan-out — use it for exactly the investigations below and **not for the
+ship loop**. Investigation parallelises; scoping, writing, gating, reviewing the diff and pushing do
+not, and wrapping them in an orchestration layer buys nothing while adding a way for two agents to
+touch one checkout. The rule underneath is unchanged and is the one to follow when a harness
+instruction and this section appear to disagree: **fan out to READ, stay single-threaded to WRITE.**
+
 **Keep at least three agents in flight during investigation.** If none are running and you are
 reading files to answer a question, you are doing subagent work yourself.
 
@@ -246,6 +276,16 @@ reading files to answer a question, you are doing subagent work yourself.
 - **Surface audit**, whenever you are about to change how a value is computed, presented or withheld:
   "find every place that presents / labels / withholds X." Trusting your memory of that list is how a
   caveat lands on one panel and a confident claim on another.
+- **Design-system audit**, every long run. Hand an agent `DESIGN.md` and the component tree: "list
+  every place the code diverges from this file — treatments hand-rolled where a primitive exists,
+  off-scale spacing, off-system radius, a fourth button weight, a data surface missing one of the five
+  states." Its output is a table of `file:line · rule broken · the primitive it should use`, and it
+  feeds the P-track directly. This is the audit that has never been run, which is why the divergence
+  was only discovered by measurement.
+- **Competitive probe**, aimed at the surface the run is about to touch: "how do OpenRocket, RockSim,
+  RASAero and RocketPy do this same job — what do they offer that we don't, and what do we offer that
+  they don't?" One row into `COMPETITION.md` per run, minimum. Mark anything not directly verified
+  `UNVERIFIED`; a misremembered competitor feature is an expensive thing to build against.
 
 **The return contract**, given to every agent: *≤40 lines. Ranked. One line each:
 `file:line · what's wrong · how to reproduce it in under a minute · why it matters`. No file
@@ -290,8 +330,11 @@ sequence, smallest first, and say in the report that you did.
 
 ## Each pass: one high-leverage increment
 
-**The default goal is the next unstarted milestone in `ROADMAP.md`.** Not a defect. Unless the owner
-names something else, that milestone is what the run ships, and increments are slices of it.
+**The default goal is the next unstarted milestone on EACH of `ROADMAP.md`'s two tracks — R
+(capability) and P (product & craft) — and a run ships from both.** Not a defect. Unless the owner
+names something else, those two milestones are what the run ships, and increments are slices of them.
+Start with the smaller so something lands early. If there is time for only one, take the P-track
+milestone.
 
 This used to be a priority list with correctness first, craft second, and feature depth third. That
 list could never reach third place, and the repo proves it: a run of eighteen merged commits shipped
@@ -311,9 +354,22 @@ Fix those immediately, whatever they cost. **Everything else is filed in `BACKLO
 including findings you are certain about, including ones that would take ten minutes. Filing is not
 deferring the work; letting them absorb the run is how the last several runs ended with nothing new.
 
-**The quota: at most one increment in four may be defect or polish work**, Sev-1 preemptions
-excluded. Reaching that cap means the rest of the run is milestone work or nothing. If the owner names
-a correctness focus, that overrides this — a named focus is always the goal.
+**The quota: at most one increment in four may be UNQUEUED defect work** — a `BACKLOG.md` entry you
+chose to clear — Sev-1 preemptions excluded, counted across runs rather than within each. Reaching
+that cap means the rest of the run is milestone work or nothing. If the owner names a correctness
+focus, that overrides this — a named focus is always the goal.
+
+**This quota does NOT cap craft, polish or product work, and it used to.** The old wording read
+"defect or polish work", which capped at 25% exactly the work the P-track now exists to do — and it
+was the *mechanical* rule while the craft bar below was only an aspiration, so it won every time the
+two disagreed. Craft work that is a slice of a P-track milestone is milestone work. It is not
+governed by this quota, it does not compete with the R-track, and "I already spent my polish
+increment" is not a thing that can be true.
+
+The distinction that matters is **queued versus unqueued**, not capability versus craft. A P-track
+milestone is queued work with a *done when* and a pinning check, exactly like an R-track one. An
+entry you plucked from the defect ledger is not, however tempting — that is what the quota protects
+against, because a real corpus and a real UI generate defects faster than anyone clears them.
 
 **Do not manufacture correctness work.** If a sweep over real files turns up no finding, say so with
 the output. A speculative guard that fires on zero real files is worse than nothing, and
@@ -325,7 +381,13 @@ permission to ship it unfinished: no false precision, no number that is not the 
 the bar above applies to every new surface on the pass that creates it. A feature that lies is worse
 than no feature. What changed is which work the run goes looking for, not how well it is done.
 
-**Other axes, when the roadmap is genuinely blocked** on an owner decision — say which:
+**Craft is not an axis you fall back to — it is a track you ship from.** The three bullets below used
+to be where product quality lived: available "when the roadmap is genuinely blocked". That is why the
+app reached three shipped capability milestones still shaped like one scrolling page with twelve card
+treatments on it. Craft with a *done when* belongs on the P-track and ships every run. What remains
+below is the genuinely-blocked fallback it always claimed to be.
+
+**Other axes, when BOTH tracks are genuinely blocked** on an owner decision — say which:
 - **Craft & product feel** — the bar above. A surface that is correct but reads as unfinished is not
   done. The cold walks feed this directly.
 - **Hardening / testing / performance** — malformed and oddball files, unusual builds, huge models,
@@ -361,11 +423,25 @@ The owner opens a session with one line:
 - `· FOCUS: <anything>` steers a run — `AUTOPILOT: 4h · FOCUS: the builder/editor`,
   `· FOCUS: accuracy only`, `· FOCUS: mobile`. A focus narrows the priority list; it never suspends
   the invariants, the gate, or the done-check.
+- `· TRACK: P` or `· TRACK: R` — spend the whole run on one track instead of alternating. Use it to
+  correct an imbalance deliberately; absent it, alternate.
 - Nothing said — exactly one increment, verified and shipped.
+
+**The standing unattended prompt is `AUTOPILOT: <budget>` and nothing more.** It deliberately names
+no milestone, no track and no goal, because this repo carries all of that and a prompt that names any
+of it is wrong within a day. If a prompt ever says "ship the next unstarted milestone", read it as the
+default it already is — **not** as a limit of one, and not as permission to skip the other track.
 
 **A time budget means working for that time.** Ending a 4h run at 90 minutes because the obvious work
 ran out is a failure mode, not discipline. Aim for a shipped increment every 15–25 minutes. Do not
 gold-plate one change to fill the clock either; ship it and start the next.
+
+**A long run ships MORE THAN ONE milestone, and the budget says how many.** Milestones are sized 2–6
+increments, so at 15–25 minutes each one is roughly 1–2 hours. Divide the budget: a 4h run is two to
+three milestones, an 8h run four or more — alternating tracks. **Finishing the milestone is not
+finishing the run.** Mark it shipped in `ROADMAP.md`, take the next unstarted one on the other track,
+and keep going. A run that ships one milestone in eight hours has spent most of its budget deciding
+it was done, and the done-check exists precisely to catch that.
 
 **Batch only what is independently safe.** Investigation is now parallel and cheap; the serial cost
 is the gate. Craft fixes touching disjoint surfaces may share one gate run and land as separate
@@ -385,13 +461,16 @@ adding real feature depth, or hardening.
 
 **When the cheap queue drains** — increment ten, fifteen, twenty — these are always available and
 none of them is padding. **Take the first one before any of the others:**
-- **Ship the next slice of the roadmap milestone.** This is never unavailable, which is the point: a
-  drained defect queue is not a reason to look for more defects. The three below used to be the whole
-  list, and not one of them produces a capability — that is how a long run reached increment twenty
-  having split files and added tests and built nothing a flyer can use.
-- **Split a file that has become the app.** Promoting one workspace to its own static route is what
-  the PRODUCT SHAPE invariant asks for and what unblocks parallel work.
-- **Land the check for a tell you fixed this run without one** — a test that stops it coming back.
+- **Ship the next slice of the current milestone; when it ships, take the next milestone on the other
+  track.** This is never unavailable, which is the point: a drained defect queue is not a reason to
+  look for more defects. The items below used to be the whole list, and not one of them produces a
+  capability or a visible improvement — that is how a long run reached increment twenty having split
+  files and added tests and built nothing a flyer can use.
+- **If both tracks are somehow dry, extend `ROADMAP.md`** from the after-list and start the milestone
+  you just wrote. That is one increment's work and it IS the work.
+- **Resolve a `GAP` row in `COMPETITION.md`** — either build it or decide `REJECT` with a reason.
+- **Land the check for a tell you fixed this run without one** — a test that stops it coming back,
+  including a `DESIGN.md` §9 count that has no assertion behind it yet.
 - **Convert a known limit into a measured, cited entry on the limitations page**, with the number
   that makes it real.
 
@@ -416,20 +495,30 @@ ALL of the following and reported what each produced:
 2. **Re-walk the app cold** on what you changed this run, plus one journey you have not walked yet.
    Walk the **built export of the SHA you shipped**, and name that SHA. Fetch the deployed URL
    separately to establish what production is actually serving, and report the gap between them.
-3. **Benchmark one surface** against how a mature tool does the same job, and name what theirs has
-   that ours doesn't.
-4. **Read `BACKLOG.md`** — and correct the entries this run invalidated rather than leaving them to
+3. **Benchmark one surface** against how a mature tool does the same job, and **write the row into
+   `COMPETITION.md`** — capability, where ours is, verdict, note. A benchmark that lands only in the
+   chat report is a benchmark nobody will ever read again; that is why this file exists. Resolving an
+   existing row counts, and is often worth more than adding one.
+4. **Run `DESIGN.md`'s compliance block (§9) and report the counts.** Numbers, not adjectives. If any
+   count moved the wrong way this run, that is a regression you caused and it is fixed before the run
+   ends — the same standard as a red gate.
+5. **Read `BACKLOG.md`** — and correct the entries this run invalidated rather than leaving them to
    mislead.
-5. **Answer this out loud: what can a flyer DO after this run that they could not do before?** Name
-   it in one sentence. If the honest answer is "nothing", say exactly that, say which milestone the
-   run was on, and say what stopped it — an owner decision, a wrongly sized milestone, a Sev-1 that
-   ate the run, or your own choice to keep fixing things. A run of eighteen green commits that adds
-   no capability currently reports as a total success, because nothing in this list asked. Now it
-   does.
-6. **Update `ROADMAP.md`** — mark what shipped against the milestone's *done when*, and record the
-   gap. That gap is the next session's first increment.
+6. **Answer BOTH of these out loud.** One sentence each, and they are different questions:
+   - **What can a flyer DO after this run that they could not do before?** (R-track)
+   - **What is measurably better about using the tool after this run?** (P-track) — a count that moved,
+     a surface that now matches the system, a journey that lost a step. "It looks nicer" is not an
+     answer; `DESIGN.md` §9 produces real ones.
 
-Then ship the highest-leverage item from what steps 2–4 produced. Only if all four yield literally
+   If the honest answer to either is "nothing", say exactly that, say which milestone that track was
+   on, and say what stopped it — an owner decision, a wrongly sized milestone, a Sev-1 that ate the
+   run, or your own choice to keep fixing things. A run of eighteen green commits that adds no
+   capability and changes nothing a flyer would notice used to report as a total success, because
+   nothing in this list asked. Now both halves ask.
+7. **Update `ROADMAP.md`** — mark what shipped against each milestone's *done when*, on both tracks,
+   and record the gap. That gap is the next session's first increment.
+
+Then ship the highest-leverage item from what steps 2–5 produced. Only if all of them yield literally
 nothing may the run end early, and the report must show what each returned.
 
 **Legitimate early stops**, and say which one:
@@ -523,10 +612,14 @@ the report.
 ## Workflow (per increment)
 1. **Orient** — `git fetch`, reconcile against the repo, decide what is weakest or highest-value.
 2. **Scope** one increment (or a tight, independently-safe set).
-3. **Build** to the surrounding code's quality — match its style, structure, and comment density.
-   Keep the simulation core pure and format-agnostic (see `CONTRIBUTING.md`): every importer AND the
-   in-app builder/editor is a thin producer of the single canonical Rocket model, and the solver only
-   ever sees that model — never a file format or the UI.
+3. **Build** to `DESIGN.md`, not to the surrounding code. Where the two disagree the file wins and the
+   surrounding code is what is wrong — converting it is in scope, not a distraction. Match the
+   surrounding code's *style, structure and comment density*; take its visual treatments only when
+   they already match the system. **Never hand-roll a treatment that a primitive in
+   `components/ui.tsx` covers** — every one of the twelve measured card variants was a
+   just-this-once. Keep the simulation core pure and format-agnostic (see `CONTRIBUTING.md`): every
+   importer AND the in-app builder/editor is a thin producer of the single canonical Rocket model, and
+   the solver only ever sees that model — never a file format or the UI.
 4. **Verify for real** — lint, unit, build, and e2e green, AND drive the actual behavior in the
    running app, not just the tests.
    - Physics/calculation: validate against the corpus and a first-principles check, cite a published
@@ -639,6 +732,13 @@ How it reaches CI:
   RASAero-, or SpaceCAD-*defined design file* into the internal model, and surfacing the results a
   file already carries, are both welcome; vendoring another tool's solver is not. Keep the MIT license.
 - **LIVING DOCS are first-class** (workflow step 5).
+- **THE DESIGN SYSTEM IS BINDING.** `DESIGN.md` is the authority on tokens, type and spacing scale,
+  component vocabulary, button hierarchy, the five required states, number presentation, product shape
+  and the touch contract. A surface that invents its own treatment is not done, however good it looks
+  on its own — the failure being prevented is an app that reads as assembled by many hands, which is
+  what the measurements in that file record. Changing the system means changing that file first, with
+  the reason; it never means diverging in a component. **Both repos carry an identical copy, and a
+  change to one is a change to both in the same run.**
 - **ARCHITECTURE:** one pure, format-agnostic simulation core; every importer AND the in-app
   builder/editor are thin producers of a single internal Rocket model — so editing an imported design
   flows through the same model and solver as authoring a new one; the solver never sees a file format

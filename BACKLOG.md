@@ -7,9 +7,22 @@ is what several runs in a row did.
 
 Read it to file into, and to check for a Sev-1 (a wrong number on a surface a flyer would act on, or
 a one-way door — those preempt the milestone immediately). Everything else waits its turn under the
-one-in-four quota in `MAINTAINING.md`. Rough edges, missing affordances, and findings too big for one
-pass. Newest first.
+one-in-four quota on **unqueued** defect work in `MAINTAINING.md` — which caps clearing entries from
+this file, and deliberately does **not** cap craft or product work, because that now has its own
+track in `ROADMAP.md` with its own *done when*. Rough edges, missing affordances, and findings too
+big for one pass. Newest first.
 
+- **The e2e config has no browser-revision guard, so the documented gate command silently tests
+  against the wrong Chromium.** Measured 2026-07-30: `@playwright/test` 1.61.1 manages chromium-1228,
+  the sandbox's pre-installed `/opt/pw-browsers/chromium` is 1194, and `PW_EXECUTABLE_PATH` — which
+  this repo's own notes instruct every session to set — hands the older build straight to the suite
+  with no complaint. All 169 tests passed on both revisions, so nothing is masked today; the defect is
+  that nothing would say so if it were. The sibling repo hit exactly this and its
+  `playwright.config.ts` now compares `chromium.executablePath()`'s revision against the override's
+  and throws with the reason instead of running. Port that function here — it is ~15 lines, it needs
+  no new dependency, and it converts a silent wrong-browser run into a one-line error naming the fix.
+  Reproduce: `PW_EXECUTABLE_PATH=/opt/pw-browsers/chromium npx playwright test` and note that nothing
+  reports which revision ran.
 - **Dragging the Mass position grip past its end splits one gesture into two undos.** A frame beyond
   `lo`/`hi` emits the value the previous frame already emitted, `movedWhatIf` sees no change, and
   `endRun` closes the coalescing run — so overshooting and coming back leaves two "Undo the mass
