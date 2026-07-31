@@ -7,6 +7,7 @@ import {
   clearSession,
   loadRecents,
   rememberRecent,
+  replaceRecent,
   forgetRecent,
   restoreRecent,
   saveDiscardedSession,
@@ -220,6 +221,53 @@ describe("countWhatIfs", () => {
 describe("the recent-designs shelf", () => {
   const put = (name: string, at: number, bytes = "AAEC") =>
     rememberRecent({ design: bytes, name, rocket: name.replace(/\..*$/, "") }, at);
+
+  // A from-scratch build is serialised to bytes ONCE, before the first keystroke, and every edit after
+  // that lives in the edit bag — so the row named the factory starter and reopening it lost the build
+  // with no way back. Measured through the shipped UI: a starter edited to an 85 mm fin span flies
+  // 930 m at 2.19 cal, and the shelf handed back 994 m at 1.53 cal, the untouched starter.
+  it("brings a row up to date without leaving the stale one beside it", () => {
+    const shelf = put("New design", 1000, "AAEC");
+    const id = shelf[0].id;
+    replaceRecent(id, { design: "AAECAwQF", name: "My build", rocket: "My build" }, 5000);
+    const list = loadRecents();
+    expect(list.length).toBe(1);
+    expect(list[0].name).toBe("My build");
+    expect(list[0].design).toBe("AAECAwQF");
+  });
+
+  // The id is `name:byteLength`, so an edited design mints a DIFFERENT id. A plain re-record would
+  // therefore leave the original row standing — the same design on the shelf twice, at two different
+  // moments in its life. This is the case that makes `replaceRecent` a function rather than a call to
+  // `rememberRecent`.
+  it("does not duplicate when the edit changes the design's byte length", () => {
+    const shelf = put("New design", 1000, "AAEC");
+    expect(shelf[0].id).toBe("New design:4");
+    replaceRecent(shelf[0].id, { design: "AAECAwQFBgc", name: "New design", rocket: "New design" }, 5000);
+    const list = loadRecents();
+    expect(list.length).toBe(1);
+    expect(list[0].id).toBe("New design:11");
+  });
+
+  it("keeps the row where it was in time rather than jumping it to the front", () => {
+    put("older.ork", 1000);
+    const mine = put("mine.ork", 2000, "AAEC");
+    put("newer.ork", 3000);
+    expect(loadRecents().map((r) => r.name)).toEqual(["newer.ork", "mine.ork", "older.ork"]);
+    // Refreshing what a row SAYS is not the flyer opening it again.
+    replaceRecent(mine[0].id, { design: "AAECAwQF", name: "mine.ork", rocket: "mine" }, 9000);
+    expect(loadRecents().map((r) => r.name)).toEqual(["newer.ork", "mine.ork", "older.ork"]);
+  });
+
+  it("leaves every other row alone", () => {
+    put("a.ork", 1000);
+    const b = put("b.ork", 2000, "AAEC");
+    put("c.ork", 3000);
+    replaceRecent(b[0].id, { design: "AAECAwQF", name: "b.ork", rocket: "b" }, 4000);
+    const list = loadRecents();
+    expect(list.map((r) => r.name)).toEqual(["c.ork", "b.ork", "a.ork"]);
+    expect(list.find((r) => r.name === "a.ork")!.design).toBe("AAEC");
+  });
 
   it("keeps designs newest-first and reopening one moves it back to the front", () => {
     put("a.ork", 1000);

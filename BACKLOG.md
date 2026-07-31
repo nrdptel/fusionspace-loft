@@ -346,7 +346,36 @@ big for one pass. Newest first.
   imported. The honest minimum is to NAME what is about to be left out, at the download control, with
   the values.
 
-- **BLOCKER — reopening your own build from "Your designs" hands back the factory starter.** Same cold
+- **RESOLVED 2026-07-31 — reopening your own build from "Your designs" gave back the factory starter.**
+  Reproduced through the shipped UI exactly as filed, and treated as a **Sev-1 by the manual's second
+  criterion — a one-way door**: the flyer's work was destroyed silently, with no way back. Measured
+  before the fix: a starter edited to an 85 mm fin span flies **930 m at 2.19 cal**, and reopening it
+  from the shelf returned **994 m at 1.53 cal**, the untouched starter; the row read "New design"
+  however it had been renamed. After: the row reads "My build" and reopening returns 930 m / 2.19 cal,
+  with no duplicate row.
+
+  **The fix is `replaceRecent` plus one choke point.** The shelf writes its row at LOAD time from the
+  bytes the design arrived with, which for a build is the factory starter serialised before the first
+  keystroke. `syncShelfRow` re-serialises the edited design — exactly the way `downloadOrk` does, so
+  what you reopen and what you download are the same rocket — and `replaceRecent` swaps the row rather
+  than adding a second one, which a plain `rememberRecent` would do because the id is `name:byteLength`
+  and an edit changes the length. It runs at the top of `loadDoc` and in the discard handler: between
+  them, every way the open design stops being the open design.
+
+  **What the gate caught, which is the part worth keeping.** The first version guarded on
+  `next === designBytes.current`. For an IMPORTED design that comparison is meaningless — `exportOrk`
+  never reproduces a flyer's own file byte for byte — so it fired on untouched imports and rewrote
+  their shelf rows with Loft's re-export. That broke *removing a design from the shelf is undoable*,
+  which matches offers to rows by id. The guard is now `builtHere`: only a design with no file behind
+  it may have its row rewritten, which is also what the shelf's own caveat already promises about
+  imports.
+
+  Pinned by four cases in `lib/session.test.ts` (`replaceRecent` drops the stale row, does not
+  duplicate when the byte length changes, keeps the row's place in time, and leaves other rows alone)
+  and by the e2e *reopening your own build from the shelf gives you back the build, not the starter*.
+  Every one proved able to fail by a negative control with its build exit checked.
+
+- **(superseded by the entry above; kept for its reproduction)** reopening your own build from "Your designs" handed back the factory starter. Same cold
   walk, same closed pull request, also unfixed. Built a design (790 m, 4.1 cal, 85 mm fin span), renamed
   it, clicked "Import another", clicked the design in the shelf: back came **994 m and 1.53 cal — the
   untouched starter**, every edit gone, the row labelled "New design" so the rename does not identify it

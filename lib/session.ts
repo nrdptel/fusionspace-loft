@@ -340,6 +340,41 @@ export function rememberRecent(entry: Omit<RecentDesign, "id" | "openedAt">, now
   return list;
 }
 
+/** Bring a shelf row up to date with the design it names, replacing the row `oldId` rather than
+ *  adding a second one beside it.
+ *
+ *  A plain `rememberRecent` cannot do this. Its id is `name:byteLength`, so re-recording an edited
+ *  design mints a DIFFERENT id — the stale row survives and the shelf grows a duplicate of the same
+ *  design at two different moments in its life. Dropping `oldId` first is the whole point.
+ *
+ *  This exists because the shelf held a design the flyer never had. A from-scratch build is
+ *  serialised to bytes ONCE, before the first keystroke, and every edit after that lives in the edit
+ *  bag — so the row said "New design" and handed back the factory starter, losing the build with no
+ *  way back. Measured through the shipped UI: a starter edited to an 85 mm fin span flies 930 m at
+ *  2.19 cal, and reopening it from the shelf gave 994 m at 1.53 cal, the untouched starter. */
+export function replaceRecent(
+  oldId: string,
+  entry: Omit<RecentDesign, "id" | "openedAt">,
+  now: number,
+): RecentDesign[] {
+  const id = recentId(entry.name, entry.design);
+  // Keep the row's ORIGINAL position in time. The flyer did not just open this design; they have
+  // been working in it, and re-stamping it would reorder a shelf sorted by when things were opened.
+  const previous = loadRecents().find((r) => r.id === oldId);
+  const openedAt = previous?.openedAt ?? now;
+  const kept = loadRecents().filter((r) => r.id !== oldId && r.id !== id);
+  let list = [{ ...entry, id, openedAt }, ...kept]
+    .sort((a, b) => b.openedAt - a.openedAt)
+    .slice(0, MAX_RECENTS);
+  let total = list.reduce((n, r) => n + r.design.length, 0);
+  while (list.length > 1 && total > MAX_RECENTS_BYTES) {
+    total -= list[list.length - 1].design.length;
+    list = list.slice(0, -1);
+  }
+  writeRecents(list);
+  return list;
+}
+
 /** Drop one design from the shelf — the flyer's own "I'm done with that one". */
 export function forgetRecent(id: string): RecentDesign[] {
   const list = loadRecents().filter((r) => r.id !== id);

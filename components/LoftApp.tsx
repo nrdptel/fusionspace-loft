@@ -97,6 +97,7 @@ import {
   MAX_RECENTS_MB,
   loadSession,
   rememberRecent,
+  replaceRecent,
   restoreRecent,
   carriesWork,
   saveDiscardedSession,
@@ -404,6 +405,21 @@ export default function LoftApp() {
   /** The loaded design's own bytes, kept so the session can be written back verbatim — the file
    *  the flyer imported, not a re-serialisation of it, so its stored results survive a reload. */
   const designBytes = useRef<string | null>(null);
+  /** The shelf row standing for the design that is open, and everything needed to bring it up to
+   *  date. `designBytes` is the design as it was OPENED — for a from-scratch build that is the
+   *  factory starter, written before the first keystroke — so the row goes stale the moment the
+   *  flyer changes anything. Held in refs rather than closed over: `loadDoc` is memoised on
+   *  `compute` alone, and a stale closure here would re-shelve a design that is no longer open. */
+  const shelfRowId = useRef<string | null>(null);
+  /** Whether the open design was BUILT here rather than imported. Only a build's shelf row may be
+   *  rewritten: for an imported file the bytes on the shelf are the flyer's own file, and what-ifs on
+   *  top of it are hypotheses rather than the design — which is what the shelf's own caveat says. */
+  const builtHere = useRef(false);
+  const liveDesign = useRef<{ doc: OrkDocument | null; edits: Edits; name: string }>({
+    doc: null,
+    edits: {},
+    name: "",
+  });
   /** True when this design came back from the last session rather than being freshly opened. */
   const [restored, setRestored] = useState(false);
   /** Bumped once per design load, and by nothing else. The heavy analysis panels key their cached
@@ -461,6 +477,48 @@ export default function LoftApp() {
     [],
   );
 
+  /** Bring the open design's shelf row up to date before it stops being the open design.
+   *
+   *  The shelf writes its row at LOAD time, from the bytes the design arrived with. That is right for
+   *  an imported file — the file IS the design, and what-ifs on top of it are hypotheses. It is wrong
+   *  for a from-scratch build, where there is no file and the edits ARE the rocket: the row was
+   *  written from the factory starter before the first keystroke and never refreshed, so reopening it
+   *  handed back the starter and the build was gone with no way back.
+   *
+   *  Re-serialised exactly the way `downloadOrk` does, so the design a flyer reopens and the design a
+   *  flyer downloads are the same rocket. Called wherever the open design is about to be replaced or
+   *  cleared, which is the last moment its row can still be made true. */
+  // The live design, mirrored into a ref so `syncShelfRow` can read it from inside callbacks that are
+  // memoised on other things. A ref rather than state because nothing renders from it.
+  useEffect(() => {
+    liveDesign.current = { doc, edits, name: fileName };
+  }, [doc, edits, fileName]);
+
+  const syncShelfRow = useCallback(() => {
+    const id = shelfRowId.current;
+    const { doc: liveDoc, edits: liveEdits, name } = liveDesign.current;
+    if (!id || !liveDoc || !builtHere.current) return;
+    const geometry = geometryOf(liveEdits);
+    const rocket = hasGeometryEdits(geometry) ? applyGeometryEdits(liveDoc.rocket, geometry) : liveDoc.rocket;
+    let next: string;
+    try {
+      next = toBase64(exportOrk({ ...liveDoc, rocket }));
+    } catch {
+      // Serialising is best effort: a shelf row that cannot be refreshed must never take the design
+      // that is open down with it.
+      return;
+    }
+    // Nothing to say if the bytes did not move. Note this comparison is only meaningful because the
+    // guard above restricts us to designs Loft itself serialised: an IMPORTED file's bytes are the
+    // flyer's own and `exportOrk` never reproduces them byte for byte, so this test would have fired
+    // on every untouched import and replaced their rows with Loft's re-export. The full gate caught
+    // exactly that — it broke the shelf's put-it-back offer, which matches rows by id.
+    if (next === designBytes.current) return;
+    designBytes.current = next;
+    setRecents(replaceRecent(id, { design: next, name, rocket: rocket.name || name }, Date.now()));
+    shelfRowId.current = null;
+  }, []);
+
   const loadDoc = useCallback(
     (
       document: OrkDocument,
@@ -471,6 +529,12 @@ export default function LoftApp() {
       /** A session being restored: its saved edits and configuration, instead of a clean slate. */
       resume?: { edits: Edits; simIndex: number; rocket?: string },
     ) => {
+      // The design being replaced is about to stop being the open one — its shelf row's last chance
+      // to become true. Runs before any state is touched.
+      syncShelfRow();
+      // Cleared for every load; `onNew` sets it back immediately after, which is the only path that
+      // produces a design with no file behind it.
+      builtHere.current = false;
       const e = resume?.edits ?? {};
       const idx = resume?.simIndex ?? 0;
       // A rename lives outside the file bytes — it is the one edit the session cannot recover by
@@ -509,6 +573,9 @@ export default function LoftApp() {
           { design: designBytes.current!, name, rocket: document.rocket.name || name },
           Date.now(),
         );
+        // Remember WHICH row stands for this design, so `syncShelfRow` can replace that row rather
+        // than leaving it beside a second one under a different byte length.
+        shelfRowId.current = shelf[0]?.id ?? null;
         setRecents(shelf);
         // An offer to put back a design that is now ON the shelf is spent — it came back by another
         // route. Dropping only those, rather than clearing every offer on every load, is what keeps
@@ -529,7 +596,7 @@ export default function LoftApp() {
         setBaseline(null);
       }
     },
-    [compute],
+    [compute, syncShelfRow],
   );
 
   const onFile = useCallback(
@@ -697,6 +764,7 @@ export default function LoftApp() {
     // download uses — one representation for saving, sharing, and remembering.
     const document = newDesign();
     loadDoc(document, "New design", "design", exportOrk(document));
+    builtHere.current = true;
   }, [loadDoc]);
 
   // Rename the current design. The name is pure metadata — it doesn't touch the airframe or the
@@ -1181,6 +1249,9 @@ export default function LoftApp() {
     // text link 12 px from the design-name input — and it took the design, every what-if on it and the
     // session with it. The slot holds exactly the session that is about to be cleared, so picking it
     // back up is the same operation as resuming one.
+    // Same last chance as `loadDoc`, on the other way out: this clears the design without opening
+    // another, and the flyer's next move is often the shelf row this design left behind.
+    syncShelfRow();
     if (designBytes.current) {
       const leaving: SavedSession = {
         v: 1,
