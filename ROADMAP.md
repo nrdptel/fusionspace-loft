@@ -1114,7 +1114,15 @@ adoption 1 → 2. Pinned by an e2e over all five routes with a count control, pr
 control that overrides the minimum — and the FIRST version of that control did not compile, so the
 suite silently re-tested the previous good export. The build exit is part of the control.
 
-**What is left of P1**, measured after increment 11: the **three remaining tables** (`MassBreakdown`,
+**Increment 12 put `MassBreakdown` on the primitive**, which needed one thing the first three did not:
+a `footer`. It renders as a `<tfoot>`, which is what a totals row IS semantically and which also keeps
+it out of the sort — a dry total that sorted into the middle of the parts it totals would be worse than
+no total. The panel keeps its own richer CSV (unit-bearing headers), so no export controls are doubled.
+It gains sort on all four columns: heaviest-first stays the initial order because that is the reading
+the panel exists for, but a flyer checking an import against a build sheet could not previously get
+part order or station order at all. `DataTable` adoption 3 → 4.
+
+**What is left of P1**, measured after increment 12: the **two remaining tables** (`MassBreakdown`,
 `MotorSweep`, `GeometryInspector` — each already carries part of the affordance set, which is the
 inconsistency the primitive exists to end) and the **24 hand-rolled `<button>` elements**. A seventh
 table at `app/docs/validation/page.tsx:259` sits in a SERVER route where a `"use client"` primitive

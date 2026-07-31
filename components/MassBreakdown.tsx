@@ -8,6 +8,7 @@ import DownloadCsv, { CopyTable } from "./DownloadCsv";
 import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
 import { Card } from "./ui";
+import DataTable from "./DataTable";
 
 const round = (n: number, dp: number) => (Number.isFinite(n) ? Math.round(n * 10 ** dp) / 10 ** dp : "");
 
@@ -77,44 +78,44 @@ export default function MassBreakdown({
         <span className="text-zinc-400 transition group-open:rotate-180">▾</span>
       </summary>
       <div className="border-t border-zinc-100 px-4 py-3 dark:border-zinc-800">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm tabular-nums">
-            <thead>
-              <tr className="text-left text-[11px] uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-                <th className="py-1 pr-4 font-medium">Component</th>
-                <th className="py-1 pr-4 font-medium">Mass</th>
-                <th className="py-1 pr-4 font-medium">% dry</th>
-                <th className="py-1 font-medium">CG from nose</th>
-              </tr>
-            </thead>
-            <tbody className="font-mono">
-              {rows.map((p, i) => (
-                <tr key={`${p.source}-${i}`} className="border-t border-zinc-100 dark:border-zinc-800">
-                  <th scope="row" className="py-1.5 pr-4 text-left font-sans font-normal text-zinc-700 dark:text-zinc-200">
-                    {p.source}
-                  </th>
-                  <td className="py-1.5 pr-4 text-zinc-800 dark:text-zinc-100">{d.q(d.mass(p.mass, units))}</td>
-                  <td className="py-1.5 pr-4 text-zinc-500 dark:text-zinc-400">
-                    {total.mass > 0 ? d.fmt((p.mass / total.mass) * 100, 0) : "—"}%
-                  </td>
-                  <td className="py-1.5 text-zinc-800 dark:text-zinc-100">{d.q(d.lengthMm(p.cg, units))}</td>
-                </tr>
-              ))}
-            </tbody>
-            <tfoot>
-              <tr className="border-t border-zinc-300 font-sans dark:border-zinc-700">
-                <th scope="row" className="py-1.5 pr-4 text-left font-medium text-zinc-700 dark:text-zinc-200">
-                  Dry total
-                </th>
-                <td className="py-1.5 pr-4 font-mono font-medium text-zinc-900 dark:text-zinc-50">
-                  {d.q(d.mass(total.mass, units))}
-                </td>
-                <td className="py-1.5 pr-4 text-zinc-500 dark:text-zinc-400">100%</td>
-                <td className="py-1.5 font-mono text-zinc-700 dark:text-zinc-300">CG {d.q(d.lengthMm(total.cg, units))}</td>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
+        {/* The rows arrive heaviest-first, which is the reading this panel is FOR, so that stays the
+            initial sort — but a flyer checking an import against a build sheet wants the part order or
+            the station order too, and could not have either. The dry total is a `tfoot`, so it stays
+            put whatever the sort: a total that sorted into the middle of the parts it totals would be
+            worse than no total. */}
+        <DataTable
+          rows={rows}
+          rowKey={(p, i) => `${p.source}-${i}`}
+          caption="Dry structural mass, part by part"
+          empty="No structural mass was parsed from this design — import a design with components and every part's mass appears here."
+          footer={{
+            source: "Dry total",
+            mass: d.q(d.mass(total.mass, units)),
+            pct: "100%",
+            cg: `CG ${d.q(d.lengthMm(total.cg, units))}`,
+          }}
+          columns={[
+            {
+              key: "source",
+              label: "Component",
+              rowHeader: true,
+              sortValue: (p) => p.source,
+              cell: (p) => <span className="font-sans font-normal text-zinc-700 dark:text-zinc-200">{p.source}</span>,
+            },
+            { key: "mass", label: "Mass", sortValue: (p) => p.mass, cell: (p) => d.q(d.mass(p.mass, units)) },
+            {
+              key: "pct",
+              label: "% dry",
+              sortValue: (p) => p.mass,
+              cell: (p) => (
+                <span className="text-zinc-500 dark:text-zinc-400">
+                  {total.mass > 0 ? d.fmt((p.mass / total.mass) * 100, 0) : "—"}%
+                </span>
+              ),
+            },
+            { key: "cg", label: "CG from nose", sortValue: (p) => p.cg, cell: (p) => d.q(d.lengthMm(p.cg, units)) },
+          ]}
+        />
         <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
           Dry structure only — the motor and nose ballast add their mass at launch and are not
           shown here; they are in the flight&apos;s liftoff mass above. A design what-if that changes

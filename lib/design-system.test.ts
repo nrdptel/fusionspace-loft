@@ -127,7 +127,7 @@ const PRIMITIVE_ADOPTERS: Record<string, number> = {
    *  (`ui → DownloadCsv → ui`). §5 says the vocabulary lives in `ui.tsx`; the wording wants a sentence
    *  admitting the two exceptions, and that is a change to a file shared verbatim with the sibling
    *  app, so it is FILED rather than made here. The regex below reads this module for that reason. */
-  DataTable: 3,
+  DataTable: 4,
   Section: 0,
   Segmented: 1,
   Tabs: 1,
