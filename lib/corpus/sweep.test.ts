@@ -573,6 +573,66 @@ suite("real-design corpus", () => {
     expect(dead.sort()).toEqual(["03.Three-stage.ork"]);
   });
 
+  it("gives every real staged flight a phase timeline its table can be built from", async () => {
+    // This holds the ASSUMPTIONS R5's phase table is built on, against real files — it does not render
+    // the table (the e2e does that). The table draws one row per PHASE and names each row's shed stages
+    // as the slice `stages[stageCount_p … stageCount_{p-1} - 1]`; if the timeline underneath does not
+    // have the shape asserted here, those rows are wrong however the component is written. Both traps
+    // are ones a synthetic fixture cannot expose:
+    //
+    //   - rows are NOT stages. `03.Three-stage.ork` has 3 stages, 2 phases and ONE separation, because
+    //     a serial stack parts at one joint and takes everything below it; `Three stage low power
+    //     rocket.ork` has 3 of each. A table built from `rocket.stages` prints a phase that never was.
+    //   - `stageCount` is a COUNT of what remains, not an index of what left. Naming only
+    //     `stages[stageCount]` would drop the second stage at any boundary where two joints part.
+    const shapes: string[] = [];
+    let multiStage = 0;
+    let totalPhases = 0;
+    let boundariesWhereTwoStagesLeft = 0;
+
+    for (const f of files) {
+      const doc = await importDesign(new Uint8Array(readFileSync(f.path)));
+      const n = doc.rocket.stages.length;
+      if (n < 2) continue;
+      multiStage++;
+      const run = runFromDocument(doc, {});
+      const phases = run.phases;
+      totalPhases += phases.length;
+      const name = shortName(f.name);
+
+      if (phases.length === 0) { shapes.push(`${name}: no phases at all`); continue; }
+      if (phases[0].stageCount !== n) shapes.push(`${name}: first phase holds ${phases[0].stageCount} of ${n} stages`);
+      if (phases[0].startTime !== 0) shapes.push(`${name}: first phase starts at ${phases[0].startTime}`);
+
+      const shedTotal: number[] = [];
+      for (let i = 1; i < phases.length; i++) {
+        const prev = phases[i - 1].stageCount;
+        const here = phases[i].stageCount;
+        if (here >= prev) shapes.push(`${name}: phase ${i + 1} holds ${here}, not fewer than ${prev}`);
+        if (phases[i].startTime < phases[i - 1].startTime) shapes.push(`${name}: phase ${i + 1} begins before phase ${i}`);
+        for (let k = here; k < prev; k++) shedTotal.push(k);
+        if (prev - here > 1) boundariesWhereTwoStagesLeft++;
+        // Every boundary a row draws its altitude and speed from must have an event behind it, or the
+        // table renders "not logged" where a real number belongs.
+        const ev = run.result.events.find((e) => e.type === "separation" && Math.abs(e.time - phases[i].startTime) < 1e-6);
+        if (!ev) shapes.push(`${name}: phase boundary at ${phases[i].startTime.toFixed(3)} s has no separation event`);
+      }
+      // Each shed stage is named exactly once, and every stage below the final count is accounted for.
+      const expected = Array.from({ length: n - phases[phases.length - 1].stageCount }, (_, k) => phases[phases.length - 1].stageCount + k);
+      if (JSON.stringify([...shedTotal].sort((a, b) => a - b)) !== JSON.stringify(expected)) {
+        shapes.push(`${name}: shed slices ${JSON.stringify(shedTotal)} do not cover ${JSON.stringify(expected)} exactly once`);
+      }
+    }
+
+    console.log(
+      `phase timelines across ${files.length} design files: ${multiStage} multi-stage, ${totalPhases} phases, ` +
+        `${boundariesWhereTwoStagesLeft} boundaries where more than one stage left at once`,
+    );
+    expect(multiStage, "no multi-stage design was read — this suite proves nothing").toBeGreaterThan(0);
+    expect(boundariesWhereTwoStagesLeft, "no boundary sheds two stages — the slice rule is untested").toBeGreaterThan(0);
+    expect(shapes).toEqual([]);
+  });
+
   it("offers a drag only drops that land exactly where the indicator promised", async () => {
     // R4's drag reads `moveSlots` for every place a part can go, draws an indicator at each, and
     // commits the one the pointer was nearest. A slot is therefore a PROMISE about where the part will

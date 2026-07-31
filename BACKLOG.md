@@ -12,6 +12,34 @@ this file, and deliberately does **not** cap craft or product work, because that
 track in `ROADMAP.md` with its own *done when*. Rough edges, missing affordances, and findings too
 big for one pass. Newest first.
 
+- **A booster shed at a shared joint gets no descent estimate, because the descent code assumes one phase
+  per stage.** `simulate.ts` reads `const sepT = phases[nStages - i]` when sizing a separated stage's
+  descent, which is only correct if every stage gets its own phase. It does not: a serial stack parts at
+  ONE joint and takes everything below it, so `03.Three-stage.ork` has 3 stages and 2 phases and
+  `phases[3-1]` is `undefined` for "Booster 1" — its descending mass computes to 0 and `BoosterDescentNote`
+  drops it silently. Found by the phase-table review; the same index was flagged as latent by the opening
+  fan-out. Masked today only because neither of that design's boosters carries a canopy, so both take the
+  ballistic branch first. It is now visible as an inconsistency: the phase table says "Booster 1 + Booster 2
+  separate" on the same page as a descent note structurally unable to list Booster 1. Fix by deriving the
+  boundary from the phase whose `stageCount` first drops to or below `i`, not by indexing.
+
+- **The flight-data CSV — the only export of a flight — carries no staging at all, and now collides on a
+  word.** Its `Phase` column is the per-sample flight regime (`rod|boost|coast|descent|landed`), not the
+  staging phase the new table shows, and the export carries no separation row and no events of any kind.
+  The surface rule says a value presented differently must change on every surface presenting it; staging
+  is now first-class on screen and absent from the export, under a column heading that reads as though it
+  were there. Reproduce: *Download flight data* on any staged design.
+
+- **The widest table in the app is in neither of the two contracts the repo already asserts.** All three
+  axe audits load a SINGLE-STAGE design, so the phase table's Card is never in an accessibility run; and
+  `e2e/touch.spec.ts`'s `ROUTES` visits `/` and `/docs*` with no design loaded, so the "no page scrolls
+  horizontally on a phone" check never sees it either. Related and pre-existing in shape: the
+  `overflow-x-auto` scroller holds no focusable element, which axe rates `scrollable-region-focusable`
+  (wcag2a, serious) wherever it actually overflows — identical in `MassBreakdown`, `GeometryInspector`
+  and `MotorSweep`, so it is one fix across four tables and belongs with `DataTable`. The `@media print`
+  block also has no rule neutralising `overflow-x-auto`, so on paper a wide table clips rather than wraps
+  and the rightmost columns are what is lost (UNVERIFIED how many).
+
 - **The Analyze gate asks how many stages a design HAS; the flight now says whether they FIRE, and the
   two contradict each other on one page.** Found by the pre-push review of the dead-stage fix, and it is
   the surface that fix should arguably have touched. `ResultsView.tsx:408` computes `staged` from

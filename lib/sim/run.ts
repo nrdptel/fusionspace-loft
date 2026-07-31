@@ -7,7 +7,7 @@ import type { OrkDocument, StoredSimulation } from "../ork/adapt";
 import { flattenRocket } from "../model/geometry";
 import { applyGeometryEdits, hasGeometryEdits, type GeometryEdits } from "../model/edit";
 import type { PointMass } from "./mass";
-import { simulate, type FlightResult } from "./simulate";
+import { simulate, type FlightResult, type StagePhase } from "./simulate";
 import { buildSimulateInput, makeConditions, type MotorResolution, type ConditionOverrides } from "./setup";
 import { Atmosphere, atmosphereForGround } from "./atmosphere";
 import { compareToStored, type ValidationReport } from "../validation/compare";
@@ -20,6 +20,11 @@ export interface FlightRun {
    *  propulsion, so its numbers are meaningless and callers should withhold them rather than
    *  present a zero-altitude "flight". */
   hasPropulsion: boolean;
+  /** The staging timeline the flight actually flew: one entry per phase, in time order, each naming
+   *  when it began and how many stages were still attached. `buildRocketDynamics` has always built
+   *  this and `simulate` has always consumed it, but nothing carried it back out — so no surface
+   *  could show the phases of a staged flight. One entry ⇒ nothing ever separated. */
+  phases: StagePhase[];
   validation?: ValidationReport;
 }
 
@@ -188,7 +193,7 @@ export function runFlight(rocket: Rocket, opts: RunOptions = {}): FlightRun {
     !opts.ballistic && hasPropulsion && allMotorsResolved && opts.validateAgainst && opts.validateAgainst.hasResults
       ? compareToStored(result.summary, opts.validateAgainst.results)
       : undefined;
-  return { result, config, resolutions, hasPropulsion, validation };
+  return { result, config, resolutions, hasPropulsion, phases: built.input.phases ?? [], validation };
 }
 
 /** A stored simulation offered as a selectable flight configuration in the UI. */

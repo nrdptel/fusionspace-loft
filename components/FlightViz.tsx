@@ -62,7 +62,10 @@ export default function FlightViz({ result, units }: { result: FlightResult; uni
   if (cur.length) segments.push({ color: curColor, d: cur.join(" ") });
 
   const eventDots = result.events
-    .filter((e) => ["rail-exit", "burnout", "apogee", "deploy", "landing"].includes(e.type))
+    // `separation` belongs here: the altitude chart has always marked it (`eventMarkers` drops only
+    // `ignition`), so leaving it out gave two charts on one page two different ideas of what is worth
+    // drawing — and staging is now a first-class surface with its own phase table.
+    .filter((e) => ["rail-exit", "burnout", "separation", "apogee", "deploy", "landing"].includes(e.type))
     .map((e) => {
       // find nearest trajectory sample by time
       let best = traj[0];
@@ -153,5 +156,8 @@ function label(type: string, l?: string): string {
   if (type === "apogee") return "apogee";
   if (type === "landing") return "land";
   if (type === "deploy") return l ? l.split(" ")[0].toLowerCase() : "deploy";
+  // Without this, adding `separation` to the dots above rendered the raw enum string — the only dot in
+  // the chart not on the short-word vocabulary the rest use.
+  if (type === "separation") return "stage";
   return type;
 }

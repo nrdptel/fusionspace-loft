@@ -3806,6 +3806,74 @@ test.describe("Loft", () => {
     await expect(page.getByText(/sheds a spent lower stage/i)).toHaveCount(0);
   });
 
+  test("a staged flight has a phase table that matches what the flyer built", async ({ page }) => {
+    // R5's *done when*: "fly a staged flight whose phase table matches what they built". Until now the
+    // flight surface had none — separation was a marker on the altitude chart and a sentence in a
+    // warning, and `FlightViz` filtered it out of its dots entirely. No competitor has one either:
+    // OpenRocket, RockSim and RASAero all present one row per SIMULATION, and OpenRocket's flight-event
+    // list does not include separation at all (COMPETITION.md row 25).
+    await page.goto("/");
+    await page.getByRole("button", { name: "Start a new design" }).click();
+    await expect(page.getByRole("heading", { name: "Design geometry" })).toBeVisible({ timeout: 15000 });
+
+    const table = page.getByRole("region", { name: "Flight phases" });
+    const rows = table.locator("tbody tr");
+
+    // A single-stage design has no phases to table, so the surface is not offered at all.
+    await page.getByRole("tab", { name: "Flight" }).click();
+    await expect(table).toHaveCount(0);
+
+    // Author a booster: two phases, and the boundary is the separation.
+    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("button", { name: /Add a booster stage/ }).click();
+    await page.getByRole("tab", { name: "Flight" }).click();
+    await expect(table).toBeVisible({ timeout: 20000 });
+    await expect.poll(async () => rows.count(), { timeout: 20000 }).toBe(2);
+
+    // Row 1 is the whole stack up to the separation; row 2 is the sustainer alone to apogee. The
+    // boundary values are read off the separation EVENT, so they are the same numbers the altitude
+    // chart marks — asserted here so the table and the chart cannot drift apart.
+    const first = rows.nth(0);
+    await expect(first).toContainText("Booster");
+    await expect(first).toContainText("separates");
+    const last = rows.nth(1);
+    // The last phase runs to the END OF THE FLIGHT, not to apogee. Apogee happens INSIDE a phase, and
+    // on a payload design that separates at an ejection charge it happens BEFORE the separation — so
+    // ending the last row at apogee printed a row whose "to" was earlier than its "from"
+    // (`ARC payload rocket.ork`: From 10.4 s, To 8.1 s).
+    await expect(last).toContainText("Landing");
+    // Stages attached must COUNT DOWN, which is the property that fails if rows are built from
+    // `rocket.stages` instead of from the solver's phases.
+    expect((await first.innerText()).split("+").length).toBeGreaterThan((await last.innerText()).split("+").length);
+    // Every row must run forwards. This is the assertion the backwards-row defect would have failed.
+    for (const row of await rows.all()) {
+      const times = (await row.innerText()).match(/([\d.,]+)\s*s\b/g) ?? [];
+      expect(times.length, "a phase row must state both a from and a to").toBeGreaterThanOrEqual(2);
+      const [from, to] = times.slice(0, 2).map((t) => parseFloat(t.replace(/[,\s s]/g, "")));
+      expect(to, `phase row runs backwards: ${from}s to ${to}s`).toBeGreaterThanOrEqual(from);
+    }
+
+    // Gut the booster's motor mount: the stack never parts, so there is exactly one phase — and the
+    // table says why rather than rendering a single unexplained row.
+    await page.getByRole("tab", { name: "Design" }).click();
+    await page.locator("summary", { hasText: /Parts ·/ }).click();
+    const mounts = page.locator("table").filter({ hasText: "Dimensions" }).locator("tr").filter({ hasText: /Inner tube/ });
+    await mounts.last().click();
+    await page
+      .getByRole("button", { name: /^Remove / })
+      .and(page.locator('[title="Remove this part from the design and re-fly it"]'))
+      .click();
+    await page.getByRole("tab", { name: "Flight" }).click();
+    await expect(table.getByText(/nothing separated/i)).toBeVisible({ timeout: 20000 });
+    await expect.poll(async () => rows.count(), { timeout: 20000 }).toBe(1);
+
+    // And undoing brings the two-phase flight back.
+    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("button", { name: /^Undo removing / }).click();
+    await page.getByRole("tab", { name: "Flight" }).click();
+    await expect.poll(async () => rows.count(), { timeout: 20000 }).toBe(2);
+  });
+
   test("a booster that can no longer fire says so, instead of flying as silent ballast", async ({ page }) => {
     // The Sev-1 this fixes. Adding a booster is REFUSED where the tube it would be seeded from carries
     // no motor mount to clone — but that gate runs at add time, and the mount inside an authored

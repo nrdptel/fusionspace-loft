@@ -658,13 +658,62 @@ than quoted from either review, which is the one lesson two of them teach.
   Both halves of the seeding rule reduce the apogee, and quoting a scoping probe as a result of the
   finished thing double-counted one of them.
 
-**The gap, which is increment 2 rather than a reason to re-open this.**
+**Increment 2 shipped 2026-07-31 — the PHASE TABLE**, pinned by `lib/corpus/sweep.test.ts`'s *gives every
+real staged flight a phase timeline its table can be built from* (9 multi-stage designs, 18 phases, and
+**1 boundary where more than one stage leaves at once** — the case the naive row rule gets wrong) and by
+the e2e *a staged flight has a phase table that matches what the flyer built*. Both proved able to fail by
+negative controls with their build exits checked.
 
-- **There is no phase table.** The *done when* asks for "a staged flight whose phase table matches what
-  they built", and the flight surface has none: separation is a marker on the altitude chart
-  (`ResultsView.tsx`) and a sentence in the warning that names the shed stage. `FlightViz`'s event dots
-  filter separation out entirely. Building one is the next slice, and it is what the *done when* is
-  actually asking for.
+`FlightRun.phases` is the whole model change: `buildRocketDynamics` has always built the staging timeline
+and `simulate` has always consumed it, but nothing carried it back out, so no surface could show it. The
+table renders one row per PHASE with the stages attached, the interval, what ends it, and the altitude and
+speed at that boundary — read from the separation EVENT, so the table and the altitude chart cannot drift
+apart. `FlightViz` now draws separation dots too; it had filtered them out while the altitude chart marked
+them, which gave two charts on one page two vocabularies.
+
+**Rows are not stages, and that is the load-bearing decision.** A serial stack parts at ONE joint and takes
+everything below it, so `03.Three-stage.ork` has 3 stages, 2 phases and a single separation while
+`Three stage low power rocket.ork` has 3 of each. `stageCount` is a COUNT of what remains, not an index of
+what left, so a row names its shed stages as the slice `stages[stageCount_p … stageCount_{p-1} - 1]` —
+naming only `stages[stageCount]` drops the second stage at the one corpus boundary where two leave together.
+Walked in the built export on the starter with a booster: two rows, boundary at 1.3 s / 86 m / 108 m/s.
+
+**The pre-push review rewrote the row derivation, and the reason is the whole lesson of the increment.**
+The first version built rows from `phases` — which is the SCHEDULE `buildRocketDynamics` derived from burn
+times, not the timeline the flight flew — and ended the last row at apogee. Both were wrong on real files.
+A flight can end before reaching a planned separation, and the table then stated a staging event that did
+not happen: `ARC payload rocket.ork` with 1 kg of nose ballast lands at 9.64 s having never separated,
+while the schedule still put a separation at 10.43 s. And apogee is an event INSIDE a phase, not a boundary
+between two — on the payload/dual-section designs that separate at an ejection charge it happens BEFORE the
+separation, so the last row printed a "to" earlier than its "from" (`ARC payload rocket.ork`: From 10.4 s,
+To 8.1 s; also `Deployable payload.ork` and `fixtures/demo-payload-separation.ork`). Rows are now bounded by
+the separations the flight actually LOGGED and the last one runs to the end of the flight. Re-driven across
+the corpus: the table renders on 8 designs, **0 backwards rows, 0 withheld cells, 0 schedule/actual
+mismatches**. Two smaller things went with it: a design may reuse a stage name (`Three stage low power
+rocket.ork` has two called "Booster stage", so both separations read identically) and duplicates are now
+numbered, and `FlightViz`'s label map had no `separation` case, so the new dot rendered the raw enum
+string.
+
+**A staged design where nothing separates gets one row and a sentence saying so**, which is the state
+increment 1's dead-stage warning creates: gutting the booster's mount takes the table from two rows to one
+and explains that the stack flew whole. That is the surface's empty-ish state; a genuinely empty one is
+unreachable inside the `hasPropulsion` guard the table sits under.
+
+**No competitor has this** — `COMPETITION.md` row 25, added this run. OpenRocket, RockSim and RASAero all
+present one row per SIMULATION, and OpenRocket's selectable flight-event list does not include separation
+at all.
+
+**The gap, which is increment 3 rather than a reason to re-open this.**
+
+- **Per-stage burn intervals are not in the result.** Only ONE burnout event is emitted per flight ever —
+  the last motor's — so a "burnout" column would be blank on every row but one. Measured: all 9 multi-stage
+  corpus designs report exactly 1 burnout event, including the 3-stage design that burns three motors.
+  Emitting one per `detachTime` group is a solver change and belongs in its own increment.
+- **A separation event names no stage.** `simulate.ts` labels every one `"Stage separation"`, so the table
+  derives its names from the phase slice rather than from the event. Filed in `BACKLOG.md`.
+- **The table is a sixth bespoke `<table>`.** `DataTable` still does not exist; this one copies
+  `MassBreakdown`'s markup deliberately rather than inventing a seventh style, and it does not sort or copy.
+  That is P1's last slice, sized by `COMPETITION.md` row 24.
 - **"Give it its own motor mount and fins" is inherited, not authored.** The seed carries both because
   it is cloned from a tube that has them; there is no `AddedPart.kind` for a motor mount, so a booster
   cannot be given one it did not inherit. That is why the refusal above exists rather than a gesture.
