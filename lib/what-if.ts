@@ -61,6 +61,17 @@ export interface ConditionsSource {
   windEdited: boolean;
   /** Today's weather is supplying the air, the elevation and a wind profile. */
   today: boolean;
+  /** The local hour that wind profile is FOR (`18:00`), and whether it could be tied to the surface
+   *  reading's own timestamp.
+   *
+   *  A drift figure is only as current as the wind above the pad, and the profile is one hour of a
+   *  24-hour forecast day while the surface block is live. Stating the hour only on the Conditions
+   *  card was not enough: that card is a collapsed `<details>`, and "Drift from pad", the Monte-Carlo
+   *  recovery radius and the median drift are all read with it shut. It rides on `ConditionsSource`
+   *  because that is already the one funnel every panel describes its nominals through, so a panel
+   *  cannot present the drift and omit the hour by forgetting to. */
+  aloftHour?: string;
+  aloftMatched?: boolean;
   /** The design specifies no launch setup at all, so the rest are Loft's own defaults — which the
    *  Conditions panel already says in amber, so a panel claiming "the design's own stored launch
    *  conditions" contradicts it a screen away. */
@@ -77,9 +88,24 @@ export function conditionsPhrase(
 ): string {
   if (!src) return "the design's stored launch conditions";
   const edited = src.railEdited || src.elevationEdited || (reads.wind && src.windEdited);
-  if (edited && src.today) return "the launch conditions you set, over today's weather at your site";
+  // Only a panel that READS the wind is affected by which hour the profile is for; a ballistic one
+  // flies no wind at all, so naming the hour there would be a caveat about nothing.
+  const today = reads.wind ? `today's weather at your site${aloftWords(src)}` : "today's weather at your site";
+  if (edited && src.today) return `the launch conditions you set, over ${today}`;
   if (edited) return "the launch conditions you set";
-  if (src.today) return "today's weather at your site";
+  if (src.today) return today;
   if (src.defaulted) return "Loft's own default launch conditions — this design states none";
   return "the design's stored launch conditions";
+}
+
+/** How to name the hour the winds-aloft profile is for, in the middle of a sentence.
+ *
+ *  Empty when there is nothing to say — no profile hour on the record — so the phrase reads exactly as
+ *  it did before rather than trailing an empty clause. */
+function aloftWords(src: ConditionsSource): string {
+  if (!src.today || !src.aloftHour) return "";
+  const hhmm = src.aloftHour.length > 5 ? src.aloftHour.slice(11) : src.aloftHour;
+  return src.aloftMatched
+    ? ` (winds aloft for ${hhmm} local)`
+    : ` (winds aloft for ${hhmm} local, which the forecast gave no way to tie to the surface reading)`;
 }

@@ -7,10 +7,10 @@ Overwritten each session. What shipped, what is part-way, and what to pick up fi
 **`ROADMAP.md` was restructured on 2026-07-30 and a run now ships from both tracks, alternating.**
 This is the single thing to understand before scoping anything.
 
-| track | next unstarted |
+| track | state at the end of 2026-07-31 |
 |---|---|
-| **R — capability** | R4 — reorder and restack |
-| **P — product & craft** | **P1 — one design system, adopted** |
+| **R — capability** | R4 — reorder and restack — NOT STARTED, and fully scoped (see *R4 is scoped* below) |
+| **P — product & craft** | **P1 — one design system, adopted — IN PROGRESS**, increment 1 shipped |
 
 The owner's direction was that both apps still read as thrown-together rather than as products the
 public can pick up, measured against OpenRocket, RocketPy and the vendor tools. The cause was
@@ -38,8 +38,8 @@ check with the first slice** so the drift cannot return mid-conversion.
 | R1 — address components by identity | SHIPPED 2026-07-30 |
 | R2 — delete a component, and undo it | SHIPPED 2026-07-30 |
 | R3 — add a component | SHIPPED 2026-07-30 |
-| R4 — reorder and restack | NOT STARTED — next on the R-track |
-| P1 — one design system, adopted | NOT STARTED — next on the P-track |
+| R4 — reorder and restack | NOT STARTED — fully scoped 2026-07-31, see below |
+| P1 — one design system, adopted | IN PROGRESS 2026-07-31 — increment 1 shipped, ratchet pinned |
 
 Three capability milestones shipped in two sessions and the editor has gone from a parametric tweaker
 over a fixed tree to something that can grow one. What did **not** move in that time is what the app
@@ -139,9 +139,21 @@ gap rather than from recollection. The corpus symlinks survived the restart; the
 
 ## Running the gate without fooling yourself
 
-**`PW_EXECUTABLE_PATH=/opt/pw-browsers/chromium` must be passed on the command line every time.**
-It is NOT in the shell profile, and each Bash call gets a fresh shell. Without it every test fails in
-~3 ms with "Looks like Playwright was just installed or updated". Never run `playwright install`.
+**Run `npx playwright install chromium` once, then use a bare `npx playwright test`. Do NOT set
+`PW_EXECUTABLE_PATH`.** This reverses what this file said until 2026-07-31, and the reversal is
+measured. `@playwright/test` here is **1.61.1**, which manages **chromium-1228**; the sandbox's
+pre-installed `/opt/pw-browsers/chromium` is **1194**, thirty-four revisions off the build the suite
+was written against. `PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers` is already exported in this
+environment, so the install lands *beside* the stale one rather than in `~/.cache` — after it,
+`ls /opt/pw-browsers` shows both `chromium-1194` and `chromium-1228`, and a bare `npx playwright test`
+resolves 1228. The download is ~177 MB + ~114 MB, takes about a minute, and **succeeds through the
+proxy**; the blanket "never run `playwright install` in a sandbox" advice assumes the right build is
+already there, and here it is not. 169/169 green on 1228 this session. *This closes the `BACKLOG.md`
+entry about the missing revision guard for practical purposes, though porting the sibling repo's
+config-level guard is still worth doing.*
+
+**`node_modules` is ABSENT on a fresh container — run `npm install` first** (~1 min). Nothing else in
+this file works before that, including the `npx vite-node` probe recipe below.
 
 **A `{ step1; step2; } > file` brace group exits with the status of its LAST command.** Record each
 step's own code:
@@ -260,31 +272,80 @@ designs back to their imported caliber, a crash path in an exhaustiveness check,
 that could not fail, and six numbers in comments and docs that did not re-derive. The lens that found
 most of them was "verify every number quoted in this diff with your own probe".
 
-## Shipped this session
-
-**R3 — add a component — is SHIPPED**, and with it the four kinds its *done when* names. Seven
-commits, each gated in full and pushed on its own, all under PR #69.
+## Shipped this session (2026-07-31)
 
 Baseline before anything changed, all four green: lint 0 errors / **1 warning** (the standing
-`setDraft` one), **809 unit**, build, **163 e2e**, corpus **35 design files, 4/4**. At the end:
-**826 unit, 169 e2e**, corpus 35 files **5/5**.
+`setDraft` one), **826 unit**, build, **169 e2e**, corpus **35 design files, 5/5**.
 
 | | |
 |---|---|
-| Sev-1: aim at what you built | A pick was judged against the IMPORTED design, so clicking a part the flyer authored moved no aim: the diagram highlighted the new tube while the fields held the old one, and the next number typed landed there. |
-| Sev-1: a stated mass | Six element kinds serialized without their override, so a `.ork` download replaced a stated mass with a computed one. 5 of 27 real designs changed dry mass; `USLI2025-FULLSCALE` +15.1% with its CG moving 60.8 mm. |
-| Sev-1: the sweep's axis | Every geometry sweep axis was based on the imported design, so once an aim named an authored part the curve described a rocket that was never flown. `structureOf` is the one spelling now. |
-| R3: a transition | The part that changes caliber — authorable, aimable, and editable, on the 12 of 35 corpus designs that carry one. Plus the mould-line step notice, which 33 of 115 real joints needed. |
-| R3: a mass object | The weight that decides where a rocket balances — authorable, aimable, editable, on the 26 of 35 designs that carry one. Both defaults are corpus medians. |
-| the corpus authoring pin | 180 authored parts across all 35 real designs, four rules. Written to catch the class of bug that had just shipped green. |
-| R3: direct manipulation | A mass object's station is draggable on the diagram, which is the last clause of R3's *done when*. |
+| **P1, increment 1** | The design system got the primitives it names and a check that fails. `Card` (five tones, an `as` so a landmark stays a landmark), `Section`, `Button` (three weights + `danger`); seventeen hand-rolled containers converted; `lib/design-system.test.ts` pins `DESIGN.md` §9 as an EXACT ratchet. §9 counts before → after: `rounded-lg` 49 → 46, distinct card treatments 9 → 3, adopters 5 → 11. |
+| **§9 itself was broken** | Its adoption grep searched `from './ui'` in single quotes while every import in the repo is double-quoted, so it answered **0 whether adoption was 0% or 100%**, for as long as `DESIGN.md` has existed. Also: the `sm > xs` total passed by three while **9 of 23 files were individually inverted**, and counting adopters by FILE is satisfied for the rest of the milestone by one more `Card` import. All three are sharpened in `DESIGN.md` and asserted the sharpened way. |
+| **Sev-1: the wind was yesterday's** | `lib/weather.ts` read winds aloft from `hourly` index 0 — **00:00 local**, because `timezone=auto` + `forecast_days=1` makes the hourly array a local day — while the surface block was live. Measured against the live API at 18:15 local: 850 hPa index 0 was 154° from the real hour, 500 hPa 166° and fifteen times the speed. Flown on three real designs, the landing point moved **241 m, 352 m and 255 m** — opposite sides of the pad, with the drift MAGNITUDE barely changing, so the number looked right and pointed the wrong way. |
+| **The bearing wrap, in the same function** | A plain lerp on a compass bearing reverses the wind wherever two levels straddle north (350°/10° meets at 180°). `lerpBearing` takes the short arc. Was filed in `BACKLOG.md`; fixed here because it corrupts the same number as the Sev-1 above, in the same line of the same function. |
+| **`lib/weather.ts` had NO tests** | Which is most of why it carried both. `lib/weather.test.ts` is 16 cases, and the e2e stub now carries a full 24-hour day with `current.time`, where before it carried one unstamped hour and therefore only ever exercised the fallback branch. |
 
-**The placement rules are the corpus's, not invented**, and the census is in `ROADMAP.md`: 91 body-tube
-anchors split 28 nothing-behind / 17 another-caliber / 46 same-caliber; a contracting transition exits
-at 0.7446 of its fore diameter over γ = 2.2938; a mass object weighs 45.0 g and sits at 0.3251 of its
-host's length.
+## R4 is scoped, and the scoping is the expensive half
+
+An agent drove all 35 corpus designs, 6 committed fixtures and 5 e2e fixtures through the importer to
+establish these. They are measurements, not opinions, and they turn R4 from a placement-model rewrite
+into a 3-increment milestone:
+
+- **A top-level part's station is DERIVED, never stored** — `flattenRocket` walks each stage's list with
+  a running cursor (`lib/model/geometry.ts:100-127`). So "the station arithmetic of everything aft
+  follows" is FREE the moment the list order changes. R4 needs no arithmetic work at all.
+- **All 150 top-level components across all 35 corpus designs use placement `after` with offset 0.**
+  Zero exceptions, zero `absolute`/`top`/`middle` at index > 0. Reordering the array is therefore
+  sufficient and safe: no entry needs its `placement` rewritten, and no imported design can defeat it.
+- **Take `moved?: { id, after: string | null }[]`, appended, NOT a full ordered id list per stage.** A
+  full list is a snapshot rather than a patch: it goes stale the instant `added`/`removedIds` change the
+  membership, it cannot be undone by dropping one entry, and `lib/session.ts` restores the bag wholesale
+  from storage, so the stale-snapshot case is reachable rather than theoretical.
+- **Apply it FOURTH: after `applyAdds`, after `applyRemovals`, before `applyDimensionEdits`**
+  (`lib/model/edit.ts:1614`). After adds so an authored part is reorderable by id; after removals so an
+  entry naming a removed anchor simply drops; before the dimension edits so `aftmostBodyTube`,
+  `nextTopLevel` and `transitionDefaults` all see the order the flyer built.
+- **Refuse a cross-stage drop.** `nextTopLevel` flattens ACROSS stage boundaries
+  (`rocket.stages.flatMap(...)`), so a part allowed to cross one silently re-stages itself — a different
+  separation event. One-line guard. The identical single-stage-versus-chain confusion already cost a
+  session once.
+- **`interface Edits` in `components/LoftApp.tsx:154` is a HAND-RESTATED duplicate of `GeometryEdits`.**
+  A new `moved` key must be added in BOTH or the app cannot carry it, and the type system will not catch
+  the omission because `applyEdit` patches spread structurally.
+- **The diagram's drag machinery is reusable, the gesture is not.** Every handle emits
+  `onEdit({ [field]: scalar })` over a closed union of 9 scalar names, so a reorder cannot ride the
+  existing contract. What DOES reuse wholesale: the pointerdown/CTM/rAF/AbortController drag scaffolding
+  and `hoverProps(id)`'s per-part closed silhouette path, which already gives every body part a
+  hit-testable, id-addressed grab target.
+- **Freeze the HORIZONTAL frame during the drag.** `onActiveChange` does the vertical analogue for two
+  existing handles; without the horizontal one the airframe's overall length changes under the pointer
+  mid-drag and the drop indicator drifts away from it.
+- **Only ONE committed fixture has R4's shape**: `fixtures/demo-quirks.ork`, 4 top-level children
+  (nose > tube > transition > tube), already loaded at `e2e/smoke.spec.ts:3153`. **None of the 5 e2e
+  fixtures has a stage with 3+ top-level children**, and the starter has 2 — so the honest e2e is
+  "add a tube with R3, then drag it in front of the one it was added behind", which also proves
+  adds-then-reorder compose. Discovering this after writing the test costs an increment.
+- **The parts table is the keyboard/touch parity surface.** It already defaults to `flattenRocket`
+  order, so it follows a reorder for free, and a move-up/move-down pair per row is the accessible
+  equivalent of the drag. The two centreline handles are already fine-pointer-only because at phone fit
+  width the airframe is ~11 px tall — a reorder grip on the body hits exactly that wall, so R4 needs a
+  touch story decided up front or `e2e/touch.spec.ts` fails and P4 inherits the gap.
 
 ## What this session learned that is worth keeping
+
+**NEVER revert a negative control with `git checkout -- <file>`.** It reverts the WHOLE file to `HEAD`,
+including the uncommitted work you are testing. Running six controls in a loop that way silently
+destroyed three files' worth of a finished increment — `components/ui.tsx` lost every primitive it had
+just gained — and the loop went on reporting that each control "went red", which it did, for the wrong
+reason: each successive control was measuring a tree that had lost the previous fix. **Copy the file's
+bytes aside and restore from the copy**, and re-run the whole control set afterwards to confirm each
+fires exactly the assertion it should. The corrected run fired one assertion per control.
+
+**A control that changes only a comment or a message is not a control.** The one control that did not
+fire was written as `from "./ui"` → `from "@/components/ui"`, which the assertion accepts on purpose —
+both spellings are the same import. The control had to actually delete the import line. When a control
+comes back green, suspect the control before the test.
+
 
 **The tests were the weak link, not the code.** Every defect the reviews found had passed the gate,
 and in each case the reason was the same: the fixtures do not have the shape the bug needs. Prefer a
@@ -315,24 +376,45 @@ Pin a constant on the field's placeholder, not on the table row, and anchor the 
 
 ## Pick up first
 
-**Start at `ROADMAP.md`. R1, R2 and R3 are SHIPPED; R4 — reorder and restack — is the next
-milestone**, and R3's own gap is its starting point: only a mass object has a station to drag today,
-because the other three kinds are placed by choosing an anchor. Moving one is reordering.
+**Two Sev-1-class export defects are reproduced, quantified and NOT yet fixed.** This is the top of the
+queue. Measured this session by round-tripping all 35 corpus designs through `exportOrk` →
+`importDesign`:
 
-Two things R4 will have to lift, both filed with measurements:
-- **an authored part can still only go in a stage's TOP-LEVEL list** when it stacks beside its anchor.
-  Real designs nest (pods, payload bays, inner tubes).
-- **the three flat structural adds** (boattail, drogue, payload) re-anchor themselves under an edit or
-  a removal, because their ids are derived from their anchor. `added` fixes that class for authored
-  parts; those three predate it. Retiring them in favour of the operation path is now possible — a
-  boattail IS an authored transition — and it would remove the last mechanism that mints a part whose
-  id can move.
+- **28 of 35 designs change their balance**, and **21 of 35 shift static margin by more than 0.005 cal**
+  — a Sev-1 quantity by name. Worst: `Pods--airframes and winglets.ork` **2.13 → 1.50 cal (−0.64)**;
+  `Three stage low power rocket.ork` **2.51 → 2.79 (+0.28)**. Dry mass barely moves; it is the CG.
+- **Cause 1 — `lib/ork/export.ts`'s parachute and streamer writers never emit `packedlength`**, while
+  `lib/sim/mass.ts:182,187` places a packed canopy's CG at `packedLength/2`. `masscomponent` and
+  `shockcord` DO write it, so the omission is inconsistent within one file.
+- **Cause 2 — the freeform-fin export clamps its tip chord** (`Math.max(0, 2*area/height - rootChord)`),
+  so whenever `2*area/height < rootChord` the exported area is strictly LARGER than the original and the
+  comment's "equal area" claim is false for exactly the tapered planforms freeform fins exist to express.
+- It belongs to **R6** by subject, but a wrong static margin on a file the flyer re-opens or hands to
+  OpenRocket is Sev-1 rule 1, so it preempts.
 
-`BACKLOG.md` is a defect ledger to file into and screen for Sev-1s. **Its Sev-1 count is zero at the
-end of this run** — all three found were fixed, not filed. Its newest entries are this session's, each
-with the measurement that makes it actionable: a dual-deploy drogue that can be seen and clicked but
-not reached, a pick that re-flies the design for nothing, a Transition exit placeholder that goes stale
-under a caliber edit, and a transition whose aft shoulder is stranded when its exit narrows.
+**Then continue P1.** Its next slices, in order, are on `ROADMAP.md`: `Button` adoption plus the two
+surfaces carrying two indigo primaries each (`ImportPanel`, `RocketpyCrossCheck` — §5 forbids it
+outright), then the type scale (14 uses of a `text-lg` that is not on the scale), then the 8 off-scale
+spacing values, then `DataTable`.
+
+**Then R4**, which is fully scoped above.
+
+**Two pull requests have been open for days and neither is merged, and one carries work that is NOT on
+`main` at all.** Read them before scoping anything:
+- **#67 "Undo every edit, not just a removal — R2 complete"** — the undo half is SUPERSEDED (`main` has
+  `lib/model/history.ts`, and R2 is marked SHIPPED). But it also carries `scripts/check-text-gaps.mjs`
+  and a `BACKLOG.md` entry recording **79 missing spaces on the served `/docs` pages**, and neither the
+  script nor the entry exists on `main`. Harvest the script, then close #67 with that reason. Closing it
+  blind loses the 79.
+- **#55 "Stop the build eating the space out of four sentences"** — **entirely unlanded.** `ballisticGap`,
+  `designMotorFlies` and `e2e/build-text.spec.ts` are all absent from `main` (`git grep ballisticGap`
+  returns nothing). Its `ballisticGap` is a real correctness fix: the motor sweep's DESIGN row reads
+  1,888 m against a Flight card one tab away reading 342 m, on a design whose recovery opens before
+  apogee. Its base is `e7f80a9`, seven merges behind, so it needs rebasing rather than merging.
+
+`BACKLOG.md` is a defect ledger to file into and screen for Sev-1s. Its Sev-1 count is zero at the end
+of this run **only if the two export defects above are counted as pick-up-first rather than filed** —
+they are stated here, at the top, deliberately.
 
 ## Environment notes
 

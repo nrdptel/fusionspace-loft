@@ -1415,6 +1415,9 @@ export default function LoftApp() {
                 elevationEdited: edits.launchAltitude !== undefined,
                 windEdited: edits.windSpeed !== undefined,
                 today: scenario === "today" && weather !== null,
+                // The profile's own hour, carried to every panel that quotes a drift number.
+                aloftHour: weather?.aloftTime,
+                aloftMatched: weather?.aloftMatched,
                 // And when the design specifies nothing, the nominals are Loft's own defaults, not
                 // "the design's own stored launch conditions" — the Conditions panel already says
                 // so in amber on the same page, so claiming otherwise contradicts it a screen away.
@@ -2380,7 +2383,17 @@ function ConditionsControls({
             <p className="mt-2 text-xs text-zinc-600 dark:text-zinc-300">
               <span className="font-medium">{weather.place}</span> · {weather.tempC.toFixed(0)} °C ·{" "}
               surface wind {toDispSpd(weather.surfaceWindMps)} {spdU} ·{" "}
-              {weather.aloft.length} aloft levels · field {toDispLen(weather.elevationMsl)} {lenU}
+              {/* The profile's own hour, said outright. The surface reading is live and the aloft
+                  profile is one hour of a 24-hour forecast day, so they are two different stamps in
+                  one response — and until this said so, a flyer reading a drift number had nothing
+                  telling them which hour the wind above the pad came from. */}
+              {weather.aloft.length} aloft levels{" "}
+              {!weather.aloftTime
+                ? "(hour not stated by the forecast)"
+                : weather.aloftMatched
+                  ? `for ${weather.aloftTime.slice(11)} local`
+                  : `for ${weather.aloftTime.slice(11)} local — the forecast gave no way to tie that to the surface reading`}{" "}
+              · field {toDispLen(weather.elevationMsl)} {lenU}
             </p>
           )}
         </div>

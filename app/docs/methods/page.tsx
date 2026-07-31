@@ -672,6 +672,19 @@ export default function Methods() {
         </a>{" "}
         uses. It is the only part of Loft that touches the network, always behind an explicit tap.
       </p>
+      <p>
+        The two halves of that fetch come from different parts of one response, so Loft pairs them
+        explicitly. Surface temperature, pressure and wind are the live observation; the winds-aloft
+        profile is one hour of a 24-hour forecast day, and Loft takes the hour that matches the
+        surface reading&apos;s own timestamp. The Conditions panel states which hour the profile is
+        for, because a drift estimate is only as current as the wind above the pad.
+      </p>
+      <p>
+        Between two pressure levels the wind speed is interpolated linearly and the direction is
+        interpolated along the <em>shorter</em>{" "}
+        compass arc — a bearing is not a scalar, and interpolating one as though it were reverses
+        the wind at every layer whose levels straddle north.
+      </p>
     </>
   );
 }
