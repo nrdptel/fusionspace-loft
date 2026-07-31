@@ -29,7 +29,7 @@ green gate as permission to push. Details under *What this session learned*.
 | track | state at the end of 2026-07-31 (third session) |
 |---|---|
 | **R — capability** | **R5 — author a staged rocket — IN PROGRESS**, increments 1–2 of 4–6 shipped |
-| **P — product & craft** | **P1 — one design system, adopted — IN PROGRESS**, increments 1–5 shipped |
+| **P — product & craft** | **P1 — one design system, adopted — IN PROGRESS**, increments 1–6 shipped |
 
 ## The arc so far
 
@@ -40,7 +40,7 @@ green gate as permission to push. Details under *What this session learned*.
 | R3 — add a component | SHIPPED 2026-07-30 |
 | R4 — reorder and restack | SHIPPED 2026-07-31 |
 | R5 — author a staged rocket | **IN PROGRESS** — inc. 1 (the stage) and 2 (the phase table) shipped |
-| P1 — one design system, adopted | IN PROGRESS — increments 1–5 shipped 2026-07-31 |
+| P1 — one design system, adopted | IN PROGRESS — increments 1–6 shipped 2026-07-31 |
 | P2–P5 | NOT STARTED |
 
 ## Shipped this session (2026-07-31, third session of the day)
@@ -48,13 +48,19 @@ green gate as permission to push. Details under *What this session learned*.
 Baseline before anything changed, all four green: lint 0 errors / **1 warning** (the standing `setDraft`
 one), **901 unit**, build, **177 e2e**, corpus **35 design files, 9/9**.
 
-At the end, all four green: lint 0 errors / 1 warning (the same one), **914 unit**, build, **179 e2e**,
+At the end, all four green: lint 0 errors / 1 warning (the same one), **914 unit**, build, **180 e2e**,
 corpus **35 design files, 11/11**.
+
+`DESIGN.md` §9, start of run → end: `rounded-lg` **35 → 25**; card treatments 3 → 3 (one is `Card`'s own);
+off-scale spacing 0 → 0; `text-lg` 0 → 0; inverted type files 0 → 0; primitive adopters 14 → 14 of 23.
+Nothing moved the wrong way.
 
 | commit | what |
 |---|---|
 | `37a2019` | **Sev-1 — a stage that cannot fire now says so.** The last open Sev-1 in the ledger. Rewritten once after review found the first version lied; see below. |
-| *(this run's second)* | **R5 increment 2 — the phase table.** `FlightRun.phases`, a per-phase table on the flight surface, and separation dots on the flight-path chart. |
+| `1f172f2` | **R5 increment 2 — the phase table.** `FlightRun.phases`, a per-phase table on the flight surface, and separation dots on the flight-path chart. |
+| `e64919b` | **The rest of the page made to read the flight rather than the plan**, plus three wrong claims and three assertions that could not fail — all found by the review of `1f172f2` after it was pushed. |
+| `ab460e7` | **The CI budget the new sweeps needed, and P1 increment 6** — `rounded-lg` 35 → 25. |
 
 ## What this session learned that is worth keeping
 
@@ -79,6 +85,13 @@ the solver's own intermediate, not from a re-reading of the inputs.
 **"0 of 35" was an artefact of a blind predicate, not a fact about the corpus.** Both the docs and the
 sweep published it. The real figure is **1 of 35**. A sweep that returns nothing is evidence about the
 sweep as much as about the corpus — check the predicate can see the thing before believing the count.
+
+**A green LOCAL gate does not prove the runner agrees, and this repo has now learned it twice.** CI went
+red on `e64919b` while the identical tree passed here: the new dead-stage corpus sweep flies all 35
+designs and ran under vitest's 5 s default — **488 ms on this box, 5,186 ms on the runner**. Every
+neighbouring sweep already carries an explicit `300_000` for exactly this reason and the previous handoff
+wrote the lesson down; it was still reintroduced. **Any test that flies the corpus takes the budget, and
+the `frontend` job's own result on the PR head is read before a run is called done.**
 
 **Run the gate AFTER the last edit, not around it.** Two gate runs this session were invalidated by edits
 that landed while they were in flight, and a third was re-run for honesty. The result of a gate that
@@ -164,7 +177,9 @@ drop-slots · 206 reorders · 33 authored boosters and 2 refusals · 0 of 35 lea
    one decision: does `CARD_TONES` gain a `sunken` tone?), **6c** the 8 semantic notices **plus**
    `app/globals.css`'s print rule keyed on `.rounded-lg`, which breaks print if the sites convert without
    it, **plus** the ratchet update. 6c must be last. Then `DataTable`, sized by `COMPETITION.md` row 24.
-   The full site list with file:line is in that agent's output; re-run the scope if it is gone.
+   **Increment 6 did 6a**, so what is left is 6b (the 12 zinc-50 blocks, blocked on the `CARD_TONES`
+   decision) and 6c (the 8 semantic notices + `app/globals.css`'s print rule + the ratchet to 0). 6c must
+   be last, because that stylesheet rule stays valid until the final container converts.
 3. **The design-system audit finally ran**, and it is the biggest single body of P-track work now known:
    `text-[10px]`×22 and `text-[9px]`×3 are an eighth and ninth type size (one of them inside `Chip`
    itself), `text-[11px]` is at 32 uses of which 29 are off-role, 69 unsanctioned half-step spacings, four
@@ -192,6 +207,10 @@ strongest candidates the moment nothing else preempts.
 - **The zero-trace sweep has one standing false positive and it is not ours**: `out/pyodide/pyodide-lock.json`
   is Pyodide's own index of installable wheels, untracked and already in production. Sweep the TRACKED
   tree with `git grep`.
+- **The app has SIX page routes and none of them is `/validation` or `/motors`** — a previous handoff's
+  cold-walk list named both and they 404. They are `/`, `/docs`, `/docs/faq`, `/docs/methods`,
+  `/docs/limitations` and `/docs/validation`; confirmed against production, where `/validation` is a 404
+  and `/docs/validation` is a 200. Walk those six.
 - `innerText` throws on an SVG `<text>`; use `textContent`. `<details>` keeps its content in the DOM while
   collapsed, so ask `details.evaluate(el => el.open)`. `getByLabel` matches an `aria-label` SUBSTRING.
 - The parts panel's part-removal control and a stage's own *Remove &lt;name&gt;* control both match
