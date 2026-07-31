@@ -2,34 +2,34 @@
 
 Overwritten each session. What shipped, what is part-way, and what to pick up first.
 
-## Read this first: the queue now has TWO tracks
+## Read this first
 
-**`ROADMAP.md` was restructured on 2026-07-30 and a run now ships from both tracks, alternating.**
-This is the single thing to understand before scoping anything.
+**`BACKLOG.md`'s Sev-1 count was NOT zero at the start of this run, and the previous handoff said it
+was.** The shelf's "×" permanently deleted a design's only stored bytes — no confirmation, no undo,
+surviving a reload — which is the manual's second Sev-1 criterion verbatim, and the ledger entry
+itself already called it "the sharpest remaining one-way door". It was counted as a defect rather
+than as a preemption. **Fixed this run.** The lesson for the next one: run the Sev-1 screen against
+the LEDGER, not against the previous handoff's summary of it.
 
-| track | state at the end of 2026-07-31 |
+**The queue has two tracks and a run ships from both.** `ROADMAP.md` is the queue; read it first.
+
+| track | state at the end of 2026-07-31 (second session) |
 |---|---|
-| **R — capability** | **R4 — reorder and restack — IN PROGRESS**, increment 1 shipped |
-| **P — product & craft** | **P1 — one design system, adopted — IN PROGRESS**, increments 1–2 shipped |
+| **R — capability** | **R4 — reorder and restack — IN PROGRESS**, increment 1 shipped; the DRAG is the next slice |
+| **P — product & craft** | **P1 — one design system, adopted — IN PROGRESS**, increments 1–4 shipped |
 
-The owner's direction was that both apps still read as thrown-together rather than as products the
-public can pick up, measured against OpenRocket, RocketPy and the vendor tools. The cause was
-structural, not effort: `ROADMAP.md` was the queue and it contained **only** capability milestones, so
-a hands-off run could not ship product work as its main job — and the old "one increment in four may
-be defect **or polish** work" quota capped the very thing that was missing. The quota now covers only
-*unqueued* defect work; craft with a *done when* is a P-track milestone and is not capped.
+**`DESIGN.md` and `COMPETITION.md` are binding and are read at session start.** `DESIGN.md` §9's
+compliance block is executable as `lib/design-system.test.ts`, with every count an EXACT ratchet, so
+an improvement and a regression both fail until the number moves in the same commit as the work.
 
-**Two new files, both binding, both to be read at session start:**
-- **`DESIGN.md`** — the design system: tokens, type and spacing scale, component vocabulary, the five
-  required states, number presentation, product shape, the touch contract. **Read it before writing a
-  component.** Both repos carry an identical copy; a change to one is a change to both, same run.
-- **`COMPETITION.md`** — the accumulating gap against OpenRocket, RocketPy, RASAero and RockSim. The
-  done-check now requires one row added or resolved per run.
-
-**P1 is the next P-track milestone and it is an extraction, not a repaint.** `components/ui.tsx` has
-8 exports and only 5 of 23 components import it; `Chip` and `Disclosure` are imported nowhere. Grow it
-into the vocabulary `DESIGN.md` §5 names, convert one surface per increment, and **ship the pinning
-check with the first slice** so the drift cannot return mid-conversion.
+**One thing is owed to the sibling repo and was NOT done, because this session could not reach it.**
+`DESIGN.md` §9's explanatory note quotes `GeometryInspector` at 9:2 and `MonteCarlo` at 9:4; the tree
+said 10:2 and 9:3 when it was written, and both are now 2:8 and 3:9. The file is shared verbatim with
+Debrief and §10 says a change to one is a change to both in the same run — this session was scoped to
+this repo and the fixtures repo, so correcting it here alone would have created exactly the
+divergence the invariant forbids. **The correction is two numbers in §9's paragraph beginning "The
+suite-wide ratio was removed on 2026-07-31", and it must land in BOTH copies together.** The rule
+itself is right and is satisfied; only the historical figures are stale.
 
 ## The arc so far
 
@@ -38,15 +38,14 @@ check with the first slice** so the drift cannot return mid-conversion.
 | R1 — address components by identity | SHIPPED 2026-07-30 |
 | R2 — delete a component, and undo it | SHIPPED 2026-07-30 |
 | R3 — add a component | SHIPPED 2026-07-30 |
-| R4 — reorder and restack | NOT STARTED — fully scoped 2026-07-31, see below |
-| P1 — one design system, adopted | IN PROGRESS 2026-07-31 — increment 1 shipped, ratchet pinned |
+| R4 — reorder and restack | IN PROGRESS — increment 1 (the operation + a button pair) shipped 2026-07-31; the drag is next |
+| P1 — one design system, adopted | IN PROGRESS — increments 1–4 shipped 2026-07-31 |
+| P2–P5 | NOT STARTED |
 
-Three capability milestones shipped in two sessions and the editor has gone from a parametric tweaker
-over a fixed tree to something that can grow one. What did **not** move in that time is what the app
-feels like: it is still one 2577-line page carrying every job, with 12+ card treatments on it. That
-asymmetry is exactly what the two-track queue exists to correct. `ROADMAP.md` carries what each
-milestone delivered against its *done when* and the gap that became the next one's starting point;
-read it first.
+Three capability milestones shipped in two sessions and the editor went from a parametric tweaker over
+a fixed tree to something that can grow one. The P-track exists because what did NOT move in that time
+is what the app feels like. `ROADMAP.md` carries what each milestone delivered against its *done when*
+and the gap that became the next one's starting point; read it first.
 
 ## Where the work is
 
@@ -170,6 +169,17 @@ Run it with `run_in_background: true` and wait with `until grep -q "E2E_EXIT=" "
 
 **Never read a Playwright count through a pipe** — `| tail -20` eats the summary line.
 
+**A class-string helper must live in `lib/ui-tokens.ts`, never in `components/ui.tsx`.** That file is
+`"use client"`, the site header is a SERVER component, and a helper exported from the former and called
+from the latter fails the build outright — *"Attempted to call buttonClass() from the server"*. Cost
+one gate run this session. `lib/ui-tokens.ts`'s own header already carried the warning, from the time a
+touch token lived in the client module and shipped a throwing stub into a served `class` attribute.
+Components stay in `components/ui.tsx`; anything that is a STRING goes in the token module.
+
+**`npm run build` must be re-run between a negative control and reading the e2e result.** The suite
+runs against `out/`, so a control edited into a source file changes nothing until the build lands —
+and a control that "passes" for that reason looks exactly like a test that cannot fail.
+
 **`Target page, context or browser has been closed` is the box, not the code.** It appeared once in an
 earlier session on a commit that changed only markdown. Tell it apart from a real failure by the shape:
 a genuine failure names an assertion and its received value, this one names no expectation at all.
@@ -182,6 +192,20 @@ site.** Eight controls this session; the shapes that worked were: AND a term tha
 (`d.aftRadius > 0 && d.length < 0 ? … : …`), multiply a constant by 0, filter a set to empty
 (`(def.groupWide ?? []).filter(() => false)`), scale a threshold by 1e6, and swap one argument for
 another (`aimEditsAt(doc.rocket, id)` for `aimEditsAt(removableFrom, id)`).
+
+**An assertion placed after the state it tests has already been cleaned up cannot fail.** One
+negative control came back green this session for that reason alone: the clear-on-load assertion in
+the new shelf-undo e2e ran after every pending removal had already been restored, so it asserted
+`toHaveCount(0)` against a list that was empty either way. The fix is to leave the state STANDING and
+then take the action under test. When a control comes back green, suspect the control, then suspect
+the assertion's position in the test — in that order.
+
+**A comparison can be unfalsifiable because the emulator moves both sides.** `e2e/touch.spec.ts`'s
+horizontal-overflow test compared `documentElement.scrollWidth` against `window.innerWidth`, and under
+`isMobile` emulation Chromium widens the LAYOUT viewport to swallow an overflow: measured at 320 px,
+`scrollWidth` 370 and `innerWidth` 370, assertion green, while `clientWidth` correctly read 320. It had
+never been able to fail. Compare against `clientWidth`. And run a layout check at more than one width:
+this suite is pinned to the iPhone 13's 390 px, and both a 360 px and a 320 px phone were overflowing.
 
 **A test that shares the helper under suspicion is blind exactly where the code is.** This is the
 sharpest thing this session learned and it cost a shipped defect. The corpus sweep for authored parts
@@ -282,65 +306,22 @@ designs back to their imported caliber, a crash path in an exhaustiveness check,
 that could not fail, and six numbers in comments and docs that did not re-derive. The lens that found
 most of them was "verify every number quoted in this diff with your own probe".
 
-## Shipped this session (2026-07-31) — four pull requests, all merged and deployed
+## Shipped this session (2026-07-31, second session of the day)
 
 Baseline before anything changed, all four green: lint 0 errors / **1 warning** (the standing
-`setDraft` one), **826 unit**, build, **169 e2e**, corpus **35 design files, 5/5**.
-At the end: **869 unit, 171 e2e**, corpus 35 files **6/6**. Nothing is pending on a branch.
+`setDraft` one), **870 unit**, build, **171 e2e**, corpus **35 design files, 6/6** with its counts
+printed (536 removable parts, 180 authored, 230 mass stations, 206 reorders).
 
-| PR | what |
+*(This section is refreshed mid-run; the run was still going when it was last written. The commit log
+on the working branch is the record.)*
+
+| commit | what |
 |---|---|
-| **#76** | **Sev-1 — "today's weather" flew last night's wind.** `lib/weather.ts` read the winds-aloft profile from `hourly` index 0, which with `timezone=auto` and `forecast_days=1` is **00:00 local**, while the surface block was live. Measured against the live API at 18:15 local: 850 hPa 154° from the real hour, 500 hPa 166° apart at fifteen times the speed. Flown on three real designs the landing point moved **241 m, 352 m and 255 m** — and the drift MAGNITUDE barely changed, so the number looked right and pointed the wrong way. Plus the bearing wrap in the same function, and **P1 increment 1**. |
-| **#77** | **Sev-1 — a saved design did not re-open with the balance it was saved with.** The parachute and streamer writers never emitted the packed dimensions, and `lib/sim/mass.ts` places a packed canopy's CG at half its packed length. Static margin moved on **21 of 35** real designs; after the fix, **6**, all of them the disclosed freeform conversion. Plus **86 spaces the build was eating on the live site**, and `check-text-gaps.mjs` in `postbuild`. |
-| **#78** | **R4 increment 1 — a flyer can reorder the airframe**, and **P1 increment 2 — one button hierarchy**. Five defects found by the pre-push review, all fixed before pushing. |
-| **#79** | **The motor sweep says what it is showing.** `ballisticGap` (the DESIGN row reading 1,888 m against a 342 m flight) and `designMotorFlies`, both harvested from a pull request that had been open since 2026-07-28. |
+| `96937cb` | **P1 increment 4 — the decision-grade numbers come off caption size.** Nine of twenty-three component files had `text-xs` outnumbering `text-sm`; the suite-wide ratio passed by three and could not see it. `text-xs` across `components/` 91 → 56, `text-sm` 84 → 113, inverted files 9 → 0. |
+| `37fc6ca` | **The pre-push review's findings, and a phone overflow the gate could not see.** Putting the header's controls on the type scale took that row 197 → 229 px, which overflowed a 360 px phone by 10 px; a 320 px phone had ALREADY been overflowing by 19 px. Both 0 now. The check that should have caught it could never fail — see the lesson above. |
+| `e8467ef` | **Sev-1 — removing a design from the shelf is undoable.** Second attempt; the first was reverted and its six failure modes each shaped a part of this one. |
 
-**Both stale pull requests are closed, with their reasoning recorded on them.** #67's undo half was
-superseded by `lib/model/history.ts`, but its `check-text-gaps.mjs` existed nowhere on `main` and found
-86 live defects — harvested first, then closed. #55's four glued sentences were already gone, but its
-`ballisticGap`, its `resolves` flag and two measured builder BLOCKERS were not — the first two are
-shipped, the blockers are in `BACKLOG.md` with the note on why the obvious fix is wrong.
-
-## The done-check, answered
-
-**What can a flyer DO after this run that they could not before?** Reorder the airframe: pick any
-top-level part and walk it toward the nose or the tail, with the stations of everything aft following
-and each nudge undoable by name. Walked on `fixtures/demo-quirks.ork` in the built export of `b280201`:
-the aft tube moves forward and the static margin goes **5.60 → 4.14 cal**.
-
-**What is measurably better about using the tool?** Two numbers a flyer acts on stopped being wrong.
-Today's-weather drift pointed up to 352 m the wrong way and now does not; a downloaded design's static
-margin moved on 21 of 35 real designs and now moves on none except the disclosed freeform case. Plus
-86 sentences on the live site that were missing a space, and the §9 counts below.
-
-**`DESIGN.md` §9, start of run → end:**
-
-| count | start | end | target |
-|---|---|---|---|
-| `rounded-lg` | 49 | **37** | 0 |
-| distinct card treatments | 9 | **3** | 3 (one is `Card`'s own) |
-| off-scale spacing | 8 | 8 | 0 |
-| components importing `ui.tsx` | 5 | **12** of 23 | most |
-| components importing `Button` | 0 | **7** | most that have one |
-| hand-rolled indigo primaries | 16 | **6** | 0 |
-| surfaces with two primaries | 2 | **0** | 0 |
-| files where `text-xs` outnumbers `text-sm` | 9 | 9 | 0 |
-
-**Cold walk of the built export of `b280201`, and the phone.** The reorder moves the margin as above.
-The from-scratch builder composes with it: add a tube behind the body, and the authored tube is
-immediately reorderable — R3 already aims at it, so the control is there without another click. At a
-390 px viewport the move control measures **159 × 44 px** (the contract is 44) and the page has **0 px**
-of horizontal scroll. No page errors on any leg.
-
-**Production.** `loft.fusionspace.co/docs/limitations` serves the freeform disclosure including "worst
-0.69 cal", so #77 is live. There is no gap between what shipped and what is deployed: every one of the
-four pull requests merged to `main`, which deploys on push.
-
-**`COMPETITION.md` gained two rows** (20: a move that cannot be made is refused, and one that can is
-re-checked — OpenRocket has had drag-drop reorder since 1.1.3 and added gap/overlap warnings in 22.02;
-21: one look-and-feel engine with density as a user-adjustable global). Row 1's note now names its P1
-dependency. The ledger's "newest first" header was wrong — the table ascends and the numbers are stable
-references — and now says so.
+**The previous handoff's "Sev-1 count is zero" was wrong** — see the top of this file.
 
 ## R4 — what shipped, and the one trap it left
 
@@ -399,9 +380,18 @@ fixtures through the importer, and every figure in it was re-measured before bei
   existing contract. What DOES reuse wholesale: the pointerdown/CTM/rAF/AbortController drag scaffolding
   and `hoverProps(id)`'s per-part closed silhouette path, which already gives every body part a
   hit-testable, id-addressed grab target.
-- **Freeze the HORIZONTAL frame during the drag.** `onActiveChange` does the vertical analogue for two
-  existing handles; without the horizontal one the airframe's overall length changes under the pointer
-  mid-drag and the drop indicator drifts away from it.
+- **~~Freeze the HORIZONTAL frame during the drag.~~ MEASURED FALSE, 2026-07-31.** This said the
+  airframe's overall length changes under the pointer mid-drag. It does not: `flattenRocket` stacks
+  each stage's list with a running cursor and all 150 top-level components across the 35 corpus
+  designs are body parts at `after` + 0, so a pure permutation leaves the sum — and therefore
+  `o.length` — bit-identical. Freezing it would fix nothing. **What actually moves is `maxExtent`**,
+  because fin seats re-resolve through `radiusAtStation`, which jumps `frameExtent` → `centerY` → `H`
+  and shifts the whole picture VERTICALLY; the existing `vFrameExtent` freeze is the fix and the
+  reorder drag must set it exactly as the fin-span handle does. And on a design carrying a boattail
+  what-if, `addBoattail` returns the rocket unchanged once a narrower tube becomes aft-most, so the
+  boattail VANISHES and the airframe genuinely does shorten — a preview-only, undo-invisible geometry
+  change, and the one real horizontal drift. Left here struck through rather than deleted because two
+  files carried the wrong instruction and a future session will otherwise re-derive it.
 - **Only ONE committed fixture has R4's shape**: `fixtures/demo-quirks.ork`, 4 top-level children
   (nose > tube > transition > tube), already loaded at `e2e/smoke.spec.ts:3153`. **None of the 5 e2e
   fixtures has a stage with 3+ top-level children**, and the starter has 2 — so the honest e2e is
@@ -458,43 +448,49 @@ Pin a constant on the field's placeholder, not on the table row, and anchor the 
 
 ## Pick up first
 
-**Both tracks are IN PROGRESS and neither is blocked. Take the next slice of each, in this order.**
+**Both tracks are IN PROGRESS and neither is blocked.**
 
 1. **R4 increment 2 — the DRAG.** The *done when* asks for "drag a component along the airframe and
-   drop it between two others"; increment 1 shipped the operation and a button pair. The drag reuses
-   `RocketDiagram`'s existing pointerdown/CTM/rAF/AbortController scaffolding wholesale and
-   `hoverProps(id)`'s per-part closed silhouette path, which already gives every body part a
-   hit-testable, id-addressed grab target. What is new is the drop-target computation and the
-   indicator — and **freeze the HORIZONTAL frame for the duration**, because the airframe's overall
-   length changes under the pointer mid-drag and the x-scale snapshot goes stale. `onActiveChange`
-   already does the vertical analogue for two handles; there is no horizontal one. Keep it
-   fine-pointer-only, like the other centreline grips: the buttons are the touch path.
-2. **P1 increment 3 — the type scale.** 14 uses of a `text-lg` that is not on §3's six-size scale, and
-   9 of 23 component files where `text-xs` outnumbers `text-sm`. Both counts are in the ratchet
-   already; converting the panel headings to `text-xl font-medium` moves the section rhythm on every
-   surface at once. Then the 8 off-scale spacing values (single-token edits, the cheapest count to
-   take to zero), then `DataTable`.
-3. **Then R4 increment 3, then P1's remaining slices**, alternating.
+   drop it between two others". A fan-out agent scoped it against the code this session and produced
+   several things worth more than the scoping — every one verified by reading the code:
+   - **`o.length` is INVARIANT under a pure permutation**, so the "freeze the HORIZONTAL frame"
+     instruction the previous handoff and `ROADMAP.md` both carried is built on a false premise:
+     `flattenRocket` stacks with a running cursor and every top-level component in the corpus is a
+     body part at `after` + 0, so their sum cannot change. What DOES move mid-drag is `maxExtent`
+     (fin seats re-resolve, so the frame jumps vertically — the existing `vFrameExtent` freeze is the
+     fix) and, on a design with a boattail what-if, `addBoattail` returning the rocket unchanged when
+     a narrower tube becomes aft-most, which makes the boattail VANISH under the pointer.
+   - **The drag must NOT route through `onEdit`.** `applyEdit` spreads `{...edits, ...patch}`, so a
+     bare `{ moved: [x] }` from the diagram REPLACES the whole list and discards every earlier reorder
+     and its undo entries. `movePart` appends; a drag needs its own `onMoveTo(id, after)` callback
+     that does the same.
+   - **`hoverProps(id)`'s `onClick` fires on pointerup after any drag on the same `<path>`**, and that
+     click re-aims the editor's fields at the dragged part. A movement threshold plus a suppressed
+     synthetic click is required, or every reorder silently moves the aim.
+   - **`describeEdit({ moved })` reads "the moved"** — `EDIT_ACTIONS` has no entry for `moved`,
+     `added` or `removedIds`. Only reachable if a caller forgets an explicit label, which `movePart`
+     does not; a registry entry each is a one-line guard.
+   - **Anchors must come from the tree the operation runs against (`removableFrom`) and pixels from
+     the tree on screen.** The shown rocket's dimension edits synthesise a top-level boattail that
+     `applyMoves` cannot address, so a drop anchored on it silently no-ops.
+   - Keep it fine-pointer-only, like the other centreline grips; the buttons are the touch path.
+     The smallest shippable slice is: pointerdown on a part overlay where a move is legal, snapshot
+     the slot boundaries, draw an indicator, commit ONE `moved` entry on pointerup — no live preview.
+     `fixtures/demo-quirks.ork` (4 top-level children) is the only committed fixture with the shape.
+2. **P1's remaining slices**, in this order: the 8 off-scale spacing values (single-token edits, the
+   cheapest count to take to zero), then the 35 `rounded-lg` — and **that one breaks print unless
+   `app/globals.css`'s rule keyed on `.rounded-lg` changes in the same commit** — then `DataTable`.
+3. **Then alternate.**
 
-**Two BLOCKERS are filed in `BACKLOG.md` with full reproductions and are NOT fixed** — both are silent
-data loss on the from-scratch builder, both harvested from a pull request closed this run, and both
-carry a note on why the obvious fix is wrong (which is the expensive half):
-
+**Two BLOCKERS in `BACKLOG.md` are still unfixed**, both silent data loss on the from-scratch builder,
+both with full reproductions and a note on why the obvious fix is wrong:
 - **`Download .ork` drops the motor the flyer picked.** 1,033 m saved, 542 m re-imported (−47.5%).
-  On the builder path "Swap motor" is the only motor control, so that dropdown IS the picker, not a
-  what-if. Not fixable by "bake them in" — on the import path a swap genuinely is a hypothetical.
 - **Reopening your own build from the shelf hands back the factory starter.** 790 m / 4.1 cal comes
-  back as 994 m / 1.53 cal. The "Pick it back up" banner restores it correctly, so the data exists.
+  back as 994 m / 1.53 cal.
 
-Neither is a Sev-1 by the manual's definition — no wrong number is *published*, and there is a way
-back — but they are the two worst things a builder can hit, and they are the strongest candidates the
-moment a Sev-1 preemption is not competing with them.
-
-**`BACKLOG.md`'s Sev-1 count is zero at the end of this run.** Three were found and all three were
-fixed rather than filed: the winds-aloft hour, the bearing wrap, and the export's packed dimensions.
-
-**No pull requests are open.** #76, #77, #78 and #79 all merged and deployed; #55 and #67, open since
-2026-07-28 and 2026-07-30, are closed with their unique content harvested first.
+A triage agent argued both are Sev-1 by the manual's first criterion. They are the strongest
+candidates the moment nothing else preempts, and the second one is on the very surface this session
+just gave an undo to.
 
 ## Environment notes
 

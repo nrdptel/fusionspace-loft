@@ -409,6 +409,19 @@ taken without the owner*.
   centreline grips are already fine-pointer-only because at phone fit width the airframe is ~11 px tall
   and every grip sits inside every other's 44 px target. Building the drag first would have left the
   accessible path unbuilt and `e2e/touch.spec.ts` to discover it.
+
+  **The scoping for that slice was redone on 2026-07-31 and one of its premises was wrong.** This file
+  and `HANDOFF.md` both said to freeze the HORIZONTAL frame during the drag because the airframe's
+  overall length changes under the pointer. Measured: it does not. `flattenRocket` stacks with a
+  running cursor and all 150 top-level components are body parts at `after` + 0, so a permutation
+  leaves the sum bit-identical. What moves is `maxExtent` — fin seats re-resolve, so the picture
+  shifts VERTICALLY and the existing `vFrameExtent` freeze is the fix — plus one real horizontal case:
+  with a boattail what-if set, `addBoattail` returns the rocket unchanged once a narrower tube becomes
+  aft-most, so the boattail vanishes mid-drag. `HANDOFF.md` carries the rest, including the three
+  hazards that decide the shape: the drag must not route through `onEdit` (which replaces the whole
+  `moved` list rather than appending), the pick's click fires on pointerup and would re-aim the fields
+  on every reorder, and the drop anchor must come from the tree the operation runs against while the
+  pixel comes from the tree on screen.
 - **Reordering is top-level only.** A part nested inside another (a fin set on a tube, a mass object in
   a bay) has no place in the stack order, and `moveTarget` returns null for it. Real designs nest, so
   "move this part into that bay" is a real gesture — it is the same ceiling `added` still has, filed in
