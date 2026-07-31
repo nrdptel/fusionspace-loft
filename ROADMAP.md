@@ -420,15 +420,26 @@ pinned.
 the §9 compliance block is now an executable ratchet (`lib/design-system.test.ts`, 7 cases), so the drift
 cannot return while the conversion is still running.
 
-**Measured at the start of this milestone (2026-07-31), and after increment 1:**
+**Measured at the start of this milestone (2026-07-31), and after each increment:**
 
-| §9 count | target | before | after inc. 1 |
-|---|---|---|---|
-| `rounded-lg` | 0 | 49 | 46 |
-| distinct card treatments | 1 (see below) | 9 | 3 |
-| off-scale spacing values | 0 | 8 | 8 |
-| components importing `components/ui.tsx` | most of 23 | 5 | 11 |
-| `text-sm` vs `text-xs` | sm > xs | 91 / 88 | 91 / 88 |
+| §9 count | target | before | inc. 1 | inc. 2 |
+|---|---|---|---|---|
+| `rounded-lg` | 0 | 49 | 46 | **37** |
+| distinct card treatments | 3 (see below) | 9 | 3 | 3 |
+| off-scale spacing values | 0 | 8 | 8 | 8 |
+| components importing `components/ui.tsx` | most of 23 | 5 | 11 | **12** |
+| components importing `Button` | most that have one | 0 | 0 | **6** |
+| hand-rolled indigo primaries | 0 | 16 | 16 | **6** |
+| surfaces with two primaries | 0 | 2 | 2 | **0** |
+| component files where `text-xs` outnumbers `text-sm` | 0 | 9 | 9 | 9 |
+
+**The suite-wide `text-sm` vs `text-xs` ratio was retired from §9 in increment 2, and the reason is
+a measurement.** Converting nine hand-rolled buttons onto `Button` moved the totals from 91/88 to
+84/89 — an inversion by the metric — while **not one glyph on screen changed size**, because the
+`text-sm` moved into `BUTTON_SIZES`. Adoption drives the suite ratio the wrong way for the right
+reason, which makes it useless during exactly the milestone that raises adoption. The per-file
+inversion count replaces it, and it is the one that was catching something all along: 9 of 23 files
+are individually inverted while the suite total passed by three.
 
 **The card target is 3, not 1, and the difference is a decision rather than a shortfall.** One of the
 three is `<Card>`'s own string, which IS the target state. The other two are a floating update toast

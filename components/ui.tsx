@@ -136,6 +136,10 @@ export function Button({
 }: {
   variant?: ButtonVariant;
   size?: keyof typeof BUTTON_SIZES;
+  /** Declared explicitly because `ButtonHTMLAttributes` does not carry it. React 19 passes `ref`
+   *  to a function component as an ordinary prop, so no forwarding wrapper is needed — but the type
+   *  has to say so, and three of the panels hand their Run button a ref to return focus to. */
+  ref?: React.Ref<HTMLButtonElement>;
 } & React.ButtonHTMLAttributes<HTMLButtonElement>) {
   return (
     <button

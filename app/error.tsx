@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { Button } from "@/components/ui";
 
 // Route error boundary. The simulator shouldn't throw in normal use, but if something
 // unexpected happens during render we show a friendly, on-brand recovery instead of Next's
@@ -16,13 +17,9 @@ export default function Error({ reset }: { error: Error & { digest?: string }; r
         That&apos;s on us, not on you. Try again, or re-import your design.
       </p>
       <div className="mt-6 flex items-center gap-3">
-        <button
-          type="button"
-          onClick={() => reset()}
-          className="rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-indigo-500"
-        >
+        <Button variant="primary" onClick={() => reset()}>
           Try again
-        </button>
+        </Button>
         <Link
           href="/"
           className="text-sm text-zinc-600 underline underline-offset-2 hover:text-zinc-900 dark:text-zinc-300 dark:hover:text-white"

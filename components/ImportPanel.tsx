@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 
 import { TOUCH_TARGET, TOUCH_TARGET_SQUARE } from "@/lib/ui-tokens";
 import { countWhatIfs, type RecentDesign, type SavedSession } from "@/lib/session";
-import { Card } from "./ui";
+import { Button, Card } from "./ui";
 
 /** The import surface: a large drop zone / file picker for an OpenRocket `.ork`, RockSim
  *  `.rkt` or RASAero `.CDX1`, plus one-tap buttons to load the bundled sample designs so the tool is usable before
@@ -61,14 +61,12 @@ export default function ImportPanel({
             ) : null}
             .
           </p>
-          <button
-            type="button"
-            disabled={busy}
-            onClick={onRestoreDiscarded}
-            className={`rounded-lg bg-indigo-600 px-3.5 py-2 text-sm font-medium text-white transition hover:bg-indigo-500 disabled:opacity-60 ${TOUCH_TARGET}`}
-          >
+          {/* SECONDARY, not primary. `DESIGN.md` §5 allows one primary per surface, and this screen's
+              is "Choose a file" — the job the surface exists to do. Two indigo fills here meant
+              neither read as the main action, on the first screen a flyer ever sees. */}
+          <Button variant="secondary" disabled={busy} onClick={onRestoreDiscarded}>
             Pick it back up
-          </button>
+          </Button>
         </Card>
       )}
       <div
@@ -103,14 +101,9 @@ export default function ImportPanel({
           file here, or choose one. Everything runs in your browser — your design is never uploaded.
         </p>
         <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => inputRef.current?.click()}
-            className={`inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-indigo-500 disabled:opacity-60 ${TOUCH_TARGET}`}
-          >
+          <Button variant="primary" disabled={busy} onClick={() => inputRef.current?.click()}>
             {busy ? "Working…" : "Choose a file"}
-          </button>
+          </Button>
           <input
             ref={inputRef}
             type="file"
