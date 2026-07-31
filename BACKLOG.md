@@ -12,6 +12,17 @@ this file, and deliberately does **not** cap craft or product work, because that
 track in `ROADMAP.md` with its own *done when*. Rough edges, missing affordances, and findings too
 big for one pass. Newest first.
 
+- **The per-file caption-inversion guard has the same adoption blind spot the suite-wide ratio had.**
+  §9 retired the suite ratio in P1 increment 2 because converting hand-rolled buttons onto `Button`
+  moved the totals the wrong way while not one glyph changed size — the `text-sm` had moved INTO the
+  primitive. The per-file count replaced it. Measured 2026-07-31: adopting `Disclosure` in
+  `InstallHint.tsx` did exactly the same thing at file granularity — the file's only body text is now
+  inside the primitive, so it read 1/0 and failed a guard set at 0, with nothing on screen smaller.
+  It happened to have a genuinely decision-grade sentence to promote, so this run fixed it honestly
+  rather than by distorting a count — **but the next adoption may not be so lucky.** The fix is a
+  metric that does not punish a file for delegating its container, and that is a §9 change, which
+  means it is owed to BOTH repos.
+
 - **A cluster count multiplies the mass and inertia of whatever component carries the mount, not just
   the motor tube.** `lib/sim/mass.ts:216` scales ANY component's own mass and rotational inertia by
   `motorMount.clusterCount`, and `lib/model/edit.ts:861` writes `motorClusterCount` onto every component
