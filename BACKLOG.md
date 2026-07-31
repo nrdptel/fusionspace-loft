@@ -12,6 +12,35 @@ this file, and deliberately does **not** cap craft or product work, because that
 track in `ROADMAP.md` with its own *done when*. Rough edges, missing affordances, and findings too
 big for one pass. Newest first.
 
+- **P1 increment 7's review, five findings left open.** The `sunken` conversion is structurally clean —
+  all ten tag spans verified byte-identical against `origin/main`, no class dropped, no overflow at
+  320/360/390/412 — but it left five things worth doing, all measured on the built export.
+
+  1. **Two of the ten are EMPTY states wearing the wrong tone.** `MonteCarlo.tsx:370` ("None of the
+     dispersed flights could be flown on this design.") and `MotorSweep.tsx:225` ("None of the fitting
+     motors could be flown on this airframe.") got `sunken`, while `CARD_TONES.muted` is documented as
+     "the empty state's container". Neither is really either: §5 names an `EmptyState` primitive that
+     says what would fill it and the one action that does, and both of these are "No data" in more
+     words — the phrasing §5 forbids by name. They want `EmptyState`, which is deferred to P1's
+     successor milestone. Picking the wrong named tone in the commit that creates the vocabulary is how
+     a vocabulary stops meaning anything, so this is filed rather than left implicit.
+  2. **The dispersion stat tiles diverged from the flight stat tiles they mirror.** `MonteCarlo.tsx:537`
+     is now 12 px radius / 16 px pad / `bg-zinc-50` at 291×105; the Flight tile it echoes
+     (`ResultsView.tsx:1317`) is still `rounded-lg … p-3 bg-white` at 8 px / 12 px / 299×93. Before the
+     conversion both were 8 px + 12 px and differed only in fill. They are the same object to a flyer —
+     label, big number, range. This is transitional (the Flight tiles are among the 15 `rounded-lg`
+     still to convert) but it is visible now, and converting them closes it.
+  3. **`RocketpyCrossCheck`'s three run-outcome notices now have three geometries.** The stopped notice
+     converted to 12 px / 16 px; the stale-amber `:272` and failure-red `:306` are still
+     `rounded-lg px-3 py-2`. They alternate in the same slot, and a flyer reads shape before colour.
+  4. **Two hand-rolled sunken surfaces remain inside `components/ui.tsx` itself** (`:257`, `:325`,
+     `rounded-md` + `bg-zinc-50`), plus `InstallHint.tsx:53`. §1 forbids a raw treatment where a
+     primitive exists, and these are the counter-example sitting in the file that defines the token.
+  5. **Nothing asserts that `CARD_TONES` matches `DESIGN.md` §2.** The `/60`-vs-`/50` drift was caught
+     by review, not by a check — `lib/design-system.test.ts` counts class occurrences and never compares
+     the token values against the spec table. A test that parsed §2's surface table and asserted the
+     tones against it would have caught it, and would catch the next one.
+
 - **A booster shed at a shared joint gets no descent estimate, because the descent code assumes one phase
   per stage.** `simulate.ts` reads `const sepT = phases[nStages - i]` when sizing a separated stage's
   descent, which is only correct if every stage gets its own phase. It does not: a serial stack parts at
