@@ -523,16 +523,25 @@ caption size — `text-xs` across `components/` went 91 → 56 — and the foote
 disclaimer came out of the fine print. A 360 px phone stopped scrolling horizontally, and a 320 px one
 did too, having done so for some time.
 
-**Production.** `loft.fusionspace.co` serves 200 and does **not** carry any of this run's code — its
-chunks contain no `addedStages`, which the local build's do. Everything below is on the working branch
-and in **pull request #82**, verified and pending a merge. Under SHIPPED-MEANS-REACHABLE none of it has
-shipped yet.
+**Production. SHIPPED — pull request #82 merged on green and the deploy completed.**
+`loft.fusionspace.co` serves 200, and all **13 chunks its index references are byte-identical**
+(sha256) to the local build the 177-test e2e suite ran against, so what is live is exactly what was
+verified. The served bundle carries this run's strings — *Add a booster stage*, *Put it back*, *This
+design flies* — and carries neither *This design flies 1 stages* nor *546.813*, the two things this
+run corrected.
 
-**Walked cold on the built export before the last push**, on `/`, `/docs`, `/docs/limitations`,
+**Walked cold on the built export before the push**, on `/`, `/docs`, `/docs/limitations`,
 `/validation` and `/motors` — all 200, no page error, no console error, no 4xx or 5xx. The R5 gesture
 end to end: 994 m becomes 1,491 m and the flight names the shed stage; with a booster on, the RocketPy
-cross-check and the parameter sweep withdraw while the dispersion study stays (it is offered for
-multi-stage on purpose); removing the booster puts 994 m back exactly.
+cross-check, the parameter sweep and the motor sweep all withdraw while the dispersion study stays (it
+is offered for multi-stage on purpose); removing the booster puts 994 m back exactly.
+
+**The public host cannot be driven with Playwright from this sandbox.** `chromium.launch()` gets
+`ERR_CONNECTION_RESET` on `https://loft.fusionspace.co`, with or without `proxy: { server: $HTTPS_PROXY }`
+— the agent proxy passes `curl` and not the browser. So the production check is: fetch the served
+`index.html`, pull its chunk list, download them, and `sha256sum` against `out/`. Byte-identity to the
+tested build is a stronger claim than a second cold walk would have been, and it takes a few seconds.
+Do this rather than concluding production is unreachable.
 
 **Four checks that could not fail were found**, which is the finding this run would keep if it could
 keep only one: the phone horizontal-overflow e2e compared against a viewport width the emulator
