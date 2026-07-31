@@ -89,6 +89,7 @@ import {
   loadDiscardedSession,
   loadRecents,
   MAX_RECENTS,
+  MAX_RECENTS_MB,
   loadSession,
   rememberRecent,
   restoreRecent,
@@ -98,6 +99,7 @@ import {
   type SavedSession,
   toBase64,
   type RecentDesign,
+  type RemovedRecent,
 } from "@/lib/session";
 import { mToFt, ftToM, mpsToMph, mphToMps, radToDeg } from "@/lib/units";
 import { TOUCH_TARGET, TOUCH_TARGET_SQUARE } from "@/lib/ui-tokens";
@@ -364,8 +366,9 @@ export default function LoftApp() {
    *  A LIST rather than one pending row, because holding only the latest meant a second removal
    *  silently destroyed the first design's way back, and two removals in a row is the natural
    *  sequence after a mis-tap. Nothing is written for these: the row is already out of storage, and
-   *  what is held here is the copy that puts it back. */
-  const [removedRecents, setRemovedRecents] = useState<RecentDesign[]>([]);
+   *  what is held here is the copy that puts it back, with the position it came from and any reason
+   *  a restore could not be made. */
+  const [removedRecents, setRemovedRecents] = useState<RemovedRecent[]>([]);
   const [run, setRun] = useState<FlightRun | null>(null);
   const [baseline, setBaseline] = useState<FlightRun | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -472,11 +475,6 @@ export default function LoftApp() {
           ? { ...document, rocket: { ...document.rocket, name: resume.rocket } }
           : document;
       setLoadSerial((n) => n + 1);
-      // An offer to put a design back belongs to the screen it was made on. Left standing it would
-      // resurface later for a design removed several designs ago — and pressing it then would write a
-      // stale row back into a shelf that has moved on. Every load clears it, and this is the one
-      // funnel they all pass through.
-      setRemovedRecents([]);
       setDoc(restored);
       setFileName(name);
       setEdits(e);
@@ -500,12 +498,19 @@ export default function LoftApp() {
       // the flyer to curate it. A resumed session is already the newest entry; re-recording it
       // would only rewrite its timestamp.
       if (bytes && !resume) {
-        setRecents(
-          rememberRecent(
-            { design: designBytes.current!, name, rocket: document.rocket.name || name },
-            Date.now(),
-          ),
+        const shelf = rememberRecent(
+          { design: designBytes.current!, name, rocket: document.rocket.name || name },
+          Date.now(),
         );
+        setRecents(shelf);
+        // An offer to put back a design that is now ON the shelf is spent — it came back by another
+        // route. Dropping only those, rather than clearing every offer on every load, is what keeps
+        // the undo alive across the most natural next tap after a mis-tap: reopening a DIFFERENT
+        // design. The earlier version cleared the lot here, and the removed design became
+        // unrecoverable one click later. It is safe to keep the rest because `restoreRecent` refuses
+        // rather than evicting and never overwrites a live row, so a stale offer can only be refused.
+        const onShelf = new Set(shelf.map((r) => r.id));
+        setRemovedRecents((prev) => prev.filter((r) => !onShelf.has(r.entry.id)));
       }
       try {
         const { run: r, baseline: b } = compute(restored, e, null, "design", idx);
@@ -623,34 +628,59 @@ export default function LoftApp() {
 
   /** Take a design off the shelf, holding on to it so the flyer can put it back. */
   const onForgetRecent = useCallback((id: string) => {
-    // Read the row before removing it: what goes back has to be the stored entry itself — its bytes,
-    // its name, its rename, and above all its `openedAt`, which is what puts it back in the position
-    // it was taken from rather than at the front.
-    const entry = loadRecents().find((r) => r.id === id);
+    // Read the row AND its position before removing it: what goes back has to be the stored entry
+    // itself — its bytes, its name, its rename — and the index puts it back where it was among rows
+    // that share a timestamp, which the sort alone cannot do.
+    const before = loadRecents();
+    const index = before.findIndex((r) => r.id === id);
+    const entry = index >= 0 ? before[index] : undefined;
     setRecents(forgetRecent(id));
-    if (entry) setRemovedRecents((prev) => [entry, ...prev.filter((r) => r.id !== entry.id)]);
+    // No entry means storage went away underneath us (cleared in another tab, or turned off
+    // mid-session). Removing with no offer is the exact no-way-back this exists to close, so say so
+    // rather than letting the row vanish quietly.
+    if (!entry) {
+      setError("That design could not be read back before it was removed, so there is nothing to put back.");
+      return;
+    }
+    setRemovedRecents((prev) => [{ entry, index }, ...prev.filter((r) => r.entry.id !== entry.id)]);
   }, []);
 
-  /** Put one back. `restoreRecent` never evicts to make room — it refuses instead — so the one case
-   *  where this cannot succeed is another tab having filled the shelf meanwhile, and that says so
-   *  rather than clearing the offer as though it had worked. */
-  const onRestoreRecent = useCallback((id: string) => {
-    setRemovedRecents((prev) => {
-      const entry = prev.find((r) => r.id === id);
-      if (!entry) return prev;
-      const list = restoreRecent(entry);
+  /** Put one back.
+   *
+   *  `restoreRecent` never evicts and never overwrites to make room — it refuses — so a refusal means
+   *  the shelf genuinely has no space for this design any more. The reason goes NEXT TO THE BUTTON
+   *  rather than into the page's shared error strip, which renders below the whole import fragment:
+   *  a control whose only feedback is a sentence a screen away is a control that silently does
+   *  nothing, which is the failure this whole change exists to remove.
+   *
+   *  Deliberately NOT written inside a `setRemovedRecents` updater. A state updater must be pure —
+   *  it can be called twice — and this one writes to `localStorage` and sets two other pieces of
+   *  state. */
+  const onRestoreRecent = useCallback(
+    (id: string) => {
+      const held = removedRecents.find((r) => r.entry.id === id);
+      if (!held) return;
+      const list = restoreRecent(held.entry, held.index);
       if (!list) {
-        setError(
-          `There is no room on the shelf for ${entry.rocket || entry.name} — it holds ${MAX_RECENTS} designs, ` +
-            "and it filled up while this one was off it. Remove another design and try again.",
+        setRemovedRecents((prev) =>
+          prev.map((r) =>
+            r.entry.id === id
+              ? {
+                  ...r,
+                  refusal:
+                    `The shelf is full — it holds ${MAX_RECENTS} designs and ${MAX_RECENTS_MB} MB, and it ` +
+                    "filled up while this one was off it. Remove another design and press this again.",
+                }
+              : r,
+          ),
         );
-        return prev;
+        return;
       }
       setRecents(list);
-      setError(null);
-      return prev.filter((r) => r.id !== id);
-    });
-  }, []);
+      setRemovedRecents((prev) => prev.filter((r) => r.entry.id !== id));
+    },
+    [removedRecents],
+  );
 
   // Start a fresh design from scratch — the builder path. A starter model (not parsed from any
   // file) enters the exact same pipeline an import does, so every edit, sweep, and flight works on

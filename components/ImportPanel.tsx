@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 
 import { TOUCH_TARGET, TOUCH_TARGET_SQUARE } from "@/lib/ui-tokens";
-import { countWhatIfs, type RecentDesign, type SavedSession } from "@/lib/session";
+import { countWhatIfs, type RecentDesign, type RemovedRecent, type SavedSession } from "@/lib/session";
 import { Button, Card } from "./ui";
 
 /** The import surface: a large drop zone / file picker for an OpenRocket `.ork`, RockSim
@@ -35,8 +35,8 @@ export default function ImportPanel({
   recents: RecentDesign[];
   onOpenRecent: (id: string) => void;
   onForgetRecent: (id: string) => void;
-  /** Designs taken off the shelf on this screen, newest first, each still puttable back. */
-  removedRecents: RecentDesign[];
+  /** Designs taken off the shelf, newest first, each still puttable back. */
+  removedRecents: RemovedRecent[];
   onRestoreRecent: (id: string) => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -81,24 +81,35 @@ export default function ImportPanel({
           tap destroyed the first design's way back, and two taps in a row is what a mis-tap looks
           like. Cleared whenever a design loads, so it can never resurface pointing at an old shelf. */}
       {removedRecents.length > 0 && (
-        <Card tone="accent" className="mb-4">
-          <ul className="flex flex-col gap-2">
-            {removedRecents.map((r) => (
-              <li key={r.id} className="flex flex-wrap items-center gap-x-3 gap-y-2">
-                <p className="min-w-0 flex-1 text-sm text-zinc-700 dark:text-zinc-200">
-                  Removed{" "}
-                  <span className="font-medium text-zinc-900 dark:text-zinc-100">
-                    {r.rocket || r.name}
-                  </span>{" "}
-                  from your designs — the copy Loft was keeping on this device is gone.
-                </p>
-                <Button
-                  disabled={busy}
-                  onClick={() => onRestoreRecent(r.id)}
-                  aria-label={`Put ${r.rocket || r.name} back on your designs`}
-                >
-                  Put it back
-                </Button>
+        // `role="status"` because pressing "×" destroys the focused control and renders this
+        // somewhere else on the page: without it a keyboard or screen-reader user gets no signal that
+        // an undo exists at all, and focus has already fallen to the document body.
+        <Card tone="accent" className="mb-4" role="status">
+          <ul className="flex flex-col gap-3">
+            {removedRecents.map(({ entry, refusal }) => (
+              <li key={entry.id}>
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                  <p className="min-w-0 flex-1 text-sm text-zinc-700 dark:text-zinc-200">
+                    Removed{" "}
+                    <span className="font-medium text-zinc-900 dark:text-zinc-100">
+                      {entry.rocket || entry.name}
+                    </span>{" "}
+                    from your designs — the copy Loft was keeping on this device is gone.
+                  </p>
+                  <Button
+                    disabled={busy}
+                    onClick={() => onRestoreRecent(entry.id)}
+                    aria-label={`Put ${entry.rocket || entry.name} back on your designs`}
+                  >
+                    Put it back
+                  </Button>
+                </div>
+                {/* Beside the control, not in the page's shared error strip: that renders below this
+                    whole fragment, so a refusal reported there reads on screen as the button doing
+                    nothing at all. */}
+                {refusal && (
+                  <p className="mt-1.5 text-sm text-amber-700 dark:text-amber-400">{refusal}</p>
+                )}
               </li>
             ))}
           </ul>

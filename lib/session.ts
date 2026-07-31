@@ -255,6 +255,16 @@ export const MAX_RECENTS = 8;
 /** Total base64 the shelf may hold, so history never crowds out the active session (which has its
  *  own MAX_BYTES allowance on top). Oldest entries go first until the shelf fits. */
 const MAX_RECENTS_BYTES = 2_500_000;
+/** The same figure in MB, for the one sentence that has to state it to a flyer. */
+export const MAX_RECENTS_MB = Math.round(MAX_RECENTS_BYTES / 1_000_000);
+
+/** A design taken off the shelf and held so it can be put back: the stored row itself, the position
+ *  it came from, and the reason a restore was refused if one was. */
+export interface RemovedRecent {
+  entry: RecentDesign;
+  index: number;
+  refusal?: string;
+}
 
 export interface RecentDesign {
   /** Stable id, so reopening the same design updates its entry rather than adding another. */
@@ -354,13 +364,31 @@ export function forgetRecent(id: string): RecentDesign[] {
  *  In practice the refusal is unreachable from one tab — the offer is cleared on every design load,
  *  so between the removal and the restore the shelf can only shrink. It is here for the case that
  *  makes it reachable at all: a second tab filling the shelf from the same origin's storage. */
-export function restoreRecent(entry: RecentDesign): RecentDesign[] | null {
-  const kept = loadRecents().filter((r) => r.id !== entry.id);
-  const list = [...kept, entry].sort((a, b) => b.openedAt - a.openedAt);
-  if (list.length > MAX_RECENTS) return null;
-  if (list.reduce((n, r) => n + r.design.length, 0) > MAX_RECENTS_BYTES) return null;
-  writeRecents(list);
-  return list;
+export function restoreRecent(entry: RecentDesign, index: number): RecentDesign[] | null {
+  const list = loadRecents();
+  // Already there, by whatever route. Nothing to do — and REPLACING it would be the destructive act
+  // this function exists to avoid: `recentId` is name-plus-byte-length, so a collision is a row the
+  // flyer can still see and open, and dropping it for a stale copy is a deletion wearing an undo's
+  // clothes.
+  if (list.some((r) => r.id === entry.id)) return list;
+  // Inserted at the position it was removed from, not appended and sorted. `loadRecents` re-sorts by
+  // `openedAt` and its sort is stable, so for distinct timestamps either would do — but two designs
+  // opened in the same millisecond are ordinary on a scripted or fast sequence, and an appended row
+  // lands after its tie-mates instead of back where it was.
+  const at = Math.min(Math.max(index, 0), list.length);
+  const next = [...list.slice(0, at), entry, ...list.slice(at)];
+  if (next.length > MAX_RECENTS) return null;
+  // The single-entry exemption mirrors `rememberRecent`, whose trim loop is `list.length > 1` for the
+  // same reason: a design larger than the shelf's whole budget is KEPT when it is the only one, so
+  // without this exemption such a design could be removed and never put back. That is the one-way
+  // door this function exists to close, rebuilt inside the fix for it.
+  if (next.length > 1 && next.reduce((n, r) => n + r.design.length, 0) > MAX_RECENTS_BYTES) return null;
+  writeRecents(next);
+  // Read back rather than returning what was written. `loadRecents` sorts by `openedAt` and the
+  // written array is only an insertion order — returning it hands the caller a shelf a reload would
+  // not reproduce, and the caller renders it. (The write still has to carry the insertion position:
+  // that sort is stable, so it is what places a restored row among rows sharing a timestamp.)
+  return loadRecents();
 }
 
 export function clearRecents(): void {

@@ -12,6 +12,13 @@ this file, and deliberately does **not** cap craft or product work, because that
 track in `ROADMAP.md` with its own *done when*. Rough edges, missing affordances, and findings too
 big for one pass. Newest first.
 
+- **The shelf-restore refusal has no test that drives it through the UI.** `restoreRecent` returning
+  null is covered by three unit cases (`lib/session.test.ts`), and the sentence it produces is rendered
+  beside the button — but nothing asserts that the sentence appears, because reaching the branch in an
+  e2e needs a shelf at its 8-design cap and only five sample designs are one click away. Seeding
+  `localStorage` with valid rows through `page.addInitScript` would do it. Filed rather than done on
+  2026-07-31: the defect that mattered was that a refusal was invisible, and it no longer is.
+
 - **The "Loft" wordmark link is 43x32 px on every phone width, and always has been.** Measured
   2026-07-31 on the built export at 320, 360 and 390 px: the header's three action controls all clear
   44 px, and the wordmark link beside them — which is the way home from every docs page — is 32 px
@@ -1053,18 +1060,35 @@ big for one pass. Newest first.
 
   **What shipped, and which of the six reverted failures each part answers:**
   - `restoreRecent` in `lib/session.ts` is its own insertion and never goes through `rememberRecent`.
-    It keeps the entry's own `openedAt`, which is what `loadRecents` sorts by, so the row returns to
-    the position it was taken from rather than to the front — and it REFUSES, returning null and
-    leaving the shelf untouched, when putting the row back would exceed either cap. *(1: the reverted
-    version replayed the add path, which caps and evicts by age; restoring a middle row into a full
-    shelf put the row back and permanently deleted the oldest design instead — one destructive act
-    undone by another.)*
+    It keeps the entry's own `openedAt` AND the index it was removed from, so the row returns to the
+    position it was taken from rather than to the front, including among rows that share a timestamp
+    (the shelf's sort is stable, so an appended row lands after its tie-mates). It REFUSES, returning
+    null and leaving the shelf untouched, when putting the row back would exceed either cap — and it
+    returns the shelf as `loadRecents` would read it back, not the insertion order it wrote, because
+    the caller renders what it returns. *(1: the reverted version replayed the add path, which caps
+    and evicts by age; restoring a middle row into a full shelf put the row back and permanently
+    deleted the oldest design instead — one destructive act undone by another.)*
+  - **The byte cap exempts a single entry, exactly as `rememberRecent`'s trim loop does.** Found by the
+    pre-push review, in the first version of this fix: `rememberRecent` KEEPS a design larger than the
+    shelf's whole budget when it is the only one, so without the same exemption on the way back, a
+    2 MB design could be removed and never restored — the one-way door rebuilt inside the fix for it.
+    There is no import size guard, so a real design reaches it.
+  - **A restore never replaces a row that is already on the shelf.** `recentId` is name-plus-byte-
+    length, so two different files can collide; filtering the live row out and inserting the held copy
+    would be a deletion wearing an undo's clothes, reachable from a second tab.
   - The offer renders OUTSIDE the shelf card, above the drop zone, beside the app's other undo.
     *(2: nested inside `{recents.length > 0 && …}` it unmounted with the shelf, so removing the LAST
     design — the case where the bytes are most likely the only copy — offered nothing.)*
-  - `loadDoc` clears it, which is the one funnel every design load passes through — import, sample,
-    shelf, builder, and the discarded-session restore. *(3: an offer left standing resurfaced for a
-    design removed several designs ago.)*
+  - An offer is dropped when that design is back on the shelf by any route, rather than every offer
+    being cleared on every load. *(3: an offer left standing resurfaced for a design removed several
+    designs ago — but clearing the lot, which is what the first version of this fix did, meant
+    reopening a DIFFERENT design one click later made the removed one unrecoverable, which is the same
+    no-way-back in a smaller window. Keeping the rest is safe because `restoreRecent` refuses rather
+    than evicting and never overwrites a live row, so a stale offer can only ever be refused.)*
+  - **The refusal is reported beside the button, not in the page's shared error strip**, which renders
+    below the whole import fragment — a control whose only feedback is a sentence a screen away is a
+    control that silently does nothing. The offer's container carries `role="status"`, because pressing
+    "×" destroys the focused control and renders the offer somewhere else on the page.
   - Nothing reorders on the ordinary open path; `rememberRecent` is untouched. *(4.)*
   - The pending removals are a LIST, so two taps in a row — what a mis-tap looks like — leave both
     designs recoverable. *(5: holding one offer silently destroyed the first design's way back.)*

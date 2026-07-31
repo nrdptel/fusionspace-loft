@@ -362,16 +362,19 @@ test.describe("Loft", () => {
       await page.getByRole("button", { name: /Import another/ }).click();
     }
     const shelf = page.getByRole("list").filter({ has: page.getByRole("button", { name: /^Reopen/ }) });
-    await expect(shelf.getByRole("button", { name: /^Reopen/ })).toHaveCount(2);
-    const order = await shelf.getByRole("button", { name: /^Reopen/ }).allInnerTexts();
+    const reopen = () => shelf.getByRole("button", { name: /^Reopen/ });
+    const put = () => page.getByRole("button", { name: /^Put .* back on your designs/ });
+    await expect(reopen()).toHaveCount(2);
+    const order = await reopen().allInnerTexts();
 
-    // Remove the NEWER one, so "put it back" has a position to get wrong: an undo that returns a row
-    // to the front has rewritten the history it was meant to restore.
-    await page.getByRole("button", { name: /^Remove .* from your designs/ }).first().click();
-    await expect(shelf.getByRole("button", { name: /^Reopen/ })).toHaveCount(1);
-    await page.getByRole("button", { name: /^Put .* back on your designs/ }).click();
-    await expect(shelf.getByRole("button", { name: /^Reopen/ })).toHaveCount(2);
-    expect(await shelf.getByRole("button", { name: /^Reopen/ }).allInnerTexts()).toEqual(order);
+    // Remove the OLDER one — the row at the BACK. A restore that prepends, or that stamps a fresh
+    // timestamp, puts it at the front instead, and only a removal from a non-front position can tell
+    // the difference. Taking the newest cannot: its own place already IS the front.
+    await page.getByRole("button", { name: /^Remove .* from your designs/ }).last().click();
+    await expect(reopen()).toHaveCount(1);
+    await put().click();
+    await expect(reopen()).toHaveCount(2);
+    expect(await reopen().allInnerTexts()).toEqual(order);
 
     // Now the case the earlier attempt at this undo missed: removing the LAST design. The offer used
     // to live inside the shelf card, which unmounts when the shelf empties — so the one removal whose
@@ -381,32 +384,43 @@ test.describe("Loft", () => {
     // `exact` matters: the offer's own sentence ends "…from your designs", and a bare `getByText`
     // matches case-insensitive SUBSTRINGS, so it finds the banner as well as the shelf heading.
     await expect(page.getByText("Your designs", { exact: true })).toHaveCount(0);
-    await expect(page.getByRole("button", { name: /^Put .* back on your designs/ })).toHaveCount(2);
-
     // Two removals in a row is what a mis-tap looks like, and both are still offered — holding only
     // the latest silently destroyed the first design's way back.
-    for (const name of [1, 0]) {
-      await page.getByRole("button", { name: /^Put .* back on your designs/ }).nth(name).click();
-    }
-    await expect(shelf.getByRole("button", { name: /^Reopen/ })).toHaveCount(2);
-    expect(await shelf.getByRole("button", { name: /^Reopen/ }).allInnerTexts()).toEqual(order);
+    await expect(put()).toHaveCount(2);
 
-    // The restore is the real bytes, not a row that only looks right: reopening flies it.
-    await shelf.getByRole("button", { name: /^Reopen/ }).nth(1).click();
+    for (const n of [1, 0]) await put().nth(n).click();
+    await expect(reopen()).toHaveCount(2);
+    expect(await reopen().allInnerTexts()).toEqual(order);
+
+    // The restore is the real BYTES, not a row that only looks right: reopening it flies the design
+    // it names, at the apogee that design flies. The 54 mm dual-deploy sample is the one being put
+    // back, and it is a different flight from the 38 mm one beside it on the shelf.
+    await reopen().first().click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 2 }).first()).toContainText("54mm");
     await page.getByRole("button", { name: /Import another/ }).click();
 
-    // And the offer does not outlive the screen it was made on. Remove one and leave it removed, then
-    // load a design: the offer must be gone, because an offer left standing would resurface later for
-    // a design removed several designs ago and write a stale row back into a shelf that has moved on.
-    // The removal itself still stands — clearing the OFFER is not undoing the act.
-    await page.getByRole("button", { name: /^Remove .* from your designs/ }).first().click();
-    await expect(page.getByRole("button", { name: /^Put .* back on your designs/ })).toHaveCount(1);
-    await shelf.getByRole("button", { name: /^Reopen/ }).first().click();
+    // The offer OUTLIVES reopening a different design, which is the most natural next tap after a
+    // mis-tap. An earlier version cleared every offer on every load, so one click made the removed
+    // design unrecoverable — the same no-way-back in a smaller window.
+    await page.getByRole("button", { name: /^Remove .* from your designs/ }).last().click();
+    await expect(put()).toHaveCount(1);
+    await reopen().first().click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
     await page.getByRole("button", { name: /Import another/ }).click();
-    await expect(page.getByRole("button", { name: /^Put .* back on your designs/ })).toHaveCount(0);
-    await expect(shelf.getByRole("button", { name: /^Reopen/ })).toHaveCount(1);
+    await expect(put()).toHaveCount(1);
+    await put().click();
+    await expect(reopen()).toHaveCount(2);
+
+    // And it is spent once the design is back by another route — reopening the sample re-shelves it,
+    // so an offer to put that one back is no longer an offer to do anything.
+    await page.getByRole("button", { name: /^Remove .* from your designs/ }).last().click();
+    await expect(put()).toHaveCount(1);
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+    await page.getByRole("button", { name: /Import another/ }).click();
+    await expect(put()).toHaveCount(0);
+    await expect(reopen()).toHaveCount(2);
   });
 
   test("starts a new design from scratch and flies it (builder)", async ({ page }) => {
