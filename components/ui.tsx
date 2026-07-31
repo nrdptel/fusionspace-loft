@@ -327,18 +327,35 @@ export function ClosePanel({ onClose, what }: { onClose: () => void; what: strin
 export function Disclosure({
   summary,
   defaultOpen = false,
+  className,
   children,
 }: {
   summary: string;
   defaultOpen?: boolean;
+  /** Merged onto the `<details>`. Needed by real call sites for things that are not styling — a
+   *  `print-hide` marker, or overriding the default top margin where the parent already owns the
+   *  rhythm. Without it this primitive could not be adopted at all, which is most of why it sat at
+   *  zero call sites while a component two files away duplicated its class string verbatim. */
+  className?: string;
   children: React.ReactNode;
 }) {
   return (
     <details
       open={defaultOpen}
-      className="group mt-3 rounded-md border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm dark:border-zinc-800 dark:bg-zinc-900/50"
+      className={cx(
+        "group mt-3 rounded-md border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm dark:border-zinc-800 dark:bg-zinc-900/50",
+        className,
+      )}
     >
-      <summary className="cursor-pointer select-none font-medium text-zinc-700 dark:text-zinc-300">
+      {/* `TOUCH_TARGET` because a summary IS the control that opens the panel, and this primitive
+          shipped without one — so every future adopter would have inherited a sub-44 px target on a
+          phone. §8 has no exemption for a disclosure. */}
+      <summary
+        className={cx(
+          "flex cursor-pointer select-none items-center font-medium text-zinc-700 dark:text-zinc-300",
+          TOUCH_TARGET,
+        )}
+      >
         {summary}
       </summary>
       <div className="mt-3 space-y-4 text-zinc-600 dark:text-zinc-400">{children}</div>

@@ -134,7 +134,7 @@ const PRIMITIVE_ADOPTERS: Record<string, number> = {
   NumberField: 1,
   ClosePanel: 3,
   Chip: 0,
-  Disclosure: 0,
+  Disclosure: 1,
 };
 
 describe("DESIGN.md §9 — the design system is binding, and this is what checks it", () => {

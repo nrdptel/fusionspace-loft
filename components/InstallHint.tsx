@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { TOUCH_TARGET } from "@/lib/ui-tokens";
-import { Button } from "./ui";
+import { Button, Disclosure } from "./ui";
 
 // `beforeinstallprompt` isn't in the standard DOM lib types.
 interface BeforeInstallPromptEvent extends Event {
@@ -49,12 +48,12 @@ export default function InstallHint() {
     // makes the gap before a whole new region the same as the gap between two rows of one. 12 is the
     // next step up and keeps the hierarchy the off-scale 10 it replaces was expressing.
     <section className="mt-12">
-      {/* print-hide: how to install the app is page furniture, not part of the design being printed. */}
-      <details className="print-hide group rounded-md border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm dark:border-zinc-800 dark:bg-zinc-900/50">
-        <summary className={`flex cursor-pointer select-none items-center font-medium text-zinc-700 dark:text-zinc-300 ${TOUCH_TARGET}`}>
-          Use it offline &amp; install it
-        </summary>
-        <div className="mt-3 space-y-3 text-zinc-600 dark:text-zinc-400">
+      {/* The primitive, which this block had been duplicating class-for-class — it was the reason
+          `Disclosure` sat at zero call sites while its exact treatment was live two files away.
+          `print-hide` rides in through `className`: how to install the app is page furniture, not
+          part of the design being printed. `mt-0` because the parent section already owns the gap. */}
+      <Disclosure summary="Use it offline & install it" className="print-hide mt-0">
+        <>
           <p>
             Loft runs entirely in your browser. Once you&apos;ve opened it on a device
             with a connection, it keeps working with no signal — so you can import a design
@@ -96,12 +95,16 @@ export default function InstallHint() {
             </>
           )}
 
-          <p className="text-xs text-zinc-500 dark:text-zinc-400">
+          {/* Decision-grade, by the rule this repo already wrote down: "Open it online now and again"
+              is an INSTRUCTION — a sentence whose purpose is to change what the flyer does next — not
+              a description of something already on screen. It also tells them the one thing that
+              decides whether the app keeps working at the pad. */}
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">
             The motor database and the simulation run on the device, so a design imported
             offline still simulates. Open it online now and again to pick up any updates.
           </p>
-        </div>
-      </details>
+        </>
+      </Disclosure>
     </section>
   );
 }
