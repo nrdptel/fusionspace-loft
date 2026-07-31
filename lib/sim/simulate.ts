@@ -834,7 +834,15 @@ export function simulate(input: SimulateInput): FlightResult {
   // and their fall isn't simulated (only the top stage is flown to the ground). Each such booster is
   // a range hazard: a heavy, un-parachuted section can travel a long way downrange. The dropped
   // stages are the ones below the final attached count; flag any with no chute/streamer in its tree.
-  const finalStageCount = phases[phases.length - 1].stageCount;
+  // Read off the separations the flight ACTUALLY LOGGED, not off the schedule. `phases` is what
+  // `buildRocketDynamics` planned from burn times, and a flight can end before reaching a planned
+  // separation — measured on `ARC payload rocket.ork` with 1 kg of nose ballast, which lands at
+  // 9.64 s having never separated while the schedule still holds one at 10.43 s. Taking the
+  // schedule's final count there reported a booster as shed, and raised a `booster-hard-landing`
+  // caution about its descent, for a section that hit the ground still attached — directly beside a
+  // phase table correctly saying nothing separated. Both surfaces now read the same events.
+  const realisedPhases = phases.slice(0, events.filter((e) => e.type === "separation").length + 1);
+  const finalStageCount = realisedPhases[realisedPhases.length - 1].stageCount;
   const ballisticBoosters: string[] = [];
   const boosterDescents: BoosterDescent[] = [];
   const groundDensity = conditions.atmosphere.sample(conditions.launchAltitude).density;

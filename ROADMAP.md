@@ -666,9 +666,9 @@ negative controls with their build exits checked.
 
 `FlightRun.phases` is the whole model change: `buildRocketDynamics` has always built the staging timeline
 and `simulate` has always consumed it, but nothing carried it back out, so no surface could show it. The
-table renders one row per PHASE with the stages attached, the interval, what ends it, and the altitude and
-speed at that boundary — read from the separation EVENT, so the table and the altitude chart cannot drift
-apart. `FlightViz` now draws separation dots too; it had filtered them out while the altitude chart marked
+table renders one row per REALISED phase — not simply per phase; the review paragraph below is why — with
+the stages attached, the interval, what ends it, and the altitude and speed at that boundary, read from the
+separation EVENT so the table and the altitude chart cannot drift apart. `FlightViz` now draws separation dots too; it had filtered them out while the altitude chart marked
 them, which gave two charts on one page two vocabularies.
 
 **Rows are not stages, and that is the load-bearing decision.** A serial stack parts at ONE joint and takes
@@ -706,8 +706,10 @@ at all.
 **The gap, which is increment 3 rather than a reason to re-open this.**
 
 - **Per-stage burn intervals are not in the result.** Only ONE burnout event is emitted per flight ever —
-  the last motor's — so a "burnout" column would be blank on every row but one. Measured: all 9 multi-stage
-  corpus designs report exactly 1 burnout event, including the 3-stage design that burns three motors.
+  the last motor's — so a "burnout" column would be blank on every row but one. Measured: 8 of the 9
+  multi-stage corpus designs report exactly 1 burnout event, including the 3-stage design that burns
+  three motors; the ninth (`rocksimTestRocket2.rkt`) reports 0, because no motor resolves and it never
+  flies at all.
   Emitting one per `detachTime` group is a solver change and belongs in its own increment.
 - **A separation event names no stage.** `simulate.ts` labels every one `"Stage separation"`, so the table
   derives its names from the phase slice rather than from the event. Filed in `BACKLOG.md`.

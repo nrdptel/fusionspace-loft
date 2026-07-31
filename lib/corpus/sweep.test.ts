@@ -618,10 +618,28 @@ suite("real-design corpus", () => {
         if (!ev) shapes.push(`${name}: phase boundary at ${phases[i].startTime.toFixed(3)} s has no separation event`);
       }
       // Each shed stage is named exactly once, and every stage below the final count is accounted for.
+      // (Given the two checks above this is arithmetically implied, so it is kept as a cheap guard on
+      // those checks rather than sold as the guard on the slice rule.)
       const expected = Array.from({ length: n - phases[phases.length - 1].stageCount }, (_, k) => phases[phases.length - 1].stageCount + k);
       if (JSON.stringify([...shedTotal].sort((a, b) => a - b)) !== JSON.stringify(expected)) {
         shapes.push(`${name}: shed slices ${JSON.stringify(shedTotal)} do not cover ${JSON.stringify(expected)} exactly once`);
       }
+
+      // What the TABLE actually depends on, which nothing asserted before: it pairs `seps[i]` with
+      // `phases[i + 1]` POSITIONALLY and truncates to `seps.length + 1` rows. That is only sound if
+      // separations arrive in phase order and never outnumber the phases — otherwise a row's "to" and
+      // the next row's "from" silently disagree.
+      const sepEvents = run.result.events.filter((e) => e.type === "separation");
+      if (sepEvents.length + 1 > phases.length) {
+        shapes.push(`${name}: ${sepEvents.length} separations logged against ${phases.length} phases`);
+      }
+      sepEvents.forEach((e, k) => {
+        const planned = phases[k + 1];
+        if (!planned) return;
+        if (Math.abs(e.time - planned.startTime) > 1e-6) {
+          shapes.push(`${name}: separation ${k + 1} at ${e.time.toFixed(3)} s does not match phase ${k + 2} at ${planned.startTime.toFixed(3)} s`);
+        }
+      });
     }
 
     console.log(

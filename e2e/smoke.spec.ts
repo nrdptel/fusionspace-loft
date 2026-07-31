@@ -3819,8 +3819,11 @@ test.describe("Loft", () => {
     const table = page.getByRole("region", { name: "Flight phases" });
     const rows = table.locator("tbody tr");
 
-    // A single-stage design has no phases to table, so the surface is not offered at all.
+    // A single-stage design has no phases to table, so the surface is not offered at all. Settle on a
+    // positive assertion FIRST — a bare `toHaveCount(0)` resolves on the first poll after the tab
+    // click, so it passes for a panel that has not mounted yet, or for a click that never landed.
     await page.getByRole("tab", { name: "Flight" }).click();
+    await expect(page.getByText("Apogee", { exact: true }).first()).toBeVisible({ timeout: 20000 });
     await expect(table).toHaveCount(0);
 
     // Author a booster: two phases, and the boundary is the separation.
@@ -3831,8 +3834,9 @@ test.describe("Loft", () => {
     await expect.poll(async () => rows.count(), { timeout: 20000 }).toBe(2);
 
     // Row 1 is the whole stack up to the separation; row 2 is the sustainer alone to apogee. The
-    // boundary values are read off the separation EVENT, so they are the same numbers the altitude
-    // chart marks — asserted here so the table and the chart cannot drift apart.
+    // The boundary values are read off the separation EVENT, which is the same source the altitude
+    // chart marks from — so they cannot drift apart by construction. This test asserts the row
+    // STRUCTURE and ordering; the numbers themselves are held by the corpus sweep.
     const first = rows.nth(0);
     await expect(first).toContainText("Booster");
     await expect(first).toContainText("separates");
@@ -3842,8 +3846,10 @@ test.describe("Loft", () => {
     // ending the last row at apogee printed a row whose "to" was earlier than its "from"
     // (`ARC payload rocket.ork`: From 10.4 s, To 8.1 s).
     await expect(last).toContainText("Landing");
-    // Stages attached must COUNT DOWN, which is the property that fails if rows are built from
-    // `rocket.stages` instead of from the solver's phases.
+    // Stages attached must COUNT DOWN. Note this does NOT by itself distinguish rows-from-phases from
+    // rows-from-stages: this design has 2 stages AND 2 phases. What does distinguish them is the
+    // gutted case below (2 stages, 1 realised phase) and the corpus sweep, where `03.Three-stage.ork`
+    // has 3 stages and 2 phases.
     expect((await first.innerText()).split("+").length).toBeGreaterThan((await last.innerText()).split("+").length);
     // Every row must run forwards. This is the assertion the backwards-row defect would have failed.
     for (const row of await rows.all()) {
@@ -3872,6 +3878,34 @@ test.describe("Loft", () => {
     await page.getByRole("button", { name: /^Undo removing / }).click();
     await page.getByRole("tab", { name: "Flight" }).click();
     await expect.poll(async () => rows.count(), { timeout: 20000 }).toBe(2);
+  });
+
+  test("a phase that ends after apogee still runs forwards", async ({ page }) => {
+    // The regression the starter cannot express. `demo-payload-separation.ork` separates at its
+    // ejection charge — 9.43 s, which is AFTER its 8.70 s apogee — so the first version of this table,
+    // which ended the last row at apogee, printed From 9.4 s To 8.7 s: a phase of negative duration.
+    // The starter's booster separates at 1.29 s and apogees at 15.69 s, so it runs forwards under
+    // BOTH rules and cannot tell them apart. This design can, and it is a committed fixture.
+    await page.goto("/");
+    await page
+      .getByLabel(/^Choose an OpenRocket/)
+      .setInputFiles(resolve(process.cwd(), "fixtures/demo-payload-separation.ork"));
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+
+    const table = page.getByRole("region", { name: "Flight phases" });
+    await expect(table).toBeVisible({ timeout: 20000 });
+    const rows = table.locator("tbody tr");
+    await expect.poll(async () => rows.count(), { timeout: 20000 }).toBe(2);
+
+    // The last phase ends at the END OF THE FLIGHT, never at apogee — apogee happened inside the
+    // FIRST phase on this design, before the section ever parted.
+    await expect(rows.nth(1)).toContainText("Landing");
+    for (const row of await rows.all()) {
+      const times = (await row.innerText()).match(/([\d.,]+)\s*s\b/g) ?? [];
+      expect(times.length, "a phase row must state both a from and a to").toBeGreaterThanOrEqual(2);
+      const [from, to] = times.slice(0, 2).map((t) => parseFloat(t.replace(/[,\s s]/g, "")));
+      expect(to, `phase row runs backwards: ${from}s to ${to}s`).toBeGreaterThanOrEqual(from);
+    }
   });
 
   test("a booster that can no longer fire says so, instead of flying as silent ballast", async ({ page }) => {

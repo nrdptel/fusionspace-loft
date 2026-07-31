@@ -1597,8 +1597,9 @@ function PhaseTable({ run, rocket, units }: { run: FlightRun; rocket: Rocket; un
       {rows.length === 1 ? (
         <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
           This design has more than one stage but nothing separated: the stack flew whole. A stage is
-          shed when <em>its own</em> motor finishes burning, so a stage whose motor never lights has no
-          burnout to part on and stays attached — see any warning above.
+          shed when <em>its own</em> motor finishes burning, so either no lower stage ever lit — see any
+          warning above — or the flight ended before the separation was due, which is what happens when
+          a design is too heavy to reach it.
         </p>
       ) : (
         <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
