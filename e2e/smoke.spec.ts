@@ -2141,7 +2141,7 @@ test.describe("Loft", () => {
     // And it converts with the unit toggle, like the label and the max beside it already did —
     // checked against the metric reading of the SAME design rather than a hardcoded figure, so this
     // keeps holding if the sample's stored rail ever changes.
-    await page.getByRole("button", { name: "Imperial" }).click();
+    await page.getByRole("button", { name: "Imperial", exact: true }).click();
     await expect(page.getByLabel(/Rail length \(ft\)/).first()).toBeVisible();
     const railImperial = parseFloat((await field(/Rail length/).getAttribute("placeholder"))!);
     expect(railImperial, "the same rail, in feet").toBeCloseTo(parseFloat(storedRail!) * 3.28084, 0);
@@ -2208,7 +2208,7 @@ test.describe("Loft", () => {
       });
 
     for (const tab of ["Flight", "Design", "Analyze"]) {
-      await page.getByRole("button", { name: "Imperial" }).click();
+      await page.getByRole("button", { name: "Imperial", exact: true }).click();
       await page.getByRole("tab", { name: tab }).click();
       if (tab === "Analyze")
         for (const label of [/Run motor sweep/, /Run parameter sweep|Run sweep/, /Run dispersion/]) {
@@ -2227,7 +2227,7 @@ test.describe("Loft", () => {
 
       // The control the census needs to be worth anything: the same surfaces in Metric DO carry
       // metric units, so an empty list above cannot be a broken selector.
-      await page.getByRole("button", { name: "Metric" }).click();
+      await page.getByRole("button", { name: "Metric", exact: true }).click();
       const metric = await census();
       expect(metric.bad.length, `${tab}: control — metric units present under Metric`).toBeGreaterThan(0);
     }
@@ -2249,7 +2249,7 @@ test.describe("Loft", () => {
     expect(metric.length, "the sample offers its fin, nose and body handles").toBeGreaterThanOrEqual(7);
     expect(metric.every((t) => /\bmm\b/.test(t)), "metric reports millimetres").toBe(true);
 
-    await page.getByRole("button", { name: "Imperial" }).click();
+    await page.getByRole("button", { name: "Imperial", exact: true }).click();
     const imperial = await handles.evaluateAll((ns) => ns.map((n) => n.getAttribute("aria-valuetext") ?? ""));
     expect(imperial.filter((t) => /\bmm\b/.test(t)), "no handle still says mm in imperial").toEqual([]);
     expect(imperial.every((t) => /\bin\b/.test(t)), "every handle reports inches").toBe(true);
@@ -2887,7 +2887,7 @@ test.describe("Loft", () => {
   test("unit toggle switches to imperial", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
-    await page.getByRole("button", { name: "Imperial" }).click();
+    await page.getByRole("button", { name: "Imperial", exact: true }).click();
     // The altitude plot title becomes "Altitude (ft) vs time".
     await expect(page.getByRole("heading", { name: /Altitude \(ft\) vs time/ })).toBeVisible();
   });
@@ -2899,7 +2899,7 @@ test.describe("Loft", () => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
-    await page.getByRole("button", { name: "Imperial" }).click();
+    await page.getByRole("button", { name: "Imperial", exact: true }).click();
     await page.getByRole("tab", { name: "Design" }).click();
     await page.getByLabel("Fin span (in)").fill("3");
     await expect(page.getByRole("button", { name: /Reset to as-designed/ })).toBeVisible();
@@ -4087,6 +4087,54 @@ test.describe("Loft", () => {
     // back to emitting a single event.
     const secs = (s: string) => Number(s.replace(/[^\d.]/g, ""));
     expect(secs(second)).toBeGreaterThan(secs(first));
+  });
+
+  test("a results table sorts, sticks its header, and can leave the page", async ({ page }) => {
+    // P1's last slice — `DataTable`. There were six hand-rolled tables with three different affordance
+    // sets between them, and THREE offered nothing at all: the validation panel, the RocketPy
+    // cross-check, and this one — the surface COMPETITION.md row 25 calls a lead no competitor has,
+    // whose numbers could not leave the page. DESIGN.md §5 names "tables you cannot sort, filter, or
+    // copy out of" as a tell and says it is only fixable once rather than per table.
+    await page.goto("/");
+    await page.getByRole("button", { name: "Start a new design" }).click();
+    await expect(page.getByRole("heading", { name: "Design geometry" })).toBeVisible({ timeout: 15000 });
+    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("button", { name: /Add a booster stage/ }).click();
+    await page.getByRole("tab", { name: "Flight" }).click();
+
+    const region = page.getByRole("region", { name: "Flight phases" });
+    await expect(region).toBeVisible({ timeout: 20000 });
+    const rows = region.locator("tbody tr");
+    await expect.poll(async () => rows.count(), { timeout: 20000 }).toBe(2);
+
+    // The header sticks — §5 asks for it and not one of the six hand-rolled tables had it.
+    await expect(region.locator("thead th").first()).toHaveCSS("position", "sticky");
+
+    // Sort state is announced, not just drawn. The sort control's accessible name is the column
+    // label: the direction arrow beside it is `aria-hidden`, so it is not part of the name.
+    const phaseHeader = region.locator("thead th").first();
+    const sortButton = region.getByRole("button", { name: "Sort by Phase" });
+    await expect(phaseHeader).toHaveAttribute("aria-sort", "none");
+
+    const order = async () => (await rows.locator("td").first().allInnerTexts()).join(",");
+    const before = await order();
+
+    await sortButton.click();
+    await expect(phaseHeader).toHaveAttribute("aria-sort", "ascending");
+    await sortButton.click();
+    await expect(phaseHeader).toHaveAttribute("aria-sort", "descending");
+
+    // And the second click actually reorders the rows, rather than only relabelling the header.
+    await expect.poll(order, { timeout: 10000 }).not.toBe(before);
+
+    // A column with nothing to sort by carries no `aria-sort` at all, rather than claiming "none" —
+    // which would tell a screen-reader user the column is sortable and unsorted.
+    await expect(region.locator("thead th").nth(1)).not.toHaveAttribute("aria-sort", /.*/);
+
+    // The numbers can leave the page. This is the half of the primitive COMPETITION.md row 26 sizes,
+    // and the reason the phase table needed it most.
+    await expect(region.getByRole("button", { name: /^Copy$/ })).toBeVisible();
+    await expect(region.getByRole("button", { name: /CSV/i })).toBeVisible();
   });
 
   test("a phase that ends after apogee still runs forwards", async ({ page }) => {
@@ -5307,15 +5355,15 @@ test.describe("Loft", () => {
     expect(await unitSuffix()).toBe("m/s");
 
     // The digits change, because the quantity is being re-expressed rather than reinterpreted.
-    await page.getByRole("button", { name: "Imperial" }).click();
+    await page.getByRole("button", { name: "Imperial", exact: true }).click();
     expect(await unitSuffix()).toBe("mph");
     await expect(wind).toHaveValue("4.5"); // 2 m/s = 4.47 mph
 
     // Toggling repeatedly must not walk the value the model holds. Rounding is display-only.
     for (let i = 0; i < 3; i++) {
-      await page.getByRole("button", { name: "Metric" }).click();
+      await page.getByRole("button", { name: "Metric", exact: true }).click();
       await expect(wind).toHaveValue("2");
-      await page.getByRole("button", { name: "Imperial" }).click();
+      await page.getByRole("button", { name: "Imperial", exact: true }).click();
       await expect(wind).toHaveValue("4.5");
     }
 
@@ -5348,7 +5396,7 @@ test.describe("Loft", () => {
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
 
     const units = page.getByRole("group", { name: /unit/i }).first();
-    await units.getByRole("button", { name: "Imperial" }).click();
+    await units.getByRole("button", { name: "Imperial", exact: true }).click();
     await page.getByRole("tab", { name: "Analyze" }).click();
 
     const mc = page.getByRole("region", { name: "Monte-Carlo dispersion" });
@@ -5371,7 +5419,7 @@ test.describe("Loft", () => {
     // This design tops 3,000 ft on most flights, so the honest answer is a large percentage.
     expect(parseInt(imperial, 10), "chance of busting a 3,000 ft waiver").toBeGreaterThan(50);
 
-    await units.getByRole("button", { name: "Metric" }).click();
+    await units.getByRole("button", { name: "Metric", exact: true }).click();
 
     // 3,000 ft is 914 m: the box now says so, and the answer is the same answer.
     await expect(ceiling).toHaveValue("914");

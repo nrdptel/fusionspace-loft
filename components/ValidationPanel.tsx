@@ -7,6 +7,7 @@ import type { UnitSystem } from "@/lib/display";
 import { fmt } from "@/lib/display";
 import { mToFt, mpsToFtps } from "@/lib/units";
 import { Card } from "./ui";
+import DataTable from "./DataTable";
 
 /** Shows Loft's engine against the results the design tool (OpenRocket or RockSim) stored in
  *  the imported design, metric by metric. This is the honest accuracy record: the numbers are
@@ -98,40 +99,79 @@ export default function ValidationPanel({
         </Card>
       )}
 
-      <div className="mt-3 overflow-x-auto">
-        <table className="w-full min-w-[30rem] border-collapse text-sm">
-          <thead>
-            <tr className="text-left text-[11px] uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-              <th className="py-1 pr-3 font-medium">Metric</th>
-              <th className="py-1 pr-3 text-right font-medium">Stored</th>
-              <th className="py-1 pr-3 text-right font-medium">Loft</th>
-              <th className="py-1 text-right font-medium">Δ</th>
-            </tr>
-          </thead>
-          <tbody className="font-mono tabular-nums">
-            {report.comparisons.map((c) => {
+      {/* The cross-check a flyer most wants to paste into a build thread, and until now it could not
+          leave the page: no sort, no copy, no export. `minWidth` is kept from the hand-rolled version
+          — these four columns compress into unreadability well before the viewport does. */}
+      <DataTable
+        className="mt-3"
+        rows={report.comparisons}
+        rowKey={(c) => c.key}
+        minWidth="30rem"
+        exportName={toolName}
+        exportSuffix="validation"
+        caption={`Loft against ${toolName}'s stored results, metric by metric`}
+        empty="No metric in this design's stored run can be compared yet — import a design whose tool saved a simulation, and every figure it stored appears here beside Loft's."
+        columns={[
+          {
+            key: "label",
+            label: "Metric",
+            sortValue: (c) => c.label,
+            cell: (c) => <span className="font-sans text-zinc-700 dark:text-zinc-300">{c.label}</span>,
+            csv: (c) => c.label,
+          },
+          {
+            key: "stored",
+            label: "Stored",
+            align: "right",
+            sortValue: (c) => c.stored,
+            cell: (c) => {
               const st = convert(c.label, c.stored, c.unit, units);
-              const si = convert(c.label, c.simulated, c.unit, units);
-              const big = Math.abs(c.pctError) > 25;
               return (
-                <tr key={c.key} className="border-t border-zinc-100 dark:border-zinc-800">
-                  <td className="py-1.5 pr-3 font-sans text-zinc-700 dark:text-zinc-300">{c.label}</td>
-                  <td className="py-1.5 pr-3 text-right text-zinc-500 dark:text-zinc-400">
-                    {fmt(st.v, st.u === "" ? 2 : 1)} <span className="text-[10px]">{st.u}</span>
-                  </td>
-                  <td className="py-1.5 pr-3 text-right text-zinc-800 dark:text-zinc-200">
-                    {fmt(si.v, si.u === "" ? 2 : 1)} <span className="text-[10px]">{si.u}</span>
-                  </td>
-                  <td className={"py-1.5 text-right " + (big ? "text-amber-700 dark:text-amber-400" : "text-zinc-500 dark:text-zinc-400")}>
-                    {c.pctError >= 0 ? "+" : ""}
-                    {fmt(c.pctError, 0)}%
-                  </td>
-                </tr>
+                <span className="text-zinc-500 dark:text-zinc-400">
+                  {fmt(st.v, st.u === "" ? 2 : 1)} <span className="text-[10px]">{st.u}</span>
+                </span>
               );
-            })}
-          </tbody>
-        </table>
-      </div>
+            },
+            csv: (c) => convert(c.label, c.stored, c.unit, units).v,
+          },
+          {
+            key: "loft",
+            label: "Loft",
+            align: "right",
+            sortValue: (c) => c.simulated,
+            cell: (c) => {
+              const si = convert(c.label, c.simulated, c.unit, units);
+              return (
+                <>
+                  {fmt(si.v, si.u === "" ? 2 : 1)} <span className="text-[10px]">{si.u}</span>
+                </>
+              );
+            },
+            csv: (c) => convert(c.label, c.simulated, c.unit, units).v,
+          },
+          {
+            key: "delta",
+            label: "Δ",
+            align: "right",
+            // Sorted by MAGNITUDE, because the question a flyer has of this column is "where do we
+            // disagree most", not "which is most negative".
+            sortValue: (c) => Math.abs(c.pctError),
+            cell: (c) => (
+              <span
+                className={
+                  Math.abs(c.pctError) > 25
+                    ? "text-amber-700 dark:text-amber-400"
+                    : "text-zinc-500 dark:text-zinc-400"
+                }
+              >
+                {c.pctError >= 0 ? "+" : ""}
+                {fmt(c.pctError, 0)}%
+              </span>
+            ),
+            csv: (c) => c.pctError,
+          },
+        ]}
+      />
     </Card>
   );
 }

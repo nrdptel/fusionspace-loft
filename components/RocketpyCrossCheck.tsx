@@ -10,6 +10,7 @@ import type { RocketpyFlightResult } from "@/lib/validation/rocketpy-engine";
 import { engineFailure } from "@/lib/validation/engine-error";
 import type { GeometryEdits } from "@/lib/model/edit";
 import { Button, Card } from "./ui";
+import DataTable from "./DataTable";
 
 /** Loft's own ballistic ascent, for a like-for-like comparison against RocketPy. */
 interface LoftBallistic {
@@ -342,33 +343,37 @@ function Comparison({ loft, rp, units }: { loft: LoftBallistic; rp: RocketpyFlig
   ];
   return (
     <div className="mt-3">
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm tabular-nums">
-          <thead>
-            <tr className="text-left text-[11px] uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-              {/* Same reading order as the stored-results comparison next door: the outside number
-                  first, Loft second, then how Loft differs from it. Two tables on adjacent tabs that
-                  put the reference on opposite sides make every glance a re-read. */}
-              <th className="py-1 pr-4 font-medium">Metric</th>
-              <th className="py-1 pr-4 font-medium">RocketPy</th>
-              <th className="py-1 pr-4 font-medium">Loft</th>
-              <th className="py-1 font-medium">Δ</th>
-            </tr>
-          </thead>
-          <tbody className="font-mono">
-            {rows.map((r) => (
-              <tr key={r.label} className="border-t border-zinc-100 dark:border-zinc-800">
-                <th scope="row" className="py-1.5 pr-4 text-left font-sans font-normal text-zinc-600 dark:text-zinc-300">
-                  {r.label}
-                </th>
-                <td className="py-1.5 pr-4 text-zinc-800 dark:text-zinc-100">{d.q(r.rp)}</td>
-                <td className="py-1.5 pr-4 text-zinc-800 dark:text-zinc-100">{d.q(r.loft)}</td>
-                <td className="py-1.5 text-zinc-500 dark:text-zinc-400">{r.delta.text}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      {/* The disagreement between two independent solvers is exactly the number a flyer takes
+          elsewhere to argue with, and until now it was trapped in the DOM — no sort, no copy, no
+          export. Column order is deliberate and unchanged: the outside number first, Loft second,
+          then how Loft differs from it, matching the stored-results comparison next door. Two tables
+          on adjacent tabs that put the reference on opposite sides make every glance a re-read. */}
+      <DataTable
+        rows={rows}
+        rowKey={(r) => r.label}
+        exportName="rocketpy-cross-check"
+        exportSuffix="cross-check"
+        caption="Loft against RocketPy, metric by metric"
+        empty="Nothing to compare yet — run RocketPy above and its figures appear here beside Loft's."
+        columns={[
+          {
+            key: "label",
+            label: "Metric",
+            rowHeader: true,
+            sortValue: (r) => r.label,
+            cell: (r) => <span className="font-sans text-zinc-600 dark:text-zinc-300">{r.label}</span>,
+            csv: (r) => r.label,
+          },
+          { key: "rp", label: "RocketPy", cell: (r) => d.q(r.rp), csv: (r) => d.q(r.rp) },
+          { key: "loft", label: "Loft", cell: (r) => d.q(r.loft), csv: (r) => d.q(r.loft) },
+          {
+            key: "delta",
+            label: "Δ",
+            cell: (r) => <span className="text-zinc-500 dark:text-zinc-400">{r.delta.text}</span>,
+            csv: (r) => r.delta.text,
+          },
+        ]}
+      />
       <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
         Ballistic ascent to apogee (recovery and wind removed), RocketPy fed Loft&apos;s Cd(Mach) — a
         cross-check of the integrator, mass, and centre of pressure, not an independent drag model.

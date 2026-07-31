@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { Card, Tabs, type CardTone } from "./ui";
 import { cx } from "@/lib/ui-tokens";
+import DataTable from "./DataTable";
 import type { FlightRun } from "@/lib/sim/run";
 import type { ConditionOverrides } from "@/lib/sim/setup";
 import type { ConditionsSource } from "@/lib/what-if";
@@ -1602,64 +1603,95 @@ function PhaseTable({ run, rocket, units }: { run: FlightRun; rocket: Rocket; un
   return (
     <Card as="section" aria-label="Flight phases">
       <h2 className="text-xl font-medium tracking-tight">Flight phases</h2>
-      <div className="mt-3 overflow-x-auto">
-        <table className="w-full text-sm tabular-nums">
-          <thead>
-            <tr className="text-left text-[11px] uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-              <th className="py-1 pr-4 font-medium">Phase</th>
-              <th className="py-1 pr-4 font-medium">Stages attached</th>
-              <th className="py-1 pr-4 font-medium">From</th>
-              <th className="py-1 pr-4 font-medium">To</th>
-              <th className="py-1 pr-4 font-medium">Burnout</th>
-              <th className="py-1 pr-4 font-medium">Ends with</th>
-              <th className="py-1 pr-4 font-medium">Altitude</th>
-              <th className="py-1 font-medium">Speed</th>
-            </tr>
-          </thead>
-          <tbody className="font-mono">
-            {rows.map((row, i) => (
-              <tr key={i} className="border-t border-zinc-100 dark:border-zinc-800">
-                <th scope="row" className="py-1.5 pr-4 text-left font-sans font-normal text-zinc-700 dark:text-zinc-200">
-                  {i + 1}
-                </th>
-                <td className="py-1.5 pr-4 font-sans text-zinc-700 dark:text-zinc-200">{row.attached.join(" + ")}</td>
-                <td className="py-1.5 pr-4 text-zinc-800 dark:text-zinc-100">{d.q(d.seconds(row.from))}</td>
-                <td className="py-1.5 pr-4 text-zinc-800 dark:text-zinc-100">{d.q(d.seconds(row.to))}</td>
-                {/* A blank cell is a bug (DESIGN.md §6). A phase with no burnout in it is the
-                    ordinary state for a stage that never lit, and it says so. */}
-                <td className="py-1.5 pr-4 text-zinc-800 dark:text-zinc-100">
-                  {row.burnouts.length === 0 ? (
-                    <span className="font-sans text-zinc-500 dark:text-zinc-400">no motor burned</span>
-                  ) : (
-                    row.burnouts.map((b, k) => (
-                      <span key={k} className="mr-2 whitespace-nowrap">
-                        {d.q(d.seconds(b.time))}
-                        {b.stage && row.burnouts.length > 1 && (
-                          <span className="ml-1 font-sans text-xs text-zinc-500 dark:text-zinc-400">
-                            {/* A leading space inside the span, not just a margin: the margin is
-                                invisible to a screen reader and to anything copying the cell out, and
-                                the two ran together as "1.3 sBooster" in the text layer. */}
-                            {` ${b.stage}`}
-                          </span>
-                        )}
+      {/* `COMPETITION.md` row 25 calls this table a lead no competitor offers — and until it took the
+          primitive, its numbers could not leave the page at all. Phases are in flight order and that
+          IS the meaning of the table, so the Phase column is deliberately the only sortable one: it
+          restores the order after a flyer has sorted by another. Rows are never empty here — the
+          component returns null above when there are none — but `empty` is required by the primitive,
+          so it says what would fill it. */}
+      <DataTable
+        className="mt-3"
+        rows={rows}
+        rowKey={(_, i) => String(i)}
+        exportName={rocket.name || "design"}
+        exportSuffix="flight-phases"
+        caption="Each phase of the staged flight, in order"
+        empty="This flight has no phases to table — a design that never sheds a stage flies as one."
+        columns={[
+          {
+            key: "phase",
+            label: "Phase",
+            rowHeader: true,
+            sortValue: (r) => rows.indexOf(r),
+            cell: (r) => <span className="font-sans text-zinc-700 dark:text-zinc-200">{rows.indexOf(r) + 1}</span>,
+            csv: (r) => rows.indexOf(r) + 1,
+          },
+          {
+            key: "attached",
+            label: "Stages attached",
+            cell: (r) => <span className="font-sans text-zinc-700 dark:text-zinc-200">{r.attached.join(" + ")}</span>,
+            csv: (r) => r.attached.join(" + "),
+          },
+          { key: "from", label: "From", cell: (r) => d.q(d.seconds(r.from)), csv: (r) => r.from },
+          { key: "to", label: "To", cell: (r) => d.q(d.seconds(r.to)), csv: (r) => r.to },
+          {
+            key: "burnout",
+            label: "Burnout",
+            // A blank cell is a bug (DESIGN.md §6). A phase with no burnout in it is the ordinary
+            // state for a stage that never lit, and it says so.
+            cell: (r) =>
+              r.burnouts.length === 0 ? (
+                <span className="font-sans text-zinc-500 dark:text-zinc-400">no motor burned</span>
+              ) : (
+                r.burnouts.map((b, k) => (
+                  <span key={k} className="mr-2 whitespace-nowrap">
+                    {d.q(d.seconds(b.time))}
+                    {b.stage && r.burnouts.length > 1 && (
+                      <span className="ml-1 font-sans text-xs text-zinc-500 dark:text-zinc-400">
+                        {/* A leading space inside the span, not just a margin: the margin is invisible
+                            to a screen reader and to anything copying the cell out, and the two ran
+                            together as "1.3 sBooster" in the text layer. */}
+                        {` ${b.stage}`}
                       </span>
-                    ))
-                  )}
-                </td>
-                <td className="py-1.5 pr-4 font-sans text-zinc-700 dark:text-zinc-200">{row.ends}</td>
-                {/* A blank cell is a bug (DESIGN.md §6), so a boundary with no event says so rather
-                    than rendering an empty column. */}
-                <td className="py-1.5 pr-4 text-zinc-800 dark:text-zinc-100">
-                  {row.altitude !== undefined ? d.q(d.altitude(row.altitude, units)) : <span className="font-sans text-zinc-500 dark:text-zinc-400">not logged</span>}
-                </td>
-                <td className="py-1.5 text-zinc-800 dark:text-zinc-100">
-                  {row.velocity !== undefined ? d.q(d.speed(row.velocity, units)) : <span className="font-sans text-zinc-500 dark:text-zinc-400">not logged</span>}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+                    )}
+                  </span>
+                ))
+              ),
+            csv: (r) =>
+              r.burnouts.length === 0
+                ? "no motor burned"
+                : r.burnouts.map((b) => (b.stage ? `${b.time.toFixed(2)} ${b.stage}` : b.time.toFixed(2))).join("; "),
+          },
+          {
+            key: "ends",
+            label: "Ends with",
+            cell: (r) => <span className="font-sans text-zinc-700 dark:text-zinc-200">{r.ends}</span>,
+            csv: (r) => r.ends,
+          },
+          {
+            key: "altitude",
+            label: "Altitude",
+            cell: (r) =>
+              r.altitude !== undefined ? (
+                d.q(d.altitude(r.altitude, units))
+              ) : (
+                <span className="font-sans text-zinc-500 dark:text-zinc-400">not logged</span>
+              ),
+            csv: (r) => (r.altitude !== undefined ? r.altitude : "not logged"),
+          },
+          {
+            key: "velocity",
+            label: "Speed",
+            cell: (r) =>
+              r.velocity !== undefined ? (
+                d.q(d.speed(r.velocity, units))
+              ) : (
+                <span className="font-sans text-zinc-500 dark:text-zinc-400">not logged</span>
+              ),
+            csv: (r) => (r.velocity !== undefined ? r.velocity : "not logged"),
+          },
+        ]}
+      />
       {rows.length === 1 ? (
         <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
           This design has more than one stage but nothing separated: the stack flew whole. A stage is
