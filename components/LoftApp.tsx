@@ -67,6 +67,8 @@ import {
   primaryParachute,
   defaultPayloadStation,
   canAddStage,
+  stageSeedBase,
+  addedStageIds,
   type AddedStage,
 } from "@/lib/model/edit";
 import {
@@ -861,6 +863,14 @@ export default function LoftApp() {
     [doc, edits],
   );
 
+  /** The design a booster is seeded FROM, which is NOT `removableFrom`. `applyAddedStages` runs first in
+   *  the pipeline, on the pristine rocket plus the stages already authored — an added tube, a removal or
+   *  a reorder is invisible to it. Asking `canAddStage` the fully-structured tree instead disagrees with
+   *  the operation in 123 states across the corpus, both ways; `stageSeedBase` carries the measurements.
+   *  Memoised like its three siblings below: `canAddStage` runs `buildStage`, which flattens the rocket
+   *  and deep-clones the aft tube's subtree, and this is read on every render. */
+  const stageBase = useMemo(() => (doc ? stageSeedBase(doc.rocket, edits) : null), [doc, edits]);
+
   /** Why this part cannot be removed, or null. The panel asks THIS rather than judging for itself, so the
    *  reason it shows and the guard that enforces it cannot disagree about which design they are judging. */
   const refuseRemoval = useCallback(
@@ -917,29 +927,27 @@ export default function LoftApp() {
     if (!doc || !removableFrom) return;
     const entry = edits.addedStages?.find((s) => s.seedId === seedId);
     if (!entry) return;
-    // Every aim pointing into the stage about to vanish, cleared in the same commit — the WHOLE stage,
-    // not just the seed tube and what is mounted in it. A part the flyer authored onto the seed with the
-    // add gesture is a SIBLING in this stage's own list, not a child of the seed, so naming the seed
-    // alone never reached it: a Body length of 400 mm aimed at such a tube survived the removal, fell
-    // back to the design's primary tube, and took the SUSTAINER's 620 mm tube to 400 mm — apogee 993.642
-    // to 1105.598 m on the starter, with the field still reading 400 and no part on screen that long.
-    const stage = removableFrom.stages.find((s) => s.components.some((c) => c.id === seedId));
+    // What the stage accounts for — every id, not a walk down from the seed. `addedStageIds` carries the
+    // reasoning and the measurements; the two things it buys are that a DELETED seed does not hide the
+    // rest of the stage, and that a part of the stage the flyer already removed is still counted.
+    const gone = addedStageIds(doc.rocket, edits, seedId);
+    // Every aim pointing into the stage, cleared in the same commit. An absolute dimension still aimed
+    // at a part inside the booster does not stop applying when the booster goes: it falls back to the
+    // design's primary part and lands there instead. On the starter that took the SUSTAINER's 620 mm
+    // tube to 400 mm — apogee 993.642 to 1105.598 m, with the field still reading 400.
     let cleared: Edits = edits;
-    for (const c of stage?.components ?? []) cleared = { ...cleared, ...aimsClearedByRemoving(removableFrom, cleared, c.id) };
-    // And the `added` entries that BUILT those parts go with them. Dropping the stage entry alone leaves
-    // an add in the bag whose component is nowhere in the tree — an active what-if, so the design still
-    // reads as edited and withholds the file's own stored-results comparison, for a part that no longer
-    // exists. Same rule as the aims, one level down: what the stage held goes when the stage does.
-    const gone = new Set<string>();
-    const walk = (c: { id: string; children?: readonly { id: string }[] }) => {
-      gone.add(c.id);
-      for (const k of c.children ?? []) walk(k);
-    };
-    for (const c of stage?.components ?? []) walk(c);
+    for (const id of gone) cleared = { ...cleared, ...aimsClearedByRemoving(removableFrom, cleared, id) };
+    // And EVERY list that names one of those parts goes with the stage — not just `added`. An entry
+    // left behind is a live what-if for a component that is nowhere: the design still reads as edited,
+    // so it withholds the file's own stored-results comparison. `removedIds` is the one that also
+    // changes a flight — see `addedStageIds` for the two clicks that otherwise hand a flyer a booster
+    // born with its own motor mount already deleted.
     applyEdit(
       {
         ...cleared,
         added: (edits.added ?? []).filter((a) => !gone.has(a.id)),
+        removedIds: (edits.removedIds ?? []).filter((id) => !gone.has(id)),
+        moved: (edits.moved ?? []).filter((m) => !gone.has(m.id) && !(m.after !== null && m.after !== undefined && gone.has(m.after))),
         addedStages: (edits.addedStages ?? []).filter((s) => s.seedId !== seedId),
       },
       { label: `removing ${entry.name}`, key: `rmstage:${seedId}` },
@@ -1679,7 +1687,7 @@ export default function LoftApp() {
               canMovePart={canMovePart}
               onMovePartTo={movePartTo}
               movePartSlots={movePartSlots}
-              onAddStage={removableFrom && canAddStage(removableFrom) ? addStage : undefined}
+              onAddStage={stageBase && canAddStage(stageBase) ? addStage : undefined}
               onRemoveStage={removeStage}
               refuseRemoval={refuseRemoval}
               onSelectPart={(id) => {

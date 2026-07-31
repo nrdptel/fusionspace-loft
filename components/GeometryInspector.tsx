@@ -479,12 +479,14 @@ export default function GeometryInspector({
             appended below everything already in the stack — which is where a booster goes — and seeded
             from the design's own aft tube, its mount and its fins, so it is a booster of THIS rocket
             rather than a shape Loft chose. */}
-        {/* The REMOVE controls are not gated on the add being available, and that separation is
-            load-bearing. `onAddStage` is withheld wherever the operation is refused — a design with no
-            aft motor mount to clone — and the aft-most tube is whatever the flyer last authored, so
-            adding one bare tube to a booster withdraws the add. Rendering the removals inside that gate
-            made a stage a flyer had just authored unremovable: a one-way door built out of a refusal.
-            Caught by the e2e below this comment's own fix, on the very first run. */}
+        {/* The REMOVE controls are not gated on the add being available. Once `canAddStage` reads the
+            tree the operation actually seeds from, an authored stage always leaves a mount to clone, so
+            a design that HAS a booster can normally be given another — and this separation looks like
+            belt and braces. It is not: the removals are rendered per BAG ENTRY, and an entry `buildStage`
+            refuses builds no stage at all. A bag rehydrated from storage against a design whose aft tube
+            has no mount is exactly that state, and inside the add's gate the entry becomes unreachable —
+            a one-way door assembled out of a refusal. This cost a full e2e run to find when the gate was
+            wrong, and it is the reason to keep the two apart now that it is right. */}
         {(onAddStage || (addedStages ?? []).length > 0) && (
           <p className="mt-1 flex flex-wrap items-center gap-2 text-sm">
             {onAddStage && (

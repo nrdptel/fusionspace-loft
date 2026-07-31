@@ -788,7 +788,11 @@ export default function ResultsView({
       {staged && (
         <ToolUnavailable
           title="Second solver and design sweeps"
-          reason={`This design flies ${doc.rocket.stages.length} stages. The RocketPy cross-check flies a single-stage vehicle, and a motor or parameter sweep needs one unambiguous airframe to vary — with several stages there is no single "the" nose, body or fin set to sweep. The dispersion study below is over the whole flight and does run on a staged design.`}
+          // The EDITED count, for the same reason `staged` above is: on a design with a booster authored
+          // in the editor `doc.rocket.stages.length` is still the file's 1, so this read "This design
+          // flies 1 stages." — a wrong number and a broken sentence, on the copy whose only job is to
+          // explain why three tools just disappeared.
+          reason={`This design flies ${shownRocket.stages.length} stages. The RocketPy cross-check flies a single-stage vehicle, and a motor or parameter sweep needs one unambiguous airframe to vary — with several stages there is no single "the" nose, body or fin set to sweep. The dispersion study below is over the whole flight and does run on a staged design.`}
         />
       )}
       {/* Without a resolved motor there is no flight to analyze, and every tool here is built on one

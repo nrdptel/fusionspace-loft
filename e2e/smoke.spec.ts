@@ -3823,14 +3823,27 @@ test.describe("Loft", () => {
     await page.getByRole("tab", { name: "Analyze" }).click();
     const crossCheck = page.getByRole("region", { name: "RocketPy cross-check" });
     const sweep = page.getByRole("region", { name: "Parameter sweep" });
+    // The motor sweep too: it is gated on `!staged` for the same reason — with several stages there is
+    // no single airframe to swap the motor of — and asserting only the other two left `!staged` free to
+    // be deleted from `canSweepMotors` with everything still green.
+    const motors = page.getByRole("region", { name: "Motor sweep" });
     await expect(crossCheck).toBeVisible({ timeout: 20000 });
     await expect(sweep).toBeVisible();
+    await expect(motors).toBeVisible();
 
     await page.getByRole("tab", { name: "Design" }).click();
     await page.getByRole("button", { name: /Add a booster stage/ }).click();
     await page.getByRole("tab", { name: "Analyze" }).click();
     await expect(crossCheck).toHaveCount(0, { timeout: 20000 });
     await expect(sweep).toHaveCount(0);
+    await expect(motors).toHaveCount(0);
+    // And it SAYS SO — three absences are not the assertion. "A panel that is simply absent reads as a
+    // feature Loft doesn't have", which is why the withdrawal notice exists; deleting it leaves both
+    // counts above green. The sentence also has to name the count of the rocket on screen: read off the
+    // pristine design it said "This design flies 1 stages", a wrong number and a broken sentence on the
+    // one piece of copy whose whole job is to explain what just disappeared.
+    await expect(page.getByText(/This design flies 2 stages\./)).toBeVisible({ timeout: 20000 });
+    await expect(page.getByText(/This design flies 1 stages/)).toHaveCount(0);
 
     // And back, because a withdrawal that does not reverse is a tool the flyer has lost.
     await page.getByRole("tab", { name: "Design" }).click();
@@ -3838,6 +3851,7 @@ test.describe("Loft", () => {
     await page.getByRole("tab", { name: "Analyze" }).click();
     await expect(crossCheck).toBeVisible({ timeout: 20000 });
     await expect(sweep).toBeVisible();
+    await expect(motors).toBeVisible();
   });
 
   test("removing a booster takes the aims INSIDE it, not just the ones on its seed tube", async ({ page }) => {
@@ -3870,10 +3884,11 @@ test.describe("Loft", () => {
     await expect(tubes.nth(2)).toContainText(/L 400/);
     await expect(tubes.nth(0)).not.toContainText(/L 400/);
 
-    // A bare authored tube is now the aft-most one, so `canAddStage` refuses a SECOND booster and the
-    // add control withdraws. The REMOVE control must not withdraw with it — that would make the stage
-    // the flyer just authored unremovable, which is a one-way door built out of a refusal.
-    await expect(page.getByRole("button", { name: /Add a booster stage/ })).toHaveCount(0);
+    // The add control is STILL offered. It reads `canAddStage` off the tree the operation seeds from —
+    // the pristine design plus the stages already authored — so an ordinary tube authored at the tail
+    // does not withdraw it. Asking the fully-edited structure instead made that bare tube the aft-most
+    // one, found no mount on it, and refused a design the operation handles fine.
+    await expect(page.getByRole("button", { name: /Add a booster stage/ })).toBeVisible();
 
     // Now take the stage back. The sustainer's tube must read exactly what it read before any of this.
     await page.getByRole("button", { name: /Remove Booster/ }).click();
@@ -3886,7 +3901,16 @@ test.describe("Loft", () => {
     // so the parts count above cannot see it. What it leaves behind is a live what-if for a component
     // that is nowhere — the panel keeps its "with your edits" badge and the design goes on withholding
     // the file's own stored-results comparison, for an edit the flyer has just taken back.
-    await expect(page.getByText("with your edits").first()).toHaveCount(0, { timeout: 20000 });
+    await expect(page.getByText("with your edits")).toHaveCount(0, { timeout: 20000 });
+
+    // And the removal is still ONE undo, with the bag coming back whole. This is what the clearing above
+    // must not cost: aims and `added` entries are dropped in the same commit as the stage, so the
+    // snapshot behind that commit still holds all three and one step back restores the booster, the
+    // tube authored inside it, and the 400 mm the field was holding.
+    await page.getByRole("button", { name: /^Undo removing Booster/ }).click();
+    await expect(tubes).toHaveCount(3, { timeout: 20000 });
+    await expect(tubes.nth(2)).toContainText(/L 400/);
+    await expect(tubes.nth(0)).not.toContainText(/L 400/);
   });
 
   test("a part at the end of its stage is not offered a move it cannot make", async ({ page }) => {

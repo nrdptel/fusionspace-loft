@@ -561,10 +561,40 @@ sites now pass the WHOLE bag, and so does `ParameterSweep`'s `axisBase` dependen
 two of the six permanently**: a caller that passes the whole bag cannot be out of date, and a caller
 that spells out fields silently can.
 
-**What the second opinion on increment 1 corrected, after it was already pushed.** Six of thirteen
-findings were fixed in the same run — two of them wrong numbers on a surface a flyer would act on; the
-rest are in `BACKLOG.md` with their measurements. Every figure below was re-derived against the pushed
-code rather than quoted from the review, which is the one lesson the last of them teaches.
+**What TWO rounds of second opinion on increment 1 corrected, after it was already pushed.** The first
+round found thirteen things; the second, taken on the fixes themselves, found seven more — including
+that the first round's headline fix was bypassable and that one of the corrected numbers was still
+wrong. Ten are fixed here, four of them wrong numbers on a surface a flyer would act on; the rest are in
+`BACKLOG.md` with their measurements. Every figure below was re-derived against the pushed code rather
+than quoted from either review, which is the one lesson two of them teach.
+
+- **Sev-1 — the aim fix was bypassable, because the stage was found by its SEED and the seed is
+  removable.** `removalRefusal` allows deleting a booster's seed tube; the stage stays, holding whatever
+  was authored into it, and a lookup rooted at `seedId` then finds no stage and clears nothing. Measured
+  on the starter — booster, a tube authored inside it at 400 mm, seed deleted, stage removed — the
+  sustainer's 620 mm tube still became 400 mm: **993.642 → 1105.598 m**, the same wrong number the fix
+  was written to stop. `addedStageIds` now diffs the structure with the stage against the structure
+  without it, so what the stage accounts for is named by what it HOLDS.
+- **Sev-1 — `removedIds` outlived the stage, and `newPartId` is deterministic.** The removal dropped
+  `added` and nothing else, while `addStage` names by the current length, so the booster after a removal
+  is minted with the SAME seed and mount ids as the one before it. Add a booster (1491.464 m, one
+  separation), delete its motor mount (638.973 m, none), remove the stage (993.642 m), add a booster
+  again — **the new one reads 638.973 m with zero separation events**, 35.7% below the design's own
+  flight, from two clicks that destroy nothing and with nothing on any surface saying why. Every list in
+  the bag is now filtered by what the stage held, `removedIds` and `moved` included.
+- **The refusal was asked the wrong tree, and disagreed with the operation in 123 corpus states.**
+  `applyAddedStages` runs FIRST in the pipeline, on the pristine design plus the stages already authored;
+  the gate asked the fully-structured tree, where an authored tube, a removal or a reorder changes which
+  tube is aft-most. 121 are false refusals — author one ordinary tube at the tail of the starter and the
+  control vanishes from a design that would have given a 2-stage rocket flying 1373.372 m with a
+  separation — and 2 go the other way, on `03.Three-stage.ork`, which is the changes-nothing click the
+  refusal exists to prevent. `stageSeedBase` names the right tree once, and the e2e that had pinned the
+  false refusal as correct behaviour now pins the opposite.
+- **The withdrawal notice said "This design flies 1 stages."** `staged` moved to the edited rocket; the
+  sentence explaining the withdrawal did not, so it read the file's own stage count — a wrong number and
+  a broken sentence on the one piece of copy whose job is to explain what just disappeared. Now
+  asserted positively by the e2e, because three `toHaveCount(0)` calls are satisfied by deleting the
+  notice outright.
 
 - **Sev-1 — the RocketPy cross-check flew a booster as a coaxial cluster and called it a second
   opinion.** Every Analyze tool gated on "is this design staged?" read `doc.rocket.stages.length`, the
@@ -588,18 +618,38 @@ code rather than quoted from the review, which is the one lesson the last of the
 - **The configuration write cloned one field too many.** `ignitionEvent` carried across from the source
   instance, so a booster seeded from a design that air-starts inherited `burnout` — and `lib/sim/setup.ts`
   derives bottom-versus-upper from the STAGE INDEX, where that event resolves to "never lights". Measured
-  on `02.Two-stage.ork`: 1,377.957 m became **1,152.856 m (16.3% DOWN)** where letting the trigger derive
-  gives 1,548.575 m; on `Two stage high power rocket.ork`, 659.262 m became 619.833 m against 855.457 m.
+  on `02.Two-stage.ork`: 1,377.957 m became **1,152.856 m (16.3% DOWN)** against the **2,055.479 m** the
+  fixed code flies; on `Two stage high power rocket.ork`, 659.262 m became 619.833 m against 855.457 m.
   That is the same silent wrong flight the configuration write exists to prevent, reintroduced by copying
   a field. `ignitionEvent` and `ignitionDelay` are now both omitted and the trigger derives.
+  *(This bullet first published 1,548.575 m as the fixed number. That is the OLD motor source with the
+  NEW ignition handling — a rocket that exists in no commit. It was caught by the review below, in the
+  bullet whose whole subject is quoting a probe of something other than the finished thing.)*
 - **And it cloned the wrong motor.** `cfg.instances[0]` is the first instance, not the one in the tube the
   booster was seeded FROM. On `Three stage low power rocket.ork` those are different motors: instance zero
   puts an A8 in a booster whose own mount flies a B6, and apogee reads 294.4 m against 334.2 m — **11.9%
   low**. It now prefers the seed tube's own mount's instance and falls back to the first.
-- **The corpus separation assertion could not fail on the 9 multi-stage designs.**
+- **The corpus separation assertion could not fail on the multi-stage designs.**
   `some(e => e.type === "separation")` is satisfied by a separation the design ALREADY had, so it was
-  structurally blind to both defects above. It now compares the count before and after — proved able to
-  fail by restoring the ignition-event clone.
+  structurally blind to both defects above. It now asserts the count rises by **exactly one** — which
+  also catches a booster that separates while suppressing one of the design's own. Nine designs are
+  multi-stage and 7 of them reach the branch; the other 2 refuse a booster.
+
+  **What it can and cannot catch, driven rather than assumed.** Reverting BOTH motor fixes turns it red
+  on 2 designs. Reverting either one ALONE leaves it green: every seed instance in the corpus carries
+  `ignitionEvent: "automatic"` or none, which resolves to the serial default anyway, so once the
+  seed-mount preference is in place the ignition clone has nothing left to break. The claim first
+  published here — "proved able to fail by restoring the ignition-event clone" — was not true of the
+  shipped code.
+
+  So each half got the check it actually needs. **The seed-motor preference is pinned by the sweep**:
+  the booster's instance must name the motor the seed tube's own mount flies, which catches 6 states
+  across 3 designs (`02.Two-stage.ork` G80T for I300T, `Three stage low power rocket.ork` A8 and C6 for
+  B6, `Two stage high power rocket.ork` I59WN for I357T). **The ignition omission is pinned by a
+  SYNTHETIC unit case**, because no real design exercises it — a design that air-starts off its aft
+  mount is a file Loft has not met, and a guard against a file shape the corpus does not contain cannot
+  be proved by the corpus. Both proved able to fail by reverting exactly their own half. Writing
+  "no corpus design reaches this" beside a guard is worth more than a sweep that passes either way.
 - **`canAddStage` was never called.** See the refusal bullet above.
 - **A number was wrong in six places.** The no-instance loss was published as *546.813 m, a 45.0% loss*
   across `edit.ts`, `LoftApp.tsx`, `edit.test.ts`, `sweep.test.ts`, `smoke.spec.ts` and this file. That

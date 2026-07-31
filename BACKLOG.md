@@ -12,13 +12,19 @@ this file, and deliberately does **not** cap craft or product work, because that
 track in `ROADMAP.md` with its own *done when*. Rough edges, missing affordances, and findings too
 big for one pass. Newest first.
 
-- **R5 increment 1, reviewed after it shipped: eight findings here, three of them resolved in the same
-  run, one of them a Sev-1 still open.** Every number below was re-derived against the pushed code
-  rather than quoted from the review — which is not a formality: the review's own headline figure was
-  wrong, and the entry that fixed it is in `ROADMAP.md`. The four findings the review called
-  load-bearing, plus the two Sev-1s found while filing these, are written up there. They all share one
-  shape — **the authored stage is a first-class part of the model everywhere except in the code that
-  asks questions about stages** — so they are one entry rather than eight.
+- **R5 increment 1, reviewed TWICE after it shipped: five findings left open here, one of them a Sev-1.**
+  Round one found thirteen; round two, taken on round one's own fixes, found seven more — including that
+  round one's headline fix was bypassable and that one of its corrected numbers was still wrong. What was
+  fixed is written up in `ROADMAP.md`; what is left is below. Every number here was re-derived against
+  the code rather than quoted from either review, which is not a formality: both rounds published a
+  figure that did not reproduce.
+
+  They all share one shape — **the authored stage is a first-class part of the model everywhere except
+  in the code that asks questions about stages** — so they are one entry rather than five.
+
+  The lesson the ledger should keep even after the entries clear: **three rounds of review on one
+  increment, and each of the first two introduced something the next one found.** Reviewing a commit is
+  not the same as reviewing its fix.
 
   1. **RESOLVED — the Analyze tools gated on the PRISTINE stage count, and the RocketPy cross-check
      then folded the two motors into one cluster.** `ResultsView.tsx` read `doc.rocket.stages?.length`,
@@ -76,10 +82,34 @@ big for one pass. Newest first.
      `overrideSubcomponents`, so today the value is the tube's own mass and the clone is right. A design
      that sets both would give the booster the whole aft assembly's lumped mass over a tube, a mount and
      a fin set.
-  8. **The two-stage designs in the corpus flew the fix but do not pin it.** The count-based separation
-     assertion catches a booster that never lights; nothing asserts WHICH motor the booster gets, so the
-     seed-mount preference that fixed the 11.9% error on `Three stage low power rocket.ork` rests on one
-     unit case rather than on the sweep.
+  8. **RESOLVED — the corpus flew the seed-motor preference but did not pin it.** The separation
+     assertion catches a booster that never lights; nothing asserted WHICH motor the booster gets.
+     **Fixed 2026-07-31**: the sweep now requires the booster's instance to name the motor the seed
+     tube's own mount flies, which catches 6 states across 3 designs (`02.Two-stage.ork` G80T for I300T,
+     `Three stage low power rocket.ork` A8 and C6 for B6, `Two stage high power rocket.ork` I59WN for
+     I357T) and is proved able to fail by reverting the preference alone. Worth recording why it was
+     needed: neither motor fix is caught by the separation assertion on its own — reverting BOTH turns
+     it red on 2 designs, reverting either alone leaves it green, because every seed instance in the
+     corpus carries `ignitionEvent: "automatic"` or none and resolves to the serial default anyway.
+
+  9. **The stage controls render one *Remove &lt;name&gt;* per BAG ENTRY, not per built stage.** An entry
+     `buildStage` refuses builds no stage, and the button for it is still drawn — a control for something
+     that is not in the rocket. Not reachable from the UI today, because the gate and the operation now
+     agree about which tree they judge; reachable from a bag rehydrated out of `localStorage` against a
+     design whose aft tube has no mount. It is also why the removals are deliberately NOT inside the
+     add's gate: there, that entry would be unreachable as well as phantom.
+
+  10. **`addStage`'s naming is still by current length.** Finding 5 above, unchanged: add / add /
+     remove-first / add gives two live stages both called "Booster 2". The id collision that came with it
+     is now harmless — `addedStageIds` drops every list entry the stage held, so a re-minted id no longer
+     inherits a stale `removedIds` entry — but the NAME collision is still there, and it is what a flyer
+     reads on the parts list and in the removal's undo label.
+
+  11. **`buildRocketpySpec` still folds N motors into one coaxial cluster.** The Analyze gate no longer
+     offers the cross-check on an EDITED staged design, so the authored-booster route is closed. A design
+     IMPORTED as two stages was always outside the cross-check's reach and still is — the spec has one
+     `motor` slot and no stage list. Giving it one is the change that would let the second solver cover
+     the 9 multi-stage designs in the corpus at all.
 
 - **The shelf-restore refusal has no test that drives it through the UI.** `restoreRecent` returning
   null is covered by three unit cases (`lib/session.test.ts`), and the sentence it produces is rendered

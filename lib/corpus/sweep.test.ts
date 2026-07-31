@@ -403,6 +403,7 @@ suite("real-design corpus", () => {
     const notRestored: string[] = [];
     const refusedButOffered: string[] = [];
     const neverSeparated: string[] = [];
+    const wrongMotor: string[] = [];
     let authored = 0;
     let refused = 0;
     let burnedOut = 0;
@@ -437,11 +438,28 @@ suite("real-design corpus", () => {
       // 2 — the effective mount is the entry's own id, or the seed tube itself on a min-diameter clone.
       const seed = staged.stages[staged.stages.length - 1].components[0];
       const effective = seed.children.some((c) => c.id === mountId) ? mountId : seed.id;
+      // The mount the SOURCE tube used, which is what the booster's motor must be copied from.
+      const src = flattenRocket(doc.rocket)
+        .filter((p) => p.component.kind === "bodytube")
+        .reduce((best, p) => (p.xFore > best.xFore ? p : best)).component;
+      const srcMountId = src.children.find((c) => "motorMount" in c && c.motorMount !== undefined)?.id ?? src.id;
       for (const cfg of staged.configurations) {
         // A configuration the design says flies nothing stays flying nothing — see `applyAddedStages`.
         if (cfg.instances.length <= 1) continue;
-        if (!cfg.instances.some((i) => i.mountId === effective)) {
+        const inBooster = cfg.instances.find((i) => i.mountId === effective);
+        if (!inBooster) {
           missedConfig.push(`${f.name}: configuration ${cfg.id} has no motor in the booster`);
+          continue;
+        }
+        // And it is the motor the SEED TUBE'S OWN MOUNT flies, not whichever instance happens to be
+        // first. On a design whose first instance sits in an upper stage those are different motors:
+        // `Three stage low power rocket.ork` puts an A8 in a booster whose own mount flies a B6, and
+        // apogee reads 294.4 m against the 334.2 m the aft mount gives — 11.9% low, with nothing said.
+        // The separation assertion below cannot see this: the wrong motor still lights and still drops.
+        const fromSeed = cfg.instances.find((i) => i.mountId === srcMountId);
+        const designation = (i: { motor: { designation?: string } }) => i.motor?.designation ?? "";
+        if (fromSeed && designation(inBooster) !== designation(fromSeed)) {
+          wrongMotor.push(`${f.name}: booster flies ${designation(inBooster)} where its seed tube flies ${designation(fromSeed)}`);
         }
       }
       // 3
@@ -455,8 +473,6 @@ suite("real-design corpus", () => {
 
       // And it FLIES, with a separation event — the claim the other three exist to support. Only where
       // the design has propulsion at all; a design whose motor Loft cannot resolve has nothing to burn.
-      const pristineRun = runFromDocument(doc, {});
-      const separationsBefore = pristineRun.result.events.filter((e) => e.type === "separation").length;
       const run = runFromDocument({ ...doc, rocket: staged }, {});
       if (run.hasPropulsion) {
         flown++;
@@ -468,13 +484,20 @@ suite("real-design corpus", () => {
         // because a silently excluded case is how a rule stops meaning anything.
         if (run.result.events.some((e) => e.type === "burnout")) {
           burnedOut++;
-          // The count must INCREASE, not merely be non-zero. `some(separation)` is satisfied by a
-          // separation the design already had, so on the 9 multi-stage designs it was structurally
-          // blind to the very defect this test exists to catch — a booster whose motor is cloned with a
-          // sustainer's ignition event never lights, and the pre-existing separations still fire.
+          // The design's OWN separations, flown only where the branch needs them: a second full flight
+          // for every design — including the 5 with no propulsion and the 1 that never burns out — is
+          // what pushed this test past the 5 s default and turned CI red while the local gate stayed
+          // green. Inside the branch it costs the 29 flights the comparison actually uses.
+          const separationsBefore = runFromDocument(doc, {}).result.events.filter((e) => e.type === "separation").length;
+          // EXACTLY one more than the design already had. `some(separation)` is satisfied by a
+          // separation the design came with, so on the 9 multi-stage designs it was structurally blind
+          // to the very defect this test exists to catch: a booster that never lights leaves the
+          // pre-existing separations firing and the assertion green. `> before` fixes that half;
+          // `=== before + 1` also catches a booster that separates while SUPPRESSING one of the
+          // design's own, which is the same class of silent wrong flight in the other direction.
           const after = run.result.events.filter((e) => e.type === "separation").length;
-          if (after > separationsBefore) separated++;
-          else neverSeparated.push(`${f.name}: burned out and the separation count did not rise (${separationsBefore} -> ${after})`);
+          if (after === separationsBefore + 1) separated++;
+          else neverSeparated.push(`${f.name}: burned out and the separation count did not rise by exactly one (${separationsBefore} -> ${after})`);
         }
       }
     }
@@ -488,6 +511,7 @@ suite("real-design corpus", () => {
     expect(refusedButOffered, "the control and the operation disagree about whether a booster can be added").toEqual([]);
     expect(wrongCount, "an authored stage that did not append cleanly").toEqual([]);
     expect(missedConfig, "a configuration left without a motor in the booster").toEqual([]);
+    expect(wrongMotor, "a booster flying a motor its own seed tube does not").toEqual([]);
     expect(cloned, "a recovery device cloned into a stage the solver never deploys from").toEqual([]);
     expect(notRestored, "dropping the entry did not restore the design").toEqual([]);
     // Every design that reaches burnout must stage. This is the assertion the configuration write

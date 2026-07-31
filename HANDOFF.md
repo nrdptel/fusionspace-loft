@@ -13,9 +13,13 @@ the LEDGER, not against the previous handoff's summary of it.
 
 **And this handoff does not claim zero either — the count is ONE.** It is written out under *Pick up
 first*: an authored booster whose motor mount is then deleted flies as 35.7%-below-pristine dead
-ballast with zero separation events and nothing on any surface saying so. It was found by the review
-of this run's own R5 commit, late enough that filing it honestly beat rushing a fix. Do not restate
-it as zero.
+ballast with zero separation events and nothing on any surface saying so. Do not restate it as zero.
+
+**Six Sev-1s were found this run and five fixed. Four of the six were in code THIS RUN WROTE, and two
+of those were in the fix for the other two** — found only because the R5 commit was reviewed a second
+time, on its own fixes, after it had been pushed. The pattern is worth more than any one of them:
+every round of review on this milestone found something the round before it had introduced, and the
+rounds did not converge until the third. **Review the fix, not just the commit.**
 
 **The queue has two tracks and a run ships from both.** `ROADMAP.md` is the queue; read it first.
 
@@ -343,7 +347,7 @@ calling a session done, not just the local exits.
 | `2a061e6` | **Sev-1 — a reordered airframe flying a flat face into the airstream now says so.** Nudging the nose one place aft left apogee, max velocity and rail exit every digit identical while the model flew a 66 mm flat disc. |
 | `c2d5b63` | **P1 increment 5 — off-scale spacing to zero**, plus the three blind spots in the check that measures it, plus three `COMPETITION.md` rows and five corrections to them. |
 | `4a69479` | **R5 increment 1 — a flyer can add a booster stage.** The first edit that writes to `rocket.configurations`; without it the stage never lights and the design loses 37.5% of its apogee in silence. |
-| *(this run's last)* | **The review of `4a69479`, acted on after it shipped.** Thirteen findings; six fixed, eight filed. Two of the fixes were wrong numbers on a surface: the RocketPy cross-check folded a booster's motor into a coaxial cluster (381.0 N against the real 190.5 N), and removing a booster resized the SUSTAINER (993.642 → 1105.598 m). Plus a false figure that had been published in six places. |
+| *(this run's last two)* | **Two rounds of review on `4a69479`, both after it shipped.** Round one found thirteen, round two found seven more IN THE FIXES — including that round one's headline fix was bypassable by deleting the booster's seed tube, and that one of its corrected numbers was still wrong. Ten fixed, five filed. Four were wrong numbers on a surface: the cross-check folding a booster's motor into a coaxial cluster (381.0 N against the real 190.5 N), removing a booster resizing the SUSTAINER (993.642 → 1105.598 m, twice, by two different routes), and a withdrawal notice reading "This design flies 1 stages." |
 
 **The previous handoff's "Sev-1 count is zero" was wrong** — see the top of this file. **Four Sev-1s
 were found this run and three were fixed.** Two were in the ledger or one gesture from it; two were in
@@ -534,7 +538,7 @@ multi-stage on purpose); removing the booster puts 994 m back exactly.
 keep only one: the phone horizontal-overflow e2e compared against a viewport width the emulator
 inflates to absorb the overflow; a clear-on-load assertion ran after the state it tested had already
 been cleaned up; the corpus's booster-separation assertion used `some(e => e.type === "separation")`,
-which a design's PRE-EXISTING separation satisfies, so on the 9 multi-stage designs it was structurally
+which a design's PRE-EXISTING separation satisfies, so on the multi-stage designs it was structurally
 blind to the defect it existed to catch; and the §9 spacing grep has three blind spots holding 118
 values. Three fixed, the last filed.
 
@@ -575,10 +579,11 @@ both with full reproductions and a note on why the obvious fix is wrong:
 A triage agent argued both are Sev-1 by the manual's first criterion. They are the strongest candidates
 the moment nothing else preempts, and the second is on the very surface this run gave an undo to.
 
-**The `BACKLOG.md` Sev-1 count is ONE at the end of this run — do not read this as zero.** Four were
-found. Three were fixed (the shelf's one-way delete, the blunt leading face, and the two the R5 review
-turned up: the cross-check's folded motor cluster and the sustainer resized by a booster removal). The
-fourth is filed and is the first thing to pick up:
+**The `BACKLOG.md` Sev-1 count is ONE at the end of this run — do not read this as zero.** Six were
+found and five fixed: the shelf's one-way delete, the blunt leading face, the cross-check's folded
+motor cluster, the sustainer resized by a booster removal, and that same sustainer resize reached a
+SECOND way once the first fix turned out to be bypassable by deleting the booster's seed tube. The
+sixth is filed and is the first thing to pick up:
 
 **An authored booster whose motor mount is then deleted flies as dead ballast and nothing says so.**
 `canAddStage`/`buildStage` refuse a seed with no mount to clone, but that refusal is ADD-TIME ONLY and
@@ -590,7 +595,7 @@ the only warning on the flight is an unrelated static-margin caution. It is the 
 removal is refused inside an authored stage or the flight says the stage cannot fire; the second is
 better, because it also catches an IMPORTED stage in that state, which nothing checks today.
 
-The full R5 review — all eight open findings with their reproductions — is the top entry in
+Both rounds of the R5 review — every open finding with its reproduction — are the top entry in
 `BACKLOG.md`.
 
 ## Environment notes
