@@ -282,20 +282,69 @@ designs back to their imported caliber, a crash path in an exhaustiveness check,
 that could not fail, and six numbers in comments and docs that did not re-derive. The lens that found
 most of them was "verify every number quoted in this diff with your own probe".
 
-## Shipped this session (2026-07-31)
+## Shipped this session (2026-07-31) — four pull requests, all merged and deployed
 
 Baseline before anything changed, all four green: lint 0 errors / **1 warning** (the standing
 `setDraft` one), **826 unit**, build, **169 e2e**, corpus **35 design files, 5/5**.
+At the end: **869 unit, 171 e2e**, corpus 35 files **6/6**. Nothing is pending on a branch.
 
-| | |
+| PR | what |
 |---|---|
-| **P1, increment 1** | The design system got the primitives it names and a check that fails. `Card` (five tones, an `as` so a landmark stays a landmark), `Section`, `Button` (three weights + `danger`); seventeen hand-rolled containers converted; `lib/design-system.test.ts` pins `DESIGN.md` §9 as an EXACT ratchet. §9 counts before → after: `rounded-lg` 49 → 46, distinct card treatments 9 → 3, adopters 5 → 11. |
-| **§9 itself was broken** | Its adoption grep searched `from './ui'` in single quotes while every import in the repo is double-quoted, so it answered **0 whether adoption was 0% or 100%**, for as long as `DESIGN.md` has existed. Also: the `sm > xs` total passed by three while **9 of 23 files were individually inverted**, and counting adopters by FILE is satisfied for the rest of the milestone by one more `Card` import. All three are sharpened in `DESIGN.md` and asserted the sharpened way. |
-| **Sev-1: the wind was yesterday's** | `lib/weather.ts` read winds aloft from `hourly` index 0 — **00:00 local**, because `timezone=auto` + `forecast_days=1` makes the hourly array a local day — while the surface block was live. Measured against the live API at 18:15 local: 850 hPa index 0 was 154° from the real hour, 500 hPa 166° and fifteen times the speed. Flown on three real designs, the landing point moved **241 m, 352 m and 255 m** — opposite sides of the pad, with the drift MAGNITUDE barely changing, so the number looked right and pointed the wrong way. |
-| **The bearing wrap, in the same function** | A plain lerp on a compass bearing reverses the wind wherever two levels straddle north (350°/10° meets at 180°). `lerpBearing` takes the short arc. Was filed in `BACKLOG.md`; fixed here because it corrupts the same number as the Sev-1 above, in the same line of the same function. |
-| **`lib/weather.ts` had NO tests** | Which is most of why it carried both. `lib/weather.test.ts` is 16 cases, and the e2e stub now carries a full 24-hour day with `current.time`, where before it carried one unstamped hour and therefore only ever exercised the fallback branch. |
+| **#76** | **Sev-1 — "today's weather" flew last night's wind.** `lib/weather.ts` read the winds-aloft profile from `hourly` index 0, which with `timezone=auto` and `forecast_days=1` is **00:00 local**, while the surface block was live. Measured against the live API at 18:15 local: 850 hPa 154° from the real hour, 500 hPa 166° apart at fifteen times the speed. Flown on three real designs the landing point moved **241 m, 352 m and 255 m** — and the drift MAGNITUDE barely changed, so the number looked right and pointed the wrong way. Plus the bearing wrap in the same function, and **P1 increment 1**. |
+| **#77** | **Sev-1 — a saved design did not re-open with the balance it was saved with.** The parachute and streamer writers never emitted the packed dimensions, and `lib/sim/mass.ts` places a packed canopy's CG at half its packed length. Static margin moved on **21 of 35** real designs; after the fix, **6**, all of them the disclosed freeform conversion. Plus **86 spaces the build was eating on the live site**, and `check-text-gaps.mjs` in `postbuild`. |
+| **#78** | **R4 increment 1 — a flyer can reorder the airframe**, and **P1 increment 2 — one button hierarchy**. Five defects found by the pre-push review, all fixed before pushing. |
+| **#79** | **The motor sweep says what it is showing.** `ballisticGap` (the DESIGN row reading 1,888 m against a 342 m flight) and `designMotorFlies`, both harvested from a pull request that had been open since 2026-07-28. |
+
+**Both stale pull requests are closed, with their reasoning recorded on them.** #67's undo half was
+superseded by `lib/model/history.ts`, but its `check-text-gaps.mjs` existed nowhere on `main` and found
+86 live defects — harvested first, then closed. #55's four glued sentences were already gone, but its
+`ballisticGap`, its `resolves` flag and two measured builder BLOCKERS were not — the first two are
+shipped, the blockers are in `BACKLOG.md` with the note on why the obvious fix is wrong.
+
+## The done-check, answered
+
+**What can a flyer DO after this run that they could not before?** Reorder the airframe: pick any
+top-level part and walk it toward the nose or the tail, with the stations of everything aft following
+and each nudge undoable by name. Walked on `fixtures/demo-quirks.ork` in the built export of `b280201`:
+the aft tube moves forward and the static margin goes **5.60 → 4.14 cal**.
+
+**What is measurably better about using the tool?** Two numbers a flyer acts on stopped being wrong.
+Today's-weather drift pointed up to 352 m the wrong way and now does not; a downloaded design's static
+margin moved on 21 of 35 real designs and now moves on none except the disclosed freeform case. Plus
+86 sentences on the live site that were missing a space, and the §9 counts below.
+
+**`DESIGN.md` §9, start of run → end:**
+
+| count | start | end | target |
+|---|---|---|---|
+| `rounded-lg` | 49 | **37** | 0 |
+| distinct card treatments | 9 | **3** | 3 (one is `Card`'s own) |
+| off-scale spacing | 8 | 8 | 0 |
+| components importing `ui.tsx` | 5 | **12** of 23 | most |
+| components importing `Button` | 0 | **7** | most that have one |
+| hand-rolled indigo primaries | 16 | **6** | 0 |
+| surfaces with two primaries | 2 | **0** | 0 |
+| files where `text-xs` outnumbers `text-sm` | 9 | 9 | 0 |
+
+**Cold walk of the built export of `b280201`, and the phone.** The reorder moves the margin as above.
+The from-scratch builder composes with it: add a tube behind the body, and the authored tube is
+immediately reorderable — R3 already aims at it, so the control is there without another click. At a
+390 px viewport the move control measures **159 × 44 px** (the contract is 44) and the page has **0 px**
+of horizontal scroll. No page errors on any leg.
+
+**Production.** `loft.fusionspace.co/docs/limitations` serves the freeform disclosure including "worst
+0.69 cal", so #77 is live. There is no gap between what shipped and what is deployed: every one of the
+four pull requests merged to `main`, which deploys on push.
+
+**`COMPETITION.md` gained two rows** (20: a move that cannot be made is refused, and one that can is
+re-checked — OpenRocket has had drag-drop reorder since 1.1.3 and added gap/overlap warnings in 22.02;
+21: one look-and-feel engine with density as a user-adjustable global). Row 1's note now names its P1
+dependency. The ledger's "newest first" header was wrong — the table ascends and the numbers are stable
+references — and now says so.
 
 ## R4 — what shipped, and the one trap it left
+
+
 
 **Increment 1 is in**: `GeometryEdits.moved` (an ordered list of `{ id, after }`), `applyMoves` between
 removals and the dimension edits, the stage-boundary refusal, `moveTarget`, and the parts panel's
@@ -409,45 +458,43 @@ Pin a constant on the field's placeholder, not on the table row, and anchor the 
 
 ## Pick up first
 
-**Two Sev-1-class export defects are reproduced, quantified and NOT yet fixed.** This is the top of the
-queue. Measured this session by round-tripping all 35 corpus designs through `exportOrk` →
-`importDesign`:
+**Both tracks are IN PROGRESS and neither is blocked. Take the next slice of each, in this order.**
 
-- **28 of 35 designs change their balance**, and **21 of 35 shift static margin by more than 0.005 cal**
-  — a Sev-1 quantity by name. Worst: `Pods--airframes and winglets.ork` **2.13 → 1.50 cal (−0.64)**;
-  `Three stage low power rocket.ork` **2.51 → 2.79 (+0.28)**. Dry mass barely moves; it is the CG.
-- **Cause 1 — `lib/ork/export.ts`'s parachute and streamer writers never emit `packedlength`**, while
-  `lib/sim/mass.ts:182,187` places a packed canopy's CG at `packedLength/2`. `masscomponent` and
-  `shockcord` DO write it, so the omission is inconsistent within one file.
-- **Cause 2 — the freeform-fin export clamps its tip chord** (`Math.max(0, 2*area/height - rootChord)`),
-  so whenever `2*area/height < rootChord` the exported area is strictly LARGER than the original and the
-  comment's "equal area" claim is false for exactly the tapered planforms freeform fins exist to express.
-- It belongs to **R6** by subject, but a wrong static margin on a file the flyer re-opens or hands to
-  OpenRocket is Sev-1 rule 1, so it preempts.
+1. **R4 increment 2 — the DRAG.** The *done when* asks for "drag a component along the airframe and
+   drop it between two others"; increment 1 shipped the operation and a button pair. The drag reuses
+   `RocketDiagram`'s existing pointerdown/CTM/rAF/AbortController scaffolding wholesale and
+   `hoverProps(id)`'s per-part closed silhouette path, which already gives every body part a
+   hit-testable, id-addressed grab target. What is new is the drop-target computation and the
+   indicator — and **freeze the HORIZONTAL frame for the duration**, because the airframe's overall
+   length changes under the pointer mid-drag and the x-scale snapshot goes stale. `onActiveChange`
+   already does the vertical analogue for two handles; there is no horizontal one. Keep it
+   fine-pointer-only, like the other centreline grips: the buttons are the touch path.
+2. **P1 increment 3 — the type scale.** 14 uses of a `text-lg` that is not on §3's six-size scale, and
+   9 of 23 component files where `text-xs` outnumbers `text-sm`. Both counts are in the ratchet
+   already; converting the panel headings to `text-xl font-medium` moves the section rhythm on every
+   surface at once. Then the 8 off-scale spacing values (single-token edits, the cheapest count to
+   take to zero), then `DataTable`.
+3. **Then R4 increment 3, then P1's remaining slices**, alternating.
 
-**Then continue P1.** Its next slices, in order, are on `ROADMAP.md`: `Button` adoption plus the two
-surfaces carrying two indigo primaries each (`ImportPanel`, `RocketpyCrossCheck` — §5 forbids it
-outright), then the type scale (14 uses of a `text-lg` that is not on the scale), then the 8 off-scale
-spacing values, then `DataTable`.
+**Two BLOCKERS are filed in `BACKLOG.md` with full reproductions and are NOT fixed** — both are silent
+data loss on the from-scratch builder, both harvested from a pull request closed this run, and both
+carry a note on why the obvious fix is wrong (which is the expensive half):
 
-**Then R4**, which is fully scoped above.
+- **`Download .ork` drops the motor the flyer picked.** 1,033 m saved, 542 m re-imported (−47.5%).
+  On the builder path "Swap motor" is the only motor control, so that dropdown IS the picker, not a
+  what-if. Not fixable by "bake them in" — on the import path a swap genuinely is a hypothetical.
+- **Reopening your own build from the shelf hands back the factory starter.** 790 m / 4.1 cal comes
+  back as 994 m / 1.53 cal. The "Pick it back up" banner restores it correctly, so the data exists.
 
-**Two pull requests have been open for days and neither is merged, and one carries work that is NOT on
-`main` at all.** Read them before scoping anything:
-- **#67 "Undo every edit, not just a removal — R2 complete"** — the undo half is SUPERSEDED (`main` has
-  `lib/model/history.ts`, and R2 is marked SHIPPED). But it also carries `scripts/check-text-gaps.mjs`
-  and a `BACKLOG.md` entry recording **79 missing spaces on the served `/docs` pages**, and neither the
-  script nor the entry exists on `main`. Harvest the script, then close #67 with that reason. Closing it
-  blind loses the 79.
-- **#55 "Stop the build eating the space out of four sentences"** — **entirely unlanded.** `ballisticGap`,
-  `designMotorFlies` and `e2e/build-text.spec.ts` are all absent from `main` (`git grep ballisticGap`
-  returns nothing). Its `ballisticGap` is a real correctness fix: the motor sweep's DESIGN row reads
-  1,888 m against a Flight card one tab away reading 342 m, on a design whose recovery opens before
-  apogee. Its base is `e7f80a9`, seven merges behind, so it needs rebasing rather than merging.
+Neither is a Sev-1 by the manual's definition — no wrong number is *published*, and there is a way
+back — but they are the two worst things a builder can hit, and they are the strongest candidates the
+moment a Sev-1 preemption is not competing with them.
 
-`BACKLOG.md` is a defect ledger to file into and screen for Sev-1s. Its Sev-1 count is zero at the end
-of this run **only if the two export defects above are counted as pick-up-first rather than filed** —
-they are stated here, at the top, deliberately.
+**`BACKLOG.md`'s Sev-1 count is zero at the end of this run.** Three were found and all three were
+fixed rather than filed: the winds-aloft hour, the bearing wrap, and the export's packed dimensions.
+
+**No pull requests are open.** #76, #77, #78 and #79 all merged and deployed; #55 and #67, open since
+2026-07-28 and 2026-07-30, are closed with their unique content harvested first.
 
 ## Environment notes
 

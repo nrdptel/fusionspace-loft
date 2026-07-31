@@ -15,7 +15,8 @@ still read as one long scrolling page with twelve different card treatments on i
 never the bottleneck. **What a flyer can do** and **what the tool feels like to use** are different
 work, and a queue containing only the first can only ever ship the first.
 
-- **R-track — capability.** What a flyer can DO that they could not before. R1–R3 shipped; R4 is next.
+- **R-track — capability.** What a flyer can DO that they could not before. R1–R3 shipped; **R4 is IN
+  PROGRESS** (increment 1 of 3 shipped 2026-07-31).
 - **P-track — product and craft.** What makes it a tool a stranger picks up, trusts, and keeps using:
   shape, design system, first run, form factor, documentation, discoverability.
 
