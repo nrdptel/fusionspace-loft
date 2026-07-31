@@ -151,6 +151,7 @@ export default function ResultsView({
   swapOptions,
   designMotor,
   designManufacturer,
+  designMotorFlies,
   onEditGeometry,
   onSelectPart,
   onRemovePart,
@@ -200,6 +201,9 @@ export default function ResultsView({
   /** That motor's manufacturer as the catalog spells it, when it matched exactly — a designation
    *  alone does not identify a motor, and an 18 mm sweep carries two different C6s. */
   designManufacturer?: string;
+  /** Whether the design's own motor resolves to a bundled curve, so the sweep's description of the
+   *  offered list does not claim a flight on a design that makes none. */
+  designMotorFlies?: boolean;
   /** Apply a geometry edit from the diagram's drag handle (e.g. fin station) — the same path a
    *  numeric what-if field uses, so dragging and typing converge on one edit flow. */
   onEditGeometry?: (patch: GeometryEdits) => void;
@@ -808,6 +812,8 @@ export default function ResultsView({
           options={swapOptions}
           designMotor={designMotor ?? ""}
           designManufacturer={designManufacturer}
+          designApogee={run.result.summary.apogee}
+          designMotorFlies={designMotorFlies}
           ballastKg={ballastKg}
           geometry={geometry}
         />

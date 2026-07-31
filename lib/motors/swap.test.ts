@@ -113,3 +113,28 @@ describe("swapStillOffered", () => {
     expect(swapStillOffered(undefined, [])).toBe(true);
   });
 });
+
+
+describe("designMotorIdentity — does this design fly at all?", () => {
+  it("says whether the design flies, so the copy does not claim a flight there is not", () => {
+    // The offered list is described as "the casing it already flies". On a design whose motor was
+    // never matched that sentence is asserted on the same page as "there is no thrust to fly" —
+    // measured on `e2e/fixtures/unresolved-motor.ork`, where both were on screen at once.
+    expect(designMotorIdentity({ designation: "C11", manufacturer: "Estes", diameter: 0.024 }).resolves).toBe(true);
+
+    expect(designMotorIdentity({ designation: "Z9999-CUSTOM", diameter: 0.029 }).resolves).toBe(false);
+    expect(designMotorIdentity({ diameter: 0.029 }).resolves).toBe(false);
+    // ...and that design still gets a casing, from the file. The two signals are independent: the
+    // 29 mm came from the file's own stated diameter, not from a motor anyone matched.
+    expect(designMotorIdentity({ designation: "Z9999-CUSTOM", diameter: 0.029 }).casingMm).toBe(29);
+  });
+
+  it("counts a LOOSE match as flying, because that is what the simulator flies", () => {
+    // "Does this design fly?" and "is the casing safe to infer?" are different questions. A bare
+    // two-way substring counts as a designation match in `resolveMotor`, which is not good enough to
+    // seed a fit claim from — but it IS what `runFlight` burns.
+    const loose = designMotorIdentity({ designation: "H225-14A-8" });
+    expect(loose.resolves).toBe(true);
+    expect(loose.casingMm).toBe(0);
+  });
+});

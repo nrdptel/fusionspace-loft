@@ -244,7 +244,12 @@ const CAPABILITIES: { title: string; body: React.ReactNode }[] = [
     title: "Compare every fitting motor",
     body: (
       <>
-        Fly the airframe on every bundled motor its mount takes, at once: apogee, max speed,
+        {/* Not "every motor its mount takes" — the list is the CASING the design already flies, which
+            is a narrower and checkable claim. A 54 mm mount can fly a 38 mm motor in an adapter, and it
+            is the 38 mm ones that are offered, so the wider claim was false against the design file,
+            which states the bore outright. The same sentence was corrected on the sweep itself, the
+            picker's help and the FAQ; this was the last copy of it. */}
+        Fly the airframe on every bundled motor of the casing it already flies, at once: apogee, max speed,
         rail-exit velocity, thrust-to-weight, stability, flutter margin, and the delay to drill.
       </>
     ),

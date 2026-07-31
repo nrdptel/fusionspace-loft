@@ -12,6 +12,50 @@ this file, and deliberately does **not** cap craft or product work, because that
 track in `ROADMAP.md` with its own *done when*. Rough edges, missing affordances, and findings too
 big for one pass. Newest first.
 
+- **BLOCKER — "Download .ork" silently drops the motor the flyer picked, and the saved rocket flies 48%
+  lower.** Recorded on 2026-07-30 by a cold walk of the from-scratch builder, harvested here from a pull
+  request that was closed rather than merged, and NOT yet fixed. On the builder path "Swap motor" is the
+  ONLY motor control — 33 controls enumerated across the app, none other touches the motor or the mount
+  — so for a builder that dropdown IS the motor picker, not a what-if. Measured: a 66 mm airframe with
+  "I200W · AeroTech" selected flies 1,033 m, 1.563 kg, 2.45 cal, T/W 19.7:1. Downloading and unzipping
+  gives one motor, the STARTER's H128W. Re-importing that file: **542 m (−47.5%)**, 1.377 kg, 2.71 cal,
+  max speed 184 → 117 m/s, flutter 3.3x → 5.2x, T/W 13.5:1. Nose ballast is dropped the same way.
+  Everything else round-trips, so the export is faithful about exactly the two things a flyer cannot
+  express any other way. Nothing on screen mentions it, and the comment near the download handler
+  asserts "Any active what-if edits are baked in", which is false for `motorSwap`, `ballastKg` and
+  `recoveryCdScale`. **The fix is not simply "bake them in"**: on the IMPORT path a motor swap genuinely
+  is a hypothetical, and baking it in would make the exported file disagree with the design that was
+  imported. The honest minimum is to NAME what is about to be left out, at the download control, with
+  the values.
+
+- **BLOCKER — reopening your own build from "Your designs" hands back the factory starter.** Same cold
+  walk, same closed pull request, also unfixed. Built a design (790 m, 4.1 cal, 85 mm fin span), renamed
+  it, clicked "Import another", clicked the design in the shelf: back came **994 m and 1.53 cal — the
+  untouched starter**, every edit gone, the row labelled "New design" so the rename does not identify it
+  either. Cause: `rememberRecent` stores `designBytes.current`, which on the from-scratch path is set to
+  the starter's bytes before the first keystroke and never refreshed. CONTROL: the "Pick it back up"
+  banner on the same screen restores the build correctly, so the data exists and the shelf specifically
+  is stale. The on-screen caveat ("any what-if edits you had set are not part of the design") is fair on
+  the import path, where the file IS the design — on the builder path there is no file, so it silently
+  means "the entire rocket you just built". Careful: the obvious fix touches `rememberRecent`, which
+  every design open routes through and which carries six documented traps from a reverted attempt.
+  Refreshing the remembered bytes on a debounce is one option; not shelving an unedited from-scratch
+  design at all is a smaller one.
+
+- **Benchmarked against OpenRocket's motor selection, four gaps worth closing.** Ours has the sweep
+  itself — fly every fitting motor and tabulate nine columns, including flutter margin and stability per
+  candidate, which OpenRocket has no equivalent of. Theirs has: (1) a motor-length vs mount-length check,
+  so Loft's sweep ranks motors that physically cannot be loaded — the bundled catalog carries motor
+  length, but Loft does not carry the MOUNT's length, which is the other half; (2) Loft prints an
+  "optimum ejection delay" for motors that carry no ejection charge at all, and the footnote tells the
+  flyer to buy or drill it — `MotorSpec.plugged` already exists; (3) the picker and the sweep name a
+  motor and say nothing else — no total impulse, peak or average thrust, burn time, propellant mass,
+  length or thrust curve, all of which are in the bundled catalog; (4) 108 bundled motors against
+  OpenRocket's ~1,033, with no way to add one. Smaller: motors are listed by manufacturer part number
+  though the catalog carries common names too, there is no search or filter, and thrust-to-weight is
+  computed from PEAK thrust but shown against a rule of thumb conventionally stated on AVERAGE thrust —
+  that last one is a correctness question, not a feature gap, and should be checked first.
+
 - **A reorder can only move a TOP-LEVEL part, which is the same ceiling `added` has.** `moveTarget`
   returns null for anything nested — a fin set on a tube, a mass object in a bay, an inner tube — because
   those have no place in a stage's stack order. Real designs nest (pods, payload bays, inner tubes), so
