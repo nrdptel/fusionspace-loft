@@ -24,7 +24,7 @@ with both repos attached fixes it in one commit each.
 | track | state |
 |---|---|
 | **R — capability** | **R5 — author a staged rocket — IN PROGRESS**, increments 1–3 shipped. **One clause of its *done when* is left**: "give it its own motor mount and fins" is still INHERITED from the seed rather than authored. That is increment 4 and it is the last thing between R5 and SHIPPED. |
-| **P — product & craft** | **P1 — one design system, adopted — IN PROGRESS**, increments 1–12 shipped. Every §9 count is AT TARGET. What is left of the *done when* is the per-primitive adoption clause: **two** hand-rolled tables (`MotorSweep`, `GeometryInspector` — both carry custom row behaviour, so neither is mechanical) and the **~22** hand-rolled `<button>` elements. |
+| **P — product & craft** | **P1 — one design system, adopted — IN PROGRESS**, increments 1–13 shipped. Every §9 count is AT TARGET. What is left of the *done when* is the per-primitive adoption clause: **two** hand-rolled tables (`MotorSweep`, `GeometryInspector` — both carry custom row behaviour, so neither is mechanical) and the **20** hand-rolled `<button>` elements (re-measured at the end of the run). |
 
 ## The arc so far
 
@@ -35,7 +35,7 @@ with both repos attached fixes it in one commit each.
 | R3 — add a component | SHIPPED 2026-07-30 |
 | R4 — reorder and restack | SHIPPED 2026-07-31 |
 | R5 — author a staged rocket | **IN PROGRESS** — inc. 1 (the stage), 2 (the phase table) and 3 (a burnout per stage) shipped; one *done when* clause left |
-| P1 — one design system, adopted | **IN PROGRESS** — increments 1–12 shipped; every §9 count at target; two tables and ~22 buttons left |
+| P1 — one design system, adopted | **IN PROGRESS** — increments 1–13 shipped; every §9 count at target; two tables and 20 buttons left |
 | P2–P5 | NOT STARTED |
 
 ## Shipped this session (2026-07-31, fourth session of the day)
@@ -50,7 +50,11 @@ one), **922 unit**, build, **182 e2e**, corpus **35 design files, 11/11**. Nothi
 | **#90** | P1 increment 9 — `DataTable`, and the three tables that offered nothing put on it | **MERGED**, `36858b9` |
 | **#91** | P1 increment 10 — the type scale to six sizes, and the §9 check that could not see three of them | **MERGED**, `7fded0b` |
 | **#92** | P1 increment 11 — the docs section nav as real touch targets, found by a phone cold walk | **MERGED**, `e125243` |
-| **#93** | P1 increment 12 — `MassBreakdown` onto `DataTable`, which needed a footer | **OPEN** — merge on green |
+| **#93** | P1 increments 12–13 — `MassBreakdown` onto `DataTable` (which needed a footer), the update toast's two controls onto `Button`, and this handoff | **MERGED**, `5d8848f` |
+
+**Everything this session shipped is MERGED and serving.** Seven pull requests, no branch work left
+behind, and `git rev-list --count origin/main..HEAD` is 0 at the end of the run — so nothing here is
+"shipped" in the sense the invariant warns about. The working branch is level with `main`.
 
 **Also merged at session start: #87**, the previous run's two BLOCKERs (`357075e`). It was green on that
 day's `main` and its diff read correctly. Its `bakeMotorSwap` writes the swap into every instance of
@@ -239,7 +243,7 @@ measured, filed rather than fixed:
 
 2. **P1's remaining slices.** The three tables still hand-rolled (`MassBreakdown`, `MotorSweep`,
    `GeometryInspector` — each carries part of the affordance set, which is the inconsistency the
-   primitive exists to end) and the 24 hand-rolled `<button>` elements. `MotorSweep` and
+   primitive exists to end) and the 20 hand-rolled `<button>` elements. `MotorSweep` and
    `GeometryInspector` have custom row behaviour (safety flags, row selection), so they are not the
    mechanical conversion the other three were.
 
