@@ -3806,6 +3806,78 @@ test.describe("Loft", () => {
     await expect(page.getByText(/sheds a spent lower stage/i)).toHaveCount(0);
   });
 
+  test("a booster that can no longer fire says so, instead of flying as silent ballast", async ({ page }) => {
+    // The Sev-1 this fixes. Adding a booster is REFUSED where the tube it would be seeded from carries
+    // no motor mount to clone — but that gate runs at add time, and the mount inside an authored
+    // booster is an ordinary component the flyer can delete a moment later. Nothing re-checked. The
+    // stage then rides to apogee as dead mass and never separates: measured on the starter, 993.642 m
+    // becomes 1,491.464 m with the booster on, and deleting its motor mount gives 638.973 m with zero
+    // separation events — 35.7% BELOW the design's own flight — and on this design the only other
+    // warning was an unrelated static-margin caution. The flight now names the stage and says it
+    // cannot fire, and says what becomes of it.
+    await page.goto("/");
+    await page.getByRole("button", { name: "Start a new design" }).click();
+    await expect(page.getByRole("heading", { name: "Design geometry" })).toBeVisible({ timeout: 15000 });
+    await page.locator("summary", { hasText: /Parts ·/ }).click();
+
+    const partsTable = page.locator("table").filter({ hasText: "Dimensions" });
+    const mounts = () => partsTable.locator("tr").filter({ hasText: /Inner tube/ });
+    const cannotFire = page.getByText(/carries no motor that can fire/i);
+
+    // The starter is single-stage and flies perfectly well, so nothing says anything about a stage.
+    await page.getByRole("tab", { name: "Flight" }).click();
+    await expect(cannotFire).toHaveCount(0);
+    await page.getByRole("tab", { name: "Design" }).click();
+
+    const mountsBefore = await mounts().count();
+    expect(mountsBefore).toBeGreaterThan(0);
+    await page.getByRole("button", { name: /Add a booster stage/ }).click();
+    // The booster brings its own cloned mount, so there is one more than before.
+    await expect.poll(async () => mounts().count(), { timeout: 20000 }).toBe(mountsBefore + 1);
+
+    // With the booster intact the flight is a staged one, and still says nothing about a dead stage.
+    await page.getByRole("tab", { name: "Flight" }).click();
+    await expect(page.getByText(/sheds a spent lower stage \(Booster\)/i).first()).toBeVisible({ timeout: 20000 });
+    await expect(cannotFire).toHaveCount(0);
+
+    // Now delete the booster's own motor mount — the LAST inner tube, since the booster sits at the
+    // tail. This is the gesture the add-time refusal never sees.
+    await page.getByRole("tab", { name: "Design" }).click();
+    await mounts().last().click();
+    // `/^Remove /` alone is a strict-mode violation here: the stage's own "Remove Booster" control is
+    // on the same panel. The part control is the one carrying the part-removal title.
+    const remove = page
+      .getByRole("button", { name: /^Remove / })
+      .and(page.locator('[title="Remove this part from the design and re-fly it"]'));
+    await expect(remove).toBeVisible();
+    await remove.click();
+    await expect.poll(async () => mounts().count(), { timeout: 20000 }).toBe(mountsBefore);
+
+    // The flight now says the stage cannot fire, and names it. Asserted POSITIVELY on the sentence's
+    // own words rather than by counting something to zero, which deleting the notice would satisfy.
+    await page.getByRole("tab", { name: "Flight" }).click();
+    await expect(cannotFire.first()).toBeVisible({ timeout: 20000 });
+    await expect(page.getByText(/Booster carries no motor/i).first()).toBeVisible();
+    // The sentence states what becomes of the dead mass, and here — a dead bottom stage with nothing
+    // live beneath it — that is "carried to apogee". Asserted because the first version of this
+    // warning claimed a stage NEVER separates, which is false whenever a live stage sits above it and
+    // sheds it: on `02.Two-stage.ork` that reads a separation at t≈1.6 s while `untracked-booster`
+    // fires on the same surface, so the two notices would have contradicted each other.
+    await expect(page.getByText(/carried to apogee as dead mass/i).first()).toBeVisible();
+    // And that claim is true of this flight: nothing is shed any more.
+    await expect(page.getByText(/sheds a spent lower stage/i)).toHaveCount(0);
+
+    // Undoing the deletion puts the working booster back, and the warning goes with it.
+    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("button", { name: /^Undo removing / }).click();
+    await page.getByRole("tab", { name: "Flight" }).click();
+    // Settle FIRST on a positive assertion, then check the warning is gone. The other order is the
+    // failure this suite has shipped before: a `toHaveCount(0)` evaluated against a panel that has not
+    // re-flown yet is satisfied by the panel being unsettled, so it cannot fail.
+    await expect(page.getByText(/sheds a spent lower stage \(Booster\)/i).first()).toBeVisible({ timeout: 20000 });
+    await expect(cannotFire).toHaveCount(0);
+  });
+
   test("authoring a booster withdraws the single-stage-only Analyze tools", async ({ page }) => {
     // The Analyze tools gated on "is this design staged?" read the PRISTINE stage count, which a booster
     // in the edit bag never touches — so they stayed offered on a design that had become two stages. The

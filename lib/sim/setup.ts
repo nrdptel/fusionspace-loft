@@ -22,6 +22,7 @@ import type {
   LaunchConditions,
   SimulateInput,
   StagePhase,
+  DeadStage,
 } from "./simulate";
 
 export interface MotorResolution {
@@ -39,6 +40,8 @@ export interface Buildup {
   resolutions: MotorResolution[];
   /** The staging timeline (one entry for single-stage). Fed to the simulator. */
   phases: StagePhase[];
+  /** Lower stages whose motors never light. Fed to the simulator so the flight can say so. */
+  deadStages: DeadStage[];
 }
 
 /** Map each component id to the index of the stage that contains it (list order, nose→tail). */
@@ -263,7 +266,40 @@ export function buildRocketDynamics(rocket: Rocket, config: MotorConfiguration):
     else if (c.kind === "streamer") recovery.push(streamerDevice(c, config.id));
   }
 
-  return { motors, recovery, resolutions, phases };
+  // Stages below the top that never burn. This is computed HERE and nowhere else because this is the
+  // only place that knows all three ways a stage can fail to fire: no motor in it at all, a motor
+  // that resolves to no thrust curve (`if (!match) continue` above, so it never reaches `placed`),
+  // and a motor whose trigger never arrives (`ignitionTrigger` → `"none"`, which the guard on
+  // `stageBurnDuration` above already excludes). `stageBurnDuration[i] === 0` is exactly "this stage
+  // never burns", and it is the same quantity the separation timing is derived from, so the warning
+  // and the flight cannot disagree.
+  //
+  // An earlier version of this counted MOTOR INSTANCES per stage from the configuration, in
+  // `simulate.ts`. It was wrong in three measured ways and each was a false negative on a real file:
+  // `02.Two-stage.ork` with its booster instance set to `ignitionEvent:"never"` lost 95.2% of its
+  // apogee (1378.003 → 66.682 m) unflagged; the same file with an unresolvable designation flew
+  // 93.508 m unflagged; and `03.Three-stage.ork` ships in this state as imported and was missed.
+  //
+  // `shed` carries whether the stage is nonetheless dropped — a serial stack parts at one joint and
+  // takes everything below it, so a dead stage under a live one still leaves. Without it the warning
+  // claimed "never separates" beside an `untracked-booster` notice saying the opposite.
+  //
+  // Nothing resolved at all ⇒ say nothing: `no-motor` already tells that story, and 2 of the 35 real
+  // designs are in it (`rocksimTestRocket2.rkt`, `Three-stage rocket.CDX1`).
+  const deadStages: DeadStage[] = [];
+  if (placed.length > 0) {
+    for (let i = 1; i < nStages; i++) {
+      if (stageBurnDuration[i] > 0) continue;
+      const stage = rocket.stages[i];
+      // An empty stage carries nothing, so there is no dead mass to warn about — only noise.
+      if (!stage || stage.components.length === 0) continue;
+      // Capitalised, because the warning uses this name to OPEN its sentence. A lowercase
+      // `stage ${i+1}` fallback under a template that prepended "The stage " read "The stage stage 2".
+      deadStages.push({ name: stage.name || `Stage ${i + 1}`, shed: Number.isFinite(detachT[i]) });
+    }
+  }
+
+  return { motors, recovery, resolutions, phases, deadStages };
 }
 
 /** A loaded motor's axial extent for the design diagram: where its casing sits on the airframe and
@@ -410,9 +446,9 @@ export function buildSimulateInput(
   config: MotorConfiguration,
   conditions: LaunchConditions,
 ): { input: SimulateInput; resolutions: MotorResolution[] } {
-  const { motors, recovery, resolutions, phases } = buildRocketDynamics(rocket, config);
+  const { motors, recovery, resolutions, phases, deadStages } = buildRocketDynamics(rocket, config);
   return {
-    input: { rocket, config, motors, recovery, conditions, phases },
+    input: { rocket, config, motors, recovery, conditions, phases, deadStages },
     resolutions,
   };
 }

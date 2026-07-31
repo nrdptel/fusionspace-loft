@@ -541,6 +541,38 @@ suite("real-design corpus", () => {
     expect(leading, "a real design that the blunt-face warning would fire on as imported").toEqual([]);
   });
 
+  it("names exactly the real designs whose lower stage cannot fire, and no dart", async () => {
+    // The denominator behind the dead-stage warning, taken from the FLOWN flight rather than from the
+    // predicate, so this test cannot be satisfied by a predicate that agrees with itself.
+    //
+    // Exactly ONE real design is in this state, and it is a genuine one rather than an artefact:
+    // `03.Three-stage.ork` puts a `burnout` ignition event on its bottom-most stage, where nothing
+    // below it ever burns out, so that J315R never lights and the stage is carried. Loft has always
+    // flown it that way — `ignitionTrigger` has a comment saying the file's own stored flight agrees —
+    // and until this warning nothing said so on any surface.
+    //
+    // Two traps this pins. First the DART: an unpowered TOP stage is a legitimate design and 3 of
+    // these files are exactly that (`APEX_K_Dart.ork`, `ARC payload rocket.ork`,
+    // `Deployable payload.ork`), so a rule of "every stage needs a motor" would name 4 files here, not
+    // 1. Second, `shed`: a dead stage under a live one is still dropped by that stage's separation, so
+    // a warning claiming it is carried would contradict the `untracked-booster` notice beside it.
+    const dead: string[] = [];
+    let multiStage = 0;
+    for (const f of files) {
+      const doc = await importDesign(new Uint8Array(readFileSync(f.path)));
+      if (doc.rocket.stages.length > 1) multiStage++;
+      const run = runFromDocument(doc, {});
+      if (run.result.warnings.some((w) => w.code === "dead-stage")) dead.push(shortName(f.name));
+    }
+    console.log(
+      `dead-stage check across ${files.length} design files: ${dead.length} fly a lower stage that cannot fire ` +
+        `(${multiStage} of the files are multi-stage) — ${dead.join(", ") || "none"}`,
+    );
+    expect(files.length, "no design was read — that branch proves nothing").toBeGreaterThan(20);
+    expect(multiStage, "no multi-stage design was read — the predicate's whole branch is untested").toBeGreaterThan(0);
+    expect(dead.sort()).toEqual(["03.Three-stage.ork"]);
+  });
+
   it("offers a drag only drops that land exactly where the indicator promised", async () => {
     // R4's drag reads `moveSlots` for every place a part can go, draws an indicator at each, and
     // commits the one the pointer was nearest. A slot is therefore a PROMISE about where the part will

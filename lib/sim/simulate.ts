@@ -56,6 +56,21 @@ export interface ResolvedMotor {
  *  staging drops the bottom-most stage at each separation, so the attached set is always the
  *  top `stageCount` stages (`rocket.stages[0 … stageCount-1]`). A single-stage flight is one
  *  phase with every stage attached the whole time. */
+/** A stage below the top whose motors never light — no motor there resolves to a curve, or the ones
+ *  that do carry a trigger that never arrives. It produces no thrust, so it is carried as mass.
+ *
+ *  `shed` is what stops this warning lying. A dead stage does NOT necessarily stay aboard: a serial
+ *  stack parts at one joint and everything below it leaves at once, so a dead stage sitting under a
+ *  live one is dropped when that one separates. Measured on `02.Two-stage.ork` with an authored
+ *  booster whose mount was deleted: 1 separation at t≈1.6 s and apogee 1,184.749 m, while the flight
+ *  simultaneously reported `untracked-booster` — so a warning claiming "it never separates" would
+ *  have contradicted the panel beside it. */
+export interface DeadStage {
+  name: string;
+  /** The stage is still dropped, by the separation of a live stage above it. */
+  shed: boolean;
+}
+
 export interface StagePhase {
   /** Time (s) this phase becomes active — a separation instant, or 0 for the first phase. */
   startTime: number;
@@ -272,6 +287,9 @@ export interface SimulateInput {
   /** Staging timeline (from `buildRocketDynamics`). One phase ⇒ ordinary single-stage flight;
    *  more ⇒ spent stages drop away at each separation. Absent ⇒ single-stage. */
   phases?: StagePhase[];
+  /** Lower stages whose motors never light (from `buildRocketDynamics`, which is the only place that
+   *  knows both what resolved and what has a firing trigger). Absent ⇒ none. */
+  deadStages?: DeadStage[];
   /** Fixed step during boost/coast (s). Descent uses a coarser step. */
   timeStep?: number;
   /** Fixed step during descent under recovery (s). Defaults to `DESCENT_STEP`. Exposed mainly so a
@@ -861,6 +879,7 @@ export function simulate(input: SimulateInput): FlightResult {
     ballisticBoosters,
     firmBoosters: boosterDescents.filter((b) => b.terminalSpeed > 7.6),
     leadingFace: leadingFaceDiameter(rocket),
+    deadStages: input.deadStages ?? [],
   });
 
   // Fin-flutter safety estimate over the ascent. Below the recommended margin the fins are
@@ -1099,6 +1118,8 @@ function buildWarnings(
     firmBoosters: BoosterDescent[];
     /** Diameter (m) of the flat face the airframe leads with, or 0 when it leads with a nose cone. */
     leadingFace: number;
+    /** Stages below the top whose motors never light, and whether each is nonetheless shed. */
+    deadStages: DeadStage[];
   },
 ): void {
   // A recovery device configured but never deployed before the ground = ballistic impact. This
@@ -1212,6 +1233,48 @@ function buildWarnings(
         ctx.upperStageMarginCal < 0
           ? `After separation the ${name} is statically unstable as modelled (centre of pressure ahead of centre of gravity) once it flies alone — a staged stage can be stable on the pad yet unstable after staging. Verify independently.`
           : `After separation the ${name}'s static margin is ${ctx.upperStageMarginCal.toFixed(2)} cal — below the 1 cal rule of thumb once it flies alone. Verify independently.`,
+      severity: "warning",
+    });
+  }
+  // A stage below the top whose motors never light produces no thrust, so the vehicle carries it as
+  // mass while getting nothing back. The numbers above are RIGHT for the rocket as modelled; what is
+  // wrong is that the rocket is not the staged one the design describes, and nothing else on the
+  // flight said so. Measured on the starter with an authored booster whose motor mount was then
+  // deleted: 638.973 m against the design's own 993.642 m, and the only other warning was an
+  // unrelated static-margin caution.
+  //
+  // The `shed` split is not a nicety — without it this warning states a falsehood. A serial stack
+  // parts at ONE joint and everything below it leaves together, so a dead stage under a live one is
+  // still dropped. Measured on `02.Two-stage.ork` with an authored booster whose mount was deleted:
+  // apogee 1,184.749 m with a separation at t≈1.6 s, and `untracked-booster` firing on the same
+  // surface naming the same stage. A flat "it never separates" would have been contradicted by the
+  // panel beside it.
+  //
+  // A warning rather than a refusal, for the reason the blunt leading face is one: this is a real
+  // state a design file can describe — `03.Three-stage.ork` is in it as imported, its bottom stage
+  // carrying a `burnout` trigger with nothing below it to burn out — and refusing it would forbid a
+  // design rather than describe it. The add-time gate (`canAddStage`) still refuses AUTHORING a
+  // booster that cannot burn; this catches the state arrived at afterwards, and the imported one.
+  if (ctx.deadStages.length > 0) {
+    const many = ctx.deadStages.length > 1;
+    const names = ctx.deadStages.map((s) => s.name).join(", ");
+    const carried = ctx.deadStages.filter((s) => !s.shed).length;
+    // What happens to the dead mass, said exactly: carried the whole way, dropped by the joint above,
+    // or (for a mixed set) neither claim made about all of them.
+    const fate =
+      carried === ctx.deadStages.length
+        ? `${many ? "They are" : "It is"} carried to apogee as dead mass`
+        : carried === 0
+          ? `${many ? "They are" : "It is"} still dropped, by the separation of a live stage above`
+          : "Some are carried to apogee as dead mass and some are dropped by a separation above them";
+    out.push({
+      code: "dead-stage",
+      message:
+        `${names} ${many ? "carry" : "carries"} no motor that can fire — either there ` +
+        `is no motor there, or the one there has an ignition trigger that never arrives. ${fate}, contributing ` +
+        `no thrust, so the altitude and speeds above are not those of the staged flight this design describes. ` +
+        `Give ${many ? "each stage" : "the stage"} a motor that lights in this configuration, or remove ` +
+        `${many ? "them" : "it"}.`,
       severity: "warning",
     });
   }

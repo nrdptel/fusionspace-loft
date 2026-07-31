@@ -387,6 +387,39 @@ export default function Limitations() {
         estimate, not a 6-DOF turning solve.
       </p>
 
+      <h3>A stage whose motors never light is flown as dead mass, and the flight says so</h3>
+      <p>
+        A stage below the top can fail to fire in three ways: it holds no motor at all, the motor it
+        holds cannot be resolved to a thrust curve, or that motor carries an ignition trigger that
+        never arrives — a <em>never</em>{" "}event, or a <em>burnout</em>{" "}event on the bottom-most
+        stage, where nothing below it ever burns out. In every case the stage produces no thrust while
+        still adding its mass and drag. Loft flies that vehicle honestly, so the altitude and speeds
+        reported are correct <em>for the rocket as modelled</em> — but that rocket is not the staged
+        flight the design appears to describe, and the flight now names the stage and says so.
+      </p>
+      <p>
+        What happens to the dead section depends on what is beneath it, and the warning says which. A
+        serial stack parts at one joint and takes everything below that joint with it, so a dead stage
+        sitting under a stage that still burns is dropped at that stage&apos;s separation; a dead stage
+        with nothing live below it is carried to apogee. Measured on Loft&apos;s own starter design:
+        authoring a booster takes it from 993.642 m to 1,491.464 m with one separation, and deleting
+        that booster&apos;s motor mount drops it to 638.973 m with no separation at all — 35.7% below
+        the altitude the design flew before the booster existed. On a two-stage design the same gesture
+        leaves a separation intact, because the stage above the dead one still fires.
+      </p>
+      <p>
+        This is reachable both by editing and from a file. Adding a booster is refused outright where
+        the stage it would be seeded from carries no motor mount to clone, but that check runs at the
+        moment of adding, and the mount inside an authored booster is an ordinary component the flyer
+        can delete afterwards. One of the 35 real design files in the corpus is also in this state as
+        imported — a three-stage design whose bottom stage carries a burnout trigger with nothing below
+        it — which Loft has always flown that way without ever saying so on any surface. That file
+        stores no apogee of its own, so its flight is one of the cases the{" "}
+        <Link href="/docs/validation">stored-results comparison</Link>{" "}has no number to check against.
+        An unpowered <em>top</em>{" "}stage is deliberately not flagged: that is a dart, which is an
+        ordinary design, and three of those files are exactly that.
+      </p>
+
       <h3>Motor clusters are modelled coaxially</h3>
       <p>
         A motor cluster is simulated as its full complement of identical motors — an
