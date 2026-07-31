@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { Card, Tabs, type CardTone } from "./ui";
+import { cx } from "@/lib/ui-tokens";
 import type { FlightRun } from "@/lib/sim/run";
 import type { ConditionOverrides } from "@/lib/sim/setup";
 import type { ConditionsSource } from "@/lib/what-if";
@@ -133,11 +134,18 @@ export type Workspace = (typeof WORKSPACES)[number];
  *
  *  `info` maps to the neutral inset rather than to a colour, and that is the point: a note with no
  *  semantic tone reads as a note. Inventing a third "informational" colour would be a change to
- *  `DESIGN.md` §2 under §1's rule, not a call site's decision. */
-const SEVERITY: Record<string, CardTone> = {
-  warning: "danger",
-  caution: "warn",
-  info: "sunken",
+ *  `DESIGN.md` §2 under §1's rule, not a call site's decision.
+ *
+ *  It carries §2's SECONDARY text with it, and that pairing is load-bearing rather than decoration.
+ *  `sunken` is the one tone in `CARD_TONES` that sets no colour of its own — `warn` and `danger` both
+ *  do — so an `info` note left to inherit renders in the page's full-strength body ink while the amber
+ *  caution stacked directly above it renders muted. That puts the loudest text on the least severe
+ *  row, on the one surface whose whole job is to rank what is wrong. Caught by review, not by a check;
+ *  the assertion below is the check. */
+const SEVERITY: Record<string, { tone: CardTone; text: string }> = {
+  warning: { tone: "danger", text: "" },
+  caution: { tone: "warn", text: "" },
+  info: { tone: "sunken", text: "text-zinc-600 dark:text-zinc-400" },
 };
 
 export default function ResultsView({
@@ -463,7 +471,12 @@ export default function ResultsView({
       {r.warnings.length > 0 && (
         <ul className="space-y-2">
           {r.warnings.map((w) => (
-            <Card as="li" key={w.code} tone={SEVERITY[w.severity] ?? SEVERITY.info} className="text-sm">
+            <Card
+              as="li"
+              key={w.code}
+              tone={(SEVERITY[w.severity] ?? SEVERITY.info).tone}
+              className={cx("text-sm", (SEVERITY[w.severity] ?? SEVERITY.info).text)}
+            >
               {w.message}
             </Card>
           ))}

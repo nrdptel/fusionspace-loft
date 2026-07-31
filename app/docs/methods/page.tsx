@@ -227,11 +227,14 @@ export default function Methods() {
         transition terms above, gives the reaction from that turning as{" "}
         <code>N = ρV²·A_duct·α</code>, i.e.
       </p>
-      {/* A readout block — `DESIGN.md` §2's sunken level, on §2's container radius. Written with the
-          tokens rather than as `<Card tone="sunken">` because this route is a server component and
-          `components/ui.tsx` is `"use client"`: rendering the primitive here would open a client
-          boundary on a static docs page to draw a formula. It is the only site of its kind. */}
-      <p className="rounded-xl bg-zinc-50 px-4 py-3 font-mono text-sm dark:bg-zinc-900/50">
+      {/* `.eqn` — the docs' own formula readout, defined once in `app/globals.css` and used by every
+          other equation on these pages. This block spent a while as a hand-rolled class string and
+          then as a hand-rolled set of §2 tokens, described in a comment here as "the only site of its
+          kind"; it was not. `.eqn` is the same kind of block, a few paragraphs up the same article,
+          and the two had drifted to different fills, radii and borders. Using it is what §1 asks for,
+          and it works from a server component because it is a stylesheet class rather than a
+          `"use client"` primitive. */}
+      <p className="eqn">
         C_Nα = 2·A_duct / A_ref &nbsp;per radian, &nbsp;A_duct = Σ N·π·r_inner²
       </p>
       <p>

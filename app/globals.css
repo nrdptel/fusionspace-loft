@@ -158,12 +158,16 @@ input[type="number"] {
 :where(.dark) .prose-loft strong {
   color: #fafafa;
 }
+/* The docs' formula readout. `border-radius` is §2's CONTAINER radius, 12px — it was 8px, the
+   off-system middle value, written as a raw declaration where §9's grep matches a class name and so
+   could never see it. The class-name count reached zero while this kept rendering 8px corners on
+   every docs route; a compliance check that cannot see a value is the thing §9 itself warns about. */
 .prose-loft .eqn {
   display: block;
   overflow-x: auto;
   background: #f4f4f5;
   border: 1px solid #e4e4e7;
-  border-radius: 8px;
+  border-radius: 12px;
   padding: 0.6rem 0.8rem;
   font-family: var(--font-geist-mono), ui-monospace, monospace;
   font-size: 0.85em;

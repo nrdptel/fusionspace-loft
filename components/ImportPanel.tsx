@@ -6,6 +6,20 @@ import { TOUCH_TARGET, TOUCH_TARGET_SQUARE } from "@/lib/ui-tokens";
 import { countWhatIfs, type RecentDesign, type RemovedRecent, type SavedSession } from "@/lib/session";
 import { Button, Card } from "./ui";
 
+/** The bundled designs, so the tool is usable before the flyer has a file of their own. One entry
+ *  each rather than four near-identical blocks of JSX: they differed only in these three strings, and
+ *  a repeated block is where a treatment drifts one copy at a time.
+ *
+ *  `name` is what the design is called once loaded; `label` is what the control reads. They differ
+ *  because the control is a row of chips where the separator does the work, and the loaded name is
+ *  prose. */
+const SAMPLES: { path: string; name: string; label: string }[] = [
+  { path: "/samples/demo-single-deploy.ork", name: "38 mm single-deploy (H128W)", label: "38 mm single-deploy · H128W" },
+  { path: "/samples/demo-dual-deploy.ork", name: "54 mm dual-deploy (K550W)", label: "54 mm dual-deploy · K550W" },
+  { path: "/samples/demo-multi-config.ork", name: "Motor comparison (H128W / G40W)", label: "Motor comparison · H128W / G40W" },
+  { path: "/samples/demo-rocksim.rkt", name: "RockSim 54 mm sport (J420R)", label: "RockSim · 54 mm sport · J420R" },
+];
+
 /** The import surface: a large drop zone / file picker for an OpenRocket `.ork`, RockSim
  *  `.rkt` or RASAero `.CDX1`, plus one-tap buttons to load the bundled sample designs so the tool is usable before
  *  you have a file. Mobile first — the whole thing is tap-friendly and one-handed. */
@@ -227,39 +241,20 @@ export default function ImportPanel({
         <p className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
           Or try a bundled example
         </p>
+        {/* One `Button variant="secondary"` each, where these were four byte-identical hand-rolled
+            class strings. They carried `bg-white dark:bg-zinc-900`, which `secondary` does not give
+            them — §5 defines it as a control border over a transparent fill — and that stray fill was
+            doing real work by accident: it was one step lighter than the container's old
+            `dark:bg-zinc-900/40`, so the buttons read as raised against it. Putting the container on
+            `Card` took it to a true `zinc-900` and the two fills became identical, which is how the
+            accidental dependency surfaced. The system's answer is a transparent control on a raised
+            surface, which is what every other secondary button in the app already is. */}
         <div className="mt-2 flex flex-wrap gap-2">
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => onSample("/samples/demo-single-deploy.ork", "38 mm single-deploy (H128W)")}
-            className={`inline-flex items-center rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-700 transition hover:border-indigo-400 hover:text-zinc-900 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:text-zinc-100 ${TOUCH_TARGET}`}
-          >
-            38 mm single-deploy · H128W
-          </button>
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => onSample("/samples/demo-dual-deploy.ork", "54 mm dual-deploy (K550W)")}
-            className={`inline-flex items-center rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-700 transition hover:border-indigo-400 hover:text-zinc-900 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:text-zinc-100 ${TOUCH_TARGET}`}
-          >
-            54 mm dual-deploy · K550W
-          </button>
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => onSample("/samples/demo-multi-config.ork", "Motor comparison (H128W / G40W)")}
-            className={`inline-flex items-center rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-700 transition hover:border-indigo-400 hover:text-zinc-900 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:text-zinc-100 ${TOUCH_TARGET}`}
-          >
-            Motor comparison · H128W / G40W
-          </button>
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => onSample("/samples/demo-rocksim.rkt", "RockSim 54 mm sport (J420R)")}
-            className={`inline-flex items-center rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-700 transition hover:border-indigo-400 hover:text-zinc-900 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:text-zinc-100 ${TOUCH_TARGET}`}
-          >
-            RockSim · 54 mm sport · J420R
-          </button>
+          {SAMPLES.map((s) => (
+            <Button key={s.path} variant="secondary" disabled={busy} onClick={() => onSample(s.path, s.name)}>
+              {s.label}
+            </Button>
+          ))}
         </div>
       </Card>
 
