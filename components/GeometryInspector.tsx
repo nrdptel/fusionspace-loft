@@ -5,7 +5,7 @@ import type { Rocket, RocketComponent } from "@/lib/model/types";
 import { flattenRocket } from "@/lib/model/geometry";
 import { massByComponent, dryMassProperties, statedMassHolder } from "@/lib/sim/mass";
 import type { MotorMark } from "@/lib/sim/setup";
-import { mouldLineStep, type AddedPart, type GeometryEdits, type MoveSlot } from "@/lib/model/edit";
+import { mouldLineStep, type AddedPart, type AddedStage, type GeometryEdits, type MoveSlot } from "@/lib/model/edit";
 import { TOUCH_TARGET, TOUCH_TARGET_SQUARE } from "@/lib/ui-tokens";
 import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
@@ -136,6 +136,9 @@ export default function GeometryInspector({
   canMove,
   onMoveTo,
   moveSlotsFor,
+  addedStages,
+  onAddStage,
+  onRemoveStage,
   refuseRemoval,
   aims,
 }: {
@@ -179,6 +182,12 @@ export default function GeometryInspector({
   onMoveTo?: (id: string, after: string | null) => void;
   /** Every legal drop for a part. Handed straight to the diagram, which turns each into a pixel. */
   moveSlotsFor?: (id: string) => MoveSlot[];
+  /** Booster stages the flyer has authored, in the order they were added. */
+  addedStages?: readonly AddedStage[];
+  /** Append a booster stage below everything already in the stack. */
+  onAddStage?: () => void;
+  /** Take one back, named by its seed tube's id. */
+  onRemoveStage?: (seedId: string) => void;
   /** Author a part behind the picked one. Offered only on a part something can be built onto — today
    *  a body tube, whose caliber the new one fairs to. A control that appears on every part and does
    *  nothing on most of them is worse than one that appears where it works. */
@@ -463,6 +472,28 @@ export default function GeometryInspector({
             >
               <span aria-hidden>+</span> Add a transition behind this
             </Button>
+          </p>
+        )}
+        {/* Staging, beside the other structural acts and deliberately NOT gated on a picked part: a
+            stage is the level above a component, so there is nothing to pick it on. A booster is
+            appended below everything already in the stack — which is where a booster goes — and seeded
+            from the design's own aft tube, its mount and its fins, so it is a booster of THIS rocket
+            rather than a shape Loft chose. */}
+        {onAddStage && (
+          <p className="mt-1 flex flex-wrap items-center gap-2 text-sm">
+            <Button onClick={onAddStage} title="Add a booster stage below the design, seeded from its own aft airframe, and re-fly it">
+              <span aria-hidden>+</span> Add a booster stage
+            </Button>
+            {(addedStages ?? []).map((s) => (
+              <Button
+                key={s.seedId}
+                variant="danger"
+                onClick={() => onRemoveStage?.(s.seedId)}
+                title={`Remove ${s.name} and re-fly the design without it`}
+              >
+                Remove {s.name}
+              </Button>
+            ))}
           </p>
         )}
         {/* Where the outer mould line STEPS behind the part you are holding, and by how much.

@@ -3760,6 +3760,52 @@ test.describe("Loft", () => {
     await expect.poll(async () => bodyLength.getAttribute("placeholder"), { timeout: 15000 }).not.toBe(aimedBefore);
   });
 
+  test("a flyer can add a booster stage, fly the staged flight, and take it back", async ({ page }) => {
+    // R5's *done when*, walked in the app. The starter is single-stage, so this is the whole gesture:
+    // a booster appears below the design, seeded from its own aft airframe, and the flight becomes a
+    // staged one — which means an instance in every configuration, without which the stage never
+    // lights, never drops, and costs the design 45% of its apogee in silence.
+    await page.goto("/");
+    await page.getByRole("button", { name: "Start a new design" }).click();
+    await expect(page.getByRole("heading", { name: "Design geometry" })).toBeVisible({ timeout: 15000 });
+    await page.locator("summary", { hasText: /Parts ·/ }).click();
+
+    const partsTable = page.locator("table").filter({ hasText: "Dimensions" });
+    const rows = () => partsTable.locator("tbody tr").count();
+    const partsBefore = await rows();
+    expect(partsBefore).toBeGreaterThan(2);
+
+    await page.getByRole("tab", { name: "Flight" }).click();
+    // `following-sibling::*[1]`, not `::div[1]`: the stat tile renders its label and its value as
+    // siblings but the value is not always a div, and the tag-specific xpath silently matches nothing.
+    const apogee = page.getByText("Apogee", { exact: true }).first().locator("xpath=following-sibling::*[1]");
+    const before = (await apogee.innerText()).trim();
+    // A single-stage design sheds nothing, so the flight says nothing about a spent lower stage.
+    await expect(page.getByText(/sheds a spent lower stage/i)).toHaveCount(0);
+
+    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("button", { name: /Add a booster stage/ }).click();
+
+    // The booster's own airframe joins the parts list, and the flight becomes a staged one.
+    await expect.poll(rows, { timeout: 20000 }).toBeGreaterThan(partsBefore);
+    await page.getByRole("tab", { name: "Flight" }).click();
+    await expect.poll(async () => (await apogee.innerText()).trim(), { timeout: 20000 }).not.toBe(before);
+    // The solver treats the authored stage as a real stage that separates and is shed, and says so by
+    // NAME. This is as far as the *done when*'s "phase table" reaches today: the flight surface has no
+    // phase table at all — the separation is a marker on the altitude chart and this sentence — so
+    // building one is the next slice, and that gap is recorded in ROADMAP.md rather than implied.
+    await expect(page.getByText(/sheds a spent lower stage \(Booster\)/i).first()).toBeVisible({ timeout: 20000 });
+
+    // And it comes back off, in one named undo — the second half of the *done when*.
+    await page.getByRole("tab", { name: "Design" }).click();
+    await expect(page.getByRole("button", { name: /^Undo adding Booster/ })).toBeVisible();
+    await page.getByRole("button", { name: /Remove Booster/ }).click();
+    await expect.poll(rows, { timeout: 20000 }).toBe(partsBefore);
+    await page.getByRole("tab", { name: "Flight" }).click();
+    await expect.poll(async () => (await apogee.innerText()).trim(), { timeout: 20000 }).toBe(before);
+    await expect(page.getByText(/sheds a spent lower stage/i)).toHaveCount(0);
+  });
+
   test("a part at the end of its stage is not offered a move it cannot make", async ({ page }) => {
     // A move never crosses a stage boundary — that would be a different separation event, not a
     // restack — so at each end of a stage the control is left out rather than offered and refused.

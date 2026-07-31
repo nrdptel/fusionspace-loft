@@ -499,7 +499,13 @@ move and asserts every one of the 206 actually permuted the list.
 
 ## R5 — Author a staged rocket
 
-**Status:** NOT STARTED
+**Status:** IN PROGRESS — increment 1 shipped 2026-07-31: the operation, the refusal and the control,
+pinned by `lib/model/edit.test.ts`'s `authoring a booster stage` suite (8 cases), by
+`lib/corpus/sweep.test.ts`'s *authors a booster on every real design, and every one of them separates*
+— which drives **33 authored boosters and 2 refusals across all 35 real designs**, flies 30 of them and
+asserts that all 29 which reach burnout separate — and by the e2e *a flyer can add a booster stage, fly
+the staged flight, and take it back*. Every one was proved able to fail by a negative control with its
+build exit checked.
 
 **Outcome.** Multi-stage designs can be built, not only imported.
 
@@ -511,6 +517,62 @@ again.
 so this is an authoring milestone rather than a physics one. Confirm that before scoping it.
 
 **Size.** 4–6 increments.
+
+**Confirmed by measurement, which is what those notes asked for.** A stage synthesised in memory — never
+from a file — phases, separates, re-derives its per-phase mass and aero, and round-trips through the
+exporter. **No physics change is required.** What it needs that nothing else in the edit bag supplies is
+a stage-level operation and, for the first time, a write to `rocket.configurations`.
+
+**What increment 1 shipped.**
+
+- **`GeometryEdits.addedStages`, a FOURTH list** rather than a fifth `AddedPart.kind`. `buildAdded`
+  returns a component plus where it goes — beside its anchor, or inside it — and a stage is neither: it
+  is the level above a component, so it has no anchor to name and nowhere in that return to land.
+- **It carries no components of its own.** What a booster is made of is decided at every apply from the
+  design as it then stands, which is the rule every other operation in this bag follows and what makes
+  replaying the bag from the pristine design the whole of undo.
+- **The seed is the design's own aft tube, its motor mount and its fins, and nothing else.** Both
+  omissions are measured: a whole-subtree clone drags 150 g of altimeter and parachute into the booster
+  (26.4% of the seed's mass), and `lib/sim/setup.ts` collects recovery devices from stage 0 only, so a
+  cloned canopy is dead weight the solver never deploys. Across the corpus's 12 real booster stages, 12
+  carry a fin set, 10 a motor mount and **0 a nose cone** — tube + mount + fins is what a booster is.
+- **A motor goes into EVERY configuration, and that is the operation.** A stage separates only if a
+  configuration instance names a mount inside it, so a booster with a mount and no instance never lights
+  and never drops: measured on the starter, 993.642 m falling to **546.813 m, a 45.0% loss**, with no
+  separation event and nothing on any surface saying why. A design can carry five configurations, and a
+  booster present on one and missing from another is the same silent loss on whichever the flyer
+  switches to.
+- **A booster that cannot burn is REFUSED, not disclosed.** Where the aft tube carries no motor mount to
+  clone, the gesture is not offered at all — because appending one anyway produces a confident wrong
+  number in the optimistic direction: measured on `03.Three-stage.ork`, apogee went from 1,481.8 m to
+  **2,299.2 m, a 55% GAIN** from a stage that can never fire. 2 of the 35 real designs are in that state.
+- **Removal is dropping the entry**, not a `removedIds` list of the booster's parts: the stage exists
+  only in the bag, so there is nothing in the pristine design to mark as gone. The aims are cleared the
+  same way a component removal clears them.
+
+**The enumeration trap, and one place it stopped.** `HANDOFF.md` records six places a new key on this
+bag must be added by hand. Two of the six were `structureOf(…, { added, removedIds, moved })` call sites
+that hand-restated the fields — and `structureOf` already picks the structural keys itself. Those call
+sites now pass the WHOLE bag, and so does `ParameterSweep`'s `axisBase` dependency list. **That closes
+two of the six permanently**: a caller that passes the whole bag cannot be out of date, and a caller
+that spells out fields silently can.
+
+**The gap, which is increment 2 rather than a reason to re-open this.**
+
+- **There is no phase table.** The *done when* asks for "a staged flight whose phase table matches what
+  they built", and the flight surface has none: separation is a marker on the altitude chart
+  (`ResultsView.tsx`) and a sentence in the warning that names the shed stage. `FlightViz`'s event dots
+  filter separation out entirely. Building one is the next slice, and it is what the *done when* is
+  actually asking for.
+- **"Give it its own motor mount and fins" is inherited, not authored.** The seed carries both because
+  it is cloned from a tube that has them; there is no `AddedPart.kind` for a motor mount, so a booster
+  cannot be given one it did not inherit. That is why the refusal above exists rather than a gesture.
+- **A stage authored on a design with several configurations flies the same motor in all of them**, and
+  a flyer cannot yet pick a different one for the booster. `motorSwap` is a whole-design what-if.
+- **Only an AUTHORED stage can be removed.** An imported one cannot: `removalRefusal` counts body tubes
+  within a stage, so a flyer cannot empty an imported stage part by part either. A stage-level removal
+  for imported stages needs `Stage` to gain an id, which touches all three adapters and the exporter —
+  recorded in *Decisions taken without the owner*.
 
 ---
 
@@ -855,6 +917,23 @@ Unattended runs do not stop to ask (see *Unattended operation* in `MAINTAINING.m
 that would otherwise have been a question goes here, with the option rejected, so it can be reversed
 cheaply instead of re-derived. Newest first.
 
+- **2026-07-31 — an authored stage is addressed by its SEED TUBE's id, not by a new `Stage.id` and not
+  by an index.** `Stage` has no id in the model and imported stages have never needed one. Rejected
+  adding the field: it touches `lib/ork/import.ts`, `lib/rkt/adapt.ts`, `lib/rasaero/adapt.ts` and
+  `lib/ork/export.ts`, and buys nothing this milestone needs — the tube is a real component with a
+  stable id, it is what R3's gestures anchor onto to grow the booster, and it is what a removal names.
+  Rejected addressing by index: an index goes stale the moment a sibling stage operation is undone, and
+  the bag is replayed from the pristine design on every apply, so a stale index is reachable rather than
+  theoretical. The cost is that only an AUTHORED stage can be removed; an imported one needs the id, and
+  that is where the decision would be revisited.
+- **2026-07-31 — a booster whose seed tube has no motor mount is REFUSED, not authored with a warning.**
+  Rejected disclosing it, which is what the blunt leading face and the mould-line step both do: those
+  describe a geometry a real design can legitimately have, and a stage that can never fire is not a
+  geometry — it is ballast the solver sheds while reporting a confident number in the OPTIMISTIC
+  direction. Measured on `03.Three-stage.ork`: 1,481.8 m to 2,299.2 m, a 55% gain from a stage that
+  cannot burn. Rejected synthesising a mount for it: that invents a component the design does not have,
+  in the one place where inventing one changes the flight. 2 of the 35 real designs are affected and on
+  those the control is simply not offered.
 - **2026-07-31 — the shelf's delete is undone by a per-removal offer held in memory, not by a
   confirmation dialog and not by a trash that persists.** Rejected a confirm prompt: it is the cheapest
   thing to build and the worst answer here, because it taxes every correct deletion to catch the rare

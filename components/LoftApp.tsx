@@ -66,6 +66,7 @@ import {
   hasGeometryEdits,
   primaryParachute,
   defaultPayloadStation,
+  type AddedStage,
 } from "@/lib/model/edit";
 import {
   commit as commitHistory,
@@ -180,6 +181,8 @@ interface Edits {
    *  `applyEdit` spreads patches structurally, so a `moved` the app never declared would be carried into
    *  the bag and silently dropped by every consumer typed on this interface. */
   moved?: MovedPart[];
+  /** Booster stages the flyer has authored — see `AddedStage` in the edit model. */
+  addedStages?: AddedStage[];
   rodLength?: number; // m
   rodAngleDeg?: number;
   windSpeed?: number; // m/s
@@ -846,12 +849,14 @@ export default function LoftApp() {
    *  drogue, a payload bay) and those are appended AFTER the prune, so `removedIds` can never take one.
    *  Offering to remove a part the mechanism cannot touch is a button that does nothing. */
   const removableFrom = useMemo(
-    () => (doc ? structureOf(doc.rocket, { added: edits.added, removedIds: edits.removedIds, moved: edits.moved }) : null),
+    // The WHOLE bag, not a hand-picked three fields: `structureOf` names the structural keys itself,
+    // and a call site that restates them goes silently out of date the next time one is added.
+    () => (doc ? structureOf(doc.rocket, edits) : null),
     // `edits.moved` belongs here for the same reason the other two do: this tree is what `moveTarget`
     // and `movePart` resolve an anchor against, so a memo that did not recompute after a move would
     // compute the SECOND nudge's anchor from the order before the first one. The lint rule caught it;
     // the e2e did not, because it walks one move.
-    [doc, edits.added, edits.removedIds, edits.moved],
+    [doc, edits],
   );
 
   /** Why this part cannot be removed, or null. The panel asks THIS rather than judging for itself, so the
@@ -879,6 +884,45 @@ export default function LoftApp() {
         removedIds: [...(edits.removedIds ?? []), id],
       },
       { label: `removing ${name || "the part"}`, key: `remove:${id}` },
+    );
+  };
+
+  /** Add a booster stage below everything already in the stack, and take it away again.
+   *
+   *  The stage carries no components of its own in the edit bag: what a booster is made of is decided at
+   *  every apply from the design as it then stands, which is what makes replaying the bag the whole of
+   *  undo. `applyAddedStages` seeds it from the design's own aft tube — that tube, its motor mount and
+   *  its fins, and nothing else — and puts a motor in every configuration, without which the stage never
+   *  lights, never drops, and costs the design 45% of its apogee in silence.
+   *
+   *  Removal is dropping the entry, not a `removedIds` list of its parts: the stage exists only in the
+   *  bag, so there is nothing in the pristine design to mark as gone. The aims are cleared the same way a
+   *  component removal clears them, because an absolute dimension still aimed at a part inside the
+   *  booster re-lands on whatever the role fallback resolves to once the booster is gone. */
+  const addStage = () => {
+    if (!doc || !removableFrom) return;
+    const n = (edits.addedStages?.length ?? 0) + 1;
+    const name = n === 1 ? "Booster" : `Booster ${n}`;
+    const seedId = newPartId(removableFrom, edits.added, `stage:${n}`);
+    const mountId = newPartId(removableFrom, [...(edits.added ?? []), { id: seedId } as AddedPart], `mount:${n}`);
+    applyEdit(
+      { addedStages: [...(edits.addedStages ?? []), { seedId, mountId, name }] },
+      { label: `adding ${name}`, key: `addstage:${seedId}` },
+    );
+  };
+
+  const removeStage = (seedId: string) => {
+    if (!doc || !removableFrom) return;
+    const entry = edits.addedStages?.find((s) => s.seedId === seedId);
+    if (!entry) return;
+    // Every aim pointing into the stage about to vanish, cleared in the same commit — the seed tube and
+    // everything mounted in it.
+    const inside = flattenRocket(removableFrom).filter((p) => p.component.id === seedId);
+    let cleared: Edits = edits;
+    for (const p of inside) cleared = { ...cleared, ...aimsClearedByRemoving(removableFrom, cleared, p.component.id) };
+    applyEdit(
+      { ...cleared, addedStages: (edits.addedStages ?? []).filter((s) => s.seedId !== seedId) },
+      { label: `removing ${entry.name}`, key: `rmstage:${seedId}` },
     );
   };
 
@@ -922,7 +966,7 @@ export default function LoftApp() {
     // rather than leaving the fields holding a part that no longer exists — and clear the absolute
     // dimensions that aim was pointing, which otherwise re-land on the part just made.
     const nextAdded = [...(edits.added ?? []), part];
-    const aim = aimEditsAt(structureOf(doc.rocket, { added: nextAdded, removedIds: edits.removedIds, moved: edits.moved }), id);
+    const aim = aimEditsAt(structureOf(doc.rocket, { ...edits, added: nextAdded }), id);
     applyEdit(
       { added: nextAdded, ...aimsClearedByAiming(edits, aim), ...aim },
       { label: ADD_LABEL[kind] ?? "adding a part", key: `add:${id}` },
@@ -1615,6 +1659,8 @@ export default function LoftApp() {
               canMovePart={canMovePart}
               onMovePartTo={movePartTo}
               movePartSlots={movePartSlots}
+              onAddStage={addStage}
+              onRemoveStage={removeStage}
               refuseRemoval={refuseRemoval}
               onSelectPart={(id) => {
                 // A pick that aims nothing — a coupler, a centring ring — must not commit an edit

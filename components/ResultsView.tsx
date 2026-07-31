@@ -160,6 +160,8 @@ export default function ResultsView({
   canMovePart,
   onMovePartTo,
   movePartSlots,
+  onAddStage,
+  onRemoveStage,
   refuseRemoval,
   initialTab,
   onWorkspaceChange,
@@ -224,6 +226,9 @@ export default function ResultsView({
   onMovePartTo?: (id: string, after: string | null) => void;
   /** Every legal drop for a part, resolved against the tree the operation runs against. */
   movePartSlots?: (id: string) => MoveSlot[];
+  /** Append a booster stage below the design. */
+  onAddStage?: () => void;
+  onRemoveStage?: (seedId: string) => void;
   /** Why a part cannot be removed, or null. Asked of the app rather than judged in the panel, so the reason
    *  shown and the guard that enforces it cannot disagree about which design they are judging. */
   refuseRemoval?: (id: string) => string | null;
@@ -734,6 +739,9 @@ export default function ResultsView({
           canMove={canMovePart}
           onMoveTo={onMovePartTo}
           moveSlotsFor={movePartSlots}
+          addedStages={geometry?.addedStages}
+          onAddStage={onAddStage}
+          onRemoveStage={onRemoveStage}
           refuseRemoval={refuseRemoval}
           // The aim map, so a role added to the edit model needs no new prop on the way down. Projected
           // through the registry, never the raw bag: a typed span is not an aim.

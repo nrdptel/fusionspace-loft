@@ -35,6 +35,7 @@ import {
   applyGeometryEdits,
   moveTarget,
   moveSlots,
+  canAddStage,
   removalRefusal,
   transitionDefaults,
   newPartId,
@@ -381,6 +382,114 @@ suite("real-design corpus", () => {
     expect(shapeless, "authored parts built without the dimension that makes them that part").toEqual([]);
     expect(misanchored, "authored parts that did not land immediately behind the part they name").toEqual([]);
   }, 300_000);
+
+  it("authors a booster on every real design, and every one of them separates", async () => {
+    // R5's operation, held across every real airframe rather than the starter's two-part stack. The
+    // load-bearing half is the CONFIGURATION write: a stage separates only if a configuration instance
+    // names a mount inside it, so a booster with a mount and no instance never lights and never drops —
+    // measured on the starter as a 45% apogee loss with no separation event and nothing said. Designs
+    // carry up to five configurations, so an instance added to one and missing from another is the same
+    // silent loss on whichever the flyer switches to.
+    //
+    // Four rules, one per way an authored stage can be wrong:
+    //   1. the stack grows by exactly one, and the stages above it are untouched;
+    //   2. every configuration gains an instance in the new mount — not just the flown one;
+    //   3. the booster carries no recovery device, which the solver would never deploy from a lower
+    //      stage and which a whole-subtree clone produces silently;
+    //   4. dropping the entry restores the design exactly, which is what makes it undoable.
+    const wrongCount: string[] = [];
+    const missedConfig: string[] = [];
+    const cloned: string[] = [];
+    const notRestored: string[] = [];
+    const refusedButOffered: string[] = [];
+    const neverSeparated: string[] = [];
+    let authored = 0;
+    let refused = 0;
+    let burnedOut = 0;
+    let separated = 0;
+    let flown = 0;
+
+    for (const f of files) {
+      const doc = await importDesign(new Uint8Array(readFileSync(f.path)));
+      const seedId = newPartId(doc.rocket, [], "stage:1");
+      const mountId = newPartId(doc.rocket, [{ id: seedId } as never], "mount:1");
+      const edits = { addedStages: [{ seedId, mountId, name: "Booster" }] };
+      const staged = applyGeometryEdits(doc.rocket, edits);
+      // Refused where there is nothing to seed a FLYABLE booster from — no body tube, or an aft tube
+      // with no motor mount to clone. `canAddStage` is the predicate the control is offered on, and it
+      // must agree with what the operation actually does or the button does nothing.
+      const offered = canAddStage(doc.rocket);
+      if (staged.stages.length === doc.rocket.stages.length) {
+        if (offered) refusedButOffered.push(`${f.name}: the control is offered and the operation refuses`);
+        refused++;
+        continue;
+      }
+      if (!offered) refusedButOffered.push(`${f.name}: the operation authored a stage the control hides`);
+      authored++;
+
+      // 1
+      if (staged.stages.length !== doc.rocket.stages.length + 1) {
+        wrongCount.push(`${f.name}: ${doc.rocket.stages.length} -> ${staged.stages.length} stages`);
+      }
+      if (JSON.stringify(staged.stages.slice(0, -1)) !== JSON.stringify(doc.rocket.stages)) {
+        wrongCount.push(`${f.name}: authoring a booster changed a stage above it`);
+      }
+      // 2 — the effective mount is the entry's own id, or the seed tube itself on a min-diameter clone.
+      const seed = staged.stages[staged.stages.length - 1].components[0];
+      const effective = seed.children.some((c) => c.id === mountId) ? mountId : seed.id;
+      for (const cfg of staged.configurations) {
+        // A configuration the design says flies nothing stays flying nothing — see `applyAddedStages`.
+        if (cfg.instances.length <= 1) continue;
+        if (!cfg.instances.some((i) => i.mountId === effective)) {
+          missedConfig.push(`${f.name}: configuration ${cfg.id} has no motor in the booster`);
+        }
+      }
+      // 3
+      if (seed.children.some((c) => c.kind === "parachute" || c.kind === "streamer")) {
+        cloned.push(`${f.name}: a recovery device was cloned into the booster`);
+      }
+      // 4
+      if (JSON.stringify(applyGeometryEdits(doc.rocket, { addedStages: [] })) !== JSON.stringify(doc.rocket)) {
+        notRestored.push(`${f.name}: dropping the entry did not restore the design`);
+      }
+
+      // And it FLIES, with a separation event — the claim the other three exist to support. Only where
+      // the design has propulsion at all; a design whose motor Loft cannot resolve has nothing to burn.
+      const run = runFromDocument({ ...doc, rocket: staged }, {});
+      if (run.hasPropulsion) {
+        flown++;
+        // Only a flight that reaches BURNOUT can separate, because the serial-staging default is to
+        // separate when the stage finishes burning. One real design never gets there with a booster on
+        // it and that is not a defect: `rocksimTestRocket1.rkt` is a 692 g airframe on an E6 at a 2.96
+        // thrust-to-weight, and the extra stage takes its apogee from 141.6 m to 15.8 m — it reaches
+        // the top of a 3.1 s flight while still burning. It is counted and named rather than dropped,
+        // because a silently excluded case is how a rule stops meaning anything.
+        if (run.result.events.some((e) => e.type === "burnout")) {
+          burnedOut++;
+          if (run.result.events.some((e) => e.type === "separation")) separated++;
+          else neverSeparated.push(`${f.name}: burned out and did not separate`);
+        }
+      }
+    }
+
+    console.log(
+      `boosters authored across ${files.length} design files: ${authored} authored, ${refused} refused; ` +
+        `${flown} had propulsion, ${burnedOut} of those reached burnout, and ${separated} of THOSE separated ` +
+        `(${flown - burnedOut} never burned out — too marginal to fly with a booster on it)`,
+    );
+    expect(authored, "no booster was authored — that branch proves nothing").toBeGreaterThan(20);
+    expect(refusedButOffered, "the control and the operation disagree about whether a booster can be added").toEqual([]);
+    expect(wrongCount, "an authored stage that did not append cleanly").toEqual([]);
+    expect(missedConfig, "a configuration left without a motor in the booster").toEqual([]);
+    expect(cloned, "a recovery device cloned into a stage the solver never deploys from").toEqual([]);
+    expect(notRestored, "dropping the entry did not restore the design").toEqual([]);
+    // Every design that reaches burnout must stage. This is the assertion the configuration write
+    // exists for: without an instance in the booster's mount the stage's burn duration is zero, it
+    // never lights, and it never drops.
+    expect(neverSeparated, "a design that burned out and still did not separate").toEqual([]);
+    expect(separated, "no authored booster separated").toBe(burnedOut);
+    expect(burnedOut, "no authored booster reached burnout — that branch proves nothing").toBeGreaterThan(20);
+  });
 
   it("finds no real design that leads with anything but a nose cone", async () => {
     // The denominator behind the blunt-face warning R4's drag made necessary. Loft takes forebody
