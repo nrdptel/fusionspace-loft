@@ -319,8 +319,18 @@ Baseline before anything changed, all four green: lint 0 errors / **1 warning** 
 `setDraft` one), **870 unit**, build, **171 e2e**, corpus **35 design files, 6/6** with its counts
 printed (536 removable parts, 180 authored, 230 mass stations, 206 reorders).
 
-*(This section is refreshed mid-run; the run was still going when it was last written. The commit log
-on the working branch is the record.)*
+At the end, all four green: lint 0 errors / **1 warning** (the same standing `setDraft` one), **897
+unit**, build, **177 e2e**, corpus **35 design files, 9/9** — 536 removable parts · 180 authored parts
+· 230 mass-object stations · 484 drag drop-slots (30 in front of the next stage's first part) · 206
+reorders · 33 authored boosters and 2 refusals, 30 flown, 29 reaching burnout and 29 of those
+separating · 0 of 35 leading with a flat face.
+
+**CI was RED on the head this run pushed, and the local gate was green at the same commit.** The
+booster corpus sweep ran under vitest's 5 s default; it fits locally and does not on the runner. The
+last commit gives it the same explicit `300_000` its neighbours take. The lesson is not about that
+test: **a sweep that adds a second full flight per design needs an explicit budget, and a green local
+gate does not prove the runner agrees.** Read the `frontend` job's result on the PR head before
+calling a session done, not just the local exits.
 
 | commit | what |
 |---|---|
@@ -335,9 +345,11 @@ on the working branch is the record.)*
 | `4a69479` | **R5 increment 1 — a flyer can add a booster stage.** The first edit that writes to `rocket.configurations`; without it the stage never lights and the design loses 37.5% of its apogee in silence. |
 | *(this run's last)* | **The review of `4a69479`, acted on after it shipped.** Thirteen findings; six fixed, eight filed. Two of the fixes were wrong numbers on a surface: the RocketPy cross-check folded a booster's motor into a coaxial cluster (381.0 N against the real 190.5 N), and removing a booster resized the SUSTAINER (993.642 → 1105.598 m). Plus a false figure that had been published in six places. |
 
-**The previous handoff's "Sev-1 count is zero" was wrong** — see the top of this file. **Two Sev-1s were
-found and fixed this run**, and both were in the ledger or one gesture from it rather than in the code
-this run wrote.
+**The previous handoff's "Sev-1 count is zero" was wrong** — see the top of this file. **Four Sev-1s
+were found this run and three were fixed.** Two were in the ledger or one gesture from it; two were in
+this run's OWN R5 commit, found by a second opinion taken on it after it had already been pushed, and
+the fourth is filed and open. Reviewing a commit you have already shipped is worth doing, and the
+count that matters is the one at the END of the run.
 
 ## R4 — what shipped, and the one trap it left
 
@@ -497,16 +509,26 @@ airframe and drop it between two others, with a rule marking the joint while the
 **add a booster stage to a single-stage design and take it back**, which turns a design that flew
 994 m at 196 m/s into one that flies 1,491 m at 274 m/s. Both walked in the built export.
 
-**What is measurably better about using the tool? (P-track)** Two Sev-1s are gone: deleting a design
-from the shelf is undoable, and a reordered airframe flying a flat face into the airstream now says the
-apogee is optimistic instead of publishing the streamlined one. Every decision-grade number came off
+**What is measurably better about using the tool? (P-track)** Three Sev-1s are gone: deleting a design
+from the shelf is undoable; a reordered airframe flying a flat face into the airstream now says the
+apogee is optimistic instead of publishing the streamlined one; the RocketPy cross-check no longer
+folds an authored booster's motor into a coaxial cluster and calls the result a second opinion (381.0 N
+against the real 190.5 N); and removing a booster no longer resizes the sustainer behind the flyer's
+back (993.642 → 1105.598 m). Every decision-grade number came off
 caption size — `text-xs` across `components/` went 91 → 56 — and the footer's standing safety
 disclaimer came out of the fine print. A 360 px phone stopped scrolling horizontally, and a 320 px one
 did too, having done so for some time.
 
-**Production.** `loft.fusionspace.co` serves 200 and does **not** carry any of this run's code: the
-chunk holding it 404s there. Everything below is on the working branch and in **pull request #82**,
-verified and pending a merge. Under SHIPPED-MEANS-REACHABLE none of it has shipped yet.
+**Production.** `loft.fusionspace.co` serves 200 and does **not** carry any of this run's code — its
+chunks contain no `addedStages`, which the local build's do. Everything below is on the working branch
+and in **pull request #82**, verified and pending a merge. Under SHIPPED-MEANS-REACHABLE none of it has
+shipped yet.
+
+**Walked cold on the built export before the last push**, on `/`, `/docs`, `/docs/limitations`,
+`/validation` and `/motors` — all 200, no page error, no console error, no 4xx or 5xx. The R5 gesture
+end to end: 994 m becomes 1,491 m and the flight names the shed stage; with a booster on, the RocketPy
+cross-check and the parameter sweep withdraw while the dispersion study stays (it is offered for
+multi-stage on purpose); removing the booster puts 994 m back exactly.
 
 **Four checks that could not fail were found**, which is the finding this run would keep if it could
 keep only one: the phone horizontal-overflow e2e compared against a viewport width the emulator
