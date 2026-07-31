@@ -4616,22 +4616,37 @@ test.describe("Loft", () => {
         }),
       }),
     );
+    // A FULL 24-hour local day, the shape the live API actually returns, with `current.time` at 18:15.
+    // The stub used to carry a single unstamped hour, which meant the only e2e over the weather path
+    // exercised the "hour not stated" fallback and never the matching that decides which wind is
+    // flown. Every hour but 18:00 blows from due EAST at a gale; 18:00 blows from due west at
+    // WIND_MPS. So if the app reads any hour but the right one, the drift reverses and this test says
+    // so, rather than the two differing by a few percent nobody would notice.
+    const CURRENT_TIME = "2026-07-30T18:15";
+    const RIGHT_HOUR = 18;
     await page.route("**api.open-meteo.com/v1/forecast*", (route) => {
-      // One aloft level is enough to make the profile real; `parseForecast` skips levels whose
-      // three series are absent, so the rest simply do not appear.
-      const hourly: Record<string, number[]> = {
-        wind_speed_1000hPa: [WIND_MPS],
-        wind_direction_1000hPa: [270],
-        geopotential_height_1000hPa: [110],
-        wind_speed_500hPa: [18],
-        wind_direction_500hPa: [270],
-        geopotential_height_500hPa: [5600],
+      const time = Array.from({ length: 24 }, (_, i) => `2026-07-30T${String(i).padStart(2, "0")}:00`);
+      const at = (i: number, right: number, wrong: number) => (i === RIGHT_HOUR ? right : wrong);
+      const hourly: Record<string, unknown> = {
+        time,
+        wind_speed_1000hPa: time.map((_, i) => at(i, WIND_MPS, 25)),
+        wind_direction_1000hPa: time.map((_, i) => at(i, 270, 90)),
+        geopotential_height_1000hPa: time.map(() => 110),
+        wind_speed_500hPa: time.map((_, i) => at(i, 18, 40)),
+        wind_direction_500hPa: time.map((_, i) => at(i, 270, 90)),
+        geopotential_height_500hPa: time.map(() => 5600),
       };
       route.fulfill({
         contentType: "application/json",
         body: JSON.stringify({
           elevation: 1000,
-          current: { temperature_2m: 20, surface_pressure: 900, wind_speed_10m: WIND_MPS, wind_direction_10m: 270 },
+          current: {
+            time: CURRENT_TIME,
+            temperature_2m: 20,
+            surface_pressure: 900,
+            wind_speed_10m: WIND_MPS,
+            wind_direction_10m: 270,
+          },
           hourly,
         }),
       });
@@ -4649,8 +4664,13 @@ test.describe("Loft", () => {
 
     await page.getByLabel("Launch site").fill("Lucerne Valley, CA");
     await page.getByRole("button", { name: "Fetch" }).click();
-    // The forecast is in force once the aloft profile is being reported.
+    // The forecast is in force once the aloft profile is being reported — AND the panel names the hour
+    // the profile is for. Before the hour was matched, index 0 (00:00) was read while the surface
+    // block was live, so the flight mixed this hour's air with a profile from the middle of the night.
     await expect(page.getByText(/aloft levels/)).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByText(/aloft levels for 18:00 local/)).toBeVisible();
+    // ...and it does NOT carry the could-not-be-matched caveat, because it was matched.
+    await expect(page.getByText(/no way to tie that to the surface reading/)).toHaveCount(0);
     // A fetch greys the field and leaves it empty: the flight is on the forecast, not on a typed value.
     await expect(wind).toBeDisabled();
     await expect(wind).toHaveValue("");

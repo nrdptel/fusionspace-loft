@@ -404,6 +404,14 @@ export default function Limitations() {
         re-run. There is no turbulence, gust, or shear-layer modelling, and no correlation with the
         (un-modelled) rotational response.
       </p>
+      <p>
+        The winds-aloft profile is a <strong>forecast for one hour</strong>, not an observation: Loft
+        reads the hour matching the live surface reading and states that hour on the Conditions
+        panel. It is a model&apos;s view of the air above the pad, so treat a drift figure as an
+        estimate of where the wind is <em>expected</em>{" "}
+        to put the rocket rather than where it will. The profile is also fetched once, at the moment
+        you tap — it does not follow the clock while you keep working.
+      </p>
 
       <h3>Monte-Carlo dispersion propagates only the inputs you set</h3>
       <p>

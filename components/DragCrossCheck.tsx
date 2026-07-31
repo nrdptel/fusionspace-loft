@@ -7,6 +7,7 @@ import { fmt } from "@/lib/display";
 import type { FlightResult } from "@/lib/sim/simulate";
 import type { StoredFlightData } from "@/lib/ork/import";
 import type { UnitSystem } from "@/lib/display";
+import { Card } from "./ui";
 
 const LOFT_COLOR = "#6366f1"; // indigo — Loft's own solver
 const STORED_COLOR = "#f59e0b"; // amber — the design tool's stored run
@@ -41,10 +42,7 @@ export default function DragCrossCheck({
   const scale = (pts: { x: number; y: number }[]) => pts.map((p) => ({ x: p.x, y: p.y * c }));
 
   return (
-    <section
-      aria-label="Stored-flight cross-check"
-      className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900/40"
-    >
+    <Card as="section" aria-label="Stored-flight cross-check">
       <h2 className="text-lg font-semibold tracking-tight">Loft vs {toolName}&apos;s stored flight</h2>
       <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
         This file carries {toolName}&apos;s own per-step flight
@@ -119,6 +117,6 @@ export default function DragCrossCheck({
           yZeroFloor
         />
       </div>
-    </section>
+    </Card>
   );
 }

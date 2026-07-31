@@ -19,7 +19,7 @@ import type { GeometryEdits } from "@/lib/model/edit";
 import { usePersistedNumber, useSettled } from "@/lib/session";
 import { mToFt, ftToM, mpsToFtps, mpsToMph, mphToMps } from "@/lib/units";
 import type { CsvCell } from "@/lib/csv";
-import { ClosePanel, NumberField, useReturnFocus } from "./ui";
+import { Card, ClosePanel, NumberField, useReturnFocus } from "./ui";
 import DownloadCsv, { CopyTable } from "./DownloadCsv";
 import { TOUCH_TARGET } from "@/lib/ui-tokens";
 import * as d from "@/lib/display";
@@ -228,10 +228,7 @@ export default function MonteCarlo({
   }, [open, settled, designKey, conditionsKey]);
 
   return (
-    <section
-      aria-label="Monte-Carlo dispersion"
-      className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900/40"
-    >
+    <Card as="section" aria-label="Monte-Carlo dispersion">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="text-lg font-semibold tracking-tight">Flight dispersion (Monte-Carlo)</h2>
         <div className="flex items-center gap-3">
@@ -382,7 +379,7 @@ export default function MonteCarlo({
           )}
         </>
       )}
-    </section>
+    </Card>
   );
 }
 

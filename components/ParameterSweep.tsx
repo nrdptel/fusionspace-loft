@@ -16,7 +16,7 @@ import LineChart from "./LineChart";
 import DownloadCsv, { CopyTable } from "./DownloadCsv";
 import { TOUCH_TARGET } from "@/lib/ui-tokens";
 import type { UnitSystem } from "@/lib/display";
-import { ClosePanel, useReturnFocus } from "./ui";
+import { Card, ClosePanel, useReturnFocus } from "./ui";
 
 const round = (n: number, dp: number) => (Number.isFinite(n) ? Math.round(n * 10 ** dp) / 10 ** dp : "");
 
@@ -323,10 +323,7 @@ export default function ParameterSweep({
   if (axes.length === 0) return null;
 
   return (
-    <section
-      aria-label="Parameter sweep"
-      className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900/40"
-    >
+    <Card as="section" aria-label="Parameter sweep">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="text-lg font-semibold tracking-tight">Sweep a parameter</h2>
         <div className="flex items-center gap-3">
@@ -417,7 +414,7 @@ export default function ParameterSweep({
           )}
         </>
       )}
-    </section>
+    </Card>
   );
 }
 

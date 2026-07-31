@@ -10,6 +10,7 @@ import { TOUCH_TARGET, TOUCH_TARGET_SQUARE } from "@/lib/ui-tokens";
 import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
 import RocketDiagram from "./RocketDiagram";
+import { Card } from "./ui";
 
 /** Design geometry: a to-scale side-view of the airframe, above the parsed component tree with each
  *  part's key dimensions and its station — the "did Loft read my rocket right?" view. Pure
@@ -292,7 +293,7 @@ export default function GeometryInspector({
   if (parts.length === 0) return null;
 
   return (
-    <section className="rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900/40">
+    <Card as="section" pad={false}>
       <div className="flex items-center justify-between px-4 py-3">
         <h3 className="flex items-center gap-2 text-sm font-medium text-zinc-700 dark:text-zinc-300">
           Design geometry
@@ -569,6 +570,6 @@ export default function GeometryInspector({
         </p>
         </details>
       </div>
-    </section>
+    </Card>
   );
 }

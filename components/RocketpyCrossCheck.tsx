@@ -9,6 +9,7 @@ import type { UnitSystem } from "@/lib/display";
 import type { RocketpyFlightResult } from "@/lib/validation/rocketpy-engine";
 import { engineFailure } from "@/lib/validation/engine-error";
 import type { GeometryEdits } from "@/lib/model/edit";
+import { Card } from "./ui";
 
 /** Loft's own ballistic ascent, for a like-for-like comparison against RocketPy. */
 interface LoftBallistic {
@@ -181,10 +182,7 @@ export default function RocketpyCrossCheck({
   useEffect(() => () => abortRef.current?.abort(), []);
 
   return (
-    <section
-      aria-label="RocketPy cross-check"
-      className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900/40"
-    >
+    <Card as="section" aria-label="RocketPy cross-check">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="text-lg font-semibold tracking-tight">Second opinion: RocketPy</h2>
         <span className="text-xs text-zinc-500 dark:text-zinc-400">independent 6-DOF engine, in your browser</span>
@@ -291,7 +289,7 @@ export default function RocketpyCrossCheck({
         </div>
       )}
       {showing && <Comparison loft={showing.loft} rp={showing.rp} units={units} />}
-    </section>
+    </Card>
   );
 }
 

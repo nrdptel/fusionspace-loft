@@ -12,6 +12,34 @@ this file, and deliberately does **not** cap craft or product work, because that
 track in `ROADMAP.md` with its own *done when*. Rough edges, missing affordances, and findings too
 big for one pass. Newest first.
 
+- **A truncated `hourly` series silently thins the winds-aloft profile instead of saying so.**
+  `lib/weather.ts`'s level loop calls `arrAt(hourly[…], idx)` per pressure level and `continue`s when
+  any of the three series is short, so a response whose `time` has 24 entries but whose
+  `wind_speed_850hPa` has 1 drops 850 hPa from the profile with nothing on screen. The Conditions panel
+  reports "N aloft levels", so a thinned profile reads as a coarser forecast rather than a damaged one.
+  Not fixed with the hour-matching Sev-1 because it has never been observed live — every response
+  measured on 2026-07-31 (32.9 N/106.9 W, Kathmandu, Chatham, Tokyo) returned all twelve levels at full
+  length — and a guard that fires on zero real responses is the speculative work `MAINTAINING.md`
+  forbids. The check that would make it real: assert `hourly[series].length === hourly.time.length` and
+  report the shortfall rather than dropping the level.
+
+- **`text-lg` is used 14 times and is not in the type scale at all**, and `font-semibold` 28 times where
+  `DESIGN.md` §3 reserves it for "the one number a surface exists to show". Measured 2026-07-31 with
+  `grep -roh 'text-lg' components app | wc -l` and `grep -roh 'font-semibold' components | wc -l`. Every
+  panel heading in the app is `text-lg font-semibold tracking-tight` — a seventh size sitting between
+  `text-base` and `text-xl`, invented once and copied twelve times. It is P1 work (the type-scale slice)
+  rather than a defect to clear ad hoc: converting them to `text-xl font-medium` is one increment and it
+  moves the section-heading rhythm on every surface at once. Not folded into P1's first increment because
+  that one was containers, and a type change and a container change landing together makes a visual
+  regression impossible to bisect.
+
+- **Two `rounded-xl border…` treatments are not cards and should not be `<Card>`.** `components/ServiceWorker.tsx:71`
+  is a floating update toast (`shadow-lg`) and `components/ImportPanel.tsx:88` is the import drop zone
+  (`border-2 border-dashed p-8`, an interactive target). `DESIGN.md` §9's target of one treatment counts
+  both against `Card`, so the count cannot reach 1 honestly — they want their own named primitives
+  (`Toast`, `DropZone`). Recorded on P1's status line so the target reads 3 rather than looking like a
+  shortfall.
+
 - **The e2e config has no browser-revision guard, so the documented gate command silently tests
   against the wrong Chromium.** Measured 2026-07-30: `@playwright/test` 1.61.1 manages chromium-1228,
   the sandbox's pre-installed `/opt/pw-browsers/chromium` is 1194, and `PW_EXECUTABLE_PATH` — which
@@ -465,11 +493,13 @@ big for one pass. Newest first.
     mint the shape (`rasaero/adapt.ts:416` when `Altitude2 <= 0`; `ork/adapt.ts:561` via
     `childNum(...) || undefined`). A ballistic impact is downgraded to a hard-landing caution that
     advises a larger canopy for a flight where nothing opened.
-  - **Winds-aloft direction is interpolated without a 0/360 wrap** (`lib/weather.ts:131`):
-    `dir = a + (b - a) * f` straight into `windVector`, no unwrap anywhere. For a 350°/10° pair,
-    f=0.5 gives **180°** where the truth is 0° — the vector exactly reversed, wind from due south
-    where it blows from due north. `LEVELS` is deliberately dense at 1000/975/950/925 hPa, the band
-    recovery drift lives in, and the profile fully replaces the surface wind under "Today".
+  - **RESOLVED 2026-07-31 — winds-aloft direction is interpolated the short way round.** This read
+    "interpolated without a 0/360 wrap (`lib/weather.ts:131`): `dir = a + (b - a) * f` straight into
+    `windVector`, no unwrap anywhere. For a 350°/10° pair, f=0.5 gives 180° where the truth is 0° —
+    the vector exactly reversed, wind from due south where it blows from due north." `lerpBearing`
+    (`lib/weather.ts`) takes the difference into **[−180°, 180°)** first — half-open at the top, which is
+    brute-forced over every integer pair in the test rather than asserted in prose. Fixed alongside a Sev-1 in the same function that
+    corrupted the same number, and pinned by `lib/weather.test.ts`, which the file had none of.
   - **`.ork` archives carry `thrustcurves/*.rse` and the zip reader discards them**
     (`lib/ork/zip.ts:92` takes only the first design entry), while `lib/motors/db.ts:4` and
     `lib/model/types.ts:315` both assert "a .ork never embeds the curve". So a design is refused a
