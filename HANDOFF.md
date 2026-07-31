@@ -15,8 +15,8 @@ the LEDGER, not against the previous handoff's summary of it.
 
 | track | state at the end of 2026-07-31 (second session) |
 |---|---|
-| **R — capability** | **R4 — reorder and restack — IN PROGRESS**, increment 1 shipped; the DRAG is the next slice |
-| **P — product & craft** | **P1 — one design system, adopted — IN PROGRESS**, increments 1–4 shipped |
+| **R — capability** | **R4 SHIPPED.** **R5 — author a staged rocket — IN PROGRESS**, increment 1 of 4–6 shipped |
+| **P — product & craft** | **P1 — one design system, adopted — IN PROGRESS**, increments 1–5 shipped |
 
 **`DESIGN.md` and `COMPETITION.md` are binding and are read at session start.** `DESIGN.md` §9's
 compliance block is executable as `lib/design-system.test.ts`, with every count an EXACT ratchet, so
@@ -38,8 +38,9 @@ itself is right and is satisfied; only the historical figures are stale.
 | R1 — address components by identity | SHIPPED 2026-07-30 |
 | R2 — delete a component, and undo it | SHIPPED 2026-07-30 |
 | R3 — add a component | SHIPPED 2026-07-30 |
-| R4 — reorder and restack | IN PROGRESS — increment 1 (the operation + a button pair) shipped 2026-07-31; the drag is next |
-| P1 — one design system, adopted | IN PROGRESS — increments 1–4 shipped 2026-07-31 |
+| R4 — reorder and restack | **SHIPPED 2026-07-31** — the operation, the button pair, and the drag |
+| R5 — author a staged rocket | **IN PROGRESS** — increment 1 shipped 2026-07-31; the phase table is increment 2 |
+| P1 — one design system, adopted | IN PROGRESS — increments 1–5 shipped 2026-07-31 |
 | P2–P5 | NOT STARTED |
 
 Three capability milestones shipped in two sessions and the editor went from a parametric tweaker over
@@ -324,6 +325,8 @@ on the working branch is the record.)*
 | `da949d7` | Corrected a scoping premise `ROADMAP.md` and this file both carried, and refreshed the handoff. |
 | `c3cf389` | **R4 SHIPPED — drag a part along the airframe and drop it between two others.** `moveSlots`, a drop indicator, 484 drop slots driven across all 35 real designs. |
 | `2a061e6` | **Sev-1 — a reordered airframe flying a flat face into the airstream now says so.** Nudging the nose one place aft left apogee, max velocity and rail exit every digit identical while the model flew a 66 mm flat disc. |
+| `c2d5b63` | **P1 increment 5 — off-scale spacing to zero**, plus the three blind spots in the check that measures it, plus three `COMPETITION.md` rows and five corrections to them. |
+| `4a69479` | **R5 increment 1 — a flyer can add a booster stage.** The first edit that writes to `rocket.configurations`; without it the stage never lights and the design loses 45% of its apogee in silence. |
 
 **The previous handoff's "Sev-1 count is zero" was wrong** — see the top of this file. **Two Sev-1s were
 found and fixed this run**, and both were in the ledger or one gesture from it rather than in the code
@@ -411,7 +414,18 @@ fixtures through the importer, and every figure in it was re-measured before bei
 
 ## What this session learned that is worth keeping
 
-**NEVER revert a negative control with `git checkout -- <file>`.** It reverts the WHOLE file to `HEAD`,
+**NEVER revert a negative control with `git checkout -- <file>`. This file already said so, and this
+session did it anyway** — one line in a loop of controls, and it took an entire uncommitted increment's
+worth of work in `components/LoftApp.tsx` back to HEAD. Recoverable only because the edits were still
+in context. **Copy the file's bytes aside FIRST and restore from the copy**, every time, without
+exception; and when a control set touches more than one file, copy all of them before the first control
+rather than reaching for git halfway through.
+
+**A negative control's BUILD exit is part of the control.** Twice this session a control came back
+green with `BUILD_EXIT=1` — the tree never changed, so the e2e ran against the still-correct `out/`.
+Print the exit code beside the result, always.
+
+The original note follows, and it is still the rule: It reverts the WHOLE file to `HEAD`,
 including the uncommitted work you are testing. Running six controls in a loop that way silently
 destroyed three files' worth of a finished increment — `components/ui.tsx` lost every primitive it had
 just gained — and the loop went on reporting that each control "went red", which it did, for the wrong
@@ -452,41 +466,65 @@ a name with a field — the diagram's grips do — the suite's idiom is
 Pin a constant on the field's placeholder, not on the table row, and anchor the regex — an unanchored
 `/4[01]/` also matches "540".
 
+## The done-check, answered
+
+**Corpus, with its fixture count** — 35 design files, 9/9 suites, every count printed:
+536 removable parts · 180 authored parts · 230 mass-object stations · **484 drag drop-slots (30 landing
+in front of the next stage's first part)** · 206 reorders · **33 authored boosters and 2 refusals, 30
+flown, 29 reaching burnout and 29 of those separating** · **0 of 35 designs lead with a flat face**.
+
+**`DESIGN.md` §9, start of run → end:**
+
+| count | start | end | target |
+|---|---|---|---|
+| `rounded-lg` | 37 | **35** | 0 |
+| distinct card treatments | 3 | 3 | 3 (one is `Card`'s own) |
+| off-scale spacing | 8 | **0** | 0 |
+| `text-lg` | 0 | 0 | 0 |
+| files where `text-xs` outnumbers `text-sm` | 9 | **0** | 0 |
+| components importing the primitives | 12 | **14** of 23 | most |
+| `Button` adopters | 7 | **9** (+1 taking the geometry as a class) | most |
+
+**What can a flyer DO after this run that they could not before? (R-track)** Drag a part along the
+airframe and drop it between two others, with a rule marking the joint while the pointer moves — and
+**add a booster stage to a single-stage design and take it back**, which turns a design that flew
+994 m at 196 m/s into one that flies 1,491 m at 274 m/s. Both walked in the built export.
+
+**What is measurably better about using the tool? (P-track)** Two Sev-1s are gone: deleting a design
+from the shelf is undoable, and a reordered airframe flying a flat face into the airstream now says the
+apogee is optimistic instead of publishing the streamlined one. Every decision-grade number came off
+caption size — `text-xs` across `components/` went 91 → 56 — and the footer's standing safety
+disclaimer came out of the fine print. A 360 px phone stopped scrolling horizontally, and a 320 px one
+did too, having done so for some time.
+
+**Production.** `loft.fusionspace.co` serves 200 and does **not** carry any of this run's code: the
+chunk holding it 404s there. Everything below is on the working branch and in **pull request #82**,
+verified and pending a merge. Under SHIPPED-MEANS-REACHABLE none of it has shipped yet.
+
+**Three checks that could not fail were found and fixed**, which is the finding this run would keep if
+it could keep only one: the phone horizontal-overflow e2e compared against a viewport width the
+emulator inflates to absorb the overflow; a clear-on-load assertion ran after the state it tested had
+already been cleaned up; and the §9 spacing grep has three blind spots holding 118 values.
+
 ## Pick up first
 
-**Both tracks are IN PROGRESS and neither is blocked.**
+**Take the next slice of each track, in this order.**
 
-1. **R4 increment 2 — the DRAG.** The *done when* asks for "drag a component along the airframe and
-   drop it between two others". A fan-out agent scoped it against the code this session and produced
-   several things worth more than the scoping — every one verified by reading the code:
-   - **`o.length` is INVARIANT under a pure permutation**, so the "freeze the HORIZONTAL frame"
-     instruction the previous handoff and `ROADMAP.md` both carried is built on a false premise:
-     `flattenRocket` stacks with a running cursor and every top-level component in the corpus is a
-     body part at `after` + 0, so their sum cannot change. What DOES move mid-drag is `maxExtent`
-     (fin seats re-resolve, so the frame jumps vertically — the existing `vFrameExtent` freeze is the
-     fix) and, on a design with a boattail what-if, `addBoattail` returning the rocket unchanged when
-     a narrower tube becomes aft-most, which makes the boattail VANISH under the pointer.
-   - **The drag must NOT route through `onEdit`.** `applyEdit` spreads `{...edits, ...patch}`, so a
-     bare `{ moved: [x] }` from the diagram REPLACES the whole list and discards every earlier reorder
-     and its undo entries. `movePart` appends; a drag needs its own `onMoveTo(id, after)` callback
-     that does the same.
-   - **`hoverProps(id)`'s `onClick` fires on pointerup after any drag on the same `<path>`**, and that
-     click re-aims the editor's fields at the dragged part. A movement threshold plus a suppressed
-     synthetic click is required, or every reorder silently moves the aim.
-   - **`describeEdit({ moved })` reads "the moved"** — `EDIT_ACTIONS` has no entry for `moved`,
-     `added` or `removedIds`. Only reachable if a caller forgets an explicit label, which `movePart`
-     does not; a registry entry each is a one-line guard.
-   - **Anchors must come from the tree the operation runs against (`removableFrom`) and pixels from
-     the tree on screen.** The shown rocket's dimension edits synthesise a top-level boattail that
-     `applyMoves` cannot address, so a drop anchored on it silently no-ops.
-   - Keep it fine-pointer-only, like the other centreline grips; the buttons are the touch path.
-     The smallest shippable slice is: pointerdown on a part overlay where a move is legal, snapshot
-     the slot boundaries, draw an indicator, commit ONE `moved` entry on pointerup — no live preview.
-     `fixtures/demo-quirks.ork` (4 top-level children) is the only committed fixture with the shape.
-2. **P1's remaining slices**, in this order: the 8 off-scale spacing values (single-token edits, the
-   cheapest count to take to zero), then the 35 `rounded-lg` — and **that one breaks print unless
-   `app/globals.css`'s rule keyed on `.rounded-lg` changes in the same commit** — then `DataTable`.
+1. **R5 increment 2 — the PHASE TABLE.** The *done when* asks for "a staged flight whose phase table
+   matches what they built" and the flight surface has none: separation is a marker on the altitude
+   chart (`ResultsView.tsx:1483`) and a sentence in the untracked-booster warning. `FlightViz.tsx:65`
+   filters `separation` out of its event dots entirely. The solver already emits a `separation`
+   `FlightEvent` per phase boundary, so this is a surface, not a model.
+2. **P1's remaining slices**: the 35 `rounded-lg` — and **that breaks print unless
+   `app/globals.css`'s rule keyed on `.rounded-lg` changes in the same commit** — then `DataTable`,
+   which `COMPETITION.md` row 24 now sizes: five tables, 2 that sort, 3 that copy, and RockSim lets the
+   flyer choose the columns.
 3. **Then alternate.**
+
+**What R5 still owes its *done when*, beyond the phase table**: "give it its own motor mount and fins"
+is inherited from the seed rather than authored, because there is no `AddedPart.kind` for a mount; and
+only an AUTHORED stage can be removed, because `Stage` has no id (the decision and its cost are in
+`ROADMAP.md` under *Decisions taken without the owner*).
 
 **Two BLOCKERS in `BACKLOG.md` are still unfixed**, both silent data loss on the from-scratch builder,
 both with full reproductions and a note on why the obvious fix is wrong:
@@ -494,9 +532,11 @@ both with full reproductions and a note on why the obvious fix is wrong:
 - **Reopening your own build from the shelf hands back the factory starter.** 790 m / 4.1 cal comes
   back as 994 m / 1.53 cal.
 
-A triage agent argued both are Sev-1 by the manual's first criterion. They are the strongest
-candidates the moment nothing else preempts, and the second one is on the very surface this session
-just gave an undo to.
+A triage agent argued both are Sev-1 by the manual's first criterion. They are the strongest candidates
+the moment nothing else preempts, and the second is on the very surface this run gave an undo to.
+
+**The `BACKLOG.md` Sev-1 count is zero at the end of this run**, and it was NOT zero at the start —
+the previous handoff said it was. Two were found and fixed.
 
 ## Environment notes
 
