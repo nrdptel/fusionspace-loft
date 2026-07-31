@@ -4045,6 +4045,50 @@ test.describe("Loft", () => {
     await expect.poll(async () => rows.count(), { timeout: 20000 }).toBe(2);
   });
 
+  test("each phase names the burnout that happened inside it, and only that one", async ({ page }) => {
+    // R5 increment 3. A flight logged exactly ONE burnout ever — the last motor's — so a booster's
+    // burnout, the event that CAUSES the separation right after it, appeared on no surface. Each phase
+    // now names its own.
+    //
+    // The assertion that matters is that row 2 does NOT carry row 1's. A burnout and the separation it
+    // triggers are the same instant on the default staging rule, so a window closed at both ends puts
+    // the booster's burnout in the row it ends and in the row it begins. Walked in the built export
+    // before the fix, row 2 read "1.3 s Booster · 2.6 s Sustainer".
+    await page.goto("/");
+    await page.getByRole("button", { name: "Start a new design" }).click();
+    await expect(page.getByRole("heading", { name: "Design geometry" })).toBeVisible({ timeout: 15000 });
+    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("button", { name: /Add a booster stage/ }).click();
+    await page.getByRole("tab", { name: "Flight" }).click();
+
+    const table = page.getByRole("region", { name: "Flight phases" });
+    await expect(table).toBeVisible({ timeout: 20000 });
+    const rows = table.locator("tbody tr");
+    await expect.poll(async () => rows.count(), { timeout: 20000 }).toBe(2);
+
+    // CONTROL: the column exists and is where the values below are read from. Without this the cell
+    // lookups could be silently reading a neighbouring column.
+    // Case-folded: the header row carries `uppercase`, and `innerText` returns what is RENDERED, so
+    // a literal "Burnout" never matches.
+    const headers = (await table.locator("thead th").allInnerTexts()).map((h) => h.trim().toLowerCase());
+    expect(headers).toContain("burnout");
+    const col = headers.indexOf("burnout");
+
+    const cell = async (r: number) => (await rows.nth(r).locator("th,td").nth(col).innerText()).trim();
+    const first = await cell(0);
+    const second = await cell(1);
+
+    // Each row names exactly one burnout — a time, in seconds.
+    expect(first, `row 1 burnout cell: ${first}`).toMatch(/^[\d.]+\s*s$/);
+    expect(second, `row 2 burnout cell: ${second}`).toMatch(/^[\d.]+\s*s$/);
+
+    // And they are different burnouts, the second later than the first. This is the assertion that
+    // fails if the phase windows overlap at the boundary, and the one that fails if the solver goes
+    // back to emitting a single event.
+    const secs = (s: string) => Number(s.replace(/[^\d.]/g, ""));
+    expect(secs(second)).toBeGreaterThan(secs(first));
+  });
+
   test("a phase that ends after apogee still runs forwards", async ({ page }) => {
     // The regression the starter cannot express. `demo-payload-separation.ork` separates at its
     // ejection charge — 9.43 s, which is AFTER its 8.70 s apogee — so the first version of this table,

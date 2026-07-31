@@ -50,6 +50,14 @@ export interface ResolvedMotor {
   /** Time (s) the motor's stage separates and drops away, taking the spent casing with it.
    *  `Infinity` (the default) for the final stage, which flies to apogee. */
   detachTime?: number;
+  /** Which stage this motor rides on, indexed the way `Rocket.stages` is.
+   *
+   *  Carried so a burnout can be attributed to the stage that produced it. It is NOT `detachTime`
+   *  regrouped: `lib/sim/setup.ts` collapses every stage leaving at one joint onto a single detach
+   *  time, so two stages that part together are indistinguishable by it — and one corpus design does
+   *  exactly that. Optional because the unit fixtures build this literal by hand for single-stage
+   *  flights, where the whole rocket is stage 0 and that is the correct answer. */
+  stageIndex?: number;
 }
 
 /** One segment of a staged flight: which stages are still attached, and from when. Serial
@@ -139,6 +147,14 @@ export interface FlightEvent {
   altitude: number;
   velocity: number;
   label?: string;
+  /** Which stage the event belongs to, indexed the way `Rocket.stages` is. Set on `burnout`, where
+   *  one is now emitted per stage that burns.
+   *
+   *  An INDEX rather than a name, deliberately. The phase table already owns a naming rule — it
+   *  numbers only the ambiguous ones, as `Booster stage (stage 2)`, because a design may reuse a
+   *  stage name — and a second rule written here would render the same stage two ways on two
+   *  surfaces of the same page. The solver labels separations generically for the same reason. */
+  stageIndex?: number;
 }
 
 export interface FlightWarning {
@@ -472,6 +488,7 @@ export function simulate(input: SimulateInput): FlightResult {
   };
 
   const burnout = burnoutTime(motors);
+  const stageBurnoutTimes = stageBurnouts(motors);
   // The first ejection charge to fire (burnout + the design's delay). A device set to deploy
   // "at ejection" opens at this time — which may be before or after apogee, depending on the
   // delay — rather than always at apogee, so a mistimed delay shows as an early or late deploy.
@@ -510,6 +527,7 @@ export function simulate(input: SimulateInput): FlightResult {
   let deployedBeforeApogee = false;
   let landed = false;
   let separationsLogged = 0;
+  let burnoutsLogged = 0;
 
   events.push({ type: "ignition", time: 0, altitude: 0, velocity: 0 });
 
@@ -673,11 +691,33 @@ export function simulate(input: SimulateInput): FlightResult {
       });
     }
 
-    // Burnout (first time thrust hits zero after having thrust).
+    // The SUMMARY burnout — the last motor's, the one "burnout velocity" and the optimum delay are
+    // measured at. Latched separately from the events below, and that separation is the whole
+    // delicacy of emitting per-stage burnouts at all: this guard used to do both jobs at once, so
+    // simply looping it over the stages would have moved the reported burnout to the BOOSTER's.
+    // Measured on `03.Three-stage.ork`: 202.8 m/s at 787.1 m becomes 44.9 m/s at 366.6 m, 77.9% low,
+    // published straight onto the Burnout velocity stat a flyer sizes an ejection delay against.
     if (burnoutV === 0 && thrust <= 0 && state.t >= burnout && burnout > 0 && liftedOff) {
       burnoutV = speed;
       burnoutAlt = state.pos.z;
-      events.push({ type: "burnout", time: state.t, altitude: state.pos.z, velocity: speed });
+    }
+
+    // One burnout EVENT per stage that burns, in time order. Not gated on total thrust reaching
+    // zero, unlike the latch above: when a booster stops pushing the stage above it may already be
+    // lit, so the vehicle's thrust is not zero at the moment the booster burns out.
+    while (
+      burnoutsLogged < stageBurnoutTimes.length &&
+      liftedOff &&
+      state.t >= stageBurnoutTimes[burnoutsLogged].time
+    ) {
+      events.push({
+        type: "burnout",
+        time: stageBurnoutTimes[burnoutsLogged].time,
+        altitude: state.pos.z,
+        velocity: speed,
+        stageIndex: stageBurnoutTimes[burnoutsLogged].stageIndex,
+      });
+      burnoutsLogged++;
     }
 
     // Tangential acceleration this step (finite difference of speed). Computed BEFORE
@@ -1023,6 +1063,33 @@ function burnoutTime(motors: ResolvedMotor[]): number {
     t = Math.max(t, m.ignitionTime + m.curve.burnTime);
   }
   return t;
+}
+
+/** When each stage's LAST motor stops pushing, in time order — one entry per stage that actually
+ *  burns, each carrying the stage it belongs to.
+ *
+ *  Until this existed the flight logged exactly ONE burnout ever, `burnoutTime`'s max over every lit
+ *  motor, so a booster's burnout — the event that causes the separation right after it — was never
+ *  recorded at all. Measured across the corpus: 8 of the 9 multi-stage designs reported exactly 1
+ *  burnout event, including the one that burns three motors.
+ *
+ *  A stage with no motor that ever lights produces NO entry, deliberately. `ignitionTime` is
+ *  `Infinity` for a motor whose trigger never arrives, and a stage that never fires has no burnout to
+ *  report — a surface showing these must say "did not light" rather than leave a cell blank.
+ *
+ *  Grouped by `stageIndex` rather than by `detachTime`, and that is load-bearing: `setup.ts` gives
+ *  every stage leaving at one joint the same detach time, so grouping by it merges two stages that
+ *  burned separately into one burnout. `03.Three-stage.ork` is that design. */
+function stageBurnouts(motors: ResolvedMotor[]): { stageIndex: number; time: number }[] {
+  const last = new Map<number, number>();
+  for (const m of motors) {
+    if (!Number.isFinite(m.ignitionTime)) continue;
+    const i = m.stageIndex ?? 0;
+    last.set(i, Math.max(last.get(i) ?? 0, m.ignitionTime + m.curve.burnTime));
+  }
+  return [...last.entries()]
+    .map(([stageIndex, time]) => ({ stageIndex, time }))
+    .sort((a, b) => a.time - b.time);
 }
 
 /** The earliest ejection-charge time across the motors (burnout + the design's delay), or

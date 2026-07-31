@@ -703,14 +703,53 @@ unreachable inside the `hasPropulsion` guard the table sits under.
 present one row per SIMULATION, and OpenRocket's selectable flight-event list does not include separation
 at all.
 
-**The gap, which is increment 3 rather than a reason to re-open this.**
+**Increment 3 shipped 2026-07-31 — a burnout per stage, and the column that shows it**, pinned by
+`lib/corpus/sweep.test.ts`'s *logs a burnout for every stage that burns, without moving the burnout it
+reports* (9 multi-stage designs, 14 burnout events, and the **5 designs that now log more than one named
+exactly** rather than counted) and by the e2e *each phase names the burnout that happened inside it, and
+only that one*. Both proved able to fail by negative controls with their build exits checked.
 
-- **Per-stage burn intervals are not in the result.** Only ONE burnout event is emitted per flight ever —
-  the last motor's — so a "burnout" column would be blank on every row but one. Measured: 8 of the 9
-  multi-stage corpus designs report exactly 1 burnout event, including the 3-stage design that burns
-  three motors; the ninth (`rocksimTestRocket2.rkt`) reports 0, because no motor resolves and it never
-  flies at all.
-  Emitting one per `detachTime` group is a solver change and belongs in its own increment.
+**The dangerous half was never the new events; it was the summary.** The emission and the
+`burnoutVelocity` / `burnoutAltitude` latch were ONE guard, so looping it over the stages moves the
+reported burnout to the booster's. Measured on `03.Three-stage.ork`: **202.8 m/s at 787.4 m becomes
+44.9 m/s at 366.6 m, 77.9% low** — published straight onto the *Burnout velocity* stat a flyer sizes an
+ejection delay against. The latch is now separate and the corpus test asserts the sustainer's figure
+directly; a negative control that re-merges them fails it at exactly 44.86 m/s. A `some(type ===
+"burnout")` assertion stays green through that regression, which is why it is asserted as a range and
+not a presence.
+
+**Grouped by `stageIndex`, never by `detachTime`.** `lib/sim/setup.ts` gives every stage leaving at one
+joint the same detach time, so grouping by it merges two stages that burned separately —
+`03.Three-stage.ork` is that design. `ResolvedMotor` carries `stageIndex` now; it is optional because
+the unit fixtures build that literal by hand for single-stage flights, where stage 0 is the right answer.
+
+**The event carries an INDEX, not a name.** The phase table already owns a naming rule — it numbers only
+ambiguous stages, as `Booster stage (stage 2)` — and a second rule in the solver would render one stage
+two ways on one page. The solver labels separations generically for the same reason.
+
+**The phase window is closed at its end and open at its start.** A burnout and the separation it causes
+are the same instant on the default staging rule, so a window closed at both ends puts the booster's
+burnout in the row it ends AND the row it begins. Walked in the built export before the fix: the starter
+with a booster printed row 2 as *1.3 s Booster · 2.6 s Sustainer*. After: row 1 reads 1.3 s, row 2 reads
+2.6 s — which is R5's own *done when* example.
+
+**Where it is a genuinely new number.** On the default rule a stage's burnout EQUALS its separation, so
+the column restates the *To* column; on the `ejection` rule it does not, and that gap is what no surface
+named — `Complex.Two-Stage.CDX1` burns out at 2.40 s and parts at 4.40 s, `ARC payload rocket.ork` 1.43
+against 10.43.
+
+**The gap that remains, which is increment 4 rather than a reason to re-open this.**
+
+- **RESOLVED by increment 3 — per-stage burn intervals were not in the result.** The entry read: only
+  ONE burnout event is emitted per flight ever, the last motor's, so a "burnout" column would be blank
+  on every row but one — 8 of the 9 multi-stage corpus designs reported exactly 1, including the 3-stage
+  design that burns three motors, and the ninth (`rocksimTestRocket2.rkt`) reported 0 because no motor
+  resolves and it never flies. It now emits one per stage that burns: **14 events across the 9
+  multi-stage designs, 5 of them logging more than one.** The `rocksimTestRocket2.rkt` case is unchanged
+  and correct — a stage that never lights has no burnout to report, and the column says *no motor
+  burned* rather than leaving a cell blank.
+  *(Its own suggestion — group by `detachTime` — would have been wrong: that value is shared by every
+  stage leaving at one joint, so it merges two stages that burned separately.)*
 - **A separation event names no stage.** `simulate.ts` labels every one `"Stage separation"`, so the table
   derives its names from the phase slice rather than from the event. Filed in `BACKLOG.md`.
 - **The table is a sixth bespoke `<table>`.** `DataTable` still does not exist; this one copies

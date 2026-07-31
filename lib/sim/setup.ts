@@ -247,6 +247,7 @@ export function buildRocketDynamics(rocket: Rocket, config: MotorConfiguration):
       designation: p.designation,
       cg: p.cg,
       ignitionTime,
+      stageIndex: p.stageIndex,
       detachTime: detachT[p.stageIndex],
       ejectionTime: Number.isFinite(p.ejectionDelay)
         ? ignitionTime + p.curve.burnTime + p.ejectionDelay

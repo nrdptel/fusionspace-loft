@@ -655,6 +655,76 @@ suite("real-design corpus", () => {
     // Flies every multi-stage design; same explicit budget, same reason as above.
   }, 300_000);
 
+  it("logs a burnout for every stage that burns, without moving the burnout it reports", async () => {
+    // R5 increment 3. A flight used to log exactly ONE burnout ever — `burnoutTime`'s max over every
+    // lit motor — so a booster's burnout, the event that CAUSES the separation right after it, was
+    // never recorded. 8 of the 9 multi-stage designs reported 1, including the one that burns three.
+    //
+    // The dangerous half of this change is NOT the new events; it is the summary. The emission and
+    // the `burnoutVelocity` / `burnoutAltitude` latch were one guard, so looping it over the stages
+    // moves the reported burnout to the BOOSTER's — on `03.Three-stage.ork`, 202.8 m/s at 787.4 m
+    // becomes 44.9 m/s at 366.6 m, 77.9% low, published onto the Burnout velocity stat a flyer sizes
+    // an ejection delay against. Both halves are asserted here, and the summary half is the one worth
+    // having: a `some(type === "burnout")` check stays green through exactly that regression.
+    const multi: string[] = [];
+    const gained: string[] = [];
+    let totalBurnouts = 0;
+    let summary: { v: number; alt: number } | undefined;
+
+    for (const f of files) {
+      const doc = await importDesign(new Uint8Array(readFileSync(f.path)));
+      if (doc.rocket.stages.length < 2) continue;
+      const name = shortName(f.name);
+      multi.push(name);
+      const run = runFromDocument(doc, {});
+      const bos = run.result.events.filter((e) => e.type === "burnout");
+      totalBurnouts += bos.length;
+      if (bos.length > 1) gained.push(name);
+
+      // Ordered in time, and each attributed to a stage — the table matches them into its rows.
+      for (let k = 1; k < bos.length; k++) {
+        expect(bos[k].time, `${name}: burnouts out of time order`).toBeGreaterThanOrEqual(bos[k - 1].time);
+      }
+      for (const b of bos) {
+        expect(b.stageIndex, `${name}: a burnout names no stage, so no row can claim it`).toBeDefined();
+        expect(b.stageIndex!).toBeLessThan(doc.rocket.stages.length);
+      }
+      // No stage may report two burnouts: one per stage is the whole contract.
+      const perStage = bos.map((b) => b.stageIndex);
+      expect(new Set(perStage).size, `${name}: two burnouts for one stage`).toBe(perStage.length);
+
+      if (name === "03.Three-stage.ork") {
+        summary = { v: run.result.summary.burnoutVelocity, alt: run.result.summary.burnoutAltitude };
+      }
+    }
+
+    console.log(
+      `burnouts across ${files.length} design files: ${multi.length} multi-stage, ${totalBurnouts} burnout ` +
+        `events, ${gained.length} designs logging more than one`,
+    );
+
+    // Named exactly, not counted. `toEqual([])` or a bare count would accept the emission going blind
+    // again, which is the failure this repo has already had once on a sweep of this shape.
+    expect(gained.sort()).toEqual(
+      [
+        "02.Two-stage.ork",
+        "03.Three-stage.ork",
+        "Complex.Two-Stage.CDX1",
+        "Three stage low power rocket.ork",
+        "Two stage high power rocket.ork",
+      ].sort(),
+    );
+    expect(multi.length, "no multi-stage design was read — this suite proves nothing").toBe(9);
+
+    // THE REGRESSION GUARD. This is the sustainer's burnout, and it must not become the booster's.
+    expect(summary, "03.Three-stage.ork was not read").toBeDefined();
+    expect(summary!.v).toBeGreaterThan(200);
+    expect(summary!.v).toBeLessThan(205);
+    expect(summary!.alt).toBeGreaterThan(780);
+    expect(summary!.alt).toBeLessThan(795);
+    // Flies every multi-stage design; same explicit budget, same reason as the sweeps above.
+  }, 300_000);
+
   it("offers a drag only drops that land exactly where the indicator promised", async () => {
     // R4's drag reads `moveSlots` for every place a part can go, draws an indicator at each, and
     // commits the one the pointer was nearest. A slot is therefore a PROMISE about where the part will
