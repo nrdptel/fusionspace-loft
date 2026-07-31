@@ -24,6 +24,23 @@ const CARD_TONES = {
   warn: "border-amber-500/30 bg-amber-500/10 text-amber-900 dark:text-amber-200",
   /** A refusal, or a value that could not be computed. */
   danger: "border-red-500/30 bg-red-500/10 text-red-800 dark:text-red-200",
+  /** An inset within a surface — a readout block, a footnote strip, a group of controls set into a
+   *  panel. `DESIGN.md` §2's third surface level, which had no primitive until this existed and was
+   *  therefore written inline ten times, in three paddings, across five files.
+   *
+   *  The dark value is §2's `zinc-900/50`, NOT the `/60` every one of those ten inline copies had
+   *  drifted to. Converging on the spec is the point of the primitive; enshrining the drift in the
+   *  token that makes the level canonical would have been the opposite.
+   *
+   *  It keeps the hairline deliberately, and that is the part still owed. §2 says a sunken surface
+   *  INSIDE a raised one needs no border, because the tone change is the separation — and in dark mode
+   *  it genuinely has none to offer there: over a raised card this composites to the card's own colour,
+   *  so the inset is carried entirely by the hairline. Measured on the built export: 1 of the 2 sunken
+   *  cards rendered on the Design tab and 1 of the 2 on Analyze have a card ancestor. Dropping the
+   *  border is a per-site judgement about each parent, and doing it in the same pass as the conversion
+   *  would make this a repaint rather than an extraction. Recorded in `ROADMAP.md` under *Decisions
+   *  taken without the owner*, with the probe that redoes the count. */
+  sunken: "border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900/50",
   /** Sunken and dashed: a slot with nothing in it yet. The empty state's container. */
   muted:
     "border-dashed border-zinc-300 bg-zinc-50 text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900/50 dark:text-zinc-400",

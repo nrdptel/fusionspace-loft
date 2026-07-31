@@ -754,9 +754,9 @@ cannot return while the conversion is still running.
 
 **Measured at the start of this milestone (2026-07-31), and after each increment:**
 
-| §9 count | target | before | inc. 1 | inc. 2 | inc. 3 | inc. 4 | inc. 5 | inc. 6 |
-|---|---|---|---|---|---|---|---|---|
-| `rounded-lg` | 0 | 49 | 46 | 37 | 37 | **35** | 35 | **25** (inc. 6) |
+| §9 count | target | before | inc. 1 | inc. 2 | inc. 3 | inc. 4 | inc. 5 | inc. 6 | inc. 7 |
+|---|---|---|---|---|---|---|---|---|---|
+| `rounded-lg` | 0 | 49 | 46 | 37 | 37 | **35** | 35 | **25** (inc. 6) | **15** (inc. 7) |
 | distinct card treatments | 3 (see below) | 9 | 3 | 3 | 3 | 3 | 3 |
 | off-scale spacing values | 0 | 8 | 8 | 8 | 8 | 8 | **0** (inc. 5) |
 | components importing `components/ui.tsx` | most of 23 | 5 | 11 | 12 | 12 | **14** | 14 |
@@ -925,9 +925,24 @@ sites, every one of which is a container, and the converted controls are hidden 
 rule must change in the same commit as the LAST container, which is what makes the semantic-notice slice
 the one that has to go last.
 
-**What is left of P1**, measured after increment 6: 25 `rounded-lg` — 12 zinc-50 sunken blocks (blocked on
-one decision: does `CARD_TONES` gain a `sunken` tone?), 8 semantic notices, a `<label>` styled as a card,
-and the print rule — and `DataTable`. Two findings the type pass turned up are filed in `BACKLOG.md` rather than folded in —
+**Increment 7 took it to 15 by giving the third surface level a primitive.** `DESIGN.md` §2 names three
+surface levels and only two had one, so the sunken inset was written inline **ten times, in three different
+paddings, across five files** — `rounded-lg border border-zinc-200 bg-zinc-50 … dark:bg-zinc-900/60` with
+`p-3`, `px-3 py-2` or `px-4 py-3`. That is one treatment written ten ways, which is the exact failure this
+milestone exists to fix. `CARD_TONES.sunken` now carries it and all ten sites are `<Card tone="sunken">`,
+which also puts them on §4's `p-4` and §2's container radius. Walked in the built export: the cards render
+on both the Design and Analyze tabs, **0 stale `rounded-lg` + `bg-zinc-50` remain**, and there is no
+horizontal scroll at 390 px or 320 px.
+
+The tone keeps its hairline deliberately. §2 says a sunken surface inside a raised one needs no border
+because the tone change is the separation — but all ten drew one and several sit directly on the page, so
+dropping it is a per-site judgement about each parent. Doing that in the same pass would have made this a
+repaint rather than an extraction; it is recorded in *Decisions taken without the owner*.
+
+**What is left of P1**, measured after increment 7: 15 `rounded-lg` — the 8 semantic notices (which want
+`tone="warn"` / `tone="danger"`), a `<label>` styled as a card (needs `Card`'s `as` widened), a couple of
+one-offs, and `app/globals.css`'s print rule keyed on `.rounded-lg`, which must change in the same commit
+as the LAST container or print loses its white backgrounds — and `DataTable`. Two findings the type pass turned up are filed in `BACKLOG.md` rather than folded in —
 `text-[11px]` has become a seventh size in exactly the way `text-lg` did (32 uses, 25 of them an
 uppercase label row), and a motor-resolution chip states a verdict at chip size. A third is a hazard
 for whoever takes the `rounded-lg` slice: `app/globals.css` carries a print rule keyed on that class,
@@ -1095,9 +1110,17 @@ cheaply instead of re-derived. Newest first.
 
   **One thing to settle per site rather than globally, and it is why this was not folded into increment
   6:** §2 also says a sunken surface INSIDE a raised one needs no border, because the tone change is the
-  separation — while all twelve currently draw one. Define the tone WITH the hairline so the conversion is
+  separation — while all ten currently draw one. Define the tone WITH the hairline so the conversion is
   visually identical, then drop the border only at the sites whose parent is confirmed raised. Converting
   and re-bordering in one pass is what would make it a repaint rather than an extraction.
+
+  **Measured after increment 7 shipped, so the follow-up has a number rather than a guess:** driving the
+  built export, **1 of the 2 sunken cards rendered on the Design tab, and 1 of the 2 on the Analyze tab,
+  has a card ancestor** — those are the sites §2 says should lose the hairline. The rest sit directly on
+  the page and keep it. This is a PRE-EXISTING divergence, not one increment 7 introduced: the inline
+  `<div>`s drew the same border in the same places. The remaining work is a `Card` prop (or a `bare`
+  variant of the tone) plus that per-site pass, and the probe to redo the count is a DOM walk for an
+  element with `rounded-xl` + `bg-zinc-50` that has a `rounded-xl border` ancestor.
 - **2026-07-31 — an authored stage is addressed by its SEED TUBE's id, not by a new `Stage.id` and not
   by an index.** `Stage` has no id in the model and imported stages have never needed one. Rejected
   adding the field: it touches `lib/ork/import.ts`, `lib/rkt/adapt.ts`, `lib/rasaero/adapt.ts` and

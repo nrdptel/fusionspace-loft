@@ -237,7 +237,7 @@ export default function RocketpyCrossCheck({
           of its time downloading and installing, not flying, so "stopped while flying" would usually
           be describing the wrong thing. */}
       {state.phase === "stopped" && (
-        <div className="mt-3 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900/60 dark:text-zinc-300">
+        <Card tone="sunken" className="mt-3 text-sm text-zinc-600 dark:text-zinc-300">
           <p>
             Stopped at &ldquo;{state.stage}&rdquo;. RocketPy reports a finished flight or nothing, so
             that run produced no figures{showing ? " — the comparison below is the earlier run" : ""}.
@@ -246,7 +246,7 @@ export default function RocketpyCrossCheck({
             Stopping ends the Python runtime, which is what makes it a real stop rather than a
             cancelled wait. Running again starts it from scratch, so it costs what the first run did.
           </p>
-        </div>
+        </Card>
       )}
 
       {/* A failed run must leave a way back. RocketPy is CPython under WASM flying a design a flyer

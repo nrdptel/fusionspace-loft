@@ -63,7 +63,7 @@ function countMatches(files: { path: string; text: string }[], re: RegExp): { to
  *  commit as the conversion that earns it, and never raise one. */
 const BUDGET = {
   /** `rounded-lg` is not in the system at all — containers are `xl`, controls are `md`. Target 0. */
-  roundedLg: 25,
+  roundedLg: 15,
   /** Distinct card treatments. One of these is now `<Card>`'s own string, which is the target state;
    *  the other two are a floating toast (`shadow-lg`) and the import drop zone (`border-2 border-dashed`,
    *  an interactive target rather than a container). Both want their own named primitive rather than
