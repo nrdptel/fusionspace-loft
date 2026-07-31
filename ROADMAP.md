@@ -1105,7 +1105,16 @@ default. Both controls fire and name the offending token.
 moved past it, which §9 forbids drifting — but that file is shared verbatim with the sibling app and
 `add_repo` was refused again this run. The counts agree today (both read 0); the WORDING does not.
 
-**What is left of P1**, measured after increment 10: the **three remaining tables** (`MassBreakdown`,
+**Increment 11 gave the docs section nav real touch targets**, found by a phone cold walk of the built
+export rather than by any test — every hit-target check in the suite loads a DESIGN first, so the docs
+routes had never been measured. All five links rendered **30 px** on all six routes against §8's 44.
+They are `next/link`s that must look like buttons and cannot be them, so they take `buttonClass`, which
+is what the site header already does and which carries the touch minimum with it. `buttonClass`
+adoption 1 → 2. Pinned by an e2e over all five routes with a count control, proved able to fail by a
+control that overrides the minimum — and the FIRST version of that control did not compile, so the
+suite silently re-tested the previous good export. The build exit is part of the control.
+
+**What is left of P1**, measured after increment 11: the **three remaining tables** (`MassBreakdown`,
 `MotorSweep`, `GeometryInspector` — each already carries part of the affordance set, which is the
 inconsistency the primitive exists to end) and the **24 hand-rolled `<button>` elements**. A seventh
 table at `app/docs/validation/page.tsx:259` sits in a SERVER route where a `"use client"` primitive

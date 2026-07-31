@@ -24,7 +24,7 @@ with both repos attached fixes it in one commit each.
 | track | state |
 |---|---|
 | **R — capability** | **R5 — author a staged rocket — IN PROGRESS**, increments 1–3 shipped. **One clause of its *done when* is left**: "give it its own motor mount and fins" is still INHERITED from the seed rather than authored. That is increment 4 and it is the last thing between R5 and SHIPPED. |
-| **P — product & craft** | **P1 — one design system, adopted — IN PROGRESS**, increments 1–9 shipped. `DataTable` now exists and carries the three tables that offered nothing. What is left: the other **three** tables and the **24** hand-rolled `<button>` elements. |
+| **P — product & craft** | **P1 — one design system, adopted — IN PROGRESS**, increments 1–11 shipped. Every §9 count is AT TARGET. What is left of the *done when* is the per-primitive adoption clause: the **three** remaining hand-rolled tables and the **~22** hand-rolled `<button>` elements. |
 
 ## The arc so far
 
@@ -35,7 +35,7 @@ with both repos attached fixes it in one commit each.
 | R3 — add a component | SHIPPED 2026-07-30 |
 | R4 — reorder and restack | SHIPPED 2026-07-31 |
 | R5 — author a staged rocket | **IN PROGRESS** — inc. 1 (the stage), 2 (the phase table) and 3 (a burnout per stage) shipped; one *done when* clause left |
-| P1 — one design system, adopted | **IN PROGRESS** — increments 1–9 shipped; `DataTable` exists, three tables and 24 buttons left |
+| P1 — one design system, adopted | **IN PROGRESS** — increments 1–11 shipped; every §9 count at target; three tables and ~22 buttons left |
 | P2–P5 | NOT STARTED |
 
 ## Shipped this session (2026-07-31, fourth session of the day)
@@ -47,7 +47,9 @@ one), **922 unit**, build, **182 e2e**, corpus **35 design files, 11/11**. Nothi
 |---|---|---|
 | **#88** | P1 increment 8 (off-system radius 15 → **0**, print rule retired with it), the print-legibility fix (**193 of 369** text nodes under 3:1 on a dark-theme sheet), the review fixes on that conversion, and the ledger corrections | **MERGED**, `f52dd0f` |
 | **#89** | R5 increment 3 — a burnout per stage and the phase table's Burnout column | **MERGED**, `88b689b` |
-| **#90** | P1 increment 9 — `DataTable`, and the three tables that offered nothing put on it | **OPEN** — merge on green |
+| **#90** | P1 increment 9 — `DataTable`, and the three tables that offered nothing put on it | **MERGED**, `36858b9` |
+| **#91** | P1 increment 10 — the type scale to six sizes, and the §9 check that could not see three of them | **MERGED**, `7fded0b` |
+| **#92** | P1 increment 11 — the docs section nav as real touch targets, found by a phone cold walk | **OPEN** — merge on green |
 
 **Also merged at session start: #87**, the previous run's two BLOCKERs (`357075e`). It was green on that
 day's `main` and its diff read correctly. Its `bakeMotorSwap` writes the swap into every instance of
@@ -179,6 +181,19 @@ the units-toggle selectors needed `exact: true` as well.
 **`git rebase --onto <base> <old> HEAD` leaves a detached HEAD.** Reattach with
 `git checkout -B <branch> <sha>`, then `git push --force-with-lease`. Used twice this session with no
 loss, both times after a pull request merged and the branch had to restart from the new `main`.
+
+**The phone cold walk finally ran, and it is worth running again.** The opening fan-out is supposed to
+include one and this repo had not had one; every hit-target test in the suite loads a DESIGN first, so
+**the docs routes had never been measured at all**. All five section links rendered **30 px** on all six
+routes — the largest single group of under-target controls anywhere in the walk. Two things it also
+measured, filed rather than fixed:
+
+- **`/docs/limitations` is 30.3 screens deep on a phone**, `/docs/methods` 28.8, `/docs/faq` 19.5. §8
+  says a phone journey is at most two screens to its answer. These are articles rather than journeys,
+  so the rule is arguable — but nothing on those pages helps a flyer get to a specific answer.
+- **Inline prose links measure 18 px** (`ThrustCurve.org`, `OpenRocket`). Those carry the WCAG
+  "inline in a block of text" exemption and are correctly left alone; the new test draws its line by
+  STRUCTURE (a link inside the section `<nav>`), which is the same line the footer test already draws.
 
 ## Pick up first
 

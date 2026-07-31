@@ -117,7 +117,7 @@ const PRIMITIVE_ADOPTERS: Record<string, number> = {
    *  `"use client"` module; the regex below reads both modules for that reason. Counted separately
    *  because a rising number here is not the same win as a rising `Button`: it means a navigation
    *  control stopped hand-copying the geometry, not that a `<button>` was converted. */
-  buttonClass: 1,
+  buttonClass: 2,
   /** `DESIGN.md` §5's table primitive — "every table is this one".
    *
    *  It lives in `components/DataTable.tsx` rather than in `components/ui.tsx`, and that is a
