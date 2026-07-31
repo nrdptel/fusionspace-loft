@@ -654,10 +654,10 @@ function Histogram({
           );
         })()}
       {/* axis min / max labels */}
-      <text x={padL} y={H - 6} className="fill-zinc-500 text-[10px]" style={{ fontSize: 10 }}>
+      <text x={padL} y={H - 6} className="fill-zinc-500 text-[11px]" style={{ fontSize: 11 }}>
         {Math.round(lo).toLocaleString()} {unit}
       </text>
-      <text x={W - padR} y={H - 6} textAnchor="end" className="fill-zinc-500 text-[10px]" style={{ fontSize: 10 }}>
+      <text x={W - padR} y={H - 6} textAnchor="end" className="fill-zinc-500 text-[11px]" style={{ fontSize: 11 }}>
         {Math.round(hi).toLocaleString()} {unit}
       </text>
     </svg>
@@ -698,7 +698,7 @@ function Scatter({
         {/* pad */}
         <circle cx={c} cy={c} r={2} className="fill-zinc-700 dark:fill-zinc-200" />
       </svg>
-      <div className="mt-1 text-[10px] text-zinc-500 dark:text-zinc-400">
+      <div className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
         circle = 95% within {d.fmt(toNumber(radiusP95), 0)} {unit}
       </div>
     </div>

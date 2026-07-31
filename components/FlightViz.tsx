@@ -82,7 +82,7 @@ export default function FlightViz({ result, units }: { result: FlightResult; uni
 
         {/* pad marker */}
         <circle cx={px(0)} cy={py(0)} r={3} className="fill-zinc-400 dark:fill-zinc-500" />
-        <text x={px(0)} y={py(0) + 14} textAnchor="middle" className="fill-zinc-500 text-[9px]">pad</text>
+        <text x={px(0)} y={py(0) + 14} textAnchor="middle" className="fill-zinc-500 text-[11px]">pad</text>
 
         {segments.map((s, i) => (
           <path key={`seg${uid}${i}`} d={s.d} fill="none" stroke={s.color} strokeWidth={2.2} strokeLinejoin="round" strokeLinecap="round" />
@@ -93,16 +93,16 @@ export default function FlightViz({ result, units }: { result: FlightResult; uni
         {placeLabels(eventDots.map((d) => ({ ...d, text: label(d.e.type, d.e.label) }))).map((d, i) => (
           <g key={`e${uid}${i}`}>
             <circle cx={d.x} cy={d.y} r={3} className="fill-white stroke-zinc-700 dark:fill-zinc-900 dark:stroke-zinc-200" strokeWidth={1.5} />
-            <text x={d.x} y={d.labelY} textAnchor="middle" className="fill-zinc-600 text-[9px] dark:fill-zinc-300">
+            <text x={d.x} y={d.labelY} textAnchor="middle" className="fill-zinc-600 text-[11px] dark:fill-zinc-300">
               {d.text}
             </text>
           </g>
         ))}
 
-        <text x={(W + padL) / 2} y={H - 2} textAnchor="middle" className="fill-zinc-500 text-[10px]">
+        <text x={(W + padL) / 2} y={H - 2} textAnchor="middle" className="fill-zinc-500 text-[11px]">
           down-range ({unit}) — apogee not to scale with range
         </text>
-        <text x={12} y={(H - padB + padT) / 2} textAnchor="middle" transform={`rotate(-90 12 ${(H - padB + padT) / 2})`} className="fill-zinc-500 text-[10px]">
+        <text x={12} y={(H - padB + padT) / 2} textAnchor="middle" transform={`rotate(-90 12 ${(H - padB + padT) / 2})`} className="fill-zinc-500 text-[11px]">
           altitude ({unit})
         </text>
       </svg>

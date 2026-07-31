@@ -41,7 +41,7 @@ function Flag({ note }: { note: string }) {
   // containing block back inside the scroller.
   return (
     <span className="relative">
-      <span aria-hidden className="ml-1 font-sans text-[10px] font-semibold">
+      <span aria-hidden className="ml-1 font-sans text-xs font-semibold">
         &#9650;
       </span>
       <span className="sr-only"> — {note}</span>
@@ -392,7 +392,7 @@ function SweepTable({
                     <span className="font-medium text-zinc-800 dark:text-zinc-100">{r.designation}</span>{" "}
                     <span className="text-zinc-500 dark:text-zinc-400">· {r.manufacturer}</span>
                     {r.isDesign && (
-                      <span className="ml-1.5 rounded bg-indigo-600 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-white">
+                      <span className="ml-1.5 rounded bg-indigo-600 px-1.5 py-0.5 text-xs font-medium uppercase tracking-wide text-white">
                         Design
                       </span>
                     )}
@@ -452,7 +452,7 @@ function SweepTable({
           ballistic; what it never did was connect that to the specific number the flyer had just read.
           Shown only when the two actually part company, so it stays a signal rather than boilerplate. */}
       {gap && (
-        <p className="mt-2 rounded-md bg-amber-500/10 px-3 py-2 text-xs text-amber-900 dark:text-amber-200">
+        <p className="mt-2 rounded-md bg-amber-500/10 px-3 py-2 text-sm text-amber-900 dark:text-amber-200">
           The <strong>Design</strong> row flies ballistic like every other row here:{" "}
           {d.q(d.altitude(gap.sweep, units))} against the{" "}
           {d.q(d.altitude(gap.flown, units))}{" "}

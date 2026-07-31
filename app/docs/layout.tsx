@@ -8,7 +8,7 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
       <SiteHeader compact />
       <div className="mt-8">
         <div className="flex flex-wrap items-baseline justify-between gap-3">
-          <h1 className="text-2xl font-semibold tracking-tight">Documentation</h1>
+          <h1 className="text-3xl font-semibold tracking-tight">Documentation</h1>
         </div>
         <p className="mt-1 max-w-2xl text-sm text-zinc-500 dark:text-zinc-400">
           How Loft computes what it shows, where the model is weak, and how its accuracy is

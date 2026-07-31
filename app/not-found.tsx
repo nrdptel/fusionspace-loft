@@ -21,7 +21,7 @@ export default function NotFound() {
         className="h-10 w-auto opacity-80"
       />
       <p className="mt-6 font-mono text-sm text-indigo-600 dark:text-indigo-400">404</p>
-      <h1 className="mt-2 text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
+      <h1 className="mt-2 text-3xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
         Page not found
       </h1>
       <p className="mt-3 text-sm leading-relaxed text-zinc-500 dark:text-zinc-400">

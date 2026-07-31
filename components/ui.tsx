@@ -269,7 +269,7 @@ export function Tabs({
 export function Chip({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-md border border-zinc-200 bg-zinc-50 px-2.5 py-1 dark:border-zinc-800 dark:bg-zinc-900">
-      <div className="text-[10px] uppercase tracking-wide text-zinc-500 dark:text-zinc-500">
+      <div className="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-500">
         {label}
       </div>
       <div className="font-mono text-xs tabular-nums text-zinc-700 dark:text-zinc-300">

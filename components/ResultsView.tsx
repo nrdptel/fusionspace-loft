@@ -1321,12 +1321,12 @@ function Field({
           <abbr
             title={hintWhy}
             aria-label={hintWhy ? `${hint} — ${hintWhy}` : hint}
-            className="ml-1 text-[10px] uppercase text-amber-700 no-underline dark:text-amber-400"
+            className="ml-1 text-xs uppercase text-amber-700 no-underline dark:text-amber-400"
           >
             {hint}
           </abbr>
         )}
-        {sub && <div className="text-[10px] tabular-nums text-zinc-500 dark:text-zinc-400">{sub}</div>}
+        {sub && <div className="text-xs tabular-nums text-zinc-500 dark:text-zinc-400">{sub}</div>}
       </dd>
     </div>
   );
@@ -1336,7 +1336,7 @@ function Stat({ label, q, sub, accent }: { label: string; q: d.Quantity; sub?: s
   return (
     <Card>
       <div className="text-[11px] uppercase tracking-wide text-zinc-500 dark:text-zinc-400">{label}</div>
-      <div className={"mt-1 font-mono tabular-nums " + (accent ? "text-2xl text-indigo-600 dark:text-indigo-400" : "text-xl text-zinc-900 dark:text-zinc-100")}>
+      <div className={"mt-1 font-mono tabular-nums " + (accent ? "text-xl font-semibold text-indigo-600 dark:text-indigo-400" : "text-xl text-zinc-900 dark:text-zinc-100")}>
         {q.value}
         <span className="ml-1 text-xs font-normal text-zinc-500 dark:text-zinc-400">{q.unit}</span>
       </div>
