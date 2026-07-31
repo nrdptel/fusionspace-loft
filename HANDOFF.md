@@ -50,11 +50,19 @@ one), **922 unit**, build, **182 e2e**, corpus **35 design files, 11/11**. Nothi
 | **#90** | P1 increment 9 — `DataTable`, and the three tables that offered nothing put on it | **MERGED**, `36858b9` |
 | **#91** | P1 increment 10 — the type scale to six sizes, and the §9 check that could not see three of them | **MERGED**, `7fded0b` |
 | **#92** | P1 increment 11 — the docs section nav as real touch targets, found by a phone cold walk | **MERGED**, `e125243` |
-| **#93** | P1 increments 12–13 — `MassBreakdown` onto `DataTable` (which needed a footer), the update toast's two controls onto `Button`, and this handoff | **MERGED**, `5d8848f` |
+| **#93** | P1 increments 12–13 — `MassBreakdown` onto `DataTable` (which needed a footer), the update toast's two controls onto `Button`, and the done-check | **MERGED**, `5d8848f` |
+| **#94** | This ledger, corrected — it had said #93 was open, and quoted the button count three ways | **MERGED**, `1aef65b` |
+| **#95** | P1 increment 14 — `Disclosure` adopted, and given the `className` and touch target that were stopping anyone adopting it | **MERGED**, `f339119` |
 
-**Everything this session shipped is MERGED and serving.** Seven pull requests, no branch work left
-behind, and `git rev-list --count origin/main..HEAD` is 0 at the end of the run — so nothing here is
-"shipped" in the sense the invariant warns about. The working branch is level with `main`.
+**Everything this session shipped is MERGED and serving. Nine pull requests (#87–#95), zero open at the
+end of the run, and `git rev-list --count origin/main..HEAD` is 0** — so nothing here is "shipped" in
+the sense the invariant warns about, and no work is sitting on a branch nobody can reach.
+
+*Re-derive rather than trust this table:* `git log --oneline origin/main -12` and
+`mcp list_pull_requests state=open`. **This section went stale twice while the run was still going**,
+because a ledger written at increment N is wrong at increment N+1 — which is worth knowing before
+writing the next one. Write the state, then verify it at the end against the repo rather than against
+what you remember writing.
 
 **Also merged at session start: #87**, the previous run's two BLOCKERs (`357075e`). It was green on that
 day's `main` and its diff read correctly. Its `bakeMotorSwap` writes the swap into every instance of
