@@ -110,6 +110,12 @@ Six sizes, each with one job. Geist Sans throughout; Geist Mono for numerals tha
 | `text-xs` | captions, units, footnotes, dense table metadata |
 | `text-[11px]` | axis ticks and diagram annotations only |
 
+**Six means six.** `text-lg` is not on this scale and is the one to watch: it reads as "a bit bigger",
+so it lands between `text-base` and `text-xl` and quietly becomes a seventh size. Measured 2026-07-31,
+it had reached **fourteen** uses — eleven panel headings and three prominent values — which is a
+heading rhythm that is not a rhythm. Taken to zero and now asserted at zero, so it is a guard rather
+than a ratchet.
+
 **`text-sm` is the floor for anything a flyer reads to make a decision.** `text-xs` is for the text
 *around* such a value — its unit, its provenance, its caveat — never the value. Debrief's 212-to-82
 inversion is the bug this rule fixes: a whole app of decision-grade numbers rendered at caption size.
@@ -255,6 +261,9 @@ grep -roh 'rounded-xl border[a-z0-9 /-]*' components | sort -u | wc -l   # targe
 
 # off-scale spacing
 grep -roh '\b[pmg][xytblr]\?-\(5\|7\|9\|10\|11\|14\)\b' components app | wc -l   # target: 0
+
+# a size that is not on the scale at all — text-lg is not one of the six
+grep -roh '\btext-lg\b' components app | wc -l                     # target: 0
 
 # decision-grade text at caption size — count the INVERTED FILES, not the suite total
 for f in components/*.tsx; do xs=$(grep -oh 'text-xs' "$f" | wc -l); \

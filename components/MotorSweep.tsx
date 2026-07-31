@@ -182,7 +182,7 @@ export default function MotorSweep({
   return (
     <Card as="section" aria-label="Motor sweep">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="text-lg font-semibold tracking-tight">Compare fitting motors</h2>
+        <h2 className="text-xl font-medium tracking-tight">Compare fitting motors</h2>
         {/* The list is filtered by the CASING the design flies, not by the mount's bore, and the two
             are not the same number: a 54 mm mount can fly a 38 mm motor in an adapter, and it is the
             38 mm ones that are offered. Saying "fits this mount" claimed the wider set and was

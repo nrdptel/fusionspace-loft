@@ -184,7 +184,7 @@ export default function RocketpyCrossCheck({
   return (
     <Card as="section" aria-label="RocketPy cross-check">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="text-lg font-semibold tracking-tight">Second opinion: RocketPy</h2>
+        <h2 className="text-xl font-medium tracking-tight">Second opinion: RocketPy</h2>
         <span className="text-xs text-zinc-500 dark:text-zinc-400">independent 6-DOF engine, in your browser</span>
       </div>
       <p className="mt-1.5 text-sm text-zinc-600 dark:text-zinc-300">

@@ -75,6 +75,10 @@ const BUDGET = {
   uiAdopters: 12,
   /** Component files where caption size OUTNUMBERS the body default. Target 0. */
   invertedTypeFiles: 9,
+  /** Sizes that are not on `DESIGN.md` §3's six-size scale at all. Target 0, and it is AT 0 — this one
+   *  is a guard rather than a ratchet. `text-lg` sat between `text-base` and `text-xl`, invented once
+   *  and copied fourteen times: eleven panel headings and three prominent values. */
+  offScaleType: 0,
 } as const;
 
 /** How many components import EACH primitive by name.
@@ -188,6 +192,14 @@ describe("DESIGN.md §9 — the design system is binding, and this is what check
       }).length;
     }
     expect(counted, "adoption per primitive (see PRIMITIVE_ADOPTERS)").toEqual(PRIMITIVE_ADOPTERS);
+  });
+
+  it("uses no type size that is off the six-size scale", () => {
+    // `DESIGN.md` §3 names exactly six. `text-lg` is not one of them, and it had reached fourteen uses
+    // — a seventh size sitting between `text-base` and `text-xl`, which is how a heading rhythm stops
+    // being a rhythm. At zero this is a guard, not a ratchet: it should never go up again.
+    const { total, byFile } = countMatches(ui, /\btext-lg\b/g);
+    expect(total, `off-scale type sizes, by file:\n${byFile.join("\n")}`).toBe(BUDGET.offScaleType);
   });
 
   it("keeps the primitives themselves inside the system", () => {
