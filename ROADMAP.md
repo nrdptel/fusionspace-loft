@@ -540,17 +540,17 @@ cannot return while the conversion is still running.
 
 **Measured at the start of this milestone (2026-07-31), and after each increment:**
 
-| §9 count | target | before | inc. 1 | inc. 2 | inc. 3 | inc. 4 |
-|---|---|---|---|---|---|---|
-| `rounded-lg` | 0 | 49 | 46 | 37 | 37 | **35** |
-| distinct card treatments | 3 (see below) | 9 | 3 | 3 | 3 | 3 |
-| off-scale spacing values | 0 | 8 | 8 | 8 | 8 | 8 |
-| components importing `components/ui.tsx` | most of 23 | 5 | 11 | 12 | 12 | **14** |
-| components importing `Button` | most that have one | 0 | 0 | 6 | 7 | **9** (+1 via `buttonClass`) |
-| hand-rolled indigo primaries | 0 | 16 | 16 | **6** | 6 | 6 |
-| surfaces with two primaries | 0 | 2 | 2 | **0** | 0 | 0 |
-| component files where `text-xs` outnumbers `text-sm` | 0 | 9 | 9 | 9 | 9 | **0** |
-| `text-lg`, a size not on the scale at all | 0 | 14 | 14 | 14 | **0** | 0 |
+| §9 count | target | before | inc. 1 | inc. 2 | inc. 3 | inc. 4 | inc. 5 |
+|---|---|---|---|---|---|---|---|
+| `rounded-lg` | 0 | 49 | 46 | 37 | 37 | **35** | 35 |
+| distinct card treatments | 3 (see below) | 9 | 3 | 3 | 3 | 3 | 3 |
+| off-scale spacing values | 0 | 8 | 8 | 8 | 8 | 8 | **0** (inc. 5) |
+| components importing `components/ui.tsx` | most of 23 | 5 | 11 | 12 | 12 | **14** | 14 |
+| components importing `Button` | most that have one | 0 | 0 | 6 | 7 | **9** (+1 via `buttonClass`) | 9 |
+| hand-rolled indigo primaries | 0 | 16 | 16 | **6** | 6 | 6 | 6 |
+| surfaces with two primaries | 0 | 2 | 2 | **0** | 0 | 0 | 0 |
+| component files where `text-xs` outnumbers `text-sm` | 0 | 9 | 9 | 9 | 9 | **0** | 0 |
+| `text-lg`, a size not on the scale at all | 0 | 14 | 14 | 14 | **0** | 0 | 0 |
 
 **The suite-wide `text-sm` vs `text-xs` ratio was retired from §9 in increment 2, and the reason is
 a measurement.** Converting nine hand-rolled buttons onto `Button` moved the totals from 91/88 to
@@ -692,8 +692,15 @@ turned up two things worth more than the fix:
   320, 360 and 390 px. Proved able to fail by a negative control with its build exit checked: it fires
   *"horizontal overflow on / at 320px — Expected <= 320, Received 370"* and passes again on restore.
 
-**What is left of P1**, measured after increment 4: 35 `rounded-lg`, 8 off-scale spacing values, and
-`DataTable`. Two findings the type pass turned up are filed in `BACKLOG.md` rather than folded in —
+**Increment 5 took off-scale spacing to zero**, and measuring it turned up two blind spots in the
+check that are filed rather than papered over: §9's pattern cannot match `gap-5` (the character after
+`g` is not one of `xytblr`, so the `-` never lines up) and cannot match a half-step. Real numbers: one
+`gap-5`, fixed with the rest because it is off the scale whether or not the grep sees it, and **100
+half-steps** — of which 49 are `py-1.5`, which §4 itself prescribes as the padding inside a control
+four lines after stating that the scale has nothing else in it. Resolving that contradiction is a
+sentence in §4, which is a change to a file shared verbatim with the sibling app, so it is filed.
+
+**What is left of P1**, measured after increment 5: 35 `rounded-lg`, and `DataTable`. Two findings the type pass turned up are filed in `BACKLOG.md` rather than folded in —
 `text-[11px]` has become a seventh size in exactly the way `text-lg` did (32 uses, 25 of them an
 uppercase label row), and a motor-resolution chip states a verdict at chip size. A third is a hazard
 for whoever takes the `rounded-lg` slice: `app/globals.css` carries a print rule keyed on that class,

@@ -1500,7 +1500,7 @@ export default function LoftApp() {
           {doc.warnings.length > 0 && (
             <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-300">
               <p className="font-medium">Some parts of this design weren&apos;t fully understood:</p>
-              <ul className="mt-1 list-disc pl-5">
+              <ul className="mt-1 list-disc pl-6">
                 {doc.warnings.slice(0, 6).map((w, i) => (
                   <li key={i}>{w}</li>
                 ))}
@@ -1514,7 +1514,7 @@ export default function LoftApp() {
           {doc.notes.length > 0 && (
             <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900/60 dark:text-zinc-300">
               <p className="font-medium text-zinc-700 dark:text-zinc-200">How Loft read this design:</p>
-              <ul className="mt-1 list-disc pl-5">
+              <ul className="mt-1 list-disc pl-6">
                 {doc.notes.slice(0, 6).map((n, i) => (
                   <li key={i}>{n}</li>
                 ))}

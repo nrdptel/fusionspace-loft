@@ -39,6 +39,31 @@ big for one pass. Newest first.
   rather than decorative), and a corpus sweep confirming **0 of the 35 real designs** would fire it as
   imported. On `/docs/limitations`.
 
+- **The §9 spacing grep has three blind spots, and 118 values sit in them.** Measured 2026-07-31 while
+  taking the count it CAN see to zero. The pattern is `\b[pmg][xytblr]?-(5|7|9|10|11|14)\b`, and it
+  misses:
+  1. **`gap-*` entirely** — after `g` comes `a`, which is not one of `xytblr`, so the `-` never lines
+     up. One real hit (`gap-5` in the footer), fixed with the rest because it is off the scale whether
+     or not the grep sees it.
+  2. **Every half-step.** 98 across `components/` and `app/` (100 counting `lib/`), dominated by
+     `py-1.5` (49), `px-2.5` (17) and `mt-1.5` (11).
+  3. **Every value above 14** — the alternation stops there, so `mt-20` and `md:mt-28` on the footer's
+     own root are invisible to it. Two hits.
+
+  And **20 of the half-steps are `gap`-shaped** (`gap-1.5` ×15, `gap-y-1.5` ×3, `gap-y-0.5` ×2), so
+  they fall into blind spots 1 and 2 at once.
+
+  **The half-steps are not simply a violation, and that is the point.** `DESIGN.md` §4 states the scale
+  as "1 2 3 4 6 8 12. Nothing else — no 5, 7, 9, 10, no arbitrary values" and then, four lines later,
+  prescribes the padding inside a control as three horizontal and one-and-a-half vertical. So half of
+  them are the file's own instruction and the other half — `px-2.5` above all — are not. Resolving it
+  means a sentence in §4 saying whether half-steps are on the scale and where, which is a change to a
+  file **shared verbatim with the sibling app**, so it is filed rather than taken: §9's grep and its
+  executable copy may not drift from each other, and neither may the two copies of the file.
+
+  *(This entry deliberately does not quote the control-padding classes as literals. The first draft did,
+  and the note about the blind spot became a 101st instance of it.)*
+
 - **The "Loft" wordmark link is 43x32 px on every phone width, and always has been.** Measured
   2026-07-31 on the built export at 320, 360 and 390 px: the header's three action controls all clear
   44 px, and the wordmark link beside them — which is the way home from every docs page — is 32 px

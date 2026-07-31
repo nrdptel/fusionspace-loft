@@ -146,7 +146,7 @@ export default function ImportPanel({
           <code className="font-mono">.rkt</code>{" "}or RASAero <code className="font-mono">.CDX1</code>{" "}
           file here, or choose one. Everything runs in your browser — your design is never uploaded.
         </p>
-        <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
+        <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
           <Button variant="primary" disabled={busy} onClick={() => inputRef.current?.click()}>
             {busy ? "Working…" : "Choose a file"}
           </Button>

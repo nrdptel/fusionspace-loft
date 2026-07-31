@@ -320,8 +320,14 @@ on the working branch is the record.)*
 | `96937cb` | **P1 increment 4 — the decision-grade numbers come off caption size.** Nine of twenty-three component files had `text-xs` outnumbering `text-sm`; the suite-wide ratio passed by three and could not see it. `text-xs` across `components/` 91 → 56, `text-sm` 84 → 113, inverted files 9 → 0. |
 | `37fc6ca` | **The pre-push review's findings, and a phone overflow the gate could not see.** Putting the header's controls on the type scale took that row 197 → 229 px, which overflowed a 360 px phone by 10 px; a 320 px phone had ALREADY been overflowing by 19 px. Both 0 now. The check that should have caught it could never fail — see the lesson above. |
 | `e8467ef` | **Sev-1 — removing a design from the shelf is undoable.** Second attempt; the first was reverted and its six failure modes each shaped a part of this one. |
+| `71e17e8` | **The hole that undo left in itself**, found by the pre-push review: `rememberRecent` keeps a design larger than the whole shelf budget when it is the only one, and `restoreRecent` had no matching exemption — so an over-budget design could be removed and never put back. Plus four more, each of which could have made the undo destructive or invisible. |
+| `da949d7` | Corrected a scoping premise `ROADMAP.md` and this file both carried, and refreshed the handoff. |
+| `c3cf389` | **R4 SHIPPED — drag a part along the airframe and drop it between two others.** `moveSlots`, a drop indicator, 484 drop slots driven across all 35 real designs. |
+| `2a061e6` | **Sev-1 — a reordered airframe flying a flat face into the airstream now says so.** Nudging the nose one place aft left apogee, max velocity and rail exit every digit identical while the model flew a 66 mm flat disc. |
 
-**The previous handoff's "Sev-1 count is zero" was wrong** — see the top of this file.
+**The previous handoff's "Sev-1 count is zero" was wrong** — see the top of this file. **Two Sev-1s were
+found and fixed this run**, and both were in the ledger or one gesture from it rather than in the code
+this run wrote.
 
 ## R4 — what shipped, and the one trap it left
 

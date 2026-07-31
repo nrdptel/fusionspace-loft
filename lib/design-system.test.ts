@@ -70,7 +70,7 @@ const BUDGET = {
    *  being folded into `Card`, so the honest floor here is 3 and not 1 — recorded in `ROADMAP.md`. */
   cardTreatments: 3,
   /** Spacing values off the `1 2 3 4 6 8 12` scale. Target 0. */
-  offScaleSpacing: 8,
+  offScaleSpacing: 0,
   /** Components importing the shared primitives. Target: most of the 23. This one only goes UP. */
   uiAdopters: 14,
   /** Component files where caption size OUTNUMBERS the body default. **At the target**, so this is a
@@ -148,6 +148,15 @@ describe("DESIGN.md §9 — the design system is binding, and this is what check
   it(`uses exactly ${BUDGET.offScaleSpacing} off-scale spacing values, on the way to none`, () => {
     // The scale is 1 2 3 4 6 8 12. A `mt-5` between two things that are `mt-4` apart everywhere else
     // is invisible on its own page and is exactly how a layout stops lining up across surfaces.
+    //
+    // AT the target, so this is a guard rather than a ratchet from here. THREE blind spots in the
+    // pattern are measured and filed in `BACKLOG.md` rather than silently counted as clean: it cannot
+    // match a `gap-*` (the character after `g` is not one of `xytblr`, so the `-` never lines up), it
+    // cannot match a half-step, and its alternation stops at 14 so nothing larger is seen either. The
+    // single `gap-5` was fixed with the rest; 98 half-steps and two values above 14 are left, because
+    // §4 states the scale and then prescribes a half-step as the padding inside a control — so half of
+    // them are the file's own instruction. Widening this regex without widening §9's would put the two
+    // out of step, and §9 is shared verbatim with the sibling app.
     const { total, byFile } = countMatches(ui, /\b[pmg][xytblr]?-(?:5|7|9|10|11|14)\b/g);
     expect(total, `off-scale spacing, by file:\n${byFile.join("\n")}`).toBe(BUDGET.offScaleSpacing);
   });
