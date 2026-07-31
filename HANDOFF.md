@@ -2,34 +2,44 @@
 
 Overwritten each session. What shipped, what is part-way, and what to pick up first.
 
-## Read this first: the queue now has TWO tracks
+## Read this first
 
-**`ROADMAP.md` was restructured on 2026-07-30 and a run now ships from both tracks, alternating.**
-This is the single thing to understand before scoping anything.
+**`BACKLOG.md`'s Sev-1 count was NOT zero at the start of this run, and the previous handoff said it
+was.** The shelf's "×" permanently deleted a design's only stored bytes — no confirmation, no undo,
+surviving a reload — which is the manual's second Sev-1 criterion verbatim, and the ledger entry
+itself already called it "the sharpest remaining one-way door". It was counted as a defect rather
+than as a preemption. **Fixed this run.** The lesson for the next one: run the Sev-1 screen against
+the LEDGER, not against the previous handoff's summary of it.
 
-| track | state at the end of 2026-07-31 |
+**And this handoff does not claim zero either — the count is ONE.** It is written out under *Pick up
+first*: an authored booster whose motor mount is then deleted flies as 35.7%-below-pristine dead
+ballast with zero separation events and nothing on any surface saying so. Do not restate it as zero.
+
+**Six Sev-1s were found this run and five fixed. Four of the six were in code THIS RUN WROTE, and two
+of those were in the fix for the other two** — found only because the R5 commit was reviewed a second
+time, on its own fixes, after it had been pushed. The pattern is worth more than any one of them:
+every round of review on this milestone found something the round before it had introduced, and the
+rounds did not converge until the third. **Review the fix, not just the commit.**
+
+**The queue has two tracks and a run ships from both.** `ROADMAP.md` is the queue; read it first.
+
+| track | state at the end of 2026-07-31 (second session) |
 |---|---|
-| **R — capability** | **R4 — reorder and restack — IN PROGRESS**, increment 1 shipped |
-| **P — product & craft** | **P1 — one design system, adopted — IN PROGRESS**, increments 1–2 shipped |
+| **R — capability** | **R4 SHIPPED.** **R5 — author a staged rocket — IN PROGRESS**, increment 1 of 4–6 shipped |
+| **P — product & craft** | **P1 — one design system, adopted — IN PROGRESS**, increments 1–5 shipped |
 
-The owner's direction was that both apps still read as thrown-together rather than as products the
-public can pick up, measured against OpenRocket, RocketPy and the vendor tools. The cause was
-structural, not effort: `ROADMAP.md` was the queue and it contained **only** capability milestones, so
-a hands-off run could not ship product work as its main job — and the old "one increment in four may
-be defect **or polish** work" quota capped the very thing that was missing. The quota now covers only
-*unqueued* defect work; craft with a *done when* is a P-track milestone and is not capped.
+**`DESIGN.md` and `COMPETITION.md` are binding and are read at session start.** `DESIGN.md` §9's
+compliance block is executable as `lib/design-system.test.ts`, with every count an EXACT ratchet, so
+an improvement and a regression both fail until the number moves in the same commit as the work.
 
-**Two new files, both binding, both to be read at session start:**
-- **`DESIGN.md`** — the design system: tokens, type and spacing scale, component vocabulary, the five
-  required states, number presentation, product shape, the touch contract. **Read it before writing a
-  component.** Both repos carry an identical copy; a change to one is a change to both, same run.
-- **`COMPETITION.md`** — the accumulating gap against OpenRocket, RocketPy, RASAero and RockSim. The
-  done-check now requires one row added or resolved per run.
-
-**P1 is the next P-track milestone and it is an extraction, not a repaint.** `components/ui.tsx` has
-8 exports and only 5 of 23 components import it; `Chip` and `Disclosure` are imported nowhere. Grow it
-into the vocabulary `DESIGN.md` §5 names, convert one surface per increment, and **ship the pinning
-check with the first slice** so the drift cannot return mid-conversion.
+**One thing is owed to the sibling repo and was NOT done, because this session could not reach it.**
+`DESIGN.md` §9's explanatory note quotes `GeometryInspector` at 9:2 and `MonteCarlo` at 9:4; the tree
+said 10:2 and 9:3 when it was written, and both are now 2:8 and 3:9. The file is shared verbatim with
+Debrief and §10 says a change to one is a change to both in the same run — this session was scoped to
+this repo and the fixtures repo, so correcting it here alone would have created exactly the
+divergence the invariant forbids. **The correction is two numbers in §9's paragraph beginning "The
+suite-wide ratio was removed on 2026-07-31", and it must land in BOTH copies together.** The rule
+itself is right and is satisfied; only the historical figures are stale.
 
 ## The arc so far
 
@@ -38,15 +48,15 @@ check with the first slice** so the drift cannot return mid-conversion.
 | R1 — address components by identity | SHIPPED 2026-07-30 |
 | R2 — delete a component, and undo it | SHIPPED 2026-07-30 |
 | R3 — add a component | SHIPPED 2026-07-30 |
-| R4 — reorder and restack | NOT STARTED — fully scoped 2026-07-31, see below |
-| P1 — one design system, adopted | IN PROGRESS 2026-07-31 — increment 1 shipped, ratchet pinned |
+| R4 — reorder and restack | **SHIPPED 2026-07-31** — the operation, the button pair, and the drag |
+| R5 — author a staged rocket | **IN PROGRESS** — increment 1 shipped 2026-07-31; the phase table is increment 2 |
+| P1 — one design system, adopted | IN PROGRESS — increments 1–5 shipped 2026-07-31 |
+| P2–P5 | NOT STARTED |
 
-Three capability milestones shipped in two sessions and the editor has gone from a parametric tweaker
-over a fixed tree to something that can grow one. What did **not** move in that time is what the app
-feels like: it is still one 2577-line page carrying every job, with 12+ card treatments on it. That
-asymmetry is exactly what the two-track queue exists to correct. `ROADMAP.md` carries what each
-milestone delivered against its *done when* and the gap that became the next one's starting point;
-read it first.
+Three capability milestones shipped in two sessions and the editor went from a parametric tweaker over
+a fixed tree to something that can grow one. The P-track exists because what did NOT move in that time
+is what the app feels like. `ROADMAP.md` carries what each milestone delivered against its *done when*
+and the gap that became the next one's starting point; read it first.
 
 ## Where the work is
 
@@ -170,6 +180,17 @@ Run it with `run_in_background: true` and wait with `until grep -q "E2E_EXIT=" "
 
 **Never read a Playwright count through a pipe** — `| tail -20` eats the summary line.
 
+**A class-string helper must live in `lib/ui-tokens.ts`, never in `components/ui.tsx`.** That file is
+`"use client"`, the site header is a SERVER component, and a helper exported from the former and called
+from the latter fails the build outright — *"Attempted to call buttonClass() from the server"*. Cost
+one gate run this session. `lib/ui-tokens.ts`'s own header already carried the warning, from the time a
+touch token lived in the client module and shipped a throwing stub into a served `class` attribute.
+Components stay in `components/ui.tsx`; anything that is a STRING goes in the token module.
+
+**`npm run build` must be re-run between a negative control and reading the e2e result.** The suite
+runs against `out/`, so a control edited into a source file changes nothing until the build lands —
+and a control that "passes" for that reason looks exactly like a test that cannot fail.
+
 **`Target page, context or browser has been closed` is the box, not the code.** It appeared once in an
 earlier session on a commit that changed only markdown. Tell it apart from a real failure by the shape:
 a genuine failure names an assertion and its received value, this one names no expectation at all.
@@ -182,6 +203,20 @@ site.** Eight controls this session; the shapes that worked were: AND a term tha
 (`d.aftRadius > 0 && d.length < 0 ? … : …`), multiply a constant by 0, filter a set to empty
 (`(def.groupWide ?? []).filter(() => false)`), scale a threshold by 1e6, and swap one argument for
 another (`aimEditsAt(doc.rocket, id)` for `aimEditsAt(removableFrom, id)`).
+
+**An assertion placed after the state it tests has already been cleaned up cannot fail.** One
+negative control came back green this session for that reason alone: the clear-on-load assertion in
+the new shelf-undo e2e ran after every pending removal had already been restored, so it asserted
+`toHaveCount(0)` against a list that was empty either way. The fix is to leave the state STANDING and
+then take the action under test. When a control comes back green, suspect the control, then suspect
+the assertion's position in the test — in that order.
+
+**A comparison can be unfalsifiable because the emulator moves both sides.** `e2e/touch.spec.ts`'s
+horizontal-overflow test compared `documentElement.scrollWidth` against `window.innerWidth`, and under
+`isMobile` emulation Chromium widens the LAYOUT viewport to swallow an overflow: measured at 320 px,
+`scrollWidth` 370 and `innerWidth` 370, assertion green, while `clientWidth` correctly read 320. It had
+never been able to fail. Compare against `clientWidth`. And run a layout check at more than one width:
+this suite is pinned to the iPhone 13's 390 px, and both a 360 px and a 320 px phone were overflowing.
 
 **A test that shares the helper under suspicion is blind exactly where the code is.** This is the
 sharpest thing this session learned and it cost a shipped defect. The corpus sweep for authored parts
@@ -282,65 +317,43 @@ designs back to their imported caliber, a crash path in an exhaustiveness check,
 that could not fail, and six numbers in comments and docs that did not re-derive. The lens that found
 most of them was "verify every number quoted in this diff with your own probe".
 
-## Shipped this session (2026-07-31) — four pull requests, all merged and deployed
+## Shipped this session (2026-07-31, second session of the day)
 
 Baseline before anything changed, all four green: lint 0 errors / **1 warning** (the standing
-`setDraft` one), **826 unit**, build, **169 e2e**, corpus **35 design files, 5/5**.
-At the end: **869 unit, 171 e2e**, corpus 35 files **6/6**. Nothing is pending on a branch.
+`setDraft` one), **870 unit**, build, **171 e2e**, corpus **35 design files, 6/6** with its counts
+printed (536 removable parts, 180 authored, 230 mass stations, 206 reorders).
 
-| PR | what |
+At the end, all four green: lint 0 errors / **1 warning** (the same standing `setDraft` one), **897
+unit**, build, **177 e2e**, corpus **35 design files, 9/9** — 536 removable parts · 180 authored parts
+· 230 mass-object stations · 484 drag drop-slots (30 in front of the next stage's first part) · 206
+reorders · 33 authored boosters and 2 refusals, 30 flown, 29 reaching burnout and 29 of those
+separating · 0 of 35 leading with a flat face.
+
+**CI was RED on the head this run pushed, and the local gate was green at the same commit.** The
+booster corpus sweep ran under vitest's 5 s default; it fits locally and does not on the runner. The
+last commit gives it the same explicit `300_000` its neighbours take. The lesson is not about that
+test: **a sweep that adds a second full flight per design needs an explicit budget, and a green local
+gate does not prove the runner agrees.** Read the `frontend` job's result on the PR head before
+calling a session done, not just the local exits.
+
+| commit | what |
 |---|---|
-| **#76** | **Sev-1 — "today's weather" flew last night's wind.** `lib/weather.ts` read the winds-aloft profile from `hourly` index 0, which with `timezone=auto` and `forecast_days=1` is **00:00 local**, while the surface block was live. Measured against the live API at 18:15 local: 850 hPa 154° from the real hour, 500 hPa 166° apart at fifteen times the speed. Flown on three real designs the landing point moved **241 m, 352 m and 255 m** — and the drift MAGNITUDE barely changed, so the number looked right and pointed the wrong way. Plus the bearing wrap in the same function, and **P1 increment 1**. |
-| **#77** | **Sev-1 — a saved design did not re-open with the balance it was saved with.** The parachute and streamer writers never emitted the packed dimensions, and `lib/sim/mass.ts` places a packed canopy's CG at half its packed length. Static margin moved on **21 of 35** real designs; after the fix, **6**, all of them the disclosed freeform conversion. Plus **86 spaces the build was eating on the live site**, and `check-text-gaps.mjs` in `postbuild`. |
-| **#78** | **R4 increment 1 — a flyer can reorder the airframe**, and **P1 increment 2 — one button hierarchy**. Five defects found by the pre-push review, all fixed before pushing. |
-| **#79** | **The motor sweep says what it is showing.** `ballisticGap` (the DESIGN row reading 1,888 m against a 342 m flight) and `designMotorFlies`, both harvested from a pull request that had been open since 2026-07-28. |
+| `96937cb` | **P1 increment 4 — the decision-grade numbers come off caption size.** Nine of twenty-three component files had `text-xs` outnumbering `text-sm`; the suite-wide ratio passed by three and could not see it. `text-xs` across `components/` 91 → 56, `text-sm` 84 → 113, inverted files 9 → 0. |
+| `37fc6ca` | **The pre-push review's findings, and a phone overflow the gate could not see.** Putting the header's controls on the type scale took that row 197 → 229 px, which overflowed a 360 px phone by 10 px; a 320 px phone had ALREADY been overflowing by 19 px. Both 0 now. The check that should have caught it could never fail — see the lesson above. |
+| `e8467ef` | **Sev-1 — removing a design from the shelf is undoable.** Second attempt; the first was reverted and its six failure modes each shaped a part of this one. |
+| `71e17e8` | **The hole that undo left in itself**, found by the pre-push review: `rememberRecent` keeps a design larger than the whole shelf budget when it is the only one, and `restoreRecent` had no matching exemption — so an over-budget design could be removed and never put back. Plus four more, each of which could have made the undo destructive or invisible. |
+| `da949d7` | Corrected a scoping premise `ROADMAP.md` and this file both carried, and refreshed the handoff. |
+| `c3cf389` | **R4 SHIPPED — drag a part along the airframe and drop it between two others.** `moveSlots`, a drop indicator, 484 drop slots driven across all 35 real designs. |
+| `2a061e6` | **Sev-1 — a reordered airframe flying a flat face into the airstream now says so.** Nudging the nose one place aft left apogee, max velocity and rail exit every digit identical while the model flew a 66 mm flat disc. |
+| `c2d5b63` | **P1 increment 5 — off-scale spacing to zero**, plus the three blind spots in the check that measures it, plus three `COMPETITION.md` rows and five corrections to them. |
+| `4a69479` | **R5 increment 1 — a flyer can add a booster stage.** The first edit that writes to `rocket.configurations`; without it the stage never lights and the design loses 37.5% of its apogee in silence. |
+| *(this run's last two)* | **Two rounds of review on `4a69479`, both after it shipped.** Round one found thirteen, round two found seven more IN THE FIXES — including that round one's headline fix was bypassable by deleting the booster's seed tube, and that one of its corrected numbers was still wrong. Ten fixed, five filed. Four were wrong numbers on a surface: the cross-check folding a booster's motor into a coaxial cluster (381.0 N against the real 190.5 N), removing a booster resizing the SUSTAINER (993.642 → 1105.598 m, twice, by two different routes), and a withdrawal notice reading "This design flies 1 stages." |
 
-**Both stale pull requests are closed, with their reasoning recorded on them.** #67's undo half was
-superseded by `lib/model/history.ts`, but its `check-text-gaps.mjs` existed nowhere on `main` and found
-86 live defects — harvested first, then closed. #55's four glued sentences were already gone, but its
-`ballisticGap`, its `resolves` flag and two measured builder BLOCKERS were not — the first two are
-shipped, the blockers are in `BACKLOG.md` with the note on why the obvious fix is wrong.
-
-## The done-check, answered
-
-**What can a flyer DO after this run that they could not before?** Reorder the airframe: pick any
-top-level part and walk it toward the nose or the tail, with the stations of everything aft following
-and each nudge undoable by name. Walked on `fixtures/demo-quirks.ork` in the built export of `b280201`:
-the aft tube moves forward and the static margin goes **5.60 → 4.14 cal**.
-
-**What is measurably better about using the tool?** Two numbers a flyer acts on stopped being wrong.
-Today's-weather drift pointed up to 352 m the wrong way and now does not; a downloaded design's static
-margin moved on 21 of 35 real designs and now moves on none except the disclosed freeform case. Plus
-86 sentences on the live site that were missing a space, and the §9 counts below.
-
-**`DESIGN.md` §9, start of run → end:**
-
-| count | start | end | target |
-|---|---|---|---|
-| `rounded-lg` | 49 | **37** | 0 |
-| distinct card treatments | 9 | **3** | 3 (one is `Card`'s own) |
-| off-scale spacing | 8 | 8 | 0 |
-| components importing `ui.tsx` | 5 | **12** of 23 | most |
-| components importing `Button` | 0 | **7** | most that have one |
-| hand-rolled indigo primaries | 16 | **6** | 0 |
-| surfaces with two primaries | 2 | **0** | 0 |
-| files where `text-xs` outnumbers `text-sm` | 9 | 9 | 0 |
-
-**Cold walk of the built export of `b280201`, and the phone.** The reorder moves the margin as above.
-The from-scratch builder composes with it: add a tube behind the body, and the authored tube is
-immediately reorderable — R3 already aims at it, so the control is there without another click. At a
-390 px viewport the move control measures **159 × 44 px** (the contract is 44) and the page has **0 px**
-of horizontal scroll. No page errors on any leg.
-
-**Production.** `loft.fusionspace.co/docs/limitations` serves the freeform disclosure including "worst
-0.69 cal", so #77 is live. There is no gap between what shipped and what is deployed: every one of the
-four pull requests merged to `main`, which deploys on push.
-
-**`COMPETITION.md` gained two rows** (20: a move that cannot be made is refused, and one that can is
-re-checked — OpenRocket has had drag-drop reorder since 1.1.3 and added gap/overlap warnings in 22.02;
-21: one look-and-feel engine with density as a user-adjustable global). Row 1's note now names its P1
-dependency. The ledger's "newest first" header was wrong — the table ascends and the numbers are stable
-references — and now says so.
+**The previous handoff's "Sev-1 count is zero" was wrong** — see the top of this file. **Four Sev-1s
+were found this run and three were fixed.** Two were in the ledger or one gesture from it; two were in
+this run's OWN R5 commit, found by a second opinion taken on it after it had already been pushed, and
+the fourth is filed and open. Reviewing a commit you have already shipped is worth doing, and the
+count that matters is the one at the END of the run.
 
 ## R4 — what shipped, and the one trap it left
 
@@ -399,9 +412,18 @@ fixtures through the importer, and every figure in it was re-measured before bei
   existing contract. What DOES reuse wholesale: the pointerdown/CTM/rAF/AbortController drag scaffolding
   and `hoverProps(id)`'s per-part closed silhouette path, which already gives every body part a
   hit-testable, id-addressed grab target.
-- **Freeze the HORIZONTAL frame during the drag.** `onActiveChange` does the vertical analogue for two
-  existing handles; without the horizontal one the airframe's overall length changes under the pointer
-  mid-drag and the drop indicator drifts away from it.
+- **~~Freeze the HORIZONTAL frame during the drag.~~ MEASURED FALSE, 2026-07-31.** This said the
+  airframe's overall length changes under the pointer mid-drag. It does not: `flattenRocket` stacks
+  each stage's list with a running cursor and all 150 top-level components across the 35 corpus
+  designs are body parts at `after` + 0, so a pure permutation leaves the sum — and therefore
+  `o.length` — bit-identical. Freezing it would fix nothing. **What actually moves is `maxExtent`**,
+  because fin seats re-resolve through `radiusAtStation`, which jumps `frameExtent` → `centerY` → `H`
+  and shifts the whole picture VERTICALLY; the existing `vFrameExtent` freeze is the fix and the
+  reorder drag must set it exactly as the fin-span handle does. And on a design carrying a boattail
+  what-if, `addBoattail` returns the rocket unchanged once a narrower tube becomes aft-most, so the
+  boattail VANISHES and the airframe genuinely does shorten — a preview-only, undo-invisible geometry
+  change, and the one real horizontal drift. Left here struck through rather than deleted because two
+  files carried the wrong instruction and a future session will otherwise re-derive it.
 - **Only ONE committed fixture has R4's shape**: `fixtures/demo-quirks.ork`, 4 top-level children
   (nose > tube > transition > tube), already loaded at `e2e/smoke.spec.ts:3153`. **None of the 5 e2e
   fixtures has a stage with 3+ top-level children**, and the starter has 2 — so the honest e2e is
@@ -415,7 +437,18 @@ fixtures through the importer, and every figure in it was re-measured before bei
 
 ## What this session learned that is worth keeping
 
-**NEVER revert a negative control with `git checkout -- <file>`.** It reverts the WHOLE file to `HEAD`,
+**NEVER revert a negative control with `git checkout -- <file>`. This file already said so, and this
+session did it anyway** — one line in a loop of controls, and it took an entire uncommitted increment's
+worth of work in `components/LoftApp.tsx` back to HEAD. Recoverable only because the edits were still
+in context. **Copy the file's bytes aside FIRST and restore from the copy**, every time, without
+exception; and when a control set touches more than one file, copy all of them before the first control
+rather than reaching for git halfway through.
+
+**A negative control's BUILD exit is part of the control.** Twice this session a control came back
+green with `BUILD_EXIT=1` — the tree never changed, so the e2e ran against the still-correct `out/`.
+Print the exit code beside the result, always.
+
+The original note follows, and it is still the rule: It reverts the WHOLE file to `HEAD`,
 including the uncommitted work you are testing. Running six controls in a loop that way silently
 destroyed three files' worth of a finished increment — `components/ui.tsx` lost every primitive it had
 just gained — and the loop went on reporting that each control "went red", which it did, for the wrong
@@ -456,45 +489,114 @@ a name with a field — the diagram's grips do — the suite's idiom is
 Pin a constant on the field's placeholder, not on the table row, and anchor the regex — an unanchored
 `/4[01]/` also matches "540".
 
+## The done-check, answered
+
+**Corpus, with its fixture count** — 35 design files, 9/9 suites, every count printed:
+536 removable parts · 180 authored parts · 230 mass-object stations · **484 drag drop-slots (30 landing
+in front of the next stage's first part)** · 206 reorders · **33 authored boosters and 2 refusals, 30
+flown, 29 reaching burnout and 29 of those separating** · **0 of 35 designs lead with a flat face**.
+
+**`DESIGN.md` §9, start of run → end:**
+
+| count | start | end | target |
+|---|---|---|---|
+| `rounded-lg` | 37 | **35** | 0 |
+| distinct card treatments | 3 | 3 | 3 (one is `Card`'s own) |
+| off-scale spacing | 8 | **0** | 0 |
+| `text-lg` | 0 | 0 | 0 |
+| files where `text-xs` outnumbers `text-sm` | 9 | **0** | 0 |
+| components importing the primitives | 12 | **14** of 23 | most |
+| `Button` adopters | 7 | **9** (+1 taking the geometry as a class) | most |
+
+**What can a flyer DO after this run that they could not before? (R-track)** Drag a part along the
+airframe and drop it between two others, with a rule marking the joint while the pointer moves — and
+**add a booster stage to a single-stage design and take it back**, which turns a design that flew
+994 m at 196 m/s into one that flies 1,491 m at 274 m/s. Both walked in the built export.
+
+**What is measurably better about using the tool? (P-track)** Three Sev-1s are gone: deleting a design
+from the shelf is undoable; a reordered airframe flying a flat face into the airstream now says the
+apogee is optimistic instead of publishing the streamlined one; the RocketPy cross-check no longer
+folds an authored booster's motor into a coaxial cluster and calls the result a second opinion (381.0 N
+against the real 190.5 N); and removing a booster no longer resizes the sustainer behind the flyer's
+back (993.642 → 1105.598 m). Every decision-grade number came off
+caption size — `text-xs` across `components/` went 91 → 56 — and the footer's standing safety
+disclaimer came out of the fine print. A 360 px phone stopped scrolling horizontally, and a 320 px one
+did too, having done so for some time.
+
+**Production.** `loft.fusionspace.co` serves 200 and does **not** carry any of this run's code — its
+chunks contain no `addedStages`, which the local build's do. Everything below is on the working branch
+and in **pull request #82**, verified and pending a merge. Under SHIPPED-MEANS-REACHABLE none of it has
+shipped yet.
+
+**Walked cold on the built export before the last push**, on `/`, `/docs`, `/docs/limitations`,
+`/validation` and `/motors` — all 200, no page error, no console error, no 4xx or 5xx. The R5 gesture
+end to end: 994 m becomes 1,491 m and the flight names the shed stage; with a booster on, the RocketPy
+cross-check and the parameter sweep withdraw while the dispersion study stays (it is offered for
+multi-stage on purpose); removing the booster puts 994 m back exactly.
+
+**Four checks that could not fail were found**, which is the finding this run would keep if it could
+keep only one: the phone horizontal-overflow e2e compared against a viewport width the emulator
+inflates to absorb the overflow; a clear-on-load assertion ran after the state it tested had already
+been cleaned up; the corpus's booster-separation assertion used `some(e => e.type === "separation")`,
+which a design's PRE-EXISTING separation satisfies, so on the multi-stage designs it was structurally
+blind to the defect it existed to catch; and the §9 spacing grep has three blind spots holding 118
+values. Three fixed, the last filed.
+
+**And a refusal that was exported, unit tested and swept across all 35 corpus designs was never asked
+by the UI.** `canAddStage` had three proofs and no caller, so on the 2 designs it refuses the button
+rendered anyway and a click committed an undo step, flipped the design to edited — which withholds the
+file's own stored-results comparison — and changed nothing. **A guard is not a guard until a caller
+asks it, and no amount of coverage of the guard itself will tell you.** The cheap check is to grep for
+the exported name and confirm at least one call site that is not a test.
+
 ## Pick up first
 
-**Both tracks are IN PROGRESS and neither is blocked. Take the next slice of each, in this order.**
+**Take the next slice of each track, in this order** — after the standing Sev-1 above, which preempts
+both by the manual's first criterion and is small.
 
-1. **R4 increment 2 — the DRAG.** The *done when* asks for "drag a component along the airframe and
-   drop it between two others"; increment 1 shipped the operation and a button pair. The drag reuses
-   `RocketDiagram`'s existing pointerdown/CTM/rAF/AbortController scaffolding wholesale and
-   `hoverProps(id)`'s per-part closed silhouette path, which already gives every body part a
-   hit-testable, id-addressed grab target. What is new is the drop-target computation and the
-   indicator — and **freeze the HORIZONTAL frame for the duration**, because the airframe's overall
-   length changes under the pointer mid-drag and the x-scale snapshot goes stale. `onActiveChange`
-   already does the vertical analogue for two handles; there is no horizontal one. Keep it
-   fine-pointer-only, like the other centreline grips: the buttons are the touch path.
-2. **P1 increment 3 — the type scale.** 14 uses of a `text-lg` that is not on §3's six-size scale, and
-   9 of 23 component files where `text-xs` outnumbers `text-sm`. Both counts are in the ratchet
-   already; converting the panel headings to `text-xl font-medium` moves the section rhythm on every
-   surface at once. Then the 8 off-scale spacing values (single-token edits, the cheapest count to
-   take to zero), then `DataTable`.
-3. **Then R4 increment 3, then P1's remaining slices**, alternating.
+1. **R5 increment 2 — the PHASE TABLE.** The *done when* asks for "a staged flight whose phase table
+   matches what they built" and the flight surface has none: separation is a marker on the altitude
+   chart (`ResultsView.tsx:1483`) and a sentence in the untracked-booster warning. `FlightViz.tsx:65`
+   filters `separation` out of its event dots entirely. The solver already emits a `separation`
+   `FlightEvent` per phase boundary, so this is a surface, not a model.
+2. **P1's remaining slices**: the 35 `rounded-lg` — and **that breaks print unless
+   `app/globals.css`'s rule keyed on `.rounded-lg` changes in the same commit** — then `DataTable`,
+   which `COMPETITION.md` row 24 now sizes: five tables, 2 that sort, 3 that copy, and RockSim lets the
+   flyer choose the columns.
+3. **Then alternate.**
 
-**Two BLOCKERS are filed in `BACKLOG.md` with full reproductions and are NOT fixed** — both are silent
-data loss on the from-scratch builder, both harvested from a pull request closed this run, and both
-carry a note on why the obvious fix is wrong (which is the expensive half):
+**What R5 still owes its *done when*, beyond the phase table**: "give it its own motor mount and fins"
+is inherited from the seed rather than authored, because there is no `AddedPart.kind` for a mount; and
+only an AUTHORED stage can be removed, because `Stage` has no id (the decision and its cost are in
+`ROADMAP.md` under *Decisions taken without the owner*).
 
+**Two BLOCKERS in `BACKLOG.md` are still unfixed**, both silent data loss on the from-scratch builder,
+both with full reproductions and a note on why the obvious fix is wrong:
 - **`Download .ork` drops the motor the flyer picked.** 1,033 m saved, 542 m re-imported (−47.5%).
-  On the builder path "Swap motor" is the only motor control, so that dropdown IS the picker, not a
-  what-if. Not fixable by "bake them in" — on the import path a swap genuinely is a hypothetical.
 - **Reopening your own build from the shelf hands back the factory starter.** 790 m / 4.1 cal comes
-  back as 994 m / 1.53 cal. The "Pick it back up" banner restores it correctly, so the data exists.
+  back as 994 m / 1.53 cal.
 
-Neither is a Sev-1 by the manual's definition — no wrong number is *published*, and there is a way
-back — but they are the two worst things a builder can hit, and they are the strongest candidates the
-moment a Sev-1 preemption is not competing with them.
+A triage agent argued both are Sev-1 by the manual's first criterion. They are the strongest candidates
+the moment nothing else preempts, and the second is on the very surface this run gave an undo to.
 
-**`BACKLOG.md`'s Sev-1 count is zero at the end of this run.** Three were found and all three were
-fixed rather than filed: the winds-aloft hour, the bearing wrap, and the export's packed dimensions.
+**The `BACKLOG.md` Sev-1 count is ONE at the end of this run — do not read this as zero.** Six were
+found and five fixed: the shelf's one-way delete, the blunt leading face, the cross-check's folded
+motor cluster, the sustainer resized by a booster removal, and that same sustainer resize reached a
+SECOND way once the first fix turned out to be bypassable by deleting the booster's seed tube. The
+sixth is filed and is the first thing to pick up:
 
-**No pull requests are open.** #76, #77, #78 and #79 all merged and deployed; #55 and #67, open since
-2026-07-28 and 2026-07-30, are closed with their unique content harvested first.
+**An authored booster whose motor mount is then deleted flies as dead ballast and nothing says so.**
+`canAddStage`/`buildStage` refuse a seed with no mount to clone, but that refusal is ADD-TIME ONLY and
+the booster's inner tube is an ordinary removable component. Measured on the starter: booster authored
+reads 1491.464 m with one separation; delete the booster's inner tube and it reads **638.973 m with
+zero separation events** — 35.7% BELOW the 993.642 m the design flew before the booster existed — and
+the only warning on the flight is an unrelated static-margin caution. It is the same class as the
+55%-gain case the add-time refusal exists to prevent, reached from the other direction. Either the
+removal is refused inside an authored stage or the flight says the stage cannot fire; the second is
+better, because it also catches an IMPORTED stage in that state, which nothing checks today.
+
+Both rounds of the R5 review — every open finding with its reproduction — are the top entry in
+`BACKLOG.md`.
 
 ## Environment notes
 

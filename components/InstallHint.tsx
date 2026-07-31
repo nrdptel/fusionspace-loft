@@ -44,7 +44,11 @@ export default function InstallHint() {
   };
 
   return (
-    <section className="mt-10">
+    // `mt-12`, not `mt-8`. Both are on §4's scale and 8 is the value §4 gives a gap BETWEEN sections —
+    // but the app's own root is already `mt-8` with a 6 rhythm inside it, so setting this break to 8
+    // makes the gap before a whole new region the same as the gap between two rows of one. 12 is the
+    // next step up and keeps the hierarchy the off-scale 10 it replaces was expressing.
+    <section className="mt-12">
       {/* print-hide: how to install the app is page furniture, not part of the design being printed. */}
       <details className="print-hide group rounded-md border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm dark:border-zinc-800 dark:bg-zinc-900/50">
         <summary className={`flex cursor-pointer select-none items-center font-medium text-zinc-700 dark:text-zinc-300 ${TOUCH_TARGET}`}>

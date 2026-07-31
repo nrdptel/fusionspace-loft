@@ -12,6 +12,198 @@ this file, and deliberately does **not** cap craft or product work, because that
 track in `ROADMAP.md` with its own *done when*. Rough edges, missing affordances, and findings too
 big for one pass. Newest first.
 
+- **R5 increment 1, reviewed TWICE after it shipped: five findings left open here, one of them a Sev-1.**
+  Round one found thirteen; round two, taken on round one's own fixes, found seven more — including that
+  round one's headline fix was bypassable and that one of its corrected numbers was still wrong. What was
+  fixed is written up in `ROADMAP.md`; what is left is below. Every number here was re-derived against
+  the code rather than quoted from either review, which is not a formality: both rounds published a
+  figure that did not reproduce.
+
+  They all share one shape — **the authored stage is a first-class part of the model everywhere except
+  in the code that asks questions about stages** — so they are one entry rather than five.
+
+  The lesson the ledger should keep even after the entries clear: **three rounds of review on one
+  increment, and each of the first two introduced something the next one found.** Reviewing a commit is
+  not the same as reviewing its fix.
+
+  1. **RESOLVED — the Analyze tools gated on the PRISTINE stage count, and the RocketPy cross-check
+     then folded the two motors into one cluster.** `ResultsView.tsx` read `doc.rocket.stages?.length`,
+     which a booster in the edit bag never touches, so `staged` stayed false and the cross-check, the
+     motor sweep and the parameter sweep all stayed offered on a design that was now two stages. The
+     cross-check builds its spec from the EDITED rocket, and `buildRocketpySpec` carries one `motor`: it
+     takes
+     `motors[0]`'s curve and multiplies thrust and both masses by `motors.length`, which is right for a
+     coaxial cluster and wrong for serial staging. Measured on the starter with one booster authored:
+     peak thrust **190.5 N → 381.0 N**, propellant **0.0941 → 0.1882 kg**, burn time unchanged at
+     1.293 s — two motors that should fire in sequence across a separation instead fire together at t=0
+     on a vehicle that never sheds a stage. That is a wrong number on the one surface whose entire job
+     is to tell a flyer whether Loft's number can be trusted. **Fixed 2026-07-31: the gate reads the
+     edited rocket**, so the tools withdraw with the design and return when the booster does, pinned by
+     an e2e. What is NOT fixed is the fold itself — `buildRocketpySpec` still has one `motor` slot and
+     no stage list, so a design IMPORTED as two stages is still outside the cross-check's reach. That
+     is a spec-shape change, and it is the right next slice of it.
+  2. **RESOLVED — removing an authored stage cleared the aims on the seed tube only, so an aim at a
+     part authored INSIDE the booster re-landed on the sustainer.** `LoftApp.tsx:920` built its clear
+     list from `flattenRocket(removableFrom).filter(p => p.component.id === seedId)` — the seed and its
+     children. A tube the flyer then added with the seed as its anchor is a SIBLING in that stage's
+     list, not a child, so it was never named. Measured on the starter: author a booster, add a tube
+     inside it, set Body length to 400 mm (the booster stage then reads `620 / 400`, apogee 1440.144 m),
+     then remove the stage.
+     `bodyTubeId` now points at nothing, falls back to the design's primary tube, and the SUSTAINER's
+     620 mm tube becomes 400 mm — apogee **993.642 → 1105.598 m**, +11.3%, with the Body length field
+     still reading 400 and no part on screen that is 400 mm. Clearing the aim as well gives the correct
+     993.642 m. **Fixed 2026-07-31**: every top-level component of the stage being dropped is named,
+     not just the seed, and finding 3 below went with it. Pinned by an e2e.
+  3. **RESOLVED — removing a stage silently orphaned any part authored onto it.** Same site,
+     `LoftApp.tsx:914`: the `added` entry survived while the component it built vanished from the tree,
+     so it counted as an active what-if — the design still reads as edited, which withholds the file's
+     own stored-results comparison — for a part that is nowhere. Verified: after dropping the entry the
+     authored id was not in the tree and `added` still held it. **Fixed 2026-07-31** in the same commit
+     as 2: the `added` entries whose components live in the stage are dropped with it.
+  4. **SEV-1, OPEN — the mount refusal is add-time only.** `canAddStage`/`buildStage` refuse a seed
+     with no motor mount to clone (`edit.ts:1830`), but nothing re-checks after a removal, and the
+     booster's inner tube is an ordinary removable component. Measured on the starter: booster
+     authored reads 1491.464 m with one separation; delete the booster's inner tube and it reads
+     **638.973 m with zero separation events** —
+     35.7% BELOW the pristine 993.642 m — and the only warning on the flight is an unrelated
+     static-margin caution. The stage is dead ballast and nothing says so. Either the removal is refused
+     inside an authored stage, or the flight says the stage cannot fire.
+  5. **Two stages can end up with the same name.** `LoftApp.tsx:904` takes `n = addedStages.length + 1`,
+     which names by current length rather than by a high-water mark. Add, add, remove the first, add:
+     the labels minted are `["Booster", "Booster 2", "Booster 2"]` and the two live stages are **both
+     "Booster 2"**. It is also a strict-mode violation for any locator that names the stage.
+  6. **Nothing rejects a repeated `seedId` in one bag.** `applyAddedStages` (`edit.ts:1800`) builds each
+     entry independently, so the same entry twice gives **3 stages and 3 duplicate component ids** —
+     seed, mount and fin set each present twice with the same id. Not reachable from the UI today
+     (`newPartId` mints a fresh id per click) but the bag is rehydrated from `localStorage`, which is
+     what makes every other stale-entry case in this model reachable rather than theoretical.
+  7. **`buildStage` clones the source tube's `overrideMass` while stripping the children it was measured
+     over.** Latent rather than live: 5 corpus designs carry an aft-tube override and none of them sets
+     `overrideSubcomponents`, so today the value is the tube's own mass and the clone is right. A design
+     that sets both would give the booster the whole aft assembly's lumped mass over a tube, a mount and
+     a fin set.
+  8. **RESOLVED — the corpus flew the seed-motor preference but did not pin it.** The separation
+     assertion catches a booster that never lights; nothing asserted WHICH motor the booster gets.
+     **Fixed 2026-07-31**: the sweep now requires the booster's instance to name the motor the seed
+     tube's own mount flies, which catches 6 states across 3 designs (`02.Two-stage.ork` G80T for I300T,
+     `Three stage low power rocket.ork` A8 and C6 for B6, `Two stage high power rocket.ork` I59WN for
+     I357T) and is proved able to fail by reverting the preference alone. Worth recording why it was
+     needed: neither motor fix is caught by the separation assertion on its own — reverting BOTH turns
+     it red on 2 designs, reverting either alone leaves it green, because every seed instance in the
+     corpus carries `ignitionEvent: "automatic"` or none and resolves to the serial default anyway.
+
+  9. **The stage controls render one *Remove &lt;name&gt;* per BAG ENTRY, not per built stage.** An entry
+     `buildStage` refuses builds no stage, and the button for it is still drawn — a control for something
+     that is not in the rocket. Not reachable from the UI today, because the gate and the operation now
+     agree about which tree they judge; reachable from a bag rehydrated out of `localStorage` against a
+     design whose aft tube has no mount. It is also why the removals are deliberately NOT inside the
+     add's gate: there, that entry would be unreachable as well as phantom.
+
+  10. **`addStage`'s naming is still by current length.** Finding 5 above, unchanged: add / add /
+     remove-first / add gives two live stages both called "Booster 2". The id collision that came with it
+     is now harmless — `addedStageIds` drops every list entry the stage held, so a re-minted id no longer
+     inherits a stale `removedIds` entry — but the NAME collision is still there, and it is what a flyer
+     reads on the parts list and in the removal's undo label.
+
+  11. **`buildRocketpySpec` still folds N motors into one coaxial cluster.** The Analyze gate no longer
+     offers the cross-check on an EDITED staged design, so the authored-booster route is closed. A design
+     IMPORTED as two stages was always outside the cross-check's reach and still is — the spec has one
+     `motor` slot and no stage list. Giving it one is the change that would let the second solver cover
+     the 9 multi-stage designs in the corpus at all.
+
+- **The shelf-restore refusal has no test that drives it through the UI.** `restoreRecent` returning
+  null is covered by three unit cases (`lib/session.test.ts`), and the sentence it produces is rendered
+  beside the button — but nothing asserts that the sentence appears, because reaching the branch in an
+  e2e needs a shelf at its 8-design cap and only five sample designs are one click away. Seeding
+  `localStorage` with valid rows through `page.addInitScript` would do it. Filed rather than done on
+  2026-07-31: the defect that mattered was that a refusal was invisible, and it no longer is.
+
+- **RESOLVED 2026-07-31 — a reordered airframe that leads with a flat face is now said, and it was a
+  Sev-1 the drag made one gesture away.** Found by the opening fan-out's Sev-1 screen against R4
+  increment 1, reproduced before acting on it. Loft takes forebody pressure and wave drag from
+  whichever component is a nose cone WHEREVER it sits in the stack (`lib/sim/aero.ts`), and has no term
+  at all for a blunt leading face — the same shape of silence as the missing term for a bare mould-line
+  step, and larger, because it is the whole forebody term rather than a correction to it. Measured on
+  `fixtures/demo-quirks.ork`: nudging the nose cone one place aft leaves **apogee 1406.622 m, max
+  velocity 227.893 m/s and rail exit 26.023 m/s — every digit identical** to the streamlined design,
+  while the rocket in the model flies a 66 mm flat disc into the airstream. Only the static margin
+  moves (5.598 → 5.527 cal). Unreachable while the component order came from a file and one drag away
+  once R4 shipped.
+
+  Disclosed rather than refused, for the reason the mould-line step is: a design may legitimately carry
+  no nose cone at all — RASAero states none — so refusing the SHAPE would forbid a geometry rather than
+  describe it. A `warning` rather than a `caution` because the number is optimistic by an amount Loft
+  cannot state. Pinned by `lib/model/geometry.ts`'s `leadingFaceDiameter`, a `lib/sim/flight.test.ts`
+  case that asserts the published numbers did NOT move (which is what makes the warning necessary
+  rather than decorative), and a corpus sweep confirming **0 of the 35 real designs** would fire it as
+  imported. On `/docs/limitations`.
+
+- **The §9 spacing grep has three blind spots, and 118 values sit in them.** Measured 2026-07-31 while
+  taking the count it CAN see to zero. The pattern is `\b[pmg][xytblr]?-(5|7|9|10|11|14)\b`, and it
+  misses:
+  1. **`gap-*` entirely** — after `g` comes `a`, which is not one of `xytblr`, so the `-` never lines
+     up. One real hit (`gap-5` in the footer), fixed with the rest because it is off the scale whether
+     or not the grep sees it.
+  2. **Every half-step.** 98 across `components/` and `app/` (100 counting `lib/`), dominated by
+     `py-1.5` (49), `px-2.5` (17) and `mt-1.5` (11).
+  3. **Every value above 14** — the alternation stops there, so `mt-20` and `md:mt-28` on the footer's
+     own root are invisible to it. Two hits.
+
+  And **20 of the half-steps are `gap`-shaped** (`gap-1.5` ×15, `gap-y-1.5` ×3, `gap-y-0.5` ×2), so
+  they fall into blind spots 1 and 2 at once.
+
+  **The half-steps are not simply a violation, and that is the point.** `DESIGN.md` §4 states the scale
+  as "1 2 3 4 6 8 12. Nothing else — no 5, 7, 9, 10, no arbitrary values" and then, four lines later,
+  prescribes the padding inside a control as three horizontal and one-and-a-half vertical. So half of
+  them are the file's own instruction and the other half — `px-2.5` above all — are not. Resolving it
+  means a sentence in §4 saying whether half-steps are on the scale and where, which is a change to a
+  file **shared verbatim with the sibling app**, so it is filed rather than taken: §9's grep and its
+  executable copy may not drift from each other, and neither may the two copies of the file.
+
+  *(This entry deliberately does not quote the control-padding classes as literals. The first draft did,
+  and the note about the blind spot became a 101st instance of it.)*
+
+- **The "Loft" wordmark link is 43x32 px on every phone width, and always has been.** Measured
+  2026-07-31 on the built export at 320, 360 and 390 px: the header's three action controls all clear
+  44 px, and the wordmark link beside them — which is the way home from every docs page — is 32 px
+  tall. It is a `<Link>` with no `TOUCH_TARGET`, so it never entered the touch pass that fixed the
+  rest of the header. Not fixed with the header work of the same day because that pass was the type
+  scale and this is a hit target on an element it did not touch; one token closes it.
+
+- **`text-[11px]` has become the seventh type size, in exactly the way `text-lg` did.** Found
+  2026-07-31 while taking the per-file caption inversion to zero, by the type-scale lens rather than by
+  the §9 grep — which only looks for `text-lg` and so cannot see this one. `DESIGN.md` §3 scopes
+  `text-[11px]` to "axis ticks and diagram annotations only"; measured over `components/` with
+  `grep -roh 'text-\[11px\]' components | wc -l` it is used **32 times**, and only 4 of those are
+  actually an axis tick or a diagram annotation (`RocketDiagram`, `LineChart`, `FlightViz`, and
+  `ResultsView`'s chart figcaption). **25 of the 32 are an uppercase LABEL row** —
+  `grep -rn 'text-\[11px\]' components | grep -ci uppercase` — split between every table's `<thead>`
+  (`GeometryInspector`, `MassBreakdown`, `MotorSweep`, `ValidationPanel`, `RocketpyCrossCheck`), every
+  `<legend>` and field label in `LoftApp` (13 uses there alone), and the eyebrow over a value in
+  `MonteCarlo`'s `StatCard`/`RadiusCard` and `ResultsView`'s `Stat`/`Term`. `ResultsView`'s `Stat` also
+  renders its `sub` line at `text-[11px]`, which is the slot `MonteCarlo`'s equivalent now renders at
+  the body default — one role, two sizes.
+
+  The fix is one decision — a label is a label, so §3 says `text-xs` — plus a §9 grep that counts sizes
+  off the scale rather than only the one that was noticed. It belongs with the `Readout` primitive,
+  which is the thing that should own the label/value pair so a session cannot pick a size for it at
+  all. Deliberately not folded into the 2026-07-31 type slice: that slice's rule was about which text
+  is decision-grade, and this is about a size that is off the scale entirely.
+
+- **Converting the 35 remaining `rounded-lg` breaks print unless the stylesheet changes with it.**
+  `app/globals.css` carries a print rule keyed on `.rounded-lg` (`grep -n 'rounded-lg' app/globals.css`),
+  so a sweep of the class through `components/` and `app/` silently drops whatever that rule does to the
+  printed page. Noted here rather than fixed because the sweep itself is a later P1 slice; whoever takes
+  it changes both in the same commit.
+
+- **A motor-resolution chip carries a verdict at chip size.** `ResultsView.tsx:992` renders "exact /
+  approximate / unmatched" for every motor the run resolved, in emerald/amber/red at `text-xs`. `DESIGN.md`
+  §5 sizes `Chip` at `text-xs`, so this is on-system as written — but the thing it states is whether the
+  simulator flew the flyer's actual motor, and if it did not, every number below it is about a different
+  rocket. Either it is not a chip (it is a `Readout` with a provenance caveat), or §5 needs a status
+  token that is allowed to be body-sized. Filed rather than decided, because it is a `DESIGN.md` change
+  and that file is shared with the sibling app.
+
 - **BLOCKER — "Download .ork" silently drops the motor the flyer picked, and the saved rocket flies 48%
   lower.** Recorded on 2026-07-30 by a cold walk of the from-scratch builder, harvested here from a pull
   request that was closed rather than merged, and NOT yet fixed. On the builder path "Swap motor" is the
@@ -1002,43 +1194,57 @@ big for one pass. Newest first.
   changes; `Num`'s own re-sync effect exists to guarantee a field never shows a number that is not in
   the flight, and that rule belongs one level up too.
 
-- **An undo for removing a design from the shelf was written this session and REVERTED — read this
-  before rewriting it.** The hit target is fixed (44x44 px, verified at 390x844 and 412x915, 0 of 4
-  shelf controls now under target, 0 px horizontal overflow) but the destructive act still has no way
-  back, which is inconsistent with leaving a design, whose undo shipped this session. The attempted
-  fix kept the removed row in memory and offered "Put it back". Six reasons it did not ship, every one
-  reproduced in the built app by review after a green gate of 677 unit and 119 e2e:
-  1. **The restore can silently fail, or evict someone else.** It replayed `rememberRecent` with the
-     row's ORIGINAL `openedAt`. That needed `rememberRecent` to order by `openedAt` instead of
-     prepending — and then the restored entry sorts LAST, so `slice(0, MAX_RECENTS)` drops the very row
-     the call was made to restore: storage byte-identical before and after, the banner clearing as if
-     it had worked. Restoring a MIDDLE row into a full shelf restored it and permanently evicted the
-     oldest design instead. **The restore path must not go through the add-and-evict path at all.**
-  2. **Removing the LAST design offered no undo**, because the banner was nested inside
-     `{recents.length > 0 && …}` and the whole card unmounts when the shelf empties — the one case
-     where the deleted bytes are most likely the only copy. Verified: `Put it back` rendered 0 times.
-  3. **The pending offer was never cleared** on load/reopen/import, so it resurfaced later for a design
-     removed several designs ago, and pressing it then rewrote a LIVE entry's timestamp backwards —
-     demoting the design just opened to first-evicted.
-  4. **Ordering by `openedAt` changed the ordinary open path**, not just the undo: any stored entry
-     stamped ahead of `Date.now()` (a phone clock that was fast, then corrected) now outranks the
-     design being opened, and with a full shelf that design is not recorded at all.
-  5. **Two removals in a row silently destroyed the first pending undo** — the natural sequence after a
-     mis-tap, since the delete targets sit at 0 px from their Reopen neighbours in a wrapping list.
-  6. **The copy was wrong in both directions**: "undoable until you leave this screen" over-promised
-     (it vanished with the shelf) and under-described (the state outlived the screen indefinitely; only
-     a /docs round trip dropped it, because that is a hard navigation in the static export).
-  A working shape: keep the in-memory row, render the banner OUTSIDE the shelf card, clear it on any
-  design load, and give the restore its own insertion that never evicts and never reorders — not
-  `rememberRecent`. Leave `rememberRecent` alone; it is on every open path.
-- **The shelf's Remove "×" WAS a 24x44 px destructive control welded to a 240 px Reopen target with a
-  0 px gap — the hit target is fixed as of this session; the missing undo above is what remains.** One tap permanently deletes that design's stored bytes: 0 confirmations, no undo, and it
-  survives a reload (shelf 2 -> 1 entries, still 1 after reload). Measured at 390x844 and 412x915,
-  identical on both: the destructive control is 9.1-9.5% of its row's width with a 14 px glyph, and 2
-  of the 4 shelf controls under 44 px are both this one. The shelf exists precisely because at the pad
-  the .ork may not be on the phone at all — those bytes can be the only copy. This is now the sharpest
-  remaining one-way door, and it is inconsistent with its own neighbour: leaving a design ships an undo
-  as of this session, deleting one from the shelf does not.
+- **RESOLVED 2026-07-31 — removing a design from the shelf is undoable, and this is the second attempt
+  at it. The first was reverted; its six failure modes are why this one is shaped the way it is.**
+  The defect: one tap on the shelf's "×" permanently deleted that design's stored bytes — 0
+  confirmations, no undo, and it survived a reload (shelf 2 -> 1 entries, still 1 after reload) — on
+  the surface that exists precisely because at the pad the .ork may not be on the phone at all, so
+  those bytes can be the only copy. Sev-1 by the manual's second criterion, a one-way door, and it
+  preempted the milestone. `HANDOFF.md` had reported the Sev-1 count as zero without counting it.
+
+  **What shipped, and which of the six reverted failures each part answers:**
+  - `restoreRecent` in `lib/session.ts` is its own insertion and never goes through `rememberRecent`.
+    It keeps the entry's own `openedAt` AND the index it was removed from, so the row returns to the
+    position it was taken from rather than to the front, including among rows that share a timestamp
+    (the shelf's sort is stable, so an appended row lands after its tie-mates). It REFUSES, returning
+    null and leaving the shelf untouched, when putting the row back would exceed either cap — and it
+    returns the shelf as `loadRecents` would read it back, not the insertion order it wrote, because
+    the caller renders what it returns. *(1: the reverted version replayed the add path, which caps
+    and evicts by age; restoring a middle row into a full shelf put the row back and permanently
+    deleted the oldest design instead — one destructive act undone by another.)*
+  - **The byte cap exempts a single entry, exactly as `rememberRecent`'s trim loop does.** Found by the
+    pre-push review, in the first version of this fix: `rememberRecent` KEEPS a design larger than the
+    shelf's whole budget when it is the only one, so without the same exemption on the way back, a
+    2 MB design could be removed and never restored — the one-way door rebuilt inside the fix for it.
+    There is no import size guard, so a real design reaches it.
+  - **A restore never replaces a row that is already on the shelf.** `recentId` is name-plus-byte-
+    length, so two different files can collide; filtering the live row out and inserting the held copy
+    would be a deletion wearing an undo's clothes, reachable from a second tab.
+  - The offer renders OUTSIDE the shelf card, above the drop zone, beside the app's other undo.
+    *(2: nested inside `{recents.length > 0 && …}` it unmounted with the shelf, so removing the LAST
+    design — the case where the bytes are most likely the only copy — offered nothing.)*
+  - An offer is dropped when that design is back on the shelf by any route, rather than every offer
+    being cleared on every load. *(3: an offer left standing resurfaced for a design removed several
+    designs ago — but clearing the lot, which is what the first version of this fix did, meant
+    reopening a DIFFERENT design one click later made the removed one unrecoverable, which is the same
+    no-way-back in a smaller window. Keeping the rest is safe because `restoreRecent` refuses rather
+    than evicting and never overwrites a live row, so a stale offer can only ever be refused.)*
+  - **The refusal is reported beside the button, not in the page's shared error strip**, which renders
+    below the whole import fragment — a control whose only feedback is a sentence a screen away is a
+    control that silently does nothing. The offer's container carries `role="status"`, because pressing
+    "×" destroys the focused control and renders the offer somewhere else on the page.
+  - Nothing reorders on the ordinary open path; `rememberRecent` is untouched. *(4.)*
+  - The pending removals are a LIST, so two taps in a row — what a mis-tap looks like — leave both
+    designs recoverable. *(5: holding one offer silently destroyed the first design's way back.)*
+  - The copy says what was removed and what it cost, and the refusal path says why it could not go
+    back and what to do about it. *(6.)*
+
+  Pinned by five cases in `lib/session.test.ts` (position preserved, the last design, two removals in
+  either order, and both refusals) and by the e2e *removing a design from the shelf is undoable,
+  including the last one*. Every one was proved able to fail by a negative control applied inside the
+  function under test, with its build exit checked — including one that was rewritten because the
+  first version of its clear-on-load assertion could not fail.
+
 - **Offline, the RocketPy panel blames itself instead of the network.** With no signal it says
   "RocketPy couldn't run: The RocketPy worker crashed." — the truth is that the ~40 MB Pyodide runtime
   is not precached and cannot be fetched. `/pyodide/` appears in 0 of the 34 service-worker cache

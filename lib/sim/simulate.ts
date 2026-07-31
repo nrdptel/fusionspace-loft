@@ -17,6 +17,7 @@
  */
 
 import type { Rocket, MotorConfiguration, RocketComponent } from "../model/types";
+import { leadingFaceDiameter } from "../model/geometry";
 import { Atmosphere } from "./atmosphere";
 import { aeroGeometry, barrowman, dragCoefficient, type Stability } from "./aero";
 import { analyzeFlutter, RECOMMENDED_FLUTTER_MARGIN, type FlutterReport } from "./flutter";
@@ -859,6 +860,7 @@ export function simulate(input: SimulateInput): FlightResult {
     groundHitVelocity,
     ballisticBoosters,
     firmBoosters: boosterDescents.filter((b) => b.terminalSpeed > 7.6),
+    leadingFace: leadingFaceDiameter(rocket),
   });
 
   // Fin-flutter safety estimate over the ascent. Below the recommended margin the fins are
@@ -1095,6 +1097,8 @@ function buildWarnings(
     /** Separated lower stages that DO recover but land firm or hard under their own canopy
      *  (terminal speed > 7.6 m/s), each with its estimated landing speed. */
     firmBoosters: BoosterDescent[];
+    /** Diameter (m) of the flat face the airframe leads with, or 0 when it leads with a nose cone. */
+    leadingFace: number;
   },
 ): void {
   // A recovery device configured but never deployed before the ground = ballistic impact. This
@@ -1157,6 +1161,28 @@ function buildWarnings(
     out.push({
       code: "partial-cluster",
       message: `Only ${ctx.motorsPlaced} of ${ctx.motorInstances} motors in this configuration resolved to a thrust curve — ${missing} could not be found. The flight was simulated on the resolved motor${ctx.motorsPlaced > 1 ? "s" : ""} alone, so its thrust is under-counted and apogee and velocity read low. See the motor tags for which weren't matched.`,
+      severity: "warning",
+    });
+  }
+  // The airframe does not lead with a nose cone, so it is flying a flat disc into the airstream — and
+  // the drag model has NO term for that. Forebody pressure and wave drag are taken from whichever
+  // component is a nose cone wherever it sits, so the numbers above are the streamlined design's:
+  // measured on `fixtures/demo-quirks.ork`, nudging the nose one place aft leaves apogee at
+  // 1406.622 m, max velocity at 227.893 m/s and rail exit at 26.023 m/s, every digit unchanged, while
+  // only the static margin moves.
+  //
+  // Not a refusal, for the reason the mould-line step is not one: a design may legitimately carry no
+  // nose cone at all — RASAero states none — and refusing the SHAPE would forbid a geometry rather
+  // than describe it. A warning, not a caution, because unlike a step this is not a small correction:
+  // the whole forebody drag term is absent, so apogee is optimistic by an amount Loft cannot state.
+  if (ctx.leadingFace > 0) {
+    out.push({
+      code: "blunt-nose",
+      message:
+        `The airframe leads with a flat ${Math.round(ctx.leadingFace * 1000)} mm face rather than a nose cone. ` +
+        "Loft takes forebody pressure and wave drag from the nose cone wherever it sits in the stack and has " +
+        "no term for a blunt leading face, so the apogee and speeds above are the streamlined design's and read " +
+        "optimistically. Put a nose cone at the front of the airframe for a figure the model can stand behind.",
       severity: "warning",
     });
   }

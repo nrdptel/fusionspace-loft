@@ -21,6 +21,7 @@ import {
   unreachableParachuteCount,
   aimEditsAt,
   moveTarget,
+  moveSlots,
   structureOf,
   primaryTransition,
   primaryTransitionPart,
@@ -65,6 +66,10 @@ import {
   hasGeometryEdits,
   primaryParachute,
   defaultPayloadStation,
+  canAddStage,
+  stageSeedBase,
+  addedStageIds,
+  type AddedStage,
 } from "@/lib/model/edit";
 import {
   commit as commitHistory,
@@ -88,14 +93,18 @@ import {
   fromBase64,
   loadDiscardedSession,
   loadRecents,
+  MAX_RECENTS,
+  MAX_RECENTS_MB,
   loadSession,
   rememberRecent,
+  restoreRecent,
   carriesWork,
   saveDiscardedSession,
   saveSession,
   type SavedSession,
   toBase64,
   type RecentDesign,
+  type RemovedRecent,
 } from "@/lib/session";
 import { mToFt, ftToM, mpsToMph, mphToMps, radToDeg } from "@/lib/units";
 import { TOUCH_TARGET, TOUCH_TARGET_SQUARE } from "@/lib/ui-tokens";
@@ -175,6 +184,8 @@ interface Edits {
    *  `applyEdit` spreads patches structurally, so a `moved` the app never declared would be carried into
    *  the bag and silently dropped by every consumer typed on this interface. */
   moved?: MovedPart[];
+  /** Booster stages the flyer has authored — see `AddedStage` in the edit model. */
+  addedStages?: AddedStage[];
   rodLength?: number; // m
   rodAngleDeg?: number;
   windSpeed?: number; // m/s
@@ -354,6 +365,17 @@ export default function LoftApp() {
    *  screen. Read on mount rather than during render: localStorage is client-only and the first
    *  render has to match the server's. */
   const [discarded, setDiscarded] = useState<SavedSession | null>(null);
+  /** Designs taken off the shelf since the last load, newest first, held in memory so each can be put
+   *  back. The shelf's "×" was the last destructive act in the app with no way out: one tap deleted a
+   *  design's only stored bytes, with no confirmation, no undo, and it survived a reload — and the
+   *  shelf exists precisely because at the pad the file may not be on the phone at all.
+   *
+   *  A LIST rather than one pending row, because holding only the latest meant a second removal
+   *  silently destroyed the first design's way back, and two removals in a row is the natural
+   *  sequence after a mis-tap. Nothing is written for these: the row is already out of storage, and
+   *  what is held here is the copy that puts it back, with the position it came from and any reason
+   *  a restore could not be made. */
+  const [removedRecents, setRemovedRecents] = useState<RemovedRecent[]>([]);
   const [run, setRun] = useState<FlightRun | null>(null);
   const [baseline, setBaseline] = useState<FlightRun | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -483,12 +505,19 @@ export default function LoftApp() {
       // the flyer to curate it. A resumed session is already the newest entry; re-recording it
       // would only rewrite its timestamp.
       if (bytes && !resume) {
-        setRecents(
-          rememberRecent(
-            { design: designBytes.current!, name, rocket: document.rocket.name || name },
-            Date.now(),
-          ),
+        const shelf = rememberRecent(
+          { design: designBytes.current!, name, rocket: document.rocket.name || name },
+          Date.now(),
         );
+        setRecents(shelf);
+        // An offer to put back a design that is now ON the shelf is spent — it came back by another
+        // route. Dropping only those, rather than clearing every offer on every load, is what keeps
+        // the undo alive across the most natural next tap after a mis-tap: reopening a DIFFERENT
+        // design. The earlier version cleared the lot here, and the removed design became
+        // unrecoverable one click later. It is safe to keep the rest because `restoreRecent` refuses
+        // rather than evicting and never overwrites a live row, so a stale offer can only be refused.
+        const onShelf = new Set(shelf.map((r) => r.id));
+        setRemovedRecents((prev) => prev.filter((r) => !onShelf.has(r.entry.id)));
       }
       try {
         const { run: r, baseline: b } = compute(restored, e, null, "design", idx);
@@ -604,7 +633,61 @@ export default function LoftApp() {
     [loadDoc],
   );
 
-  const onForgetRecent = useCallback((id: string) => setRecents(forgetRecent(id)), []);
+  /** Take a design off the shelf, holding on to it so the flyer can put it back. */
+  const onForgetRecent = useCallback((id: string) => {
+    // Read the row AND its position before removing it: what goes back has to be the stored entry
+    // itself — its bytes, its name, its rename — and the index puts it back where it was among rows
+    // that share a timestamp, which the sort alone cannot do.
+    const before = loadRecents();
+    const index = before.findIndex((r) => r.id === id);
+    const entry = index >= 0 ? before[index] : undefined;
+    setRecents(forgetRecent(id));
+    // No entry means storage went away underneath us (cleared in another tab, or turned off
+    // mid-session). Removing with no offer is the exact no-way-back this exists to close, so say so
+    // rather than letting the row vanish quietly.
+    if (!entry) {
+      setError("That design could not be read back before it was removed, so there is nothing to put back.");
+      return;
+    }
+    setRemovedRecents((prev) => [{ entry, index }, ...prev.filter((r) => r.entry.id !== entry.id)]);
+  }, []);
+
+  /** Put one back.
+   *
+   *  `restoreRecent` never evicts and never overwrites to make room — it refuses — so a refusal means
+   *  the shelf genuinely has no space for this design any more. The reason goes NEXT TO THE BUTTON
+   *  rather than into the page's shared error strip, which renders below the whole import fragment:
+   *  a control whose only feedback is a sentence a screen away is a control that silently does
+   *  nothing, which is the failure this whole change exists to remove.
+   *
+   *  Deliberately NOT written inside a `setRemovedRecents` updater. A state updater must be pure —
+   *  it can be called twice — and this one writes to `localStorage` and sets two other pieces of
+   *  state. */
+  const onRestoreRecent = useCallback(
+    (id: string) => {
+      const held = removedRecents.find((r) => r.entry.id === id);
+      if (!held) return;
+      const list = restoreRecent(held.entry, held.index);
+      if (!list) {
+        setRemovedRecents((prev) =>
+          prev.map((r) =>
+            r.entry.id === id
+              ? {
+                  ...r,
+                  refusal:
+                    `The shelf is full — it holds ${MAX_RECENTS} designs and ${MAX_RECENTS_MB} MB, and it ` +
+                    "filled up while this one was off it. Remove another design and press this again.",
+                }
+              : r,
+          ),
+        );
+        return;
+      }
+      setRecents(list);
+      setRemovedRecents((prev) => prev.filter((r) => r.entry.id !== id));
+    },
+    [removedRecents],
+  );
 
   // Start a fresh design from scratch — the builder path. A starter model (not parsed from any
   // file) enters the exact same pipeline an import does, so every edit, sweep, and flight works on
@@ -769,13 +852,24 @@ export default function LoftApp() {
    *  drogue, a payload bay) and those are appended AFTER the prune, so `removedIds` can never take one.
    *  Offering to remove a part the mechanism cannot touch is a button that does nothing. */
   const removableFrom = useMemo(
-    () => (doc ? structureOf(doc.rocket, { added: edits.added, removedIds: edits.removedIds, moved: edits.moved }) : null),
-    // `edits.moved` belongs here for the same reason the other two do: this tree is what `moveTarget`
-    // and `movePart` resolve an anchor against, so a memo that did not recompute after a move would
-    // compute the SECOND nudge's anchor from the order before the first one. The lint rule caught it;
-    // the e2e did not, because it walks one move.
-    [doc, edits.added, edits.removedIds, edits.moved],
+    // The WHOLE bag, not a hand-picked three fields: `structureOf` names the structural keys itself,
+    // and a call site that restates them goes silently out of date the next time one is added.
+    () => (doc ? structureOf(doc.rocket, edits) : null),
+    // The whole bag is the dependency too, for the same reason it is the argument. This tree is what
+    // `moveTarget` and `movePart` resolve an anchor against, so a dep list that named three fields and
+    // missed `moved` computed the SECOND nudge's anchor from the order before the first one — and the
+    // next key added would have repeated it. Naming `edits` cannot go out of date. (The lint rule
+    // caught the `moved` case; the e2e did not, because it walks one move.)
+    [doc, edits],
   );
+
+  /** The design a booster is seeded FROM, which is NOT `removableFrom`. `applyAddedStages` runs first in
+   *  the pipeline, on the pristine rocket plus the stages already authored — an added tube, a removal or
+   *  a reorder is invisible to it. Asking `canAddStage` the fully-structured tree instead disagrees with
+   *  the operation in 123 states across the corpus, both ways; `stageSeedBase` carries the measurements.
+   *  Memoised like its three siblings below: `canAddStage` runs `buildStage`, which flattens the rocket
+   *  and deep-clones the aft tube's subtree, and this is read on every render. */
+  const stageBase = useMemo(() => (doc ? stageSeedBase(doc.rocket, edits) : null), [doc, edits]);
 
   /** Why this part cannot be removed, or null. The panel asks THIS rather than judging for itself, so the
    *  reason it shows and the guard that enforces it cannot disagree about which design they are judging. */
@@ -802,6 +896,61 @@ export default function LoftApp() {
         removedIds: [...(edits.removedIds ?? []), id],
       },
       { label: `removing ${name || "the part"}`, key: `remove:${id}` },
+    );
+  };
+
+  /** Add a booster stage below everything already in the stack, and take it away again.
+   *
+   *  The stage carries no components of its own in the edit bag: what a booster is made of is decided at
+   *  every apply from the design as it then stands, which is what makes replaying the bag the whole of
+   *  undo. `applyAddedStages` seeds it from the design's own aft tube — that tube, its motor mount and
+   *  its fins, and nothing else — and puts a motor in every configuration, without which the stage never
+   *  lights, never drops, and costs the design 37.5% of its apogee in silence.
+   *
+   *  Removal is dropping the entry, not a `removedIds` list of its parts: the stage exists only in the
+   *  bag, so there is nothing in the pristine design to mark as gone. The aims are cleared the same way a
+   *  component removal clears them, because an absolute dimension still aimed at a part inside the
+   *  booster re-lands on whatever the role fallback resolves to once the booster is gone. */
+  const addStage = () => {
+    if (!doc || !removableFrom) return;
+    const n = (edits.addedStages?.length ?? 0) + 1;
+    const name = n === 1 ? "Booster" : `Booster ${n}`;
+    const seedId = newPartId(removableFrom, edits.added, `stage:${n}`);
+    const mountId = newPartId(removableFrom, [...(edits.added ?? []), { id: seedId } as AddedPart], `mount:${n}`);
+    applyEdit(
+      { addedStages: [...(edits.addedStages ?? []), { seedId, mountId, name }] },
+      { label: `adding ${name}`, key: `addstage:${seedId}` },
+    );
+  };
+
+  const removeStage = (seedId: string) => {
+    if (!doc || !removableFrom) return;
+    const entry = edits.addedStages?.find((s) => s.seedId === seedId);
+    if (!entry) return;
+    // What the stage accounts for — every id, not a walk down from the seed. `addedStageIds` carries the
+    // reasoning and the measurements; the two things it buys are that a DELETED seed does not hide the
+    // rest of the stage, and that a part of the stage the flyer already removed is still counted.
+    const gone = addedStageIds(doc.rocket, edits, seedId);
+    // Every aim pointing into the stage, cleared in the same commit. An absolute dimension still aimed
+    // at a part inside the booster does not stop applying when the booster goes: it falls back to the
+    // design's primary part and lands there instead. On the starter that took the SUSTAINER's 620 mm
+    // tube to 400 mm — apogee 993.642 to 1105.598 m, with the field still reading 400.
+    let cleared: Edits = edits;
+    for (const id of gone) cleared = { ...cleared, ...aimsClearedByRemoving(removableFrom, cleared, id) };
+    // And EVERY list that names one of those parts goes with the stage — not just `added`. An entry
+    // left behind is a live what-if for a component that is nowhere: the design still reads as edited,
+    // so it withholds the file's own stored-results comparison. `removedIds` is the one that also
+    // changes a flight — see `addedStageIds` for the two clicks that otherwise hand a flyer a booster
+    // born with its own motor mount already deleted.
+    applyEdit(
+      {
+        ...cleared,
+        added: (edits.added ?? []).filter((a) => !gone.has(a.id)),
+        removedIds: (edits.removedIds ?? []).filter((id) => !gone.has(id)),
+        moved: (edits.moved ?? []).filter((m) => !gone.has(m.id) && !(m.after !== null && m.after !== undefined && gone.has(m.after))),
+        addedStages: (edits.addedStages ?? []).filter((s) => s.seedId !== seedId),
+      },
+      { label: `removing ${entry.name}`, key: `rmstage:${seedId}` },
     );
   };
 
@@ -845,7 +994,7 @@ export default function LoftApp() {
     // rather than leaving the fields holding a part that no longer exists — and clear the absolute
     // dimensions that aim was pointing, which otherwise re-land on the part just made.
     const nextAdded = [...(edits.added ?? []), part];
-    const aim = aimEditsAt(structureOf(doc.rocket, { added: nextAdded, removedIds: edits.removedIds, moved: edits.moved }), id);
+    const aim = aimEditsAt(structureOf(doc.rocket, { ...edits, added: nextAdded }), id);
     applyEdit(
       { added: nextAdded, ...aimsClearedByAiming(edits, aim), ...aim },
       { label: ADD_LABEL[kind] ?? "adding a part", key: `add:${id}` },
@@ -860,6 +1009,38 @@ export default function LoftApp() {
     (id: string, dir: -1 | 1) => (removableFrom ? moveTarget(removableFrom, id, dir) !== null : false),
     [removableFrom],
   );
+
+  /** Every place a part can be dropped, for the diagram's drag. Judged against the SAME tree
+   *  `movePartTo` applies against, for the reason `canMovePart` gives above: the shown rocket carries
+   *  the dimension edits, which synthesise top-level parts of their own, so a slot resolved there can
+   *  name an anchor the operation cannot address. */
+  const movePartSlots = useCallback(
+    (id: string) => (removableFrom ? moveSlots(removableFrom, id) : []),
+    [removableFrom],
+  );
+
+  /** Drop a top-level part at a chosen slot — the drag's commit, where `movePart` is the nudge's.
+   *
+   *  Appended to `moved` exactly as a nudge is, and keyed uniquely per commit so two drops never
+   *  coalesce into one undo step. It takes the anchor rather than a direction because a drag is not a
+   *  direction: it lands where the pointer was let go, which may be several places away. */
+  const movePartTo = (id: string, after: string | null) => {
+    if (!doc || !removableFrom) return;
+    // Re-checked here, not trusted from the caller. The diagram computes its slots from a render that
+    // may be a frame behind the model, and an entry naming an anchor in another stage is a silent
+    // no-op inside `applyMoves` — which would leave an undo step on the stack that undoes nothing.
+    if (!moveSlots(removableFrom, id).some((s) => s.move.after === after)) return;
+    const name = flattenRocket(removableFrom).find((p) => p.component.id === id)?.component.name;
+    applyEdit(
+      { moved: [...(edits.moved ?? []), { id, after }] },
+      {
+        label: `moving ${name || "the part"} along the airframe`,
+        // Keyed uniquely per commit, like the nudge and every other structural act: two drops a
+        // moment apart are two decisions, not two frames of one gesture.
+        key: `move:${id}:${after ?? "nose"}:${edits.moved?.length ?? 0}`,
+      },
+    );
+  };
 
   /** Nudge a top-level part one place toward the nose or the tail, within its own stage.
    *
@@ -1238,6 +1419,8 @@ export default function LoftApp() {
             recents={recents}
             onOpenRecent={onOpenRecent}
             onForgetRecent={onForgetRecent}
+            removedRecents={removedRecents}
+            onRestoreRecent={onRestoreRecent}
             discarded={discarded}
             onRestoreDiscarded={onRestoreDiscarded}
           />
@@ -1389,7 +1572,7 @@ export default function LoftApp() {
           {doc.warnings.length > 0 && (
             <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-300">
               <p className="font-medium">Some parts of this design weren&apos;t fully understood:</p>
-              <ul className="mt-1 list-disc pl-5">
+              <ul className="mt-1 list-disc pl-6">
                 {doc.warnings.slice(0, 6).map((w, i) => (
                   <li key={i}>{w}</li>
                 ))}
@@ -1403,7 +1586,7 @@ export default function LoftApp() {
           {doc.notes.length > 0 && (
             <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900/60 dark:text-zinc-300">
               <p className="font-medium text-zinc-700 dark:text-zinc-200">How Loft read this design:</p>
-              <ul className="mt-1 list-disc pl-5">
+              <ul className="mt-1 list-disc pl-6">
                 {doc.notes.slice(0, 6).map((n, i) => (
                   <li key={i}>{n}</li>
                 ))}
@@ -1502,6 +1685,10 @@ export default function LoftApp() {
               onAddAfter={addPartAfter}
               onMovePart={movePart}
               canMovePart={canMovePart}
+              onMovePartTo={movePartTo}
+              movePartSlots={movePartSlots}
+              onAddStage={stageBase && canAddStage(stageBase) ? addStage : undefined}
+              onRemoveStage={removeStage}
               refuseRemoval={refuseRemoval}
               onSelectPart={(id) => {
                 // A pick that aims nothing — a coupler, a centring ring — must not commit an edit

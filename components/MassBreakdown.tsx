@@ -74,7 +74,7 @@ export default function MassBreakdown({
             </span>
           )}
         </span>
-        <span className="text-xs text-zinc-400 transition group-open:rotate-180">▾</span>
+        <span className="text-zinc-400 transition group-open:rotate-180">▾</span>
       </summary>
       <div className="border-t border-zinc-100 px-4 py-3 dark:border-zinc-800">
         <div className="overflow-x-auto">
@@ -127,7 +127,7 @@ export default function MassBreakdown({
           mistyped dimension or material in the design file.
         </p>
         {massHeldBy && (
-          <p className="mt-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-800 dark:text-amber-200">
+          <p className="mt-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-200">
             A part you added or removed was inside {massHeldBy}, whose weight this design states
             outright — so the dry total above is unchanged. The stated figure stands for everything in
             there whether or not that part is, and the flight is flown at that figure. What the change
@@ -136,7 +136,7 @@ export default function MassBreakdown({
           </p>
         )}
         {massAbsorbed && (
-          <p className="mt-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-800 dark:text-amber-200">
+          <p className="mt-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-200">
             The mass you added is inside an assembly whose weight this design states outright, so it
             does not change the total — the design&apos;s own figure stands for everything in there,
             and the flight above is flown at that figure. To fly the extra weight, use{" "}

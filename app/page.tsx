@@ -9,7 +9,7 @@ export default function Home() {
     // sweep all want width, and 1024 px left 47% of a 1920 px display empty. The column grows
     // past the reading measure only on a large screen; the prose blocks inside it keep their own
     // narrower caps, so the import screen still reads at a comfortable line length.
-    <main id="main" className="mx-auto w-full max-w-5xl px-4 py-8 md:px-6 md:py-10 xl:max-w-7xl 2xl:max-w-[100rem]">
+    <main id="main" className="mx-auto w-full max-w-5xl px-4 py-8 md:px-6 md:py-12 xl:max-w-7xl 2xl:max-w-[100rem]">
       <SiteHeader />
       <LoftApp />
       <InstallHint />

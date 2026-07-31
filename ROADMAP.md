@@ -369,21 +369,33 @@ moves the static margin by sliding alone.
 
 ## R4 — Reorder and restack
 
-**Status:** IN PROGRESS — the current R-track milestone. The operation, the refusal and the
-keyboard/touch path are in and pinned by `lib/model/edit.test.ts` (the `reordering a top-level part`
-and `moveTarget` suites, 9 cases), by `lib/corpus/sweep.test.ts`'s *never lets a reorder overlap a
-part, cross a stage, or fail to come back* — which drives **206 reorders across all 35 real designs**
-and skips itself where the corpus is absent — and by two e2e cases: *a flyer can move a part along the
-airframe, and the stations behind it follow* and *a part at the end of its stage is not offered a move
-it cannot make*. Every one was proved able to fail by a negative control with its tsc or build exit
-checked.
+**Status:** SHIPPED 2026-07-31 — pinned by `lib/model/edit.test.ts` (the `reordering a top-level part`,
+`moveTarget` and `moveSlots` suites, 15 cases), by `lib/corpus/sweep.test.ts`'s *never lets a reorder
+overlap a part, cross a stage, or fail to come back* (**206 reorders across all 35 real designs**) and
+*offers a drag only drops that land exactly where the indicator promised* (**484 drop slots across all
+35 designs, 30 of them landing in front of the next stage's first part**) — both of which skip
+themselves where the corpus is absent — and by four e2e cases: *a flyer can move a part along the
+airframe, and the stations behind it follow*, *a part at the end of its stage is not offered a move it
+cannot make*, *a part can be dragged along the airframe and dropped between two others*, and *dragging
+a part does not also re-aim the editor at it*. Every one was proved able to fail by a negative control
+with its tsc or build exit checked.
 
 **Outcome.** Nose-to-tail order is editable, not fixed at import.
 
 **Done when** a flyer can drag a component along the airframe and drop it between two others, the
 station arithmetic of everything aft follows, and the diagram never shows a part overlapping another.
 
-**Size.** 3–5 increments.
+**Increment 3 was a Sev-1 the drag itself created reach to.** Loft takes forebody pressure and wave
+drag from whichever component is a nose cone wherever it sits, and has no term at all for a blunt
+leading face. Measured on `fixtures/demo-quirks.ork`: nudging the nose one place aft leaves apogee at
+1,406.622 m, max velocity at 227.893 m/s and rail exit at 26.023 m/s — every digit identical to the
+streamlined design — while the rocket flies a 66 mm flat disc into the airstream. Only the margin moves.
+A flight that leads with a flat face now says so, names the diameter, and reports the number as
+optimistic; `/docs/limitations` carries it. **0 of the 35 real designs** fire it as imported, which is
+the measurement that makes it a warning about a shape the EDITOR can reach rather than a caveat about
+the corpus.
+
+**Size.** 3–5 increments. **Took 3.**
 
 **The measurement that made this a 3-increment milestone rather than a placement-model rewrite.**
 A top-level part's station is DERIVED, never stored — `flattenRocket` walks each stage's list with a
@@ -403,12 +415,56 @@ taken without the owner*.
 
 **The gap, which is the next increment rather than a reason to re-open this.**
 
-- **The gesture is a pair of buttons, not a drag.** The *done when* says "drag a component along the
-  airframe and drop it between two others", and that is the next slice. The buttons came first
-  deliberately: they are the keyboard and touch path, which a drag can never be, and the diagram's two
-  centreline grips are already fine-pointer-only because at phone fit width the airframe is ~11 px tall
-  and every grip sits inside every other's 44 px target. Building the drag first would have left the
-  accessible path unbuilt and `e2e/touch.spec.ts` to discover it.
+- **~~The gesture is a pair of buttons, not a drag.~~ SHIPPED as increment 2.** The buttons came first
+  deliberately and they stay: they are the keyboard and touch path, which a drag can never be, and the
+  diagram's two centreline grips are already fine-pointer-only because at phone fit width the airframe
+  is ~11 px tall and every grip sits inside every other's 44 px target.
+
+  **The scoping for that slice was redone on 2026-07-31 and one of its premises was wrong.** This file
+  and `HANDOFF.md` both said to freeze the HORIZONTAL frame during the drag because the airframe's
+  overall length changes under the pointer. Measured: it does not. `flattenRocket` stacks with a
+  running cursor and all 150 top-level components are body parts at `after` + 0, so a permutation
+  leaves the sum bit-identical. What moves is `maxExtent` — fin seats re-resolve, so the picture
+  shifts VERTICALLY and the existing `vFrameExtent` freeze is the fix — plus one real horizontal case:
+  with a boattail what-if set, `addBoattail` returns the rocket unchanged once a narrower tube becomes
+  aft-most, so the boattail vanishes mid-drag. `HANDOFF.md` carries the rest, including the three
+  hazards that decide the shape: the drag must not route through `onEdit` (which replaces the whole
+  `moved` list rather than appending), the pick's click fires on pointerup and would re-aim the fields
+  on every reorder, and the drop anchor must come from the tree the operation runs against while the
+  pixel comes from the tree on screen.
+
+**What increment 2 shipped against the *done when*.** A flyer grabs a part's own silhouette on the
+diagram, drags it along the airframe, and drops it between two others; a rule marks the joint it will
+land at while the pointer moves; the stations of everything aft follow; and the drop is one undo step,
+named. `moveSlots` is the new model function — every legal landing for a part, each carrying both the
+`{ id, after }` entry to commit AND the part it lands in front of. That split is the load-bearing
+decision: **the anchor is resolved against the tree the operation runs against, the pixel against the
+tree being drawn**, because the shown rocket carries dimension edits that synthesise top-level parts
+(a boattail) which `applyMoves` cannot address — an anchor read off the picture names a part the
+operation silently ignores while the indicator promised otherwise.
+
+**No live preview.** The picture does not restack until the pointer is released, which is what the
+desktop tools' component trees do and what keeps the slot table valid for the whole gesture: a
+committed preview moves the boundaries by design, so a target recomputed from the new geometry maps
+the same pointer x back to the previous slot and the part oscillates between two positions.
+
+**Four things the pre-push review and the negative controls caught, none of which a unit test could
+see:**
+
+1. **A drag also re-aimed the editor.** The grip is the pick surface, so the pointerup synthesises a
+   click and the click picks the part — and a pick re-aims the fields, which on a field holding an
+   ABSOLUTE value changes the design rather than the selection. Suppressed, with the flag cleared at
+   the START of the next gesture rather than left to be consumed by a click that may never arrive: a
+   drag that ends over a different element fires its click on the common ancestor instead, and a flag
+   left standing then swallows the next genuine pick.
+2. **The first version of the "does not re-aim" e2e could not fail**, because it dragged far enough to
+   leave the part's own silhouette — so the click landed on the `<svg>` and the suppression was never
+   exercised. It now uses a SHORT drag that stays inside the part.
+3. **A coordinate captured before an undo lands outside the viewport**, because the page reflows as
+   controls appear and disappear around the diagram. The e2e recomputes it each time.
+4. **`preventDefault` on the grip's pointerdown was removed on a false diagnosis and put back.** The
+   real cause of that failure was (3); the control proved the removal changed nothing, so it stays for
+   the reason the other grips have it — stopping the native text selection a drag would start.
 - **Reordering is top-level only.** A part nested inside another (a fin set on a tube, a mass object in
   a bay) has no place in the stack order, and `moveTarget` returns null for it. Real designs nest, so
   "move this part into that bay" is a real gesture — it is the same ceiling `added` still has, filed in
@@ -443,7 +499,13 @@ move and asserts every one of the 206 actually permuted the list.
 
 ## R5 — Author a staged rocket
 
-**Status:** NOT STARTED
+**Status:** IN PROGRESS — increment 1 shipped 2026-07-31: the operation, the refusal and the control,
+pinned by `lib/model/edit.test.ts`'s `authoring a booster stage` suite (8 cases), by
+`lib/corpus/sweep.test.ts`'s *authors a booster on every real design, and every one of them separates*
+— which drives **33 authored boosters and 2 refusals across all 35 real designs**, flies 30 of them and
+asserts that all 29 which reach burnout separate — and by the e2e *a flyer can add a booster stage, fly
+the staged flight, and take it back*. Every one was proved able to fail by a negative control with its
+build exit checked.
 
 **Outcome.** Multi-stage designs can be built, not only imported.
 
@@ -455,6 +517,163 @@ again.
 so this is an authoring milestone rather than a physics one. Confirm that before scoping it.
 
 **Size.** 4–6 increments.
+
+**Confirmed by measurement, which is what those notes asked for.** A stage synthesised in memory — never
+from a file — phases, separates, re-derives its per-phase mass and aero, and round-trips through the
+exporter. **No physics change is required.** What it needs that nothing else in the edit bag supplies is
+a stage-level operation and, for the first time, a write to `rocket.configurations`.
+
+**What increment 1 shipped.**
+
+- **`GeometryEdits.addedStages`, a FOURTH list** rather than a fifth `AddedPart.kind`. `buildAdded`
+  returns a component plus where it goes — beside its anchor, or inside it — and a stage is neither: it
+  is the level above a component, so it has no anchor to name and nowhere in that return to land.
+- **It carries no components of its own.** What a booster is made of is decided at every apply from the
+  design as it then stands, which is the rule every other operation in this bag follows and what makes
+  replaying the bag from the pristine design the whole of undo.
+- **The seed is the design's own aft tube, its motor mount and its fins, and nothing else.** Both
+  omissions are measured: a whole-subtree clone drags 150 g of altimeter and parachute into the booster
+  (26.4% of the seed's mass), and `lib/sim/setup.ts` collects recovery devices from stage 0 only, so a
+  cloned canopy is dead weight the solver never deploys. Across the corpus's 12 real booster stages, 12
+  carry a fin set, 10 a motor mount and **0 a nose cone** — tube + mount + fins is what a booster is.
+- **A motor goes into EVERY configuration, and that is the operation.** A stage separates only if a
+  configuration instance names a mount inside it, so a booster with a mount and no instance never lights
+  and never drops: measured on the starter, 993.642 m falling to **621.158 m, a 37.5% loss**, with no
+  separation event and nothing on any surface saying why. A design can carry five configurations, and a
+  booster present on one and missing from another is the same silent loss on whichever the flyer
+  switches to.
+- **A booster that cannot burn is REFUSED, not disclosed.** Where the aft tube carries no motor mount to
+  clone, the gesture is not offered at all — because appending one anyway produces a confident wrong
+  number in the optimistic direction: measured on `03.Three-stage.ork`, apogee went from 1,481.8 m to
+  **2,299.2 m, a 55% GAIN** from a stage that can never fire. 2 of the 35 real designs are in that state.
+  *(`canAddStage` was exported, tested and swept in increment 1 but never asked by the UI, so on those 2
+  designs the control DID render and a click committed an undo step that changed nothing. Wired into
+  `onAddStage` in the review pass below; the sentence above is true from that commit, not from
+  increment 1's.)*
+- **Removal is dropping the entry**, not a `removedIds` list of the booster's parts: the stage exists
+  only in the bag, so there is nothing in the pristine design to mark as gone. The aims are cleared the
+  same way a component removal clears them.
+
+**The enumeration trap, and one place it stopped.** `HANDOFF.md` records six places a new key on this
+bag must be added by hand. Two of the six were `structureOf(…, { added, removedIds, moved })` call sites
+that hand-restated the fields — and `structureOf` already picks the structural keys itself. Those call
+sites now pass the WHOLE bag, and so does `ParameterSweep`'s `axisBase` dependency list. **That closes
+two of the six permanently**: a caller that passes the whole bag cannot be out of date, and a caller
+that spells out fields silently can.
+
+**What TWO rounds of second opinion on increment 1 corrected, after it was already pushed.** The first
+round found thirteen things; the second, taken on the fixes themselves, found seven more — including
+that the first round's headline fix was bypassable and that one of the corrected numbers was still
+wrong. Ten are fixed here, four of them wrong numbers on a surface a flyer would act on; the rest are in
+`BACKLOG.md` with their measurements. Every figure below was re-derived against the pushed code rather
+than quoted from either review, which is the one lesson two of them teach.
+
+- **Sev-1 — the aim fix was bypassable, because the stage was found by its SEED and the seed is
+  removable.** `removalRefusal` allows deleting a booster's seed tube; the stage stays, holding whatever
+  was authored into it, and a lookup rooted at `seedId` then finds no stage and clears nothing. Measured
+  on the starter — booster, a tube authored inside it at 400 mm, seed deleted, stage removed — the
+  sustainer's 620 mm tube still became 400 mm: **993.642 → 1105.598 m**, the same wrong number the fix
+  was written to stop. `addedStageIds` now diffs the structure with the stage against the structure
+  without it, so what the stage accounts for is named by what it HOLDS.
+- **Sev-1 — `removedIds` outlived the stage, and `newPartId` is deterministic.** The removal dropped
+  `added` and nothing else, while `addStage` names by the current length, so the booster after a removal
+  is minted with the SAME seed and mount ids as the one before it. Add a booster (1491.464 m, one
+  separation), delete its motor mount (638.973 m, none), remove the stage (993.642 m), add a booster
+  again — **the new one reads 638.973 m with zero separation events**, 35.7% below the design's own
+  flight, from two clicks that destroy nothing and with nothing on any surface saying why. Every list in
+  the bag is now filtered by what the stage held, `removedIds` and `moved` included.
+- **The refusal was asked the wrong tree, and disagreed with the operation in 123 corpus states.**
+  `applyAddedStages` runs FIRST in the pipeline, on the pristine design plus the stages already authored;
+  the gate asked the fully-structured tree, where an authored tube, a removal or a reorder changes which
+  tube is aft-most. 121 are false refusals — author one ordinary tube at the tail of the starter and the
+  control vanishes from a design that would have given a 2-stage rocket flying 1373.372 m with a
+  separation — and 2 go the other way, on `03.Three-stage.ork`, which is the changes-nothing click the
+  refusal exists to prevent. `stageSeedBase` names the right tree once, and the e2e that had pinned the
+  false refusal as correct behaviour now pins the opposite.
+- **The withdrawal notice said "This design flies 1 stages."** `staged` moved to the edited rocket; the
+  sentence explaining the withdrawal did not, so it read the file's own stage count — a wrong number and
+  a broken sentence on the one piece of copy whose job is to explain what just disappeared. Now
+  asserted positively by the e2e, because three `toHaveCount(0)` calls are satisfied by deleting the
+  notice outright.
+
+- **Sev-1 — the RocketPy cross-check flew a booster as a coaxial cluster and called it a second
+  opinion.** Every Analyze tool gated on "is this design staged?" read `doc.rocket.stages.length`, the
+  stage count of the FILE, which a booster in the edit bag never touches. So the cross-check stayed
+  offered — and it builds its spec from the EDITED rocket, where `buildRocketpySpec` carries a single
+  `motor` and multiplies one curve by `motors.length`. Correct for a cluster; wrong for serial staging.
+  Measured on the starter with one booster authored: peak thrust **190.5 → 381.0 N**, propellant
+  **0.0941 → 0.1882 kg**, burn time unchanged at 1.293 s — two motors firing together from t=0 on a
+  vehicle that never sheds a stage, under a heading whose whole job is to say whether Loft's number can
+  be trusted. The gate now asks the rocket on screen. Pinned by an e2e that withdraws the tools with the
+  booster and gets them back when it goes.
+- **Sev-1 — removing a booster resized the SUSTAINER.** `removeStage` cleared aims by naming the seed
+  tube and its children; a part the flyer authored ONTO the seed is a sibling in that stage's list, not
+  a child, so it was never named. Measured on the starter: author a booster, add a tube inside it, set
+  Body length 400 mm, remove the stage — `bodyTubeId` points at nothing, falls back to the primary tube,
+  and the sustainer's 620 mm tube becomes 400 mm: apogee **993.642 → 1105.598 m (+11.3%)** with the
+  field still reading 400 and no part on screen that long. The whole stage is named now, and the `added`
+  entries that built those parts go with it rather than lingering as an active what-if for a component
+  that is nowhere. Pinned by an e2e.
+
+- **The configuration write cloned one field too many.** `ignitionEvent` carried across from the source
+  instance, so a booster seeded from a design that air-starts inherited `burnout` — and `lib/sim/setup.ts`
+  derives bottom-versus-upper from the STAGE INDEX, where that event resolves to "never lights". Measured
+  on `02.Two-stage.ork`: 1,377.957 m became **1,152.856 m (16.3% DOWN)** against the **2,055.479 m** the
+  fixed code flies; on `Two stage high power rocket.ork`, 659.262 m became 619.833 m against 855.457 m.
+  That is the same silent wrong flight the configuration write exists to prevent, reintroduced by copying
+  a field. `ignitionEvent` and `ignitionDelay` are now both omitted and the trigger derives.
+  *(This bullet first published 1,548.575 m as the fixed number. That is the OLD motor source with the
+  NEW ignition handling — a rocket that exists in no commit. It was caught by the review below, in the
+  bullet whose whole subject is quoting a probe of something other than the finished thing.)*
+- **And it cloned the wrong motor.** `cfg.instances[0]` is the first instance, not the one in the tube the
+  booster was seeded FROM. On `Three stage low power rocket.ork` those are different motors: instance zero
+  puts an A8 in a booster whose own mount flies a B6, and apogee reads 294.4 m against 334.2 m — **11.9%
+  low**. It now prefers the seed tube's own mount's instance and falls back to the first.
+- **The corpus separation assertion could not fail on the multi-stage designs.**
+  `some(e => e.type === "separation")` is satisfied by a separation the design ALREADY had, so it was
+  structurally blind to both defects above. It now asserts the count rises by **exactly one** — which
+  also catches a booster that separates while suppressing one of the design's own. Nine designs are
+  multi-stage and 7 of them reach the branch; the other 2 refuse a booster.
+
+  **What it can and cannot catch, driven rather than assumed.** Reverting BOTH motor fixes turns it red
+  on 2 designs. Reverting either one ALONE leaves it green: every seed instance in the corpus carries
+  `ignitionEvent: "automatic"` or none, which resolves to the serial default anyway, so once the
+  seed-mount preference is in place the ignition clone has nothing left to break. The claim first
+  published here — "proved able to fail by restoring the ignition-event clone" — was not true of the
+  shipped code.
+
+  So each half got the check it actually needs. **The seed-motor preference is pinned by the sweep**:
+  the booster's instance must name the motor the seed tube's own mount flies, which catches 6 states
+  across 3 designs (`02.Two-stage.ork` G80T for I300T, `Three stage low power rocket.ork` A8 and C6 for
+  B6, `Two stage high power rocket.ork` I59WN for I357T). **The ignition omission is pinned by a
+  SYNTHETIC unit case**, because no real design exercises it — a design that air-starts off its aft
+  mount is a file Loft has not met, and a guard against a file shape the corpus does not contain cannot
+  be proved by the corpus. Both proved able to fail by reverting exactly their own half. Writing
+  "no corpus design reaches this" beside a guard is worth more than a sweep that passes either way.
+- **`canAddStage` was never called.** See the refusal bullet above.
+- **A number was wrong in six places.** The no-instance loss was published as *546.813 m, a 45.0% loss*
+  across `edit.ts`, `LoftApp.tsx`, `edit.test.ts`, `sweep.test.ts`, `smoke.spec.ts` and this file. That
+  figure came from a probe of the whole-subtree clone WITHOUT the configuration write — a different
+  rocket from the one that shipped. Re-derived against the shipped code: **621.158 m, a 37.5% loss.**
+  Both halves of the seeding rule reduce the apogee, and quoting a scoping probe as a result of the
+  finished thing double-counted one of them.
+
+**The gap, which is increment 2 rather than a reason to re-open this.**
+
+- **There is no phase table.** The *done when* asks for "a staged flight whose phase table matches what
+  they built", and the flight surface has none: separation is a marker on the altitude chart
+  (`ResultsView.tsx`) and a sentence in the warning that names the shed stage. `FlightViz`'s event dots
+  filter separation out entirely. Building one is the next slice, and it is what the *done when* is
+  actually asking for.
+- **"Give it its own motor mount and fins" is inherited, not authored.** The seed carries both because
+  it is cloned from a tube that has them; there is no `AddedPart.kind` for a motor mount, so a booster
+  cannot be given one it did not inherit. That is why the refusal above exists rather than a gesture.
+- **A stage authored on a design with several configurations flies the same motor in all of them**, and
+  a flyer cannot yet pick a different one for the booster. `motorSwap` is a whole-design what-if.
+- **Only an AUTHORED stage can be removed.** An imported one cannot: `removalRefusal` counts body tubes
+  within a stage, so a flyer cannot empty an imported stage part by part either. A stage-level removal
+  for imported stages needs `Stage` to gain an id, which touches all three adapters and the exporter —
+  recorded in *Decisions taken without the owner*.
 
 ---
 
@@ -484,17 +703,17 @@ cannot return while the conversion is still running.
 
 **Measured at the start of this milestone (2026-07-31), and after each increment:**
 
-| §9 count | target | before | inc. 1 | inc. 2 |
-|---|---|---|---|---|
-| `rounded-lg` | 0 | 49 | 46 | **37** |
-| distinct card treatments | 3 (see below) | 9 | 3 | 3 |
-| off-scale spacing values | 0 | 8 | 8 | 8 |
-| components importing `components/ui.tsx` | most of 23 | 5 | 11 | **12** |
-| components importing `Button` | most that have one | 0 | 0 | **6** |
-| hand-rolled indigo primaries | 0 | 16 | 16 | **6** |
-| surfaces with two primaries | 0 | 2 | 2 | **0** |
-| component files where `text-xs` outnumbers `text-sm` | 0 | 9 | 9 | 9 |
-| `text-lg`, a size not on the scale at all | 0 | 14 | 14 | **0** (inc. 3) |
+| §9 count | target | before | inc. 1 | inc. 2 | inc. 3 | inc. 4 | inc. 5 |
+|---|---|---|---|---|---|---|---|
+| `rounded-lg` | 0 | 49 | 46 | 37 | 37 | **35** | 35 |
+| distinct card treatments | 3 (see below) | 9 | 3 | 3 | 3 | 3 | 3 |
+| off-scale spacing values | 0 | 8 | 8 | 8 | 8 | 8 | **0** (inc. 5) |
+| components importing `components/ui.tsx` | most of 23 | 5 | 11 | 12 | 12 | **14** | 14 |
+| components importing `Button` | most that have one | 0 | 0 | 6 | 7 | **9** (+1 via `buttonClass`) | 9 |
+| hand-rolled indigo primaries | 0 | 16 | 16 | **6** | 6 | 6 | 6 |
+| surfaces with two primaries | 0 | 2 | 2 | **0** | 0 | 0 | 0 |
+| component files where `text-xs` outnumbers `text-sm` | 0 | 9 | 9 | 9 | 9 | **0** | 0 |
+| `text-lg`, a size not on the scale at all | 0 | 14 | 14 | 14 | **0** | 0 | 0 |
 
 **The suite-wide `text-sm` vs `text-xs` ratio was retired from §9 in increment 2, and the reason is
 a measurement.** Converting nine hand-rolled buttons onto `Button` moved the totals from 91/88 to
@@ -549,11 +768,106 @@ milestone rather than half-built here.
 headings to `text-xl font-medium` (which is what `Section` already renders, so the hand-rolled headings
 and the primitive now agree) and three prominent values to `text-xl font-semibold`, the weight §3
 reserves for the one number a surface exists to show. Asserted at zero, so it is a guard rather than a
-ratchet. **What is left of the type work is the nine individually-inverted files** — `GeometryInspector`
-at 10:2, `MonteCarlo` at 9:3, `ResultsView` at 16:13 — and that one is not mechanical: a caption
-legitimately is `text-xs`, so each site needs a judgement about whether the thing is a value a flyer
-reads to decide or the text around it. That is the next slice, and it should be done per surface with
-the count quoted, not as a sweep.
+ratchet.
+
+**Increment 4 took the per-file caption inversion to zero**, which was the half of the type work that
+is a judgement rather than a sweep — nine files, `GeometryInspector` at 10:2, `MonteCarlo` at 9:3,
+`ResultsView` at 16:13. The rule applied is worth keeping, because it decides every future site:
+**a sentence whose purpose is to change what the flyer does next — an instruction, a refusal, a
+warning, an explanation of why a number will not move — is decision-grade and takes the body default.
+A sentence that describes something already on screen — a unit, a provenance line, a chart legend, a
+footnote, help text — stays at caption size.** Under it `text-xs` across `components/` went **91 → 56**
+and `text-sm` **84 → 113**, and nothing that is genuinely a caption moved. Per file:
+
+| file | before | after |
+|---|---|---|
+| `ResultsView` | 16/13 | 6/23 |
+| `GeometryInspector` | 10/2 | 2/8 |
+| `MonteCarlo` | 9/3 | 3/9 |
+| `DragCrossCheck` | 4/1 | 1/4 |
+| `MassBreakdown` | 4/2 | 1/4 |
+| `SiteHeader` | 2/1 | 0/1 |
+| `Footer` | 1/0 | 1/1 |
+| `FusionSpaceBadge` | 1/0 | 0/1 |
+| `DownloadCsv` | 1/0 | 0/0 |
+| `ThemeToggle` (not inverted, converted for consistency) | 1/1 | 0/0 |
+
+The ones that mattered most:
+
+- **The four advice blocks on the results surface**, each of which tells a flyer what to change on the
+  rocket and to what number: stability trim (the nose ballast mass, or the fin shift that reaches the
+  same margin without it), the fin-flutter fix, recovery sizing, and the separated-booster descent. All
+  four were the smallest text in their own panel.
+- **The what-if delta** — the one number the "What-if vs design" card exists to produce, rendered
+  smaller than the pair of values it compares.
+- **The dispersion study's 5–95% bands and median drift.** A Monte-Carlo's product IS the spread, and
+  every band sat at caption size under a `text-xl` median.
+- **Landing energy and landing hardness.** The code already colours landing hardness amber above 5%, so
+  it was treating the line as a warning while the type scale treated it as a footnote.
+- **Two form selects** that rescale an overlaid flight log — the smallest controls in the app at 12 px,
+  and the one pair that silently changes what a chart means.
+- **The footer's standing disclaimer** — that every figure is a model's estimate and never a go/no-go,
+  the one sentence the SAFETY posture requires be visible — which sat a step below body text, in the
+  fine print, along with the footer's six nav controls.
+
+**One of the nine was a false positive of the metric rather than a defect**, and is recorded as such:
+`FusionSpaceBadge` counts as inverted at 1/0 while containing no text at all — its only `text-xs` is on
+an `aria-hidden` decorative glyph. `MassBreakdown`'s disclosure chevron is the same kind of site inside
+a file that WAS genuinely inverted. Neither is a number moved to satisfy a count: the footer and the
+parts panel already rendered that identical affordance unsized, so both are consistency corrections.
+
+The ratchet is now a **guard at 0**, and it has **no headroom** — `LoftApp` sits at 18/18 and `Footer`,
+`InstallHint` and `ThemeToggle`… (`ThemeToggle` is now 0/0) — so one added `text-xs` in `LoftApp` fails
+the suite. That is the intended sharpness, but the next session should know the margin is a single
+class string rather than discover it.
+
+**Five controls came off hand-rolled class strings onto the primitives in the same pass**, because the
+type change made them mismatch their neighbours: the parts panel's four add gestures and its removal
+(`Button` and `Button variant="danger"`, which §5 documents as removal-only), the theme toggle, and the
+header's two link-buttons. The last of those needed a primitive that did not exist — `buttonClass`,
+the button geometry as a class string, for the two things that must LOOK like a button and cannot BE
+one, because a `<button>` that navigates is a keyboard and screen-reader defect. `Button` is now built
+from it, so the two cannot disagree, and the three verbatim copies of that geometry in the header are
+gone.
+
+It lives in `lib/ui-tokens.ts`, not in `components/ui.tsx`, and that is not a filing preference: the
+site header is a SERVER component, and a helper exported from a `"use client"` module cannot be called
+from one — `npm run build` fails outright with *"Attempted to call buttonClass() from the server"*.
+That file's header already carried the warning, from the time `TOUCH_TARGET` lived in the client module
+and shipped a throwing stub into a served `class` attribute. **Any future class-string helper belongs
+there for the same reason**, and only the components stay in `components/ui.tsx`.
+
+**The type change broke a phone layout, and finding out cost the e2e check its credibility.** Putting
+the header's three controls on the type scale took that row from 197 px to 229 px. That fits a 390 px
+phone, which is the width `e2e/touch.spec.ts` runs at, and overflowed a 360 px one by 10 px. Chasing it
+turned up two things worth more than the fix:
+
+- **A 320 px phone was ALREADY overflowing by 19 px, before any of this.** Both are now 0, at 320, 360
+  and 390 px, by letting the title block shrink (`min-w-0`) while the control row holds its three 44 px
+  targets (`shrink-0`). `flex-wrap` on the header was tried first and rejected: it fixed the overflow
+  and cost **71 px of vertical space on every phone**, because a wrapped flex item will not shrink
+  below its content, so the controls dropped to a second row at 390 and 412 px too.
+- **The check that should have caught it could never fail.** `no page scrolls horizontally on a phone`
+  compared `document.documentElement.scrollWidth` against `window.innerWidth` — and under Playwright's
+  `isMobile` emulation Chromium widens the LAYOUT viewport to swallow an overflow, so both sides move
+  together. Measured on the reverted header at 320 px: `scrollWidth` 370, `innerWidth` 370, assertion
+  green, while `clientWidth` correctly still read 320. It now compares against `clientWidth` and runs at
+  320, 360 and 390 px. Proved able to fail by a negative control with its build exit checked: it fires
+  *"horizontal overflow on / at 320px — Expected <= 320, Received 370"* and passes again on restore.
+
+**Increment 5 took off-scale spacing to zero**, and measuring it turned up two blind spots in the
+check that are filed rather than papered over: §9's pattern cannot match `gap-5` (the character after
+`g` is not one of `xytblr`, so the `-` never lines up) and cannot match a half-step. Real numbers: one
+`gap-5`, fixed with the rest because it is off the scale whether or not the grep sees it, and **100
+half-steps** — of which 49 are `py-1.5`, which §4 itself prescribes as the padding inside a control
+four lines after stating that the scale has nothing else in it. Resolving that contradiction is a
+sentence in §4, which is a change to a file shared verbatim with the sibling app, so it is filed.
+
+**What is left of P1**, measured after increment 5: 35 `rounded-lg`, and `DataTable`. Two findings the type pass turned up are filed in `BACKLOG.md` rather than folded in —
+`text-[11px]` has become a seventh size in exactly the way `text-lg` did (32 uses, 25 of them an
+uppercase label row), and a motor-resolution chip states a verdict at chip size. A third is a hazard
+for whoever takes the `rounded-lg` slice: `app/globals.css` carries a print rule keyed on that class,
+so converting the 35 sites breaks print unless the stylesheet changes in the same commit.
 
 **The measurement that made this a milestone** (2026-07-30): 12+ distinct card treatments; three
 radius values for one role; `text-xs` and `text-sm` disagreeing between the two sibling apps.
@@ -704,6 +1018,44 @@ Unattended runs do not stop to ask (see *Unattended operation* in `MAINTAINING.m
 that would otherwise have been a question goes here, with the option rejected, so it can be reversed
 cheaply instead of re-derived. Newest first.
 
+- **2026-07-31 — an authored stage is addressed by its SEED TUBE's id, not by a new `Stage.id` and not
+  by an index.** `Stage` has no id in the model and imported stages have never needed one. Rejected
+  adding the field: it touches `lib/ork/import.ts`, `lib/rkt/adapt.ts`, `lib/rasaero/adapt.ts` and
+  `lib/ork/export.ts`, and buys nothing this milestone needs — the tube is a real component with a
+  stable id, it is what R3's gestures anchor onto to grow the booster, and it is what a removal names.
+  Rejected addressing by index: an index goes stale the moment a sibling stage operation is undone, and
+  the bag is replayed from the pristine design on every apply, so a stale index is reachable rather than
+  theoretical. The cost is that only an AUTHORED stage can be removed; an imported one needs the id, and
+  that is where the decision would be revisited.
+- **2026-07-31 — a booster whose seed tube has no motor mount is REFUSED, not authored with a warning.**
+  Rejected disclosing it, which is what the blunt leading face and the mould-line step both do: those
+  describe a geometry a real design can legitimately have, and a stage that can never fire is not a
+  geometry — it is ballast the solver sheds while reporting a confident number in the OPTIMISTIC
+  direction. Measured on `03.Three-stage.ork`: 1,481.8 m to 2,299.2 m, a 55% gain from a stage that
+  cannot burn. Rejected synthesising a mount for it: that invents a component the design does not have,
+  in the one place where inventing one changes the flight. 2 of the 35 real designs are affected and on
+  those the control is simply not offered — true from the review commit that wired `canAddStage` into
+  `onAddStage`, not from the increment that wrote the predicate. **A refusal that is exported, unit
+  tested and swept across the corpus is still not a refusal until a caller asks it**, and every one of
+  those three proofs passed while the button rendered anyway.
+- **2026-07-31 — the shelf's delete is undone by a per-removal offer held in memory, not by a
+  confirmation dialog and not by a trash that persists.** Rejected a confirm prompt: it is the cheapest
+  thing to build and the worst answer here, because it taxes every correct deletion to catch the rare
+  wrong one, and a flyer at the pad with gloves on taps through prompts. Rejected persisting the
+  removed rows to storage as a trash: the shelf's whole budget is already a cap the add path evicts
+  against, and a trash would either eat into it or need a second budget with its own eviction rule —
+  a second one-way door to fix the first. Rejected a single pending offer, which is what the reverted
+  first attempt held: two removals in a row is what a mis-tap looks like, and it made the first one
+  unrecoverable. The offer therefore lives for exactly as long as the screen it was made on, is
+  cleared by any design load, and is a list.
+- **2026-07-31 — `restoreRecent` REFUSES rather than trimming when the shelf has filled up
+  meanwhile.** Rejected capping the list on restore: that is `rememberRecent`'s eviction rule, and
+  running it here means the undo for one deletion silently performs another — exactly the failure that
+  got the first attempt reverted. Rejected raising `MAX_RECENTS` to make room: the cap exists to keep
+  history from spending the origin's storage budget, and a cap that bends for one path is not a cap.
+  The refusal is unreachable from a single tab, because the offer is cleared on every design load and
+  the shelf can only shrink in between; it exists for the second-tab case, and it says what happened
+  and what to do rather than clearing the offer as though it had worked.
 - **2026-07-31 — a reorder is an ordered list of single `{ id, after }` moves, not a full ordered id
   list per stage.** Rejected the full list: it is a SNAPSHOT rather than a patch, and every other edit
   in the bag is a patch for one reason — the model is always rebuilt from the pristine design plus the

@@ -14,8 +14,12 @@ function Dot() {
 export default function Footer() {
   const observances = observancesForDate();
   return (
-    <footer className="mt-20 border-t border-zinc-200 pt-6 text-xs text-zinc-500 dark:border-zinc-800 dark:text-zinc-400 md:mt-28">
-      <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+    // The body default, not caption size. This footer carries the standing disclaimer that every
+    // figure Loft shows is a model's estimate and never a go/no-go — the one sentence the safety
+    // posture requires be visible — plus a row of nav links, which are controls. Both are body text
+    // by the type scale, and setting them a step below it put the safety line in the fine print.
+    <footer className="mt-20 border-t border-zinc-200 pt-6 text-sm text-zinc-500 dark:border-zinc-800 dark:text-zinc-400 md:mt-28">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         {/* The one region the hit-target passes never reached. These are `<nav>` links, not words in
             a sentence, so the "inline in a block of text" exemption does not cover them: measured on
             a 390x844 phone they were 16 px tall — GitHub 60x16, Docs 28x16, Motor Finder 71x16,
@@ -76,7 +80,7 @@ export default function Footer() {
           </span>
         </a>
       </div>
-      <p className="mt-5 max-w-3xl leading-relaxed text-zinc-500 dark:text-zinc-400">
+      <p className="mt-6 max-w-3xl leading-relaxed text-zinc-500 dark:text-zinc-400">
         <strong className="font-medium text-zinc-600 dark:text-zinc-300">
           Every figure Loft shows is an estimate from a model — not a measurement, and never a
           go/no-go verdict. Verify independently; the flyer and the RSO are responsible for the
@@ -105,7 +109,9 @@ export default function Footer() {
         rocketry community.
       </p>
       {observances.length > 0 && (
-        <div className="mt-5 space-y-1">
+        // The month's awareness note is the one genuinely incidental thing down here — it is neither
+        // a control nor a claim about a flight — so it keeps caption size.
+        <div className="mt-6 space-y-1 text-xs">
           {observances.map((o) => (
             <p key={o.id} className="text-zinc-500 dark:text-zinc-400">
               <span aria-hidden="true">{o.emoji}</span> {o.message}

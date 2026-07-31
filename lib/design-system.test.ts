@@ -63,18 +63,20 @@ function countMatches(files: { path: string; text: string }[], re: RegExp): { to
  *  commit as the conversion that earns it, and never raise one. */
 const BUDGET = {
   /** `rounded-lg` is not in the system at all — containers are `xl`, controls are `md`. Target 0. */
-  roundedLg: 37,
+  roundedLg: 35,
   /** Distinct card treatments. One of these is now `<Card>`'s own string, which is the target state;
    *  the other two are a floating toast (`shadow-lg`) and the import drop zone (`border-2 border-dashed`,
    *  an interactive target rather than a container). Both want their own named primitive rather than
    *  being folded into `Card`, so the honest floor here is 3 and not 1 — recorded in `ROADMAP.md`. */
   cardTreatments: 3,
   /** Spacing values off the `1 2 3 4 6 8 12` scale. Target 0. */
-  offScaleSpacing: 8,
+  offScaleSpacing: 0,
   /** Components importing the shared primitives. Target: most of the 23. This one only goes UP. */
-  uiAdopters: 12,
-  /** Component files where caption size OUTNUMBERS the body default. Target 0. */
-  invertedTypeFiles: 9,
+  uiAdopters: 14,
+  /** Component files where caption size OUTNUMBERS the body default. **At the target**, so this is a
+   *  guard rather than a ratchet from here on: a file that inverts again is a decision-grade value
+   *  that has been put back at caption size. */
+  invertedTypeFiles: 0,
   /** Sizes that are not on `DESIGN.md` §3's six-size scale at all. Target 0, and it is AT 0 — this one
    *  is a guard rather than a ratchet. `text-lg` sat between `text-base` and `text-xl`, invented once
    *  and copied fourteen times: eleven panel headings and three prominent values. */
@@ -94,7 +96,14 @@ const BUDGET = {
  *  is closing. What must not happen is a zero silently BECOMING the finished condition. */
 const PRIMITIVE_ADOPTERS: Record<string, number> = {
   Card: 11,
-  Button: 7,
+  Button: 9,
+  /** The button geometry as a class, for the two things that must look like a button and cannot BE
+   *  one — a `next/link` and an external `<a>`. It is exported from `lib/ui-tokens.ts` rather than
+   *  from `components/ui.tsx` because the site header is a SERVER component and cannot call into a
+   *  `"use client"` module; the regex below reads both modules for that reason. Counted separately
+   *  because a rising number here is not the same win as a rising `Button`: it means a navigation
+   *  control stopped hand-copying the geometry, not that a `<button>` was converted. */
+  buttonClass: 1,
   Section: 0,
   Segmented: 1,
   Tabs: 1,
@@ -139,6 +148,15 @@ describe("DESIGN.md §9 — the design system is binding, and this is what check
   it(`uses exactly ${BUDGET.offScaleSpacing} off-scale spacing values, on the way to none`, () => {
     // The scale is 1 2 3 4 6 8 12. A `mt-5` between two things that are `mt-4` apart everywhere else
     // is invisible on its own page and is exactly how a layout stops lining up across surfaces.
+    //
+    // AT the target, so this is a guard rather than a ratchet from here. THREE blind spots in the
+    // pattern are measured and filed in `BACKLOG.md` rather than silently counted as clean: it cannot
+    // match a `gap-*` (the character after `g` is not one of `xytblr`, so the `-` never lines up), it
+    // cannot match a half-step, and its alternation stops at 14 so nothing larger is seen either. The
+    // single `gap-5` was fixed with the rest; 98 half-steps and two values above 14 are left, because
+    // §4 states the scale and then prescribes a half-step as the padding inside a control — so half of
+    // them are the file's own instruction. Widening this regex without widening §9's would put the two
+    // out of step, and §9 is shared verbatim with the sibling app.
     const { total, byFile } = countMatches(ui, /\b[pmg][xytblr]?-(?:5|7|9|10|11|14)\b/g);
     expect(total, `off-scale spacing, by file:\n${byFile.join("\n")}`).toBe(BUDGET.offScaleSpacing);
   });
@@ -152,10 +170,21 @@ describe("DESIGN.md §9 — the design system is binding, and this is what check
   // milestone that raises adoption. The per-file count below is the one that means something.
 
   it(`has exactly ${BUDGET.invertedTypeFiles} files where caption size outnumbers the body default`, () => {
-    // The suite total above passes by THREE (91 to 88), and that margin was hiding nine files that are
-    // individually inverted — `GeometryInspector` at 9:2, `MonteCarlo` at 9:4. A flyer does not read
-    // the suite total; they read one surface, and on nine of them the numbers are at caption size.
-    // This is the count that means something, which is why `DESIGN.md` §9 now carries it too.
+    // The suite total above passes by THREE (91 to 88), and that margin was hiding nine files that
+    // were individually inverted — `GeometryInspector` at 10:2, `MonteCarlo` at 9:3, `ResultsView` at
+    // 16:13. A flyer does not read the suite total; they read one surface, and on nine of them the
+    // numbers were at caption size. This is the count that means something, which is why `DESIGN.md`
+    // §9 now carries it too.
+    //
+    // Taken to zero on 2026-07-31 by moving what `DESIGN.md` §3 calls decision-grade — a value a
+    // flyer reads to decide — up to the body default, and leaving genuine captions where they were.
+    // The sites that moved were, in order of how load-bearing they are: the four ResultsView advice
+    // blocks that each tell a flyer what to change on the rocket and to what number (stability trim,
+    // fin-flutter fix, recovery sizing, the log-vs-prediction peak comparison); the what-if delta
+    // that is the whole point of making an edit; the dispersion study's 5–95% bands and median drift,
+    // which ARE the subject of a Monte-Carlo; the mould-line step notice and the stated-mass notice,
+    // both of which exist to stop a number being misread; and the cross-check's mean drag gap.
+    // Nothing that is a unit, a provenance line, a chart legend or a footnote moved.
     const inverted = components
       .map((f) => ({
         path: f.path,
@@ -185,10 +214,15 @@ describe("DESIGN.md §9 — the design system is binding, and this is what check
     for (const name of Object.keys(PRIMITIVE_ADOPTERS)) {
       // The import list of `./ui`, per file — not a bare mention, which would match the component's
       // own local helper of the same name.
-      const re = new RegExp(String.raw`import \{([^}]*)\} from "(?:\./ui|@/components/ui)"`);
+      // `@/lib/ui-tokens` is in here because the button geometry had to live there — see
+      // `buttonClass` above. `components/ui.tsx` itself is excluded: `Button` is BUILT from
+      // `buttonClass`, and a primitive using its own token is not a surface adopting it.
+      const re = /import \{([^}]*)\} from "(?:\.\/ui|@\/components\/ui|@\/lib\/ui-tokens)"/g;
       counted[name] = components.filter((f) => {
-        const names = f.text.match(re)?.[1];
-        return !!names && names.split(",").some((n) => n.trim().split(/\s+as\s+/)[0] === name);
+        if (f.path === "components/ui.tsx") return false;
+        return [...f.text.matchAll(re)].some((m) =>
+          m[1].split(",").some((n) => n.trim().replace(/^type\s+/, "").split(/\s+as\s+/)[0] === name),
+        );
       }).length;
     }
     expect(counted, "adoption per primitive (see PRIMITIVE_ADOPTERS)").toEqual(PRIMITIVE_ADOPTERS);

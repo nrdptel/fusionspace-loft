@@ -5,7 +5,7 @@ import type { Rocket, RocketComponent } from "@/lib/model/types";
 import { flattenRocket } from "@/lib/model/geometry";
 import { massByComponent, dryMassProperties, statedMassHolder } from "@/lib/sim/mass";
 import type { MotorMark } from "@/lib/sim/setup";
-import { mouldLineStep, type AddedPart, type GeometryEdits } from "@/lib/model/edit";
+import { mouldLineStep, type AddedPart, type AddedStage, type GeometryEdits, type MoveSlot } from "@/lib/model/edit";
 import { TOUCH_TARGET, TOUCH_TARGET_SQUARE } from "@/lib/ui-tokens";
 import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
@@ -88,11 +88,6 @@ function SortHeader({
  *  fire on arithmetic instead of on geometry, and a flag that cries wolf teaches flyers to ignore it. */
 const STEP_NOTICE_M = 0.0005;
 
-const ADD_BUTTON =
-  "inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-2.5 py-1 font-medium " +
-  "text-zinc-700 transition hover:border-indigo-400 hover:text-indigo-700 dark:border-zinc-700 " +
-  `dark:bg-zinc-900 dark:text-zinc-300 dark:hover:border-indigo-500 dark:hover:text-indigo-400 ${TOUCH_TARGET}`;
-
 /** What kind of part this is, in the reader's words. */
 const kindLabel = (c: RocketComponent): string => KIND_LABEL[c.kind] ?? c.kind;
 
@@ -139,6 +134,11 @@ export default function GeometryInspector({
   onAddAfter,
   onMove,
   canMove,
+  onMoveTo,
+  moveSlotsFor,
+  addedStages,
+  onAddStage,
+  onRemoveStage,
   refuseRemoval,
   aims,
 }: {
@@ -178,6 +178,16 @@ export default function GeometryInspector({
    *  moves on and around parts the operation cannot address — a button that does nothing. The app
    *  judges against the same structure it will apply the move to. */
   canMove?: (id: string, dir: -1 | 1) => boolean;
+  /** Commit the diagram drag's drop: put this part immediately behind `after`, or first when null. */
+  onMoveTo?: (id: string, after: string | null) => void;
+  /** Every legal drop for a part. Handed straight to the diagram, which turns each into a pixel. */
+  moveSlotsFor?: (id: string) => MoveSlot[];
+  /** Booster stages the flyer has authored, in the order they were added. */
+  addedStages?: readonly AddedStage[];
+  /** Append a booster stage below everything already in the stack. */
+  onAddStage?: () => void;
+  /** Take one back, named by its seed tube's id. */
+  onRemoveStage?: (seedId: string) => void;
   /** Author a part behind the picked one. Offered only on a part something can be built onto — today
    *  a body tube, whose caliber the new one fairs to. A control that appears on every part and does
    *  nothing on most of them is worse than one that appears where it works. */
@@ -335,13 +345,15 @@ export default function GeometryInspector({
           }}
           motors={motors}
           onEdit={onEdit}
+          onMoveTo={onMoveTo}
+          moveSlotsFor={moveSlotsFor}
           selectedFinSetId={aims?.finSetId}
           selectedBodyTubeId={aims?.bodyTubeId}
           selectedMassObjectId={aims?.massObjectId}
         />
         {/* What you just pointed at. Reserved height so hovering across the airframe doesn't make
             everything below it jump. */}
-        <p className="mt-1 min-h-6 text-xs text-zinc-600 dark:text-zinc-300" aria-live="polite">
+        <p className="mt-1 min-h-6 text-sm text-zinc-600 dark:text-zinc-300" aria-live="polite">
           {active ? (
             <>
               <span className="font-medium text-zinc-800 dark:text-zinc-100">
@@ -369,23 +381,22 @@ export default function GeometryInspector({
             and it is the only destructive control on this panel, so it stays where its subject is
             visible. A refusal replaces it with the reason. */}
         {onRemove && selectedId && (
-          <p className="mt-1 text-xs">
+          <p className="mt-1 text-sm">
             {refuseRemoval?.(selectedId) ? (
               <span className="text-amber-700 dark:text-amber-400" role="status">
                 {refuseRemoval(selectedId)}
               </span>
             ) : (
-              <button
-                type="button"
+              <Button
+                variant="danger"
                 onClick={() => onRemove(selectedId)}
                 title="Remove this part from the design and re-fly it"
-                className={`inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-2.5 py-1 font-medium text-zinc-700 transition hover:border-rose-400 hover:text-rose-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:border-rose-500 dark:hover:text-rose-400 ${TOUCH_TARGET}`}
               >
                 Remove{" "}
                 {parts.find((x) => x.component.id === selectedId)?.component.name ||
                   KIND_LABEL[parts.find((x) => x.component.id === selectedId)?.component.kind ?? ""] ||
                   "this part"}
-              </button>
+              </Button>
             )}
           </p>
         )}
@@ -394,10 +405,9 @@ export default function GeometryInspector({
             ends of a stage there is no next slot, because a move never crosses a stage boundary (that
             would be a different separation event, not a restack). */}
         {onMove && selectedId && (canMove?.(selectedId, -1) || canMove?.(selectedId, 1)) && (
-          <p className="mt-1 flex flex-wrap items-center gap-2 text-xs">
+          <p className="mt-1 flex flex-wrap items-center gap-2">
             {canMove?.(selectedId, -1) && (
               <Button
-                size="sm"
                 onClick={() => onMove(selectedId, -1)}
                 title="Move this part one place toward the nose and re-fly the design"
               >
@@ -406,7 +416,6 @@ export default function GeometryInspector({
             )}
             {canMove?.(selectedId, 1) && (
               <Button
-                size="sm"
                 onClick={() => onMove(selectedId, 1)}
                 title="Move this part one place toward the tail and re-fly the design"
               >
@@ -421,27 +430,24 @@ export default function GeometryInspector({
             its caliber, wall, material and finish, and the editor's fields re-aim at it the moment it
             exists. The numbers are the confirmation, not the gesture. */}
         {onAddAfter && selectedId && parts.find((x) => x.component.id === selectedId)?.component.kind === "bodytube" && (
-          <p className="mt-1 text-xs">
-            <button
-              type="button"
+          <p className="mt-1 text-sm">
+            <Button
               onClick={() => onAddAfter(selectedId)}
               title="Add a body tube immediately behind this one, faired to it, and re-fly the design"
-              className={ADD_BUTTON}
             >
               <span aria-hidden>+</span> Add a tube behind this
-            </button>
+            </Button>
             {/* Only where there is a set to copy — the new ring is cloned from the design's own rather
                 than derived from invented proportions, so a design with no fins has no source and the
                 control is not offered. All 35 corpus designs carry one, and so does the starter. */}
             {parts.some((x) => x.component.kind === "trapezoidfinset") && (
-              <button
-                type="button"
+              <Button
+                className="ml-1.5"
                 onClick={() => onAddAfter(selectedId, "trapezoidfinset")}
                 title="Add a fin set to this tube, matching the design's own fins, and re-fly it"
-                className={`${ADD_BUTTON} ml-1.5`}
               >
                 <span aria-hidden>+</span> Add fins to this tube
-              </button>
+              </Button>
             )}
             {/* The part that changes caliber. Its exit is a fact about the design wherever the design
                 supplies one — a part already sitting behind this at another caliber means the cone
@@ -452,22 +458,52 @@ export default function GeometryInspector({
                 nose ballast. It mounts INSIDE the tube rather than behind it, so unlike the other three
                 it needs a station, and the corpus supplies one: a third of the way down the part
                 holding it, which is where a real bay sits. */}
-            <button
-              type="button"
+            <Button
+              className="ml-1.5"
               onClick={() => onAddAfter(selectedId, "masscomponent")}
               title="Add a mass object inside this tube — electronics, a tracker, ballast — and re-fly the design"
-              className={`${ADD_BUTTON} ml-1.5`}
             >
               <span aria-hidden>+</span> Add a mass inside this
-            </button>
-            <button
-              type="button"
+            </Button>
+            <Button
+              className="ml-1.5"
               onClick={() => onAddAfter(selectedId, "transition")}
               title="Add a transition behind this — faired to what follows it, or contracting into a tail cone where nothing does — and re-fly the design"
-              className={`${ADD_BUTTON} ml-1.5`}
             >
               <span aria-hidden>+</span> Add a transition behind this
-            </button>
+            </Button>
+          </p>
+        )}
+        {/* Staging, beside the other structural acts and deliberately NOT gated on a picked part: a
+            stage is the level above a component, so there is nothing to pick it on. A booster is
+            appended below everything already in the stack — which is where a booster goes — and seeded
+            from the design's own aft tube, its mount and its fins, so it is a booster of THIS rocket
+            rather than a shape Loft chose. */}
+        {/* The REMOVE controls are not gated on the add being available. Once `canAddStage` reads the
+            tree the operation actually seeds from, an authored stage always leaves a mount to clone, so
+            a design that HAS a booster can normally be given another — and this separation looks like
+            belt and braces. It is not: the removals are rendered per BAG ENTRY, and an entry `buildStage`
+            refuses builds no stage at all. A bag rehydrated from storage against a design whose aft tube
+            has no mount is exactly that state, and inside the add's gate the entry becomes unreachable —
+            a one-way door assembled out of a refusal. This cost a full e2e run to find when the gate was
+            wrong, and it is the reason to keep the two apart now that it is right. */}
+        {(onAddStage || (addedStages ?? []).length > 0) && (
+          <p className="mt-1 flex flex-wrap items-center gap-2 text-sm">
+            {onAddStage && (
+              <Button onClick={onAddStage} title="Add a booster stage below the design, seeded from its own aft airframe, and re-fly it">
+                <span aria-hidden>+</span> Add a booster stage
+              </Button>
+            )}
+            {(addedStages ?? []).map((s) => (
+              <Button
+                key={s.seedId}
+                variant="danger"
+                onClick={() => onRemoveStage?.(s.seedId)}
+                title={`Remove ${s.name} and re-fly the design without it`}
+              >
+                Remove {s.name}
+              </Button>
+            ))}
           </p>
         )}
         {/* Where the outer mould line STEPS behind the part you are holding, and by how much.
@@ -479,7 +515,7 @@ export default function GeometryInspector({
             already step, in 13 of the 35 designs, by a median 11.75 mm of diameter and up to 82.55 mm.
             OpenRocket warns on exactly this; Loft has never said a word. */}
         {selectedId && stepBehind !== undefined && Math.abs(stepBehind) > STEP_NOTICE_M && (
-          <p className="mt-1 text-xs text-amber-700 dark:text-amber-400" role="status">
+          <p className="mt-1 text-sm text-amber-700 dark:text-amber-400" role="status">
             The airframe steps {stepBehind > 0 ? "out" : "in"} by {d.q(d.lengthMm(Math.abs(stepBehind), units))}{" "}
             of diameter at the joint behind this part. Loft models a transition&apos;s own slope but has
             no drag term for a bare step, so the drag here is read optimistically.
@@ -492,7 +528,7 @@ export default function GeometryInspector({
             Measured on `EscapeVelocity.ork`: removing its 141.7 g "Avionics" leaves dry mass at exactly
             2000.0 g while the static margin moves 4.461 → 4.312 cal. */}
         {selectedId && statedMassHolder(rocket, selectedId) && (
-          <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400" role="status">
+          <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400" role="status">
             This design states {statedMassHolder(rocket, selectedId)}&apos;s weight as a whole, so it
             counts no mass for the parts inside — adding a part here, or removing one, moves the balance
             and not the total.
@@ -515,7 +551,7 @@ export default function GeometryInspector({
           open={partsOpen}
           onToggle={(e) => setPartsOpen((e.currentTarget as HTMLDetailsElement).open)}
         >
-          <summary className={`flex cursor-pointer select-none items-center gap-1.5 text-xs font-medium text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 ${TOUCH_TARGET}`}>
+          <summary className={`flex cursor-pointer select-none items-center gap-1.5 text-sm font-medium text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 ${TOUCH_TARGET}`}>
             <span className="text-zinc-400 transition group-open:rotate-180">▾</span>
             Parts · {parts.length}
           </summary>
@@ -566,7 +602,7 @@ export default function GeometryInspector({
                   <td
                     className={`py-1.5 pr-4 ${
                       massCell(p.component.id).muted
-                        ? "font-sans text-xs text-zinc-500 dark:text-zinc-400"
+                        ? "font-sans text-zinc-500 dark:text-zinc-400"
                         : "text-zinc-800 dark:text-zinc-100"
                     }`}
                   >

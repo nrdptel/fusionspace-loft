@@ -143,13 +143,13 @@ export default function ParameterSweep({
   // plotted curve and its marker described a rocket that was never flown.
   const axisBase = useMemo(
     () => structureOf(doc.rocket, geometry ?? {}),
-    // `moved` belongs here beside the other two structural keys: a reorder changes which part a
-    // positional resolver lands on, so a base memoised without it describes the order the file arrived
-    // in while every swept point is applied to the order the flyer built. Measured on the starter with
-    // an aft tube moved one place forward: the fin-position base read 0.700 m against the 1.000 m the
-    // points were written into — 300 mm, on the axis that drives static margin.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [doc.rocket, geometry?.added, geometry?.removedIds, geometry?.moved],
+    // The WHOLE bag, not the structural keys by name. `structureOf` decides which keys are structural,
+    // so a dependency list that restates them goes stale the next time one is added — which is exactly
+    // what happened to this memo when reordering shipped: measured on the starter with an aft tube
+    // moved one place forward, the fin-position base read 0.700 m against the 1.000 m every swept point
+    // was written into. 300 mm, on the axis that drives static margin. Depending on the object costs a
+    // recompute when an unrelated field changes, and buys immunity to that whole class of defect.
+    [doc.rocket, geometry],
   );
   const axes = useMemo<AxisDef[]>(() => {
     const list: AxisDef[] = [];

@@ -6,6 +6,7 @@ import { flattenRocket } from "./geometry";
 import {
   applyGeometryEdits,
   moveTarget,
+  moveSlots,
   isEditedValue,
   primaryFinSpan,
   primaryFinCount,
@@ -52,6 +53,9 @@ import {
   newPartId,
   aimsClearedByRemoving,
   hasGeometryEdits,
+  canAddStage,
+  stageSeedBase,
+  addedStageIds,
 } from "./edit";
 import type {
   BodyTube,
@@ -2539,6 +2543,288 @@ describe("reordering a top-level part", () => {
     expect(isEditedValue("moved", [{ id: "a", after: null }])).toBe(true);
     expect(isEditedValue("moved", [])).toBe(false);
     expect(INERT_EDIT_FIELDS.has("moved")).toBe(false);
+  });
+});
+
+describe("authoring a booster stage", () => {
+  /** The starter plus one authored booster, and the ids the app would mint for it. */
+  const withBooster = (name = "Booster") => {
+    const doc = newDesign();
+    const seedId = newPartId(doc.rocket, [], "stage:1");
+    const mountId = newPartId(doc.rocket, [{ id: seedId } as never], "mount:1");
+    const edits = { addedStages: [{ seedId, mountId, name }] };
+    return { doc, edits, seedId, mountId, staged: applyGeometryEdits(doc.rocket, edits) };
+  };
+
+  it("appends a stage seeded from the design's own aft airframe", () => {
+    const { doc, staged } = withBooster();
+    expect(doc.rocket.stages).toHaveLength(1);
+    expect(staged.stages).toHaveLength(2);
+    expect(staged.stages[1].name).toBe("Booster");
+    // Appended, not prepended: stages stack nose-to-tail, so a booster goes BELOW everything already
+    // in the stack, and `slice(0, stageCount)` is what sheds it.
+    expect(staged.stages[0]).toEqual(doc.rocket.stages[0]);
+    const seed = staged.stages[1].components[0];
+    expect(seed.kind).toBe("bodytube");
+  });
+
+  it("carries the mount and the fins across and leaves the avionics and the recovery behind", () => {
+    // The measurement this rule comes from: a whole-subtree clone of the starter's aft tube drags
+    // 150 g of altimeter and parachute into the booster, and `lib/sim/setup.ts` collects recovery
+    // devices from stage 0 only — so a cloned canopy is dead weight the solver never deploys.
+    const { doc, staged } = withBooster();
+    const src = doc.rocket.stages[0].components.find((c) => c.kind === "bodytube")!;
+    expect(src.children.map((c) => c.kind).sort()).toEqual(
+      ["innertube", "masscomponent", "parachute", "trapezoidfinset"].sort(),
+    );
+    const kinds = staged.stages[1].components[0].children.map((c) => c.kind).sort();
+    expect(kinds).toEqual(["innertube", "trapezoidfinset"]);
+  });
+
+  it("puts a motor in EVERY configuration, which is what makes the stage separate at all", () => {
+    // The whole operation. A stage separates only if a configuration instance names a mount inside it,
+    // so a booster with a mount and no instance never lights and never drops — measured on the starter
+    // as 993.642 m falling to 621.158 m, a 37.5% loss, with no separation event and nothing said.
+    const { doc, staged, mountId } = withBooster();
+    expect(doc.rocket.configurations.length).toBeGreaterThan(0);
+    for (const cfg of doc.rocket.configurations) expect(cfg.instances.some((i) => i.mountId === mountId)).toBe(false);
+    for (const cfg of staged.configurations) {
+      const added = cfg.instances.find((i) => i.mountId === mountId);
+      expect(added, "every configuration must gain an instance in the new mount").toBeTruthy();
+      // The design's own motor, not one Loft chose.
+      expect(added!.motor.designation).toBe(cfg.instances[0].motor.designation);
+    }
+  });
+
+  it("gives every authored stage its own ids, so two boosters are two stages", () => {
+    const doc = newDesign();
+    const a = { seedId: newPartId(doc.rocket, [], "stage:1"), mountId: newPartId(doc.rocket, [], "mount:1"), name: "Booster" };
+    const b = { seedId: newPartId(doc.rocket, [], "stage:2"), mountId: newPartId(doc.rocket, [], "mount:2"), name: "Booster 2" };
+    expect(a.seedId).not.toBe(b.seedId);
+    const staged = applyGeometryEdits(doc.rocket, { addedStages: [a, b] });
+    expect(staged.stages).toHaveLength(3);
+    expect(staged.stages.map((s) => s.name)).toEqual(["Sustainer", "Booster", "Booster 2"]);
+    // The second booster is seeded from the FIRST one's tube, because that is now the aft airframe —
+    // the same rule every other operation follows: the design as it then stands.
+    expect(new Set(staged.stages.flatMap((s) => s.components.map((c) => c.id))).size).toBe(
+      staged.stages.flatMap((s) => s.components).length,
+    );
+  });
+
+  it("is taken back by dropping the entry, with nothing left behind", () => {
+    // Removal is not a `removedIds` list of the booster's parts: the stage exists only in the bag, so
+    // there is nothing in the pristine design to mark as gone.
+    const { doc, staged } = withBooster();
+    expect(staged.stages).toHaveLength(2);
+    const back = applyGeometryEdits(doc.rocket, { addedStages: [] });
+    expect(back.stages).toEqual(doc.rocket.stages);
+    expect(back.configurations).toEqual(doc.rocket.configurations);
+  });
+
+  it("counts as an edit, so the design is not shown and flown as the pristine one", () => {
+    // The trap every operation in this bag has fallen into: `hasGeometryEdits` decides whether
+    // `applyGeometryEdits` runs AT ALL, and a miss here is invisible rather than loud.
+    const { edits } = withBooster();
+    expect(hasGeometryEdits(edits)).toBe(true);
+    expect(hasGeometryEdits({ addedStages: [] })).toBe(false);
+  });
+
+  it("is part of the STRUCTURE, so aims and removals resolve against a tree that has it", () => {
+    // `structureOf` is the one place the structural keys are named. A key missing from it means every
+    // aim and every removal is judged against a tree the booster is not in.
+    const { doc, edits, seedId } = withBooster();
+    const structure = structureOf(doc.rocket, edits);
+    expect(structure.stages).toHaveLength(2);
+    expect(flattenRocket(structure).some((p) => p.component.id === seedId)).toBe(true);
+  });
+
+  it("gives R3's gestures something to grow the booster with", () => {
+    // The seed must be a BODY TUBE or none of the add gestures can touch the booster afterwards —
+    // `addPartAfter` refuses any anchor that is not one.
+    const { doc, edits, seedId } = withBooster();
+    const structure = structureOf(doc.rocket, edits);
+    const seed = flattenRocket(structure).find((p) => p.component.id === seedId)!;
+    expect(seed.component.kind).toBe("bodytube");
+    const added = { id: "added-tube", kind: "bodytube" as const, after: seedId, length: 0.2 };
+    const grown = applyGeometryEdits(doc.rocket, { ...edits, added: [added] });
+    expect(grown.stages[1].components.map((c) => c.id)).toEqual([seedId, "added-tube"]);
+  });
+
+  it("accounts for a stage by what it HOLDS, not by walking down from its seed", () => {
+    // The seed is an ordinary removable component — `removalRefusal` returns null for it — and deleting
+    // it leaves the stage standing, holding whatever the flyer authored into it. A walk rooted at
+    // `seedId` then finds nothing, so a removal built on one clears nothing: the aim at the tube inside
+    // the booster survives, falls back to the design's primary tube, and resizes the SUSTAINER.
+    const { doc, edits, seedId } = withBooster();
+    const added = { id: "grown-tube", kind: "bodytube" as const, after: seedId, length: 0.31 };
+    const bag = { ...edits, added: [added], removedIds: [seedId], bodyTubeId: "grown-tube", bodyLength: 0.4 };
+    // The seed is gone from the tree, so a seed-rooted lookup finds no stage at all...
+    const structure = structureOf(doc.rocket, bag);
+    expect(structure.stages.find((s) => s.components.some((c) => c.id === seedId))).toBeUndefined();
+    // ...while the stage is still there, and still holds both.
+    const gone = addedStageIds(doc.rocket, bag, seedId);
+    expect(gone.has(seedId)).toBe(true);
+    expect(gone.has("grown-tube")).toBe(true);
+    const sustainerTube = flattenRocket(doc.rocket).find((p) => p.component.kind === "bodytube")!.component.id;
+    expect(gone.has(sustainerTube)).toBe(false);
+  });
+
+  it("counts a part of the stage the flyer has ALREADY deleted, because its removal entry must go too", () => {
+    // `newPartId` is deterministic and `addStage` names by the current length, so the booster after a
+    // removal is minted with the SAME seed and mount ids as the one before it. A `removedIds` entry that
+    // outlives the stage therefore lands on the NEXT booster: measured on the starter, add a booster
+    // (1491.464 m, one separation), delete its motor mount (638.973 m, none), remove the stage, add a
+    // booster again — and the new one is born with its mount already deleted, 638.973 m with zero
+    // separation events, 35.7% below the design's own flight, from two clicks that destroy nothing.
+    const { doc, edits, seedId, mountId } = withBooster();
+    const bag = { ...edits, removedIds: [mountId] };
+    // The mount is not in the tree — it has been removed — and it still belongs to the stage.
+    expect(flattenRocket(structureOf(doc.rocket, bag)).some((p) => p.component.id === mountId)).toBe(false);
+    expect(addedStageIds(doc.rocket, bag, seedId).has(mountId)).toBe(true);
+  });
+
+  it("does NOT carry the seed instance's ignition event onto the new bottom stage", () => {
+    // The one guard in this operation no corpus design exercises, so it is pinned here instead. Every
+    // seed instance across all 35 real files carries `ignitionEvent: "automatic"` or none, and
+    // `ignitionTrigger` maps both to `launch` on the bottom stage — so on real data restoring the clone
+    // changes nothing, and the sweep cannot see it. The FIELD is what makes a design air-start, it is
+    // read straight off the file, and a design that sets one on its aft mount is a file Loft has not
+    // met yet: cloned onto the new BOTTOM stage, `burnout` resolves to "never lights", which is the
+    // silent wrong flight the configuration write exists to prevent.
+    const base = newDesign();
+    const doc = {
+      ...base,
+      rocket: {
+        ...base.rocket,
+        configurations: base.rocket.configurations.map((cfg) => ({
+          ...cfg,
+          instances: cfg.instances.map((i) => ({ ...i, ignitionEvent: "burnout", ignitionDelay: 2 })),
+        })),
+      },
+    };
+    const seedId = newPartId(doc.rocket, [], "stage:1");
+    const mountId = newPartId(doc.rocket, [{ id: seedId } as never], "mount:1");
+    const staged = applyGeometryEdits(doc.rocket, { addedStages: [{ seedId, mountId, name: "Booster" }] });
+    const seed = staged.stages[staged.stages.length - 1].components[0];
+    const effective = seed.children.some((c) => c.id === mountId) ? mountId : seed.id;
+    for (const cfg of staged.configurations) {
+      const booster = cfg.instances.find((i) => i.mountId === effective)!;
+      expect(booster).toBeDefined();
+      // The motor comes across; the trigger does not, and derives from the stage index instead.
+      expect(booster.motor.designation).toBe(cfg.instances[0].motor.designation);
+      expect(booster.ignitionEvent).toBeUndefined();
+      expect(booster.ignitionDelay).toBeUndefined();
+    }
+  });
+
+  it("is offered against the tree the operation SEEDS from, which is not the edited structure", () => {
+    // `applyAddedStages` runs first in the pipeline, on the pristine rocket, so the aft tube it clones is
+    // the pristine design's. Asking `canAddStage` the fully-structured tree instead asks about a rocket
+    // the operation never sees: author one ordinary tube at the tail and the structured tree's aft-most
+    // tube is that bare one, which has no mount to clone, so the gate refuses a design the operation
+    // handles — it would have given a 2-stage rocket that flies and separates.
+    const doc = newDesign();
+    const aft = flattenRocket(doc.rocket)
+      .filter((p) => p.component.kind === "bodytube")
+      .reduce((best, p) => (p.xFore > best.xFore ? p : best)).component.id;
+    const bag = { added: [{ id: "tail-tube", kind: "bodytube" as const, after: aft, length: 0.3 }] };
+    expect(canAddStage(structureOf(doc.rocket, bag))).toBe(false);
+    expect(canAddStage(stageSeedBase(doc.rocket, bag))).toBe(true);
+    // And the operation the gate is speaking for does succeed.
+    const seedId = newPartId(doc.rocket, [], "stage:1");
+    const mountId = newPartId(doc.rocket, [{ id: seedId } as never], "mount:1");
+    const built = applyGeometryEdits(doc.rocket, { ...bag, addedStages: [{ seedId, mountId, name: "Booster" }] });
+    expect(built.stages).toHaveLength(2);
+  });
+});
+
+describe("moveSlots — every place a drag can drop a part", () => {
+  /** Three top-level parts in one stage: nose, body, aft tube. */
+  const oneStage = (): Rocket => {
+    const doc = newDesign();
+    const s = doc.rocket.stages[0];
+    const body = s.components[1];
+    s.components = [...s.components, { ...structuredClone(body), id: "tube2", name: "Aft tube", children: [] }];
+    return doc.rocket;
+  };
+
+  it("offers every gap except the two that leave the part where it is", () => {
+    const r = oneStage();
+    const [a, b, c] = r.stages[0].components.map((x) => x.id);
+    expect([a, b, c].every(Boolean)).toBe(true);
+    // Dragging the MIDDLE part: the gaps in front of it and behind it are the same position, so a
+    // three-part stage has four gaps and exactly two of them are on offer.
+    expect(moveSlots(r, b)).toEqual([
+      { move: { id: b, after: null }, before: a },
+      { move: { id: b, after: c }, before: null },
+    ]);
+  });
+
+  it("names the part each drop lands in front of, and null for the aft end", () => {
+    const r = oneStage();
+    const [a, b, c] = r.stages[0].components.map((x) => x.id);
+    expect(moveSlots(r, a)).toEqual([
+      { move: { id: a, after: b }, before: c },
+      { move: { id: a, after: c }, before: null },
+    ]);
+    expect(moveSlots(r, c)).toEqual([
+      { move: { id: c, after: null }, before: a },
+      { move: { id: c, after: a }, before: b },
+    ]);
+  });
+
+  it("agrees with moveTarget wherever moveTarget has an answer", () => {
+    // Two functions answering "where can this go" is how a control comes to offer a move the operation
+    // cannot make. Every nudge must be one of the slots.
+    const r = oneStage();
+    for (const c of r.stages[0].components) {
+      const slots = moveSlots(r, c.id).map((s) => JSON.stringify(s.move));
+      for (const dir of [-1, 1] as const) {
+        const nudge = moveTarget(r, c.id, dir);
+        if (nudge) expect(slots).toContain(JSON.stringify(nudge));
+      }
+    }
+  });
+
+  it("never leaves the part's own stage, and points the aft-end drop at the next stage's first part", () => {
+    const r = oneStage();
+    const [, b, c] = r.stages[0].components.map((x) => x.id);
+    const booster = { ...structuredClone(r.stages[0]), components: [{ ...structuredClone(r.stages[0].components[1]), id: "boost", children: [] }] };
+    const staged: Rocket = { ...r, stages: [r.stages[0], booster] };
+    const slots = moveSlots(staged, b);
+    // Not one anchor is the booster's part: a move that crossed the boundary would re-stage the part
+    // silently — a different separation event and a different flight.
+    expect(slots.map((s) => s.move.after)).toEqual([null, c]);
+    // But the AFT-END drop of the upper stage lands in front of the booster's first part, because the
+    // stack is one continuous airframe and that is where the indicator belongs.
+    expect(slots.find((s) => s.move.after === c)!.before).toBe("boost");
+    // And the booster's own part has nowhere to go inside a stage of one.
+    expect(moveSlots(staged, "boost")).toEqual([]);
+  });
+
+  it("returns nothing for a part that is not top-level, or is not there at all", () => {
+    const r = oneStage();
+    const inner = r.stages[0].components[1].children[0];
+    expect(inner).toBeTruthy();
+    expect(moveSlots(r, inner.id)).toEqual([]);
+    expect(moveSlots(r, "no-such-part")).toEqual([]);
+  });
+
+  it("produces entries applyGeometryEdits actually honours, on every slot it offers", () => {
+    // The check that matters: a slot is a promise that the drop will land there. Drive each one
+    // through the real applier and read the order back.
+    const r = oneStage();
+    for (const c of r.stages[0].components) {
+      for (const slot of moveSlots(r, c.id)) {
+        const after = applyGeometryEdits(r, { moved: [slot.move] });
+        const order = after.stages[0].components.map((x) => x.id);
+        const landed = order.indexOf(c.id);
+        expect(order.length).toBe(3);
+        // "before X" means the dragged part sits immediately in front of X; a null `before` means last.
+        if (slot.before === null) expect(landed).toBe(order.length - 1);
+        else expect(order[landed + 1]).toBe(slot.before);
+      }
+    }
   });
 });
 

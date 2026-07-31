@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { toCsv, toTsv, type CsvCell } from "@/lib/csv";
-import { TOUCH_TARGET } from "@/lib/ui-tokens";
+import { Button } from "./ui";
 
 /** Turn a design name into a safe filename stem. */
 function slug(s: string): string {
@@ -14,10 +14,6 @@ function slug(s: string): string {
       .slice(0, 48) || "loft"
   );
 }
-
-const BUTTON =
-  "inline-flex items-center rounded-md border border-zinc-300 px-2.5 py-1 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50 hover:text-zinc-800 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-zinc-100 " +
-  TOUCH_TARGET;
 
 /** Copy a table straight to the clipboard as tab-separated text. A file download is the right shape
  *  for archiving a run and the wrong one for "put these numbers in my build thread" or for pasting a
@@ -56,9 +52,9 @@ export function CopyTable({ rows, label = "Copy" }: { rows: CsvCell[][]; label?:
     setTimeout(() => setState("idle"), 2000);
   };
   return (
-    <button type="button" onClick={onClick} className={BUTTON} aria-live="polite">
+    <Button onClick={onClick} aria-live="polite">
       {state === "copied" ? "Copied" : state === "failed" ? "Press ⌘/Ctrl+C" : label}
-    </button>
+    </Button>
   );
 }
 
@@ -90,12 +86,6 @@ export default function DownloadCsv({
     URL.revokeObjectURL(url);
   };
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={BUTTON}
-    >
-      {label}
-    </button>
+    <Button onClick={onClick}>{label}</Button>
   );
 }

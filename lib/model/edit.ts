@@ -7,7 +7,9 @@
  *  nose cone or body tube automatically shifts everything downstream and recomputes mass, drag,
  *  centre of pressure, and motor position. Fin span moves the centre of pressure (stability). */
 
-import type { Rocket, RocketComponent, ComponentKind, NoseCone, BodyTube, Transition, Parachute, Material, SurfaceFinish, NoseShape, FinCrossSection, MotorMount, MassComponent } from "./types";
+import type { Rocket, RocketComponent, ComponentKind, NoseCone, BodyTube, Transition, Parachute, Material, SurfaceFinish, NoseShape, FinCrossSection, MotorMount, MassComponent,
+  Stage,
+} from "./types";
 import { flattenRocket } from "./geometry";
 import { uniqueUuidFrom } from "./id";
 import type { Positioned } from "./geometry";
@@ -103,6 +105,32 @@ export interface AddedPart {
    *  Ignored by every other kind. Its STATION is not here: it is derived from the anchor at every
    *  apply (see `massObjectStation`), so a bay stays where it sits in a tube that is later resized. */
   mass?: number;
+}
+
+/** A booster stage the flyer authored, appended below everything already in the stack.
+ *
+ *  **A fourth list rather than a fifth `AddedPart.kind`, and the reason is structural.** `buildAdded`
+ *  returns a component plus where it goes — beside its anchor in a stage's list, or inside it — and a
+ *  stage is neither: it is the level ABOVE a component, so it has no anchor to name and nowhere in that
+ *  return to land.
+ *
+ *  It carries no components of its own. What a booster is made of is decided at every apply from the
+ *  design as it then stands (see `buildStage`), so a stage authored before a tube was widened is a
+ *  booster of the widened tube — the same rule every other operation in this bag follows, and what
+ *  makes replaying the bag from the pristine design the whole of undo.
+ *
+ *  **`seedId` is what identifies it.** `Stage` has no id in the model — imported stages have never
+ *  needed one — so rather than give every adapter and the exporter a field to carry, an authored stage
+ *  is addressed by the id of the body tube it is seeded with. That tube is a real component with a
+ *  stable id, it is what R3's gestures anchor onto to grow the booster afterwards, and it is what a
+ *  removal names. */
+export interface AddedStage {
+  /** Id of the stage's seed body tube. UUID-shaped and stable, minted by `newPartId`. */
+  seedId: string;
+  /** Id of the motor mount inside that tube, which is what a `MotorInstance` has to name. */
+  mountId: string;
+  /** What to call the stage, on the parts list and in the phase table. */
+  name: string;
 }
 
 /** One reorder: `id` now sits immediately behind `after`, or at the nose end of its stage when `after`
@@ -213,6 +241,8 @@ export interface GeometryEdits {
    *  different separation event, with a different flight — and `nextTopLevel` flattens across stages, so
    *  a part allowed to cross one would silently re-stage itself. Refused in `applyMoves`. */
   moved?: MovedPart[];
+  /** Booster stages the flyer authored, appended in order. See `AddedStage`. */
+  addedStages?: AddedStage[];
   /** Absolute fin semi-span (root→tip height, m) for the fin group the panel describes — the
    *  primary set and any set indistinguishable from it. Undefined leaves fins as-is. */
   finSpan?: number;
@@ -342,6 +372,7 @@ export function hasGeometryEdits(e: GeometryEdits): boolean {
     // `applyGeometryEdits` entirely when this returns false, so a design with ONLY a move applied would
     // be shown, flown and exported as the pristine one. Caught by the e2e, not by any unit test.
     (e.moved !== undefined && e.moved.length > 0) ||
+    (e.addedStages !== undefined && e.addedStages.length > 0) ||
     (e.finSpan !== undefined && e.finSpan > 0) ||
     (e.finCount !== undefined && e.finCount >= 1) ||
     (e.finRootChord !== undefined && e.finRootChord > 0) ||
@@ -1614,6 +1645,53 @@ export function removalRefusal(rocket: Rocket, id: string): string | null {
  *  Deliberately does NOT step into the neighbouring stage at a boundary. A part that left its stage
  *  would separate at a different moment and fly a different flight; the honest answer at the end of a
  *  stage is that there is nowhere to go, not a silent re-staging. */
+/** Every place a part can be dropped, for a gesture that is not a one-place nudge.
+ *
+ *  `moveTarget` answers "one step which way"; a drag answers "anywhere along the airframe", so it needs
+ *  the whole set of legal landings at once — both to draw an indicator at each and to know which ones
+ *  are not on offer. Same stage-scoped rule as `moveTarget`, for the same reason: a part let out of its
+ *  own stage would separate at a different moment and fly a different flight.
+ *
+ *  Each slot carries two things, and the split is the load-bearing part of this design:
+ *
+ *  - `move` is the entry to append to `GeometryEdits.moved`, anchored to a component ID. It is
+ *    resolved against the tree the operation will actually run against.
+ *  - `before` names the part the dragged one would land IN FRONT OF, so a caller can look that part's
+ *    station up in the tree it is DRAWING and put the indicator at the right pixel. Null means the aft
+ *    end of the airframe.
+ *
+ *  Those are two different trees and they must stay that way. The rocket on screen carries the flyer's
+ *  dimension edits, which synthesise top-level parts of their own — a boattail exists there and not in
+ *  the structure — so an anchor read off the drawing can name a part `applyMoves` cannot address, and
+ *  the move silently does nothing while the indicator promised otherwise. Anchors come from the
+ *  operation's tree; pixels come from the picture.
+ *
+ *  The two slots that would leave the part where it is are left out rather than returned and ignored:
+ *  the gap immediately in front of it and the one immediately behind it are the same position. */
+export interface MoveSlot {
+  move: MovedPart;
+  before: string | null;
+}
+
+export function moveSlots(rocket: Rocket, id: string): MoveSlot[] {
+  const si = rocket.stages.findIndex((s) => s.components.some((c) => c.id === id));
+  if (si < 0) return [];
+  const list = rocket.stages[si].components;
+  const k = list.findIndex((c) => c.id === id);
+  // What sits at the aft end of this stage is the next stage's first top-level part — the stack is one
+  // continuous airframe — or nothing at all on the last stage.
+  const afterStage = rocket.stages.slice(si + 1).flatMap((s) => s.components)[0]?.id ?? null;
+  const slots: MoveSlot[] = [];
+  for (let i = 0; i <= list.length; i++) {
+    if (i === k || i === k + 1) continue; // both are where it already is
+    slots.push({
+      move: { id, after: i === 0 ? null : list[i - 1].id },
+      before: i < list.length ? list[i].id : afterStage,
+    });
+  }
+  return slots;
+}
+
 export function moveTarget(rocket: Rocket, id: string, dir: -1 | 1): MovedPart | null {
   for (const stage of rocket.stages) {
     const i = stage.components.findIndex((c) => c.id === id);
@@ -1642,6 +1720,197 @@ export function moveTarget(rocket: Rocket, id: string, dir: -1 | 1): MovedPart |
  *  flight, with nothing on any surface saying so. The same single-stage-versus-whole-chain confusion
  *  already cost a session once, when an authored transition landed in the middle of a multi-stage
  *  rocket. */
+/** The structure a booster is seeded with: the design's own aft body tube, carrying its motor mount and
+ *  its fin sets and NOTHING else.
+ *
+ *  Cloned rather than invented, for the reason R3's fin ring is: it is the only default that is a fact
+ *  about this rocket instead of a number somebody chose. What is deliberately left behind is the rest of
+ *  that tube's contents, and both halves of that were measured:
+ *
+ *  - **Avionics and payload.** A whole-subtree clone of the starter's aft tube drags 150 g of altimeter
+ *    and parachute into the booster — 26.4% of the seed's mass — none of which a booster carries.
+ *  - **Recovery.** `lib/sim/setup.ts` collects recovery devices from stage 0 only, so a canopy cloned
+ *    into a booster is dead weight the solver never deploys. Silent, and exactly what a subtree clone
+ *    produces. Measured across the corpus's 12 real booster stages: 12 carry a fin set, 10 carry a
+ *    motor mount, and 0 carry a nose cone — so tube + mount + fins is what a booster actually is.
+ *
+ *  Returns null when there is nothing to seed a FLYABLE booster from — no body tube, or a tube with no
+ *  motor mount to carry across. That second refusal is not tidiness. A stage that cannot burn is not a
+ *  booster, it is ballast the solver sheds, and Loft reports a confident number for it: measured on
+ *  `03.Three-stage.ork`, whose aft tube carries no mount Loft can clone, appending one took apogee from
+ *  1,481.8 m to 2,299.2 m — a 55% GAIN from a stage that can never fire. An input that cannot mean
+ *  anything physically is refused rather than flown into a confident number. 2 of the 35 real designs
+ *  are in that state, and on those the gesture is not offered at all. */
+function buildStage(rocket: Rocket, entry: AddedStage): { stage: Stage; mountId: string; srcMountId: string } | null {
+  const tubes = flattenRocket(rocket).filter((p) => p.component.kind === "bodytube");
+  if (!tubes.length) return null;
+  const src = tubes.reduce((best, p) => (p.xFore > best.xFore ? p : best)).component;
+  if (src.kind !== "bodytube") return null;
+
+  // Keep only what a booster is: the mount and the fins. `motorMount` on the tube ITSELF is the
+  // minimum-diameter case, where the tube is its own mount and there is no inner tube to carry over.
+  const keep = src.children.filter(
+    (c) => c.kind === "trapezoidfinset" || ("motorMount" in c && c.motorMount !== undefined),
+  );
+  // The MOUNT takes the entry's own `mountId`, not a derived one. The entry has to fully determine the
+  // tree it builds — that is what makes replaying the bag from the pristine design the whole of undo —
+  // and the mount is the one id something outside the tree has to name: a `MotorInstance`. Deriving it
+  // here instead left the app minting an id the applier never used, so the instance named a mount that
+  // did not exist and the stage never separated. Everything else is derived, because nothing refers to
+  // it by name.
+  const children = keep.map((c, i) => ({
+    ...structuredClone(c),
+    id:
+      "motorMount" in c && c.motorMount !== undefined
+        ? entry.mountId
+        : uniqueUuidFrom(`${entry.seedId}:child:${i}`, new Set([entry.seedId, entry.mountId])),
+    name: c.name,
+    children: [] as RocketComponent[],
+  }));
+  const seed: RocketComponent = {
+    ...structuredClone(src),
+    id: entry.seedId,
+    name: `${entry.name} airframe`,
+    children,
+  };
+  // Which component a motor sits in: the inner tube if one came across, else the seed tube itself.
+  const inner = children.find((c) => "motorMount" in c && c.motorMount !== undefined);
+  const mountId = inner ? inner.id : "motorMount" in seed && seed.motorMount !== undefined ? seed.id : "";
+  if (!mountId) return null;
+  // Which mount the SOURCE tube used, so the configuration write can clone that tube's own motor rather
+  // than whichever instance happens to be first.
+  const srcInner = src.children.find((c) => "motorMount" in c && c.motorMount !== undefined);
+  const srcMountId = srcInner ? srcInner.id : src.id;
+  // `separationEvent` is left undefined on purpose — that is the serial-staging default (separate when
+  // the stage finishes burning), which is what 10 of the corpus's 12 real boosters reduce to, and it is
+  // the one a flyer who has just authored a booster means.
+  return { stage: { name: entry.name, components: [seed] }, mountId, srcMountId };
+}
+
+/** Append the authored booster stages, and give each one a motor in every configuration.
+ *
+ *  **This is the first edit in the bag that writes to `rocket.configurations`, and that is the whole
+ *  operation.** A stage separates only if a configuration instance names a mount inside it
+ *  (`lib/sim/setup.ts` derives each stage's burn duration from the instances that land in it), so a
+ *  booster with a mount and no instance never lights and never drops: measured on the starter, that is
+ *  993.642 m falling to 621.158 m — a 37.5% loss — with no separation event and nothing on any surface
+ *  saying why. An authored stage that cannot fly is not a stage.
+ *
+ *  The instance is added to EVERY configuration, not just the one on screen. A design can carry several
+ *  — five on `Deployable payload.ork` — and a booster present on one and missing from another is the
+ *  same silent 37.5% on whichever the flyer switches to. The motor cloned is the one in the tube the
+ *  booster was SEEDED from, falling back to that configuration's first instance, so the booster flies
+ *  the motor its own airframe already flies rather than one Loft chose.
+ *
+ *  Applied FIRST in the pipeline, before `applyAdds`, so an authored part can anchor onto the new
+ *  stage's seed tube and R3's gestures grow the booster from there. */
+function applyAddedStages(rocket: Rocket, addedStages?: readonly AddedStage[]): Rocket {
+  if (!addedStages?.length) return rocket;
+  let out = rocket;
+  for (const entry of addedStages) {
+    const built = buildStage(out, entry);
+    if (!built) continue;
+    const { stage, mountId, srcMountId } = built;
+    const stages = [...out.stages, stage];
+    const configurations = out.configurations.map((cfg) => {
+      if (cfg.instances.some((i) => i.mountId === mountId)) return cfg;
+      // A configuration with no instances at all is a configuration the design says flies nothing. Two
+      // of the 35 real designs carry one. Putting a motor in the booster THERE would make the design
+      // fly on a configuration its own file says is empty, which is inventing a flight rather than
+      // authoring a stage — so it is left as it is, and it flies nothing with a booster on it too.
+      // Cloned from the instance in the tube the booster was SEEDED from where there is one, and only
+      // then from the first. On a design whose first instance is in an upper stage those are different
+      // motors, and the booster is a copy of the aft airframe: measured on `Three stage low power
+      // rocket.ork`, instance zero puts an A8 in a booster whose own mount flies a B6, and apogee reads
+      // 294.4 m against the 334.2 m the aft mount's motor gives — 11.9% low.
+      const fromSeed = srcMountId ? cfg.instances.find((i) => i.mountId === srcMountId) : undefined;
+      const from = fromSeed ?? cfg.instances[0];
+      if (!from) return cfg;
+      // The IGNITION EVENT is deliberately not carried across. `lib/sim/setup.ts` derives
+      // bottom-versus-upper from the stage index, so an event cloned from a SUSTAINER — `burnout`, on a
+      // design that air-starts — lands on the new BOTTOM stage where it resolves to "never lights".
+      //
+      // **No corpus design exercises this, and saying so is the point.** Every seed instance across all
+      // 35 real files carries `ignitionEvent: "automatic"` or none, and `ignitionTrigger` maps both to
+      // `launch` on the bottom stage — so with the seed-mount preference above in place, restoring this
+      // clone changes nothing on any real design. It was entangled with that preference when it was
+      // found: the pre-fix code cloned `instances[0]` AND its event, and on `02.Two-stage.ork` the pair
+      // took apogee from the 2055.479 m the fixed code flies down to 1152.856 m with the booster never
+      // lighting. Either fix alone closes the corpus. The guard stays because the FIELD is what makes a
+      // design air-start, `ignitionEvent` is read straight off the file, and a design that sets one on
+      // its aft mount is a real file Loft has not met yet — it is pinned by a synthetic case in
+      // `edit.test.ts` rather than by the sweep, which is the honest place for it.
+      const { ignitionEvent: _e, ignitionDelay: _d, ...rest } = structuredClone(from);
+      void _e;
+      void _d;
+      return { ...cfg, instances: [...cfg.instances, { ...rest, mountId }] };
+    });
+    out = { ...out, stages, configurations };
+  }
+  return out;
+}
+
+/** Whether a booster can be authored on this design at all — the predicate behind the control.
+ *
+ *  Asked of the same tree the operation runs against, so the button is offered exactly where the
+ *  gesture works — and it must actually be ASKED. Exported and asserted but never called from the UI,
+ *  the control renders on a design the operation refuses, so the click commits an undo step, flips the
+ *  design to edited (which withholds the file's own stored-results comparison) and changes nothing.
+ *
+ *  It is false where there is no body tube to seed from, and where the aft tube carries no motor mount
+ *  to clone: see `buildStage` for the 55% apogee gain that refusal prevents. */
+export function canAddStage(rocket: Rocket): boolean {
+  return buildStage(rocket, { seedId: "probe", mountId: "probe-mount", name: "probe" }) !== null;
+}
+
+/** The tree the NEXT authored stage is seeded from — and the only tree `canAddStage` may be asked of.
+ *
+ *  `applyAddedStages` runs FIRST in the pipeline, on the pristine design, so the aft tube it clones is
+ *  the pristine design's (plus any stage already authored, because the loop accumulates). The whole
+ *  edited structure is a different rocket: an authored tube at the tail, a removal, or a reorder all
+ *  change which tube is aft-most, and none of them are visible to the operation.
+ *
+ *  Asking the gate the wrong tree is not cosmetic. Driven across the corpus one removal or one move at
+ *  a time, the two disagree in **123 states**, and they disagree both ways. 121 are false refusals —
+ *  the cheapest is the starter with one ordinary tube authored at the tail, where the gate says no and
+ *  the operation would have given a 2-stage design flying 1373.372 m with a separation, so the control
+ *  simply vanishes from a design that supports it. The other 2 are on `03.Three-stage.ork`, one of the
+ *  exact designs the refusal exists for: nudge a tube one place and the gate says yes, the button
+ *  renders, and the click leaves the stage count at 3 with the design flipped to edited — the
+ *  changes-nothing click the refusal was written to prevent, reached from the other side. */
+export function stageSeedBase(rocket: Rocket, edits: GeometryEdits): Rocket {
+  return applyAddedStages(rocket, edits.addedStages);
+}
+
+/** Every component id an authored stage accounts for: its seed, whatever is mounted in that seed, and
+ *  every part the flyer has since authored INTO the stage. What a removal of that stage has to take
+ *  with it, from every list in the bag.
+ *
+ *  Computed by diffing the structure with the stage against the structure without it, rather than by
+ *  walking down from `seedId`. The seed is an ordinary removable component: delete it and the stage is
+ *  still there holding the parts authored onto it, but a walk rooted at `seedId` finds nothing and
+ *  clears nothing. Measured on the starter — booster, a tube authored inside it set to 400 mm, seed
+ *  deleted, then the stage removed — that left the aim live and resized the SUSTAINER: 993.642 m to
+ *  1105.598 m with the field still reading 400.
+ *
+ *  **Removals are deliberately suppressed on both sides.** A part of this stage the flyer has already
+ *  deleted still belongs to it, and its `removedIds` entry has to go when the stage does. Leaving it is
+ *  not cosmetic: `newPartId` is deterministic and `addStage` names by the current length, so after a
+ *  removal the next booster is minted with the SAME seed and mount ids — and is born with its own motor
+ *  mount already in `removedIds`. Measured on the starter: add a booster (1491.464 m, one separation),
+ *  delete its motor mount (638.973 m, none), remove the stage (993.642 m), add a booster again — and
+ *  the new one reads 638.973 m with zero separation events, 35.7% below the design's own flight, from
+ *  two clicks that destroy nothing. */
+export function addedStageIds(rocket: Rocket, edits: GeometryEdits, seedId: string): Set<string> {
+  const bag: GeometryEdits = { ...edits, removedIds: undefined };
+  const ids = (r: Rocket) => new Set(flattenRocket(r).map((p) => p.component.id));
+  const withStage = ids(structureOf(rocket, bag));
+  const without = ids(structureOf(rocket, { ...bag, addedStages: (edits.addedStages ?? []).filter((s) => s.seedId !== seedId) }));
+  const gone = new Set<string>();
+  for (const id of withStage) if (!without.has(id)) gone.add(id);
+  return gone;
+}
+
 function applyMoves(rocket: Rocket, moved?: readonly MovedPart[]): Rocket {
   if (!moved?.length) return rocket;
   let stages = rocket.stages;
@@ -1705,7 +1974,17 @@ function applyRemovals(rocket: Rocket, removedIds?: readonly string[]): Rocket {
  *  The dimension edits are excluded on purpose: this is the base a field or a sweep axis edits FROM,
  *  and those are the thing being varied. */
 export function structureOf(rocket: Rocket, edits: GeometryEdits): Rocket {
-  return applyGeometryEdits(rocket, { added: edits.added, removedIds: edits.removedIds, moved: edits.moved });
+  // The structural keys, named in ONE place. Every one of them has to be listed here, and this is the
+  // list — callers pass the whole bag and this picks. They used to hand-restate the same three fields
+  // at each call site, which is how `moved` reached three of them and not the fourth, and it is the
+  // trap `HANDOFF.md` records as costing every operation so far an increment. A caller that passes the
+  // whole bag cannot be out of date; a caller that spells out fields silently can.
+  return applyGeometryEdits(rocket, {
+    added: edits.added,
+    removedIds: edits.removedIds,
+    moved: edits.moved,
+    addedStages: edits.addedStages,
+  });
 }
 
 /** Return a design with the geometry edits applied. The original rocket is untouched (a fresh tree
@@ -1721,12 +2000,18 @@ export function applyGeometryEdits(rocket: Rocket, edits: GeometryEdits): Rocket
   //  - adds before the dimension edits, so `bodyTubeId` can aim at an authored tube and `bodyLength`
   //    edits it — the whole point of authoring being an edit of the same model, not a second mechanism.
   //    It also means `aftmostBodyTube`, which anchors a boattail, sees a tube that was added behind it.
+  //  - STAGES before everything, because a stage is the level above a component: an authored part has
+  //    to be able to anchor onto the booster's seed tube, a removal has to be able to reach into it, and
+  //    a reorder has to see it in the stack. Applied last, none of those could address it at all.
   //  - moves AFTER removals, so an entry naming a part or an anchor that has been deleted simply drops
   //    instead of resolving against a tree that still has it; and BEFORE the dimension edits, so
   //    `aftmostBodyTube`, `nextTopLevel` and `transitionDefaults` all see the order the flyer built
   //    rather than the order the file arrived in.
   return applyDimensionEdits(
-    applyMoves(applyRemovals(applyAdds(rocket, edits.added), edits.removedIds), edits.moved),
+    applyMoves(
+      applyRemovals(applyAdds(applyAddedStages(rocket, edits.addedStages), edits.added), edits.removedIds),
+      edits.moved,
+    ),
     withoutRemovedAims(edits),
   );
 }

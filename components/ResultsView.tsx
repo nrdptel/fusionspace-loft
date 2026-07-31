@@ -6,7 +6,7 @@ import { Card, Tabs } from "./ui";
 import type { FlightRun } from "@/lib/sim/run";
 import type { ConditionOverrides } from "@/lib/sim/setup";
 import type { ConditionsSource } from "@/lib/what-if";
-import { applyGeometryEdits, hasGeometryEdits, primaryFinGroupIds, structureOf, aimsOf, type AddedPart, type GeometryEdits } from "@/lib/model/edit";
+import { applyGeometryEdits, hasGeometryEdits, primaryFinGroupIds, structureOf, aimsOf, type AddedPart, type GeometryEdits, type MoveSlot } from "@/lib/model/edit";
 import { designKey } from "@/lib/model/design-key";
 import { formatLabel, sourceTool, type OrkDocument } from "@/lib/ork/import";
 import type { FlightResult } from "@/lib/sim/simulate";
@@ -158,6 +158,10 @@ export default function ResultsView({
   onAddAfter,
   onMovePart,
   canMovePart,
+  onMovePartTo,
+  movePartSlots,
+  onAddStage,
+  onRemoveStage,
   refuseRemoval,
   initialTab,
   onWorkspaceChange,
@@ -218,6 +222,13 @@ export default function ResultsView({
   onMovePart?: (id: string, dir: -1 | 1) => void;
   /** Whether that nudge is available, judged against the same tree the move is applied to. */
   canMovePart?: (id: string, dir: -1 | 1) => boolean;
+  /** Commit a drag's drop: put this part immediately behind `after`, or first when `after` is null. */
+  onMovePartTo?: (id: string, after: string | null) => void;
+  /** Every legal drop for a part, resolved against the tree the operation runs against. */
+  movePartSlots?: (id: string) => MoveSlot[];
+  /** Append a booster stage below the design. */
+  onAddStage?: () => void;
+  onRemoveStage?: (seedId: string) => void;
   /** Why a part cannot be removed, or null. Asked of the app rather than judged in the panel, so the reason
    *  shown and the guard that enforces it cannot disagree about which design they are judging. */
   refuseRemoval?: (id: string) => string | null;
@@ -384,12 +395,21 @@ export default function ResultsView({
   // What the Analyze panels are keyed on: change any of it and a completed run no longer describes
   // the design on screen, so the panel resets rather than showing a stale answer as a current one.
   const dkey = designKey({ loadId, simIndex, configId: run.config.id, ballastKg, recoveryCdScale, motorSwap, geometry });
-  const staged = (doc.rocket.stages?.length ?? 1) > 1;
+  const shownRocket = editing ? applyGeometryEdits(doc.rocket, geometry) : doc.rocket;
+  /** Asked of the EDITED rocket, not the pristine one. R5 made a stage something a flyer can author, so
+   *  `doc.rocket.stages.length` is the count of the stages the FILE came with and a booster added in the
+   *  editor never moves it. Every tool below this line is gated on it, and the cross-check is the one
+   *  that publishes a number: it builds its spec from the edited rocket, where `buildRocketpySpec`
+   *  carries a single `motor` and folds `motors.length` of them into one coaxial cluster — right for a
+   *  cluster and wrong for serial staging. Measured on the starter with one booster authored, the spec
+   *  it handed RocketPy read peak thrust 381.0 N against the real 190.5 N and propellant 0.1882 kg
+   *  against 0.0941 kg, both motors burning together from t=0 on a vehicle that never sheds a stage —
+   *  a wrong number on the one surface whose whole job is to say whether Loft's number can be trusted. */
+  const staged = (shownRocket.stages?.length ?? 1) > 1;
   // The motor sweep flies the bundled candidates itself rather than the design's own configuration,
   // so it is the one Analyze tool that still works when no motor resolved — and on that design it is
   // the most useful one there is.
   const canSweepMotors = !staged && !!swapOptions && swapOptions.length > 1;
-  const shownRocket = editing ? applyGeometryEdits(doc.rocket, geometry) : doc.rocket;
   // A design can state its weight as a whole-assembly override, and a part added INSIDE that
   // assembly then weighs nothing — the override IS the design's statement about the total, so the
   // model is right to hold it. What was wrong is that nothing said so. Measured on a design weighed
@@ -534,7 +554,7 @@ export default function ResultsView({
             yZeroFloor
           />
           {run.hasPropulsion && r.trajectory.length > 0 && (
-            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-zinc-500 dark:text-zinc-400">
+            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm text-zinc-500 dark:text-zinc-400">
               {/* Overlay a real altimeter log beside the prediction — the predict → fly → compare loop.
                   Parsed in the browser; the file is never uploaded. */}
               <label className="print-hide inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-zinc-300 px-2.5 py-1 font-medium text-zinc-600 transition hover:bg-zinc-50 hover:text-zinc-800 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-zinc-100">
@@ -558,7 +578,7 @@ export default function ResultsView({
                       aria-label="Flight log altitude unit"
                       value={log.unit}
                       onChange={(e) => setLog({ ...log, unit: e.target.value as LogUnit })}
-                      className="rounded-md border border-zinc-300 bg-white px-1.5 py-0.5 text-xs text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                      className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-sm text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
                     >
                       <option value="m">metres</option>
                       <option value="ft">feet</option>
@@ -585,7 +605,7 @@ export default function ResultsView({
             </div>
           )}
           {logPeak !== null && (
-            <p className="mt-1.5 text-xs text-zinc-600 dark:text-zinc-300">
+            <p className="mt-1.5 text-sm text-zinc-600 dark:text-zinc-300">
               Log peak <strong className="tabular-nums">{d.fmt(logPeak, 0)}&nbsp;{altUnit}</strong> · Loft predicted{" "}
               <strong className="tabular-nums">{d.fmt(predApogee, 0)}&nbsp;{altUnit}</strong>
               {peakDeltaPct !== null && Math.abs(peakDeltaPct) >= 0.5 && (
@@ -607,7 +627,7 @@ export default function ResultsView({
             yLabel={units === "imperial" ? "ft/s" : "m/s"}
           />
           {logSpeedSeries && log?.speed && (
-            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-zinc-500 dark:text-zinc-400">
+            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm text-zinc-500 dark:text-zinc-400">
               {/* The uploaded log carried a velocity column — overlay it and compare peaks, with its own
                   unit picker (speeds are exported in more units than altitudes). */}
               <label className="inline-flex items-center gap-1.5">
@@ -618,7 +638,7 @@ export default function ResultsView({
                   onChange={(e) =>
                     setLog(log ? { ...log, speed: log.speed ? { ...log.speed, unit: e.target.value as LogSpeedUnit } : null } : null)
                   }
-                  className="rounded-md border border-zinc-300 bg-white px-1.5 py-0.5 text-xs text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                  className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-sm text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
                 >
                   <option value="m/s">m/s</option>
                   <option value="ft/s">ft/s</option>
@@ -726,6 +746,11 @@ export default function ResultsView({
           onAddAfter={onAddAfter}
           onMove={onMovePart}
           canMove={canMovePart}
+          onMoveTo={onMovePartTo}
+          moveSlotsFor={movePartSlots}
+          addedStages={geometry?.addedStages}
+          onAddStage={onAddStage}
+          onRemoveStage={onRemoveStage}
           refuseRemoval={refuseRemoval}
           // The aim map, so a role added to the edit model needs no new prop on the way down. Projected
           // through the registry, never the raw bag: a typed span is not an aim.
@@ -763,7 +788,11 @@ export default function ResultsView({
       {staged && (
         <ToolUnavailable
           title="Second solver and design sweeps"
-          reason={`This design flies ${doc.rocket.stages.length} stages. The RocketPy cross-check flies a single-stage vehicle, and a motor or parameter sweep needs one unambiguous airframe to vary — with several stages there is no single "the" nose, body or fin set to sweep. The dispersion study below is over the whole flight and does run on a staged design.`}
+          // The EDITED count, for the same reason `staged` above is: on a design with a booster authored
+          // in the editor `doc.rocket.stages.length` is still the file's 1, so this read "This design
+          // flies 1 stages." — a wrong number and a broken sentence, on the copy whose only job is to
+          // explain why three tools just disappeared.
+          reason={`This design flies ${shownRocket.stages.length} stages. The RocketPy cross-check flies a single-stage vehicle, and a motor or parameter sweep needs one unambiguous airframe to vary — with several stages there is no single "the" nose, body or fin set to sweep. The dispersion study below is over the whole flight and does run on a staged design.`}
         />
       )}
       {/* Without a resolved motor there is no flight to analyze, and every tool here is built on one
@@ -1086,7 +1115,7 @@ function FlutterFixHint({
   const editable = primaryFinGroupIds(structureOf(doc.rocket, geometry ?? {}), geometry?.finSetId).has(f.worst.finId);
 
   return (
-    <p className="mt-3 text-xs text-zinc-500 dark:text-zinc-400">
+    <p className="mt-3 text-sm text-zinc-500 dark:text-zinc-400">
       <span className="font-medium text-zinc-600 dark:text-zinc-300">Fin-flutter fix:</span>{" "}
       thickening the {f.worst.finName} from {d.q(d.lengthMm(f.worst.thickness, units))} to about{" "}
       {d.q(d.lengthMm(tFix, units))} would lift the flutter margin to{" "}
@@ -1144,7 +1173,7 @@ function StabilityTrimHint({
   // A degenerate airframe (no resolvable diameter) has no meaningful margin to trim — say nothing.
   if (!(r.stability.refRadius > 0) || !Number.isFinite(trim.currentMarginCal)) return null;
 
-  const box = "mt-3 border-t border-zinc-100 pt-3 text-xs text-zinc-500 dark:border-zinc-800 dark:text-zinc-400";
+  const box = "mt-3 border-t border-zinc-100 pt-3 text-sm text-zinc-500 dark:border-zinc-800 dark:text-zinc-400";
   const label = <span className="font-medium text-zinc-600 dark:text-zinc-300">Stability trim:</span>;
 
   // Thin margin: name the nose ballast, and the weight-free fin-aft move that reaches the same target.
@@ -1213,7 +1242,7 @@ function RecoverySizingHint({ run, units }: { run: FlightRun; units: UnitSystem 
   if (!(sizing.cdA > 0) || !Number.isFinite(sizing.diameter)) return null;
 
   return (
-    <p className="mt-3 text-xs text-zinc-500 dark:text-zinc-400">
+    <p className="mt-3 text-sm text-zinc-500 dark:text-zinc-400">
       <span className="font-medium text-zinc-600 dark:text-zinc-300">Recovery sizing:</span> to land
       at about {d.q(d.speed(SOFT_LANDING_TARGET, units))} instead, the main needs a drag area of
       roughly {d.fmt(sizing.cdA, 2)} m² Cd·A — about a {d.q(d.lengthMm(sizing.diameter, units))}{" "}
@@ -1229,7 +1258,7 @@ function BoosterDescentNote({ run, units }: { run: FlightRun; units: UnitSystem 
   const boosters = run.result.boosterDescents;
   if (!boosters.length) return null;
   return (
-    <p className="mt-3 text-xs text-zinc-500 dark:text-zinc-400">
+    <p className="mt-3 text-sm text-zinc-500 dark:text-zinc-400">
       <span className="font-medium text-zinc-600 dark:text-zinc-300">Separated booster recovery:</span>{" "}
       {boosters.map((b, i) => (
         <span key={b.name}>
@@ -1384,7 +1413,7 @@ function WhatIfDelta({ run, baseline, units }: { run: FlightRun; baseline: Fligh
               <span className="text-zinc-900 dark:text-zinc-100">{row.cur.value}</span>{" "}
               <span className="text-xs font-normal text-zinc-500 dark:text-zinc-400">{row.cur.unit}</span>
             </dd>
-            <dd className="font-mono text-xs tabular-nums text-indigo-600 dark:text-indigo-400">{row.change.text}</dd>
+            <dd className="font-mono text-sm tabular-nums text-indigo-600 dark:text-indigo-400">{row.change.text}</dd>
           </div>
         ))}
       </dl>

@@ -12,6 +12,7 @@ import {
   primaryNose,
   primaryMassObject,
   type GeometryEdits,
+  type MoveSlot,
 } from "@/lib/model/edit";
 import { flattenRocket } from "@/lib/model/geometry";
 import type { MotorMark } from "@/lib/sim/setup";
@@ -52,6 +53,8 @@ export default function RocketDiagram({
   onSelect,
   motors,
   onEdit,
+  onMoveTo,
+  moveSlotsFor,
   selectedFinSetId,
   selectedBodyTubeId,
   selectedMassObjectId,
@@ -79,6 +82,18 @@ export default function RocketDiagram({
    *  exactly what a numeric what-if field does — so building by dragging and building by typing share
    *  one path. */
   onEdit?: (patch: GeometryEdits) => void;
+  /** Commit a reorder: put this part immediately behind `after`, or first when `after` is null.
+   *
+   *  Deliberately its own callback rather than an `onEdit({ moved })`. The app applies an edit patch
+   *  by SPREADING it over the bag, so a `moved` array sent that way replaces the whole list — every
+   *  earlier reorder, and every undo step that goes with it, gone. Appending is the caller's job and
+   *  this is the door into it. */
+  onMoveTo?: (id: string, after: string | null) => void;
+  /** Every legal drop for a part, resolved by the app against the tree the operation runs against —
+   *  NOT against the rocket drawn here, which carries dimension edits that synthesise top-level parts
+   *  the operation cannot address. Each slot names the part it lands in front of, and this component
+   *  turns that into a station and then a pixel. */
+  moveSlotsFor?: (id: string) => MoveSlot[];
   /** Which fin set and body tube the editor's fields — and therefore these handles — are aimed at. The
    *  handles emit ABSOLUTE values, so reading one off a different part than the edit writes to would
    *  snap the edited part to the read part's dimensions on the first nudge. */
@@ -93,6 +108,44 @@ export default function RocketDiagram({
   // headroom (below), and while such a drag is live we hold the frame at its grab-time extent so the
   // grabbed edge tracks the pointer instead of the frame chasing the growing geometry. Null otherwise.
   const [vFrameExtent, setVFrameExtent] = useState<number | null>(null);
+  // The reorder drag in flight: which part is being carried, and where the indicator goes. The
+  // POSITION rather than the slot index, because the render needs a pixel and a ref may not be read
+  // during one — the slot itself stays in a ref, where the commit reads it.
+  const [carry, setCarry] = useState<{ id: string; px: number } | null>(null);
+  // Everything the live drag needs, snapshotted at pointer-down. The slot table in particular: with no
+  // live preview the geometry does not move under the pointer, but a re-render for any other reason
+  // (a hover, a re-fly finishing) would otherwise recompute it mid-gesture.
+  const carryRef = useRef<{
+    id: string;
+    slots: { after: string | null; px: number }[];
+    startX: number;
+    moved: boolean;
+    controller: AbortController;
+  } | null>(null);
+  const carryRafRef = useRef<number | null>(null);
+  const carryXRef = useRef(0);
+  // The chosen slot, in a ref as well as in state: `pointerup`'s handler is created once at
+  // pointer-down, so the state it closes over is the one from that render and would commit the first
+  // slot however far the pointer travelled.
+  const slotAtRef = useRef(0);
+  // The containing <svg>, captured at pointer-down. Reading it from the event each frame is not an
+  // option — the window handlers fire on the window, not on the path.
+  const svgRef = useRef<SVGSVGElement | null>(null);
+
+  const endCarry = useCallback(() => {
+    carryRef.current?.controller.abort();
+    carryRef.current = null;
+    if (carryRafRef.current != null) {
+      cancelAnimationFrame(carryRafRef.current);
+      carryRafRef.current = null;
+    }
+    setCarry(null);
+  }, []);
+  useEffect(() => endCarry, [endCarry]); // an in-flight drag must not outlive the component
+  // Set at the end of a real drag so the pointerup's synthetic click does not also PICK the part.
+  // Without it every reorder silently re-aims the editor's fields at whatever was dragged, which on a
+  // field holding an absolute value is a change to the design, not just to the selection.
+  const suppressClick = useRef(false);
   // The diagram draws in CSS pixels (a user unit IS a pixel), so a handle and a label stay the size
   // they claim whatever the column width — and the airframe can be magnified without the furniture
   // growing with it. Fit-to-width is the default; zooming makes the drawing wider than its column
@@ -172,10 +225,115 @@ export default function RocketDiagram({
       ? {
           onMouseEnter: () => onHover?.(id),
           onMouseLeave: () => onHover?.(null),
-          onClick: () => onSelect?.(id),
+          onClick: () => {
+            // A reorder drag ends on this same element, and its pointerup synthesises a click. Left
+            // alone that click also PICKS the part, and a pick re-aims the editor's fields — which,
+            // on a field holding an absolute value, changes the design rather than the selection.
+            if (suppressClick.current) {
+              suppressClick.current = false;
+              return;
+            }
+            onSelect?.(id);
+          },
         }
       : {};
   const cursor = onHover || onSelect ? "cursor-pointer" : "";
+
+  // Reorder by dragging a part along the airframe — the direct-manipulation half of R4, with the
+  // parts panel's move buttons as its keyboard and touch equivalent.
+  //
+  // Fine pointers only, like the two centreline grips, and for the measured reason they are: at a
+  // phone's fit width the airframe is about eleven pixels tall, so a drag started on the body
+  // silhouette competes with every grip inside it. The buttons ARE the touch path.
+  //
+  // There is no live preview. The picture does not restack until the pointer is released, which is
+  // what the desktop tools' component trees do too, and it is what keeps the slot table valid for the
+  // whole gesture: a committed preview moves the boundaries by design, so a target recomputed from
+  // the new geometry maps the same pointer x back to the previous slot and the part oscillates.
+  const draggable = !!(onMoveTo && moveSlotsFor && !coarse);
+  /** Station (m) of the joint a slot's indicator belongs at: the fore end of the part it lands in
+   *  front of, or the aft end of the airframe. Read off the rocket being DRAWN — the anchor came from
+   *  the tree the operation runs against, and these are deliberately two different trees. */
+  const slotStation = (before: string | null): number | null => {
+    if (before === null) return o.length;
+    const p = o.parts.find((x) => x.id === before);
+    return p ? p.profile[0][0] : null;
+  };
+
+  /** Map the pending pointer x to the nearest legal slot, on the next frame. */
+  const trackCarry = () => {
+    carryRafRef.current = null;
+    const dg = carryRef.current;
+    const svg = svgRef.current;
+    const ctm = svg?.getScreenCTM();
+    if (!dg || !svg || !ctm) return;
+    const pt = svg.createSVGPoint();
+    pt.x = carryXRef.current;
+    pt.y = 0;
+    const x = pt.matrixTransform(ctm.inverse()).x;
+    // A movement threshold, in SCREEN pixels, so a click that wobbles is still a click. Without it
+    // every pick on the airframe would also commit a reorder to wherever the pointer happened to be.
+    if (Math.abs(carryXRef.current - dg.startX) > 4) dg.moved = true;
+    let best = 0;
+    for (let i = 1; i < dg.slots.length; i++) {
+      if (Math.abs(dg.slots[i].px - x) < Math.abs(dg.slots[best].px - x)) best = i;
+    }
+    slotAtRef.current = best;
+    const px = dg.slots[best].px;
+    setCarry((c) => (c && c.px === px && c.id === dg.id ? c : { id: dg.id, px }));
+  };
+
+  const beginCarry = (ev: React.PointerEvent<SVGPathElement>, id: string) => {
+    const svg = ev.currentTarget.ownerSVGElement;
+    if (!svg || !onMoveTo || !moveSlotsFor) return;
+    const slots = moveSlotsFor(id)
+      .map((s) => {
+        const station = slotStation(s.before);
+        return station === null ? null : { after: s.move.after, px: X(station) };
+      })
+      .filter((s): s is { after: string | null; px: number } => s !== null);
+    if (!slots.length) return;
+    // `preventDefault` for the same reason the other grips call it — it stops the native text
+    // selection a drag across the page would otherwise start. It does NOT take the click with it for a
+    // mouse pointer, which was checked rather than assumed: with it restored, a plain click on a part
+    // still picks that part, and the suppression below is still what stops a DRAG from doing so.
+    ev.preventDefault();
+    ev.stopPropagation();
+    // Cleared at the START of every gesture, not left to be consumed by the click it suppresses. A
+    // drag does not always produce one — the pointer can leave the element, or the browser can decide
+    // the down and the up were too far apart to be a click — and a flag left standing then swallows
+    // the NEXT genuine pick instead. Clearing here bounds it to exactly one click: the one this
+    // gesture is about to synthesise, if it synthesises one at all.
+    suppressClick.current = false;
+    svgRef.current = svg;
+    const controller = new AbortController();
+    carryRef.current = { id, slots, startX: ev.clientX, moved: false, controller };
+    carryXRef.current = ev.clientX;
+    slotAtRef.current = 0;
+    setCarry({ id, px: slots[0].px });
+    // Put the indicator on the slot nearest the grab BEFORE the pointer moves, so the first frame is
+    // not a promise to drop the part at the nose.
+    trackCarry();
+    const onMove = (e: PointerEvent) => {
+      carryXRef.current = e.clientX;
+      if (carryRafRef.current == null) carryRafRef.current = requestAnimationFrame(trackCarry);
+    };
+    const onUp = () => {
+      const dg = carryRef.current;
+      const at = dg?.slots[slotAtRef.current];
+      if (dg?.moved && at) {
+        // Suppress the click this pointerup is about to synthesise. It lands on the same path, whose
+        // click handler PICKS the part — and a pick re-aims the editor's fields, which on a field
+        // holding an absolute value changes the design rather than the selection.
+        suppressClick.current = true;
+        onMoveTo(dg.id, at.after);
+      }
+      endCarry();
+    };
+    window.addEventListener("pointermove", onMove, { signal: controller.signal });
+    window.addEventListener("pointerup", onUp, { signal: controller.signal });
+    window.addEventListener("pointercancel", () => endCarry(), { signal: controller.signal });
+  };
 
   const lengthLabel =
     units === "imperial"
@@ -387,15 +545,58 @@ export default function RocketDiagram({
           />
         ))}
 
-        {/* per-part overlays: transparent hit targets that tint their part when hovered/highlighted */}
-        {o.parts.map((part) => (
-          <path
-            key={`part${uid}${part.id}`}
-            d={partPath(part.profile)}
-            className={`${part.id === highlightId ? "fill-indigo-400/40 dark:fill-indigo-400/30" : "fill-transparent"} ${cursor}`}
-            {...hoverProps(part.id)}
-          />
-        ))}
+        {/* per-part overlays: transparent hit targets that tint their part when hovered/highlighted,
+            and — on a fine pointer — the grab target for a reorder drag. The silhouette is already
+            closed, hit-testable and addressed by component id, so the gesture needs no new geometry. */}
+        {o.parts.map((part) => {
+          const canCarry = draggable && (moveSlotsFor?.(part.id).length ?? 0) > 0;
+          const lifted = carry?.id === part.id;
+          return (
+            <path
+              key={`part${uid}${part.id}`}
+              d={partPath(part.profile)}
+              className={
+                (lifted
+                  ? "fill-indigo-500/25 dark:fill-indigo-400/25"
+                  : part.id === highlightId
+                    ? "fill-indigo-400/40 dark:fill-indigo-400/30"
+                    : "fill-transparent") +
+                " " +
+                (carry ? "cursor-grabbing" : canCarry ? "cursor-grab" : cursor)
+              }
+              {...hoverProps(part.id)}
+              {...(canCarry ? { onPointerDown: (ev: React.PointerEvent<SVGPathElement>) => beginCarry(ev, part.id) } : {})}
+            >
+              {canCarry && <title>Drag along the airframe to reorder</title>}
+            </path>
+          );
+        })}
+
+        {/* Where the carried part would land. A rule at the joint rather than a ghost of the part: the
+            drop is a position in the stack, and the stack has no gaps to open — everything behind the
+            drop closes up by the same amount. Drawn after the overlays so it reads over the airframe,
+            and before the CG/CP marks so it never covers them. */}
+        {carry && (
+          <g className="pointer-events-none">
+            <line
+              x1={carry.px}
+              x2={carry.px}
+              y1={markTop - 6}
+              y2={markBot + 6}
+              className="stroke-indigo-500 dark:stroke-indigo-400"
+              strokeWidth={2.5}
+              strokeLinecap="round"
+            />
+            <text
+              x={carry.px}
+              y={Math.max(9, markTop - 10)}
+              textAnchor="middle"
+              className="fill-indigo-600 text-[10px] font-semibold [paint-order:stroke] [stroke:white] [stroke-width:3px] dark:fill-indigo-300 dark:[stroke:#18181b]"
+            >
+              drop here
+            </text>
+          </g>
+        )}
 
         {/* internal mass objects (payload, avionics, ballast) — a hollow mark at each station, so
             the CG's cause is visible and the part's table row highlights it */}

@@ -207,6 +207,19 @@ export default function Limitations() {
         which is a joint between two stages.
       </p>
       <p>
+        <strong>Reordering can put something other than a nose cone at the front, and the drag model has
+        no term for that.</strong>{" "}Forebody pressure and wave drag are taken from whichever component
+        is a nose cone, wherever it sits in the stack — so an airframe whose leading part is a body tube
+        or a truncated transition is flown as though it were still streamlined. Measured on the
+        <em>{" "}demo-quirks{" "}</em>sample: nudging the nose one place aft leaves apogee at
+        1,406.6&nbsp;m, max velocity at 227.9&nbsp;m/s and rail exit at 26.0&nbsp;m/s, every digit
+        unchanged, while only the static margin moves. It is the same shape of gap as the bare step
+        above, and larger: a flat face is the whole forebody drag term missing, not a correction to it.
+        So a flight that leads with a flat face says so, names the diameter, and reports the number as
+        optimistic. None of the 35 corpus designs is in that state as imported — every real design leads
+        with its nose — so this is a shape the editor can reach and a file does not.
+      </p>
+      <p>
         <strong>Mass objects are addressable too.</strong> A point mass — an altimeter, a tracker, nose
         ballast — is usually the dominant non-structural weight on a design, and 26 of the 35 corpus
         designs carry one, 56 in all. Picking one aims a <em>weight</em> and a <em>position</em>{" "}at it;

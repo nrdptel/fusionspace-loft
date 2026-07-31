@@ -5,7 +5,7 @@ import { importOrk } from "../ork/import";
 import { runFromDocument, runFlight, configChoices, overridesFromStored } from "./run";
 import { allMotors } from "../motors/db";
 import { flattenRocket } from "../model/geometry";
-import { primaryFinSpan, primaryFinCount, primaryFinRootChord, primaryFinTipChord, primaryFinSweep, primaryFinThickness, primaryNose, primaryNoseShape, primaryBodyTube, primaryBodyDiameter } from "../model/edit";
+import { primaryFinSpan, primaryFinCount, primaryFinRootChord, primaryFinTipChord, primaryFinSweep, primaryFinThickness, primaryNose, primaryNoseShape, primaryBodyTube, primaryBodyDiameter, moveTarget, applyGeometryEdits } from "../model/edit";
 import type { OrkDocument } from "../ork/adapt";
 
 /** End-to-end: import each committed fixture, fly it, and check the results are physically
@@ -827,6 +827,33 @@ describe("dual-deploy fixture flight", () => {
     expect(s.descentRate).toBeLessThan(15);
     // Transonic flight is flagged as extrapolated.
     expect(run.result.warnings.some((w) => w.code === "transonic")).toBe(true);
+  });
+
+  it("says so when the airframe leads with a flat face instead of a nose cone", async () => {
+    // Loft takes forebody pressure and wave drag from whichever component is a nose cone, wherever it
+    // sits, and has no term at all for a blunt leading face. That was unreachable while the component
+    // order came from a file — every one of the 35 corpus designs leads with its nose — and is one
+    // gesture away now that the stack can be reordered. Measured on this fixture: nudging the nose one
+    // place aft leaves apogee, max velocity and rail exit every digit unchanged.
+    const doc = await load("demo-quirks.ork");
+    const nose = doc.rocket.stages[0].components.find((c) => c.kind === "nosecone")!;
+    expect(nose).toBeTruthy();
+
+    const streamlined = runFromDocument(doc, {});
+    expect(streamlined.result.warnings.some((w) => w.code === "blunt-nose")).toBe(false);
+
+    const mv = moveTarget(doc.rocket, nose.id, 1)!;
+    expect(mv).toBeTruthy();
+    const blunt = runFromDocument({ ...doc, rocket: applyGeometryEdits(doc.rocket, { moved: [mv] }) }, {});
+    const w = blunt.result.warnings.find((x) => x.code === "blunt-nose");
+    expect(w, "a flat leading face must be reported").toBeTruthy();
+    expect(w!.severity).toBe("warning");
+    // The measurement that makes the warning necessary rather than decorative: the published numbers
+    // did not move at all, so nothing else on the surface says the shape changed.
+    expect(blunt.result.summary.apogee).toBe(streamlined.result.summary.apogee);
+    expect(blunt.result.summary.maxVelocity).toBe(streamlined.result.summary.maxVelocity);
+    // The face's own diameter is named, so the flyer can tell how big the missing term is.
+    expect(w!.message).toMatch(/flat 66 mm face/);
   });
 });
 

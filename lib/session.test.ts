@@ -8,6 +8,7 @@ import {
   loadRecents,
   rememberRecent,
   forgetRecent,
+  restoreRecent,
   saveDiscardedSession,
   loadDiscardedSession,
   clearDiscardedSession,
@@ -259,6 +260,122 @@ describe("the recent-designs shelf", () => {
     expect(forgetRecent(id).map((r) => r.name)).toEqual(["b.ork"]);
     clearRecents();
     expect(loadRecents()).toEqual([]);
+  });
+
+  it("puts a removed design back where it was, not at the front", () => {
+    // The position matters: the shelf is a build's variants in the order they were last touched, and
+    // an undo that returns a row to the front has rewritten the history it was meant to restore.
+    put("a.ork", 1000);
+    put("b.ork", 2000);
+    put("c.ork", 3000);
+    const b = loadRecents().find((r) => r.name === "b.ork")!;
+    forgetRecent(b.id);
+    expect(loadRecents().map((r) => r.name)).toEqual(["c.ork", "a.ork"]);
+    expect(restoreRecent(b, 1)!.map((r) => r.name)).toEqual(["c.ork", "b.ork", "a.ork"]);
+    // And it is the same design, byte for byte, not a re-derivation of it.
+    expect(loadRecents().find((r) => r.name === "b.ork")).toEqual(b);
+  });
+
+  it("restores the LAST design, which is the case where the bytes are most likely the only copy", () => {
+    put("only.ork", 1000);
+    const only = loadRecents()[0];
+    forgetRecent(only.id);
+    expect(loadRecents()).toEqual([]);
+    expect(restoreRecent(only, 0)).toEqual([only]);
+  });
+
+  it("takes back two removals in either order, and neither undoes the other", () => {
+    // The natural sequence after a mis-tap. An earlier attempt at this undo held one pending removal,
+    // so the second one silently destroyed the first design's only way back.
+    put("a.ork", 1000);
+    put("b.ork", 2000);
+    put("c.ork", 3000);
+    const a = loadRecents().find((r) => r.name === "a.ork")!;
+    const c = loadRecents().find((r) => r.name === "c.ork")!;
+    forgetRecent(a.id);
+    forgetRecent(c.id);
+    expect(loadRecents().map((r) => r.name)).toEqual(["b.ork"]);
+    restoreRecent(c, 0);
+    restoreRecent(a, 1);
+    expect(loadRecents().map((r) => r.name)).toEqual(["c.ork", "b.ork", "a.ork"]);
+  });
+
+  it("refuses to put one back rather than evicting another design to make room", () => {
+    // The rule the reverted attempt broke: it restored a middle row into a full shelf by replaying the
+    // ADD path, which caps and evicts — so the undo for one deletion permanently performed another.
+    for (let i = 0; i < MAX_RECENTS; i++) put(`d${i}.ork`, 1000 + i);
+    const victim = loadRecents().find((r) => r.name === "d3.ork")!;
+    forgetRecent(victim.id);
+    // Another tab fills the space before the flyer presses "Put it back".
+    put("interloper.ork", 9000);
+    expect(loadRecents().length).toBe(MAX_RECENTS);
+    expect(restoreRecent(victim, 4)).toBeNull();
+    // Refused, and nothing moved: the shelf is exactly as it was.
+    expect(loadRecents().length).toBe(MAX_RECENTS);
+    expect(loadRecents().some((r) => r.name === "interloper.ork")).toBe(true);
+    expect(loadRecents().some((r) => r.name === "d3.ork")).toBe(false);
+  });
+
+  it("refuses a restore that would push the shelf past its byte budget", () => {
+    const big = "A".repeat(1_200_000);
+    put("big0.ork", 1000, big);
+    const b0 = loadRecents()[0];
+    forgetRecent(b0.id);
+    put("big1.ork", 2000, big);
+    put("big2.ork", 3000, big);
+    expect(restoreRecent(b0, 2)).toBeNull();
+    expect(loadRecents().map((r) => r.name)).toEqual(["big2.ork", "big1.ork"]);
+  });
+
+  it("puts back a design larger than the whole shelf budget, which is the one it must never lose", () => {
+    // The exemption `rememberRecent` already makes: a design too big for the shelf's byte budget is
+    // KEPT when it is the only one. Without the same exemption on the way back, removing that design
+    // was permanent — the one-way door this whole undo exists to close, rebuilt inside the fix.
+    put("huge.ork", 1000, "A".repeat(3_000_000));
+    const huge = loadRecents()[0];
+    expect(loadRecents().map((r) => r.name)).toEqual(["huge.ork"]);
+    forgetRecent(huge.id);
+    expect(loadRecents()).toEqual([]);
+    expect(restoreRecent(huge, 0)).toEqual([huge]);
+  });
+
+  it("puts a design back among rows opened in the same millisecond, not after them", () => {
+    // A tie is ordinary on a fast or scripted sequence, and the shelf's sort is stable — so a restore
+    // that appends lands after its tie-mates rather than back where it was.
+    put("a.ork", 5000);
+    put("b.ork", 5000);
+    put("c.ork", 5000);
+    const order = loadRecents().map((r) => r.name);
+    const middle = loadRecents()[1];
+    forgetRecent(middle.id);
+    expect(restoreRecent(middle, 1)!.map((r) => r.name)).toEqual(order);
+  });
+
+  it("never replaces a design that is on the shelf with a stale copy of itself", () => {
+    // `recentId` is name-plus-byte-length, so two different files can collide. A restore that
+    // filtered the live row out and inserted the held one would be a deletion wearing an undo's
+    // clothes — reachable from a second tab on the same origin.
+    put("x.ork", 1000, "AAEC");
+    const old = loadRecents()[0];
+    forgetRecent(old.id);
+    put("x.ork", 2000, "ZZZZ"); // same name, same length, different bytes
+    const live = loadRecents()[0];
+    expect(restoreRecent(old, 0)).toEqual([live]);
+    expect(loadRecents()[0].design).toBe("ZZZZ");
+    expect(loadRecents().length).toBe(1);
+  });
+
+  it("takes back two removals in the other order too", () => {
+    put("a.ork", 1000);
+    put("b.ork", 2000);
+    put("c.ork", 3000);
+    const a = loadRecents().find((r) => r.name === "a.ork")!;
+    const c = loadRecents().find((r) => r.name === "c.ork")!;
+    forgetRecent(a.id);
+    forgetRecent(c.id);
+    restoreRecent(a, 1); // oldest first this time
+    restoreRecent(c, 0);
+    expect(loadRecents().map((r) => r.name)).toEqual(["c.ork", "b.ork", "a.ork"]);
   });
 
   it("survives unreadable storage rather than throwing at the caller", () => {

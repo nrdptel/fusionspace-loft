@@ -164,6 +164,32 @@ export function isBody(c: RocketComponent): boolean {
 
 /** Body outer radius at an arbitrary axial station x (m) — used to seat a fin set on the
  *  body for the fin-body interference factor. Returns the max radius spanning x. */
+/** The diameter (m) of the flat face the airframe presents to the airstream, or 0 when it leads with
+ *  a nose cone or a full taper.
+ *
+ *  Loft's drag model takes forebody pressure and wave drag from whichever component is a nose cone,
+ *  wherever it sits in the stack, and it has **no term at all for a blunt leading face** — the same
+ *  shape of silence as the missing term for a bare mould-line step. That did not matter while the
+ *  component order came from a file, because every real design leads with its nose. It matters now
+ *  that a flyer can reorder the stack: measured on `fixtures/demo-quirks.ork`, nudging the nose cone
+ *  one place aft leaves apogee at 1406.622 m, max velocity at 227.893 m/s and rail exit at 26.023 m/s
+ *  — every digit identical to the streamlined design — while the rocket in the model is flying a
+ *  66 mm flat disc into the airstream. Only the static margin moves.
+ *
+ *  So this is what the flight has to be able to SAY. It is a measurement of the geometry, not a
+ *  judgement about it: a design may legitimately have no nose cone at all (RASAero states none), and a
+ *  transition that tapers from zero is a nose by another name. What is reported is the face itself. */
+export function leadingFaceDiameter(rocket: Rocket): number {
+  const bodies = flattenRocket(rocket).filter((p) => isBody(p.component));
+  if (!bodies.length) return 0;
+  const front = bodies.reduce((best, p) => (p.xFore < best.xFore - 1e-9 ? p : best));
+  const c = front.component;
+  if (c.kind === "nosecone") return 0;
+  // A transition states its own fore radius; anything else presents its full outer radius.
+  const r = c.kind === "transition" ? c.foreRadius : outerRadius(c);
+  return r > 0 ? 2 * r : 0;
+}
+
 export function radiusAtStation(rocket: Rocket, x: number): number {
   let r = 0;
   for (const p of flattenRocket(rocket)) {

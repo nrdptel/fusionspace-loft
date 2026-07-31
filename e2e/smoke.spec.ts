@@ -351,6 +351,78 @@ test.describe("Loft", () => {
     await expect(shelf.getByRole("button", { name: /^Reopen/ })).toHaveCount(1);
   });
 
+  test("removing a design from the shelf is undoable, including the last one", async ({ page }) => {
+    // The app's last destructive act with no way back. One tap deleted a design's only stored bytes:
+    // no confirmation, no undo, and it survived a reload — on the surface that exists precisely
+    // because at the pad the file may not be on the phone at all.
+    await page.goto("/");
+    for (const sample of [/38 mm single-deploy/, /54 mm dual-deploy/]) {
+      await page.getByRole("button", { name: sample }).click();
+      await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+      await page.getByRole("button", { name: /Import another/ }).click();
+    }
+    const shelf = page.getByRole("list").filter({ has: page.getByRole("button", { name: /^Reopen/ }) });
+    const reopen = () => shelf.getByRole("button", { name: /^Reopen/ });
+    const put = () => page.getByRole("button", { name: /^Put .* back on your designs/ });
+    await expect(reopen()).toHaveCount(2);
+    const order = await reopen().allInnerTexts();
+
+    // Remove the OLDER one — the row at the BACK. A restore that prepends, or that stamps a fresh
+    // timestamp, puts it at the front instead, and only a removal from a non-front position can tell
+    // the difference. Taking the newest cannot: its own place already IS the front.
+    await page.getByRole("button", { name: /^Remove .* from your designs/ }).last().click();
+    await expect(reopen()).toHaveCount(1);
+    await put().click();
+    await expect(reopen()).toHaveCount(2);
+    expect(await reopen().allInnerTexts()).toEqual(order);
+
+    // Now the case the earlier attempt at this undo missed: removing the LAST design. The offer used
+    // to live inside the shelf card, which unmounts when the shelf empties — so the one removal whose
+    // bytes are most likely the only copy was the one with nothing offering them back.
+    await page.getByRole("button", { name: /^Remove .* from your designs/ }).first().click();
+    await page.getByRole("button", { name: /^Remove .* from your designs/ }).first().click();
+    // `exact` matters: the offer's own sentence ends "…from your designs", and a bare `getByText`
+    // matches case-insensitive SUBSTRINGS, so it finds the banner as well as the shelf heading.
+    await expect(page.getByText("Your designs", { exact: true })).toHaveCount(0);
+    // Two removals in a row is what a mis-tap looks like, and both are still offered — holding only
+    // the latest silently destroyed the first design's way back.
+    await expect(put()).toHaveCount(2);
+
+    for (const n of [1, 0]) await put().nth(n).click();
+    await expect(reopen()).toHaveCount(2);
+    expect(await reopen().allInnerTexts()).toEqual(order);
+
+    // The restore is the real BYTES, not a row that only looks right: reopening it flies the design
+    // it names, at the apogee that design flies. The 54 mm dual-deploy sample is the one being put
+    // back, and it is a different flight from the 38 mm one beside it on the shelf.
+    await reopen().first().click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 2 }).first()).toContainText("54mm");
+    await page.getByRole("button", { name: /Import another/ }).click();
+
+    // The offer OUTLIVES reopening a different design, which is the most natural next tap after a
+    // mis-tap. An earlier version cleared every offer on every load, so one click made the removed
+    // design unrecoverable — the same no-way-back in a smaller window.
+    await page.getByRole("button", { name: /^Remove .* from your designs/ }).last().click();
+    await expect(put()).toHaveCount(1);
+    await reopen().first().click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+    await page.getByRole("button", { name: /Import another/ }).click();
+    await expect(put()).toHaveCount(1);
+    await put().click();
+    await expect(reopen()).toHaveCount(2);
+
+    // And it is spent once the design is back by another route — reopening the sample re-shelves it,
+    // so an offer to put that one back is no longer an offer to do anything.
+    await page.getByRole("button", { name: /^Remove .* from your designs/ }).last().click();
+    await expect(put()).toHaveCount(1);
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+    await page.getByRole("button", { name: /Import another/ }).click();
+    await expect(put()).toHaveCount(0);
+    await expect(reopen()).toHaveCount(2);
+  });
+
   test("starts a new design from scratch and flies it (builder)", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: "Start a new design" }).click();
@@ -3547,6 +3619,298 @@ test.describe("Loft", () => {
     await page.getByRole("button", { name: /^Undo moving/ }).click();
     await expect.poll(async () => (await names()).join("|"), { timeout: 20000 }).toBe(orderBefore.join("|"));
     await expect(page.getByRole("button", { name: /^Undo moving/ })).toHaveCount(0);
+  });
+
+  test("a part can be dragged along the airframe and dropped between two others", async ({ page }) => {
+    // R4's *done when* names the gesture: "drag a component along the airframe and drop it between two
+    // others". Increment 1 shipped the operation and a button pair (which stay, as the keyboard and
+    // touch path a drag can never be); this is the drag.
+    //
+    // `fixtures/demo-quirks.ork` again — four top-level children in one stage is the most any committed
+    // fixture has, and the only shape with room to drop a part somewhere that is neither neighbour.
+    await page.goto("/");
+    await page
+      .getByLabel(/^Choose an OpenRocket/)
+      .setInputFiles(resolve(process.cwd(), "fixtures/demo-quirks.ork"));
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    await page.getByRole("tab", { name: "Design" }).click();
+    await page.locator("summary", { hasText: /Parts ·/ }).click();
+
+    const partsTable = page.locator("table").filter({ hasText: "Dimensions" });
+    // Names and stations read separately: the names prove the same parts are still there and that
+    // their ORDER changed, and the stations prove the arithmetic behind the drop followed. Comparing a
+    // name-plus-station string as one blob would make the set-equality check meaningless, because a
+    // reorder is supposed to move the stations.
+    const names = () => partsTable.locator("tbody tr").evaluateAll((rs) =>
+      rs.map((r) => r.querySelector("th,td")?.textContent?.trim() ?? ""),
+    );
+    const stations = () => partsTable.locator("tbody tr").evaluateAll((rs) =>
+      rs.map((r) => [...r.querySelectorAll("th,td")][2]?.textContent?.trim() ?? ""),
+    );
+    const orderBefore = await names();
+    const stationsBefore = await stations();
+
+    // Grab the aft-most body tube on the DIAGRAM — the drag's grip is the part's own silhouette, which
+    // already carried the hover and pick behaviour — and drag it toward the nose.
+    const diagram = page.locator("svg[role='group']").first();
+    const box = await diagram.boundingBox();
+    expect(box).toBeTruthy();
+    const grab = await page.evaluate(() => {
+      // The aft-most body-part overlay: the widest x-extent of the transparent hit paths.
+      const paths = [...document.querySelectorAll("svg[role='group'] path")].filter(
+        (p) => p.querySelector("title")?.textContent?.includes("reorder"),
+      );
+      const boxes = paths.map((p) => p.getBoundingClientRect());
+      if (!boxes.length) return null;
+      const aft = boxes.reduce((best, b) => (b.right > best.right ? b : best));
+      return { x: aft.left + aft.width / 2, y: aft.top + aft.height / 2, count: boxes.length };
+    });
+    expect(grab, "no draggable part overlays on the diagram").toBeTruthy();
+    expect(grab!.count).toBeGreaterThan(1);
+
+    await page.mouse.move(grab!.x, grab!.y);
+    await page.mouse.down();
+    // Past the movement threshold first, then to the front of the airframe.
+    await page.mouse.move(grab!.x - 40, grab!.y, { steps: 4 });
+    await expect(page.locator("svg[role='group'] text", { hasText: "drop here" })).toBeVisible();
+    await page.mouse.move(box!.x + 6, grab!.y, { steps: 8 });
+    await page.mouse.up();
+
+    // The order changed, the same parts are all still there, and the stations behind the drop followed.
+    await expect.poll(async () => (await names()).join("|"), { timeout: 20000 }).not.toBe(orderBefore.join("|"));
+    const orderAfter = await names();
+    expect(orderAfter.length).toBe(orderBefore.length);
+    expect([...orderAfter].sort()).toEqual([...orderBefore].sort());
+    expect(await stations()).not.toEqual(stationsBefore);
+
+    // The drop is one undo step, named — not one per frame of the gesture.
+    const undo = page.getByRole("button", { name: /^Undo moving/ });
+    await expect(undo).toBeVisible();
+    await undo.click();
+    await expect.poll(async () => (await names()).join("|"), { timeout: 20000 }).toBe(orderBefore.join("|"));
+    expect(await stations()).toEqual(stationsBefore);
+    await expect(page.getByRole("button", { name: /^Undo moving/ })).toHaveCount(0);
+  });
+
+  test("dragging a part does not also re-aim the editor at it", async ({ page }) => {
+    // The hazard that comes free with putting a drag on the pick surface: the pointerup synthesises a
+    // click, the click PICKS the part, and a pick re-aims the editor's fields. On a field holding an
+    // ABSOLUTE value that is a change to the design, not to the selection — the first nudge would snap
+    // the newly-aimed part to the value the old one was carrying.
+    await page.goto("/");
+    await page
+      .getByLabel(/^Choose an OpenRocket/)
+      .setInputFiles(resolve(process.cwd(), "fixtures/demo-quirks.ork"));
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    await page.getByRole("tab", { name: "Design" }).click();
+    await page.locator("summary", { hasText: /Parts ·/ }).click();
+
+    // Pick the FORWARD tube deliberately, and read which part the body fields say they are holding.
+    const partsTable = page.locator("table").filter({ hasText: "Dimensions" });
+    const tubes = partsTable.locator("tr").filter({ hasText: /Body tube/ });
+    await tubes.first().click();
+    // Scoped to the input: the diagram's own grips carry the same accessible names as the fields, so a
+    // bare `getByLabel` matches two elements. This is the suite's idiom for that collision.
+    const bodyLength = page.locator("input").and(page.getByLabel(/^Body length/));
+    const aimedBefore = await bodyLength.getAttribute("placeholder");
+
+    // Recomputed each time: the diagram moves in the page as controls appear and disappear around it,
+    // and a coordinate captured earlier lands outside the viewport entirely.
+    const aftPart = async () => {
+      await page.locator("svg[role='group']").first().scrollIntoViewIfNeeded();
+      return page.evaluate(() => {
+        const paths = [...document.querySelectorAll("svg[role='group'] path")].filter(
+          (p) => p.querySelector("title")?.textContent?.includes("reorder"),
+        );
+        const boxes = paths.map((p) => p.getBoundingClientRect());
+        const aft = boxes.reduce((best, b) => (b.right > best.right ? b : best));
+        return { x: aft.left + aft.width / 2, y: aft.top + aft.height / 2, width: aft.width };
+      });
+    };
+
+    // A SHORT drag, deliberately: it stays inside the dragged part's own silhouette, so pointerdown
+    // and pointerup share a target and the browser really does synthesise a click on it. A long drag
+    // ends over a different element and the click lands on their common ancestor instead — which is
+    // why a long one cannot test this at all, and why the suppression looked unnecessary until the
+    // control for it came back green.
+    const grab = await aftPart();
+    expect(grab.width).toBeGreaterThan(60);
+    await page.mouse.move(grab.x, grab.y);
+    await page.mouse.down();
+    await page.mouse.move(grab.x - 25, grab.y, { steps: 5 });
+    await page.mouse.up();
+
+    // The design changed; the aim did not.
+    await expect(page.getByRole("button", { name: /^Undo moving/ })).toBeVisible();
+    expect(await bodyLength.getAttribute("placeholder")).toBe(aimedBefore);
+
+    // And the converse, which is the same guard read the other way: a plain CLICK on a draggable part
+    // is still a pick and never a reorder. Without a movement threshold every pick on the airframe
+    // would commit a move to wherever the pointer happened to be; and cancelling `pointerdown` — which
+    // the diagram's other grips do — kills the click outright, so the part could not be picked at all.
+    await page.getByRole("button", { name: /^Undo moving/ }).click();
+    await expect(page.getByRole("button", { name: /^Undo moving/ })).toHaveCount(0);
+    const again = await aftPart();
+    await page.mouse.move(again.x, again.y);
+    await page.mouse.down();
+    await page.mouse.up();
+    await expect(page.getByRole("button", { name: /^Undo moving/ })).toHaveCount(0);
+    // The click DID pick: the body fields are now holding the part that was clicked, not the one the
+    // table selected at the start.
+    await expect.poll(async () => bodyLength.getAttribute("placeholder"), { timeout: 15000 }).not.toBe(aimedBefore);
+  });
+
+  test("a flyer can add a booster stage, fly the staged flight, and take it back", async ({ page }) => {
+    // R5's *done when*, walked in the app. The starter is single-stage, so this is the whole gesture:
+    // a booster appears below the design, seeded from its own aft airframe, and the flight becomes a
+    // staged one — which means an instance in every configuration, without which the stage never
+    // lights, never drops, and costs the design 37.5% of its apogee in silence.
+    await page.goto("/");
+    await page.getByRole("button", { name: "Start a new design" }).click();
+    await expect(page.getByRole("heading", { name: "Design geometry" })).toBeVisible({ timeout: 15000 });
+    await page.locator("summary", { hasText: /Parts ·/ }).click();
+
+    const partsTable = page.locator("table").filter({ hasText: "Dimensions" });
+    const rows = () => partsTable.locator("tbody tr").count();
+    const partsBefore = await rows();
+    expect(partsBefore).toBeGreaterThan(2);
+
+    await page.getByRole("tab", { name: "Flight" }).click();
+    // `following-sibling::*[1]`, not `::div[1]`: the stat tile renders its label and its value as
+    // siblings but the value is not always a div, and the tag-specific xpath silently matches nothing.
+    const apogee = page.getByText("Apogee", { exact: true }).first().locator("xpath=following-sibling::*[1]");
+    const before = (await apogee.innerText()).trim();
+    // A single-stage design sheds nothing, so the flight says nothing about a spent lower stage.
+    await expect(page.getByText(/sheds a spent lower stage/i)).toHaveCount(0);
+
+    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("button", { name: /Add a booster stage/ }).click();
+
+    // The booster's own airframe joins the parts list, and the flight becomes a staged one.
+    await expect.poll(rows, { timeout: 20000 }).toBeGreaterThan(partsBefore);
+    await page.getByRole("tab", { name: "Flight" }).click();
+    await expect.poll(async () => (await apogee.innerText()).trim(), { timeout: 20000 }).not.toBe(before);
+    // The solver treats the authored stage as a real stage that separates and is shed, and says so by
+    // NAME. This is as far as the *done when*'s "phase table" reaches today: the flight surface has no
+    // phase table at all — the separation is a marker on the altitude chart and this sentence — so
+    // building one is the next slice, and that gap is recorded in ROADMAP.md rather than implied.
+    await expect(page.getByText(/sheds a spent lower stage \(Booster\)/i).first()).toBeVisible({ timeout: 20000 });
+
+    // And it comes back off, in one named undo — the second half of the *done when*.
+    await page.getByRole("tab", { name: "Design" }).click();
+    await expect(page.getByRole("button", { name: /^Undo adding Booster/ })).toBeVisible();
+    await page.getByRole("button", { name: /Remove Booster/ }).click();
+    await expect.poll(rows, { timeout: 20000 }).toBe(partsBefore);
+    await page.getByRole("tab", { name: "Flight" }).click();
+    await expect.poll(async () => (await apogee.innerText()).trim(), { timeout: 20000 }).toBe(before);
+    await expect(page.getByText(/sheds a spent lower stage/i)).toHaveCount(0);
+  });
+
+  test("authoring a booster withdraws the single-stage-only Analyze tools", async ({ page }) => {
+    // The Analyze tools gated on "is this design staged?" read the PRISTINE stage count, which a booster
+    // in the edit bag never touches — so they stayed offered on a design that had become two stages. The
+    // RocketPy cross-check is the one that then publishes a number: it builds its spec from the EDITED
+    // rocket, and that spec carries a SINGLE motor, folding `motors.length` of them into one coaxial
+    // cluster. Right for a cluster, wrong for serial staging. Measured on the starter with one booster
+    // authored, the spec handed to RocketPy read peak thrust 381.0 N against the real 190.5 N and
+    // propellant 0.1882 kg against 0.0941 kg — both motors burning together from t=0, on a vehicle that
+    // never sheds a stage — under a heading that says "second opinion". The gate now asks the rocket on
+    // screen, so the tools withdraw with the design and come back when the booster does.
+    await page.goto("/");
+    await page.getByRole("button", { name: "Start a new design" }).click();
+    await expect(page.getByRole("heading", { name: "Design geometry" })).toBeVisible({ timeout: 15000 });
+
+    await page.getByRole("tab", { name: "Analyze" }).click();
+    const crossCheck = page.getByRole("region", { name: "RocketPy cross-check" });
+    const sweep = page.getByRole("region", { name: "Parameter sweep" });
+    // The motor sweep too: it is gated on `!staged` for the same reason — with several stages there is
+    // no single airframe to swap the motor of — and asserting only the other two left `!staged` free to
+    // be deleted from `canSweepMotors` with everything still green.
+    const motors = page.getByRole("region", { name: "Motor sweep" });
+    await expect(crossCheck).toBeVisible({ timeout: 20000 });
+    await expect(sweep).toBeVisible();
+    await expect(motors).toBeVisible();
+
+    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("button", { name: /Add a booster stage/ }).click();
+    await page.getByRole("tab", { name: "Analyze" }).click();
+    await expect(crossCheck).toHaveCount(0, { timeout: 20000 });
+    await expect(sweep).toHaveCount(0);
+    await expect(motors).toHaveCount(0);
+    // And it SAYS SO — three absences are not the assertion. "A panel that is simply absent reads as a
+    // feature Loft doesn't have", which is why the withdrawal notice exists; deleting it leaves both
+    // counts above green. The sentence also has to name the count of the rocket on screen: read off the
+    // pristine design it said "This design flies 1 stages", a wrong number and a broken sentence on the
+    // one piece of copy whose whole job is to explain what just disappeared.
+    await expect(page.getByText(/This design flies 2 stages\./)).toBeVisible({ timeout: 20000 });
+    await expect(page.getByText(/This design flies 1 stages/)).toHaveCount(0);
+
+    // And back, because a withdrawal that does not reverse is a tool the flyer has lost.
+    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("button", { name: /Remove Booster/ }).click();
+    await page.getByRole("tab", { name: "Analyze" }).click();
+    await expect(crossCheck).toBeVisible({ timeout: 20000 });
+    await expect(sweep).toBeVisible();
+    await expect(motors).toBeVisible();
+  });
+
+  test("removing a booster takes the aims INSIDE it, not just the ones on its seed tube", async ({ page }) => {
+    // A part authored onto the seed with the add gesture is a SIBLING in the booster's own component
+    // list, not a child of the seed — so clearing aims by naming the seed alone never reached it. A Body
+    // length aimed at such a tube survived the stage removal, fell back to the design's primary tube,
+    // and resized the SUSTAINER: apogee 993.642 m to 1105.598 m on the starter with the field still
+    // reading 400 and no part on screen that long. The whole stage is named now, and the `added` entries
+    // that built those parts go with it rather than lingering as a what-if for a part that is nowhere.
+    await page.goto("/");
+    await page.getByRole("button", { name: "Start a new design" }).click();
+    await expect(page.getByRole("heading", { name: "Design geometry" })).toBeVisible({ timeout: 15000 });
+    await page.locator("summary", { hasText: /Parts ·/ }).click();
+
+    const partsTable = page.locator("table").filter({ hasText: "Dimensions" });
+    const tubes = partsTable.locator("tr").filter({ hasText: /Body tube/ });
+    const rows = () => partsTable.locator("tbody tr").count();
+    const partsBefore = await rows();
+    await expect(tubes).toHaveCount(1);
+    const sustainer = (await tubes.first().innerText()).trim();
+
+    // Author the booster, then a tube INSIDE it, and give that tube a length of its own.
+    await page.getByRole("button", { name: /Add a booster stage/ }).click();
+    await expect(tubes).toHaveCount(2);
+    await tubes.nth(1).click();
+    await page.getByRole("button", { name: /Add a tube behind this/ }).click();
+    await expect(tubes).toHaveCount(3);
+    const bodyLength = page.locator("label").filter({ hasText: /Body length/ }).first().locator("input");
+    await bodyLength.fill("400");
+    await expect(tubes.nth(2)).toContainText(/L 400/);
+    await expect(tubes.nth(0)).not.toContainText(/L 400/);
+
+    // The add control is STILL offered. It reads `canAddStage` off the tree the operation seeds from —
+    // the pristine design plus the stages already authored — so an ordinary tube authored at the tail
+    // does not withdraw it. Asking the fully-edited structure instead made that bare tube the aft-most
+    // one, found no mount on it, and refused a design the operation handles fine.
+    await expect(page.getByRole("button", { name: /Add a booster stage/ })).toBeVisible();
+
+    // Now take the stage back. The sustainer's tube must read exactly what it read before any of this.
+    await page.getByRole("button", { name: /Remove Booster/ }).click();
+    await expect(tubes).toHaveCount(1);
+    await expect.poll(async () => (await tubes.first().innerText()).trim(), { timeout: 20000 }).toBe(sustainer);
+    await expect(tubes.first()).not.toContainText(/L 400/);
+    await expect.poll(rows, { timeout: 20000 }).toBe(partsBefore);
+    // And the design reads as UNEDITED again. This is the assertion that catches the orphaned `added`
+    // entry: the part it built is gone either way (its anchor went with the stage, so it never lands),
+    // so the parts count above cannot see it. What it leaves behind is a live what-if for a component
+    // that is nowhere — the panel keeps its "with your edits" badge and the design goes on withholding
+    // the file's own stored-results comparison, for an edit the flyer has just taken back.
+    await expect(page.getByText("with your edits")).toHaveCount(0, { timeout: 20000 });
+
+    // And the removal is still ONE undo, with the bag coming back whole. This is what the clearing above
+    // must not cost: aims and `added` entries are dropped in the same commit as the stage, so the
+    // snapshot behind that commit still holds all three and one step back restores the booster, the
+    // tube authored inside it, and the 400 mm the field was holding.
+    await page.getByRole("button", { name: /^Undo removing Booster/ }).click();
+    await expect(tubes).toHaveCount(3, { timeout: 20000 });
+    await expect(tubes.nth(2)).toContainText(/L 400/);
+    await expect(tubes.nth(0)).not.toContainText(/L 400/);
   });
 
   test("a part at the end of its stage is not offered a move it cannot make", async ({ page }) => {

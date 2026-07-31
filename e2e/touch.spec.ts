@@ -99,13 +99,29 @@ test.describe("phone layout", () => {
   });
 
   test("no page scrolls horizontally on a phone", async ({ page }) => {
-    for (const route of ROUTES) {
-      await page.goto(route);
-      const [scrollW, innerW] = await page.evaluate(() => [
-        document.documentElement.scrollWidth,
-        window.innerWidth,
-      ]);
-      expect(scrollW, `horizontal overflow on ${route}`).toBeLessThanOrEqual(innerW);
+    // Three widths, not one, and the two extra ones are the point. This file runs at the iPhone 13's
+    // 390 px, and on 2026-07-31 a header change that fitted there overflowed a 360 px phone by 10 px
+    // and a 320 px one by 19 px — with the whole gate green, because nothing ever asked. 360 px is
+    // the Galaxy S8/S9 class and 320 px is the narrowest viewport still in the wild (iPhone SE 1st
+    // gen); both are real, and the contract in `DESIGN.md` §8 has no width qualifier on it.
+    // Measured before the fix: 320 px already overflowed by 19 px and had done for some time.
+    for (const width of [320, 360, 390]) {
+      await page.setViewportSize({ width, height: 844 });
+      for (const route of ROUTES) {
+        await page.goto(route);
+        // Against `clientWidth`, NOT `window.innerWidth`, and that is the whole reason this test
+        // could not fail before. Under `isMobile` emulation Chromium widens the LAYOUT viewport to
+        // swallow an overflow: measured on the reverted header, a 320 px viewport reported
+        // `scrollWidth` 370 and `innerWidth` 370 — equal, so the assertion passed — while
+        // `clientWidth` correctly still read 320. The old comparison was therefore green whether the
+        // page overflowed or not, at every width, for as long as it has existed. `clientWidth` is the
+        // CSS viewport the layout is actually laid out in, so the two sides are the same units.
+        const [scrollW, clientW] = await page.evaluate(() => [
+          document.documentElement.scrollWidth,
+          document.documentElement.clientWidth,
+        ]);
+        expect(scrollW, `horizontal overflow on ${route} at ${width}px`).toBeLessThanOrEqual(clientW);
+      }
     }
   });
 
