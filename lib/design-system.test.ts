@@ -90,7 +90,7 @@ const BUDGET = {
  *  is closing. What must not happen is a zero silently BECOMING the finished condition. */
 const PRIMITIVE_ADOPTERS: Record<string, number> = {
   Card: 11,
-  Button: 6,
+  Button: 7,
   Section: 0,
   Segmented: 1,
   Tabs: 1,

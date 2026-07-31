@@ -20,6 +20,7 @@ import {
   primaryParachutePart,
   unreachableParachuteCount,
   aimEditsAt,
+  moveTarget,
   structureOf,
   primaryTransition,
   primaryTransitionPart,
@@ -33,6 +34,7 @@ import {
   removalRefusal,
   newPartId,
   type AddedPart,
+  type MovedPart,
   type GeometryEdits,
   aimsClearedByRemoving,
   aimsClearedByAiming,
@@ -166,6 +168,13 @@ interface Edits {
   removedIds?: string[];
   /** Parts the flyer authored, oldest first — see `AddedPart` in the edit model. */
   added?: AddedPart[];
+  /** Top-level parts the flyer has re-ordered, oldest first — see `MovedPart` in the edit model.
+   *
+   *  This interface is a hand-restated duplicate of `GeometryEdits` rather than an extension of it, so a
+   *  new operation has to be added in BOTH places and the type system will not catch the omission:
+   *  `applyEdit` spreads patches structurally, so a `moved` the app never declared would be carried into
+   *  the bag and silently dropped by every consumer typed on this interface. */
+  moved?: MovedPart[];
   rodLength?: number; // m
   rodAngleDeg?: number;
   windSpeed?: number; // m/s
@@ -756,8 +765,12 @@ export default function LoftApp() {
    *  drogue, a payload bay) and those are appended AFTER the prune, so `removedIds` can never take one.
    *  Offering to remove a part the mechanism cannot touch is a button that does nothing. */
   const removableFrom = useMemo(
-    () => (doc ? structureOf(doc.rocket, { added: edits.added, removedIds: edits.removedIds }) : null),
-    [doc, edits.added, edits.removedIds],
+    () => (doc ? structureOf(doc.rocket, { added: edits.added, removedIds: edits.removedIds, moved: edits.moved }) : null),
+    // `edits.moved` belongs here for the same reason the other two do: this tree is what `moveTarget`
+    // and `movePart` resolve an anchor against, so a memo that did not recompute after a move would
+    // compute the SECOND nudge's anchor from the order before the first one. The lint rule caught it;
+    // the e2e did not, because it walks one move.
+    [doc, edits.added, edits.removedIds, edits.moved],
   );
 
   /** Why this part cannot be removed, or null. The panel asks THIS rather than judging for itself, so the
@@ -828,14 +841,54 @@ export default function LoftApp() {
     // rather than leaving the fields holding a part that no longer exists — and clear the absolute
     // dimensions that aim was pointing, which otherwise re-land on the part just made.
     const nextAdded = [...(edits.added ?? []), part];
-    const aim = aimEditsAt(structureOf(doc.rocket, { added: nextAdded, removedIds: edits.removedIds }), id);
+    const aim = aimEditsAt(structureOf(doc.rocket, { added: nextAdded, removedIds: edits.removedIds, moved: edits.moved }), id);
     applyEdit(
       { added: nextAdded, ...aimsClearedByAiming(edits, aim), ...aim },
       { label: ADD_LABEL[kind] ?? "adding a part", key: `add:${id}` },
     );
   };
 
+  /** Whether a nudge is available, judged against the SAME tree `movePart` applies it to. The panel
+   *  asks this rather than working it out from the rocket it was handed, exactly as it asks
+   *  `refuseRemoval` — the shown rocket carries the dimension edits, which synthesise top-level parts
+   *  of their own, so a control decided there can offer a move the operation cannot make. */
+  const canMovePart = useCallback(
+    (id: string, dir: -1 | 1) => (removableFrom ? moveTarget(removableFrom, id, dir) !== null : false),
+    [removableFrom],
+  );
+
+  /** Nudge a top-level part one place toward the nose or the tail, within its own stage.
+   *
+   *  Appended to `moved` rather than applied to the tree, like every other structural act in this bag:
+   *  the model is always rebuilt from the pristine design plus the bag, so dropping the last entry IS
+   *  the undo. `moveTarget` decides where it lands and returns null when there is nowhere to go, which
+   *  is also what the parts panel reads to leave the button out — one answer to "can this move?", not
+   *  two that can disagree. */
+  const movePart = (id: string, dir: -1 | 1) => {
+    if (!doc || !removableFrom) return;
+    const mv = moveTarget(removableFrom, id, dir);
+    if (!mv) return;
+    const name = flattenRocket(removableFrom).find((p) => p.component.id === id)?.component.name;
+    applyEdit(
+      { moved: [...(edits.moved ?? []), mv] },
+      {
+        // Named, like a removal is: after the move the part has changed places, and "Undo" alone asks
+        // the flyer to remember which of several nudges they are stepping out of.
+        //
+        // Keyed UNIQUELY per commit, so nudges never coalesce. A run key would merge three clicks
+        // inside the 900 ms window into one step, and one undo would then jump the part three places
+        // back under a label that says "moving X toward the nose" in the singular. Structural acts do
+        // not merge anywhere else in this app — `removeComponent` keys per part for the same reason —
+        // and a reorder is a structural act. The run-coalescing rule is for a drag or a typed number,
+        // where the intermediate states are frames of one gesture rather than decisions.
+        label: `moving ${name || "the part"} ${dir === -1 ? "toward the nose" : "toward the tail"}`,
+        key: `move:${id}:${dir}:${(edits.moved?.length ?? 0)}`,
+      },
+    );
+  };
+
   /** Step back one action, and forward again. The whole what-if state moves together — see `WhatIf` —
+
    *  so a step taken under today's weather or another motor configuration comes back under the same
    *  ones, rather than restoring the edits into whatever is on screen now. */
   const undoStep = () => {
@@ -1442,6 +1495,8 @@ export default function LoftApp() {
               // pick does not also have to know which fields a body tube or a fin set drives.
               onRemovePart={removeComponent}
               onAddAfter={addPartAfter}
+              onMovePart={movePart}
+              canMovePart={canMovePart}
               refuseRemoval={refuseRemoval}
               onSelectPart={(id) => {
                 // A pick that aims nothing — a coupler, a centring ring — must not commit an edit

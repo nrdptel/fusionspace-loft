@@ -143,8 +143,13 @@ export default function ParameterSweep({
   // plotted curve and its marker described a rocket that was never flown.
   const axisBase = useMemo(
     () => structureOf(doc.rocket, geometry ?? {}),
+    // `moved` belongs here beside the other two structural keys: a reorder changes which part a
+    // positional resolver lands on, so a base memoised without it describes the order the file arrived
+    // in while every swept point is applied to the order the flyer built. Measured on the starter with
+    // an aft tube moved one place forward: the fin-position base read 0.700 m against the 1.000 m the
+    // points were written into — 300 mm, on the axis that drives static margin.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [doc.rocket, geometry?.added, geometry?.removedIds],
+    [doc.rocket, geometry?.added, geometry?.removedIds, geometry?.moved],
   );
   const axes = useMemo<AxisDef[]>(() => {
     const list: AxisDef[] = [];

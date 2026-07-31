@@ -9,8 +9,8 @@ This is the single thing to understand before scoping anything.
 
 | track | state at the end of 2026-07-31 |
 |---|---|
-| **R — capability** | R4 — reorder and restack — NOT STARTED, and fully scoped (see *R4 is scoped* below) |
-| **P — product & craft** | **P1 — one design system, adopted — IN PROGRESS**, increment 1 shipped |
+| **R — capability** | **R4 — reorder and restack — IN PROGRESS**, increment 1 shipped |
+| **P — product & craft** | **P1 — one design system, adopted — IN PROGRESS**, increments 1–2 shipped |
 
 The owner's direction was that both apps still read as thrown-together rather than as products the
 public can pick up, measured against OpenRocket, RocketPy and the vendor tools. The cause was
@@ -295,11 +295,34 @@ Baseline before anything changed, all four green: lint 0 errors / **1 warning** 
 | **The bearing wrap, in the same function** | A plain lerp on a compass bearing reverses the wind wherever two levels straddle north (350°/10° meets at 180°). `lerpBearing` takes the short arc. Was filed in `BACKLOG.md`; fixed here because it corrupts the same number as the Sev-1 above, in the same line of the same function. |
 | **`lib/weather.ts` had NO tests** | Which is most of why it carried both. `lib/weather.test.ts` is 16 cases, and the e2e stub now carries a full 24-hour day with `current.time`, where before it carried one unstamped hour and therefore only ever exercised the fallback branch. |
 
-## R4 is scoped, and the scoping is the expensive half
+## R4 — what shipped, and the one trap it left
 
-An agent drove all 35 corpus designs, 6 committed fixtures and 5 e2e fixtures through the importer to
-establish these. They are measurements, not opinions, and they turn R4 from a placement-model rewrite
-into a 3-increment milestone:
+**Increment 1 is in**: `GeometryEdits.moved` (an ordered list of `{ id, after }`), `applyMoves` between
+removals and the dimension edits, the stage-boundary refusal, `moveTarget`, and the parts panel's
+move-toward-the-nose / move-toward-the-tail pair. Pinned by 9 unit cases, a corpus sweep driving **206
+reorders across all 35 real designs**, and two e2e cases. **Next slice is the DRAG** — the *done when*
+says "drag a component along the airframe", and the buttons came first on purpose because they are the
+keyboard and touch path a drag can never be.
+
+**The trap, and it is THE thing to remember before adding the next operation: a new key on
+`GeometryEdits` has to be added in SIX places, and exactly one of them is type-checked.** Every one of
+the other five was missed on the first pass here and found by the pre-push review or the e2e — never by
+a unit test, because unit tests call `applyGeometryEdits` directly and so walk straight past all of
+them:
+
+| where | what it costs when it is missed |
+|---|---|
+| `components/LoftApp.tsx`'s `interface Edits` | **the only one TypeScript catches.** It is a hand-restated duplicate of `GeometryEdits`, not an extension. |
+| `hasGeometryEdits` (`lib/model/edit.ts`) | decides whether `applyGeometryEdits` runs AT ALL. With only a move set it returned false, so the design was shown, flown and exported as the pristine one. |
+| the two `structureOf(doc.rocket, { … })` call sites | they name their fields explicitly, so the structure every aim and removal is judged against silently loses the new operation. |
+| `removableFrom`'s `useMemo` deps | the tree the operation resolves its anchor against. Stale, a part could be moved exactly ONE place and no further, with the control still lit. The lint rule catches this one — do not silence it. |
+| `ParameterSweep`'s `axisBase` deps | the one that publishes a number. Stale, the swept axis describes the pre-edit rocket while every point is written into the post-edit one: 300 mm out on the axis that drives static margin. |
+| whichever tree the PANEL judges its control against | the panel is handed the fully-edited rocket, whose dimension edits synthesise top-level parts of their own; the app applies against the structure. Two trees, two answers, and controls that do nothing. Ask the app, the way `refuseRemoval` already does. |
+
+Grep every function that enumerates this bag's fields by name before writing a line of the next one.
+
+The scoping below was done by an agent driving all 35 corpus designs, 6 committed fixtures and 5 e2e
+fixtures through the importer, and every figure in it was re-measured before being built on:
 
 - **A top-level part's station is DERIVED, never stored** — `flattenRocket` walks each stage's list with
   a running cursor (`lib/model/geometry.ts:100-127`). So "the station arithmetic of everything aft

@@ -12,6 +12,15 @@ this file, and deliberately does **not** cap craft or product work, because that
 track in `ROADMAP.md` with its own *done when*. Rough edges, missing affordances, and findings too
 big for one pass. Newest first.
 
+- **A reorder can only move a TOP-LEVEL part, which is the same ceiling `added` has.** `moveTarget`
+  returns null for anything nested — a fin set on a tube, a mass object in a bay, an inner tube — because
+  those have no place in a stage's stack order. Real designs nest (pods, payload bays, inner tubes), so
+  "move this part into that bay" and "move it out of this one" are both real gestures a builder wants and
+  neither exists. Measured 2026-07-31: 206 reorders are available across the 35 corpus designs at the top
+  level; the nested population is untouched. Lifting the ceiling is one change for both operations —
+  `AddedPart.after` and `MovedPart.after` would both need to address a parent as well as a sibling — so it
+  is worth doing once rather than twice.
+
 - **A freeform fin's outline is discarded on export, and no trapezoid can stand in for it — R6 work,
   with the measurements already taken.** `lib/ork/export.ts` writes a `freeformfinset` as the
   equal-area trapezoid, tip = 2·area/height − root. That solution is negative whenever the planform

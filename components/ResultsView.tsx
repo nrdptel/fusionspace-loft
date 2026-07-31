@@ -155,6 +155,8 @@ export default function ResultsView({
   onSelectPart,
   onRemovePart,
   onAddAfter,
+  onMovePart,
+  canMovePart,
   refuseRemoval,
   initialTab,
   onWorkspaceChange,
@@ -208,6 +210,10 @@ export default function ResultsView({
   onRemovePart?: (id: string) => void;
   /** Author a part behind the picked one. Given only where editing is offered, like `onRemovePart`. */
   onAddAfter?: (id: string, kind?: AddedPart["kind"]) => void;
+  /** Re-order the picked part within its stage. Given only where editing is offered, like the two above. */
+  onMovePart?: (id: string, dir: -1 | 1) => void;
+  /** Whether that nudge is available, judged against the same tree the move is applied to. */
+  canMovePart?: (id: string, dir: -1 | 1) => boolean;
   /** Why a part cannot be removed, or null. Asked of the app rather than judged in the panel, so the reason
    *  shown and the guard that enforces it cannot disagree about which design they are judging. */
   refuseRemoval?: (id: string) => string | null;
@@ -714,6 +720,8 @@ export default function ResultsView({
           onSelectPart={onSelectPart}
           onRemove={onRemovePart}
           onAddAfter={onAddAfter}
+          onMove={onMovePart}
+          canMove={canMovePart}
           refuseRemoval={refuseRemoval}
           // The aim map, so a role added to the edit model needs no new prop on the way down. Projected
           // through the registry, never the raw bag: a typed span is not an aim.

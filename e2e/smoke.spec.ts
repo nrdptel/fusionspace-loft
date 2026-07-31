@@ -3489,6 +3489,84 @@ test.describe("Loft", () => {
     await expect(page.getByLabel(/Fin thickness/)).toHaveValue("");
   });
 
+  test("a flyer can move a part along the airframe, and the stations behind it follow", async ({ page }) => {
+    // R4's done-when, walked in the app. `fixtures/demo-quirks.ork` carries FOUR top-level children in
+    // one stage (nose > tube > transition > tube), which is the most of any committed fixture —
+    // `demo-boattail.ork` and `demo-dual-deploy.ork` have three, and NONE of the five `e2e/fixtures/`
+    // has more than two, nor does the starter. So it is the file with the most room for the gesture,
+    // and the only one where a part has somewhere to go in both directions.
+    //
+    // The assertion is on the STATION column, not on the order of the rows: the rows would reorder even
+    // if the model had simply relabelled them, and what the milestone promises is that the arithmetic of
+    // everything aft follows.
+    await page.goto("/");
+    await page
+      .getByLabel(/^Choose an OpenRocket/)
+      .setInputFiles(resolve(process.cwd(), "fixtures/demo-quirks.ork"));
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    await page.getByRole("tab", { name: "Design" }).click();
+    await page.locator("summary", { hasText: /Parts ·/ }).click();
+
+    const partsTable = page.locator("table").filter({ hasText: "Dimensions" });
+    const names = () => partsTable.locator("tbody tr").evaluateAll((rows) =>
+      rows.map((r) => r.querySelector("th,td")?.textContent?.trim() ?? ""),
+    );
+    const orderBefore = await names();
+    expect(orderBefore.length).toBeGreaterThan(3);
+
+    // Pick the aft-most body tube and walk it one place toward the nose.
+    const tubes = partsTable.locator("tr").filter({ hasText: /Body tube/ });
+    await expect(tubes).toHaveCount(2);
+    await tubes.last().click();
+    const toNose = page.getByRole("button", { name: /Move toward the nose/ });
+    await expect(toNose).toBeVisible();
+    await toNose.click();
+
+    // The order changed, and the same parts are still there.
+    await expect.poll(async () => (await names()).join("|"), { timeout: 20000 }).not.toBe(orderBefore.join("|"));
+    const orderAfter = await names();
+    expect([...orderAfter].sort()).toEqual([...orderBefore].sort());
+
+    // A SECOND nudge, which is the one that catches a stale tree. `movePart` resolves its anchor
+    // against the structure-with-edits, so a memo that did not recompute after the first move would
+    // compute this one's anchor from the order before it and land the part somewhere else.
+    await toNose.click();
+    await expect.poll(async () => (await names()).join("|"), { timeout: 20000 }).not.toBe(orderAfter.join("|"));
+    const orderTwice = await names();
+    expect([...orderTwice].sort()).toEqual([...orderBefore].sort());
+
+    // Each nudge is undoable BY NAME, and each is its OWN step — two clicks, two undos, even back to
+    // back. Structural acts do not coalesce anywhere in this app: a run key would merge clicks inside
+    // the 900 ms window and one undo would then jump the part two places back under a label reading
+    // "moving X toward the nose" in the singular. The run rule is for a drag or a typed number, whose
+    // intermediate states are frames of one gesture rather than separate decisions.
+    const undo = page.getByRole("button", { name: /^Undo moving/ });
+    await expect(undo).toBeVisible();
+    await undo.click();
+    await expect.poll(async () => (await names()).join("|"), { timeout: 20000 }).toBe(orderAfter.join("|"));
+    await page.getByRole("button", { name: /^Undo moving/ }).click();
+    await expect.poll(async () => (await names()).join("|"), { timeout: 20000 }).toBe(orderBefore.join("|"));
+    await expect(page.getByRole("button", { name: /^Undo moving/ })).toHaveCount(0);
+  });
+
+  test("a part at the end of its stage is not offered a move it cannot make", async ({ page }) => {
+    // A move never crosses a stage boundary — that would be a different separation event, not a
+    // restack — so at each end of a stage the control is left out rather than offered and refused.
+    await page.goto("/");
+    await page
+      .getByLabel(/^Choose an OpenRocket/)
+      .setInputFiles(resolve(process.cwd(), "fixtures/demo-quirks.ork"));
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    await page.getByRole("tab", { name: "Design" }).click();
+    await page.locator("summary", { hasText: /Parts ·/ }).click();
+
+    const partsTable = page.locator("table").filter({ hasText: "Dimensions" });
+    // The nose is the first top-level part of the first stage: there is nothing in front of it.
+    await partsTable.locator("tr").filter({ hasText: /Nose cone/ }).first().click();
+    await expect(page.getByRole("button", { name: /Move toward the nose/ })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /Move toward the tail/ })).toBeVisible();
+  });
+
   test("the last body tube cannot be removed, and it says why", async ({ page }) => {
     // The refusal R2's done-when names. A rocket with no body is not a rocket, and the alternative to
     // refusing is a confident flight number computed from one.

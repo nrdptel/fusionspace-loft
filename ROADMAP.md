@@ -368,7 +368,14 @@ moves the static margin by sliding alone.
 
 ## R4 — Reorder and restack
 
-**Status:** NOT STARTED — the next R-track milestone.
+**Status:** IN PROGRESS — the current R-track milestone. The operation, the refusal and the
+keyboard/touch path are in and pinned by `lib/model/edit.test.ts` (the `reordering a top-level part`
+and `moveTarget` suites, 9 cases), by `lib/corpus/sweep.test.ts`'s *never lets a reorder overlap a
+part, cross a stage, or fail to come back* — which drives **206 reorders across all 35 real designs**
+and skips itself where the corpus is absent — and by two e2e cases: *a flyer can move a part along the
+airframe, and the stations behind it follow* and *a part at the end of its stage is not offered a move
+it cannot make*. Every one was proved able to fail by a negative control with its tsc or build exit
+checked.
 
 **Outcome.** Nose-to-tail order is editable, not fixed at import.
 
@@ -376,6 +383,60 @@ moves the static margin by sliding alone.
 station arithmetic of everything aft follows, and the diagram never shows a part overlapping another.
 
 **Size.** 3–5 increments.
+
+**The measurement that made this a 3-increment milestone rather than a placement-model rewrite.**
+A top-level part's station is DERIVED, never stored — `flattenRocket` walks each stage's list with a
+running cursor — so *"the station arithmetic of everything aft follows"* is **free** the moment the
+list order changes. And **all 150 top-level components across all 35 corpus designs use placement
+`after` with offset 0**, zero exceptions, so no imported design can defeat a reorder expressed as a
+list permutation. Neither fact was assumed; both were driven through the real importer.
+
+**What shipped against the *done when*.** The operation (`GeometryEdits.moved`, an ordered list of
+`{ id, after }` applied after removals and before the dimension edits), the stage-boundary refusal, and
+the parts panel's move-toward-the-nose / move-toward-the-tail pair — undoable by name like every other
+structural act. Driven on `fixtures/demo-quirks.ork`: the aft tube walks forward, the stations behind it
+follow, the same parts are still there, and one undo puts the order back.
+
+**A single-entry `{ id, after }` list, not a full ordered id list per stage** — recorded in *Decisions
+taken without the owner*.
+
+**The gap, which is the next increment rather than a reason to re-open this.**
+
+- **The gesture is a pair of buttons, not a drag.** The *done when* says "drag a component along the
+  airframe and drop it between two others", and that is the next slice. The buttons came first
+  deliberately: they are the keyboard and touch path, which a drag can never be, and the diagram's two
+  centreline grips are already fine-pointer-only because at phone fit width the airframe is ~11 px tall
+  and every grip sits inside every other's 44 px target. Building the drag first would have left the
+  accessible path unbuilt and `e2e/touch.spec.ts` to discover it.
+- **Reordering is top-level only.** A part nested inside another (a fin set on a tube, a mass object in
+  a bay) has no place in the stack order, and `moveTarget` returns null for it. Real designs nest, so
+  "move this part into that bay" is a real gesture — it is the same ceiling `added` still has, filed in
+  `BACKLOG.md`.
+- **A reorder can open a mould-line step, and `mouldLineStep` already names it** — no new work, but it
+  has not been walked on a design where a reorder creates one.
+
+**Four defects the pre-push review found in this increment, all fixed here rather than filed**, and
+three of them are the same shape — a new key on `GeometryEdits` has to be added in places the type
+system cannot see:
+
+1. **`hasGeometryEdits` did not know about `moved`**, and it decides whether `applyGeometryEdits` is
+   called at all — so a design with only a reorder was shown, flown and exported as the pristine one.
+   Caught by the e2e; every unit test was green through it, because they call the applier directly.
+2. **`removableFrom`'s memo did not depend on `edits.moved`**, so the second nudge computed its anchor
+   from the order before the first: a part could be moved exactly one place and no further, with the
+   button still lit. The e2e now walks two moves.
+3. **`ParameterSweep`'s axis base did not either**, which is the one that publishes a number: measured
+   on the starter with an aft tube moved forward, the fin-position base read 0.700 m against the
+   1.000 m every swept point was written into — 300 mm, on the axis that drives static margin.
+4. **Two different trees answered "can this move?"** — the panel asked the fully-edited rocket, whose
+   dimension edits synthesise a top-level boattail, while the app applied against the structure. That
+   offered moves on and around a part the operation cannot address: buttons that did nothing. The panel
+   now asks the app, exactly as it already asks `refuseRemoval`, and for the reason that prop's own
+   comment gives.
+
+**And the corpus sweep's undo rule could not fail.** It applied `{ moved: [] }` and compared, which
+`applyMoves` returns untouched — deleting the whole function left it green. It now drives the INVERSE
+move and asserts every one of the 206 actually permuted the list.
 
 ---
 
@@ -631,6 +692,21 @@ Unattended runs do not stop to ask (see *Unattended operation* in `MAINTAINING.m
 that would otherwise have been a question goes here, with the option rejected, so it can be reversed
 cheaply instead of re-derived. Newest first.
 
+- **2026-07-31 — a reorder is an ordered list of single `{ id, after }` moves, not a full ordered id
+  list per stage.** Rejected the full list: it is a SNAPSHOT rather than a patch, and every other edit
+  in the bag is a patch for one reason — the model is always rebuilt from the pristine design plus the
+  bag, so undo is dropping the last entry. A snapshot goes stale the instant `added` or `removedIds`
+  changes the membership (a part authored after it was taken is absent from it, so it would be dropped
+  or silently appended), it cannot be stepped back one move at a time, and `lib/session.ts` restores the
+  whole bag from `localStorage`, which makes the stale case reachable rather than theoretical. A
+  `{ id, after }` entry naming a part that is no longer there simply does nothing, exactly as an `added`
+  entry with a missing anchor already does.
+- **2026-07-31 — a move never crosses a stage boundary, and the control is left out rather than shown
+  and refused.** Rejected allowing it: `nextTopLevel` flattens across stages, so a part let out of its
+  own stage re-stages itself silently — a different separation event and a different flight, with
+  nothing on any surface saying so. Rejected showing a disabled button with a reason: at the ends of a
+  stage there is nothing to explain, because moving a part between stages is not a thing this milestone
+  offers at all; a disabled control implies it is coming.
 - **2026-07-30 — the queue was split into two alternating tracks, and product/craft work was made
   queue-legal rather than quota-capped.** The owner directed the shift: the products "still look and
   feel like thrown together" projects rather than something the public can pick up, against
