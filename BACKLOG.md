@@ -12,6 +12,55 @@ this file, and deliberately does **not** cap craft or product work, because that
 track in `ROADMAP.md` with its own *done when*. Rough edges, missing affordances, and findings too
 big for one pass. Newest first.
 
+- **A recovery device set to deploy at an altitude it does not state fires at the GROUND, and that
+  suppresses the one warning that matters most.** `lib/sim/simulate.ts:729` reads
+  `state.pos.z <= (dev.deployAltitude ?? 0)`, so with no altitude the trigger is `z <= 0`. The device
+  records as opened, `anyRecoveryOpened` (`:884`) goes true, and the `ballistic-descent` warning
+  (`:1135`) — whose own comment calls it the most serious thing Loft can flag — is withheld. What fires
+  instead is the hard-landing caution (`:1167`), which tells the flyer to fit a **larger canopy** for a
+  flight where nothing opened at all.
+
+  **Two routes mint the shape, and the second is the likelier one.** `lib/rasaero/adapt.ts:416` emits
+  `deployEvent: "altitude"` with `deployAltitude: undefined` whenever `Altitude2 <= 0`. And
+  `lib/ork/adapt.ts:561` plus `parseDeployConfigs` (`:270`) do the same per configuration — where
+  `lib/sim/setup.ts:359` (`altitude: o ? o.altitude : c.deployAltitude`) does **not** fall back to the
+  component's own altitude once an override exists, so a per-config override naming `altitude` without
+  one discards a perfectly good component-level value.
+
+  **NOT reachable from any real design today, and that is a measurement rather than an assumption.**
+  Driven through the solver's own `buildRocketDynamics` rather than a re-reading of the files:
+  **35 designs examined, 113 configurations walked, 177 recovery devices built, 0** flying `altitude`
+  with no usable altitude. So it is a latent path, not a live Sev-1 — it needs a file Loft has not met,
+  and a guard against a file shape the corpus does not contain cannot be proved by the corpus. It wants
+  a fix plus a SYNTHETIC unit case, with that 0-of-177 written down beside it.
+
+- **The opening fan-out's Sev-1 screen returned "21 open Sev-1" and the number does not survive
+  contact.** The screen classified ledger entries against the manual's criteria but did not check
+  whether any is *reachable*, and its own top-ranked entry is not: see the entry above, 0 of 177. Several
+  others it listed carry `UNVERIFIED by me`. The count is a reading list, not a Sev-1 count — treat it
+  that way, and re-measure before letting any of them preempt a milestone. Recorded because the same
+  screen will be run next session and will return the same number.
+
+- **`DESIGN.md` §9's "a size that is not on the scale at all" check greps only `text-lg`, so three
+  genuinely off-scale sizes pass green.** Measured 2026-07-31: `text-[10px]` **22**, `text-2xl` **4**,
+  `text-[9px]` **3** — 29 live uses of a seventh, eighth and ninth size, while both `DESIGN.md:266` and
+  its executable copy `lib/design-system.test.ts:236` assert zero and pass. §9's own words are that a
+  compliance command which cannot fail is worse than none, and this is that failure in the check whose
+  whole subject is the type scale. `text-2xl` is on the wordmark (`SiteHeader.tsx:17`), the docs page
+  title (`app/docs/layout.tsx:11`), `not-found.tsx:22` and the accent stat (`ResultsView.tsx:1319`);
+  `text-[9px]` is on chart labels a flyer reads numbers off (`FlightViz.tsx:85`, `LineChart.tsx:216`).
+
+- **The adoption checks read `components/` while the drift checks read `components/` AND `app/`.**
+  `lib/design-system.test.ts` counts `rounded-lg`, spacing and type across both directories but counts
+  primitive adoption across `components/` alone, so a route in `app/` can hand-roll a container, a button
+  or a field with nothing failing. Surfaced by increment 8: `app/not-found.tsx` adopting `buttonClass`
+  moved no counter at all. Either scope is defensible; the two disagreeing about what the app is, is not.
+
+- **`<Card as="p">` with a `title` or `actions` would emit a `<div>` inside a `<p>`** — invalid HTML and
+  a hydration mismatch. `components/ui.tsx:78` renders the title row as a `<div>` unconditionally. No
+  call site does this today (the three `as="p"` sites pass neither), and the doc comment warns in prose,
+  but nothing enforces it. A discriminated union on the props costs a few lines and makes it unwriteable.
+
 - **P1 increment 7's review, five findings left open.** The `sunken` conversion is structurally clean —
   all ten tag spans verified byte-identical against `origin/main`, no class dropped, no overflow at
   320/360/390/412 — but it left five things worth doing, all measured on the built export.
@@ -24,15 +73,14 @@ big for one pass. Newest first.
      words — the phrasing §5 forbids by name. They want `EmptyState`, which is deferred to P1's
      successor milestone. Picking the wrong named tone in the commit that creates the vocabulary is how
      a vocabulary stops meaning anything, so this is filed rather than left implicit.
-  2. **The dispersion stat tiles diverged from the flight stat tiles they mirror.** `MonteCarlo.tsx:537`
-     is now 12 px radius / 16 px pad / `bg-zinc-50` at 291×105; the Flight tile it echoes
-     (`ResultsView.tsx:1317`) is still `rounded-lg … p-3 bg-white` at 8 px / 12 px / 299×93. Before the
-     conversion both were 8 px + 12 px and differed only in fill. They are the same object to a flyer —
-     label, big number, range. This is transitional (the Flight tiles are among the 15 `rounded-lg`
-     still to convert) but it is visible now, and converting them closes it.
-  3. **`RocketpyCrossCheck`'s three run-outcome notices now have three geometries.** The stopped notice
-     converted to 12 px / 16 px; the stale-amber `:272` and failure-red `:306` are still
-     `rounded-lg px-3 py-2`. They alternate in the same slot, and a flyer reads shape before colour.
+  2. **RESOLVED by increment 8 — the dispersion stat tiles diverged from the flight stat tiles they
+     mirror.** The Flight tile (`ResultsView.tsx`'s `Stat`) is now `<Card>`, so both are 12 px radius /
+     16 px pad and differ only in fill, as they did before the conversion opened the gap. The padding
+     move was measured rather than assumed: 320/360/390 px with a design loaded, 14 tiles examined,
+     0 overflowing, 0 page overflow.
+  3. **RESOLVED by increment 8 — `RocketpyCrossCheck`'s three run-outcome notices had three
+     geometries.** The stale-amber `:272` and failure-red `:306` are `<Card tone="warn">` and
+     `<Card tone="danger">`, so all three notices that alternate in that slot are now one shape.
   4. **Two hand-rolled sunken surfaces remain inside `components/ui.tsx` itself** (`:257`, `:325`,
      `rounded-md` + `bg-zinc-50`), plus `InstallHint.tsx:53`. §1 forbids a raw treatment where a
      primitive exists, and these are the counter-example sitting in the file that defines the token.
@@ -316,11 +364,12 @@ big for one pass. Newest first.
   all. Deliberately not folded into the 2026-07-31 type slice: that slice's rule was about which text
   is decision-grade, and this is about a size that is off the scale entirely.
 
-- **Converting the 35 remaining `rounded-lg` breaks print unless the stylesheet changes with it.**
-  `app/globals.css` carries a print rule keyed on `.rounded-lg` (`grep -n 'rounded-lg' app/globals.css`),
-  so a sweep of the class through `components/` and `app/` silently drops whatever that rule does to the
-  printed page. Noted here rather than fixed because the sweep itself is a later P1 slice; whoever takes
-  it changes both in the same commit.
+- **RESOLVED by P1 increment 8 — converting the last of the off-system radius would have broken print
+  unless the stylesheet changed with it.** It did, in the same commit: `app/globals.css`'s print rule
+  dropped that selector once every container it needs to whiten carried `rounded-xl`, which is why that
+  slice had to go last. The hazard is closed; what is still true is that **nothing asserts printed
+  backgrounds**, so the next change to that block has no guard behind it. Filed as its own gap rather
+  than left implied by a resolved entry.
 
 - **A motor-resolution chip carries a verdict at chip size.** `ResultsView.tsx:992` renders "exact /
   approximate / unmatched" for every motor the run resolved, in emerald/amber/red at `text-xs`. `DESIGN.md`
