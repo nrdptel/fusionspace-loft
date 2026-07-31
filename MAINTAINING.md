@@ -74,6 +74,22 @@ npm run fetch-fixtures          # the real-design corpus (needs FIXTURES_TOKEN)
   `PW_EXECUTABLE_PATH` only when the install genuinely cannot run, and **say in the report which
   revision the suite actually ran against.**
   *Porting the sibling's revision guard into this repo's config is filed in `BACKLOG.md`.*
+- **The full e2e suite exhausts this sandbox's file-descriptor limit, and it looks exactly like six
+  real failures.** Measured 2026-07-31 at 185 tests: the `serve` process backing the suite dies with
+  `EMFILE: too many open files` somewhere around test 180, and every test after it fails with
+  `net::ERR_CONNECTION_REFUSED`. The tail of `touch.spec.ts` is what happens to be last, so the report
+  reads as a cluster of touch-target regressions. `ulimit -n` is **4096 soft AND hard here and cannot
+  be raised** (`Operation not permitted`). Run it in two shards, each of which gets its own server and
+  therefore its own budget:
+
+  ```bash
+  npx playwright test --shard=1/2 && npx playwright test --shard=2/2
+  ```
+
+  Every test still runs; add the two counts for the total. Confirm the failures are this and not yours
+  before believing them — they pass in isolation, the file passes when run alone, and CI (a runner with
+  a normal limit) is unaffected. **A shard split is not a reduced gate**, but say in the report that
+  you sharded and give both counts.
 - **The clone may be shallow.** Check `git rev-parse --is-shallow-repository` before quoting any
   commit count or file history — on a shallow clone both are a window, not the record.
 - **Throwaway probes** are named `*-tmp.*` and gitignored. Check the glob covers the exact name you

@@ -1554,9 +1554,28 @@ function PhaseTable({ run, rocket, units }: { run: FlightRun; rocket: Rocket; un
   const landing = run.result.events.find((e) => e.type === "landing");
   const flightEnd = landing?.time ?? run.result.summary.flightTime;
 
+  // Every stage burnout the flight logged, newest solver change: one per stage that actually burns,
+  // where a flight used to report exactly ONE ever — the last motor's — so a booster's burnout, the
+  // event that CAUSES the separation right after it, appeared nowhere.
+  const burnouts = run.result.events.filter((e) => e.type === "burnout");
+
   const rows = realised.map((p, i) => {
     const next = realised[i + 1];
     const boundary = next ? seps[i] : landing;
+    // The burnouts that happened inside THIS phase's window. Matched on the interval rather than on
+    // `stageIndex`, because what a row is about IS the interval: the stage that sheds at the end of a
+    // phase is the one that burned out during it, and where two stages leave together both of their
+    // burnouts belong to that one row.
+    //
+    // The window is closed at its END and open at its start — `(from, to]`, with the first row also
+    // taking its own start. A burnout and the separation it causes are the SAME INSTANT on the
+    // default staging rule, so a window closed at both ends puts the booster's burnout in the row it
+    // ends AND in the row it begins. Walked in the built export before this: the starter with a
+    // booster printed row 2 as "1.3 s Booster · 2.6 s Sustainer" — a phase claiming a burnout that
+    // happened before it started.
+    const from = p.startTime;
+    const to = next ? seps[i].time : flightEnd;
+    const inPhase = burnouts.filter((b) => (i === 0 ? b.time >= from : b.time > from) && b.time <= to);
     const shed = next ? stages.slice(next.stageCount, p.stageCount).map((_, k) => stageName(next.stageCount + k)) : [];
     // The last phase runs to the END OF THE FLIGHT, not to apogee. Apogee is an event INSIDE a phase,
     // not a boundary between two — and on a payload/dual-section design that separates at an ejection
@@ -1564,11 +1583,17 @@ function PhaseTable({ run, rocket, units }: { run: FlightRun; rocket: Rocket; un
     // "to" was earlier than its "from": `ARC payload rocket.ork` read From 10.4 s To 8.1 s.
     return {
       attached: Array.from({ length: p.stageCount }, (_, k) => stageName(k)),
-      from: p.startTime,
-      to: next ? seps[i].time : flightEnd,
+      from,
+      to,
       ends: next ? `${shed.join(" + ")} ${shed.length > 1 ? "separate" : "separates"}` : landing ? "Landing" : "End of flight",
       altitude: boundary?.altitude,
       velocity: boundary?.velocity,
+      burnouts: inPhase.map((b) => ({
+        time: b.time,
+        // Named here rather than in the solver, with the same rule the Stages-attached column uses,
+        // so one stage cannot read two ways on one page.
+        stage: b.stageIndex !== undefined ? stageName(b.stageIndex) : undefined,
+      })),
     };
   });
 
@@ -1585,6 +1610,7 @@ function PhaseTable({ run, rocket, units }: { run: FlightRun; rocket: Rocket; un
               <th className="py-1 pr-4 font-medium">Stages attached</th>
               <th className="py-1 pr-4 font-medium">From</th>
               <th className="py-1 pr-4 font-medium">To</th>
+              <th className="py-1 pr-4 font-medium">Burnout</th>
               <th className="py-1 pr-4 font-medium">Ends with</th>
               <th className="py-1 pr-4 font-medium">Altitude</th>
               <th className="py-1 font-medium">Speed</th>
@@ -1599,6 +1625,27 @@ function PhaseTable({ run, rocket, units }: { run: FlightRun; rocket: Rocket; un
                 <td className="py-1.5 pr-4 font-sans text-zinc-700 dark:text-zinc-200">{row.attached.join(" + ")}</td>
                 <td className="py-1.5 pr-4 text-zinc-800 dark:text-zinc-100">{d.q(d.seconds(row.from))}</td>
                 <td className="py-1.5 pr-4 text-zinc-800 dark:text-zinc-100">{d.q(d.seconds(row.to))}</td>
+                {/* A blank cell is a bug (DESIGN.md §6). A phase with no burnout in it is the
+                    ordinary state for a stage that never lit, and it says so. */}
+                <td className="py-1.5 pr-4 text-zinc-800 dark:text-zinc-100">
+                  {row.burnouts.length === 0 ? (
+                    <span className="font-sans text-zinc-500 dark:text-zinc-400">no motor burned</span>
+                  ) : (
+                    row.burnouts.map((b, k) => (
+                      <span key={k} className="mr-2 whitespace-nowrap">
+                        {d.q(d.seconds(b.time))}
+                        {b.stage && row.burnouts.length > 1 && (
+                          <span className="ml-1 font-sans text-xs text-zinc-500 dark:text-zinc-400">
+                            {/* A leading space inside the span, not just a margin: the margin is
+                                invisible to a screen reader and to anything copying the cell out, and
+                                the two ran together as "1.3 sBooster" in the text layer. */}
+                            {` ${b.stage}`}
+                          </span>
+                        )}
+                      </span>
+                    ))
+                  )}
+                </td>
                 <td className="py-1.5 pr-4 font-sans text-zinc-700 dark:text-zinc-200">{row.ends}</td>
                 {/* A blank cell is a bug (DESIGN.md §6), so a boundary with no event says so rather
                     than rendering an empty column. */}
