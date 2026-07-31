@@ -367,9 +367,9 @@ export default function MonteCarlo({
               </span>
             </div>
           ) : (
-            <div className="mt-4 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900/60 dark:text-zinc-300">
+            <Card tone="sunken" className="mt-4 text-sm text-zinc-600 dark:text-zinc-300">
               None of the dispersed flights could be flown on this design.
-            </div>
+            </Card>
           )}
         </>
       )}
@@ -454,7 +454,7 @@ function Report({
         </p>
       )}
 
-      <div className="mt-3 flex flex-wrap items-end gap-3 rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-900/60">
+      <Card tone="sunken" className="mt-3 flex flex-wrap items-end gap-3">
         <div className="w-40">
           <NumberField
             label="Waiver ceiling"
@@ -481,7 +481,7 @@ function Report({
             </div>
           </div>
         )}
-      </div>
+      </Card>
 
       <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
         <div>
@@ -534,19 +534,19 @@ function Report({
 
 function StatCard({ title, stat, fmt }: { title: string; stat: Stat; fmt: (v: number) => string }) {
   return (
-    <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-900/60">
+    <Card tone="sunken">
       <div className="text-[11px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">{title}</div>
       <div className="mt-1 text-xl font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">{fmt(stat.p50)}</div>
       <div className="mt-0.5 text-sm tabular-nums text-zinc-500 dark:text-zinc-400">
         {fmt(stat.p5)} – {fmt(stat.p95)} <span className="text-zinc-400 dark:text-zinc-500">(5–95%)</span>
       </div>
-    </div>
+    </Card>
   );
 }
 
 function RadiusCard({ radius, drift, units }: { radius: number; drift: Stat; units: UnitSystem }) {
   return (
-    <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-900/60">
+    <Card tone="sunken">
       <div className="text-[11px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
         Recovery radius (95%)
       </div>
@@ -556,7 +556,7 @@ function RadiusCard({ radius, drift, units }: { radius: number; drift: Stat; uni
       <div className="mt-0.5 text-sm tabular-nums text-zinc-500 dark:text-zinc-400">
         median drift {d.q(d.distance(drift.p50, units))}
       </div>
-    </div>
+    </Card>
   );
 }
 

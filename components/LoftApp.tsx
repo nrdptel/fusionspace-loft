@@ -1550,7 +1550,7 @@ export default function LoftApp() {
             // Never restore silently: a design that reappears without saying so is indistinguishable
             // from one you thought you had closed, and the numbers on screen would be someone else's
             // session as far as the reader knows.
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900/60 dark:text-zinc-400">
+            <Card tone="sunken" className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-zinc-600 dark:text-zinc-400">
               <span>
                 Picked up where you left off — <strong className="font-medium">{fileName}</strong>, with
                 any what-ifs you had set. Kept on this device only.
@@ -1562,7 +1562,7 @@ export default function LoftApp() {
               >
                 Start fresh
               </button>
-            </div>
+            </Card>
           )}
 
           {choices.length > 1 && (
@@ -1584,14 +1584,14 @@ export default function LoftApp() {
               design flies serially, or which weight a format without materials uses, under an amber
               "weren't fully understood" heading made a correct reading look like a broken one. */}
           {doc.notes.length > 0 && (
-            <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900/60 dark:text-zinc-300">
+            <Card tone="sunken" className="text-sm text-zinc-600 dark:text-zinc-300">
               <p className="font-medium text-zinc-700 dark:text-zinc-200">How Loft read this design:</p>
               <ul className="mt-1 list-disc pl-6">
                 {doc.notes.slice(0, 6).map((n, i) => (
                   <li key={i}>{n}</li>
                 ))}
               </ul>
-            </div>
+            </Card>
           )}
 
           <ConditionsControls
@@ -1903,7 +1903,7 @@ function DesignEditor({
     m === undefined ? "" : d.fmtEditable(imperial ? m * 39.3701 : m * 1000, imperial ? 3 : 1);
 
   return (
-        <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-900/60">
+        <Card tone="sunken">
           <p className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
             Design what-if
           </p>
@@ -2414,7 +2414,7 @@ function DesignEditor({
             this design already flies — that casing demonstrably fits, which a mount&apos;s stated
             bore does not establish for every motor that would go in it.
           </p>
-        </div>
+        </Card>
   );
 }
 
@@ -2586,7 +2586,7 @@ function ConditionsControls({
           </p>
         )}
 
-        <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-900/60">
+        <Card tone="sunken">
           <p className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
             Re-fly for today&apos;s weather
           </p>
@@ -2643,7 +2643,7 @@ function ConditionsControls({
               · field {toDispLen(weather.elevationMsl)} {lenU}
             </p>
           )}
-        </div>
+        </Card>
       </div>
     </Card>
   );

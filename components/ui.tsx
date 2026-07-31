@@ -24,6 +24,16 @@ const CARD_TONES = {
   warn: "border-amber-500/30 bg-amber-500/10 text-amber-900 dark:text-amber-200",
   /** A refusal, or a value that could not be computed. */
   danger: "border-red-500/30 bg-red-500/10 text-red-800 dark:text-red-200",
+  /** An inset within a surface — a readout block, a footnote strip, a group of controls set into a
+   *  panel. `DESIGN.md` §2's third surface level, which had no primitive until this existed and was
+   *  therefore written inline ten times, in three paddings, across five files.
+   *
+   *  It keeps the hairline deliberately. §2 says a sunken surface INSIDE a raised one needs no border
+   *  because the tone change is the separation — but all ten sites currently draw one, and several sit
+   *  directly on the page rather than inside a card. Dropping the border is a per-site judgement about
+   *  each one's parent, and doing it in the same pass as the conversion would make this a repaint
+   *  rather than an extraction. Recorded in `ROADMAP.md` under *Decisions taken without the owner*. */
+  sunken: "border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900/60",
   /** Sunken and dashed: a slot with nothing in it yet. The empty state's container. */
   muted:
     "border-dashed border-zinc-300 bg-zinc-50 text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900/50 dark:text-zinc-400",

@@ -222,9 +222,9 @@ export default function MotorSweep({
       )}
 
       {open && !running && rows !== null && rows.length === 0 && (
-        <div className="mt-3 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900/60 dark:text-zinc-300">
+        <Card tone="sunken" className="mt-3 text-sm text-zinc-600 dark:text-zinc-300">
           None of the fitting motors could be flown on this airframe.
-        </div>
+        </Card>
       )}
 
       {/* The previous run stays on screen while the next one flies, dimmed and announced above as the
