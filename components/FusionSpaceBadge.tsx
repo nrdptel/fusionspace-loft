@@ -22,9 +22,12 @@ export default function FusionSpaceBadge({ className = "" }: { className?: strin
         height={281}
         className="h-4 w-auto"
       />
+      {/* Sized by inheritance, like the identical affordance in the footer: this is a glyph beside a
+          wordmark, not text on the scale, and pinning it to a scale step made two copies of one mark
+          render at two sizes. */}
       <span
         aria-hidden
-        className="text-xs text-zinc-400 opacity-0 transition group-hover:opacity-100 dark:text-zinc-500"
+        className="text-zinc-400 opacity-0 transition group-hover:opacity-100 dark:text-zinc-500"
       >
         ↗
       </span>

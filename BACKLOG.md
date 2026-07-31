@@ -12,6 +12,37 @@ this file, and deliberately does **not** cap craft or product work, because that
 track in `ROADMAP.md` with its own *done when*. Rough edges, missing affordances, and findings too
 big for one pass. Newest first.
 
+- **`text-[11px]` has become the seventh type size, in exactly the way `text-lg` did.** Found
+  2026-07-31 while taking the per-file caption inversion to zero, by the type-scale lens rather than by
+  the §9 grep — which only looks for `text-lg` and so cannot see this one. `DESIGN.md` §3 scopes
+  `text-[11px]` to "axis ticks and diagram annotations only"; measured across `components/` it is used
+  **11 times**, and 5 of those are an uppercase eyebrow LABEL over a value: `MonteCarlo.tsx:471`, `:538`
+  and `:553` (Chance over ceiling, and every `StatCard`/`RadiusCard` title) and `ResultsView.tsx:1284`
+  and `:1379`. Worse, ONE role is rendered at two sizes in one file: `MonteCarlo.tsx:488` and `:502`
+  render the same uppercase eyebrow over the histogram and the scatter at `text-xs`, three lines away
+  from `:538` rendering it at `text-[11px]`. The fix is a decision about which size an eyebrow label is
+  — it is a label, so §3 says `text-xs` — plus a §9 grep that counts sizes off the scale rather than the
+  one that was noticed. Belongs with the `Readout` primitive, which is the thing that should own the
+  label/value pair so a session cannot pick a size for it at all.
+
+- **The parts panel's five structural controls are still hand-rolled, and two of them carry the only
+  `rounded-lg` on that surface.** `GeometryInspector.tsx:91`'s `ADD_BUTTON` constant (`rounded-lg
+  border border-zinc-300 bg-white px-2.5 py-1`) drives the four add gestures, and the Remove control at
+  `:382` repeats the same string inline with a rose hover. Both want `Button variant="secondary"` and
+  `Button variant="danger"` — §5's exact vocabulary, and `danger` is documented as "removal only", which
+  is literally what that control is. Deliberately not done on 2026-07-31: that run's slice was the type
+  scale, and converting them changes the `roundedLg` ratchet, so it belongs with the rest of the
+  hand-rolled-button conversion rather than smuggled into a size change. Worth roughly 2 of the 37
+  remaining `rounded-lg`.
+
+- **A motor-resolution chip carries a verdict at chip size.** `ResultsView.tsx:992` renders "exact /
+  approximate / unmatched" for every motor the run resolved, in emerald/amber/red at `text-xs`. `DESIGN.md`
+  §5 sizes `Chip` at `text-xs`, so this is on-system as written — but the thing it states is whether the
+  simulator flew the flyer's actual motor, and if it did not, every number below it is about a different
+  rocket. Either it is not a chip (it is a `Readout` with a provenance caveat), or §5 needs a status
+  token that is allowed to be body-sized. Filed rather than decided, because it is a `DESIGN.md` change
+  and that file is shared with the sibling app.
+
 - **BLOCKER — "Download .ork" silently drops the motor the flyer picked, and the saved rocket flies 48%
   lower.** Recorded on 2026-07-30 by a cold walk of the from-scratch builder, harvested here from a pull
   request that was closed rather than merged, and NOT yet fixed. On the builder path "Swap motor" is the

@@ -83,9 +83,9 @@ export default function DragCrossCheck({
       {cc.haveDrag && (
         <div className="mt-3">
           <div className="mb-1 flex flex-wrap items-baseline justify-between gap-x-3">
-            <p className="text-xs font-medium text-zinc-600 dark:text-zinc-300">Drag coefficient vs time (ascent)</p>
+            <p className="text-sm font-medium text-zinc-600 dark:text-zinc-300">Drag coefficient vs time (ascent)</p>
             {agreement && (
-              <p className="text-xs text-zinc-500 dark:text-zinc-400">
+              <p className="text-sm text-zinc-500 dark:text-zinc-400">
                 mean gap{" "}
                 <span className="font-mono text-zinc-700 dark:text-zinc-300">{fmt(agreement.meanPct, 0)}%</span>{" "}
                 (±<span className="font-mono">{fmt(agreement.meanAbsCd, 2)}</span> C
@@ -106,7 +106,7 @@ export default function DragCrossCheck({
       )}
 
       <div className="mt-3">
-        <p className="mb-1 text-xs font-medium text-zinc-600 dark:text-zinc-300">Altitude ({altUnit}) vs time</p>
+        <p className="mb-1 text-sm font-medium text-zinc-600 dark:text-zinc-300">Altitude ({altUnit}) vs time</p>
         <LineChart
           series={[
             { color: STORED_COLOR, label: `${toolName} stored`, points: scale(cc.storedAltitude) },

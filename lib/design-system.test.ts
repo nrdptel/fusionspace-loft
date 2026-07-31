@@ -72,9 +72,11 @@ const BUDGET = {
   /** Spacing values off the `1 2 3 4 6 8 12` scale. Target 0. */
   offScaleSpacing: 8,
   /** Components importing the shared primitives. Target: most of the 23. This one only goes UP. */
-  uiAdopters: 12,
-  /** Component files where caption size OUTNUMBERS the body default. Target 0. */
-  invertedTypeFiles: 9,
+  uiAdopters: 13,
+  /** Component files where caption size OUTNUMBERS the body default. **At the target**, so this is a
+   *  guard rather than a ratchet from here on: a file that inverts again is a decision-grade value
+   *  that has been put back at caption size. */
+  invertedTypeFiles: 0,
   /** Sizes that are not on `DESIGN.md` §3's six-size scale at all. Target 0, and it is AT 0 — this one
    *  is a guard rather than a ratchet. `text-lg` sat between `text-base` and `text-xl`, invented once
    *  and copied fourteen times: eleven panel headings and three prominent values. */
@@ -94,7 +96,7 @@ const BUDGET = {
  *  is closing. What must not happen is a zero silently BECOMING the finished condition. */
 const PRIMITIVE_ADOPTERS: Record<string, number> = {
   Card: 11,
-  Button: 7,
+  Button: 8,
   Section: 0,
   Segmented: 1,
   Tabs: 1,
@@ -152,10 +154,21 @@ describe("DESIGN.md §9 — the design system is binding, and this is what check
   // milestone that raises adoption. The per-file count below is the one that means something.
 
   it(`has exactly ${BUDGET.invertedTypeFiles} files where caption size outnumbers the body default`, () => {
-    // The suite total above passes by THREE (91 to 88), and that margin was hiding nine files that are
-    // individually inverted — `GeometryInspector` at 9:2, `MonteCarlo` at 9:4. A flyer does not read
-    // the suite total; they read one surface, and on nine of them the numbers are at caption size.
-    // This is the count that means something, which is why `DESIGN.md` §9 now carries it too.
+    // The suite total above passes by THREE (91 to 88), and that margin was hiding nine files that
+    // were individually inverted — `GeometryInspector` at 10:2, `MonteCarlo` at 9:3, `ResultsView` at
+    // 16:13. A flyer does not read the suite total; they read one surface, and on nine of them the
+    // numbers were at caption size. This is the count that means something, which is why `DESIGN.md`
+    // §9 now carries it too.
+    //
+    // Taken to zero on 2026-07-31 by moving what `DESIGN.md` §3 calls decision-grade — a value a
+    // flyer reads to decide — up to the body default, and leaving genuine captions where they were.
+    // The sites that moved were, in order of how load-bearing they are: the four ResultsView advice
+    // blocks that each tell a flyer what to change on the rocket and to what number (stability trim,
+    // fin-flutter fix, recovery sizing, the log-vs-prediction peak comparison); the what-if delta
+    // that is the whole point of making an edit; the dispersion study's 5–95% bands and median drift,
+    // which ARE the subject of a Monte-Carlo; the mould-line step notice and the stated-mass notice,
+    // both of which exist to stop a number being misread; and the cross-check's mean drag gap.
+    // Nothing that is a unit, a provenance line, a chart legend or a footnote moved.
     const inverted = components
       .map((f) => ({
         path: f.path,

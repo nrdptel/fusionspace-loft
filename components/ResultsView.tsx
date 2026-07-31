@@ -534,7 +534,7 @@ export default function ResultsView({
             yZeroFloor
           />
           {run.hasPropulsion && r.trajectory.length > 0 && (
-            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-zinc-500 dark:text-zinc-400">
+            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm text-zinc-500 dark:text-zinc-400">
               {/* Overlay a real altimeter log beside the prediction — the predict → fly → compare loop.
                   Parsed in the browser; the file is never uploaded. */}
               <label className="print-hide inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-zinc-300 px-2.5 py-1 font-medium text-zinc-600 transition hover:bg-zinc-50 hover:text-zinc-800 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-zinc-100">
@@ -558,7 +558,7 @@ export default function ResultsView({
                       aria-label="Flight log altitude unit"
                       value={log.unit}
                       onChange={(e) => setLog({ ...log, unit: e.target.value as LogUnit })}
-                      className="rounded-md border border-zinc-300 bg-white px-1.5 py-0.5 text-xs text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                      className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-sm text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
                     >
                       <option value="m">metres</option>
                       <option value="ft">feet</option>
@@ -585,7 +585,7 @@ export default function ResultsView({
             </div>
           )}
           {logPeak !== null && (
-            <p className="mt-1.5 text-xs text-zinc-600 dark:text-zinc-300">
+            <p className="mt-1.5 text-sm text-zinc-600 dark:text-zinc-300">
               Log peak <strong className="tabular-nums">{d.fmt(logPeak, 0)}&nbsp;{altUnit}</strong> · Loft predicted{" "}
               <strong className="tabular-nums">{d.fmt(predApogee, 0)}&nbsp;{altUnit}</strong>
               {peakDeltaPct !== null && Math.abs(peakDeltaPct) >= 0.5 && (
@@ -607,7 +607,7 @@ export default function ResultsView({
             yLabel={units === "imperial" ? "ft/s" : "m/s"}
           />
           {logSpeedSeries && log?.speed && (
-            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-zinc-500 dark:text-zinc-400">
+            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm text-zinc-500 dark:text-zinc-400">
               {/* The uploaded log carried a velocity column — overlay it and compare peaks, with its own
                   unit picker (speeds are exported in more units than altitudes). */}
               <label className="inline-flex items-center gap-1.5">
@@ -618,7 +618,7 @@ export default function ResultsView({
                   onChange={(e) =>
                     setLog(log ? { ...log, speed: log.speed ? { ...log.speed, unit: e.target.value as LogSpeedUnit } : null } : null)
                   }
-                  className="rounded-md border border-zinc-300 bg-white px-1.5 py-0.5 text-xs text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                  className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-sm text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
                 >
                   <option value="m/s">m/s</option>
                   <option value="ft/s">ft/s</option>
@@ -1086,7 +1086,7 @@ function FlutterFixHint({
   const editable = primaryFinGroupIds(structureOf(doc.rocket, geometry ?? {}), geometry?.finSetId).has(f.worst.finId);
 
   return (
-    <p className="mt-3 text-xs text-zinc-500 dark:text-zinc-400">
+    <p className="mt-3 text-sm text-zinc-500 dark:text-zinc-400">
       <span className="font-medium text-zinc-600 dark:text-zinc-300">Fin-flutter fix:</span>{" "}
       thickening the {f.worst.finName} from {d.q(d.lengthMm(f.worst.thickness, units))} to about{" "}
       {d.q(d.lengthMm(tFix, units))} would lift the flutter margin to{" "}
@@ -1144,7 +1144,7 @@ function StabilityTrimHint({
   // A degenerate airframe (no resolvable diameter) has no meaningful margin to trim — say nothing.
   if (!(r.stability.refRadius > 0) || !Number.isFinite(trim.currentMarginCal)) return null;
 
-  const box = "mt-3 border-t border-zinc-100 pt-3 text-xs text-zinc-500 dark:border-zinc-800 dark:text-zinc-400";
+  const box = "mt-3 border-t border-zinc-100 pt-3 text-sm text-zinc-500 dark:border-zinc-800 dark:text-zinc-400";
   const label = <span className="font-medium text-zinc-600 dark:text-zinc-300">Stability trim:</span>;
 
   // Thin margin: name the nose ballast, and the weight-free fin-aft move that reaches the same target.
@@ -1213,7 +1213,7 @@ function RecoverySizingHint({ run, units }: { run: FlightRun; units: UnitSystem 
   if (!(sizing.cdA > 0) || !Number.isFinite(sizing.diameter)) return null;
 
   return (
-    <p className="mt-3 text-xs text-zinc-500 dark:text-zinc-400">
+    <p className="mt-3 text-sm text-zinc-500 dark:text-zinc-400">
       <span className="font-medium text-zinc-600 dark:text-zinc-300">Recovery sizing:</span> to land
       at about {d.q(d.speed(SOFT_LANDING_TARGET, units))} instead, the main needs a drag area of
       roughly {d.fmt(sizing.cdA, 2)} m² Cd·A — about a {d.q(d.lengthMm(sizing.diameter, units))}{" "}
@@ -1384,7 +1384,7 @@ function WhatIfDelta({ run, baseline, units }: { run: FlightRun; baseline: Fligh
               <span className="text-zinc-900 dark:text-zinc-100">{row.cur.value}</span>{" "}
               <span className="text-xs font-normal text-zinc-500 dark:text-zinc-400">{row.cur.unit}</span>
             </dd>
-            <dd className="font-mono text-xs tabular-nums text-indigo-600 dark:text-indigo-400">{row.change.text}</dd>
+            <dd className="font-mono text-sm tabular-nums text-indigo-600 dark:text-indigo-400">{row.change.text}</dd>
           </div>
         ))}
       </dl>

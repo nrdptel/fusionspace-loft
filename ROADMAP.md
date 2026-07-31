@@ -484,17 +484,17 @@ cannot return while the conversion is still running.
 
 **Measured at the start of this milestone (2026-07-31), and after each increment:**
 
-| §9 count | target | before | inc. 1 | inc. 2 |
-|---|---|---|---|---|
-| `rounded-lg` | 0 | 49 | 46 | **37** |
-| distinct card treatments | 3 (see below) | 9 | 3 | 3 |
-| off-scale spacing values | 0 | 8 | 8 | 8 |
-| components importing `components/ui.tsx` | most of 23 | 5 | 11 | **12** |
-| components importing `Button` | most that have one | 0 | 0 | **6** |
-| hand-rolled indigo primaries | 0 | 16 | 16 | **6** |
-| surfaces with two primaries | 0 | 2 | 2 | **0** |
-| component files where `text-xs` outnumbers `text-sm` | 0 | 9 | 9 | 9 |
-| `text-lg`, a size not on the scale at all | 0 | 14 | 14 | **0** (inc. 3) |
+| §9 count | target | before | inc. 1 | inc. 2 | inc. 3 | inc. 4 |
+|---|---|---|---|---|---|---|
+| `rounded-lg` | 0 | 49 | 46 | **37** | 37 | 37 |
+| distinct card treatments | 3 (see below) | 9 | 3 | 3 | 3 | 3 |
+| off-scale spacing values | 0 | 8 | 8 | 8 | 8 | 8 |
+| components importing `components/ui.tsx` | most of 23 | 5 | 11 | **12** | 12 | **13** |
+| components importing `Button` | most that have one | 0 | 0 | **6** | 7 | **8** |
+| hand-rolled indigo primaries | 0 | 16 | 16 | **6** | 6 | 6 |
+| surfaces with two primaries | 0 | 2 | 2 | **0** | 0 | 0 |
+| component files where `text-xs` outnumbers `text-sm` | 0 | 9 | 9 | 9 | 9 | **0** |
+| `text-lg`, a size not on the scale at all | 0 | 14 | 14 | 14 | **0** | 0 |
 
 **The suite-wide `text-sm` vs `text-xs` ratio was retired from §9 in increment 2, and the reason is
 a measurement.** Converting nine hand-rolled buttons onto `Button` moved the totals from 91/88 to
@@ -549,11 +549,49 @@ milestone rather than half-built here.
 headings to `text-xl font-medium` (which is what `Section` already renders, so the hand-rolled headings
 and the primitive now agree) and three prominent values to `text-xl font-semibold`, the weight §3
 reserves for the one number a surface exists to show. Asserted at zero, so it is a guard rather than a
-ratchet. **What is left of the type work is the nine individually-inverted files** — `GeometryInspector`
-at 10:2, `MonteCarlo` at 9:3, `ResultsView` at 16:13 — and that one is not mechanical: a caption
-legitimately is `text-xs`, so each site needs a judgement about whether the thing is a value a flyer
-reads to decide or the text around it. That is the next slice, and it should be done per surface with
-the count quoted, not as a sweep.
+ratchet.
+
+**Increment 4 took the per-file caption inversion to zero**, which was the half of the type work that
+is a judgement rather than a sweep — nine files, `GeometryInspector` at 10:2, `MonteCarlo` at 9:3,
+`ResultsView` at 16:13. The rule applied is worth keeping, because it decides every future site:
+**a sentence whose purpose is to change what the flyer does next — an instruction, a refusal, a
+warning, an explanation of why a number will not move — is decision-grade and takes the body default.
+A sentence that describes something already on screen — a unit, a provenance line, a chart legend, a
+footnote, help text — stays at caption size.** Under it, 26 sites moved and nothing that is genuinely a
+caption did. The ones that mattered most:
+
+- **The four advice blocks on the results surface**, each of which tells a flyer what to change on the
+  rocket and to what number: stability trim (the nose ballast mass, or the fin shift that reaches the
+  same margin without it), the fin-flutter fix, recovery sizing, and the separated-booster descent. All
+  four were the smallest text in their own panel.
+- **The what-if delta** — the one number the "What-if vs design" card exists to produce, rendered
+  smaller than the pair of values it compares.
+- **The dispersion study's 5–95% bands and median drift.** A Monte-Carlo's product IS the spread, and
+  every band sat at caption size under a `text-xl` median.
+- **Landing energy and landing hardness.** The code already colours landing hardness amber above 5%, so
+  it was treating the line as a warning while the type scale treated it as a footnote.
+- **Two form selects** that rescale an overlaid flight log — the smallest controls in the app at 12 px,
+  and the one pair that silently changes what a chart means.
+- **The footer's standing disclaimer** — that every figure is a model's estimate and never a go/no-go,
+  the one sentence the SAFETY posture requires be visible — which sat a step below body text, in the
+  fine print, along with the footer's five nav controls.
+
+Two of the nine were **false positives of the metric rather than defects**, and are recorded as such: a
+file whose only `text-xs` is an `aria-hidden` decorative glyph counts as inverted at 1/0 while
+containing no text at all. Both (`FusionSpaceBadge`'s arrow, `MassBreakdown`'s disclosure chevron) now
+size the glyph by inheritance — which is what the identical affordance in `Footer` and
+`GeometryInspector` already did — so that is a consistency correction, not a number moved to satisfy a
+count.
+
+The ratchet is now a **guard at 0**: a file that inverts again is a decision-grade value someone put
+back at caption size.
+
+**What is left of P1**, measured after increment 4: 37 `rounded-lg`, 8 off-scale spacing values, and
+`DataTable`. Three findings the type pass turned up are filed in `BACKLOG.md` rather than folded in —
+`text-[11px]` has become a seventh size in exactly the way `text-lg` did (11 uses, 5 of them an eyebrow
+label, and one file renders that same role at two sizes three lines apart); the parts panel's five
+structural controls are still hand-rolled and carry 2 of the 37 `rounded-lg`; and a motor-resolution
+chip states a verdict at chip size.
 
 **The measurement that made this a milestone** (2026-07-30): 12+ distinct card treatments; three
 radius values for one role; `text-xs` and `text-sm` disagreeing between the two sibling apps.

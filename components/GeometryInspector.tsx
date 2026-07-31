@@ -341,7 +341,7 @@ export default function GeometryInspector({
         />
         {/* What you just pointed at. Reserved height so hovering across the airframe doesn't make
             everything below it jump. */}
-        <p className="mt-1 min-h-6 text-xs text-zinc-600 dark:text-zinc-300" aria-live="polite">
+        <p className="mt-1 min-h-6 text-sm text-zinc-600 dark:text-zinc-300" aria-live="polite">
           {active ? (
             <>
               <span className="font-medium text-zinc-800 dark:text-zinc-100">
@@ -369,7 +369,7 @@ export default function GeometryInspector({
             and it is the only destructive control on this panel, so it stays where its subject is
             visible. A refusal replaces it with the reason. */}
         {onRemove && selectedId && (
-          <p className="mt-1 text-xs">
+          <p className="mt-1 text-sm">
             {refuseRemoval?.(selectedId) ? (
               <span className="text-amber-700 dark:text-amber-400" role="status">
                 {refuseRemoval(selectedId)}
@@ -394,10 +394,9 @@ export default function GeometryInspector({
             ends of a stage there is no next slot, because a move never crosses a stage boundary (that
             would be a different separation event, not a restack). */}
         {onMove && selectedId && (canMove?.(selectedId, -1) || canMove?.(selectedId, 1)) && (
-          <p className="mt-1 flex flex-wrap items-center gap-2 text-xs">
+          <p className="mt-1 flex flex-wrap items-center gap-2">
             {canMove?.(selectedId, -1) && (
               <Button
-                size="sm"
                 onClick={() => onMove(selectedId, -1)}
                 title="Move this part one place toward the nose and re-fly the design"
               >
@@ -406,7 +405,6 @@ export default function GeometryInspector({
             )}
             {canMove?.(selectedId, 1) && (
               <Button
-                size="sm"
                 onClick={() => onMove(selectedId, 1)}
                 title="Move this part one place toward the tail and re-fly the design"
               >
@@ -421,7 +419,7 @@ export default function GeometryInspector({
             its caliber, wall, material and finish, and the editor's fields re-aim at it the moment it
             exists. The numbers are the confirmation, not the gesture. */}
         {onAddAfter && selectedId && parts.find((x) => x.component.id === selectedId)?.component.kind === "bodytube" && (
-          <p className="mt-1 text-xs">
+          <p className="mt-1 text-sm">
             <button
               type="button"
               onClick={() => onAddAfter(selectedId)}
@@ -479,7 +477,7 @@ export default function GeometryInspector({
             already step, in 13 of the 35 designs, by a median 11.75 mm of diameter and up to 82.55 mm.
             OpenRocket warns on exactly this; Loft has never said a word. */}
         {selectedId && stepBehind !== undefined && Math.abs(stepBehind) > STEP_NOTICE_M && (
-          <p className="mt-1 text-xs text-amber-700 dark:text-amber-400" role="status">
+          <p className="mt-1 text-sm text-amber-700 dark:text-amber-400" role="status">
             The airframe steps {stepBehind > 0 ? "out" : "in"} by {d.q(d.lengthMm(Math.abs(stepBehind), units))}{" "}
             of diameter at the joint behind this part. Loft models a transition&apos;s own slope but has
             no drag term for a bare step, so the drag here is read optimistically.
@@ -492,7 +490,7 @@ export default function GeometryInspector({
             Measured on `EscapeVelocity.ork`: removing its 141.7 g "Avionics" leaves dry mass at exactly
             2000.0 g while the static margin moves 4.461 → 4.312 cal. */}
         {selectedId && statedMassHolder(rocket, selectedId) && (
-          <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400" role="status">
+          <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400" role="status">
             This design states {statedMassHolder(rocket, selectedId)}&apos;s weight as a whole, so it
             counts no mass for the parts inside — adding a part here, or removing one, moves the balance
             and not the total.
@@ -515,7 +513,7 @@ export default function GeometryInspector({
           open={partsOpen}
           onToggle={(e) => setPartsOpen((e.currentTarget as HTMLDetailsElement).open)}
         >
-          <summary className={`flex cursor-pointer select-none items-center gap-1.5 text-xs font-medium text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 ${TOUCH_TARGET}`}>
+          <summary className={`flex cursor-pointer select-none items-center gap-1.5 text-sm font-medium text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 ${TOUCH_TARGET}`}>
             <span className="text-zinc-400 transition group-open:rotate-180">▾</span>
             Parts · {parts.length}
           </summary>
@@ -566,7 +564,7 @@ export default function GeometryInspector({
                   <td
                     className={`py-1.5 pr-4 ${
                       massCell(p.component.id).muted
-                        ? "font-sans text-xs text-zinc-500 dark:text-zinc-400"
+                        ? "font-sans text-zinc-500 dark:text-zinc-400"
                         : "text-zinc-800 dark:text-zinc-100"
                     }`}
                   >

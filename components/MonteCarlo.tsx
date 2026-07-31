@@ -426,7 +426,7 @@ function Report({
       </div>
 
       {result.landingEnergy.p95 > 0 && (
-        <p className="mt-3 text-xs text-zinc-500 dark:text-zinc-400">
+        <p className="mt-3 text-sm text-zinc-500 dark:text-zinc-400">
           <span className="font-medium">Landing energy:</span> {d.q(d.energy(result.landingEnergy.p50, units))} median,{" "}
           {d.q(d.energy(result.landingEnergy.p95, units))} worst-case (95th percentile) — the whole vehicle
           as one piece. Many fields and waivers cap the per-section landing energy; a design that comes down in
@@ -437,7 +437,7 @@ function Report({
       {firmChance > 0 && (
         <p
           className={
-            "mt-3 text-xs " +
+            "mt-3 text-sm " +
             (firmChance > 0.05
               ? "text-amber-700 dark:text-amber-300"
               : "text-zinc-500 dark:text-zinc-400")
@@ -537,7 +537,7 @@ function StatCard({ title, stat, fmt }: { title: string; stat: Stat; fmt: (v: nu
     <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-900/60">
       <div className="text-[11px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">{title}</div>
       <div className="mt-1 text-xl font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">{fmt(stat.p50)}</div>
-      <div className="mt-0.5 text-xs tabular-nums text-zinc-500 dark:text-zinc-400">
+      <div className="mt-0.5 text-sm tabular-nums text-zinc-500 dark:text-zinc-400">
         {fmt(stat.p5)} – {fmt(stat.p95)} <span className="text-zinc-400 dark:text-zinc-500">(5–95%)</span>
       </div>
     </div>
@@ -553,7 +553,7 @@ function RadiusCard({ radius, drift, units }: { radius: number; drift: Stat; uni
       <div className="mt-1 text-xl font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">
         {d.q(d.distance(radius, units))}
       </div>
-      <div className="mt-0.5 text-xs tabular-nums text-zinc-500 dark:text-zinc-400">
+      <div className="mt-0.5 text-sm tabular-nums text-zinc-500 dark:text-zinc-400">
         median drift {d.q(d.distance(drift.p50, units))}
       </div>
     </div>
