@@ -303,6 +303,26 @@ function componentXml(c: RocketComponent, motors: MotorsByMount, depth: number):
       // area, span, and sweep — so it is written as the aerodynamically-equivalent trapezoid (equal
       // area, span, and sweep). The flight is preserved to within the exact-vs-trapezoid CP
       // difference; the true freeform planform is not recoverable. tip = 2·area/height − root.
+      //
+      // **The equal-area claim above is FALSE whenever the planform tapers hard**, and it is left
+      // that way deliberately rather than half-fixed. The tip solution goes negative once
+      // 2·area/height < root — which is much of what freeform fins are drawn for — and the clamp then
+      // exports a fin strictly LARGER than the one drawn: on `Pods--airframes and winglets.ork` the
+      // "Wings" set comes back 42% bigger in area, and the static margin reads 2.13 → 1.45 cal.
+      //
+      // Shrinking the ROOT to 2·area/height instead was tried on 2026-07-31 and reverted, because it
+      // is worse in two ways the area figure hides. A zero-area planform — which `planformFromPoints`
+      // can produce from collinear points — would write a root of 0, and `finContribution` drops a fin
+      // set with no root entirely, so the set VANISHES from lift and drag rather than being slightly
+      // wrong. And `axialLength` of a fin set IS its root chord, so under a `bottom` or `middle`
+      // anchor a shorter root translates the whole planform down the tube: the same file's "Wings"
+      // moved 52.4 mm aft. A fin 52 mm from where the flyer put it is a worse lie than a fin 42%
+      // too big, and the margin it produced was better only by the accident of that displacement.
+      //
+      // The honest fix is to stop discarding the outline — write `<finpoints>` and round-trip the
+      // real planform — which needs the model to retain the points it currently reduces away at
+      // import. That is R6's work and is filed in `BACKLOG.md` with these measurements. Until then
+      // the loss is disclosed on `/docs/limitations` with its size rather than papered over.
       const tip = c.height > 0 ? Math.max(0, (2 * c.area) / c.height - c.rootChord) : c.rootChord;
       return (
         `${pad}<trapezoidfinset>\n${p}<name>${esc(c.name)}</name>\n${p}<id>${componentId(c)}</id>\n` +
@@ -363,6 +383,13 @@ function componentXml(c: RocketComponent, motors: MotorsByMount, depth: number):
         head + common + overrides +
         `${p}<cd>${num(c.cd)}</cd>\n` +
         `${p}<diameter>${num(c.diameter)}</diameter>\n` +
+        // The PACKED dimensions, not the canopy's. `lib/sim/mass.ts` puts a packed canopy's CG at
+        // half its packed length, so omitting these moved every parachute's mass forward to the
+        // front face of its bay on re-import — silently, and on the design's own saved copy.
+        // `masscomponent` and `shockcord` already wrote them, so this was an inconsistency inside
+        // one file rather than a decision.
+        (c.packedLength !== undefined ? `${p}<packedlength>${num(c.packedLength)}</packedlength>\n` : "") +
+        (c.packedRadius !== undefined ? `${p}<packedradius>${num(c.packedRadius)}</packedradius>\n` : "") +
         `${p}<deployevent>${DEPLOY_OUT[c.deployEvent]}</deployevent>\n` +
         (c.deployAltitude !== undefined ? `${p}<deployaltitude>${num(c.deployAltitude)}</deployaltitude>\n` : "") +
         (c.deployDelay !== undefined ? `${p}<deploydelay>${num(c.deployDelay)}</deploydelay>\n` : "") +
@@ -376,6 +403,7 @@ function componentXml(c: RocketComponent, motors: MotorsByMount, depth: number):
         `${p}<cd>${num(c.cd)}</cd>\n` +
         `${p}<striplength>${num(c.stripLength)}</striplength>\n` +
         `${p}<stripwidth>${num(c.stripWidth)}</stripwidth>\n` +
+        (c.packedLength !== undefined ? `${p}<packedlength>${num(c.packedLength)}</packedlength>\n` : "") +
         `${p}<deployevent>${DEPLOY_OUT[c.deployEvent]}</deployevent>\n` +
         (c.deployAltitude !== undefined ? `${p}<deployaltitude>${num(c.deployAltitude)}</deployaltitude>\n` : "") +
         (c.deployDelay !== undefined ? `${p}<deploydelay>${num(c.deployDelay)}</deploydelay>\n` : "") +

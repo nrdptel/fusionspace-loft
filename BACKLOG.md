@@ -12,6 +12,46 @@ this file, and deliberately does **not** cap craft or product work, because that
 track in `ROADMAP.md` with its own *done when*. Rough edges, missing affordances, and findings too
 big for one pass. Newest first.
 
+- **A freeform fin's outline is discarded on export, and no trapezoid can stand in for it — R6 work,
+  with the measurements already taken.** `lib/ork/export.ts` writes a `freeformfinset` as the
+  equal-area trapezoid, tip = 2·area/height − root. That solution is negative whenever the planform
+  tapers hard, and the tip is then clamped to zero with the root kept, so the exported fin is LARGER
+  in area than the one drawn. Measured 2026-07-31 over all 35 corpus designs: **8 carry a freeform
+  set and 6 of those shift static margin through a download/re-import — median 0.080 cal, worst
+  0.685 cal on `Pods--airframes and winglets.ork` (2.13 → 1.45), whose "Wings" set comes back 42%
+  bigger in area.** No design without a freeform set moves at all.
+  **Shrinking the ROOT to 2·area/height instead was built, measured and REVERTED the same day**, and
+  the reasons are the value of this entry: (1) a zero-area planform — which `planformFromPoints` can
+  produce from collinear points — writes a root of 0, and `finContribution` drops a fin set with no
+  root, so the set VANISHES from lift and drag (measured: 2.44 → 1.53 cal on the starter, ~0.9 cal
+  with no warning); (2) a fin set's `axialLength` IS its root chord, so under a `bottom` or `middle`
+  anchor a shorter root translates the planform down the tube — `Pods`' "Wings" moved **52.4 mm aft**
+  — which is an unlabelled change to a build number; and (3) the margin it produced looked better only
+  because of that displacement, since compensating the offset gives 1.28 cal, worse than either.
+  **The real fix is to stop discarding the outline**: retain the `<finpoints>` on the model at import
+  and write them back, which makes the round trip lossless instead of choosing which way to be wrong.
+  That needs `GenericFinSet` to carry the points it currently reduces away, and it belongs to R6 ("a
+  built design leaves Loft intact"). Disclosed on `/docs/limitations` with its size in the meantime.
+
+- **`Parachute.area` is the one mass- or drag-relevant field the `.ork` export still drops.** Read at
+  `lib/sim/setup.ts` and `lib/sim/simulate.ts` as `c.area ?? π(d/2)²`, so a design carrying an explicit
+  canopy area loses it on a download and descends at the wrong rate. Latent rather than live: no corpus
+  design and no adapter sets it today, which is why it was not fixed alongside the packed dimensions —
+  a guard that fires on zero real files is the speculative work `MAINTAINING.md` forbids. Fix it when
+  an adapter starts setting it, and add the fixture at the same time.
+
+- **RESOLVED 2026-07-31 — the spaces JSX ate on the served pages are gone, and the build now fails if
+  one comes back.** A JSX text run that begins on the same line as a closing inline tag and continues
+  onto the next line loses its leading space: Babel trims the first line of a multi-line run, so
+  `</strong> in them` reaches the page as `</strong>in them` while the source reads correctly and
+  lint, unit, build and e2e are all green. Measured on the built export: **86 instances across the
+  four docs pages and five app components**, verified in the LIVE served text rather than only in the
+  markup — `loft.fusionspace.co/docs/validation` read "97 stored simulationsin them", "per-stepflight
+  log" and "notsimulatedmeans". All 86 are fixed by replacing the plain space with an explicit space
+  expression, and `scripts/check-text-gaps.mjs` now runs in `postbuild`, so the count cannot leave
+  zero without failing the build. Proved by putting one back: build exits 1, naming the file and the
+  sentence.
+
 - **A truncated `hourly` series silently thins the winds-aloft profile instead of saying so.**
   `lib/weather.ts`'s level loop calls `arrAt(hourly[…], idx)` per pressure level and `continue`s when
   any of the three series is short, so a response whose `time` has 24 entries but whose

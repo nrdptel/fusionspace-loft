@@ -35,7 +35,7 @@ export default function Faq() {
           apogee, mass, and recovery. From there the same edits an imported design gets — nose shape
           and length, body length and diameter, airframe material, fin size, count, sweep, thickness,
           position, cross-section and material, nose ballast, motor swap, motor cluster count, parachute
-          size — reshape it and re-fly instantly. Fin <em>position</em> slides the fins fore or aft along
+          size — reshape it and re-fly instantly. Fin <em>position</em>{" "}slides the fins fore or aft along
           the airframe: moving them aft moves the centre of pressure aft and stiffens the static margin,
           the classic trim complement to nose ballast (which shifts the centre of gravity forward). You
           can also <em>add</em> a boattail (a tail cone: set a length and an exit diameter narrower
@@ -71,7 +71,7 @@ export default function Faq() {
           &ldquo;body&rdquo; and every fin set &ldquo;fin set&rdquo;. Two edits are deliberately
           wider than one part, and both say so: <em>Body diameter</em> reads the tube you picked but
           scales the whole outer airframe to that caliber, so the mould line stays faired rather than
-          stepping at one tube; and <em>Fin position</em> slides every fin set together, keeping the
+          stepping at one tube; and <em>Fin position</em>{" "}slides every fin set together, keeping the
           design&apos;s spacing. Picking a part to read it never moves an edit you already set on
           another — the aim only follows a pick for the fields that part drives — and the aim is saved
           with your session, so a reload comes back pointed at the same part.
@@ -81,7 +81,7 @@ export default function Faq() {
           remove it by name, and a <em>Restore</em> control brings the last one back — named too, because
           the part is no longer on the diagram to remind you what you took. A removal carries everything
           mounted inside the part, so deleting a body tube takes its motor mount, fins and parachute with
-          it. The one thing Loft refuses is removing the <em>last</em> body tube, and it says why rather
+          it. The one thing Loft refuses is removing the <em>last</em>{" "}body tube, and it says why rather
           than flying a rocket with no body.
         </p>
       </QA>
@@ -111,7 +111,7 @@ export default function Faq() {
         </p>
         <p>
           Separately, the last few designs you have <em>ever</em> opened stay on a shelf under{" "}
-          <em>Your designs</em> on the import screen, so a build with several variants on the go can
+          <em>Your designs</em>{" "}on the import screen, so a build with several variants on the go can
           be picked back up without the files. Those are the designs themselves, not your what-if
           edits, and they outlive <em>Start fresh</em> — each has its own <span aria-hidden>×</span>{" "}
           to remove it, and clearing site data removes the lot. Same rule as everything else here:
@@ -131,7 +131,7 @@ export default function Faq() {
         <p>
           Loft estimates it. Fins have their own stiffness, and past a critical airspeed — the
           flutter boundary — they start to oscillate and can tear off, a leading cause of lost fins
-          on fast flights. The stability panel shows a <em>Fin flutter (est.)</em> speed and the
+          on fast flights. The stability panel shows a <em>Fin flutter (est.)</em>{" "}speed and the
           margin — how much headroom there is between that speed and the fastest the fins actually
           go — and Loft cautions when the margin is thin (keep it ≥ 1.5×) or warns outright when the
           peak airspeed is past the estimate. It uses the fin&apos;s planform, thickness, and
@@ -159,8 +159,8 @@ export default function Faq() {
 
       <QA q="Which motors and file formats are supported?">
         <p>
-          OpenRocket <code>.ork</code> files (and gzip-wrapped or raw OpenRocket XML), RockSim{" "}
-          <code>.rkt</code> files, and RASAero II <code>.CDX1</code> files. Neither format embeds the motor&apos;s thrust curve — it&apos;s
+          OpenRocket <code>.ork</code>{" "}files (and gzip-wrapped or raw OpenRocket XML), RockSim{" "}
+          <code>.rkt</code>{" "}files, and RASAero II <code>.CDX1</code>{" "}files. Neither format embeds the motor&apos;s thrust curve — it&apos;s
           referenced by manufacturer and designation — so Loft resolves it against a bundled set of
           real ThrustCurve.org curves. If your motor isn&apos;t in the set, Loft tells you rather
           than guessing. A RASAero design carries no materials or per-part masses — it is an aerodynamics tool, and the flyer types in one launch weight and CG — so Loft flies the weight and CG the file states, with the motor&apos;s own mass separated out. RocketPy import is planned, not in yet.
@@ -171,7 +171,7 @@ export default function Faq() {
         <p>
           The flight itself is identical — both formats are translated into one internal model that
           the simulator flies, so the physics doesn&apos;t know which tool you drew in. The one
-          difference is mass: a <code>.rkt</code> stores RockSim&apos;s own per-part masses, so Loft
+          difference is mass: a <code>.rkt</code>{" "}stores RockSim&apos;s own per-part masses, so Loft
           flies those exact figures rather than recomputing them from geometry (an <code>.ork</code>{" "}
           stores no per-part mass, so there Loft computes it). A deliberate per-part{" "}
           <em>CG</em> override is carried through as well — a nose trimmed to a measured centre of
@@ -185,14 +185,14 @@ export default function Faq() {
 
       <QA q="My design has several motor configurations — can I compare them?">
         <p>
-          Yes. When a <code>.ork</code> carries more than one flight configuration (OpenRocket&apos;s
+          Yes. When a <code>.ork</code>{" "}carries more than one flight configuration (OpenRocket&apos;s
           stored simulations — say the same airframe on an H128W and a G40W), Loft shows a{" "}
-          <em>motor configuration</em> picker above the results. Each entry is labelled with its
+          <em>motor configuration</em>{" "}picker above the results. Each entry is labelled with its
           motor(s) and the apogee OpenRocket stored for it; choosing one re-flies that configuration
           and compares against its own stored numbers, so you can see how each motor changes the
           flight. Two entries never read alike — where the motor and apogee coincide, the run&apos;s
           own name and its position in the file are added — and an entry whose stored run the tool
-          marks <code>outdated</code> or not run says so, since that figure describes an earlier
+          marks <code>outdated</code>{" "}or not run says so, since that figure describes an earlier
           version of the rocket rather than the design on screen. The bundled &ldquo;Motor
           comparison&rdquo; example shows it.
         </p>
@@ -200,14 +200,14 @@ export default function Faq() {
 
       <QA q="Can I try the design on a different motor?">
         <p>
-          Yes. In the <em>Design workspace</em>, the <em>Motor</em> picker lists the bundled motors
+          Yes. In the <em>Design workspace</em>, the <em>Motor</em>{" "}picker lists the bundled motors
           of the same casing as the one this design already flies, grouped by class. That casing
           demonstrably fits the rocket; a mount&apos;s stated bore would not establish the same for
           every motor that would physically go in it, so the narrower claim is the one made. Choose one
           and Loft re-flies the same rocket on it, so you can compare apogee, speed, rail-exit
           velocity, and stability across motors without editing the file — the classic &ldquo;what
           would a J do here?&rdquo; A cluster keeps its motor count. A compact{" "}
-          <em>What-if vs design</em> panel above the results shows each figure as the design&apos;s
+          <em>What-if vs design</em>{" "}panel above the results shows each figure as the design&apos;s
           own value → the swapped value with the change, so the effect is legible at a glance.
           Because it&apos;s a hypothetical change, the OpenRocket comparison is hidden while a
           swapped motor is selected; pick &ldquo;Design motor&rdquo; to fly the original again.
@@ -219,7 +219,7 @@ export default function Faq() {
           Once a design is flying, the results split into three workspaces you switch between with the
           tabs under the design summary — each a focused view rather than one endless scroll.{" "}
           <em>Flight</em> holds the simulated flight: the summary numbers, the trajectory and plots,
-          and the comparison against whatever results the file itself stored. <em>Design</em> is the
+          and the comparison against whatever results the file itself stored. <em>Design</em>{" "}is the
           rocket — the to-scale, editable side-view and the part-by-part mass &amp; balance.{" "}
           <em>Analyze</em> gathers the heavier, opt-in tools: the motor and parameter sweeps, the
           Monte-Carlo dispersion, and the independent RocketPy second opinion. The design summary and
@@ -229,7 +229,7 @@ export default function Faq() {
 
       <QA q="Can I compare all the motors that fit at once?">
         <p>
-          Yes. In the <em>Analyze</em> workspace, <em>Compare fitting motors</em> flies your airframe
+          Yes. In the <em>Analyze</em> workspace, <em>Compare fitting motors</em>{" "}flies your airframe
           on every bundled motor of the same casing it already flies — all at once, on your device — and lays them
           out highest-apogee first: apogee, max speed, rail-exit velocity, thrust-to-weight,
           stability margin, fin-flutter margin, and the optimum ejection delay for each, with your
@@ -243,7 +243,7 @@ export default function Faq() {
           active nose-ballast or geometry what-if is applied to every motor, so you&apos;re comparing
           the design you&apos;re actually looking at. Each row is a ballistic ascent under the launch
           conditions in force — the design&apos;s own stored setup, with whatever you have changed
-          under <em>Conditions</em> on top, so shortening your rail moves every rail-exit figure in
+          under <em>Conditions</em>{" "}on top, so shortening your rail moves every rail-exit figure in
           the table. Surface wind is the one that does not: a ballistic ascent has no recovery to
           drift, so the rows are identical with it set and unset. These are estimates to check
           against the motor&apos;s printed data and your rail, never a go/no-go.
@@ -252,7 +252,7 @@ export default function Faq() {
 
       <QA q="Can I see a whole range at once — a response curve?">
         <p>
-          Yes. In the <em>Analyze</em> workspace, <em>Sweep a parameter</em> varies one variable — fin span, fin
+          Yes. In the <em>Analyze</em> workspace, <em>Sweep a parameter</em>{" "}varies one variable — fin span, fin
           thickness, fin position, nose length, body length or diameter, or nose ballast — across a
           range and plots how a metric responds: apogee, max speed, rail-exit velocity, stability
           margin, or fin-flutter margin, switchable on the y-axis. A marker shows the design&apos;s own
@@ -269,13 +269,13 @@ export default function Faq() {
 
       <QA q="How high will it really go, and where will it land?">
         <p>
-          In the <em>Analyze</em> workspace, <em>Flight dispersion (Monte-Carlo)</em> flies the design a few hundred
+          In the <em>Analyze</em> workspace, <em>Flight dispersion (Monte-Carlo)</em>{" "}flies the design a few hundred
           times with the motor impulse, dry mass, aerodynamic drag, rail angle, and wind jittered
-          around their nominal values, and shows the <em>spread</em> instead of a single number: the
+          around their nominal values, and shows the <em>spread</em>{" "}instead of a single number: the
           apogee band you can expect (5th to
           95th percentile), the peak-speed band, and the radius from the pad that contains 95% of the
           landings — the recovery area to plan for. It flies the launch conditions in force — the
-          design&apos;s stored setup with whatever you changed under <em>Conditions</em> on top — and
+          design&apos;s stored setup with whatever you changed under <em>Conditions</em>{" "}on top — and
           you set the one-sigma spread on each input, so the answer reflects your own field. The physics is the same trusted flight each time; the
           only thing that varies is the inputs, so it&apos;s an honest way to see how much your apogee
           and landing point move under real-world variability — a good gut-check against a waiver
@@ -305,7 +305,7 @@ export default function Faq() {
         <p>
           To try a size yourself, use the <em>Recovery size (×)</em> what-if under{" "}
           <em>Design workspace</em>: it multiplies every deployed chute&apos;s drag area,
-          so <em>2</em> flies a canopy twice as draggy and <em>0.5</em> one half the size. Loft
+          so <em>2</em>{" "}flies a canopy twice as draggy and <em>0.5</em>{" "}one half the size. Loft
           re-flies the descent, and the descent rate, ground-hit speed, and drift all move with it —
           as does the Monte-Carlo landing scatter — while the ascent and apogee stay put. It&apos;s
           the open-ended companion to the sizing readout: the readout names the size for a gentle
@@ -326,7 +326,7 @@ export default function Faq() {
           the design with that weight added at the nose cone — the classic trim for a marginally
           stable rocket. You&apos;ll see the centre of gravity move forward, the stability margin
           rise, and the apogee drop as the rocket flies heavier, so you can find how much weight buys
-          the stability you want. A <em>What-if vs design</em> panel above the results spells out the
+          the stability you want. A <em>What-if vs design</em>{" "}panel above the results spells out the
           trade — how many calibers of stability you gained and how much apogee it cost. Because
           it&apos;s a hypothetical change to the design, the
           OpenRocket comparison is hidden while ballast is set — the stored numbers describe the
@@ -349,7 +349,7 @@ export default function Faq() {
           trapezoidal fin&apos;s chords and leading-edge sweep), <em>Fin thickness</em>,{" "}
           <em>Fin edge</em> (square, rounded, or airfoil profile), <em>Nose length</em>,{" "}
           <em>Nose shape</em> (ogive, conical, ellipsoid, or a low-drag Haack /
-          Von Kármán), <em>Body length</em>, and <em>Body diameter</em> fields start from the
+          Von Kármán), <em>Body length</em>, and <em>Body diameter</em>{" "}fields start from the
           design&apos;s own
           dimensions; change any and Loft rebuilds the rocket and re-flies it — mass, drag, and the
           centre of pressure and stability all update, and a longer nose or body stretches the whole
@@ -360,7 +360,7 @@ export default function Faq() {
           but raise the flutter margin sharply (it climbs with the cube of thickness), so it&apos;s
           the first knob to reach for when the <em>Fin flutter</em> estimate warns; streamlining the
           fin edge from square to rounded to airfoil sheds the head-on edge pressure drag, a real
-          apogee gain for the cost of some sanding; and the <em>Fin material</em> picker swaps the
+          apogee gain for the cost of some sanding; and the <em>Fin material</em>{" "}picker swaps the
           stock (balsa, basswood, plywood, G10, carbon, or aluminium), which sets both the fin mass
           and the stiffness the flutter estimate reads — so if the <em>Fin flutter</em> tool warns,
           you can see directly what stepping up to a stiffer stock buys; a finer nose (a
@@ -369,9 +369,9 @@ export default function Faq() {
           longer body adds material and weight; and widening the <em>Body diameter</em> scales the
           whole airframe to a new caliber (keeping the same fins, nose profile, and motor) — a fatter
           tube has more frontal area and skin, so it drags more and flies lower, and the fixed fins
-          are proportionally smaller, trimming the stability margin. A <em>Surface finish</em> picker sets the whole airframe from
+          are proportionally smaller, trimming the stability margin. A <em>Surface finish</em>{" "}picker sets the whole airframe from
           mirror-smooth to rough — skin friction is a big share of subsonic drag, so &ldquo;what does
-          a good paint job buy?&rdquo; can move the apogee noticeably. The results, the <em>What-if vs design</em> delta,
+          a good paint job buy?&rdquo; can move the apogee noticeably. The results, the <em>What-if vs design</em>{" "}delta,
           and the RocketPy second opinion all reflect the edited geometry. It&apos;s the first step
           toward a full in-browser builder — editing a component&apos;s dimensions and re-simulating
           live. Because it&apos;s a change to the design, the OpenRocket comparison is hidden while
@@ -381,7 +381,7 @@ export default function Faq() {
 
       <QA q="Can I see where my rocket's mass comes from?">
         <p>
-          Yes. In the <em>Design</em> workspace, expand <em>Mass &amp; balance</em> for a part-by-part breakdown of
+          Yes. In the <em>Design</em> workspace, expand <em>Mass &amp; balance</em>{" "}for a part-by-part breakdown of
           the design&apos;s dry mass — every structural component with its weight, its share of the
           total, and its centre of gravity from the nose, heaviest first, adding up to the dry total
           and CG. These are the exact per-part masses the simulator flies, so it&apos;s the fastest
@@ -405,29 +405,32 @@ export default function Faq() {
       <QA q="Can I save my design, or open it in OpenRocket?">
         <p>
           Yes. <em>Download .ork</em> (top of the results) saves the current design — built from
-          scratch, edited, or imported — as an OpenRocket <code>.ork</code> file, generated entirely
+          scratch, edited, or imported — as an OpenRocket <code>.ork</code>{" "}file, generated entirely
           in your browser. It re-opens in Loft and, because it&apos;s OpenRocket&apos;s own format,
           in OpenRocket, so your work is durable and portable rather than lost on refresh. The file
-          is named for the design — rename it in the field beside <em>Import another</em> first to
+          is named for the design — rename it in the field beside <em>Import another</em>{" "}first to
           save meaningfully-titled variants side by side. Any structural (geometry) edits you&apos;ve
           made are baked into the saved airframe; transient
           what-ifs — added ballast, a swapped motor, a resized canopy, launch conditions — are flight
           explorations, not part of the design, so they&apos;re left out. Every bundled design
           round-trips through save and re-open with its flight unchanged. A freeform (arbitrary
-          polygon) fin is saved as its aerodynamically-equivalent trapezoid, the one detail that
-          isn&apos;t recovered exactly.
+          polygon) fin is saved as its aerodynamically-equivalent trapezoid — equal area, span and
+          sweep, except where the planform tapers hard enough that no trapezoid can match both — and that is
+          the one detail not recovered. Measured across 35 real designs: 8 carry a freeform set, and on
+          6 of them the re-opened copy&apos;s static margin differs, by a median 0.08 and at most 0.69
+          caliber. On the 27 designs without one it does not move.
         </p>
       </QA>
 
       <QA q="Can I check how Loft read my design?">
         <p>
-          Yes. The <em>Design</em> workspace centres on a <em>Design geometry</em> panel showing a{" "}
-          <strong>to-scale side-view</strong> of the airframe drawn from the model Loft parsed —
+          Yes. The <em>Design</em> workspace centres on a <em>Design geometry</em>{" "}panel showing a{" "}
+          <strong>to-scale side-view</strong>{" "}of the airframe drawn from the model Loft parsed —
           nose, body, transitions, fins, and the loaded motor in their true proportions — so a wrong
           diameter, a missing part, or a fin in the wrong place stands out at a glance. It&apos;s also a
           handle for editing by hand: <strong>drag a fin</strong> and the design re-flies live. One
           handle slides the whole fin group fore or aft (the same trim the numeric <em>Fin
-          position</em> field makes); on straight-edged fins a second handle at the tip rakes the
+          position</em>{" "}field makes); on straight-edged fins a second handle at the tip rakes the
           sweep — both stability levers, worked by direct manipulation instead of typing, and a
           focused handle also takes arrow keys. Below the picture, the same parts
           are listed exactly as parsed: every component with its type, its station measured from the
@@ -454,7 +457,7 @@ export default function Faq() {
 
       <QA q="Can I get a second opinion from RocketPy?">
         <p>
-          Yes. In the <em>Analyze</em> workspace, <em>Second opinion: RocketPy</em> flies your design in{" "}
+          Yes. In the <em>Analyze</em> workspace, <em>Second opinion: RocketPy</em>{" "}flies your design in{" "}
           <a href="https://github.com/RocketPy-Team/RocketPy" target="_blank" rel="noopener noreferrer">
             RocketPy
           </a>{" "}
