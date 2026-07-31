@@ -14,7 +14,7 @@ export default function SiteHeader({ compact = false }: { compact?: boolean }) {
   const name = (
     <Link
       href="/"
-      className="text-2xl font-semibold tracking-tight text-zinc-900 hover:opacity-80 dark:text-zinc-100 md:text-3xl"
+      className="text-xl font-semibold tracking-tight text-zinc-900 hover:opacity-80 dark:text-zinc-100 md:text-3xl"
     >
       Loft
     </Link>

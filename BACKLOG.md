@@ -12,6 +12,16 @@ this file, and deliberately does **not** cap craft or product work, because that
 track in `ROADMAP.md` with its own *done when*. Rough edges, missing affordances, and findings too
 big for one pass. Newest first.
 
+- **A cluster count multiplies the mass and inertia of whatever component carries the mount, not just
+  the motor tube.** `lib/sim/mass.ts:216` scales ANY component's own mass and rotational inertia by
+  `motorMount.clusterCount`, and `lib/model/edit.ts:861` writes `motorClusterCount` onto every component
+  that has a `motorMount`. **Not reachable today**, and that is the whole reason it is filed rather than
+  fixed: only an inner tube or a minimum-diameter tube ever carries a mount, so the component being
+  scaled is always a motor tube, where scaling is correct. It becomes reachable the moment a flyer can
+  author a mount onto a main airframe tube — R5 increment 4 — at which point a design with Motors ≥ 2
+  moves its dry mass and CG with nothing on screen saying so. Magnitude UNVERIFIED; the reachability is
+  not. Recorded here so the increment that opens the door is the one that closes this.
+
 - **A recovery device set to deploy at an altitude it does not state fires at the GROUND, and that
   suppresses the one warning that matters most.** `lib/sim/simulate.ts:729` reads
   `state.pos.z <= (dev.deployAltitude ?? 0)`, so with no altitude the trigger is `z <= 0`. The device
@@ -40,6 +50,16 @@ big for one pass. Newest first.
   others it listed carry `UNVERIFIED by me`. The count is a reading list, not a Sev-1 count — treat it
   that way, and re-measure before letting any of them preempt a milestone. Recorded because the same
   screen will be run next session and will return the same number.
+
+- **RESOLVED 2026-07-31 (P1 increment 10) — `DESIGN.md` §9's "a size that is not on the scale at all"
+  check grepped only `text-lg`, so three genuinely off-scale sizes passed green.** All 29 sites are on
+  the scale now, converted by ROLE — 12 SVG annotations to the size §3 permits for exactly that, 10
+  chips and unit suffixes to the caption size, and the 4 `text-2xl` to `text-xl` or `text-3xl` by
+  whether they are a mark or a page title. The assertion now matches every Tailwind size token and
+  subtracts the six §3 allows, so an unforeseen size fails by default. **Its own first version could not
+  fail either** — a word boundary after `]` never matches, so `text-[9px]` went unseen — and only the
+  negative control caught that. **Still owed to BOTH repos:** §9's shell block itself still greps
+  `text-lg` alone. The original entry follows.
 
 - **`DESIGN.md` §9's "a size that is not on the scale at all" check greps only `text-lg`, so three
   genuinely off-scale sizes pass green.** Measured 2026-07-31: `text-[10px]` **22**, `text-2xl` **4**,

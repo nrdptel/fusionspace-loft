@@ -758,6 +758,46 @@ against 10.43.
 - **"Give it its own motor mount and fins" is inherited, not authored.** The seed carries both because
   it is cloned from a tube that has them; there is no `AddedPart.kind` for a motor mount, so a booster
   cannot be given one it did not inherit. That is why the refusal above exists rather than a gesture.
+
+  **This is increment 4, it is the LAST clause of R5's *done when*, and it was scoped in depth on
+  2026-07-31 rather than started — because the scope found five hazards, two of them Sev-1-shaped, and
+  a half-landed version of this ships a confident wrong number.** Fins onto a booster already work
+  (`buildAdded`, `edit.ts:2027`); the only missing gesture is *add a motor mount to this tube*. Written
+  down so the next session starts from the traps rather than finding them:
+
+  1. **The pipeline order is the same guard as the refusal, and this is the load-bearing one.**
+     `applyAddedStages` runs FIRST, before `applyAdds` (`edit.ts:2012`, reasoned at `:2004`), so
+     `stageSeedBase` (`edit.ts:1882`) passes only `edits.addedStages` and never `edits.added`. A mount
+     the flyer authors onto the aft tube is therefore **invisible to `buildStage`**: `canAddStage` still
+     refuses and the booster still clones a mount-less tube. On the 2 designs this increment exists for,
+     the gesture would appear to work and change nothing. Reordering destroys the anchoring property the
+     order exists for — the corpus-measured 123-state justification for ignoring `added` is right for
+     every existing kind and points exactly the wrong way for this one. **Resolve this before writing
+     any code.**
+  2. **`canAddStage` tests that a mount EXISTS, never that an instance names it** (`edit.ts:1744-1788`).
+     With mounts authorable, an EMPTY mount satisfies the gate, and `applyAddedStages` then falls back
+     to `cfg.instances[0]` (`edit.ts:1844`) — the documented 11.9%-low case, reachable by authoring, on
+     `03.Three-stage.ork`, which is one of the two designs the 55%-apogee-gain refusal was written for.
+     The refusal must test for a live instance.
+  3. **A mount is a FIELD, not a component** — `motorMount?: MotorMount` on `BodyTube` (`types.ts:120`)
+     and `InnerTube` (`types.ts:201`). `buildAdded` can express "a new inner tube carrying that field";
+     it has **no shape at all** for "set the field on an existing tube", which mutates rather than
+     builds.
+  4. **Cluster count scales the HOST tube's mass.** `lib/sim/mass.ts:216` multiplies any component's own
+     mass and inertia by `motorMount.clusterCount`. Today only motor tubes carry a mount, so only a
+     motor tube scales; author one onto the main airframe with Motors ≥ 2 and the whole tube's mass and
+     inertia multiply, moving dry mass and CG with nothing on screen saying so. *(Not reachable today —
+     filed in `BACKLOG.md`.)*
+  5. **`primaryMotorClusterCount` reads the FIRST mount in flatten order** (`edit.ts:788`), so a mount
+     authored forward of the real one makes the Motors field read 1 while the design flies N.
+
+  **Also moves:** `lib/corpus/sweep.test.ts`'s 33-authored/2-refused split, and `edit.test.ts:2719`,
+  which pins `canAddStage === false` for a bag whose only content is `added` — that assertion becomes
+  *wrong* rather than stale.
+
+  **Size: 2–3 increments on its own.** It is the last clause of R5, so R5 stays IN PROGRESS until it
+  lands; the rest of the *done when* — add a booster, fly a staged flight whose phase table matches what
+  was built, and remove the stage again — is shipped and pinned.
 - **A stage authored on a design with several configurations flies the same motor in all of them**, and
   a flyer cannot yet pick a different one for the booster. `motorSwap` is a whole-design what-if.
 - **Only an AUTHORED stage can be removed.** An imported one cannot: `removalRefusal` counts body tubes
@@ -1030,7 +1070,42 @@ rather than a preference — the same shape as `buttonClass`. It needs `Download
 cycle. §5's "everything below lives in `components/ui.tsx`" now has two exceptions and wants a sentence
 saying so — **filed rather than made, because that file is shared verbatim with the sibling app.**
 
-**What is left of P1**, measured after increment 9: the **three remaining tables** (`MassBreakdown`,
+**Increment 10 took the type scale to six sizes for real, and fixed the check that could not see the
+other three.** §9's "a size that is not on the scale at all" assertion grepped `text-lg` ALONE. `text-lg`
+was taken to zero in increment 3, and the assertion left behind matched only that token — so it read
+zero and passed while **`text-[10px]` stood at 22 uses, `text-2xl` at 4 and `text-[9px]` at 3**. Twenty-
+nine live uses of a seventh, eighth and ninth size, under an assertion whose name says none exist.
+
+All 29 are gone, each by role rather than by sweep:
+
+- **12 were SVG diagram and chart annotations** — `RocketDiagram`, `MonteCarlo`, `FlightViz`,
+  `LineChart` — and §3 permits `text-[11px]` for exactly that. `MonteCarlo` also pinned the same size
+  in an inline `fontSize`, where the class could never have won.
+- **10 were HTML chips, unit suffixes and captions** and take `text-xs`, which is what §5 already
+  specifies for `Chip`.
+- **4 were `text-2xl`.** The wordmark comes DOWN to `text-xl` on mobile (its desktop step already lands
+  on `text-3xl`), which also buys back header width at 320 px. The docs and 404 page titles go UP to
+  `text-3xl` — §3's page title, once per route, and **neither route had one**: the single `text-3xl` in
+  the repo was a breakpoint variant on the mark. The accent stat keeps its prominence through
+  `font-semibold`, which is what §3 reserves for the one number a surface exists to show.
+
+**Two files then tripped the caption-inversion guard, and both were real.** `MotorSweep`'s sweep-gap
+notice — *"Compare the rows with each other, not with the flight above"* — is an instruction, which is
+decision-grade by increment 4's own rule, and it was the smallest text in its own panel. `ValidationPanel`'s
+mean-absolute-error figure is a VALUE, and §3 says `text-xs` is for the text around a value, never the
+value. Both took the body default.
+
+**The new guard nearly could not fail either, and only its negative control caught that.** A word
+boundary after `]` requires a word character beside it, so `/…\[[\d.]+px\]\b/` never matches
+`text-[9px]` at all: the first version passed with one reintroduced. The assertion now matches every
+Tailwind size token and subtracts the six §3 allows, so a size nobody has thought of yet fails by
+default. Both controls fire and name the offending token.
+
+*Owed to both repos:* §9's shell block still says `grep -roh '\btext-lg\b'`. The executable copy has
+moved past it, which §9 forbids drifting — but that file is shared verbatim with the sibling app and
+`add_repo` was refused again this run. The counts agree today (both read 0); the WORDING does not.
+
+**What is left of P1**, measured after increment 10: the **three remaining tables** (`MassBreakdown`,
 `MotorSweep`, `GeometryInspector` — each already carries part of the affordance set, which is the
 inconsistency the primitive exists to end) and the **24 hand-rolled `<button>` elements**. A seventh
 table at `app/docs/validation/page.tsx:259` sits in a SERVER route where a `"use client"` primitive

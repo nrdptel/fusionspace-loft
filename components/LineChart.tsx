@@ -177,7 +177,7 @@ export default function LineChart({
               y={py(t)}
               textAnchor="end"
               dominantBaseline="middle"
-              className="fill-zinc-500 text-[10px]"
+              className="fill-zinc-500 text-[11px]"
             >
               {formatTick(t)}
             </text>
@@ -189,7 +189,7 @@ export default function LineChart({
             x={px(t)}
             y={H - padB + 16}
             textAnchor="middle"
-            className="fill-zinc-500 text-[10px]"
+            className="fill-zinc-500 text-[11px]"
           >
             {formatTick(t)}
           </text>
@@ -213,7 +213,7 @@ export default function LineChart({
               x={m.textX}
               y={bandTop + 4 + m.row * MARKER_ROW_H}
               textAnchor={m.anchor}
-              className="fill-zinc-400 text-[9px]"
+              className="fill-zinc-400 text-[11px]"
             >
               {m.label}
             </text>
@@ -230,7 +230,7 @@ export default function LineChart({
         ))}
 
         {/* axis labels */}
-        <text x={(W + padL) / 2} y={H - 2} textAnchor="middle" className="fill-zinc-500 text-[10px]">
+        <text x={(W + padL) / 2} y={H - 2} textAnchor="middle" className="fill-zinc-500 text-[11px]">
           {xLabel}
         </text>
         <text
@@ -238,7 +238,7 @@ export default function LineChart({
           y={(H - padB + padT) / 2}
           textAnchor="middle"
           transform={`rotate(-90 12 ${(H - padB + padT) / 2})`}
-          className="fill-zinc-500 text-[10px]"
+          className="fill-zinc-500 text-[11px]"
         >
           {yLabel}
         </text>

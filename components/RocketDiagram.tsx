@@ -591,7 +591,7 @@ export default function RocketDiagram({
               x={carry.px}
               y={Math.max(9, markTop - 10)}
               textAnchor="middle"
-              className="fill-indigo-600 text-[10px] font-semibold [paint-order:stroke] [stroke:white] [stroke-width:3px] dark:fill-indigo-300 dark:[stroke:#18181b]"
+              className="fill-indigo-600 text-[11px] font-semibold [paint-order:stroke] [stroke:white] [stroke-width:3px] dark:fill-indigo-300 dark:[stroke:#18181b]"
             >
               drop here
             </text>
@@ -623,7 +623,7 @@ export default function RocketDiagram({
           <g>
             <line x1={X(cp!)} x2={X(cp!)} y1={markTop} y2={markBot} className="stroke-amber-500" strokeWidth={1.3} strokeDasharray="3 3" />
             <circle cx={X(cp!)} cy={centerY} r={4} className="fill-amber-500" />
-            <text x={X(cp!)} y={markBot + 11} textAnchor="middle" className="fill-amber-600 text-[10px] font-semibold dark:fill-amber-400">CP</text>
+            <text x={X(cp!)} y={markBot + 11} textAnchor="middle" className="fill-amber-600 text-[11px] font-semibold dark:fill-amber-400">CP</text>
           </g>
         )}
         {/* centre of gravity (loaded) */}
@@ -631,7 +631,7 @@ export default function RocketDiagram({
           <g>
             <line x1={X(cg!)} x2={X(cg!)} y1={markTop} y2={markBot} className="stroke-indigo-500" strokeWidth={1.3} strokeDasharray="3 3" />
             <circle cx={X(cg!)} cy={centerY} r={4} className="fill-indigo-500" />
-            <text x={X(cg!)} y={markTop - 3} textAnchor="middle" className="fill-indigo-600 text-[10px] font-semibold dark:fill-indigo-400">CG</text>
+            <text x={X(cg!)} y={markTop - 3} textAnchor="middle" className="fill-indigo-600 text-[11px] font-semibold dark:fill-indigo-400">CG</text>
           </g>
         )}
 
@@ -1175,7 +1175,7 @@ function FinHandle({
           x={cx}
           y={Math.max(11, cy - 13)}
           textAnchor="middle"
-          className="pointer-events-none fill-zinc-800 text-[10px] font-semibold tabular-nums [paint-order:stroke] [stroke:white] [stroke-width:3px] dark:fill-zinc-100 dark:[stroke:#18181b]"
+          className="pointer-events-none fill-zinc-800 text-[11px] font-semibold tabular-nums [paint-order:stroke] [stroke:white] [stroke-width:3px] dark:fill-zinc-100 dark:[stroke:#18181b]"
         >
           {d.q(d.lengthMm(current, units))}
         </text>

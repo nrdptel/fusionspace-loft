@@ -46,14 +46,23 @@ function uiSources(dirs: string[], exts: string[] = [".tsx", ".css"]): { path: s
     .map((p) => ({ path: p.slice(ROOT.length + 1), text: readFileSync(p, "utf8") }));
 }
 
-function countMatches(files: { path: string; text: string }[], re: RegExp): { total: number; byFile: string[] } {
+/** `keep` narrows a broad pattern to the matches that are actually violations — used by the type-size
+ *  check, which matches every `text-*` and then subtracts the six sizes the scale allows. Listing what
+ *  is PERMITTED and flagging the rest is what stops the check going blind again: a size nobody has
+ *  thought of yet fails by default, where an allow-list of known-bad tokens silently passes it. */
+function countMatches(
+  files: { path: string; text: string }[],
+  re: RegExp,
+  keep?: (match: string) => boolean,
+): { total: number; byFile: string[] } {
   const byFile: string[] = [];
   let total = 0;
   for (const f of files) {
-    const n = f.text.match(re)?.length ?? 0;
-    if (n > 0) {
-      total += n;
-      byFile.push(`${f.path}: ${n}`);
+    const all = f.text.match(re) ?? [];
+    const hits = keep ? all.filter(keep) : all;
+    if (hits.length > 0) {
+      total += hits.length;
+      byFile.push(`${f.path}: ${hits.length} (${[...new Set(hits)].sort().join(", ")})`);
     }
   }
   return { total, byFile: byFile.sort() };
@@ -252,10 +261,31 @@ describe("DESIGN.md §9 — the design system is binding, and this is what check
   });
 
   it("uses no type size that is off the six-size scale", () => {
-    // `DESIGN.md` §3 names exactly six. `text-lg` is not one of them, and it had reached fourteen uses
-    // — a seventh size sitting between `text-base` and `text-xl`, which is how a heading rhythm stops
-    // being a rhythm. At zero this is a guard, not a ratchet: it should never go up again.
-    const { total, byFile } = countMatches(ui, /\btext-lg\b/g);
+    // `DESIGN.md` §3 names exactly six: `text-3xl`, `text-xl`, `text-base`, `text-sm`, `text-xs`, and
+    // `text-[11px]` for axis ticks and diagram annotations. Anything else is a seventh size.
+    //
+    // **This check used to grep `text-lg` ALONE, and that is why it is written the way it is now.**
+    // `text-lg` was taken to zero on 2026-07-31 and the assertion left behind matched only that one
+    // token — so it read zero, and passed, while `text-[10px]` stood at 22 uses, `text-2xl` at 4 and
+    // `text-[9px]` at 3. Twenty-nine live uses of a seventh, eighth and ninth size, under an assertion
+    // whose name says none exist. §9's own words are that a compliance command which cannot fail is
+    // worse than none, because a session runs it, sees the target, and moves on. This one could not
+    // fail for as long as it had existed.
+    //
+    // It now matches any Tailwind text size and subtracts the six that are allowed, so a size nobody
+    // has thought of yet is caught by default rather than needing to be added here.
+    // SIZE tokens only — Tailwind's named steps and an arbitrary length. A bare `text-[^\]]+` also
+    // matches every colour and alignment utility in the app (`text-zinc-500`, `text-left`), which is
+    // 655 hits and no signal at all; that was this check's first draft.
+    const ALLOWED = new Set(["text-3xl", "text-xl", "text-base", "text-sm", "text-xs", "text-[11px]"]);
+    // NOTE the asymmetry, which is not stylistic: the arbitrary-value branch must NOT end in `\b`.
+    // A word boundary after `]` requires a word character on one side of it, and `]` is not one — so
+    // `/…\[[\d.]+px\]\b/` never matches `text-[9px]` at all. The first version of this check had that
+    // trailing `\b` and its negative control PASSED: a reintroduced `text-[9px]` went unseen. That is
+    // the same "compliance command that cannot fail" this whole assertion exists to end, reintroduced
+    // inside the fix for it, and only the control caught it.
+    const SIZES = /\btext-(?:\[[\d.]+(?:px|rem|em)\]|(?:xs|sm|base|lg|[2-9]?xl)\b)/g;
+    const { total, byFile } = countMatches(ui, SIZES, (m) => !ALLOWED.has(m));
     expect(total, `off-scale type sizes, by file:\n${byFile.join("\n")}`).toBe(BUDGET.offScaleType);
   });
 

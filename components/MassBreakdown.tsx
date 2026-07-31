@@ -69,7 +69,7 @@ export default function MassBreakdown({
         <span className="flex items-center gap-2">
           Mass &amp; balance · dry {d.q(d.mass(total.mass, units))}
           {edited && (
-            <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-medium text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300">
+            <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300">
               with your edits
             </span>
           )}

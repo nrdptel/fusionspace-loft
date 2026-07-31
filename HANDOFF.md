@@ -23,8 +23,8 @@ with both repos attached fixes it in one commit each.
 
 | track | state |
 |---|---|
-| **R — capability** | **R5 — author a staged rocket — IN PROGRESS**, increments 1–2 of 4–6 shipped. Increment 3 is scoped in detail below. |
-| **P — product & craft** | **P1 — one design system, adopted — IN PROGRESS**, increments 1–8 shipped. `DataTable` is all that is left. |
+| **R — capability** | **R5 — author a staged rocket — IN PROGRESS**, increments 1–3 shipped. **One clause of its *done when* is left**: "give it its own motor mount and fins" is still INHERITED from the seed rather than authored. That is increment 4 and it is the last thing between R5 and SHIPPED. |
+| **P — product & craft** | **P1 — one design system, adopted — IN PROGRESS**, increments 1–9 shipped. `DataTable` now exists and carries the three tables that offered nothing. What is left: the other **three** tables and the **24** hand-rolled `<button>` elements. |
 
 ## The arc so far
 
@@ -34,8 +34,8 @@ with both repos attached fixes it in one commit each.
 | R2 — delete a component, and undo it | SHIPPED 2026-07-30 |
 | R3 — add a component | SHIPPED 2026-07-30 |
 | R4 — reorder and restack | SHIPPED 2026-07-31 |
-| R5 — author a staged rocket | **IN PROGRESS** — inc. 1 (the stage) and 2 (the phase table) shipped |
-| P1 — one design system, adopted | **IN PROGRESS** — increments 1–8 shipped; only `DataTable` remains |
+| R5 — author a staged rocket | **IN PROGRESS** — inc. 1 (the stage), 2 (the phase table) and 3 (a burnout per stage) shipped; one *done when* clause left |
+| P1 — one design system, adopted | **IN PROGRESS** — increments 1–9 shipped; `DataTable` exists, three tables and 24 buttons left |
 | P2–P5 | NOT STARTED |
 
 ## Shipped this session (2026-07-31, fourth session of the day)
@@ -43,17 +43,16 @@ with both repos attached fixes it in one commit each.
 Baseline before anything changed, all four green: lint 0 errors / 1 warning (the standing `setDraft`
 one), **922 unit**, build, **182 e2e**, corpus **35 design files, 11/11**. Nothing inherited was red.
 
-**Pull request #87 was open at session start and is now merged** (`357075e`) — the previous run's two
-BLOCKERs, both silent data loss on the from-scratch builder. It was green on that day's `main` and its
-diff read correctly, so it was merged rather than rebased. Its `bakeMotorSwap` writes the swap into every
-instance of every configuration, which matches what `swapMotor` (`lib/sim/run.ts:107`) already does per
-configuration — checked before merging, because that is exactly the kind of divergence it was fixing.
+| pull request | what | state |
+|---|---|---|
+| **#88** | P1 increment 8 (off-system radius 15 → **0**, print rule retired with it), the print-legibility fix (**193 of 369** text nodes under 3:1 on a dark-theme sheet), the review fixes on that conversion, and the ledger corrections | **MERGED**, `f52dd0f` |
+| **#89** | R5 increment 3 — a burnout per stage and the phase table's Burnout column | **MERGED**, `88b689b` |
+| **#90** | P1 increment 9 — `DataTable`, and the three tables that offered nothing put on it | **OPEN** — merge on green |
 
-| commit | what |
-|---|---|
-| `23cc549` | **P1 increment 8 — the off-system radius to 0**, and `app/globals.css`'s print rule retired in the same commit, which is why that slice had to go last. |
-| `a874b2b` | The measurements that increment invalidated, corrected in `ROADMAP.md` and `BACKLOG.md`. |
-| `c240a28` | **A dark-theme sheet prints as ink on white** — 193 of 369 text nodes were under 3:1. |
+**Also merged at session start: #87**, the previous run's two BLOCKERs (`357075e`). It was green on that
+day's `main` and its diff read correctly. Its `bakeMotorSwap` writes the swap into every instance of
+every configuration, which matches what `swapMotor` (`lib/sim/run.ts:107`) already does — checked before
+merging, because that is exactly the kind of divergence it was fixing.
 
 ## What this session learned that is worth keeping
 
@@ -158,9 +157,54 @@ It must print `imports every design file (35 present)`. **Confirmed this session
 - The app has SIX page routes: `/`, `/docs`, `/docs/faq`, `/docs/methods`, `/docs/limitations`,
   `/docs/validation`. `/validation` and `/motors` are 404s.
 
+## What increments 3 and 4 of this session added to the lessons
+
+**A test that passes its own negative control is a finding about the test.** The new
+"no workspace scrolls horizontally once a design is loaded" check first asserted page width only. Its
+control — the metric tiles repadded to `p-12` — left the page width **unchanged** and the test green,
+because a `grid-cols-2` shrinks its columns and the numerals overflow their own tiles instead. Scope such
+an assertion to what it is about, too: a sweep over every element in `main` reports six hits on untouched
+code, every one correct behaviour (the header title block is `min-w-0` *so that* it may shrink, a text
+input reports its whole value width, an SVG label is not a box).
+
+**Converting a table to a primitive shifts every `td` index if the first column was a row header.** The
+cross-check e2e read RocketPy's apogee out of the label cell and got `NaN` against an expected 994.
+`DataTable` has `rowHeader` for exactly this, and it is the better markup anyway.
+
+**Two controls can share an accessible name across surfaces that never meet in the source.** A `DataTable`
+column called "Metric" collided with the units toggle's "Metric" button. The sort control now names what
+it DOES, with the visible label inside it. Note Playwright's `name` matcher is a SUBSTRING by default, so
+the units-toggle selectors needed `exact: true` as well.
+
+**`git rebase --onto <base> <old> HEAD` leaves a detached HEAD.** Reattach with
+`git checkout -B <branch> <sha>`, then `git push --force-with-lease`. Used twice this session with no
+loss, both times after a pull request merged and the branch had to restart from the new `main`.
+
 ## Pick up first
 
-1. **R5 increment 3 — per-stage burnout, scoped in detail and with the trap named.** Only ONE burnout
+1. **R5 increment 4 — the last clause of its *done when*.** "Give it its own motor mount and fins" is
+   inherited from the seed rather than authored: there is no `AddedPart.kind` for a motor mount, so a
+   booster cannot be given one it did not inherit — which is also why the operation is REFUSED outright
+   on the 2 real designs whose aft tube carries no mount. `buildAdded`'s `never` default in
+   `lib/model/edit.ts` makes a fifth kind a compile error by design, so the compiler will name most of
+   the call sites for you. **A mount alone does nothing**: a stage separates only if a configuration
+   INSTANCE names a mount inside it, which is the rule `applyAddedStages` already follows. Check the
+   exporter round-trips an authored mount before shipping — this repo has already had one defect of
+   exactly that shape.
+
+2. **P1's remaining slices.** The three tables still hand-rolled (`MassBreakdown`, `MotorSweep`,
+   `GeometryInspector` — each carries part of the affordance set, which is the inconsistency the
+   primitive exists to end) and the 24 hand-rolled `<button>` elements. `MotorSweep` and
+   `GeometryInspector` have custom row behaviour (safety flags, row selection), so they are not the
+   mechanical conversion the other three were.
+
+3. **The §9 off-scale-type guard is blind** — it greps `text-lg` alone while `text-[10px]` ×22,
+   `text-2xl` ×4 and `text-[9px]` ×3 are live. Filed in `BACKLOG.md` with the sites.
+
+### Superseded — kept for the trap it names
+
+1. ~~**R5 increment 3 — per-stage burnout, scoped in detail and with the trap named.**~~ *(Shipped as
+   `88b689b`. The trap was real and the note below is why it did not land as a defect.)* Only ONE burnout
    event is emitted per flight ever: `lib/sim/simulate.ts:677`, guarded on `burnoutV === 0 && t >= burnout`
    where `burnout` is `burnoutTime(motors)`, a `max` over every lit motor. **The trap:** that same
    `burnoutV === 0` guard doubles as the SUMMARY latch two lines below, so emitting per-stage burnouts
@@ -177,15 +221,7 @@ It must print `imports every design file (35 present)`. **Confirmed this session
    10.43. That gap is the thing no surface names. Smallest visible slice: the `PhaseTable` Burnout column,
    which shows one real cell from today's single event and fills in once the solver change lands.
    `lib/sim/flight.test.ts:466` takes the FIRST burnout by `find` and will quietly change meaning.
-2. **P1's last slice — `DataTable`.** Six bespoke `<table>`s: `MassBreakdown:81`, `ValidationPanel:102`,
-   `MotorSweep:342`, `RocketpyCrossCheck:346`, `GeometryInspector:559`, `ResultsView`'s `PhaseTable`. All
-   six `<thead><tr>` carry a byte-identical class string and all six sit in an `overflow-x-auto` wrapper,
-   so the extraction is mechanical — one increment, not four. **Two traps:** `ValidationPanel` is the only
-   non-uniform one (`min-w-[30rem] border-collapse`, right-aligned cells), so the primitive needs a
-   column-alignment prop and a min-width escape; and `app/docs/validation/page.tsx:259` is a SEVENTH table
-   inside a server route, where a `"use client"` primitive cannot go — size it at six. Sized by
-   `COMPETITION.md` rows 24 and 26; row 26 is new this run and says what the affordances must be.
-3. **The §9 off-scale-type guard is blind.** It greps `text-lg` alone while `text-[10px]` ×22,
-   `text-2xl` ×4 and `text-[9px]` ×3 are live — 29 uses of a seventh, eighth and ninth size passing an
-   assertion that asserts zero. Filed in `BACKLOG.md` with the sites. This is the largest known P-track
-   body of work after `DataTable`.
+2. ~~**P1's last slice — `DataTable`.**~~ *(Shipped in #90. Its two named traps were both
+   real: `ValidationPanel` was the one non-uniform table and needed the min-width escape, and the
+   seventh table in a server route is why the conversion is sized at six.)*
+

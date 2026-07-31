@@ -75,7 +75,7 @@ export default function ValidationPanel({
         <h2 className="text-xl font-medium tracking-tight">
           {external ? "Stated figures vs Loft" : `${toolName} vs Loft`}
         </h2>
-        <span className="text-xs text-zinc-500 dark:text-zinc-400">
+        <span className="text-sm text-zinc-500 dark:text-zinc-400">
           mean abs. error{" "}
           <span className="font-mono text-zinc-700 dark:text-zinc-300">{fmt(report.mape, 1)}%</span>
         </span>
@@ -128,7 +128,7 @@ export default function ValidationPanel({
               const st = convert(c.label, c.stored, c.unit, units);
               return (
                 <span className="text-zinc-500 dark:text-zinc-400">
-                  {fmt(st.v, st.u === "" ? 2 : 1)} <span className="text-[10px]">{st.u}</span>
+                  {fmt(st.v, st.u === "" ? 2 : 1)} <span className="text-xs">{st.u}</span>
                 </span>
               );
             },
@@ -143,7 +143,7 @@ export default function ValidationPanel({
               const si = convert(c.label, c.simulated, c.unit, units);
               return (
                 <>
-                  {fmt(si.v, si.u === "" ? 2 : 1)} <span className="text-[10px]">{si.u}</span>
+                  {fmt(si.v, si.u === "" ? 2 : 1)} <span className="text-xs">{si.u}</span>
                 </>
               );
             },
