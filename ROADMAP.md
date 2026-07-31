@@ -385,7 +385,17 @@ with its tsc or build exit checked.
 **Done when** a flyer can drag a component along the airframe and drop it between two others, the
 station arithmetic of everything aft follows, and the diagram never shows a part overlapping another.
 
-**Size.** 3–5 increments.
+**Increment 3 was a Sev-1 the drag itself created reach to.** Loft takes forebody pressure and wave
+drag from whichever component is a nose cone wherever it sits, and has no term at all for a blunt
+leading face. Measured on `fixtures/demo-quirks.ork`: nudging the nose one place aft leaves apogee at
+1,406.622 m, max velocity at 227.893 m/s and rail exit at 26.023 m/s — every digit identical to the
+streamlined design — while the rocket flies a 66 mm flat disc into the airstream. Only the margin moves.
+A flight that leads with a flat face now says so, names the diameter, and reports the number as
+optimistic; `/docs/limitations` carries it. **0 of the 35 real designs** fire it as imported, which is
+the measurement that makes it a warning about a shape the EDITOR can reach rather than a caveat about
+the corpus.
+
+**Size.** 3–5 increments. **Took 3.**
 
 **The measurement that made this a 3-increment milestone rather than a placement-model rewrite.**
 A top-level part's station is DERIVED, never stored — `flattenRocket` walks each stage's list with a

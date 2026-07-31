@@ -29,7 +29,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { importDesign } from "../ork/import";
 import { runFromDocument, overridesFromStored } from "../sim/run";
-import { flattenRocket } from "../model/geometry";
+import { flattenRocket, leadingFaceDiameter } from "../model/geometry";
 import type { Rocket, RocketComponent } from "../model/types";
 import {
   applyGeometryEdits,
@@ -381,6 +381,23 @@ suite("real-design corpus", () => {
     expect(shapeless, "authored parts built without the dimension that makes them that part").toEqual([]);
     expect(misanchored, "authored parts that did not land immediately behind the part they name").toEqual([]);
   }, 300_000);
+
+  it("finds no real design that leads with anything but a nose cone", async () => {
+    // The denominator behind the blunt-face warning R4's drag made necessary. Loft takes forebody
+    // pressure and wave drag from whichever component is a nose cone wherever it sits, and has no term
+    // at all for a flat leading face — so the warning has to fire on a reordered airframe and must
+    // never fire on a design as a file describes it. This is the half of that claim only the corpus
+    // can hold: a shape the editor can reach and no file produces.
+    const leading: string[] = [];
+    for (const f of files) {
+      const doc = await importDesign(new Uint8Array(readFileSync(f.path)));
+      const face = leadingFaceDiameter(doc.rocket);
+      if (face > 0) leading.push(`${f.name}: ${(face * 1000).toFixed(1)} mm flat face as imported`);
+    }
+    console.log(`leading-face check across ${files.length} design files: ${leading.length} lead with a flat face`);
+    expect(files.length, "no design was read — that branch proves nothing").toBeGreaterThan(20);
+    expect(leading, "a real design that the blunt-face warning would fire on as imported").toEqual([]);
+  });
 
   it("offers a drag only drops that land exactly where the indicator promised", async () => {
     // R4's drag reads `moveSlots` for every place a part can go, draws an indicator at each, and

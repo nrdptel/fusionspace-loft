@@ -19,6 +19,26 @@ big for one pass. Newest first.
   `localStorage` with valid rows through `page.addInitScript` would do it. Filed rather than done on
   2026-07-31: the defect that mattered was that a refusal was invisible, and it no longer is.
 
+- **RESOLVED 2026-07-31 — a reordered airframe that leads with a flat face is now said, and it was a
+  Sev-1 the drag made one gesture away.** Found by the opening fan-out's Sev-1 screen against R4
+  increment 1, reproduced before acting on it. Loft takes forebody pressure and wave drag from
+  whichever component is a nose cone WHEREVER it sits in the stack (`lib/sim/aero.ts`), and has no term
+  at all for a blunt leading face — the same shape of silence as the missing term for a bare mould-line
+  step, and larger, because it is the whole forebody term rather than a correction to it. Measured on
+  `fixtures/demo-quirks.ork`: nudging the nose cone one place aft leaves **apogee 1406.622 m, max
+  velocity 227.893 m/s and rail exit 26.023 m/s — every digit identical** to the streamlined design,
+  while the rocket in the model flies a 66 mm flat disc into the airstream. Only the static margin
+  moves (5.598 → 5.527 cal). Unreachable while the component order came from a file and one drag away
+  once R4 shipped.
+
+  Disclosed rather than refused, for the reason the mould-line step is: a design may legitimately carry
+  no nose cone at all — RASAero states none — so refusing the SHAPE would forbid a geometry rather than
+  describe it. A `warning` rather than a `caution` because the number is optimistic by an amount Loft
+  cannot state. Pinned by `lib/model/geometry.ts`'s `leadingFaceDiameter`, a `lib/sim/flight.test.ts`
+  case that asserts the published numbers did NOT move (which is what makes the warning necessary
+  rather than decorative), and a corpus sweep confirming **0 of the 35 real designs** would fire it as
+  imported. On `/docs/limitations`.
+
 - **The "Loft" wordmark link is 43x32 px on every phone width, and always has been.** Measured
   2026-07-31 on the built export at 320, 360 and 390 px: the header's three action controls all clear
   44 px, and the wordmark link beside them — which is the way home from every docs page — is 32 px
