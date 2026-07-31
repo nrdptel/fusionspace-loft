@@ -327,9 +327,9 @@ function swapInfoFor(doc: OrkDocument, simIndex: number): SwapInfo | null {
   // Which casing to offer swaps at, and who made the design's motor. RockSim and RASAero state no
   // casing at all, which used to leave this 0 and withhold both surfaces from every design they
   // write; see `designMotorIdentity` for what stands in and what deliberately does not.
-  const { casingMm: diaMm, manufacturer: designManufacturer } = designMotorIdentity(motor);
+  const { casingMm: diaMm, manufacturer: designManufacturer, resolves } = designMotorIdentity(motor);
   if (!(diaMm > 0)) return null;
-  return { designMotor: motor.designation, designManufacturer, options: swapOptions(diaMm) };
+  return { designMotor: motor.designation, designManufacturer, designMotorFlies: resolves, options: swapOptions(diaMm) };
 }
 
 /** Same-diameter bundled motors the design could fly, with the design's own motor as the default.
@@ -339,6 +339,10 @@ interface SwapInfo {
   /** The design motor's manufacturer as the catalog spells it, set only when the motor matched
    *  exactly — what tells an Estes C6 from a Quest C6 when the sweep marks the design's own row. */
   designManufacturer?: string;
+  /** Whether the design's own motor resolves to a bundled curve — i.e. whether this design flies at
+   *  all. The copy describing the offered list claims a casing "this design already flies", which is
+   *  false on a design whose motor was never matched. */
+  designMotorFlies: boolean;
   options: SwapOption[];
 }
 
@@ -1489,6 +1493,7 @@ export default function LoftApp() {
               swapOptions={swapInfo?.options}
               designMotor={swapInfo?.designMotor}
               designManufacturer={swapInfo?.designManufacturer}
+              designMotorFlies={swapInfo?.designMotorFlies}
               onEditGeometry={applyEdit}
               // A pick re-aims the fields that describe THAT kind of part and leaves the rest alone.
               // The routing lives in the edit model rather than here, so the panel that reports the

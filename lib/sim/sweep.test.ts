@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { importOrk } from "../ork/import";
 import { runFlight, overridesFromStored } from "./run";
-import { motorSweep, parameterSweep, linRange, type SweepMotor } from "./sweep";
+import { ballisticGap, motorSweep, parameterSweep, linRange, type SweepMotor } from "./sweep";
 import { allMotors } from "../motors/db";
 import { designMotorIdentity, swapOptions } from "../motors/swap";
 import { primaryFinSpan, primaryFinRootChord, primaryFinTipChord, primaryFinThickness, primaryFinStation, primaryBodyTube } from "../model/edit";
@@ -391,5 +391,35 @@ describe("parameterSweep", () => {
     });
     expect(pts).toHaveLength(1);
     expect(pts[0].x).toBeCloseTo(span, 9);
+  });
+});
+
+
+describe("ballisticGap — the DESIGN row against the flight one tab away", () => {
+  it("says nothing when the design's row IS the flight the flyer read", () => {
+    // Every row is ballistic, so the design's own row differs a little on any design that carries
+    // recovery mass. That is the method, not a discrepancy, and naming it every time would make the
+    // notice boilerplate — which is how a real signal gets ignored.
+    expect(ballisticGap(1000, 1000)).toBeNull();
+    expect(ballisticGap(1020, 1000)).toBeNull();
+    expect(ballisticGap(960, 1000)).toBeNull();
+    // Exactly on the threshold is still silence; past it is not.
+    expect(ballisticGap(1050, 1000)).toBeNull();
+    expect(ballisticGap(1051, 1000)).not.toBeNull();
+  });
+
+  it("names both numbers when the design deploys before apogee and the two are different flights", () => {
+    // The measured case: the bundled USLI airframe's row reads 1,888 m against a flight of 342 m.
+    expect(ballisticGap(1888, 342)).toEqual({ sweep: 1888, flown: 342 });
+    // Symmetric — a design flying HIGHER than its row is just as much a disagreement on screen.
+    expect(ballisticGap(500, 1000)).toEqual({ sweep: 500, flown: 1000 });
+  });
+
+  it("says nothing rather than dividing by a number it does not have", () => {
+    expect(ballisticGap(undefined, 342)).toBeNull();
+    expect(ballisticGap(1888, undefined)).toBeNull();
+    expect(ballisticGap(1888, 0)).toBeNull();
+    expect(ballisticGap(Number.NaN, 342)).toBeNull();
+    expect(ballisticGap(1888, Number.NaN)).toBeNull();
   });
 });
