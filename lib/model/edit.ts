@@ -1741,7 +1741,7 @@ export function moveTarget(rocket: Rocket, id: string, dir: -1 | 1): MovedPart |
  *  1,481.8 m to 2,299.2 m — a 55% GAIN from a stage that can never fire. An input that cannot mean
  *  anything physically is refused rather than flown into a confident number. 2 of the 35 real designs
  *  are in that state, and on those the gesture is not offered at all. */
-function buildStage(rocket: Rocket, entry: AddedStage): { stage: Stage; mountId: string } | null {
+function buildStage(rocket: Rocket, entry: AddedStage): { stage: Stage; mountId: string; srcMountId: string } | null {
   const tubes = flattenRocket(rocket).filter((p) => p.component.kind === "bodytube");
   if (!tubes.length) return null;
   const src = tubes.reduce((best, p) => (p.xFore > best.xFore ? p : best)).component;
@@ -1777,10 +1777,14 @@ function buildStage(rocket: Rocket, entry: AddedStage): { stage: Stage; mountId:
   const inner = children.find((c) => "motorMount" in c && c.motorMount !== undefined);
   const mountId = inner ? inner.id : "motorMount" in seed && seed.motorMount !== undefined ? seed.id : "";
   if (!mountId) return null;
+  // Which mount the SOURCE tube used, so the configuration write can clone that tube's own motor rather
+  // than whichever instance happens to be first.
+  const srcInner = src.children.find((c) => "motorMount" in c && c.motorMount !== undefined);
+  const srcMountId = srcInner ? srcInner.id : src.id;
   // `separationEvent` is left undefined on purpose — that is the serial-staging default (separate when
   // the stage finishes burning), which is what 10 of the corpus's 12 real boosters reduce to, and it is
   // the one a flyer who has just authored a booster means.
-  return { stage: { name: entry.name, components: [seed] }, mountId };
+  return { stage: { name: entry.name, components: [seed] }, mountId, srcMountId };
 }
 
 /** Append the authored booster stages, and give each one a motor in every configuration.
@@ -1789,7 +1793,7 @@ function buildStage(rocket: Rocket, entry: AddedStage): { stage: Stage; mountId:
  *  operation.** A stage separates only if a configuration instance names a mount inside it
  *  (`lib/sim/setup.ts` derives each stage's burn duration from the instances that land in it), so a
  *  booster with a mount and no instance never lights and never drops: measured on the starter, that is
- *  993.642 m falling to 546.813 m — a 45.0% loss — with no separation event and nothing on any surface
+ *  993.642 m falling to 621.158 m — a 37.5% loss — with no separation event and nothing on any surface
  *  saying why. An authored stage that cannot fly is not a stage.
  *
  *  The instance is added to EVERY configuration, not just the one on screen. A design can carry several
@@ -1805,7 +1809,7 @@ function applyAddedStages(rocket: Rocket, addedStages?: readonly AddedStage[]): 
   for (const entry of addedStages) {
     const built = buildStage(out, entry);
     if (!built) continue;
-    const { stage, mountId } = built;
+    const { stage, mountId, srcMountId } = built;
     const stages = [...out.stages, stage];
     const configurations = out.configurations.map((cfg) => {
       if (cfg.instances.some((i) => i.mountId === mountId)) return cfg;
@@ -1813,9 +1817,26 @@ function applyAddedStages(rocket: Rocket, addedStages?: readonly AddedStage[]): 
       // of the 35 real designs carry one. Putting a motor in the booster THERE would make the design
       // fly on a configuration its own file says is empty, which is inventing a flight rather than
       // authoring a stage — so it is left as it is, and it flies nothing with a booster on it too.
-      const from = cfg.instances[0];
+      // Cloned from the instance in the tube the booster was SEEDED from where there is one, and only
+      // then from the first. On a design whose first instance is in an upper stage those are different
+      // motors, and the booster is a copy of the aft airframe: measured on `Three stage low power
+      // rocket.ork`, instance zero puts an A8 in a booster whose own mount flies a B6, and apogee reads
+      // 294.4 m against the 334.2 m the aft mount's motor gives — 11.9% low.
+      const fromSeed = srcMountId ? cfg.instances.find((i) => i.mountId === srcMountId) : undefined;
+      const from = fromSeed ?? cfg.instances[0];
       if (!from) return cfg;
-      return { ...cfg, instances: [...cfg.instances, { ...structuredClone(from), mountId }] };
+      // The IGNITION EVENT is deliberately not carried across, and this is the second half of the
+      // operation. `lib/sim/setup.ts` derives bottom-versus-upper from the stage index, so an event
+      // cloned from a SUSTAINER — `burnout`, on a design that air-starts — lands on the new BOTTOM
+      // stage where it resolves to "never lights". Measured on `02.Two-stage.ork`, that took apogee
+      // from 1377.957 m to 1152.856 m (16.3% DOWN) where letting the trigger derive gives 1548.575 m,
+      // and on `Two stage high power rocket.ork` from 659.262 m to 619.833 m where it should be
+      // 855.457 m. That is the same silent wrong flight the configuration write exists to prevent,
+      // reintroduced by copying one field too many.
+      const { ignitionEvent: _e, ignitionDelay: _d, ...rest } = structuredClone(from);
+      void _e;
+      void _d;
+      return { ...cfg, instances: [...cfg.instances, { ...rest, mountId }] };
     });
     out = { ...out, stages, configurations };
   }
@@ -1825,8 +1846,12 @@ function applyAddedStages(rocket: Rocket, addedStages?: readonly AddedStage[]): 
 /** Whether a booster can be authored on this design at all — the predicate behind the control.
  *
  *  Asked of the same tree the operation runs against, so the button is offered exactly where the
- *  gesture works. It is false where there is no body tube to seed from, and where the aft tube carries
- *  no motor mount to clone: see `buildStage` for the 55% apogee gain that refusal prevents. */
+ *  gesture works — and it must actually be ASKED. Exported and asserted but never called from the UI,
+ *  the control renders on a design the operation refuses, so the click commits an undo step, flips the
+ *  design to edited (which withholds the file's own stored-results comparison) and changes nothing.
+ *
+ *  It is false where there is no body tube to seed from, and where the aft tube carries no motor mount
+ *  to clone: see `buildStage` for the 55% apogee gain that refusal prevents. */
 export function canAddStage(rocket: Rocket): boolean {
   return buildStage(rocket, { seedId: "probe", mountId: "probe-mount", name: "probe" }) !== null;
 }

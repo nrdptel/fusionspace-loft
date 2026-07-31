@@ -3764,7 +3764,7 @@ test.describe("Loft", () => {
     // R5's *done when*, walked in the app. The starter is single-stage, so this is the whole gesture:
     // a booster appears below the design, seeded from its own aft airframe, and the flight becomes a
     // staged one — which means an instance in every configuration, without which the stage never
-    // lights, never drops, and costs the design 45% of its apogee in silence.
+    // lights, never drops, and costs the design 37.5% of its apogee in silence.
     await page.goto("/");
     await page.getByRole("button", { name: "Start a new design" }).click();
     await expect(page.getByRole("heading", { name: "Design geometry" })).toBeVisible({ timeout: 15000 });
@@ -3804,6 +3804,89 @@ test.describe("Loft", () => {
     await page.getByRole("tab", { name: "Flight" }).click();
     await expect.poll(async () => (await apogee.innerText()).trim(), { timeout: 20000 }).toBe(before);
     await expect(page.getByText(/sheds a spent lower stage/i)).toHaveCount(0);
+  });
+
+  test("authoring a booster withdraws the single-stage-only Analyze tools", async ({ page }) => {
+    // The Analyze tools gated on "is this design staged?" read the PRISTINE stage count, which a booster
+    // in the edit bag never touches — so they stayed offered on a design that had become two stages. The
+    // RocketPy cross-check is the one that then publishes a number: it builds its spec from the EDITED
+    // rocket, and that spec carries a SINGLE motor, folding `motors.length` of them into one coaxial
+    // cluster. Right for a cluster, wrong for serial staging. Measured on the starter with one booster
+    // authored, the spec handed to RocketPy read peak thrust 381.0 N against the real 190.5 N and
+    // propellant 0.1882 kg against 0.0941 kg — both motors burning together from t=0, on a vehicle that
+    // never sheds a stage — under a heading that says "second opinion". The gate now asks the rocket on
+    // screen, so the tools withdraw with the design and come back when the booster does.
+    await page.goto("/");
+    await page.getByRole("button", { name: "Start a new design" }).click();
+    await expect(page.getByRole("heading", { name: "Design geometry" })).toBeVisible({ timeout: 15000 });
+
+    await page.getByRole("tab", { name: "Analyze" }).click();
+    const crossCheck = page.getByRole("region", { name: "RocketPy cross-check" });
+    const sweep = page.getByRole("region", { name: "Parameter sweep" });
+    await expect(crossCheck).toBeVisible({ timeout: 20000 });
+    await expect(sweep).toBeVisible();
+
+    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("button", { name: /Add a booster stage/ }).click();
+    await page.getByRole("tab", { name: "Analyze" }).click();
+    await expect(crossCheck).toHaveCount(0, { timeout: 20000 });
+    await expect(sweep).toHaveCount(0);
+
+    // And back, because a withdrawal that does not reverse is a tool the flyer has lost.
+    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("button", { name: /Remove Booster/ }).click();
+    await page.getByRole("tab", { name: "Analyze" }).click();
+    await expect(crossCheck).toBeVisible({ timeout: 20000 });
+    await expect(sweep).toBeVisible();
+  });
+
+  test("removing a booster takes the aims INSIDE it, not just the ones on its seed tube", async ({ page }) => {
+    // A part authored onto the seed with the add gesture is a SIBLING in the booster's own component
+    // list, not a child of the seed — so clearing aims by naming the seed alone never reached it. A Body
+    // length aimed at such a tube survived the stage removal, fell back to the design's primary tube,
+    // and resized the SUSTAINER: apogee 993.642 m to 1105.598 m on the starter with the field still
+    // reading 400 and no part on screen that long. The whole stage is named now, and the `added` entries
+    // that built those parts go with it rather than lingering as a what-if for a part that is nowhere.
+    await page.goto("/");
+    await page.getByRole("button", { name: "Start a new design" }).click();
+    await expect(page.getByRole("heading", { name: "Design geometry" })).toBeVisible({ timeout: 15000 });
+    await page.locator("summary", { hasText: /Parts ·/ }).click();
+
+    const partsTable = page.locator("table").filter({ hasText: "Dimensions" });
+    const tubes = partsTable.locator("tr").filter({ hasText: /Body tube/ });
+    const rows = () => partsTable.locator("tbody tr").count();
+    const partsBefore = await rows();
+    await expect(tubes).toHaveCount(1);
+    const sustainer = (await tubes.first().innerText()).trim();
+
+    // Author the booster, then a tube INSIDE it, and give that tube a length of its own.
+    await page.getByRole("button", { name: /Add a booster stage/ }).click();
+    await expect(tubes).toHaveCount(2);
+    await tubes.nth(1).click();
+    await page.getByRole("button", { name: /Add a tube behind this/ }).click();
+    await expect(tubes).toHaveCount(3);
+    const bodyLength = page.locator("label").filter({ hasText: /Body length/ }).first().locator("input");
+    await bodyLength.fill("400");
+    await expect(tubes.nth(2)).toContainText(/L 400/);
+    await expect(tubes.nth(0)).not.toContainText(/L 400/);
+
+    // A bare authored tube is now the aft-most one, so `canAddStage` refuses a SECOND booster and the
+    // add control withdraws. The REMOVE control must not withdraw with it — that would make the stage
+    // the flyer just authored unremovable, which is a one-way door built out of a refusal.
+    await expect(page.getByRole("button", { name: /Add a booster stage/ })).toHaveCount(0);
+
+    // Now take the stage back. The sustainer's tube must read exactly what it read before any of this.
+    await page.getByRole("button", { name: /Remove Booster/ }).click();
+    await expect(tubes).toHaveCount(1);
+    await expect.poll(async () => (await tubes.first().innerText()).trim(), { timeout: 20000 }).toBe(sustainer);
+    await expect(tubes.first()).not.toContainText(/L 400/);
+    await expect.poll(rows, { timeout: 20000 }).toBe(partsBefore);
+    // And the design reads as UNEDITED again. This is the assertion that catches the orphaned `added`
+    // entry: the part it built is gone either way (its anchor went with the stage, so it never lands),
+    // so the parts count above cannot see it. What it leaves behind is a live what-if for a component
+    // that is nowhere — the panel keeps its "with your edits" badge and the design goes on withholding
+    // the file's own stored-results comparison, for an edit the flyer has just taken back.
+    await expect(page.getByText("with your edits").first()).toHaveCount(0, { timeout: 20000 });
   });
 
   test("a part at the end of its stage is not offered a move it cannot make", async ({ page }) => {

@@ -11,6 +11,12 @@ itself already called it "the sharpest remaining one-way door". It was counted a
 than as a preemption. **Fixed this run.** The lesson for the next one: run the Sev-1 screen against
 the LEDGER, not against the previous handoff's summary of it.
 
+**And this handoff does not claim zero either — the count is ONE.** It is written out under *Pick up
+first*: an authored booster whose motor mount is then deleted flies as 35.7%-below-pristine dead
+ballast with zero separation events and nothing on any surface saying so. It was found by the review
+of this run's own R5 commit, late enough that filing it honestly beat rushing a fix. Do not restate
+it as zero.
+
 **The queue has two tracks and a run ships from both.** `ROADMAP.md` is the queue; read it first.
 
 | track | state at the end of 2026-07-31 (second session) |
@@ -326,7 +332,8 @@ on the working branch is the record.)*
 | `c3cf389` | **R4 SHIPPED — drag a part along the airframe and drop it between two others.** `moveSlots`, a drop indicator, 484 drop slots driven across all 35 real designs. |
 | `2a061e6` | **Sev-1 — a reordered airframe flying a flat face into the airstream now says so.** Nudging the nose one place aft left apogee, max velocity and rail exit every digit identical while the model flew a 66 mm flat disc. |
 | `c2d5b63` | **P1 increment 5 — off-scale spacing to zero**, plus the three blind spots in the check that measures it, plus three `COMPETITION.md` rows and five corrections to them. |
-| `4a69479` | **R5 increment 1 — a flyer can add a booster stage.** The first edit that writes to `rocket.configurations`; without it the stage never lights and the design loses 45% of its apogee in silence. |
+| `4a69479` | **R5 increment 1 — a flyer can add a booster stage.** The first edit that writes to `rocket.configurations`; without it the stage never lights and the design loses 37.5% of its apogee in silence. |
+| *(this run's last)* | **The review of `4a69479`, acted on after it shipped.** Thirteen findings; six fixed, eight filed. Two of the fixes were wrong numbers on a surface: the RocketPy cross-check folded a booster's motor into a coaxial cluster (381.0 N against the real 190.5 N), and removing a booster resized the SUSTAINER (993.642 → 1105.598 m). Plus a false figure that had been published in six places. |
 
 **The previous handoff's "Sev-1 count is zero" was wrong** — see the top of this file. **Two Sev-1s were
 found and fixed this run**, and both were in the ledger or one gesture from it rather than in the code
@@ -501,14 +508,25 @@ did too, having done so for some time.
 chunk holding it 404s there. Everything below is on the working branch and in **pull request #82**,
 verified and pending a merge. Under SHIPPED-MEANS-REACHABLE none of it has shipped yet.
 
-**Three checks that could not fail were found and fixed**, which is the finding this run would keep if
-it could keep only one: the phone horizontal-overflow e2e compared against a viewport width the
-emulator inflates to absorb the overflow; a clear-on-load assertion ran after the state it tested had
-already been cleaned up; and the §9 spacing grep has three blind spots holding 118 values.
+**Four checks that could not fail were found**, which is the finding this run would keep if it could
+keep only one: the phone horizontal-overflow e2e compared against a viewport width the emulator
+inflates to absorb the overflow; a clear-on-load assertion ran after the state it tested had already
+been cleaned up; the corpus's booster-separation assertion used `some(e => e.type === "separation")`,
+which a design's PRE-EXISTING separation satisfies, so on the 9 multi-stage designs it was structurally
+blind to the defect it existed to catch; and the §9 spacing grep has three blind spots holding 118
+values. Three fixed, the last filed.
+
+**And a refusal that was exported, unit tested and swept across all 35 corpus designs was never asked
+by the UI.** `canAddStage` had three proofs and no caller, so on the 2 designs it refuses the button
+rendered anyway and a click committed an undo step, flipped the design to edited — which withholds the
+file's own stored-results comparison — and changed nothing. **A guard is not a guard until a caller
+asks it, and no amount of coverage of the guard itself will tell you.** The cheap check is to grep for
+the exported name and confirm at least one call site that is not a test.
 
 ## Pick up first
 
-**Take the next slice of each track, in this order.**
+**Take the next slice of each track, in this order** — after the standing Sev-1 above, which preempts
+both by the manual's first criterion and is small.
 
 1. **R5 increment 2 — the PHASE TABLE.** The *done when* asks for "a staged flight whose phase table
    matches what they built" and the flight surface has none: separation is a marker on the altitude
@@ -535,8 +553,23 @@ both with full reproductions and a note on why the obvious fix is wrong:
 A triage agent argued both are Sev-1 by the manual's first criterion. They are the strongest candidates
 the moment nothing else preempts, and the second is on the very surface this run gave an undo to.
 
-**The `BACKLOG.md` Sev-1 count is zero at the end of this run**, and it was NOT zero at the start —
-the previous handoff said it was. Two were found and fixed.
+**The `BACKLOG.md` Sev-1 count is ONE at the end of this run — do not read this as zero.** Four were
+found. Three were fixed (the shelf's one-way delete, the blunt leading face, and the two the R5 review
+turned up: the cross-check's folded motor cluster and the sustainer resized by a booster removal). The
+fourth is filed and is the first thing to pick up:
+
+**An authored booster whose motor mount is then deleted flies as dead ballast and nothing says so.**
+`canAddStage`/`buildStage` refuse a seed with no mount to clone, but that refusal is ADD-TIME ONLY and
+the booster's inner tube is an ordinary removable component. Measured on the starter: booster authored
+reads 1491.464 m with one separation; delete the booster's inner tube and it reads **638.973 m with
+zero separation events** — 35.7% BELOW the 993.642 m the design flew before the booster existed — and
+the only warning on the flight is an unrelated static-margin caution. It is the same class as the
+55%-gain case the add-time refusal exists to prevent, reached from the other direction. Either the
+removal is refused inside an authored stage or the flight says the stage cannot fire; the second is
+better, because it also catches an IMPORTED stage in that state, which nothing checks today.
+
+The full R5 review — all eight open findings with their reproductions — is the top entry in
+`BACKLOG.md`.
 
 ## Environment notes
 

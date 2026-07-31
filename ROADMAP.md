@@ -538,7 +538,7 @@ a stage-level operation and, for the first time, a write to `rocket.configuratio
   carry a fin set, 10 a motor mount and **0 a nose cone** — tube + mount + fins is what a booster is.
 - **A motor goes into EVERY configuration, and that is the operation.** A stage separates only if a
   configuration instance names a mount inside it, so a booster with a mount and no instance never lights
-  and never drops: measured on the starter, 993.642 m falling to **546.813 m, a 45.0% loss**, with no
+  and never drops: measured on the starter, 993.642 m falling to **621.158 m, a 37.5% loss**, with no
   separation event and nothing on any surface saying why. A design can carry five configurations, and a
   booster present on one and missing from another is the same silent loss on whichever the flyer
   switches to.
@@ -546,6 +546,10 @@ a stage-level operation and, for the first time, a write to `rocket.configuratio
   clone, the gesture is not offered at all — because appending one anyway produces a confident wrong
   number in the optimistic direction: measured on `03.Three-stage.ork`, apogee went from 1,481.8 m to
   **2,299.2 m, a 55% GAIN** from a stage that can never fire. 2 of the 35 real designs are in that state.
+  *(`canAddStage` was exported, tested and swept in increment 1 but never asked by the UI, so on those 2
+  designs the control DID render and a click committed an undo step that changed nothing. Wired into
+  `onAddStage` in the review pass below; the sentence above is true from that commit, not from
+  increment 1's.)*
 - **Removal is dropping the entry**, not a `removedIds` list of the booster's parts: the stage exists
   only in the bag, so there is nothing in the pristine design to mark as gone. The aims are cleared the
   same way a component removal clears them.
@@ -556,6 +560,53 @@ that hand-restated the fields — and `structureOf` already picks the structural
 sites now pass the WHOLE bag, and so does `ParameterSweep`'s `axisBase` dependency list. **That closes
 two of the six permanently**: a caller that passes the whole bag cannot be out of date, and a caller
 that spells out fields silently can.
+
+**What the second opinion on increment 1 corrected, after it was already pushed.** Six of thirteen
+findings were fixed in the same run — two of them wrong numbers on a surface a flyer would act on; the
+rest are in `BACKLOG.md` with their measurements. Every figure below was re-derived against the pushed
+code rather than quoted from the review, which is the one lesson the last of them teaches.
+
+- **Sev-1 — the RocketPy cross-check flew a booster as a coaxial cluster and called it a second
+  opinion.** Every Analyze tool gated on "is this design staged?" read `doc.rocket.stages.length`, the
+  stage count of the FILE, which a booster in the edit bag never touches. So the cross-check stayed
+  offered — and it builds its spec from the EDITED rocket, where `buildRocketpySpec` carries a single
+  `motor` and multiplies one curve by `motors.length`. Correct for a cluster; wrong for serial staging.
+  Measured on the starter with one booster authored: peak thrust **190.5 → 381.0 N**, propellant
+  **0.0941 → 0.1882 kg**, burn time unchanged at 1.293 s — two motors firing together from t=0 on a
+  vehicle that never sheds a stage, under a heading whose whole job is to say whether Loft's number can
+  be trusted. The gate now asks the rocket on screen. Pinned by an e2e that withdraws the tools with the
+  booster and gets them back when it goes.
+- **Sev-1 — removing a booster resized the SUSTAINER.** `removeStage` cleared aims by naming the seed
+  tube and its children; a part the flyer authored ONTO the seed is a sibling in that stage's list, not
+  a child, so it was never named. Measured on the starter: author a booster, add a tube inside it, set
+  Body length 400 mm, remove the stage — `bodyTubeId` points at nothing, falls back to the primary tube,
+  and the sustainer's 620 mm tube becomes 400 mm: apogee **993.642 → 1105.598 m (+11.3%)** with the
+  field still reading 400 and no part on screen that long. The whole stage is named now, and the `added`
+  entries that built those parts go with it rather than lingering as an active what-if for a component
+  that is nowhere. Pinned by an e2e.
+
+- **The configuration write cloned one field too many.** `ignitionEvent` carried across from the source
+  instance, so a booster seeded from a design that air-starts inherited `burnout` — and `lib/sim/setup.ts`
+  derives bottom-versus-upper from the STAGE INDEX, where that event resolves to "never lights". Measured
+  on `02.Two-stage.ork`: 1,377.957 m became **1,152.856 m (16.3% DOWN)** where letting the trigger derive
+  gives 1,548.575 m; on `Two stage high power rocket.ork`, 659.262 m became 619.833 m against 855.457 m.
+  That is the same silent wrong flight the configuration write exists to prevent, reintroduced by copying
+  a field. `ignitionEvent` and `ignitionDelay` are now both omitted and the trigger derives.
+- **And it cloned the wrong motor.** `cfg.instances[0]` is the first instance, not the one in the tube the
+  booster was seeded FROM. On `Three stage low power rocket.ork` those are different motors: instance zero
+  puts an A8 in a booster whose own mount flies a B6, and apogee reads 294.4 m against 334.2 m — **11.9%
+  low**. It now prefers the seed tube's own mount's instance and falls back to the first.
+- **The corpus separation assertion could not fail on the 9 multi-stage designs.**
+  `some(e => e.type === "separation")` is satisfied by a separation the design ALREADY had, so it was
+  structurally blind to both defects above. It now compares the count before and after — proved able to
+  fail by restoring the ignition-event clone.
+- **`canAddStage` was never called.** See the refusal bullet above.
+- **A number was wrong in six places.** The no-instance loss was published as *546.813 m, a 45.0% loss*
+  across `edit.ts`, `LoftApp.tsx`, `edit.test.ts`, `sweep.test.ts`, `smoke.spec.ts` and this file. That
+  figure came from a probe of the whole-subtree clone WITHOUT the configuration write — a different
+  rocket from the one that shipped. Re-derived against the shipped code: **621.158 m, a 37.5% loss.**
+  Both halves of the seeding rule reduce the apogee, and quoting a scoping probe as a result of the
+  finished thing double-counted one of them.
 
 **The gap, which is increment 2 rather than a reason to re-open this.**
 
@@ -933,7 +984,10 @@ cheaply instead of re-derived. Newest first.
   direction. Measured on `03.Three-stage.ork`: 1,481.8 m to 2,299.2 m, a 55% gain from a stage that
   cannot burn. Rejected synthesising a mount for it: that invents a component the design does not have,
   in the one place where inventing one changes the flight. 2 of the 35 real designs are affected and on
-  those the control is simply not offered.
+  those the control is simply not offered — true from the review commit that wired `canAddStage` into
+  `onAddStage`, not from the increment that wrote the predicate. **A refusal that is exported, unit
+  tested and swept across the corpus is still not a refusal until a caller asks it**, and every one of
+  those three proofs passed while the button rendered anyway.
 - **2026-07-31 — the shelf's delete is undone by a per-removal offer held in memory, not by a
   confirmation dialog and not by a trash that persists.** Rejected a confirm prompt: it is the cheapest
   thing to build and the worst answer here, because it taxes every correct deletion to catch the rare

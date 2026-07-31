@@ -395,12 +395,21 @@ export default function ResultsView({
   // What the Analyze panels are keyed on: change any of it and a completed run no longer describes
   // the design on screen, so the panel resets rather than showing a stale answer as a current one.
   const dkey = designKey({ loadId, simIndex, configId: run.config.id, ballastKg, recoveryCdScale, motorSwap, geometry });
-  const staged = (doc.rocket.stages?.length ?? 1) > 1;
+  const shownRocket = editing ? applyGeometryEdits(doc.rocket, geometry) : doc.rocket;
+  /** Asked of the EDITED rocket, not the pristine one. R5 made a stage something a flyer can author, so
+   *  `doc.rocket.stages.length` is the count of the stages the FILE came with and a booster added in the
+   *  editor never moves it. Every tool below this line is gated on it, and the cross-check is the one
+   *  that publishes a number: it builds its spec from the edited rocket, where `buildRocketpySpec`
+   *  carries a single `motor` and folds `motors.length` of them into one coaxial cluster — right for a
+   *  cluster and wrong for serial staging. Measured on the starter with one booster authored, the spec
+   *  it handed RocketPy read peak thrust 381.0 N against the real 190.5 N and propellant 0.1882 kg
+   *  against 0.0941 kg, both motors burning together from t=0 on a vehicle that never sheds a stage —
+   *  a wrong number on the one surface whose whole job is to say whether Loft's number can be trusted. */
+  const staged = (shownRocket.stages?.length ?? 1) > 1;
   // The motor sweep flies the bundled candidates itself rather than the design's own configuration,
   // so it is the one Analyze tool that still works when no motor resolved — and on that design it is
   // the most useful one there is.
   const canSweepMotors = !staged && !!swapOptions && swapOptions.length > 1;
-  const shownRocket = editing ? applyGeometryEdits(doc.rocket, geometry) : doc.rocket;
   // A design can state its weight as a whole-assembly override, and a part added INSIDE that
   // assembly then weighs nothing — the override IS the design's statement about the total, so the
   // model is right to hold it. What was wrong is that nothing said so. Measured on a design weighed

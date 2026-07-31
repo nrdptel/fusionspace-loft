@@ -387,7 +387,7 @@ suite("real-design corpus", () => {
     // R5's operation, held across every real airframe rather than the starter's two-part stack. The
     // load-bearing half is the CONFIGURATION write: a stage separates only if a configuration instance
     // names a mount inside it, so a booster with a mount and no instance never lights and never drops —
-    // measured on the starter as a 45% apogee loss with no separation event and nothing said. Designs
+    // measured on the starter as a 37.5% apogee loss with no separation event and nothing said. Designs
     // carry up to five configurations, so an instance added to one and missing from another is the same
     // silent loss on whichever the flyer switches to.
     //
@@ -455,6 +455,8 @@ suite("real-design corpus", () => {
 
       // And it FLIES, with a separation event — the claim the other three exist to support. Only where
       // the design has propulsion at all; a design whose motor Loft cannot resolve has nothing to burn.
+      const pristineRun = runFromDocument(doc, {});
+      const separationsBefore = pristineRun.result.events.filter((e) => e.type === "separation").length;
       const run = runFromDocument({ ...doc, rocket: staged }, {});
       if (run.hasPropulsion) {
         flown++;
@@ -466,8 +468,13 @@ suite("real-design corpus", () => {
         // because a silently excluded case is how a rule stops meaning anything.
         if (run.result.events.some((e) => e.type === "burnout")) {
           burnedOut++;
-          if (run.result.events.some((e) => e.type === "separation")) separated++;
-          else neverSeparated.push(`${f.name}: burned out and did not separate`);
+          // The count must INCREASE, not merely be non-zero. `some(separation)` is satisfied by a
+          // separation the design already had, so on the 9 multi-stage designs it was structurally
+          // blind to the very defect this test exists to catch — a booster whose motor is cloned with a
+          // sustainer's ignition event never lights, and the pre-existing separations still fire.
+          const after = run.result.events.filter((e) => e.type === "separation").length;
+          if (after > separationsBefore) separated++;
+          else neverSeparated.push(`${f.name}: burned out and the separation count did not rise (${separationsBefore} -> ${after})`);
         }
       }
     }
@@ -489,7 +496,9 @@ suite("real-design corpus", () => {
     expect(neverSeparated, "a design that burned out and still did not separate").toEqual([]);
     expect(separated, "no authored booster separated").toBe(burnedOut);
     expect(burnedOut, "no authored booster reached burnout — that branch proves nothing").toBeGreaterThan(20);
-  });
+    // Two full flights per design — the pristine one for its separation count, and the staged one —
+    // so this needs the same explicit budget its neighbours take rather than the 5 s default.
+  }, 300_000);
 
   it("finds no real design that leads with anything but a nose cone", async () => {
     // The denominator behind the blunt-face warning R4's drag made necessary. Loft takes forebody

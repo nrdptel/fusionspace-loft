@@ -12,6 +12,75 @@ this file, and deliberately does **not** cap craft or product work, because that
 track in `ROADMAP.md` with its own *done when*. Rough edges, missing affordances, and findings too
 big for one pass. Newest first.
 
+- **R5 increment 1, reviewed after it shipped: eight findings here, three of them resolved in the same
+  run, one of them a Sev-1 still open.** Every number below was re-derived against the pushed code
+  rather than quoted from the review — which is not a formality: the review's own headline figure was
+  wrong, and the entry that fixed it is in `ROADMAP.md`. The four findings the review called
+  load-bearing, plus the two Sev-1s found while filing these, are written up there. They all share one
+  shape — **the authored stage is a first-class part of the model everywhere except in the code that
+  asks questions about stages** — so they are one entry rather than eight.
+
+  1. **RESOLVED — the Analyze tools gated on the PRISTINE stage count, and the RocketPy cross-check
+     then folded the two motors into one cluster.** `ResultsView.tsx` read `doc.rocket.stages?.length`,
+     which a booster in the edit bag never touches, so `staged` stayed false and the cross-check, the
+     motor sweep and the parameter sweep all stayed offered on a design that was now two stages. The
+     cross-check builds its spec from the EDITED rocket, and `buildRocketpySpec` carries one `motor`: it
+     takes
+     `motors[0]`'s curve and multiplies thrust and both masses by `motors.length`, which is right for a
+     coaxial cluster and wrong for serial staging. Measured on the starter with one booster authored:
+     peak thrust **190.5 N → 381.0 N**, propellant **0.0941 → 0.1882 kg**, burn time unchanged at
+     1.293 s — two motors that should fire in sequence across a separation instead fire together at t=0
+     on a vehicle that never sheds a stage. That is a wrong number on the one surface whose entire job
+     is to tell a flyer whether Loft's number can be trusted. **Fixed 2026-07-31: the gate reads the
+     edited rocket**, so the tools withdraw with the design and return when the booster does, pinned by
+     an e2e. What is NOT fixed is the fold itself — `buildRocketpySpec` still has one `motor` slot and
+     no stage list, so a design IMPORTED as two stages is still outside the cross-check's reach. That
+     is a spec-shape change, and it is the right next slice of it.
+  2. **RESOLVED — removing an authored stage cleared the aims on the seed tube only, so an aim at a
+     part authored INSIDE the booster re-landed on the sustainer.** `LoftApp.tsx:920` built its clear
+     list from `flattenRocket(removableFrom).filter(p => p.component.id === seedId)` — the seed and its
+     children. A tube the flyer then added with the seed as its anchor is a SIBLING in that stage's
+     list, not a child, so it was never named. Measured on the starter: author a booster, add a tube
+     inside it, set Body length to 400 mm (the booster stage then reads `620 / 400`, apogee 1440.144 m),
+     then remove the stage.
+     `bodyTubeId` now points at nothing, falls back to the design's primary tube, and the SUSTAINER's
+     620 mm tube becomes 400 mm — apogee **993.642 → 1105.598 m**, +11.3%, with the Body length field
+     still reading 400 and no part on screen that is 400 mm. Clearing the aim as well gives the correct
+     993.642 m. **Fixed 2026-07-31**: every top-level component of the stage being dropped is named,
+     not just the seed, and finding 3 below went with it. Pinned by an e2e.
+  3. **RESOLVED — removing a stage silently orphaned any part authored onto it.** Same site,
+     `LoftApp.tsx:914`: the `added` entry survived while the component it built vanished from the tree,
+     so it counted as an active what-if — the design still reads as edited, which withholds the file's
+     own stored-results comparison — for a part that is nowhere. Verified: after dropping the entry the
+     authored id was not in the tree and `added` still held it. **Fixed 2026-07-31** in the same commit
+     as 2: the `added` entries whose components live in the stage are dropped with it.
+  4. **SEV-1, OPEN — the mount refusal is add-time only.** `canAddStage`/`buildStage` refuse a seed
+     with no motor mount to clone (`edit.ts:1830`), but nothing re-checks after a removal, and the
+     booster's inner tube is an ordinary removable component. Measured on the starter: booster
+     authored reads 1491.464 m with one separation; delete the booster's inner tube and it reads
+     **638.973 m with zero separation events** —
+     35.7% BELOW the pristine 993.642 m — and the only warning on the flight is an unrelated
+     static-margin caution. The stage is dead ballast and nothing says so. Either the removal is refused
+     inside an authored stage, or the flight says the stage cannot fire.
+  5. **Two stages can end up with the same name.** `LoftApp.tsx:904` takes `n = addedStages.length + 1`,
+     which names by current length rather than by a high-water mark. Add, add, remove the first, add:
+     the labels minted are `["Booster", "Booster 2", "Booster 2"]` and the two live stages are **both
+     "Booster 2"**. It is also a strict-mode violation for any locator that names the stage.
+  6. **Nothing rejects a repeated `seedId` in one bag.** `applyAddedStages` (`edit.ts:1800`) builds each
+     entry independently, so the same entry twice gives **3 stages and 3 duplicate component ids** —
+     seed, mount and fin set each present twice with the same id. Not reachable from the UI today
+     (`newPartId` mints a fresh id per click) but the bag is rehydrated from `localStorage`, which is
+     what makes every other stale-entry case in this model reachable rather than theoretical.
+  7. **`buildStage` clones the source tube's `overrideMass` while stripping the children it was measured
+     over.** Latent rather than live: 5 corpus designs carry an aft-tube override and none of them sets
+     `overrideSubcomponents`, so today the value is the tube's own mass and the clone is right. A design
+     that sets both would give the booster the whole aft assembly's lumped mass over a tube, a mount and
+     a fin set.
+  8. **The two-stage designs in the corpus flew the fix but do not pin it.** The count-based separation
+     assertion catches a booster that never lights; nothing asserts WHICH motor the booster gets, so the
+     seed-mount preference that fixed the 11.9% error on `Three stage low power rocket.ork` rests on one
+     unit case rather than on the sweep.
+
 - **The shelf-restore refusal has no test that drives it through the UI.** `restoreRecent` returning
   null is covered by three unit cases (`lib/session.test.ts`), and the sentence it produces is rendered
   beside the button — but nothing asserts that the sentence appears, because reaching the branch in an

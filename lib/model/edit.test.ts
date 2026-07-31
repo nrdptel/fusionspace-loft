@@ -2581,7 +2581,7 @@ describe("authoring a booster stage", () => {
   it("puts a motor in EVERY configuration, which is what makes the stage separate at all", () => {
     // The whole operation. A stage separates only if a configuration instance names a mount inside it,
     // so a booster with a mount and no instance never lights and never drops — measured on the starter
-    // as 993.642 m falling to 546.813 m, a 45% loss, with no separation event and nothing said.
+    // as 993.642 m falling to 621.158 m, a 37.5% loss, with no separation event and nothing said.
     const { doc, staged, mountId } = withBooster();
     expect(doc.rocket.configurations.length).toBeGreaterThan(0);
     for (const cfg of doc.rocket.configurations) expect(cfg.instances.some((i) => i.mountId === mountId)).toBe(false);

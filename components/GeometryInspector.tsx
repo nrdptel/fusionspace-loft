@@ -479,11 +479,19 @@ export default function GeometryInspector({
             appended below everything already in the stack — which is where a booster goes — and seeded
             from the design's own aft tube, its mount and its fins, so it is a booster of THIS rocket
             rather than a shape Loft chose. */}
-        {onAddStage && (
+        {/* The REMOVE controls are not gated on the add being available, and that separation is
+            load-bearing. `onAddStage` is withheld wherever the operation is refused — a design with no
+            aft motor mount to clone — and the aft-most tube is whatever the flyer last authored, so
+            adding one bare tube to a booster withdraws the add. Rendering the removals inside that gate
+            made a stage a flyer had just authored unremovable: a one-way door built out of a refusal.
+            Caught by the e2e below this comment's own fix, on the very first run. */}
+        {(onAddStage || (addedStages ?? []).length > 0) && (
           <p className="mt-1 flex flex-wrap items-center gap-2 text-sm">
-            <Button onClick={onAddStage} title="Add a booster stage below the design, seeded from its own aft airframe, and re-fly it">
-              <span aria-hidden>+</span> Add a booster stage
-            </Button>
+            {onAddStage && (
+              <Button onClick={onAddStage} title="Add a booster stage below the design, seeded from its own aft airframe, and re-fly it">
+                <span aria-hidden>+</span> Add a booster stage
+              </Button>
+            )}
             {(addedStages ?? []).map((s) => (
               <Button
                 key={s.seedId}

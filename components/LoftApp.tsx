@@ -66,6 +66,7 @@ import {
   hasGeometryEdits,
   primaryParachute,
   defaultPayloadStation,
+  canAddStage,
   type AddedStage,
 } from "@/lib/model/edit";
 import {
@@ -852,10 +853,11 @@ export default function LoftApp() {
     // The WHOLE bag, not a hand-picked three fields: `structureOf` names the structural keys itself,
     // and a call site that restates them goes silently out of date the next time one is added.
     () => (doc ? structureOf(doc.rocket, edits) : null),
-    // `edits.moved` belongs here for the same reason the other two do: this tree is what `moveTarget`
-    // and `movePart` resolve an anchor against, so a memo that did not recompute after a move would
-    // compute the SECOND nudge's anchor from the order before the first one. The lint rule caught it;
-    // the e2e did not, because it walks one move.
+    // The whole bag is the dependency too, for the same reason it is the argument. This tree is what
+    // `moveTarget` and `movePart` resolve an anchor against, so a dep list that named three fields and
+    // missed `moved` computed the SECOND nudge's anchor from the order before the first one — and the
+    // next key added would have repeated it. Naming `edits` cannot go out of date. (The lint rule
+    // caught the `moved` case; the e2e did not, because it walks one move.)
     [doc, edits],
   );
 
@@ -893,7 +895,7 @@ export default function LoftApp() {
    *  every apply from the design as it then stands, which is what makes replaying the bag the whole of
    *  undo. `applyAddedStages` seeds it from the design's own aft tube — that tube, its motor mount and
    *  its fins, and nothing else — and puts a motor in every configuration, without which the stage never
-   *  lights, never drops, and costs the design 45% of its apogee in silence.
+   *  lights, never drops, and costs the design 37.5% of its apogee in silence.
    *
    *  Removal is dropping the entry, not a `removedIds` list of its parts: the stage exists only in the
    *  bag, so there is nothing in the pristine design to mark as gone. The aims are cleared the same way a
@@ -915,13 +917,31 @@ export default function LoftApp() {
     if (!doc || !removableFrom) return;
     const entry = edits.addedStages?.find((s) => s.seedId === seedId);
     if (!entry) return;
-    // Every aim pointing into the stage about to vanish, cleared in the same commit — the seed tube and
-    // everything mounted in it.
-    const inside = flattenRocket(removableFrom).filter((p) => p.component.id === seedId);
+    // Every aim pointing into the stage about to vanish, cleared in the same commit — the WHOLE stage,
+    // not just the seed tube and what is mounted in it. A part the flyer authored onto the seed with the
+    // add gesture is a SIBLING in this stage's own list, not a child of the seed, so naming the seed
+    // alone never reached it: a Body length of 400 mm aimed at such a tube survived the removal, fell
+    // back to the design's primary tube, and took the SUSTAINER's 620 mm tube to 400 mm — apogee 993.642
+    // to 1105.598 m on the starter, with the field still reading 400 and no part on screen that long.
+    const stage = removableFrom.stages.find((s) => s.components.some((c) => c.id === seedId));
     let cleared: Edits = edits;
-    for (const p of inside) cleared = { ...cleared, ...aimsClearedByRemoving(removableFrom, cleared, p.component.id) };
+    for (const c of stage?.components ?? []) cleared = { ...cleared, ...aimsClearedByRemoving(removableFrom, cleared, c.id) };
+    // And the `added` entries that BUILT those parts go with them. Dropping the stage entry alone leaves
+    // an add in the bag whose component is nowhere in the tree — an active what-if, so the design still
+    // reads as edited and withholds the file's own stored-results comparison, for a part that no longer
+    // exists. Same rule as the aims, one level down: what the stage held goes when the stage does.
+    const gone = new Set<string>();
+    const walk = (c: { id: string; children?: readonly { id: string }[] }) => {
+      gone.add(c.id);
+      for (const k of c.children ?? []) walk(k);
+    };
+    for (const c of stage?.components ?? []) walk(c);
     applyEdit(
-      { ...cleared, addedStages: (edits.addedStages ?? []).filter((s) => s.seedId !== seedId) },
+      {
+        ...cleared,
+        added: (edits.added ?? []).filter((a) => !gone.has(a.id)),
+        addedStages: (edits.addedStages ?? []).filter((s) => s.seedId !== seedId),
+      },
       { label: `removing ${entry.name}`, key: `rmstage:${seedId}` },
     );
   };
@@ -1659,7 +1679,7 @@ export default function LoftApp() {
               canMovePart={canMovePart}
               onMovePartTo={movePartTo}
               movePartSlots={movePartSlots}
-              onAddStage={addStage}
+              onAddStage={removableFrom && canAddStage(removableFrom) ? addStage : undefined}
               onRemoveStage={removeStage}
               refuseRemoval={refuseRemoval}
               onSelectPart={(id) => {
