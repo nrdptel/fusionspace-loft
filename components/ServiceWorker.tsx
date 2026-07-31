@@ -2,6 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { TOUCH_TARGET_SQUARE } from "@/lib/ui-tokens";
+import { Button } from "./ui";
+
 /**
  * Registers the service worker (public/sw.js) for offline use, and — because an offline
  * app can otherwise sit on a stale version indefinitely — prompts to refresh when a new
@@ -72,24 +75,29 @@ export default function ServiceWorker() {
         <span className="text-zinc-700 dark:text-zinc-200">
           A new version of Loft is available.
         </span>
-        <button
-          type="button"
+        {/* Both on the primitive. Hand-rolled, they reproduced `Button`'s primary fill character for
+            character while dropping the two things that are not decoration: the focus-visible ring, so
+            the toast's own action was invisible to a keyboard user, and the 44 px touch minimum. The
+            dismiss was the worse of the two — a one-glyph control at roughly 24x28 px, floating over
+            the app, next to a much larger button. `TOUCH_TARGET_SQUARE` is what the parts panel already
+            uses for exactly that shape. */}
+        <Button
+          variant="primary"
           onClick={() => {
             acceptedRef.current = true;
             waitingRef.current?.postMessage({ type: "SKIP_WAITING" });
           }}
-          className="rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-indigo-500"
         >
           Refresh
-        </button>
-        <button
-          type="button"
+        </Button>
+        <Button
+          variant="ghost"
           onClick={() => setUpdateReady(false)}
           aria-label="Dismiss"
-          className="rounded-md px-1.5 py-1 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+          className={TOUCH_TARGET_SQUARE}
         >
-          ✕
-        </button>
+          <span aria-hidden>✕</span>
+        </Button>
       </div>
     </div>
   );

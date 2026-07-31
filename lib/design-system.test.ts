@@ -110,7 +110,7 @@ const BUDGET = {
  *  is closing. What must not happen is a zero silently BECOMING the finished condition. */
 const PRIMITIVE_ADOPTERS: Record<string, number> = {
   Card: 11,
-  Button: 9,
+  Button: 10,
   /** The button geometry as a class, for the two things that must look like a button and cannot BE
    *  one — a `next/link` and an external `<a>`. It is exported from `lib/ui-tokens.ts` rather than
    *  from `components/ui.tsx` because the site header is a SERVER component and cannot call into a
