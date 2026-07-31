@@ -1002,7 +1002,39 @@ at 320, 360 and 390 px with a real design loaded — 14 tiles examined, **0 over
 every width. Worth knowing for the next such change: `e2e/touch.spec.ts`'s overflow check walks the STATIC
 routes only, so no grid that needs a loaded design is covered by it at any width.
 
-**What is left of P1** is `DataTable` alone — sized by `COMPETITION.md` rows 24 and 26. Two findings the type pass turned up are filed in `BACKLOG.md` rather than folded in —
+**Increment 9 built `DataTable`, the last primitive this milestone's *done when* names**, and put the
+three tables that offered NOTHING on it: `ValidationPanel`, `RocketpyCrossCheck` and the phase table.
+That last one is the surface `COMPETITION.md` row 25 calls a lead no competitor has, and its numbers
+could not leave the page at all.
+
+Every table on it gets sort with `aria-sort` and a real `<button>` in the header (so the sort is a
+keyboard path, not a click target), a **sticky header** — which §5 asks for and not one of the six
+hand-rolled tables had — and copy plus CSV export. Walked in the built export: 8 headers, header
+`position: sticky`, `aria-sort` cycling `none → ascending → descending`, the row order actually
+reversing on the second click, and both export controls present.
+
+Three decisions inside it worth not re-deriving:
+
+- **`csv` is a separate function from `cell`.** A cell renders nodes — a unit in its own span, an amber
+  delta, a *not logged* fallback — and an export wants the number. Deriving one from the other puts
+  markup in the CSV or strips meaning from the screen.
+- **`empty` is a required prop, not an optional one.** §5 says a surface with no empty state is not
+  finished and forbids "No data"; making it required is the only way that survives the next call site.
+- **A column with no `sortValue` carries no `aria-sort` attribute at all**, rather than `"none"`.
+  `"none"` tells a screen-reader user the column is sortable and currently unsorted, which is a
+  different and false claim.
+
+It lives in `components/DataTable.tsx` rather than in `components/ui.tsx`, and that is a constraint
+rather than a preference — the same shape as `buttonClass`. It needs `DownloadCsv`/`CopyTable`, and
+`components/DownloadCsv.tsx` imports `Button` from `./ui`, so putting the table in `ui.tsx` makes a
+cycle. §5's "everything below lives in `components/ui.tsx`" now has two exceptions and wants a sentence
+saying so — **filed rather than made, because that file is shared verbatim with the sibling app.**
+
+**What is left of P1**, measured after increment 9: the **three remaining tables** (`MassBreakdown`,
+`MotorSweep`, `GeometryInspector` — each already carries part of the affordance set, which is the
+inconsistency the primitive exists to end) and the **24 hand-rolled `<button>` elements**. A seventh
+table at `app/docs/validation/page.tsx:259` sits in a SERVER route where a `"use client"` primitive
+cannot go, so the conversion is sized at six, not seven. Two findings the type pass turned up are filed in `BACKLOG.md` rather than folded in —
 `text-[11px]` has become a seventh size in exactly the way `text-lg` did (32 uses, 25 of them an
 uppercase label row), and a motor-resolution chip states a verdict at chip size. A third is a hazard
 for whoever takes the `rounded-lg` slice: `app/globals.css` carries a print rule keyed on that class,

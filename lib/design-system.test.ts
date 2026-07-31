@@ -109,6 +109,16 @@ const PRIMITIVE_ADOPTERS: Record<string, number> = {
    *  because a rising number here is not the same win as a rising `Button`: it means a navigation
    *  control stopped hand-copying the geometry, not that a `<button>` was converted. */
   buttonClass: 1,
+  /** `DESIGN.md` §5's table primitive — "every table is this one".
+   *
+   *  It lives in `components/DataTable.tsx` rather than in `components/ui.tsx`, and that is a
+   *  technical constraint rather than a filing preference, the same shape as `buttonClass` above:
+   *  `DataTable` needs `DownloadCsv`/`CopyTable` for its export controls, and `components/DownloadCsv.tsx`
+   *  imports `Button` from `./ui`. Putting the table in `ui.tsx` makes that a cycle
+   *  (`ui → DownloadCsv → ui`). §5 says the vocabulary lives in `ui.tsx`; the wording wants a sentence
+   *  admitting the two exceptions, and that is a change to a file shared verbatim with the sibling
+   *  app, so it is FILED rather than made here. The regex below reads this module for that reason. */
+  DataTable: 3,
   Section: 0,
   Segmented: 1,
   Tabs: 1,
@@ -223,6 +233,14 @@ describe("DESIGN.md §9 — the design system is binding, and this is what check
       // `buttonClass` above. `components/ui.tsx` itself is excluded: `Button` is BUILT from
       // `buttonClass`, and a primitive using its own token is not a surface adopting it.
       const re = /import \{([^}]*)\} from "(?:\.\/ui|@\/components\/ui|@\/lib\/ui-tokens)"/g;
+      // `DataTable` is a DEFAULT export from its own module, so it matches neither the named-import
+      // regex nor the `./ui` path. Counted on its own for the reason recorded beside it above.
+      if (name === "DataTable") {
+        counted[name] = components.filter(
+          (f) => f.path !== "components/DataTable.tsx" && /from "\.\/DataTable"/.test(f.text),
+        ).length;
+        continue;
+      }
       counted[name] = components.filter((f) => {
         if (f.path === "components/ui.tsx") return false;
         return [...f.text.matchAll(re)].some((m) =>
