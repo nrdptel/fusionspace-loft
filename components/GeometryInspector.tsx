@@ -557,7 +557,7 @@ export default function GeometryInspector({
           nose-to-tail order is the default. The mass column is dry structure only; this design&apos;s
           dry mass is {d.q(d.mass(dryTotal, units))}; the motor and any what-if ballast are added on
           top of it at launch and are in the flight&apos;s liftoff mass, not in this column or in the{" "}
-          <em>Mass &amp; balance</em> panel, which breaks the same dry figure down part by part.
+          <em>Mass &amp; balance</em>{" "}panel, which breaks the same dry figure down part by part.
           {unlisted > 1e-6 && (
             <>
               {" "}

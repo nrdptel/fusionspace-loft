@@ -81,7 +81,7 @@ export default async function Validation() {
           <code>√(2mg / ρ·C_d·A)</code>.
         </li>
         <li>
-          A cone nose gives Barrowman&apos;s exact <code>C_Nα = 2</code> and centre of pressure at
+          A cone nose gives Barrowman&apos;s exact <code>C_Nα = 2</code>{" "}and centre of pressure at
           two-thirds of its length; a hollow tube&apos;s mass matches its geometry exactly. A
           conical transition reproduces its hand-computed Barrowman normal force and CP — negative
           (destabilizing) for a boattail — and a point-to-radius transition recovers the cone-nose
@@ -96,7 +96,7 @@ export default async function Validation() {
       <h2>Against the file&apos;s own tool</h2>
       <p>
         A design file you already simulated carries that tool&apos;s own stored flight results — an{" "}
-        <code>.ork</code> carries OpenRocket&apos;s, a <code>.rkt</code> RockSim&apos;s, a{" "}
+        <code>.ork</code>{" "}carries OpenRocket&apos;s, a <code>.rkt</code> RockSim&apos;s, a{" "}
         <code>.CDX1</code> RASAero&apos;s. When you import such a file, Loft flies it under the same
         stored launch conditions and diffs each metric — apogee, velocity, Mach, timings — reporting
         the signed error and the mean absolute percentage error (MAPE). That comparison appears right
@@ -105,9 +105,9 @@ export default async function Validation() {
       </p>
       <p>
         A file&apos;s stored runs are not all the tool&apos;s current answer, and the file says which
-        is which. OpenRocket stamps each simulation with a status: <code>outdated</code> means the run
+        is which. OpenRocket stamps each simulation with a status: <code>outdated</code>{" "}means the run
         predates the design&apos;s last edit, so it describes an earlier version of the rocket, and{" "}
-        <code>notsimulated</code> means the figures are carried in the file for a simulation the tool
+        <code>notsimulated</code>{" "}means the figures are carried in the file for a simulation the tool
         does not consider run. Both are shown — they are still a reference point — but labelled, since
         calling either &ldquo;OpenRocket vs Loft&rdquo; would credit a current prediction to a tool
         that did not make one. This is not a rare edge: across the corpus 11 of 91 stored OpenRocket
@@ -125,11 +125,11 @@ export default async function Validation() {
         honest, like-for-like check.
       </p>
       <p>
-        Many <code>.ork</code> files store more than summary numbers — they carry OpenRocket&apos;s{" "}
-        <em>per-step</em> flight log, the whole trajectory and drag coefficient it computed step by
+        Many <code>.ork</code>{" "}files store more than summary numbers — they carry OpenRocket&apos;s{" "}
+        <em>per-step</em>{" "}flight log, the whole trajectory and drag coefficient it computed step by
         step. When that log is present, Loft overlays its own solver on it directly: altitude versus
         time, and — the interesting one — drag coefficient versus time through the ascent, Loft&apos;s
-        curve against OpenRocket&apos;s. That drag curve is a genuinely <em>independent</em> per-step
+        curve against OpenRocket&apos;s. That drag curve is a genuinely <em>independent</em>{" "}per-step
         oracle from a different engine, not just an endpoint diff, so where the two curves sit apart
         you can see exactly when and where the drag models diverge, rather than inferring it from an
         apogee gap. A deployed parachute&apos;s coefficient (referenced to the body it runs into the
@@ -157,7 +157,7 @@ export default async function Validation() {
         panel something to show — figures that did not even hold together, one claiming a
         2,250&nbsp;m apogee at the same 20.2&nbsp;s time-to-apogee at which Loft reaches
         2,940&nbsp;m, which no ballistic coast does. A demonstration is not worth a number that
-        isn&apos;t true. <strong>Import your own simulated <code>.ork</code> or <code>.rkt</code></strong>{" "}
+        isn&apos;t true. <strong>Import your own simulated <code>.ork</code>{" "}or <code>.rkt</code></strong>{" "}
         and the comparison runs against the numbers your tool actually stored.
       </p>
       <p>
@@ -171,7 +171,7 @@ export default async function Validation() {
       <h3>What the corpus says, metric by metric</h3>
       <p>
         Across the corpus — 35 design files from OpenRocket, RockSim and RASAero, and the{" "}
-        <strong>97 stored simulations</strong> in them that Loft flies completely — this is the
+        <strong>97 stored simulations</strong>{" "}in them that Loft flies completely — this is the
         median absolute disagreement with each file&apos;s own stored result. It includes the cases
         the suite excuses as known issues, so it is the honest picture rather than the flattering
         one:
@@ -217,7 +217,7 @@ export default async function Validation() {
         <strong>trajectory integrator</strong>, the <strong>mass model</strong>, the{" "}
         <strong>off-the-rail velocity</strong>{" "}(the safety-relevant departure speed, resolved at
         the exact rod-length crossing), and — from RocketPy&apos;s own Barrowman solver — the{" "}
-        <strong>centre of pressure</strong> and static margin. It is <em>not</em> an independent drag
+        <strong>centre of pressure</strong> and static margin. It is <em>not</em>{" "}an independent drag
         check; that is what OpenRocket&apos;s stored per-step drag (above) provides. The two oracles
         are complementary: RocketPy pins the flight mechanics, OpenRocket pins the drag.
       </p>
@@ -296,7 +296,7 @@ export default async function Validation() {
         boosting and coasting, friction/pressure/base each within a few percent (Cd ≈ 0.855 near
         burnout) — after Loft was taught to read the fins&apos; square edge cross-section and count
         its leading-edge stagnation and trailing-edge base pressure drag. It also tracks the
-        coast-drag <em>rise</em> as the rocket slows toward apogee — where OpenRocket&apos;s Cd climbs
+        coast-drag <em>rise</em>{" "}as the rocket slows toward apogee — where OpenRocket&apos;s Cd climbs
         to ~0.97 at a few m/s, Loft was earlier stuck near 0.85 (a ~13% under-count) but now lands
         within ~2%, having been corrected to a fully-turbulent boundary layer whose friction climbs
         at low Reynolds number rather than an inappropriate laminar branch. And the base drag now
@@ -322,7 +322,7 @@ export default async function Validation() {
       <p>
         Driving more of OpenRocket&apos;s own example files the same way turned up two drag fixes.
         Its <em>rounded-fin</em> examples (the <em>&ldquo;deployable payload&rdquo;</em> and
-        <em> &ldquo;3D-printable&rdquo;</em> designs) coasted ~18–20% draggier in Loft than in their
+        <em> &ldquo;3D-printable&rdquo;</em>{" "}designs) coasted ~18–20% draggier in Loft than in their
         stored curves, because a rounded fin leading edge was modelled as half a square one; a
         radiused edge in fact attaches the flow with no stagnation face, so its leading edge now
         carries only the compressibility term (like an airfoil), bringing those coasts to within
@@ -334,7 +334,7 @@ export default async function Validation() {
       </p>
       <p>
         Taken together, that example set is a broad accuracy check. Across OpenRocket&apos;s nine
-        bundled example designs — <strong>33 flight configurations</strong> spanning small A-class
+        bundled example designs — <strong>33 flight configurations</strong>{" "}spanning small A-class
         models through J-class high-power, single-stage through three-stage — Loft&apos;s{" "}
         <strong>apogee lands within 10% of OpenRocket&apos;s stored value on every configuration</strong>,
         and within 5% on most (median ~2%). Max velocity agrees just as closely (median ~2%, every
@@ -368,12 +368,12 @@ export default async function Validation() {
         (−2%)</strong>, with the burnout velocity matching to about 1% and the separation, drogue,
         and main all firing in the right order. That example&apos;s second configuration — a
         long-burn AeroTech I59WN booster staging to a fast I357T sustainer — now flies too (both
-        curves are authentic ThrustCurve.org data), landing <strong>within ~1%</strong> of
+        curves are authentic ThrustCurve.org data), landing <strong>within ~1%</strong>{" "}of
         OpenRocket&apos;s stored figure. On the <em>&ldquo;Three stage low power rocket&rdquo;</em>{" "}
-        Loft lands <strong>within ~4%</strong> of OpenRocket&apos;s apogee across all three
+        Loft lands <strong>within ~4%</strong>{" "}of OpenRocket&apos;s apogee across all three
         configurations, reading a little low. Stability tracks too, now that the stages stack into one airframe:
         the loaded centre of gravity matches OpenRocket&apos;s stored value — <strong>1.33&nbsp;m vs
-        1.33&nbsp;m</strong> on the two-stage, within ~3% on the three-stage — and the sustainer&apos;s
+        1.33&nbsp;m</strong>{" "}on the two-stage, within ~3% on the three-stage — and the sustainer&apos;s
         own post-separation margin is reported and flagged if it falls below 1 cal. To reproduce,
         import either OpenRocket example (they ship with OpenRocket, which is GPL, so they
         aren&apos;t bundled here).

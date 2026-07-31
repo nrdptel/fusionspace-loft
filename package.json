@@ -6,7 +6,7 @@
     "dev": "next dev",
     "prebuild": "node scripts/gen-og.mjs && node scripts/pyodide/vendor.mjs",
     "build": "next build",
-    "postbuild": "node scripts/gen-sw-precache.mjs",
+    "postbuild": "node scripts/gen-sw-precache.mjs && node scripts/check-text-gaps.mjs",
     "start": "next start",
     "lint": "eslint .",
     "fetch-fixtures": "node scripts/fetch-fixtures.mjs",

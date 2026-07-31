@@ -99,7 +99,7 @@ export default function ImportPanel({
         </p>
         <p className="mx-auto mt-1 max-w-md text-sm text-zinc-500 dark:text-zinc-400">
           Drop an OpenRocket <code className="font-mono">.ork</code>, RockSim{" "}
-          <code className="font-mono">.rkt</code> or RASAero <code className="font-mono">.CDX1</code>{" "}
+          <code className="font-mono">.rkt</code>{" "}or RASAero <code className="font-mono">.CDX1</code>{" "}
           file here, or choose one. Everything runs in your browser — your design is never uploaded.
         </p>
         <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
@@ -282,7 +282,7 @@ const CAPABILITIES: { title: string; body: React.ReactNode }[] = [
     title: "…and against your own file",
     body: (
       <>
-        An <code className="font-mono">.ork</code> or <code className="font-mono">.rkt</code>{" "}
+        An <code className="font-mono">.ork</code>{" "}or <code className="font-mono">.rkt</code>{" "}
         carries its tool&apos;s own stored simulation. Loft shows its result beside those numbers
         rather than asking you to trust one.
       </>
