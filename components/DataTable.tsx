@@ -69,6 +69,10 @@ export default function DataTable<R>({
    *  needs it: its four columns compress into unreadability before the viewport does. */
   minWidth,
   initialSort,
+  /** A totals row, keyed by column. Rendered in a `<tfoot>` — which is what it is, semantically, and
+   *  which also keeps it OUT of the sort: a dry total that sorted into the middle of the parts it
+   *  totals would be worse than no total at all. Columns absent from the record render empty. */
+  footer,
   empty,
   className,
 }: {
@@ -80,6 +84,7 @@ export default function DataTable<R>({
   exportSuffix?: string;
   minWidth?: string;
   initialSort?: { key: string; dir: 1 | -1 };
+  footer?: Record<string, React.ReactNode>;
   /** `DESIGN.md` §5: a surface with no empty state is not finished, and "No data" is forbidden — say
    *  what would fill it. Required rather than optional for exactly that reason. */
   empty: React.ReactNode;
@@ -195,6 +200,30 @@ export default function DataTable<R>({
               </tr>
             ))}
           </tbody>
+          {footer && (
+            <tfoot>
+              <tr className="border-t border-zinc-300 dark:border-zinc-700">
+                {columns.map((c, k) => {
+                  // The first column is the row's name, the same way `rowHeader` works in the body.
+                  const Cell = k === 0 ? "th" : "td";
+                  return (
+                    <Cell
+                      key={c.key}
+                      scope={k === 0 ? "row" : undefined}
+                      className={cx(
+                        "py-1.5 font-medium text-zinc-900 dark:text-zinc-50",
+                        k === 0 && "text-left",
+                        k < columns.length - 1 && "pr-4",
+                        c.align === "right" && "text-right",
+                      )}
+                    >
+                      {footer[c.key]}
+                    </Cell>
+                  );
+                })}
+              </tr>
+            </tfoot>
+          )}
         </table>
       </div>
       {exportName && csvCols.length > 0 && (

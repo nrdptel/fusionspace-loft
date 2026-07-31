@@ -24,7 +24,7 @@ with both repos attached fixes it in one commit each.
 | track | state |
 |---|---|
 | **R — capability** | **R5 — author a staged rocket — IN PROGRESS**, increments 1–3 shipped. **One clause of its *done when* is left**: "give it its own motor mount and fins" is still INHERITED from the seed rather than authored. That is increment 4 and it is the last thing between R5 and SHIPPED. |
-| **P — product & craft** | **P1 — one design system, adopted — IN PROGRESS**, increments 1–11 shipped. Every §9 count is AT TARGET. What is left of the *done when* is the per-primitive adoption clause: the **three** remaining hand-rolled tables and the **~22** hand-rolled `<button>` elements. |
+| **P — product & craft** | **P1 — one design system, adopted — IN PROGRESS**, increments 1–12 shipped. Every §9 count is AT TARGET. What is left of the *done when* is the per-primitive adoption clause: **two** hand-rolled tables (`MotorSweep`, `GeometryInspector` — both carry custom row behaviour, so neither is mechanical) and the **~22** hand-rolled `<button>` elements. |
 
 ## The arc so far
 
@@ -35,7 +35,7 @@ with both repos attached fixes it in one commit each.
 | R3 — add a component | SHIPPED 2026-07-30 |
 | R4 — reorder and restack | SHIPPED 2026-07-31 |
 | R5 — author a staged rocket | **IN PROGRESS** — inc. 1 (the stage), 2 (the phase table) and 3 (a burnout per stage) shipped; one *done when* clause left |
-| P1 — one design system, adopted | **IN PROGRESS** — increments 1–11 shipped; every §9 count at target; three tables and ~22 buttons left |
+| P1 — one design system, adopted | **IN PROGRESS** — increments 1–12 shipped; every §9 count at target; two tables and ~22 buttons left |
 | P2–P5 | NOT STARTED |
 
 ## Shipped this session (2026-07-31, fourth session of the day)
@@ -49,7 +49,8 @@ one), **922 unit**, build, **182 e2e**, corpus **35 design files, 11/11**. Nothi
 | **#89** | R5 increment 3 — a burnout per stage and the phase table's Burnout column | **MERGED**, `88b689b` |
 | **#90** | P1 increment 9 — `DataTable`, and the three tables that offered nothing put on it | **MERGED**, `36858b9` |
 | **#91** | P1 increment 10 — the type scale to six sizes, and the §9 check that could not see three of them | **MERGED**, `7fded0b` |
-| **#92** | P1 increment 11 — the docs section nav as real touch targets, found by a phone cold walk | **OPEN** — merge on green |
+| **#92** | P1 increment 11 — the docs section nav as real touch targets, found by a phone cold walk | **MERGED**, `e125243` |
+| **#93** | P1 increment 12 — `MassBreakdown` onto `DataTable`, which needed a footer | **OPEN** — merge on green |
 
 **Also merged at session start: #87**, the previous run's two BLOCKERs (`357075e`). It was green on that
 day's `main` and its diff read correctly. Its `bakeMotorSwap` writes the swap into every instance of
@@ -159,6 +160,29 @@ It must print `imports every design file (35 present)`. **Confirmed this session
 - The app has SIX page routes: `/`, `/docs`, `/docs/faq`, `/docs/methods`, `/docs/limitations`,
   `/docs/validation`. `/validation` and `/motors` are 404s.
 
+## The done-check, answered
+
+**What can a flyer DO that they could not before? (R-track)** Read, for every phase of a staged flight,
+**when each stage's motor stopped pushing**. The solver emitted exactly ONE burnout per flight ever —
+the last motor's — so a booster's burnout, the event that causes the separation right after it, existed
+on no surface. It is now a column on the phase table. Where it is a genuinely new number rather than a
+restatement of the separation time is the `ejection` staging rule: `Complex.Two-Stage.CDX1` stops
+pushing at 2.40 s and comes apart at **4.40 s**, a two-second gap nothing named before.
+
+**What is measurably better? (P-track)** Nine numbers, each of them a count that moved:
+
+| | before | after |
+|---|---|---|
+| off-system radius (`DESIGN.md` §2) | 15 (49 at milestone start) | **0** |
+| off-scale type sizes | 29, under an assertion asserting 0 | **0** |
+| text under 3:1 on a dark-theme printed sheet | **193 of 369** | **0** |
+| tables with no sort, copy or export | 3 of 6 | **0 of 6** |
+| tables on the shared primitive | 0 (it did not exist) | **4** |
+| docs section links below the 44 px touch target | 5, on all 6 routes | **0** |
+| `text-lg` / off-scale spacing / inverted type files | 0 / 0 / 0 | unchanged, still 0 |
+| e2e tests | 182 | **187** |
+| corpus assertions | 11 | **12** |
+
 ## What increments 3 and 4 of this session added to the lessons
 
 **A test that passes its own negative control is a finding about the test.** The new
@@ -197,7 +221,13 @@ measured, filed rather than fixed:
 
 ## Pick up first
 
-1. **R5 increment 4 — the last clause of its *done when*.** "Give it its own motor mount and fins" is
+1. **R5 increment 4 — the last clause of its *done when*, and it is 2–3 increments, not one.** It was
+   scoped in depth this run rather than started, because the scope found five hazards and two are
+   Sev-1-shaped. **`ROADMAP.md`'s R5 section now carries all five with file:line** — read that before
+   writing any code. The load-bearing one: `applyAddedStages` runs BEFORE `applyAdds`, and
+   `stageSeedBase` never sees `edits.added`, so a mount a flyer authors onto the aft tube is invisible
+   to `buildStage` — the gesture would appear to work and change nothing on exactly the 2 designs it
+   exists for. The short version of the original note follows. "Give it its own motor mount and fins" is
    inherited from the seed rather than authored: there is no `AddedPart.kind` for a motor mount, so a
    booster cannot be given one it did not inherit — which is also why the operation is REFUSED outright
    on the 2 real designs whose aft tube carries no mount. `buildAdded`'s `never` default in

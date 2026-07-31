@@ -110,7 +110,7 @@ const BUDGET = {
  *  is closing. What must not happen is a zero silently BECOMING the finished condition. */
 const PRIMITIVE_ADOPTERS: Record<string, number> = {
   Card: 11,
-  Button: 9,
+  Button: 10,
   /** The button geometry as a class, for the two things that must look like a button and cannot BE
    *  one — a `next/link` and an external `<a>`. It is exported from `lib/ui-tokens.ts` rather than
    *  from `components/ui.tsx` because the site header is a SERVER component and cannot call into a
@@ -127,7 +127,7 @@ const PRIMITIVE_ADOPTERS: Record<string, number> = {
    *  (`ui → DownloadCsv → ui`). §5 says the vocabulary lives in `ui.tsx`; the wording wants a sentence
    *  admitting the two exceptions, and that is a change to a file shared verbatim with the sibling
    *  app, so it is FILED rather than made here. The regex below reads this module for that reason. */
-  DataTable: 3,
+  DataTable: 4,
   Section: 0,
   Segmented: 1,
   Tabs: 1,
