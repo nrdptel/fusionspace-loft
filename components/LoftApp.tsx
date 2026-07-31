@@ -83,7 +83,9 @@ import {
   type History,
 } from "@/lib/model/history";
 import type { SurfaceFinish, NoseShape, FinCrossSection } from "@/lib/model/types";
-import { designMotorIdentity, swapOptions, swapStillOffered, type SwapOption } from "@/lib/motors/swap";
+import { designMotorIdentity, swapOptions, swapStillOffered, type SwapOption,
+  bakeMotorSwap,
+} from "@/lib/motors/swap";
 import { defaultConditions, type ConditionOverrides } from "@/lib/sim/setup";
 import { fetchConditions, geocode, type WeatherConditions } from "@/lib/weather";
 import {
@@ -412,9 +414,15 @@ export default function LoftApp() {
    *  `compute` alone, and a stale closure here would re-shelve a design that is no longer open. */
   const shelfRowId = useRef<string | null>(null);
   /** Whether the open design was BUILT here rather than imported. Only a build's shelf row may be
-   *  rewritten: for an imported file the bytes on the shelf are the flyer's own file, and what-ifs on
-   *  top of it are hypotheses rather than the design — which is what the shelf's own caveat says. */
+   *  rewritten, and only a build's motor swap is baked into its export: for an imported file the bytes
+   *  are the flyer's own and a swap on top is a hypothesis, which is what the shelf's caveat says.
+   *
+   *  Held BOTH ways on purpose. The callbacks (`syncShelfRow`, `downloadOrk`) run outside render and
+   *  want the ref, which is always current. The download notice is rendered, and a ref read during
+   *  render does not re-render when it changes — so that path reads state. Setting one without the
+   *  other is the bug this comment exists to prevent. */
   const builtHere = useRef(false);
+  const [builtHereNow, setBuiltHereNow] = useState(false);
   const liveDesign = useRef<{ doc: OrkDocument | null; edits: Edits; name: string }>({
     doc: null,
     edits: {},
@@ -535,6 +543,7 @@ export default function LoftApp() {
       // Cleared for every load; `onNew` sets it back immediately after, which is the only path that
       // produces a design with no file behind it.
       builtHere.current = false;
+      setBuiltHereNow(false);
       const e = resume?.edits ?? {};
       const idx = resume?.simIndex ?? 0;
       // A rename lives outside the file bytes — it is the one edit the session cannot recover by
@@ -765,6 +774,7 @@ export default function LoftApp() {
     const document = newDesign();
     loadDoc(document, "New design", "design", exportOrk(document));
     builtHere.current = true;
+    setBuiltHereNow(true);
   }, [loadDoc]);
 
   // Rename the current design. The name is pure metadata — it doesn't touch the airframe or the
@@ -778,13 +788,42 @@ export default function LoftApp() {
   // Save the current design — built, edited, or imported — as an OpenRocket .ork, entirely in the
   // browser. It re-opens in Loft and, using OpenRocket's own format, in OpenRocket; so a design is
   // durable and portable rather than lost on refresh. Any active what-if edits are baked in.
+  /** What "Download .ork" will leave out of the file, named with its values, or "" when it carries
+   *  everything on screen.
+   *
+   *  The motor is the one that mattered: it is baked in for a design built here, and deliberately not
+   *  for an imported one, where a swap is a hypothesis against the flyer's own file. Ballast and a
+   *  resized canopy are left out on both paths and cannot currently be otherwise — nose ballast is a
+   *  runtime point mass rather than a component, so there is nothing in the model for the exporter to
+   *  write. The FAQ has always said this; it said it two navigations away from this button, which is
+   *  not where a flyer needs to be told. */
+  const downloadOmits = useCallback((): string => {
+    const out: string[] = [];
+    if (edits.motorSwap && !builtHereNow) out.push(`the ${edits.motorSwap.designation} swap`);
+    if (edits.ballastKg) out.push(`${Math.round(edits.ballastKg * 1000)} g of nose ballast`);
+    if (edits.recoveryCdScale && edits.recoveryCdScale !== 1) out.push("the resized canopy");
+    if (!out.length) return "";
+    const list = out.length === 1 ? out[0] : `${out.slice(0, -1).join(", ")} and ${out[out.length - 1]}`;
+    return `Saves the airframe. ${list.charAt(0).toUpperCase()}${list.slice(1)} ${out.length === 1 ? "is" : "are"} not part of the design, so ${out.length === 1 ? "it is" : "they are"} not saved.`;
+  }, [edits, builtHereNow]);
+
   const downloadOrk = useCallback(() => {
     if (!doc) return;
     // Bake in the builder's structural (geometry) edits so the saved airframe matches what's shown.
-    // Transient flight what-ifs (ballast, motor swap, recovery scale, launch conditions) are not
-    // part of the design and are left out.
     const geometry = geometryOf(edits);
-    const rocket = hasGeometryEdits(geometry) ? applyGeometryEdits(doc.rocket, geometry) : doc.rocket;
+    let rocket = hasGeometryEdits(geometry) ? applyGeometryEdits(doc.rocket, geometry) : doc.rocket;
+    // The motor is baked in too, but ONLY for a design built here — and that distinction is the whole
+    // of it. On an imported file a swap is genuinely a hypothesis against a real design, and writing
+    // it into the export would make the saved file disagree with the file the flyer brought. On the
+    // builder path there is no such file: "Swap motor" is the only motor control in the app, so for a
+    // build that dropdown IS the motor picker, and leaving it out saved a rocket nobody designed.
+    //
+    // Measured on the starter across all 15 swaps the picker offers: 7 of them put the saved file more
+    // than 100% away from the screen, and the worst is the dangerous direction — an E16 reads 67.6 m
+    // on screen while the file it wrote flies 993.6 m, +1369%, with the margin quietly moving too.
+    // The format carries it perfectly once it is written: baked in and re-imported, an E16 flies
+    // 67.6 m again.
+    if (builtHere.current) rocket = bakeMotorSwap(rocket, edits.motorSwap);
     const bytes = exportOrk({ ...doc, rocket });
     const base =
       (rocket.name || fileName || "design").replace(/\.[^.]+$/, "").replace(/[^\w.-]+/g, "-") || "design";
@@ -1546,7 +1585,7 @@ export default function LoftApp() {
               <button
                 type="button"
                 onClick={downloadOrk}
-                title="Save this design as an OpenRocket .ork file"
+                title={downloadOmits() || "Save this design as an OpenRocket .ork file"}
                 className={`${HEADER_BUTTON} justify-center ${TOUCH_TARGET_SQUARE}`}
               >
                 <span aria-hidden className="sm:hidden">
@@ -1616,6 +1655,15 @@ export default function LoftApp() {
               size="sm"
             />
           </div>
+
+          {/* Said in visible copy, not only in the download button's `title`. A tooltip is hover-only,
+              which DESIGN.md §8 forbids outright — and this is exactly the kind of thing a flyer needs
+              on a phone, where there is no hover at all. */}
+          {downloadOmits() && (
+            <Card tone="sunken" className="text-sm text-zinc-600 dark:text-zinc-400" role="note">
+              {downloadOmits()}
+            </Card>
+          )}
 
           {restored && (
             // Never restore silently: a design that reappears without saying so is indistinguishable

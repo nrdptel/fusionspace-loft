@@ -330,8 +330,38 @@ big for one pass. Newest first.
   token that is allowed to be body-sized. Filed rather than decided, because it is a `DESIGN.md` change
   and that file is shared with the sibling app.
 
-- **BLOCKER — "Download .ork" silently drops the motor the flyer picked, and the saved rocket flies 48%
-  lower.** Recorded on 2026-07-30 by a cold walk of the from-scratch builder, harvested here from a pull
+- **RESOLVED 2026-07-31 — "Download .ork" dropped the motor the flyer picked, and the damage was an
+  order of magnitude worse than filed.** Treated as a Sev-1: the saved file states a flight the flyer
+  never saw, in the optimistic direction. Measured across all 15 swaps the starter's picker offers,
+  **7 put the saved file more than 100% away from the screen**, and the worst is the dangerous one —
+  an **E16 reads 67.6 m on screen while the file it writes flies 993.6 m, +1369%**, with the margin
+  moving too. The filed −47.5% is real for its own build class but is the mild end of the range.
+
+  **Fixed by baking the swap in on the BUILDER path only** (`bakeMotorSwap`, `lib/motors/swap.ts`),
+  which is the distinction the old entry was reaching for. On an imported file a swap really is a
+  hypothesis against the flyer's own design, and writing it in would make the saved file disagree with
+  the file they brought; on the builder path there is no such file, and "Swap motor" is the only motor
+  control in the app, so for a build that dropdown IS the motor picker. The provenance the old entry
+  said the component does not carry is now `builtHere`, added the same day for the shelf fix.
+  Re-measured after: **all 15 swaps round-trip to within 0.01%.**
+
+  **And what is still left out is now named at the control, in visible copy** — nose ballast and a
+  resized canopy, with their values. Ballast cannot be baked in at all: it is a runtime point mass
+  rather than a component, so there is nothing in the model for the exporter to write. It is said as
+  rendered text rather than a `title`, because a tooltip is hover-only and `DESIGN.md` §8 forbids that
+  outright — which matters most on the phone this tool is meant for.
+
+  **Two figures in the original entry do not reproduce, and one of its claims was wrong.** The
+  "2.45 cal → 2.71 cal" pair is from a different build than its own apogee figures — builds matching
+  1,033 m → 542 m land at 3.83 → 4.54 cal. And "nothing on screen mentions it" is too strong: the FAQ
+  names the exclusions exactly (`app/docs/faq/page.tsx`). The real defect was that it said so two
+  navigations away from the button it applies to.
+
+  Pinned by four cases in `lib/motors/swap.test.ts` and the e2e *a saved build carries the motor you
+  picked, and an import says what it leaves out*, proved able to fail by a negative control.
+
+- **(superseded by the entry above; kept for its reproduction)** "Download .ork" silently dropped the
+  motor the flyer picked, and the saved rocket flew 48% lower. Recorded on 2026-07-30 by a cold walk of the from-scratch builder, harvested here from a pull
   request that was closed rather than merged, and NOT yet fixed. On the builder path "Swap motor" is the
   ONLY motor control — 33 controls enumerated across the app, none other touches the motor or the mount
   — so for a builder that dropdown IS the motor picker, not a what-if. Measured: a 66 mm airframe with

@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { designMotorIdentity, swapStillOffered } from "./swap";
+import { designMotorIdentity, swapStillOffered,
+  bakeMotorSwap,
+} from "./swap";
 import { resolveMotor, allMotors } from "./db";
 
 describe("designMotorIdentity", () => {
@@ -136,5 +138,46 @@ describe("designMotorIdentity — does this design fly at all?", () => {
     const loose = designMotorIdentity({ designation: "H225-14A-8" });
     expect(loose.resolves).toBe(true);
     expect(loose.casingMm).toBe(0);
+  });
+});
+
+describe("baking a motor swap into the design", () => {
+  const rocket = () => ({
+    configurations: [
+      { id: "a", instances: [{ mountId: "m1", motor: { designation: "H128W", manufacturer: "AeroTech", type: "reload" as const, diameter: 0.038, length: 0.2 } }] },
+      { id: "b", instances: [{ mountId: "m1", motor: { designation: "H128W", manufacturer: "AeroTech", type: "reload" as const, diameter: 0.038, length: 0.2 } }] },
+    ],
+  });
+
+  // Before this existed, "Download .ork" wrote the design's own motor whatever the flyer had picked.
+  // Measured on the starter across all 15 swaps the picker offers: 7 put the saved file more than
+  // 100% away from the screen, worst an E16 reading 67.6 m on screen while the file flew 993.6 m.
+  it("writes the picked motor into every configuration", () => {
+    const out = bakeMotorSwap(rocket(), { manufacturer: "Estes", designation: "E16", diameter: 0.024 });
+    for (const c of out.configurations) {
+      expect(c.instances[0].motor.designation).toBe("E16");
+      expect(c.instances[0].motor.manufacturer).toBe("Estes");
+      expect(c.instances[0].motor.diameter).toBe(0.024);
+    }
+  });
+
+  // A design can carry several configurations, and a motor written into one of them is the same
+  // silent divergence in a smaller window — the flyer switches config and the file disagrees again.
+  it("leaves no configuration on the design's own motor", () => {
+    const out = bakeMotorSwap(rocket(), { designation: "E16" });
+    expect(out.configurations.map((c) => c.instances[0].motor.designation)).toEqual(["E16", "E16"]);
+  });
+
+  it("keeps the fields the swap does not state", () => {
+    const out = bakeMotorSwap(rocket(), { designation: "E16" });
+    expect(out.configurations[0].instances[0].motor.manufacturer).toBe("AeroTech");
+    expect(out.configurations[0].instances[0].motor.diameter).toBe(0.038);
+    expect(out.configurations[0].instances[0].motor.length).toBe(0.2);
+    expect(out.configurations[0].instances[0].mountId).toBe("m1");
+  });
+
+  it("returns the design untouched when nothing was swapped", () => {
+    const r = rocket();
+    expect(bakeMotorSwap(r, undefined)).toBe(r);
   });
 });
