@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { Tabs } from "./ui";
+import { Card, Tabs } from "./ui";
 import type { FlightRun } from "@/lib/sim/run";
 import type { ConditionOverrides } from "@/lib/sim/setup";
 import type { ConditionsSource } from "@/lib/what-if";
@@ -116,13 +116,10 @@ const COLORS = {
  *  isn't there reads as a missing feature rather than a modelling limit. */
 function ToolUnavailable({ title, reason }: { title: string; reason: string }) {
   return (
-    <section
-      aria-label={`${title} unavailable`}
-      className="rounded-xl border border-dashed border-zinc-300 bg-zinc-50 p-4 text-sm text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900/40 dark:text-zinc-400"
-    >
+    <Card as="section" tone="muted" aria-label={`${title} unavailable`} className="text-sm">
       <h2 className="text-base font-semibold tracking-tight text-zinc-700 dark:text-zinc-300">{title}</h2>
       <p className="mt-1.5">{reason}</p>
-    </section>
+    </Card>
   );
 }
 
@@ -497,12 +494,12 @@ export default function ResultsView({
       </section>
 
       {/* Flight path */}
-      <section aria-label="Flight path" className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900/40">
+      <Card as="section" aria-label="Flight path">
         <h2 className="text-lg font-semibold tracking-tight">Flight path</h2>
         <div className="mt-3">
           <FlightViz result={r} units={units} />
         </div>
-      </section>
+      </Card>
 
       {/* Plots */}
       <section aria-label="Plots" className="space-y-6">
@@ -686,10 +683,7 @@ export default function ResultsView({
 
         {/* Why the metric-by-metric stored comparison is withheld for a design Loft flew reduced. */}
         {doc.flownAsReduced && doc.simulations.some((sim) => sim.hasResults) && (
-          <section
-            aria-label="Comparison withheld"
-            className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-800 dark:text-amber-200"
-          >
+          <Card as="section" tone="warn" aria-label="Comparison withheld" className="text-sm">
             <h2 className="text-base font-semibold tracking-tight">{toolName} comparison withheld</h2>
             <p className="mt-1.5">
               This design contains something Loft flew in simplified form — staging, pods, parallel
@@ -699,7 +693,7 @@ export default function ResultsView({
               would misstate the engine&apos;s accuracy, so the metric-by-metric comparison is
               withheld — import a design Loft flies complete for a like-for-like check.
             </p>
-          </section>
+          </Card>
         )}
       </>)}
       </div>
@@ -879,10 +873,7 @@ function NoPropulsionNotice({
   const canPickConfig = configChoices(doc).length > 1;
   const casingMm = canSubstitute ? Math.round(swapOptions![0].diameter * 1000) : 0;
   return (
-    <section
-      aria-label="No flight simulated"
-      className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-red-800 dark:text-red-200"
-    >
+    <Card as="section" tone="danger" aria-label="No flight simulated">
       <h2 className="text-lg font-semibold tracking-tight">No flight simulated</h2>
       {hasInstances ? (
         <>
@@ -936,7 +927,7 @@ function NoPropulsionNotice({
         {!canSubstitute && canPickConfig ? ", or pick a configuration whose motor is in the set" : ""}. The rocket
         geometry and stability below are computed independently and remain valid.
       </p>
-    </section>
+    </Card>
   );
 }
 
@@ -971,7 +962,7 @@ function RocketSummary({
   const length = overallLength(rocket);
   const dia = r.stability.refRadius * 2;
   return (
-    <section className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900/40">
+    <Card as="section">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="text-lg font-semibold tracking-tight">{doc.rocket.name}</h2>
         <span className="text-xs text-zinc-500 dark:text-zinc-400">
@@ -1042,7 +1033,7 @@ function RocketSummary({
 
       <StabilityTrimHint run={run} rocket={rocket} units={units} />
       <FlutterFixHint run={run} doc={doc} units={units} geometry={geometry} />
-    </section>
+    </Card>
   );
 }
 
@@ -1355,11 +1346,7 @@ function WhatIfDelta({ run, baseline, units }: { run: FlightRun; baseline: Fligh
   ];
 
   return (
-    <div
-      role="group"
-      aria-label="What-if vs design"
-      className="mt-3 rounded-xl border border-indigo-500/30 bg-indigo-500/5 p-4 dark:bg-indigo-500/10"
-    >
+    <Card role="group" aria-label="What-if vs design" tone="accent" className="mt-3">
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
         <h3 className="text-sm font-semibold tracking-tight text-zinc-800 dark:text-zinc-100">
           What-if vs design
@@ -1387,16 +1374,16 @@ function WhatIfDelta({ run, baseline, units }: { run: FlightRun; baseline: Fligh
           </div>
         ))}
       </dl>
-    </div>
+    </Card>
   );
 }
 
 function Plot({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900/40">
+    <Card>
       <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">{title}</h3>
       <div className="mt-2 overflow-x-auto">{children}</div>
-    </div>
+    </Card>
   );
 }
 

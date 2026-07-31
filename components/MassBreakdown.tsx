@@ -7,6 +7,7 @@ import type { CsvCell } from "@/lib/csv";
 import DownloadCsv, { CopyTable } from "./DownloadCsv";
 import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
+import { Card } from "./ui";
 
 const round = (n: number, dp: number) => (Number.isFinite(n) ? Math.round(n * 10 ** dp) / 10 ** dp : "");
 
@@ -63,7 +64,7 @@ export default function MassBreakdown({
   ];
 
   return (
-    <details className="group rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900/40">
+    <Card as="details" pad={false} className="group">
       <summary className="flex cursor-pointer select-none items-center justify-between px-4 py-3 text-sm font-medium text-zinc-700 dark:text-zinc-300">
         <span className="flex items-center gap-2">
           Mass &amp; balance · dry {d.q(d.mass(total.mass, units))}
@@ -147,6 +148,6 @@ export default function MassBreakdown({
           <CopyTable rows={csv} />
         </div>
       </div>
-    </details>
+    </Card>
   );
 }

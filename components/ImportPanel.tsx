@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 
 import { TOUCH_TARGET, TOUCH_TARGET_SQUARE } from "@/lib/ui-tokens";
 import { countWhatIfs, type RecentDesign, type SavedSession } from "@/lib/session";
+import { Card } from "./ui";
 
 /** The import surface: a large drop zone / file picker for an OpenRocket `.ork`, RockSim
  *  `.rkt` or RASAero `.CDX1`, plus one-tap buttons to load the bundled sample designs so the tool is usable before
@@ -44,7 +45,7 @@ export default function ImportPanel({
           a flyer who has just lost their work is not looking for a file picker, and it names what it
           is holding rather than making them press it to find out. */}
       {discarded && (
-        <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-indigo-300 bg-indigo-50 px-4 py-3 dark:border-indigo-500/40 dark:bg-indigo-500/10">
+        <Card tone="accent" className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2">
           <p className="min-w-0 flex-1 text-sm text-zinc-700 dark:text-zinc-200">
             You were working on{" "}
             <span className="font-medium text-zinc-900 dark:text-zinc-100">
@@ -68,7 +69,7 @@ export default function ImportPanel({
           >
             Pick it back up
           </button>
-        </div>
+        </Card>
       )}
       <div
         onDragOver={(e) => {

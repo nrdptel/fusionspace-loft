@@ -416,23 +416,60 @@ pinned.
 
 ## P1 — One design system, adopted
 
-**Status:** NOT STARTED — the next P-track milestone.
+**Status:** IN PROGRESS — the current P-track milestone. The container and control vocabulary exists and
+the §9 compliance block is now an executable ratchet (`lib/design-system.test.ts`, 7 cases), so the drift
+cannot return while the conversion is still running.
+
+**Measured at the start of this milestone (2026-07-31), and after increment 1:**
+
+| §9 count | target | before | after inc. 1 |
+|---|---|---|---|
+| `rounded-lg` | 0 | 49 | 46 |
+| distinct card treatments | 1 (see below) | 9 | 3 |
+| off-scale spacing values | 0 | 8 | 8 |
+| components importing `components/ui.tsx` | most of 23 | 5 | 11 |
+| `text-sm` vs `text-xs` | sm > xs | 91 / 88 | 91 / 88 |
+
+**The card target is 3, not 1, and the difference is a decision rather than a shortfall.** One of the
+three is `<Card>`'s own string, which IS the target state. The other two are a floating update toast
+(`shadow-lg`, `components/ServiceWorker.tsx`) and the import drop zone (`border-2 border-dashed`, an
+interactive target rather than a container). Folding either into `Card` would give the primitive a
+`shadow` and a `dashed-2` prop that mean nothing to a card; they want their own named primitives, which
+is a later increment of this milestone rather than a reason to distort this one.
 
 **Outcome.** The app reads as one considered product rather than a collection of surfaces built on
 different days.
 
 **Done when** `DESIGN.md`'s compliance block (§9) runs clean and is **pinned by a test**: zero
-`rounded-lg`, one card treatment rather than twelve, zero off-scale spacing values, `text-sm`
-outnumbering `text-xs`, and every component importing its containers, buttons and fields from
-`components/ui.tsx` rather than hand-rolling them. A flyer sees consistent spacing, one button
-hierarchy, and the same card everywhere.
+`rounded-lg`, **one card treatment plus any named non-card primitive** (see the note below — the honest
+floor is 3, not 1), zero off-scale spacing values, `text-sm` outnumbering `text-xs` **in every component
+file rather than only in the total**, and every component importing its containers, buttons and fields
+from `components/ui.tsx` rather than hand-rolling them — counted **per primitive**, not per file. A
+flyer sees consistent spacing, one button hierarchy, and the same card everywhere.
 
-**Notes.** Not a repaint — an extraction. `components/ui.tsx` exists with 8 exports and 5 of 23
-components use it; `Chip` and `Disclosure` are exported and imported nowhere. The work is to grow it
-into the vocabulary `DESIGN.md` §5 names (`Card`, `Panel`, `Section`, `Button` with its three weights,
-`DataTable`, `Readout`, `Figure`, the five states), then convert surfaces onto it. Convert in slices —
-one surface per increment, each shipped green — never one sweeping diff. **Ship the lint rule or test
-with the first slice**, so the drift cannot return while the conversion is still in progress.
+**Three clauses of that *done when* were sharpened on 2026-07-31, each because the looser version could
+be satisfied without doing the work.** "One card treatment" would have meant folding a floating toast
+and an interactive drop zone into `Card`; "`text-sm` outnumbering `text-xs`" passed by three while nine
+of twenty-three files were individually inverted; and an adoption count by FILE is satisfied for the
+rest of the milestone by adding one more `Card` import while all 43 hand-rolled `<button>` elements stay
+exactly where they are. All three are now asserted the sharpened way in `lib/design-system.test.ts`.
+
+**Notes.** Not a repaint — an extraction. The work is to grow `components/ui.tsx` into the vocabulary
+`DESIGN.md` §5 names (`Card`, `Panel`, `Section`, `Button` with its three weights, `DataTable`,
+`Readout`, `Figure`, the five states), then convert surfaces onto it. Convert in slices — one surface
+per increment, each shipped green — never one sweeping diff. **Ship the lint rule or test with the first
+slice**, so the drift cannot return while the conversion is still in progress. *Done: the ratchet shipped
+with increment 1.*
+
+**What is left, measured rather than estimated.** `Card`, `Section` and `Button` now exist; `Panel`,
+`DataTable`, `Readout`, `Figure`, `EmptyState`, `ErrorState` and `Extrapolated` do not. There are 43
+hand-rolled `<button>` elements and 16 hand-rolled indigo primaries across four different padding
+variants, none of which is §4's `px-3 py-1.5`; `ImportPanel` and `RocketpyCrossCheck` each carry two
+primaries on one surface, which §5 forbids outright. Seven missing primitives plus 23 surface
+conversions is more than this milestone's 4–6 increments, so the slice plan is: **`Button` adoption and
+the double-primaries next, then the type scale, then off-scale spacing, then `DataTable`** — and
+`Panel`, `Readout`, `Figure` and the five state components are deliberately deferred to a successor
+milestone rather than half-built here.
 
 **The measurement that made this a milestone** (2026-07-30): 12+ distinct card treatments; three
 radius values for one role; `text-xs` and `text-sm` disagreeing between the two sibling apps.

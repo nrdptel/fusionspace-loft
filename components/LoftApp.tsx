@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import ImportPanel from "./ImportPanel";
 import ResultsView, { type Workspace } from "./ResultsView";
-import { Segmented } from "./ui";
+import { Card, Segmented } from "./ui";
 import { importDesign, sourceTool, type OrkDocument } from "@/lib/ork/import";
 import { newDesign } from "@/lib/model/starter";
 import { exportOrk } from "@/lib/ork/export";
@@ -2259,7 +2259,7 @@ function ConditionsControls({
   };
 
   return (
-    <details className="group rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900/40">
+    <Card as="details" pad={false} className="group">
       <summary className="flex cursor-pointer select-none items-center justify-between px-4 py-3 text-sm font-medium text-zinc-700 dark:text-zinc-300">
         <span>Conditions {scenario === "today" && weather ? "· today" : "· as designed"}</span>
         <span className="text-xs text-zinc-400 transition group-open:rotate-180">▾</span>
@@ -2385,7 +2385,7 @@ function ConditionsControls({
           )}
         </div>
       </div>
-    </details>
+    </Card>
   );
 }
 

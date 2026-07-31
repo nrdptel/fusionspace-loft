@@ -17,7 +17,7 @@ import DownloadCsv, { CopyTable } from "./DownloadCsv";
 import { TOUCH_TARGET, TOUCH_TARGET_SQUARE } from "@/lib/ui-tokens";
 import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
-import { ClosePanel, useReturnFocus } from "./ui";
+import { Card, ClosePanel, useReturnFocus } from "./ui";
 
 const round = (n: number, dp: number) => (Number.isFinite(n) ? Math.round(n * 10 ** dp) / 10 ** dp : "");
 
@@ -170,10 +170,7 @@ export default function MotorSweep({
   }, [open, designKey, ballisticConditionsKey]);
 
   return (
-    <section
-      aria-label="Motor sweep"
-      className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900/40"
-    >
+    <Card as="section" aria-label="Motor sweep">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="text-lg font-semibold tracking-tight">Compare fitting motors</h2>
         {/* The list is filtered by the CASING the design flies, not by the mount's bore, and the two
@@ -232,7 +229,7 @@ export default function MotorSweep({
           <SweepTable rows={rows} units={units} name={doc.rocket.name} conditions={conditions} />
         </div>
       )}
-    </section>
+    </Card>
   );
 }
 

@@ -12,6 +12,23 @@ this file, and deliberately does **not** cap craft or product work, because that
 track in `ROADMAP.md` with its own *done when*. Rough edges, missing affordances, and findings too
 big for one pass. Newest first.
 
+- **`text-lg` is used 14 times and is not in the type scale at all**, and `font-semibold` 28 times where
+  `DESIGN.md` §3 reserves it for "the one number a surface exists to show". Measured 2026-07-31 with
+  `grep -roh 'text-lg' components app | wc -l` and `grep -roh 'font-semibold' components | wc -l`. Every
+  panel heading in the app is `text-lg font-semibold tracking-tight` — a seventh size sitting between
+  `text-base` and `text-xl`, invented once and copied twelve times. It is P1 work (the type-scale slice)
+  rather than a defect to clear ad hoc: converting them to `text-xl font-medium` is one increment and it
+  moves the section-heading rhythm on every surface at once. Not folded into P1's first increment because
+  that one was containers, and a type change and a container change landing together makes a visual
+  regression impossible to bisect.
+
+- **Two `rounded-xl border…` treatments are not cards and should not be `<Card>`.** `components/ServiceWorker.tsx:71`
+  is a floating update toast (`shadow-lg`) and `components/ImportPanel.tsx:88` is the import drop zone
+  (`border-2 border-dashed p-8`, an interactive target). `DESIGN.md` §9's target of one treatment counts
+  both against `Card`, so the count cannot reach 1 honestly — they want their own named primitives
+  (`Toast`, `DropZone`). Recorded on P1's status line so the target reads 3 rather than looking like a
+  shortfall.
+
 - **The e2e config has no browser-revision guard, so the documented gate command silently tests
   against the wrong Chromium.** Measured 2026-07-30: `@playwright/test` 1.61.1 manages chromium-1228,
   the sandbox's pre-installed `/opt/pw-browsers/chromium` is 1194, and `PW_EXECUTABLE_PATH` — which

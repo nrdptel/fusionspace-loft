@@ -6,6 +6,7 @@ import { storedCaveat } from "@/lib/validation/stored-status";
 import type { UnitSystem } from "@/lib/display";
 import { fmt } from "@/lib/display";
 import { mToFt, mpsToFtps } from "@/lib/units";
+import { Card } from "./ui";
 
 /** Shows Loft's engine against the results the design tool (OpenRocket or RockSim) stored in
  *  the imported design, metric by metric. This is the honest accuracy record: the numbers are
@@ -68,7 +69,7 @@ export default function ValidationPanel({
   storedStatus?: string;
 }) {
   return (
-    <section aria-label="Validation" className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900/40">
+    <Card as="section" aria-label="Validation">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="text-lg font-semibold tracking-tight">
           {external ? "Stated figures vs Loft" : `${toolName} vs Loft`}
@@ -131,6 +132,6 @@ export default function ValidationPanel({
           </tbody>
         </table>
       </div>
-    </section>
+    </Card>
   );
 }

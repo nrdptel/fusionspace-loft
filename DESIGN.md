@@ -250,21 +250,44 @@ adjectives.
 grep -roh 'rounded-lg' components app | wc -l                      # target: 0
 
 # card treatments hand-rolled instead of <Card>
-grep -roh 'rounded-xl border[a-z0-9 /-]*' components | sort -u | wc -l   # target: 1
+grep -roh 'rounded-xl border[a-z0-9 /-]*' components | sort -u | wc -l   # target: 1 (+ any named
+                                                                        # non-card primitive, see below)
 
 # off-scale spacing
 grep -roh '\b[pmg][xytblr]\?-\(5\|7\|9\|10\|11\|14\)\b' components app | wc -l   # target: 0
 
-# decision-grade text at caption size — xs should be the minority
+# decision-grade text at caption size — xs should be the minority, PER FILE and overall
 grep -roh 'text-xs' components | wc -l
 grep -roh 'text-sm' components | wc -l                             # sm > xs
+for f in components/*.tsx; do xs=$(grep -oh 'text-xs' "$f" | wc -l); \
+  sm=$(grep -oh 'text-sm' "$f" | wc -l); [ "$xs" -gt "$sm" ] && echo "$f $xs/$sm"; done | wc -l
+                                                                   # target: 0 inverted files
 
 # primitives actually adopted
-grep -rl "from './ui'" components | wc -l                          # target: most components
+grep -rl 'from "./ui"' components | wc -l                          # target: most components
 ```
 
+**The per-file line is not decoration, and the suite total hid what it catches.** Measured 2026-07-31:
+88 `text-xs` against 91 `text-sm` passes `sm > xs` by three — while **9 of 23 component files are
+individually inverted**, `GeometryInspector` at 9:2 and `MonteCarlo` at 9:4. A global ratio that passes
+by a hair while the surfaces a flyer reads numbers on sit at caption size is exactly the Debrief
+inversion §3 was written to prevent, so the file-level count is the one that means something.
+
+**The adoption grep used to be written with single quotes** (`from './ui'`) and every import in the repo
+is double-quoted, so it answered **0** whether adoption was 0% or 100% — for as long as this file has
+existed. Corrected 2026-07-31. A compliance command that cannot fail is worse than none, because a
+session runs it, sees the target, and moves on.
+
 **Pin what you fix.** A drift you correct without a check comes back. The suite-level target is that
-these counts are asserted by a test, not re-measured by hand each run.
+these counts are asserted by a test, not re-measured by hand each run — and in Loft they now are:
+`lib/design-system.test.ts` is the executable copy of this block, with each count an EXACT ratchet so
+that an improvement and a regression both fail until the number is updated in the same commit as the
+work. Neither file may drift from the other.
+
+**Where the card target is not 1, say so rather than quietly missing it.** A treatment that matches the
+grep but is genuinely not a card — a floating toast that needs elevation, an interactive drop zone —
+gets its own named primitive rather than a `shadow` prop on `Card`. Record the honest floor and what
+each remaining string is, on the milestone that owns the conversion.
 
 ---
 

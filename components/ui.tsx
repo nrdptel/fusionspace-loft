@@ -10,6 +10,152 @@ export interface Option<T extends string> {
   label: string;
 }
 
+/** Join class strings, dropping the empty ones so a caller can pass `undefined` without a stray space. */
+function cx(...parts: (string | false | null | undefined)[]): string {
+  return parts.filter(Boolean).join(" ");
+}
+
+/** The tones a container is allowed to take — `DESIGN.md` §2. Each says something; none is decoration.
+ *
+ *  Measured on 2026-07-31 before this existed: nine distinct `rounded-xl border…` strings across
+ *  `components/`, of which twelve occurrences were the same neutral card written two ways (with and
+ *  without its padding) and the rest were these four meanings spelled out inline at one site each. */
+const CARD_TONES = {
+  /** The default raised container. */
+  default: "border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900",
+  /** The one thing this surface is pointing at — a design being offered back, a what-if against its design. */
+  accent: "border-indigo-500/30 bg-indigo-500/5 dark:border-indigo-500/40 dark:bg-indigo-500/10",
+  /** An estimate outside its envelope, an extrapolation, a caveat. */
+  warn: "border-amber-500/30 bg-amber-500/10 text-amber-900 dark:text-amber-200",
+  /** A refusal, or a value that could not be computed. */
+  danger: "border-red-500/30 bg-red-500/10 text-red-800 dark:text-red-200",
+  /** Sunken and dashed: a slot with nothing in it yet. The empty state's container. */
+  muted:
+    "border-dashed border-zinc-300 bg-zinc-50 text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900/50 dark:text-zinc-400",
+} as const;
+
+export type CardTone = keyof typeof CARD_TONES;
+
+/** The raised container — `DESIGN.md` §5. Every card in the app is this one.
+ *
+ *  `as` exists because a container's ELEMENT is not a style choice: several of these are landmarks the
+ *  e2e suite reaches by `getByRole("region", …)`, and silently turning a `<section>` into a `<div>` would
+ *  take them out of the accessibility tree. Anything else — `id`, `role`, `aria-label` — passes straight
+ *  through, so adopting the primitive never costs a call site an attribute it already had. */
+export function Card({
+  as: Tag = "div",
+  tone = "default",
+  pad = true,
+  title,
+  actions,
+  className,
+  children,
+  ...rest
+}: {
+  as?: "div" | "section" | "aside" | "details";
+  tone?: CardTone;
+  /** `p-4` — the card padding from `DESIGN.md` §4. Off only where the card's own content owns its
+   *  edges: a disclosure whose summary row has its own gutter, a table that bleeds to the border. */
+  pad?: boolean;
+  title?: React.ReactNode;
+  /** Controls that belong to the title row rather than to the body. */
+  actions?: React.ReactNode;
+} & React.HTMLAttributes<HTMLElement>) {
+  return (
+    <Tag className={cx("rounded-xl border", CARD_TONES[tone], pad && "p-4", className)} {...rest}>
+      {(title || actions) && (
+        <div className="mb-3 flex items-start justify-between gap-3">
+          {title && <h3 className="text-base font-medium text-zinc-900 dark:text-zinc-100">{title}</h3>}
+          {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
+        </div>
+      )}
+      {children}
+    </Tag>
+  );
+}
+
+/** A titled region within a route — `DESIGN.md` §5. What a route is built from. */
+export function Section({
+  title,
+  description,
+  actions,
+  className,
+  children,
+  ...rest
+}: {
+  title: React.ReactNode;
+  description?: React.ReactNode;
+  actions?: React.ReactNode;
+} & React.HTMLAttributes<HTMLElement>) {
+  return (
+    <section className={cx("mt-8 first:mt-0", className)} {...rest}>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-medium text-zinc-900 dark:text-zinc-100">{title}</h2>
+          {description && (
+            <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{description}</p>
+          )}
+        </div>
+        {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
+      </div>
+      <div className="mt-4">{children}</div>
+    </section>
+  );
+}
+
+/** The three button weights, and only three — plus `danger`, which is `secondary`'s geometry in the
+ *  refusal colour. `DESIGN.md` §5.
+ *
+ *  **At most one `primary` per surface.** Two primaries on one screen means neither is. */
+const BUTTON_VARIANTS = {
+  primary:
+    "border border-transparent bg-indigo-600 text-white hover:bg-indigo-500 dark:bg-indigo-500 dark:hover:bg-indigo-400",
+  secondary:
+    "border border-zinc-300 text-zinc-700 hover:border-indigo-400 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-zinc-100",
+  ghost:
+    "border border-transparent text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100",
+  danger:
+    "border border-red-300 text-red-700 hover:bg-red-50 dark:border-red-500/40 dark:text-red-300 dark:hover:bg-red-500/10",
+} as const;
+
+export type ButtonVariant = keyof typeof BUTTON_VARIANTS;
+
+/** The spacing inside a control, from `DESIGN.md` §4 — `px-3 py-1.5`, and `px-2 py-1` at caption size. */
+const BUTTON_SIZES = {
+  sm: "px-2 py-1 text-xs",
+  md: "px-3 py-1.5 text-sm",
+} as const;
+
+export function Button({
+  variant = "secondary",
+  size = "md",
+  className,
+  type = "button",
+  children,
+  ...rest
+}: {
+  variant?: ButtonVariant;
+  size?: keyof typeof BUTTON_SIZES;
+} & React.ButtonHTMLAttributes<HTMLButtonElement>) {
+  return (
+    <button
+      type={type}
+      className={cx(
+        "inline-flex items-center justify-center gap-1.5 rounded-md font-medium transition",
+        "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500",
+        "disabled:cursor-not-allowed disabled:opacity-50",
+        BUTTON_VARIANTS[variant],
+        BUTTON_SIZES[size],
+        TOUCH_TARGET,
+        className,
+      )}
+      {...rest}
+    >
+      {children}
+    </button>
+  );
+}
+
 /** A small segmented toggle, used for mode / deploy / unit switches. */
 export function Segmented<T extends string>({
   value,
@@ -29,7 +175,7 @@ export function Segmented<T extends string>({
     <div
       role="group"
       aria-label={ariaLabel}
-      className="inline-flex rounded-lg border border-zinc-300 bg-zinc-100 p-0.5 dark:border-zinc-700 dark:bg-zinc-900"
+      className="inline-flex rounded-md border border-zinc-300 bg-zinc-100 p-0.5 dark:border-zinc-700 dark:bg-zinc-900"
     >
       {options.map((o) => {
         const active = o.value === value;
@@ -183,19 +329,9 @@ export function useReturnFocus(): [React.RefObject<HTMLButtonElement | null>, ()
  *  it: the panel is offering the run again, not hiding an answer. */
 export function ClosePanel({ onClose, what }: { onClose: () => void; what: string }) {
   return (
-    <button
-      type="button"
-      onClick={onClose}
-      aria-label={`Close ${what}`}
-      className={
-        "rounded-lg border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-700 transition " +
-        "hover:bg-zinc-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 " +
-        "focus-visible:outline-indigo-500 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800 " +
-        TOUCH_TARGET
-      }
-    >
+    <Button variant="secondary" onClick={onClose} aria-label={`Close ${what}`}>
       Close
-    </button>
+    </Button>
   );
 }
 
@@ -320,7 +456,7 @@ export function NumberField({
         {label}
       </span>
       <div
-        className={`mt-1.5 flex items-center rounded-lg border bg-white transition dark:bg-zinc-900 ${
+        className={`mt-1.5 flex items-center rounded-md border bg-white transition dark:bg-zinc-900 ${
           refused !== null
             ? "border-amber-500 dark:border-amber-500"
             : "border-zinc-300 focus-within:border-indigo-500 focus-within:ring-1 focus-within:ring-indigo-500 dark:border-zinc-700"
