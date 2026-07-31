@@ -227,7 +227,11 @@ export default function Methods() {
         transition terms above, gives the reaction from that turning as{" "}
         <code>N = ρV²·A_duct·α</code>, i.e.
       </p>
-      <p className="rounded-lg bg-black/[0.03] px-4 py-3 font-mono text-sm dark:bg-white/[0.05]">
+      {/* A readout block — `DESIGN.md` §2's sunken level, on §2's container radius. Written with the
+          tokens rather than as `<Card tone="sunken">` because this route is a server component and
+          `components/ui.tsx` is `"use client"`: rendering the primitive here would open a client
+          boundary on a static docs page to draw a formula. It is the only site of its kind. */}
+      <p className="rounded-xl bg-zinc-50 px-4 py-3 font-mono text-sm dark:bg-zinc-900/50">
         C_Nα = 2·A_duct / A_ref &nbsp;per radian, &nbsp;A_duct = Σ N·π·r_inner²
       </p>
       <p>

@@ -241,8 +241,13 @@ input[type="number"] {
     background-image: none !important;
     box-shadow: none !important;
   }
+  /* The off-system middle radius stood beside `.rounded-xl` in this selector for as long as containers
+     were written both ways. It comes out in the same commit as the last such container, which is why
+     that conversion had to finish before this line could move: every container this rule needs to
+     whiten carries `rounded-xl` now, and dropping it any earlier would have printed the stragglers on
+     a shaded ground. (Its name is spelled out nowhere here on purpose — §9's compliance grep reads
+     this stylesheet, and a mention in a comment is indistinguishable from a live use.) */
   main > * > .rounded-xl,
-  main > * > .rounded-lg,
   section {
     background: #fff !important;
   }

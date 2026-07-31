@@ -269,7 +269,7 @@ export default function RocketpyCrossCheck({
       )}
 
       {stale && (
-        <div className="mt-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-200">
+        <Card tone="warn" className="mt-3 text-sm">
           <p>
             The design or motor configuration has changed since this ran, so the figures below are
             for the rocket as it was. They are kept rather than cleared — that is the &ldquo;before&rdquo;
@@ -282,7 +282,7 @@ export default function RocketpyCrossCheck({
           <Button variant="secondary" onClick={run} className="mt-2">
             Run RocketPy again
           </Button>
-        </div>
+        </Card>
       )}
       {showing && <Comparison loft={showing.loft} rp={showing.rp} units={units} />}
     </Card>
@@ -303,7 +303,7 @@ export default function RocketpyCrossCheck({
 function Failure({ message, offline }: { message: string; offline: boolean }) {
   const { headline, detail } = engineFailure(message);
   return (
-    <div className="mt-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-700 dark:text-red-300">
+    <Card tone="danger" className="mt-3 text-sm">
       {/* What the browser said, before what the engine said. RocketPy's runtime is a ~40 MB download
           that is not precached, so with no connection the run cannot start at all — and the engine's
           own words for that are "the worker crashed", which sounds like the tool or the design is at
@@ -327,7 +327,7 @@ function Failure({ message, offline }: { message: string; offline: boolean }) {
           </pre>
         </details>
       )}
-    </div>
+    </Card>
   );
 }
 

@@ -127,21 +127,21 @@ export default function MassBreakdown({
           mistyped dimension or material in the design file.
         </p>
         {massHeldBy && (
-          <p className="mt-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-200">
+          <Card as="p" tone="warn" className="mt-2 text-sm">
             A part you added or removed was inside {massHeldBy}, whose weight this design states
             outright — so the dry total above is unchanged. The stated figure stands for everything in
             there whether or not that part is, and the flight is flown at that figure. What the change
             does move is the balance: the design&apos;s own weight is now spread over a different set of
             parts, so the centre of gravity and the stability margin have changed.
-          </p>
+          </Card>
         )}
         {massAbsorbed && (
-          <p className="mt-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-200">
+          <Card as="p" tone="warn" className="mt-2 text-sm">
             The mass you added is inside an assembly whose weight this design states outright, so it
             does not change the total — the design&apos;s own figure stands for everything in there,
             and the flight above is flown at that figure. To fly the extra weight, use{" "}
             <em>Nose ballast</em>, which is added on top rather than inside.
-          </p>
+          </Card>
         )}
         <div className="mt-2">
           <DownloadCsv rows={csv} name={rocket.name} suffix="mass-breakdown" />

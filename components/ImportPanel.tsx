@@ -181,7 +181,7 @@ export default function ImportPanel({
           the file may not be on the phone at all — so what has been opened stays openable. Shown
           only when there is history, so a first visit is not padded with an empty shelf. */}
       {recents.length > 0 && (
-        <div className="mx-auto mt-4 max-w-3xl rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900/40">
+        <Card className="mx-auto mt-4 max-w-3xl">
           <p className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
             Your designs
           </p>
@@ -220,10 +220,10 @@ export default function ImportPanel({
             Kept in this browser on this device — never uploaded. Reopening one flies it as saved;
             any what-if edits you had set are not part of the design.
           </p>
-        </div>
+        </Card>
       )}
 
-      <div className="mx-auto mt-4 max-w-3xl rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900/40">
+      <Card className="mx-auto mt-4 max-w-3xl">
         <p className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
           Or try a bundled example
         </p>
@@ -261,7 +261,7 @@ export default function ImportPanel({
             RockSim · 54 mm sport · J420R
           </button>
         </div>
-      </div>
+      </Card>
 
       <WhatItDoes />
     </section>

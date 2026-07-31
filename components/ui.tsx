@@ -53,7 +53,14 @@ export type CardTone = keyof typeof CARD_TONES;
  *  `as` exists because a container's ELEMENT is not a style choice: several of these are landmarks the
  *  e2e suite reaches by `getByRole("region", …)`, and silently turning a `<section>` into a `<div>` would
  *  take them out of the accessibility tree. Anything else — `id`, `role`, `aria-label` — passes straight
- *  through, so adopting the primitive never costs a call site an attribute it already had. */
+ *  through, so adopting the primitive never costs a call site an attribute it already had.
+ *
+ *  `p`, `li` and `label` are on that list for the same reason rather than as styling shorthand: a
+ *  one-paragraph notice is a `<p>`, a warning inside a `<ul>` must stay an `<li>` or the list stops
+ *  being one, and a container that wraps its own control is a `<label>` so the control keeps its
+ *  implicit association. Converting those sites to `<div>` to fit the primitive would have cost each
+ *  one real semantics. A `<p>` variant carries the usual HTML restriction — no block content inside
+ *  it — so `title`/`actions` are not for that element. */
 export function Card({
   as: Tag = "div",
   tone = "default",
@@ -64,7 +71,7 @@ export function Card({
   children,
   ...rest
 }: {
-  as?: "div" | "section" | "aside" | "details";
+  as?: "div" | "section" | "aside" | "details" | "p" | "li" | "label";
   tone?: CardTone;
   /** `p-4` — the card padding from `DESIGN.md` §4. Off only where the card's own content owns its
    *  edges: a disclosure whose summary row has its own gutter, a table that bleeds to the border. */

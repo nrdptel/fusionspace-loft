@@ -1538,9 +1538,9 @@ export default function LoftApp() {
       )}
 
       {error && (
-        <div className="mt-4 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-700 dark:text-red-300">
+        <Card tone="danger" className="mt-4 text-sm">
           {error}
-        </div>
+        </Card>
       )}
 
       {doc && (
@@ -1689,14 +1689,14 @@ export default function LoftApp() {
           )}
 
           {doc.warnings.length > 0 && (
-            <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-300">
+            <Card tone="warn" className="text-sm">
               <p className="font-medium">Some parts of this design weren&apos;t fully understood:</p>
               <ul className="mt-1 list-disc pl-6">
                 {doc.warnings.slice(0, 6).map((w, i) => (
                   <li key={i}>{w}</li>
                 ))}
               </ul>
-            </div>
+            </Card>
           )}
 
           {/* How the design was read, as distinct from what couldn't be. Explaining that a two-stage
@@ -1874,7 +1874,7 @@ function ConfigPicker({
 }) {
   const labels = d.storedRunLabels(choices, units);
   return (
-    <label className="flex flex-wrap items-center gap-2 rounded-lg border border-zinc-200 bg-white px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900/40">
+    <Card as="label" className="flex flex-wrap items-center gap-2">
       <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Motor configuration</span>
       <select
         aria-label="Motor configuration"
@@ -1905,7 +1905,7 @@ function ConfigPicker({
           </>
         )}
       </span>
-    </label>
+    </Card>
   );
 }
 
