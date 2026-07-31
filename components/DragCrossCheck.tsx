@@ -43,7 +43,7 @@ export default function DragCrossCheck({
 
   return (
     <Card as="section" aria-label="Stored-flight cross-check">
-      <h2 className="text-lg font-semibold tracking-tight">Loft vs {toolName}&apos;s stored flight</h2>
+      <h2 className="text-xl font-medium tracking-tight">Loft vs {toolName}&apos;s stored flight</h2>
       <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
         This file carries {toolName}&apos;s own per-step flight
         {storedName ? (

@@ -474,7 +474,7 @@ export default function ResultsView({
       {run.hasPropulsion && (<>
       {/* Key results */}
       <section aria-label="Results">
-        <h2 className="text-lg font-semibold tracking-tight">Flight</h2>
+        <h2 className="text-xl font-medium tracking-tight">Flight</h2>
         {baseline && baseline.hasPropulsion && <WhatIfDelta run={run} baseline={baseline} units={units} />}
         <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
           <Stat label="Apogee" q={d.altitude(s.apogee, units)} accent />
@@ -505,7 +505,7 @@ export default function ResultsView({
 
       {/* Flight path */}
       <Card as="section" aria-label="Flight path">
-        <h2 className="text-lg font-semibold tracking-tight">Flight path</h2>
+        <h2 className="text-xl font-medium tracking-tight">Flight path</h2>
         <div className="mt-3">
           <FlightViz result={r} units={units} />
         </div>
@@ -514,7 +514,7 @@ export default function ResultsView({
       {/* Plots */}
       <section aria-label="Plots" className="space-y-6">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-lg font-semibold tracking-tight">Plots</h2>
+          <h2 className="text-xl font-medium tracking-tight">Plots</h2>
           {/* The raw trajectory, sample by sample, for a spreadsheet or a plot against an altimeter
               log — offered only for a real flight (a design with no resolved motor has none). */}
           {run.hasPropulsion && r.trajectory.length > 0 && (
@@ -888,7 +888,7 @@ function NoPropulsionNotice({
   const casingMm = canSubstitute ? Math.round(swapOptions![0].diameter * 1000) : 0;
   return (
     <Card as="section" tone="danger" aria-label="No flight simulated">
-      <h2 className="text-lg font-semibold tracking-tight">No flight simulated</h2>
+      <h2 className="text-xl font-medium tracking-tight">No flight simulated</h2>
       {hasInstances ? (
         <>
           {/* Each branch carries its own negation. Sharing the clause "could be matched" only reads
@@ -978,7 +978,7 @@ function RocketSummary({
   return (
     <Card as="section">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="text-lg font-semibold tracking-tight">{doc.rocket.name}</h2>
+        <h2 className="text-xl font-medium tracking-tight">{doc.rocket.name}</h2>
         <span className="text-xs text-zinc-500 dark:text-zinc-400">
           {formatLabel(doc)}
         </span>

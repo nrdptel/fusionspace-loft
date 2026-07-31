@@ -329,7 +329,7 @@ export default function ParameterSweep({
   return (
     <Card as="section" aria-label="Parameter sweep">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="text-lg font-semibold tracking-tight">Sweep a parameter</h2>
+        <h2 className="text-xl font-medium tracking-tight">Sweep a parameter</h2>
         <div className="flex items-center gap-3">
           <span className="text-xs text-zinc-500 dark:text-zinc-400">how one dimension changes the flight</span>
           {open && <ClosePanel onClose={() => { setOpen(false); returnFocusToRun(); }} what="the parameter sweep" />}

@@ -229,7 +229,7 @@ export default function MonteCarlo({
   return (
     <Card as="section" aria-label="Monte-Carlo dispersion">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="text-lg font-semibold tracking-tight">Flight dispersion (Monte-Carlo)</h2>
+        <h2 className="text-xl font-medium tracking-tight">Flight dispersion (Monte-Carlo)</h2>
         <div className="flex items-center gap-3">
           <span className="text-xs text-zinc-500 dark:text-zinc-400">{SAMPLES} flights on your device</span>
           {open && <ClosePanel onClose={() => { setOpen(false); returnFocusToRun(); }} what="the dispersion run" />}
@@ -473,7 +473,7 @@ function Report({
             </div>
             <div
               className={
-                "mt-0.5 text-lg font-semibold tabular-nums " +
+                "mt-0.5 text-xl font-semibold tabular-nums " +
                 (exceed > 0.05 ? "text-amber-700 dark:text-amber-300" : "text-zinc-900 dark:text-zinc-100")
               }
             >
@@ -536,7 +536,7 @@ function StatCard({ title, stat, fmt }: { title: string; stat: Stat; fmt: (v: nu
   return (
     <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-900/60">
       <div className="text-[11px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">{title}</div>
-      <div className="mt-1 text-lg font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">{fmt(stat.p50)}</div>
+      <div className="mt-1 text-xl font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">{fmt(stat.p50)}</div>
       <div className="mt-0.5 text-xs tabular-nums text-zinc-500 dark:text-zinc-400">
         {fmt(stat.p5)} – {fmt(stat.p95)} <span className="text-zinc-400 dark:text-zinc-500">(5–95%)</span>
       </div>
@@ -550,7 +550,7 @@ function RadiusCard({ radius, drift, units }: { radius: number; drift: Stat; uni
       <div className="text-[11px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
         Recovery radius (95%)
       </div>
-      <div className="mt-1 text-lg font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">
+      <div className="mt-1 text-xl font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">
         {d.q(d.distance(radius, units))}
       </div>
       <div className="mt-0.5 text-xs tabular-nums text-zinc-500 dark:text-zinc-400">

@@ -71,7 +71,7 @@ export default function ValidationPanel({
   return (
     <Card as="section" aria-label="Validation">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="text-lg font-semibold tracking-tight">
+        <h2 className="text-xl font-medium tracking-tight">
           {external ? "Stated figures vs Loft" : `${toolName} vs Loft`}
         </h2>
         <span className="text-xs text-zinc-500 dark:text-zinc-400">

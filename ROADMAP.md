@@ -494,6 +494,7 @@ cannot return while the conversion is still running.
 | hand-rolled indigo primaries | 0 | 16 | 16 | **6** |
 | surfaces with two primaries | 0 | 2 | 2 | **0** |
 | component files where `text-xs` outnumbers `text-sm` | 0 | 9 | 9 | 9 |
+| `text-lg`, a size not on the scale at all | 0 | 14 | 14 | **0** (inc. 3) |
 
 **The suite-wide `text-sm` vs `text-xs` ratio was retired from §9 in increment 2, and the reason is
 a measurement.** Converting nine hand-rolled buttons onto `Button` moved the totals from 91/88 to
@@ -543,6 +544,16 @@ conversions is more than this milestone's 4–6 increments, so the slice plan is
 the double-primaries next, then the type scale, then off-scale spacing, then `DataTable`** — and
 `Panel`, `Readout`, `Figure` and the five state components are deliberately deferred to a successor
 milestone rather than half-built here.
+
+**Increment 3 took the type scale to six sizes.** All fourteen `text-lg` are gone — eleven panel
+headings to `text-xl font-medium` (which is what `Section` already renders, so the hand-rolled headings
+and the primitive now agree) and three prominent values to `text-xl font-semibold`, the weight §3
+reserves for the one number a surface exists to show. Asserted at zero, so it is a guard rather than a
+ratchet. **What is left of the type work is the nine individually-inverted files** — `GeometryInspector`
+at 10:2, `MonteCarlo` at 9:3, `ResultsView` at 16:13 — and that one is not mechanical: a caption
+legitimately is `text-xs`, so each site needs a judgement about whether the thing is a value a flyer
+reads to decide or the text around it. That is the next slice, and it should be done per surface with
+the count quoted, not as a sweep.
 
 **The measurement that made this a milestone** (2026-07-30): 12+ distinct card treatments; three
 radius values for one role; `text-xs` and `text-sm` disagreeing between the two sibling apps.
