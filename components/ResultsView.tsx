@@ -908,7 +908,7 @@ function NoPropulsionNotice({
       {canSubstitute && (
         <p className="mt-3 text-sm">
           <strong>Fly it with a substitute.</strong> The bundled set has {swapOptions!.length} motors
-          of the same {casingMm} mm casing. Pick one under <em>Swap motor</em> in the design tools
+          of the same {casingMm} mm casing. Pick one under <em>Swap motor</em>{" "}in the design tools
           below and the flight re-flies with it — a quick way to get a ballpark while you track down
           the exact curve.
         </p>

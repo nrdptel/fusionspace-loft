@@ -24,7 +24,7 @@ export default function Methods() {
         an <code>&lt;openrocket&gt;</code> root; <code>lib/ork/</code>), RockSim <code>.rkt</code>{" "}
         (XML with a <code>&lt;RockSimDocument&gt;</code> root; <code>lib/rkt/</code>), and RASAero II{" "}
         <code>.CDX1</code> (XML with a <code>&lt;RASAeroDocument&gt;</code> root;{" "}
-        <code>lib/rasaero/</code>). The importer sniffs the root element and picks the adapter. Each adapter is a <em>thin</em> translator
+        <code>lib/rasaero/</code>). The importer sniffs the root element and picks the adapter. Each adapter is a <em>thin</em>{" "}translator
         into one internal rocket model — the simulator only ever sees that model, never a file
         format — so the same physics flies any of them and a future importer (RocketPy) is another
         adapter, not a second engine. The RockSim adapter is implemented clean-room from RockSim&apos;s
@@ -37,13 +37,13 @@ export default function Methods() {
         The <strong>RASAero II</strong> adapter is likewise clean-room, from the published RASAero II
         user manual and from inspecting real <code>.CDX1</code> exports; RASAero works in US
         customary throughout — inches, pounds, feet, ft/s, °F, inHg, mph — all converted to SI on
-        import. Only the design <em>file</em> is read; RASAero&apos;s own aerodynamics are not
+        import. Only the design <em>file</em>{" "}is read; RASAero&apos;s own aerodynamics are not
         reimplemented, and the numbers it stored sit beside Loft&apos;s as an independent
         cross-check, exactly as OpenRocket&apos;s and RockSim&apos;s stored results do.
       </p>
       <p>
         <strong>Mass on a RASAero import</strong> works differently, and it has to. A{" "}
-        <code>.CDX1</code> carries no materials and no per-part masses at all — RASAero is an
+        <code>.CDX1</code>{" "}carries no materials and no per-part masses at all — RASAero is an
         aerodynamics and trajectory tool, so the flyer types in a single launch weight and CG per
         simulation. Loft therefore takes the geometry as massless and carries the stated launch
         weight as one airframe mass component: its mass is the launch weight less the resolved
@@ -79,7 +79,7 @@ export default function Methods() {
         quadratic drag is a <em>stiff</em> decay, though, and a fast deployment (a mistimed early
         ejection, a payload popping its chute at separation speed) can push an explicit step past its
         stability limit and diverge. So through the opening transient the descent step is shortened to
-        hold <code>dt·λ</code> within the RK4 stability region, where <code>λ = ρ·(C<sub>d</sub>·A)·v/m</code>
+        hold <code>dt·λ</code> within the RK4 stability region, where <code>λ = ρ·(C<sub>d</sub>·A)·v/m</code>{" "}
         is the linearised drag-response rate — small while the speed is high, relaxing back to the
         ceiling as the canopy brings the rocket to terminal. The result is stable for any deploy speed
         without paying for a fine step over the whole descent.
@@ -102,14 +102,14 @@ export default function Methods() {
         The <strong>liftoff thrust-to-weight ratio</strong> is the peak thrust developed while
         clearing the rail divided by the loaded weight (<code>F / m·g</code>) — the most basic
         launch-safety check, and, unlike rail-exit velocity, independent of how long the rail is.
-        Below <code>1&nbsp;:&nbsp;1</code> the rocket cannot leave the pad at all, which Loft flags
+        Below <code>1&nbsp;:&nbsp;1</code>{" "}the rocket cannot leave the pad at all, which Loft flags
         as a warning (the apogee it would otherwise report is essentially zero and meaningless);
         below the <code>5&nbsp;:&nbsp;1</code> figure commonly taught for high-power rockets it is
         flagged as a caution to verify the rail is long enough. These are rules of thumb, not
         verdicts.
       </p>
       <p>
-        <em>Sources:</em> minimum rail-departure velocity and the 5:1 thrust-to-weight guideline as
+        <em>Sources:</em>{" "}minimum rail-departure velocity and the 5:1 thrust-to-weight guideline as
         given in the NAR/Tripoli high-power safety guidance and standard model-rocketry texts
         (e.g. Stine &amp; Stine, <em>Handbook of Model Rocketry</em>); the rail-constraint and
         thrust-to-weight formulation follows Niskanen&apos;s OpenRocket technical documentation.
@@ -148,7 +148,7 @@ export default function Methods() {
         rail button from its bulk material over its tube wall. On a small model rocket these are
         grams; on a high-power rocket a long tubular-nylon harness is a real, CG-shifting mass that
         would otherwise be silently dropped. An explicit
-        <code>&lt;overridemass&gt;</code> or <code>&lt;overridecg&gt;</code> in the design always
+        <code>&lt;overridemass&gt;</code>{" "}or <code>&lt;overridecg&gt;</code> in the design always
         wins; when it is flagged to override <em>all subcomponents</em> — a section weighed as a
         whole — that one figure stands in for the section and everything inside it, rather than
         being added to the parts&apos; own computed masses. The centre of gravity is mass-weighted;
@@ -156,12 +156,12 @@ export default function Methods() {
         Propellant burns off over the flight, so mass and CG are time-varying.
       </p>
       <p>
-        A RockSim <code>.rkt</code> is the exception to the &ldquo;compute from geometry&rdquo; rule:
+        A RockSim <code>.rkt</code>{" "}is the exception to the &ldquo;compute from geometry&rdquo; rule:
         it stores RockSim&apos;s own per-part mass — the calculated value, or the measured
         (&ldquo;known&rdquo;) value when the design is set to use it — so Loft honours those as
         per-part overrides and flies the exact masses the design specifies. That keeps a RockSim
         import faithful to its source and keeps the stored-results comparison about the aerodynamics
-        and integration rather than a mass-model difference. (An <code>.ork</code> stores no per-part
+        and integration rather than a mass-model difference. (An <code>.ork</code>{" "}stores no per-part
         mass, so there Loft computes it as above.)
       </p>
       <p>
@@ -178,7 +178,7 @@ export default function Methods() {
         largest known radius (the same value the aerodynamic reference is taken from) so the
         airframe keeps a defined, self-consistent size instead of collapsing to a drag-free,
         near-massless needle flown against a borrowed reference area. This mirrors OpenRocket, whose
-        <code>auto</code> radius searches fore and aft for a dimensioned section and only then uses a
+        <code>auto</code>{" "}radius searches fore and aft for a dimensioned section and only then uses a
         default. The substitution is flagged in the import warnings, never silent; only when nothing
         anywhere resolves is a section finally treated as zero — and even then it is never left
         undefined, so one unresolved part can&apos;t poison the total mass and reference area.
@@ -189,7 +189,7 @@ export default function Methods() {
         The centre of pressure and normal-force-coefficient slope come from the{" "}
         <strong>Barrowman equations</strong> (<code>lib/sim/aero.ts</code>), the standard subsonic,
         small-angle method. Each body-of-revolution and fin set contributes a normal-force slope{" "}
-        <code>C<sub>Nα</sub></code> and a centre of pressure, combined as a coefficient-weighted
+        <code>C<sub>Nα</sub></code>{" "}and a centre of pressure, combined as a coefficient-weighted
         mean.
       </p>
       <p className="eqn">
@@ -211,7 +211,7 @@ export default function Methods() {
         read as zero-span and add no normal force. Its centre of pressure is then taken exactly from
         the same outline by strip theory — <code>X_cp = ∫(x_LE + ¼c)·c dy / ∫c dy</code> over the
         polygon, the chord-weighted mean of the local quarter-chord line — which reduces to the
-        trapezoid formula for a trapezoidal outline and to <code>0.288·c_root</code> for an
+        trapezoid formula for a trapezoidal outline and to <code>0.288·c_root</code>{" "}for an
         elliptical one, so an unusual planform is no longer flattened to an equal-area trapezoid for
         stability. Being a fraction of the chord, it is invariant when a geometry edit stretches the
         fin spanwise. A degenerate part — a fin set with no fins, span, or chord, or a nose with no radius —
@@ -222,7 +222,7 @@ export default function Methods() {
       <p>
         <strong>Tube fins</strong> are not plates, so the Barrowman fin equations do not apply to
         them. A tube fin is a short open duct: at a small angle of attack the streamtube it captures
-        enters inclined at <code>α</code> and leaves aligned with the tube&apos;s — and so the
+        enters inclined at <code>α</code>{" "}and leaves aligned with the tube&apos;s — and so the
         rocket&apos;s — axis. Slender-body/momentum theory, the same theory behind the nose and
         transition terms above, gives the reaction from that turning as{" "}
         <code>N = ρV²·A_duct·α</code>, i.e.
@@ -231,11 +231,11 @@ export default function Methods() {
         C_Nα = 2·A_duct / A_ref &nbsp;per radian, &nbsp;A_duct = Σ N·π·r_inner²
       </p>
       <p>
-        — exactly the nose-cone form <code>2·(A_base/A_ref)</code> with the captured area in place of
+        — exactly the nose-cone form <code>2·(A_base/A_ref)</code>{" "}with the captured area in place of
         the base area. The turning is distributed along the duct rather than concentrated at either
         lip, so the resultant is taken at the tube&apos;s <strong>mid-chord</strong>. RockSim&apos;s
         own tube-fin example file stores the numbers its engine computed for the same set —{" "}
-        <code>BarrowmanCNa = 10.2204</code> at <code>BarrowmanXN = 0.524222 m</code> — and this
+        <code>BarrowmanCNa = 10.2204</code>{" "}at <code>BarrowmanXN = 0.524222 m</code> — and this
         relation reproduces them to within <strong>1%</strong> and <strong>2.6% of the chord</strong>{" "}
         respectively. Against OpenRocket&apos;s stored per-step CP on <em>its</em> tube-fin example
         Loft sits about <strong>0.9 caliber forward</strong>, i.e. conservative; see{" "}
@@ -254,12 +254,12 @@ export default function Methods() {
         <strong>Stability trim (nose-ballast goal-seek).</strong> When a design&apos;s margin is thin,
         Loft solves the nose ballast that would bring it to a healthy value directly, rather than making
         you read it off a sweep (<code>lib/sim/trim.ts</code>). The margin is measured at the loaded
-        centre of gravity, and ballast of mass <code>b</code> at the nose station <code>x_n</code> moves
+        centre of gravity, and ballast of mass <code>b</code>{" "}at the nose station <code>x_n</code> moves
         the loaded CG to the mass-weighted blend{" "}
         <code>x_cg(b) = (M·x_cg₀ + b·x_n)/(M + b)</code> while the aerodynamic CP does not move with
         mass — so the ballast for a target margin is closed-form,{" "}
-        <code>b = M·(x_cg,target − x_cg₀)/(x_n − x_cg,target)</code> with{" "}
-        <code>x_cg,target = X_cp − margin·d_ref</code>. As <code>b → ∞</code> the CG asymptotes to the
+        <code>b = M·(x_cg,target − x_cg₀)/(x_n − x_cg,target)</code>{" "}with{" "}
+        <code>x_cg,target = X_cp − margin·d_ref</code>. As <code>b → ∞</code>{" "}the CG asymptotes to the
         nose station, so nose ballast can make a design no stiffer than{" "}
         <code>(X_cp − x_n)/d_ref</code>; a target above that ceiling is unreachable by weight alone
         (the fins are too small or too far forward), which Loft says plainly instead of prescribing an
@@ -270,11 +270,11 @@ export default function Methods() {
         <strong>Stability trim (fin-position goal-seek).</strong> The weight-free companion: instead
         of adding nose weight, it solves how far to slide the fin group to reach a target margin. The
         static margin is very nearly linear in fin station — the fins&apos; centre-of-pressure
-        contribution moves one-for-one with them — so the slope <code>dm/dx</code> is taken from a
+        contribution moves one-for-one with them — so the slope <code>dm/dx</code>{" "}is taken from a
         small finite difference of the exact Barrowman CP and the dry CG (both computed without a
         flight; moving the fins also drags their own mass, nudging the CG, which is folded in) and
         inverted: <code>x_target = x₀ + (m_target − m₀)·d / (dCP/dx − dCG/dx)</code>. Uniquely, this
-        is the only lever that can <em>reduce</em> an over-stable, weathercock-prone margin — moving
+        is the only lever that can <em>reduce</em>{" "}an over-stable, weathercock-prone margin — moving
         the fins forward — which nose ballast, adding only stability, cannot. The solved station,
         typed into the fin-position what-if, reproduces the target margin (round-tripped against a
         real flight in the tests).
@@ -290,7 +290,7 @@ export default function Methods() {
           <strong>Skin friction</strong> — a <em>fully turbulent</em> flat-plate coefficient
           (Prandtl–Schlichting <code>0.455/(log₁₀Re)²·⁵⁸</code>) across the whole Reynolds range,
           because a rocket&apos;s boundary layer is tripped turbulent near the nose; a laminar
-          <code> 1.328/√Re</code> branch would under-state friction at the low Reynolds numbers a
+          <code> 1.328/√Re</code>{" "}branch would under-state friction at the low Reynolds numbers a
           small, slow rocket sees near apogee. A surface-roughness floor from the design&apos;s
           finish holds friction flat at high Reynolds number where roughness dominates, while the
           smooth turbulent value climbs above it as the rocket slows — so coast drag rises toward
@@ -336,9 +336,9 @@ export default function Methods() {
           a thickness-only estimate under-counts it several-fold — and reading the design&apos;s
           stated cross-section is what brought Loft&apos;s drag on the reference &ldquo;simple model
           rocket&rdquo; into line with OpenRocket&apos;s. A design that names no cross-section is
-          treated as square, OpenRocket&apos;s own default. The leading-edge <code>cos²Λ</code>
+          treated as square, OpenRocket&apos;s own default. The leading-edge <code>cos²Λ</code>{" "}
           reduction uses each fin&apos;s actual leading-edge sweep — including an{" "}
-          <em>elliptical</em> fin&apos;s, whose tip sits at mid-root-chord so its edge sweeps back
+          <em>elliptical</em>{" "}fin&apos;s, whose tip sits at mid-root-chord so its edge sweeps back
           about half the root chord over the span. Treating that curved edge as unswept (its stored
           sweep is zero) over-counted its stagnation drag by ~22% on a real minimum-diameter design;
           reading the sweep from the planform brought Loft&apos;s per-step drag on OpenRocket&apos;s
@@ -346,30 +346,30 @@ export default function Methods() {
         </li>
         <li>
           <strong>Tube-fin drag</strong> — a tube fin is aerodynamically a rolled-up flat plate with
-          two bluff ends, so it is built up from exactly that. <em>Friction</em> on both the outer
-          and the inner wall, with <strong>no</strong> thickness form factor (a thin open cylinder
+          two bluff ends, so it is built up from exactly that. <em>Friction</em>{" "}on both the outer
+          and the inner wall, with <strong>no</strong>{" "}thickness form factor (a thin open cylinder
           aligned with the flow has no thickness-driven pressure gradient) and at a Reynolds number
-          taken on the tube&apos;s <em>own</em> chord, which is far shorter than the airframe&apos;s —
-          so the tubes sit higher on the friction curve than the body does. <em>Pressure</em> on the
+          taken on the tube&apos;s <em>own</em>{" "}chord, which is far shorter than the airframe&apos;s —
+          so the tubes sit higher on the friction curve than the body does. <em>Pressure</em>{" "}on the
           square-cut wall annulus <code>Σ N·π(r_o² − r_i²)</code>: the same stagnation coefficient a
           square fin edge gets at the leading end (unswept — a tube&apos;s lip is perpendicular to the
-          flow, so no <code>cos²Λ</code> relief) plus base drag at the trailing end. This is the term
+          flow, so no <code>cos²Λ</code>{" "}relief) plus base drag at the trailing end. This is the term
           that makes tube fins so much draggier than their plan area suggests: six body-diameter
           tubes roughly triple the wetted area and present about a third of the airframe&apos;s own
           frontal area in bare wall edges. Omitting them flew OpenRocket&apos;s and RockSim&apos;s
           tube-fin examples <strong>~88% high</strong>; with them, −8% and −2% respectively.
         </li>
         <li>
-          <strong>Shoulder pressure drag</strong> — a diameter-<em>increasing</em> transition
+          <strong>Shoulder pressure drag</strong> — a diameter-<em>increasing</em>{" "}transition
           (a shoulder) forces the flow outward, adding a stagnation-like pressure drag
           <code>C<sub>d</sub> = 0.8·sin²φ</code> over the frontal-area increase, where{" "}
-          <code>φ</code> is the conical joint angle: a gentle shoulder drags little, an abrupt step
+          <code>φ</code>{" "}is the conical joint angle: a gentle shoulder drags little, an abrupt step
           approaches the <code>0.8</code> stagnation value. After the OpenRocket technical
           documentation (Niskanen, eq. 3.86), following Hoerner. It is a low-subsonic separation
           effect, so it is not compressibility-corrected.
         </li>
         <li>
-          <strong>Boattail pressure drag</strong> — a diameter-<em>decreasing</em> transition
+          <strong>Boattail pressure drag</strong> — a diameter-<em>decreasing</em>{" "}transition
           reduces the base area (captured by the base-drag term, which follows the aft diameter),
           but its sloped surface still carries a pressure drag. It is estimated as the base-drag
           coefficient acting over the frontal-area reduction, scaled by the boattail&apos;s
@@ -382,7 +382,7 @@ export default function Methods() {
         </li>
         <li>
           <strong>Nose pressure drag</strong> — the same <code>0.8·sin²φ</code> stagnation estimate
-          as the shoulder, applied over the nose base area, with <code>φ</code> the contour&apos;s
+          as the shoulder, applied over the nose base area, with <code>φ</code>{" "}the contour&apos;s
           joint angle where the nose meets the body (read numerically from the shape). A tangent
           nose — an ogive, ellipsoid or Haack — meets the body smoothly (<code>φ ≈ 0</code>) and
           carries essentially none; a cone or blunt shape has a real joint angle and a small
@@ -435,11 +435,11 @@ export default function Methods() {
           ThrustCurve.org
         </a>{" "}
         (<code>lib/motors/</code>). Thrust is linearly interpolated in time; propellant mass is
-        depleted in proportion to delivered impulse (constant-<em>I<sub>sp</sub></em> assumption), so
+        depleted in proportion to delivered impulse (constant-<em>I<sub>sp</sub></em>{" "}assumption), so
         motor mass falls from loaded to casing mass over the burn. Matching prefers an exact
         designation, then a looser substring or class-and-thrust core (so a Cesaroni
         &ldquo;838J293-13A&rdquo; still resolves to &ldquo;J293&rdquo;). A motor is matched on{" "}
-        <em>every</em> name it is published under — ThrustCurve&apos;s manufacturer designation and
+        <em>every</em>{" "}name it is published under — ThrustCurve&apos;s manufacturer designation and
         its common class-and-thrust name — because a design file may carry either: a Cesaroni reload
         sold as part number &ldquo;648J285-15A&rdquo; is written into an OpenRocket file as
         &ldquo;J285&rdquo;, and both name the same motor. Those catalogued names come from
@@ -449,9 +449,9 @@ export default function Methods() {
         diagram draws the casing, so one bundled 54&nbsp;mm motor whose header claimed 75&nbsp;mm
         was being offered for the wrong mount. A curve whose catalogued name is more specific than
         the one a design writes — AeroTech&apos;s bundled H100W curve is the H100W_DMS, a different
-        product line from the RMS reload — resolves as an <em>approximate</em> match and says so,
+        product line from the RMS reload — resolves as an <em>approximate</em>{" "}match and says so,
         rather than claiming to be the motor the design named. An exact designation matches
-        regardless of a maker-string difference, but a <em>loose</em> match never crosses
+        regardless of a maker-string difference, but a <em>loose</em>{" "}match never crosses
         manufacturers — a design&apos;s &ldquo;K550&rdquo; is left unresolved rather than silently
         matched to a different maker&apos;s &ldquo;K550W&rdquo;. The UI flags an approximate or failed
         match. A motor{" "}
@@ -471,15 +471,15 @@ export default function Methods() {
         and a design can say otherwise: the file records an event per motor per configuration, and
         Loft follows it. A <code>launch</code> event fires that motor at liftoff wherever it sits in
         the stack — one OpenRocket example lights its <em>middle</em> stage first — and an event
-        that can never arrive (a <code>burnout</code> trigger on the bottom-most stage, with
+        that can never arrive (a <code>burnout</code>{" "}trigger on the bottom-most stage, with
         nothing beneath it to burn out) leaves that motor unlit, riding as inert mass, which is
         what the file&apos;s own stored mass and thrust traces show. Reading those events took that
         design from 49.8% high to 9.4% low, with rail-exit velocity landing within 0.4% of the
         stored figure. A serial stack also parts at one joint: the stage that separates takes
         everything below it with it, rather than the stack shedding one stage per event.
-        A stage <em>separates</em> on the event the design specifies: by default (and for the usual
+        A stage <em>separates</em>{" "}on the event the design specifies: by default (and for the usual
         boosted staging) when it finishes burning, but a stage set to separate at its own
-        <em> ejection charge</em> hangs on until that charge fires — often a long delay, so a
+        <em> ejection charge</em>{" "}hangs on until that charge fires — often a long delay, so a
         payload or dual-section rocket stays whole until near apogee and only then parts, rather
         than splitting at burnout. When it separates its structure and empty casing leave
         the vehicle, and the flight continues on the stages still attached. The simulator recomputes
@@ -488,12 +488,12 @@ export default function Methods() {
         code as a single stage), so a dead booster is no longer lofted to apogee. Because the
         vertical-plane solve is a point mass, only the total mass, thrust, and reference drag change
         across a separation — the trajectory doesn&apos;t depend on where the centre of gravity sits
-        within the vehicle. Stability <em>does</em> depend on it: the stages stack nose-to-tail into
+        within the vehicle. Stability <em>does</em>{" "}depend on it: the stages stack nose-to-tail into
         one continuous airframe, so the centre of gravity and Barrowman centre of pressure are
         computed for whichever stages are attached. Because an upper stage can be stable inside the
         loaded stack yet unstable once it flies alone, the sustainer&apos;s own static margin —
         evaluated loaded, right after separation, its worst case — is checked separately and flagged
-        if it drops below 1 cal. The exception is a payload section that pops its chute <em>on</em>
+        if it drops below 1 cal. The exception is a payload section that pops its chute <em>on</em>{" "}
         the separation (a lower-stage-separation recovery): it is under canopy from that instant and
         never flies ballistically, so a finless payload isn&apos;t flagged as an unstable upper
         stage. Only the final (sustainer) stage&apos;s descent is tracked; a
@@ -502,7 +502,7 @@ export default function Methods() {
       </p>
       <p>
         Ignition timing is resolved <em>per motor</em>, not just per stage, so a second motor
-        <em> within one stage</em> can be air-started after its own delay while the first burns from
+        <em> within one stage</em>{" "}can be air-started after its own delay while the first burns from
         launch — the delay is read from the flown configuration, so a design that sets a different
         air-start time in each of its stored simulations flies each one distinctly. The airstarted
         motor rides as dead weight until it lights, then adds its thrust; the vehicle&apos;s peak
@@ -515,10 +515,10 @@ export default function Methods() {
         ejection charge, or the separation of the stage below it (the payload/dual-section charge
         that both parts the sections and pops the chute) — plus any deploy delay it specifies: the
         vehicle free-falls on body drag until the canopy opens, so a delayed deployment reports the
-        higher speed reached at line-stretch. An <em>ejection</em> deployment fires at the real charge time (burnout plus
+        higher speed reached at line-stretch. An <em>ejection</em>{" "}deployment fires at the real charge time (burnout plus
         the design&apos;s delay), so a too-short delay opens the canopy before apogee while still
         ascending, and a too-long delay opens it late at speed — or, if the charge would fire after
-        the rocket is already down, not at all. A <strong>plugged</strong> motor
+        the rocket is already down, not at all. A <strong>plugged</strong>{" "}motor
         (OpenRocket&apos;s <code>delay = none</code>, RockSim&apos;s negative ejection delay) carries no
         charge at all, so a device waiting on one never opens and the flight is ballistic — Loft does
         not assume an altimeter that the design does not describe. A design that simply states no
@@ -536,8 +536,8 @@ export default function Methods() {
         solves the canopy that would bring it down gently rather than leaving you to guess and re-fly
         (<code>lib/sim/recovery.ts</code>). It is the recovery-side companion to the stability trim,
         and closed-form: at terminal velocity drag balances weight,{" "}
-        <code>v = √(2·m·g / (ρ·C<sub>d</sub>A<sub>total</sub>))</code>, with <code>m</code> the burnout
-        (descent) mass, <code>ρ</code> the air density at the field, and{" "}
+        <code>v = √(2·m·g / (ρ·C<sub>d</sub>A<sub>total</sub>))</code>, with <code>m</code>{" "}the burnout
+        (descent) mass, <code>ρ</code>{" "}the air density at the field, and{" "}
         <code>C<sub>d</sub>A<sub>total</sub> = C<sub>d</sub>A<sub>chute</sub> + ½·A<sub>ref</sub></code>{" "}
         — the same airframe body-drag term the descent integrates — so the canopy for a target speed is{" "}
         <code>C<sub>d</sub>A<sub>chute</sub> = 2·m·g/(ρ·v²) − ½·A<sub>ref</sub></code>, reported as a
@@ -575,9 +575,9 @@ export default function Methods() {
         <code>
           V<sub>f</sub> = a·√( G / [ 1.337·A³·P·(λ+1) / (2·(A+2)·(t/c)³) ] )
         </code>
-        , with <code>a</code> the local speed of sound, <code>G</code> the fin material&apos;s shear
-        modulus, <code>A</code> the exposed-fin aspect ratio, <code>λ</code> the taper ratio, and{" "}
-        <code>t/c</code> the thickness ratio on the root chord — so flutter speed climbs with the
+        , with <code>a</code>{" "}the local speed of sound, <code>G</code>{" "}the fin material&apos;s shear
+        modulus, <code>A</code>{" "}the exposed-fin aspect ratio, <code>λ</code>{" "}the taper ratio, and{" "}
+        <code>t/c</code>{" "}the thickness ratio on the root chord — so flutter speed climbs with the
         cube of the thickness ratio and the square root of stiffness, and falls with aspect ratio
         (thin, high-aspect fins flutter first). The shear modulus is taken from the design&apos;s own
         fin material (G10 fibreglass is assumed, and said so, when the material is missing or
@@ -587,7 +587,7 @@ export default function Methods() {
         it is thin; it never certifies a fin as flutter-safe.
       </p>
       <p>
-        When the margin <em>is</em> thin, Loft names the fix rather than just saying &ldquo;thicken the
+        When the margin <em>is</em>{" "}thin, Loft names the fix rather than just saying &ldquo;thicken the
         fins&rdquo;: since the flutter speed rises with the 1.5 power of the thickness ratio and the
         peak airspeed the margin is taken against barely moves with thickness, the thickness for a
         target margin is closed-form, <code>t<sub>target</sub> = t<sub>now</sub>·(margin<sub>target</sub>/margin<sub>now</sub>)^(2/3)</code>.
@@ -609,7 +609,7 @@ export default function Methods() {
         gusts and shifts, a motor&apos;s total impulse varies from one unit to the next, and a built
         airframe rarely hits its CAD mass exactly. The <strong>dispersion</strong> tool flies the
         design a few hundred times with those inputs jittered around their nominal values and reports
-        the <em>spread</em> of the outcomes — the apogee band to expect, the radius from the pad
+        the <em>spread</em>{" "}of the outcomes — the apogee band to expect, the radius from the pad
         that contains 95% of the landings (the recovery area to plan for), and the landing-speed band
         (its 95th percentile is the hardest landing to size recovery against, which a heavier-than-CAD
         build pushes up) — with, when some flights land firm, the fraction that land firm (over
@@ -636,11 +636,11 @@ export default function Methods() {
         landing-speed band, the piece the ascent drag deliberately leaves out); the rail angle
         adds a lean to the launch rod; and the wind speed varies around the nominal being flown.
         Those nominals are the launch conditions in force — the design&apos;s own stored setup, with
-        whatever you have changed under <em>Conditions</em> on top, so the dispersion answers for the
+        whatever you have changed under <em>Conditions</em>{" "}on top, so the dispersion answers for the
         same day the flight above it does rather than for the day the file was saved.
         Impulse, dry mass, and drag are the main drivers of the apogee band; rail angle and wind drive
         the landing scatter. The
-        rail-lean and wind <em>directions</em> are sampled uniformly from all bearings, so the landing
+        rail-lean and wind <em>directions</em>{" "}are sampled uniformly from all bearings, so the landing
         scatter maps the recovery area regardless of the day&apos;s wind heading.
         Under today&apos;s weather that is not so, and the panel says which case it is in: the solver
         then flies a whole wind profile rather than one surface figure, on the forecast&apos;s own

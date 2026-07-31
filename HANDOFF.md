@@ -197,6 +197,16 @@ unchanged rocket returns rows identical to the ones it replaced, so comparing re
 **A panel on a hidden workspace is out of the accessibility tree.** `getByRole("region", …)` matches
 nothing while another tab is open.
 
+**A sentence can lose a space at BUILD time and nowhere else, and the gate now catches it.** A JSX
+text run that starts on the same line as a closing inline tag and continues onto the next loses its
+leading space — Babel trims the first line of a multi-line run. The SOURCE reads correctly, so nothing
+in lint, unit, build or e2e could see it, and 86 instances had accumulated on the served pages.
+`scripts/check-text-gaps.mjs` runs in `postbuild` and exits 1 on any hit, so `npm run build` is now the
+check. Two detectors: the served-markup one is reliable and gates; the client-chunk one is a lead to
+verify by hand and deliberately does not gate, because it reads minified JavaScript where an ordinary
+string concatenation looks the same. **Confirm any hit in the rendered TEXT before fixing it** — strip
+React's text-node separator comment first, since a space emitted as its own node sits beside one.
+
 ## Before you trust a sweep
 
 The corpus is gitignored and absent on a fresh container. Both repos are checked out, so no token is

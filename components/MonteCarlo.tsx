@@ -238,7 +238,7 @@ export default function MonteCarlo({
       </div>
       <p className="mt-1.5 text-sm text-zinc-600 dark:text-zinc-300">
         Fly this design hundreds of times with the motor impulse, dry mass, aerodynamic drag, rail
-        angle, and wind jittered around their nominal values, and see the <em>spread</em> of the
+        angle, and wind jittered around their nominal values, and see the <em>spread</em>{" "}of the
         outcomes — the apogee band to expect
         and how big a recovery area to plan for. The physics is the same each flight; the uncertainty
         is your own stated assumptions carried through it, not new precision.{" "}
@@ -257,7 +257,7 @@ export default function MonteCarlo({
             {" "}
             Today&apos;s forecast supplies a wind profile, so every flight drifts on its bearings
             rather than on all of them: this is the spread for that wind, not a circle covering any
-            wind. Switch to <em>As designed</em> for the all-headings recovery area.
+            wind. Switch to <em>As designed</em>{" "}for the all-headings recovery area.
           </>
         )}
       </p>

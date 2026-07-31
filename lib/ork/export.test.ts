@@ -6,9 +6,9 @@ import { exportOrk, serializeRocketXml } from "./export";
 import { newDesign } from "../model/starter";
 import { applyGeometryEdits } from "../model/edit";
 import { runFlight } from "../sim/run";
-import { structurePointMasses } from "../sim/mass";
+import { combine, structurePointMasses } from "../sim/mass";
 import type { OrkDocument } from "./adapt";
-import type { NoseCone, BodyTube, MassComponent, Parachute, InnerTube, TrapezoidFinSet, MinorComponent } from "../model/types";
+import type { NoseCone, BodyTube, MassComponent, Parachute, InnerTube, TrapezoidFinSet, GenericFinSet, MinorComponent } from "../model/types";
 
 function flight(doc: OrkDocument) {
   const run = runFlight(doc.rocket, {
@@ -83,6 +83,23 @@ describe("exportOrk — real-design features round-trip (regression)", () => {
   };
   const roundtrip = async (doc: OrkDocument) => importOrk(exportOrk(doc));
 
+  /** A fin set by its name, anywhere in the tree. A freeform set is written as a `trapezoidfinset`,
+   *  so the KIND changes across the round trip and only the name is stable to look it up by. */
+  const finByName = (doc: OrkDocument, name: string): TrapezoidFinSet | undefined => {
+    const walk = (cs: readonly { name: string; children?: readonly unknown[] }[]): unknown => {
+      for (const c of cs) {
+        if (c.name === name) return c;
+        const kids = (c as { children?: readonly { name: string }[] }).children;
+        if (kids) {
+          const hit = walk(kids as never);
+          if (hit) return hit;
+        }
+      }
+      return undefined;
+    };
+    return doc.rocket.stages.map((s) => walk(s.components as never)).find(Boolean) as TrapezoidFinSet | undefined;
+  };
+
   it("preserves a motor cluster's count (thrust), not just one motor", async () => {
     const doc = newDesign();
     parts(doc).mount.motorMount!.clusterCount = 4; // fly the single motor as 4 coaxial
@@ -92,6 +109,97 @@ describe("exportOrk — real-design features round-trip (regression)", () => {
     expect(mount.motorMount!.clusterCount).toBe(4);
     // 4 motors ⇒ much higher apogee than 1; the count must survive or thrust collapses.
     expect(flight(back).apogee).toBeCloseTo(before.apogee, 0);
+  });
+
+  it("preserves a canopy's PACKED dimensions, which are where its mass sits", async () => {
+    // `lib/sim/mass.ts` places a packed canopy's CG at half its packed length, and the parachute and
+    // streamer writers emitted neither `packedlength` nor `packedradius` while `masscomponent` and
+    // `shockcord` both did. So a downloaded design re-opened with every canopy's mass moved forward
+    // to the front face of its bay. Measured across the 35-design corpus before the fix: the balance
+    // moved on 28 of 35 designs and static margin — a number a flyer acts on — moved by more than
+    // 0.005 cal on 21 of them, worst 0.64 cal.
+    const doc = newDesign();
+    const chute = parts(doc).chute;
+    chute.packedLength = 0.12;
+    chute.packedRadius = 0.018;
+    const cgBefore = combine(structurePointMasses(doc.rocket)).cg;
+
+    const back = await roundtrip(doc);
+    const backChute = parts(back).chute;
+    expect(backChute.packedLength).toBeCloseTo(0.12, 6);
+    expect(backChute.packedRadius).toBeCloseTo(0.018, 6);
+    // The point of the field: the whole design still balances where it did.
+    expect(combine(structurePointMasses(back.rocket)).cg).toBeCloseTo(cgBefore, 6);
+  });
+
+  it("keeps a hard-tapered freeform fin's ROOT and POSITION, and does not chase its area", async () => {
+    // A freeform outline is not retained, so the export writes the equal-area trapezoid:
+    // tip = 2·area/height − root. That solution is NEGATIVE once the planform tapers hard, and the
+    // tip is then clamped to zero while the root is kept — so the exported fin is larger in area than
+    // the one drawn. This asserts that deliberate choice, because the obvious alternative is worse:
+    // shrinking the root to 2·area/height writes a root of ZERO for a zero-area planform, and
+    // `finContribution` drops a fin set with no root, so the set disappears from lift and drag
+    // altogether. It also moves the fin, since a fin set's axial length IS its root chord — measured
+    // on `Pods--airframes and winglets.ork`, the "Wings" set translated 52.4 mm aft under its
+    // `bottom` anchor. Tried and reverted 2026-07-31; the real fix is to round-trip `<finpoints>`,
+    // which is R6's and is filed.
+    const doc = newDesign();
+    const body = parts(doc).body;
+    const height = 0.05;
+    const rootChord = 0.06;
+    const area = 0.0004; // 2·area/height = 0.016 m, well under the root
+    body.children.push({
+      kind: "freeformfinset",
+      id: "ff-hard-taper",
+      name: "Hard taper",
+      finCount: 3,
+      thickness: 0.003,
+      rootChord,
+      height,
+      sweepLength: 0.02,
+      area,
+      children: [],
+      placement: { method: "bottom", offset: 0 },
+    } as unknown as GenericFinSet);
+
+    const back = await roundtrip(doc);
+    const out = finByName(back, "Hard taper")!;
+    // The root survives, so the fin stays the length it was and stays where it was put.
+    expect(out.rootChord).toBeCloseTo(rootChord, 9);
+    expect(out.tipChord).toBeCloseTo(0, 9);
+    expect(out.height).toBeCloseTo(height, 9);
+    // And the cost is stated rather than hidden: the exported area is larger than the drawn one.
+    const exported = ((out.rootChord + out.tipChord) / 2) * out.height;
+    expect(exported).toBeGreaterThan(area);
+    expect(exported).toBeCloseTo((rootChord * height) / 2, 9);
+  });
+
+  it("leaves a gently-tapered freeform fin's trapezoid exact", async () => {
+    // Where the tip solution is positive there is no loss at all: area, span and sweep all survive.
+    const doc = newDesign();
+    const body = parts(doc).body;
+    const height = 0.05;
+    const rootChord = 0.02;
+    const area = 0.0009; // 2·area/height = 0.036 ⇒ tip = 0.016, comfortably positive
+    body.children.push({
+      kind: "freeformfinset",
+      id: "ff-gentle",
+      name: "Gentle taper",
+      finCount: 3,
+      thickness: 0.003,
+      rootChord,
+      height,
+      sweepLength: 0.01,
+      area,
+      children: [],
+      placement: { method: "bottom", offset: 0 },
+    } as unknown as GenericFinSet);
+
+    const back = await roundtrip(doc);
+    const out = finByName(back, "Gentle taper")!;
+    expect(out.rootChord).toBeCloseTo(rootChord, 9);
+    expect(out.tipChord).toBeCloseTo((2 * area) / height - rootChord, 9);
+    expect(((out.rootChord + out.tipChord) / 2) * out.height).toBeCloseTo(area, 9);
   });
 
   it("preserves a stage-level mass override (a measured whole-section weight)", async () => {
