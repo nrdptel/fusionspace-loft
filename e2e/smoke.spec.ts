@@ -1538,6 +1538,96 @@ test.describe("Loft", () => {
     await page.emulateMedia({ media: "screen" });
   });
 
+  test("a sheet printed from the dark theme is ink on white, not pale text on white", async ({ browser }) => {
+    // Its OWN context, because the theme is resolved once at load from `prefers-color-scheme` and
+    // `emulateMedia({ colorScheme })` on an already-loaded page does not re-run that — the control
+    // below caught exactly that and the test was green-by-vacuity until it did.
+    const ctx = await browser.newContext({ colorScheme: "dark" });
+    const page = await ctx.newPage();
+    // The print block forces a white ground, but the dark variant is CLASS-based: `.dark` stays on
+    // the root while the sheet prints, so every `dark:text-…` utility kept setting `color` on the
+    // element itself and beat the inherited colour on `html, body`. Measured on the built export
+    // before the fix: 193 of 369 text nodes under 3:1 — the numbers, the labels and the warnings.
+    //
+    // Colours are RASTERISED rather than parsed. Chromium reports computed colours as `lab()`/
+    // `oklab()` here and canvas `fillStyle` does not normalise them, so a string parse produces
+    // confident nonsense — three versions of the probe behind this test did exactly that.
+    await page.goto("/");
+    await page.getByRole("button", { name: /54 mm dual-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+
+    // CONTROL, and it is not a class check. The `dark` variant has TWO clauses (see the top of
+    // `app/globals.css`): an explicit choice, which sets `.dark`, and the OS preference, which sets
+    // nothing at all. Theme "System" — the default, and the state this test runs in — is the second,
+    // so asserting `.dark` would fail on a genuinely dark page. Assert what actually matters: that
+    // the page is rendering dark before we ask what it prints like.
+    // Rasterised, not parsed: Chromium reports this as `lab(2.51 0.24 -0.89)` and a `\d+` match
+    // reads that as the numbers 2, 51107 and 0. That mistake produced a confident 17036 here.
+    const screenBg = await page.evaluate(() => {
+      const cv = document.createElement("canvas");
+      cv.width = cv.height = 1;
+      const g = cv.getContext("2d", { willReadFrequently: true })!;
+      g.fillStyle = "#ffffff"; g.fillRect(0, 0, 1, 1);
+      g.fillStyle = getComputedStyle(document.body).backgroundColor; g.fillRect(0, 0, 1, 1);
+      const [r, gg, b] = g.getImageData(0, 0, 1, 1).data;
+      return (r + gg + b) / 3;
+    });
+    expect(screenBg, "the page under test is not actually in the dark theme").toBeLessThan(60);
+
+    await page.emulateMedia({ media: "print" });
+    const { sampled, faint, worst } = await page.evaluate(() => {
+      const cv = document.createElement("canvas");
+      cv.width = cv.height = 1;
+      const g = cv.getContext("2d", { willReadFrequently: true })!;
+      const lumOver = (c: string, base: string) => {
+        g.clearRect(0, 0, 1, 1);
+        g.fillStyle = base; g.fillRect(0, 0, 1, 1);
+        g.fillStyle = c; g.fillRect(0, 0, 1, 1);
+        const [r, gg, b] = g.getImageData(0, 0, 1, 1).data;
+        const f = (v: number) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
+        return 0.2126 * f(r) + 0.7152 * f(gg) + 0.0722 * f(b);
+      };
+      // Effective backdrop: nearest opaque ancestor, with any translucent layers composited over it.
+      const backdrop = (el: Element) => {
+        const chain: string[] = [];
+        let n: Element | null = el;
+        while (n) {
+          const c = getComputedStyle(n).backgroundColor;
+          if (!/,\s*0\)$/.test(c)) { chain.push(c); if (!/rgba|\/ /.test(c)) break; }
+          n = n.parentElement;
+        }
+        let base = "#ffffff";
+        for (const c of chain.reverse()) {
+          g.clearRect(0, 0, 1, 1);
+          g.fillStyle = base; g.fillRect(0, 0, 1, 1);
+          g.fillStyle = c; g.fillRect(0, 0, 1, 1);
+          const d = g.getImageData(0, 0, 1, 1).data;
+          base = `rgb(${d[0]},${d[1]},${d[2]})`;
+        }
+        return base;
+      };
+      let sampled = 0;
+      const bad: string[] = [];
+      for (const el of document.querySelectorAll("main *")) {
+        if (el.children.length || (el.textContent || "").trim().length < 3) continue;
+        if (getComputedStyle(el).display === "none") continue;
+        sampled++;
+        const base = backdrop(el);
+        const lb = lumOver(base, "#ffffff");
+        const lf = lumOver(getComputedStyle(el).color, base);
+        const [hi, lo] = [lf, lb].sort((a, b) => b - a);
+        const r = (hi + 0.05) / (lo + 0.05);
+        if (r < 3) bad.push(`"${(el.textContent || "").trim().slice(0, 24)}" ${r.toFixed(2)}:1`);
+      }
+      return { sampled, faint: bad.length, worst: bad.slice(0, 6) };
+    });
+
+    // CONTROL. A sweep that examined nothing reports zero unreadable text and reads like a pass.
+    expect(sampled).toBeGreaterThan(100);
+    expect(faint, `text under 3:1 on a dark-theme print sheet:\n${worst.join("\n")}`).toBe(0);
+    await ctx.close();
+  });
+
   test("reports a fin-flutter estimate in the stability readout", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();

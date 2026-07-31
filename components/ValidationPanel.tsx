@@ -93,9 +93,9 @@ export default function ValidationPanel({
       </p>
 
       {!external && storedCaveat(storedStatus, toolName) && (
-        <p className="mt-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-200">
+        <Card as="p" tone="warn" className="mt-2 text-sm">
           {storedCaveat(storedStatus, toolName)}
-        </p>
+        </Card>
       )}
 
       <div className="mt-3 overflow-x-auto">

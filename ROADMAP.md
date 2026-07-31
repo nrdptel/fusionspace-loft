@@ -754,9 +754,9 @@ cannot return while the conversion is still running.
 
 **Measured at the start of this milestone (2026-07-31), and after each increment:**
 
-| §9 count | target | before | inc. 1 | inc. 2 | inc. 3 | inc. 4 | inc. 5 | inc. 6 | inc. 7 |
-|---|---|---|---|---|---|---|---|---|---|
-| `rounded-lg` | 0 | 49 | 46 | 37 | 37 | **35** | 35 | **25** (inc. 6) | **15** (inc. 7) |
+| §9 count | target | before | inc. 1 | inc. 2 | inc. 3 | inc. 4 | inc. 5 | inc. 6 | inc. 7 | inc. 8 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| `rounded-lg` | 0 | 49 | 46 | 37 | 37 | **35** | 35 | **25** (inc. 6) | **15** (inc. 7) | **0** (inc. 8) |
 | distinct card treatments | 3 (see below) | 9 | 3 | 3 | 3 | 3 | 3 |
 | off-scale spacing values | 0 | 8 | 8 | 8 | 8 | 8 | **0** (inc. 5) |
 | components importing `components/ui.tsx` | most of 23 | 5 | 11 | 12 | 12 | **14** | 14 |
@@ -805,7 +805,13 @@ per increment, each shipped green — never one sweeping diff. **Ship the lint r
 slice**, so the drift cannot return while the conversion is still in progress. *Done: the ratchet shipped
 with increment 1.*
 
-**What is left, measured rather than estimated.** `Card`, `Section` and `Button` now exist; `Panel`,
+**What is left, measured rather than estimated.** *(The button and primary figures below were the
+measurement when this milestone opened. Re-measured 2026-07-31 after increment 8: **24** hand-rolled
+`<button>` elements outside `components/ui.tsx` — `LoftApp` 7, `ImportPanel` 7, `RocketDiagram` 3,
+`ServiceWorker` 2, and one each in `GeometryInspector`, `MotorSweep`, `ResultsView`, `RocketpyCrossCheck`
+— and 6 hand-rolled indigo primaries. Plan against those, not against the opening figures.)*
+
+`Card`, `Section` and `Button` now exist; `Panel`,
 `DataTable`, `Readout`, `Figure`, `EmptyState`, `ErrorState` and `Extrapolated` do not. There are 43
 hand-rolled `<button>` elements and 16 hand-rolled indigo primaries across four different padding
 variants, none of which is §4's `px-3 py-1.5`; `ImportPanel` and `RocketpyCrossCheck` each carry two
@@ -939,10 +945,25 @@ because the tone change is the separation — but all ten drew one and several s
 dropping it is a per-site judgement about each parent. Doing that in the same pass would have made this a
 repaint rather than an extraction; it is recorded in *Decisions taken without the owner*.
 
-**What is left of P1**, measured after increment 7: 15 `rounded-lg` — the 8 semantic notices (which want
-`tone="warn"` / `tone="danger"`), a `<label>` styled as a card (needs `Card`'s `as` widened), a couple of
-one-offs, and `app/globals.css`'s print rule keyed on `.rounded-lg`, which must change in the same commit
-as the LAST container or print loses its white backgrounds — and `DataTable`. Two findings the type pass turned up are filed in `BACKLOG.md` rather than folded in —
+**Increment 8 took it to 0, and retired the print rule that depended on it.** The last fifteen: 8 semantic
+notices onto `<Card tone="warn">` / `tone="danger"` (the tones already existed, so the slice needed no new
+one), 4 containers, and 2 route-level sites that could NOT take the primitive — both are server components
+and `components/ui.tsx` is `"use client"`, so the 404's call-to-action takes `buttonClass` (which exists
+for exactly that) and the methods page's formula block takes §2's sunken tokens directly. `Card`'s `as`
+gained `p`, `li` and `label`, because the element is not a styling choice: a warning inside a `<ul>` must
+stay an `<li>` or the list stops being one, and the configuration picker is a `<label>` wrapping its own
+select. Every converted site kept the element it had.
+
+`app/globals.css`'s print rule came off that class in the same commit, which is what made this slice the
+one that had to go last. The ratchet is now a guard at 0.
+
+**The padding change is the part a flyer sees**, and it was measured rather than assumed: notices moved
+from `px-3 py-2` / `px-4 py-3` to §4's `p-4`, and the metric tiles from `p-3`. Driven in the built export
+at 320, 360 and 390 px with a real design loaded — 14 tiles examined, **0 overflowing, 0 page overflow** at
+every width. Worth knowing for the next such change: `e2e/touch.spec.ts`'s overflow check walks the STATIC
+routes only, so no grid that needs a loaded design is covered by it at any width.
+
+**What is left of P1** is `DataTable` alone — sized by `COMPETITION.md` rows 24 and 26. Two findings the type pass turned up are filed in `BACKLOG.md` rather than folded in —
 `text-[11px]` has become a seventh size in exactly the way `text-lg` did (32 uses, 25 of them an
 uppercase label row), and a motor-resolution chip states a verdict at chip size. A third is a hazard
 for whoever takes the `rounded-lg` slice: `app/globals.css` carries a print rule keyed on that class,

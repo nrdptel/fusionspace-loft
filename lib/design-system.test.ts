@@ -62,8 +62,13 @@ function countMatches(files: { path: string; text: string }[], re: RegExp): { to
 /** The counts as they stand. Each is a ratchet toward the target named beside it; lower it in the same
  *  commit as the conversion that earns it, and never raise one. */
 const BUDGET = {
-  /** `rounded-lg` is not in the system at all — containers are `xl`, controls are `md`. Target 0. */
-  roundedLg: 15,
+  /** `rounded-lg` is not in the system at all — containers are `xl`, controls are `md`. **At 0**, so
+   *  this is a guard rather than a ratchet from here on: the next one to appear is a hand-rolled
+   *  treatment, not a leftover. It reached 0 on 2026-07-31 from 49 at the start of P1.
+   *
+   *  Note this reads `app/globals.css` too, so the name cannot be written even in a comment there —
+   *  the grep cannot tell a mention from a use. */
+  roundedLg: 0,
   /** Distinct card treatments. One of these is now `<Card>`'s own string, which is the target state;
    *  the other two are a floating toast (`shadow-lg`) and the import drop zone (`border-2 border-dashed`,
    *  an interactive target rather than a container). Both want their own named primitive rather than

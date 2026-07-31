@@ -158,12 +158,16 @@ input[type="number"] {
 :where(.dark) .prose-loft strong {
   color: #fafafa;
 }
+/* The docs' formula readout. `border-radius` is §2's CONTAINER radius, 12px — it was 8px, the
+   off-system middle value, written as a raw declaration where §9's grep matches a class name and so
+   could never see it. The class-name count reached zero while this kept rendering 8px corners on
+   every docs route; a compliance check that cannot see a value is the thing §9 itself warns about. */
 .prose-loft .eqn {
   display: block;
   overflow-x: auto;
   background: #f4f4f5;
   border: 1px solid #e4e4e7;
-  border-radius: 8px;
+  border-radius: 12px;
   padding: 0.6rem 0.8rem;
   font-family: var(--font-geist-mono), ui-monospace, monospace;
   font-size: 0.85em;
@@ -241,8 +245,45 @@ input[type="number"] {
     background-image: none !important;
     box-shadow: none !important;
   }
+  /* The `color-scheme: light` and `html, body { color }` above do NOT reach the text. The dark
+     variant is CLASS-based — `.dark` stays on the root while the sheet prints — so every
+     `dark:text-…` utility keeps setting `color` on the element ITSELF, and an element's own colour
+     beats an inherited one. The heading comment on this block has claimed since it was written that
+     it deals with "dark-mode colours on a white sheet"; it did not, and nothing measured it.
+     Measured on the built export, flight page, dark theme, print emulation: **193 of 369 text nodes
+     under 3:1** against the white ground this block forces — the numbers, the labels and the
+     warnings alike. The same page in the light theme measured clean, which is why this is scoped to
+     `.dark` and light printing is left exactly as it was.
+     Ink for everything, and the type scale carries the hierarchy that colour carries on screen.
+     Borders are deliberately NOT reset, so an amber or red notice still prints as black text inside
+     a coloured rule and keeps its meaning. Charts are unaffected: nothing in `components/` uses
+     `currentColor`, so their fills and strokes are their own.
+
+     The FILLS have to go with the ink, and finding that out is what made this rule right. Forcing
+     ink alone simply inverted the defect: the rules above whiten only `main > * > .rounded-xl` and
+     `section`, so every other dark container kept its own dark fill and the newly-black text landed
+     on it — 195 text nodes still under 3:1, a worse number than before. Clearing the fills is also
+     exactly what the comment four rules up already claims this block does: flatten the card shading
+     and let the borders carry the structure. Borders are still not reset, so an amber or red notice
+     prints as black text inside a coloured rule.
+
+     This mirrors the FIRST of the two clauses the `dark` variant is defined with at the top of this
+     file — an explicit Dark choice, which is the only one that sets a class. The second clause is a
+     media query and needs its own at-rule below. Covering only this one would have left the common
+     case untouched: theme "System" on a dark OS sets no class at all, and that is the state the
+     193-of-369 measurement was taken in. */
+  .dark body,
+  .dark body * {
+    color: #18181b !important;
+    background-color: transparent !important;
+  }
+  /* The off-system middle radius stood beside `.rounded-xl` in this selector for as long as containers
+     were written both ways. It comes out in the same commit as the last such container, which is why
+     that conversion had to finish before this line could move: every container this rule needs to
+     whiten carries `rounded-xl` now, and dropping it any earlier would have printed the stragglers on
+     a shaded ground. (Its name is spelled out nowhere here on purpose — §9's compliance grep reads
+     this stylesheet, and a mention in a comment is indistinguishable from a live use.) */
   main > * > .rounded-xl,
-  main > * > .rounded-lg,
   section {
     background: #fff !important;
   }
@@ -283,5 +324,18 @@ input[type="number"] {
   footer {
     margin-top: 1.5rem !important;
     break-inside: avoid;
+  }
+}
+
+/* The SECOND of the `dark` variant's two clauses — the OS preference, with no explicit Light choice
+ * — which is what theme "System" rides on and therefore what most dark-theme visitors are in. It has
+ * to be its own at-rule because that clause is a media query rather than a class, and it is the one
+ * that actually carried the 193-of-369 measurement recorded in the block above. Same ink, same
+ * reason: a printed sheet is ink on white whatever the screen was showing. */
+@media print and (prefers-color-scheme: dark) {
+  html:not(.light) body,
+  html:not(.light) body * {
+    color: #18181b !important;
+    background-color: transparent !important;
   }
 }

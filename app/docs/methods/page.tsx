@@ -227,7 +227,14 @@ export default function Methods() {
         transition terms above, gives the reaction from that turning as{" "}
         <code>N = ρV²·A_duct·α</code>, i.e.
       </p>
-      <p className="rounded-lg bg-black/[0.03] px-4 py-3 font-mono text-sm dark:bg-white/[0.05]">
+      {/* `.eqn` — the docs' own formula readout, defined once in `app/globals.css` and used by every
+          other equation on these pages. This block spent a while as a hand-rolled class string and
+          then as a hand-rolled set of §2 tokens, described in a comment here as "the only site of its
+          kind"; it was not. `.eqn` is the same kind of block, a few paragraphs up the same article,
+          and the two had drifted to different fills, radii and borders. Using it is what §1 asks for,
+          and it works from a server component because it is a stylesheet class rather than a
+          `"use client"` primitive. */}
+      <p className="eqn">
         C_Nα = 2·A_duct / A_ref &nbsp;per radian, &nbsp;A_duct = Σ N·π·r_inner²
       </p>
       <p>

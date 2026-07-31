@@ -125,6 +125,71 @@ test.describe("phone layout", () => {
     }
   });
 
+  test("no workspace scrolls horizontally once a design is loaded", async ({ page }) => {
+    // The check above walks the static ROUTES, every one of which renders with NO design — so the
+    // surfaces that only exist once a flight has been computed were never measured at any width. The
+    // metric-tile grid is the sharp case: it is `grid-cols-2` of mono numerals, and P1's card
+    // conversion repadded it from `p-3` to §4's `p-4`, narrowing the content box by 8 px per tile.
+    // That was measured by hand at the time and nothing re-measured it afterwards, which is the gap
+    // this test closes.
+    // Loaded ONCE and then resized, rather than reloaded per width: the session persists, so a
+    // second `goto("/")` restores the design and the import panel — with its sample buttons — is not
+    // rendered at all. The first version of this test reloaded each time and timed out on the second
+    // width waiting for a control that no longer existed.
+    await page.goto("/");
+    await page.getByRole("button", { name: /54 mm dual-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 30000 });
+
+    for (const width of [320, 360, 390]) {
+      await page.setViewportSize({ width, height: 844 });
+
+      for (const tab of ["Flight", "Design", "Analyze"]) {
+        await page.getByRole("tab", { name: tab }).click();
+        await expect(page.getByRole("tab", { selected: true })).toHaveText(tab);
+        // CONTROL: the grid must actually be on the page, or this measures an empty workspace and
+        // reports no overflow for the best possible reason.
+        if (tab === "Flight") {
+          await expect(page.getByText("Apogee", { exact: true }).first()).toBeVisible();
+        }
+        const [scrollW, clientW] = await page.evaluate(() => [
+          document.documentElement.scrollWidth,
+          document.documentElement.clientWidth,
+        ]);
+        expect(scrollW, `horizontal overflow on the ${tab} workspace at ${width}px`).toBeLessThanOrEqual(clientW);
+
+        // Page-level overflow is NOT the failure mode for a grid, and finding that out is why this
+        // second assertion exists. A negative control that repadded the metric tiles to `p-12` left
+        // the page width unchanged and the check above green — the grid columns simply shrank and
+        // the numerals overflowed their own tiles instead.
+        //
+        // Scoped to the tiles rather than to everything in `main`, deliberately. A sweep over every
+        // element reports six hits on an untouched tree, all of them correct behaviour: the header's
+        // title block is `min-w-0` precisely so it may shrink and truncate (that is the fix that took
+        // 320 px to zero overflow in the first place), a text `<input>` reports its full value width,
+        // and an SVG `<text>` is not a box at all. An assertion that has to be excused on a clean
+        // tree teaches a session to ignore it.
+        const clipped = await page.evaluate(() => {
+          const tiles = [...document.querySelectorAll("main div.rounded-xl")].filter((el) =>
+            el.querySelector(":scope > div.uppercase"),
+          );
+          const bad: string[] = [];
+          for (const tile of tiles) {
+            for (const el of [tile, ...tile.querySelectorAll("div")]) {
+              if (el.clientWidth > 0 && el.scrollWidth > el.clientWidth + 1) {
+                bad.push(`"${(el.textContent || "").trim().slice(0, 24)}" needs ${el.scrollWidth}px in ${el.clientWidth}px`);
+              }
+            }
+          }
+          return { count: tiles.length, bad };
+        });
+        // CONTROL: no tiles found means the assertion below passes for the worst possible reason.
+        if (tab === "Flight") expect(clipped.count).toBeGreaterThan(8);
+        expect(clipped.bad, `a metric tile clips its own value on ${tab} at ${width}px:\n${clipped.bad.join("\n")}`)
+          .toHaveLength(0);
+      }
+    }
+  });
+
   test("the design editor's own controls clear the hit target too", async ({ page }) => {
     // The workspace a pad check actually uses. Its ~20 what-if fields, its material and shape
     // pickers, its zoom buttons and its parts-table headers were all under the project's own 44 px

@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { Card, Tabs } from "./ui";
+import { Card, Tabs, type CardTone } from "./ui";
+import { cx } from "@/lib/ui-tokens";
 import type { FlightRun } from "@/lib/sim/run";
 import type { ConditionOverrides } from "@/lib/sim/setup";
 import type { ConditionsSource } from "@/lib/what-if";
@@ -128,10 +129,23 @@ function ToolUnavailable({ title, reason }: { title: string; reason: string }) {
 export const WORKSPACES = ["flight", "design", "analyze"] as const;
 export type Workspace = (typeof WORKSPACES)[number];
 
-const SEVERITY: Record<string, string> = {
-  warning: "border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-300",
-  caution: "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300",
-  info: "border-zinc-400/30 bg-zinc-500/10 text-zinc-600 dark:text-zinc-300",
+/** A flight warning's severity, as one of `Card`'s tones — `DESIGN.md` §2, where the semantic colours
+ *  are reserved for meaning and there are only two of them for "something is wrong".
+ *
+ *  `info` maps to the neutral inset rather than to a colour, and that is the point: a note with no
+ *  semantic tone reads as a note. Inventing a third "informational" colour would be a change to
+ *  `DESIGN.md` §2 under §1's rule, not a call site's decision.
+ *
+ *  It carries §2's SECONDARY text with it, and that pairing is load-bearing rather than decoration.
+ *  `sunken` is the one tone in `CARD_TONES` that sets no colour of its own — `warn` and `danger` both
+ *  do — so an `info` note left to inherit renders in the page's full-strength body ink while the amber
+ *  caution stacked directly above it renders muted. That puts the loudest text on the least severe
+ *  row, on the one surface whose whole job is to rank what is wrong. Caught by review, not by a check;
+ *  the assertion below is the check. */
+const SEVERITY: Record<string, { tone: CardTone; text: string }> = {
+  warning: { tone: "danger", text: "" },
+  caution: { tone: "warn", text: "" },
+  info: { tone: "sunken", text: "text-zinc-600 dark:text-zinc-400" },
 };
 
 export default function ResultsView({
@@ -457,9 +471,14 @@ export default function ResultsView({
       {r.warnings.length > 0 && (
         <ul className="space-y-2">
           {r.warnings.map((w) => (
-            <li key={w.code} className={"rounded-lg border px-3 py-2 text-sm " + (SEVERITY[w.severity] ?? SEVERITY.info)}>
+            <Card
+              as="li"
+              key={w.code}
+              tone={(SEVERITY[w.severity] ?? SEVERITY.info).tone}
+              className={cx("text-sm", (SEVERITY[w.severity] ?? SEVERITY.info).text)}
+            >
               {w.message}
-            </li>
+            </Card>
           ))}
         </ul>
       )}
@@ -1314,14 +1333,14 @@ function Field({
 
 function Stat({ label, q, sub, accent }: { label: string; q: d.Quantity; sub?: string; accent?: boolean }) {
   return (
-    <div className="rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-900/40">
+    <Card>
       <div className="text-[11px] uppercase tracking-wide text-zinc-500 dark:text-zinc-400">{label}</div>
       <div className={"mt-1 font-mono tabular-nums " + (accent ? "text-2xl text-indigo-600 dark:text-indigo-400" : "text-xl text-zinc-900 dark:text-zinc-100")}>
         {q.value}
         <span className="ml-1 text-xs font-normal text-zinc-500 dark:text-zinc-400">{q.unit}</span>
       </div>
       {sub && <div className="mt-0.5 text-[11px] text-zinc-500 dark:text-zinc-400">{sub}</div>}
-    </div>
+    </Card>
   );
 }
 

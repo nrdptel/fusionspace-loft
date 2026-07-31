@@ -4,32 +4,27 @@ Overwritten each session. What shipped, what is part-way, and what to pick up fi
 
 ## Read this first
 
-**`BACKLOG.md`'s Sev-1 count is ZERO at the end of this run**, and that is a measured claim rather than
-an inherited one: the single open Sev-1 this run started with — an authored booster whose motor mount is
-deleted flying as dead ballast — was reproduced, fixed and pinned as increment 1. Run the screen against
-the LEDGER, not against this summary of it; that is the mistake the previous two handoffs each made in
-turn.
+**`BACKLOG.md`'s Sev-1 count is ZERO, and the "21 open Sev-1" figure a screen produced this run is not
+one.** That screen classified ledger entries against the manual's criteria without checking whether any
+is *reachable*, and its own top-ranked entry is not: driven through the solver's own path, **35 designs,
+113 configurations, 177 recovery devices built, 0** in the state it describes. Several of its other
+entries carry `UNVERIFIED by me`. Treat that list as a reading list, not a count — it will be produced
+again next session and it will say 21 again. Re-measure before letting any of them preempt a milestone.
 
-**One thing is owed to the sibling repo and could NOT be done, for the second run running.** `DESIGN.md`
-§9's explanatory note quotes `GeometryInspector` at 9:2 and `MonteCarlo` at 9:4; both are now 2:8 and
-3:9. §10 says a change to that file is a change to both copies in the same run. The sibling repo
-(`fusionspace-debrief`) is reachable in the account's repo list, and **attaching it was refused by the
-harness's permission classifier**, so correcting the numbers here alone would have created exactly the
-divergence the invariant forbids. The correction is two numbers in §9's paragraph beginning "The
-suite-wide ratio was removed on 2026-07-31". The rule itself is right and satisfied; only the historical
-figures are stale. **A session with both repos attached should fix it in one commit each.**
-
-**The pre-push second opinion is the highest-value thing in this workflow and it nearly did not run this
-time.** Increment 1 passed a FULL GREEN GATE — lint, 908 unit, build, 178 e2e, corpus 10/10 — while the
-warning it shipped **stated a falsehood**, and two independent review lenses caught it. Do not treat a
-green gate as permission to push. Details under *What this session learned*.
+**The sibling repo is still owed one commit, for the THIRD run running.** `DESIGN.md` §9's explanatory
+note quotes `GeometryInspector` at 9:2 and `MonteCarlo` at 9:4; `ROADMAP.md`'s own increment-4 table says
+10/2 and 9/3, and both are now 2:8 and 3:9. §10 says a change to that file is a change to both copies in
+the same run, so correcting it here ALONE would create exactly the divergence the invariant forbids —
+which is why it is still unfixed rather than forgotten. `nrdptel/fusionspace-debrief` is in the account's
+repo list and **`add_repo` was refused by the harness's permission classifier again**. A session created
+with both repos attached fixes it in one commit each.
 
 **The queue has two tracks and a run ships from both.** `ROADMAP.md` is the queue; read it first.
 
-| track | state at the end of 2026-07-31 (third session) |
+| track | state |
 |---|---|
-| **R — capability** | **R5 — author a staged rocket — IN PROGRESS**, increments 1–2 of 4–6 shipped |
-| **P — product & craft** | **P1 — one design system, adopted — IN PROGRESS**, increments 1–6 shipped |
+| **R — capability** | **R5 — author a staged rocket — IN PROGRESS**, increments 1–2 of 4–6 shipped. Increment 3 is scoped in detail below. |
+| **P — product & craft** | **P1 — one design system, adopted — IN PROGRESS**, increments 1–8 shipped. `DataTable` is all that is left. |
 
 ## The arc so far
 
@@ -40,110 +35,95 @@ green gate as permission to push. Details under *What this session learned*.
 | R3 — add a component | SHIPPED 2026-07-30 |
 | R4 — reorder and restack | SHIPPED 2026-07-31 |
 | R5 — author a staged rocket | **IN PROGRESS** — inc. 1 (the stage) and 2 (the phase table) shipped |
-| P1 — one design system, adopted | IN PROGRESS — increments 1–6 shipped 2026-07-31 |
+| P1 — one design system, adopted | **IN PROGRESS** — increments 1–8 shipped; only `DataTable` remains |
 | P2–P5 | NOT STARTED |
 
-## Shipped this session (2026-07-31, third session of the day)
+## Shipped this session (2026-07-31, fourth session of the day)
 
-Baseline before anything changed, all four green: lint 0 errors / **1 warning** (the standing `setDraft`
-one), **901 unit**, build, **177 e2e**, corpus **35 design files, 9/9**.
+Baseline before anything changed, all four green: lint 0 errors / 1 warning (the standing `setDraft`
+one), **922 unit**, build, **182 e2e**, corpus **35 design files, 11/11**. Nothing inherited was red.
 
-At the end, all four green: lint 0 errors / 1 warning (the same one), **914 unit**, build, **180 e2e**,
-corpus **35 design files, 11/11**.
-
-`DESIGN.md` §9, start of run → end: `rounded-lg` **35 → 25**; card treatments 3 → 3 (one is `Card`'s own);
-off-scale spacing 0 → 0; `text-lg` 0 → 0; inverted type files 0 → 0; primitive adopters 14 → 14 of 23.
-Nothing moved the wrong way.
+**Pull request #87 was open at session start and is now merged** (`357075e`) — the previous run's two
+BLOCKERs, both silent data loss on the from-scratch builder. It was green on that day's `main` and its
+diff read correctly, so it was merged rather than rebased. Its `bakeMotorSwap` writes the swap into every
+instance of every configuration, which matches what `swapMotor` (`lib/sim/run.ts:107`) already does per
+configuration — checked before merging, because that is exactly the kind of divergence it was fixing.
 
 | commit | what |
 |---|---|
-| `37a2019` | **Sev-1 — a stage that cannot fire now says so.** The last open Sev-1 in the ledger. Rewritten once after review found the first version lied; see below. |
-| `1f172f2` | **R5 increment 2 — the phase table.** `FlightRun.phases`, a per-phase table on the flight surface, and separation dots on the flight-path chart. |
-| `e64919b` | **The rest of the page made to read the flight rather than the plan**, plus three wrong claims and three assertions that could not fail — all found by the review of `1f172f2` after it was pushed. |
-| `ab460e7` | **The CI budget the new sweeps needed, and P1 increment 6** — `rounded-lg` 35 → 25. |
-| `d4717da` | This handoff. |
-| `622b215` | **The `CARD_TONES` decision that unblocks P1 6b**, taken and written up rather than left as a question. |
-
-**All six SHIPPED — pull request #84 merged on green as `446ec37`, and production serves them.** Both CI
-jobs passed every step on the head that merged; the deploy completed; and what is live was checked rather
-than assumed. The two chunks carrying this run's code are **byte-identical (sha256) to the local build the
-180-test e2e suite ran against** — `04fi6lqd1vn1j.js`, which carries *no motor that can fire*, *carried to
-apogee as dead mass*, *still dropped* and *ignition trigger that never arrives*, and `06str.0c5uor9.js`,
-which carries *Flight phases*. `/docs/limitations` serves the corrected prose, including *One of the 35
-real design files*, where it previously published the opposite.
-
-**One trap when checking production: the hashed assets propagate before the HTML does.** Measured this
-run — the new chunks were live and byte-identical while `/docs/limitations` still returned the previous
-copy, which reads exactly like a half-broken deploy. It was edge cache. Re-fetch with
-`-H 'Cache-Control: no-cache'` and a cache-busting query before concluding anything, and check the deploy
-workflow's own run for the merge commit.
+| `23cc549` | **P1 increment 8 — the off-system radius to 0**, and `app/globals.css`'s print rule retired in the same commit, which is why that slice had to go last. |
+| `a874b2b` | The measurements that increment invalidated, corrected in `ROADMAP.md` and `BACKLOG.md`. |
+| `c240a28` | **A dark-theme sheet prints as ink on white** — 193 of 369 text nodes were under 3:1. |
 
 ## What this session learned that is worth keeping
 
-**A green gate is not a correct feature, and this run has the sharpest example yet.** Increment 1's first
-version shipped a warning whose central sentence — "it stays attached for the whole flight and never
-separates" — is **false whenever the dead stage sits below a stage that still burns**, because a serial
-stack parts at one joint and takes everything below it. On `02.Two-stage.ork` that renders the new warning
-beside `untracked-booster` saying the opposite, about the same stage, on the same surface. Nine unit
-cases, a corpus sweep and an e2e were all green over it, because every one of them was two-stage — the
-one shape where the claim happens to hold. **When a new assertion is about a relationship between things,
-build the fixture where the relationship is different.**
+**The print block had claimed for its whole life to handle "dark-mode colours on a white sheet" and did
+not, because nothing measured it.** `color-scheme: light` does not cancel a `dark:` utility, and
+`html, body { color }` never reaches an element that sets its own — which every `dark:text-…` does. The
+sheet forced a white ground and kept dark text on it: **193 of 369 text nodes under 3:1**, numbers,
+labels and warnings alike. Two further traps sat behind it, and both cost a cycle:
 
-**The same review found the predicate itself was measuring the wrong quantity.** It counted motor
-INSTANCES per stage. "Can this stage fire" is not that, and the gap was three false negatives on real
-files, each worse than the bug being fixed: `ignitionEvent:"never"` loses 95.2% of apogee on
-`02.Two-stage.ork` (1378.003 → 66.682 m); an unresolvable designation flies 93.508 m; and
-`03.Three-stage.ork` is in the state as imported. The fix was to compute it in `lib/sim/setup.ts` keyed on
-`stageBurnDuration[i] === 0` — **the same quantity the separation timing is derived from**, so the warning
-and the flight cannot disagree. Generalise: when a warning describes what the solver did, derive it from
-the solver's own intermediate, not from a re-reading of the inputs.
+- **The dark variant has TWO clauses** (top of `app/globals.css`): a `.dark` class from an explicit
+  choice, and a `prefers-color-scheme` media query for everything else. Theme "System" — the default —
+  sets **no class at all**, so a fix written against `.dark` alone covers nobody. The first version did
+  exactly that and the test's own control caught it.
+- **Forcing ink alone made it worse.** Only two selectors whiten containers, so newly-black text landed
+  on containers that kept their dark fill: 195 under 3:1, up from 193. The fills have to be cleared with
+  the ink — which is what the comment four rules above it already claimed the block did.
 
-**"0 of 35" was an artefact of a blind predicate, not a fact about the corpus.** Both the docs and the
-sweep published it. The real figure is **1 of 35**. A sweep that returns nothing is evidence about the
-sweep as much as about the corpus — check the predicate can see the thing before believing the count.
+**Chromium reports computed colours as `lab()`/`oklab()`, and canvas `fillStyle` does not normalise
+them.** A `\d+` match on `lab(2.51107 0.242703 -0.886115)` reads the numbers 2, 51107 and 0 — which
+produced a confident average of 17036 for a near-black background, and three successive versions of one
+probe that were all wrong in different ways. **Rasterise through `getImageData` and read pixels.** Both
+new checks do; anything measuring colour in this repo should.
 
-**A green LOCAL gate does not prove the runner agrees, and this repo has now learned it twice.** CI went
-red on `e64919b` while the identical tree passed here: the new dead-stage corpus sweep flies all 35
-designs and ran under vitest's 5 s default — **488 ms on this box, 5,186 ms on the runner**. Every
-neighbouring sweep already carries an explicit `300_000` for exactly this reason and the previous handoff
-wrote the lesson down; it was still reintroduced. **Any test that flies the corpus takes the budget, and
-the `frontend` job's own result on the PR head is read before a run is called done.**
+**A test that cannot fail is worth less than none, and this run built one before catching it.** The new
+"no workspace scrolls horizontally once a design is loaded" check first asserted page width only. Its
+negative control — the metric tiles repadded to `p-12` — left the page width **unchanged** and the test
+green, because a `grid-cols-2` simply shrinks its columns and the numerals overflow their own tiles. The
+assertion now asks each tile whether its content fits IT, and fires on six tiles under that control.
+**A first version that passes its negative control is a finding about the test.**
 
-**Run the gate AFTER the last edit, not around it.** Two gate runs this session were invalidated by edits
-that landed while they were in flight, and a third was re-run for honesty. The result of a gate that
-overlapped an edit tells you nothing about the tree you are about to push.
+**Scope an element-overflow assertion, or it will need excusing on a clean tree.** Sweeping every element
+in `main` reports six hits on untouched code, every one correct behaviour: the header's title block is
+`min-w-0` precisely so it may shrink and truncate (that IS the fix that took 320 px to zero), a text
+`<input>` reports its whole value width, and an SVG `<text>` is not a box. An assertion a session has to
+explain away is one it learns to ignore.
 
-**A probe's control line earns its keep every single time.** Three probes this session were wrong in ways
-only their controls revealed: `mountId=(none found)` (the ids are freshly MINTED for the parts a stage
-creates, not existing ids), a stage walk over `.components` when components nest under **`.children`**,
-and `importDesign` being **async** and never awaited. Every one would have produced a confident, wrong,
-publishable number.
+**The pre-push review earned its keep again, and its best finding was not the one it ranked first.** It
+raised the two notices whose text shade increment 8 had nudged, as a print-contrast `sev1`. Reproducing
+it found those two were **2 of 193** — the finding was real and its scope was an order of magnitude off
+in the finder's favour. It also caught, independently across three lenses, that `info` mapped to the one
+tone carrying no text colour, so the least severe warning rendered in the strongest ink on the page.
 
-**Prefer the corpus to another synthetic fixture, and make the sweep assert a NAME.** The dead-stage sweep
-asserts `["03.Three-stage.ork"]` exactly, so it fails both if a real design starts firing the warning and
-if that one stops — where `toEqual([])` would have quietly accepted the predicate going blind again.
+**"It is the only site of its kind" was wrong, and the grep could not have told me.** The methods page's
+formula block was hand-rolled onto §2 tokens on the grounds that nothing else looked like it. `.eqn` —
+defined in `app/globals.css` and used by every other equation in the docs — is the same block, a few
+paragraphs up the same article. **§9's checks match class NAMES, so a raw `border-radius: 8px` in the
+stylesheet is invisible to them**: the off-system radius count reached zero while `.eqn` was still
+rendering 8 px corners on every docs route.
 
 ## Running the gate without fooling yourself
 
-Everything under this heading in the previous handoff still holds and was re-confirmed this session. The
-points that mattered most, unchanged:
+Everything under this heading in the previous handoff still holds and was re-confirmed. The points that
+mattered most:
 
-- **`npm install` first** on a fresh container (~1 min), then **`npx playwright install chromium` once**
-  and a bare `npx playwright test` — do NOT set `PW_EXECUTABLE_PATH`. `@playwright/test` is 1.61.1 and
-  manages **chromium-1228**; the sandbox ships **1194**. Confirmed again: 1228 was absent at session
-  start, installed in about a minute through the proxy, and **179/179 ran against it**.
+- **`npm install` first** on a fresh container, then **`npx playwright install chromium` once** and a
+  bare `npx playwright test` — do NOT set `PW_EXECUTABLE_PATH`. `@playwright/test` is 1.61.1 and manages
+  **chromium-1228**; the sandbox ships 1194. Confirmed again: 1228 was absent at session start and
+  installed in about a minute through the proxy.
 - Record each gate step's own exit code; a `{ … } > file` brace group reports only its last command.
-  Run it with `run_in_background: true` and wait with `until grep -q "E2E_EXIT=" "$G"; do sleep 10; done`.
-- **`git commit --amend` is blocked by the permission classifier.** Add a second commit; the squash folds
-  them.
+- **`git commit --amend` is blocked by the permission classifier.** Add a second commit.
 - **Never revert a negative control with `git checkout -- <file>`.** Copy the file's bytes aside and
-  restore from the copy. Used five times this session with no loss.
-- **A negative control's BUILD exit is part of the control** — the e2e runs against `out/`, so a control
-  that does not compile leaves the suite testing the still-correct build.
-- `rm -f *-tmp.mjs` immediately before every gate: eslint lints gitignored root-level probes and breaks
-  the "exactly 1 warning" baseline.
-- Serve the built export for probes with `(setsid npx serve -c e2e-serve.json -l 3100 … < /dev/null &)`;
-  the e2e suite owns :3000.
+  restore from the copy. Used three times this session with no loss.
+- **A negative control's BUILD exit is part of the control** — the e2e runs against `out/`.
+- `rm -f *-tmp.mjs` immediately before every gate: eslint lints gitignored root-level probes.
+- **A probe under the scratchpad cannot resolve `@playwright/test`.** Put probes in the repo root with a
+  `*-tmp.mjs` name (gitignored — check with `git check-ignore -v`) and delete them before the gate.
+- Serve the built export for probes with
+  `(setsid npx serve -c e2e-serve.json -l 3100 --no-clipboard --no-request-logging < /dev/null &)`.
+  **Do not pass `out` as an argument** — `e2e-serve.json` already sets `"public": "out"`, and adding it
+  makes `serve` look for the config inside `out/` and exit.
 
 ## Before you trust a sweep
 
@@ -156,81 +136,56 @@ mkdir -p corpus && for d in openrocket rocksim rasaero rocketpy spacecad; do
 npx vitest run lib/corpus --reporter=verbose --silent=false
 ```
 
-It must print `imports every design file (35 present)`. **Confirmed this session: 35 files, 11/11**, with
-every count printed — 536 removable parts · 180 authored parts · 230 mass-object stations · 484 drag
-drop-slots · 206 reorders · 33 authored boosters and 2 refusals · 0 of 35 leading with a flat face ·
-**1 of 35 flying a lower stage that cannot fire (`03.Three-stage.ork`)** · **9 multi-stage designs,
-18 phases, 1 boundary shedding more than one stage at once**.
+It must print `imports every design file (35 present)`. **Confirmed this session: 35 files, 11/11.**
 
 `FIXTURES_TOKEN` is set and the corpus genuinely gates CI, but **only the `frontend` job fetches it — the
 `e2e` job does not**, so an e2e test still needs a committed fixture.
 
 ## Facts about this codebase that cost time to rediscover
 
-- **Components nest under `.children`; a `Stage` holds `.components`.** Mixing them up makes a walk find
-  one part where there are nine.
+- **`FlightRun`'s scalars are under `result.summary`**, not on `result` — `result` carries `summary`,
+  `trajectory`, `events`, `warnings`, `stability`, `flutter` and friends. A probe reading
+  `result.groundHitVelocity` gets `undefined` and dies on `.toFixed`.
+- **A per-configuration deploy override REPLACES the component's own event AND altitude.**
+  `effectiveDeploy` (`lib/sim/setup.ts:352`) is `altitude: o ? o.altitude : c.deployAltitude` — when the
+  override exists there is no fallback, so mutating a parachute's `deployEvent` in a probe does nothing
+  on any design that carries `deployConfigs`. Drive `buildRocketDynamics` and read the built device.
+- **Components nest under `.children`; a `Stage` holds `.components`.**
 - **`importDesign` is async.** `lib/ork/import.ts`, takes BYTES, handles `.ork`/`.rkt`/`.CDX1` alike.
-- **An authored stage's `seedId`/`mountId` are FRESHLY MINTED ids** for the parts `buildStage` will
-  create, not ids of existing components. Mirror `LoftApp.addStage`'s two `newPartId` calls.
-- **`stageBurnDuration[i] === 0` in `lib/sim/setup.ts` is the canonical "this stage never burns"**, and it
-  already accounts for all three causes. Anything asking that question should use it.
-- **A phase is not a stage.** `phases[p].stageCount` is a COUNT of what remains; the stages shed at a
-  boundary are the slice `stages[stageCount_p … stageCount_{p-1} - 1]`, because two joints can part at one
-  instant (they do, on `03.Three-stage.ork`: 3 stages, 2 phases, 1 separation event).
-- **Only ONE burnout event is emitted per flight, ever** — the last motor's. All 9 multi-stage corpus
-  designs report exactly 1, including the one that burns three motors.
-- The `GeometryEdits` six-place trap in the previous handoff still applies to any new key on that bag; a
-  phase table touches none of it, because it reads already-computed results.
+- **The session persists across a reload**, so a second `page.goto("/")` in one e2e test restores the
+  design and the import panel — with its sample buttons — is not rendered at all.
+- `innerText` throws on an SVG `<text>`; use `textContent`.
+- The app has SIX page routes: `/`, `/docs`, `/docs/faq`, `/docs/methods`, `/docs/limitations`,
+  `/docs/validation`. `/validation` and `/motors` are 404s.
 
 ## Pick up first
 
-1. **R5 increment 3.** The *done when* still owes: "give it its own motor mount and fins" is inherited
-   from the seed rather than authored (there is no `AddedPart.kind` for a mount), and only an AUTHORED
-   stage can be removed. Per-stage burn intervals are the natural next table column and need a solver
-   change — one burnout event per `detachTime` group.
-2. **P1's remaining slices.** The 35 `rounded-lg`, which an opening-fan-out agent scoped into three
-   increments — **6a** the 10 button sites (mechanical), **6b** the 12 zinc-50 sunken blocks (blocked on
-   one decision: does `CARD_TONES` gain a `sunken` tone?), **6c** the 8 semantic notices **plus**
-   `app/globals.css`'s print rule keyed on `.rounded-lg`, which breaks print if the sites convert without
-   it, **plus** the ratchet update. 6c must be last. Then `DataTable`, sized by `COMPETITION.md` row 24.
-   **Increment 6 did 6a**, so what is left is 6b (the 12 zinc-50 blocks) and 6c (the 8 semantic notices +
-   `app/globals.css`'s print rule + the ratchet to 0). 6c must be last, because that stylesheet rule stays
-   valid until the final container converts. **6b is no longer blocked**: the `CARD_TONES` decision is
-   taken and written up in `ROADMAP.md` under *Decisions taken without the owner* — add a `sunken` tone
-   (which `DESIGN.md` §2 already names), define it WITH the hairline so the conversion is visually
-   identical, and drop the border only where the parent is confirmed raised.
-3. **The design-system audit finally ran**, and it is the biggest single body of P-track work now known:
-   `text-[10px]`×22 and `text-[9px]`×3 are an eighth and ninth type size (one of them inside `Chip`
-   itself), `text-[11px]` is at 32 uses of which 29 are off-role, 69 unsanctioned half-step spacings, four
-   `variant="primary"` on one scrolling surface, `Section`/`Chip`/`Disclosure` exported with **zero** call
-   sites, and seven of §5's named primitives do not exist at all. All filed in `BACKLOG.md`.
-
-**The two BLOCKERS from the previous session are still unfixed**, both silent data loss on the
-from-scratch builder, both with full reproductions in `BACKLOG.md`: `Download .ork` drops the motor the
-flyer picked (1,033 m saved, 542 m re-imported), and reopening your own build from the shelf hands back
-the factory starter. A triage agent argued both are Sev-1 by the manual's first criterion. They are the
-strongest candidates the moment nothing else preempts.
-
-## Environment notes
-
-- **The GitHub MCP tools are the only path to GitHub**; a direct `curl` to the API returns 403 with valid
-  JSON, which a naive poller reads as "no checks pending". Poll with `mcp__github__actions_list`, and read
-  the `steps` array — **job-level status lags by up to twenty minutes; step-level does not.**
-- **Attaching a second GitHub repo mid-session can be refused by the permission classifier.** It was, for
-  `fusionspace-debrief`. Route around it and say so; do not treat it as the repo being unreachable.
-- The clone is **shallow**, so every commit count and file history is a window, not the record.
-- CI does not run on a branch push: `test.yml` fires on `push: [main]` and `pull_request:` only,
-  `deploy-cloudflare.yml` on `push: [main]`. Re-read both `on:` blocks at session start; this session did,
-  and they still say that. Gate locally → push the branch → open a PR (that is what makes CI run) → merge
-  on green (that is what deploys).
-- **The zero-trace sweep has one standing false positive and it is not ours**: `out/pyodide/pyodide-lock.json`
-  is Pyodide's own index of installable wheels, untracked and already in production. Sweep the TRACKED
-  tree with `git grep`.
-- **The app has SIX page routes and none of them is `/validation` or `/motors`** — a previous handoff's
-  cold-walk list named both and they 404. They are `/`, `/docs`, `/docs/faq`, `/docs/methods`,
-  `/docs/limitations` and `/docs/validation`; confirmed against production, where `/validation` is a 404
-  and `/docs/validation` is a 200. Walk those six.
-- `innerText` throws on an SVG `<text>`; use `textContent`. `<details>` keeps its content in the DOM while
-  collapsed, so ask `details.evaluate(el => el.open)`. `getByLabel` matches an `aria-label` SUBSTRING.
-- The parts panel's part-removal control and a stage's own *Remove &lt;name&gt;* control both match
-  `/^Remove /`; disambiguate with the part control's title, `"Remove this part from the design and re-fly it"`.
+1. **R5 increment 3 — per-stage burnout, scoped in detail and with the trap named.** Only ONE burnout
+   event is emitted per flight ever: `lib/sim/simulate.ts:677`, guarded on `burnoutV === 0 && t >= burnout`
+   where `burnout` is `burnoutTime(motors)`, a `max` over every lit motor. **The trap:** that same
+   `burnoutV === 0` guard doubles as the SUMMARY latch two lines below, so emitting per-stage burnouts
+   through it silently moves `burnoutVelocity`/`burnoutAltitude` to the booster's — measured on
+   `03.Three-stage.ork`, 202.8 m/s @ 787.1 m becomes 44.9 m/s @ 366.6 m, **−77.9%**, and
+   `<Stat label="Burnout velocity">` publishes it. Splitting the latch from the emission is the real
+   change. `lib/sim/setup.ts:194` already computes `burnoutSep = stageActivation[i] + stageBurnDuration[i]`
+   — the per-stage burnout — but `Buildup` (`setup.ts:37`) does not carry those arrays out, so either add
+   the field or carry `stageIndex` (already on `Placed`) onto the `ResolvedMotor` literal at `setup.ts:245`.
+   Do NOT group by `detachTime`: `setup.ts:226` collapses two stages leaving at one joint onto one value.
+   **Where it is a new number:** on the default separation rule a stage's burnout EQUALS its separation
+   time, so a Burnout column would restate the "To" column; on the `ejection` rule it does not —
+   `Complex.Two-Stage.CDX1` burns out at 2.40 s and parts at 4.40 s, `ARC payload rocket.ork` 1.43 vs
+   10.43. That gap is the thing no surface names. Smallest visible slice: the `PhaseTable` Burnout column,
+   which shows one real cell from today's single event and fills in once the solver change lands.
+   `lib/sim/flight.test.ts:466` takes the FIRST burnout by `find` and will quietly change meaning.
+2. **P1's last slice — `DataTable`.** Six bespoke `<table>`s: `MassBreakdown:81`, `ValidationPanel:102`,
+   `MotorSweep:342`, `RocketpyCrossCheck:346`, `GeometryInspector:559`, `ResultsView`'s `PhaseTable`. All
+   six `<thead><tr>` carry a byte-identical class string and all six sit in an `overflow-x-auto` wrapper,
+   so the extraction is mechanical — one increment, not four. **Two traps:** `ValidationPanel` is the only
+   non-uniform one (`min-w-[30rem] border-collapse`, right-aligned cells), so the primitive needs a
+   column-alignment prop and a min-width escape; and `app/docs/validation/page.tsx:259` is a SEVENTH table
+   inside a server route, where a `"use client"` primitive cannot go — size it at six. Sized by
+   `COMPETITION.md` rows 24 and 26; row 26 is new this run and says what the affordances must be.
+3. **The §9 off-scale-type guard is blind.** It greps `text-lg` alone while `text-[10px]` ×22,
+   `text-2xl` ×4 and `text-[9px]` ×3 are live — 29 uses of a seventh, eighth and ninth size passing an
+   assertion that asserts zero. Filed in `BACKLOG.md` with the sites. This is the largest known P-track
+   body of work after `DataTable`.
