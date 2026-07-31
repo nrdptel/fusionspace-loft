@@ -61,6 +61,22 @@ Nothing moved the wrong way.
 | `1f172f2` | **R5 increment 2 — the phase table.** `FlightRun.phases`, a per-phase table on the flight surface, and separation dots on the flight-path chart. |
 | `e64919b` | **The rest of the page made to read the flight rather than the plan**, plus three wrong claims and three assertions that could not fail — all found by the review of `1f172f2` after it was pushed. |
 | `ab460e7` | **The CI budget the new sweeps needed, and P1 increment 6** — `rounded-lg` 35 → 25. |
+| `d4717da` | This handoff. |
+| `622b215` | **The `CARD_TONES` decision that unblocks P1 6b**, taken and written up rather than left as a question. |
+
+**All six SHIPPED — pull request #84 merged on green as `446ec37`, and production serves them.** Both CI
+jobs passed every step on the head that merged; the deploy completed; and what is live was checked rather
+than assumed. The two chunks carrying this run's code are **byte-identical (sha256) to the local build the
+180-test e2e suite ran against** — `04fi6lqd1vn1j.js`, which carries *no motor that can fire*, *carried to
+apogee as dead mass*, *still dropped* and *ignition trigger that never arrives*, and `06str.0c5uor9.js`,
+which carries *Flight phases*. `/docs/limitations` serves the corrected prose, including *One of the 35
+real design files*, where it previously published the opposite.
+
+**One trap when checking production: the hashed assets propagate before the HTML does.** Measured this
+run — the new chunks were live and byte-identical while `/docs/limitations` still returned the previous
+copy, which reads exactly like a half-broken deploy. It was edge cache. Re-fetch with
+`-H 'Cache-Control: no-cache'` and a cache-busting query before concluding anything, and check the deploy
+workflow's own run for the merge commit.
 
 ## What this session learned that is worth keeping
 
