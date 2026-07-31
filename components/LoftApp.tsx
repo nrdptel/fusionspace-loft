@@ -21,6 +21,7 @@ import {
   unreachableParachuteCount,
   aimEditsAt,
   moveTarget,
+  moveSlots,
   structureOf,
   primaryTransition,
   primaryTransitionPart,
@@ -937,6 +938,38 @@ export default function LoftApp() {
     [removableFrom],
   );
 
+  /** Every place a part can be dropped, for the diagram's drag. Judged against the SAME tree
+   *  `movePartTo` applies against, for the reason `canMovePart` gives above: the shown rocket carries
+   *  the dimension edits, which synthesise top-level parts of their own, so a slot resolved there can
+   *  name an anchor the operation cannot address. */
+  const movePartSlots = useCallback(
+    (id: string) => (removableFrom ? moveSlots(removableFrom, id) : []),
+    [removableFrom],
+  );
+
+  /** Drop a top-level part at a chosen slot — the drag's commit, where `movePart` is the nudge's.
+   *
+   *  Appended to `moved` exactly as a nudge is, and keyed uniquely per commit so two drops never
+   *  coalesce into one undo step. It takes the anchor rather than a direction because a drag is not a
+   *  direction: it lands where the pointer was let go, which may be several places away. */
+  const movePartTo = (id: string, after: string | null) => {
+    if (!doc || !removableFrom) return;
+    // Re-checked here, not trusted from the caller. The diagram computes its slots from a render that
+    // may be a frame behind the model, and an entry naming an anchor in another stage is a silent
+    // no-op inside `applyMoves` — which would leave an undo step on the stack that undoes nothing.
+    if (!moveSlots(removableFrom, id).some((s) => s.move.after === after)) return;
+    const name = flattenRocket(removableFrom).find((p) => p.component.id === id)?.component.name;
+    applyEdit(
+      { moved: [...(edits.moved ?? []), { id, after }] },
+      {
+        label: `moving ${name || "the part"} along the airframe`,
+        // Keyed uniquely per commit, like the nudge and every other structural act: two drops a
+        // moment apart are two decisions, not two frames of one gesture.
+        key: `move:${id}:${after ?? "nose"}:${edits.moved?.length ?? 0}`,
+      },
+    );
+  };
+
   /** Nudge a top-level part one place toward the nose or the tail, within its own stage.
    *
    *  Appended to `moved` rather than applied to the tree, like every other structural act in this bag:
@@ -1580,6 +1613,8 @@ export default function LoftApp() {
               onAddAfter={addPartAfter}
               onMovePart={movePart}
               canMovePart={canMovePart}
+              onMovePartTo={movePartTo}
+              movePartSlots={movePartSlots}
               refuseRemoval={refuseRemoval}
               onSelectPart={(id) => {
                 // A pick that aims nothing — a coupler, a centring ring — must not commit an edit

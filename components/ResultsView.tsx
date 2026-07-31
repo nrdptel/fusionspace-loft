@@ -6,7 +6,7 @@ import { Card, Tabs } from "./ui";
 import type { FlightRun } from "@/lib/sim/run";
 import type { ConditionOverrides } from "@/lib/sim/setup";
 import type { ConditionsSource } from "@/lib/what-if";
-import { applyGeometryEdits, hasGeometryEdits, primaryFinGroupIds, structureOf, aimsOf, type AddedPart, type GeometryEdits } from "@/lib/model/edit";
+import { applyGeometryEdits, hasGeometryEdits, primaryFinGroupIds, structureOf, aimsOf, type AddedPart, type GeometryEdits, type MoveSlot } from "@/lib/model/edit";
 import { designKey } from "@/lib/model/design-key";
 import { formatLabel, sourceTool, type OrkDocument } from "@/lib/ork/import";
 import type { FlightResult } from "@/lib/sim/simulate";
@@ -158,6 +158,8 @@ export default function ResultsView({
   onAddAfter,
   onMovePart,
   canMovePart,
+  onMovePartTo,
+  movePartSlots,
   refuseRemoval,
   initialTab,
   onWorkspaceChange,
@@ -218,6 +220,10 @@ export default function ResultsView({
   onMovePart?: (id: string, dir: -1 | 1) => void;
   /** Whether that nudge is available, judged against the same tree the move is applied to. */
   canMovePart?: (id: string, dir: -1 | 1) => boolean;
+  /** Commit a drag's drop: put this part immediately behind `after`, or first when `after` is null. */
+  onMovePartTo?: (id: string, after: string | null) => void;
+  /** Every legal drop for a part, resolved against the tree the operation runs against. */
+  movePartSlots?: (id: string) => MoveSlot[];
   /** Why a part cannot be removed, or null. Asked of the app rather than judged in the panel, so the reason
    *  shown and the guard that enforces it cannot disagree about which design they are judging. */
   refuseRemoval?: (id: string) => string | null;
@@ -726,6 +732,8 @@ export default function ResultsView({
           onAddAfter={onAddAfter}
           onMove={onMovePart}
           canMove={canMovePart}
+          onMoveTo={onMovePartTo}
+          moveSlotsFor={movePartSlots}
           refuseRemoval={refuseRemoval}
           // The aim map, so a role added to the edit model needs no new prop on the way down. Projected
           // through the registry, never the raw bag: a typed span is not an aim.

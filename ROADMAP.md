@@ -369,14 +369,16 @@ moves the static margin by sliding alone.
 
 ## R4 — Reorder and restack
 
-**Status:** IN PROGRESS — the current R-track milestone. The operation, the refusal and the
-keyboard/touch path are in and pinned by `lib/model/edit.test.ts` (the `reordering a top-level part`
-and `moveTarget` suites, 9 cases), by `lib/corpus/sweep.test.ts`'s *never lets a reorder overlap a
-part, cross a stage, or fail to come back* — which drives **206 reorders across all 35 real designs**
-and skips itself where the corpus is absent — and by two e2e cases: *a flyer can move a part along the
-airframe, and the stations behind it follow* and *a part at the end of its stage is not offered a move
-it cannot make*. Every one was proved able to fail by a negative control with its tsc or build exit
-checked.
+**Status:** SHIPPED 2026-07-31 — pinned by `lib/model/edit.test.ts` (the `reordering a top-level part`,
+`moveTarget` and `moveSlots` suites, 15 cases), by `lib/corpus/sweep.test.ts`'s *never lets a reorder
+overlap a part, cross a stage, or fail to come back* (**206 reorders across all 35 real designs**) and
+*offers a drag only drops that land exactly where the indicator promised* (**484 drop slots across all
+35 designs, 30 of them landing in front of the next stage's first part**) — both of which skip
+themselves where the corpus is absent — and by four e2e cases: *a flyer can move a part along the
+airframe, and the stations behind it follow*, *a part at the end of its stage is not offered a move it
+cannot make*, *a part can be dragged along the airframe and dropped between two others*, and *dragging
+a part does not also re-aim the editor at it*. Every one was proved able to fail by a negative control
+with its tsc or build exit checked.
 
 **Outcome.** Nose-to-tail order is editable, not fixed at import.
 
@@ -403,12 +405,10 @@ taken without the owner*.
 
 **The gap, which is the next increment rather than a reason to re-open this.**
 
-- **The gesture is a pair of buttons, not a drag.** The *done when* says "drag a component along the
-  airframe and drop it between two others", and that is the next slice. The buttons came first
-  deliberately: they are the keyboard and touch path, which a drag can never be, and the diagram's two
-  centreline grips are already fine-pointer-only because at phone fit width the airframe is ~11 px tall
-  and every grip sits inside every other's 44 px target. Building the drag first would have left the
-  accessible path unbuilt and `e2e/touch.spec.ts` to discover it.
+- **~~The gesture is a pair of buttons, not a drag.~~ SHIPPED as increment 2.** The buttons came first
+  deliberately and they stay: they are the keyboard and touch path, which a drag can never be, and the
+  diagram's two centreline grips are already fine-pointer-only because at phone fit width the airframe
+  is ~11 px tall and every grip sits inside every other's 44 px target.
 
   **The scoping for that slice was redone on 2026-07-31 and one of its premises was wrong.** This file
   and `HANDOFF.md` both said to freeze the HORIZONTAL frame during the drag because the airframe's
@@ -422,6 +422,39 @@ taken without the owner*.
   `moved` list rather than appending), the pick's click fires on pointerup and would re-aim the fields
   on every reorder, and the drop anchor must come from the tree the operation runs against while the
   pixel comes from the tree on screen.
+
+**What increment 2 shipped against the *done when*.** A flyer grabs a part's own silhouette on the
+diagram, drags it along the airframe, and drops it between two others; a rule marks the joint it will
+land at while the pointer moves; the stations of everything aft follow; and the drop is one undo step,
+named. `moveSlots` is the new model function — every legal landing for a part, each carrying both the
+`{ id, after }` entry to commit AND the part it lands in front of. That split is the load-bearing
+decision: **the anchor is resolved against the tree the operation runs against, the pixel against the
+tree being drawn**, because the shown rocket carries dimension edits that synthesise top-level parts
+(a boattail) which `applyMoves` cannot address — an anchor read off the picture names a part the
+operation silently ignores while the indicator promised otherwise.
+
+**No live preview.** The picture does not restack until the pointer is released, which is what the
+desktop tools' component trees do and what keeps the slot table valid for the whole gesture: a
+committed preview moves the boundaries by design, so a target recomputed from the new geometry maps
+the same pointer x back to the previous slot and the part oscillates between two positions.
+
+**Four things the pre-push review and the negative controls caught, none of which a unit test could
+see:**
+
+1. **A drag also re-aimed the editor.** The grip is the pick surface, so the pointerup synthesises a
+   click and the click picks the part — and a pick re-aims the fields, which on a field holding an
+   ABSOLUTE value changes the design rather than the selection. Suppressed, with the flag cleared at
+   the START of the next gesture rather than left to be consumed by a click that may never arrive: a
+   drag that ends over a different element fires its click on the common ancestor instead, and a flag
+   left standing then swallows the next genuine pick.
+2. **The first version of the "does not re-aim" e2e could not fail**, because it dragged far enough to
+   leave the part's own silhouette — so the click landed on the `<svg>` and the suppression was never
+   exercised. It now uses a SHORT drag that stays inside the part.
+3. **A coordinate captured before an undo lands outside the viewport**, because the page reflows as
+   controls appear and disappear around the diagram. The e2e recomputes it each time.
+4. **`preventDefault` on the grip's pointerdown was removed on a false diagnosis and put back.** The
+   real cause of that failure was (3); the control proved the removal changed nothing, so it stays for
+   the reason the other grips have it — stopping the native text selection a drag would start.
 - **Reordering is top-level only.** A part nested inside another (a fin set on a tube, a mass object in
   a bay) has no place in the stack order, and `moveTarget` returns null for it. Real designs nest, so
   "move this part into that bay" is a real gesture — it is the same ceiling `added` still has, filed in

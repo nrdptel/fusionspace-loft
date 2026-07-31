@@ -3621,6 +3621,145 @@ test.describe("Loft", () => {
     await expect(page.getByRole("button", { name: /^Undo moving/ })).toHaveCount(0);
   });
 
+  test("a part can be dragged along the airframe and dropped between two others", async ({ page }) => {
+    // R4's *done when* names the gesture: "drag a component along the airframe and drop it between two
+    // others". Increment 1 shipped the operation and a button pair (which stay, as the keyboard and
+    // touch path a drag can never be); this is the drag.
+    //
+    // `fixtures/demo-quirks.ork` again — four top-level children in one stage is the most any committed
+    // fixture has, and the only shape with room to drop a part somewhere that is neither neighbour.
+    await page.goto("/");
+    await page
+      .getByLabel(/^Choose an OpenRocket/)
+      .setInputFiles(resolve(process.cwd(), "fixtures/demo-quirks.ork"));
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    await page.getByRole("tab", { name: "Design" }).click();
+    await page.locator("summary", { hasText: /Parts ·/ }).click();
+
+    const partsTable = page.locator("table").filter({ hasText: "Dimensions" });
+    // Names and stations read separately: the names prove the same parts are still there and that
+    // their ORDER changed, and the stations prove the arithmetic behind the drop followed. Comparing a
+    // name-plus-station string as one blob would make the set-equality check meaningless, because a
+    // reorder is supposed to move the stations.
+    const names = () => partsTable.locator("tbody tr").evaluateAll((rs) =>
+      rs.map((r) => r.querySelector("th,td")?.textContent?.trim() ?? ""),
+    );
+    const stations = () => partsTable.locator("tbody tr").evaluateAll((rs) =>
+      rs.map((r) => [...r.querySelectorAll("th,td")][2]?.textContent?.trim() ?? ""),
+    );
+    const orderBefore = await names();
+    const stationsBefore = await stations();
+
+    // Grab the aft-most body tube on the DIAGRAM — the drag's grip is the part's own silhouette, which
+    // already carried the hover and pick behaviour — and drag it toward the nose.
+    const diagram = page.locator("svg[role='group']").first();
+    const box = await diagram.boundingBox();
+    expect(box).toBeTruthy();
+    const grab = await page.evaluate(() => {
+      // The aft-most body-part overlay: the widest x-extent of the transparent hit paths.
+      const paths = [...document.querySelectorAll("svg[role='group'] path")].filter(
+        (p) => p.querySelector("title")?.textContent?.includes("reorder"),
+      );
+      const boxes = paths.map((p) => p.getBoundingClientRect());
+      if (!boxes.length) return null;
+      const aft = boxes.reduce((best, b) => (b.right > best.right ? b : best));
+      return { x: aft.left + aft.width / 2, y: aft.top + aft.height / 2, count: boxes.length };
+    });
+    expect(grab, "no draggable part overlays on the diagram").toBeTruthy();
+    expect(grab!.count).toBeGreaterThan(1);
+
+    await page.mouse.move(grab!.x, grab!.y);
+    await page.mouse.down();
+    // Past the movement threshold first, then to the front of the airframe.
+    await page.mouse.move(grab!.x - 40, grab!.y, { steps: 4 });
+    await expect(page.locator("svg[role='group'] text", { hasText: "drop here" })).toBeVisible();
+    await page.mouse.move(box!.x + 6, grab!.y, { steps: 8 });
+    await page.mouse.up();
+
+    // The order changed, the same parts are all still there, and the stations behind the drop followed.
+    await expect.poll(async () => (await names()).join("|"), { timeout: 20000 }).not.toBe(orderBefore.join("|"));
+    const orderAfter = await names();
+    expect(orderAfter.length).toBe(orderBefore.length);
+    expect([...orderAfter].sort()).toEqual([...orderBefore].sort());
+    expect(await stations()).not.toEqual(stationsBefore);
+
+    // The drop is one undo step, named — not one per frame of the gesture.
+    const undo = page.getByRole("button", { name: /^Undo moving/ });
+    await expect(undo).toBeVisible();
+    await undo.click();
+    await expect.poll(async () => (await names()).join("|"), { timeout: 20000 }).toBe(orderBefore.join("|"));
+    expect(await stations()).toEqual(stationsBefore);
+    await expect(page.getByRole("button", { name: /^Undo moving/ })).toHaveCount(0);
+  });
+
+  test("dragging a part does not also re-aim the editor at it", async ({ page }) => {
+    // The hazard that comes free with putting a drag on the pick surface: the pointerup synthesises a
+    // click, the click PICKS the part, and a pick re-aims the editor's fields. On a field holding an
+    // ABSOLUTE value that is a change to the design, not to the selection — the first nudge would snap
+    // the newly-aimed part to the value the old one was carrying.
+    await page.goto("/");
+    await page
+      .getByLabel(/^Choose an OpenRocket/)
+      .setInputFiles(resolve(process.cwd(), "fixtures/demo-quirks.ork"));
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    await page.getByRole("tab", { name: "Design" }).click();
+    await page.locator("summary", { hasText: /Parts ·/ }).click();
+
+    // Pick the FORWARD tube deliberately, and read which part the body fields say they are holding.
+    const partsTable = page.locator("table").filter({ hasText: "Dimensions" });
+    const tubes = partsTable.locator("tr").filter({ hasText: /Body tube/ });
+    await tubes.first().click();
+    // Scoped to the input: the diagram's own grips carry the same accessible names as the fields, so a
+    // bare `getByLabel` matches two elements. This is the suite's idiom for that collision.
+    const bodyLength = page.locator("input").and(page.getByLabel(/^Body length/));
+    const aimedBefore = await bodyLength.getAttribute("placeholder");
+
+    // Recomputed each time: the diagram moves in the page as controls appear and disappear around it,
+    // and a coordinate captured earlier lands outside the viewport entirely.
+    const aftPart = async () => {
+      await page.locator("svg[role='group']").first().scrollIntoViewIfNeeded();
+      return page.evaluate(() => {
+        const paths = [...document.querySelectorAll("svg[role='group'] path")].filter(
+          (p) => p.querySelector("title")?.textContent?.includes("reorder"),
+        );
+        const boxes = paths.map((p) => p.getBoundingClientRect());
+        const aft = boxes.reduce((best, b) => (b.right > best.right ? b : best));
+        return { x: aft.left + aft.width / 2, y: aft.top + aft.height / 2, width: aft.width };
+      });
+    };
+
+    // A SHORT drag, deliberately: it stays inside the dragged part's own silhouette, so pointerdown
+    // and pointerup share a target and the browser really does synthesise a click on it. A long drag
+    // ends over a different element and the click lands on their common ancestor instead — which is
+    // why a long one cannot test this at all, and why the suppression looked unnecessary until the
+    // control for it came back green.
+    const grab = await aftPart();
+    expect(grab.width).toBeGreaterThan(60);
+    await page.mouse.move(grab.x, grab.y);
+    await page.mouse.down();
+    await page.mouse.move(grab.x - 25, grab.y, { steps: 5 });
+    await page.mouse.up();
+
+    // The design changed; the aim did not.
+    await expect(page.getByRole("button", { name: /^Undo moving/ })).toBeVisible();
+    expect(await bodyLength.getAttribute("placeholder")).toBe(aimedBefore);
+
+    // And the converse, which is the same guard read the other way: a plain CLICK on a draggable part
+    // is still a pick and never a reorder. Without a movement threshold every pick on the airframe
+    // would commit a move to wherever the pointer happened to be; and cancelling `pointerdown` — which
+    // the diagram's other grips do — kills the click outright, so the part could not be picked at all.
+    await page.getByRole("button", { name: /^Undo moving/ }).click();
+    await expect(page.getByRole("button", { name: /^Undo moving/ })).toHaveCount(0);
+    const again = await aftPart();
+    await page.mouse.move(again.x, again.y);
+    await page.mouse.down();
+    await page.mouse.up();
+    await expect(page.getByRole("button", { name: /^Undo moving/ })).toHaveCount(0);
+    // The click DID pick: the body fields are now holding the part that was clicked, not the one the
+    // table selected at the start.
+    await expect.poll(async () => bodyLength.getAttribute("placeholder"), { timeout: 15000 }).not.toBe(aimedBefore);
+  });
+
   test("a part at the end of its stage is not offered a move it cannot make", async ({ page }) => {
     // A move never crosses a stage boundary — that would be a different separation event, not a
     // restack — so at each end of a stage the control is left out rather than offered and refused.

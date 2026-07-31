@@ -34,6 +34,7 @@ import type { Rocket, RocketComponent } from "../model/types";
 import {
   applyGeometryEdits,
   moveTarget,
+  moveSlots,
   removalRefusal,
   transitionDefaults,
   newPartId,
@@ -380,6 +381,81 @@ suite("real-design corpus", () => {
     expect(shapeless, "authored parts built without the dimension that makes them that part").toEqual([]);
     expect(misanchored, "authored parts that did not land immediately behind the part they name").toEqual([]);
   }, 300_000);
+
+  it("offers a drag only drops that land exactly where the indicator promised", async () => {
+    // R4's drag reads `moveSlots` for every place a part can go, draws an indicator at each, and
+    // commits the one the pointer was nearest. A slot is therefore a PROMISE about where the part will
+    // land, made before the flyer lets go — so the property to hold across real airframes is that
+    // applying a slot puts the part immediately in front of the part the slot named, every time.
+    //
+    // Driven on the corpus rather than a fixture for the reason the reorder sweep gives: a stage
+    // boundary is where the synthetic shapes cannot reach, and the aft-end slot of a non-final stage is
+    // the one case where the part a drop lands in front of belongs to a DIFFERENT stage than the anchor.
+    const misplaced: string[] = [];
+    const crossed: string[] = [];
+    const disagreed: string[] = [];
+    let slots = 0;
+    let designsWithASlot = 0;
+    let acrossABoundary = 0;
+
+    for (const f of files) {
+      const doc = await importDesign(new Uint8Array(readFileSync(f.path)));
+      const stageOf = (r: Rocket, id: string) =>
+        r.stages.findIndex((s) => s.components.some((c) => c.id === id));
+      let any = false;
+
+      for (const stage of doc.rocket.stages) {
+        for (const c of stage.components) {
+          const offered = moveSlots(doc.rocket, c.id);
+
+          // Every nudge the buttons offer must be one of the drag's slots. Two functions answering
+          // "where can this go" is exactly how a control comes to offer a move the operation cannot
+          // make, which cost this milestone an increment already.
+          for (const dir of [-1, 1] as const) {
+            const mv = moveTarget(doc.rocket, c.id, dir);
+            if (mv && !offered.some((s) => s.move.after === mv.after)) {
+              disagreed.push(`${f.name}: ${c.id} can nudge ${dir} to a slot the drag does not offer`);
+            }
+          }
+
+          for (const slot of offered) {
+            any = true;
+            slots++;
+            const after = applyGeometryEdits(doc.rocket, { moved: [slot.move] });
+            if (stageOf(after, c.id) !== stageOf(doc.rocket, c.id)) {
+              crossed.push(`${f.name}: ${c.id} left its stage`);
+              continue;
+            }
+            // The promise: read the whole airframe's top-level order and check the dragged part sits
+            // immediately in front of the part the slot named. Walked from the stages directly rather
+            // than asked of `moveSlots` itself — a test that asks the function under suspicion is blind
+            // exactly where the code is.
+            const line = after.stages.flatMap((s) => s.components.map((x) => x.id));
+            const at = line.indexOf(c.id);
+            const landed = slot.before === null ? at === line.length - 1 : line[at + 1] === slot.before;
+            if (!landed) {
+              misplaced.push(
+                `${f.name}: ${c.id} dropped before ${slot.before ?? "the tail"} landed in front of ${line[at + 1] ?? "nothing"}`,
+              );
+            }
+            if (slot.before !== null && stageOf(doc.rocket, slot.before) !== stageOf(doc.rocket, c.id)) {
+              acrossABoundary++;
+            }
+          }
+        }
+      }
+      if (any) designsWithASlot++;
+    }
+
+    console.log(
+      `drag drop-slots driven across ${files.length} design files: ${slots} (on ${designsWithASlot} designs), ` +
+        `${acrossABoundary} landing in front of the next stage's first part`,
+    );
+    expect(slots, "no drop slot was driven — that branch proves nothing").toBeGreaterThan(100);
+    expect(disagreed, "a nudge the drag does not offer as a slot").toEqual([]);
+    expect(crossed, "a drop that moved a part into another stage").toEqual([]);
+    expect(misplaced, "a drop that did not land where its indicator promised").toEqual([]);
+  });
 
   it("never lets a reorder overlap a part, cross a stage, or fail to come back", async () => {
     // R4's operation, held across every real design rather than the starter's two-part stack. The

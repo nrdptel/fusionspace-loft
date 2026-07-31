@@ -1614,6 +1614,53 @@ export function removalRefusal(rocket: Rocket, id: string): string | null {
  *  Deliberately does NOT step into the neighbouring stage at a boundary. A part that left its stage
  *  would separate at a different moment and fly a different flight; the honest answer at the end of a
  *  stage is that there is nowhere to go, not a silent re-staging. */
+/** Every place a part can be dropped, for a gesture that is not a one-place nudge.
+ *
+ *  `moveTarget` answers "one step which way"; a drag answers "anywhere along the airframe", so it needs
+ *  the whole set of legal landings at once — both to draw an indicator at each and to know which ones
+ *  are not on offer. Same stage-scoped rule as `moveTarget`, for the same reason: a part let out of its
+ *  own stage would separate at a different moment and fly a different flight.
+ *
+ *  Each slot carries two things, and the split is the load-bearing part of this design:
+ *
+ *  - `move` is the entry to append to `GeometryEdits.moved`, anchored to a component ID. It is
+ *    resolved against the tree the operation will actually run against.
+ *  - `before` names the part the dragged one would land IN FRONT OF, so a caller can look that part's
+ *    station up in the tree it is DRAWING and put the indicator at the right pixel. Null means the aft
+ *    end of the airframe.
+ *
+ *  Those are two different trees and they must stay that way. The rocket on screen carries the flyer's
+ *  dimension edits, which synthesise top-level parts of their own — a boattail exists there and not in
+ *  the structure — so an anchor read off the drawing can name a part `applyMoves` cannot address, and
+ *  the move silently does nothing while the indicator promised otherwise. Anchors come from the
+ *  operation's tree; pixels come from the picture.
+ *
+ *  The two slots that would leave the part where it is are left out rather than returned and ignored:
+ *  the gap immediately in front of it and the one immediately behind it are the same position. */
+export interface MoveSlot {
+  move: MovedPart;
+  before: string | null;
+}
+
+export function moveSlots(rocket: Rocket, id: string): MoveSlot[] {
+  const si = rocket.stages.findIndex((s) => s.components.some((c) => c.id === id));
+  if (si < 0) return [];
+  const list = rocket.stages[si].components;
+  const k = list.findIndex((c) => c.id === id);
+  // What sits at the aft end of this stage is the next stage's first top-level part — the stack is one
+  // continuous airframe — or nothing at all on the last stage.
+  const afterStage = rocket.stages.slice(si + 1).flatMap((s) => s.components)[0]?.id ?? null;
+  const slots: MoveSlot[] = [];
+  for (let i = 0; i <= list.length; i++) {
+    if (i === k || i === k + 1) continue; // both are where it already is
+    slots.push({
+      move: { id, after: i === 0 ? null : list[i - 1].id },
+      before: i < list.length ? list[i].id : afterStage,
+    });
+  }
+  return slots;
+}
+
 export function moveTarget(rocket: Rocket, id: string, dir: -1 | 1): MovedPart | null {
   for (const stage of rocket.stages) {
     const i = stage.components.findIndex((c) => c.id === id);

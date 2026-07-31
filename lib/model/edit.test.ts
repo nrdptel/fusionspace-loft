@@ -6,6 +6,7 @@ import { flattenRocket } from "./geometry";
 import {
   applyGeometryEdits,
   moveTarget,
+  moveSlots,
   isEditedValue,
   primaryFinSpan,
   primaryFinCount,
@@ -2539,6 +2540,96 @@ describe("reordering a top-level part", () => {
     expect(isEditedValue("moved", [{ id: "a", after: null }])).toBe(true);
     expect(isEditedValue("moved", [])).toBe(false);
     expect(INERT_EDIT_FIELDS.has("moved")).toBe(false);
+  });
+});
+
+describe("moveSlots — every place a drag can drop a part", () => {
+  /** Three top-level parts in one stage: nose, body, aft tube. */
+  const oneStage = (): Rocket => {
+    const doc = newDesign();
+    const s = doc.rocket.stages[0];
+    const body = s.components[1];
+    s.components = [...s.components, { ...structuredClone(body), id: "tube2", name: "Aft tube", children: [] }];
+    return doc.rocket;
+  };
+
+  it("offers every gap except the two that leave the part where it is", () => {
+    const r = oneStage();
+    const [a, b, c] = r.stages[0].components.map((x) => x.id);
+    expect([a, b, c].every(Boolean)).toBe(true);
+    // Dragging the MIDDLE part: the gaps in front of it and behind it are the same position, so a
+    // three-part stage has four gaps and exactly two of them are on offer.
+    expect(moveSlots(r, b)).toEqual([
+      { move: { id: b, after: null }, before: a },
+      { move: { id: b, after: c }, before: null },
+    ]);
+  });
+
+  it("names the part each drop lands in front of, and null for the aft end", () => {
+    const r = oneStage();
+    const [a, b, c] = r.stages[0].components.map((x) => x.id);
+    expect(moveSlots(r, a)).toEqual([
+      { move: { id: a, after: b }, before: c },
+      { move: { id: a, after: c }, before: null },
+    ]);
+    expect(moveSlots(r, c)).toEqual([
+      { move: { id: c, after: null }, before: a },
+      { move: { id: c, after: a }, before: b },
+    ]);
+  });
+
+  it("agrees with moveTarget wherever moveTarget has an answer", () => {
+    // Two functions answering "where can this go" is how a control comes to offer a move the operation
+    // cannot make. Every nudge must be one of the slots.
+    const r = oneStage();
+    for (const c of r.stages[0].components) {
+      const slots = moveSlots(r, c.id).map((s) => JSON.stringify(s.move));
+      for (const dir of [-1, 1] as const) {
+        const nudge = moveTarget(r, c.id, dir);
+        if (nudge) expect(slots).toContain(JSON.stringify(nudge));
+      }
+    }
+  });
+
+  it("never leaves the part's own stage, and points the aft-end drop at the next stage's first part", () => {
+    const r = oneStage();
+    const [, b, c] = r.stages[0].components.map((x) => x.id);
+    const booster = { ...structuredClone(r.stages[0]), components: [{ ...structuredClone(r.stages[0].components[1]), id: "boost", children: [] }] };
+    const staged: Rocket = { ...r, stages: [r.stages[0], booster] };
+    const slots = moveSlots(staged, b);
+    // Not one anchor is the booster's part: a move that crossed the boundary would re-stage the part
+    // silently — a different separation event and a different flight.
+    expect(slots.map((s) => s.move.after)).toEqual([null, c]);
+    // But the AFT-END drop of the upper stage lands in front of the booster's first part, because the
+    // stack is one continuous airframe and that is where the indicator belongs.
+    expect(slots.find((s) => s.move.after === c)!.before).toBe("boost");
+    // And the booster's own part has nowhere to go inside a stage of one.
+    expect(moveSlots(staged, "boost")).toEqual([]);
+  });
+
+  it("returns nothing for a part that is not top-level, or is not there at all", () => {
+    const r = oneStage();
+    const inner = r.stages[0].components[1].children[0];
+    expect(inner).toBeTruthy();
+    expect(moveSlots(r, inner.id)).toEqual([]);
+    expect(moveSlots(r, "no-such-part")).toEqual([]);
+  });
+
+  it("produces entries applyGeometryEdits actually honours, on every slot it offers", () => {
+    // The check that matters: a slot is a promise that the drop will land there. Drive each one
+    // through the real applier and read the order back.
+    const r = oneStage();
+    for (const c of r.stages[0].components) {
+      for (const slot of moveSlots(r, c.id)) {
+        const after = applyGeometryEdits(r, { moved: [slot.move] });
+        const order = after.stages[0].components.map((x) => x.id);
+        const landed = order.indexOf(c.id);
+        expect(order.length).toBe(3);
+        // "before X" means the dragged part sits immediately in front of X; a null `before` means last.
+        if (slot.before === null) expect(landed).toBe(order.length - 1);
+        else expect(order[landed + 1]).toBe(slot.before);
+      }
+    }
   });
 });
 

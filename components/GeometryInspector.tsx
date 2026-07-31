@@ -5,7 +5,7 @@ import type { Rocket, RocketComponent } from "@/lib/model/types";
 import { flattenRocket } from "@/lib/model/geometry";
 import { massByComponent, dryMassProperties, statedMassHolder } from "@/lib/sim/mass";
 import type { MotorMark } from "@/lib/sim/setup";
-import { mouldLineStep, type AddedPart, type GeometryEdits } from "@/lib/model/edit";
+import { mouldLineStep, type AddedPart, type GeometryEdits, type MoveSlot } from "@/lib/model/edit";
 import { TOUCH_TARGET, TOUCH_TARGET_SQUARE } from "@/lib/ui-tokens";
 import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
@@ -134,6 +134,8 @@ export default function GeometryInspector({
   onAddAfter,
   onMove,
   canMove,
+  onMoveTo,
+  moveSlotsFor,
   refuseRemoval,
   aims,
 }: {
@@ -173,6 +175,10 @@ export default function GeometryInspector({
    *  moves on and around parts the operation cannot address — a button that does nothing. The app
    *  judges against the same structure it will apply the move to. */
   canMove?: (id: string, dir: -1 | 1) => boolean;
+  /** Commit the diagram drag's drop: put this part immediately behind `after`, or first when null. */
+  onMoveTo?: (id: string, after: string | null) => void;
+  /** Every legal drop for a part. Handed straight to the diagram, which turns each into a pixel. */
+  moveSlotsFor?: (id: string) => MoveSlot[];
   /** Author a part behind the picked one. Offered only on a part something can be built onto — today
    *  a body tube, whose caliber the new one fairs to. A control that appears on every part and does
    *  nothing on most of them is worse than one that appears where it works. */
@@ -330,6 +336,8 @@ export default function GeometryInspector({
           }}
           motors={motors}
           onEdit={onEdit}
+          onMoveTo={onMoveTo}
+          moveSlotsFor={moveSlotsFor}
           selectedFinSetId={aims?.finSetId}
           selectedBodyTubeId={aims?.bodyTubeId}
           selectedMassObjectId={aims?.massObjectId}
