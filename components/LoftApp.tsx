@@ -88,8 +88,10 @@ import {
   fromBase64,
   loadDiscardedSession,
   loadRecents,
+  MAX_RECENTS,
   loadSession,
   rememberRecent,
+  restoreRecent,
   carriesWork,
   saveDiscardedSession,
   saveSession,
@@ -354,6 +356,16 @@ export default function LoftApp() {
    *  screen. Read on mount rather than during render: localStorage is client-only and the first
    *  render has to match the server's. */
   const [discarded, setDiscarded] = useState<SavedSession | null>(null);
+  /** Designs taken off the shelf since the last load, newest first, held in memory so each can be put
+   *  back. The shelf's "×" was the last destructive act in the app with no way out: one tap deleted a
+   *  design's only stored bytes, with no confirmation, no undo, and it survived a reload — and the
+   *  shelf exists precisely because at the pad the file may not be on the phone at all.
+   *
+   *  A LIST rather than one pending row, because holding only the latest meant a second removal
+   *  silently destroyed the first design's way back, and two removals in a row is the natural
+   *  sequence after a mis-tap. Nothing is written for these: the row is already out of storage, and
+   *  what is held here is the copy that puts it back. */
+  const [removedRecents, setRemovedRecents] = useState<RecentDesign[]>([]);
   const [run, setRun] = useState<FlightRun | null>(null);
   const [baseline, setBaseline] = useState<FlightRun | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -460,6 +472,11 @@ export default function LoftApp() {
           ? { ...document, rocket: { ...document.rocket, name: resume.rocket } }
           : document;
       setLoadSerial((n) => n + 1);
+      // An offer to put a design back belongs to the screen it was made on. Left standing it would
+      // resurface later for a design removed several designs ago — and pressing it then would write a
+      // stale row back into a shelf that has moved on. Every load clears it, and this is the one
+      // funnel they all pass through.
+      setRemovedRecents([]);
       setDoc(restored);
       setFileName(name);
       setEdits(e);
@@ -604,7 +621,36 @@ export default function LoftApp() {
     [loadDoc],
   );
 
-  const onForgetRecent = useCallback((id: string) => setRecents(forgetRecent(id)), []);
+  /** Take a design off the shelf, holding on to it so the flyer can put it back. */
+  const onForgetRecent = useCallback((id: string) => {
+    // Read the row before removing it: what goes back has to be the stored entry itself — its bytes,
+    // its name, its rename, and above all its `openedAt`, which is what puts it back in the position
+    // it was taken from rather than at the front.
+    const entry = loadRecents().find((r) => r.id === id);
+    setRecents(forgetRecent(id));
+    if (entry) setRemovedRecents((prev) => [entry, ...prev.filter((r) => r.id !== entry.id)]);
+  }, []);
+
+  /** Put one back. `restoreRecent` never evicts to make room — it refuses instead — so the one case
+   *  where this cannot succeed is another tab having filled the shelf meanwhile, and that says so
+   *  rather than clearing the offer as though it had worked. */
+  const onRestoreRecent = useCallback((id: string) => {
+    setRemovedRecents((prev) => {
+      const entry = prev.find((r) => r.id === id);
+      if (!entry) return prev;
+      const list = restoreRecent(entry);
+      if (!list) {
+        setError(
+          `There is no room on the shelf for ${entry.rocket || entry.name} — it holds ${MAX_RECENTS} designs, ` +
+            "and it filled up while this one was off it. Remove another design and try again.",
+        );
+        return prev;
+      }
+      setRecents(list);
+      setError(null);
+      return prev.filter((r) => r.id !== id);
+    });
+  }, []);
 
   // Start a fresh design from scratch — the builder path. A starter model (not parsed from any
   // file) enters the exact same pipeline an import does, so every edit, sweep, and flight works on
@@ -1238,6 +1284,8 @@ export default function LoftApp() {
             recents={recents}
             onOpenRecent={onOpenRecent}
             onForgetRecent={onForgetRecent}
+            removedRecents={removedRecents}
+            onRestoreRecent={onRestoreRecent}
             discarded={discarded}
             onRestoreDiscarded={onRestoreDiscarded}
           />

@@ -792,6 +792,24 @@ Unattended runs do not stop to ask (see *Unattended operation* in `MAINTAINING.m
 that would otherwise have been a question goes here, with the option rejected, so it can be reversed
 cheaply instead of re-derived. Newest first.
 
+- **2026-07-31 — the shelf's delete is undone by a per-removal offer held in memory, not by a
+  confirmation dialog and not by a trash that persists.** Rejected a confirm prompt: it is the cheapest
+  thing to build and the worst answer here, because it taxes every correct deletion to catch the rare
+  wrong one, and a flyer at the pad with gloves on taps through prompts. Rejected persisting the
+  removed rows to storage as a trash: the shelf's whole budget is already a cap the add path evicts
+  against, and a trash would either eat into it or need a second budget with its own eviction rule —
+  a second one-way door to fix the first. Rejected a single pending offer, which is what the reverted
+  first attempt held: two removals in a row is what a mis-tap looks like, and it made the first one
+  unrecoverable. The offer therefore lives for exactly as long as the screen it was made on, is
+  cleared by any design load, and is a list.
+- **2026-07-31 — `restoreRecent` REFUSES rather than trimming when the shelf has filled up
+  meanwhile.** Rejected capping the list on restore: that is `rememberRecent`'s eviction rule, and
+  running it here means the undo for one deletion silently performs another — exactly the failure that
+  got the first attempt reverted. Rejected raising `MAX_RECENTS` to make room: the cap exists to keep
+  history from spending the origin's storage budget, and a cap that bends for one path is not a cap.
+  The refusal is unreachable from a single tab, because the offer is cleared on every design load and
+  the shelf can only shrink in between; it exists for the second-tab case, and it says what happened
+  and what to do rather than clearing the offer as though it had worked.
 - **2026-07-31 — a reorder is an ordered list of single `{ id, after }` moves, not a full ordered id
   list per stage.** Rejected the full list: it is a SNAPSHOT rather than a patch, and every other edit
   in the bag is a patch for one reason — the model is always rebuilt from the pristine design plus the

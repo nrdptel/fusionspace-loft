@@ -351,6 +351,64 @@ test.describe("Loft", () => {
     await expect(shelf.getByRole("button", { name: /^Reopen/ })).toHaveCount(1);
   });
 
+  test("removing a design from the shelf is undoable, including the last one", async ({ page }) => {
+    // The app's last destructive act with no way back. One tap deleted a design's only stored bytes:
+    // no confirmation, no undo, and it survived a reload — on the surface that exists precisely
+    // because at the pad the file may not be on the phone at all.
+    await page.goto("/");
+    for (const sample of [/38 mm single-deploy/, /54 mm dual-deploy/]) {
+      await page.getByRole("button", { name: sample }).click();
+      await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+      await page.getByRole("button", { name: /Import another/ }).click();
+    }
+    const shelf = page.getByRole("list").filter({ has: page.getByRole("button", { name: /^Reopen/ }) });
+    await expect(shelf.getByRole("button", { name: /^Reopen/ })).toHaveCount(2);
+    const order = await shelf.getByRole("button", { name: /^Reopen/ }).allInnerTexts();
+
+    // Remove the NEWER one, so "put it back" has a position to get wrong: an undo that returns a row
+    // to the front has rewritten the history it was meant to restore.
+    await page.getByRole("button", { name: /^Remove .* from your designs/ }).first().click();
+    await expect(shelf.getByRole("button", { name: /^Reopen/ })).toHaveCount(1);
+    await page.getByRole("button", { name: /^Put .* back on your designs/ }).click();
+    await expect(shelf.getByRole("button", { name: /^Reopen/ })).toHaveCount(2);
+    expect(await shelf.getByRole("button", { name: /^Reopen/ }).allInnerTexts()).toEqual(order);
+
+    // Now the case the earlier attempt at this undo missed: removing the LAST design. The offer used
+    // to live inside the shelf card, which unmounts when the shelf empties — so the one removal whose
+    // bytes are most likely the only copy was the one with nothing offering them back.
+    await page.getByRole("button", { name: /^Remove .* from your designs/ }).first().click();
+    await page.getByRole("button", { name: /^Remove .* from your designs/ }).first().click();
+    // `exact` matters: the offer's own sentence ends "…from your designs", and a bare `getByText`
+    // matches case-insensitive SUBSTRINGS, so it finds the banner as well as the shelf heading.
+    await expect(page.getByText("Your designs", { exact: true })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /^Put .* back on your designs/ })).toHaveCount(2);
+
+    // Two removals in a row is what a mis-tap looks like, and both are still offered — holding only
+    // the latest silently destroyed the first design's way back.
+    for (const name of [1, 0]) {
+      await page.getByRole("button", { name: /^Put .* back on your designs/ }).nth(name).click();
+    }
+    await expect(shelf.getByRole("button", { name: /^Reopen/ })).toHaveCount(2);
+    expect(await shelf.getByRole("button", { name: /^Reopen/ }).allInnerTexts()).toEqual(order);
+
+    // The restore is the real bytes, not a row that only looks right: reopening flies it.
+    await shelf.getByRole("button", { name: /^Reopen/ }).nth(1).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+    await page.getByRole("button", { name: /Import another/ }).click();
+
+    // And the offer does not outlive the screen it was made on. Remove one and leave it removed, then
+    // load a design: the offer must be gone, because an offer left standing would resurface later for
+    // a design removed several designs ago and write a stale row back into a shelf that has moved on.
+    // The removal itself still stands — clearing the OFFER is not undoing the act.
+    await page.getByRole("button", { name: /^Remove .* from your designs/ }).first().click();
+    await expect(page.getByRole("button", { name: /^Put .* back on your designs/ })).toHaveCount(1);
+    await shelf.getByRole("button", { name: /^Reopen/ }).first().click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+    await page.getByRole("button", { name: /Import another/ }).click();
+    await expect(page.getByRole("button", { name: /^Put .* back on your designs/ })).toHaveCount(0);
+    await expect(shelf.getByRole("button", { name: /^Reopen/ })).toHaveCount(1);
+  });
+
   test("starts a new design from scratch and flies it (builder)", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: "Start a new design" }).click();

@@ -1043,43 +1043,40 @@ big for one pass. Newest first.
   changes; `Num`'s own re-sync effect exists to guarantee a field never shows a number that is not in
   the flight, and that rule belongs one level up too.
 
-- **An undo for removing a design from the shelf was written this session and REVERTED — read this
-  before rewriting it.** The hit target is fixed (44x44 px, verified at 390x844 and 412x915, 0 of 4
-  shelf controls now under target, 0 px horizontal overflow) but the destructive act still has no way
-  back, which is inconsistent with leaving a design, whose undo shipped this session. The attempted
-  fix kept the removed row in memory and offered "Put it back". Six reasons it did not ship, every one
-  reproduced in the built app by review after a green gate of 677 unit and 119 e2e:
-  1. **The restore can silently fail, or evict someone else.** It replayed `rememberRecent` with the
-     row's ORIGINAL `openedAt`. That needed `rememberRecent` to order by `openedAt` instead of
-     prepending — and then the restored entry sorts LAST, so `slice(0, MAX_RECENTS)` drops the very row
-     the call was made to restore: storage byte-identical before and after, the banner clearing as if
-     it had worked. Restoring a MIDDLE row into a full shelf restored it and permanently evicted the
-     oldest design instead. **The restore path must not go through the add-and-evict path at all.**
-  2. **Removing the LAST design offered no undo**, because the banner was nested inside
-     `{recents.length > 0 && …}` and the whole card unmounts when the shelf empties — the one case
-     where the deleted bytes are most likely the only copy. Verified: `Put it back` rendered 0 times.
-  3. **The pending offer was never cleared** on load/reopen/import, so it resurfaced later for a design
-     removed several designs ago, and pressing it then rewrote a LIVE entry's timestamp backwards —
-     demoting the design just opened to first-evicted.
-  4. **Ordering by `openedAt` changed the ordinary open path**, not just the undo: any stored entry
-     stamped ahead of `Date.now()` (a phone clock that was fast, then corrected) now outranks the
-     design being opened, and with a full shelf that design is not recorded at all.
-  5. **Two removals in a row silently destroyed the first pending undo** — the natural sequence after a
-     mis-tap, since the delete targets sit at 0 px from their Reopen neighbours in a wrapping list.
-  6. **The copy was wrong in both directions**: "undoable until you leave this screen" over-promised
-     (it vanished with the shelf) and under-described (the state outlived the screen indefinitely; only
-     a /docs round trip dropped it, because that is a hard navigation in the static export).
-  A working shape: keep the in-memory row, render the banner OUTSIDE the shelf card, clear it on any
-  design load, and give the restore its own insertion that never evicts and never reorders — not
-  `rememberRecent`. Leave `rememberRecent` alone; it is on every open path.
-- **The shelf's Remove "×" WAS a 24x44 px destructive control welded to a 240 px Reopen target with a
-  0 px gap — the hit target is fixed as of this session; the missing undo above is what remains.** One tap permanently deletes that design's stored bytes: 0 confirmations, no undo, and it
-  survives a reload (shelf 2 -> 1 entries, still 1 after reload). Measured at 390x844 and 412x915,
-  identical on both: the destructive control is 9.1-9.5% of its row's width with a 14 px glyph, and 2
-  of the 4 shelf controls under 44 px are both this one. The shelf exists precisely because at the pad
-  the .ork may not be on the phone at all — those bytes can be the only copy. This is now the sharpest
-  remaining one-way door, and it is inconsistent with its own neighbour: leaving a design ships an undo
-  as of this session, deleting one from the shelf does not.
+- **RESOLVED 2026-07-31 — removing a design from the shelf is undoable, and this is the second attempt
+  at it. The first was reverted; its six failure modes are why this one is shaped the way it is.**
+  The defect: one tap on the shelf's "×" permanently deleted that design's stored bytes — 0
+  confirmations, no undo, and it survived a reload (shelf 2 -> 1 entries, still 1 after reload) — on
+  the surface that exists precisely because at the pad the .ork may not be on the phone at all, so
+  those bytes can be the only copy. Sev-1 by the manual's second criterion, a one-way door, and it
+  preempted the milestone. `HANDOFF.md` had reported the Sev-1 count as zero without counting it.
+
+  **What shipped, and which of the six reverted failures each part answers:**
+  - `restoreRecent` in `lib/session.ts` is its own insertion and never goes through `rememberRecent`.
+    It keeps the entry's own `openedAt`, which is what `loadRecents` sorts by, so the row returns to
+    the position it was taken from rather than to the front — and it REFUSES, returning null and
+    leaving the shelf untouched, when putting the row back would exceed either cap. *(1: the reverted
+    version replayed the add path, which caps and evicts by age; restoring a middle row into a full
+    shelf put the row back and permanently deleted the oldest design instead — one destructive act
+    undone by another.)*
+  - The offer renders OUTSIDE the shelf card, above the drop zone, beside the app's other undo.
+    *(2: nested inside `{recents.length > 0 && …}` it unmounted with the shelf, so removing the LAST
+    design — the case where the bytes are most likely the only copy — offered nothing.)*
+  - `loadDoc` clears it, which is the one funnel every design load passes through — import, sample,
+    shelf, builder, and the discarded-session restore. *(3: an offer left standing resurfaced for a
+    design removed several designs ago.)*
+  - Nothing reorders on the ordinary open path; `rememberRecent` is untouched. *(4.)*
+  - The pending removals are a LIST, so two taps in a row — what a mis-tap looks like — leave both
+    designs recoverable. *(5: holding one offer silently destroyed the first design's way back.)*
+  - The copy says what was removed and what it cost, and the refusal path says why it could not go
+    back and what to do about it. *(6.)*
+
+  Pinned by five cases in `lib/session.test.ts` (position preserved, the last design, two removals in
+  either order, and both refusals) and by the e2e *removing a design from the shelf is undoable,
+  including the last one*. Every one was proved able to fail by a negative control applied inside the
+  function under test, with its build exit checked — including one that was rewritten because the
+  first version of its clear-on-load assertion could not fail.
+
 - **Offline, the RocketPy panel blames itself instead of the network.** With no signal it says
   "RocketPy couldn't run: The RocketPy worker crashed." — the truth is that the ~40 MB Pyodide runtime
   is not precached and cannot be fetched. `/pyodide/` appears in 0 of the 34 service-worker cache

@@ -337,6 +337,32 @@ export function forgetRecent(id: string): RecentDesign[] {
   return list;
 }
 
+/** Put a removed design back, exactly as it was. The undo for `forgetRecent`.
+ *
+ *  This is deliberately NOT `rememberRecent`, and that is the whole design. An earlier attempt at
+ *  this undo replayed the add path with the row's original timestamp and was reverted, because the
+ *  add path's job is to make room: it prepends, caps at `MAX_RECENTS`, and then evicts by age until
+ *  the byte budget fits. Run to restore a MIDDLE row into a full shelf, it put the row back and
+ *  permanently deleted the oldest design instead — one destructive act undone by another.
+ *
+ *  So this path never evicts and never reorders. It keeps the entry's own `openedAt`, which is what
+ *  `loadRecents` sorts by, so the row returns to the position it was removed from rather than to the
+ *  front. And it REFUSES rather than trimming when putting the row back would not fit: it returns
+ *  null and the shelf is left untouched, so the caller can say so instead of silently costing the
+ *  flyer a different design.
+ *
+ *  In practice the refusal is unreachable from one tab — the offer is cleared on every design load,
+ *  so between the removal and the restore the shelf can only shrink. It is here for the case that
+ *  makes it reachable at all: a second tab filling the shelf from the same origin's storage. */
+export function restoreRecent(entry: RecentDesign): RecentDesign[] | null {
+  const kept = loadRecents().filter((r) => r.id !== entry.id);
+  const list = [...kept, entry].sort((a, b) => b.openedAt - a.openedAt);
+  if (list.length > MAX_RECENTS) return null;
+  if (list.reduce((n, r) => n + r.design.length, 0) > MAX_RECENTS_BYTES) return null;
+  writeRecents(list);
+  return list;
+}
+
 export function clearRecents(): void {
   try {
     localStorage.removeItem(RECENTS_KEY);

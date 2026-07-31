@@ -17,6 +17,8 @@ export default function ImportPanel({
   recents,
   onOpenRecent,
   onForgetRecent,
+  removedRecents,
+  onRestoreRecent,
   discarded,
   onRestoreDiscarded,
 }: {
@@ -33,6 +35,9 @@ export default function ImportPanel({
   recents: RecentDesign[];
   onOpenRecent: (id: string) => void;
   onForgetRecent: (id: string) => void;
+  /** Designs taken off the shelf on this screen, newest first, each still puttable back. */
+  removedRecents: RecentDesign[];
+  onRestoreRecent: (id: string) => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
@@ -67,6 +72,36 @@ export default function ImportPanel({
           <Button variant="secondary" disabled={busy} onClick={onRestoreDiscarded}>
             Pick it back up
           </Button>
+        </Card>
+      )}
+      {/* The way back from the shelf's "×". It is deliberately NOT inside the shelf card below: that
+          card unmounts when the shelf empties, so nesting the offer in it withheld the undo in the one
+          case where the deleted bytes are most likely the only copy — removing the last design. One
+          row per removal rather than one pending offer, because holding only the latest meant a second
+          tap destroyed the first design's way back, and two taps in a row is what a mis-tap looks
+          like. Cleared whenever a design loads, so it can never resurface pointing at an old shelf. */}
+      {removedRecents.length > 0 && (
+        <Card tone="accent" className="mb-4">
+          <ul className="flex flex-col gap-2">
+            {removedRecents.map((r) => (
+              <li key={r.id} className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                <p className="min-w-0 flex-1 text-sm text-zinc-700 dark:text-zinc-200">
+                  Removed{" "}
+                  <span className="font-medium text-zinc-900 dark:text-zinc-100">
+                    {r.rocket || r.name}
+                  </span>{" "}
+                  from your designs — the copy Loft was keeping on this device is gone.
+                </p>
+                <Button
+                  disabled={busy}
+                  onClick={() => onRestoreRecent(r.id)}
+                  aria-label={`Put ${r.rocket || r.name} back on your designs`}
+                >
+                  Put it back
+                </Button>
+              </li>
+            ))}
+          </ul>
         </Card>
       )}
       <div
