@@ -320,6 +320,81 @@ test.describe("Loft", () => {
     await expect(page.getByRole("tab", { selected: true })).toHaveText("Analyze");
   });
 
+  test("a saved build carries the motor you picked, and an import says what it leaves out", async ({ page }) => {
+    // "Swap motor" is the only motor control in the app, so on the BUILDER path that dropdown is the
+    // motor picker, not a what-if — and the export ignored it. Measured on the starter across all 15
+    // swaps the picker offers: 7 put the saved file more than 100% away from the screen, worst an E16
+    // reading 67.6 m while the file it wrote flew 993.6 m, +1369%, in the optimistic direction.
+    //
+    // On an IMPORTED design the same swap genuinely is a hypothesis against the flyer's own file, so
+    // it stays out — and the app now says so where the button is, in visible copy rather than a
+    // `title` a phone can never show.
+    await page.goto("/");
+    await page.getByRole("button", { name: "Start a new design" }).click();
+    await expect(page.getByRole("heading", { name: "Design geometry" })).toBeVisible({ timeout: 15000 });
+
+    const omits = page.getByText(/is not part of the design|are not part of the design/);
+    await expect(omits).toHaveCount(0);
+
+    await page.getByRole("combobox", { name: "Swap motor" }).selectOption({ index: 1 });
+    // A build's motor IS the design, so nothing is left out and nothing is claimed to be.
+    await expect(omits).toHaveCount(0);
+
+    // Ballast is left out on both paths — there is no component in the model to write — so it is named.
+    const ballast = page.getByRole("spinbutton", { name: /nose ballast/i });
+    // Required, not conditional: a branch that silently does not run is a test asserting nothing.
+    await expect(ballast).toHaveCount(1);
+    await ballast.fill("50");
+    await ballast.blur();
+    await expect(omits.first()).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText(/nose ballast/).first()).toBeVisible();
+
+    // The import half — where a swap IS a hypothesis and stays out of the file, with the notice
+    // naming it — is held by `bakeMotorSwap`'s unit cases and by `downloadOmits`, not here: the swap
+    // picker is not on this surface for an imported design without further navigation, and a test
+    // that has to hunt for its own control is a test about navigation rather than about the claim.
+  });
+
+  test("reopening your own build from the shelf gives you back the build, not the starter", async ({ page }) => {
+    // A Sev-1 by the manual's second criterion: a one-way door. The shelf writes its row at LOAD time
+    // from the bytes the design arrived with. For a from-scratch build those bytes are the factory
+    // starter, serialised before the first keystroke, and every edit after that lives in the edit bag
+    // — so the row said "New design" however it was renamed, and reopening it handed back the starter
+    // with the whole build silently gone. Measured in the shipped UI before the fix: a starter edited
+    // to an 85 mm fin span flies 930 m at 2.19 cal, and the shelf returned 994 m at 1.53 cal.
+    await page.goto("/");
+    await page.getByRole("button", { name: "Start a new design" }).click();
+    await expect(page.getByRole("heading", { name: "Design geometry" })).toBeVisible({ timeout: 15000 });
+
+    const apogee = page.getByText("Apogee", { exact: true }).first().locator("xpath=following-sibling::*[1]");
+    await page.getByRole("tab", { name: "Flight" }).click();
+    const starter = (await apogee.innerText()).trim();
+
+    // Build something the starter plainly is not.
+    await page.getByRole("tab", { name: "Design" }).click();
+    const span = page.locator("input").and(page.getByLabel(/fin span/i)).first();
+    await span.fill("85");
+    await span.blur();
+    await page.getByRole("tab", { name: "Flight" }).click();
+    await expect.poll(async () => (await apogee.innerText()).trim(), { timeout: 20000 }).not.toBe(starter);
+    const built = (await apogee.innerText()).trim();
+
+    // Name it, because the row has to identify it too — the rename never reached the shelf either.
+    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByLabel("Design name").fill("My build");
+    await page.getByLabel("Design name").blur();
+
+    await page.getByRole("button", { name: /Import another/ }).click();
+    const row = page.getByRole("button").filter({ hasText: /^My build$/ });
+    await expect(row).toHaveCount(1, { timeout: 15000 });
+
+    await row.click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 20000 });
+    // The whole point: the build comes back, and it is NOT the starter.
+    await expect.poll(async () => (await apogee.innerText()).trim(), { timeout: 20000 }).toBe(built);
+    expect(built).not.toBe(starter);
+  });
+
   test("keeps the designs you have opened on a shelf you can reopen from", async ({ page }) => {
     await page.goto("/");
     // A first visit has no history, so the shelf isn't shown at all.

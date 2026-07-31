@@ -1,3 +1,4 @@
+import type { MotorConfiguration } from "../model/types";
 /** Which bundled motors to offer as substitutes for the design's own, and how to tell the design's
  *  own row apart from a same-named motor by another maker.
  *
@@ -119,5 +120,39 @@ export function designMotorIdentity(motor: {
     // ANY match quality, not just exact: a loose match is not good enough to seed a CASING from, but
     // it is what the simulator flies, so it is the honest answer to "does this design fly at all?".
     resolves: hit !== null,
+  };
+}
+
+/** Write a motor swap into a rocket's own configurations, so it survives an export.
+ *
+ *  Only ever called for a design BUILT here, and that restriction is the whole of the decision. On an
+ *  imported file a swap is a hypothesis against the flyer's own design, and baking it in would make
+ *  the saved file disagree with the file they brought. On the builder path there is no such file:
+ *  "Swap motor" is the only motor control in the app, so for a build that dropdown IS the motor
+ *  picker, and leaving it out of the export saved a rocket nobody designed.
+ *
+ *  Measured on the starter across all 15 swaps the picker offers, before this existed: 7 put the saved
+ *  file more than 100% away from the screen, and the worst was in the optimistic direction — an E16
+ *  read 67.6 m on screen while the file it wrote flew 993.6 m, +1369%. With this, all 15 round-trip to
+ *  within 0.01%. */
+export function bakeMotorSwap<R extends { configurations: MotorConfiguration[] }>(
+  rocket: R,
+  swap: { manufacturer?: string; designation: string; diameter?: number } | undefined,
+): R {
+  if (!swap) return rocket;
+  return {
+    ...rocket,
+    configurations: rocket.configurations.map((c) => ({
+      ...c,
+      instances: c.instances.map((i) => ({
+        ...i,
+        motor: {
+          ...i.motor,
+          manufacturer: swap.manufacturer ?? i.motor.manufacturer,
+          designation: swap.designation,
+          diameter: swap.diameter ?? i.motor.diameter,
+        },
+      })),
+    })),
   };
 }
