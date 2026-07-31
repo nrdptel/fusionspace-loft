@@ -1229,7 +1229,7 @@ function BoosterDescentNote({ run, units }: { run: FlightRun; units: UnitSystem 
   const boosters = run.result.boosterDescents;
   if (!boosters.length) return null;
   return (
-    <p className="mt-3 text-xs text-zinc-500 dark:text-zinc-400">
+    <p className="mt-3 text-sm text-zinc-500 dark:text-zinc-400">
       <span className="font-medium text-zinc-600 dark:text-zinc-300">Separated booster recovery:</span>{" "}
       {boosters.map((b, i) => (
         <span key={b.name}>

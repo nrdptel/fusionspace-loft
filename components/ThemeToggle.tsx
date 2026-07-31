@@ -1,6 +1,6 @@
 "use client";
 
-import { TOUCH_TARGET } from "@/lib/ui-tokens";
+import { Button } from "./ui";
 
 import { useEffect, useState } from "react";
 
@@ -62,17 +62,15 @@ export default function ThemeToggle() {
   const shown: Theme = mounted ? theme : "system";
 
   return (
-    <button
-      type="button"
+    <Button
       onClick={cycle}
       title={`Theme: ${LABEL[shown]} (click to change)`}
       aria-label={`Color theme: ${LABEL[shown]}. Click to change.`}
-      className={`inline-flex items-center gap-1.5 rounded-md border border-zinc-300 bg-white px-2.5 py-1 text-xs text-zinc-700 transition hover:bg-zinc-100 hover:text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-zinc-100 ${TOUCH_TARGET}`}
     >
-      <span aria-hidden className="text-sm leading-none">
+      <span aria-hidden className="leading-none">
         {ICON[shown]}
       </span>
       {LABEL[shown]}
-    </button>
+    </Button>
   );
 }

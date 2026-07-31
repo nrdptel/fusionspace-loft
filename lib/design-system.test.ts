@@ -63,7 +63,7 @@ function countMatches(files: { path: string; text: string }[], re: RegExp): { to
  *  commit as the conversion that earns it, and never raise one. */
 const BUDGET = {
   /** `rounded-lg` is not in the system at all — containers are `xl`, controls are `md`. Target 0. */
-  roundedLg: 37,
+  roundedLg: 35,
   /** Distinct card treatments. One of these is now `<Card>`'s own string, which is the target state;
    *  the other two are a floating toast (`shadow-lg`) and the import drop zone (`border-2 border-dashed`,
    *  an interactive target rather than a container). Both want their own named primitive rather than
@@ -72,7 +72,7 @@ const BUDGET = {
   /** Spacing values off the `1 2 3 4 6 8 12` scale. Target 0. */
   offScaleSpacing: 8,
   /** Components importing the shared primitives. Target: most of the 23. This one only goes UP. */
-  uiAdopters: 13,
+  uiAdopters: 14,
   /** Component files where caption size OUTNUMBERS the body default. **At the target**, so this is a
    *  guard rather than a ratchet from here on: a file that inverts again is a decision-grade value
    *  that has been put back at caption size. */
@@ -96,7 +96,14 @@ const BUDGET = {
  *  is closing. What must not happen is a zero silently BECOMING the finished condition. */
 const PRIMITIVE_ADOPTERS: Record<string, number> = {
   Card: 11,
-  Button: 8,
+  Button: 9,
+  /** The button geometry as a class, for the two things that must look like a button and cannot BE
+   *  one — a `next/link` and an external `<a>`. It is exported from `lib/ui-tokens.ts` rather than
+   *  from `components/ui.tsx` because the site header is a SERVER component and cannot call into a
+   *  `"use client"` module; the regex below reads both modules for that reason. Counted separately
+   *  because a rising number here is not the same win as a rising `Button`: it means a navigation
+   *  control stopped hand-copying the geometry, not that a `<button>` was converted. */
+  buttonClass: 1,
   Section: 0,
   Segmented: 1,
   Tabs: 1,
@@ -198,10 +205,15 @@ describe("DESIGN.md §9 — the design system is binding, and this is what check
     for (const name of Object.keys(PRIMITIVE_ADOPTERS)) {
       // The import list of `./ui`, per file — not a bare mention, which would match the component's
       // own local helper of the same name.
-      const re = new RegExp(String.raw`import \{([^}]*)\} from "(?:\./ui|@/components/ui)"`);
+      // `@/lib/ui-tokens` is in here because the button geometry had to live there — see
+      // `buttonClass` above. `components/ui.tsx` itself is excluded: `Button` is BUILT from
+      // `buttonClass`, and a primitive using its own token is not a surface adopting it.
+      const re = /import \{([^}]*)\} from "(?:\.\/ui|@\/components\/ui|@\/lib\/ui-tokens)"/g;
       counted[name] = components.filter((f) => {
-        const names = f.text.match(re)?.[1];
-        return !!names && names.split(",").some((n) => n.trim().split(/\s+as\s+/)[0] === name);
+        if (f.path === "components/ui.tsx") return false;
+        return [...f.text.matchAll(re)].some((m) =>
+          m[1].split(",").some((n) => n.trim().replace(/^type\s+/, "").split(/\s+as\s+/)[0] === name),
+        );
       }).length;
     }
     expect(counted, "adoption per primitive (see PRIMITIVE_ADOPTERS)").toEqual(PRIMITIVE_ADOPTERS);

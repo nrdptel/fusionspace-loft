@@ -22,12 +22,13 @@ export default function FusionSpaceBadge({ className = "" }: { className?: strin
         height={281}
         className="h-4 w-auto"
       />
-      {/* Sized by inheritance, like the identical affordance in the footer: this is a glyph beside a
-          wordmark, not text on the scale, and pinning it to a scale step made two copies of one mark
-          render at two sizes. */}
+      {/* The body default, matching the identical affordance in the footer — that one is unsized and
+          inherits the footer's own body size, so this one states the same rather than inheriting a
+          header that sets none. Left to inherit, it took the page's 16 px and became the largest
+          glyph in the lockup. */}
       <span
         aria-hidden
-        className="text-zinc-400 opacity-0 transition group-hover:opacity-100 dark:text-zinc-500"
+        className="text-sm text-zinc-400 opacity-0 transition group-hover:opacity-100 dark:text-zinc-500"
       >
         ↗
       </span>

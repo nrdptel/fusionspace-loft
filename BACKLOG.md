@@ -12,28 +12,38 @@ this file, and deliberately does **not** cap craft or product work, because that
 track in `ROADMAP.md` with its own *done when*. Rough edges, missing affordances, and findings too
 big for one pass. Newest first.
 
+- **The "Loft" wordmark link is 43x32 px on every phone width, and always has been.** Measured
+  2026-07-31 on the built export at 320, 360 and 390 px: the header's three action controls all clear
+  44 px, and the wordmark link beside them — which is the way home from every docs page — is 32 px
+  tall. It is a `<Link>` with no `TOUCH_TARGET`, so it never entered the touch pass that fixed the
+  rest of the header. Not fixed with the header work of the same day because that pass was the type
+  scale and this is a hit target on an element it did not touch; one token closes it.
+
 - **`text-[11px]` has become the seventh type size, in exactly the way `text-lg` did.** Found
   2026-07-31 while taking the per-file caption inversion to zero, by the type-scale lens rather than by
   the §9 grep — which only looks for `text-lg` and so cannot see this one. `DESIGN.md` §3 scopes
-  `text-[11px]` to "axis ticks and diagram annotations only"; measured across `components/` it is used
-  **11 times**, and 5 of those are an uppercase eyebrow LABEL over a value: `MonteCarlo.tsx:471`, `:538`
-  and `:553` (Chance over ceiling, and every `StatCard`/`RadiusCard` title) and `ResultsView.tsx:1284`
-  and `:1379`. Worse, ONE role is rendered at two sizes in one file: `MonteCarlo.tsx:488` and `:502`
-  render the same uppercase eyebrow over the histogram and the scatter at `text-xs`, three lines away
-  from `:538` rendering it at `text-[11px]`. The fix is a decision about which size an eyebrow label is
-  — it is a label, so §3 says `text-xs` — plus a §9 grep that counts sizes off the scale rather than the
-  one that was noticed. Belongs with the `Readout` primitive, which is the thing that should own the
-  label/value pair so a session cannot pick a size for it at all.
+  `text-[11px]` to "axis ticks and diagram annotations only"; measured over `components/` with
+  `grep -roh 'text-\[11px\]' components | wc -l` it is used **32 times**, and only 4 of those are
+  actually an axis tick or a diagram annotation (`RocketDiagram`, `LineChart`, `FlightViz`, and
+  `ResultsView`'s chart figcaption). **25 of the 32 are an uppercase LABEL row** —
+  `grep -rn 'text-\[11px\]' components | grep -ci uppercase` — split between every table's `<thead>`
+  (`GeometryInspector`, `MassBreakdown`, `MotorSweep`, `ValidationPanel`, `RocketpyCrossCheck`), every
+  `<legend>` and field label in `LoftApp` (13 uses there alone), and the eyebrow over a value in
+  `MonteCarlo`'s `StatCard`/`RadiusCard` and `ResultsView`'s `Stat`/`Term`. `ResultsView`'s `Stat` also
+  renders its `sub` line at `text-[11px]`, which is the slot `MonteCarlo`'s equivalent now renders at
+  the body default — one role, two sizes.
 
-- **The parts panel's five structural controls are still hand-rolled, and two of them carry the only
-  `rounded-lg` on that surface.** `GeometryInspector.tsx:91`'s `ADD_BUTTON` constant (`rounded-lg
-  border border-zinc-300 bg-white px-2.5 py-1`) drives the four add gestures, and the Remove control at
-  `:382` repeats the same string inline with a rose hover. Both want `Button variant="secondary"` and
-  `Button variant="danger"` — §5's exact vocabulary, and `danger` is documented as "removal only", which
-  is literally what that control is. Deliberately not done on 2026-07-31: that run's slice was the type
-  scale, and converting them changes the `roundedLg` ratchet, so it belongs with the rest of the
-  hand-rolled-button conversion rather than smuggled into a size change. Worth roughly 2 of the 37
-  remaining `rounded-lg`.
+  The fix is one decision — a label is a label, so §3 says `text-xs` — plus a §9 grep that counts sizes
+  off the scale rather than only the one that was noticed. It belongs with the `Readout` primitive,
+  which is the thing that should own the label/value pair so a session cannot pick a size for it at
+  all. Deliberately not folded into the 2026-07-31 type slice: that slice's rule was about which text
+  is decision-grade, and this is about a size that is off the scale entirely.
+
+- **Converting the 35 remaining `rounded-lg` breaks print unless the stylesheet changes with it.**
+  `app/globals.css` carries a print rule keyed on `.rounded-lg` (`grep -n 'rounded-lg' app/globals.css`),
+  so a sweep of the class through `components/` and `app/` silently drops whatever that rule does to the
+  printed page. Noted here rather than fixed because the sweep itself is a later P1 slice; whoever takes
+  it changes both in the same commit.
 
 - **A motor-resolution chip carries a verdict at chip size.** `ResultsView.tsx:992` renders "exact /
   approximate / unmatched" for every motor the run resolved, in emerald/amber/red at `text-xs`. `DESIGN.md`

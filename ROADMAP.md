@@ -486,11 +486,11 @@ cannot return while the conversion is still running.
 
 | §9 count | target | before | inc. 1 | inc. 2 | inc. 3 | inc. 4 |
 |---|---|---|---|---|---|---|
-| `rounded-lg` | 0 | 49 | 46 | **37** | 37 | 37 |
+| `rounded-lg` | 0 | 49 | 46 | 37 | 37 | **35** |
 | distinct card treatments | 3 (see below) | 9 | 3 | 3 | 3 | 3 |
 | off-scale spacing values | 0 | 8 | 8 | 8 | 8 | 8 |
-| components importing `components/ui.tsx` | most of 23 | 5 | 11 | **12** | 12 | **13** |
-| components importing `Button` | most that have one | 0 | 0 | **6** | 7 | **8** |
+| components importing `components/ui.tsx` | most of 23 | 5 | 11 | 12 | 12 | **14** |
+| components importing `Button` | most that have one | 0 | 0 | 6 | 7 | **9** (+1 via `buttonClass`) |
 | hand-rolled indigo primaries | 0 | 16 | 16 | **6** | 6 | 6 |
 | surfaces with two primaries | 0 | 2 | 2 | **0** | 0 | 0 |
 | component files where `text-xs` outnumbers `text-sm` | 0 | 9 | 9 | 9 | 9 | **0** |
@@ -557,8 +557,23 @@ is a judgement rather than a sweep — nine files, `GeometryInspector` at 10:2, 
 **a sentence whose purpose is to change what the flyer does next — an instruction, a refusal, a
 warning, an explanation of why a number will not move — is decision-grade and takes the body default.
 A sentence that describes something already on screen — a unit, a provenance line, a chart legend, a
-footnote, help text — stays at caption size.** Under it, 26 sites moved and nothing that is genuinely a
-caption did. The ones that mattered most:
+footnote, help text — stays at caption size.** Under it `text-xs` across `components/` went **91 → 56**
+and `text-sm` **84 → 113**, and nothing that is genuinely a caption moved. Per file:
+
+| file | before | after |
+|---|---|---|
+| `ResultsView` | 16/13 | 6/23 |
+| `GeometryInspector` | 10/2 | 2/8 |
+| `MonteCarlo` | 9/3 | 3/9 |
+| `DragCrossCheck` | 4/1 | 1/4 |
+| `MassBreakdown` | 4/2 | 1/4 |
+| `SiteHeader` | 2/1 | 0/1 |
+| `Footer` | 1/0 | 1/1 |
+| `FusionSpaceBadge` | 1/0 | 0/1 |
+| `DownloadCsv` | 1/0 | 0/0 |
+| `ThemeToggle` (not inverted, converted for consistency) | 1/1 | 0/0 |
+
+The ones that mattered most:
 
 - **The four advice blocks on the results surface**, each of which tells a flyer what to change on the
   rocket and to what number: stability trim (the nose ballast mass, or the fin shift that reaches the
@@ -574,24 +589,59 @@ caption did. The ones that mattered most:
   and the one pair that silently changes what a chart means.
 - **The footer's standing disclaimer** — that every figure is a model's estimate and never a go/no-go,
   the one sentence the SAFETY posture requires be visible — which sat a step below body text, in the
-  fine print, along with the footer's five nav controls.
+  fine print, along with the footer's six nav controls.
 
-Two of the nine were **false positives of the metric rather than defects**, and are recorded as such: a
-file whose only `text-xs` is an `aria-hidden` decorative glyph counts as inverted at 1/0 while
-containing no text at all. Both (`FusionSpaceBadge`'s arrow, `MassBreakdown`'s disclosure chevron) now
-size the glyph by inheritance — which is what the identical affordance in `Footer` and
-`GeometryInspector` already did — so that is a consistency correction, not a number moved to satisfy a
-count.
+**One of the nine was a false positive of the metric rather than a defect**, and is recorded as such:
+`FusionSpaceBadge` counts as inverted at 1/0 while containing no text at all — its only `text-xs` is on
+an `aria-hidden` decorative glyph. `MassBreakdown`'s disclosure chevron is the same kind of site inside
+a file that WAS genuinely inverted. Neither is a number moved to satisfy a count: the footer and the
+parts panel already rendered that identical affordance unsized, so both are consistency corrections.
 
-The ratchet is now a **guard at 0**: a file that inverts again is a decision-grade value someone put
-back at caption size.
+The ratchet is now a **guard at 0**, and it has **no headroom** — `LoftApp` sits at 18/18 and `Footer`,
+`InstallHint` and `ThemeToggle`… (`ThemeToggle` is now 0/0) — so one added `text-xs` in `LoftApp` fails
+the suite. That is the intended sharpness, but the next session should know the margin is a single
+class string rather than discover it.
 
-**What is left of P1**, measured after increment 4: 37 `rounded-lg`, 8 off-scale spacing values, and
-`DataTable`. Three findings the type pass turned up are filed in `BACKLOG.md` rather than folded in —
-`text-[11px]` has become a seventh size in exactly the way `text-lg` did (11 uses, 5 of them an eyebrow
-label, and one file renders that same role at two sizes three lines apart); the parts panel's five
-structural controls are still hand-rolled and carry 2 of the 37 `rounded-lg`; and a motor-resolution
-chip states a verdict at chip size.
+**Five controls came off hand-rolled class strings onto the primitives in the same pass**, because the
+type change made them mismatch their neighbours: the parts panel's four add gestures and its removal
+(`Button` and `Button variant="danger"`, which §5 documents as removal-only), the theme toggle, and the
+header's two link-buttons. The last of those needed a primitive that did not exist — `buttonClass`,
+the button geometry as a class string, for the two things that must LOOK like a button and cannot BE
+one, because a `<button>` that navigates is a keyboard and screen-reader defect. `Button` is now built
+from it, so the two cannot disagree, and the three verbatim copies of that geometry in the header are
+gone.
+
+It lives in `lib/ui-tokens.ts`, not in `components/ui.tsx`, and that is not a filing preference: the
+site header is a SERVER component, and a helper exported from a `"use client"` module cannot be called
+from one — `npm run build` fails outright with *"Attempted to call buttonClass() from the server"*.
+That file's header already carried the warning, from the time `TOUCH_TARGET` lived in the client module
+and shipped a throwing stub into a served `class` attribute. **Any future class-string helper belongs
+there for the same reason**, and only the components stay in `components/ui.tsx`.
+
+**The type change broke a phone layout, and finding out cost the e2e check its credibility.** Putting
+the header's three controls on the type scale took that row from 197 px to 229 px. That fits a 390 px
+phone, which is the width `e2e/touch.spec.ts` runs at, and overflowed a 360 px one by 10 px. Chasing it
+turned up two things worth more than the fix:
+
+- **A 320 px phone was ALREADY overflowing by 19 px, before any of this.** Both are now 0, at 320, 360
+  and 390 px, by letting the title block shrink (`min-w-0`) while the control row holds its three 44 px
+  targets (`shrink-0`). `flex-wrap` on the header was tried first and rejected: it fixed the overflow
+  and cost **71 px of vertical space on every phone**, because a wrapped flex item will not shrink
+  below its content, so the controls dropped to a second row at 390 and 412 px too.
+- **The check that should have caught it could never fail.** `no page scrolls horizontally on a phone`
+  compared `document.documentElement.scrollWidth` against `window.innerWidth` — and under Playwright's
+  `isMobile` emulation Chromium widens the LAYOUT viewport to swallow an overflow, so both sides move
+  together. Measured on the reverted header at 320 px: `scrollWidth` 370, `innerWidth` 370, assertion
+  green, while `clientWidth` correctly still read 320. It now compares against `clientWidth` and runs at
+  320, 360 and 390 px. Proved able to fail by a negative control with its build exit checked: it fires
+  *"horizontal overflow on / at 320px — Expected <= 320, Received 370"* and passes again on restore.
+
+**What is left of P1**, measured after increment 4: 35 `rounded-lg`, 8 off-scale spacing values, and
+`DataTable`. Two findings the type pass turned up are filed in `BACKLOG.md` rather than folded in —
+`text-[11px]` has become a seventh size in exactly the way `text-lg` did (32 uses, 25 of them an
+uppercase label row), and a motor-resolution chip states a verdict at chip size. A third is a hazard
+for whoever takes the `rounded-lg` slice: `app/globals.css` carries a print rule keyed on that class,
+so converting the 35 sites breaks print unless the stylesheet changes in the same commit.
 
 **The measurement that made this a milestone** (2026-07-30): 12+ distinct card treatments; three
 radius values for one role; `text-xs` and `text-sm` disagreeing between the two sibling apps.

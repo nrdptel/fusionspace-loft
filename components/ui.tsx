@@ -2,17 +2,12 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 
-import { TOUCH_TARGET } from "@/lib/ui-tokens";
+import { TOUCH_TARGET, buttonClass, cx, type ButtonSize, type ButtonVariant } from "@/lib/ui-tokens";
 import { rangeWords, refusedMessage } from "@/lib/what-if";
 
 export interface Option<T extends string> {
   value: T;
   label: string;
-}
-
-/** Join class strings, dropping the empty ones so a caller can pass `undefined` without a stray space. */
-function cx(...parts: (string | false | null | undefined)[]): string {
-  return parts.filter(Boolean).join(" ");
 }
 
 /** The tones a container is allowed to take — `DESIGN.md` §2. Each says something; none is decoration.
@@ -103,29 +98,6 @@ export function Section({
   );
 }
 
-/** The three button weights, and only three — plus `danger`, which is `secondary`'s geometry in the
- *  refusal colour. `DESIGN.md` §5.
- *
- *  **At most one `primary` per surface.** Two primaries on one screen means neither is. */
-const BUTTON_VARIANTS = {
-  primary:
-    "border border-transparent bg-indigo-600 text-white hover:bg-indigo-500 dark:bg-indigo-500 dark:hover:bg-indigo-400",
-  secondary:
-    "border border-zinc-300 text-zinc-700 hover:border-indigo-400 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-zinc-100",
-  ghost:
-    "border border-transparent text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100",
-  danger:
-    "border border-red-300 text-red-700 hover:bg-red-50 dark:border-red-500/40 dark:text-red-300 dark:hover:bg-red-500/10",
-} as const;
-
-export type ButtonVariant = keyof typeof BUTTON_VARIANTS;
-
-/** The spacing inside a control, from `DESIGN.md` §4 — `px-3 py-1.5`, and `px-2 py-1` at caption size. */
-const BUTTON_SIZES = {
-  sm: "px-2 py-1 text-xs",
-  md: "px-3 py-1.5 text-sm",
-} as const;
-
 export function Button({
   variant = "secondary",
   size = "md",
@@ -135,26 +107,14 @@ export function Button({
   ...rest
 }: {
   variant?: ButtonVariant;
-  size?: keyof typeof BUTTON_SIZES;
+  size?: ButtonSize;
   /** Declared explicitly because `ButtonHTMLAttributes` does not carry it. React 19 passes `ref`
    *  to a function component as an ordinary prop, so no forwarding wrapper is needed — but the type
    *  has to say so, and three of the panels hand their Run button a ref to return focus to. */
   ref?: React.Ref<HTMLButtonElement>;
 } & React.ButtonHTMLAttributes<HTMLButtonElement>) {
   return (
-    <button
-      type={type}
-      className={cx(
-        "inline-flex items-center justify-center gap-1.5 rounded-md font-medium transition",
-        "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500",
-        "disabled:cursor-not-allowed disabled:opacity-50",
-        BUTTON_VARIANTS[variant],
-        BUTTON_SIZES[size],
-        TOUCH_TARGET,
-        className,
-      )}
-      {...rest}
-    >
+    <button type={type} className={buttonClass({ variant, size, className })} {...rest}>
       {children}
     </button>
   );

@@ -88,11 +88,6 @@ function SortHeader({
  *  fire on arithmetic instead of on geometry, and a flag that cries wolf teaches flyers to ignore it. */
 const STEP_NOTICE_M = 0.0005;
 
-const ADD_BUTTON =
-  "inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-2.5 py-1 font-medium " +
-  "text-zinc-700 transition hover:border-indigo-400 hover:text-indigo-700 dark:border-zinc-700 " +
-  `dark:bg-zinc-900 dark:text-zinc-300 dark:hover:border-indigo-500 dark:hover:text-indigo-400 ${TOUCH_TARGET}`;
-
 /** What kind of part this is, in the reader's words. */
 const kindLabel = (c: RocketComponent): string => KIND_LABEL[c.kind] ?? c.kind;
 
@@ -375,17 +370,16 @@ export default function GeometryInspector({
                 {refuseRemoval(selectedId)}
               </span>
             ) : (
-              <button
-                type="button"
+              <Button
+                variant="danger"
                 onClick={() => onRemove(selectedId)}
                 title="Remove this part from the design and re-fly it"
-                className={`inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-2.5 py-1 font-medium text-zinc-700 transition hover:border-rose-400 hover:text-rose-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:border-rose-500 dark:hover:text-rose-400 ${TOUCH_TARGET}`}
               >
                 Remove{" "}
                 {parts.find((x) => x.component.id === selectedId)?.component.name ||
                   KIND_LABEL[parts.find((x) => x.component.id === selectedId)?.component.kind ?? ""] ||
                   "this part"}
-              </button>
+              </Button>
             )}
           </p>
         )}
@@ -420,26 +414,23 @@ export default function GeometryInspector({
             exists. The numbers are the confirmation, not the gesture. */}
         {onAddAfter && selectedId && parts.find((x) => x.component.id === selectedId)?.component.kind === "bodytube" && (
           <p className="mt-1 text-sm">
-            <button
-              type="button"
+            <Button
               onClick={() => onAddAfter(selectedId)}
               title="Add a body tube immediately behind this one, faired to it, and re-fly the design"
-              className={ADD_BUTTON}
             >
               <span aria-hidden>+</span> Add a tube behind this
-            </button>
+            </Button>
             {/* Only where there is a set to copy — the new ring is cloned from the design's own rather
                 than derived from invented proportions, so a design with no fins has no source and the
                 control is not offered. All 35 corpus designs carry one, and so does the starter. */}
             {parts.some((x) => x.component.kind === "trapezoidfinset") && (
-              <button
-                type="button"
+              <Button
+                className="ml-1.5"
                 onClick={() => onAddAfter(selectedId, "trapezoidfinset")}
                 title="Add a fin set to this tube, matching the design's own fins, and re-fly it"
-                className={`${ADD_BUTTON} ml-1.5`}
               >
                 <span aria-hidden>+</span> Add fins to this tube
-              </button>
+              </Button>
             )}
             {/* The part that changes caliber. Its exit is a fact about the design wherever the design
                 supplies one — a part already sitting behind this at another caliber means the cone
@@ -450,22 +441,20 @@ export default function GeometryInspector({
                 nose ballast. It mounts INSIDE the tube rather than behind it, so unlike the other three
                 it needs a station, and the corpus supplies one: a third of the way down the part
                 holding it, which is where a real bay sits. */}
-            <button
-              type="button"
+            <Button
+              className="ml-1.5"
               onClick={() => onAddAfter(selectedId, "masscomponent")}
               title="Add a mass object inside this tube — electronics, a tracker, ballast — and re-fly the design"
-              className={`${ADD_BUTTON} ml-1.5`}
             >
               <span aria-hidden>+</span> Add a mass inside this
-            </button>
-            <button
-              type="button"
+            </Button>
+            <Button
+              className="ml-1.5"
               onClick={() => onAddAfter(selectedId, "transition")}
               title="Add a transition behind this — faired to what follows it, or contracting into a tail cone where nothing does — and re-fly the design"
-              className={`${ADD_BUTTON} ml-1.5`}
             >
               <span aria-hidden>+</span> Add a transition behind this
-            </button>
+            </Button>
           </p>
         )}
         {/* Where the outer mould line STEPS behind the part you are holding, and by how much.

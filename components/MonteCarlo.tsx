@@ -485,7 +485,7 @@ function Report({
 
       <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
         <div>
-          <h3 className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+          <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
             Apogee distribution
           </h3>
           <Histogram
@@ -499,7 +499,7 @@ function Report({
           />
         </div>
         <div>
-          <h3 className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+          <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
             Landing scatter (from the pad)
           </h3>
           <Scatter
