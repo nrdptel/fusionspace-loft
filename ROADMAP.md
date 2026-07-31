@@ -754,9 +754,9 @@ cannot return while the conversion is still running.
 
 **Measured at the start of this milestone (2026-07-31), and after each increment:**
 
-| §9 count | target | before | inc. 1 | inc. 2 | inc. 3 | inc. 4 | inc. 5 |
-|---|---|---|---|---|---|---|---|
-| `rounded-lg` | 0 | 49 | 46 | 37 | 37 | **35** | 35 |
+| §9 count | target | before | inc. 1 | inc. 2 | inc. 3 | inc. 4 | inc. 5 | inc. 6 |
+|---|---|---|---|---|---|---|---|---|
+| `rounded-lg` | 0 | 49 | 46 | 37 | 37 | **35** | 35 | **25** (inc. 6) |
 | distinct card treatments | 3 (see below) | 9 | 3 | 3 | 3 | 3 | 3 |
 | off-scale spacing values | 0 | 8 | 8 | 8 | 8 | 8 | **0** (inc. 5) |
 | components importing `components/ui.tsx` | most of 23 | 5 | 11 | 12 | 12 | **14** | 14 |
@@ -914,7 +914,20 @@ half-steps** — of which 49 are `py-1.5`, which §4 itself prescribes as the pa
 four lines after stating that the scale has nothing else in it. Resolving that contradiction is a
 sentence in §4, which is a change to a file shared verbatim with the sibling app, so it is filed.
 
-**What is left of P1**, measured after increment 5: 35 `rounded-lg`, and `DataTable`. Two findings the type pass turned up are filed in `BACKLOG.md` rather than folded in —
+**Increment 6 took `rounded-lg` from 35 to 25**, and it is the mechanical half of that conversion: every
+site that is a CONTROL rather than a container, moved to §2's `rounded-md`. Ten sites across five files —
+`ImportPanel`'s five hand-rolled secondaries plus the split `<li>` whose two halves carry `rounded-l-lg`
+and `rounded-r-lg` (which §9's own grep cannot see, so it would have left a visible seam at a count of
+zero), `ServiceWorker`'s update-toast primary, `RocketpyCrossCheck`'s run control, `LoftApp`'s
+`HEADER_BUTTON` constant (four call sites) and its second indigo primary. **The print hazard is not
+reached by this slice**: `app/globals.css`'s rule keyed on `.rounded-lg` still covers all 25 remaining
+sites, every one of which is a container, and the converted controls are hidden on print anyway. That
+rule must change in the same commit as the LAST container, which is what makes the semantic-notice slice
+the one that has to go last.
+
+**What is left of P1**, measured after increment 6: 25 `rounded-lg` — 12 zinc-50 sunken blocks (blocked on
+one decision: does `CARD_TONES` gain a `sunken` tone?), 8 semantic notices, a `<label>` styled as a card,
+and the print rule — and `DataTable`. Two findings the type pass turned up are filed in `BACKLOG.md` rather than folded in —
 `text-[11px]` has become a seventh size in exactly the way `text-lg` did (32 uses, 25 of them an
 uppercase label row), and a motor-resolution chip states a verdict at chip size. A third is a hazard
 for whoever takes the `rounded-lg` slice: `app/globals.css` carries a print rule keyed on that class,

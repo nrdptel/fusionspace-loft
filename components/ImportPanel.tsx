@@ -166,7 +166,7 @@ export default function ImportPanel({
             type="button"
             disabled={busy}
             onClick={onNew}
-            className={`inline-flex items-center gap-2 rounded-lg border border-zinc-300 bg-white px-4 py-2.5 text-sm font-medium text-zinc-700 transition hover:border-indigo-400 hover:text-zinc-900 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:text-zinc-100 ${TOUCH_TARGET}`}
+            className={`inline-flex items-center gap-2 rounded-md border border-zinc-300 bg-white px-4 py-2.5 text-sm font-medium text-zinc-700 transition hover:border-indigo-400 hover:text-zinc-900 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:text-zinc-100 ${TOUCH_TARGET}`}
           >
             Start a new design
           </button>
@@ -187,7 +187,7 @@ export default function ImportPanel({
           </p>
           <ul className="mt-2 flex flex-wrap gap-2">
             {recents.map((r) => (
-              <li key={r.id} className="flex min-w-0 items-stretch rounded-lg border border-zinc-300 dark:border-zinc-700">
+              <li key={r.id} className="flex min-w-0 items-stretch rounded-md border border-zinc-300 dark:border-zinc-700">
                 <button
                   type="button"
                   disabled={busy}
@@ -197,7 +197,7 @@ export default function ImportPanel({
                   // text. The file it came from goes in the title, where the two differ.
                   aria-label={`Reopen ${r.rocket || r.name}`}
                   title={r.name}
-                  className={`inline-flex min-w-0 items-center rounded-l-lg bg-white px-3 py-1.5 text-left text-sm text-zinc-700 transition hover:text-zinc-900 disabled:opacity-60 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:text-zinc-100 ${TOUCH_TARGET}`}
+                  className={`inline-flex min-w-0 items-center rounded-l-md bg-white px-3 py-1.5 text-left text-sm text-zinc-700 transition hover:text-zinc-900 disabled:opacity-60 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:text-zinc-100 ${TOUCH_TARGET}`}
                 >
                   <span className="truncate">{r.rocket || r.name}</span>
                 </button>
@@ -209,7 +209,7 @@ export default function ImportPanel({
                   // A one-glyph destructive control sitting against a 240 px open target: it needs the
                   // 44 px minimum in BOTH directions, not just height, or it stays a 24 px-wide delete
                   // button for a thumb aiming at the row beside it.
-                  className={`flex items-center justify-center rounded-r-lg border-l border-zinc-200 px-2 text-sm text-zinc-400 transition hover:bg-zinc-50 hover:text-zinc-700 disabled:opacity-60 dark:border-zinc-800 dark:hover:bg-zinc-800/60 dark:hover:text-zinc-200 ${TOUCH_TARGET_SQUARE}`}
+                  className={`flex items-center justify-center rounded-r-md border-l border-zinc-200 px-2 text-sm text-zinc-400 transition hover:bg-zinc-50 hover:text-zinc-700 disabled:opacity-60 dark:border-zinc-800 dark:hover:bg-zinc-800/60 dark:hover:text-zinc-200 ${TOUCH_TARGET_SQUARE}`}
                 >
                   <span aria-hidden>×</span>
                 </button>
@@ -232,7 +232,7 @@ export default function ImportPanel({
             type="button"
             disabled={busy}
             onClick={() => onSample("/samples/demo-single-deploy.ork", "38 mm single-deploy (H128W)")}
-            className={`inline-flex items-center rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-700 transition hover:border-indigo-400 hover:text-zinc-900 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:text-zinc-100 ${TOUCH_TARGET}`}
+            className={`inline-flex items-center rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-700 transition hover:border-indigo-400 hover:text-zinc-900 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:text-zinc-100 ${TOUCH_TARGET}`}
           >
             38 mm single-deploy · H128W
           </button>
@@ -240,7 +240,7 @@ export default function ImportPanel({
             type="button"
             disabled={busy}
             onClick={() => onSample("/samples/demo-dual-deploy.ork", "54 mm dual-deploy (K550W)")}
-            className={`inline-flex items-center rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-700 transition hover:border-indigo-400 hover:text-zinc-900 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:text-zinc-100 ${TOUCH_TARGET}`}
+            className={`inline-flex items-center rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-700 transition hover:border-indigo-400 hover:text-zinc-900 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:text-zinc-100 ${TOUCH_TARGET}`}
           >
             54 mm dual-deploy · K550W
           </button>
@@ -248,7 +248,7 @@ export default function ImportPanel({
             type="button"
             disabled={busy}
             onClick={() => onSample("/samples/demo-multi-config.ork", "Motor comparison (H128W / G40W)")}
-            className={`inline-flex items-center rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-700 transition hover:border-indigo-400 hover:text-zinc-900 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:text-zinc-100 ${TOUCH_TARGET}`}
+            className={`inline-flex items-center rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-700 transition hover:border-indigo-400 hover:text-zinc-900 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:text-zinc-100 ${TOUCH_TARGET}`}
           >
             Motor comparison · H128W / G40W
           </button>
@@ -256,7 +256,7 @@ export default function ImportPanel({
             type="button"
             disabled={busy}
             onClick={() => onSample("/samples/demo-rocksim.rkt", "RockSim 54 mm sport (J420R)")}
-            className={`inline-flex items-center rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-700 transition hover:border-indigo-400 hover:text-zinc-900 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:text-zinc-100 ${TOUCH_TARGET}`}
+            className={`inline-flex items-center rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-700 transition hover:border-indigo-400 hover:text-zinc-900 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:text-zinc-100 ${TOUCH_TARGET}`}
           >
             RockSim · 54 mm sport · J420R
           </button>

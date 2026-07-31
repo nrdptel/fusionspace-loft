@@ -78,7 +78,7 @@ export default function ServiceWorker() {
             acceptedRef.current = true;
             waitingRef.current?.postMessage({ type: "SKIP_WAITING" });
           }}
-          className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-indigo-500"
+          className="rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-indigo-500"
         >
           Refresh
         </button>

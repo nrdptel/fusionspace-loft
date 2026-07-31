@@ -571,7 +571,10 @@ suite("real-design corpus", () => {
     expect(files.length, "no design was read — that branch proves nothing").toBeGreaterThan(20);
     expect(multiStage, "no multi-stage design was read — the predicate's whole branch is untested").toBeGreaterThan(0);
     expect(dead.sort()).toEqual(["03.Three-stage.ork"]);
-  });
+    // A full flight per design needs the same explicit budget its neighbours take. Measured 488 ms
+    // locally and 5,186 ms on the CI runner, which overran vitest's 5 s default and turned the build
+    // red on a commit whose local gate was green.
+  }, 300_000);
 
   it("gives every real staged flight a phase timeline its table can be built from", async () => {
     // This holds the ASSUMPTIONS R5's phase table is built on, against real files — it does not render
@@ -649,7 +652,8 @@ suite("real-design corpus", () => {
     expect(multiStage, "no multi-stage design was read — this suite proves nothing").toBeGreaterThan(0);
     expect(boundariesWhereTwoStagesLeft, "no boundary sheds two stages — the slice rule is untested").toBeGreaterThan(0);
     expect(shapes).toEqual([]);
-  });
+    // Flies every multi-stage design; same explicit budget, same reason as above.
+  }, 300_000);
 
   it("offers a drag only drops that land exactly where the indicator promised", async () => {
     // R4's drag reads `moveSlots` for every place a part can go, draws an indicator at each, and
