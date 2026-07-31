@@ -10,7 +10,7 @@ import { TOUCH_TARGET, TOUCH_TARGET_SQUARE } from "@/lib/ui-tokens";
 import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
 import RocketDiagram from "./RocketDiagram";
-import { Card } from "./ui";
+import { Button, Card } from "./ui";
 
 /** Design geometry: a to-scale side-view of the airframe, above the parsed component tree with each
  *  part's key dimensions and its station — the "did Loft read my rocket right?" view. Pure
@@ -137,6 +137,8 @@ export default function GeometryInspector({
   onSelectPart,
   onRemove,
   onAddAfter,
+  onMove,
+  canMove,
   refuseRemoval,
   aims,
 }: {
@@ -163,6 +165,19 @@ export default function GeometryInspector({
    *  without an editor stays read-only. The panel asks `removalRefusal` first and shows the reason instead
    *  of the control when there is one — a button that silently does nothing is worse than no button. */
   onRemove?: (id: string) => void;
+  /** Nudge the picked part one place toward the nose (`-1`) or the tail (`+1`). The parts table is the
+   *  KEYBOARD and touch path for a reorder: the diagram's centreline grips are already fine-pointer-only
+   *  because at phone fit width the airframe is about 11 px tall and every grip sits inside every other's
+   *  44 px target, so a drag-to-reorder handle there would repeat that. A pair of buttons on the picked
+   *  row is reachable by tab, by screen reader and by thumb, and the table already defaults to the
+   *  design's own order so it shows the result immediately. */
+  onMove?: (id: string, dir: -1 | 1) => void;
+  /** Whether that nudge is available. Asked of the CALLER rather than worked out here, for the same
+   *  reason `refuseRemoval` is: this panel is handed the fully-edited rocket, and the dimension edits
+   *  synthesise top-level parts of their own (a boattail), so `moveTarget` answered against it offers
+   *  moves on and around parts the operation cannot address — a button that does nothing. The app
+   *  judges against the same structure it will apply the move to. */
+  canMove?: (id: string, dir: -1 | 1) => boolean;
   /** Author a part behind the picked one. Offered only on a part something can be built onto — today
    *  a body tube, whose caliber the new one fairs to. A control that appears on every part and does
    *  nothing on most of them is worse than one that appears where it works. */
@@ -371,6 +386,32 @@ export default function GeometryInspector({
                   KIND_LABEL[parts.find((x) => x.component.id === selectedId)?.component.kind ?? ""] ||
                   "this part"}
               </button>
+            )}
+          </p>
+        )}
+        {/* Reordering, beside the deletion and the authoring — the third structural act, on the part it
+            acts on. Each button is left out rather than disabled when there is nowhere to go: at the
+            ends of a stage there is no next slot, because a move never crosses a stage boundary (that
+            would be a different separation event, not a restack). */}
+        {onMove && selectedId && (canMove?.(selectedId, -1) || canMove?.(selectedId, 1)) && (
+          <p className="mt-1 flex flex-wrap items-center gap-2 text-xs">
+            {canMove?.(selectedId, -1) && (
+              <Button
+                size="sm"
+                onClick={() => onMove(selectedId, -1)}
+                title="Move this part one place toward the nose and re-fly the design"
+              >
+                ← Move toward the nose
+              </Button>
+            )}
+            {canMove?.(selectedId, 1) && (
+              <Button
+                size="sm"
+                onClick={() => onMove(selectedId, 1)}
+                title="Move this part one place toward the tail and re-fly the design"
+              >
+                Move toward the tail →
+              </Button>
             )}
           </p>
         )}

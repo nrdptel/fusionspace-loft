@@ -105,6 +105,13 @@ export interface AddedPart {
   mass?: number;
 }
 
+/** One reorder: `id` now sits immediately behind `after`, or at the nose end of its stage when `after`
+ *  is null. Both ids are top-level components of the SAME stage; anything else is refused. */
+export interface MovedPart {
+  id: string;
+  after: string | null;
+}
+
 export interface GeometryEdits {
   /** Which fin set the fin fields describe and edit. Undefined means the frontmost one, which is
    *  what the panel has always used and what every readback below still falls back to. This is a
@@ -183,6 +190,29 @@ export interface GeometryEdits {
    *  the model is always rebuilt from the pristine design plus this bag. Each entry carries its own id,
    *  minted once, so an aim, a removal and an undo all address the same part across rebuilds. */
   added?: AddedPart[];
+  /** Top-level parts the flyer has MOVED along the airframe, oldest first — `{ id, after }`, where
+   *  `after` is the id of the part it now sits behind, or null for the nose end of its stage.
+   *
+   *  The second operation-shaped edit, and the last one a flat patch of scalars cannot express: a
+   *  station is not a free variable on a stacked airframe. A top-level part's station is DERIVED —
+   *  `flattenRocket` walks each stage's list with a running cursor, so the aft end of one sibling is
+   *  the fore end of the next — which means reordering the list IS the reorder. There is no station
+   *  arithmetic to do and no `placement` to rewrite. Measured over the whole corpus before this shipped:
+   *  **all 150 top-level components across all 35 designs use placement `after` with offset 0**, zero
+   *  exceptions, so no imported design can defeat a reorder expressed as a list permutation.
+   *
+   *  An ordered LIST of single moves rather than a full ordered id list per stage, and the difference
+   *  matters. A full list is a SNAPSHOT, not a patch: it goes stale the instant `added` or `removedIds`
+   *  changes the membership, so a part authored after the snapshot was taken is absent from it and gets
+   *  dropped or silently appended; it cannot be undone by removing one entry, which is how every other
+   *  edit in this bag steps back; and `lib/session.ts` restores the whole bag from storage, so a stale
+   *  snapshot is reachable rather than theoretical. A `{ id, after }` entry naming a part that is no
+   *  longer there simply does nothing, exactly as an `added` entry with a missing anchor already does.
+   *
+   *  A move NEVER crosses a stage boundary. Dragging a part out of its stage is not a restack — it is a
+   *  different separation event, with a different flight — and `nextTopLevel` flattens across stages, so
+   *  a part allowed to cross one would silently re-stage itself. Refused in `applyMoves`. */
+  moved?: MovedPart[];
   /** Absolute fin semi-span (root→tip height, m) for the fin group the panel describes — the
    *  primary set and any set indistinguishable from it. Undefined leaves fins as-is. */
   finSpan?: number;
@@ -308,6 +338,10 @@ export function hasGeometryEdits(e: GeometryEdits): boolean {
   return (
     (e.removedIds !== undefined && e.removedIds.length > 0) ||
     (e.added !== undefined && e.added.length > 0) ||
+    // A reorder is a real edit, and forgetting it here is invisible rather than loud: the caller skips
+    // `applyGeometryEdits` entirely when this returns false, so a design with ONLY a move applied would
+    // be shown, flown and exported as the pristine one. Caught by the e2e, not by any unit test.
+    (e.moved !== undefined && e.moved.length > 0) ||
     (e.finSpan !== undefined && e.finSpan > 0) ||
     (e.finCount !== undefined && e.finCount >= 1) ||
     (e.finRootChord !== undefined && e.finRootChord > 0) ||
@@ -1570,6 +1604,73 @@ export function removalRefusal(rocket: Rocket, id: string): string | null {
  *  Applied BEFORE the dimension edits, so every role resolves against the design that is actually left:
  *  delete the longest tube and `Body length` describes the longest of the rest, not a part that is gone.
  *  An aim naming a removed component falls back the same way a stale id from a restored session does. */
+/** Where a part lands if the flyer nudges it one place toward the nose (`-1`) or the tail (`+1`).
+ *
+ *  Returns the `MovedPart` to append, or null when the move is not available — the part is not a
+ *  top-level component of a stage, or it is already at that end of its own stage. Null is what the UI
+ *  reads to leave the control out, so "can I move this?" is answered in one place rather than
+ *  re-derived beside every button.
+ *
+ *  Deliberately does NOT step into the neighbouring stage at a boundary. A part that left its stage
+ *  would separate at a different moment and fly a different flight; the honest answer at the end of a
+ *  stage is that there is nowhere to go, not a silent re-staging. */
+export function moveTarget(rocket: Rocket, id: string, dir: -1 | 1): MovedPart | null {
+  for (const stage of rocket.stages) {
+    const i = stage.components.findIndex((c) => c.id === id);
+    if (i < 0) continue;
+    const j = i + dir;
+    if (j < 0 || j >= stage.components.length) return null;
+    // Moving toward the nose means landing behind the part TWO places up (or at the nose end); moving
+    // toward the tail means landing behind the one that was next. Expressed as an anchor rather than an
+    // index so the entry survives a later add or removal changing what sits where.
+    return { id, after: dir === -1 ? (i - 2 >= 0 ? stage.components[i - 2].id : null) : stage.components[j].id };
+  }
+  return null;
+}
+
+/** Re-order top-level parts within their stage.
+ *
+ *  Each entry is applied in turn against the list as it stands, so a sequence of moves composes the way
+ *  the flyer made them and dropping the last entry steps exactly one move back. An entry is a NO-OP —
+ *  never an error — when the part or its anchor is gone (removed, or never authored), when the two are
+ *  in different stages, or when the anchor is the part itself. Those are all states an edit bag restored
+ *  from storage can legitimately be in, and refusing them loudly would turn a stale session into a
+ *  broken one.
+ *
+ *  **A move never crosses a stage.** `nextTopLevel` flattens across stage boundaries, so a part let out
+ *  of its own stage would re-stage itself silently — a different separation event and a different
+ *  flight, with nothing on any surface saying so. The same single-stage-versus-whole-chain confusion
+ *  already cost a session once, when an authored transition landed in the middle of a multi-stage
+ *  rocket. */
+function applyMoves(rocket: Rocket, moved?: readonly MovedPart[]): Rocket {
+  if (!moved?.length) return rocket;
+  let stages = rocket.stages;
+  for (const mv of moved) {
+    const si = stages.findIndex((s) => s.components.some((c) => c.id === mv.id));
+    if (si < 0) continue; // the part is gone, or is not top-level
+    const list = stages[si].components;
+    const from = list.findIndex((c) => c.id === mv.id);
+    if (mv.after === mv.id) continue;
+    let to: number;
+    if (mv.after === null) {
+      to = 0;
+    } else {
+      const anchor = list.findIndex((c) => c.id === mv.after);
+      if (anchor < 0) continue; // the anchor is gone, or is in another stage — refuse rather than guess
+      // Index AFTER the removal, so "behind X" means the same thing whichever direction the part came
+      // from. Computing it before is the classic off-by-one here: dragging forward and dragging back
+      // would land one slot apart for the same gesture.
+      to = anchor < from ? anchor + 1 : anchor;
+    }
+    if (to === from) continue;
+    const next = list.slice();
+    const [part] = next.splice(from, 1);
+    next.splice(to, 0, part);
+    stages = stages.map((s, i) => (i === si ? { ...s, components: next } : s));
+  }
+  return stages === rocket.stages ? rocket : { ...rocket, stages };
+}
+
 function applyRemovals(rocket: Rocket, removedIds?: readonly string[]): Rocket {
   if (!removedIds?.length) return rocket;
   const gone = new Set(removedIds);
@@ -1604,7 +1705,7 @@ function applyRemovals(rocket: Rocket, removedIds?: readonly string[]): Rocket {
  *  The dimension edits are excluded on purpose: this is the base a field or a sweep axis edits FROM,
  *  and those are the thing being varied. */
 export function structureOf(rocket: Rocket, edits: GeometryEdits): Rocket {
-  return applyGeometryEdits(rocket, { added: edits.added, removedIds: edits.removedIds });
+  return applyGeometryEdits(rocket, { added: edits.added, removedIds: edits.removedIds, moved: edits.moved });
 }
 
 /** Return a design with the geometry edits applied. The original rocket is untouched (a fresh tree
@@ -1620,8 +1721,12 @@ export function applyGeometryEdits(rocket: Rocket, edits: GeometryEdits): Rocket
   //  - adds before the dimension edits, so `bodyTubeId` can aim at an authored tube and `bodyLength`
   //    edits it — the whole point of authoring being an edit of the same model, not a second mechanism.
   //    It also means `aftmostBodyTube`, which anchors a boattail, sees a tube that was added behind it.
+  //  - moves AFTER removals, so an entry naming a part or an anchor that has been deleted simply drops
+  //    instead of resolving against a tree that still has it; and BEFORE the dimension edits, so
+  //    `aftmostBodyTube`, `nextTopLevel` and `transitionDefaults` all see the order the flyer built
+  //    rather than the order the file arrived in.
   return applyDimensionEdits(
-    applyRemovals(applyAdds(rocket, edits.added), edits.removedIds),
+    applyMoves(applyRemovals(applyAdds(rocket, edits.added), edits.removedIds), edits.moved),
     withoutRemovedAims(edits),
   );
 }

@@ -5,6 +5,8 @@ import { importOrk } from "../ork/import";
 import { flattenRocket } from "./geometry";
 import {
   applyGeometryEdits,
+  moveTarget,
+  isEditedValue,
   primaryFinSpan,
   primaryFinCount,
   primaryFinStation,
@@ -2444,5 +2446,147 @@ describe("the last body tube is counted per STAGE", () => {
     const why = removalRefusal(oneLeft, mount)!;
     expect(why).toMatch(/only body tube left, and an airframe needs one/);
     expect(why).not.toMatch(/ in /); // no stage clause where there is only one stage
+  });
+});
+
+describe("reordering a top-level part", () => {
+  // R4. A top-level part's station is DERIVED — `flattenRocket` walks each stage's list with a running
+  // cursor — so reordering the list IS the reorder and there is no station arithmetic to do. Measured
+  // over the whole corpus before this shipped: all 150 top-level components across all 35 designs use
+  // placement `after` with offset 0, so no imported design can defeat a reorder expressed this way.
+  const threePart = (): Rocket => {
+    const doc = newDesign();
+    const stage = doc.rocket.stages[0];
+    // nose, body — plus a second tube behind the first, so there are three to permute.
+    const body = stage.components[1];
+    stage.components = [
+      ...stage.components,
+      { ...structuredClone(body), id: "tube2", name: "Aft tube", children: [] },
+    ];
+    return doc.rocket;
+  };
+  const order = (r: Rocket) => r.stages.flatMap((s) => s.components.map((c) => c.id));
+
+  it("moves a part behind another, and the stations of everything aft follow", () => {
+    const r = threePart();
+    const before = order(r);
+    expect(before).toHaveLength(3);
+    const moved = applyGeometryEdits(r, { moved: [{ id: "tube2", after: before[0] }] });
+    expect(order(moved)).toEqual([before[0], "tube2", before[1]]);
+
+    // The point of the milestone: the arithmetic follows for free. The part that was last is now
+    // second, and the one that was second starts where the moved part ends.
+    const flat = flattenRocket(moved);
+    const at = (id: string) => flat.find((p) => p.component.id === id)!;
+    expect(at("tube2").xFore).toBeCloseTo(at(before[0]).xFore + at(before[0]).length, 9);
+    expect(at(before[1]).xFore).toBeCloseTo(at("tube2").xFore + at("tube2").length, 9);
+    // ...and nothing overlaps, which is the other half of the done-when.
+    const tops = order(moved).map((id) => at(id));
+    for (let i = 1; i < tops.length; i++) {
+      expect(tops[i].xFore).toBeGreaterThanOrEqual(tops[i - 1].xFore + tops[i - 1].length - 1e-9);
+    }
+  });
+
+  it("moves a part to the nose end of its stage with a null anchor", () => {
+    const r = threePart();
+    const before = order(r);
+    const moved = applyGeometryEdits(r, { moved: [{ id: "tube2", after: null }] });
+    expect(order(moved)).toEqual(["tube2", before[0], before[1]]);
+    expect(flattenRocket(moved).find((p) => p.component.id === "tube2")!.xFore).toBeCloseTo(0, 9);
+  });
+
+  it("lands in the same place whichever direction the part came from", () => {
+    // The off-by-one this shape exists to avoid: the destination index is computed AFTER the removal,
+    // so "behind X" means one thing, not two. Moving forward then back returns the original order.
+    const r = threePart();
+    const before = order(r);
+    const fwd = applyGeometryEdits(r, { moved: [{ id: before[1], after: "tube2" }] });
+    expect(order(fwd)).toEqual([before[0], "tube2", before[1]]);
+    const back = applyGeometryEdits(r, {
+      moved: [{ id: before[1], after: "tube2" }, { id: before[1], after: before[0] }],
+    });
+    expect(order(back)).toEqual(before);
+  });
+
+  it("composes a run of moves in the order they were made, so dropping the last steps one back", () => {
+    const r = threePart();
+    const before = order(r);
+    const two = [{ id: "tube2", after: null }, { id: before[1], after: null }];
+    expect(order(applyGeometryEdits(r, { moved: two }))).toEqual([before[1], "tube2", before[0]]);
+    // Undo is dropping the last entry — the same property `removedIds` and `added` have.
+    expect(order(applyGeometryEdits(r, { moved: two.slice(0, 1) }))).toEqual(["tube2", before[0], before[1]]);
+  });
+
+  it("does nothing rather than throwing when the part or the anchor is gone", () => {
+    // Every one of these is a state a bag restored from `localStorage` can legitimately be in, so a
+    // loud refusal would turn a stale session into a broken one.
+    const r = threePart();
+    const before = order(r);
+    expect(order(applyGeometryEdits(r, { moved: [{ id: "nope", after: before[0] }] }))).toEqual(before);
+    expect(order(applyGeometryEdits(r, { moved: [{ id: "tube2", after: "nope" }] }))).toEqual(before);
+    expect(order(applyGeometryEdits(r, { moved: [{ id: "tube2", after: "tube2" }] }))).toEqual(before);
+    // ...including when a removal in the same bag took the anchor out from under it.
+    const withRemoval = applyGeometryEdits(r, {
+      removedIds: [before[0]],
+      moved: [{ id: "tube2", after: before[0] }],
+    });
+    expect(order(withRemoval)).toEqual([before[1], "tube2"]);
+  });
+
+  it("counts as a real edit, so the stored-tool comparison is withheld", () => {
+    // `moved` must NOT be in `INERT_EDIT_FIELDS`: a reorder is a different rocket, so a panel comparing
+    // against the file's own stored results would be comparing two different airframes.
+    expect(isEditedValue("moved", [{ id: "a", after: null }])).toBe(true);
+    expect(isEditedValue("moved", [])).toBe(false);
+    expect(INERT_EDIT_FIELDS.has("moved")).toBe(false);
+  });
+});
+
+describe("moveTarget — where a nudge lands, and when there is nowhere to go", () => {
+  const threeStage = (): Rocket => {
+    const doc = newDesign();
+    const s = doc.rocket.stages[0];
+    const body = s.components[1];
+    s.components = [...s.components, { ...structuredClone(body), id: "tube2", name: "Aft tube", children: [] }];
+    return doc.rocket;
+  };
+
+  it("nudges toward the tail by naming the part that was next", () => {
+    const r = threeStage();
+    const ids = r.stages[0].components.map((c) => c.id);
+    expect(moveTarget(r, ids[0], 1)).toEqual({ id: ids[0], after: ids[1] });
+  });
+
+  it("nudges toward the nose by naming the part two places up, or the nose end", () => {
+    const r = threeStage();
+    const ids = r.stages[0].components.map((c) => c.id);
+    expect(moveTarget(r, ids[2], -1)).toEqual({ id: ids[2], after: ids[0] });
+    expect(moveTarget(r, ids[1], -1)).toEqual({ id: ids[1], after: null });
+  });
+
+  it("returns null at each end of a stage, and for a part that is not top-level", () => {
+    const r = threeStage();
+    const ids = r.stages[0].components.map((c) => c.id);
+    expect(moveTarget(r, ids[0], -1)).toBeNull();
+    expect(moveTarget(r, ids[2], 1)).toBeNull();
+    // A fin set lives INSIDE a tube, so it has no place in the top-level order at all.
+    const inner = r.stages[0].components[1].children[0];
+    expect(inner).toBeTruthy();
+    expect(moveTarget(r, inner.id, 1)).toBeNull();
+    expect(moveTarget(r, "nope", 1)).toBeNull();
+  });
+
+  it("never steps into the neighbouring stage", () => {
+    // A part that left its stage would separate at a different moment and fly a different flight. At a
+    // boundary the honest answer is that there is nowhere to go, not a silent re-staging.
+    const doc = newDesign();
+    const first = doc.rocket.stages[0];
+    doc.rocket.stages = [
+      first,
+      { ...first, name: "Booster", components: [{ ...structuredClone(first.components[1]), id: "boost", children: [] }] },
+    ];
+    const last = first.components[first.components.length - 1].id;
+    expect(moveTarget(doc.rocket, last, 1)).toBeNull();
+    expect(moveTarget(doc.rocket, "boost", -1)).toBeNull();
   });
 });

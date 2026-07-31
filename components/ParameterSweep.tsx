@@ -14,9 +14,8 @@ import { mToFt, mToIn, mpsToFtps, kgToG, G_PER_OZ } from "@/lib/units";
 import type { CsvCell } from "@/lib/csv";
 import LineChart from "./LineChart";
 import DownloadCsv, { CopyTable } from "./DownloadCsv";
-import { TOUCH_TARGET } from "@/lib/ui-tokens";
 import type { UnitSystem } from "@/lib/display";
-import { Card, ClosePanel, useReturnFocus } from "./ui";
+import { Button, Card, ClosePanel, useReturnFocus } from "./ui";
 
 const round = (n: number, dp: number) => (Number.isFinite(n) ? Math.round(n * 10 ** dp) / 10 ** dp : "");
 
@@ -144,8 +143,13 @@ export default function ParameterSweep({
   // plotted curve and its marker described a rocket that was never flown.
   const axisBase = useMemo(
     () => structureOf(doc.rocket, geometry ?? {}),
+    // `moved` belongs here beside the other two structural keys: a reorder changes which part a
+    // positional resolver lands on, so a base memoised without it describes the order the file arrived
+    // in while every swept point is applied to the order the flyer built. Measured on the starter with
+    // an aft tube moved one place forward: the fin-position base read 0.700 m against the 1.000 m the
+    // points were written into — 300 mm, on the axis that drives static margin.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [doc.rocket, geometry?.added, geometry?.removedIds],
+    [doc.rocket, geometry?.added, geometry?.removedIds, geometry?.moved],
   );
   const axes = useMemo<AxisDef[]>(() => {
     const list: AxisDef[] = [];
@@ -339,14 +343,9 @@ export default function ParameterSweep({
 
       {!open && (
         <div className="mt-3">
-          <button
-            type="button"
-            ref={runRef}
-            onClick={() => setOpen(true)}
-            className={`rounded-lg bg-indigo-600 px-3.5 py-2 text-sm font-medium text-white transition hover:bg-indigo-500 ${TOUCH_TARGET}`}
-          >
+          <Button variant="primary" ref={runRef} onClick={() => setOpen(true)}>
             Run parameter sweep
-          </button>
+          </Button>
         </div>
       )}
 

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { TOUCH_TARGET } from "@/lib/ui-tokens";
+import { Button } from "./ui";
 
 // `beforeinstallprompt` isn't in the standard DOM lib types.
 interface BeforeInstallPromptEvent extends Event {
@@ -64,13 +65,9 @@ export default function InstallHint() {
           ) : (
             <>
               {deferred && (
-                <button
-                  type="button"
-                  onClick={install}
-                  className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-500"
-                >
-                  Install Loft
-                </button>
+                <Button variant="primary" onClick={install}>
+        Install Loft
+      </Button>
               )}
               <ul className="space-y-1.5">
                 <li>

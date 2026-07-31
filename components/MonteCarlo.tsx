@@ -19,9 +19,8 @@ import type { GeometryEdits } from "@/lib/model/edit";
 import { usePersistedNumber, useSettled } from "@/lib/session";
 import { mToFt, ftToM, mpsToFtps, mpsToMph, mphToMps } from "@/lib/units";
 import type { CsvCell } from "@/lib/csv";
-import { Card, ClosePanel, NumberField, useReturnFocus } from "./ui";
+import { Button, Card, ClosePanel, NumberField, useReturnFocus } from "./ui";
 import DownloadCsv, { CopyTable } from "./DownloadCsv";
-import { TOUCH_TARGET } from "@/lib/ui-tokens";
 import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
 
@@ -264,14 +263,9 @@ export default function MonteCarlo({
 
       {!open && (
         <div className="mt-3">
-          <button
-            type="button"
-            ref={runRef}
-            onClick={() => setOpen(true)}
-            className={`rounded-lg bg-indigo-600 px-3.5 py-2 text-sm font-medium text-white transition hover:bg-indigo-500 ${TOUCH_TARGET}`}
-          >
+          <Button variant="primary" ref={runRef} onClick={() => setOpen(true)}>
             Run dispersion
-          </button>
+          </Button>
         </div>
       )}
 

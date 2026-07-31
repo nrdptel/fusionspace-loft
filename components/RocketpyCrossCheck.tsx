@@ -9,7 +9,7 @@ import type { UnitSystem } from "@/lib/display";
 import type { RocketpyFlightResult } from "@/lib/validation/rocketpy-engine";
 import { engineFailure } from "@/lib/validation/engine-error";
 import type { GeometryEdits } from "@/lib/model/edit";
-import { Card } from "./ui";
+import { Button, Card } from "./ui";
 
 /** Loft's own ballistic ascent, for a like-for-like comparison against RocketPy. */
 interface LoftBallistic {
@@ -257,13 +257,9 @@ export default function RocketpyCrossCheck({
           worker means a second attempt after a transient failure costs seconds, not the full boot. */}
       {(state.phase === "idle" || state.phase === "error" || state.phase === "stopped") && (
         <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1">
-          <button
-            type="button"
-            onClick={run}
-            className={`rounded-lg bg-indigo-600 px-3.5 py-2 text-sm font-medium text-white transition hover:bg-indigo-500 ${TOUCH_TARGET}`}
-          >
+          <Button variant="primary" onClick={run}>
             {state.phase === "idle" ? "Run RocketPy" : state.phase === "stopped" ? "Run RocketPy again" : "Try RocketPy again"}
-          </button>
+          </Button>
           {/* Only true before the first attempt. After a failure we do not know whether the download
               is the thing that failed, and guessing at the cause is worse than saying nothing. */}
           {state.phase === "idle" && (
@@ -279,13 +275,13 @@ export default function RocketpyCrossCheck({
             for the rocket as it was. They are kept rather than cleared — that is the &ldquo;before&rdquo;
             if you are editing toward a target — but run it again for what is on screen now.
           </p>
-          <button
-            type="button"
-            onClick={run}
-            className="mt-2 rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-indigo-500"
-          >
+          {/* SECONDARY. This fires the same handler as the Run button above, so at full weight the
+              surface showed one action twice — and `DESIGN.md` §5 allows one primary per surface.
+              The two are never on screen together today (this block renders only once a result
+              exists), but the weight is what says which is the surface's job. */}
+          <Button variant="secondary" onClick={run} className="mt-2">
             Run RocketPy again
-          </button>
+          </Button>
         </div>
       )}
       {showing && <Comparison loft={showing.loft} rp={showing.rp} units={units} />}

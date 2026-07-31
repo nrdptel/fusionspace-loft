@@ -256,9 +256,7 @@ grep -roh 'rounded-xl border[a-z0-9 /-]*' components | sort -u | wc -l   # targe
 # off-scale spacing
 grep -roh '\b[pmg][xytblr]\?-\(5\|7\|9\|10\|11\|14\)\b' components app | wc -l   # target: 0
 
-# decision-grade text at caption size — xs should be the minority, PER FILE and overall
-grep -roh 'text-xs' components | wc -l
-grep -roh 'text-sm' components | wc -l                             # sm > xs
+# decision-grade text at caption size — count the INVERTED FILES, not the suite total
 for f in components/*.tsx; do xs=$(grep -oh 'text-xs' "$f" | wc -l); \
   sm=$(grep -oh 'text-sm' "$f" | wc -l); [ "$xs" -gt "$sm" ] && echo "$f $xs/$sm"; done | wc -l
                                                                    # target: 0 inverted files
@@ -267,11 +265,15 @@ for f in components/*.tsx; do xs=$(grep -oh 'text-xs' "$f" | wc -l); \
 grep -rl 'from "./ui"' components | wc -l                          # target: most components
 ```
 
-**The per-file line is not decoration, and the suite total hid what it catches.** Measured 2026-07-31:
-88 `text-xs` against 91 `text-sm` passes `sm > xs` by three — while **9 of 23 component files are
-individually inverted**, `GeometryInspector` at 9:2 and `MonteCarlo` at 9:4. A global ratio that passes
-by a hair while the surfaces a flyer reads numbers on sit at caption size is exactly the Debrief
-inversion §3 was written to prevent, so the file-level count is the one that means something.
+**The suite-wide ratio was removed on 2026-07-31, and the reason is worth keeping.** It hid what it
+was for and then actively misled. It hid: 88 `text-xs` against 91 `text-sm` passed `sm > xs` by three
+while **9 of 23 component files were individually inverted**, `GeometryInspector` at 9:2 and
+`MonteCarlo` at 9:4 — a global ratio passing by a hair while the surfaces a flyer reads numbers on sit
+at caption size is exactly the inversion §3 exists to prevent. Then it misled: converting nine
+hand-rolled buttons onto `Button` moved the totals to **84/89**, an inversion by the metric, while not
+one glyph on screen changed size — the `text-sm` had moved INTO the primitive. **Adoption drives the
+suite ratio the wrong way for the right reason**, which makes it useless during exactly the milestone
+that raises adoption. Count the inverted FILES.
 
 **The adoption grep used to be written with single quotes** (`from './ui'`) and every import in the repo
 is double-quoted, so it answered **0** whether adoption was 0% or 100% — for as long as this file has

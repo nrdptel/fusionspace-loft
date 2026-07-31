@@ -33,6 +33,7 @@ import { flattenRocket } from "../model/geometry";
 import type { Rocket, RocketComponent } from "../model/types";
 import {
   applyGeometryEdits,
+  moveTarget,
   removalRefusal,
   transitionDefaults,
   newPartId,
@@ -378,6 +379,112 @@ suite("real-design corpus", () => {
     expect(misplaced, "mass objects flown at a station other than the one asked for").toEqual([]);
     expect(shapeless, "authored parts built without the dimension that makes them that part").toEqual([]);
     expect(misanchored, "authored parts that did not land immediately behind the part they name").toEqual([]);
+  }, 300_000);
+
+  it("never lets a reorder overlap a part, cross a stage, or fail to come back", async () => {
+    // R4's operation, held across every real design rather than the starter's two-part stack. The
+    // authoring sweep above exists because a stage boundary is where the synthetic fixtures could not
+    // reach; the same is true here. A reorder is only interesting where a stage has three or more
+    // top-level children, which **21 of the 35 corpus designs** have against three of the six committed
+    // `fixtures/` (max 4 children) and none of the five `e2e/fixtures/` (max 2). So the committed set
+    // can prove the gesture works and only the corpus can prove it holds across real airframes.
+    //
+    // Four rules, one per way a reorder can be wrong:
+    //   1. no two top-level parts overlap afterwards — the done-when says the diagram never shows it,
+    //      and since stations are derived from a running cursor the way to break it is to rewrite a
+    //      `placement` instead of permuting the list;
+    //   2. no part changes stage. `nextTopLevel` flattens across stage boundaries, so a part let out of
+    //      its own stage re-stages itself silently — a different separation event and a different flight;
+    //   3. the same set of parts is present afterwards, in a different order — a reorder must not add
+    //      or drop anything;
+    //   4. dropping the entry restores the original order exactly, which is what makes it undoable.
+    const overlapped: string[] = [];
+    const restaged: string[] = [];
+    const lost: string[] = [];
+    const stuck: string[] = [];
+    let moves = 0;
+    let changed = 0;
+    let designsWithSomewhereToGo = 0;
+
+    for (const f of files) {
+      const doc = await importDesign(new Uint8Array(readFileSync(f.path)));
+      const stageOf = (r: Rocket, id: string) =>
+        r.stages.findIndex((s) => s.components.some((c) => c.id === id));
+      const topIds = (r: Rocket) => r.stages.map((s) => s.components.map((c) => c.id));
+      const before = topIds(doc.rocket);
+      let any = false;
+
+      for (const stage of doc.rocket.stages) {
+        for (const c of stage.components) {
+          for (const dir of [-1, 1] as const) {
+            const mv = moveTarget(doc.rocket, c.id, dir);
+            if (!mv) continue;
+            any = true;
+            moves++;
+            const after = applyGeometryEdits(doc.rocket, { moved: [mv] });
+
+            // 3 — same parts, per stage.
+            const now = topIds(after);
+            if (
+              now.length !== before.length ||
+              now.some((ids, i) => [...ids].sort().join() !== [...before[i]].sort().join())
+            ) {
+              lost.push(`${f.name}: moving ${c.id} ${dir} changed which parts exist`);
+            }
+            // 2 — nothing changed stage.
+            if (stageOf(after, c.id) !== stageOf(doc.rocket, c.id)) {
+              restaged.push(`${f.name}: ${c.id} moved out of its stage`);
+            }
+            // 1 — no overlap. Walked from the flattened stations directly rather than asked of any
+            // helper the reorder itself uses: a test that shares the function under suspicion is blind
+            // exactly where the code is, which this suite has already been bitten by once.
+            const flat = flattenRocket(after);
+            const tops = new Set(after.stages.flatMap((s) => s.components.map((x) => x.id)));
+            const line = flat.filter((x) => tops.has(x.component.id)).sort((a, b) => a.xFore - b.xFore);
+            for (let i = 1; i < line.length; i++) {
+              if (line[i].xFore < line[i - 1].xFore + line[i - 1].length - 1e-6) {
+                overlapped.push(
+                  `${f.name}: moving ${c.id} ${dir} overlapped ${line[i - 1].component.id} and ${line[i].component.id}`,
+                );
+                break;
+              }
+            }
+            // 4 — the move CHANGED the order, and nudging it back restores it exactly.
+            //
+            // The obvious spelling of this rule — apply `{ moved: [] }` and compare — cannot fail:
+            // `applyMoves` returns the rocket untouched on an empty list, so it asserts nothing about
+            // the operation at all. Deleting the whole body of `applyMoves` would leave it green.
+            // Driving the INVERSE move is the property that means something, and it needs the order to
+            // have actually moved first, which is the `changed` counter below.
+            if (JSON.stringify(now) === JSON.stringify(before)) {
+              stuck.push(`${f.name}: moving ${c.id} ${dir} changed nothing`);
+            } else {
+              changed++;
+              const back = moveTarget(after, c.id, dir === 1 ? -1 : 1);
+              if (!back) {
+                stuck.push(`${f.name}: ${c.id} could not be nudged back after moving ${dir}`);
+              } else if (JSON.stringify(topIds(applyGeometryEdits(doc.rocket, { moved: [mv, back] }))) !== JSON.stringify(before)) {
+                stuck.push(`${f.name}: nudging ${c.id} ${dir} and back did not restore the order`);
+              }
+            }
+          }
+        }
+      }
+      if (any) designsWithSomewhereToGo++;
+    }
+
+    console.log(
+      `reorders driven across ${files.length} design files: ${moves} (on ${designsWithSomewhereToGo} designs), ` +
+        `${changed} permuted the list and were nudged back`,
+    );
+    expect(moves, "no reorder was driven — that branch proves nothing").toBeGreaterThan(100);
+    // Every driven move must have permuted the list. Without this the three rules above are satisfied
+    // by an `applyMoves` that does nothing at all.
+    expect(changed, "reorders that were applied but permuted nothing").toBe(moves);
+    expect(overlapped, "reorders that made two top-level parts overlap").toEqual([]);
+    expect(restaged, "reorders that moved a part into another stage").toEqual([]);
+    expect(lost, "reorders that added or dropped a part").toEqual([]);
+    expect(stuck, "reorders that could not be taken back").toEqual([]);
   }, 300_000);
 
   it("flies every stored simulation and agrees on apogee and speed", async () => {
