@@ -1082,6 +1082,22 @@ Unattended runs do not stop to ask (see *Unattended operation* in `MAINTAINING.m
 that would otherwise have been a question goes here, with the option rejected, so it can be reversed
 cheaply instead of re-derived. Newest first.
 
+- **2026-07-31 — `CARD_TONES` gains a `sunken` tone, and P1's remaining `rounded-lg` blocks convert onto
+  it.** This is the decision increment 6b was blocked on, taken here so the next session starts rather
+  than re-derives it. Twelve of the 25 remaining sites are the same neutral inset written inline —
+  `rounded-lg border border-zinc-200 bg-zinc-50 … dark:bg-zinc-900/60` — across `LoftApp` (4),
+  `MonteCarlo` (4), `MotorSweep`, `RocketpyCrossCheck` and `ImportPanel`. Rejected folding them into
+  `muted`: that tone is dashed on purpose, because it is the EMPTY-state slot, and a readout block is not
+  an empty slot. Rejected a `className` override at each site: that is the hand-rolled just-this-once
+  §1 forbids, and it is how the twelve card treatments happened in the first place. `sunken` is not a new
+  invention — `DESIGN.md` §2 already names it as one of the three surface levels ("insets, table headers,
+  code and readout blocks"), so this implements the system rather than extending it.
+
+  **One thing to settle per site rather than globally, and it is why this was not folded into increment
+  6:** §2 also says a sunken surface INSIDE a raised one needs no border, because the tone change is the
+  separation — while all twelve currently draw one. Define the tone WITH the hairline so the conversion is
+  visually identical, then drop the border only at the sites whose parent is confirmed raised. Converting
+  and re-bordering in one pass is what would make it a repaint rather than an extraction.
 - **2026-07-31 — an authored stage is addressed by its SEED TUBE's id, not by a new `Stage.id` and not
   by an index.** `Stage` has no id in the model and imported stages have never needed one. Rejected
   adding the field: it touches `lib/ork/import.ts`, `lib/rkt/adapt.ts`, `lib/rasaero/adapt.ts` and

@@ -177,9 +177,12 @@ drop-slots · 206 reorders · 33 authored boosters and 2 refusals · 0 of 35 lea
    one decision: does `CARD_TONES` gain a `sunken` tone?), **6c** the 8 semantic notices **plus**
    `app/globals.css`'s print rule keyed on `.rounded-lg`, which breaks print if the sites convert without
    it, **plus** the ratchet update. 6c must be last. Then `DataTable`, sized by `COMPETITION.md` row 24.
-   **Increment 6 did 6a**, so what is left is 6b (the 12 zinc-50 blocks, blocked on the `CARD_TONES`
-   decision) and 6c (the 8 semantic notices + `app/globals.css`'s print rule + the ratchet to 0). 6c must
-   be last, because that stylesheet rule stays valid until the final container converts.
+   **Increment 6 did 6a**, so what is left is 6b (the 12 zinc-50 blocks) and 6c (the 8 semantic notices +
+   `app/globals.css`'s print rule + the ratchet to 0). 6c must be last, because that stylesheet rule stays
+   valid until the final container converts. **6b is no longer blocked**: the `CARD_TONES` decision is
+   taken and written up in `ROADMAP.md` under *Decisions taken without the owner* — add a `sunken` tone
+   (which `DESIGN.md` §2 already names), define it WITH the hairline so the conversion is visually
+   identical, and drop the border only where the parent is confirmed raised.
 3. **The design-system audit finally ran**, and it is the biggest single body of P-track work now known:
    `text-[10px]`×22 and `text-[9px]`×3 are an eighth and ninth type size (one of them inside `Chip`
    itself), `text-[11px]` is at 32 uses of which 29 are off-role, 69 unsanctioned half-step spacings, four
