@@ -1110,9 +1110,17 @@ cheaply instead of re-derived. Newest first.
 
   **One thing to settle per site rather than globally, and it is why this was not folded into increment
   6:** §2 also says a sunken surface INSIDE a raised one needs no border, because the tone change is the
-  separation — while all twelve currently draw one. Define the tone WITH the hairline so the conversion is
+  separation — while all ten currently draw one. Define the tone WITH the hairline so the conversion is
   visually identical, then drop the border only at the sites whose parent is confirmed raised. Converting
   and re-bordering in one pass is what would make it a repaint rather than an extraction.
+
+  **Measured after increment 7 shipped, so the follow-up has a number rather than a guess:** driving the
+  built export, **1 of the 2 sunken cards rendered on the Design tab, and 1 of the 2 on the Analyze tab,
+  has a card ancestor** — those are the sites §2 says should lose the hairline. The rest sit directly on
+  the page and keep it. This is a PRE-EXISTING divergence, not one increment 7 introduced: the inline
+  `<div>`s drew the same border in the same places. The remaining work is a `Card` prop (or a `bare`
+  variant of the tone) plus that per-site pass, and the probe to redo the count is a DOM walk for an
+  element with `rounded-xl` + `bg-zinc-50` that has a `rounded-xl border` ancestor.
 - **2026-07-31 — an authored stage is addressed by its SEED TUBE's id, not by a new `Stage.id` and not
   by an index.** `Stage` has no id in the model and imported stages have never needed one. Rejected
   adding the field: it touches `lib/ork/import.ts`, `lib/rkt/adapt.ts`, `lib/rasaero/adapt.ts` and
