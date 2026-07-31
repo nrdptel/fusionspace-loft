@@ -12,6 +12,80 @@ this file, and deliberately does **not** cap craft or product work, because that
 track in `ROADMAP.md` with its own *done when*. Rough edges, missing affordances, and findings too
 big for one pass. Newest first.
 
+- **A booster shed at a shared joint gets no descent estimate, because the descent code assumes one phase
+  per stage.** `simulate.ts` reads `const sepT = phases[nStages - i]` when sizing a separated stage's
+  descent, which is only correct if every stage gets its own phase. It does not: a serial stack parts at
+  ONE joint and takes everything below it, so `03.Three-stage.ork` has 3 stages and 2 phases and
+  `phases[3-1]` is `undefined` for "Booster 1" — its descending mass computes to 0 and `BoosterDescentNote`
+  drops it silently. Found by the phase-table review; the same index was flagged as latent by the opening
+  fan-out. Masked today only because neither of that design's boosters carries a canopy, so both take the
+  ballistic branch first. It is now visible as an inconsistency: the phase table says "Booster 1 + Booster 2
+  separate" on the same page as a descent note structurally unable to list Booster 1. Fix by deriving the
+  boundary from the phase whose `stageCount` first drops to or below `i`, not by indexing.
+
+- **The flight-data CSV — the only export of a flight — carries no staging at all, and now collides on a
+  word.** Its `Phase` column is the per-sample flight regime (`rod|boost|coast|descent|landed`), not the
+  staging phase the new table shows, and the export carries no separation row and no events of any kind.
+  The surface rule says a value presented differently must change on every surface presenting it; staging
+  is now first-class on screen and absent from the export, under a column heading that reads as though it
+  were there. Reproduce: *Download flight data* on any staged design.
+
+- **The widest table in the app is in neither of the two contracts the repo already asserts.** All three
+  axe audits load a SINGLE-STAGE design, so the phase table's Card is never in an accessibility run; and
+  `e2e/touch.spec.ts`'s `ROUTES` visits `/` and `/docs*` with no design loaded, so the "no page scrolls
+  horizontally on a phone" check never sees it either. Related and pre-existing in shape: the
+  `overflow-x-auto` scroller holds no focusable element, which axe rates `scrollable-region-focusable`
+  (wcag2a, serious) wherever it actually overflows — identical in `MassBreakdown`, `GeometryInspector`
+  and `MotorSweep`, so it is one fix across four tables and belongs with `DataTable`. The `@media print`
+  block also has no rule neutralising `overflow-x-auto`, so on paper a wide table clips rather than wraps
+  and the rightmost columns are what is lost (UNVERIFIED how many).
+
+- **The Analyze gate asks how many stages a design HAS; the flight now says whether they FIRE, and the
+  two contradict each other on one page.** Found by the pre-push review of the dead-stage fix, and it is
+  the surface that fix should arguably have touched. `ResultsView.tsx:408` computes `staged` from
+  `shownRocket.stages.length`, so on a design whose booster cannot fire the flight warning says the stage
+  "carries no motor that can fire … carried to apogee as dead mass" while the withholding notice beside it
+  says "This design flies 2 stages" and pulls the RocketPy cross-check and both sweeps. Reproduce: new
+  design → *Add a booster stage* → Parts → delete the last *Inner tube* → Analyze. The withholding is also
+  self-defeating in exactly this state: the gate exists because `buildRocketpySpec` folds N motors into one
+  coaxial cluster (381.0 N against the real 190.5 N), and a booster that never lights contributes no motor
+  to fold — the review built the spec and measured ONE motor at 190.5 N, identical to what Loft flies. So
+  the second solver is refused to the flight most in need of it. Not filed as Sev-1 because the notice
+  states a true fact about the design rather than a wrong number; the fix is for `staged` to mean "flies as
+  more than one stage", which changes the gating of three tools and wants its own increment and its own
+  verification.
+
+- **The descent re-enters flight phase `rod` near the ground on 31 of 35 corpus designs, and it ships in an
+  export.** `simulate.ts` decides `onRail` by a pure position test with no launched-yet latch, so once the
+  rocket descends back through the rail's length it reads as on the rail again — the FINAL trajectory sample
+  of every one of those 31 flights reads `rod`, worst case 46 samples on `Complex.Two-Stage.CDX1`. This is
+  already published: `Phase` is a column of the flight-data CSV (`ResultsView.tsx:63,80`). Measured by the
+  opening fan-out's competitive probe. It matters more than it did: R5's phase table will read this field.
+
+- **A separation event names no stage, and two joints parting at once log one event.** `simulate.ts:649`
+  emits `label: "Stage separation"` for every separation regardless of which stage left, and on
+  `03.Three-stage.ork` two joints part at the same instant and produce a single event (phases
+  `[{0,3},{7.332,1}]`, 1 separation) while `Three stage low power rocket.ork` produces 2. A flyer reading
+  the timeline cannot tell one joint from two, and the R5 phase table cannot label its rows from the event
+  list alone — it must name shed stages as `stages[stageCount_p … stageCount_{p-1}-1]`.
+
+- **A motor instance naming a mount that does not exist is attributed to stage 0 and fires from the top of
+  the stack.** `setup.ts:141` falls back to `stageOf.get(inst.mountId) ?? 0`, so a dangling id does not
+  merely fail to place a motor — it moves that motor's thrust to the top stage. Measured by the pre-push
+  review: pointing an authored booster's instance at `"ghost-mount"` flies 805.899 m against 93.508 m for
+  the same instance genuinely absent. `applyRemovals` prunes instances, so the editor path is safe today;
+  an imported or rehydrated dangling id is not, and reachability through the shipped UI is UNVERIFIED.
+
+- **`COMPETITION.md` row 24's claim that OpenRocket's simulation table sorts by clicking a column header
+  does not survive checking.** The wiki sentence it rests on — "The list can be sorted by any column, by
+  clicking the column headers" — is about the MOTOR SELECTION list; the simulation-table text says only
+  that simulations are "listed, initially in Name order". Verified against
+  `wiki.openrocket.info/Basic_Flight_Simulation` by the opening fan-out. What IS verified: both desktop
+  tools drive their results table from the keyboard (OpenRocket 22.02 "Use tab and arrow keys to traverse
+  sim table"; RockSim ctrl/shift-click and `shift-up/down/home/end`), and RockSim's column chooser is real
+  but offers 12 columns over a one-row-per-SIMULATION table, not an event table. Correct the row when
+  `DataTable` is built — its scope should be narrowed, not deleted.
+
 - **R5 increment 1, reviewed TWICE after it shipped: five findings left open here, one of them a Sev-1.**
   Round one found thirteen; round two, taken on round one's own fixes, found seven more — including that
   round one's headline fix was bypassable and that one of its corrected numbers was still wrong. What was
@@ -60,14 +134,37 @@ big for one pass. Newest first.
      own stored-results comparison — for a part that is nowhere. Verified: after dropping the entry the
      authored id was not in the tree and `added` still held it. **Fixed 2026-07-31** in the same commit
      as 2: the `added` entries whose components live in the stage are dropped with it.
-  4. **SEV-1, OPEN — the mount refusal is add-time only.** `canAddStage`/`buildStage` refuse a seed
-     with no motor mount to clone (`edit.ts:1830`), but nothing re-checks after a removal, and the
-     booster's inner tube is an ordinary removable component. Measured on the starter: booster
-     authored reads 1491.464 m with one separation; delete the booster's inner tube and it reads
-     **638.973 m with zero separation events** —
-     35.7% BELOW the pristine 993.642 m — and the only warning on the flight is an unrelated
-     static-margin caution. The stage is dead ballast and nothing says so. Either the removal is refused
-     inside an authored stage, or the flight says the stage cannot fire.
+  4. **RESOLVED 2026-07-31 — the mount refusal was add-time only.** `canAddStage`/`buildStage` refuse a
+     seed with no motor mount to clone (`edit.ts:1830`), but nothing re-checked after a removal, and the
+     booster's inner tube is an ordinary removable component. Reproduced exactly as filed: booster
+     authored reads 1491.464 m with one separation; delete the booster's motor mount and it reads
+     **638.973 m with zero separation events** — 35.7% BELOW the pristine 993.642 m — with only an
+     unrelated static-margin caution on the flight. **Fixed by the flight saying it**, which is the option
+     this entry recommended, and it turned out to cover far more than the authored case.
+
+     **Three things the fix's own pre-push review corrected, and they are the reason it is worth reading
+     rather than just noting as done.** The first version of the predicate counted MOTOR INSTANCES per
+     stage, in `simulate.ts`. That is not what "can this stage fire" means, and it was a false negative in
+     three measured ways, each strictly worse than the case being fixed: a booster set to
+     `ignitionEvent:"never"` (a native OpenRocket value the importer already reads) lost 95.2% of its
+     apogee on `02.Two-stage.ork` — 1378.003 → 66.682 m — unflagged; the same instance with an
+     unresolvable designation flew 93.508 m unflagged; and `03.Three-stage.ork` ships in this state as
+     imported and was missed entirely. The predicate now lives in `setup.ts` and keys on
+     `stageBurnDuration[i] === 0`, which is the same quantity the separation timing is derived from, so the
+     warning and the flight cannot disagree.
+
+     Second, the message **claimed the stage never separates, and that was false.** A serial stack parts at
+     one joint and takes everything below it, so a dead stage under a LIVE one is still shed: on
+     `02.Two-stage.ork` the same gesture gives a separation at t≈1.6 s and apogee 1184.749 m, with
+     `untracked-booster` firing on the same surface naming the same stage. Two notices contradicting each
+     other is worse than either alone. `DeadStage.shed` now carries which fate applies and the sentence
+     says it.
+
+     Third, the docs and the corpus sweep both published **"none of the 35 real designs is in this state"**,
+     which was an artefact of the blind predicate rather than a fact about the corpus. It is **1 of 35** —
+     `03.Three-stage.ork`, whose bottom stage carries a `burnout` trigger with nothing below it to burn
+     out. The sweep now asserts that name exactly, so it fails both if a real design starts firing it and
+     if this one stops.
   5. **Two stages can end up with the same name.** `LoftApp.tsx:904` takes `n = addedStages.length + 1`,
      which names by current length rather than by a high-water mark. Add, add, remove the first, add:
      the labels minted are `["Booster", "Booster 2", "Booster 2"]` and the two live stages are **both

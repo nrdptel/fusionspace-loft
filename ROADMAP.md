@@ -658,13 +658,64 @@ than quoted from either review, which is the one lesson two of them teach.
   Both halves of the seeding rule reduce the apogee, and quoting a scoping probe as a result of the
   finished thing double-counted one of them.
 
-**The gap, which is increment 2 rather than a reason to re-open this.**
+**Increment 2 shipped 2026-07-31 — the PHASE TABLE**, pinned by `lib/corpus/sweep.test.ts`'s *gives every
+real staged flight a phase timeline its table can be built from* (9 multi-stage designs, 18 phases, and
+**1 boundary where more than one stage leaves at once** — the case the naive row rule gets wrong) and by
+the e2e *a staged flight has a phase table that matches what the flyer built*. Both proved able to fail by
+negative controls with their build exits checked.
 
-- **There is no phase table.** The *done when* asks for "a staged flight whose phase table matches what
-  they built", and the flight surface has none: separation is a marker on the altitude chart
-  (`ResultsView.tsx`) and a sentence in the warning that names the shed stage. `FlightViz`'s event dots
-  filter separation out entirely. Building one is the next slice, and it is what the *done when* is
-  actually asking for.
+`FlightRun.phases` is the whole model change: `buildRocketDynamics` has always built the staging timeline
+and `simulate` has always consumed it, but nothing carried it back out, so no surface could show it. The
+table renders one row per REALISED phase — not simply per phase; the review paragraph below is why — with
+the stages attached, the interval, what ends it, and the altitude and speed at that boundary, read from the
+separation EVENT so the table and the altitude chart cannot drift apart. `FlightViz` now draws separation dots too; it had filtered them out while the altitude chart marked
+them, which gave two charts on one page two vocabularies.
+
+**Rows are not stages, and that is the load-bearing decision.** A serial stack parts at ONE joint and takes
+everything below it, so `03.Three-stage.ork` has 3 stages, 2 phases and a single separation while
+`Three stage low power rocket.ork` has 3 of each. `stageCount` is a COUNT of what remains, not an index of
+what left, so a row names its shed stages as the slice `stages[stageCount_p … stageCount_{p-1} - 1]` —
+naming only `stages[stageCount]` drops the second stage at the one corpus boundary where two leave together.
+Walked in the built export on the starter with a booster: two rows, boundary at 1.3 s / 86 m / 108 m/s.
+
+**The pre-push review rewrote the row derivation, and the reason is the whole lesson of the increment.**
+The first version built rows from `phases` — which is the SCHEDULE `buildRocketDynamics` derived from burn
+times, not the timeline the flight flew — and ended the last row at apogee. Both were wrong on real files.
+A flight can end before reaching a planned separation, and the table then stated a staging event that did
+not happen: `ARC payload rocket.ork` with 1 kg of nose ballast lands at 9.64 s having never separated,
+while the schedule still put a separation at 10.43 s. And apogee is an event INSIDE a phase, not a boundary
+between two — on the payload/dual-section designs that separate at an ejection charge it happens BEFORE the
+separation, so the last row printed a "to" earlier than its "from" (`ARC payload rocket.ork`: From 10.4 s,
+To 8.1 s; also `Deployable payload.ork` and `fixtures/demo-payload-separation.ork`). Rows are now bounded by
+the separations the flight actually LOGGED and the last one runs to the end of the flight. Re-driven across
+the corpus: the table renders on 8 designs, **0 backwards rows, 0 withheld cells, 0 schedule/actual
+mismatches**. Two smaller things went with it: a design may reuse a stage name (`Three stage low power
+rocket.ork` has two called "Booster stage", so both separations read identically) and duplicates are now
+numbered, and `FlightViz`'s label map had no `separation` case, so the new dot rendered the raw enum
+string.
+
+**A staged design where nothing separates gets one row and a sentence saying so**, which is the state
+increment 1's dead-stage warning creates: gutting the booster's mount takes the table from two rows to one
+and explains that the stack flew whole. That is the surface's empty-ish state; a genuinely empty one is
+unreachable inside the `hasPropulsion` guard the table sits under.
+
+**No competitor has this** — `COMPETITION.md` row 25, added this run. OpenRocket, RockSim and RASAero all
+present one row per SIMULATION, and OpenRocket's selectable flight-event list does not include separation
+at all.
+
+**The gap, which is increment 3 rather than a reason to re-open this.**
+
+- **Per-stage burn intervals are not in the result.** Only ONE burnout event is emitted per flight ever —
+  the last motor's — so a "burnout" column would be blank on every row but one. Measured: 8 of the 9
+  multi-stage corpus designs report exactly 1 burnout event, including the 3-stage design that burns
+  three motors; the ninth (`rocksimTestRocket2.rkt`) reports 0, because no motor resolves and it never
+  flies at all.
+  Emitting one per `detachTime` group is a solver change and belongs in its own increment.
+- **A separation event names no stage.** `simulate.ts` labels every one `"Stage separation"`, so the table
+  derives its names from the phase slice rather than from the event. Filed in `BACKLOG.md`.
+- **The table is a sixth bespoke `<table>`.** `DataTable` still does not exist; this one copies
+  `MassBreakdown`'s markup deliberately rather than inventing a seventh style, and it does not sort or copy.
+  That is P1's last slice, sized by `COMPETITION.md` row 24.
 - **"Give it its own motor mount and fins" is inherited, not authored.** The seed carries both because
   it is cloned from a tube that has them; there is no `AddedPart.kind` for a motor mount, so a booster
   cannot be given one it did not inherit. That is why the refusal above exists rather than a gesture.
@@ -703,9 +754,9 @@ cannot return while the conversion is still running.
 
 **Measured at the start of this milestone (2026-07-31), and after each increment:**
 
-| §9 count | target | before | inc. 1 | inc. 2 | inc. 3 | inc. 4 | inc. 5 |
-|---|---|---|---|---|---|---|---|
-| `rounded-lg` | 0 | 49 | 46 | 37 | 37 | **35** | 35 |
+| §9 count | target | before | inc. 1 | inc. 2 | inc. 3 | inc. 4 | inc. 5 | inc. 6 |
+|---|---|---|---|---|---|---|---|---|
+| `rounded-lg` | 0 | 49 | 46 | 37 | 37 | **35** | 35 | **25** (inc. 6) |
 | distinct card treatments | 3 (see below) | 9 | 3 | 3 | 3 | 3 | 3 |
 | off-scale spacing values | 0 | 8 | 8 | 8 | 8 | 8 | **0** (inc. 5) |
 | components importing `components/ui.tsx` | most of 23 | 5 | 11 | 12 | 12 | **14** | 14 |
@@ -863,7 +914,20 @@ half-steps** — of which 49 are `py-1.5`, which §4 itself prescribes as the pa
 four lines after stating that the scale has nothing else in it. Resolving that contradiction is a
 sentence in §4, which is a change to a file shared verbatim with the sibling app, so it is filed.
 
-**What is left of P1**, measured after increment 5: 35 `rounded-lg`, and `DataTable`. Two findings the type pass turned up are filed in `BACKLOG.md` rather than folded in —
+**Increment 6 took `rounded-lg` from 35 to 25**, and it is the mechanical half of that conversion: every
+site that is a CONTROL rather than a container, moved to §2's `rounded-md`. Ten sites across five files —
+`ImportPanel`'s five hand-rolled secondaries plus the split `<li>` whose two halves carry `rounded-l-lg`
+and `rounded-r-lg` (which §9's own grep cannot see, so it would have left a visible seam at a count of
+zero), `ServiceWorker`'s update-toast primary, `RocketpyCrossCheck`'s run control, `LoftApp`'s
+`HEADER_BUTTON` constant (four call sites) and its second indigo primary. **The print hazard is not
+reached by this slice**: `app/globals.css`'s rule keyed on `.rounded-lg` still covers all 25 remaining
+sites, every one of which is a container, and the converted controls are hidden on print anyway. That
+rule must change in the same commit as the LAST container, which is what makes the semantic-notice slice
+the one that has to go last.
+
+**What is left of P1**, measured after increment 6: 25 `rounded-lg` — 12 zinc-50 sunken blocks (blocked on
+one decision: does `CARD_TONES` gain a `sunken` tone?), 8 semantic notices, a `<label>` styled as a card,
+and the print rule — and `DataTable`. Two findings the type pass turned up are filed in `BACKLOG.md` rather than folded in —
 `text-[11px]` has become a seventh size in exactly the way `text-lg` did (32 uses, 25 of them an
 uppercase label row), and a motor-resolution chip states a verdict at chip size. A third is a hazard
 for whoever takes the `rounded-lg` slice: `app/globals.css` carries a print rule keyed on that class,
@@ -1018,6 +1082,22 @@ Unattended runs do not stop to ask (see *Unattended operation* in `MAINTAINING.m
 that would otherwise have been a question goes here, with the option rejected, so it can be reversed
 cheaply instead of re-derived. Newest first.
 
+- **2026-07-31 — `CARD_TONES` gains a `sunken` tone, and P1's remaining `rounded-lg` blocks convert onto
+  it.** This is the decision increment 6b was blocked on, taken here so the next session starts rather
+  than re-derives it. Twelve of the 25 remaining sites are the same neutral inset written inline —
+  `rounded-lg border border-zinc-200 bg-zinc-50 … dark:bg-zinc-900/60` — across `LoftApp` (4),
+  `MonteCarlo` (4), `MotorSweep`, `RocketpyCrossCheck` and `ImportPanel`. Rejected folding them into
+  `muted`: that tone is dashed on purpose, because it is the EMPTY-state slot, and a readout block is not
+  an empty slot. Rejected a `className` override at each site: that is the hand-rolled just-this-once
+  §1 forbids, and it is how the twelve card treatments happened in the first place. `sunken` is not a new
+  invention — `DESIGN.md` §2 already names it as one of the three surface levels ("insets, table headers,
+  code and readout blocks"), so this implements the system rather than extending it.
+
+  **One thing to settle per site rather than globally, and it is why this was not folded into increment
+  6:** §2 also says a sunken surface INSIDE a raised one needs no border, because the tone change is the
+  separation — while all twelve currently draw one. Define the tone WITH the hairline so the conversion is
+  visually identical, then drop the border only at the sites whose parent is confirmed raised. Converting
+  and re-bordering in one pass is what would make it a repaint rather than an extraction.
 - **2026-07-31 — an authored stage is addressed by its SEED TUBE's id, not by a new `Stage.id` and not
   by an index.** `Stage` has no id in the model and imported stages have never needed one. Rejected
   adding the field: it touches `lib/ork/import.ts`, `lib/rkt/adapt.ts`, `lib/rasaero/adapt.ts` and

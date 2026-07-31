@@ -100,6 +100,170 @@ function twoStage(): { rocket: Rocket; config: MotorConfiguration } {
   return { rocket, config };
 }
 
+/** Three-stage stack: stages[0] = sustainer (top), [1] = Booster 1, [2] = Booster 2 (bottom). Needed
+ *  for the one shape a two-stage rocket cannot express — a dead stage sitting UNDER a live one, which
+ *  is shed by that stage's separation rather than carried. */
+function threeStage(): { rocket: Rocket; config: MotorConfiguration } {
+  uid = 0;
+  const sustainer: Stage = { name: "Sustainer", components: [nose(), tube(0.6, "m-sust")] };
+  const b1: Stage = { name: "Booster 1", components: [tube(0.5, "m-boost1")] };
+  const b2: Stage = { name: "Booster 2", components: [tube(0.5, "m-boost2")] };
+  const rocket: Rocket = {
+    name: "Test three-stage",
+    stages: [sustainer, b1, b2],
+    configurations: [],
+    referenceType: "maximum",
+  };
+  const motor = (designation: string) => ({
+    designation,
+    manufacturer: "AeroTech",
+    type: "reload" as const,
+    diameter: 0.038,
+    length: 0.2,
+  });
+  const config: MotorConfiguration = {
+    id: "cfg",
+    instances: [
+      { mountId: "m-sust", motor: motor("H128W"), ignitionEvent: "automatic", ignitionDelay: 0 },
+      { mountId: "m-boost1", motor: motor("H128W"), ignitionEvent: "automatic", ignitionDelay: 0 },
+      { mountId: "m-boost2", motor: motor("H128W"), ignitionEvent: "automatic", ignitionDelay: 0 },
+    ],
+  };
+  rocket.configurations = [config];
+  return { rocket, config };
+}
+
+describe("a stage that can never fire", () => {
+  // The state this exists for: a flyer authors a booster, then deletes the motor mount inside it.
+  // The add-time gate (`canAddStage`) refuses seeding a booster with no mount to clone, but nothing
+  // re-checks after a removal — so the stage is carried while contributing no thrust, and until this
+  // warning nothing on the flight said so. Measured on the starter: 638.973 m against the design's
+  // own 993.642 m, and the only other warning an unrelated static-margin caution.
+  //
+  // The three "never lights" cases below are each a separate route to the same flight, and an
+  // earlier version of this predicate — which counted motor INSTANCES per stage — missed two of
+  // them outright. They are asserted separately for that reason.
+  const dead = (rocket: Rocket, config: MotorConfiguration) => buildRocketDynamics(rocket, config).deadStages;
+
+  it("names a lower stage that no motor reaches at all", () => {
+    const { rocket, config } = twoStage();
+    config.instances = config.instances.filter((i) => i.mountId !== "m-boost");
+    expect(dead(rocket, config)).toEqual([{ name: "Booster", shed: false }]);
+  });
+
+  it("names a lower stage whose motor has a trigger that never arrives", () => {
+    // `never` is a native OpenRocket ignition event the importer already reads. The instance is
+    // present and resolves — only the trigger is missing — so an instance count cannot see this.
+    const { rocket, config } = twoStage();
+    config.instances.find((i) => i.mountId === "m-boost")!.ignitionEvent = "never";
+    expect(dead(rocket, config)).toEqual([{ name: "Booster", shed: false }]);
+  });
+
+  it("names a lower stage whose motor resolves to no thrust curve", () => {
+    const { rocket, config } = twoStage();
+    config.instances.find((i) => i.mountId === "m-boost")!.motor.designation = "ZZ9999-NOSUCH";
+    expect(dead(rocket, config)).toEqual([{ name: "Booster", shed: false }]);
+  });
+
+  it("says nothing about a properly staged design", () => {
+    const { rocket, config } = twoStage();
+    expect(dead(rocket, config)).toEqual([]);
+  });
+
+  // The false positive that would have made this warning useless: an unpowered TOP stage is a dart,
+  // which is a legitimate and common design — 3 of the 35 real corpus designs are exactly that
+  // (`APEX_K_Dart.ork`, `ARC payload rocket.ork`, `Deployable payload.ork`). Only a stage BELOW the
+  // top that cannot burn is at issue.
+  it("says nothing about a dart — an unpowered TOP stage is a design, not a fault", () => {
+    const { rocket, config } = twoStage();
+    config.instances = config.instances.filter((i) => i.mountId !== "m-sust");
+    expect(dead(rocket, config)).toEqual([]);
+  });
+
+  it("defers to `no-motor` when the configuration flies nothing at all", () => {
+    const { rocket, config } = twoStage();
+    config.instances = [];
+    expect(dead(rocket, config)).toEqual([]);
+  });
+
+  it("says nothing about a single-stage design", () => {
+    const { rocket, config } = twoStage();
+    const single: Rocket = { ...rocket, stages: [rocket.stages[0]] };
+    expect(dead(single, config)).toEqual([]);
+  });
+
+  // The claim that would have been a lie. A serial stack parts at ONE joint and takes everything
+  // below it, so a dead stage under a LIVE one is still dropped. Measured on `02.Two-stage.ork` with
+  // an authored booster whose mount was deleted: a separation at t≈1.6 s and apogee 1,184.749 m,
+  // with `untracked-booster` firing on the same surface naming the same stage. A warning that said
+  // "it never separates" would have been contradicted by the panel beside it.
+  it("says a dead stage under a LIVE one is still shed, not carried", () => {
+    const { rocket, config } = threeStage();
+    // Kill the bottom stage only; the middle stage still burns and separates, taking it along.
+    config.instances = config.instances.filter((i) => i.mountId !== "m-boost2");
+    expect(dead(rocket, config)).toEqual([{ name: "Booster 2", shed: true }]);
+
+    const warning = runFlight(rocket, {}).result.warnings.find((w) => w.code === "dead-stage")!;
+    expect(warning.message).toContain("still dropped");
+    expect(warning.message).not.toContain("carried to apogee");
+  });
+
+  // The plural and mixed wordings had no coverage at all: every other case here, and the single real
+  // corpus design that fires this, yields exactly ONE dead stage — so a mis-worded plural or an
+  // inverted `carried` comparison would have shipped green.
+  it("words two dead stages in the plural, and says they are carried", () => {
+    const { rocket, config } = threeStage();
+    config.instances = config.instances.filter((i) => i.mountId === "m-sust");
+    expect(dead(rocket, config)).toEqual([
+      { name: "Booster 1", shed: false },
+      { name: "Booster 2", shed: false },
+    ]);
+    const warning = runFlight(rocket, {}).result.warnings.find((w) => w.code === "dead-stage")!;
+    expect(warning.message).toContain("Booster 1, Booster 2 carry no motor");
+    expect(warning.message).toContain("They are carried to apogee");
+    expect(warning.message).toContain("Give each stage");
+  });
+
+  it("does not claim one fate for a mixed set — some carried, some shed", () => {
+    // Four stages — Sustainer(live) · Booster 1(dead) · Booster A(live) · Booster 2(dead) — because a
+    // separation takes everything at or BELOW its own index. Booster A separating sheds Booster 2
+    // beneath it, while Booster 1 sits above that joint and is carried. Neither blanket sentence is
+    // true of the pair, which is exactly what the mixed wording exists for.
+    const { rocket, config } = threeStage();
+    rocket.stages.splice(2, 0, { name: "Booster A", components: [tube(0.4, "m-boostA")] });
+    config.instances = config.instances.filter((i) => i.mountId === "m-sust");
+    config.instances.push({
+      mountId: "m-boostA",
+      motor: { designation: "H128W", manufacturer: "AeroTech", type: "reload", diameter: 0.038, length: 0.2 },
+      ignitionEvent: "automatic",
+      ignitionDelay: 0,
+    });
+    const fates = dead(rocket, config);
+    expect(fates.map((f) => f.shed).sort()).toEqual([false, true]);
+    const warning = runFlight(rocket, {}).result.warnings.find((w) => w.code === "dead-stage")!;
+    expect(warning.message).toContain("Some are carried to apogee as dead mass and some are dropped");
+  });
+
+  it("warns on the flight, and the flight really is a stack carrying an inert stage", () => {
+    const { rocket, config } = twoStage();
+    const staged = runFlight(rocket, {});
+    expect(staged.result.warnings.some((w) => w.code === "dead-stage")).toBe(false);
+
+    config.instances = config.instances.filter((i) => i.mountId !== "m-boost");
+    const flown = runFlight(rocket, {});
+    const warning = flown.result.warnings.find((w) => w.code === "dead-stage");
+    expect(warning).toBeDefined();
+    expect(warning!.severity).toBe("warning");
+    expect(warning!.message).toContain("Booster");
+    // The consequence the message claims, asserted rather than described. Here the dead stage is the
+    // bottom of a two-stage stack with nothing live below it, so it really is carried the whole way.
+    expect(warning!.message).toContain("carried to apogee");
+    expect(flown.result.events.filter((e) => e.type === "separation")).toHaveLength(0);
+    expect(staged.result.events.filter((e) => e.type === "separation").length).toBeGreaterThan(0);
+    expect(flown.result.summary.apogee).toBeLessThan(staged.result.summary.apogee);
+  });
+});
+
 describe("serial staging plan", () => {
   it("lights the booster at launch and the sustainer at booster separation", () => {
     const { rocket, config } = twoStage();

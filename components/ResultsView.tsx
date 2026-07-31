@@ -523,6 +523,11 @@ export default function ResultsView({
         <BoosterDescentNote run={run} units={units} />
       </section>
 
+      {/* Flight phases — a staged flight's own timeline. Gated on the EDITED rocket, like every other
+          staged surface: reading `doc.rocket.stages.length` is the bug R5 has already hit twice, and a
+          phase table invisible on an authored booster fails the milestone's *done when* outright. */}
+      {staged && <PhaseTable run={run} rocket={shownRocket} units={units} />}
+
       {/* Flight path */}
       <Card as="section" aria-label="Flight path">
         <h2 className="text-xl font-medium tracking-tight">Flight path</h2>
@@ -1486,6 +1491,125 @@ function MotorStatsCaption({ run, units }: { run: FlightRun; units: UnitSystem }
       {stat("propellant", propText)}
       {delays && stat("delays", delays)}
     </figcaption>
+  );
+}
+
+/** The phases of a staged flight: one row per interval between separations, naming which stages were
+ *  attached, when the interval ran, what ended it and what left at that boundary.
+ *
+ *  Rows come from `run.phases` — the solver's own staging timeline — and NOT from `rocket.stages`.
+ *  The two differ, and assuming otherwise prints a phase that never existed: a serial stack parts at
+ *  ONE joint and takes everything below it, so `03.Three-stage.ork` has 3 stages but 2 phases and a
+ *  single separation, while `Three stage low power rocket.ork` has 3 of each.
+ *
+ *  For the same reason `stageCount` is a COUNT of what is still attached, not an index of what left.
+ *  The stages shed at phase p are `stages[stageCount_p … stageCount_{p-1} - 1]` — a slice, because two
+ *  joints can part at one instant, and naming only `stages[stageCount]` would drop the rest.
+ *
+ *  No competitor presents this. OpenRocket, RockSim and RASAero all show one row per SIMULATION, and
+ *  OpenRocket's flight events are plot markers and CSV comments — over a list that does not include
+ *  separation at all. See `COMPETITION.md` row 25. */
+function PhaseTable({ run, rocket, units }: { run: FlightRun; rocket: Rocket; units: UnitSystem }) {
+  const phases = run.phases;
+  const stages = rocket.stages ?? [];
+
+  // A design may reuse a stage name — `Three stage low power rocket.ork` has two called "Booster
+  // stage" — and then "Booster stage separates" twice tells a flyer nothing about which joint parted.
+  // Only the ambiguous ones are numbered, so the common case stays clean.
+  const nameCounts = new Map<string, number>();
+  for (const s of stages) nameCounts.set(s.name || "", (nameCounts.get(s.name || "") ?? 0) + 1);
+  const stageName = (i: number) => {
+    const raw = stages[i]?.name;
+    if (!raw) return `Stage ${i + 1}`;
+    return (nameCounts.get(raw) ?? 0) > 1 ? `${raw} (stage ${i + 1})` : raw;
+  };
+
+  // Rows are bounded by the separations the flight ACTUALLY LOGGED, never by the schedule alone.
+  // `phases` is what `buildRocketDynamics` planned from burn times; a flight can end before reaching a
+  // planned separation, and then tabling it states an event that did not happen. Measured on
+  // `ARC payload rocket.ork` with 1 kg of nose ballast: the vehicle lands at 9.64 s having never
+  // separated, while the schedule still puts a separation at 10.43 s. Truncating to the realised
+  // count is what keeps this table a record rather than a plan.
+  const seps = run.result.events.filter((e) => e.type === "separation").slice().sort((a, b) => a.time - b.time);
+  const realised = phases.slice(0, seps.length + 1);
+  const landing = run.result.events.find((e) => e.type === "landing");
+  const flightEnd = landing?.time ?? run.result.summary.flightTime;
+
+  const rows = realised.map((p, i) => {
+    const next = realised[i + 1];
+    const boundary = next ? seps[i] : landing;
+    const shed = next ? stages.slice(next.stageCount, p.stageCount).map((_, k) => stageName(next.stageCount + k)) : [];
+    // The last phase runs to the END OF THE FLIGHT, not to apogee. Apogee is an event INSIDE a phase,
+    // not a boundary between two — and on a payload/dual-section design that separates at an ejection
+    // charge the separation happens AFTER apogee, so ending the last row at apogee printed a row whose
+    // "to" was earlier than its "from": `ARC payload rocket.ork` read From 10.4 s To 8.1 s.
+    return {
+      attached: Array.from({ length: p.stageCount }, (_, k) => stageName(k)),
+      from: p.startTime,
+      to: next ? seps[i].time : flightEnd,
+      ends: next ? `${shed.join(" + ")} ${shed.length > 1 ? "separate" : "separates"}` : landing ? "Landing" : "End of flight",
+      altitude: boundary?.altitude,
+      velocity: boundary?.velocity,
+    };
+  });
+
+  if (rows.length === 0) return null;
+
+  return (
+    <Card as="section" aria-label="Flight phases">
+      <h2 className="text-xl font-medium tracking-tight">Flight phases</h2>
+      <div className="mt-3 overflow-x-auto">
+        <table className="w-full text-sm tabular-nums">
+          <thead>
+            <tr className="text-left text-[11px] uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+              <th className="py-1 pr-4 font-medium">Phase</th>
+              <th className="py-1 pr-4 font-medium">Stages attached</th>
+              <th className="py-1 pr-4 font-medium">From</th>
+              <th className="py-1 pr-4 font-medium">To</th>
+              <th className="py-1 pr-4 font-medium">Ends with</th>
+              <th className="py-1 pr-4 font-medium">Altitude</th>
+              <th className="py-1 font-medium">Speed</th>
+            </tr>
+          </thead>
+          <tbody className="font-mono">
+            {rows.map((row, i) => (
+              <tr key={i} className="border-t border-zinc-100 dark:border-zinc-800">
+                <th scope="row" className="py-1.5 pr-4 text-left font-sans font-normal text-zinc-700 dark:text-zinc-200">
+                  {i + 1}
+                </th>
+                <td className="py-1.5 pr-4 font-sans text-zinc-700 dark:text-zinc-200">{row.attached.join(" + ")}</td>
+                <td className="py-1.5 pr-4 text-zinc-800 dark:text-zinc-100">{d.q(d.seconds(row.from))}</td>
+                <td className="py-1.5 pr-4 text-zinc-800 dark:text-zinc-100">{d.q(d.seconds(row.to))}</td>
+                <td className="py-1.5 pr-4 font-sans text-zinc-700 dark:text-zinc-200">{row.ends}</td>
+                {/* A blank cell is a bug (DESIGN.md §6), so a boundary with no event says so rather
+                    than rendering an empty column. */}
+                <td className="py-1.5 pr-4 text-zinc-800 dark:text-zinc-100">
+                  {row.altitude !== undefined ? d.q(d.altitude(row.altitude, units)) : <span className="font-sans text-zinc-500 dark:text-zinc-400">not logged</span>}
+                </td>
+                <td className="py-1.5 text-zinc-800 dark:text-zinc-100">
+                  {row.velocity !== undefined ? d.q(d.speed(row.velocity, units)) : <span className="font-sans text-zinc-500 dark:text-zinc-400">not logged</span>}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {rows.length === 1 ? (
+        <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+          This design has more than one stage but nothing separated: the stack flew whole. A stage is
+          shed when <em>its own</em> motor finishes burning, so either no lower stage ever lit — see any
+          warning above — or the flight ended before the separation was due, which is what happens when
+          a design is too heavy to reach it.
+        </p>
+      ) : (
+        <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
+          Altitude and speed are read at the boundary that ends each phase, from the same events the
+          flight-path chart marks. The last phase runs to the end of the flight — apogee happens inside
+          a phase, not between two — and only the top stage is flown to the ground, so a shed
+          stage&apos;s own descent is not simulated.
+        </p>
+      )}
+    </Card>
   );
 }
 

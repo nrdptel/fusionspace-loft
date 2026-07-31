@@ -116,7 +116,7 @@ import type { UnitSystem } from "@/lib/display";
 /** The design header's small secondary buttons — Download, Undo, Redo, Reset. One constant because
  *  four hand-copied class strings is how a row of buttons ends up with three different heights. */
 const HEADER_BUTTON =
-  "inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-2.5 py-1 text-xs font-medium " +
+  "inline-flex items-center gap-1.5 rounded-md border border-zinc-300 bg-white px-2.5 py-1 text-xs font-medium " +
   "text-zinc-700 transition hover:border-indigo-400 hover:text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 " +
   `dark:text-zinc-300 dark:hover:text-zinc-100 ${TOUCH_TARGET}`;
 /** Undo/redo: the same button, plus a disabled state and a square 44 px minimum. It carries only a
@@ -2608,7 +2608,7 @@ function ConditionsControls({
               type="button"
               onClick={findWeather}
               disabled={wxBusy || busy}
-              className={`rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-indigo-500 disabled:opacity-60 ${TOUCH_TARGET}`}
+              className={`rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-indigo-500 disabled:opacity-60 ${TOUCH_TARGET}`}
             >
               {wxBusy ? "Fetching…" : "Fetch"}
             </button>
