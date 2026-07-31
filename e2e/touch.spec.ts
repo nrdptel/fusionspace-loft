@@ -316,6 +316,31 @@ test.describe("phone layout", () => {
     await page.locator("summary", { hasText: /Parts ·/ }).click();
     expect(await scan(), "Design workspace with the parts table open").toEqual([]);
   });
+  test("the docs section nav is a row of targets, on every docs route", async ({ page }) => {
+    // Found by a phone cold walk of the built export, which is the check the suite did not have: the
+    // hit-target passes all load a DESIGN first, so nothing had ever measured the docs routes. All
+    // five section links rendered **30 px tall** on all six routes — the largest single group of
+    // under-target controls anywhere in the walk, on the pages a flyer reads at the pad.
+    //
+    // Asserted on the `<nav>` specifically, the same structural line the footer test draws: these are
+    // navigation controls and need a target, while a link inside a paragraph of docs prose carries the
+    // WCAG "inline in a block of text" exemption and is deliberately not swept up here.
+    for (const route of ["/docs", "/docs/methods", "/docs/limitations", "/docs/validation", "/docs/faq"]) {
+      await page.goto(route);
+      const nav = page.getByRole("navigation", { name: "Docs sections" });
+      await expect(nav).toBeVisible();
+      const links = nav.getByRole("link");
+      const n = await links.count();
+      // CONTROL: five sections. A nav that rendered none would pass the size assertion perfectly.
+      expect(n, `${route}: docs section links`).toBe(5);
+      for (let i = 0; i < n; i++) {
+        const box = await links.nth(i).boundingBox();
+        const label = (await links.nth(i).innerText()).trim();
+        expect(box!.height, `${route}: "${label}" is ${Math.round(box!.height)} px tall`).toBeGreaterThanOrEqual(44);
+      }
+    }
+  });
+
   test("the footer's navigation links are targets, not 16 px of text", async ({ page }) => {
     // The one region the hit-target passes never reached. Measured on a 390x844 phone with a design
     // loaded, before this: GitHub 60x16, Docs 28x16, Motor Finder 71x16, Charge 40x16, Window 44x16
