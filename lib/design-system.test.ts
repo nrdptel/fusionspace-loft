@@ -132,7 +132,7 @@ const BUDGET = {
    *  `add_repo` for it was refused by the harness again this run (the fourth). Adding the grep here
    *  alone would put the two copies out of step, which §9 forbids; it is filed in `BACKLOG.md` with
    *  the two other wordings now owed to both. */
-  handRolledButtons: 5,
+  handRolledButtons: 4,
 } as const;
 
 /** How many components import EACH primitive by name.
@@ -165,7 +165,7 @@ const PRIMITIVE_ADOPTERS: Record<string, number> = {
    *  (`ui → DownloadCsv → ui`). §5 says the vocabulary lives in `ui.tsx`; the wording wants a sentence
    *  admitting the two exceptions, and that is a change to a file shared verbatim with the sibling
    *  app, so it is FILED rather than made here. The regex below reads this module for that reason. */
-  DataTable: 5,
+  DataTable: 6,
   Section: 0,
   Segmented: 1,
   Tabs: 1,

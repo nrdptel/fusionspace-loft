@@ -6,11 +6,88 @@ import { flattenRocket } from "@/lib/model/geometry";
 import { massByComponent, dryMassProperties, statedMassHolder } from "@/lib/sim/mass";
 import type { MotorMark } from "@/lib/sim/setup";
 import { mouldLineStep, type AddedPart, type AddedStage, type GeometryEdits, type MoveSlot } from "@/lib/model/edit";
-import { TOUCH_TARGET, TOUCH_TARGET_SQUARE } from "@/lib/ui-tokens";
+import { TOUCH_TARGET } from "@/lib/ui-tokens";
 import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
 import RocketDiagram from "./RocketDiagram";
+import DataTable, { type Column } from "./DataTable";
 import { Button, Card } from "./ui";
+
+type PartRow = { p: ReturnType<typeof flattenRocket>[number]; i: number };
+
+/** The parts table's columns on the shared primitive — `DESIGN.md` §5.
+ *
+ *  A function rather than a constant because three of the five close over `units` and over the mass
+ *  map, both of which change as the flyer works. `csv` is on every column, so this table gains copy
+ *  and CSV export for the first time: `COMPETITION.md` row 26 records "sorts and cannot be copied"
+ *  as a gap against RockSim, and it closes here with nothing to double, because this panel had no
+ *  export of its own at all.
+ *
+ *  `sortDir: -1` on Mass only. Heaviest-first is the reading the column exists for — a flyer looking
+ *  for what to lighten — and it is what the hand-rolled version did. Station and the two names open
+ *  ascending, which is nose-to-tail and A→Z. */
+const PART_COLUMNS = (
+  units: UnitSystem,
+  masses: ReturnType<typeof massByComponent>,
+  massCell: (id: string) => { text: string; muted: boolean },
+): Column<PartRow>[] => [
+  {
+    key: "name",
+    label: "Component",
+    rowHeader: true,
+    sortValue: ({ p }) => (p.component.name || kindLabel(p.component)).toLowerCase(),
+    cell: ({ p }) => (
+      <span className="font-sans text-zinc-700 dark:text-zinc-200">
+        {p.component.name || KIND_LABEL[p.component.kind] || p.component.kind}
+      </span>
+    ),
+    csv: ({ p }) => p.component.name || KIND_LABEL[p.component.kind] || p.component.kind,
+  },
+  {
+    key: "type",
+    label: "Type",
+    sortValue: ({ p }) => kindLabel(p.component).toLowerCase(),
+    cell: ({ p }) => (
+      <span className="text-zinc-500 dark:text-zinc-400">
+        {KIND_LABEL[p.component.kind] ?? p.component.kind}
+      </span>
+    ),
+    csv: ({ p }) => KIND_LABEL[p.component.kind] ?? p.component.kind,
+  },
+  {
+    key: "station",
+    label: "Station",
+    sortValue: ({ p }) => p.xFore,
+    cell: ({ p }) => d.q(d.lengthMm(p.xFore, units)),
+    csv: ({ p }) => Math.round(p.xFore * 1000 * 10) / 10,
+  },
+  {
+    key: "mass",
+    label: "Mass",
+    sortDir: -1,
+    sortValue: ({ p }) => masses.get(p.component.id)?.mass ?? 0,
+    cell: ({ p }) => {
+      const m = massCell(p.component.id);
+      return (
+        <span className={m.muted ? "font-sans text-zinc-500 dark:text-zinc-400" : undefined}>
+          {m.text}
+        </span>
+      );
+    },
+    csv: ({ p }) => {
+      const m = masses.get(p.component.id);
+      // The screen says "in <assembly>" where a part's mass is counted elsewhere; the export says the
+      // same thing rather than a 0 that would silently sum wrong in a spreadsheet.
+      return !m ? "" : m.subsumedBy ? `in ${m.subsumedBy}` : Math.round(m.mass * 1e6) / 1e6;
+    },
+  },
+  {
+    key: "dims",
+    label: "Dimensions",
+    cell: ({ p }) => describeDims(p.component, units),
+    csv: ({ p }) => describeDims(p.component, units),
+  },
+];
 
 /** Design geometry: a to-scale side-view of the airframe, above the parsed component tree with each
  *  part's key dimensions and its station — the "did Loft read my rocket right?" view. Pure
@@ -45,37 +122,6 @@ const KIND_LABEL: Record<string, string> = {
   launchlug: "Launch lug",
   railbutton: "Rail button",
 };
-
-/** A sortable column heading. Clicking it sorts by that column; clicking the active one returns to
- *  the design's own nose-to-tail order, so there is always a way back to how the rocket is built. */
-function SortHeader({
-  col,
-  sort,
-  onSort,
-  children,
-}: {
-  col: Exclude<PartSort, "design">;
-  sort: PartSort;
-  onSort: (s: PartSort) => void;
-  children: React.ReactNode;
-}) {
-  const active = sort === col;
-  return (
-    <th className="py-1 pr-4 font-medium" aria-sort={active ? (col === "mass" ? "descending" : "ascending") : "none"}>
-      <button
-        type="button"
-        onClick={() => onSort(active ? "design" : col)}
-        title={active ? "Back to the design's own order" : `Sort by ${col}`}
-        className={`inline-flex items-center gap-1 uppercase tracking-wide outline-none hover:text-zinc-700 focus-visible:ring-2 focus-visible:ring-indigo-400 dark:hover:text-zinc-200 ${TOUCH_TARGET_SQUARE}`}
-      >
-        {children}
-        <span aria-hidden className={active ? "text-indigo-500" : "text-transparent"}>
-          {col === "mass" ? "▾" : "▴"}
-        </span>
-      </button>
-    </th>
-  );
-}
 
 /** The authoring controls in the parts panel. One constant so a second one cannot arrive at a
  *  different height from the first. */
@@ -555,65 +601,53 @@ export default function GeometryInspector({
             <span className="text-zinc-400 transition group-open:rotate-180">▾</span>
             Parts · {parts.length}
           </summary>
-          <div className="mt-2 overflow-x-auto">
-          <table className="w-full text-sm tabular-nums">
-            <thead>
-              <tr className="text-left text-[11px] uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-                <SortHeader col="name" sort={sort} onSort={setSort}>Component</SortHeader>
-                <SortHeader col="type" sort={sort} onSort={setSort}>Type</SortHeader>
-                <SortHeader col="station" sort={sort} onSort={setSort}>Station</SortHeader>
-                <SortHeader col="mass" sort={sort} onSort={setSort}>Mass</SortHeader>
-                <th className="py-1 font-medium">Dimensions</th>
-              </tr>
-            </thead>
-            <tbody className="font-mono">
-              {rows.map(({ p, i }) => (
-                <tr
-                  key={`${p.component.id}-${i}`}
-                  tabIndex={0}
-                  onMouseEnter={() => setHoveredId(p.component.id)}
-                  onMouseLeave={() => setHoveredId(null)}
-                  onFocus={() => setHoveredId(p.component.id)}
-                  onBlur={() => setHoveredId(null)}
-                  onClick={() => pick(p.component.id)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      pick(p.component.id);
-                    }
-                  }}
-                  // A focusable row with no name is an anonymous stop for anyone arriving by
-                  // keyboard; say which part it is and what pressing it does.
-                  aria-label={`${p.component.name || KIND_LABEL[p.component.kind] || p.component.kind} — ${
-                    selectedId === p.component.id ? "picked out on the diagram, press to release" : "press to pick out on the diagram"
-                  }`}
-                  aria-selected={selectedId === p.component.id}
-                  className={`cursor-pointer border-t border-zinc-100 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-400 dark:border-zinc-800 ${
-                    activeId === p.component.id ? "bg-indigo-50 dark:bg-indigo-500/10" : ""
-                  } ${selectedId === p.component.id ? "ring-1 ring-inset ring-indigo-300 dark:ring-indigo-500/40" : ""}`}
-                >
-                  <th scope="row" className="py-1.5 pr-4 text-left font-sans font-normal text-zinc-700 dark:text-zinc-200">
-                    {p.component.name || KIND_LABEL[p.component.kind] || p.component.kind}
-                  </th>
-                  <td className="py-1.5 pr-4 text-zinc-500 dark:text-zinc-400">
-                    {KIND_LABEL[p.component.kind] ?? p.component.kind}
-                  </td>
-                  <td className="py-1.5 pr-4 text-zinc-800 dark:text-zinc-100">{d.q(d.lengthMm(p.xFore, units))}</td>
-                  <td
-                    className={`py-1.5 pr-4 ${
-                      massCell(p.component.id).muted
-                        ? "font-sans text-zinc-500 dark:text-zinc-400"
-                        : "text-zinc-800 dark:text-zinc-100"
-                    }`}
-                  >
-                    {massCell(p.component.id).text}
-                  </td>
-                  <td className="py-1.5 text-zinc-800 dark:text-zinc-100">{describeDims(p.component, units)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+          <DataTable
+            className="mt-2"
+            columns={PART_COLUMNS(units, masses, massCell)}
+            rows={rows}
+            rowKey={({ p }, i) => `${p.component.id}-${i}`}
+            caption="Every part the importer read, with its station and mass"
+            exportName={rocket.name || "design"}
+            exportSuffix="parts"
+            // The sort is CONTROLLED because this table has a third state the primitive's own
+            // asc/desc cycle cannot hold: clicking the active column a second time returns to the
+            // DESIGN's own nose-to-tail order — the order a flyer reads their own rocket in — rather
+            // than reversing. `null` is that order, and it is why a `persistKey` on the primitive
+            // would not have worked here.
+            sort={sort === "design" ? null : { key: sort, dir: sort === "mass" ? -1 : 1 }}
+            onSortChange={(next) => setSort(next === null || next.key === sort ? "design" : (next.key as PartSort))}
+            // Seven things on the `<tr>`, none of them a styling choice: the row is the pick target,
+            // it links the diagram on hover AND on focus, and it has a keyboard path. `aria-selected`
+            // is rendered on EVERY row rather than only the picked one — present-and-false is what
+            // tells a screen-reader user the row is selectABLE.
+            rowProps={({ p }) => ({
+              tabIndex: 0,
+              onMouseEnter: () => setHoveredId(p.component.id),
+              onMouseLeave: () => setHoveredId(null),
+              onFocus: () => setHoveredId(p.component.id),
+              onBlur: () => setHoveredId(null),
+              onClick: () => pick(p.component.id),
+              onKeyDown: (e: React.KeyboardEvent<HTMLTableRowElement>) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  pick(p.component.id);
+                }
+              },
+              // A focusable row with no name is an anonymous stop for anyone arriving by keyboard;
+              // say which part it is and what pressing it does.
+              "aria-label": `${p.component.name || KIND_LABEL[p.component.kind] || p.component.kind} — ${
+                selectedId === p.component.id ? "picked out on the diagram, press to release" : "press to pick out on the diagram"
+              }`,
+              "aria-selected": selectedId === p.component.id,
+              className: `cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-400 ${
+                activeId === p.component.id ? "bg-indigo-50 dark:bg-indigo-500/10" : ""
+              } ${selectedId === p.component.id ? "ring-1 ring-inset ring-indigo-300 dark:ring-indigo-500/40" : ""}`,
+            })}
+            // Unreachable inside the `parts.length === 0` guard above, which returns null before this
+            // renders — but §5 makes `empty` required precisely so the next call site cannot skip it,
+            // and "No data" is forbidden. This says what would fill it.
+            empty="No parts were read from this design — import a file, or add a component to the airframe."
+          />
         <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
           {edited ? (
             <>
