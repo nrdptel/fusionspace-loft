@@ -882,6 +882,7 @@ not buttons.
 | components importing `Button` | most that have one | **13** |
 | tables on `DataTable` | all of them | **6 of 6** |
 | hand-rolled `<button>` | 3 (honest floor) | **3**, from 17 |
+| font sizes declared in `app/globals.css` off §3's scale | 0 | **0**, from 3 — and now asserted |
 
 **The two honest floors are decisions, not shortfalls, and each is recorded where it is enforced.**
 Cards: one of the three IS `<Card>`'s own string; the others are a floating toast and an interactive
@@ -901,10 +902,15 @@ numeric input in either app is this". The two already disagree: `Num`'s label is
 bakes the unit into the label string, `NumberField`'s is `text-sm` with a `unit` prop, and
 `NumberField` itself carries no touch minimum while `Num` does.
 
-**Reconcile before converting.** `Num` owns the refusal behaviour the SAFETY invariant requires — a
-value that cannot mean anything physically is bounded at the field rather than flown into a confident
-number — so the merged primitive must keep the stronger of the two at every point, not the newer.
-That is the next P-track increment and it is sized 2–3 on its own.
+**Reconcile before converting, and half of that is done.** `Num` owns the refusal behaviour the SAFETY
+invariant requires — a value that cannot mean anything physically is bounded at the field rather than
+flown into a confident number — so the merged primitive must keep the stronger of the two at every
+point, not the newer. On 2026-08-01 `NumberField` took the two things it was BEHIND on: §8's touch
+minimum (all seven of its instances measured 36 px on a Pixel 7 while `Num` cleared 44) and the
+withhold-at-keystroke rule. **What remains is the conversion itself** — 28 call sites — plus the two
+cosmetic disagreements: `Num`'s label is `text-[11px]` against `NumberField`'s `text-sm`, and `Num`
+bakes the unit into the label string where `NumberField` has a `unit` prop. §3 does not permit
+`text-[11px]` for a field label, so that one is a fix rather than a preference. Sized 2 increments.
 
 *(Original status line: the container and control vocabulary exists and the §9 compliance block is an
 executable ratchet — `lib/design-system.test.ts`, 10 cases — so the drift cannot return while the
