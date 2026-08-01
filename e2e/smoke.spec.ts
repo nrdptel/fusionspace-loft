@@ -1,7 +1,19 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+
+/** The refusal a field is pointing at.
+ *
+ *  A field describes several things at once — its unit, its visible guidance line, and, when there is
+ *  one, its refusal — so `aria-describedby` names more than one id and only one of them is the live
+ *  region. Picking by role among exactly THOSE ids asserts this field's own message: not any alert on
+ *  the page, and not whichever description happened to be listed first. */
+function refusalOf(page: Page, describedBy: string | null) {
+  const ids = (describedBy ?? "").split(" ").filter(Boolean);
+  // No description at all cannot be a refusal; a selector matching nothing says so without throwing.
+  return page.locator(ids.map((id) => `[id="${id}"][role="alert"]`).join(", ") || "alert-none");
+}
 
 test.describe("Loft", () => {
   test("loads with a clean hydration and the heading", async ({ page }) => {
@@ -269,6 +281,51 @@ test.describe("Loft", () => {
     await wind.fill("-50");
     await wind.blur();
     await expect(wind).toHaveValue(/^0(\.0+)?$/);
+  });
+
+  test("a refused entry is withheld from the flight, and does not outlive the flight it describes", async ({
+    page,
+  }) => {
+    // Three behaviours of THE numeric field, all of which existed only as prose in a comment until
+    // the two field implementations were merged. Each is a defect that was measured once and fixed:
+    //  - a number the field itself calls impossible must not reach the solver even in passing, or the
+    //    pad-check surface prints a result computed from it while the cursor is still in the box;
+    //  - the refusal has to say what IS being flown, because that is the question it answers;
+    //  - and it must not survive a change to what is being flown. It used to: the amber border and the
+    //    live message sat there quoting a value in units no longer on screen, and the only way out was
+    //    to find that exact box and type in it.
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    await page.locator("summary", { hasText: /conditions/i }).first().click();
+
+    const rail = page.getByLabel(/Rail length/i).first();
+    const apogee = page
+      .getByLabel("Results")
+      .getByText("Apogee", { exact: true })
+      .locator("xpath=following-sibling::div[1]");
+    const asDesigned = await apogee.textContent();
+
+    // A rail of no length is not a short rail. Typed, not filled — `fill()` skips the focus and blur
+    // this hangs off, and would test nothing.
+    await rail.click();
+    await rail.pressSequentially("0");
+    await expect(apogee).toHaveText(asDesigned!);
+
+    await rail.blur();
+    await expect(rail).toHaveAttribute("aria-invalid", "true");
+    // The message is the field's OWN, reached the way a screen reader reaches it, and it names the
+    // entry, the range, and — the point of it — the value still being flown.
+    const message = refusalOf(page, await rail.getAttribute("aria-describedby"));
+    await expect(message).toHaveCount(1);
+    await expect(message).toHaveText("0 isn't a value this can fly (more than 0, up to 20) — flying 1.2.");
+
+    // Now change what is being flown without touching this field. The refusal described the old
+    // flight; it has nothing to say about this one.
+    await page.getByRole("group", { name: /unit/i }).first().getByRole("button", { name: "Imperial", exact: true }).click();
+    await expect(apogee).not.toHaveText(asDesigned!);
+    await expect(rail).not.toHaveAttribute("aria-invalid", "true");
+    await expect(message).toHaveCount(0);
   });
 
   test("clearing a what-if brings the stored-tool comparison back", async ({ page }) => {
@@ -3022,24 +3079,34 @@ test.describe("Loft", () => {
 
   test("a field with only one bound says so in words, not with a dash", async ({ page }) => {
     // Most design fields are floored at zero and open above — a dimension has no upper limit the
-    // editor can name — and the range tooltip rendered "0 to –", which reads as a range that failed
-    // to load rather than as "no maximum". 17 fields in the Design workspace were showing it.
+    // editor can name — and the range rendered "0 to –", which reads as a range that failed to load
+    // rather than as "no maximum". 17 fields in the Design workspace were showing it.
+    //
+    // It used to be a `title`, i.e. hover-only, which `DESIGN.md` §8 forbids and which does not exist
+    // on the phone this app is meant to be read on at the pad. It is now the field's visible guidance
+    // line, reached the way a screen reader reaches it — so this reads the description, not a tooltip.
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
     await page.getByRole("tab", { name: "Design" }).click();
 
-    const dashed = await page.$$eval("[title]", (ns) =>
-      ns.map((n) => n.getAttribute("title") ?? "").filter((t) => /\b(–|-)\s*$|:\s*–\s+to\b/.test(t)),
+    const guidance = await page.$$eval("input[type=number][aria-describedby]", (ns) =>
+      ns.flatMap((n) =>
+        (n.getAttribute("aria-describedby") ?? "")
+          .split(" ")
+          .filter(Boolean)
+          .map((id) => document.getElementById(id))
+          .filter((el): el is HTMLElement => !!el && el.getAttribute("role") !== "alert")
+          .map((el) => el.textContent?.trim() ?? ""),
+      ),
     );
-    expect(dashed, `range tooltips with an unnamed bound: ${dashed.join(" | ")}`).toEqual([]);
+
+    const dashed = guidance.filter((t) => /\b(–|-)\s*$|:\s*–\s+to\b/.test(t));
+    expect(dashed, `ranges with an unnamed bound: ${dashed.join(" | ")}`).toEqual([]);
 
     // And the positive anchor: the one-sided form is actually being produced, so the assertion
     // above cannot pass on a screen that renders no ranges at all.
-    const ranges = await page.$$eval("[title]", (ns) =>
-      ns.map((n) => n.getAttribute("title") ?? "").filter((t) => /(or more|up to \d)/.test(t)),
-    );
-    expect(ranges.length).toBeGreaterThan(0);
+    expect(guidance.filter((t) => /(or more|up to \d)/.test(t)).length).toBeGreaterThan(0);
   });
 
   test("picking a fin set aims the fin fields at it, and the edit lands there only", async ({ page }) => {
@@ -4580,10 +4647,8 @@ test.describe("Loft", () => {
     await expect(span).toHaveAttribute("aria-invalid", "true");
     // ...and it says plainly what is being flown instead, naming that value. Located through the
     // field's own aria-describedby rather than by role, so this asserts THIS field's message.
-    const msgId = await span.getAttribute("aria-describedby");
-    expect(msgId).toBeTruthy();
-    const msg = page.locator(`#${msgId}`);
-    await expect(msg).toHaveAttribute("role", "alert");
+    const msg = refusalOf(page, await span.getAttribute("aria-describedby"));
+    await expect(msg).toHaveCount(1);
     await expect(msg).toContainText("isn't a value this can fly");
     await expect(msg).toContainText(designSpan!);
 
@@ -4592,7 +4657,7 @@ test.describe("Loft", () => {
     await span.blur();
     await expect(span).toHaveValue("50");
     await expect(span).not.toHaveAttribute("aria-invalid", "true");
-    await expect(page.locator(`#${msgId}`)).toHaveCount(0);
+    await expect(msg).toHaveCount(0);
   });
 
   test("a rail of no length is refused rather than flown as 0 m/s off the rail", async ({ page }) => {
@@ -4624,9 +4689,8 @@ test.describe("Loft", () => {
 
     // Refused in the same words every other out-of-range entry uses...
     await expect(rail).toHaveAttribute("aria-invalid", "true");
-    const msgId = await rail.getAttribute("aria-describedby");
-    const msg = page.locator(`#${msgId}`);
-    await expect(msg).toHaveAttribute("role", "alert");
+    const msg = refusalOf(page, await rail.getAttribute("aria-describedby"));
+    await expect(msg).toHaveCount(1);
     await expect(msg).toContainText("more than 0");
     await expect(msg).toContainText(designRail!);
     // ...and the flight is untouched, which is the half that matters: the rail-exit velocity still
@@ -4719,7 +4783,7 @@ test.describe("Loft", () => {
     await span.blur();
     // The zero is refused and named — and the 25 is still what is being flown.
     await expect(span).toHaveAttribute("aria-invalid", "true");
-    const msg = page.locator(`#${await span.getAttribute("aria-describedby")}`);
+    const msg = refusalOf(page, await span.getAttribute("aria-describedby"));
     await expect(msg).toContainText("more than 0");
     await expect(msg).toContainText("flying 25");
     await expect(span).toHaveValue("25");
@@ -4728,7 +4792,7 @@ test.describe("Loft", () => {
     await page.getByRole("button", { name: "Reset to as-designed" }).click();
     await expect(span).toHaveValue("");
     await expect(span).not.toHaveAttribute("aria-invalid", "true");
-    await expect(page.locator(`#${await span.getAttribute("aria-describedby")}`)).toHaveCount(0);
+    await expect(refusalOf(page, await span.getAttribute("aria-describedby"))).toHaveCount(0);
     await expect(span).toHaveAttribute("placeholder", design!);
   });
 
@@ -5315,9 +5379,8 @@ test.describe("Loft", () => {
     await expect(wind).toHaveValue("");
     await expect(wind).toHaveAttribute("aria-invalid", "true");
     // ...and it names that value, in the same words the design editor's fields use.
-    const ids = (await wind.getAttribute("aria-describedby"))!.split(" ");
-    const msg = mc.locator(ids.map((id) => `#${id}`).join(", ")).filter({ hasText: "isn't a value this can fly" });
-    await expect(msg).toHaveAttribute("role", "alert");
+    const msg = refusalOf(page, await wind.getAttribute("aria-describedby"));
+    await expect(msg).toHaveCount(1);
     await expect(msg).toHaveText("-5 isn't a value this can fly (0 or more) — flying 0.");
 
     // A value it will fly clears the whole state and lands.

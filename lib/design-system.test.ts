@@ -184,7 +184,7 @@ const PRIMITIVE_ADOPTERS: Record<string, number> = {
   Section: 0,
   Segmented: 2,
   Tabs: 1,
-  NumberField: 1,
+  NumberField: 2,
   ClosePanel: 3,
   Chip: 0,
   Disclosure: 1,

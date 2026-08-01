@@ -2,7 +2,14 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 
-import { TOUCH_TARGET, TOUCH_TARGET_SQUARE, buttonClass, cx, type ButtonSize, type ButtonVariant } from "@/lib/ui-tokens";
+import {
+  TOUCH_TARGET,
+  TOUCH_TARGET_SQUARE,
+  buttonClass,
+  cx,
+  type ButtonSize,
+  type ButtonVariant,
+} from "@/lib/ui-tokens";
 import { rangeWords, refusedMessage } from "@/lib/what-if";
 
 export interface Option<T extends string> {
@@ -19,7 +26,8 @@ const CARD_TONES = {
   /** The default raised container. */
   default: "border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900",
   /** The one thing this surface is pointing at — a design being offered back, a what-if against its design. */
-  accent: "border-indigo-500/30 bg-indigo-500/5 dark:border-indigo-500/40 dark:bg-indigo-500/10",
+  accent:
+    "border-indigo-500/30 bg-indigo-500/5 dark:border-indigo-500/40 dark:bg-indigo-500/10",
   /** An estimate outside its envelope, an extrapolation, a caveat. */
   warn: "border-amber-500/30 bg-amber-500/10 text-amber-900 dark:text-amber-200",
   /** A refusal, or a value that could not be computed. */
@@ -81,11 +89,25 @@ export function Card({
   actions?: React.ReactNode;
 } & React.HTMLAttributes<HTMLElement>) {
   return (
-    <Tag className={cx("rounded-xl border", CARD_TONES[tone], pad && "p-4", className)} {...rest}>
+    <Tag
+      className={cx(
+        "rounded-xl border",
+        CARD_TONES[tone],
+        pad && "p-4",
+        className,
+      )}
+      {...rest}
+    >
       {(title || actions) && (
         <div className="mb-3 flex items-start justify-between gap-3">
-          {title && <h3 className="text-base font-medium text-zinc-900 dark:text-zinc-100">{title}</h3>}
-          {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
+          {title && (
+            <h3 className="text-base font-medium text-zinc-900 dark:text-zinc-100">
+              {title}
+            </h3>
+          )}
+          {actions && (
+            <div className="flex shrink-0 items-center gap-2">{actions}</div>
+          )}
         </div>
       )}
       {children}
@@ -110,12 +132,18 @@ export function Section({
     <section className={cx("mt-8 first:mt-0", className)} {...rest}>
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h2 className="text-xl font-medium text-zinc-900 dark:text-zinc-100">{title}</h2>
+          <h2 className="text-xl font-medium text-zinc-900 dark:text-zinc-100">
+            {title}
+          </h2>
           {description && (
-            <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{description}</p>
+            <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+              {description}
+            </p>
           )}
         </div>
-        {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
+        {actions && (
+          <div className="flex shrink-0 items-center gap-2">{actions}</div>
+        )}
       </div>
       <div className="mt-4">{children}</div>
     </section>
@@ -143,7 +171,11 @@ export function Button({
   ref?: React.Ref<HTMLButtonElement>;
 } & React.ButtonHTMLAttributes<HTMLButtonElement>) {
   return (
-    <button type={type} className={buttonClass({ variant, size, square, className })} {...rest}>
+    <button
+      type={type}
+      className={buttonClass({ variant, size, square, className })}
+      {...rest}
+    >
       {children}
     </button>
   );
@@ -229,7 +261,10 @@ export function Tabs({
     else return;
     e.preventDefault();
     onChange(tabs[next].id);
-    const btns = e.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role="tab"]');
+    const btns =
+      e.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>(
+        '[role="tab"]',
+      );
     btns?.[next]?.focus();
   };
   return (
@@ -298,7 +333,10 @@ export function Chip({ label, value }: { label: string; value: string }) {
  *  change has rendered, so the focus is asked for and then applied on the render that produces it.
  *
  *  Wire it as: `ref` on the Run button, `returnFocus()` in the Close handler. */
-export function useReturnFocus(): [React.RefObject<HTMLButtonElement | null>, () => void] {
+export function useReturnFocus(): [
+  React.RefObject<HTMLButtonElement | null>,
+  () => void,
+] {
   const ref = useRef<HTMLButtonElement>(null);
   const [pending, setPending] = useState(false);
   useEffect(() => {
@@ -325,7 +363,13 @@ export function useReturnFocus(): [React.RefObject<HTMLButtonElement | null>, ()
  *  a design the flyer can go on to change, sitting behind a collapsed panel with nothing on screen
  *  saying so — and the panels exist to avoid exactly that. The Run button coming back is what says
  *  it: the panel is offering the run again, not hiding an answer. */
-export function ClosePanel({ onClose, what }: { onClose: () => void; what: string }) {
+export function ClosePanel({
+  onClose,
+  what,
+}: {
+  onClose: () => void;
+  what: string;
+}) {
   return (
     <Button variant="secondary" onClick={onClose} aria-label={`Close ${what}`}>
       Close
@@ -368,27 +412,49 @@ export function Disclosure({
       >
         {summary}
       </summary>
-      <div className="mt-3 space-y-4 text-zinc-600 dark:text-zinc-400">{children}</div>
+      <div className="mt-3 space-y-4 text-zinc-600 dark:text-zinc-400">
+        {children}
+      </div>
     </details>
   );
 }
 
-function display(value: number): string {
-  return value === 0 ? "" : String(value);
+/** What the box shows for a committed value: exactly that value, and for a number that includes ZERO.
+ *
+ *  It used to render 0 as blank, so that an untouched dispersion field showed its placeholder rather
+ *  than a 0 nobody typed. That is a true statement about the dispersion panel, where 0 means "no
+ *  spread" and blank says it more quietly — and a false one everywhere else, because to the design
+ *  editor 0 is a value a flyer committed. Measured once both families shared this function: typing
+ *  −30 into "Rail angle" is pulled to its 0 bound, the bound lands in the flight, and the box then
+ *  went BLANK — the field showing nothing while the flight used the 0 it had just been given.
+ *
+ *  Blank is the caller's word, not this one's: the seven dispersion fields pass `x || ""` and keep
+ *  their quiet placeholder, and no field is told that a number it holds is not worth showing. */
+function display(value: string | number): string {
+  return typeof value === "string" ? value : String(value);
 }
 
-/** Numeric input with a label and a unit suffix. Keeps an internal text buffer so
- *  partial entries like "0." survive a render, and re-syncs when the value changes
- *  externally (a unit switch, or loading state from the URL).
+/** THE numeric input — `DESIGN.md` §5, "every numeric input in either app is this".
  *
- *  It also refuses an out-of-range entry out loud, the same way the design editor's what-if fields
- *  do. `min` used to be declared on the input and enforced nowhere: the seven dispersion inputs
- *  read a ±1σ spread, every one of them is floored at zero by `MonteCarlo.tsx`, and typing a
- *  NEGATIVE one left the minus sign sitting in the box while the study flew zero. Measured on the
- *  38 mm sample: "Wind speed ±1σ" typed as -5 gave a 95% recovery radius of 366 m — the same as
- *  leaving it blank — where the ±5 the flyer asked for gives 1,259 m and the default ±2 gives
- *  671 m. A mistyped sign quietly shrank the recovery area to plan for by 3.4x, on the surface
- *  whose entire job is to say how wide that area might be. */
+ *  **This is a merge of two complete implementations, and the rule applied was: keep the STRONGER of
+ *  the two at every point, never the newer.** Until 2026-08-02 `components/LoftApp.tsx` carried a
+ *  second field called `Num` at 28 call sites — the design editor's whole what-if vocabulary — while
+ *  this one served 7, all in the dispersion panel. They disagreed on six things, and on four of them
+ *  the older, un-primitive one was ahead. What each side contributed:
+ *
+ *  | behaviour | came from | why it won |
+ *  |---|---|---|
+ *  | a STRING value/onChange contract | `Num` | strictly richer — it can express blank, which a number cannot. Blank means "use the design's own value" to the editor and "zero spread" to the dispersion panel; that is the CALLER's semantics, not the field's, so the field hands back what was typed and each caller reads its own meaning into `""`. |
+ *  | `positive` | `Num` | a rail with no length, a tube with no diameter: zero is not a small value of those, and there is no nearest legal bound to pull it to, so it is refused in words rather than flown. |
+ *  | `wouldNotFly` — withholding at the KEYSTROKE | `Num` | typing pushes every keystroke at the flight, so a range applied only at the commit lets the solver hold a number the field itself calls impossible. Measured on the 38 mm sample: typing −5 into Rail length printed "Rail-exit velocity 0 m/s" on the pad-check surface for as long as the cursor stayed in the box. |
+ *  | the `against` latch | `Num` | a refusal is about ONE entry against ONE value in the flight. Without it the amber border, `aria-invalid` and a live `role="alert"` survived a units switch and a "Reset to as-designed", still quoting the old value in the old units, and the only way to clear it was to find that exact box and type — a state a flyer walks into with no way back out. |
+ *  | a `unit` prop, rendered in its own span | this one | `Num` baked the unit into the label string, so a unit switch could not reach it and a screen reader read it as part of the field's name. |
+ *  | a VISIBLE `hint` | this one | `Num` rendered its hint as a `title`, which is hover-only — `DESIGN.md` §8 forbids that outright, and the stated phone use is a pad check with gloves on. All 7 of its hinted fields were guidance no touch user could ever see. |
+ *
+ *  The label is `text-sm`, which is §3's body default for "every label, value, control". `Num`'s was
+ *  `text-[11px]`, a size §3 scopes to "axis ticks and diagram annotations only" — 28 field labels on
+ *  the app's most-used surface, one step below the smallest caption size.
+ */
 export function NumberField({
   label,
   value,
@@ -400,152 +466,217 @@ export function NumberField({
   hint,
   placeholder,
   disabled,
+  positive,
 }: {
   label: string;
-  value: number;
-  onChange: (v: number) => void;
+  /** Accepts either, because both call-site families already had one. Rendered through `display`. */
+  value: string | number;
+  /** **The typed text, not a number.** `""` is a real answer and its meaning belongs to the caller:
+   *  the editor reads it as "use the design's own value" (which is what `placeholder` shows), the
+   *  dispersion panel as "zero spread". A number contract cannot tell those apart from a typed 0. */
+  onChange: (v: string) => void;
+  /** Shown in its own span and pointed at by `aria-describedby`, never concatenated into `label` —
+   *  a unit inside the accessible name is a name that changes when the units toggle does. */
   unit?: string;
   step?: number;
   min?: number;
   max?: number;
+  /** Rendered VISIBLY under the field. Never a `title`: hover-only guidance does not exist on a
+   *  phone, and `DESIGN.md` §8 forbids it. */
   hint?: React.ReactNode;
+  /** What the design's own value is, so blank has something to mean. */
   placeholder?: string;
-  /** The spread this field states cannot be applied to what is being flown, so it is greyed with a
-   *  hint saying why — the same shape the Conditions panel uses when today's weather takes over a
-   *  field. A control that demonstrably does nothing must not sit there looking as though it does. */
+  /** The value this field states cannot be applied to what is being flown, so it is greyed with a
+   *  hint saying why. A control that demonstrably does nothing must not sit there looking as though
+   *  it does. */
   disabled?: boolean;
+  /** The field describes a part that has to be THERE: a rail with length, a tube with a diameter, a
+   *  fin with thickness. Zero is not a small value of any of those and the model will not fly one, so
+   *  it is refused in words rather than handed over and dropped somewhere the flyer cannot see. Leave
+   *  it off wherever zero is a real answer — a fin sweep of zero is a straight leading edge, and a
+   *  payload at station zero sits at the top of the tube. */
+  positive?: boolean;
 }) {
-  const [text, setText] = useState(() => display(value));
-  /** The refused entry and the value flown in its place, kept only to say so. Both are needed: the
-   *  complaint a refusal answers is not "that was rejected", it is "then what is being flown?".
-   *  Cleared as soon as the flyer types again. */
-  const [refused, setRefused] = useState<{ entry: string; flown: number } | null>(null);
-  const last = useRef(value);
+  const ref = useRef<HTMLInputElement>(null);
+  /** What the box shows. NOT simply `value`: while the field has focus the flyer owns the text, so it
+   *  can pass through states the model would reject ("1" on the way to "12", "-" on the way to "-3").
+   *  The moment focus leaves it goes back to what is being flown — see the effect below. */
+  const [draft, setDraft] = useState(() => display(value));
+  /** The entry that was refused, kept only to say so. Cleared as soon as the flyer types again. */
+  const [refused, setRefused] = useState<string | null>(null);
+  /** What that message's "flying …" named when it was written. A refusal has to outlive the commit
+   *  that raised it — the box has already re-synced by then — but not outlive the flight it describes.
+   *  `null` is "not latched yet"; the latched value is whatever `flown` was, which is `undefined` on a
+   *  field with no placeholder and nothing edited — a real state, and distinct from not-latched. */
+  const against = useRef<string | undefined | null>(null);
   const unitId = useId();
   const hintId = useId();
   const msgId = useId();
-  // Point the input at its unit suffix, its hint, and any refusal, so a screen reader reads the
-  // load-bearing guidance ("1.5 = +50%", "doesn't change the estimate") that sighted users
-  // see under the field — not just the unit.
+
+  /** What the flight is actually using: the committed edit if there is one, else the design's own
+   *  value, which is what the placeholder shows. Naming it is the whole point of the message — the
+   *  complaint a refusal answers is not "that was rejected", it is "then what is being flown?". */
+  const flown = display(value) || placeholder;
+
+  const ranged = rangeWords(min, max, positive);
+
+  /** What is said under the field. A bounded field with nothing else to say states its bounds, which
+   *  is the information the old `title` carried and the reason to keep it — but VISIBLY. Hover-only
+   *  guidance does not exist on a phone, `DESIGN.md` §8 forbids it outright, and the stated use is a
+   *  pad check with gloves on. A field that already explains itself in words is not also made to
+   *  recite its arithmetic; that was the old precedence too, and doubling it on all 28 design fields
+   *  would be noise rather than help. */
+  const guidance = hint ?? ranged;
+
   const describedBy =
-    [unit ? unitId : null, hint ? hintId : null, refused !== null ? msgId : null]
+    [
+      unit ? unitId : null,
+      guidance ? hintId : null,
+      refused !== null ? msgId : null,
+    ]
       .filter(Boolean)
       .join(" ") || undefined;
 
+  /** The field must never show a number that is not the one in the flight. It could: the input is
+   *  controlled by `value`, and an entry the model refuses leaves `value` unchanged, so React sees the
+   *  same prop, never re-renders the node, and the refused text stays on screen — typing −3 into Fin
+   *  span left "-3" in the box while the design's own 19 mm went on being flown, with nothing saying
+   *  so. Re-syncing whenever the field is not focused converges on the truth however the parent
+   *  resolved the entry: accepted, clamped, or dropped. */
   useEffect(() => {
-    if (value !== last.current) {
-      last.current = value;
-      setText(display(value));
-    }
-  }, [value]);
+    if (document.activeElement !== ref.current) setDraft(display(value));
+    // Latch on the render AFTER the refusal, so it records where the commit LEFT the flight rather
+    // than where it found it — `commit` can call `onChange` on its way out, and React batches that
+    // with `setRefused` into one render.
+    if (refused === null) against.current = null;
+    else if (against.current === null) against.current = flown;
+    else if (against.current !== flown) setRefused(null);
+  });
 
-  const ranged = rangeWords(min, max);
-  /** Apply the range to the typed text. Out of range is pulled to the nearest bound rather than
-   *  dropped, because "as much as it takes" is a legible intent and a bound is a real answer.
-   *
-   *  Unlike the design editor's field, this one needs no re-sync effect to catch a parent that
-   *  quietly resolved the entry some other way: the bound is applied HERE, so the box, the parent's
-   *  state and the message are all written from one value in one place. */
+  /** Would this entry be refused or pulled to a bound? Then it must not reach the model even in
+   *  passing. Digit-by-digit entry is untouched — "1" on the way to "12" is inside the range and lands
+   *  as before. What is withheld is a COMPLETE number the field would not accept: the same rule the
+   *  commit path applies, asked one step earlier. */
+  const wouldNotFly = (raw: string) => {
+    if (raw === "") return false;
+    const n = Number(raw);
+    if (!Number.isFinite(n)) return true;
+    const bounded =
+      min !== undefined && n < min
+        ? min
+        : max !== undefined && n > max
+          ? max
+          : n;
+    return bounded !== n || (positive === true && bounded <= 0);
+  };
+
+  /** Commit the typed text. What the model is asked for is not always what was typed: a value outside
+   *  the range is pulled to the nearest bound rather than refused outright, because the flyer's intent
+   *  ("as thin as it goes") is legible and a bound is a real answer. */
   const commit = (raw: string) => {
-    const n = Number.parseFloat(raw);
+    if (raw === "") {
+      setRefused(null);
+      onChange("");
+      return;
+    }
+    const n = Number(raw);
     if (!Number.isFinite(n)) {
-      // Blank is a real answer here — zero spread — and reads back as blank, so nothing is hidden.
-      // (A partial entry like "-" is reported as "" by a number input, so it lands here too.)
-      setRefused(null);
+      setRefused(raw);
       return;
     }
-    const bounded = min !== undefined && n < min ? min : max !== undefined && n > max ? max : n;
-    if (bounded === n) {
-      setRefused(null);
+    const bounded =
+      min !== undefined && n < min
+        ? min
+        : max !== undefined && n > max
+          ? max
+          : n;
+    // Zero on a field that needs a part to be there is REFUSED, not pulled to a bound — there is no
+    // nearest legal value, and the model would take it and drop it. Nothing to undo at the model:
+    // `wouldNotFly` withheld this entry at the keystroke, so it never reached the flight. Blanking
+    // anyway would throw away a good edit the flyer made earlier and typed over.
+    if (positive && bounded === 0) {
+      setRefused(raw);
       return;
     }
-    setRefused({ entry: raw, flown: bounded });
-    last.current = bounded;
-    setText(display(bounded));
-    onChange(bounded);
+    setRefused(bounded !== n ? raw : null);
+    if (String(bounded) !== raw) onChange(String(bounded));
   };
 
   return (
-    <label className="block">
-      <span className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
-        {label}
-      </span>
-      <div
-        className={`mt-1.5 flex items-center rounded-md border bg-white transition dark:bg-zinc-900 ${
-          refused !== null
-            ? "border-amber-500 dark:border-amber-500"
-            : "border-zinc-300 focus-within:border-indigo-500 focus-within:ring-1 focus-within:ring-indigo-500 dark:border-zinc-700"
-        }`}
-      >
-        <input
-          type="number"
-          inputMode="decimal"
-          step={step}
-          min={min}
-          max={max}
-          value={text}
-          disabled={disabled}
-          placeholder={placeholder}
-          aria-invalid={refused !== null || undefined}
-          aria-describedby={describedBy}
-          // Typing is left alone so a value can be entered digit by digit; the range is applied
-          // when the field is committed — blurred, or Enter pressed.
-          onChange={(e) => {
-            const t = e.target.value;
-            setText(t);
-            setRefused(null);
-            const n = Number.parseFloat(t);
-            const v = Number.isFinite(n) ? n : 0;
-            last.current = v;
-            // A COMPLETE value this field would not accept does not reach the model, not even in
-            // passing — the same rule `LoftApp`'s `Num` applies, asked one keystroke earlier than the
-            // commit below. Without it the range is enforced only at blur, so between the keystroke
-            // and the blur the model holds a number the field itself calls impossible. Digit-by-digit
-            // entry is untouched: "1" on the way to "12" is inside the range and lands as before.
-            //
-            // Stated honestly: no reachable wrong number was constructed from the old behaviour on
-            // this field's seven call sites — the dispersion panel reads its inputs when Run is
-            // pressed, and pressing Run blurs the field first. This is the two primitives agreeing
-            // rather than a defect being closed, and it matters because they are about to become one.
-            if (t !== "" && Number.isFinite(n)) {
-              const bounded = min !== undefined && n < min ? min : max !== undefined && n > max ? max : n;
-              if (bounded !== n) return;
-            }
-            onChange(v);
-          }}
-          onBlur={(e) => commit(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") commit(e.currentTarget.value);
-          }}
-          // `TOUCH_TARGET`, which this field did not have. §5 makes this the primitive every numeric
-          // input in either app is supposed to be, and §8's 44 px contract has no exemption for a
-          // field — but measured on a Pixel 7 against the built export, all SEVEN of its instances in
-          // the dispersion panel rendered 36 px tall, while `LoftApp`'s hand-rolled `Num`, which this
-          // is meant to replace, cleared 44. The primitive was the weaker of the two.
-          className={cx(
-            "w-full bg-transparent px-3 py-2 text-sm tabular-nums outline-none placeholder:text-zinc-400 dark:placeholder:text-zinc-600",
-            TOUCH_TARGET,
+    // The `<label>` closes after the input's box, and the guidance and the refusal sit OUTSIDE it.
+    // Everything inside a `<label>` is part of the control's accessible NAME, so while they were in
+    // there one field was announced as "Field elev. (m) Height of the launch site above sea level" —
+    // its description read out as its title, and a name that changed every time the message did.
+    // `aria-describedby` reaches them by id from anywhere in the document, so nothing is lost by
+    // moving them out, and the name goes back to being the one stable sentence a name has to be.
+    <div className="block">
+      <label className="block">
+        <span className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+          {label}
+        </span>
+        <div
+          className={`mt-1.5 flex items-center rounded-md border bg-white transition dark:bg-zinc-900 ${
+            refused !== null
+              ? "border-amber-500 dark:border-amber-500"
+              : "border-zinc-300 focus-within:border-indigo-500 focus-within:ring-1 focus-within:ring-indigo-500 dark:border-zinc-700"
+          }`}
+        >
+          <input
+            ref={ref}
+            type="number"
+            inputMode="decimal"
+            step={step}
+            min={min}
+            max={max}
+            value={draft}
+            disabled={disabled}
+            placeholder={placeholder}
+            aria-invalid={refused !== null || undefined}
+            aria-describedby={describedBy}
+            onChange={(e) => {
+              const t = e.target.value;
+              setDraft(t);
+              setRefused(null);
+              // A value this field would not accept never reaches the flight, not even in passing.
+              if (wouldNotFly(t)) return;
+              onChange(t);
+            }}
+            onBlur={(e) => commit(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") commit(e.currentTarget.value);
+            }}
+            className={cx(
+              "w-full bg-transparent px-3 py-2 text-sm tabular-nums outline-none placeholder:text-zinc-400 dark:placeholder:text-zinc-600",
+              TOUCH_TARGET,
+            )}
+          />
+          {unit && (
+            <span
+              id={unitId}
+              className="shrink-0 px-3 text-xs text-zinc-500 dark:text-zinc-400"
+            >
+              {unit}
+            </span>
           )}
-        />
-        {unit && (
-          <span
-            id={unitId}
-            className="shrink-0 px-3 text-xs text-zinc-500 dark:text-zinc-400"
-          >
-            {unit}
-          </span>
-        )}
-      </div>
+        </div>
+      </label>
       {refused !== null && (
-        <span id={msgId} role="alert" className="mt-1 block text-xs text-amber-700 dark:text-amber-400">
-          {refusedMessage(refused.entry, ranged, String(refused.flown))}
+        <span
+          id={msgId}
+          role="alert"
+          className="mt-1 block text-xs text-amber-700 dark:text-amber-400"
+        >
+          {refusedMessage(refused, ranged, flown ?? "the design's own value")}
         </span>
       )}
-      {hint && (
-        <span id={hintId} className="mt-1 block text-xs text-zinc-500 dark:text-zinc-400">
-          {hint}
+      {guidance && (
+        <span
+          id={hintId}
+          className="mt-1 block text-xs text-zinc-500 dark:text-zinc-400"
+        >
+          {guidance}
         </span>
       )}
-    </label>
+    </div>
   );
 }

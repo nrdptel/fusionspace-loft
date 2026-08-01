@@ -272,42 +272,51 @@ export default function MonteCarlo({
       {open && (
         <>
           <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            {/* `value={x || ""}` with `placeholder="0"`: a spread nobody has set reads as an empty box
+                over a grey 0, not as a typed zero — but the field still knows what it is flying, so a
+                refused entry can say "flying 0" rather than falling back to "the design's own value",
+                which is a sentence about a design file and means nothing on a dispersion panel. */}
             <NumberField
               label="Motor impulse ±1σ"
-              value={impulsePct}
-              onChange={setImpulsePct}
+              value={impulsePct || ""}
+              placeholder="0"
+              onChange={(v) => setImpulsePct(v === "" ? 0 : Number(v))}
               unit="%"
               step={1}
               hint="Total-impulse tolerance"
             />
             <NumberField
               label="Dry mass ±1σ"
-              value={massPct}
-              onChange={setMassPct}
+              value={massPct || ""}
+              placeholder="0"
+              onChange={(v) => setMassPct(v === "" ? 0 : Number(v))}
               unit="%"
               step={1}
               hint="Build-mass tolerance"
             />
             <NumberField
               label="Aero drag ±1σ"
-              value={dragPct}
-              onChange={setDragPct}
+              value={dragPct || ""}
+              placeholder="0"
+              onChange={(v) => setDragPct(v === "" ? 0 : Number(v))}
               unit="%"
               step={1}
               hint="Drag-coefficient uncertainty"
             />
             <NumberField
               label="Recovery drag ±1σ"
-              value={recoveryPct}
-              onChange={setRecoveryPct}
+              value={recoveryPct || ""}
+              placeholder="0"
+              onChange={(v) => setRecoveryPct(v === "" ? 0 : Number(v))}
               unit="%"
               step={1}
               hint="Parachute Cd·A uncertainty"
             />
             <NumberField
               label="Rail angle ±1σ"
-              value={rodAngleDeg}
-              onChange={setRodAngleDeg}
+              value={rodAngleDeg || ""}
+              placeholder="0"
+              onChange={(v) => setRodAngleDeg(v === "" ? 0 : Number(v))}
               unit="°"
               step={0.5}
               hint="Lean from vertical"
@@ -318,8 +327,9 @@ export default function MonteCarlo({
                 beside a sibling reading "ft" and a Conditions wind field reading "mph". */}
             <NumberField
               label="Wind speed ±1σ"
-              value={windDisp}
-              onChange={onWindDisp}
+              value={windDisp || ""}
+              placeholder="0"
+              onChange={(v) => onWindDisp(v === "" ? 0 : Number(v))}
               unit={units === "imperial" ? "mph" : "m/s"}
               step={units === "imperial" ? 1 : 0.5}
               disabled={windProfileInForce}
@@ -458,8 +468,8 @@ function Report({
         <div className="w-40">
           <NumberField
             label="Waiver ceiling"
-            value={ceiling}
-            onChange={onCeiling}
+            value={ceiling || ""}
+            onChange={(v) => onCeiling(v === "" ? 0 : Number(v))}
             unit={units === "imperial" ? "ft" : "m"}
             step={units === "imperial" ? 500 : 100}
             placeholder="optional"
