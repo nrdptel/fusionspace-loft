@@ -848,7 +848,126 @@ against 10.43.
 
 ## R6 — A built design leaves Loft intact
 
-**Status:** NOT STARTED
+**Status: DONE — 2026-08-02.** The *done when* is met and asserted: a design authored in Loft — the
+starter plus all three flat structural adds — round-trips through `exportOrk` → `importDesign` with
+every component, every id, every material and every mass surviving, and the flight it describes
+unchanged (`lib/ork/export.test.ts`, "round-trips a design authored in Loft, part for part and id for
+id"). **0 of 9 components change identity**, where 3 did before.
+
+The test names what a trip through the file is ALLOWED to change rather than comparing loosely, because
+a tolerance wide enough to swallow a real loss is not an assertion. Three things are permitted: a field
+that was `undefined` coming back as the default the format writes for it (the file cannot spell
+"unset" for `shapeParameter`, `cantAngle` or the shoulder caps); six-decimal rounding, which is the
+precision `.ork` is written at; and a canopy's restated `overrideMass`, allowed only where it equals
+the mass the canopy already had, and filed. Anything else fails with the field named.
+
+**Not claimed: byte-equivalence for every IMPORTED design.** The milestone's own words are about a
+design authored in Loft, and that is what is asserted. A `.rkt` or `.CDX1` is a translation from a
+format with different primitives, and the remaining gaps are inventoried below and in `BACKLOG.md`.
+
+**The Sev-1, fixed.** A RASAero file states one launch weight and no per-part masses, so its whole
+mass is a single point mass, and `removalRefusal` refuses to delete it — taking it out leaves a rocket
+with no mass at all, which Loft would still fly and still report a confident apogee for. That refusal
+hung on a `standsForAirframe` flag the RASAero adapter set by hand, and `.ork` has nowhere to write it
+down. So Loft's own Download button undid Loft's own safety refusal: save `Show-off.CDX1` as a `.ork`,
+reopen it, and the 453.6 g is still there but is now deletable — 453.6 g → 0.0 g, still flying.
+`OR vs RAS Test 1.CDX1` went 17145.8 g → 12777.0 g and still reported 7373 m.
+
+It is now **derived rather than remembered**, in the single import funnel, from the thing the refusal
+actually claims: *would taking this out leave the stage with no mass at all?* That question can be
+asked of any design, from any format, at any point in its life, and there is nothing left to lose in a
+file. Per stage, because a staged rocket is several airframes flown in sequence — a whole-design test
+sees `Complex.Two-Stage.CDX1`'s two airframe masses holding each other up and flags neither.
+
+Checked against all 35 corpus designs: it reproduces the hand-set flag **exactly**, both as imported
+and after a round trip, and does not fire on `EscapeVelocity.ork`, whose stage carries its 2000 g as a
+subtree override and whose one mass object is therefore a real part and stays removable. A first
+attempt at the predicate — "the stage's structural mass is zero" — DID fire on it, because
+`massByComponent` reports 0 for components subsumed by a stage-level override and attributes the
+lumped mass to no component at all. Deriving from what removal costs avoids that class of mistake
+entirely; deriving from a sum of parts walks into it.
+
+**Second slice, 2026-08-02 — per-configuration ignition and configuration names.** Two losses where
+the importer already read what the exporter never wrote, so both were one-sided gaps rather than
+format limits.
+
+A design can airstart a mount at a different delay in EACH motor configuration — one
+`<ignitionconfiguration configid=…>` block per config — which is exactly how a staggered airstart
+study is set up. The exporter wrote only the mount-level pair, taken from the FIRST configuration, so
+the round trip applied one config's timing to all of them: `Airstart timing.ork`'s four configurations
+at +1 s, +2 s, +4 s and +6 s all came back at +0 s, and its five configurations — which fly 1268.50 m
+to 1296.52 m — all flew the identical 1296.52 m. The whole reason that design exists was erased by
+saving it. Blocks are written only where a configuration DIFFERS from the mount default, so a design
+that never used the feature gains no elements.
+
+And the configuration NAME — how a flyer picks which flight they are looking at — was never written
+at all: 29 configurations across 9 corpus designs came back labelled with their own raw ids, and on a
+design built here the starter's only motor label "H128W" returned as "cfg-1".
+
+Both pinned by one test built from the small two-stage fixture rather than the 280 kB corpus design
+that found them, with a negative control on each half.
+
+**Third slice, 2026-08-02 — a freeform fin keeps its shape.** The largest measured flight-number loss
+in the round trip, and the one the exporter's own comment had already named the fix for: stop
+discarding the outline. A freeform fin is defined ONLY by its outline, and the model reduced it away
+at import to span/area/sweep, so an export had to invent an equal-area trapezoid — whose tip solution
+goes negative whenever the planform tapers hard, at which point the clamp writes a fin strictly LARGER
+than the one drawn.
+
+The model retains the points now, for the OpenRocket and the RockSim reader alike, and the exporter
+writes `<finpoints>` back. All **9 freeform sets across the 8 corpus designs that carry one** survive a
+download and re-open with static margin unchanged to three decimals — including
+`Pods--airframes and winglets.ork` at 2.134 → 1.449 cal (−32%) before, and `rocksimTestRocket2.rkt`,
+which had been losing its `over-stable` warning outright.
+
+**And a near-miss the change itself created, caught by driving it.** Keeping an outline means an edit
+that moves the set's `height` and `area` while leaving the points alone would export the fin the flyer
+STARTED with — so saving a design would silently undo the edit. Measured before the fix: stretching
+`Pods`' "Cockpit" set 7.0 mm → 10.4 mm and downloading gave a file that reopened at 7.0 mm, static
+margin 2.077 → 2.134. `applyGeometryEdits` now scales the outline's span with the same factor it
+already applies to `area`. Pinned, with a negative control.
+
+The equal-area trapezoid is still what a set with NO outline gets — an elliptical set, or a freeform
+set read from a design an older Loft saved — so its two tests stay, relabelled as the fallback.
+`/docs/limitations` is rewritten, including why a design saved by an older copy cannot be recovered.
+
+**Fourth slice, 2026-08-02 — a plugged motor stays plugged.** A plugged motor carries no ejection
+charge at all; OpenRocket spells it `<delay>none</delay>` and the importer reads it back as `plugged`.
+Its `delay` is NaN and `num()` maps NaN to "0", so the round trip turned "this motor cannot deploy
+anything" into "it fires at burnout" — 42 instances across 10 designs, two of which carry recovery
+devices set to `ejection` alongside a plugged motor, where the difference decides whether the flight is
+reported as coming in ballistic. All 42 survive now.
+
+**And one slice deliberately NOT taken, with the measurement that says why.** The exporter invents an
+`<overridemass>` for every canopy without one (24 canopies, 18 designs), which then defeats the
+builder's parachute resize — the control still moves and nothing re-masses. It reads like a gratuitous
+workaround and it is not: removing it drops `A simple model rocket.ork`'s canopy from 7.976 g to
+4.736 g, because the importer computes a different mass from the material and packed dimensions the
+exporter faithfully writes. The real work is finding out why those two disagree. Filed in `BACKLOG.md`
+with both numbers so the next session does not re-derive the dead end.
+
+**Fifth slice — the authored parts keep their identity.** The three flat structural adds minted
+readable composite ids (`${tube.id}-boattail`, `-payload`, `-drogue`). Deterministic, but not UUIDs —
+and `lib/ork/export.ts` hashes a non-UUID id into a fresh one on the way out, because `.ork` ids are
+UUIDs. So all three changed identity every time the design was saved. A design built here is persisted
+as its own exported bytes, so that is not an export-only detail: a selection, an aim or an undo naming
+one of those parts stopped resolving after a reload — the exact defect R2's id work was meant to close.
+They are minted as UUIDs now, seeded from the same host id, so they stay stable AND survive untouched.
+
+Four tests used the composite id as a lookup channel for "which tube did this attach to", which is why
+it existed. They assert the relationship where it actually lives now: the payload through the TREE (it
+is a child of its tube), the boattail through the GEOMETRY (it is the tube's SIBLING — a transition
+added at the tail hangs off nothing, and the composite id was genuinely the only record of its host).
+
+**State of the round trip for IMPORTED designs**, measured rather than guessed: on the first
+export → re-import, **0 of 36** designs (35 corpus + the authored starter) reach a byte-equivalent
+model — 11 field diffs at best, 146 at worst; the model becomes a fixpoint only on the SECOND trip. So
+the next increment is the test that states which fields are allowed to move and which are not, and the
+named exceptions are already inventoried: freeform fin sets written back as trapezoids (9 sets, 8
+designs, up to −32% static margin), per-configuration ignition collapsing to one delay (all 5 of
+`Airstart timing.ork`'s configs become identical), motor-configuration names dropped (29 configs, 9
+designs), plugged motors losing `plugged` and reading as a 0 s delay (42 instances), and canopies
+acquiring an invented `<overridemass>` that then defeats a later resize (24 canopies, 18 designs).
 
 **Outcome.** What a flyer builds is theirs to keep and to take elsewhere.
 
@@ -866,10 +985,36 @@ pinned.
 
 ## P1 — One design system, adopted
 
-**Status: IN PROGRESS — one clause of the *done when* left, and it is named precisely below.** As of
-2026-08-01 every §9 count is at its target or its recorded honest floor, all six tables are on
-`DataTable`, and the hand-rolled `<button>` count is down from 17 to the three primitives that are
-not buttons.
+**Status: DONE — 2026-08-02.** Every §9 count is at its target or its recorded honest floor, all six
+tables are on `DataTable`, the hand-rolled `<button>` count is down from 17 to the three primitives
+that are not buttons, and the last clause — *fields* — closed when the two numeric-input primitives
+became one. `components/LoftApp.tsx`'s `Num` is gone; its 28 call sites and `MonteCarlo`'s 7 are the
+same `NumberField`, so §5's "every numeric input in either app is this" is now true rather than
+aspirational. `PRIMITIVE_ADOPTERS.NumberField` is 2 and ratcheted.
+
+**What the merge cost, and what it caught.** The rule was *keep the stronger of the two at every
+point, never the newer*, and four of the six disagreements went the older primitive's way — see the
+table in `components/ui.tsx`. Driving the merged field in the built export then turned up three things
+no reading of either implementation would have:
+
+- `display()` rendered a numeric **0 as blank**, which is true of the dispersion panel ("no spread")
+  and false of the editor. Typing −30 into Rail angle is pulled to its 0 bound, the bound lands in the
+  flight, and the box went empty — a field showing nothing while the flight used the number it had
+  just been handed. Blank is now the caller's word: the 7 dispersion fields pass `x || ""` with an
+  explicit `placeholder="0"`, so they keep the quiet empty box AND can still say "flying 0" when they
+  refuse something.
+- The visible hint sat **inside the `<label>`**, so it became part of the field's accessible NAME: one
+  box was announced as "Field elev. (m) Height of the launch site above sea level". The guidance and
+  the refusal now sit outside the label and are reached by `aria-describedby`, which is what a
+  description is for; the name is one stable sentence again.
+- Dropping `Num`'s `title` removed the **range words** from 28 fields with nothing put back — they had
+  been hover-only, which §8 forbids outright, but hover-only is still more than nothing. A bounded
+  field with no hint of its own now states its bounds *visibly*.
+
+The latch that clears a refusal when what is being flown changes was the one behaviour recorded only
+in a comment, and it is now pinned by an e2e test with a negative control: disable the latch, rebuild,
+and the field stays `aria-invalid` in imperial while quoting a metric value — the one-way door the
+comment describes.
 
 | §9 count | target | 2026-08-01 |
 |---|---|---|
@@ -901,6 +1046,11 @@ sites**, while `ui.tsx`'s `NumberField` is used at **7**, all inside `MonteCarlo
 numeric input in either app is this". The two already disagree: `Num`'s label is `text-[11px]` and it
 bakes the unit into the label string, `NumberField`'s is `text-sm` with a `unit` prop, and
 `NumberField` itself carries no touch minimum while `Num` does.
+
+**Done 2026-08-02.** The paragraph below is the plan as it stood; it is kept because the *why* still
+governs the merged primitive. What actually shipped differs on one point: the `unit` prop won as
+planned, but the 28 converted call sites still bake their unit into the label string, so the prop is
+the vocabulary rather than the practice. Converting those is cosmetic and is filed in `BACKLOG.md`.
 
 **Reconcile before converting, and half of that is done.** `Num` owns the refusal behaviour the SAFETY
 invariant requires — a value that cannot mean anything physically is bounded at the field rather than

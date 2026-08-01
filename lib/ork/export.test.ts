@@ -4,9 +4,11 @@ import { resolve } from "node:path";
 import { importOrk } from "./import";
 import { exportOrk, serializeRocketXml } from "./export";
 import { newDesign } from "../model/starter";
-import { applyGeometryEdits } from "../model/edit";
+import { applyGeometryEdits, removalRefusal } from "../model/edit";
 import { runFlight } from "../sim/run";
 import { combine, structurePointMasses } from "../sim/mass";
+import { planformFromPoints } from "../model/planform";
+import { flattenRocket } from "../model/geometry";
 import type { OrkDocument } from "./adapt";
 import type { NoseCone, BodyTube, MassComponent, Parachute, InnerTube, TrapezoidFinSet, GenericFinSet, MinorComponent } from "../model/types";
 
@@ -133,7 +135,10 @@ describe("exportOrk — real-design features round-trip (regression)", () => {
   });
 
   it("keeps a hard-tapered freeform fin's ROOT and POSITION, and does not chase its area", async () => {
-    // A freeform outline is not retained, so the export writes the equal-area trapezoid:
+    // THE FALLBACK, which is still reached by a set with no outline to write — an elliptical set, or a
+    // freeform set read from a design an older Loft saved as a trapezoid. (A freeform set that HAS its
+    // outline now round-trips the real shape; see the test below.) With no outline the export writes
+    // the equal-area trapezoid:
     // tip = 2·area/height − root. That solution is NEGATIVE once the planform tapers hard, and the
     // tip is then clamped to zero while the root is kept — so the exported fin is larger in area than
     // the one drawn. This asserts that deliberate choice, because the obvious alternative is worse:
@@ -141,8 +146,8 @@ describe("exportOrk — real-design features round-trip (regression)", () => {
     // `finContribution` drops a fin set with no root, so the set disappears from lift and drag
     // altogether. It also moves the fin, since a fin set's axial length IS its root chord — measured
     // on `Pods--airframes and winglets.ork`, the "Wings" set translated 52.4 mm aft under its
-    // `bottom` anchor. Tried and reverted 2026-07-31; the real fix is to round-trip `<finpoints>`,
-    // which is R6's and is filed.
+    // `bottom` anchor. Tried and reverted 2026-07-31. Deliberately built WITHOUT `points`, so this
+    // keeps testing the fallback rather than silently becoming a second copy of the test below.
     const doc = newDesign();
     const body = parts(doc).body;
     const height = 0.05;
@@ -175,7 +180,8 @@ describe("exportOrk — real-design features round-trip (regression)", () => {
   });
 
   it("leaves a gently-tapered freeform fin's trapezoid exact", async () => {
-    // Where the tip solution is positive there is no loss at all: area, span and sweep all survive.
+    // The fallback again, on the easy side of it: where the tip solution is positive there is no loss
+    // at all, and area, span and sweep all survive without the outline.
     const doc = newDesign();
     const body = parts(doc).body;
     const height = 0.05;
@@ -369,6 +375,297 @@ describe("exportOrk — real-design features round-trip (regression)", () => {
     expect(sc?.["cfg-1"]?.event).toBe("upperignition");
     expect(sc?.["cfg-2"]?.event).toBe("burnout");
     expect(sc?.["cfg-2"]?.delay).toBeCloseTo(1.5, 6);
+  });
+
+  it("round-trips a freeform fin's actual outline, not a trapezoid of the same area", async () => {
+    // A freeform fin is defined ONLY by its outline, and the outline is now kept on the model rather
+    // than reduced away at import — so the export writes the shape back. Before this, every freeform
+    // set came back as the equal-area trapezoid the two tests above describe, and the cost landed on
+    // static margin, which is a number a flyer acts on: measured over the 8 corpus designs carrying
+    // one, `Pods--airframes and winglets.ork` went 2.134 → 1.449 cal (−32%) and `rocksimTestRocket2`
+    // lost its `over-stable` warning outright.
+    //
+    // A deliberately hard taper: the trapezoid path would clamp this one's tip to zero and export a
+    // fin larger than the one drawn, so if the outline were being dropped the margin would move.
+    const points = [
+      { x: 0, y: 0 },
+      { x: 0.012, y: 0.05 },
+      { x: 0.02, y: 0.05 },
+      { x: 0.06, y: 0 },
+    ];
+    // Derived from the outline rather than stated beside it, which is what an import produces: a
+    // freeform set carries no root/height/area elements of its own, so any hand-written pair would be
+    // inconsistent with its own shape and the re-import would "differ" for that reason instead.
+    const pf = planformFromPoints(points);
+    const doc = newDesign();
+    parts(doc).body.children.push({
+      kind: "freeformfinset",
+      id: "ff-outline",
+      name: "Drawn",
+      finCount: 3,
+      thickness: 0.003,
+      rootChord: pf.rootChord,
+      height: pf.span,
+      sweepLength: pf.sweep,
+      area: pf.area,
+      cpChord: pf.cpChord > 0 ? pf.cpChord : undefined,
+      points,
+      children: [],
+      placement: { method: "bottom", offset: 0 },
+    } as unknown as GenericFinSet);
+
+    const back = await roundtrip(doc);
+    const out = flattenRocket(back.rocket).find((p) => p.component.name === "Drawn")?.component as
+      | GenericFinSet
+      | undefined;
+
+    // It comes back a freeform set, not a trapezoid, and with the same outline.
+    expect(out?.kind).toBe("freeformfinset");
+    expect(out?.points?.map((p) => [p.x, p.y])).toEqual(points.map((p) => [p.x, p.y]));
+    // And the flight number the outline exists to get right does not move.
+    const margin = (d: OrkDocument) =>
+      runFlight(d.rocket, {
+        configId: d.rocket.defaultConfigId ?? d.rocket.configurations[0]?.id,
+      }).result.staticMarginCal;
+    expect(margin(back)).toBeCloseTo(margin(doc), 6);
+  });
+
+  it("exports a freeform fin as EDITED, not as drawn", async () => {
+    // The outline is kept so the shape can be written back — which means a span edit that moves the
+    // set's `height` and `area` but leaves its points alone would export the fin the flyer started
+    // with, and saving the design would silently undo the edit. Measured on
+    // `Pods--airframes and winglets.ork` while this was true: stretching the "Cockpit" set 7.0 mm →
+    // 10.4 mm and downloading gave a file that reopened at 7.0 mm, static margin 2.077 → 2.134.
+    const points = [
+      { x: 0, y: 0 },
+      { x: 0.012, y: 0.05 },
+      { x: 0.02, y: 0.05 },
+      { x: 0.06, y: 0 },
+    ];
+    const pf = planformFromPoints(points);
+    const doc = newDesign();
+    parts(doc).body.children.push({
+      kind: "freeformfinset",
+      id: "ff-edited",
+      name: "Drawn",
+      finCount: 3,
+      thickness: 0.003,
+      rootChord: pf.rootChord,
+      height: pf.span,
+      sweepLength: pf.sweep,
+      area: pf.area,
+      cpChord: pf.cpChord > 0 ? pf.cpChord : undefined,
+      points,
+      children: [],
+      placement: { method: "bottom", offset: 0 },
+    } as unknown as GenericFinSet);
+
+    const stretched = 1.5 * pf.span;
+    const edited: OrkDocument = {
+      ...doc,
+      // Aimed at this set explicitly; `finSpan` alone would land on the starter's own fin set.
+      rocket: applyGeometryEdits(doc.rocket, { finSetId: "ff-edited", finSpan: stretched }),
+    };
+    const back = await roundtrip(edited);
+    const out = flattenRocket(back.rocket).find((p) => p.component.name === "Drawn")?.component as
+      | GenericFinSet
+      | undefined;
+
+    expect(out?.kind).toBe("freeformfinset");
+    expect(out?.height).toBeCloseTo(stretched, 6);
+    // A span stretch scales the outline's span and leaves its chord alone.
+    expect(Math.max(...(out?.points ?? []).map((p) => p.y))).toBeCloseTo(stretched, 6);
+    expect(Math.max(...(out?.points ?? []).map((p) => p.x))).toBeCloseTo(
+      Math.max(...points.map((p) => p.x)),
+      6,
+    );
+  });
+
+  it("keeps each configuration's name and its own airstart delay", async () => {
+    // A design can airstart a mount at a different delay in EACH motor configuration — one
+    // `<ignitionconfiguration configid=…>` block per config — which is exactly how a staggered
+    // airstart study is set up. The importer has always read them; the exporter wrote only the
+    // mount-level pair, taken from the FIRST configuration, so the round trip applied one config's
+    // timing to all of them. Measured on the corpus's `Airstart timing.ork`: four configurations at
+    // +1 s, +2 s, +4 s and +6 s all came back at +0 s, and its five configurations — which fly
+    // 1268.50 m to 1296.52 m — all flew the identical 1296.52 m. The configuration NAME, which is how
+    // a flyer picks which flight they are looking at, was never written at all.
+    //
+    // Built here rather than committed as a fixture: the corpus design that found this carries 280 kB
+    // of stored flight data none of this needs.
+    const base = await importOrk(
+      new Uint8Array(readFileSync(resolve(process.cwd(), "e2e/fixtures/two-stage-firm-booster.ork"))),
+    );
+    const seed = base.rocket.configurations[0];
+    const upper = seed.instances[0];
+    const doc: OrkDocument = {
+      ...base,
+      rocket: {
+        ...base.rocket,
+        configurations: [0, 2, 5].map((delay, n) => ({
+          id: `airstart-${n}`,
+          name: `Airstart @${delay}s`,
+          instances: seed.instances.map((inst) =>
+            inst === upper ? { ...inst, ignitionDelay: delay, ignitionEvent: "burnout" } : { ...inst },
+          ),
+        })),
+        defaultConfigId: "airstart-0",
+      },
+    };
+
+    const back = await roundtrip(doc);
+    const names = (d: OrkDocument) => d.rocket.configurations.map((c) => c.name ?? null);
+    const delays = (d: OrkDocument) =>
+      d.rocket.configurations.map((c) => c.instances.map((i) => i.ignitionDelay ?? 0));
+
+    expect(names(back)).toEqual(["Airstart @0s", "Airstart @2s", "Airstart @5s"]);
+    expect(names(back)).toEqual(names(doc));
+    expect(delays(back)).toEqual(delays(doc));
+
+    // The half that matters: these are three DIFFERENT flights, and they still are afterwards.
+    const apogees = (d: OrkDocument) =>
+      d.rocket.configurations.map((c) =>
+        Number(runFlight(d.rocket, { configId: c.id }).result.summary.apogee.toFixed(2)),
+      );
+    const flown = apogees(doc);
+    expect(new Set(flown).size, `three airstart delays should fly three flights, got ${flown}`).toBe(3);
+    expect(apogees(back)).toEqual(flown);
+  });
+
+  it("round-trips a design authored in Loft, part for part and id for id", async () => {
+    // R6's *done when*, as a test rather than by eye: build a design here — including all three flat
+    // structural adds a builder can make — save it the way the Download button does, reopen it, and get
+    // the same rocket back. Every component, every id, every material and every mass.
+    //
+    // What is allowed to move is named explicitly below rather than compared loosely, because a
+    // tolerance wide enough to swallow a real loss is not an assertion. Everything else must match.
+    const starter = newDesign();
+    const authored: OrkDocument = {
+      ...starter,
+      rocket: applyGeometryEdits(starter.rocket, {
+        boattailLength: 0.05,
+        boattailAftDiameter: 0.03,
+        payloadMassKg: 0.3,
+        drogueDiameter: 0.4,
+        mainDeployAltitude: 150,
+      }),
+    };
+    const back = await roundtrip(authored);
+
+    const byName = (d: OrkDocument) =>
+      new Map(flattenRocket(d.rocket).map((p) => [`${p.component.kind}:${p.component.name}`, p.component]));
+    const before = byName(authored);
+    const after = byName(back);
+
+    // Every part comes back, and comes back as itself.
+    expect([...after.keys()].sort()).toEqual([...before.keys()].sort());
+    expect(before.size).toBeGreaterThanOrEqual(9);
+    for (const [k, c] of before) expect(after.get(k)!.id, `${k} changed identity`).toBe(c.id);
+
+    /** The normalisations a trip through the file is allowed to make.
+     *  - a field that was `undefined` coming back as the default the format writes for it is the same
+     *    statement, not a loss — the file has no way to spell "unset" for these;
+     *  - `.ork` is written at six decimals, so a value can move in the twelfth. */
+    const isDefaulted = (x: unknown, y: unknown) => x === undefined && (y === 0 || y === false);
+    const rounded = (x: unknown, y: unknown) =>
+      typeof x === "number" && typeof y === "number" && Math.abs(x - y) <= 5e-7 * Math.max(1, Math.abs(x));
+
+    const unexplained: string[] = [];
+    for (const [k, c] of before) {
+      const d = after.get(k)! as unknown as Record<string, unknown>;
+      const cc = c as unknown as Record<string, unknown>;
+      for (const f of new Set([...Object.keys(cc), ...Object.keys(d)])) {
+        if (f === "children" || f === "id") continue;
+        const x = cc[f];
+        const y = d[f];
+        if (JSON.stringify(x) === JSON.stringify(y)) continue;
+        if (isDefaulted(x, y) || rounded(x, y)) continue;
+        // A canopy comes back carrying an `<overridemass>` equal to the mass it already had. That is
+        // how the mass survives at all today — dropping it costs `A simple model rocket.ork` 7.976 g →
+        // 4.736 g — and it is filed in `BACKLOG.md`, with the resize it breaks. Allowed here ONLY when
+        // it restates the mass rather than changing it.
+        if (f === "overrideMass" && x === undefined && rounded(cc.mass, y)) continue;
+        if (f === "mass" && rounded(x, y)) continue;
+        // Six-decimal rounding again, one level down: a placement is a method plus an offset.
+        if (
+          f === "placement" &&
+          (x as { method?: string })?.method === (y as { method?: string })?.method &&
+          rounded((x as { offset?: number })?.offset, (y as { offset?: number })?.offset)
+        )
+          continue;
+        unexplained.push(`${k}.${f}: ${JSON.stringify(x)} -> ${JSON.stringify(y)}`);
+      }
+    }
+    expect(unexplained, `fields moved with no reason given:\n  ${unexplained.join("\n  ")}`).toEqual([]);
+
+    // And the flight the design describes is the same flight.
+    const cfg = (d: OrkDocument) => d.rocket.defaultConfigId ?? d.rocket.configurations[0]?.id;
+    const a = runFlight(authored.rocket, { configId: cfg(authored) }).result;
+    const b = runFlight(back.rocket, { configId: cfg(back) }).result;
+    expect(b.summary.apogee).toBeCloseTo(a.summary.apogee, 2);
+    expect(b.staticMarginCal).toBeCloseTo(a.staticMarginCal, 4);
+    expect(b.liftoffMass).toBeCloseTo(a.liftoffMass, 6);
+  });
+
+  it("keeps a plugged motor plugged, rather than giving it a 0 s delay", async () => {
+    // A plugged motor carries NO ejection charge — it is flown with altimeter deployment — which
+    // OpenRocket spells `<delay>none</delay>` and the importer reads back as `plugged`. Its `delay` is
+    // NaN, and the exporter's `num()` maps NaN to "0", so a round trip turned "this motor cannot
+    // deploy anything" into "it fires at burnout": 42 motor instances across 10 corpus designs, two of
+    // which carry recovery devices set to `ejection` alongside a plugged motor, where the difference
+    // decides whether the flight is reported as coming in ballistic.
+    const doc = newDesign();
+    const cfg = doc.rocket.configurations[0];
+    const plugged: OrkDocument = {
+      ...doc,
+      rocket: {
+        ...doc.rocket,
+        configurations: [
+          {
+            ...cfg,
+            instances: cfg.instances.map((i) => ({
+              ...i,
+              motor: { ...i.motor, delay: NaN, plugged: true },
+            })),
+          },
+        ],
+      },
+    };
+
+    const back = await roundtrip(plugged);
+    const motors = back.rocket.configurations.flatMap((c) => c.instances).map((i) => i.motor);
+    expect(motors.length).toBeGreaterThan(0);
+    for (const m of motors) {
+      expect(m.plugged).toBe(true);
+      // And specifically NOT a real 0 s delay, which is a deployment at maximum velocity.
+      expect(m.delay === 0).toBe(false);
+    }
+  });
+
+  it("keeps a stated launch weight un-deletable after the round trip", async () => {
+    // A RASAero file states one launch weight and no per-part masses, so its whole mass is a single
+    // point mass and `removalRefusal` refuses to delete it — removing it leaves a rocket with no mass
+    // that Loft would still fly and still report an apogee for. That refusal hung on a flag the
+    // RASAero adapter set by hand, and `.ork` has nowhere to write it down: saving the design with
+    // Loft's own Download button and reopening it kept the 453.6 g and lost the refusal.
+    const bytes = new Uint8Array(
+      readFileSync(resolve(process.cwd(), "e2e/fixtures/demo-rasaero.CDX1")),
+    );
+    const doc = await importOrk(bytes);
+    const mass = (d: OrkDocument) =>
+      structurePointMasses(d.rocket).length &&
+      (flattenRocket(d.rocket).find((p) => p.component.kind === "masscomponent")!.component as MassComponent);
+
+    const before = mass(doc) as MassComponent;
+    expect(before.standsForAirframe).toBe(true);
+    expect(removalRefusal(doc.rocket, before.id)).toBeTruthy();
+
+    const back = await roundtrip(doc);
+    const after = mass(back) as MassComponent;
+    // The weight itself always survived; it is the fact that it IS the design's weight that did not.
+    expect(after.mass).toBeCloseTo(before.mass, 6);
+    expect(after.standsForAirframe).toBe(true);
+    expect(removalRefusal(back.rocket, after.id)).toBeTruthy();
   });
 
   it("preserves a launch lug's mass and count", async () => {

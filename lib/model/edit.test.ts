@@ -1574,8 +1574,42 @@ describe("the aim registry is the one list", () => {
 });
 
 describe("a structural add stays where it belongs, whatever tube is picked", () => {
-  /** Every component's station, keyed by id, so a test can say where a part landed. */
-  const stations = (r: Rocket) => new Map(flattenRocket(r).map((p) => [p.component.id, p.xFore]));
+  /** Where a tube's trailing edge is — which is what "the boattail attached to THIS tube" means for a
+   *  part that is the tube's SIBLING rather than its child. A transition added at the tail hangs off no
+   *  component in the tree; until 2026-08-02 the only record of which tube it belonged to was the
+   *  readable composite id the add minted (`<tube>-boattail`), and these tests read it back out of
+   *  there. That id could not survive an export — `.ork` ids are UUIDs and a non-UUID is hashed into a
+   *  fresh one on the way out — so the adds mint UUIDs now and the relationship is asserted where it
+   *  actually lives: in the geometry. */
+  const trailingEdgeOf = (r: Rocket, id: string) => {
+    const p = flattenRocket(r).find((x) => x.component.id === id)!;
+    return p.xFore + p.length;
+  };
+
+  /** The id of the component an added part hangs off, for the adds that ARE children (the payload
+   *  sits inside its tube). Found through the TREE rather than read out of the added part's own id. These tests used to assert `\`${tube}-boattail\`` was present, which
+   *  worked only because the add minted a readable composite id — and that id could not survive an
+   *  export, since `.ork` ids are UUIDs and a non-UUID gets hashed into a fresh one on the way out.
+   *  The adds mint UUIDs now, so the host has to be asked for directly. */
+  const hostOf = (r: Rocket, name: string): string | undefined => {
+    const walk = (cs: readonly RocketComponent[], parent?: string): string | undefined => {
+      for (const c of cs) {
+        if (c.name === name) return parent;
+        const hit = walk(c.children, c.id);
+        if (hit !== undefined) return hit;
+      }
+      return undefined;
+    };
+    for (const st of r.stages) {
+      const hit = walk(st.components);
+      if (hit !== undefined) return hit;
+    }
+    return undefined;
+  };
+
+  /** An added part's station, by name. */
+  const stationOf = (r: Rocket, name: string) =>
+    flattenRocket(r).find((p) => p.component.name === name)?.xFore;
 
   it("puts the boattail on the tail even when a picked tube is lengthened past the longest", async () => {
     // `demo-quirks.ork` is a 500 mm forward tube ahead of a 450 mm aft tube, so the LONGEST tube is
@@ -1598,13 +1632,12 @@ describe("a structural add stays where it belongs, whatever tube is picked", () 
     const picked = applyGeometryEdits(rocket, { ...add, bodyTubeId: fwd, bodyLength: 0.9 });
 
     // Either way the boattail hangs off the AFT tube, never the forward one.
-    expect(stations(noPick).has(`${aft}-boattail`)).toBe(true);
-    expect(stations(picked).has(`${aft}-boattail`)).toBe(true);
-    expect(stations(picked).has(`${fwd}-boattail`)).toBe(false);
+    expect(stationOf(noPick, "Boattail")!).toBeCloseTo(trailingEdgeOf(noPick, aft), 9);
+    expect(stationOf(picked, "Boattail")!).toBeCloseTo(trailingEdgeOf(picked, aft), 9);
+    expect(stationOf(picked, "Boattail")!).not.toBeCloseTo(trailingEdgeOf(picked, fwd), 6);
     // And it sits behind the aft tube's own trailing edge, not part-way up the airframe.
-    const st = stations(picked);
     const aftPlaced = flattenRocket(picked).find((p) => p.component.id === aft)!;
-    expect(st.get(`${aft}-boattail`)!).toBeCloseTo(aftPlaced.xFore + aftPlaced.length, 6);
+    expect(stationOf(picked, "Boattail")!).toBeCloseTo(aftPlaced.xFore + aftPlaced.length, 6);
     // The forward tube really did grow past the aft one, so the case is live rather than side-stepped.
     expect(flattenRocket(picked).find((p) => p.component.id === fwd)!.length).toBeCloseTo(0.9, 9);
   });
@@ -1617,16 +1650,16 @@ describe("a structural add stays where it belongs, whatever tube is picked", () 
 
     // Blank station, no pick: the bay goes in the primary (longest) tube, as it always has.
     const none = applyGeometryEdits(rocket, { payloadMassKg: 0.3 });
-    expect(stations(none).has(`${upper}-payload`)).toBe(true);
+    expect(hostOf(none, "Payload")).toBe(upper);
 
     // Blank station with the aft tube picked: the bay goes THERE...
     const aimed = applyGeometryEdits(rocket, { bodyTubeId: mount, payloadMassKg: 0.3 });
-    expect(stations(aimed).has(`${mount}-payload`)).toBe(true);
-    expect(stations(aimed).has(`${upper}-payload`)).toBe(false);
+    expect(hostOf(aimed, "Payload")).toBe(mount);
+    expect(hostOf(aimed, "Payload")).not.toBe(upper);
     // ...and the field's placeholder names the same tube's mid-point, so a blank and what a blank does
     // agree. They did not: the station field went on advertising the primary tube's mid-point.
     const placeholder = defaultPayloadStation(rocket, mount)!;
-    expect(stations(aimed).get(`${mount}-payload`)!).toBeCloseTo(placeholder, 9);
+    expect(stationOf(aimed, "Payload")!).toBeCloseTo(placeholder, 9);
     expect(defaultPayloadStation(rocket)).not.toBeCloseTo(placeholder, 6);
   });
 
@@ -1639,7 +1672,7 @@ describe("a structural add stays where it belongs, whatever tube is picked", () 
     expect(aft.component.name).toBe("Motor mount body");
     expect(primaryBodyTube(rocket)!.name).toBe("Upper"); // the longest is the FORWARD one
     const edited = applyGeometryEdits(rocket, { boattailLength: 0.04, boattailAftDiameter: 0.03 });
-    expect(stations(edited).has(`${aft.component.id}-boattail`)).toBe(true);
+    expect(stationOf(edited, "Boattail")!).toBeCloseTo(aft.xFore + aft.length, 9);
   });
 });
 
@@ -1660,11 +1693,11 @@ describe("the boattail's advertised bound is the bound that is enforced", () => 
 
     // A value under the ADVERTISED bound is accepted and builds a cone...
     const ok = applyGeometryEdits(rocket, { boattailLength: 0.05, boattailAftDiameter: fairsTo * 0.8 });
-    expect(flattenRocket(ok).some((p) => p.component.id.endsWith("-boattail"))).toBe(true);
+    expect(flattenRocket(ok).some((p) => p.component.name === "Boattail")).toBe(true);
     // ...and one at or above it is refused, which is exactly why the field must not advertise the wider
     // tube: 60 mm sits inside the forward tube's 66 mm and is silently dropped.
     const refused = applyGeometryEdits(rocket, { boattailLength: 0.05, boattailAftDiameter: 0.06 });
-    expect(flattenRocket(refused).some((p) => p.component.id.endsWith("-boattail"))).toBe(false);
+    expect(flattenRocket(refused).some((p) => p.component.name === "Boattail")).toBe(false);
   });
 });
 

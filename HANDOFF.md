@@ -20,7 +20,8 @@ forbids. Three are queued, all in `BACKLOG.md`:
 None is a divergence in BEHAVIOUR — every count agrees — but the prose drifts a wording at a time.
 **A session created with both repos attached as sources clears all three in one commit each.**
 
-**`BACKLOG.md`'s Sev-1 count is ZERO at the end of this run.** Two were found and both are fixed.
+**`BACKLOG.md`'s Sev-1 count is ZERO at the end of this run.** One was found and it is fixed — Loft's
+own Download button undid Loft's own safety refusal (below).
 
 ## The arc so far
 
@@ -31,11 +32,120 @@ None is a divergence in BEHAVIOUR — every count agrees — but the prose drift
 | R3 — add a component | SHIPPED 2026-07-30 |
 | R4 — reorder and restack | SHIPPED 2026-07-31 |
 | **R5 — author a staged rocket** | **SHIPPED 2026-08-01** — every clause of the *done when* reachable and pinned |
-| **R6 — a built design leaves Loft intact** | **NOT STARTED — this is the next R-track milestone** |
-| P1 — one design system, adopted | **IN PROGRESS** — one clause left, named below |
-| P2–P5 | NOT STARTED |
+| **R6 — a built design leaves Loft intact** | **SHIPPED 2026-08-02** — a design authored here round-trips part for part and id for id |
+| **P1 — one design system, adopted** | **SHIPPED 2026-08-02** — the *fields* clause closed; the two numeric primitives are one |
+| **P2 — workspaces as routes** | **NOT STARTED — next on the P track, and the bigger of the two** |
+| **R7+** | not yet written; extend `ROADMAP.md` from the after-list |
+| P3–P5 | NOT STARTED |
 
-## Shipped this session (2026-08-01)
+## Shipped this session (2026-08-02)
+
+Baseline before anything changed, all four green: lint 0 errors / 1 warning (the standing `setDraft`
+one), **944 unit**, build, e2e, corpus **35 design files, 14/14**. Nothing inherited was red.
+
+**Six increments. Both milestones shipped: P1 (product) and R6 (capability).**
+
+| # | track | increment |
+|---|---|---|
+| 1 | **P1** | the two numeric-input primitives merged into one — `LoftApp`'s `Num` deleted, its 28 call sites and `MonteCarlo`'s 7 now the same `NumberField`. **P1 is DONE.** |
+| 2 | **R6** | Sev-1: a stated launch weight is no longer deletable after a round trip through Loft's own export |
+| 3 | **R6** | per-configuration ignition and configuration names survive a save — an airstart study stops being flattened to one delay |
+| 4 | **R6** | a freeform fin keeps its real outline instead of being written back as an equal-area trapezoid |
+| 5 | **R6** | a plugged motor stays plugged, instead of coming back with a 0 s delay |
+| 6 | **R6** | the three authored structural adds keep their identity — **R6 is DONE**, its *done when* asserted |
+
+**The pattern across 2, 3 and 4 is worth naming: all three were the exporter failing to write something
+the importer already read.** `standsForAirframe` had nowhere to go, but `<ignitionconfiguration>`,
+`<name>` on a configuration and `<finpoints>` were all being parsed on the way in and simply never
+emitted on the way out. **When looking for the next R6 slice, diff what `adapt.ts` reads against what
+`export.ts` writes** — that is where the remaining ones are, and the fan-out inventory in `ROADMAP.md`
+already names them (`plugged`, canopy override mass, component ids).
+
+### The Sev-1: Loft's Download button undid Loft's own refusal
+
+A RASAero file states one launch weight and no per-part masses, so the adapter has nowhere to put that
+weight but a single point mass — and `removalRefusal` refuses to delete it, because removing it leaves
+a rocket with no mass at all that Loft would still fly and still report a confident apogee for. The
+refusal hung on a `standsForAirframe` flag the RASAero adapter set by hand, and `.ork` has nowhere to
+write it down. So: import `Show-off.CDX1`, press Download, reopen the file Loft just wrote — the
+453.6 g is still there and is now deletable. 453.6 g → 0.0 g, still flying. `OR vs RAS Test 1.CDX1`
+17145.8 g → 12777.0 g, still reporting 7373 m.
+
+It is now **derived rather than remembered**, in the one import funnel, from what the refusal actually
+claims: *would taking this out leave the stage with no mass at all?* Nothing to persist, so nothing to
+lose — and it holds for every format and every round trip. Reproduces the hand-set flag exactly across
+all 35 corpus designs, before and after a round trip.
+
+**The near-miss worth keeping.** The first predicate was "the stage's structural mass is zero", and it
+fired on `EscapeVelocity.ork` — a real OpenRocket design whose avionics bay would have become
+un-deletable. The cause was not the design: `massByComponent` reports 0 for every component subsumed
+by a stage-level subtree override and attributes the lumped mass to **no component at all**, so a
+2000 g stage read as massless. **Deriving from what a removal COSTS avoids that whole class; deriving
+from a sum of parts walks straight into it.**
+
+### The freeform fin, and the near-miss the fix itself created
+
+The largest flight-number loss in the round trip: a freeform fin is defined only by its outline, the
+model reduced that away at import, and the exporter had to invent an equal-area trapezoid whose tip
+solution goes negative on a hard taper — so the exported fin came back LARGER than the one drawn. All 9
+sets on the 8 corpus designs now survive with static margin unchanged to three decimals.
+
+**Then keeping the outline created a new way to lose an edit, and only driving it showed that.** A span
+edit moves the set's `height` and `area`; the points sat there unchanged, so an export wrote the fin
+the flyer started with and saving the design silently undid the edit — `Pods`' "Cockpit" set stretched
+7.0 mm → 10.4 mm reopened at 7.0 mm. **A cache of the input is a new thing that can go stale, and the
+edit path is where to look for it.**
+
+### The field merge, and the three things only the built export showed
+
+The rule was *keep the stronger of the two, never the newer* — four of the six disagreements went the
+older `Num`'s way, and the table recording each is in `components/ui.tsx`. What no reading of either
+implementation would have caught:
+
+- **`display()` rendered a numeric 0 as blank.** True of the dispersion panel ("no spread"), false of
+  the editor. Typing −30 into Rail angle pulls to its 0 bound, the bound lands in the flight, and the
+  box went EMPTY — showing nothing while the flight used the number it had just been handed. Blank is
+  now the caller's word: the 7 dispersion fields pass `x || ""` with an explicit `placeholder="0"`, so
+  they keep the quiet empty box and can still say "flying 0" when they refuse something.
+- **The visible hint sat inside the `<label>`, so it became part of the accessible NAME.** One box was
+  announced as "Field elev. (m) Height of the launch site above sea level". Guidance and refusal now
+  sit outside the label, reached by `aria-describedby` — which is what a description is for.
+- **Dropping `Num`'s `title` removed the range words from 28 fields with nothing put back.** They were
+  hover-only, which §8 forbids — but hover-only is still more than nothing. A bounded field with no
+  hint of its own now states its bounds visibly.
+
+The `against` latch — which clears a refusal when what is being flown changes — was recorded only in a
+comment. It is now pinned by an e2e test with a negative control: disable the latch, rebuild, and the
+field stays `aria-invalid` in imperial while quoting a metric value.
+
+### Read this before trusting a red e2e run
+
+**`npm run test:e2e` fails 7–8 tests on this box for a reason that is not the product.** The suite
+serves `out/` with `npx serve`; partway through a full run the server dies with `EMFILE: too many open
+files` and every test still to start fails on `ERR_CONNECTION_REFUSED`. Because `touch.spec.ts` runs
+last it surfaces as a clean-looking block of touch-contract failures — which reads exactly like "my
+change broke the touch contract". `touch.spec.ts` passes **14/14 on its own, twice, in the same
+commit**.
+
+**I got the cause wrong twice before measuring it, so take the measurement rather than the story.** It
+is NOT a `serve` leak — with the e2e config running, 200 repeated requests and 400 distinct files each
+leave it at a steady 5 open descriptors. It is NOT worker concurrency — `--workers=1` fails the same
+way, one test worse. The box crosses its descriptor ceiling while Playwright drives Chromium and the
+static server is just the next process to ask for one; `ulimit -n` is at its 4096 hard cap. Filed in
+`BACKLOG.md` with the numbers.
+
+**CI is unaffected** — the `e2e` job on GitHub Actions runs the same command against the same commit
+and passes — which is the cleanest evidence that this is the box and not the suite.
+
+**Until it is fixed, assemble a green from two passes** — the four other spec files, then
+`touch.spec.ts` — which is what this session gated on: 177 + 14 = 191, all passing.
+
+I lost real time to this twice over: the first full run reported "178 passed" in a tail that had cut
+off the failure block above it and I read it as green, and then I "diagnosed" the cause twice from
+plausibility instead of measuring. **Grep for `failed`, not for `passed` — and measure the thing you
+are about to name in a commit message.**
+
+## The previous session (2026-08-01)
 
 Baseline before anything changed, all four green: lint 0 errors / 1 warning (the standing `setDraft`
 one), **923 unit**, build, **187 e2e** (sharded 94 + 93), corpus **35 design files, 12/12**. Nothing

@@ -472,24 +472,31 @@ export default function Limitations() {
         plain delay and an approximation otherwise.
       </p>
 
-      <h3>Saving a design does not preserve a freeform fin&apos;s outline</h3>
+      <h3>Saving a design preserves a freeform fin&apos;s outline</h3>
       <p>
-        A freeform (arbitrary polygon) fin&apos;s outline is not retained after import — only its
-        area, span and sweep — so <em>Download .ork</em>{" "}
-        writes a trapezoid in its place. Where the planform tapers gently that trapezoid matches the
-        original exactly. Where it tapers hard, no trapezoid can match the area without shortening the
-        root — which would move the fin along the airframe — so Loft keeps the root and the exported
-        fin is <em>larger</em>{" "}
-        in area than the one drawn. The effect lands on static margin, which is a number to act on.
+        A freeform (arbitrary polygon) fin is defined only by its outline, and Loft keeps that outline
+        on the design rather than reducing it away on import, so <em>Download .ork</em>{" "}
+        writes the real shape back. Measured across 35 real design files: <strong>8 carry a freeform
+        fin set</strong>{" "}
+        — 9 sets in all — and every one survives a save and re-open with its static margin unchanged
+        to three decimal places.
       </p>
       <p>
-        The size of it, measured across 35 real design files: <strong>8 carry a freeform fin set</strong>,
-        and on <strong>6 of those the re-opened copy&apos;s static margin differs</strong> — median
-        0.08 cal, worst <strong>0.69 cal</strong>. On the 27 designs without one it does not move;
-        the largest balance shift anywhere else is 0.05&nbsp;mm, which is the six-decimal rounding the
-        file format itself is written at. <strong>If a freeform planform matters to your design, keep
-        the original file</strong>{" "}
-        rather than round-tripping it through Loft.
+        Until 2026-08-02 the outline was discarded and a trapezoid of equal area was written in its
+        place. Where a planform tapers hard no trapezoid can match the area without shortening the
+        root — which would move the fin along the airframe — so the exported fin came back{" "}
+        <em>larger</em>{" "}
+        than the one drawn, and the effect landed on static margin, which is a number to act on: 6 of
+        the 8 designs shifted, median 0.08 cal, worst <strong>0.69 cal</strong>, and one lost its{" "}
+        <em>over-stable</em>{" "}
+        warning outright. That is fixed; it is recorded here because a design saved by an older copy
+        of Loft still carries the trapezoid, and no later version can recover a shape that was never
+        written down.
+      </p>
+      <p>
+        One case still reduces: a fin set with no outline to keep — an elliptical set, or a freeform
+        set read from a design an older Loft saved — is written as the equal-area trapezoid described
+        above, because there is nothing better available to write.
       </p>
 
       <h3>Wind model</h3>

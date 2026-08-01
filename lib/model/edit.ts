@@ -11,7 +11,7 @@ import type { Rocket, RocketComponent, ComponentKind, NoseCone, BodyTube, Transi
   Stage,
 } from "./types";
 import { flattenRocket } from "./geometry";
-import { uniqueUuidFrom } from "./id";
+import { uniqueUuidFrom, uuidFrom } from "./id";
 import type { Positioned } from "./geometry";
 
 /** Selectable nose-cone shapes, for the builder's nose picker. Ordered by how a flyer thinks of
@@ -1014,11 +1014,22 @@ function editComponent(
     if (c.kind === "ellipticalfinset" || c.kind === "freeformfinset") {
       const height = span ?? c.height;
       // A generic set stores its planform area; scale it with any span change to keep the shape.
-      const area = span !== undefined && c.height > 0 ? c.area * (span / c.height) : c.area;
+      const scale = span !== undefined && c.height > 0 ? span / c.height : 1;
+      const area = c.area * scale;
+      // And the OUTLINE with it. A freeform set keeps the points it was drawn from so an export can
+      // write the shape back rather than an equal-area trapezoid — which means a span edit that moved
+      // `height` and `area` but left the points alone would export the fin the flyer started with.
+      // Measured on `Pods--airframes and winglets.ork` before this line existed: stretching the
+      // "Cockpit" set's span 7.0 mm → 10.4 mm and downloading gave a file that reopened at 7.0 mm,
+      // static margin 2.077 → 2.134 — the edit silently undone by saving it. A span stretch scales y
+      // only; the chord is untouched, which is why `area` above scales linearly with the same factor.
+      const points =
+        scale === 1 || !c.points ? c.points : c.points.map((pt) => ({ x: pt.x, y: pt.y * scale }));
       return {
         ...c,
         height,
         area,
+        points,
         finCount: count ?? c.finCount,
         thickness: thick ?? c.thickness,
         crossSection: cross ?? c.crossSection,
@@ -1151,7 +1162,13 @@ function addBoattail(rocket: Rocket, length: number, aftRadius: number): Rocket 
   const tube = aftmostBodyTube(rocket);
   if (!tube || !(length > 0) || !(aftRadius > 0) || !(aftRadius < tube.outerRadius)) return rocket;
   const boattail: Transition = {
-    id: `${tube.id}-boattail`,
+    // UUID-shaped, and derived from the host so it is stable across rebuilds of the same edit bag.
+    // A plain `${tube.id}-boattail` was both: stable, and NOT a UUID — and `lib/ork/export.ts` hashes
+    // any non-UUID id into one on the way out, so all three of the flat structural adds changed
+    // identity every time the design was saved. A design built here is persisted as its own exported
+    // bytes, so that is not an export-only detail: a selection, an aim or an undo naming one of these
+    // parts stopped resolving after a reload.
+    id: uuidFrom(`${tube.id}-boattail`),
     name: "Boattail",
     kind: "transition",
     placement: { method: "after", offset: 0 },
@@ -1410,7 +1427,13 @@ function addPayloadMass(
   // Keep the mass inside the tube (an offset from its fore edge, within its length).
   const offset = Math.max(0, Math.min(placed.length, target - placed.xFore));
   const payload: MassComponent = {
-    id: `${tube.id}-payload`,
+    // UUID-shaped, and derived from the host so it is stable across rebuilds of the same edit bag.
+    // A plain `${tube.id}-boattail` was both: stable, and NOT a UUID — and `lib/ork/export.ts` hashes
+    // any non-UUID id into one on the way out, so all three of the flat structural adds changed
+    // identity every time the design was saved. A design built here is persisted as its own exported
+    // bytes, so that is not an export-only detail: a selection, an aim or an undo naming one of these
+    // parts stopped resolving after a reload.
+    id: uuidFrom(`${tube.id}-payload`),
     name: "Payload",
     kind: "masscomponent",
     placement: { method: "top", offset },
@@ -1480,7 +1503,13 @@ function applyDualDeploy(
   // Canopy mass scales with area (≈ diameter²), so a smaller drogue is proportionally lighter.
   const drogueMass = main.mass * Math.min(1, (drogueDiameter / main.diameter) ** 2);
   const drogue: Parachute = {
-    id: `${main.id}-drogue`,
+    // UUID-shaped, and derived from the host so it is stable across rebuilds of the same edit bag.
+    // A plain `${tube.id}-boattail` was both: stable, and NOT a UUID — and `lib/ork/export.ts` hashes
+    // any non-UUID id into one on the way out, so all three of the flat structural adds changed
+    // identity every time the design was saved. A design built here is persisted as its own exported
+    // bytes, so that is not an export-only detail: a selection, an aim or an undo naming one of these
+    // parts stopped resolving after a reload.
+    id: uuidFrom(`${main.id}-drogue`),
     name: "Drogue",
     kind: "parachute",
     placement: { ...main.placement },

@@ -12,6 +12,59 @@ this file, and deliberately does **not** cap craft or product work, because that
 track in `ROADMAP.md` with its own *done when*. Rough edges, missing affordances, and findings too
 big for one pass. Newest first.
 
+- **Saving a design breaks the parachute-resize control, and the obvious fix is wrong — measured.**
+  `lib/ork/export.ts` writes `<overridemass>` equal to the computed canopy mass whenever a canopy has
+  no override of its own, on 24 canopies across 18 corpus designs. `lib/sim/mass.ts` prefers
+  `overrideMass`, so after a round trip the builder's main-parachute diameter field no longer re-masses
+  anything: on `A simple model rocket.ork`, resizing the main 1.5× moves total canopy mass 7.98 g →
+  17.95 g as imported, and 7.98 g → 7.98 g after a download and re-open. A control that visibly does
+  nothing is worse than one that is absent.
+
+  **It is NOT a gratuitous workaround, which is what it looks like.** Removing the invented override
+  was tried on 2026-08-02 and the canopy mass fell 7.976 g → 4.736 g on that same design: the exporter
+  writes the parachute's material and its packed dimensions, and the importer still computes a
+  different mass from them, so the override is currently the only thing holding the figure up. **The
+  work is to find out why those two disagree** — the ratio there is 1.684, which is not obviously a
+  unit or a shape factor — and to make the computed mass match the stated one, at which point the
+  override can go and the resize starts working again. Fixing it by clearing `overrideMass` inside the
+  resize instead would be wrong in the other direction: a flyer who states "my chute weighs 40 g" has
+  made a measurement, and a resize should not silently discard it.
+
+- **The e2e run exhausts the box's file descriptors, and the failures it causes look like product
+  regressions.** `npm run test:e2e` serves `out/` with `npx serve`; partway through a full run the
+  server dies with `EMFILE: too many open files`, and every test still to start fails on
+  `page.goto: net::ERR_CONNECTION_REFUSED`. Because `touch.spec.ts` runs last it surfaces as a clean
+  block of 7–8 touch-contract failures — which reads exactly like "my change broke the touch
+  contract". `touch.spec.ts` passes 14/14 on its own, twice, in the same commit.
+
+  **`serve` is the process that REPORTS the error, not the one that causes it**, and the obvious
+  diagnosis is wrong twice over. It is not a `serve` leak: with the e2e config running, 200 repeated
+  requests and 400 distinct files each leave it at a steady **5 open descriptors**. And it is not
+  worker concurrency: `--workers=1` fails the same way, one test worse (8 rather than 7). What is
+  actually happening is that the box crosses its descriptor ceiling while Playwright drives Chromium,
+  and the small static server is simply the next process to ask for one. `ulimit -n` is already at its
+  4096 hard cap here, so it cannot be raised from inside the run.
+
+  **CI is unaffected**, which is the cleanest evidence that this is the box and not the suite: the
+  `e2e` job on GitHub Actions runs the same command against the same commit and passes. So a red local
+  e2e whose failures are all in one trailing spec file, with `EMFILE` in the server output, is this —
+  not a regression to chase.
+
+  Until it is fixed, a full green has to be assembled from two passes — the four other spec files,
+  then `touch.spec.ts` — which is what the 2026-08-02 session gated on. Worth fixing properly because
+  it costs the diagnosis on every run and it teaches a session to distrust a red gate, which is the
+  one thing the gate must never do. The likeliest real fix is to stop launching a separate server
+  process per run and serve from inside the Playwright process, or to reduce the browser's descriptor
+  appetite (fewer contexts, `--single-process`).
+
+
+- **The merged `NumberField`'s `unit` prop is the vocabulary, not the practice.** The merge kept
+  `unit` — a unit in its own span, pointed at by `aria-describedby` — precisely because baking it into
+  the label string means a units switch cannot reach it and a screen reader reads it as part of the
+  field's name. All 28 converted design-editor call sites still bake it: `` label={`Rail length (${lenU})`} ``.
+  They are correct today only because the label string is recomputed when `imperial` changes. Converting
+  them is mechanical, touches one file, and would let the accessible name stop changing with the toggle.
+
 - **`secondary`'s hover fill and `sunken`'s surface are the same token, so a secondary button on a
   sunken surface has no fill feedback.** §5 gives `secondary` `hover:bg-zinc-50`; §2's sunken surface
   IS `bg-zinc-50`. On the import drop zone — the app's first screen — "Start a new design" therefore
@@ -656,26 +709,37 @@ big for one pass. Newest first.
   `AddedPart.after` and `MovedPart.after` would both need to address a parent as well as a sibling — so it
   is worth doing once rather than twice.
 
-- **A freeform fin's outline is discarded on export, and no trapezoid can stand in for it — R6 work,
-  with the measurements already taken.** `lib/ork/export.ts` writes a `freeformfinset` as the
-  equal-area trapezoid, tip = 2·area/height − root. That solution is negative whenever the planform
-  tapers hard, and the tip is then clamped to zero with the root kept, so the exported fin is LARGER
-  in area than the one drawn. Measured 2026-07-31 over all 35 corpus designs: **8 carry a freeform
-  set and 6 of those shift static margin through a download/re-import — median 0.080 cal, worst
-  0.685 cal on `Pods--airframes and winglets.ork` (2.13 → 1.45), whose "Wings" set comes back 42%
-  bigger in area.** No design without a freeform set moves at all.
-  **Shrinking the ROOT to 2·area/height instead was built, measured and REVERTED the same day**, and
-  the reasons are the value of this entry: (1) a zero-area planform — which `planformFromPoints` can
-  produce from collinear points — writes a root of 0, and `finContribution` drops a fin set with no
-  root, so the set VANISHES from lift and drag (measured: 2.44 → 1.53 cal on the starter, ~0.9 cal
-  with no warning); (2) a fin set's `axialLength` IS its root chord, so under a `bottom` or `middle`
-  anchor a shorter root translates the planform down the tube — `Pods`' "Wings" moved **52.4 mm aft**
-  — which is an unlabelled change to a build number; and (3) the margin it produced looked better only
-  because of that displacement, since compensating the offset gives 1.28 cal, worse than either.
-  **The real fix is to stop discarding the outline**: retain the `<finpoints>` on the model at import
-  and write them back, which makes the round trip lossless instead of choosing which way to be wrong.
-  That needs `GenericFinSet` to carry the points it currently reduces away, and it belongs to R6 ("a
-  built design leaves Loft intact"). Disclosed on `/docs/limitations` with its size in the meantime.
+- **RESOLVED 2026-08-02 — a freeform fin's outline now round-trips.** The model retains the
+  outline instead of reducing it away at import, and the exporter writes `<finpoints>` back, for both
+  the OpenRocket and the RockSim reader. All **9 freeform sets across the 8 corpus designs that carry
+  one** now survive a download and re-open with static margin unchanged to three decimals — including
+  `Pods--airframes and winglets.ork`, which was the worst at 2.134 → 1.449 cal (−32%), and
+  `rocksimTestRocket2.rkt`, which had been losing its `over-stable` warning outright. The equal-area
+  trapezoid described below is still what a set with NO outline gets — an elliptical set, or a
+  freeform set read from a design an older Loft saved — so both of its tests stay, now labelled as
+  the fallback. `/docs/limitations` is updated, including why an older saved copy cannot be recovered.
+  Original entry, kept for the measurements and for the reverted alternative:
+
+  > - **A freeform fin's outline is discarded on export, and no trapezoid can stand in for it — R6 work,
+  > with the measurements already taken.** `lib/ork/export.ts` writes a `freeformfinset` as the
+  > equal-area trapezoid, tip = 2·area/height − root. That solution is negative whenever the planform
+  > tapers hard, and the tip is then clamped to zero with the root kept, so the exported fin is LARGER
+  > in area than the one drawn. Measured 2026-07-31 over all 35 corpus designs: **8 carry a freeform
+  > set and 6 of those shift static margin through a download/re-import — median 0.080 cal, worst
+  > 0.685 cal on `Pods--airframes and winglets.ork` (2.13 → 1.45), whose "Wings" set comes back 42%
+  > bigger in area.** No design without a freeform set moves at all.
+  > **Shrinking the ROOT to 2·area/height instead was built, measured and REVERTED the same day**, and
+  > the reasons are the value of this entry: (1) a zero-area planform — which `planformFromPoints` can
+  > produce from collinear points — writes a root of 0, and `finContribution` drops a fin set with no
+  > root, so the set VANISHES from lift and drag (measured: 2.44 → 1.53 cal on the starter, ~0.9 cal
+  > with no warning); (2) a fin set's `axialLength` IS its root chord, so under a `bottom` or `middle`
+  > anchor a shorter root translates the planform down the tube — `Pods`' "Wings" moved **52.4 mm aft**
+  > — which is an unlabelled change to a build number; and (3) the margin it produced looked better only
+  > because of that displacement, since compensating the offset gives 1.28 cal, worse than either.
+  > **The real fix is to stop discarding the outline**: retain the `<finpoints>` on the model at import
+  > and write them back, which makes the round trip lossless instead of choosing which way to be wrong.
+  > That needs `GenericFinSet` to carry the points it currently reduces away, and it belongs to R6 ("a
+  > built design leaves Loft intact"). Disclosed on `/docs/limitations` with its size in the meantime.
 
 - **`Parachute.area` is the one mass- or drag-relevant field the `.ork` export still drops.** Read at
   `lib/sim/setup.ts` and `lib/sim/simulate.ts` as `c.area ?? π(d/2)²`, so a design carrying an explicit

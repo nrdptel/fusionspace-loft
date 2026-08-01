@@ -406,6 +406,11 @@ function parseComponent(
         thickness: n(node, "Thickness", 0) * MM || 0.003,
         crossSection: finCrossSection(Math.round(n(node, "TipShapeCode", 0))),
         cpChord: p.cpChord > 0 ? p.cpChord * MM : undefined,
+        // The outline itself, converted to the model's metres, so an export can write the shape back
+        // instead of an equal-area trapezoid. `<PointList>` is RockSim's spelling of the same closed
+        // polygon OpenRocket writes as `<finpoints>`; both reduce through `planformFromPoints`, and
+        // that reduction is one-way.
+        points: pts.length >= 3 ? pts.map((pt) => ({ x: pt.x * MM, y: pt.y * MM })) : undefined,
         children: attached(node, ctx, useKnownMass),
       };
       break;

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import ImportPanel from "./ImportPanel";
 import ResultsView, { type Workspace } from "./ResultsView";
-import { Button, Card, Segmented } from "./ui";
+import { Button, Card, NumberField, Segmented } from "./ui";
 import { importDesign, sourceTool, type OrkDocument } from "@/lib/ork/import";
 import { newDesign } from "@/lib/model/starter";
 import { exportOrk } from "@/lib/ork/export";
@@ -115,7 +115,7 @@ import {
 } from "@/lib/session";
 import { mToFt, ftToM, mpsToMph, mphToMps, radToDeg } from "@/lib/units";
 import { TOUCH_TARGET } from "@/lib/ui-tokens";
-import { listWords, rangeWords, refusedMessage } from "@/lib/what-if";
+import { listWords } from "@/lib/what-if";
 import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
 
@@ -2106,7 +2106,7 @@ function DesignEditor({
                     </label>
                   )}
                   {designDims.motorClusterCount !== undefined && (
-                    <Num
+                    <NumberField
                       label="Motor cluster"
                       value={edits.motorClusterCount ?? ""}
                       placeholder={String(designDims.motorClusterCount)}
@@ -2161,7 +2161,7 @@ function DesignEditor({
                   </p>
                 )}
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                  <Num
+                  <NumberField
                     label={`Fin span (${spanU})`}
                     value={toDispSpan(edits.finSpan)}
                     placeholder={toDispSpan(designDims.finSpan)}
@@ -2170,7 +2170,7 @@ function DesignEditor({
                   positive
                   />
                   {designDims.finCount !== undefined && (
-                    <Num
+                    <NumberField
                       label="Fin count"
                       value={edits.finCount ?? ""}
                       placeholder={String(designDims.finCount)}
@@ -2185,7 +2185,7 @@ function DesignEditor({
                     />
                   )}
                   {designDims.finRootChord !== undefined && (
-                    <Num
+                    <NumberField
                       label={`Fin root (${spanU})`}
                       value={toDispSpan(edits.finRootChord)}
                       placeholder={toDispSpan(designDims.finRootChord)}
@@ -2195,7 +2195,7 @@ function DesignEditor({
                     />
                   )}
                   {designDims.finTipChord !== undefined && (
-                    <Num
+                    <NumberField
                       label={`Fin tip (${spanU})`}
                       value={toDispSpan(edits.finTipChord)}
                       placeholder={toDispSpan(designDims.finTipChord)}
@@ -2205,7 +2205,7 @@ function DesignEditor({
                     />
                   )}
                   {designDims.finSweepLength !== undefined && (
-                    <Num
+                    <NumberField
                       label={`Fin sweep (${spanU})`}
                       value={toDispSpan(edits.finSweepLength)}
                       placeholder={toDispSpan(designDims.finSweepLength)}
@@ -2214,7 +2214,7 @@ function DesignEditor({
                     />
                   )}
                   {designDims.finStation !== undefined && (
-                    <Num
+                    <NumberField
                       label={`Fin position (${spanU})`}
                       value={toDispSpan(edits.finStation)}
                       placeholder={toDispSpan(designDims.finStation)}
@@ -2224,7 +2224,7 @@ function DesignEditor({
                     />
                   )}
                   {designDims.finThickness !== undefined && (
-                    <Num
+                    <NumberField
                       label={`Fin thickness (${spanU})`}
                       value={toDispThick(edits.finThickness)}
                       placeholder={toDispThick(designDims.finThickness)}
@@ -2315,7 +2315,7 @@ function DesignEditor({
                 )}
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                   {designDims.noseLength !== undefined && (
-                    <Num
+                    <NumberField
                       label={`Nose length (${spanU})`}
                       value={toDispSpan(edits.noseLength)}
                       placeholder={toDispSpan(designDims.noseLength)}
@@ -2345,7 +2345,7 @@ function DesignEditor({
                     </label>
                   )}
                   {designDims.bodyLength !== undefined && (
-                    <Num
+                    <NumberField
                       label={`Body length (${spanU})`}
                       value={toDispSpan(edits.bodyLength)}
                       placeholder={toDispSpan(designDims.bodyLength)}
@@ -2355,7 +2355,7 @@ function DesignEditor({
                     />
                   )}
                   {designDims.bodyDiameter !== undefined && (
-                    <Num
+                    <NumberField
                       label={`Body diameter (${spanU})`}
                       value={toDispSpan(edits.bodyDiameter)}
                       placeholder={toDispSpan(designDims.bodyDiameter)}
@@ -2368,7 +2368,7 @@ function DesignEditor({
                       touched — 12 of the 35 corpus designs carry one, 25 in all. Shown only when the
                       design has one to hold: a field for a part that is not there teaches nothing. */}
                   {designDims.transitionLength !== undefined && (
-                    <Num
+                    <NumberField
                       label={`Transition length (${spanU})`}
                       value={toDispSpan(edits.transitionLength)}
                       placeholder={toDispSpan(designDims.transitionLength)}
@@ -2378,7 +2378,7 @@ function DesignEditor({
                     />
                   )}
                   {designDims.transitionAftDiameter !== undefined && (
-                    <Num
+                    <NumberField
                       label={`Transition exit (${spanU})`}
                       value={toDispSpan(edits.transitionAftDiameter)}
                       placeholder={toDispSpan(designDims.transitionAftDiameter)}
@@ -2388,7 +2388,7 @@ function DesignEditor({
                     />
                   )}
                   {designDims.bodyDiameter !== undefined && (
-                    <Num
+                    <NumberField
                       label={`Boattail length (${spanU})`}
                       value={toDispSpan(edits.boattailLength)}
                       placeholder="0"
@@ -2397,7 +2397,7 @@ function DesignEditor({
                     />
                   )}
                   {designDims.bodyDiameter !== undefined && (
-                    <Num
+                    <NumberField
                       label={`Boattail exit (${spanU})`}
                       value={toDispSpan(edits.boattailAftDiameter)}
                       placeholder={`< ${toDispSpan(designDims.boattailFairsTo ?? designDims.bodyDiameter)}`}
@@ -2428,7 +2428,7 @@ function DesignEditor({
                 </p>
               )}
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                <Num
+                <NumberField
                   label="Recovery size (×)"
                   value={edits.recoveryCdScale ?? ""}
                   placeholder="1"
@@ -2441,7 +2441,7 @@ function DesignEditor({
                     onEdit({ recoveryCdScale: n !== undefined && n > 0 ? n : undefined });
                   }}
                 />
-                <Num
+                <NumberField
                   label={`Main deploy alt (${lenU})`}
                   value={toDispLen(edits.mainDeployAltitude)}
                   placeholder="apogee"
@@ -2449,7 +2449,7 @@ function DesignEditor({
                 min={0}
                 positive
                 />
-                <Num
+                <NumberField
                   label={`Drogue Ø (${spanU})`}
                   value={toDispSpan(edits.drogueDiameter)}
                   placeholder="0"
@@ -2457,7 +2457,7 @@ function DesignEditor({
                 min={0}
                 />
                 {designDims.mainParachuteDiameter !== undefined && (
-                  <Num
+                  <NumberField
                     label={`Main chute Ø (${spanU})`}
                     value={toDispSpan(edits.mainParachuteDiameter)}
                     placeholder={toDispSpan(designDims.mainParachuteDiameter)}
@@ -2485,7 +2485,7 @@ function DesignEditor({
               )}
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                 {designDims.massObjectMass !== undefined && (
-                  <Num
+                  <NumberField
                     label={`Mass (${massU})`}
                     value={toDispMass(edits.massObjectMass)}
                     placeholder={toDispMass(designDims.massObjectMass)}
@@ -2494,7 +2494,7 @@ function DesignEditor({
                   />
                 )}
                 {designDims.massObjectStation !== undefined && (
-                  <Num
+                  <NumberField
                     label={`Mass pos (${spanU})`}
                     value={toDispSpan(edits.massObjectStation)}
                     placeholder={toDispSpan(designDims.massObjectStation)}
@@ -2502,7 +2502,7 @@ function DesignEditor({
                     min={0}
                   />
                 )}
-                <Num
+                <NumberField
                   label={`Nose ballast (${massU})`}
                   value={toDispMass(edits.ballastKg)}
                   placeholder="0"
@@ -2510,7 +2510,7 @@ function DesignEditor({
                 min={0}
                 />
                 {designDims.payloadStation !== undefined && (
-                  <Num
+                  <NumberField
                     label={`Payload (${massU})`}
                     value={toDispMass(edits.payloadMassKg)}
                     placeholder="0"
@@ -2519,7 +2519,7 @@ function DesignEditor({
                   />
                 )}
                 {designDims.payloadStation !== undefined && (
-                  <Num
+                  <NumberField
                     label={`Payload pos (${spanU})`}
                     value={toDispSpan(edits.payloadStation)}
                     placeholder={toDispSpan(designDims.payloadStation)}
@@ -2686,7 +2686,7 @@ function ConditionsControls({
       </summary>
       <div className="space-y-4 border-t border-zinc-100 px-4 py-4 dark:border-zinc-800">
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <Num
+          <NumberField
             label={`Rail length (${lenU})`}
             value={toDispLen(edits.rodLength)}
             placeholder={toDispLen(flown.rodLength)}
@@ -2696,7 +2696,7 @@ function ConditionsControls({
             max={imperial ? 66 : 20}
             hint="How much rail guides the rocket before it flies free."
           />
-          <Num
+          <NumberField
             label="Rail angle (°)"
             value={edits.rodAngleDeg ?? ""}
             placeholder={d.fmtEditable(flown.rodAngleDeg, 1)}
@@ -2706,7 +2706,7 @@ function ConditionsControls({
             step={1}
             hint="Tilt from vertical, 0–45°. Past that the rocket is being thrown rather than launched, and the ascent model no longer describes it."
           />
-          <Num
+          <NumberField
             label={`Surface wind (${spdU})`}
             value={toDispSpd(edits.windSpeed)}
             // null means today's weather is flying a whole profile rather than one surface wind, so
@@ -2718,7 +2718,7 @@ function ConditionsControls({
             max={imperial ? 90 : 40}
             hint="Wind speed at the pad. Direction is a separate thing — a negative speed is not a wind from the other side."
           />
-          <Num
+          <NumberField
             label={`Field elev. (${lenU})`}
             value={toDispLen(edits.launchAltitude)}
             placeholder={toDispLen(flown.launchAltitude)}
@@ -2750,7 +2750,12 @@ function ConditionsControls({
           // an empty `<SimulationList/>`; a note claiming the design specifies none of them would be
           // flatly false about the file, which is worse than the silence this replaced. The reading
           // gap itself is a real bug and is in BACKLOG.md with this file named.
-          <p className="text-xs text-amber-700 dark:text-amber-400">
+          // Decision-grade by the rule P1 increment 4 set: a sentence whose purpose is to change what
+          // the flyer does NEXT takes the body default. This one says a number they are about to
+          // trust came from Loft rather than from their file — the same shape as the mould-line step
+          // and stated-mass notices that rule promoted — and the code already treats it as a warning
+          // (amber) while the type scale filed it as a footnote.
+          <p className="text-sm text-amber-700 dark:text-amber-400">
             Loft read no {listWords(defaultedNames)} from this design, so{" "}
             {defaultedNames.length === 1 ? "that field is" : "those are"} its own default.
           </p>
@@ -2819,184 +2824,3 @@ function ConditionsControls({
  *  figure computed from a rail angle of 120° or a fin count of zero is worse than no figure. The
  *  bounds reach the browser (validation, spinners, the mobile keypad) and are enforced on commit,
  *  so a typed or pasted value lands inside them and the field shows what was actually flown. */
-function Num({
-  label,
-  value,
-  placeholder,
-  onChange,
-  disabled,
-  min,
-  max,
-  step,
-  hint,
-  positive,
-}: {
-  label: string;
-  value: string | number;
-  placeholder?: string;
-  onChange: (v: string) => void;
-  disabled?: boolean;
-  min?: number;
-  max?: number;
-  step?: number;
-  /** What the range means, in the flyer's words — shown as the field's tooltip. */
-  hint?: string;
-  /** The field describes a part that has to be THERE: a rail with length, a tube with a diameter,
-   *  a fin with thickness. Zero is not a small value of any of those, and the model will not fly
-   *  one — so the field refuses it in words rather than handing over a number that gets dropped
-   *  somewhere the flyer cannot see. Leave it off wherever zero is a real answer: a fin sweep of
-   *  zero is a straight leading edge, and a payload at station zero sits at the top of the tube. */
-  positive?: boolean;
-}) {
-  const ref = useRef<HTMLInputElement>(null);
-  // What the box shows. It is NOT simply `value`: while the field has focus the flyer owns the
-  // text, so it can pass through states the model would reject ("1" on the way to "12", or "-" on
-  // the way to "-3"). The moment focus leaves it goes back to what is being flown — see the effect.
-  const [draft, setDraft] = useState(String(value ?? ""));
-  // The entry that was refused, kept only to say so. Cleared as soon as the flyer types again.
-  const [refused, setRefused] = useState<string | null>(null);
-  // What that message's "flying …" named when it was written. A refusal is about ONE entry against
-  // ONE value in the flight, and it has to outlive the commit that raised it — the box has already
-  // resynced by then — but not outlive the flight it describes. Without this the field kept its
-  // amber border, `aria-invalid` and a live `role="alert"` through "Reset to as-designed" and
-  // through a unit switch, still quoting the old value in the old units, and the only way to clear
-  // it was to focus that exact box and type: a state a flyer can walk into with no way back out.
-  // `null` is "not latched yet"; the latched value is whatever `flown` was, which is `undefined` on
-  // a field with no placeholder and nothing edited — a real state, and distinct from not-latched.
-  const against = useRef<string | undefined | null>(null);
-
-  // What the flight is actually using: the committed edit if there is one, else the design's own
-  // value, which is what the placeholder shows. Naming it is the whole point of the message — the
-  // complaint is not that the entry was refused, it is not knowing what is being flown instead.
-  const flown = String(value ?? "") || placeholder;
-
-  // The field must never sit there showing a number that is not the one in the flight. It could:
-  // the input is controlled by `value`, and an entry the model refuses leaves `value` unchanged, so
-  // React sees the same prop, never re-renders the node, and the refused text stays on screen —
-  // typing -3 into Fin span left "-3" in the box while the design's own 19 mm went on being flown,
-  // with nothing saying so. Re-syncing whenever the field is not focused converges on the truth
-  // however the parent resolved the entry: accepted, clamped, or dropped.
-  useEffect(() => {
-    if (document.activeElement !== ref.current) setDraft(String(value ?? ""));
-    // Latch on the render AFTER the refusal, so it records where the commit LEFT the flight rather
-    // than where it found it — `commit` can call `onChange` on its way out, and React batches that
-    // with `setRefused` into one render.
-    if (refused === null) against.current = null;
-    else if (against.current === null) against.current = flown;
-    else if (against.current !== flown) setRefused(null);
-  });
-
-  /** Would this entry be refused or pulled to a bound? Then it must not reach the model even in
-   *  passing.
-   *
-   *  Typing pushes every keystroke at the flight, and the range was applied only at the COMMIT — so
-   *  between the keystroke and the blur the solver was flying a number the field itself calls
-   *  impossible. Measured on the 38 mm sample: typing −5 into Rail length put "Rail-exit velocity
-   *  0 m/s" on the pad-check surface, with no refusal shown, for as long as the flyer left the cursor
-   *  in the box. That is the one number a pad check turns on. It also left an impossible value sitting
-   *  in the edit bag, which undo could later restore as though it had been a state worth returning to.
-   *
-   *  Digit-by-digit entry is untouched: "1" on the way to "12" is inside the range and lands as before.
-   *  What is withheld is a COMPLETE number the field would not accept — the same rule the commit path
-   *  applies, asked one step earlier. The literal zero on a positive field was already withheld this
-   *  way; this is that rule generalised rather than a new one. */
-  const wouldNotFly = (raw: string) => {
-    if (raw === "") return false;
-    const n = Number(raw);
-    if (!Number.isFinite(n)) return true;
-    const bounded = min !== undefined && n < min ? min : max !== undefined && n > max ? max : n;
-    return bounded !== n || (positive === true && bounded <= 0);
-  };
-
-  /** Commit the typed text. Returns what the model was asked for, which is not always what was
-   *  typed: a value outside the range is pulled to the nearest bound rather than refused outright,
-   *  because the flyer's intent ("as thin as it goes") is legible and a bound is a real answer. */
-  const commit = (raw: string) => {
-    if (raw === "") {
-      // Blank means "use the design's own value", never zero.
-      setRefused(null);
-      onChange("");
-      return;
-    }
-    const n = Number(raw);
-    if (!Number.isFinite(n)) {
-      setRefused(raw);
-      return;
-    }
-    const bounded = min !== undefined && n < min ? min : max !== undefined && n > max ? max : n;
-    // Zero on a field that needs a part to be there is REFUSED, not pulled to a bound — there is no
-    // nearest legal value to pull it to, and the model would take it and drop it. Dropping it is
-    // what the flyer never sees: entering 0 for the rail length used to fly a rail no rocket ever
-    // leaves and print "Rail-exit velocity 0 m/s" beside it, which is the one number a pad check
-    // turns on. Refusing it says which value is actually in the flight instead.
-    if (positive && bounded === 0) {
-      setRefused(raw);
-      // Nothing to undo at the model: `wouldNotFly` withheld this entry at the keystroke, so it never
-      // reached the flight and there is nothing of it to blank. Blanking anyway is what the earlier
-      // version had to do — a negative DID reach the model then — and doing it now would throw away a
-      // good edit the flyer made earlier and typed over: a committed 25 mm fin span, one "-3" and a
-      // Tab, and the 25 would be gone with only the global reset to bring anything back. The box
-      // re-syncs to what is flown on its own; the message above says which value that is.
-      return;
-    }
-    setRefused(bounded !== n ? raw : null);
-    if (String(bounded) !== raw) onChange(String(bounded));
-  };
-
-  // A bound the field doesn't have is said in words, not left as a dash. Most of these fields are
-  // floored at zero and open above — a dimension has no upper limit the editor can name — and
-  // "0 to –" reads as a range that failed to load rather than as "no maximum". Shared with the
-  // analysis panels' number field so the two never say it differently.
-  const ranged = rangeWords(min, max, positive);
-  const msgId = `${label.replace(/[^a-z]+/gi, "-").toLowerCase()}-refused`;
-
-  return (
-    <label className="block" title={hint ?? (ranged ? `${label}: ${ranged}` : undefined)}>
-      <span className="block text-[11px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">{label}</span>
-      <input
-        ref={ref}
-        type="number"
-        inputMode="decimal"
-        value={draft}
-        placeholder={placeholder}
-        disabled={disabled}
-        min={min}
-        max={max}
-        step={step}
-        aria-invalid={refused !== null || undefined}
-        aria-describedby={refused !== null ? msgId : undefined}
-        // Typing is left alone so a value can be entered digit by digit ("1" on the way to "12");
-        // the range is applied when the field is committed — blurred, or Enter pressed.
-        onChange={(e) => {
-          setDraft(e.target.value);
-          setRefused(null);
-          // A value this field would not accept never reaches the flight, not even in passing. This
-          // fires on every keystroke, so without it "0" on the way to "0.5" reaches the model — and a
-          // zero that lands counts as an edit, which is enough on its own to withhold the stored-tool
-          // comparison for a change that changed nothing — while a typed −5 flew a rail no rocket
-          // leaves and printed 0 m/s beside it. The commit path below says so in words.
-          if (wouldNotFly(e.target.value)) return;
-          onChange(e.target.value);
-        }}
-        onBlur={(e) => commit(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key !== "Enter") return;
-          commit(e.currentTarget.value);
-        }}
-        // A what-if field is the control a flyer uses most, and the stated phone use is a pad check
-        // with gloves on: 34 px was under the project's own 44 px touch minimum. Released back to
-        // the design's density on a pointer layout, like every other target here.
-        className={`mt-1 w-full rounded-md border bg-white px-2.5 py-1.5 font-mono text-sm text-zinc-800 outline-none disabled:opacity-50 dark:bg-zinc-900 dark:text-zinc-100 ${TOUCH_TARGET} ${
-          refused !== null
-            ? "border-amber-500 focus:border-amber-500 dark:border-amber-500"
-            : "border-zinc-300 focus:border-indigo-400 dark:border-zinc-700"
-        }`}
-      />
-      {refused !== null && (
-        <span id={msgId} role="alert" className="mt-1 block text-[11px] text-amber-700 dark:text-amber-400">
-          {refusedMessage(refused, ranged, flown)}
-        </span>
-      )}
-    </label>
-  );
-}
