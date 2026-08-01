@@ -12,6 +12,24 @@ this file, and deliberately does **not** cap craft or product work, because that
 track in `ROADMAP.md` with its own *done when*. Rough edges, missing affordances, and findings too
 big for one pass. Newest first.
 
+- **Saving a design breaks the parachute-resize control, and the obvious fix is wrong — measured.**
+  `lib/ork/export.ts` writes `<overridemass>` equal to the computed canopy mass whenever a canopy has
+  no override of its own, on 24 canopies across 18 corpus designs. `lib/sim/mass.ts` prefers
+  `overrideMass`, so after a round trip the builder's main-parachute diameter field no longer re-masses
+  anything: on `A simple model rocket.ork`, resizing the main 1.5× moves total canopy mass 7.98 g →
+  17.95 g as imported, and 7.98 g → 7.98 g after a download and re-open. A control that visibly does
+  nothing is worse than one that is absent.
+
+  **It is NOT a gratuitous workaround, which is what it looks like.** Removing the invented override
+  was tried on 2026-08-02 and the canopy mass fell 7.976 g → 4.736 g on that same design: the exporter
+  writes the parachute's material and its packed dimensions, and the importer still computes a
+  different mass from them, so the override is currently the only thing holding the figure up. **The
+  work is to find out why those two disagree** — the ratio there is 1.684, which is not obviously a
+  unit or a shape factor — and to make the computed mass match the stated one, at which point the
+  override can go and the resize starts working again. Fixing it by clearing `overrideMass` inside the
+  resize instead would be wrong in the other direction: a flyer who states "my chute weighs 40 g" has
+  made a measurement, and a resize should not silently discard it.
+
 - **The e2e run exhausts the box's file descriptors, and the failures it causes look like product
   regressions.** `npm run test:e2e` serves `out/` with `npx serve`; partway through a full run the
   server dies with `EMFILE: too many open files`, and every test still to start fails on

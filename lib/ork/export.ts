@@ -194,7 +194,17 @@ function motorMountXml(mountId: string, overhang: number, motors: MotorsByMount,
         `${pad}    <designation>${esc(m.designation)}</designation>\n` +
         `${pad}    <diameter>${num(m.diameter)}</diameter>\n` +
         `${pad}    <length>${num(m.length)}</length>\n` +
-        (m.delay !== undefined ? `${pad}    <delay>${num(m.delay)}</delay>\n` : "") +
+        // A plugged motor carries NO ejection charge, which OpenRocket spells `<delay>none</delay>` and
+        // the importer reads back as `plugged`. Its `delay` is NaN, and `num()` maps NaN to "0" — so
+        // writing the number turned "this motor cannot deploy anything" into "it fires at burnout".
+        // 42 motor instances across 10 corpus designs, two of which (`Two stage high power rocket.ork`,
+        // `FullScaleModelTH.rkt`) carry recovery devices set to `ejection` alongside a plugged motor,
+        // where the difference decides whether the flight is reported as coming in ballistic.
+        (m.plugged
+          ? `${pad}    <delay>none</delay>\n`
+          : m.delay !== undefined && Number.isFinite(m.delay)
+            ? `${pad}    <delay>${num(m.delay)}</delay>\n`
+            : "") +
         `${pad}  </motor>\n`
       );
     })

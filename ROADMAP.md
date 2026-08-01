@@ -917,6 +917,21 @@ The equal-area trapezoid is still what a set with NO outline gets — an ellipti
 set read from a design an older Loft saved — so its two tests stay, relabelled as the fallback.
 `/docs/limitations` is rewritten, including why a design saved by an older copy cannot be recovered.
 
+**Fourth slice, 2026-08-02 — a plugged motor stays plugged.** A plugged motor carries no ejection
+charge at all; OpenRocket spells it `<delay>none</delay>` and the importer reads it back as `plugged`.
+Its `delay` is NaN and `num()` maps NaN to "0", so the round trip turned "this motor cannot deploy
+anything" into "it fires at burnout" — 42 instances across 10 designs, two of which carry recovery
+devices set to `ejection` alongside a plugged motor, where the difference decides whether the flight is
+reported as coming in ballistic. All 42 survive now.
+
+**And one slice deliberately NOT taken, with the measurement that says why.** The exporter invents an
+`<overridemass>` for every canopy without one (24 canopies, 18 designs), which then defeats the
+builder's parachute resize — the control still moves and nothing re-masses. It reads like a gratuitous
+workaround and it is not: removing it drops `A simple model rocket.ork`'s canopy from 7.976 g to
+4.736 g, because the importer computes a different mass from the material and packed dimensions the
+exporter faithfully writes. The real work is finding out why those two disagree. Filed in `BACKLOG.md`
+with both numbers so the next session does not re-derive the dead end.
+
 **What the milestone's own *done when* needs next**, measured rather than guessed: on the first
 export → re-import, **0 of 36** designs (35 corpus + the authored starter) reach a byte-equivalent
 model — 11 field diffs at best, 146 at worst; the model becomes a fixpoint only on the SECOND trip. So

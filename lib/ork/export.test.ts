@@ -532,6 +532,41 @@ describe("exportOrk — real-design features round-trip (regression)", () => {
     expect(apogees(back)).toEqual(flown);
   });
 
+  it("keeps a plugged motor plugged, rather than giving it a 0 s delay", async () => {
+    // A plugged motor carries NO ejection charge — it is flown with altimeter deployment — which
+    // OpenRocket spells `<delay>none</delay>` and the importer reads back as `plugged`. Its `delay` is
+    // NaN, and the exporter's `num()` maps NaN to "0", so a round trip turned "this motor cannot
+    // deploy anything" into "it fires at burnout": 42 motor instances across 10 corpus designs, two of
+    // which carry recovery devices set to `ejection` alongside a plugged motor, where the difference
+    // decides whether the flight is reported as coming in ballistic.
+    const doc = newDesign();
+    const cfg = doc.rocket.configurations[0];
+    const plugged: OrkDocument = {
+      ...doc,
+      rocket: {
+        ...doc.rocket,
+        configurations: [
+          {
+            ...cfg,
+            instances: cfg.instances.map((i) => ({
+              ...i,
+              motor: { ...i.motor, delay: NaN, plugged: true },
+            })),
+          },
+        ],
+      },
+    };
+
+    const back = await roundtrip(plugged);
+    const motors = back.rocket.configurations.flatMap((c) => c.instances).map((i) => i.motor);
+    expect(motors.length).toBeGreaterThan(0);
+    for (const m of motors) {
+      expect(m.plugged).toBe(true);
+      // And specifically NOT a real 0 s delay, which is a deployment at maximum velocity.
+      expect(m.delay === 0).toBe(false);
+    }
+  });
+
   it("keeps a stated launch weight un-deletable after the round trip", async () => {
     // A RASAero file states one launch weight and no per-part masses, so its whole mass is a single
     // point mass and `removalRefusal` refuses to delete it — removing it leaves a rocket with no mass
