@@ -1252,13 +1252,13 @@ test.describe("Loft", () => {
     const firstMotor = async () => (await panel.locator("tbody tr").first().innerText()).split(/\s|·/)[0];
     // Default is apogee, biggest first.
     const highest = await firstMotor();
-    await panel.getByRole("button", { name: /^Apogee/ }).click();
+    await panel.getByRole("button", { name: /^Sort by Apogee/ }).click();
     const lowest = await firstMotor();
     expect(lowest).not.toBe(highest);
 
     // A different column orders on its own terms, and the header says which way. (Delay tracks
     // apogee — a faster motor coasts longer — so this checks the column itself, not the row order.)
-    await panel.getByRole("button", { name: /^Delay/ }).click();
+    await panel.getByRole("button", { name: /^Sort by Delay/ }).click();
     await expect(panel.locator('th[aria-sort="descending"]')).toHaveCount(1);
     const delays = (await panel.locator("tbody tr td:last-child").allInnerTexts()).map((t) => parseFloat(t));
     expect(delays.length).toBeGreaterThan(3);
@@ -1318,7 +1318,7 @@ test.describe("Loft", () => {
     const motors = page.getByRole("region", { name: "Motor sweep" });
     await motors.getByRole("button", { name: /Run motor sweep/ }).click();
     await expect(motors.locator("tbody tr").first()).toBeVisible();
-    await motors.getByRole("button", { name: /^Flutter/ }).click();
+    await motors.getByRole("button", { name: /^Sort by Flutter/ }).click();
 
     await page.reload();
     await expect(page.getByText(/Picked up where you left off/)).toBeVisible({ timeout: 30_000 });
@@ -1329,7 +1329,7 @@ test.describe("Loft", () => {
     await motors.getByRole("button", { name: /Run motor sweep/ }).click();
     await expect(motors.locator("tbody tr").first()).toBeVisible();
     // The flutter column is the one sorted, still descending.
-    const flutterHeader = motors.locator("th", { has: page.getByRole("button", { name: /^Flutter/ }) });
+    const flutterHeader = motors.locator("th", { has: page.getByRole("button", { name: /^Sort by Flutter/ }) });
     await expect(flutterHeader).toHaveAttribute("aria-sort", "descending");
   });
 
@@ -1379,7 +1379,7 @@ test.describe("Loft", () => {
     await expect(motors.locator("tbody tr").first()).toBeVisible();
     // Sort by a column too: a re-run comes back in the default order, so this covers the view the
     // flyer set up and not only the numbers in it.
-    await motors.getByRole("button", { name: /^Delay/ }).click();
+    await motors.getByRole("button", { name: /^Sort by Delay/ }).click();
     await expect(motors.locator('th[aria-sort="descending"]')).toHaveCount(1);
     const rowsBefore = await motors.locator("tbody tr").allInnerTexts();
     expect(rowsBefore.length).toBeGreaterThan(3);

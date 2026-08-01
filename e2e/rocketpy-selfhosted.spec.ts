@@ -151,7 +151,12 @@ const REAL_TRACEBACK = [
 test.describe("when the second solver stops", () => {
   // A phone, because the traceback's longest frame path is one unbreakable 86-character token and
   // the damage it did was to the page's width, not just to this panel.
-  test.use({ viewport: { width: 390, height: 844 } });
+  // A phone, declared as one. It used to set only the VIEWPORT, which made Chromium report
+  // `pointer: fine` — so the 44 px assertions below were passing off the old width-keyed
+  // `TOUCH_TARGET` (`min-h-11 sm:min-h-0`) rather than off the touch contract they name. With the
+  // token keyed on `pointer: coarse` (`DESIGN.md` §8's actual words) a narrow desktop window is
+  // correctly no longer a phone, and these have to say which they meant.
+  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 
   type Page = import("@playwright/test").Page;
   /** What the stand-in worker replies with next. The engine keeps ONE warm worker per page, so a
@@ -293,7 +298,12 @@ test.describe("when the second solver stops", () => {
   test.describe("stopping a run in flight", () => {
     // A phone, because that is where the running row had nothing to spare: the stage label and its
     // aside already filled 390 px, so a Stop beside them is only safe if the row wraps.
-    test.use({ viewport: { width: 390, height: 844 } });
+    // A phone, declared as one. It used to set only the VIEWPORT, which made Chromium report
+  // `pointer: fine` — so the 44 px assertions below were passing off the old width-keyed
+  // `TOUCH_TARGET` (`min-h-11 sm:min-h-0`) rather than off the touch contract they name. With the
+  // token keyed on `pointer: coarse` (`DESIGN.md` §8's actual words) a narrow desktop window is
+  // correctly no longer a phone, and these have to say which they meant.
+  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 
     /** A stand-in worker that reports it has started and then never answers, so the run stays in
      *  flight for as long as the test needs. It counts its own constructions and terminations, since

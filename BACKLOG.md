@@ -21,6 +21,85 @@ big for one pass. Newest first.
   owed to both repos. Measured 2026-08-01 against the built export: button and zone both
   `oklch(.985 0 0)` at rest and hovered.
 
+- **Six controls are still under 44 px on a phone, in BOTH orientations**, measured on a Pixel 7
+  against the built export after the pointer-keyed touch fix landed on 2026-08-01. Each is its own
+  decision, which is why they are filed rather than swept: the **wordmark** link home (37×28 portrait,
+  56×36 landscape — `touch.spec.ts` already exempts it as "a heading that happens to link home", and
+  that exemption is arguable now that it is the only way back to `/` from a docs route); the
+  **footer's short nav links** (`Docs` at 33×44 — `TOUCH_TARGET` supplies the height and there is no
+  width minimum, so a short label fails on width alone); the **skip link** (32×16 hidden, 100×20
+  focused); and **inline prose links** in the docs (`ThrustCurve.org` 109×18, `OpenRocket` 84×18),
+  which carry WCAG 2.5.8's "inline in a block of text" exemption and are correctly left alone. A
+  width minimum on the footer links is the one worth taking first.
+
+- **Two hover-only states, which `DESIGN.md` §8 forbids outright.** Both are the same `↗`
+  external-link glyph at `opacity-0 transition group-hover:opacity-100` —
+  `components/FusionSpaceBadge.tsx` in the header and `components/Footer.tsx` in the "A Fusion Space
+  project" lockup. On a phone they are permanently invisible, so the one affordance saying the link
+  leaves the app never appears on the form factor where leaving is most disruptive.
+
+- **Three docs routes are 19–31 screens deep on a phone**, measured at 390 px:
+  `/docs/limitations` 26,314 px (**31.4 screens**), `/docs/methods` 24,471 px (29.2), `/docs/faq`
+  16,457 px (19.6) with 27 questions as `h3` under a single `h2`. §8 says a phone journey is at most
+  two screens to its answer. These are articles rather than journeys so the rule is arguable — the
+  previous run filed that judgement too — but what makes it actionable now is that **none of the
+  headings carries an `id`**, so there is no anchor, no in-page table of contents and no way to link
+  a flyer to a specific limitation. Heading ids plus a per-route contents list is the cheap half; a
+  `<details>` accordion on the FAQ is the other.
+
+- **The parts-diagram pick targets are 7–11 px tall on a phone.** `RocketDiagram`'s per-component
+  `<path>` overlays render 66×10.3, 101×10.3 and 129×10.3 px at 390 px (7.8 px tall at 320 px), and
+  the internal mass-object markers are `<circle r={3.5}>` — 7×7 px — while being tappable. The three
+  fin/geometry DRAG handles are exactly 44×44 at every width because they carry a transparent hit
+  circle under the 7 px visual; the pick overlays never got the same treatment. The parts TABLE is
+  the working path on a phone, so this is a second route to the same action rather than the only one.
+
+- **The design-system audit's top finding, and §9's greps cannot see any of it: `app/globals.css`
+  restates the type scale in raw rem.** `.prose-loft` sets body `0.925rem` (~14.8 px), `h2` `1.2rem`
+  (19.2 px) and table text `0.85rem` (13.6 px) — three sizes that are on no part of `DESIGN.md` §3's
+  six-size scale — and **every one of the six docs routes renders entirely inside that class**, while
+  `offScaleType` asserts 0 because it matches class NAMES. The same file restates the neutral ramp in
+  raw hex at seven sites (`#3f3f46`, `#f4f4f5`, `#a5b4fc`, `#27272a`). This is the same blind spot that
+  let `.eqn` render an 8 px radius while the off-system-radius count read zero. Fixing it is a P-track
+  slice; extending the executable check to parse the stylesheet's declared values rather than its class
+  names is the part that stops it coming back.
+
+- **Six of `DESIGN.md` §5's named primitives do not exist at all**: `Panel`, `Readout`, `Figure`,
+  `EmptyState`, `ErrorState`, `Extrapolated`. `ROADMAP.md` records this as deliberately deferred to a
+  P1 successor rather than half-built, and that stands — but two consequences are live and cheap:
+  `components/LineChart.tsx` renders the literal string **"No data."**, which §5 forbids by name, and
+  `FlightViz` and `GeometryInspector` return `null` rather than showing an empty state, so a surface
+  vanishes inside a Card whose heading stays.
+
+- **`LoftApp`'s `Num` is a second, complete numeric-input primitive** — its own draft buffer, bounds,
+  refusal message and touch target — used at **28 call sites**, while `ui.tsx`'s `NumberField` is used
+  at 7, all inside `MonteCarlo`. §5 says "every numeric input in either app is this". Converting them
+  is a P1-successor slice on its own, and the two must be reconciled before either is changed, because
+  `Num` owns the refusal behaviour the SAFETY invariant requires.
+
+- **`text-[11px]` has become a general label size on the surfaces a flyer reads numbers on.** §3 scopes
+  it to axis ticks and diagram annotations. Live counter-examples: `ResultsView`'s `Stat` label, its
+  sub-line and `WhatIfDelta`'s term; `MonteCarlo`'s four result-card titles including "Recovery radius
+  (95%)"; `Num`'s field label AND its `role="alert"` refusal message; eleven fieldset legends in the
+  design editor. None is an annotation. The executable check cannot catch these because `text-[11px]`
+  is an ALLOWED token — the rule is about WHERE, and only a reading catches it.
+
+- **Two analysis panels run a long solve with no `catch`** — `MonteCarlo` and `MotorSweep`; only
+  `ParameterSweep` has one. An exception mid-run leaves the spinner turning with no error state.
+  **Filed as sev2, not sev1, and the demotion is the point:** a screen reported this as a one-way door,
+  and driving it shows all three render `ClosePanel` while open, so there IS a way back out. The defect
+  is a missing `ErrorState`, not a trap. Reachability was checked before the severity was believed.
+
+- **Four `<select>` controls and two `<summary>` rows carry no touch target**: `ParameterSweep`'s
+  Variable and Y-axis pickers, `ResultsView`'s two flight-log unit pickers (~28 px), and the "Mass &
+  balance" and "Conditions" disclosure rows. §8's 44 px contract is on `pointer: coarse` everywhere,
+  not only where it was last measured. The two summaries have a primitive already — `Disclosure` — with
+  exactly one adopter.
+
+- **Twelve hand-rolled `<h2 className="text-xl font-medium tracking-tight">` headings**, each followed
+  by a description and a body: the exact shape of §5's `Section`, which has **zero** adopters. This is
+  the largest single un-taken conversion left after the button and table passes.
+
 - **The workspace header's design-name input is the last hand-rolled field on that row, and the button
   conversion left it visibly out of step in dark mode.** `LoftApp.tsx:1560` hand-rolls a text input at
   `bg-white dark:bg-zinc-900`; the four buttons beside it are now `Button variant="secondary"`, which
