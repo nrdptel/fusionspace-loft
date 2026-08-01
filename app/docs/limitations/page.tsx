@@ -157,9 +157,19 @@ export default function Limitations() {
         Some fields are deliberately <em>wider</em>{" "}than one part, and each says so where it sits:
         surface finish and airframe material apply to the whole tree; body diameter reads the picked
         tube but scales the entire outer mould line, so the airframe stays faired rather than stepping
-        at one tube; fin position slides every set together, keeping the design&apos;s spacing; and
-        motor cluster count applies to every mount. A boattail is anchored to the <em>aft-most</em> tube
+        at one tube; and fin position slides every set together, keeping the design&apos;s spacing. A
+        boattail is anchored to the <em>aft-most</em> tube
         whatever is picked, because a tail cone part-way up an airframe is not a tail cone.
+      </p>
+      <p>
+        <strong>Motor cluster count follows the same rule the fin fields do.</strong> It reads back off
+        one mount and writes to every mount <em>already holding that count</em> — so its value stays a
+        true statement about each mount it changes. A mount holding a different number is a part this
+        field is not describing, and the field says how many of those the design has rather than
+        rewriting them. It used to apply to every mount regardless: on a design with a centre motor and
+        an air-start pod holding three, the field read 1 and committing any value flattened the pod&apos;s
+        cluster to it. One file in the 35-design corpus has that shape. Picking a specific mount, the way
+        a fin set is picked on the diagram, is not yet possible.
       </p>
       <p>
         It matters for fins because real designs carry several sets and mean two different things by

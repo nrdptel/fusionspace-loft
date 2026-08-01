@@ -13,6 +13,8 @@ import {
   primaryFinStation,
   primaryFinChord,
   primaryMotorClusterCount,
+  primaryMountGroupIds,
+  unreachableMountCount,
   primaryFinRootChord,
   primaryFinTipChord,
   primaryFinSweep,
@@ -574,6 +576,76 @@ describe("applyGeometryEdits — motor cluster count", () => {
     expect(primaryMotorClusterCount(clustered)).toBe(4);
     const single = applyGeometryEdits(clustered, { motorClusterCount: 1 });
     expect(primaryMotorClusterCount(single)).toBe(1);
+  });
+
+  it("writes only the mounts the field's own value describes", () => {
+    // The reader takes the FIRST mount and the writer used to take ALL of them, so on a design whose
+    // mounts differ the field stated one number and changed another. Synthetic because the shape is
+    // rare — one of the 35 real designs has it (`Airstart timing.ork`: a `54mm center` holding 1
+    // beside a `38mm airstart` holding 3) — and a guard against a file shape the corpus barely
+    // contains is better proved here than by a sweep that would pass either way.
+    const base = newDesign().rocket;
+    const mounts = flattenRocket(base)
+      .map((p) => p.component)
+      .filter((c) => "motorMount" in c && c.motorMount);
+    expect(mounts.length).toBe(1);
+
+    // Give the starter a second mount already holding 3 — the air-start pod's shape.
+    const host = mounts[0] as RocketComponent & { motorMount: { overhang: number; clusterCount?: number } };
+    const pod: RocketComponent = {
+      ...structuredClone(host),
+      id: "pod",
+      name: "airstart pod",
+      motorMount: { overhang: 0, clusterCount: 3 },
+      children: [],
+    };
+    const two: Rocket = {
+      ...base,
+      stages: base.stages.map((st, i) =>
+        i === 0 ? { ...st, components: [...st.components, pod] } : st,
+      ),
+    };
+
+    const countOf = (r: Rocket, id: string) => {
+      const c = flattenRocket(r).find((p) => p.component.id === id)?.component as
+        | { motorMount?: { clusterCount?: number } }
+        | undefined;
+      return c?.motorMount?.clusterCount ?? 1;
+    };
+
+    expect(primaryMotorClusterCount(two)).toBe(1);
+    expect(primaryMountGroupIds(two).has(host.id)).toBe(true);
+    expect(primaryMountGroupIds(two).has("pod")).toBe(false);
+    expect(unreachableMountCount(two)).toBe(1);
+
+    const edited = applyGeometryEdits(two, { motorClusterCount: 2 });
+    // The mount the field described takes the new value...
+    expect(countOf(edited, host.id)).toBe(2);
+    // ...and the one it never mentioned keeps its own. Before this, it read 3 and became 2.
+    expect(countOf(edited, "pod")).toBe(3);
+  });
+
+  it("speaks for every mount when they already agree, and says so", () => {
+    const base = newDesign().rocket;
+    expect(unreachableMountCount(base)).toBe(0);
+    // Two mounts both at 1: the field's value is true of both, so both move together.
+    const host = flattenRocket(base)
+      .map((p) => p.component)
+      .find((c) => "motorMount" in c && c.motorMount)!;
+    const twin: RocketComponent = { ...structuredClone(host), id: "twin", name: "twin", children: [] };
+    const two: Rocket = {
+      ...base,
+      stages: base.stages.map((st, i) =>
+        i === 0 ? { ...st, components: [...st.components, twin] } : st,
+      ),
+    };
+    expect(unreachableMountCount(two)).toBe(0);
+    const edited = applyGeometryEdits(two, { motorClusterCount: 4 });
+    const counts = flattenRocket(edited)
+      .map((p) => p.component)
+      .filter((c) => "motorMount" in c && c.motorMount)
+      .map((c) => (c as { motorMount?: { clusterCount?: number } }).motorMount?.clusterCount ?? 1);
+    expect(counts).toEqual([4, 4]);
   });
 
   it("is a no-op when unset or below one, or the design has no motor mount", () => {

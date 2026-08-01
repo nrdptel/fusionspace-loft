@@ -42,6 +42,9 @@ import {
   aimEditsAt,
   primaryMassObject,
   primaryNose,
+  primaryMotorClusterCount,
+  primaryMountGroupIds,
+  unreachableMountCount,
 } from "../model/edit";
 import { dryMassProperties, massByComponent, statedMassHolder } from "../sim/mass";
 
@@ -523,6 +526,54 @@ suite("real-design corpus", () => {
     // Two full flights per design — the pristine one for its separation count, and the staged one —
     // so this needs the same explicit budget its neighbours take rather than the 5 s default.
   }, 300_000);
+
+  it("changes only the motor mounts the cluster field says it is changing", async () => {
+    // The field reads back off ONE mount and used to write to ALL of them, so a design whose mounts
+    // hold different counts had its unmentioned mount silently rewritten. This drives the real
+    // denominator: how many designs carry mounts that disagree, and what the edit does to them.
+    const disagreeing: string[] = [];
+    const rewritten: string[] = [];
+    let mountsSeen = 0;
+    for (const f of files) {
+      const doc = await importDesign(new Uint8Array(readFileSync(f.path)));
+      const mounts = (r: typeof doc.rocket) =>
+        flattenRocket(r)
+          .map((p) => p.component)
+          .filter((c) => "motorMount" in c && (c as { motorMount?: unknown }).motorMount !== undefined);
+      const before = mounts(doc.rocket);
+      if (!before.length) continue;
+      mountsSeen += before.length;
+      const outside = unreachableMountCount(doc.rocket);
+      if (outside > 0) {
+        disagreeing.push(
+          `${f.name}: ${outside} of ${before.length} mount(s) outside the group the field reads ` +
+            `(${primaryMotorClusterCount(doc.rocket)})`,
+        );
+      }
+      // Commit a value the field could offer and check nothing outside the group moved.
+      const group = primaryMountGroupIds(doc.rocket);
+      const after = mounts(applyGeometryEdits(doc.rocket, { motorClusterCount: 2 }));
+      const countOf = (c: (typeof after)[number]) =>
+        ((c as { motorMount?: { clusterCount?: number } }).motorMount?.clusterCount ?? 1);
+      for (let i = 0; i < before.length; i++) {
+        if (group.has(before[i].id)) continue;
+        if (countOf(after[i]) !== countOf(before[i])) {
+          rewritten.push(
+            `${f.name}: ${before[i].name} was ${countOf(before[i])}, became ${countOf(after[i])} ` +
+              `from an edit describing ${primaryMotorClusterCount(doc.rocket)}`,
+          );
+        }
+      }
+    }
+    console.log(
+      `motor mounts across ${files.length} design files: ${mountsSeen} mounts, ` +
+        `${disagreeing.length} design(s) whose mounts disagree — ${disagreeing.join("; ") || "none"}`,
+    );
+    expect(mountsSeen, "no mount was read — that branch proves nothing").toBeGreaterThan(20);
+    // The one design that has the shape must still HAVE it, or this assertion is watching nothing.
+    expect(disagreeing.length, "no real design carries mounts with different counts").toBeGreaterThan(0);
+    expect(rewritten, "a mount the field never described was rewritten by it").toEqual([]);
+  });
 
   it("finds no real design that leads with anything but a nose cone", async () => {
     // The denominator behind the blunt-face warning R4's drag made necessary. Loft takes forebody

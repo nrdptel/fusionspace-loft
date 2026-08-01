@@ -44,6 +44,7 @@ import {
   primaryFinCount,
   primaryFinStation,
   primaryMotorClusterCount,
+  unreachableMountCount,
   primaryFinRootChord,
   primaryFinTipChord,
   primaryFinSweep,
@@ -1445,11 +1446,13 @@ export default function LoftApp() {
             parachutePart: primaryParachutePart(designBase, edits.parachuteId),
             unreachableParachutes: unreachableParachuteCount(designBase),
             motorClusterCount: primaryMotorClusterCount(designBase),
+            unreachableMounts: unreachableMountCount(designBase),
             payloadStation: defaultPayloadStation(designBase, edits.bodyTubeId),
           }
         : {
             finSpan: undefined,
             unreachableFinSets: 0,
+            unreachableMounts: 0,
             finSetPart: undefined,
             finCount: undefined,
             finRootChord: undefined,
@@ -1915,6 +1918,7 @@ function DesignEditor({
   designDims: {
     finSpan?: number;
     unreachableFinSets: number;
+    unreachableMounts: number;
     finSetPart?: AimedPart;
     finCount?: number;
     finRootChord?: number;
@@ -2064,7 +2068,16 @@ function DesignEditor({
                       min={1}
                       max={12}
                       step={1}
-                      hint="How many motors the mount holds — at least one."
+                      // Say WHICH mounts this speaks for. It reads back off one mount and writes to
+                      // every mount already holding that count, so on a design whose mounts differ —
+                      // an air-start pod beside a centre motor — it is describing some of them and
+                      // not others. Saying "the mount" while changing another one is the defect this
+                      // replaces.
+                      hint={
+                        designDims.unreachableMounts > 0
+                          ? `How many motors each mount holding ${designDims.motorClusterCount} currently holds — at least one. This design has ${designDims.unreachableMounts} other motor mount${designDims.unreachableMounts === 1 ? "" : "s"} with a different count, which this field does not change.`
+                          : "How many motors the mount holds — at least one."
+                      }
                       onChange={(v) => {
                         const n = v === "" ? undefined : Math.round(Number(v));
                         onEdit({ motorClusterCount: n !== undefined && n >= 1 ? n : undefined });
