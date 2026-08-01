@@ -8,6 +8,8 @@ import { readOrkXml } from "./zip";
 import { adaptOrkXml, type OrkDocument } from "./adapt";
 import { adaptRktXml } from "../rkt/adapt";
 import { adaptRasAeroXml } from "../rasaero/adapt";
+import { airframeMassIds } from "../sim/mass";
+import type { RocketComponent } from "../model/types";
 
 export type {
   OrkDocument,
@@ -18,15 +20,37 @@ export type {
   StoredFlightPoint,
 } from "./adapt";
 
+/** Mark the point masses that stand for a whole airframe's stated weight — see `airframeMassIds`,
+ *  which explains what the mark protects and why it is derived here rather than carried in the file.
+ *
+ *  Done in the FUNNEL, once, so it holds for every format and however the design arrived. It used to
+ *  be set by hand in the RASAero adapter alone, which meant a design that left Loft as a `.ork` and
+ *  came back — the format Loft's own Download button writes — lost it, because `.ork` has nowhere to
+ *  record it. Deriving it on the way in means there is nothing to lose. */
+function markAirframeMasses(doc: OrkDocument): OrkDocument {
+  const ids = airframeMassIds(doc.rocket);
+  if (!ids.size) return doc;
+  const mark = (cs: RocketComponent[]): RocketComponent[] =>
+    cs.map((c) => ({
+      ...c,
+      ...(c.kind === "masscomponent" && ids.has(c.id) ? { standsForAirframe: true } : {}),
+      children: mark(c.children),
+    }));
+  return {
+    ...doc,
+    rocket: { ...doc.rocket, stages: doc.rocket.stages.map((s) => ({ ...s, components: mark(s.components) })) },
+  };
+}
+
 /** Adapt design XML to the canonical document, choosing the importer by the XML root element. */
 export function adaptDesignXml(xml: string): OrkDocument {
   // Cheap sniff of the first element name, tolerating a leading declaration/comment/whitespace.
   const head = xml.slice(0, 4096);
-  if (/<\s*RockSimDocument[\s>]/.test(head)) return adaptRktXml(xml);
-  if (/<\s*RASAeroDocument[\s>]/.test(head)) return adaptRasAeroXml(xml);
+  if (/<\s*RockSimDocument[\s>]/.test(head)) return markAirframeMasses(adaptRktXml(xml));
+  if (/<\s*RASAeroDocument[\s>]/.test(head)) return markAirframeMasses(adaptRasAeroXml(xml));
   // Fall back to the OpenRocket adapter, which raises a clear "Not an OpenRocket file" error if
   // the root isn't <openrocket> — so an unrecognised format still fails honestly.
-  return adaptOrkXml(xml);
+  return markAirframeMasses(adaptOrkXml(xml));
 }
 
 /** What a file's leading bytes say it is, for telling a flyer what went wrong in terms of the file

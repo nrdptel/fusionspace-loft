@@ -478,3 +478,48 @@ export function massByComponent(rocket: Rocket): Map<string, ComponentMass> {
   }
   return out;
 }
+
+/** The point masses that stand for a whole airframe's stated weight rather than for a part inside it.
+ *
+ *  A RASAero file states one launch weight and no per-part masses, so its adapter has nowhere to put
+ *  that weight except a single point mass — and `lib/model/edit.ts` refuses to remove one, because
+ *  taking it out leaves a rocket with no mass at all that Loft would still fly and still report a
+ *  confident apogee for. That refusal used to hang on a flag the RASAero adapter set by hand, and the
+ *  flag did not survive Loft's own `.ork` export: saving `Show-off.CDX1` as a `.ork` and reopening it
+ *  kept the 453.6 g and lost the refusal, so the flyer could delete the design's entire weight and
+ *  fly the 0.0 g rocket that was left. `OR vs RAS Test 1.CDX1` went 17145.8 g → 12777.0 g and still
+ *  reported 7373 m.
+ *
+ *  So it is DERIVED rather than remembered — from the thing the refusal actually claims: would taking
+ *  this out leave no mass at all? That question can be asked of any design, from any format, at any
+ *  point in its life, and it cannot be lost in a file that has nowhere to write it down.
+ *
+ *  Per stage, not per design: a staged rocket is several airframes flown in sequence, and a booster
+ *  whose whole stated weight is one point mass is in exactly the position a single-stage one is. That
+ *  is what `Complex.Two-Stage.CDX1` needs — its two airframe masses are only load-bearing one stage at
+ *  a time, and a whole-design test sees each of them held up by the other and flags neither.
+ *
+ *  Checked against all 35 corpus designs: it reproduces the hand-set flag exactly — the same 4 masses
+ *  on the same 3 designs, nothing added and nothing dropped — both as imported and after an export and
+ *  re-import. In particular it does NOT fire on `EscapeVelocity.ork`, whose stage carries its 2000 g as
+ *  a subtree override: removing that design's one mass object leaves the 2000 g standing, so it is a
+ *  part inside the design and stays removable. */
+export function airframeMassIds(rocket: Rocket): Set<string> {
+  const out = new Set<string>();
+  const without = (r: Rocket, id: string): Rocket => {
+    const prune = (cs: RocketComponent[]): RocketComponent[] =>
+      cs.filter((c) => c.id !== id).map((c) => ({ ...c, children: prune(c.children) }));
+    return { ...r, stages: r.stages.map((s) => ({ ...s, components: prune(s.components) })) };
+  };
+  for (const stage of rocket.stages) {
+    const alone = { ...rocket, stages: [stage] };
+    // A stage with no mass to begin with has nothing for a point mass to stand for, and every mass in
+    // it would otherwise qualify vacuously.
+    if (dryMassProperties(alone).mass <= 0) continue;
+    for (const p of flattenRocket(alone)) {
+      if (p.component.kind !== "masscomponent") continue;
+      if (dryMassProperties(without(alone, p.component.id)).mass <= 0) out.add(p.component.id);
+    }
+  }
+  return out;
+}

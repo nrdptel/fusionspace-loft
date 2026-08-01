@@ -4,9 +4,10 @@ import { resolve } from "node:path";
 import { importOrk } from "./import";
 import { exportOrk, serializeRocketXml } from "./export";
 import { newDesign } from "../model/starter";
-import { applyGeometryEdits } from "../model/edit";
+import { applyGeometryEdits, removalRefusal } from "../model/edit";
 import { runFlight } from "../sim/run";
 import { combine, structurePointMasses } from "../sim/mass";
+import { flattenRocket } from "../model/geometry";
 import type { OrkDocument } from "./adapt";
 import type { NoseCone, BodyTube, MassComponent, Parachute, InnerTube, TrapezoidFinSet, GenericFinSet, MinorComponent } from "../model/types";
 
@@ -369,6 +370,32 @@ describe("exportOrk — real-design features round-trip (regression)", () => {
     expect(sc?.["cfg-1"]?.event).toBe("upperignition");
     expect(sc?.["cfg-2"]?.event).toBe("burnout");
     expect(sc?.["cfg-2"]?.delay).toBeCloseTo(1.5, 6);
+  });
+
+  it("keeps a stated launch weight un-deletable after the round trip", async () => {
+    // A RASAero file states one launch weight and no per-part masses, so its whole mass is a single
+    // point mass and `removalRefusal` refuses to delete it — removing it leaves a rocket with no mass
+    // that Loft would still fly and still report an apogee for. That refusal hung on a flag the
+    // RASAero adapter set by hand, and `.ork` has nowhere to write it down: saving the design with
+    // Loft's own Download button and reopening it kept the 453.6 g and lost the refusal.
+    const bytes = new Uint8Array(
+      readFileSync(resolve(process.cwd(), "e2e/fixtures/demo-rasaero.CDX1")),
+    );
+    const doc = await importOrk(bytes);
+    const mass = (d: OrkDocument) =>
+      structurePointMasses(d.rocket).length &&
+      (flattenRocket(d.rocket).find((p) => p.component.kind === "masscomponent")!.component as MassComponent);
+
+    const before = mass(doc) as MassComponent;
+    expect(before.standsForAirframe).toBe(true);
+    expect(removalRefusal(doc.rocket, before.id)).toBeTruthy();
+
+    const back = await roundtrip(doc);
+    const after = mass(back) as MassComponent;
+    // The weight itself always survived; it is the fact that it IS the design's weight that did not.
+    expect(after.mass).toBeCloseTo(before.mass, 6);
+    expect(after.standsForAirframe).toBe(true);
+    expect(removalRefusal(back.rocket, after.id)).toBeTruthy();
   });
 
   it("preserves a launch lug's mass and count", async () => {
