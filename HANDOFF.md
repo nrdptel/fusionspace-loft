@@ -4,6 +4,11 @@ Overwritten each session. What shipped, what is part-way, and what to pick up fi
 
 ## Read this first
 
+**Both milestones this run shipped and merged as #100** (`2d2379f`), and production is serving it —
+`/docs/limitations` carries the rewritten freeform section and no longer the old claim. The next
+milestone on each track: **P2 — workspaces as routes** (started nowhere, and the bigger of the two),
+and **R7**, which does not exist yet and has to be written from `ROADMAP.md`'s after-list.
+
 **The sibling repo is owed three commits, for the FOURTH run running, and it is an OWNER fix.**
 `add_repo` for `nrdptel/fusionspace-debrief` was refused by the harness's permission classifier again
 on 2026-08-01. `DESIGN.md` §10 makes a change to one copy a change to both **in the same run**, so
@@ -53,6 +58,7 @@ one), **944 unit**, build, e2e, corpus **35 design files, 14/14**. Nothing inher
 | 4 | **R6** | a freeform fin keeps its real outline instead of being written back as an equal-area trapezoid |
 | 5 | **R6** | a plugged motor stays plugged, instead of coming back with a 0 s delay |
 | 6 | **R6** | the three authored structural adds keep their identity — **R6 is DONE**, its *done when* asserted |
+| 7 | **R6** | the same claim through the button a flyer presses: Download, re-import, same flight |
 
 **The pattern across 2, 3 and 4 is worth naming: all three were the exporter failing to write something
 the importer already read.** `standsForAirframe` had nowhere to go, but `<ignitionconfiguration>`,

@@ -328,6 +328,34 @@ test.describe("Loft", () => {
     await expect(message).toHaveCount(0);
   });
 
+  test("a design downloaded from Loft reopens as the same flight", async ({ page }) => {
+    // R6's *done when* through the button a flyer actually presses. `lib/ork/export.test.ts` asserts
+    // the round trip on the model — part for part, id for id — and this asserts the journey: Download,
+    // then Import that file, and the headline number has not moved. The two are worth having
+    // separately, because everything between the model and the file is what this covers: which bytes
+    // the Download button hands over, and whether the app's own reader takes them back.
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+
+    const apogee = page
+      .getByLabel("Results")
+      .getByText("Apogee", { exact: true })
+      .locator("xpath=following-sibling::div[1]");
+    const before = (await apogee.textContent())!.trim();
+    expect(before).toMatch(/\d/);
+
+    const download = page.waitForEvent("download");
+    await page.getByRole("button", { name: /Download|Save this design/i }).first().click();
+    const saved = await (await download).path();
+    expect(saved).toBeTruthy();
+
+    await page.getByRole("button", { name: /Import another/ }).click();
+    await page.getByLabel(/^Choose an OpenRocket/).setInputFiles(saved!);
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    await expect(apogee).toHaveText(before);
+  });
+
   test("clearing a what-if brings the stored-tool comparison back", async ({ page }) => {
     // A what-if means Loft is no longer flying the design the file describes, so the stored-results
     // comparison is withheld. Clearing it again must restore it — the edit fields are the surface
