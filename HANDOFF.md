@@ -202,8 +202,11 @@ mkdir -p corpus && for d in openrocket rocksim rasaero rocketpy spacecad; do
 npx vitest run lib/corpus --reporter=verbose --silent=false
 ```
 
-It must print `imports every design file (35 present)`. **Confirmed this session: 35 files, 14/14**,
-census medians maxAltitude 3.2%, maxVelocity 2.3%, timeToApogee 1.7%.
+It must print `imports every design file (35 present)`. **Confirmed this session: 35 files, 14/14.**
+The census medians MOVED this run and the published figures moved with them — a sweep now prints
+maxAltitude **3.1%**, maxVelocity **2.2%**, timeToApogee **1.5%**, maxMach **2.0%**, optimumDelay
+**2.5%**, deploymentVelocity **6.0%**. A session expecting the old 3.2 / 2.3 / 1.7 will read the
+improvement as a broken corpus.
 
 **The corpus filenames are NOT the names the ledger uses.** They are prefixed with their provenance:
 `corpus/openrocket/openrocket__openrocket-repo-rasaero-threestage__03.Three-stage.ork`. A probe that

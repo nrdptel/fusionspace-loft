@@ -334,6 +334,24 @@ describe("fin cross-section pressure drag", () => {
     expect(square - airfoil).toBeGreaterThan(0.05);
   });
 
+  it("orders square > rounded > airfoil at EVERY Mach, not just subsonically", () => {
+    // The ordering above was asserted at M0.25 alone, and that is where it held. The streamlined
+    // edges' compressibility rise was unbounded — 4.12 at the M0.99 clamp — while a square edge's
+    // stagnation coefficient caps at 1.06, so from about M0.95 upward an airfoil fin was billed MORE
+    // leading-edge drag than a blunt one. Measured on a real design's geometry before the bound: at
+    // M1.20, square 2.216 against rounded 3.219 and airfoil 3.183. A flyer using the cross-section
+    // what-if on a Mach flight was told that streamlining the fins costs apogee.
+    for (const M of [0.25, 0.6, 0.8, 0.9, 0.95, 0.99, 1.2, 1.6, 2.0, 3.0]) {
+      const cd = (cs: "square" | "rounded" | "airfoil") =>
+        dragCoefficient(aeroGeometry(finned(cs)), atm, M * atm.speedOfSound).cd;
+      const square = cd("square");
+      const rounded = cd("rounded");
+      const airfoil = cd("airfoil");
+      expect(square, `M${M}: square must not be cheaper than rounded`).toBeGreaterThan(rounded);
+      expect(rounded, `M${M}: rounded must not be cheaper than airfoil`).toBeGreaterThan(airfoil);
+    }
+  });
+
   it("a swept leading edge reduces square-fin pressure drag (cos²Λ)", () => {
     const straight = shapedRocket({ fins: true, sweep: 0 });
     const swept = shapedRocket({ fins: true, sweep: 0.08 });
@@ -354,6 +372,73 @@ describe("fin cross-section pressure drag", () => {
     const baseCoeff = 0.12 + 0.13 * M * M;
     const finEdge = round.finFrontalArea / round.refArea;
     expect(pr - pf).toBeCloseTo(0.5 * baseCoeff * finEdge, 6);
+  });
+});
+
+describe("fin cross-section is charged per set, not design-wide", () => {
+  const atm = new Atmosphere().sample(0);
+  const M = 0.25;
+  const p = (r: Rocket) => dragCoefficient(aeroGeometry(r), atm, M * atm.speedOfSound).pressure;
+
+  /** One body tube carrying two fin sets of equal frontal area, with the given cross-sections. */
+  const twoSets = (a?: "square" | "rounded" | "airfoil", b?: "square" | "rounded" | "airfoil"): Rocket => {
+    const r = shapedRocket({ fins: true });
+    const body = r.stages[0].components[1] as BodyTube;
+    const one = body.children[0] as TrapezoidFinSet;
+    body.children = [
+      { ...one, id: "fa", crossSection: a },
+      { ...one, id: "fb", crossSection: b },
+    ];
+    return r;
+  };
+
+  it("charges an airfoil set as an airfoil even when a square set is on the same rocket", () => {
+    // The defect this pins: the build-up took the DRAGGIEST cross-section present and applied it to
+    // every set's frontal area, so one square set made every airfoil and rounded set on the rocket
+    // pay square-edge stagnation drag. Measured on the corpus, `Show-off.CDX1` has exactly this
+    // shape — an airfoil set and a square set — and billed both as square.
+    //
+    // With equal frontal areas the mixed rocket must land exactly halfway between the two uniform
+    // ones. Halfway is the assertion rather than "less than square", because "less" is also what a
+    // silent under-count looks like.
+    const mixed = p(twoSets("square", "airfoil"));
+    const allSquare = p(twoSets("square", "square"));
+    const allAirfoil = p(twoSets("airfoil", "airfoil"));
+    expect(mixed).toBeCloseTo((allSquare + allAirfoil) / 2, 12);
+    // …and the control, so the test cannot pass on three identical numbers.
+    expect(allSquare - allAirfoil).toBeGreaterThan(0.05);
+  });
+
+  it("is unchanged for a design whose sets all agree", () => {
+    // 22 of the 35 real designs have one fin set, and several multi-set ones use one section
+    // throughout — including both designs an earlier area-weighted attempt regressed. Nothing about
+    // those may move.
+    const one = shapedRocket({ fins: true });
+    const body = one.stages[0].components[1] as BodyTube;
+    const single = body.children[0] as TrapezoidFinSet;
+    body.children = [{ ...single, crossSection: "square" }];
+    const split = twoSets("square", "square");
+    // Two sets of the same section carry twice the frontal area of one, so compare the per-area
+    // coefficient rather than the total.
+    const gOne = aeroGeometry(one);
+    const gSplit = aeroGeometry(split);
+    expect(gSplit.finFrontalByEdge.square).toBeCloseTo(2 * gOne.finFrontalByEdge.square, 12);
+    expect(gSplit.finFrontalByEdge.airfoil).toBe(0);
+    expect(gSplit.finFrontalByEdge.rounded).toBe(0);
+  });
+
+  it("splits the frontal area it already summed, rather than counting it twice", () => {
+    const g = aeroGeometry(twoSets("rounded", "airfoil"));
+    const byEdge = g.finFrontalByEdge.square + g.finFrontalByEdge.rounded + g.finFrontalByEdge.airfoil;
+    expect(byEdge).toBeCloseTo(g.finFrontalArea, 12);
+    expect(g.finFrontalByEdge.rounded).toBeGreaterThan(0);
+    expect(g.finFrontalByEdge.airfoil).toBeGreaterThan(0);
+  });
+
+  it("still reports the bluntest edge present, which is a fact about the design", () => {
+    expect(aeroGeometry(twoSets("airfoil", "square")).finCrossSection).toBe("square");
+    expect(aeroGeometry(twoSets("airfoil", "rounded")).finCrossSection).toBe("rounded");
+    expect(aeroGeometry(twoSets("airfoil", "airfoil")).finCrossSection).toBe("airfoil");
   });
 });
 

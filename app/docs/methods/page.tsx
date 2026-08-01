@@ -343,13 +343,41 @@ export default function Methods() {
           a thickness-only estimate under-counts it several-fold — and reading the design&apos;s
           stated cross-section is what brought Loft&apos;s drag on the reference &ldquo;simple model
           rocket&rdquo; into line with OpenRocket&apos;s. A design that names no cross-section is
-          treated as square, OpenRocket&apos;s own default. The leading-edge <code>cos²Λ</code>{" "}
-          reduction uses each fin&apos;s actual leading-edge sweep — including an{" "}
-          <em>elliptical</em>{" "}fin&apos;s, whose tip sits at mid-root-chord so its edge sweeps back
-          about half the root chord over the span. Treating that curved edge as unswept (its stored
-          sweep is zero) over-counted its stagnation drag by ~22% on a real minimum-diameter design;
-          reading the sweep from the planform brought Loft&apos;s per-step drag on OpenRocket&apos;s
-          <em> elliptical_v1.9</em> example to within ~1% of its stored curve.
+          treated as square, OpenRocket&apos;s own default.{" "}
+          <strong>Each fin set is charged for the section it actually carries</strong>, accumulated
+          set by set: a rocket with an airfoil set and a square set pays airfoil drag on one and
+          square drag on the other. Until August 2026 the draggiest section present was applied to
+          every set, so one square fin made every airfoil and rounded fin on the airframe pay
+          square-edge stagnation drag — on a real three-stage design with three rounded sets among
+          five, that took the whole drag coefficient from <code>1.17</code> to <code>0.75</code> at
+          100 m/s, with the pressure term falling <code>0.68</code> to <code>0.26</code>. (Both
+          numbers are that design&apos;s; it is also the one design in the corpus whose apogee the
+          change moved <em>away</em>{" "}from its file&apos;s own stored figure, and the limitations log
+          says why.)
+        </li>
+        <li>
+          <strong>What the fin terms still collapse across sets, and by how much.</strong> Two inputs
+          to the fin drag are not yet per-set, and on a rocket carrying several different fin sets
+          they belong to no fin on it. The leading-edge <code>cos²Λ</code> reduction uses one angle
+          for the whole design — the last set read, against the largest span across sets. On a real
+          design whose four-fin set sweeps <strong>44.5°</strong> and whose single-fin set does not
+          sweep at all, the model reads <strong>unswept</strong>; on a five-set three-stage design
+          whose sets sweep <strong>35.0–70.6°</strong>, it reads <strong>22.4°</strong>.
+          Under-stating sweep over-states drag. The thickness ratio feeding the friction form factor
+          is the largest thickness on the rocket over the last set&apos;s mean chord: on a two-set
+          design whose sets are both <code>0.50</code> it reads <code>1.00</code>, and on a five-set
+          design whose sets run <code>0.04</code>–<code>0.30</code> it reads <code>0.12</code>. Both
+          are in the limitations log with the designs they were measured on. An <em>elliptical</em>{" "}
+          fin&apos;s sweep <em>is</em>{" "}read from its own planform rather than from its stored zero —
+          its tip sits at mid-root-chord, so its edge sweeps back about half the root chord over the
+          span, and treating that curved edge as unswept over-counted its stagnation drag by ~22% on
+          a real minimum-diameter design; reading the sweep from the planform brought Loft&apos;s
+          per-step drag on OpenRocket&apos;s <em>elliptical_v1.9</em>{" "}example to within ~1% of its
+          stored curve. That correction is read from each elliptical fin&apos;s own planform — but it
+          is written into the same single design-wide angle as every other set, so on a rocket where
+          an elliptical set is not the last one read, its sweep relief is overwritten and does not
+          reach the drag at all. A design whose only fin set is elliptical — which is what the
+          measurement above was made on — gets it in full.
         </li>
         <li>
           <strong>Tube-fin drag</strong> — a tube fin is aerodynamically a rolled-up flat plate with

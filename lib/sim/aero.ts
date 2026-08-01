@@ -231,8 +231,27 @@ export interface AeroGeometry {
   /** Total exposed fin frontal area (m²), summed over every fin set as Σ (fins · thickness · span)
    *  — so a design that splits its fins across several single-fin sets is counted in full. */
   finFrontalArea: number;
-  /** Draggiest fin edge cross-section present (square > rounded > airfoil), setting the fin
-   *  leading-edge pressure drag. Square when the design has fins but names no cross-section. */
+  /** The same frontal area, split by the edge cross-section each set actually carries. This is what
+   *  the pressure build-up reads: a fin's edge drag is a property of that fin's edge, so a set is
+   *  charged for the section it has and for no other.
+   *
+   *  It used to be one design-wide `finCrossSection` — the DRAGGIEST section present — applied to
+   *  every set's area. Measured across the corpus: `Show-off.CDX1` has an airfoil set and a square
+   *  set and billed both as square; `03.Three-stage.ork` has three rounded sets among five and
+   *  billed all five as square, which took its whole drag coefficient at 100 m/s from 1.1745 to
+   *  0.7453 (pressure term 0.6843 to 0.2552). That design was flying 7.57% LOW on apogee and now
+   *  flies 10.76% HIGH — its own KNOWN_ISSUES entry carries both figures and the reason, which is
+   *  that its sweep collapse was partly cancelling its cross-section one. Nothing
+   *  changes for a design whose sets agree. Counted across the 35-design corpus: 20 carry exactly
+   *  one fin set and 2 carry none; of the 13 with several, only 7 mix sections. So 28 of 35 are
+   *  bit-identical either way, including both designs an earlier area-weighted attempt regressed.
+   *
+   *  Sums to `finFrontalArea`. */
+  finFrontalByEdge: Record<FinCrossSection, number>;
+  /** Draggiest fin edge cross-section present (square > rounded > airfoil). Reporting only now that
+   *  the build-up reads `finFrontalByEdge`: it answers "what is the bluntest edge on this rocket",
+   *  which is a fair thing to say about a design, and not "what is every fin charged for", which it
+   *  is not. Square when the design has fins but names no cross-section — OpenRocket's own default. */
   finCrossSection: FinCrossSection;
   /** Wetted-area-weighted mean roughness height (m) — a representative figure for reporting and
    *  for the tube-fin term. The friction buildup itself does NOT use it; it sums per surface
@@ -338,12 +357,16 @@ export function aeroGeometry(rocket: Rocket): AeroGeometry {
   // common OpenRocket pattern — would otherwise have its fin pressure drag counted from just one
   // fin (see the multi-set note below).
   let finFrontal = 0;
-  // The draggiest cross-section present drives the fin leading-edge pressure drag. Rank
-  // square > rounded > airfoil; a fin set that names none is square (the OpenRocket default).
+  // The same frontal area, banked by the cross-section each set actually carries — which is what
+  // the pressure build-up charges. A fin set that names none is square (the OpenRocket default).
+  const finFrontalByEdge: Record<FinCrossSection, number> = { airfoil: 0, rounded: 0, square: 0 };
+  // And, for reporting only, the bluntest edge on the rocket. Rank square > rounded > airfoil.
   let finEdgeRank = -1;
   const EDGE_RANK: Record<FinCrossSection, number> = { airfoil: 0, rounded: 1, square: 2 };
-  const noteFinEdge = (cs: FinCrossSection | undefined): void => {
-    finEdgeRank = Math.max(finEdgeRank, EDGE_RANK[cs ?? "square"]);
+  const noteFinEdge = (cs: FinCrossSection | undefined, frontal: number): void => {
+    const edge = cs ?? "square";
+    finEdgeRank = Math.max(finEdgeRank, EDGE_RANK[edge]);
+    finFrontalByEdge[edge] += frontal;
   };
 
   // Forebody (nose) geometry — the dominant wave-drag driver. Captured from the frontmost
@@ -445,17 +468,19 @@ export function aeroGeometry(rocket: Rocket): AeroGeometry {
       const area = ((c.rootChord + c.tipChord) / 2) * c.height;
       finWetted += 2 * area * c.finCount;
       bank(finByFinish, roughOf(c), 2 * area * c.finCount);
-      finFrontal += c.finCount * c.thickness * c.height;
+      const frontal = c.finCount * c.thickness * c.height;
+      finFrontal += frontal;
       finCount = Math.max(finCount, c.finCount);
       finThickness = Math.max(finThickness, c.thickness);
       meanFinChord = (c.rootChord + c.tipChord) / 2;
       finSpan = Math.max(finSpan, c.height);
       finSweepLength = c.sweepLength;
-      noteFinEdge(c.crossSection);
+      noteFinEdge(c.crossSection, frontal);
     } else if (c.kind === "ellipticalfinset" || c.kind === "freeformfinset") {
       finWetted += 2 * c.area * c.finCount;
       bank(finByFinish, roughOf(c), 2 * c.area * c.finCount);
-      finFrontal += c.finCount * c.thickness * c.height;
+      const frontal = c.finCount * c.thickness * c.height;
+      finFrontal += frontal;
       finCount = Math.max(finCount, c.finCount);
       finThickness = Math.max(finThickness, c.thickness);
       meanFinChord = c.height > 0 ? c.area / c.height : c.rootChord;
@@ -467,7 +492,7 @@ export function aeroGeometry(rocket: Rocket): AeroGeometry {
       // minimum-diameter design against OpenRocket's stored per-step Cd. A freeform fin's stored
       // sweepLength already reflects its actual outline, so use that.
       finSweepLength = c.kind === "ellipticalfinset" ? c.rootChord / 2 : c.sweepLength;
-      noteFinEdge(c.crossSection);
+      noteFinEdge(c.crossSection, frontal);
     } else if (c.kind === "tubefinset") {
       // Tube fins are open-ended cylinders: the flow wets both the outer and the inner wall, and
       // the square-cut wall annulus faces the stream at each end. Both are accumulated here; the
@@ -520,6 +545,7 @@ export function aeroGeometry(rocket: Rocket): AeroGeometry {
     // Summed per set (finFrontal), so N fins split across N single-fin sets are counted in full.
     // For a design with one fin set this equals finCount·finThickness·finSpan, unchanged.
     finFrontalArea: finFrontal,
+    finFrontalByEdge,
     finCrossSection: finEdgeRank < 0 ? "square" : (["airfoil", "rounded", "square"] as const)[finEdgeRank],
     roughness: weightedRoughness,
     bodyWettedByFinish: [...bodyByFinish].map(([roughness, area]) => ({ roughness, area })),
@@ -637,30 +663,62 @@ export function dragCoefficient(
   // rise. Referenced to the fin frontal area (N · thickness · span) over the reference area. Model
   // and coefficients from the OpenRocket technical documentation (Niskanen), after Hoerner,
   // *Fluid-Dynamic Drag*.
-  const finEdge = geom.finFrontalArea / geom.refArea;
-  const leCompress = Math.pow(Math.max(0.01, 1 - Math.min(mach, 0.99) ** 2), -0.417) - 1;
-  let finLeCoeff: number; // leading-edge stagnation
-  let finTeCoeff: number; // trailing-edge base
-  switch (geom.finCrossSection) {
-    case "airfoil":
-      finLeCoeff = leCompress;
-      finTeCoeff = 0;
-      break;
-    case "rounded":
-      // A radiused leading edge attaches the flow — there is no flat stagnation face — so subsonically
-      // it carries no stagnation pressure drag, only the compressibility rise, the same leading-edge
-      // term as an airfoil (Hoerner, edge/bluff-edge drag). Its rounded trailing edge still sheds a
-      // wake, taken at half a square edge's base drag. (The earlier half-stagnation leading edge
-      // over-counted a rounded fin's pressure drag ~2× against OpenRocket's stored per-step Cd on its
-      // rounded-fin examples.)
-      finLeCoeff = leCompress;
-      finTeCoeff = 0.5 * baseCoeff;
-      break;
-    default: // square (also the default when no cross-section is named)
-      finLeCoeff = stagnationCd(mach);
-      finTeCoeff = baseCoeff;
+  //
+  // Accumulated PER SET, by the section each set actually carries. The published model is defined
+  // for a fin set's own edge; applying it design-wide was the defect, not the model. Until
+  // 2026-08-02 the whole fin frontal area was charged the DRAGGIEST section present, so one square
+  // set made every airfoil and rounded set on the rocket pay square-edge stagnation drag. Measured:
+  // `03.Three-stage.ork` (three rounded sets among five) total Cd 1.1745 → 0.7453 at 100 m/s;
+  // `Show-off.CDX1` billed its airfoil set as square. Across 97 stored simulations on 35 real
+  // designs every accuracy median improved or held; `03.Three-stage.ork` itself went from 7.57% low
+  // on apogee to 10.76% high, which is recorded rather than glossed — see its KNOWN_ISSUES entry.
+  // Unchanged wherever a design's sets agree, which is every single-set design and every multi-set
+  // design using one section throughout.
+  // The compressibility rise on a streamlined leading edge, and a bound on it that the model has
+  // always needed and never had. Unbounded, this reaches 4.12 at the M0.99 clamp while a SQUARE
+  // edge's stagnation coefficient caps at 1.06 — so above about M0.95 an airfoil fin was billed
+  // more leading-edge drag than a blunt one, which is backwards. Measured on a real design's
+  // geometry, total Cd by section: at M0.30 square 0.780 / rounded 0.474 / airfoil 0.451, correctly
+  // ordered; at M1.20 square 2.216 / rounded 3.219 / airfoil 3.183, inverted. A flyer using the
+  // cross-section what-if on a Mach design was told that streamlining the fins costs them apogee.
+  //
+  // The bound is the model's own claim rather than a new one: a stagnation face is the WORST case an
+  // edge can present to the flow, so no streamlined edge may be charged more than one. It changes
+  // nothing subsonically, where `leCompress` is far below `stagnationCd` (0.03 against 0.87 at
+  // M0.30). This is not the wave-drag term and does not touch it; every flight past M0.8 is still
+  // flagged extrapolated.
+  const leCompress = Math.min(
+    Math.pow(Math.max(0.01, 1 - Math.min(mach, 0.99) ** 2), -0.417) - 1,
+    stagnationCd(mach),
+  );
+  const edgeCoeffs = (cs: FinCrossSection): { le: number; te: number } => {
+    switch (cs) {
+      case "airfoil":
+        return { le: leCompress, te: 0 };
+      case "rounded":
+        // A radiused leading edge attaches the flow — there is no flat stagnation face — so
+        // subsonically it carries no stagnation pressure drag, only the compressibility rise, the
+        // same leading-edge term as an airfoil (Hoerner, edge/bluff-edge drag). Its rounded trailing
+        // edge still sheds a wake, taken at half a square edge's base drag. (The earlier
+        // half-stagnation leading edge over-counted a rounded fin's pressure drag ~2× against
+        // OpenRocket's stored per-step Cd on its rounded-fin examples.)
+        return { le: leCompress, te: 0.5 * baseCoeff };
+      default: // square (also the default when no cross-section is named)
+        return { le: stagnationCd(mach), te: baseCoeff };
+    }
+  };
+  let finPressure = 0;
+  for (const cs of ["airfoil", "rounded", "square"] as const) {
+    const area = geom.finFrontalByEdge[cs];
+    if (!(area > 0)) continue;
+    const { le, te } = edgeCoeffs(cs);
+    // `finSweepFactor` is still ONE angle for the whole design. Making it per-set was written and
+    // measured in this same increment and REVERTED: it moved no census median in the right
+    // direction (optimumDelay went back 2.5% → 2.7%) and it pushed a real design outside the
+    // corpus's own agreement tolerance — the same shape as the area-weighted thickness attempt
+    // before it. It is R7's next slice, with its own investigation, not a rider on this one.
+    finPressure += (le * geom.finSweepFactor + te) * (area / geom.refArea);
   }
-  const finPressure = (finLeCoeff * geom.finSweepFactor + finTeCoeff) * finEdge;
 
   // Parasitic drag of the external fittings (launch lugs, rail buttons) from their own frontal
   // area rather than a blind allowance, plus a small flat residual for un-modelled hardware

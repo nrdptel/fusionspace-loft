@@ -695,7 +695,7 @@ export function simulate(input: SimulateInput): FlightResult {
     // measured at. Latched separately from the events below, and that separation is the whole
     // delicacy of emitting per-stage burnouts at all: this guard used to do both jobs at once, so
     // simply looping it over the stages would have moved the reported burnout to the BOOSTER's.
-    // Measured on `03.Three-stage.ork`: 202.8 m/s at 787.1 m becomes 44.9 m/s at 366.6 m, 77.9% low,
+    // Measured on `03.Three-stage.ork`: 202.8 m/s at 787.1 m (that drag model's figures; 224.4 m/s at 845.8 m as of 2026-08-02) becomes 44.9 m/s at 366.6 m, 77.9% low,
     // published straight onto the Burnout velocity stat a flyer sizes an ejection delay against.
     if (burnoutV === 0 && thrust <= 0 && state.t >= burnout && burnout > 0 && liftedOff) {
       burnoutV = speed;

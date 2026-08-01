@@ -143,6 +143,42 @@ export default function Limitations() {
         centroid for an arbitrary outline).
       </p>
 
+      <h3>Two fin-drag inputs are still one number for the whole rocket</h3>
+      <p>
+        A rocket can carry several fin sets that differ — different thicknesses, different sweeps,
+        different edge sections — and the drag buildup does not yet read all three per set. The edge{" "}
+        <em>cross-section</em>{" "}does, as of August 2026: each set is charged for the section it
+        actually carries, where before the draggiest section present was applied to every set. Two
+        others do not, and on a design with several different sets they belong to no fin on it:
+      </p>
+      <ul>
+        <li>
+          <strong>Leading-edge sweep.</strong> The <code>cos²Λ</code> reduction uses one angle for
+          the whole design — the last set read, against the largest span across sets. Measured on
+          real files: <em>Mini Honest John</em> reads <strong>unswept</strong> while the four-fin set
+          doing the work sweeps <strong>44.5°</strong>; a five-set three-stage design reads{" "}
+          <strong>22.4°</strong> where its sets sweep <strong>35.0–70.6°</strong>. Under-stating the
+          sweep over-states the drag.
+        </li>
+        <li>
+          <strong>Thickness ratio.</strong> The friction form factor uses the largest thickness on
+          the rocket over the last set&apos;s mean chord. Measured: a two-set design whose sets are
+          both <code>0.50</code> reads <code>1.00</code>; a five-set design whose sets run{" "}
+          <code>0.04</code>–<code>0.30</code> reads <code>0.12</code>.
+        </li>
+      </ul>
+      <p>
+        Both are single-set-exact, so the great majority of designs are unaffected. Counted across
+        the 35-design real-design corpus: <strong>20</strong> carry exactly one fin set and{" "}
+        <strong>2</strong> carry none, leaving 13 with several — and of those, only{" "}
+        <strong>7</strong>{" "}mix edge sections between them. So 28 of 35 are untouched by the per-set
+        cross-section correction, and the two collapses above bite hardest on the remaining few. Where it bites is precisely the rocket
+        a flyer has just built two different fin sets on, which is why it is being worked rather than
+        left. Making the sweep per-set was tried and measured in August 2026 and reverted: it
+        improved no accuracy median and pushed a real design outside the corpus&apos;s own agreement
+        tolerance, so it needs its own investigation rather than a rider on the cross-section fix.
+      </p>
+
       <h3>Design what-ifs address the part you pick — for three kinds of part, not all of them</h3>
       <p>
         The Design workspace&apos;s what-ifs are a fixed set of fields, and most of them address one

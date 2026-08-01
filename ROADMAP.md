@@ -985,7 +985,45 @@ pinned.
 
 ## R7 — Per-set fin drag, and the honest aero the builder needs
 
-**Status:** NOT STARTED
+**Status: IN PROGRESS** — increment 1 of 3–5 shipped 2026-08-02: the edge **cross-section** is now
+charged per fin set. Pinned by `lib/sim/aero.test.ts`'s *fin cross-section is charged per set, not
+design-wide* (four cases, including the exact-halfway assertion that a "less drag" under-count could
+not satisfy) and by the corpus census, whose published figures were tightened in the same change.
+
+**What moved, measured over 97 stored simulations on 35 real designs:** timeToApogee 1.7% → **1.5%**,
+maxMach 2.1% → **2.0%**, maxVelocity 2.3% → **2.2%**, optimumDelay 2.7% → **2.5%**, maxAltitude
+3.2% → **3.1%**. One moved the other way and it is published rather than rounded away: deployment
+velocity 5.9% → **6.0%**, which arrived with the transonic bound below rather than with the per-set
+split. `PUBLISHED_MEDIAN_PCT`, `/docs/validation` and the methods page were all updated in the same
+commit — a claim left at its old looser figure is a gate that has stopped gating, in either
+direction.
+
+**A second defect, found by reviewing the diff and fixed with it.** The streamlined-edge
+compressibility term was unbounded — 4.12 at its M0.99 clamp, against a square edge's stagnation
+coefficient capping at 1.06 — so from about M0.95 upward an *airfoil* fin was billed MORE
+leading-edge drag than a blunt one. Measured on a real design's geometry, total Cd: at M0.30 square
+0.780 / rounded 0.474 / airfoil 0.451, correctly ordered; at M1.20 square 2.216 / rounded 3.219 /
+airfoil 3.183, inverted. A flyer using the cross-section what-if on a Mach flight was told that
+streamlining the fins costs them apogee. It is now bounded by the stagnation coefficient — the
+model's own claim that a stagnation face is the worst case an edge can present — and the ordering is
+asserted at ten Mach numbers rather than at one. Pre-existing rather than introduced here; the
+per-set split is what made it reachable on a mixed design.
+
+**And the one design it made worse, which is the honest half.** `03.Three-stage.ork` went from apogee
+−7.57% to **+10.76%** and max velocity −3.78% to +4.95%. The cause is known rather than mysterious:
+three of its five sets are rounded and were being billed square (over-drag), while its leading-edge
+sweep is *still* collapsed to one design-wide 22.4° against five real sets at 35.0–70.6° (also
+over-drag). The two were partly cancelling and only one is fixed. Recorded in that design's
+`KNOWN_ISSUES` entry with both before-and-after numbers.
+
+**Per-set SWEEP was written, measured and reverted in the same increment.** It improved no census
+median — optimumDelay went back 2.5% → 2.7% — and it pushed a real design outside the corpus's own
+agreement tolerance, which is the same shape as the area-weighted thickness attempt before it. It is
+the next slice and it needs its own investigation, not a rider on this one. **Do not simply re-apply
+it.**
+
+*Remaining:* the thickness-ratio collapse; the sweep collapse; `runFromDocument`'s dropped options;
+and the adjacent parse gaps below.
 
 **Outcome.** A rocket a flyer just BUILT with two different fin sets is flown with each set's own
 drag — and every page that describes the model says what the model actually does.

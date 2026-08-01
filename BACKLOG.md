@@ -12,6 +12,26 @@ this file, and deliberately does **not** cap craft or product work, because that
 track in `ROADMAP.md` with its own *done when*. Rough edges, missing affordances, and findings too
 big for one pass. Newest first.
 
+- **A `flownAsReduced` design is dropped from the accuracy assertion AND from the census, so the
+  designs Loft simplifies are measured by nothing at all.** `lib/sim/run.ts:241` withholds
+  `validateAgainst` when a design was flown reduced (pods, parallel boosters, a ring tail), which is
+  right — the stored results describe a different flight. But `lib/corpus/sweep.test.ts` then also
+  drops those designs from the ±12% agreement assert and from the published census, so they
+  contribute nothing and no drift on them can ever fail the suite.
+
+  **Measured 2026-08-02, by the R7 review:** `Pods--airframes and winglets.ork` is the second-largest
+  mover of the per-set fin cross-section change — its `Wings` set is the only rounded one and carries
+  the most frontal area — and it moved apogee **+4.7 / +9.6 / +12.0 / +13.8 / +14.6%** across its
+  five stored simulations, with deployment velocity **−23 / −30 / −37 / −22 / −26%**. Zero of those
+  simulations were compared by anything.
+
+  This is the shape `MAINTAINING.md` warns about most: a suite that examines nothing prints almost
+  exactly like one that passed. The fix is not to start asserting a reduced design against results
+  that describe a different rocket — it is to give those designs their OWN check, something like "a
+  reduced design's numbers may not move by more than X between commits", so a change that swings them
+  15% has to say so. Until then, any physics change should be driven over the reduced designs by hand
+  and the movement reported, because the gate will not.
+
 - **A workspace switch's router payload cannot be precached the way the routes are, because its URL
   carries a cache-busting query.** Now that the workspaces are routes, a client-side switch does not
   fetch the route's `.html` at all — it fetches the React payload. **Measured on the built export by
