@@ -927,7 +927,14 @@ big for one pass. Newest first.
 - **On a phone the pad-check number is nearly two screens below the fold.** Cold-walked at an iPhone 13
   viewport (390x664) on the built export of the SHA this run shipped: the Flight workspace is **6.7 screens
   deep**, "Apogee" sits at y=486 (73% of a screen down), "Static margin" at y=617, and **"Rail-exit
-  velocity" at y=1157 — 174% of a screen down**. The stated phone use is a pad check with gloves on, and
+  velocity" at y=1157 — 174% of a screen down**.
+  **RE-MEASURED 2026-08-01, same viewport, and the numbers above are stale in one direction:** "Apogee"
+  is now at **y=1013 (1.53 screens)**, roughly double where this entry found it. What sits above it is
+  the 1071 px of shared chrome broken down in the newer entry at the end of this file — the workspace
+  spine and the design summary now precede the panel on every route, which is the cost
+  `COMPETITION.md` row 31 predicted the route split could carry. Still inside DESIGN.md §8's two
+  screens, and now pinned by `e2e/depth.spec.ts` rather than re-walked by hand; `/sweep` is the one
+  route that breaches. Treat the chrome, not the Flight panel's ordering, as the thing to fix. The stated phone use is a pad check with gloves on, and
   rail-exit velocity is the number that check turns on. Nothing is wrong or missing; it is far, which is
   the "phone layout is the desktop squeezed" tell measured rather than asserted. Page overflow is 0 px on
   every workspace, so this is ordering and density, not a layout break. R7 material.
@@ -1373,6 +1380,20 @@ big for one pass. Newest first.
     wanted first, the candidate is "the set with the largest planform area supplies BOTH numbers",
     which at least never yields a ratio belonging to no fin — unmeasured, and it must be run against
     the same 15 comparable simulations before it goes anywhere near the deploy branch.
+
+    **CORRECTED 2026-08-01 — the fix this entry recommends has now been measured, and it is not
+    enough on its own.** Per-set friction form factor and per-set sweep factor over each set's own
+    wetted area were both implemented and both reverted (R7 increment 3; the numbers are in
+    `ROADMAP.md` and on `/docs/limitations`). Per-set thickness alone moved `Complex.Two-Stage.CDX1`
+    J180T from +4.5254% to +4.9578% and J90W from +12.3991% to +12.8813%; adding per-set sweep took
+    them to +13.98% and +22.60%, outside the ±12% the corpus asserts. The reasoning above is right
+    that no mean represents six sets that different — but the reason the change does not help is
+    different from what this entry assumes. A collapsed value is not biased in one direction, so
+    correcting it adds drag to some designs and removes it from others; these two are ones Loft
+    already flies HIGH, so removing a spurious over-drag moves them further from their stored
+    results. The collapses are partly compensating for a separate under-drag on this design, and
+    that under-drag has to be found first. Do not re-implement per-set thickness or sweep before it;
+    that is three attempts and three reverts.
 
 - **RESOLVED this session — `npx tsc --noEmit` failed over the whole project** on one untyped
   `evaluate` callback in `e2e/smoke.spec.ts` (`Property 'labels' does not exist on type
