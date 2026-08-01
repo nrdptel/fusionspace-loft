@@ -1022,8 +1022,23 @@ agreement tolerance, which is the same shape as the area-weighted thickness atte
 the next slice and it needs its own investigation, not a rider on this one. **Do not simply re-apply
 it.**
 
-*Remaining:* the thickness-ratio collapse; the sweep collapse; `runFromDocument`'s dropped options;
-and the adjacent parse gaps below.
+*Increment 2 — R7's own instrument, fixed.* `runFromDocument` named three of `RunOptions`' twelve
+fields and silently dropped the other nine (`ballistic`, `timeStep`, `ballastKg`, `motorSwap`,
+`geometry`, `thrustScale`, `massScale`, `dragScale`, `recoveryCdScale`). A caller got a flight, with
+no error and no warning, that had ignored what it asked for. Nothing user-facing depended on it — the
+app calls `runFlight` directly — but the corpus suite drives this function, so no corpus-wide
+sensitivity to any of those nine was measurable at all.
+
+Now spread-then-override, so a field added to `RunOptions` is forwarded the day it is added rather
+than the day somebody notices. **The before-and-after, on `03.Three-stage.ork`:** every `dragScale`
+from 0.1 to 3.0 previously returned the identical −7.57% apogee error; it now spans **+175.81% to
+−36.27%**. Every existing caller passes only the three already-forwarded options, so nothing changed
+for any of them — the corpus census is identical to the tenth on all ten metrics. Pinned by
+`lib/sim/flight.test.ts`'s *runFromDocument forwards what it is given*, three cases, each pairing a
+changed option with the number it must move.
+
+*Remaining:* the thickness-ratio collapse; the sweep collapse (tried and reverted twice — read the
+warning above before touching it); and the adjacent parse gaps below.
 
 **Outcome.** A rocket a flyer just BUILT with two different fin sets is flown with each set's own
 drag — and every page that describes the model says what the model actually does.
@@ -1504,9 +1519,23 @@ agree?" surface in one place, which North Star #1 asks for and which could not h
 on different routes). Four workspaces plus the import root; a session stored on `analyze` resumes on
 `sweep` rather than falling back to the flight.
 
-**Not done:** the static-export assertion is not written; the design drawing is still reachable only
-from `/design` (`COMPETITION.md` row 31); and "no route more than two screens deep to its primary
-answer" has not been measured.
+*Increment 3.* The **static-export assertion** the *done when* names — `scripts/check-routes.mjs`,
+run from `postbuild` so it gates every build, in CI and locally. It asserts four things that each have
+a way of quietly becoming false: every workspace in the vocabulary has a document in `out/`; every
+RETIRED workspace address still answers, so a link that shipped once is never a dead end; no workspace
+is advertised in the sitemap; and every workspace document carries its own `noindex`. It reads the
+vocabulary from `lib/workspaces.ts` rather than restating it, and fails loudly if that parse yields
+nothing — a permissive parse would make every claim a vacuous pass over zero routes, which is the
+failure the check exists to prevent. **A postbuild script rather than a vitest test on purpose:**
+`npm test` runs before `npm run build`, so a test reading `out/` would skip itself on a clean
+checkout, and a suite that skips prints almost exactly like one that passed.
+
+All four claims were driven as negative controls before the check was trusted — remove a workspace
+document, remove the retired one, add a workspace to the sitemap, strip a `noindex` — and each fails
+with exit 1 naming exactly what broke, against exit 0 restored.
+
+**Not done:** the design drawing is still reachable only from `/design` (`COMPETITION.md` row 31); and
+"no route more than two screens deep to its primary answer" is measured but not pinned.
 
 **Outcome.** Loft is shaped like an application, not a scrolling page.
 
