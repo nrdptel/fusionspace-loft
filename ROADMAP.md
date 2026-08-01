@@ -1579,8 +1579,30 @@ All four claims were driven as negative controls before the check was trusted �
 document, remove the retired one, add a workspace to the sitemap, strip a `noindex` — and each fails
 with exit 1 naming exactly what broke, against exit 0 restored.
 
-**Not done:** the design drawing is still reachable only from `/design` (`COMPETITION.md` row 31); and
-"no route more than two screens deep to its primary answer" is measured but not pinned.
+*Increment 4.* The **two-screen clause**, pinned by `e2e/depth.spec.ts` — and pinning it corrected the
+record it was going to be judged against. Depth to a route's ANSWER is not page height; `HANDOFF.md`
+carried a table of total page heights (flight 6.6 phone screens, design 6.9) labelled "depth", and
+that table had been read as a two-screen failure. It is a different quantity. Measured at 390x664
+with the bundled sample, depth to each route's primary answer is `/flight` **1.53**, `/design`
+**1.55**, `/validate` **1.70** — all inside the contract.
+
+`/sweep` is a **real breach at 2.10**, and it is pinned as a `test.fail` rather than described: the
+test still runs and still measures, the gate stays green on a breach that predates the check, and it
+goes RED the day it is fixed. A threshold widened to 2.2 screens would never have said anything.
+
+**The cause is not `/sweep`.** It is the **1071 px of shared chrome above the workspace spine** —
+header 73, toolbar 68, restore banner 112, collapsed Conditions 44, design summary 508, warnings 74 —
+identical on all four routes, and 1.61 of the two screens before any workspace renders a pixel. That
+term is now ratcheted directly (≤820 px desktop, ≤1120 px phone, measured + ~5%), because it is the
+one number every route's depth is built on and a per-route assert with 0.3 screens of slack would
+not catch it moving. DESIGN.md §8 makes this a PHONE contract and says desktop and touch are separate
+designs over one model, so collapsing the 508 px summary to a disclosure on a coarse pointer — the
+pattern Conditions already uses at 44 px — is the obvious fix and returns ~460 px to all four routes
+at once. Filed in `BACKLOG.md` with the breakdown.
+
+**Not done:** the design drawing is still reachable only from `/design` (`COMPETITION.md` row 31).
+**Sequence it after the chrome fix, not before** — the strip costs a phone another 130–160 px, which
+is more than `/sweep` has left, so shipping it first puts a second route over the line.
 
 **Outcome.** Loft is shaped like an application, not a scrolling page.
 

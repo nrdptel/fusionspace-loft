@@ -2168,3 +2168,24 @@ big for one pass. Newest first.
 - A design with SEVERAL unresolvable motors makes you accept the same-casing substitute one by one.
   (A partly-resolved configuration now withholds its stored comparison, so at least the missing
   curve no longer reads as an accuracy gap.)
+- **The shared chrome above the workspace spine is 1071 px on a short phone, and it is what breaks
+  DESIGN.md §8's two-screen contract.** Measured 2026-08-01 at 390x664 with the bundled sample,
+  identical on all four workspace routes: header 73, toolbar 68, restore banner 112, collapsed
+  Conditions 44, design summary 508, warnings 74. That is **1.61 of the two screens** spent before a
+  workspace renders a pixel, leaving 0.39 for the route's own answer. `/sweep` does not fit — its
+  first swept-motor row lands at 1393 px = **2.10 screens** — and is pinned as a `test.fail` in
+  `e2e/depth.spec.ts` so it runs, measures, and goes red the day it is fixed. `/flight` (1.53),
+  `/design` (1.55) and `/validate` (1.70) pass. The design summary is the single largest term at
+  508 px, against 316 px on desktop; DESIGN.md §8 says desktop and touch are separate designs over
+  one model, so collapsing it to a disclosure on a coarse pointer — the pattern Conditions already
+  uses at 44 px — is the obvious move and would return ~460 px to every route at once. Do this
+  BEFORE the persistent design strip (`COMPETITION.md` row 31): the strip costs a phone another
+  130–160 px, which is more than the remaining budget on `/sweep`.
+- The recents shelf's destructive control sits flush against its open control — `Remove <design>`
+  (44x44) and `Reopen <design>` (247x44) share an edge with a **0 px gap**, joined deliberately as a
+  split control (`ImportPanel.tsx:201-239`). A thumb aiming at Reopen can hit Remove. Two things
+  that were claimed about this and are NOT true, checked before filing: DESIGN.md carries no
+  destructive-separation rule for it to breach, and the removal is **not** unrecoverable —
+  `onForgetRecent` (`LoftApp.tsx:737`) deliberately holds the entry and its index, and a "put back"
+  affordance renders from `removedRecents` (`ImportPanel.tsx:96-114`). So this is a craft issue about
+  mis-tap cost on a glove, not data loss.

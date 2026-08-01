@@ -149,9 +149,12 @@ the dispersion) and `/validate` (the file's own stored numbers, its step-by-step
 independent solver). North Star #1 asks for independent estimates side by side; they could not be
 side by side while they were on different routes.
 
-**Driven on the built export, not asserted:**
+**Driven on the built export, not asserted.** These are TOTAL page heights in screens — how far the
+document scrolls — **not** depth to each route's answer, which is a different and much smaller
+quantity now pinned by `e2e/depth.spec.ts` (see item 2 below). They were labelled "depth" here and
+read as a two-screen failure for it; they are not that.
 
-| route | title | desktop depth | phone depth | controls under 44 px |
+| route | title | desktop page height | phone page height | controls under 44 px |
 |---|---|---|---|---|
 | `/flight` | Flight — Loft | 3.2 screens | 6.6 | 0 |
 | `/design` | Design — Loft | 3.4 | 6.9 | 0 |
@@ -314,10 +317,27 @@ should not have, and an address disagreeing with what is on screen.
    program guide and the RASAero II manual. `app/(app)/layout.tsx` is the right home because it does
    not remount.
 
-2. **P2's remaining *done when* clauses.** The static-export assertion is not written (assert
-   `out/flight/index.html` and friends exist, and that the sitemap and `robots` agree with
-   `lib/workspaces.ts`). And "no route more than two screens deep to its primary answer" has been
-   MEASURED but not pinned — the numbers are in the table above and in `BACKLOG.md`.
+2. **P2's remaining *done when* clause.** Both of the two named here are now done, and the note that
+   used to sit here was wrong twice over, so read this before trusting the table above.
+
+   The **static-export assertion** shipped as `scripts/check-routes.mjs`, wired into `postbuild`.
+   Note that the assertion this file used to suggest — "assert `out/flight/index.html` and friends
+   exist" — would have FAILED against the real export: a workspace's document is `out/flight.html`,
+   and `out/flight/` holds only the seven RSC segment files. `check-routes.mjs` accepts either shape
+   deliberately; do not "fix" it toward `index.html`.
+
+   **"No route more than two screens deep to its primary answer"** is now pinned by
+   `e2e/depth.spec.ts`, and pinning it corrected the record. Depth to the ANSWER is not page height,
+   which is what the table above measures and what had been read as a failure. Measured at 390x664
+   with the bundled sample: `/flight` 1.53 screens, `/design` 1.55, `/validate` 1.70 — all pass.
+   `/sweep` is a real breach at **2.10** and is pinned as a `test.fail`, so it runs, measures, and
+   goes red the day it is fixed. The cause is not `/sweep`: it is the **1071 px of shared chrome
+   above the workspace spine** (identical on all four routes), which is 1.61 of the two screens
+   before any workspace renders. The design summary is 508 px of that. See `BACKLOG.md`.
+
+   What remains of P2 is the **persistent design strip** (`COMPETITION.md` row 31) — and it is not
+   free: it costs 130–160 px on a phone, which is more than `/sweep`'s remaining budget. The chrome
+   has to come down first or the strip pushes a second route over the line.
 
 3. **R7 increment 2 — the thickness-ratio collapse**, which is the one of the remaining two that has
    no failed attempt behind it. `finThicknessRatio` is the largest thickness on the rocket over the
