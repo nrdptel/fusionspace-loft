@@ -423,14 +423,24 @@ export default function Limitations() {
       <h3>Motor clusters are modelled coaxially</h3>
       <p>
         A motor cluster is simulated as its full complement of identical motors — an
-        OpenRocket &ldquo;4-ring,&rdquo; for example, flies four motors, with the thrust,
-        propellant, and motor-tube mass all counted. They are placed on the centreline rather than
+        OpenRocket &ldquo;4-ring,&rdquo; for example, flies four motors, with the thrust and
+        propellant of all four counted. They are placed on the centreline rather than
         at their true radial offsets: for the vertical-plane apogee, velocity, and mass this makes
         no difference, but the roll/pitch inertia contribution of the offset motors isn&apos;t
         modelled (and rotation isn&apos;t solved anyway — see above). Within a single cluster the
         motors always light together — a staggered ignition or a partial-cluster failure across the
         identical motors of one mount isn&apos;t modelled. (A motor on a <em>separate</em> mount with
         its own ignition delay <em>is</em> air-started at that delay; see the air-start note below.)
+      </p>
+      <p>
+        <strong>The extra motor tubes are counted only where the design describes them.</strong> A
+        cluster held in an <em>inner tube</em> is that many inner tubes, and their structural mass is
+        counted that many times. A cluster held by the <em>airframe</em> tube itself is a different
+        shape: the design gives Loft a count and an overhang but no geometry for the extra tubes, so
+        their structure is not counted at all — there is one airframe however many motors are inside
+        it. That under-counts a real build by the mass of the additional motor tubes and centring
+        rings, which is small and always in the conservative direction for apogee. Loft will not
+        guess it; a design that models those tubes as components has them counted like any other part.
       </p>
 
       <h3>Air-start ignition is timed but not event-triggered</h3>

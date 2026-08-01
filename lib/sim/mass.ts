@@ -213,7 +213,28 @@ function componentPointMass(p: Positioned): PointMass | null {
   // A clustered motor mount is N motor tubes, not one; scale the tube's own structural mass to
   // match (the motors themselves are added N times by the simulator). Modelled coaxially, so
   // the extra tubes sit on the centreline — fine for the vertical-plane mass/CG the solver uses.
-  const cluster = "motorMount" in c ? c.motorMount?.clusterCount ?? 1 : 1;
+  //
+  // **Only an INNER TUBE is one of those N tubes.** A `motorMount` also sits on a `BodyTube`
+  // (`types.ts:120`) — the airframe itself — and a cluster of three motors inside a 50 mm airframe
+  // is three motor tubes inside ONE airframe, not three airframes. Scaling the host regardless was
+  // reachable from the "Motor cluster" field on 12 of the 35 real designs, every one of which ships
+  // `clusterCount: 1` and so had to be typed to reach: measured on `01.One-stage.ork`, a 50.3 mm
+  // body tube, Motors 1 → 3 moved dry mass 0.4241 → 0.5881 kg (+38.7%) and CG 674.0 → 713.8 mm
+  // (+39.7 mm); on `Parallel booster staging.ork` +74.1% and +96.7 mm; on `OR vs RAS Test 1.ork`
+  // +65.9% and +100.0 mm. CG is what the static margin is measured from, so that is a wrong
+  // stability number from a legal edit, on the surface a flyer sizes nose ballast against.
+  //
+  // **No corpus design exercises this, and saying so is the point** — the two files that ship a
+  // cluster (`Airstart timing.ork` at 3, `Clustered motors.ork` at 4) both carry it on an
+  // `innertube`, where the scale is correct and unchanged. The census cannot move, so the guard is
+  // pinned by a synthetic case in `mass.test.ts` rather than by the sweep.
+  //
+  // What this deliberately does NOT do is invent the extra motor tubes' mass on an airframe-hosted
+  // cluster. Loft is told nothing about their geometry there — a body tube's `motorMount` carries an
+  // overhang and a count, not a tube — and guessing one would be a confident number from no data.
+  // Under-counting two thin motor tubes is a small, disclosed error; tripling the airframe is not.
+  // Recorded on the limitations page.
+  const cluster = c.kind === "innertube" ? c.motorMount?.clusterCount ?? 1 : 1;
   if (cluster > 1) {
     mass *= cluster;
     ownInertia *= cluster;

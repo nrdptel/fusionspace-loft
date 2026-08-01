@@ -23,15 +23,22 @@ big for one pass. Newest first.
   metric that does not punish a file for delegating its container, and that is a §9 change, which
   means it is owed to BOTH repos.
 
-- **A cluster count multiplies the mass and inertia of whatever component carries the mount, not just
-  the motor tube.** `lib/sim/mass.ts:216` scales ANY component's own mass and rotational inertia by
-  `motorMount.clusterCount`, and `lib/model/edit.ts:861` writes `motorClusterCount` onto every component
-  that has a `motorMount`. **Not reachable today**, and that is the whole reason it is filed rather than
+- ~~**A cluster count multiplies the mass and inertia of whatever component carries the mount, not just
+  the motor tube.**~~ **RESOLVED 2026-08-01, and this entry's own premise was FALSE — which is the part
+  worth keeping.** It read *"Not reachable today, and that is the whole reason it is filed rather than
   fixed: only an inner tube or a minimum-diameter tube ever carries a mount, so the component being
-  scaled is always a motor tube, where scaling is correct. It becomes reachable the moment a flyer can
-  author a mount onto a main airframe tube — R5 increment 4 — at which point a design with Motors ≥ 2
-  moves its dry mass and CG with nothing on screen saying so. Magnitude UNVERIFIED; the reachability is
-  not. Recorded here so the increment that opens the door is the one that closes this.
+  scaled is always a motor tube."* Both halves are wrong. **12 of the 35 real designs carry the mount on
+  a `bodytube`** — `01.One-stage.ork` at 50.3 mm outer, `OR vs RAS Test 1.ork` at 101.6 mm,
+  `Complex.Two-Stage.CDX1`'s 152.4 mm booster tube — none of them minimum-diameter. And no authoring
+  gesture was needed to reach it: the **"Motor cluster" field has always been offered** on every design
+  with a mount (`LoftApp.tsx:2058`, min 1 max 12), so typing a 3 was all it took. Measured on
+  `01.One-stage.ork`: dry mass 0.4241 → 0.5881 kg (**+38.7%**) and CG 674.0 → 713.8 mm (**+39.7 mm**);
+  `Parallel booster staging.ork` **+74.1%** and **+96.7 mm**; `OR vs RAS Test 1.ork` **+65.9%** and
+  **+100.0 mm**. CG is what the static margin is measured from. A third defect sat behind it that nobody
+  had named: the scale ran AFTER the `overrideMass` check, so a part whose weight the design states
+  outright had that stated figure multiplied too — 120 g reported as 360 g.
+  **The lesson: "not reachable" was asserted from the type signature and never driven.** One loop over
+  the corpus settles it in a minute, and the entry stood for days claiming the opposite.
 
 - **A recovery device set to deploy at an altitude it does not state fires at the GROUND, and that
   suppresses the one warning that matters most.** `lib/sim/simulate.ts:729` reads

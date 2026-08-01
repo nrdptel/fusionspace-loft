@@ -463,8 +463,11 @@ export default function Methods() {
         matched to a different maker&apos;s &ldquo;K550W&rdquo;. The UI flags an approximate or failed
         match. A motor{" "}
         <em>cluster</em> (OpenRocket&apos;s cluster configuration, e.g. a &ldquo;4-ring&rdquo;) is
-        flown as that many identical motors on the centreline — full thrust, propellant, and
-        motor-tube mass — with the count shown on the motor tag. Where a design assigns different
+        flown as that many identical motors on the centreline — full thrust and propellant, plus the
+        structural mass of that many motor tubes where the design holds the cluster in an inner tube
+        — with the count shown on the motor tag. A cluster carried by the airframe tube itself
+        describes no extra tubes, so none are counted; see{" "}
+        <Link href="/docs/limitations">limitations</Link>. Where a design assigns different
         motors to separate mounts and only some resolve, the flight runs on the resolved ones and a
         warning reports the under-counted thrust.
       </p>
