@@ -133,6 +133,24 @@ export interface AddedStage {
   name: string;
 }
 
+/** A motor mount authored onto a tube that had none.
+ *
+ *  **A FIFTH list rather than a fifth `AddedPart.kind`, and the reason is the same structural one
+ *  `AddedStage` gives.** `buildAdded` returns *a component plus where it goes*, and a motor mount is
+ *  neither: `motorMount` is a FIELD on `BodyTube` (`types.ts:120`) and `InnerTube` (`types.ts:201`),
+ *  so authoring one MUTATES an existing part rather than building a new one, and there is nothing in
+ *  that return shape to carry it. It also has no id of its own — `lib/sim/setup.ts` and
+ *  `lib/ork/export.ts` both key a mount by its HOST component's id — so the entry names the host and
+ *  nothing else.
+ *
+ *  It carries no motor. What the mount flies is decided at every apply from the design as it then
+ *  stands, which is the rule every other operation in this bag follows and what makes replaying the
+ *  bag from the pristine design the whole of undo. */
+export interface MountAdd {
+  /** The component the mount goes on — a body tube or an inner tube that has none. */
+  hostId: string;
+}
+
 /** One reorder: `id` now sits immediately behind `after`, or at the nose end of its stage when `after`
  *  is null. Both ids are top-level components of the SAME stage; anything else is refused. */
 export interface MovedPart {
@@ -243,6 +261,8 @@ export interface GeometryEdits {
   moved?: MovedPart[];
   /** Booster stages the flyer authored, appended in order. See `AddedStage`. */
   addedStages?: AddedStage[];
+  /** Motor mounts the flyer authored onto tubes that had none. See `MountAdd`. */
+  mountAdds?: MountAdd[];
   /** Absolute fin semi-span (root→tip height, m) for the fin group the panel describes — the
    *  primary set and any set indistinguishable from it. Undefined leaves fins as-is. */
   finSpan?: number;
@@ -373,6 +393,7 @@ export function hasGeometryEdits(e: GeometryEdits): boolean {
     // be shown, flown and exported as the pristine one. Caught by the e2e, not by any unit test.
     (e.moved !== undefined && e.moved.length > 0) ||
     (e.addedStages !== undefined && e.addedStages.length > 0) ||
+    (e.mountAdds !== undefined && e.mountAdds.length > 0) ||
     (e.finSpan !== undefined && e.finSpan > 0) ||
     (e.finCount !== undefined && e.finCount >= 1) ||
     (e.finRootChord !== undefined && e.finRootChord > 0) ||
@@ -1893,6 +1914,80 @@ function applyAddedStages(rocket: Rocket, addedStages?: readonly AddedStage[]): 
   return out;
 }
 
+/** Which components can be given a motor mount, and why the answer is not simply "a tube without one".
+ *
+ *  Three conditions, and each is a case:
+ *   - the host must be a `bodytube` or an `innertube`, because those are the only two types that
+ *     carry the field at all (`types.ts:120`, `:201`);
+ *   - it must not already have one, because this operation SETS the field rather than merging into it;
+ *   - and the design must have a motor to put in it. A mount with no `MotorInstance` naming it is
+ *     dead weight the solver never lights: `lib/sim/setup.ts` derives each stage's burn from the
+ *     instances that land in it, so an empty mount adds nothing and — worse — satisfies a
+ *     `canAddStage` that only tests for a mount's EXISTENCE, after which `applyAddedStages` falls back
+ *     to `cfg.instances[0]` and the booster flies whichever motor happens to be first. That is the
+ *     documented 11.9%-low case on `Three stage low power rocket.ork`, reached from a new direction.
+ *     Refusing here is what keeps that door shut.
+ */
+export function canAddMount(rocket: Rocket, hostId: string): boolean {
+  const host = flattenRocket(rocket).find((p) => p.component.id === hostId)?.component;
+  if (!host) return false;
+  if (host.kind !== "bodytube" && host.kind !== "innertube") return false;
+  if ("motorMount" in host && host.motorMount !== undefined) return false;
+  // Something to fly. A configuration with no instances at all is a configuration the design says
+  // flies nothing, and two of the 35 real designs carry one — those are not a motor to clone.
+  return rocket.configurations.some((cfg) => cfg.instances.length > 0);
+}
+
+/** Set the authored mounts, and give each one a motor in every configuration.
+ *
+ *  **The motor is the operation, exactly as it is for a stage.** `applyAddedStages`' own comment says
+ *  it: a mount with no instance never lights and never drops, so authoring the field alone would put a
+ *  control on screen that changes nothing and leaves `canAddStage` satisfied by an empty mount. The
+ *  motor cloned is the one that configuration's first instance flies — the design's own — because a
+ *  tube that never had a mount has no motor of its own to prefer.
+ *
+ *  `ignitionEvent` and `ignitionDelay` are omitted for the same reason `applyAddedStages` omits them:
+ *  `lib/sim/setup.ts` derives bottom-versus-upper from the STAGE INDEX, so an event cloned from a
+ *  sustainer lands on a mount where it can resolve to "never lights".
+ *
+ *  Applied at TWO points in the pipeline and idempotent by construction — the second pass finds the
+ *  field already set and skips. Once before `applyAddedStages`, so a booster can be authored on a
+ *  design whose aft tube had no mount to clone (which is the whole point of this operation, and the
+ *  2 designs it exists for); once after `applyAdds`, so a mount can go on a tube the flyer authored.
+ *
+ *  **It is provably orthogonal to the anchoring property the pipeline order protects**, and that is
+ *  why no reordering was needed. `buildStage` picks its seed by set membership and station alone —
+ *  `flattenRocket(...).filter(kind === "bodytube")` reduced by `xFore` — and a mount-add creates no
+ *  component and moves none, so it can change neither. The three causes of divergence `stageSeedBase`
+ *  names (an authored tube at the tail, a removal, a reorder) are every one of them positional. */
+function applyMountAdds(rocket: Rocket, mountAdds?: readonly MountAdd[]): Rocket {
+  if (!mountAdds?.length) return rocket;
+  let out = rocket;
+  for (const entry of mountAdds) {
+    if (!canAddMount(out, entry.hostId)) continue;
+    const set = (list: RocketComponent[]): RocketComponent[] =>
+      list.map((c) =>
+        c.id === entry.hostId
+          ? { ...c, motorMount: { overhang: 0 }, children: c.children }
+          : c.children.length
+            ? { ...c, children: set(c.children) }
+            : c,
+      );
+    const stages = out.stages.map((st) => ({ ...st, components: set(st.components) }));
+    const configurations = out.configurations.map((cfg) => {
+      if (cfg.instances.some((i) => i.mountId === entry.hostId)) return cfg;
+      const from = cfg.instances[0];
+      if (!from) return cfg;
+      const { ignitionEvent: _e, ignitionDelay: _d, ...rest } = structuredClone(from);
+      void _e;
+      void _d;
+      return { ...cfg, instances: [...cfg.instances, { ...rest, mountId: entry.hostId }] };
+    });
+    out = { ...out, stages, configurations };
+  }
+  return out;
+}
+
 /** Whether a booster can be authored on this design at all — the predicate behind the control.
  *
  *  Asked of the same tree the operation runs against, so the button is offered exactly where the
@@ -1922,7 +2017,7 @@ export function canAddStage(rocket: Rocket): boolean {
  *  renders, and the click leaves the stage count at 3 with the design flipped to edited — the
  *  changes-nothing click the refusal was written to prevent, reached from the other side. */
 export function stageSeedBase(rocket: Rocket, edits: GeometryEdits): Rocket {
-  return applyAddedStages(rocket, edits.addedStages);
+  return applyAddedStages(applyMountAdds(rocket, edits.mountAdds), edits.addedStages);
 }
 
 /** Every component id an authored stage accounts for: its seed, whatever is mounted in that seed, and
@@ -2027,6 +2122,7 @@ export function structureOf(rocket: Rocket, edits: GeometryEdits): Rocket {
     removedIds: edits.removedIds,
     moved: edits.moved,
     addedStages: edits.addedStages,
+    mountAdds: edits.mountAdds,
   });
 }
 
@@ -2050,9 +2146,17 @@ export function applyGeometryEdits(rocket: Rocket, edits: GeometryEdits): Rocket
   //    instead of resolving against a tree that still has it; and BEFORE the dimension edits, so
   //    `aftmostBodyTube`, `nextTopLevel` and `transitionDefaults` all see the order the flyer built
   //    rather than the order the file arrived in.
+  //  - MOUNT-ADDS twice, and both positions are load-bearing. Before the stages, so a booster can be
+  //    authored on a design whose aft tube had no mount to clone — the 2 real designs this operation
+  //    exists for, and the reason `canAddStage` refuses them today. After the adds, so a mount can go
+  //    on a tube the flyer authored. The operation is idempotent: the second pass finds the field set
+  //    and `canAddMount` returns false.
   return applyDimensionEdits(
     applyMoves(
-      applyRemovals(applyAdds(applyAddedStages(rocket, edits.addedStages), edits.added), edits.removedIds),
+      applyRemovals(
+        applyMountAdds(applyAdds(applyAddedStages(applyMountAdds(rocket, edits.mountAdds), edits.addedStages), edits.added), edits.mountAdds),
+        edits.removedIds,
+      ),
       edits.moved,
     ),
     withoutRemovedAims(edits),

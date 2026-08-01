@@ -421,7 +421,15 @@ export default function Limitations() {
         This is reachable both by editing and from a file. Adding a booster is refused outright where
         the stage it would be seeded from carries no motor mount to clone, but that check runs at the
         moment of adding, and the mount inside an authored booster is an ordinary component the flyer
-        can delete afterwards. One of the 35 real design files in the corpus is also in this state as
+        can delete afterwards. <strong>A tube with no motor mount can now be given one</strong>, which
+        is what lifts that refusal — of the 35 real design files, 24 offer the gesture on their aft
+        tube and one of the two that refuse a booster is unblocked by it. The mount does not arrive
+        empty: an empty one never lights, so Loft puts the design&apos;s own motor in it and says so on
+        the panel, because a tube that never had a mount has no motor of its own to prefer. The other
+        refused design stays refused, and correctly — no motor anywhere in it resolves, so there is
+        nothing to put in a mount. <strong>Loft cannot yet give one mount a different motor from
+        another</strong>; the motor picker is a whole-design what-if, so a design with several mounts
+        flies the same motor in all of them. One of the 35 real design files in the corpus is also in this state as
         imported — a three-stage design whose bottom stage carries a burnout trigger with nothing below
         it — which Loft has always flown that way without ever saying so on any surface. That file
         stores no apogee of its own, so its flight is one of the cases the{" "}

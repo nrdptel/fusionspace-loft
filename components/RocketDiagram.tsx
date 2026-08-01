@@ -17,8 +17,7 @@ import {
 import { flattenRocket } from "@/lib/model/geometry";
 import type { MotorMark } from "@/lib/sim/setup";
 import { useMeasuredWidth } from "./LineChart";
-import { TOUCH_TARGET_SQUARE } from "@/lib/ui-tokens";
-import { Button } from "./ui";
+import { Button, Segmented } from "./ui";
 import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
 
@@ -951,28 +950,21 @@ function FinHandlePicker({
   offered: readonly FinField[];
 }) {
   if (offered.length < 2) return null;
+  // `Segmented`, not a hand-rolled row of toggles. `DESIGN.md` §5 names this exact control — "2–5
+  // mutually exclusive options, all visible" — and this is one: at most five fin dimensions, one
+  // active. It was the last hand-rolled control outside the primitives, and it had drifted to its own
+  // active treatment (an indigo tint and border) where every other exclusive switch in the app uses
+  // the primitive's raised-white one. A flyer meets both on the same screen.
   return (
-    <span role="group" aria-label="Fin handle" className="inline-flex flex-wrap items-center gap-1">
+    <span className="inline-flex flex-wrap items-center gap-1">
       <span className="text-zinc-500 dark:text-zinc-400">Drag:</span>
-      {offered.map((f) => {
-        const on = f === value;
-        return (
-          <button
-            key={f}
-            type="button"
-            aria-pressed={on}
-            onClick={() => onChange(f)}
-            className={
-              `inline-flex items-center rounded-md border px-2 ${TOUCH_TARGET_SQUARE} ` +
-              (on
-                ? "border-indigo-500 bg-indigo-500/10 font-medium text-indigo-700 dark:text-indigo-300"
-                : "border-zinc-300 text-zinc-600 dark:border-zinc-700 dark:text-zinc-300")
-            }
-          >
-            {FIN_FIELD_LABEL[f]}
-          </button>
-        );
-      })}
+      <Segmented
+        value={value}
+        onChange={(v) => onChange(v as FinField)}
+        options={offered.map((f) => ({ value: f, label: FIN_FIELD_LABEL[f] }))}
+        ariaLabel="Fin handle"
+        size="sm"
+      />
     </span>
   );
 }

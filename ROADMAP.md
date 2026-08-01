@@ -499,7 +499,45 @@ move and asserts every one of the 206 actually permuted the list.
 
 ## R5 — Author a staged rocket
 
-**Status:** IN PROGRESS — increment 1 shipped 2026-07-31: the operation, the refusal and the control,
+**Status: SHIPPED 2026-08-01.** Every clause of the *done when* is reachable and pinned by an
+automated check. Increment 4 — the last clause, "give it its own motor mount" — landed as
+`GeometryEdits.mountAdds`: a tube with no motor mount can be given one, which is what lifts the
+refusal that stopped a booster existing at all on such a design. Driven across the corpus: the gesture
+is **offered on 24 of the 35 real designs**, and of the **2 that refused a booster outright, 1 is
+unblocked by it** (`03.Three-stage.ork`). The other stays refused and correctly so — no motor anywhere
+in it resolves, so there is nothing for Loft to put in a mount, and a mount with nothing naming it
+never lights.
+
+Pinned by `lib/model/edit.test.ts`'s *authoring a motor mount* suite (7 cases), by
+`lib/corpus/sweep.test.ts`'s *authors a motor mount on every real design that can take one, and
+unblocks the booster it exists for*, and by the e2e *a flyer can give a tube a motor mount, fly it,
+and take it back off*. Two negative controls, both with their build exits checked: removing the
+mount-add from `stageSeedBase` fails exactly the unblock assertions, and dropping the configuration
+write fails the instance, idempotence and round-trip ones.
+
+**Hazard 1 dissolved rather than needing the pipeline reordered, and the reason is worth keeping.**
+`buildStage` picks its seed by set membership and station alone — `flattenRocket(...)` filtered to
+body tubes, reduced by `xFore` — and a mount-add creates no component and moves none, so it can
+change neither. The three causes of divergence `stageSeedBase` names (an authored tube at the tail, a
+removal, a reorder) are every one of them positional. `applyMountAdds` therefore folds into
+`stageSeedBase` and runs at two points in the pipeline — before the stages so a booster can be
+authored at all, after the adds so a mount can go on a tube the flyer authored — and is idempotent by
+construction, which the corpus test asserts directly rather than assuming.
+
+**Hazards 2 and 4 were closed by the same design rather than left open.** `canAddMount` refuses where
+the design has no motor to clone, which is what stops an EMPTY mount satisfying a `canAddStage` that
+tests only for existence (hazard 2's documented 11.9%-low fallback, reached from a new direction).
+Hazard 4 was fixed ahead of this increment as a Sev-1 — see below; its "not reachable today" premise
+was false.
+
+**What R5 did NOT deliver, recorded here as the next milestone's starting point rather than left
+implied.** A flyer cannot give one mount a different motor from another: `motorSwap` is a whole-design
+what-if, so an authored mount flies the design's own motor and a design with several mounts flies the
+same motor in all of them. `COMPETITION.md` row 27 sizes it — both OpenRocket and RockSim author a
+cluster on the mount you PICKED and build the extra tubes as real components. A per-mount motor
+picker is the first increment of whichever milestone takes this forward.
+
+**Increment 1 shipped 2026-07-31:** the operation, the refusal and the control,
 pinned by `lib/model/edit.test.ts`'s `authoring a booster stage` suite (8 cases), by
 `lib/corpus/sweep.test.ts`'s *authors a booster on every real design, and every one of them separates*
 — which drives **33 authored boosters and 2 refusals across all 35 real designs**, flies 30 of them and
@@ -828,7 +866,55 @@ pinned.
 
 ## P1 — One design system, adopted
 
-**Status:** IN PROGRESS — the current P-track milestone. The container and control vocabulary exists and
+**Status: IN PROGRESS — one clause of the *done when* left, and it is named precisely below.** As of
+2026-08-01 every §9 count is at its target or its recorded honest floor, all six tables are on
+`DataTable`, and the hand-rolled `<button>` count is down from 17 to the three primitives that are
+not buttons.
+
+| §9 count | target | 2026-08-01 |
+|---|---|---|
+| `rounded-lg` | 0 | **0** |
+| distinct card treatments | 3 (honest floor) | **3** |
+| off-scale spacing values | 0 | **0** |
+| off-scale type sizes | 0 | **0** |
+| files where caption size outnumbers the body default | 0 | **0** |
+| components importing `components/ui.tsx` | most of 23 | **16** |
+| components importing `Button` | most that have one | **13** |
+| tables on `DataTable` | all of them | **6 of 6** |
+| hand-rolled `<button>` | 3 (honest floor) | **3**, from 17 |
+| font sizes declared in `app/globals.css` off §3's scale | 0 | **0**, from 3 — and now asserted |
+
+**The two honest floors are decisions, not shortfalls, and each is recorded where it is enforced.**
+Cards: one of the three IS `<Card>`'s own string; the others are a floating toast and an interactive
+drop zone, which want their own named primitives. Buttons: the three left are `Segmented`, `Tabs` and
+`DataTable`'s sort header — §5 lists all three as their own primitives with their own geometry, and
+forcing any through `buttonClass`'s `px-3 py-1.5 rounded-md` would make it look like a button, which
+is the opposite of the point. What they share with `Button` — the focus treatment and the touch
+minimum — they already have: verified by tabbing the whole page against the built export, every
+control kind renders the same `2px solid rgb(99,102,241)`.
+
+**WHAT IS LEFT — the *fields* clause, and it is the last one.** The *done when* says every component
+imports its containers, buttons **and fields** from `components/ui.tsx`. Containers and buttons are
+done; fields are not. `components/LoftApp.tsx` carries `Num`, a **second complete numeric-input
+primitive** — its own draft buffer, bounds, refusal message and touch target — used at **28 call
+sites**, while `ui.tsx`'s `NumberField` is used at **7**, all inside `MonteCarlo`. §5 says "every
+numeric input in either app is this". The two already disagree: `Num`'s label is `text-[11px]` and it
+bakes the unit into the label string, `NumberField`'s is `text-sm` with a `unit` prop, and
+`NumberField` itself carries no touch minimum while `Num` does.
+
+**Reconcile before converting, and half of that is done.** `Num` owns the refusal behaviour the SAFETY
+invariant requires — a value that cannot mean anything physically is bounded at the field rather than
+flown into a confident number — so the merged primitive must keep the stronger of the two at every
+point, not the newer. On 2026-08-01 `NumberField` took the two things it was BEHIND on: §8's touch
+minimum (all seven of its instances measured 36 px on a Pixel 7 while `Num` cleared 44) and the
+withhold-at-keystroke rule. **What remains is the conversion itself** — 28 call sites — plus the two
+cosmetic disagreements: `Num`'s label is `text-[11px]` against `NumberField`'s `text-sm`, and `Num`
+bakes the unit into the label string where `NumberField` has a `unit` prop. §3 does not permit
+`text-[11px]` for a field label, so that one is a fix rather than a preference. Sized 2 increments.
+
+*(Original status line: the container and control vocabulary exists and the §9 compliance block is an
+executable ratchet — `lib/design-system.test.ts`, 10 cases — so the drift cannot return while the
+conversion is still running.)* The container and control vocabulary exists and
 the §9 compliance block is now an executable ratchet (`lib/design-system.test.ts`, 7 cases), so the drift
 cannot return while the conversion is still running.
 

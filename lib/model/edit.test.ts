@@ -56,7 +56,9 @@ import {
   aimsClearedByRemoving,
   hasGeometryEdits,
   canAddStage,
+  canAddMount,
   stageSeedBase,
+  type GeometryEdits,
   addedStageIds,
 } from "./edit";
 import type {
@@ -546,6 +548,131 @@ describe("applyGeometryEdits — fin count", () => {
   it("no-ops for a count below one", async () => {
     const rocket = await load("demo-single-deploy.ork");
     expect(applyGeometryEdits(rocket, { finCount: 0 })).toBe(rocket);
+  });
+});
+
+describe("authoring a motor mount", () => {
+  const mountsOf = (r: Rocket) =>
+    flattenRocket(r)
+      .map((p) => p.component)
+      .filter((c) => "motorMount" in c && (c as { motorMount?: unknown }).motorMount !== undefined);
+
+  const aftTube = (r: Rocket) => {
+    const tubes = flattenRocket(r).filter((p) => p.component.kind === "bodytube");
+    return tubes.reduce((b, p) => (p.xFore > b.xFore ? p : b)).component;
+  };
+
+  /** The starter with every motor mount removed, at any depth — its own sits on an INNER tube nested
+   *  inside the aft body tube, so a top-level strip misses it entirely. That is the shape of the 2
+   *  real designs this operation exists for. */
+  const stripMounts = (r: Rocket): Rocket => {
+    const strip = (list: RocketComponent[]): RocketComponent[] =>
+      list.map((c) => {
+        const kids = c.children.length ? strip(c.children) : c.children;
+        return "motorMount" in c ? { ...c, motorMount: undefined, children: kids } : { ...c, children: kids };
+      });
+    return { ...r, stages: r.stages.map((st) => ({ ...st, components: strip(st.components) })) };
+  };
+
+  it("sets the field on the named tube and gives it a motor in every configuration", () => {
+    const rocket = newDesign().rocket;
+    const bare = stripMounts(rocket);
+    const host = aftTube(bare);
+    expect(mountsOf(bare).length).toBe(0);
+    expect(canAddMount(bare, host.id)).toBe(true);
+
+    const out = applyGeometryEdits(bare, { mountAdds: [{ hostId: host.id }] });
+    expect(mountsOf(out).map((c) => c.id)).toEqual([host.id]);
+    // A mount with nothing naming it never lights — the instance IS the operation.
+    for (const cfg of out.configurations) {
+      expect(cfg.instances.some((i) => i.mountId === host.id), "every configuration gets an instance").toBe(true);
+    }
+  });
+
+  it("refuses a part that cannot carry one, one that already has one, and a design with no motor", () => {
+    const rocket = newDesign().rocket;
+    // Already has one. Read the mount's actual HOST rather than assuming it is the aft body tube —
+    // on the starter it is an INNER tube nested inside that tube, which is the ordinary shape.
+    const held = mountsOf(rocket)[0];
+    expect(held, "the starter must carry a mount or this case proves nothing").toBeDefined();
+    expect(canAddMount(rocket, held.id)).toBe(false);
+    // Not a tube.
+    const nose = flattenRocket(rocket).find((p) => p.component.kind === "nosecone")!.component;
+    expect(canAddMount(rocket, nose.id)).toBe(false);
+    // Not a part at all.
+    expect(canAddMount(rocket, "nope")).toBe(false);
+    // Nothing to fly: a mount Loft cannot put a motor in is dead weight that would still satisfy a
+    // `canAddStage` testing only for a mount's existence.
+    const bare: Rocket = {
+      ...stripMounts(rocket),
+      configurations: rocket.configurations.map((c) => ({ ...c, instances: [] })),
+    };
+    expect(canAddMount(bare, aftTube(bare).id)).toBe(false);
+  });
+
+  it("is what unblocks a booster on a design whose aft tube has no mount", () => {
+    // The whole reason this operation exists. `canAddStage` refuses where there is no mount to clone,
+    // and `stageSeedBase` is the only tree it may be asked of — so the mount-add has to be visible
+    // there, which is why `applyMountAdds` runs BEFORE `applyAddedStages`.
+    const rocket = newDesign().rocket;
+    const bare = stripMounts(rocket);
+    expect(canAddStage(bare)).toBe(false);
+    const bag: GeometryEdits = { mountAdds: [{ hostId: aftTube(bare).id }] };
+    expect(canAddStage(stageSeedBase(bare, bag))).toBe(true);
+  });
+
+  it("comes back off by dropping the entry, motor and all", () => {
+    const rocket = newDesign().rocket;
+    const bare = stripMounts(rocket);
+    const host = aftTube(bare);
+    const withMount = applyGeometryEdits(bare, { mountAdds: [{ hostId: host.id }] });
+    expect(mountsOf(withMount).length).toBe(1);
+    // Replaying the bag WITHOUT the entry is the whole of undo — nothing to unwind by hand, because
+    // the mount only ever existed in the bag.
+    const back = applyGeometryEdits(bare, { mountAdds: [] });
+    expect(mountsOf(back).length).toBe(0);
+    expect(back.configurations.every((c) => c.instances.every((i) => i.mountId !== host.id))).toBe(true);
+  });
+
+  it("is idempotent, so applying it at both pipeline points cannot double anything", () => {
+    // `applyMountAdds` runs before the stages AND after the adds. The second pass must find the field
+    // already set and do nothing — otherwise a second instance lands in every configuration and the
+    // design flies the motor twice.
+    const rocket = newDesign().rocket;
+    const bare = stripMounts(rocket);
+    const host = aftTube(bare);
+    const out = applyGeometryEdits(bare, { mountAdds: [{ hostId: host.id }] });
+    for (const cfg of out.configurations) {
+      expect(cfg.instances.filter((i) => i.mountId === host.id).length, "exactly one instance").toBe(1);
+    }
+  });
+
+  it("round-trips through the exporter", async () => {
+    // A mount is keyed by its HOST's id in both the solver and the exporter, so an authored one is
+    // indistinguishable from an imported one by the time it reaches either. Proving it here is what
+    // stops the builder shipping a design whose export loses the thing that was just built —
+    // `ROADMAP.md` R6 exists because `downloadOrk` has already dropped a field once.
+    const doc = newDesign();
+    const bare = stripMounts(doc.rocket);
+    const host = aftTube(bare);
+    const built = applyGeometryEdits(bare, { mountAdds: [{ hostId: host.id }] });
+    expect(mountsOf(built).length).toBe(1);
+
+    const reDoc = await importOrk(await exportOrk({ ...doc, rocket: built }));
+    const reMounts = mountsOf(reDoc.rocket);
+    expect(reMounts.length, "the authored mount survived the round trip").toBe(1);
+    // And so did the motor in it — a mount that comes back empty never lights, which is the same
+    // 37.5%-in-silence the stage operation exists to prevent.
+    expect(
+      reDoc.rocket.configurations.some((c) => c.instances.some((i) => i.mountId === reMounts[0].id)),
+      "the motor came back with it",
+    ).toBe(true);
+  });
+
+  it("counts as an edit, so a design carrying only one is not flown as the file describes it", () => {
+    const rocket = newDesign().rocket;
+    expect(hasGeometryEdits({ mountAdds: [{ hostId: aftTube(rocket).id }] })).toBe(true);
+    expect(hasGeometryEdits({ mountAdds: [] })).toBe(false);
   });
 });
 

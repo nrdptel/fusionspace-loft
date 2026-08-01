@@ -38,9 +38,13 @@ big for one pass. Newest first.
   project" lockup. On a phone they are permanently invisible, so the one affordance saying the link
   leaves the app never appears on the form factor where leaving is most disruptive.
 
-- **Three docs routes are 19–31 screens deep on a phone**, measured at 390 px:
-  `/docs/limitations` 26,314 px (**31.4 screens**), `/docs/methods` 24,471 px (29.2), `/docs/faq`
-  16,457 px (19.6) with 27 questions as `h3` under a single `h2`. §8 says a phone journey is at most
+- **Three docs routes are 20–34 screens deep on a phone**, measured at 390 px — and this run made
+  them DEEPER, which is the honest half of a fix that was still right. Putting `.prose-loft` on §3's
+  scale took body text from 14.8 px to 16 px, and re-measured against the built export of `be6a5b7`:
+  `/docs/limitations` **34.1 screens** (was 31.4), `/docs/methods` **31.1** (was 29.2), `/docs/faq`
+  **20.8** (was 19.6), `/docs/validation` 15.6, `/docs` 2.8. Legibility and depth pull in opposite
+  directions here and legibility won; the depth is a structural problem that a font size was never
+  going to solve. §8 says a phone journey is at most
   two screens to its answer. These are articles rather than journeys so the rule is arguable — the
   previous run filed that judgement too — but what makes it actionable now is that **none of the
   headings carries an `id`**, so there is no anchor, no in-page table of contents and no way to link
@@ -54,8 +58,13 @@ big for one pass. Newest first.
   circle under the 7 px visual; the pick overlays never got the same treatment. The parts TABLE is
   the working path on a phone, so this is a second route to the same action rather than the only one.
 
-- **The design-system audit's top finding, and §9's greps cannot see any of it: `app/globals.css`
-  restates the type scale in raw rem.** `.prose-loft` sets body `0.925rem` (~14.8 px), `h2` `1.2rem`
+- ~~**The design-system audit's top finding: `app/globals.css` restates the type scale in raw rem.**~~
+  **RESOLVED 2026-08-01** — the three sizes are §3's own, all five docs routes measure 0 off-scale, and
+  `lib/design-system.test.ts` now reads DECLARED VALUES in the stylesheet rather than class names, so
+  the blind spot is closed rather than the one instance patched. The paragraph below is kept because
+  the RAW HEXES it also names are still there. Original:
+
+- **`app/globals.css` restates the neutral ramp in raw hex.** `.prose-loft` sets body `0.925rem` (~14.8 px), `h2` `1.2rem`
   (19.2 px) and table text `0.85rem` (13.6 px) — three sizes that are on no part of `DESIGN.md` §3's
   six-size scale — and **every one of the six docs routes renders entirely inside that class**, while
   `offScaleType` asserts 0 because it matches class NAMES. The same file restates the neutral ramp in
@@ -66,10 +75,10 @@ big for one pass. Newest first.
 
 - **Six of `DESIGN.md` §5's named primitives do not exist at all**: `Panel`, `Readout`, `Figure`,
   `EmptyState`, `ErrorState`, `Extrapolated`. `ROADMAP.md` records this as deliberately deferred to a
-  P1 successor rather than half-built, and that stands — but two consequences are live and cheap:
-  `components/LineChart.tsx` renders the literal string **"No data."**, which §5 forbids by name, and
-  `FlightViz` and `GeometryInspector` return `null` rather than showing an empty state, so a surface
-  vanishes inside a Card whose heading stays.
+  P1 successor rather than half-built, and that stands. One consequence is now closed —
+  `components/LineChart.tsx` no longer renders the literal **"No data."** §5 forbids by name — and one
+  is still open: `FlightViz` and `GeometryInspector` return `null` rather than showing an empty state,
+  so a surface vanishes inside a Card whose heading stays.
 
 - **`LoftApp`'s `Num` is a second, complete numeric-input primitive** — its own draft buffer, bounds,
   refusal message and touch target — used at **28 call sites**, while `ui.tsx`'s `NumberField` is used

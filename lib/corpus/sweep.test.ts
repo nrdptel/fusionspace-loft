@@ -36,6 +36,8 @@ import {
   moveTarget,
   moveSlots,
   canAddStage,
+  canAddMount,
+  stageSeedBase,
   removalRefusal,
   transitionDefaults,
   newPartId,
@@ -526,6 +528,59 @@ suite("real-design corpus", () => {
     // Two full flights per design — the pristine one for its separation count, and the staged one —
     // so this needs the same explicit budget its neighbours take rather than the 5 s default.
   }, 300_000);
+
+  it("authors a motor mount on every real design that can take one, and unblocks the booster it exists for", async () => {
+    // R5's last *done when* clause. The operation exists for the designs whose aft tube carries no
+    // mount to clone, where `canAddStage` refuses a booster outright — so the assertion that matters
+    // is not "the field got set", it is "the refusal it was written to lift is lifted".
+    const offered: string[] = [];
+    const refusedBooster: string[] = [];
+    const unblocked: string[] = [];
+    const stillRefused: string[] = [];
+    const doubled: string[] = [];
+    for (const f of files) {
+      const doc = await importDesign(new Uint8Array(readFileSync(f.path)));
+      const tubes = flattenRocket(doc.rocket).filter((p) => p.component.kind === "bodytube");
+      if (!tubes.length) continue;
+      const aft = tubes.reduce((b, p) => (p.xFore > b.xFore ? p : b)).component;
+      if (!canAddMount(doc.rocket, aft.id)) {
+        if (!canAddStage(doc.rocket)) stillRefused.push(`${f.name}: no mount offered either`);
+        continue;
+      }
+      offered.push(f.name);
+      const bag = { mountAdds: [{ hostId: aft.id }] };
+      const built = applyGeometryEdits(doc.rocket, bag);
+
+      // The mount landed exactly once, and so did its motor. `applyMountAdds` runs at TWO points in
+      // the pipeline, so a doubled instance would fly the design's motor twice on every design here.
+      const holders = flattenRocket(built)
+        .map((p) => p.component)
+        .filter((c) => "motorMount" in c && (c as { motorMount?: unknown }).motorMount !== undefined)
+        .filter((c) => c.id === aft.id);
+      if (holders.length !== 1) doubled.push(`${f.name}: ${holders.length} mounts on one tube`);
+      for (const cfg of built.configurations) {
+        const n = cfg.instances.filter((i) => i.mountId === aft.id).length;
+        if (n > 1) doubled.push(`${f.name}: ${n} instances naming one mount`);
+      }
+
+      if (!canAddStage(doc.rocket)) {
+        refusedBooster.push(f.name);
+        if (canAddStage(stageSeedBase(doc.rocket, bag))) unblocked.push(f.name);
+        else stillRefused.push(`${f.name}: mount added, booster still refused`);
+      }
+    }
+    console.log(
+      `motor mounts authored across ${files.length} design files: offered on ${offered.length}; ` +
+        `${refusedBooster.length} refused a booster before, ${unblocked.length} unblocked by a mount` +
+        (stillRefused.length ? ` — still refused: ${stillRefused.join("; ")}` : ""),
+    );
+    expect(offered.length, "no design offered the gesture — that branch proves nothing").toBeGreaterThan(10);
+    expect(doubled, "a mount or its motor landed more than once").toEqual([]);
+    // The designs the operation was written for must actually be reachable by it. One of the two that
+    // refuse a booster has no motor anywhere for Loft to put in a mount, so it refuses the mount too
+    // and stays refused — which is the honest answer, not a gap.
+    expect(unblocked.length, "the mount gesture unblocked no design that a booster was refused on").toBeGreaterThan(0);
+  });
 
   it("changes only the motor mounts the cluster field says it is changing", async () => {
     // The field reads back off ONE mount and used to write to ALL of them, so a design whose mounts

@@ -91,6 +91,7 @@ export default function LineChart({
   yLabel,
   height = 220,
   yZeroFloor = false,
+  emptyNote,
 }: {
   series: Series[];
   markers?: Marker[];
@@ -99,6 +100,10 @@ export default function LineChart({
   height?: number;
   /** Force the y-axis to start at 0. */
   yZeroFloor?: boolean;
+  /** What this particular chart's empty state should say. Optional because the default already says
+   *  what would fill it, which is what `DESIGN.md` §5 asks for; a caller passes one where it can name
+   *  the specific action — "drop a flight log to overlay it here" reads better than the general case. */
+  emptyNote?: React.ReactNode;
 }) {
   const uid = useId();
   const box = useRef<HTMLElement>(null);
@@ -110,7 +115,14 @@ export default function LineChart({
 
   const all = series.flatMap((s) => s.points);
   if (all.length === 0) {
-    return <p className="text-sm text-zinc-500 dark:text-zinc-400">No data.</p>;
+    // `DESIGN.md` §5 forbids the string "No data" by NAME — an empty state says what would fill it.
+    // This is the primitive every plot in the app renders through, so it was the one place the
+    // forbidden string could reach any chart on any surface.
+    return (
+      <p className="text-sm text-zinc-500 dark:text-zinc-400">
+        {emptyNote ?? "Nothing to plot yet — this chart fills in once the design has been flown."}
+      </p>
+    );
   }
   const xs = all.map((p) => p.x);
   const ys = all.map((p) => p.y);

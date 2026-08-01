@@ -5,7 +5,7 @@ import type { Rocket, RocketComponent } from "@/lib/model/types";
 import { flattenRocket } from "@/lib/model/geometry";
 import { massByComponent, dryMassProperties, statedMassHolder } from "@/lib/sim/mass";
 import type { MotorMark } from "@/lib/sim/setup";
-import { mouldLineStep, type AddedPart, type AddedStage, type GeometryEdits, type MoveSlot } from "@/lib/model/edit";
+import { mouldLineStep, type AddedPart, type AddedStage, type GeometryEdits, type MountAdd, type MoveSlot } from "@/lib/model/edit";
 import { TOUCH_TARGET } from "@/lib/ui-tokens";
 import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
@@ -185,6 +185,10 @@ export default function GeometryInspector({
   addedStages,
   onAddStage,
   onRemoveStage,
+  canAddMountTo,
+  onAddMount,
+  mountAdds,
+  onRemoveMount,
   refuseRemoval,
   aims,
 }: {
@@ -230,6 +234,13 @@ export default function GeometryInspector({
   moveSlotsFor?: (id: string) => MoveSlot[];
   /** Booster stages the flyer has authored, in the order they were added. */
   addedStages?: readonly AddedStage[];
+  /** Whether the picked part can be given a motor mount — asked of the tree the operation runs
+   *  against, so the control is offered exactly where the gesture works. */
+  canAddMountTo?: (id: string) => boolean;
+  onAddMount?: (id: string) => void;
+  /** The mounts the flyer has authored, so each can be taken back off. */
+  mountAdds?: readonly MountAdd[];
+  onRemoveMount?: (hostId: string) => void;
   /** Append a booster stage below everything already in the stack. */
   onAddStage?: () => void;
   /** Take one back, named by its seed tube's id. */
@@ -519,6 +530,54 @@ export default function GeometryInspector({
               <span aria-hidden>+</span> Add a transition behind this
             </Button>
           </p>
+        )}
+        {/* A motor mount on a tube that has none. It sits with the other authoring acts and on the
+            picked part, because a mount belongs to ONE tube — unlike a stage, which is the level
+            above a component and is therefore not gated on a pick.
+            Offered only where it can mean something: the part must be a tube without a mount, and the
+            design must have a motor to put in it. A mount with nothing naming it is dead weight the
+            solver never lights, and it would satisfy a `canAddStage` that only tests a mount EXISTS. */}
+        {onAddMount && selectedId && canAddMountTo?.(selectedId) && (
+          <p className="mt-1 text-sm">
+            <Button
+              onClick={() => onAddMount(selectedId)}
+              title="Give this tube a motor mount flying the design's own motor, and re-fly it"
+            >
+              <span aria-hidden>+</span> Add a motor mount to this tube
+            </Button>
+          </p>
+        )}
+        {/* Authored mounts, each takeable back. Named by the tube they are on, because that is the
+            only name a mount has — it is a field, not a component, so it has no id of its own. */}
+        {(mountAdds ?? []).length > 0 && (
+          <Card tone="accent" className="mt-2 text-sm" role="note">
+            <p>
+              <strong className="font-medium">
+                {(mountAdds ?? []).length === 1 ? "A motor mount you added" : `${(mountAdds ?? []).length} motor mounts you added`}
+              </strong>{" "}
+              — each flies this design&apos;s own motor, because a tube that never had a mount has no
+              motor of its own to prefer, and a mount with nothing in it never lights. The flight above
+              includes {(mountAdds ?? []).length === 1 ? "it" : "them"}. Pick a different motor for the
+              whole design under <em>Motor</em>.
+            </p>
+            <ul className="mt-2 flex flex-wrap gap-2">
+              {(mountAdds ?? []).map((m) => {
+                const host = parts.find((x) => x.component.id === m.hostId)?.component;
+                return (
+                  <li key={m.hostId}>
+                    <Button
+                      variant="danger"
+                      onClick={() => onRemoveMount?.(m.hostId)}
+                      title="Take this motor mount back off, with the motor that came with it"
+                    >
+                      <span aria-hidden>−</span> Remove the mount on{" "}
+                      {host?.name || KIND_LABEL[host?.kind ?? ""] || "that tube"}
+                    </Button>
+                  </li>
+                );
+              })}
+            </ul>
+          </Card>
         )}
         {/* Staging, beside the other structural acts and deliberately NOT gated on a picked part: a
             stage is the level above a component, so there is nothing to pick it on. A booster is

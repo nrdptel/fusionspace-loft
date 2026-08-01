@@ -312,6 +312,17 @@ test.describe("phone layout", () => {
     await sweep.getByRole("table").waitFor({ timeout: 120000 });
     expect(await scan(), "Analyze with the motor-sweep table").toEqual([]);
 
+    // The dispersion panel's OWN fields, which nothing had ever measured. The scan above walks the
+    // Analyze workspace with the panels CLOSED, so `NumberField` — the primitive §5 says every numeric
+    // input in either app is — was never in it: all seven of its instances rendered 36 px tall while
+    // `LoftApp`'s hand-rolled `Num`, the thing it is meant to replace, cleared 44. A check that stops
+    // at the Run button cannot see the surface behind it.
+    await page.getByRole("tab", { name: "Analyze" }).click();
+    const disp = page.getByRole("region", { name: /dispersion/i });
+    await disp.getByRole("button", { name: /Run dispersion/ }).first().click();
+    await expect(disp.locator('[role="status"]')).toHaveCount(0, { timeout: 120000 });
+    expect(await scan(), "Analyze with the dispersion panel open").toEqual([]);
+
     await page.getByRole("tab", { name: "Design" }).click();
     await page.locator("summary", { hasText: /Parts ·/ }).click();
     expect(await scan(), "Design workspace with the parts table open").toEqual([]);
