@@ -132,7 +132,22 @@ const BUDGET = {
    *  `add_repo` for it was refused by the harness again this run (the fourth). Adding the grep here
    *  alone would put the two copies out of step, which §9 forbids; it is filed in `BACKLOG.md` with
    *  the two other wordings now owed to both. */
-  handRolledButtons: 4,
+  /** **The honest floor is 3, not 0, and saying so beats carrying an unreachable target** — the same
+   *  call `cardTreatments` already makes. The three left are `Segmented`, `Tabs` and `DataTable`'s
+   *  sort header, and none is a `Button` in disguise: §5 lists all three as their own primitives with
+   *  their own geometry. A segmented option is a raised pill inside a track, a tab is an underline
+   *  with a bottom border, a sort header is a header cell that happens to be pressable — forcing any
+   *  of them through `buttonClass`'s `px-3 py-1.5 rounded-md` would make it LOOK like a button, which
+   *  is the opposite of what the design system asks for.
+   *
+   *  What they do share with `Button` is the focus treatment and the touch minimum, and both already
+   *  reach them: `app/globals.css` carries the app's one focus rule (`button:focus-visible` among
+   *  others) and `TOUCH_TARGET` is on each. Verified by tabbing the whole page against the built
+   *  export — every control kind renders the same `2px solid rgb(99,102,241)`.
+   *
+   *  So this is a GUARD at 3 rather than a ratchet toward 0. A fourth means a surface hand-rolled a
+   *  control that `Button` covers. */
+  handRolledButtons: 3,
 } as const;
 
 /** How many components import EACH primitive by name.
@@ -167,7 +182,7 @@ const PRIMITIVE_ADOPTERS: Record<string, number> = {
    *  app, so it is FILED rather than made here. The regex below reads this module for that reason. */
   DataTable: 6,
   Section: 0,
-  Segmented: 1,
+  Segmented: 2,
   Tabs: 1,
   NumberField: 1,
   ClosePanel: 3,
@@ -327,7 +342,7 @@ describe("DESIGN.md §9 — the design system is binding, and this is what check
     expect(total, `off-scale type sizes, by file:\n${byFile.join("\n")}`).toBe(BUDGET.offScaleType);
   });
 
-  it(`hand-rolls exactly ${BUDGET.handRolledButtons} <button> elements, on the way to none`, () => {
+  it(`hand-rolls exactly ${BUDGET.handRolledButtons} <button> elements — the three primitives, and nothing else`, () => {
     // Comments first: several of these files explain in prose why a `<button>` that navigates is a
     // keyboard and screen-reader defect, and prose about the rule is not a breach of it.
     const stripComments = (t: string) =>

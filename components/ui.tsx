@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 
-import { TOUCH_TARGET, buttonClass, cx, type ButtonSize, type ButtonVariant } from "@/lib/ui-tokens";
+import { TOUCH_TARGET, TOUCH_TARGET_SQUARE, buttonClass, cx, type ButtonSize, type ButtonVariant } from "@/lib/ui-tokens";
 import { rangeWords, refusedMessage } from "@/lib/what-if";
 
 export interface Option<T extends string> {
@@ -179,8 +179,13 @@ export function Segmented<T extends string>({
             aria-pressed={active}
             onClick={() => onChange(o.value)}
             className={
+              // `TOUCH_TARGET_SQUARE`, not `TOUCH_TARGET`. A segmented option's label is as short as
+              // its shortest word, and the height minimum alone leaves a narrow one under the contract:
+              // measured when the diagram's fin-handle picker took this primitive, "Root" rendered
+              // 43×44 and "Tip" 33×44 on a Pixel 7 — caught by the suite's own hit-target check, which
+              // is what it is for. `DESIGN.md` §8 says 44 px, not 44 px tall.
               "inline-flex items-center justify-center rounded-md font-medium transition " +
-              TOUCH_TARGET +
+              TOUCH_TARGET_SQUARE +
               " " +
               pad +
               " " +

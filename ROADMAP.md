@@ -866,7 +866,49 @@ pinned.
 
 ## P1 — One design system, adopted
 
-**Status:** IN PROGRESS — the current P-track milestone. The container and control vocabulary exists and
+**Status: IN PROGRESS — one clause of the *done when* left, and it is named precisely below.** As of
+2026-08-01 every §9 count is at its target or its recorded honest floor, all six tables are on
+`DataTable`, and the hand-rolled `<button>` count is down from 17 to the three primitives that are
+not buttons.
+
+| §9 count | target | 2026-08-01 |
+|---|---|---|
+| `rounded-lg` | 0 | **0** |
+| distinct card treatments | 3 (honest floor) | **3** |
+| off-scale spacing values | 0 | **0** |
+| off-scale type sizes | 0 | **0** |
+| files where caption size outnumbers the body default | 0 | **0** |
+| components importing `components/ui.tsx` | most of 23 | **16** |
+| components importing `Button` | most that have one | **13** |
+| tables on `DataTable` | all of them | **6 of 6** |
+| hand-rolled `<button>` | 3 (honest floor) | **3**, from 17 |
+
+**The two honest floors are decisions, not shortfalls, and each is recorded where it is enforced.**
+Cards: one of the three IS `<Card>`'s own string; the others are a floating toast and an interactive
+drop zone, which want their own named primitives. Buttons: the three left are `Segmented`, `Tabs` and
+`DataTable`'s sort header — §5 lists all three as their own primitives with their own geometry, and
+forcing any through `buttonClass`'s `px-3 py-1.5 rounded-md` would make it look like a button, which
+is the opposite of the point. What they share with `Button` — the focus treatment and the touch
+minimum — they already have: verified by tabbing the whole page against the built export, every
+control kind renders the same `2px solid rgb(99,102,241)`.
+
+**WHAT IS LEFT — the *fields* clause, and it is the last one.** The *done when* says every component
+imports its containers, buttons **and fields** from `components/ui.tsx`. Containers and buttons are
+done; fields are not. `components/LoftApp.tsx` carries `Num`, a **second complete numeric-input
+primitive** — its own draft buffer, bounds, refusal message and touch target — used at **28 call
+sites**, while `ui.tsx`'s `NumberField` is used at **7**, all inside `MonteCarlo`. §5 says "every
+numeric input in either app is this". The two already disagree: `Num`'s label is `text-[11px]` and it
+bakes the unit into the label string, `NumberField`'s is `text-sm` with a `unit` prop, and
+`NumberField` itself carries no touch minimum while `Num` does.
+
+**Reconcile before converting.** `Num` owns the refusal behaviour the SAFETY invariant requires — a
+value that cannot mean anything physically is bounded at the field rather than flown into a confident
+number — so the merged primitive must keep the stronger of the two at every point, not the newer.
+That is the next P-track increment and it is sized 2–3 on its own.
+
+*(Original status line: the container and control vocabulary exists and the §9 compliance block is an
+executable ratchet — `lib/design-system.test.ts`, 10 cases — so the drift cannot return while the
+conversion is still running.)* The container and control vocabulary exists and
 the §9 compliance block is now an executable ratchet (`lib/design-system.test.ts`, 7 cases), so the drift
 cannot return while the conversion is still running.
 
