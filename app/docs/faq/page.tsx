@@ -216,14 +216,19 @@ export default function Faq() {
 
       <QA q="How are the results laid out?">
         <p>
-          Once a design is flying, the results split into three workspaces you switch between with the
-          tabs under the design summary — each a focused view rather than one endless scroll.{" "}
+          Once a design is flying, the results split into three workspaces, each at its own address —{" "}
+          <code className="font-mono">/flight</code>, <code className="font-mono">/design</code> and{" "}
+          <code className="font-mono">/analyze</code> — on one row of links under the design summary.
+          Each is a focused view rather than one endless scroll, and each is a real page: you can
+          bookmark one, share the link, and use the browser&apos;s Back and Forward between them.{" "}
           <em>Flight</em> holds the simulated flight: the summary numbers, the trajectory and plots,
           and the comparison against whatever results the file itself stored. <em>Design</em>{" "}is the
           rocket — the to-scale, editable side-view and the part-by-part mass &amp; balance.{" "}
           <em>Analyze</em> gathers the heavier, opt-in tools: the motor and parameter sweeps, the
           Monte-Carlo dispersion, and the independent RocketPy second opinion. The design summary and
-          any flight warnings sit above the tabs, shared by every view.
+          any flight warnings sit above that row, shared by every view — and moving between
+          workspaces never interrupts them: a dispersion left running keeps running while you look at
+          the diagram.
         </p>
       </QA>
 

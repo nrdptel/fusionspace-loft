@@ -983,6 +983,79 @@ pinned.
 
 ---
 
+## R7 — Per-set fin drag, and the honest aero the builder needs
+
+**Status:** NOT STARTED
+
+**Outcome.** A rocket a flyer just BUILT with two different fin sets is flown with each set's own
+drag — and every page that describes the model says what the model actually does.
+
+**Done when** the drag build-up takes each fin set's own cross-section, thickness ratio and
+leading-edge sweep instead of one design-wide value; `app/docs/methods` claims nothing per-fin that
+the code does not do, and `app/docs/limitations` names every collapse that remains, each with the
+number that makes it real; the corpus census does not regress on the two designs the reverted
+area-weighted attempt broke; and `runFlight`'s options survive `runFromDocument`, so a drag change can
+be measured across the corpus at all. Pinned by a unit test that flies a two-set design whose sets
+have different cross-sections and asserts the drag differs from both single-set answers, plus the
+existing census gate.
+
+**Notes — this milestone is unusually well measured before it starts.** The opening fan-out re-drove
+every number below on 2026-08-02, so they are this run's measurements rather than the ledger's memory.
+
+*Three collapses, not the two `BACKLOG.md` records.*
+
+1. **Thickness ratio** — `lib/sim/aero.ts:517`: `finThicknessRatio` is the MAX thickness across sets
+   divided by the LAST set walked's mean chord. It belongs to no real fin, and it changes if the sets
+   are reordered without the rocket changing. `Show-off.CDX1` reads **1.00** where both its sets are
+   0.50. `Pods--airframes and winglets.ork` reads **0.122** against an area-weighted 0.046.
+2. **Leading-edge sweep** — `lib/sim/aero.ts:505`: one angle for the whole design, `atan2(last set's
+   sweepLength, max span across sets)`. `Mini Honest John.ork` reads **unswept** because its 1-fin set
+   is walked last, while the 4-fin set that does the work sweeps **44.5°**.
+3. **Cross-section — the one nobody had filed, and measurably the largest.** `lib/sim/aero.ts:343,523`
+   takes the DRAGGIEST edge present across all sets (`square > rounded > airfoil`), so an
+   airfoil-sectioned set is billed square-edge stagnation drag because some other set is square. On
+   `03.Three-stage.ork` at 100 m/s / 300 m the fin-pressure Cd is **0.6481 of a 1.1745 total**, and
+   per-set accumulation takes it to **0.2189**.
+
+*Why the cross-section is the first slice.* It is the only one of the three that is exactly
+value-preserving on the two designs the reverted area-weighted fix regressed —
+`Complex.Two-Stage.CDX1` (all six sets square) 0.1118 → 0.1118 and `The Red Hunter.ork` 0.3614 →
+0.3614 — and on all 22 single-set designs. The design it does move, `03.Three-stage.ork`, is **7.57%
+LOW on apogee and 3.78% low on max velocity**, so removing over-stated fin drag moves both toward
+zero. And it needs no new source: the code already cites Niskanen/Hoerner for a model that is defined
+per fin set, so the defect is applying a per-set published model design-wide.
+
+*A published page currently overstates the model.* `app/docs/methods/page.tsx:347` says the `cos²Λ`
+reduction "uses each fin's actual leading-edge sweep". That is false on every multi-set design, and
+nothing under `app/docs/` discloses any of the three collapses. Correcting the claim is part of the
+first slice, not the last — a docs page that overstates the model is the SAFETY invariant's
+false-precision case on a public artifact.
+
+*What is BLOCKED, and it blocks measurement rather than shipping.* `lib/sim/run.ts:242` —
+`runFromDocument` forwards only `configId`/`overrides`/`validateAgainst` to `runFlight` and silently
+drops `dragScale`, `geometry`, `ballistic`, `timeStep`, `ballastKg`, `motorSwap`, `massScale`,
+`thrustScale` and `recoveryCdScale`. Measured: `dragScale` 0.1 and 3.0 both leave
+`03.Three-stage.ork` at exactly −7.57%. The corpus suite drives that function, so no corpus-level drag
+sensitivity is measurable until it is fixed. Nothing user-facing is affected — the app calls
+`runFlight` directly — but this is R7's own instrument and it is broken.
+
+*What NOT to touch without a source.* The `0.35` floor on `cos²Λ` (`aero.ts:529`, silently bounding six
+corpus designs) and the `2.0` fin coefficient in the wave-drag term (`aero.ts:744`) have no published
+origin recorded in the code or the docs. Making either per-set would be inventing a model rather than
+fixing one. `waveDrag` says of itself that it is "a bounded parametric estimate"; leave it saying so.
+
+*Adjacent, already inventoried, and each its own slice at most:* `<cant>`/`<CantAngle>` is parsed into
+the model and read by nothing (2 corpus `.ork`, 5 `.rkt` sets state one); `<overridecd>` is ignored
+(exactly 1 corpus file, whose own `<comment>` says the technique IS that checkbox); fin tabs are
+ignored by both the `.ork` and `.rkt` adapters (6 `.ork`, 5 `.rkt` occurrences); `<filletradius>` is
+ignored on 25 fin sets across 24 of the 27 corpus `.ork`, disclosed as a mass gap and never as a drag
+one; RASAero's per-fin `<LERadius>` is ignored where it would give a measured leading-edge radius
+instead of an inferred edge class.
+
+**Size.** 3–5 increments.
+
+---
+
 ## P1 — One design system, adopted
 
 **Status: DONE — 2026-08-02.** Every §9 count is at its target or its recorded honest floor, all six
@@ -1378,7 +1451,13 @@ radius values for one role; `text-xs` and `text-sm` disagreeing between the two 
 
 ## P2 — Workspaces as routes
 
-**Status:** NOT STARTED
+**Status: IN PROGRESS** — increment 1 of 4–6 shipped 2026-08-02. Flight, Design and Analyze are three
+real static routes (`/flight`, `/design`, `/analyze`) behind one navigation spine, replacing the URL
+fragment and the `Tabs` tablist. Pinned by `e2e/smoke.spec.ts`'s *each workspace is its own route* and
+*a workspace with no design behind it returns to the import screen*. **Not done:** `analyze` still
+carries sweep, Monte-Carlo AND the cross-checks together, so three of the five jobs the *done when*
+names share one route; the static-export assertion is not written; and the design drawing is reachable
+only from `/design` (`COMPETITION.md` row 31).
 
 **Outcome.** Loft is shaped like an application, not a scrolling page.
 
@@ -1517,6 +1596,29 @@ Beyond these, decompose from the North Star in `MAINTAINING.md` and from `COMPET
 Unattended runs do not stop to ask (see *Unattended operation* in `MAINTAINING.md`). Every decision
 that would otherwise have been a question goes here, with the option rejected, so it can be reversed
 cheaply instead of re-derived. Newest first.
+
+- **2026-08-02 — P2's workspaces are mounted in the route-group LAYOUT, not in the route pages.**
+  `app/(app)/layout.tsx` renders the design, its chrome and every workspace panel; each
+  `app/(app)/<workspace>/page.tsx` carries that route's title, description and canonical, and renders
+  nothing itself. A Next layout is not remounted when the flyer moves between the routes under it, so
+  the imported design, its edits, the undo stack, a running Monte-Carlo and a RocketPy cross-check all
+  survive a navigation.
+
+  **Rejected: moving each panel into its own `page.tsx`, which is the obvious shape.** It unmounts the
+  panel on every navigation, and none of those results is persisted anywhere — `MonteCarlo`,
+  `MotorSweep`, `ParameterSweep` and `RocketpyCrossCheck` each hold their result in a plain `useState`,
+  which is exactly why `ResultsView` has kept the panels mounted-and-hidden since it was written. A
+  flyer who glanced at the diagram mid-dispersion would have lost a 300-flight run. That shape becomes
+  available once those four results are hoisted or persisted, and until then it trades the milestone's
+  own *"the design and its results survive moving between them"* clause for tidier files.
+
+  **Rejected: keeping the fragment and adding routes beside it.** Two mechanisms for one fact is how
+  the fragment and the panel got to disagree in the first place; `workspaceFromPath(usePathname())` is
+  now the single source of truth and the session's `opensOn` reads from it.
+
+  What the flyer can observe is real either way: five addresses, five titles, Back and Forward, a
+  bookmarkable workspace, and one precached document each (the service worker went from 6 routes to 9).
+  What is deliberately NOT real is unmounting, and that is the trade.
 
 - **2026-07-31 — `CARD_TONES` gains a `sunken` tone, and P1's remaining `rounded-lg` blocks convert onto
   it.** This is the decision increment 6b was blocked on, taken here so the next session starts rather

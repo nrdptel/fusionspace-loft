@@ -2,8 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 import ImportPanel from "./ImportPanel";
-import ResultsView, { type Workspace } from "./ResultsView";
+import ResultsView from "./ResultsView";
+import { workspaceFromPath, workspacePath, type Workspace } from "@/lib/workspaces";
 import { Button, Card, NumberField, Segmented } from "./ui";
 import { importDesign, sourceTool, type OrkDocument } from "@/lib/ork/import";
 import { newDesign } from "@/lib/model/starter";
@@ -353,7 +355,14 @@ interface SwapInfo {
   options: SwapOption[];
 }
 
-export default function LoftApp() {
+export default function LoftApp({ children }: { children?: React.ReactNode }) {
+  const router = useRouter();
+  const pathname = usePathname();
+  /** The workspace the ADDRESS names, or null at the import screen. This is the single source of
+   *  truth for which workspace is open: it was a `useState` synced to a URL fragment until each
+   *  workspace became a route of its own, and two mechanisms for one fact is how the fragment and
+   *  the panel got to disagree in the first place. */
+  const workspace = workspaceFromPath(pathname);
   const [units, setUnits] = useState<UnitSystem>("metric");
   const [doc, setDoc] = useState<OrkDocument | null>(null);
   const [fileName, setFileName] = useState<string>("");
@@ -390,13 +399,18 @@ export default function LoftApp() {
   const [weatherSerial, setWeatherSerial] = useState(0);
   const [scenario, setScenario] = useState<"design" | "today">("design");
   const [simIndex, setSimIndex] = useState(0);
-  // Which results workspace a freshly loaded design opens on: an import wants its Flight result up
-  // front, a from-scratch build wants the editable Design surface, and a resumed session wants the
-  // one it was left on. Set per load, read once as the results view mounts (it remounts on every
-  // load — the import panel only shows when nothing is loaded, so every design arrives through a
-  // fresh mount) and then kept in step as the flyer moves between workspaces, so "where I left off"
-  // includes which workspace that was.
-  const [initialTab, setInitialTab] = useState<Workspace>("flight");
+  /** Whether the stored session has been looked for yet. A workspace route deep-linked into a cold
+   *  tab has no design for a beat while the saved bytes are re-imported, and "no design" is also
+   *  what an empty storage looks like — so the two have to be told apart before the address is
+   *  corrected, or a legitimate resume gets bounced to the import screen mid-restore. */
+  const [sessionChecked, setSessionChecked] = useState(false);
+  /** The last workspace the flyer was actually ON, which is not always the one the address names.
+   *
+   *  The root is the front door, and a flyer with a design open can reach it — the wordmark in the
+   *  header is a link home. `workspace` is null there, so anything reading it as "where I left off"
+   *  writes `flight` over the truth: tap the wordmark from Analyze, reload, and the session comes
+   *  back on Flight. A ref rather than state because nothing renders from it. */
+  const lastWorkspace = useRef<Workspace>("flight");
   /** The loaded design's own bytes, kept so the session can be written back verbatim — the file
    *  the flyer imported, not a re-serialisation of it, so its stored results survive a reload. */
   const designBytes = useRef<string | null>(null);
@@ -558,12 +572,6 @@ export default function LoftApp() {
       setWeather(null);
       setScenario("design");
       setSimIndex(idx);
-      setInitialTab(opensOn);
-      // Point the address at the workspace this load means to open on, before the results view
-      // mounts and reads it. Loading a design is a deliberate act with an intended landing place —
-      // an import leads with its flight — so it wins over whatever fragment the last design left
-      // behind; within a design, the fragment then follows the flyer.
-      if (typeof window !== "undefined") window.history.replaceState(null, "", `#${opensOn}`);
       setError(null);
       setRestored(resume !== undefined);
       if (bytes) designBytes.current = toBase64(bytes);
@@ -592,13 +600,36 @@ export default function LoftApp() {
         const { run: r, baseline: b } = compute(restored, e, null, "design", idx);
         setRun(r);
         setBaseline(b);
+        const landing = !r.hasPropulsion && opensOn === "flight" ? "design" : opensOn;
+        // Recorded BEFORE the navigation, not after it lands. `setDoc` above commits in this tick
+        // and the route change arrives in a later one, so there is a render where a design is open
+        // and the address still says `/` — and the session-save effect runs in it. Reading the
+        // address there wrote `flight` over the workspace this load is on its way to, so a resumed
+        // session came back on the wrong one. The ref is the load's own intent, which is knowable
+        // now; the address is the same fact arriving late.
+        lastWorkspace.current = landing;
+        // Take the flyer to the workspace this load means to open on. An import leads with its
+        // flight (the payoff) and a fresh build with the editor; a resumed session goes back where
+        // it was left. A design whose motor didn't resolve has no flight to lead with, so it opens
+        // on Design instead — the workspace holding the geometry it can still be checked against
+        // and the motor swap that fixes it. Only the LANDING is corrected: a flyer who then asks
+        // for Flight gets Flight, which says why it is empty rather than bouncing them back.
+        //
+        // `replace`, not `push`: this is where the load lands, not a step the Back button should
+        // have to undo on the way out of the design.
+        router.replace(workspacePath(landing));
       } catch (err) {
         setError(err instanceof Error ? err.message : "Could not simulate this design.");
         setRun(null);
         setBaseline(null);
+        // A design that cannot be flown has no workspaces at all: the results view is what renders
+        // them, and it needs a run. The error card and the design's own chrome are on the root, so
+        // that is where the address should say the flyer is — naming a workspace that has nothing
+        // behind it is the same lie in the other direction.
+        router.replace("/");
       }
     },
-    [compute, syncShelfRow],
+    [compute, syncShelfRow, router],
   );
 
   const onFile = useCallback(
@@ -1320,7 +1351,7 @@ export default function LoftApp() {
         design: designBytes.current,
         name: fileName,
         rocket: doc?.rocket.name || undefined,
-        opensOn: initialTab,
+        opensOn: lastWorkspace.current,
         units,
         simIndex,
         edits: edits as Record<string, unknown>,
@@ -1341,9 +1372,9 @@ export default function LoftApp() {
     }
     designBytes.current = null;
     clearSession();
-    // No design, no workspace — leave the address on the import screen rather than pointing at a
-    // view that isn't there.
-    if (typeof window !== "undefined") window.history.replaceState(null, "", window.location.pathname);
+    // No design, no workspace — go back to the import screen rather than leaving the address on a
+    // workspace route that now has nothing to show.
+    router.replace("/");
   };
 
   // Pick the last session back up. A phone reclaims a backgrounded tab routinely and the pad is
@@ -1359,7 +1390,10 @@ export default function LoftApp() {
 
   useEffect(() => {
     const saved = loadSession();
-    if (!saved) return;
+    if (!saved) {
+      setSessionChecked(true);
+      return;
+    }
     let cancelled = false;
     (async () => {
       try {
@@ -1367,7 +1401,12 @@ export default function LoftApp() {
         const document = await importDesign(bytes);
         if (cancelled) return;
         setUnits(saved.units);
-        loadDoc(document, saved.name, saved.opensOn, bytes, {
+        // A workspace the flyer ASKED for outranks the one the session remembers. Opening
+        // loft.fusionspace.co/design from a bookmark, or reloading while on Analyze, has to land
+        // where the address says — otherwise a deep link is only a suggestion, which is exactly the
+        // thing routes were supposed to fix. The session's own workspace is the fallback for a load
+        // that named none, which is every arrival at the import screen.
+        loadDoc(document, saved.name, workspaceFromPath(window.location.pathname) ?? saved.opensOn, bytes, {
           edits: saved.edits as Edits,
           simIndex: saved.simIndex,
           rocket: saved.rocket,
@@ -1376,6 +1415,8 @@ export default function LoftApp() {
         // A design Loft can no longer read (a format change, a truncated write) is dropped rather
         // than shown as an error on a page the flyer never asked to be on.
         clearSession();
+      } finally {
+        if (!cancelled) setSessionChecked(true);
       }
     })();
     return () => {
@@ -1384,6 +1425,36 @@ export default function LoftApp() {
     // Deliberately once, on mount: this restores a session, it doesn't track one.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  /** Keep the ref in step with the address. In an effect rather than in the render body — a ref
+   *  written during render is a lint error and a real one: a render can be discarded, and this
+   *  would have kept the write. Declared ABOVE the session-save effect on purpose, so within one
+   *  commit the ref is already current by the time the session is written. */
+  useEffect(() => {
+    if (workspace) lastWorkspace.current = workspace;
+  }, [workspace]);
+
+  /** Keep the address and what is on screen telling the same story. Two ways they can disagree, and
+   *  both are reachable by clicking, not by typing:
+   *
+   *  · **A workspace route with no design behind it** — a stale bookmark, a shared link, or the
+   *    design cleared in another tab. There is nothing for the workspace to show, so the flyer goes
+   *    to the import screen, which is the only thing that can put a design there. Held behind the
+   *    session lookup so a legitimate resume is never bounced out from under itself.
+   *  · **The root with a design open** — the header wordmark is a link home, and these routes share
+   *    one layout, so following it does NOT unmount anything: the design survives while the address
+   *    stops naming a workspace. Left alone, `/` rendered the Flight panel under an address that
+   *    named no workspace, with no link on the spine marked current. The front door's job is to get
+   *    a design open; with one already open the flyer belongs back in it.
+   *
+   *  Gated on `run`, not just `doc`: a design that threw in the solver has an error card and no
+   *  workspaces to offer, and bouncing it into one would be an address naming a view that is not
+   *  there. */
+  useEffect(() => {
+    if (!sessionChecked) return;
+    if (!doc && workspace) router.replace("/");
+    else if (doc && run && !workspace) router.replace(workspacePath(lastWorkspace.current));
+  }, [sessionChecked, doc, run, workspace, router]);
 
   // …and keep it current. Everything that survives a reload is written here, so there is one
   // place that decides what "where I left off" means.
@@ -1395,12 +1466,17 @@ export default function LoftApp() {
       name: fileName,
       // The rename is not in the bytes, so it has to be carried beside them or a reload loses it.
       rocket: doc.rocket.name || undefined,
-      opensOn: initialTab,
+      // Where I left off includes WHICH workspace, and that is now the address — so a workspace
+      // reached with the browser's own Back button is recorded exactly like one reached by clicking
+      // the spine, with no second mechanism to keep in step. Read from the ref rather than from
+      // `workspace` so a moment spent at the root — between a load and its navigation landing, or
+      // on the way through the wordmark — cannot overwrite the answer with `flight`.
+      opensOn: lastWorkspace.current,
       units,
       simIndex,
       edits: edits as Record<string, unknown>,
     });
-  }, [doc, fileName, initialTab, units, simIndex, edits]);
+  }, [doc, fileName, workspace, units, simIndex, edits]);
 
   const choices = doc ? configChoices(doc) : [];
 
@@ -1530,7 +1606,11 @@ export default function LoftApp() {
 
   return (
     <div className="mt-8">
-      {!doc && (
+      {/* The import screen belongs to the root route and only to it. On a workspace route with no
+          design there is a resume in flight or a redirect about to happen (see the effect above),
+          and flashing the import screen into that gap advertises "nothing here" for a design that
+          is seconds from arriving. */}
+      {!doc && !workspace && (
         <>
           <p className="mb-6 max-w-2xl text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
             Import an OpenRocket <code className="font-mono">.ork</code>, RockSim{" "}
@@ -1862,8 +1942,7 @@ export default function LoftApp() {
                 const patch = removableFrom ? aimEditsAt(removableFrom, id) : {};
                 if (Object.keys(patch).length) applyEdit(patch, null);
               }}
-              initialTab={initialTab}
-              onWorkspaceChange={setInitialTab}
+              workspace={workspace ?? "flight"}
               designEditor={
                 <DesignEditor
                   units={units}
@@ -1878,6 +1957,10 @@ export default function LoftApp() {
           )}
         </div>
       )}
+      {/* Whatever the route itself renders, inside the shell that holds the design. Empty today —
+          each workspace's content is still rendered above, mounted for every route so a
+          Monte-Carlo or a cross-check survives the flyer walking away from it and back. */}
+      {children}
     </div>
   );
 }

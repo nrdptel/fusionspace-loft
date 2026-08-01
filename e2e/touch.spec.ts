@@ -43,13 +43,13 @@ test.describe("phone layout", () => {
     expect(short, "controls under the 44 px touch minimum").toEqual([]);
   });
 
-  test("the workspace tabs and unit toggle clear it once a design is loaded", async ({ page }) => {
+  test("the workspace spine and unit toggle clear it once a design is loaded", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 30_000 });
     for (const name of ["Flight", "Design", "Analyze"]) {
-      const box = await page.getByRole("tab", { name, exact: true }).first().boundingBox();
-      expect(box?.height ?? 0, `${name} tab height`).toBeGreaterThanOrEqual(44);
+      const box = await page.getByRole("link", { name, exact: true }).first().boundingBox();
+      expect(box?.height ?? 0, `${name} link height`).toBeGreaterThanOrEqual(44);
     }
     for (const name of ["Metric", "Imperial"]) {
       const box = await page.getByRole("button", { name, exact: true }).first().boundingBox();
@@ -82,19 +82,19 @@ test.describe("phone layout", () => {
     for (const size of smallest) expect(size, "chart label effective font size (px)").toBeGreaterThanOrEqual(8.5);
   });
 
-  test("the workspace tabs stay reachable however far you scroll", async ({ page }) => {
+  test("the workspace spine stays reachable however far you scroll", async ({ page }) => {
     // A workspace runs many screens deep on a phone — the flight view alone is over ten thousand
     // pixels — and switching to Design meant scrolling all the way back to the top first.
     await page.goto("/");
     await page.getByRole("button", { name: /54 mm dual-deploy/ }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
-    const tabs = page.locator('[role="tablist"]');
+    const spine = page.locator('nav[aria-label="Workspace"]');
     await page.mouse.wheel(0, 4000);
     await expect
-      .poll(async () => Math.round((await tabs.boundingBox())?.y ?? -999))
+      .poll(async () => Math.round((await spine.boundingBox())?.y ?? -999))
       .toBeLessThanOrEqual(1);
     // Still usable where it landed, not merely visible.
-    await tabs.getByRole("tab", { name: "Design" }).click();
+    await spine.getByRole("link", { name: "Design" }).click();
     await expect(page.getByRole("heading", { name: "Design geometry" })).toBeVisible();
   });
 
@@ -144,8 +144,8 @@ test.describe("phone layout", () => {
       await page.setViewportSize({ width, height: 844 });
 
       for (const tab of ["Flight", "Design", "Analyze"]) {
-        await page.getByRole("tab", { name: tab }).click();
-        await expect(page.getByRole("tab", { selected: true })).toHaveText(tab);
+        await page.getByRole("link", { name: tab }).click();
+        await expect(page.locator('nav[aria-label="Workspace"] a[aria-current="page"]')).toHaveText(tab);
         // CONTROL: the grid must actually be on the page, or this measures an empty workspace and
         // reports no overflow for the best possible reason.
         if (tab === "Flight") {
@@ -197,7 +197,7 @@ test.describe("phone layout", () => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     await page.locator("summary", { hasText: /Parts ·/ }).click();
 
     const panel = page.locator("#panel-design");
@@ -225,7 +225,7 @@ test.describe("phone layout", () => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
 
     const picker = page.getByRole("group", { name: "Fin handle" });
     await expect(picker).toBeVisible();
@@ -285,17 +285,27 @@ test.describe("phone layout", () => {
     // already scroll horizontally, so the fix is `TOUCH_TARGET_SQUARE` — which existed for exactly
     // this and was already used on the zoom controls — and not a layout change.
     const scan = () =>
-      page.$$eval("button, input:not([type=hidden]), select, summary, [role=tab]", (ns) =>
-        ns
-          .map((n) => {
-            const r = n.getBoundingClientRect();
-            if (r.width < 4 || r.height < 4) return null;
-            if (r.width >= 44 && r.height >= 44) return null;
-            if (n.closest("footer")) return null;
-            const name = (n.getAttribute("aria-label") || n.textContent || "").replace(/\s+/g, " ").trim().slice(0, 30);
-            return `${n.tagName.toLowerCase()}"${name}" ${Math.round(r.width)}x${Math.round(r.height)}`;
-          })
-          .filter(Boolean),
+      // `nav[aria-label="Workspace"] a` is in this list because the workspace switcher stopped
+      // being a `[role=tab]` and became a row of links: the selector kept matching nothing, so the
+      // one scan that measures BOTH dimensions of every phone control stopped seeing the app's
+      // primary navigation entirely. Its width is checked nowhere else — the two height assertions
+      // elsewhere in this suite would pass a 20 px-wide link.
+      page.$$eval(
+        'button, input:not([type=hidden]), select, summary, nav[aria-label="Workspace"] a',
+        (ns) =>
+          ns
+            .map((n) => {
+              const r = n.getBoundingClientRect();
+              if (r.width < 4 || r.height < 4) return null;
+              if (r.width >= 44 && r.height >= 44) return null;
+              if (n.closest("footer")) return null;
+              const name = (n.getAttribute("aria-label") || n.textContent || "")
+                .replace(/\s+/g, " ")
+                .trim()
+                .slice(0, 30);
+              return `${n.tagName.toLowerCase()}"${name}" ${Math.round(r.width)}x${Math.round(r.height)}`;
+            })
+            .filter(Boolean),
       );
 
     await page.goto("/");
@@ -303,7 +313,13 @@ test.describe("phone layout", () => {
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
     expect(await scan(), "Flight workspace").toEqual([]);
 
-    await page.getByRole("tab", { name: "Analyze" }).click();
+    // A workspace switch is a navigation now, not a `setState`, and `scan()` is a one-shot
+    // `$$eval`. Without this wait it measured the workspace just left — and every control still in
+    // a `hidden` panel has a zero rect, which this scan's own `width < 4` filter drops, so it
+    // reported "Analyze workspace" clean by measuring nothing.
+    await page.getByRole("link", { name: "Analyze" }).click();
+    await page.waitForURL(/\/analyze\/?$/);
+    await expect(page.getByRole("region", { name: "Motor sweep" })).toBeVisible();
     expect(await scan(), "Analyze workspace").toEqual([]);
 
     // The motor-sweep table's sort headers only exist once a sweep has run.
@@ -317,13 +333,13 @@ test.describe("phone layout", () => {
     // input in either app is — was never in it: all seven of its instances rendered 36 px tall while
     // `LoftApp`'s hand-rolled `Num`, the thing it is meant to replace, cleared 44. A check that stops
     // at the Run button cannot see the surface behind it.
-    await page.getByRole("tab", { name: "Analyze" }).click();
+    await page.getByRole("link", { name: "Analyze" }).click();
     const disp = page.getByRole("region", { name: /dispersion/i });
     await disp.getByRole("button", { name: /Run dispersion/ }).first().click();
     await expect(disp.locator('[role="status"]')).toHaveCount(0, { timeout: 120000 });
     expect(await scan(), "Analyze with the dispersion panel open").toEqual([]);
 
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     await page.locator("summary", { hasText: /Parts ·/ }).click();
     expect(await scan(), "Design workspace with the parts table open").toEqual([]);
   });
@@ -412,7 +428,7 @@ test.describe("phone layout", () => {
     await page.goto("/");
     await page.getByRole("button", { name: /54 mm dual-deploy/ }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 30_000 });
-    await page.getByRole("tab", { name: "Analyze" }).click();
+    await page.getByRole("link", { name: "Analyze" }).click();
 
     const panels: [string, RegExp][] = [
       ["Motor sweep", /Run motor sweep/],

@@ -3,10 +3,12 @@
 import { useEffect, useId, useRef, useState } from "react";
 
 import {
+  NAV_BAR,
   TOUCH_TARGET,
   TOUCH_TARGET_SQUARE,
   buttonClass,
   cx,
+  navItemClass,
   type ButtonSize,
   type ButtonVariant,
 } from "@/lib/ui-tokens";
@@ -275,10 +277,9 @@ export function Tabs({
       // tab bar was to scroll to the top of the page. A pointer layout has a wheel and the height
       // to spare, so above `sm` the tabs stay in the flow exactly as before. The background is the
       // page's own, solid: content scrolls underneath, and a translucent bar just shows it through.
-      className={
-        "sticky top-0 z-20 -mb-px flex gap-1 overflow-x-auto border-b border-zinc-200 bg-white " +
-        "dark:border-zinc-800 dark:bg-zinc-950 sm:static sm:bg-transparent dark:sm:bg-transparent"
-      }
+      // The string itself lives in `lib/ui-tokens.ts` because the workspace spine renders the same
+      // bar as a `<nav>` of links, and two copies of a treatment is how a treatment drifts.
+      className={NAV_BAR}
     >
       {tabs.map((t, i) => {
         const active = t.id === value;
@@ -293,14 +294,7 @@ export function Tabs({
             tabIndex={active ? 0 : -1}
             onClick={() => onChange(t.id)}
             onKeyDown={(e) => move(e, i)}
-            className={
-              "inline-flex shrink-0 items-center whitespace-nowrap border-b-2 px-3.5 py-2 text-sm font-medium outline-none transition focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-400 " +
-              TOUCH_TARGET +
-              " " +
-              (active
-                ? "border-indigo-500 text-zinc-900 dark:border-indigo-400 dark:text-zinc-100"
-                : "border-transparent text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200")
-            }
+            className={navItemClass(active)}
           >
             {t.label}
           </button>
