@@ -497,13 +497,35 @@ export function NumberField({
             const n = Number.parseFloat(t);
             const v = Number.isFinite(n) ? n : 0;
             last.current = v;
+            // A COMPLETE value this field would not accept does not reach the model, not even in
+            // passing — the same rule `LoftApp`'s `Num` applies, asked one keystroke earlier than the
+            // commit below. Without it the range is enforced only at blur, so between the keystroke
+            // and the blur the model holds a number the field itself calls impossible. Digit-by-digit
+            // entry is untouched: "1" on the way to "12" is inside the range and lands as before.
+            //
+            // Stated honestly: no reachable wrong number was constructed from the old behaviour on
+            // this field's seven call sites — the dispersion panel reads its inputs when Run is
+            // pressed, and pressing Run blurs the field first. This is the two primitives agreeing
+            // rather than a defect being closed, and it matters because they are about to become one.
+            if (t !== "" && Number.isFinite(n)) {
+              const bounded = min !== undefined && n < min ? min : max !== undefined && n > max ? max : n;
+              if (bounded !== n) return;
+            }
             onChange(v);
           }}
           onBlur={(e) => commit(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter") commit(e.currentTarget.value);
           }}
-          className="w-full bg-transparent px-3 py-2 text-sm tabular-nums outline-none placeholder:text-zinc-400 dark:placeholder:text-zinc-600"
+          // `TOUCH_TARGET`, which this field did not have. §5 makes this the primitive every numeric
+          // input in either app is supposed to be, and §8's 44 px contract has no exemption for a
+          // field — but measured on a Pixel 7 against the built export, all SEVEN of its instances in
+          // the dispersion panel rendered 36 px tall, while `LoftApp`'s hand-rolled `Num`, which this
+          // is meant to replace, cleared 44. The primitive was the weaker of the two.
+          className={cx(
+            "w-full bg-transparent px-3 py-2 text-sm tabular-nums outline-none placeholder:text-zinc-400 dark:placeholder:text-zinc-600",
+            TOUCH_TARGET,
+          )}
         />
         {unit && (
           <span
