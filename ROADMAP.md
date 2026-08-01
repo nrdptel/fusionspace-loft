@@ -985,8 +985,8 @@ pinned.
 
 ## R7 — Per-set fin drag, and the honest aero the builder needs
 
-**Status: IN PROGRESS** — increment 1 of 3–5 shipped 2026-08-02: the edge **cross-section** is now
-charged per fin set. Pinned by `lib/sim/aero.test.ts`'s *fin cross-section is charged per set, not
+**Status: IN PROGRESS** — increments 1–3 of 3–5 shipped; increment 1 was the edge **cross-section**,
+now charged per fin set. Pinned by `lib/sim/aero.test.ts`'s *fin cross-section is charged per set, not
 design-wide* (four cases, including the exact-halfway assertion that a "less drag" under-count could
 not satisfy) and by the corpus census, whose published figures were tightened in the same change.
 
@@ -1020,10 +1020,70 @@ over-drag). The two were partly cancelling and only one is fixed. Recorded in th
 median — optimumDelay went back 2.5% → 2.7% — and it pushed a real design outside the corpus's own
 agreement tolerance, which is the same shape as the area-weighted thickness attempt before it. It is
 the next slice and it needs its own investigation, not a rider on this one. **Do not simply re-apply
-it.**
+it** — increment 3 below did the investigation and found why both attempts failed.
 
-*Remaining:* the thickness-ratio collapse; the sweep collapse; `runFromDocument`'s dropped options;
-and the adjacent parse gaps below.
+*Increment 2 — R7's own instrument, fixed.* `runFromDocument` named three of `RunOptions`' twelve
+fields and silently dropped the other nine (`ballistic`, `timeStep`, `ballastKg`, `motorSwap`,
+`geometry`, `thrustScale`, `massScale`, `dragScale`, `recoveryCdScale`). A caller got a flight, with
+no error and no warning, that had ignored what it asked for. Nothing user-facing depended on it — the
+app calls `runFlight` directly — but the corpus suite drives this function, so no corpus-wide
+sensitivity to any of those nine was measurable at all.
+
+Now spread-then-override, so a field added to `RunOptions` is forwarded the day it is added rather
+than the day somebody notices. **The before-and-after, on `03.Three-stage.ork`:** every `dragScale`
+from 0.1 to 3.0 previously returned the identical −7.57% apogee error; it now spans **+175.81% to
+−36.27%**. Every existing caller passes only the three already-forwarded options, so nothing changed
+for any of them — the corpus census is identical to the tenth on all ten metrics. Pinned by
+`lib/sim/flight.test.ts`'s *runFromDocument forwards what it is given*, three cases, each pairing a
+changed option with the number it must move.
+
+*Increment 3 — the thickness and sweep collapses, measured a third time and REJECTED, with the
+reason found.* Both were implemented per-set and both were reverted. **Do not implement either again
+without first reading this entry — it is the third attempt and the first one that explains the other
+two.**
+
+*What was built and measured.* (a) Fin wetted area banked by (finish, own `1 + 2·(t/c)`) instead of
+by finish alone, so each set is charged its own thickness ratio — the same one-key-wider
+accumulation the finish already gets, with `finThicknessRatio` becoming the area-weighted mean for
+the one whole-vehicle consumer left (wave drag). (b) On top of that, fin frontal area banked by
+(edge, own `cos²Λ`). Both typechecked, both left the corpus suite green at 14/14.
+
+*The measurement, over 97 stored simulations on 35 real designs.* Per-set thickness alone moved no
+census median toward zero, and moved one away: maxMach **1.9918% → 2.0275%**. Every other median was
+identical to four decimals. The two designs R7's *done when* protects both moved the WRONG way —
+`Complex.Two-Stage.CDX1` J180T apogee **+4.5254% → +4.9578%** and J90W **+12.3991% → +12.8813%**,
+`The Red Hunter.ork` **+4.4441% → +5.3484%**. Adding per-set sweep took `Complex.Two-Stage.CDX1` to
+J180T **+13.98%** and J90W **+22.60%** — the J180T configuration is ASSERTED at ±12%, so that is the
+gate failure the earlier session recorded, reproduced exactly, along with its optimumDelay **2.4766%
+→ 2.6593%**.
+
+*Why — and this is the finding that unblocks the slice.* A collapsed value is **not** biased in one
+direction — it lands wherever the last set read puts it, so correcting it adds drag to some designs
+and removes it from others. Of the twelve designs the thickness fix changes, eight carry comparable
+stored results and they went both ways (`APEX_K_Dart.ork` −18.3845% → −18.4635%, i.e. MORE drag;
+`03.Three-stage.ork` +10.7571% → +10.8941%, LESS). What matters is which designs it takes drag away
+from: the two that move most are ones Loft **already flies high**, i.e. already under-dragged from
+somewhere else. `Complex.Two-Stage.CDX1` starts at +4.5%/+12.4% apogee and its
+J90W configuration is already a `KNOWN_ISSUES` entry saying RASAero stores nearly the same apogee for
+two very different motors and Loft does not reproduce that. So removing a spurious over-drag moves
+these designs FURTHER from their stored results. The two collapses are partly compensating for a
+separate, unidentified under-drag — which is why every attempt to fix them in isolation has failed,
+and why fixing both together was worse than either.
+
+*A hypothesis tested and refuted along the way.* The `0.35` floor on `cos²Λ` is NOT what breaks
+`Complex.Two-Stage.CDX1`: its per-set factors are 0.500/0.640/0.367 against a design-wide 0.640, none
+floored. The floor is still worth a source, though, and the scale is now measured: charged per set it
+binds **15 of 51 fin surfaces across 13 designs**, against **8 designs** floored design-wide today.
+
+*So the next slice is not a fin slice.* Find the drag `Complex.Two-Stage.CDX1` is missing — a
+two-stage RASAero design already at the edge of the corpus's tolerance — and the per-set corrections
+land on top of it instead of against it. **The *done when* clause "the corpus census does not regress
+on the two designs the reverted area-weighted attempt broke" cannot be met by a fin change alone, and
+should be read as pointing at that under-drag rather than as a veto on per-set fin drag.** Published
+on `/docs/limitations` in the same increment, with the numbers, rather than left in this file.
+
+*Remaining:* the thickness-ratio and sweep collapses, both blocked as above; and the adjacent parse
+gaps below.
 
 **Outcome.** A rocket a flyer just BUILT with two different fin sets is flown with each set's own
 drag — and every page that describes the model says what the model actually does.
@@ -1504,9 +1564,45 @@ agree?" surface in one place, which North Star #1 asks for and which could not h
 on different routes). Four workspaces plus the import root; a session stored on `analyze` resumes on
 `sweep` rather than falling back to the flight.
 
-**Not done:** the static-export assertion is not written; the design drawing is still reachable only
-from `/design` (`COMPETITION.md` row 31); and "no route more than two screens deep to its primary
-answer" has not been measured.
+*Increment 3.* The **static-export assertion** the *done when* names — `scripts/check-routes.mjs`,
+run from `postbuild` so it gates every build, in CI and locally. It asserts four things that each have
+a way of quietly becoming false: every workspace in the vocabulary has a document in `out/`; every
+RETIRED workspace address still answers, so a link that shipped once is never a dead end; no workspace
+is advertised in the sitemap; and every workspace document carries its own `noindex`. It reads the
+vocabulary from `lib/workspaces.ts` rather than restating it, and fails loudly if that parse yields
+nothing — a permissive parse would make every claim a vacuous pass over zero routes, which is the
+failure the check exists to prevent. **A postbuild script rather than a vitest test on purpose:**
+`npm test` runs before `npm run build`, so a test reading `out/` would skip itself on a clean
+checkout, and a suite that skips prints almost exactly like one that passed.
+
+All four claims were driven as negative controls before the check was trusted — remove a workspace
+document, remove the retired one, add a workspace to the sitemap, strip a `noindex` — and each fails
+with exit 1 naming exactly what broke, against exit 0 restored.
+
+*Increment 4.* The **two-screen clause**, pinned by `e2e/depth.spec.ts` — and pinning it corrected the
+record it was going to be judged against. Depth to a route's ANSWER is not page height; `HANDOFF.md`
+carried a table of total page heights (flight 6.6 phone screens, design 6.9) labelled "depth", and
+that table had been read as a two-screen failure. It is a different quantity. Measured at 390x664
+with the bundled sample, depth to each route's primary answer is `/flight` **1.53**, `/design`
+**1.55**, `/validate` **1.70** — all inside the contract.
+
+`/sweep` is a **real breach at 2.10**, and it is pinned as a `test.fail` rather than described: the
+test still runs and still measures, the gate stays green on a breach that predates the check, and it
+goes RED the day it is fixed. A threshold widened to 2.2 screens would never have said anything.
+
+**The cause is not `/sweep`.** It is the **1071 px of shared chrome above the workspace spine** —
+header 73, toolbar 68, restore banner 112, collapsed Conditions 44, design summary 508, warnings 74 —
+identical on all four routes, and 1.61 of the two screens before any workspace renders a pixel. That
+term is now ratcheted directly (≤820 px desktop, ≤1120 px phone, measured + ~5%), because it is the
+one number every route's depth is built on and a per-route assert with 0.3 screens of slack would
+not catch it moving. DESIGN.md §8 makes this a PHONE contract and says desktop and touch are separate
+designs over one model, so collapsing the 508 px summary to a disclosure on a coarse pointer — the
+pattern Conditions already uses at 44 px — is the obvious fix and returns ~460 px to all four routes
+at once. Filed in `BACKLOG.md` with the breakdown.
+
+**Not done:** the design drawing is still reachable only from `/design` (`COMPETITION.md` row 31).
+**Sequence it after the chrome fix, not before** — the strip costs a phone another 130–160 px, which
+is more than `/sweep` has left, so shipping it first puts a second route over the line.
 
 **Outcome.** Loft is shaped like an application, not a scrolling page.
 

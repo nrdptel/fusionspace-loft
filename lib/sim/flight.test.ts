@@ -903,3 +903,47 @@ describe("hard-landing (undersized recovery) warning", () => {
     expect(v).toBeGreaterThan(7.6);
   });
 });
+
+describe("runFromDocument forwards what it is given", () => {
+  // It used to name three options and drop the other nine, with no error and no warning: a caller
+  // asking for a different drag, a ballistic flight or a motor swap got a flight that had quietly
+  // ignored it. Nothing user-facing depended on that — the app calls `runFlight` directly — but the
+  // corpus suite drives THIS function, so no corpus-wide sensitivity to any of the nine could be
+  // measured. Each assertion below pairs a changed option with the number it must move; a wrapper
+  // that drops it again returns the two identical values these expect to differ.
+  it("passes dragScale through, so the flight actually flies on it", async () => {
+    const doc = await load("demo-single-deploy.ork");
+    const low = runFromDocument(doc, { dragScale: 0.2 }).result.summary.apogee;
+    const high = runFromDocument(doc, { dragScale: 3 }).result.summary.apogee;
+    const plain = runFromDocument(doc).result.summary.apogee;
+    expect(low).toBeGreaterThan(plain);
+    expect(high).toBeLessThan(plain);
+    // Not merely different — a tenfold drag range must move apogee by a lot, or something is
+    // clamping it somewhere else and the assertion above would pass on a rounding difference.
+    expect(low / high).toBeGreaterThan(1.5);
+  });
+
+  it("passes ballastKg, geometry, thrustScale and massScale through", async () => {
+    const doc = await load("demo-single-deploy.ork");
+    const plain = runFromDocument(doc).result.summary.apogee;
+    expect(runFromDocument(doc, { ballastKg: 0.5 }).result.summary.apogee).toBeLessThan(plain);
+    expect(runFromDocument(doc, { thrustScale: 1.3 }).result.summary.apogee).toBeGreaterThan(plain);
+    expect(runFromDocument(doc, { massScale: 2 }).result.summary.apogee).toBeLessThan(plain);
+    const finned = runFromDocument(doc, { geometry: { finSpan: 0.12 } }).result.summary.apogee;
+    expect(finned).not.toBeCloseTo(plain, 3);
+  });
+
+  it("still derives configId, overrides and validateAgainst when the caller omits them", async () => {
+    // The three the wrapper exists for. Spreading the caller's options must not stop it filling
+    // these in from the document. `demo-boattail.ork` rather than the single-deploy sample because
+    // the bundled samples carry `<simulation status="external">` with no flightdata at all, so
+    // there is nothing to validate against and `validation` is correctly undefined for them — an
+    // assertion on that fixture would have been testing the fixture, not the wrapper.
+    const doc = await load("demo-boattail.ork");
+    const run = runFromDocument(doc, { dragScale: 1 });
+    expect(run.config.id).toBe(doc.simulations[0].conditions.configId);
+    expect(run.validation).toBeDefined();
+    // …and an explicit option still wins over the derived one.
+    expect(runFromDocument(doc, { validateAgainst: undefined }).validation).toBeDefined();
+  });
+});

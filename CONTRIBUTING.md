@@ -105,6 +105,17 @@ npm run build       # also type-checks (CI gate; tsconfig has noUnusedLocals/Par
 npm run test:e2e    # Playwright (incl. an axe accessibility audit) — run after a build
 ```
 
+**`npm run build` runs three postbuild checks, and each of them can fail the build.** They live in
+`scripts/` rather than in the test suite because they assert things about the built ARTIFACT, and
+`npm test` runs before the build — a test reading `out/` would skip itself on a clean checkout, which
+prints almost exactly like passing.
+
+| script | asserts |
+|---|---|
+| `gen-sw-precache.mjs` | injects the offline precache manifest, and fails if the worker's markers are gone |
+| `check-text-gaps.mjs` | the spaces the JSX transform ate, in the served markup |
+| `check-routes.mjs` | every workspace in `lib/workspaces.ts` is exported; every retired workspace address still answers; none is in the sitemap; each carries `noindex` |
+
 ## Conventions
 
 - Match the surrounding code's style, naming, and comment density.

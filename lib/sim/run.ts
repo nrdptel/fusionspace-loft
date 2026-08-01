@@ -239,7 +239,22 @@ export function runFromDocument(doc: OrkDocument, opts: RunOptions = {}): Flight
   // When Loft flew a simplified vehicle (staging/pods/parallel/cluster dropped), the stored
   // results describe a different flight, so an accuracy comparison would be misleading — skip it.
   const validateAgainst = opts.validateAgainst ?? (doc.flownAsReduced ? undefined : firstSim);
+  // Everything else the caller asked for, forwarded rather than named.
+  //
+  // This used to list the three options below and nothing else, so the other NINE —
+  // `ballistic`, `timeStep`, `ballastKg`, `motorSwap`, `geometry`, `thrustScale`, `massScale`,
+  // `dragScale`, `recoveryCdScale` — were accepted by the signature and silently dropped. A caller
+  // got a flight, with no error and no warning, that had ignored what it asked for: measured on
+  // `03.Three-stage.ork`, `dragScale` 0.1 and 3.0 both returned exactly the same −7.57% apogee
+  // error. Nothing user-facing depended on it because the app calls `runFlight` directly, but this
+  // is the function the corpus suite drives, so no corpus-wide sensitivity to any of those nine
+  // could be measured at all — which is R7's own instrument, broken.
+  //
+  // Spread-then-override, so a new option is forwarded the day it is added rather than the day
+  // somebody notices. The three below are derived from the document when the caller omits them,
+  // which is the whole reason this wrapper exists.
   return runFlight(doc.rocket, {
+    ...opts,
     configId: opts.configId ?? firstSim?.conditions.configId,
     overrides,
     validateAgainst,
