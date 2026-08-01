@@ -4,6 +4,14 @@ import { SITE_URL } from "@/lib/links";
 
 export const dynamic = "force-static";
 
+/** Every route worth INDEXING, which is not every route the site serves.
+ *
+ *  The workspace routes (`/flight`, `/design`, `/analyze`) are deliberately absent, and each marks
+ *  itself `robots: { index: false }` for the same reason: a workspace's content is the flyer's own
+ *  design, held on their own device, so its prerendered document is empty by construction and a
+ *  visitor arriving without a design is sent to the import screen. Submitting them would advertise
+ *  three URLs that can never show what their titles promise. They are still linkable, bookmarkable
+ *  and precached — indexing is the only thing being withheld. */
 const routes = ["/", "/docs", "/docs/methods", "/docs/limitations", "/docs/validation", "/docs/faq"];
 
 /** When the deployed site last actually changed — the head commit's date, not the moment the

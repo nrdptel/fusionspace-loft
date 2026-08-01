@@ -15,6 +15,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { isEditedValue } from "./model/edit";
+import { WORKSPACES, type Workspace } from "./workspaces";
 
 const KEY = "loft.session";
 /** localStorage is typically a ~5 MB budget for the whole origin, and base64 costs a third on top
@@ -30,8 +31,10 @@ export interface SavedSession {
   /** File name (or the built design's name), as shown in the header. */
   name: string;
   /** Which workspace this design opens on — an import leads with its flight, a build with design,
-   *  and a session that was left on another picks that one back up. */
-  opensOn: "flight" | "design" | "analyze";
+   *  and a session that was left on another picks that one back up. Since each workspace became a
+   *  route, this is the ADDRESS a resume without one of its own returns to; a deep link outranks it,
+   *  because a link a flyer followed is not a suggestion. */
+  opensOn: Workspace;
   units: "metric" | "imperial";
   /** Index into the design's stored simulations — which motor configuration was being flown. */
   simIndex: number;
@@ -78,8 +81,9 @@ function readSlot(key: string): SavedSession | null {
       v: 1,
       design: parsed.design,
       name: typeof parsed.name === "string" ? parsed.name : "Saved design",
-      opensOn:
-        parsed.opensOn === "design" || parsed.opensOn === "analyze" ? parsed.opensOn : "flight",
+      // Asked of the workspace list rather than spelled out, so a workspace added there is not
+      // silently discarded on the next read by a check nobody remembered to extend.
+      opensOn: (WORKSPACES as readonly string[]).includes(parsed.opensOn) ? parsed.opensOn : "flight",
       units: parsed.units === "imperial" ? "imperial" : "metric",
       simIndex: Number.isInteger(parsed.simIndex) ? parsed.simIndex : 0,
       edits: parsed.edits && typeof parsed.edits === "object" ? parsed.edits : {},

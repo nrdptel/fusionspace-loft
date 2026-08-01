@@ -305,7 +305,12 @@ input[type="number"] {
   header a:not([href="/"]),
   header button,
   footer nav,
+  /* The workspace spine. Matched by ROLE and by name rather than by element, so it keeps working
+     whichever the markup is: it was a `[role="tablist"]` of buttons until the workspaces became
+     routes, and is a `<nav>` of links now. Both are listed because the tab pattern is still the
+     right one for switching views WITHIN a job, and a sheet of numbers should carry neither. */
   [role="tablist"],
+  nav[aria-label="Workspace"],
   [role="group"],
   button,
   input,

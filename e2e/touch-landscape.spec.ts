@@ -38,7 +38,12 @@ test.describe("phone layout, landscape", () => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 30_000 });
-    await page.getByRole("tab", { name: "Design", exact: true }).click();
+    await page.getByRole("link", { name: "Design", exact: true }).click();
+    // The one-shot `$$eval` below measures whatever is on screen when it runs, and a workspace
+    // switch is a navigation: without this it could census the workspace just left, or a panel
+    // still hidden (every rect zero), and report no short controls for the wrong reason.
+    await page.waitForURL(/\/design\/?$/);
+    await expect(page.getByLabel(/Scale side-view/)).toBeVisible();
 
     const coarse = await page.evaluate(() => matchMedia("(pointer: coarse)").matches);
     expect(coarse, "this context must report a coarse pointer or the test proves nothing").toBe(true);
@@ -46,7 +51,7 @@ test.describe("phone layout, landscape", () => {
     expect(width, "and it must be WIDER than the sm: breakpoint, which is the whole point").toBeGreaterThan(640);
 
     const short = await page.$$eval(
-      'header button, header a[href], main button, main select, [role="tab"]',
+      'header button, header a[href], main button, main select, nav[aria-label="Workspace"] a',
       (ns, exempt) =>
         ns
           .map((n) => {
@@ -65,7 +70,12 @@ test.describe("phone layout, landscape", () => {
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 30_000 });
     for (const tab of ["Flight", "Design", "Analyze"]) {
-      await page.getByRole("tab", { name: tab, exact: true }).click();
+      await page.getByRole("link", { name: tab, exact: true }).click();
+      // Gated on the address, because a workspace switch is a navigation and `page.evaluate` below
+      // is a one-shot read: without it, Design and Analyze could both measure the workspace just
+      // left, and a landscape overflow on either would ship green.
+      await page.waitForURL(new RegExp(`/${tab.toLowerCase()}/?$`));
+      await expect(page.locator(`nav[aria-label="Workspace"] a[aria-current="page"]`)).toHaveText(tab);
       // `clientWidth`, never `innerWidth`: under Playwright's mobile emulation Chromium widens the
       // LAYOUT viewport to swallow an overflow, so both sides of an `innerWidth` comparison move
       // together and the assertion cannot fail. `touch.spec.ts` records the measurement.

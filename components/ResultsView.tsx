@@ -1,9 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import Link from "next/link";
-import { Button, Card, Tabs, type CardTone } from "./ui";
+import { Button, Card, type CardTone } from "./ui";
 import { cx } from "@/lib/ui-tokens";
+import WorkspaceNav from "./WorkspaceNav";
+import { WORKSPACES, type Workspace } from "@/lib/workspaces";
 import DataTable from "./DataTable";
 import type { FlightRun } from "@/lib/sim/run";
 import type { ConditionOverrides } from "@/lib/sim/setup";
@@ -125,10 +127,10 @@ function ToolUnavailable({ title, reason }: { title: string; reason: string }) {
   );
 }
 
-/** The results workspaces, in the order the tab bar shows them. Also the vocabulary of the URL
- *  fragment (`#design`), so a workspace is a place you can link to and come back to. */
-export const WORKSPACES = ["flight", "design", "analyze"] as const;
-export type Workspace = (typeof WORKSPACES)[number];
+/** The workspace vocabulary moved to `lib/workspaces.ts` when each workspace became a route of its
+ *  own: the route pages are server components and a client module's exports do not survive that
+ *  boundary. Re-exported so the call sites that already say `from "./ResultsView"` keep working. */
+export { WORKSPACES, type Workspace };
 
 /** A flight warning's severity, as one of `Card`'s tones — `DESIGN.md` §2, where the semantic colours
  *  are reserved for meaning and there are only two of them for "something is wrong".
@@ -181,8 +183,7 @@ export default function ResultsView({
   onAddMount,
   onRemoveMount,
   refuseRemoval,
-  initialTab,
-  onWorkspaceChange,
+  workspace,
   designEditor,
 }: {
   run: FlightRun;
@@ -253,12 +254,10 @@ export default function ResultsView({
   /** Why a part cannot be removed, or null. Asked of the app rather than judged in the panel, so the reason
    *  shown and the guard that enforces it cannot disagree about which design they are judging. */
   refuseRemoval?: (id: string) => string | null;
-  /** Which workspace to open on. An import lands on its flight result; a from-scratch build lands on
-   *  the editable Design surface, and a resumed session lands where it was left. Read once at mount
-   *  — the view remounts on every design load. */
-  initialTab?: Workspace;
-  /** Told which workspace the flyer moved to, so the session can pick that one back up. */
-  onWorkspaceChange?: (tab: Workspace) => void;
+  /** Which workspace the flyer is on — the ROUTE, resolved from the address by the shell above.
+   *  Where a load *lands* is a navigation and belongs there too; this view only renders what the
+   *  current route asks for. */
+  workspace: Workspace;
   /** The design-editing surface (motor swap + geometry/recovery what-ifs), rendered inside the
    *  Design workspace next to the diagram it edits — build and edit are the same surface. */
   designEditor?: ReactNode;
@@ -266,64 +265,13 @@ export default function ResultsView({
   const r = run.result;
   const s = r.summary;
   const markers = eventMarkers(r);
-  // Where a load lands. Imports lead with the flight (the payoff) and a fresh build with the editor,
-  // but a design whose motor didn't resolve has no flight to lead with — so it opens on Design, the
-  // workspace holding the geometry it can still be checked against and the motor swap that fixes it.
-  // Only the landing is corrected: clicking Flight from there is still the flyer's to do.
-  const landingTab = (want: Workspace | null | undefined): Workspace => {
-    const w = want ?? "flight";
-    return !run.hasPropulsion && w === "flight" ? "design" : w;
-  };
-
-  // Which workspace is open. Panels stay mounted (hidden) so a run in one — a swept curve, a
-  // Monte-Carlo — isn't lost when you glance at another.
-  const [tab, setTab] = useState<Workspace>(landingTab(initialTab));
-
-  // The open workspace is written to the URL fragment, so a workspace can be linked, bookmarked, and
-  // reached with the browser's own Back button — three views deep in an app that never changed its
-  // address is a view you can only get to by knowing it's there. Hydration-safe: the fragment is
-  // read in an effect, never during render, so the server's HTML and the client's first pass agree.
-  useEffect(() => {
-    const fromHash = () => {
-      const id = window.location.hash.replace(/^#/, "");
-      return (WORKSPACES as readonly string[]).includes(id) ? (id as Workspace) : null;
-    };
-    const adopt = (id: Workspace) => {
-      setTab(id);
-      // Tell the session too: a workspace reached with the browser's Back button is as much "where
-      // I left off" as one reached by clicking the tab, and a reload must agree with the address.
-      onWorkspaceChange?.(id);
-    };
-    // The loader points the address at the workspace it means to open on, before this view mounts.
-    // Correct it for what the design actually has and put the address back in step, so a load never
-    // leaves `#flight` selecting Design. `replaceState`, not `push`: this is the same landing, not a
-    // navigation the Back button should have to undo.
-    const initial = landingTab(fromHash() ?? initialTab);
-    adopt(initial);
-    if (window.location.hash !== `#${initial}`) window.history.replaceState(null, "", `#${initial}`);
-    const onHash = () => {
-      const id = fromHash();
-      if (id) adopt(id);
-    };
-    window.addEventListener("hashchange", onHash);
-    return () => window.removeEventListener("hashchange", onHash);
-    // Once, as the view mounts for this design — thereafter the listener carries it.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const selectTab = useCallback(
-    (id: string) => {
-      const next = (WORKSPACES as readonly string[]).includes(id) ? (id as Workspace) : "flight";
-      setTab(next);
-      onWorkspaceChange?.(next);
-      // A real history entry, so Back returns to the workspace you came from rather than leaving
-      // the app. Guarded: a repeat of the current fragment would stack duplicate entries.
-      if (typeof window !== "undefined" && window.location.hash !== `#${next}`) {
-        window.history.pushState(null, "", `#${next}`);
-      }
-    },
-    [onWorkspaceChange],
-  );
+  // Which workspace is open — the route, handed down. The panels below all stay mounted and the
+  // route only decides which one is visible, which is deliberate rather than incidental: a
+  // Monte-Carlo is a 300-flight run and a RocketPy cross-check spins up a WASM interpreter, and
+  // unmounting either on a navigation would throw that work away every time the flyer glanced at
+  // the diagram. Their results are not persisted anywhere, so mounted-and-hidden IS the mechanism
+  // that makes P2's "the design and its results survive moving between them" true.
+  const tab = workspace;
 
   // An optional uploaded flight log (altimeter CSV) overlaid on the altitude plot — the flyer's real
   // flight beside Loft's prediction. Parsed and held entirely in the browser; the unit defaults to
@@ -490,22 +438,16 @@ export default function ResultsView({
         </ul>
       )}
 
-      {/* Workspace navigation — the results are more than one page of tool now, so split the jobs
-          into focused views rather than one endless scroll. The design summary and any flight
-          warnings above stay put, as the context every view shares. */}
-      <Tabs
-        tabs={[
-          { id: "flight", label: "Flight" },
-          { id: "design", label: "Design" },
-          { id: "analyze", label: "Analyze" },
-        ]}
-        value={tab}
-        onChange={selectTab}
-        ariaLabel="Results workspace"
-      />
+      {/* The workspace spine — one row of links, on every workspace route, showing where the flyer
+          is. The design summary and any flight warnings above stay put, as the context every
+          workspace shares. */}
+      <WorkspaceNav />
 
       {/* FLIGHT — the simulated flight and its comparison to the file's own stored numbers. */}
-      <div role="tabpanel" id="panel-flight" aria-labelledby="tab-flight" hidden={tab !== "flight"} className="space-y-8">
+      {/* A landmark region per workspace, not a `tabpanel`: there is no tablist above them any more,
+          and a `tabpanel` with nothing controlling it is a lie told to a screen reader. The ids are
+          kept — they are what a skip link and the suite address a workspace by. */}
+      <div role="region" id="panel-flight" aria-label="Flight workspace" hidden={tab !== "flight"} className="space-y-8">
       {/* With no thrust every flight number is meaningless, so the workspace says what it would hold
           and why it is empty rather than showing a zero-altitude "flight" — or simply vanishing,
           which reads as a feature Loft doesn't have. */}
@@ -760,7 +702,7 @@ export default function ResultsView({
       </div>
 
       {/* DESIGN — the rocket itself: its shape (editable on the diagram) and where its mass sits. */}
-      <div role="tabpanel" id="panel-design" aria-labelledby="tab-design" hidden={tab !== "design"} className="space-y-8">
+      <div role="region" id="panel-design" aria-label="Design workspace" hidden={tab !== "design"} className="space-y-8">
         {/* The parsed component tree with each part's dimensions and station — import verification.
             The diagram marks the loaded CG and CP so the stability picture reads off the airframe. */}
         <GeometryInspector
@@ -816,7 +758,7 @@ export default function ResultsView({
       </div>
 
       {/* ANALYZE — the heavier, opt-in tools: an independent second solver, and design-space sweeps. */}
-      <div role="tabpanel" id="panel-analyze" aria-labelledby="tab-analyze" hidden={tab !== "analyze"} className="space-y-8">
+      <div role="region" id="panel-analyze" aria-label="Analyze workspace" hidden={tab !== "analyze"} className="space-y-8">
       {/* Three of the four tools are single-stage only — a swept "primary" fin or nose is ambiguous
           once there are several stages, and the second solver flies one stage. Saying so is the
           point: a panel that is simply absent reads as a feature Loft doesn't have. */}

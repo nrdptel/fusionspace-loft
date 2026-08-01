@@ -54,7 +54,7 @@ test.describe("Loft", () => {
 
     // The Design workspace opens with the to-scale side-view — with the loaded motor and the CG
     // marked ahead of the CP, the stability picture read off the airframe.
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     await expect(
       page.getByRole("group", { name: /motor H128W.*centre of gravity ahead of centre of pressure/ }),
     ).toBeVisible();
@@ -109,7 +109,7 @@ test.describe("Loft", () => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
-    await page.getByRole("tab", { name: "Analyze" }).click();
+    await page.getByRole("link", { name: "Analyze" }).click();
 
     const sweep = page.getByRole("region", { name: "Motor sweep" });
     await sweep.getByRole("button", { name: "Run motor sweep" }).click();
@@ -143,7 +143,7 @@ test.describe("Loft", () => {
         ).replace(/[^\d.]/g, ""),
       );
 
-    await page.getByRole("tab", { name: "Analyze" }).click();
+    await page.getByRole("link", { name: "Analyze" }).click();
     const sweep = page.getByRole("region", { name: "Motor sweep" });
     await sweep.getByRole("button", { name: "Run motor sweep" }).click();
     const firstRow = () => sweep.locator("tbody tr").first().locator("td").nth(1);
@@ -152,13 +152,13 @@ test.describe("Loft", () => {
     const flownBefore = await apogee();
 
     // Widen the fins on the Design workspace, then come back.
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     const span = page.locator("label", { hasText: /Fin span/ }).locator("input");
     await span.fill("70");
     await span.blur();
     await expect.poll(apogee).not.toBe(flownBefore);
 
-    await page.getByRole("tab", { name: "Analyze" }).click();
+    await page.getByRole("link", { name: "Analyze" }).click();
     // The sweep is still open, and it has re-flown every motor on the edited design.
     await expect(sweep.locator("table")).toBeVisible();
     await expect.poll(async () => firstRow().innerText()).not.toBe(sweptBefore);
@@ -168,7 +168,7 @@ test.describe("Loft", () => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
 
     // The import screen promises you can drag the nose. It has to be there.
     const nose = () => page.getByRole("slider", { name: "Nose length" });
@@ -218,7 +218,7 @@ test.describe("Loft", () => {
       .getByLabel(/^Choose an OpenRocket/)
       .setInputFiles(resolve(process.cwd(), "e2e/fixtures/two-stage-firm-booster.ork"));
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
-    await page.getByRole("tab", { name: "Analyze" }).click();
+    await page.getByRole("link", { name: "Analyze" }).click();
     const panel = page.locator("#panel-analyze");
     await expect(panel.getByRole("heading", { name: /Second solver and design sweeps/ })).toBeVisible();
     await expect(panel).toContainText(/flies 2 stages/);
@@ -382,27 +382,91 @@ test.describe("Loft", () => {
     await expect(reset).toHaveCount(0);
   });
 
-  test("the open workspace is in the address, so Back and a reload land where you were", async ({ page }) => {
+  test("each workspace is its own route, so Back, a reload and a deep link all land where you were", async ({
+    page,
+  }) => {
+    const current = page.locator('nav[aria-label="Workspace"] a[aria-current="page"]');
+    // The static export is served as directories, so the address is `/design/` with the trailing
+    // slash — normalise once here rather than writing it into every assertion, where it would read
+    // as a fact about the app rather than about the host.
+    const path = () => new URL(page.url()).pathname.replace(/\/$/, "") || "/";
+
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
-    // An import lands on its flight result, and says so in the address.
-    expect(new URL(page.url()).hash).toBe("#flight");
+    // An import lands on its flight result, and that is a PATH now, not a fragment. The difference
+    // is not cosmetic: a fragment never reaches the static export, so no workspace had a document,
+    // a title or a precached copy of its own.
+    //
+    // Waited for rather than read: a workspace switch is a NAVIGATION now, not a `setState`, so the
+    // address settles a beat after the panel does. Reading `page.url()` straight after a click is a
+    // race the old fragment version could not lose, and this is the one place that difference is
+    // worth spelling out.
+    await page.waitForURL(/\/flight\/?$/);
+    expect(path()).toBe("/flight");
 
-    await page.getByRole("tab", { name: "Analyze" }).click();
-    expect(new URL(page.url()).hash).toBe("#analyze");
-    await page.getByRole("tab", { name: "Design" }).click();
-    expect(new URL(page.url()).hash).toBe("#design");
+    await page.getByRole("link", { name: "Analyze" }).click();
+    await page.waitForURL(/\/analyze\/?$/);
+    await page.getByRole("link", { name: "Design" }).click();
+    await page.waitForURL(/\/design\/?$/);
 
     // Back returns to the workspace you came from rather than leaving the app.
     await page.goBack();
-    expect(new URL(page.url()).hash).toBe("#analyze");
-    await expect(page.getByRole("tab", { selected: true })).toHaveText("Analyze");
+    await page.waitForURL(/\/analyze\/?$/);
+    await expect(current).toHaveText("Analyze");
 
     // …and a reload picks the same workspace back up, not the one the design loaded on.
     await page.reload();
-    await expect(page.getByRole("tablist")).toBeVisible({ timeout: 15000 });
-    await expect(page.getByRole("tab", { selected: true })).toHaveText("Analyze");
+    await expect(page.getByRole("navigation", { name: "Workspace" })).toBeVisible({ timeout: 15000 });
+    expect(path()).toBe("/analyze");
+    await expect(current).toHaveText("Analyze");
+
+    // A workspace opened COLD from its own address — the bookmark case — restores the session and
+    // stays where it was asked to be. The saved session remembers Analyze; Design is what the flyer
+    // typed, and what a flyer typed outranks what the session remembers.
+    await page.goto("/design");
+    await expect(page.getByRole("heading", { name: "Design geometry" })).toBeVisible({ timeout: 15000 });
+    expect(path()).toBe("/design");
+    await expect(current).toHaveText("Design");
+
+    // And the route says which job it is, in the one place a bookmark and a tab strip both read.
+    await expect(page).toHaveTitle(/^Design — Loft$/);
+  });
+
+  test("the wordmark cannot strand a loaded design at an address that names no workspace", async ({
+    page,
+  }) => {
+    // The header wordmark is a link home, and the root and the workspaces share one layout — so
+    // following it does not unmount anything. The design survived while the address stopped naming
+    // a workspace, and the result was the Flight panel rendered under `/`, with no link on the
+    // spine marked current and the tab title back to the site's. Worse, the session-save effect
+    // read the address for "where I left off", so the same click quietly rewrote Analyze to Flight
+    // and the next cold open came back on the wrong workspace.
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+    await page.getByRole("link", { name: "Analyze" }).click();
+    await page.waitForURL(/\/analyze\/?$/);
+
+    await page.getByRole("link", { name: "Loft", exact: true }).click();
+    // Back where the flyer was, not at an address that names nothing.
+    await page.waitForURL(/\/analyze\/?$/);
+    await expect(page.locator('nav[aria-label="Workspace"] a[aria-current="page"]')).toHaveText("Analyze");
+
+    // …and the session still remembers it, which is the half no amount of looking at the screen
+    // would have shown.
+    await page.reload();
+    await expect(page.getByRole("navigation", { name: "Workspace" })).toBeVisible({ timeout: 15000 });
+    await expect(page.locator('nav[aria-label="Workspace"] a[aria-current="page"]')).toHaveText("Analyze");
+  });
+
+  test("a workspace with no design behind it returns to the import screen", async ({ page }) => {
+    // The stale-bookmark case, and the one a route split creates that a fragment never could: an
+    // address that names a workspace can now be reached with nothing loaded. A page that renders an
+    // empty shell there is a state with no way out — the spine's other links are just as empty.
+    await page.goto("/analyze");
+    await expect(page.getByLabel(/^Choose an OpenRocket/)).toBeVisible({ timeout: 15000 });
+    expect(new URL(page.url()).pathname.replace(/\/$/, "") || "/").toBe("/");
   });
 
   test("a saved build carries the motor you picked, and an import says what it leaves out", async ({ page }) => {
@@ -452,20 +516,20 @@ test.describe("Loft", () => {
     await expect(page.getByRole("heading", { name: "Design geometry" })).toBeVisible({ timeout: 15000 });
 
     const apogee = page.getByText("Apogee", { exact: true }).first().locator("xpath=following-sibling::*[1]");
-    await page.getByRole("tab", { name: "Flight" }).click();
+    await page.getByRole("link", { name: "Flight" }).click();
     const starter = (await apogee.innerText()).trim();
 
     // Build something the starter plainly is not.
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     const span = page.locator("input").and(page.getByLabel(/fin span/i)).first();
     await span.fill("85");
     await span.blur();
-    await page.getByRole("tab", { name: "Flight" }).click();
+    await page.getByRole("link", { name: "Flight" }).click();
     await expect.poll(async () => (await apogee.innerText()).trim(), { timeout: 20000 }).not.toBe(starter);
     const built = (await apogee.innerText()).trim();
 
     // Name it, because the row has to identify it too — the rename never reached the shelf either.
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     await page.getByLabel("Design name").fill("My build");
     await page.getByLabel("Design name").blur();
 
@@ -593,11 +657,11 @@ test.describe("Loft", () => {
     await expect(page.getByText("Static margin", { exact: false })).toBeVisible();
 
     // A build lands on the Design workspace — the editable rocket, not the flight readout.
-    await expect(page.getByRole("tab", { name: "Design" })).toHaveAttribute("aria-selected", "true");
+    await expect(page.getByRole("link", { name: "Design" })).toHaveAttribute("aria-current", "page");
     await expect(page.getByRole("heading", { name: "Design geometry" })).toBeVisible();
 
     // It still flies: switch to Flight and read a real apogee out of the box.
-    await page.getByRole("tab", { name: "Flight" }).click();
+    await page.getByRole("link", { name: "Flight" }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
     const apogee = await page
       .getByLabel("Results")
@@ -668,13 +732,13 @@ test.describe("Loft", () => {
     await expect(page.getByRole("button", { name: "Reset to as-designed" })).toHaveCount(0);
 
     // Stack a design what-if: nose ballast makes the rocket heavier and lower.
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     await page.getByLabel(/Nose ballast/).fill("500");
     await expect.poll(summaryApogee).toBeLessThan(before);
 
     // Back on Flight, the hypothetical flight has dropped the stored comparison, and the header now
     // offers a one-click way back.
-    await page.getByRole("tab", { name: "Flight" }).click();
+    await page.getByRole("link", { name: "Flight" }).click();
     await expect(page.getByRole("region", { name: "Validation" })).toHaveCount(0);
     const resetBtn = page.getByRole("button", { name: "Reset to as-designed" });
     await expect(resetBtn).toBeVisible();
@@ -769,10 +833,10 @@ test.describe("Loft", () => {
     await page.getByRole("button", { name: /RockSim · 54 mm sport/ }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
 
-    await page.getByRole("tab", { name: "Analyze" }).click();
+    await page.getByRole("link", { name: "Analyze" }).click();
     await expect(page.getByRole("region", { name: "Motor sweep" })).toBeVisible();
 
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     const picker = page.getByRole("combobox", { name: "Swap motor" });
     await expect(picker).toBeVisible();
 
@@ -790,18 +854,18 @@ test.describe("Loft", () => {
       const dd = page.getByText("Apogee", { exact: true }).first().locator("xpath=following-sibling::dd");
       return parseFloat((await dd.innerText()).replace(/[^\d.]/g, ""));
     };
-    await page.getByRole("tab", { name: "Flight" }).click();
+    await page.getByRole("link", { name: "Flight" }).click();
     const asDesigned = await summaryApogee();
     expect(asDesigned).toBeGreaterThan(0);
 
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     // The options are sorted weakest total impulse first, so the last one is the biggest motor of
     // this casing — deterministic, unlike matching a class letter that a manufacturer name can also
     // contain. It carries more impulse than the design's J420R, so the same airframe flies higher.
     const swapTo = offered[offered.length - 1];
     expect(swapTo).not.toMatch(/J420R/);
     await picker.selectOption({ label: swapTo });
-    await page.getByRole("tab", { name: "Flight" }).click();
+    await page.getByRole("link", { name: "Flight" }).click();
     await expect.poll(summaryApogee).toBeGreaterThan(asDesigned);
   });
 
@@ -877,7 +941,7 @@ test.describe("Loft", () => {
     // there — the flyer is at the editing surface — so the payoff has to be legible without moving:
     // the no-flight notice clears and the summary strip above the tabs gains its apogee.
     await expect(page.getByRole("heading", { name: "No flight simulated" })).toBeHidden();
-    await expect(page.getByRole("tab", { name: "Flight" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Flight" })).toBeVisible();
     await expect(page.getByRole("term").filter({ hasText: /^Apogee$/ })).toBeVisible();
   });
 
@@ -892,24 +956,24 @@ test.describe("Loft", () => {
     await expect(page.getByRole("region", { name: "No flight simulated" })).toBeVisible({ timeout: 15000 });
 
     // All three workspaces are there, and it lands on Design — the one with something in it.
-    await expect(page.getByRole("tab")).toHaveCount(3);
-    await expect(page.getByRole("tab", { name: "Design" })).toHaveAttribute("aria-selected", "true");
+    await expect(page.getByRole("navigation", { name: "Workspace" }).getByRole("link")).toHaveCount(3);
+    await expect(page.getByRole("link", { name: "Design" })).toHaveAttribute("aria-current", "page");
     // The geometry is real and motor-independent, so the diagram and the parts table are shown.
     await expect(page.getByLabel(/Scale side-view/)).toBeVisible();
 
     // Flight says what it would hold and why it is empty, rather than vanishing.
-    await page.getByRole("tab", { name: "Flight" }).click();
+    await page.getByRole("link", { name: "Flight" }).click();
     await expect(page.getByRole("region", { name: "Flight unavailable" })).toBeVisible();
     await expect(page.getByLabel("Results", { exact: true })).toHaveCount(0);
 
     // Analyze does the same — and offers the motor sweep, which flies the bundled substitutes
     // themselves and so is the one analysis that still works on a design with no resolved motor.
-    await page.getByRole("tab", { name: "Analyze" }).click();
+    await page.getByRole("link", { name: "Analyze" }).click();
     await expect(page.getByRole("region", { name: /unavailable$/ })).toBeVisible();
     await expect(page.getByRole("region", { name: "Motor sweep" })).toBeVisible();
 
     // Advice points at the Design workspace, which now exists on every design.
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     await expect(page.getByText("in the Design workspace").first()).toBeVisible();
     // Nothing may offer a configuration picker that only renders for a multi-config design.
     if ((await page.getByRole("combobox", { name: /configuration/i }).count()) === 0) {
@@ -919,7 +983,7 @@ test.describe("Loft", () => {
     // Swapping in a bundled motor fills the empty workspaces in rather than changing the layout.
     await page.getByRole("combobox", { name: "Swap motor" }).selectOption({ index: 1 });
     await expect(page.getByRole("heading", { name: "No flight simulated" })).toBeHidden();
-    await page.getByRole("tab", { name: "Flight" }).click();
+    await page.getByRole("link", { name: "Flight" }).click();
     await expect(page.getByLabel("Results").getByText("Apogee", { exact: true })).toBeVisible();
   });
 
@@ -993,9 +1057,9 @@ test.describe("Loft", () => {
     // Fly the single motor as a 3-motor cluster: three times the thrust dominates the extra motor
     // mass, so the design climbs markedly higher. The edit surface lives in the Design workspace;
     // flip back to Flight to read the new apogee.
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     await page.getByLabel("Motor cluster").fill("3");
-    await page.getByRole("tab", { name: "Flight" }).click();
+    await page.getByRole("link", { name: "Flight" }).click();
     await expect.poll(apogee).toBeGreaterThan(single * 1.3);
   });
 
@@ -1015,9 +1079,9 @@ test.describe("Loft", () => {
     const before = await apogee();
 
     // Add a 300 g payload — a builder mass add — on the Design workspace, then read the flight.
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     await page.getByLabel(/Payload \(/).fill("300");
-    await page.getByRole("tab", { name: "Flight" }).click();
+    await page.getByRole("link", { name: "Flight" }).click();
 
     // Re-flies heavier: the added mass costs apogee, and a "what-if vs design" delta appears with a
     // stability change (the payload shifts the CG).
@@ -1045,9 +1109,9 @@ test.describe("Loft", () => {
     expect(before).toBeGreaterThan(0);
 
     // Add a heavy nose ballast — a "what-if" design change — on the Design workspace, then read.
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     await page.getByLabel(/Nose ballast/).fill("500");
-    await page.getByRole("tab", { name: "Flight" }).click();
+    await page.getByRole("link", { name: "Flight" }).click();
 
     // Re-flies on change: the heavier rocket doesn't reach as high.
     await expect.poll(apogee).toBeLessThan(before);
@@ -1083,7 +1147,7 @@ test.describe("Loft", () => {
 
     // Edit on the Design workspace and stay there: the above-tabs apogee re-flies live, so the
     // heavier rocket's lower apogee is visible without leaving the editing surface.
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     await page.getByLabel(/Nose ballast/).fill("500");
     await expect.poll(summaryApogee).toBeLessThan(before);
   });
@@ -1104,13 +1168,13 @@ test.describe("Loft", () => {
     const before = await apogee();
 
     // Slide the whole fin group 100 mm aft — a "what-if" stability trim — on the Design workspace.
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     const finPos = page.getByRole("spinbutton", { name: /Fin position/ });
     await expect(finPos).toBeVisible();
     const design = parseFloat((await finPos.getAttribute("placeholder")) ?? "0");
     expect(design).toBeGreaterThan(0);
     await finPos.fill(String(Math.round(design + 100)));
-    await page.getByRole("tab", { name: "Flight" }).click();
+    await page.getByRole("link", { name: "Flight" }).click();
 
     // A "what-if vs design" delta appears: fins aft move the centre of pressure aft, so the static
     // margin rises (a positive caliber delta in the banner).
@@ -1143,9 +1207,9 @@ test.describe("Loft", () => {
     expect(descentBefore).toBeGreaterThan(0);
 
     // Double the recovery drag area — a bigger canopy, a "what-if" — on the Design workspace.
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     await page.getByLabel(/Recovery size/).fill("2");
-    await page.getByRole("tab", { name: "Flight" }).click();
+    await page.getByRole("link", { name: "Flight" }).click();
 
     // Re-flies on change: the bigger canopy brings it down slower and lands softer...
     await expect.poll(() => stat("Descent rate")).toBeLessThan(descentBefore);
@@ -1174,12 +1238,12 @@ test.describe("Loft", () => {
 
     // Resize the design's own main canopy to 1.5× its current diameter — a real, bake-in edit (not
     // the transient multiplier). Read the current size from the field's placeholder so it's unit-safe.
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     const field = page.getByLabel(/Main chute Ø/);
     const current = parseFloat((await field.getAttribute("placeholder"))!.replace(/[^\d.]/g, ""));
     expect(current).toBeGreaterThan(0);
     await field.fill((current * 1.5).toFixed(2));
-    await page.getByRole("tab", { name: "Flight" }).click();
+    await page.getByRole("link", { name: "Flight" }).click();
 
     // A bigger canopy brings it down slower and lands softer...
     await expect.poll(() => stat("Descent rate")).toBeLessThan(descentBefore);
@@ -1204,7 +1268,7 @@ test.describe("Loft", () => {
     };
     const before = await apogee();
 
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     const select = page.getByLabel("Swap motor");
     await expect(select).toBeVisible();
     // Pick a fitting motor that isn't the design's own H128W (the largest same-diameter option).
@@ -1219,7 +1283,7 @@ test.describe("Loft", () => {
       );
     expect(value).not.toEqual("");
     await select.selectOption(value);
-    await page.getByRole("tab", { name: "Flight" }).click();
+    await page.getByRole("link", { name: "Flight" }).click();
 
     // Re-flies on the swapped motor — a different apogee.
     await expect.poll(apogee).not.toBe(before);
@@ -1236,7 +1300,7 @@ test.describe("Loft", () => {
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
 
     // The sweep panel lives in the Analyze workspace; it offers to fly every fitting bundled motor.
-    await page.getByRole("tab", { name: "Analyze" }).click();
+    await page.getByRole("link", { name: "Analyze" }).click();
     const panel = page.getByRole("region", { name: "Motor sweep" });
     await expect(panel).toBeVisible();
     await panel.getByRole("button", { name: /Run motor sweep/ }).click();
@@ -1287,7 +1351,7 @@ test.describe("Loft", () => {
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
 
     // Mass & balance lives in the Design workspace; expand its disclosure.
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     const summary = page.locator("summary", { hasText: "Mass & balance" });
     await expect(summary).toBeVisible();
     await summary.click();
@@ -1305,7 +1369,7 @@ test.describe("Loft", () => {
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
 
-    await page.getByRole("tab", { name: "Analyze" }).click();
+    await page.getByRole("link", { name: "Analyze" }).click();
     const panel = page.getByRole("region", { name: "Motor sweep" });
     await panel.getByRole("button", { name: /Run motor sweep/ }).click();
     await expect(panel.locator("tbody tr").first()).toBeVisible();
@@ -1329,7 +1393,7 @@ test.describe("Loft", () => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
-    await page.getByRole("tab", { name: "Analyze" }).click();
+    await page.getByRole("link", { name: "Analyze" }).click();
     const panel = page.getByRole("region", { name: "Motor sweep" });
     await panel.getByRole("button", { name: /Run motor sweep/ }).click();
     await expect(panel.locator("tbody tr").first()).toBeVisible();
@@ -1366,7 +1430,7 @@ test.describe("Loft", () => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
-    await page.getByRole("tab", { name: "Analyze" }).click();
+    await page.getByRole("link", { name: "Analyze" }).click();
     const panel = page.getByRole("region", { name: /dispersion/i });
     await panel.getByRole("button", { name: /Run dispersion/ }).click();
     const impulse = panel.getByLabel(/Motor impulse/i);
@@ -1375,14 +1439,14 @@ test.describe("Loft", () => {
 
     await page.reload();
     await expect(page.getByText(/Picked up where you left off/)).toBeVisible({ timeout: 30_000 });
-    await page.getByRole("tab", { name: "Analyze" }).click();
+    await page.getByRole("link", { name: "Analyze" }).click();
     await panel.getByRole("button", { name: /Run dispersion/ }).click();
     await expect(panel.getByLabel(/Motor impulse/i)).toHaveValue("8");
 
     // …and they outlive the design, because they describe the flyer, not the rocket.
     await page.getByRole("button", { name: "Start fresh" }).click();
     await page.getByRole("button", { name: /54 mm dual-deploy/ }).click();
-    await page.getByRole("tab", { name: "Analyze" }).click();
+    await page.getByRole("link", { name: "Analyze" }).click();
     await panel.getByRole("button", { name: /Run dispersion/ }).click();
     await expect(panel.getByLabel(/Motor impulse/i)).toHaveValue("8");
   });
@@ -1393,7 +1457,7 @@ test.describe("Loft", () => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
-    await page.getByRole("tab", { name: "Analyze" }).click();
+    await page.getByRole("link", { name: "Analyze" }).click();
 
     const sweep = page.getByRole("region", { name: /Parameter sweep/i });
     await sweep.getByRole("button", { name: /Run parameter sweep/ }).click();
@@ -1407,7 +1471,7 @@ test.describe("Loft", () => {
 
     await page.reload();
     await expect(page.getByText(/Picked up where you left off/)).toBeVisible({ timeout: 30_000 });
-    await page.getByRole("tab", { name: "Analyze" }).click();
+    await page.getByRole("link", { name: "Analyze" }).click();
     await sweep.getByRole("button", { name: /Run parameter sweep/ }).click();
     await expect(sweep.getByLabel("Sweep variable")).toHaveValue("bodyLength");
     await expect(sweep.getByLabel("Sweep metric")).toHaveValue("staticMarginCal");
@@ -1426,7 +1490,7 @@ test.describe("Loft", () => {
     await page.goto("/");
     await page.getByRole("button", { name: /54 mm dual-deploy/ }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
-    await page.getByRole("tab", { name: "Analyze" }).click();
+    await page.getByRole("link", { name: "Analyze" }).click();
 
     // What has to be asserted is the WORK, not the rows: a re-run of an unchanged rocket returns
     // rows identical to the ones it replaced, so comparing them cannot tell "kept" from "re-flown".
@@ -1490,12 +1554,12 @@ test.describe("Loft", () => {
     // sweep's numbers rather than on the live region, because the edit lives on another workspace
     // and a hidden panel is out of the accessibility tree while the change is being made — but 50 g
     // in the nose moves the CG, so unlike a rename it genuinely changes every row.
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     // `getByLabel` also matches the diagram's slider handle of the same name — mean the field.
     const ballast = page.locator("input").and(page.getByLabel(/Nose ballast/i)).first();
     await ballast.fill("50");
     await ballast.press("Enter");
-    await page.getByRole("tab", { name: "Analyze" }).click();
+    await page.getByRole("link", { name: "Analyze" }).click();
     await expect
       .poll(async () => (await motors.locator("tbody tr").allInnerTexts()).join("|"), { timeout: 30_000 })
       .not.toBe(rowsBefore.join("|"));
@@ -1510,7 +1574,7 @@ test.describe("Loft", () => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 30_000 });
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
 
     // `getByLabel` also matches the diagram's slider handle of the same name — mean the field.
     const thickness = page.locator("input").and(page.getByLabel(/Fin thickness/)).first();
@@ -1521,8 +1585,8 @@ test.describe("Loft", () => {
 
     // Leave the field AND force a re-render, which is what makes the box re-read itself from the
     // model. Clicking the tab already open changes no state and renders nothing, so it would not.
-    await page.getByRole("tab", { name: "Flight" }).click();
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Flight" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     await expect(thickness, "the box states the thickness being flown").toHaveValue("0.03");
 
     // The destructive part: focus and Tab away, typing nothing.
@@ -1540,8 +1604,8 @@ test.describe("Loft", () => {
     // declare up to 3.048 m against that 1.0 default, and rail-exit velocity is computed from it.
     await page.goto("/");
     await page.getByRole("button", { name: /Start a new design/ }).click();
-    await expect(page.getByRole("tab", { name: "Design" })).toBeVisible({ timeout: 30_000 });
-    await page.getByRole("tab", { name: "Flight" }).click();
+    await expect(page.getByRole("link", { name: "Design" })).toBeVisible({ timeout: 30_000 });
+    await page.getByRole("link", { name: "Flight" }).click();
 
     const conditions = page.locator("details").filter({ hasText: /^Conditions/ }).first();
     // `<details>` keeps its content in the DOM while collapsed, so ask the element, not the text.
@@ -1560,11 +1624,18 @@ test.describe("Loft", () => {
     ).toBeVisible();
 
     // The control: a design that DOES carry a launch setup says nothing of the kind.
+    //
+    // Reaching the import screen is a two-step now and it has to be driven as one. `goto("/")` lands
+    // on a root that still has the built design in storage, so the app restores it and navigates
+    // straight back out to a workspace — which means "click whichever of Import-another and the
+    // sample is on screen" was a coin toss against a restore still in flight. Under the full suite
+    // it lost: clicking the sample first, then having the pending restore replace it, left the run
+    // waiting 30 s for a heading that was never coming. Ask for the state, then act on it.
     await page.goto("/");
-    await page.getByRole("button", { name: /Import another|54 mm dual-deploy/ }).first().click();
-    if (await page.getByRole("button", { name: /54 mm dual-deploy/ }).count()) {
-      await page.getByRole("button", { name: /54 mm dual-deploy/ }).click();
-    }
+    await page.getByRole("button", { name: /Import another/ }).click();
+    await expect(page.getByRole("button", { name: /54 mm dual-deploy/ })).toBeVisible();
+    await page.getByRole("button", { name: /54 mm dual-deploy/ }).click();
+    await page.waitForURL(/\/flight\/?$/);
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 30_000 });
     if (!(await conditions.evaluate((el: HTMLDetailsElement) => el.open))) {
       await conditions.locator("summary").first().click();
@@ -1580,8 +1651,8 @@ test.describe("Loft", () => {
     // still read "Loft read no rail length … so those are its own default".
     await page.goto("/");
     await page.getByRole("button", { name: /Start a new design/ }).click();
-    await expect(page.getByRole("tab", { name: "Design" })).toBeVisible({ timeout: 30_000 });
-    await page.getByRole("tab", { name: "Flight" }).click();
+    await expect(page.getByRole("link", { name: "Design" })).toBeVisible({ timeout: 30_000 });
+    await page.getByRole("link", { name: "Flight" }).click();
 
     const conditions = page.locator("details").filter({ hasText: /^Conditions/ }).first();
     if (!(await conditions.evaluate((el: HTMLDetailsElement) => el.open))) {
@@ -1611,7 +1682,7 @@ test.describe("Loft", () => {
     await page.emulateMedia({ media: "print" });
 
     // No controls survive except the wordmark, which says which tool produced the sheet.
-    const controls = await page.$$eval("button, [role=tablist], [role=group], header a, input", (ns) =>
+    const controls = await page.$$eval("button, nav[aria-label=Workspace] a, [role=group], header a, input", (ns) =>
       ns.filter((n) => n.getBoundingClientRect().height > 0).map((n) => (n.textContent || "").trim().slice(0, 20)),
     );
     expect(controls).toEqual(["Loft"]);
@@ -1732,7 +1803,7 @@ test.describe("Loft", () => {
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
 
     // The Design workspace leads with the diagram; the parts table is behind a toggle.
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     await expect(page.getByRole("heading", { name: "Design geometry" })).toBeVisible();
     await page.locator("summary", { hasText: /Parts ·/ }).click();
 
@@ -1750,7 +1821,7 @@ test.describe("Loft", () => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
 
     const section = page.locator("section", { has: page.getByRole("heading", { name: "Design geometry" }) });
     const readout = section.locator('p[aria-live="polite"]');
@@ -1777,9 +1848,14 @@ test.describe("Loft", () => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
+    await page.waitForURL(/\/design\/?$/);
 
     const svg = page.locator('svg[aria-label*="Scale side-view"]');
+    // Measured only once the workspace is actually on screen. The drawing fits itself to its
+    // container, and a container inside a `hidden` subtree has no width — so a measurement taken
+    // while the navigation is still in flight reads the fit of a box that is not being shown.
+    await expect(svg).toBeVisible();
     const fit = (await svg.boundingBox())!;
     await page.getByRole("button", { name: "Zoom in" }).click();
     await page.getByRole("button", { name: "Zoom in" }).click();
@@ -1813,7 +1889,7 @@ test.describe("Loft", () => {
     // The Design workspace's diagram carries a drag handle sitting on the fins — direct manipulation.
     // Grab it and slide it toward the nose (screen-left): fins forward pulls the centre of pressure
     // forward, so the design flies less stable and the margin (shown above, on every tab) drops.
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     const handle = page.getByRole("slider", { name: /Fin position/ });
     await expect(handle).toBeVisible();
     await handle.scrollIntoViewIfNeeded(); // raw page.mouse uses viewport coords — bring it on-screen
@@ -1849,7 +1925,7 @@ test.describe("Loft", () => {
     // The handle is a real slider: focus it and report its station as a value. This design's fins
     // already sit at the aft limit, so Arrow-Left nudges them forward (the accessible counterpart of
     // dragging), pulling the centre of pressure forward — the static margin drops, no mouse needed.
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     const handle = page.getByRole("slider", { name: /Fin position/ });
     const startMm = parseFloat((await handle.getAttribute("aria-valuenow")) ?? "0");
     expect(startMm).toBeGreaterThan(0);
@@ -1880,7 +1956,7 @@ test.describe("Loft", () => {
     // A second handle sits on the fin tip: dragging it aft (screen-right) rakes the leading edge
     // back, carrying the fins' lift aft — the centre of pressure moves aft and the design flies
     // stiffer, all without adding fin area. The slider reports the rake in mm as it moves.
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     const sweep = page.getByRole("slider", { name: "Fin sweep" });
     await expect(sweep).toBeVisible();
     const startMm = parseFloat((await sweep.getAttribute("aria-valuenow")) ?? "0");
@@ -1905,7 +1981,7 @@ test.describe("Loft", () => {
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
 
     // The diagram, and its handles, live in the Design workspace.
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     // The mm readout is a diagram-layer <text> shown only while a handle is in use; the CG/CP marks
     // are the only other SVG text, and they aren't "### mm", so this locator is just the readout.
     const readout = page.locator("svg text").filter({ hasText: /^\d+ mm$/ });
@@ -1945,7 +2021,7 @@ test.describe("Loft", () => {
     // shortens the root chord, shedding fin planform — less drag, so the rocket flies higher. The
     // slider reports the root chord in mm as it moves. (This demo's fin root already reaches the tail,
     // so forward is the available direction — the accessible drag counterpart of shrinking the fin.)
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     const root = page.getByRole("slider", { name: "Fin root chord" });
     await expect(root).toBeVisible();
     const startMm = parseFloat((await root.getAttribute("aria-valuenow")) ?? "0");
@@ -1980,7 +2056,7 @@ test.describe("Loft", () => {
     // The fourth fin handle sits on the tip's trailing-edge corner: dragging it forward (screen-left)
     // shortens the tip chord toward a delta, shedding planform — less drag, so the rocket flies
     // higher. The slider reports the tip chord in mm as it moves.
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     const tip = page.getByRole("slider", { name: "Fin tip chord" });
     await expect(tip).toBeVisible();
     const startMm = parseFloat((await tip.getAttribute("aria-valuenow")) ?? "0");
@@ -2018,7 +2094,7 @@ test.describe("Loft", () => {
     // The fin span is the one handle that drags VERTICALLY: it sits above the tip and pulling it up
     // grows the semi-span. Bigger fins carry more lift aft — the centre of pressure moves back and the
     // design flies stiffer. The reserved headroom and drag-frozen frame keep the tip under the pointer.
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     const span = page.getByRole("slider", { name: "Fin span" });
     await expect(span).toBeVisible();
     const startMm = parseFloat((await span.getAttribute("aria-valuenow")) ?? "0");
@@ -2057,7 +2133,7 @@ test.describe("Loft", () => {
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
 
     const apogee = async () => {
-      await page.getByRole("tab", { name: "Flight" }).click();
+      await page.getByRole("link", { name: "Flight" }).click();
       const v = page
         .locator("#panel-flight")
         .getByText("Apogee", { exact: true })
@@ -2067,7 +2143,7 @@ test.describe("Loft", () => {
     const field = (re: RegExp) => page.locator("input").and(page.getByLabel(re)).first();
 
     const asDesigned = await apogee();
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     await field(/Fin span/).fill("75");
     await field(/Nose ballast/).fill("20");
     const edited = await apogee();
@@ -2088,7 +2164,7 @@ test.describe("Loft", () => {
     await page.getByRole("button", { name: "Pick it back up" }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
     expect(await apogee(), "the undo restores the flight that was thrown away").toBeCloseTo(edited, 0);
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     await expect(field(/Fin span/)).toHaveValue("75");
     await expect(field(/Nose ballast/)).toHaveValue("20");
 
@@ -2109,7 +2185,7 @@ test.describe("Loft", () => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     await page.locator("input").and(page.getByLabel(/Fin span/)).first().fill("75");
     await page.getByRole("button", { name: /Import another/ }).click();
     await expect(page.getByText(/with 1 what-if set/)).toBeVisible();
@@ -2122,7 +2198,7 @@ test.describe("Loft", () => {
     // The offer still holds the edited design, not the untouched one.
     await expect(page.getByText(/with 1 what-if set/)).toBeVisible();
     await page.getByRole("button", { name: "Pick it back up" }).click();
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     await expect(page.locator("input").and(page.getByLabel(/Fin span/)).first()).toHaveValue("75");
   });
 
@@ -2132,7 +2208,7 @@ test.describe("Loft", () => {
     await page.goto("/");
     await page.getByRole("button", { name: /Start a new design/ }).click();
     // A built design opens on the Design workspace, not on a "Design" heading.
-    await expect(page.getByRole("tab", { name: "Design" })).toHaveAttribute("aria-selected", "true");
+    await expect(page.getByRole("link", { name: "Design" })).toHaveAttribute("aria-current", "page");
     await page.getByLabel("Design name").fill("Osprey II");
     await page.locator("input").and(page.getByLabel(/Fin span/)).first().fill("90");
     await page.getByRole("button", { name: /Import another/ }).click();
@@ -2145,7 +2221,7 @@ test.describe("Loft", () => {
     await page.getByRole("button", { name: "Pick it back up" }).click();
     await expect(page.getByLabel("Design name")).toHaveValue("Osprey II");
     // The what-ifs it was carrying come back with it, as they already did.
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     await expect(page.locator("input").and(page.getByLabel(/Fin span/)).first()).toHaveValue("90");
   });
 
@@ -2176,7 +2252,7 @@ test.describe("Loft", () => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
 
     // Set a what-if and clear it again — as-designed, by the app's own gate.
     const span = page.locator("input").and(page.getByLabel(/Fin span/)).first();
@@ -2203,7 +2279,7 @@ test.describe("Loft", () => {
     // A from-scratch design stores no simulations, so the ENGINE's defaults are what fly: 1 m rail,
     // no wind. That is the number the field must advertise, not a literal that matches neither.
     await page.getByRole("button", { name: /Start a new design/ }).click();
-    await expect(page.getByRole("tab", { name: "Design" })).toHaveAttribute("aria-selected", "true");
+    await expect(page.getByRole("link", { name: "Design" })).toHaveAttribute("aria-current", "page");
     const conditions = page.getByText(/^Conditions ·/).first();
     await conditions.click();
 
@@ -2276,8 +2352,13 @@ test.describe("Loft", () => {
         const metric = /(^|\s|\d)(mm|cm|km|m\/s²|m\/s|m|kg|kPa|Pa)$/;
         const bad: string[] = [];
         let checked = 0;
+        // The workspace panels stopped being `tabpanel`s when the workspaces became routes; they
+        // are landmark regions with the same ids. Asking for the old role matched NOTHING, so
+        // `visible()` answered true for every node on the page: all three iterations censused the
+        // whole document, the per-workspace control was satisfied by whichever other panel happened
+        // to be mounted, and a workspace that rendered nothing at all would have passed.
         const visible = (n: Element) => {
-          const panel = n.closest("div[role='tabpanel']");
+          const panel = n.closest("[id^='panel-']");
           return !(panel && panel.hasAttribute("hidden"));
         };
         // Stat tiles and input suffixes put the unit in its own trailing <span>; table cells carry
@@ -2294,7 +2375,13 @@ test.describe("Loft", () => {
 
     for (const tab of ["Flight", "Design", "Analyze"]) {
       await page.getByRole("button", { name: "Imperial", exact: true }).click();
-      await page.getByRole("tab", { name: tab }).click();
+      await page.getByRole("link", { name: tab }).click();
+      // Before anything is counted: a hidden panel's buttons are invisible to `getByRole`, so the
+      // `count()` below silently found zero and skipped all three sweeps — and the census then ran
+      // on an Analyze workspace with no sweep tables on it, which is the vacuity the note below
+      // says was already fixed once.
+      await page.waitForURL(new RegExp(`/${tab.toLowerCase()}/?$`));
+      await expect(page.getByRole("link", { name: tab })).toHaveAttribute("aria-current", "page");
       if (tab === "Analyze")
         for (const label of [/Run motor sweep/, /Run parameter sweep|Run sweep/, /Run dispersion/]) {
           const b = page.getByRole("button", { name: label }).first();
@@ -2305,7 +2392,7 @@ test.describe("Loft", () => {
             await expect(page.getByRole("button", { name: label })).toHaveCount(0);
           }
         }
-      await expect(page.getByRole("tab", { name: tab })).toHaveAttribute("aria-selected", "true");
+      await expect(page.getByRole("link", { name: tab })).toHaveAttribute("aria-current", "page");
       const imperial = await census();
       expect(imperial.checked, `${tab}: the census must actually see something`).toBeGreaterThan(10);
       expect(imperial.bad, `${tab}: metric units still on screen under Imperial`).toEqual([]);
@@ -2327,7 +2414,7 @@ test.describe("Loft", () => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
 
     const handles = page.locator('g[role="slider"]');
     const metric = await handles.evaluateAll((ns) => ns.map((n) => n.getAttribute("aria-valuetext") ?? ""));
@@ -2385,7 +2472,7 @@ test.describe("Loft", () => {
     // relatively smaller against the bigger reference diameter, so the centre of pressure moves forward
     // and — with more calibers in the denominator — the static margin drops. The reserved headroom and
     // drag-frozen frame keep the wall under the pointer.
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     const dia = page.getByRole("slider", { name: "Body diameter" });
     await expect(dia).toBeVisible();
     const startMm = parseFloat((await dia.getAttribute("aria-valuenow")) ?? "0");
@@ -2414,10 +2501,10 @@ test.describe("Loft", () => {
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
 
-    const flightTab = page.getByRole("tab", { name: "Flight" });
-    const designTab = page.getByRole("tab", { name: "Design" });
-    const analyzeTab = page.getByRole("tab", { name: "Analyze" });
-    await expect(flightTab).toHaveAttribute("aria-selected", "true");
+    const flightTab = page.getByRole("link", { name: "Flight" });
+    const designTab = page.getByRole("link", { name: "Design" });
+    const analyzeTab = page.getByRole("link", { name: "Analyze" });
+    await expect(flightTab).toHaveAttribute("aria-current", "page");
 
     // Flight leads with the plots; the design diagram is not stacked on this view.
     await expect(page.getByRole("heading", { name: "Flight path" })).toBeVisible();
@@ -2425,7 +2512,7 @@ test.describe("Loft", () => {
 
     // Design shows the airframe; the flight plots are put away.
     await designTab.click();
-    await expect(designTab).toHaveAttribute("aria-selected", "true");
+    await expect(designTab).toHaveAttribute("aria-current", "page");
     await expect(page.getByRole("heading", { name: "Design geometry" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Flight path" })).toBeHidden();
 
@@ -2442,11 +2529,20 @@ test.describe("Loft", () => {
     await analyzeTab.click();
     await expect(sweep.getByRole("img", { name: /Apogee.*versus/i })).toBeVisible();
 
-    // The tablist is keyboard-navigable: arrow keys move the selection (and wrap).
-    await analyzeTab.focus();
-    await page.keyboard.press("ArrowRight");
-    await expect(flightTab).toHaveAttribute("aria-selected", "true");
+    // The spine is keyboard-complete, which for a navigation means Tab reaches every link in order
+    // and Enter follows the focused one — not the roving arrow-key focus a tablist uses. Trading one
+    // pattern's keyboard contract for the other's is the substance of the change, so it is asserted
+    // rather than assumed: a spine a keyboard cannot drive is a spine that only exists for a mouse.
+    await flightTab.focus();
+    await page.keyboard.press("Tab");
+    await expect(page.locator("a:focus")).toHaveText("Design");
+    await page.keyboard.press("Tab");
+    await expect(page.locator("a:focus")).toHaveText("Analyze");
+    await flightTab.focus();
+    await page.keyboard.press("Enter");
+    await expect(flightTab).toHaveAttribute("aria-current", "page");
     await expect(page.getByRole("heading", { name: "Flight path" })).toBeVisible();
+    expect(new URL(page.url()).pathname.replace(/\/$/, "") || "/").toBe("/flight");
   });
 
   test("parameter sweep plots a response curve and switches metric", async ({ page }) => {
@@ -2454,7 +2550,7 @@ test.describe("Loft", () => {
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
 
-    await page.getByRole("tab", { name: "Analyze" }).click();
+    await page.getByRole("link", { name: "Analyze" }).click();
     const panel = page.getByRole("region", { name: "Parameter sweep" });
     await expect(panel).toBeVisible();
     await panel.getByRole("button", { name: /Run parameter sweep/ }).click();
@@ -2502,7 +2598,7 @@ test.describe("Loft", () => {
     // whole plotted curve and its marker described a rocket that was never flown.
     await page.goto("/");
     await page.getByRole("button", { name: "Start a new design" }).click();
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     await page.locator("summary", { hasText: /Parts ·/ }).click();
     const partsTable = page.locator("table").filter({ hasText: "Dimensions" });
     const tubes = partsTable.locator("tr").filter({ hasText: /Body tube/ });
@@ -2511,7 +2607,7 @@ test.describe("Loft", () => {
     await page.getByRole("button", { name: /Add a tube behind this/ }).click();
     await expect(tubes).toHaveCount(2);
 
-    await page.getByRole("tab", { name: "Analyze" }).click();
+    await page.getByRole("link", { name: "Analyze" }).click();
     const panel = page.getByRole("region", { name: "Parameter sweep" });
     await panel.getByRole("button", { name: /Run parameter sweep/ }).click();
     await panel.getByLabel("Sweep variable").selectOption("bodyLength");
@@ -2540,7 +2636,7 @@ test.describe("Loft", () => {
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
 
-    await page.getByRole("tab", { name: "Analyze" }).click();
+    await page.getByRole("link", { name: "Analyze" }).click();
     const panel = page.getByRole("region", { name: "Monte-Carlo dispersion" });
     await expect(panel).toBeVisible();
     await panel.getByRole("button", { name: /Run dispersion/ }).click();
@@ -2594,7 +2690,7 @@ test.describe("Loft", () => {
     // Enlarge the fins on the Design workspace — a builder geometry edit. The field starts from the
     // design's own span (its placeholder), so read that and grow it. (Static margin sits above the
     // workspace tabs, so it stays readable without leaving Design.)
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     // The number field, specifically — the diagram now also carries a vertical "Fin span" drag handle.
     const finSpan = page.getByRole("spinbutton", { name: /Fin span/ });
     await expect(finSpan).toBeVisible();
@@ -2624,14 +2720,14 @@ test.describe("Loft", () => {
 
     // Widen the fin root chord — more planform, more drag — on the Design workspace. The field starts
     // from the design's root; flip back to Flight to read the new apogee.
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     // The number field, specifically — the diagram now also carries a "Fin root chord" drag handle.
     const finRoot = page.getByRole("spinbutton", { name: /Fin root/ });
     await expect(finRoot).toBeVisible();
     const designRoot = parseFloat((await finRoot.getAttribute("placeholder")) ?? "0");
     expect(designRoot).toBeGreaterThan(0);
     await finRoot.fill(String(Math.round(designRoot * 1.6)));
-    await page.getByRole("tab", { name: "Flight" }).click();
+    await page.getByRole("link", { name: "Flight" }).click();
 
     // A bigger fin planform drags more, so the rocket doesn't reach as high.
     await expect.poll(apogee).toBeLessThan(before);
@@ -2655,13 +2751,13 @@ test.describe("Loft", () => {
 
     // Thicken the fins — more frontal area and form-factor drag. The field starts from the design's
     // own thickness (a decimal millimetre value).
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     const finThickness = page.getByLabel(/Fin thickness/);
     await expect(finThickness).toBeVisible();
     const designThickness = parseFloat((await finThickness.getAttribute("placeholder")) ?? "0");
     expect(designThickness).toBeGreaterThan(0);
     await finThickness.fill((designThickness * 2).toFixed(1));
-    await page.getByRole("tab", { name: "Flight" }).click();
+    await page.getByRole("link", { name: "Flight" }).click();
 
     // Thicker fins drag more, so the rocket doesn't climb as high.
     await expect.poll(apogee).toBeLessThan(before);
@@ -2671,7 +2767,7 @@ test.describe("Loft", () => {
     await page.goto("/");
     await page.getByRole("button", { name: "Start a new design" }).click();
     // A build opens on Design; this test reads flight metrics, so switch to the Flight workspace.
-    await page.getByRole("tab", { name: "Flight" }).click();
+    await page.getByRole("link", { name: "Flight" }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
 
     const apogee = async () => {
@@ -2687,10 +2783,10 @@ test.describe("Loft", () => {
 
     // Add a boattail on the Design workspace: a length and an exit narrower than the 54 mm body.
     // Both are needed to build one. Flip back to Flight to read the new apogee.
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     await page.getByLabel(/Boattail length/).fill("60");
     await page.getByLabel(/Boattail exit/).fill("30");
-    await page.getByRole("tab", { name: "Flight" }).click();
+    await page.getByRole("link", { name: "Flight" }).click();
 
     // Contracting the base removes most of the base drag, so the same motor flies higher.
     await expect.poll(apogee).toBeGreaterThan(before);
@@ -2700,7 +2796,7 @@ test.describe("Loft", () => {
     await page.goto("/");
     await page.getByRole("button", { name: "Start a new design" }).click();
     // A build opens on Design; this test reads flight metrics, so switch to the Flight workspace.
-    await page.getByRole("tab", { name: "Flight" }).click();
+    await page.getByRole("link", { name: "Flight" }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
     // Wind is a launch condition — it stays in the Conditions panel (above the workspace tabs).
     await page.locator("summary", { hasText: "Conditions" }).click();
@@ -2720,10 +2816,10 @@ test.describe("Loft", () => {
 
     // Switch to dual-deploy — a design edit, on the Design workspace: the main opens at 150 m over a
     // 300 mm drogue. Both fields are needed. Flip back to Flight to read the drift.
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     await page.getByLabel(/Main deploy alt/).fill("150");
     await page.getByLabel(/Drogue/).fill("300");
-    await page.getByRole("tab", { name: "Flight" }).click();
+    await page.getByRole("link", { name: "Flight" }).click();
 
     // Falling fast under the drogue until 150 m spends far less time in the wind, so it lands closer.
     await expect.poll(drift).toBeLessThan(single * 0.7);
@@ -2746,7 +2842,7 @@ test.describe("Loft", () => {
 
     // Sweep the fin leading edge further aft on the Design workspace — the field starts from the
     // design's own sweep. (Static margin sits above the tabs, readable without leaving Design.)
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     const finSweep = page.getByRole("spinbutton", { name: /Fin sweep/ });
     await expect(finSweep).toBeVisible();
     const designSweep = parseFloat((await finSweep.getAttribute("placeholder")) ?? "0");
@@ -2774,9 +2870,9 @@ test.describe("Loft", () => {
     expect(before).toBeGreaterThan(0);
 
     // Set the whole airframe to a rough finish — more skin friction, so it doesn't climb as high.
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     await page.getByLabel("Surface finish").selectOption("rough");
-    await page.getByRole("tab", { name: "Flight" }).click();
+    await page.getByRole("link", { name: "Flight" }).click();
     await expect.poll(apogee).toBeLessThan(before);
   });
 
@@ -2798,9 +2894,9 @@ test.describe("Loft", () => {
 
     // Swap the ogive nose for a blunt ellipsoid — more wetted area and nose pressure, so it flies
     // a touch lower.
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     await page.getByLabel("Nose shape").selectOption("ellipsoid");
-    await page.getByRole("tab", { name: "Flight" }).click();
+    await page.getByRole("link", { name: "Flight" }).click();
     await expect.poll(apogee).toBeLessThan(before);
   });
 
@@ -2808,7 +2904,7 @@ test.describe("Loft", () => {
     await page.goto("/");
     await page.getByRole("button", { name: "Start a new design" }).click();
     // A build opens on Design; this test reads flight metrics, so switch to the Flight workspace.
-    await page.getByRole("tab", { name: "Flight" }).click();
+    await page.getByRole("link", { name: "Flight" }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
 
     const apogee = async () => {
@@ -2824,9 +2920,9 @@ test.describe("Loft", () => {
 
     // The starter is fibreglass; aluminium is far denser, so the airframe gets heavier and it flies
     // lower on the same motor.
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     await page.getByLabel("Airframe material").selectOption("aluminium");
-    await page.getByRole("tab", { name: "Flight" }).click();
+    await page.getByRole("link", { name: "Flight" }).click();
     await expect.poll(apogee).toBeLessThan(before);
   });
 
@@ -2848,9 +2944,9 @@ test.describe("Loft", () => {
 
     // The demo's fins default to square edges; streamlining them to an airfoil cuts the fin-edge
     // pressure drag, so it coasts higher.
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     await page.getByLabel("Fin edge cross-section").selectOption("airfoil");
-    await page.getByRole("tab", { name: "Flight" }).click();
+    await page.getByRole("link", { name: "Flight" }).click();
     await expect.poll(apogee).toBeGreaterThan(before);
   });
 
@@ -2872,9 +2968,9 @@ test.describe("Loft", () => {
 
     // Aluminium fins are far denser than the demo's stock, so the rocket flies heavier and lower —
     // and the fin-flutter margin (which reads the material's stiffness) jumps.
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     await page.getByLabel("Fin material").selectOption("aluminium");
-    await page.getByRole("tab", { name: "Flight" }).click();
+    await page.getByRole("link", { name: "Flight" }).click();
     await expect.poll(apogee).toBeLessThan(before);
   });
 
@@ -2895,7 +2991,7 @@ test.describe("Loft", () => {
 
     // Add fins on the Design workspace — a builder geometry edit. The field starts from the design's
     // own fin count (its placeholder), so read that and add two. (Static margin sits above the tabs.)
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     const finCount = page.getByLabel("Fin count", { exact: true });
     await expect(finCount).toBeVisible();
     const designCount = parseInt((await finCount.getAttribute("placeholder")) ?? "0", 10);
@@ -2924,7 +3020,7 @@ test.describe("Loft", () => {
 
     // Stretch the main body tube on the Design workspace — a builder geometry edit. The field starts
     // from the design's span; flip back to Flight to read the new apogee.
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     // The input, not the diagram's grip: both are named "Body length" now that a tube's length can be
     // dragged, exactly as Fin span and Nose length have been for a while. `getByLabel` matches both.
     const bodyLength = page.locator("input").and(page.getByLabel(/Body length/));
@@ -2932,7 +3028,7 @@ test.describe("Loft", () => {
     const designBody = parseFloat((await bodyLength.getAttribute("placeholder")) ?? "0");
     expect(designBody).toBeGreaterThan(0);
     await bodyLength.fill(String(Math.round(designBody * 1.5)));
-    await page.getByRole("tab", { name: "Flight" }).click();
+    await page.getByRole("link", { name: "Flight" }).click();
 
     // A longer tube is heavier and has more drag, so it doesn't reach as high.
     await expect.poll(apogee).toBeLessThan(before);
@@ -2956,14 +3052,14 @@ test.describe("Loft", () => {
 
     // Widen the whole airframe on the Design workspace — a builder geometry edit. The field starts
     // from the design's caliber; flip back to Flight to read the new apogee.
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     // The what-if number field, not the diagram's "Body diameter" drag slider (same accessible name).
     const bodyDia = page.getByRole("spinbutton", { name: /Body diameter/ });
     await expect(bodyDia).toBeVisible();
     const designDia = parseFloat((await bodyDia.getAttribute("placeholder")) ?? "0");
     expect(designDia).toBeGreaterThan(0);
     await bodyDia.fill(String(Math.round(designDia * 1.5)));
-    await page.getByRole("tab", { name: "Flight" }).click();
+    await page.getByRole("link", { name: "Flight" }).click();
 
     // A fatter airframe has a bigger frontal area (more drag) and more tube material, so it flies lower.
     await expect.poll(apogee).toBeLessThan(before);
@@ -2985,7 +3081,7 @@ test.describe("Loft", () => {
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
     await page.getByRole("button", { name: "Imperial", exact: true }).click();
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     await page.getByLabel("Fin span (in)").fill("3");
     await expect(page.getByRole("button", { name: /Reset to as-designed/ })).toBeVisible();
 
@@ -2993,12 +3089,12 @@ test.describe("Loft", () => {
     // The design is back, in the units that were chosen, on the workspace that was open — not the
     // one the design happened to load on an hour ago.
     await expect(page.getByText(/Picked up where you left off/)).toBeVisible({ timeout: 30_000 });
-    await expect(page.getByRole("tab", { selected: true })).toHaveText("Design");
+    await expect(page.locator('nav[aria-label="Workspace"] a[aria-current="page"]')).toHaveText("Design");
     // …and so is the edit that was in flight. Restored through the model, so it comes back as the
     // display format of the stored metres.
     await expect(page.getByLabel("Fin span (in)")).toHaveValue(/^3(\.0+)?$/);
     // The flight is still a click away and still in imperial.
-    await page.getByRole("tab", { name: "Flight" }).click();
+    await page.getByRole("link", { name: "Flight" }).click();
     await expect(page.getByRole("heading", { name: /Altitude \(ft\) vs time/ })).toBeVisible();
 
     // "Start fresh" really does forget it.
@@ -3025,7 +3121,7 @@ test.describe("Loft", () => {
     // design-tool comparison table on Flight; the editable diagram (a slider group) on Design; the
     // sweep and dispersion tools on Analyze — not just the empty landing page. The comparison table
     // renders deviation values in a semantic caution colour, exactly the honesty-relevant numbers
-    // that must stay readable, and the tablist adds a new keyboard-navigable control to check.
+    // that must stay readable, and the workspace spine adds a new keyboard-reachable landmark to check.
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
     await page.getByRole("heading", { name: "Flight", exact: true }).waitFor();
@@ -3035,10 +3131,15 @@ test.describe("Loft", () => {
       const results = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze();
       return results.violations.filter((v) => v.impact === "serious" || v.impact === "critical");
     };
+    // Each audit waits for its workspace to commit. axe skips `hidden` subtrees, so an audit run in
+    // the tick after a spine click re-audits the workspace just left — three passes over Flight,
+    // reported as three workspaces clean.
     expect(await seriousViolations()).toEqual([]); // Flight
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
+    await expect(page.getByRole("heading", { name: "Design geometry" })).toBeVisible();
     expect(await seriousViolations()).toEqual([]); // Design
-    await page.getByRole("tab", { name: "Analyze" }).click();
+    await page.getByRole("link", { name: "Analyze" }).click();
+    await expect(page.getByRole("region", { name: "Motor sweep" })).toBeVisible();
     expect(await seriousViolations()).toEqual([]); // Analyze
   });
 
@@ -3116,7 +3217,7 @@ test.describe("Loft", () => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
 
     const guidance = await page.$$eval("input[type=number][aria-describedby]", (ns) =>
       ns.flatMap((n) =>
@@ -3147,7 +3248,7 @@ test.describe("Loft", () => {
       .getByLabel(/^Choose an OpenRocket/)
       .setInputFiles(resolve(process.cwd(), "e2e/fixtures/two-stage-firm-booster.ork"));
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     await page.locator("summary", { hasText: /Parts ·/ }).click();
 
     const finRows = page.locator("tr").filter({ hasText: /Trapezoidal fins/ });
@@ -3183,7 +3284,7 @@ test.describe("Loft", () => {
       .getByLabel(/^Choose an OpenRocket/)
       .setInputFiles(resolve(process.cwd(), "e2e/fixtures/two-stage-firm-booster.ork"));
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     await page.locator("summary", { hasText: /Parts ·/ }).click();
 
     const tubeRows = page.locator("tr").filter({ hasText: /Body tube/ });
@@ -3219,7 +3320,7 @@ test.describe("Loft", () => {
     // anchor rather than behind it.
     await page.goto("/");
     await page.getByRole("button", { name: "Start a new design" }).click();
-    await page.getByRole("tab", { name: "Flight" }).click();
+    await page.getByRole("link", { name: "Flight" }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
 
     const margin = async () => {
@@ -3229,7 +3330,7 @@ test.describe("Loft", () => {
     const before = await margin();
     expect(before).toBeGreaterThan(0);
 
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     await page.locator("summary", { hasText: /Parts ·/ }).click();
     const partsTable = page.locator("table").filter({ hasText: "Dimensions" });
     const finRows = partsTable.locator("tr").filter({ hasText: /Trapezoidal fins/ });
@@ -3246,13 +3347,13 @@ test.describe("Loft", () => {
     expect(shape(dims[1])).toBe(shape(dims[0]));
 
     // And the panel a flyer reads stability off describes the rocket they just built.
-    await page.getByRole("tab", { name: "Flight" }).click();
+    await page.getByRole("link", { name: "Flight" }).click();
     await expect.poll(margin, { timeout: 20000 }).toBeGreaterThan(before);
 
     // Undoable by name, back to one ring.
     await page.getByRole("button", { name: /^Undo adding a fin set/ }).click();
     await expect.poll(margin, { timeout: 20000 }).toBe(before);
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     await expect(finRows).toHaveCount(1);
   });
 
@@ -3264,7 +3365,7 @@ test.describe("Loft", () => {
     // aim decides which tube either of them lands on.
     await page.goto("/");
     await page.getByRole("button", { name: "Start a new design" }).click();
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
 
     const handle = page.getByRole("slider", { name: "Body length" });
     await expect(handle).toBeVisible();
@@ -3294,7 +3395,7 @@ test.describe("Loft", () => {
     // nobody meant to draw.
     await page.goto("/");
     await page.getByRole("button", { name: "Start a new design" }).click();
-    await page.getByRole("tab", { name: "Flight" }).click();
+    await page.getByRole("link", { name: "Flight" }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
 
     const apogee = async () => {
@@ -3315,7 +3416,7 @@ test.describe("Loft", () => {
     const asBuilt = { apogee: await apogee(), margin: await margin() };
     expect(asBuilt.apogee).toBeGreaterThan(0);
 
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     await page.locator("summary", { hasText: /Parts ·/ }).click();
     const partsTable = page.locator("table").filter({ hasText: "Dimensions" });
     const tubes = partsTable.locator("tr").filter({ hasText: /Body tube/ });
@@ -3331,13 +3432,13 @@ test.describe("Loft", () => {
     // Flight card went on reporting the apogee of a rocket without it.
     await expect(tubes).toHaveCount(2);
     await expect.poll(dry, { timeout: 20000 }).toBeGreaterThan(dryBefore);
-    await page.getByRole("tab", { name: "Flight" }).click();
+    await page.getByRole("link", { name: "Flight" }).click();
     await expect.poll(apogee, { timeout: 20000 }).toBeLessThan(asBuilt.apogee);
     expect(await margin()).toBeLessThan(asBuilt.margin);
 
     // The fields re-aimed at the part that was just made, so the very next thing typed changes it —
     // and the placeholder advertises ITS length, not the design's own tube's.
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     const bodyLength = page.locator("label").filter({ hasText: /Body length/ }).first().locator("input");
     const advertised = parseFloat((await bodyLength.getAttribute("placeholder")) ?? "0");
     expect(advertised).toBeGreaterThan(0);
@@ -3347,7 +3448,7 @@ test.describe("Loft", () => {
     await expect(page.getByRole("button", { name: /^Undo adding a body tube/ })).toBeEnabled();
     await page.getByRole("button", { name: /^Undo adding a body tube/ }).click();
     await expect(tubes).toHaveCount(1);
-    await page.getByRole("tab", { name: "Flight" }).click();
+    await page.getByRole("link", { name: "Flight" }).click();
     await expect.poll(apogee, { timeout: 20000 }).toBe(asBuilt.apogee);
   });
 
@@ -3361,7 +3462,7 @@ test.describe("Loft", () => {
     // lever: on the starter design it buys +29.33 m of apogee (993.64 to 1022.97 m) for +12.58 g.
     await page.goto("/");
     await page.getByRole("button", { name: "Start a new design" }).click();
-    await page.getByRole("tab", { name: "Flight" }).click();
+    await page.getByRole("link", { name: "Flight" }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
     const apogee = async () => {
       const txt = await page
@@ -3374,7 +3475,7 @@ test.describe("Loft", () => {
     const asBuilt = await apogee();
     expect(asBuilt).toBeGreaterThan(0);
 
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     await page.locator("summary", { hasText: /Parts ·/ }).click();
     const partsTable = page.locator("table").filter({ hasText: "Dimensions" });
     const cones = partsTable.locator("tr").filter({ hasText: /Transition/ });
@@ -3389,12 +3490,12 @@ test.describe("Loft", () => {
     await expect(cones.first()).toContainText(/⌀\s*54[^→]*→\s*⌀\s*40\b/);
 
     // Contracting the base is worth altitude, and the Flight card moves with it.
-    await page.getByRole("tab", { name: "Flight" }).click();
+    await page.getByRole("link", { name: "Flight" }).click();
     // +29.33 m on the starter, measured; assert most of it rather than any epsilon above zero.
     await expect.poll(apogee, { timeout: 20000 }).toBeGreaterThan(asBuilt + 20);
 
     // The fields aimed at it the moment it existed, so the very next number typed shapes THAT part.
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     const exit = page.locator("label").filter({ hasText: /Transition exit/ }).first().locator("input");
     // 54.00 mm x 0.7446 = 40.2 mm. Anchored and to the tenth: the previous /4[01]/ accepted anything
     // from 40.0 to 41.99 — a 4.9% window on the one constant this case exists to hold — and being
@@ -3410,7 +3511,7 @@ test.describe("Loft", () => {
     await expect(cones.first()).toContainText(/→\s*⌀\s*40\b/);
     await page.getByRole("button", { name: /^Undo adding a transition/ }).click();
     await expect(cones).toHaveCount(0);
-    await page.getByRole("tab", { name: "Flight" }).click();
+    await page.getByRole("link", { name: "Flight" }).click();
     await expect.poll(apogee, { timeout: 20000 }).toBe(asBuilt);
   });
 
@@ -3421,7 +3522,7 @@ test.describe("Loft", () => {
     // that way inside a body tube.
     await page.goto("/");
     await page.getByRole("button", { name: "Start a new design" }).click();
-    await page.getByRole("tab", { name: "Flight" }).click();
+    await page.getByRole("link", { name: "Flight" }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
     const margin = async () => {
       const t = await page.getByText("Static margin", { exact: true }).locator("xpath=following-sibling::dd").innerText();
@@ -3430,7 +3531,7 @@ test.describe("Loft", () => {
     const asBuilt = await margin();
     expect(asBuilt).toBeGreaterThan(0);
 
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     await page.locator("summary", { hasText: /Parts ·/ }).click();
     const partsTable = page.locator("table").filter({ hasText: "Dimensions" });
     // The starter already carries one (its altimeter + battery), so this counts rather than presumes.
@@ -3450,18 +3551,18 @@ test.describe("Loft", () => {
 
     // Weighing it moves the balance — the number a flyer adds ballast to change.
     await massField.fill("400");
-    await page.getByRole("tab", { name: "Flight" }).click();
+    await page.getByRole("link", { name: "Flight" }).click();
     await expect.poll(margin, { timeout: 20000 }).not.toBe(asBuilt);
     const heavy = await margin();
 
     // And sliding it forward moves the balance again, the other way: mass ahead of the CG pulls it up.
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     await posField.fill(String(Math.round(seated / 2)));
-    await page.getByRole("tab", { name: "Flight" }).click();
+    await page.getByRole("link", { name: "Flight" }).click();
     await expect.poll(margin, { timeout: 20000 }).not.toBe(heavy);
 
     // Each step is its own undo, named after what it did.
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     await page.getByRole("button", { name: /^Undo the mass position/ }).click();
     await page.getByRole("button", { name: /^Undo the mass\b/ }).click();
     await expect(massField).toHaveAttribute("placeholder", /45/);
@@ -3484,7 +3585,7 @@ test.describe("Loft", () => {
       .getByLabel(/^Choose an OpenRocket/)
       .setInputFiles(resolve(process.cwd(), "fixtures/demo-quirks.ork"));
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     await page.locator("summary", { hasText: /Parts ·/ }).click();
 
     const partsTable = page.locator("table").filter({ hasText: "Dimensions" });
@@ -3529,7 +3630,7 @@ test.describe("Loft", () => {
     // would stick at a value the pointer had left behind.
     await page.goto("/");
     await page.getByRole("button", { name: "Start a new design" }).click();
-    await page.getByRole("tab", { name: "Flight" }).click();
+    await page.getByRole("link", { name: "Flight" }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
     const margin = async () => {
       const t = await page.getByText("Static margin", { exact: true }).locator("xpath=following-sibling::dd").innerText();
@@ -3537,7 +3638,7 @@ test.describe("Loft", () => {
     };
     const asBuilt = await margin();
 
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     await page.locator("summary", { hasText: /Parts ·/ }).click();
     const partsTable = page.locator("table").filter({ hasText: "Dimensions" });
     // Pick the starter's own altimeter, so this exercises an IMPORTED mass and not only an authored one.
@@ -3555,11 +3656,11 @@ test.describe("Loft", () => {
     for (let i = 0; i < 12; i++) await page.keyboard.press("ArrowLeft");
     // Nudging it forward moves the balance — mass ahead of the CG pulls the CG up and the margin with it.
     await expect.poll(async () => parseFloat((await posField.inputValue()) || "0"), { timeout: 15000 }).toBeLessThan(seated);
-    await page.getByRole("tab", { name: "Flight" }).click();
+    await page.getByRole("link", { name: "Flight" }).click();
     await expect.poll(margin, { timeout: 20000 }).not.toBe(asBuilt);
 
     // And it is one undo, by name, not twelve.
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     await page.getByRole("button", { name: /^Undo the mass position/ }).click();
     await expect(posField).toHaveValue("");
   });
@@ -3574,7 +3675,7 @@ test.describe("Loft", () => {
     // that had not moved.
     await page.goto("/");
     await page.getByRole("button", { name: "Start a new design" }).click();
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     await page.locator("summary", { hasText: /Parts ·/ }).click();
     const partsTable = page.locator("table").filter({ hasText: "Dimensions" });
     const tubes = partsTable.locator("tr").filter({ hasText: /Body tube/ });
@@ -3622,7 +3723,7 @@ test.describe("Loft", () => {
     const before = await margin();
     expect(before).toBeGreaterThan(0);
 
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     await page.locator("summary", { hasText: /Parts ·/ }).click();
 
     // Pick a fin set and remove it. The control names the part it will take. The rows are scoped to the
@@ -3639,13 +3740,13 @@ test.describe("Loft", () => {
     // The part is gone from the design...
     await expect(partsTable.locator("tr").filter({ hasText: /Trapezoidal fins/ })).toHaveCount(1);
     // ...and the flight answer moved: fewer fins is less normal force, so a thinner static margin.
-    await page.getByRole("tab", { name: "Flight" }).click();
+    await page.getByRole("link", { name: "Flight" }).click();
     await expect.poll(margin, { timeout: 20000 }).toBeLessThan(before);
 
     // Undo names the part it will put back, and puts it back exactly.
     await page.getByRole("button", { name: /^Undo removing / }).click();
     await expect.poll(margin, { timeout: 20000 }).toBe(before);
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     await expect(partsTable.locator("tr").filter({ hasText: /Trapezoidal fins/ })).toHaveCount(2);
   });
 
@@ -3673,12 +3774,12 @@ test.describe("Loft", () => {
     const undo = page.getByRole("button", { name: /^Undo/ });
     await expect(undo).toBeDisabled();
 
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     const finThickness = page.getByLabel(/Fin thickness/);
     const designThickness = parseFloat((await finThickness.getAttribute("placeholder")) ?? "0");
     expect(designThickness).toBeGreaterThan(0);
     await finThickness.fill((designThickness * 3).toFixed(1));
-    await page.getByRole("tab", { name: "Flight" }).click();
+    await page.getByRole("link", { name: "Flight" }).click();
     await expect.poll(apogee, { timeout: 20000 }).toBeLessThan(asDesigned);
 
     // The control NAMES what it will take back. "Undo" alone asks the flyer to remember what they did.
@@ -3688,7 +3789,7 @@ test.describe("Loft", () => {
     await expect.poll(apogee, { timeout: 20000 }).toBe(asDesigned);
     // ...and the field it undid went back with the flight, rather than sitting there asserting a
     // number nothing is flying.
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     await expect(page.getByLabel(/Fin thickness/)).toHaveValue("");
 
     // Redo puts it back. Undo without redo is half a control: an undo pressed once too often is
@@ -3696,7 +3797,7 @@ test.describe("Loft", () => {
     const redo = page.getByRole("button", { name: /^Redo/ });
     await expect(redo).toBeEnabled();
     await redo.click();
-    await page.getByRole("tab", { name: "Flight" }).click();
+    await page.getByRole("link", { name: "Flight" }).click();
     await expect.poll(apogee, { timeout: 20000 }).toBeLessThan(asDesigned);
   });
 
@@ -3707,7 +3808,7 @@ test.describe("Loft", () => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
 
     // The diagram's fin-position handle is a real slider: focusable, and arrow keys nudge it. Each
     // nudge is its own edit commit, exactly as each frame of a drag is.
@@ -3738,7 +3839,7 @@ test.describe("Loft", () => {
       .getByLabel(/^Choose an OpenRocket/)
       .setInputFiles(resolve(process.cwd(), "e2e/fixtures/two-stage-firm-booster.ork"));
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     await page.locator("summary", { hasText: /Parts ·/ }).click();
 
     const partsTable = page.locator("table").filter({ hasText: "Dimensions" });
@@ -3778,11 +3879,11 @@ test.describe("Loft", () => {
     };
     const asDesigned = await apogee();
 
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     const finThickness = page.getByLabel(/Fin thickness/);
     const designThickness = parseFloat((await finThickness.getAttribute("placeholder")) ?? "0");
     await finThickness.fill((designThickness * 3).toFixed(1));
-    await page.getByRole("tab", { name: "Flight" }).click();
+    await page.getByRole("link", { name: "Flight" }).click();
     await expect.poll(apogee, { timeout: 20000 }).toBeLessThan(asDesigned);
     const edited = await apogee();
 
@@ -3803,7 +3904,7 @@ test.describe("Loft", () => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
 
     const finThickness = page.getByLabel(/Fin thickness/);
     const designThickness = parseFloat((await finThickness.getAttribute("placeholder")) ?? "0");
@@ -3836,7 +3937,7 @@ test.describe("Loft", () => {
       .getByLabel(/^Choose an OpenRocket/)
       .setInputFiles(resolve(process.cwd(), "fixtures/demo-quirks.ork"));
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     await page.locator("summary", { hasText: /Parts ·/ }).click();
 
     const partsTable = page.locator("table").filter({ hasText: "Dimensions" });
@@ -3893,7 +3994,7 @@ test.describe("Loft", () => {
       .getByLabel(/^Choose an OpenRocket/)
       .setInputFiles(resolve(process.cwd(), "fixtures/demo-quirks.ork"));
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     await page.locator("summary", { hasText: /Parts ·/ }).click();
 
     const partsTable = page.locator("table").filter({ hasText: "Dimensions" });
@@ -3962,7 +4063,7 @@ test.describe("Loft", () => {
       .getByLabel(/^Choose an OpenRocket/)
       .setInputFiles(resolve(process.cwd(), "fixtures/demo-quirks.ork"));
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     await page.locator("summary", { hasText: /Parts ·/ }).click();
 
     // Pick the FORWARD tube deliberately, and read which part the body fields say they are holding.
@@ -4035,7 +4136,7 @@ test.describe("Loft", () => {
     const partsBefore = await rows();
     expect(partsBefore).toBeGreaterThan(2);
 
-    await page.getByRole("tab", { name: "Flight" }).click();
+    await page.getByRole("link", { name: "Flight" }).click();
     // `following-sibling::*[1]`, not `::div[1]`: the stat tile renders its label and its value as
     // siblings but the value is not always a div, and the tag-specific xpath silently matches nothing.
     const apogee = page.getByText("Apogee", { exact: true }).first().locator("xpath=following-sibling::*[1]");
@@ -4043,12 +4144,12 @@ test.describe("Loft", () => {
     // A single-stage design sheds nothing, so the flight says nothing about a spent lower stage.
     await expect(page.getByText(/sheds a spent lower stage/i)).toHaveCount(0);
 
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     await page.getByRole("button", { name: /Add a booster stage/ }).click();
 
     // The booster's own airframe joins the parts list, and the flight becomes a staged one.
     await expect.poll(rows, { timeout: 20000 }).toBeGreaterThan(partsBefore);
-    await page.getByRole("tab", { name: "Flight" }).click();
+    await page.getByRole("link", { name: "Flight" }).click();
     await expect.poll(async () => (await apogee.innerText()).trim(), { timeout: 20000 }).not.toBe(before);
     // The solver treats the authored stage as a real stage that separates and is shed, and says so by
     // NAME. This is as far as the *done when*'s "phase table" reaches today: the flight surface has no
@@ -4057,11 +4158,11 @@ test.describe("Loft", () => {
     await expect(page.getByText(/sheds a spent lower stage \(Booster\)/i).first()).toBeVisible({ timeout: 20000 });
 
     // And it comes back off, in one named undo — the second half of the *done when*.
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     await expect(page.getByRole("button", { name: /^Undo adding Booster/ })).toBeVisible();
     await page.getByRole("button", { name: /Remove Booster/ }).click();
     await expect.poll(rows, { timeout: 20000 }).toBe(partsBefore);
-    await page.getByRole("tab", { name: "Flight" }).click();
+    await page.getByRole("link", { name: "Flight" }).click();
     await expect.poll(async () => (await apogee.innerText()).trim(), { timeout: 20000 }).toBe(before);
     await expect(page.getByText(/sheds a spent lower stage/i)).toHaveCount(0);
   });
@@ -4082,14 +4183,14 @@ test.describe("Loft", () => {
     // A single-stage design has no phases to table, so the surface is not offered at all. Settle on a
     // positive assertion FIRST — a bare `toHaveCount(0)` resolves on the first poll after the tab
     // click, so it passes for a panel that has not mounted yet, or for a click that never landed.
-    await page.getByRole("tab", { name: "Flight" }).click();
+    await page.getByRole("link", { name: "Flight" }).click();
     await expect(page.getByText("Apogee", { exact: true }).first()).toBeVisible({ timeout: 20000 });
     await expect(table).toHaveCount(0);
 
     // Author a booster: two phases, and the boundary is the separation.
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     await page.getByRole("button", { name: /Add a booster stage/ }).click();
-    await page.getByRole("tab", { name: "Flight" }).click();
+    await page.getByRole("link", { name: "Flight" }).click();
     await expect(table).toBeVisible({ timeout: 20000 });
     await expect.poll(async () => rows.count(), { timeout: 20000 }).toBe(2);
 
@@ -4121,7 +4222,7 @@ test.describe("Loft", () => {
 
     // Gut the booster's motor mount: the stack never parts, so there is exactly one phase — and the
     // table says why rather than rendering a single unexplained row.
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     await page.locator("summary", { hasText: /Parts ·/ }).click();
     const mounts = page.locator("table").filter({ hasText: "Dimensions" }).locator("tr").filter({ hasText: /Inner tube/ });
     await mounts.last().click();
@@ -4129,14 +4230,14 @@ test.describe("Loft", () => {
       .getByRole("button", { name: /^Remove / })
       .and(page.locator('[title="Remove this part from the design and re-fly it"]'))
       .click();
-    await page.getByRole("tab", { name: "Flight" }).click();
+    await page.getByRole("link", { name: "Flight" }).click();
     await expect(table.getByText(/nothing separated/i)).toBeVisible({ timeout: 20000 });
     await expect.poll(async () => rows.count(), { timeout: 20000 }).toBe(1);
 
     // And undoing brings the two-phase flight back.
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     await page.getByRole("button", { name: /^Undo removing / }).click();
-    await page.getByRole("tab", { name: "Flight" }).click();
+    await page.getByRole("link", { name: "Flight" }).click();
     await expect.poll(async () => rows.count(), { timeout: 20000 }).toBe(2);
   });
 
@@ -4152,9 +4253,9 @@ test.describe("Loft", () => {
     await page.goto("/");
     await page.getByRole("button", { name: "Start a new design" }).click();
     await expect(page.getByRole("heading", { name: "Design geometry" })).toBeVisible({ timeout: 15000 });
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     await page.getByRole("button", { name: /Add a booster stage/ }).click();
-    await page.getByRole("tab", { name: "Flight" }).click();
+    await page.getByRole("link", { name: "Flight" }).click();
 
     const table = page.getByRole("region", { name: "Flight phases" });
     await expect(table).toBeVisible({ timeout: 20000 });
@@ -4193,9 +4294,9 @@ test.describe("Loft", () => {
     await page.goto("/");
     await page.getByRole("button", { name: "Start a new design" }).click();
     await expect(page.getByRole("heading", { name: "Design geometry" })).toBeVisible({ timeout: 15000 });
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     await page.getByRole("button", { name: /Add a booster stage/ }).click();
-    await page.getByRole("tab", { name: "Flight" }).click();
+    await page.getByRole("link", { name: "Flight" }).click();
 
     const region = page.getByRole("region", { name: "Flight phases" });
     await expect(region).toBeVisible({ timeout: 20000 });
@@ -4279,9 +4380,9 @@ test.describe("Loft", () => {
     const cannotFire = page.getByText(/carries no motor that can fire/i);
 
     // The starter is single-stage and flies perfectly well, so nothing says anything about a stage.
-    await page.getByRole("tab", { name: "Flight" }).click();
+    await page.getByRole("link", { name: "Flight" }).click();
     await expect(cannotFire).toHaveCount(0);
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
 
     const mountsBefore = await mounts().count();
     expect(mountsBefore).toBeGreaterThan(0);
@@ -4290,13 +4391,13 @@ test.describe("Loft", () => {
     await expect.poll(async () => mounts().count(), { timeout: 20000 }).toBe(mountsBefore + 1);
 
     // With the booster intact the flight is a staged one, and still says nothing about a dead stage.
-    await page.getByRole("tab", { name: "Flight" }).click();
+    await page.getByRole("link", { name: "Flight" }).click();
     await expect(page.getByText(/sheds a spent lower stage \(Booster\)/i).first()).toBeVisible({ timeout: 20000 });
     await expect(cannotFire).toHaveCount(0);
 
     // Now delete the booster's own motor mount — the LAST inner tube, since the booster sits at the
     // tail. This is the gesture the add-time refusal never sees.
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     await mounts().last().click();
     // `/^Remove /` alone is a strict-mode violation here: the stage's own "Remove Booster" control is
     // on the same panel. The part control is the one carrying the part-removal title.
@@ -4309,7 +4410,7 @@ test.describe("Loft", () => {
 
     // The flight now says the stage cannot fire, and names it. Asserted POSITIVELY on the sentence's
     // own words rather than by counting something to zero, which deleting the notice would satisfy.
-    await page.getByRole("tab", { name: "Flight" }).click();
+    await page.getByRole("link", { name: "Flight" }).click();
     await expect(cannotFire.first()).toBeVisible({ timeout: 20000 });
     await expect(page.getByText(/Booster carries no motor/i).first()).toBeVisible();
     // The sentence states what becomes of the dead mass, and here — a dead bottom stage with nothing
@@ -4322,9 +4423,9 @@ test.describe("Loft", () => {
     await expect(page.getByText(/sheds a spent lower stage/i)).toHaveCount(0);
 
     // Undoing the deletion puts the working booster back, and the warning goes with it.
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     await page.getByRole("button", { name: /^Undo removing / }).click();
-    await page.getByRole("tab", { name: "Flight" }).click();
+    await page.getByRole("link", { name: "Flight" }).click();
     // Settle FIRST on a positive assertion, then check the warning is gone. The other order is the
     // failure this suite has shipped before: a `toHaveCount(0)` evaluated against a panel that has not
     // re-flown yet is satisfied by the panel being unsettled, so it cannot fail.
@@ -4346,7 +4447,7 @@ test.describe("Loft", () => {
     await page.getByRole("button", { name: "Start a new design" }).click();
     await expect(page.getByRole("heading", { name: "Design geometry" })).toBeVisible({ timeout: 15000 });
 
-    await page.getByRole("tab", { name: "Analyze" }).click();
+    await page.getByRole("link", { name: "Analyze" }).click();
     const crossCheck = page.getByRole("region", { name: "RocketPy cross-check" });
     const sweep = page.getByRole("region", { name: "Parameter sweep" });
     // The motor sweep too: it is gated on `!staged` for the same reason — with several stages there is
@@ -4357,9 +4458,9 @@ test.describe("Loft", () => {
     await expect(sweep).toBeVisible();
     await expect(motors).toBeVisible();
 
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     await page.getByRole("button", { name: /Add a booster stage/ }).click();
-    await page.getByRole("tab", { name: "Analyze" }).click();
+    await page.getByRole("link", { name: "Analyze" }).click();
     await expect(crossCheck).toHaveCount(0, { timeout: 20000 });
     await expect(sweep).toHaveCount(0);
     await expect(motors).toHaveCount(0);
@@ -4372,9 +4473,9 @@ test.describe("Loft", () => {
     await expect(page.getByText(/This design flies 1 stages/)).toHaveCount(0);
 
     // And back, because a withdrawal that does not reverse is a tool the flyer has lost.
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     await page.getByRole("button", { name: /Remove Booster/ }).click();
-    await page.getByRole("tab", { name: "Analyze" }).click();
+    await page.getByRole("link", { name: "Analyze" }).click();
     await expect(crossCheck).toBeVisible({ timeout: 20000 });
     await expect(sweep).toBeVisible();
     await expect(motors).toBeVisible();
@@ -4447,7 +4548,7 @@ test.describe("Loft", () => {
       .getByLabel(/^Choose an OpenRocket/)
       .setInputFiles(resolve(process.cwd(), "fixtures/demo-quirks.ork"));
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     await page.locator("summary", { hasText: /Parts ·/ }).click();
 
     const partsTable = page.locator("table").filter({ hasText: "Dimensions" });
@@ -4463,7 +4564,7 @@ test.describe("Loft", () => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     await page.locator("summary", { hasText: /Parts ·/ }).click();
 
     // Scoped to the parts table by its Dimensions column — a collapsed `<details>` keeps Mass & balance
@@ -4506,7 +4607,7 @@ test.describe("Loft", () => {
     const rate0 = await drogueRate();
     expect(rate0).toBeGreaterThan(0);
 
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     await page.locator("summary", { hasText: /Parts ·/ }).click();
 
     // With nothing picked the field describes the MAIN — the largest canopy.
@@ -4524,7 +4625,7 @@ test.describe("Loft", () => {
     // owns. Aimed at the main instead, this figure would not move at all.
     await canopy.fill(String(Math.round(parseFloat(droguePlaceholder!.replace(/[^\d.]/g, "")) * 2)));
     await canopy.blur();
-    await page.getByRole("tab", { name: "Flight" }).click();
+    await page.getByRole("link", { name: "Flight" }).click();
     await expect.poll(drogueRate, { timeout: 20000 }).toBeLessThan(rate0);
   });
 
@@ -4537,7 +4638,7 @@ test.describe("Loft", () => {
       .getByLabel(/^Choose an OpenRocket/)
       .setInputFiles(resolve(process.cwd(), "e2e/fixtures/two-stage-firm-booster.ork"));
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     await page.locator("summary", { hasText: /Parts ·/ }).click();
 
     const tubeRows = page.locator("tr").filter({ hasText: /Body tube/ });
@@ -4558,7 +4659,7 @@ test.describe("Loft", () => {
     // than on a workspace heading, then make sure we are on Design.
     await page.reload();
     await expect(page.getByText(/Picked up where you left off/)).toBeVisible({ timeout: 30_000 });
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     await page.locator("summary", { hasText: /Parts ·/ }).click();
 
     const rows2 = page.locator("tr").filter({ hasText: /Body tube/ });
@@ -4589,7 +4690,7 @@ test.describe("Loft", () => {
       .getByLabel(/^Choose an OpenRocket/)
       .setInputFiles(resolve(process.cwd(), "e2e/fixtures/two-stage-firm-booster.ork"));
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     await page.locator("summary", { hasText: /Parts ·/ }).click();
 
     const finRows = page.locator("tr").filter({ hasText: /Trapezoidal fins/ });
@@ -4660,7 +4761,7 @@ test.describe("Loft", () => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
 
     const span = page.locator("label").filter({ hasText: /Fin span/ }).first().locator("input");
     const designSpan = await span.getAttribute("placeholder");
@@ -4764,7 +4865,7 @@ test.describe("Loft", () => {
     const asDesigned = await apogee();
     expect(asDesigned).toBeTruthy();
 
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     const sweep = page.locator("label").filter({ hasText: /Fin sweep/ }).first().locator("input");
     const designSweep = await sweep.getAttribute("placeholder");
     // The sample has a swept fin, or this test is asserting that zero equals zero.
@@ -4781,7 +4882,7 @@ test.describe("Loft", () => {
     await expect(page.getByRole("button", { name: "Reset to as-designed" })).toBeVisible();
     // ...and the flight itself moved, which is the only proof the zero reached the solver. Measured
     // on this sample: 2,941 m as designed, 2,359 m with the leading edge straightened.
-    await page.getByRole("tab", { name: "Flight" }).click();
+    await page.getByRole("link", { name: "Flight" }).click();
     await expect(async () => expect(await apogee()).not.toBe(asDesigned)).toPass({ timeout: 20_000 });
   });
 
@@ -4798,7 +4899,7 @@ test.describe("Loft", () => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
 
     const span = page.locator("label").filter({ hasText: /Fin span/ }).first().locator("input");
     const design = await span.getAttribute("placeholder");
@@ -4837,7 +4938,7 @@ test.describe("Loft", () => {
     const comparison = page.getByRole("region", { name: "Validation" });
     await expect(comparison).toBeVisible();
 
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     const pos = page.locator("label").filter({ hasText: /Payload pos/ }).first().locator("input");
     await pos.fill("0");
     await pos.blur();
@@ -4845,7 +4946,7 @@ test.describe("Loft", () => {
 
     // The design is not edited by it, so the comparison it would have hidden is still there.
     await expect(page.getByRole("button", { name: "Reset to as-designed" })).toHaveCount(0);
-    await page.getByRole("tab", { name: "Flight" }).click();
+    await page.getByRole("link", { name: "Flight" }).click();
     await expect(comparison).toBeVisible();
   });
 
@@ -4902,9 +5003,12 @@ test.describe("Loft", () => {
         dry: g(/dry\s+([\d.,]+\s*\S+)/i),
       };
     };
-    // Read both on the Design tab: the strip sits above the tabs and is always visible, but Mass &
-    // balance is inside the Design panel, and `innerText` skips a `hidden` subtree entirely.
-    await page.getByRole("tab", { name: "Design" }).click();
+    // Read both on the Design workspace: the strip sits above the spine and is always visible, but
+    // Mass & balance is inside the Design panel, and `innerText` skips a `hidden` subtree entirely.
+    // Wait for the route to commit before scraping — `innerText` is a one-shot read with no retry,
+    // so a navigation still in flight scrapes the workspace the flyer just left.
+    await page.getByRole("link", { name: "Design" }).click();
+    await page.waitForURL(/\/design\/?$/);
     const before = await strip();
     expect(before.length).not.toBe("-");
     expect(before.dry).not.toBe("-");
@@ -4951,7 +5055,7 @@ test.describe("Loft", () => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
 
     // Both captions live inside disclosures; `innerText` skips a closed one entirely.
     const details = page.locator("details");
@@ -4987,7 +5091,7 @@ test.describe("Loft", () => {
       .first()
       .setInputFiles(resolve(process.cwd(), "e2e/fixtures/stage-weighed.ork"));
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
 
     const details = page.locator("details");
     for (let i = 0; i < (await details.count()); i++) {
@@ -5024,7 +5128,7 @@ test.describe("Loft", () => {
       .first()
       .setInputFiles(resolve(process.cwd(), "e2e/fixtures/stage-weighed.ork"));
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     await page.locator("summary", { hasText: /Parts ·/ }).click();
 
     const partsTable = page.locator("table").filter({ hasText: "Dimensions" });
@@ -5064,7 +5168,7 @@ test.describe("Loft", () => {
       .first()
       .setInputFiles(resolve(process.cwd(), "e2e/fixtures/demo-rasaero.CDX1"));
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     await page.locator("summary", { hasText: /Parts ·/ }).click();
 
     const airframe = page
@@ -5098,7 +5202,7 @@ test.describe("Loft", () => {
       .first()
       .setInputFiles(resolve(process.cwd(), "e2e/fixtures/stage-weighed.ork"));
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     const details = page.locator("details");
     for (let i = 0; i < (await details.count()); i++) {
       const d = details.nth(i);
@@ -5129,7 +5233,7 @@ test.describe("Loft", () => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     const details = page.locator("details");
     for (let i = 0; i < (await details.count()); i++) {
       const d = details.nth(i);
@@ -5168,7 +5272,7 @@ test.describe("Loft", () => {
       const m = t.match(/move the fin set about ([\d.,]+)\s*(mm|in)/i);
       return m ? m[1] : null;
     };
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     const span = page.locator("label").filter({ hasText: /Fin span/ }).first().locator("input");
     const design = Number(await span.getAttribute("placeholder"));
     expect(design).toBeGreaterThan(20);
@@ -5208,7 +5312,7 @@ test.describe("Loft", () => {
       await page.waitForFunction(() => !/Refining/.test(document.body.innerText), null, { timeout: 150_000 });
     };
 
-    await page.getByRole("tab", { name: "Analyze" }).click();
+    await page.getByRole("link", { name: "Analyze" }).click();
     await mc.getByRole("button", { name: /Run dispersion/i }).click();
     await settle();
     const asDesigned = await radius();
@@ -5217,7 +5321,7 @@ test.describe("Loft", () => {
     await expect(mc).toContainText("the design's stored launch conditions");
 
     // Now tell it the field is windier than the file says.
-    await page.getByRole("tab", { name: "Flight" }).click();
+    await page.getByRole("link", { name: "Flight" }).click();
     const conditions = page.locator("details").filter({ hasText: "Conditions" }).first();
     if (!(await conditions.evaluate((el: HTMLDetailsElement) => el.open))) {
       await conditions.locator("summary").click();
@@ -5227,7 +5331,7 @@ test.describe("Loft", () => {
     await wind.press("Enter");
     await wind.blur();
 
-    await page.getByRole("tab", { name: "Analyze" }).click();
+    await page.getByRole("link", { name: "Analyze" }).click();
     // Poll the VALUE, not the spinner. The conditions key is debounced, so for the first third of a
     // second after the last keystroke there is no run in flight to wait for — a "wait until it stops
     // refining" check passes immediately and reads the previous cloud. Ask for the answer instead.
@@ -5275,14 +5379,14 @@ test.describe("Loft", () => {
         .map((speeds) => Number((speeds[speeds.length - 1].match(/^[\d.,]+/) ?? ["0"])[0].replace(/,/g, "")));
     };
 
-    await page.getByRole("tab", { name: "Analyze" }).click();
+    await page.getByRole("link", { name: "Analyze" }).click();
     await sweep.getByRole("button", { name: /Run motor sweep|Compare fitting motors/i }).first().click();
     await expect(async () => expect((await railExits()).length).toBeGreaterThan(3)).toPass({ timeout: 90_000 });
     const onDesignRail = await railExits();
     await expect(sweep).toContainText("the design's stored launch conditions");
 
     // Tell it the rail is half as long as the file says.
-    await page.getByRole("tab", { name: "Flight" }).click();
+    await page.getByRole("link", { name: "Flight" }).click();
     const conditions = page.locator("details").filter({ hasText: "Conditions" }).first();
     if (!(await conditions.evaluate((el: HTMLDetailsElement) => el.open))) {
       await conditions.locator("summary").click();
@@ -5294,7 +5398,7 @@ test.describe("Loft", () => {
     await rail.press("Enter");
     await rail.blur();
 
-    await page.getByRole("tab", { name: "Analyze" }).click();
+    await page.getByRole("link", { name: "Analyze" }).click();
     await expect(async () => {
       const shortened = await railExits();
       expect(shortened.length).toBe(onDesignRail.length);
@@ -5319,7 +5423,7 @@ test.describe("Loft", () => {
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
 
     const sweep = page.getByRole("region", { name: "Motor sweep" });
-    await page.getByRole("tab", { name: "Analyze" }).click();
+    await page.getByRole("link", { name: "Analyze" }).click();
     await sweep.getByRole("button", { name: /Run/i }).first().click();
     await sweep.getByRole("table").waitFor({ timeout: 120_000 });
 
@@ -5334,7 +5438,7 @@ test.describe("Loft", () => {
       });
     });
 
-    await page.getByRole("tab", { name: "Flight" }).click();
+    await page.getByRole("link", { name: "Flight" }).click();
     const conditions = page.locator("details").filter({ hasText: "Conditions" }).first();
     if (!(await conditions.evaluate((el: HTMLDetailsElement) => el.open))) {
       await conditions.locator("summary").click();
@@ -5348,7 +5452,7 @@ test.describe("Loft", () => {
     // One restart is two transitions (busy on, busy off). Four digits must not mean four restarts.
     expect(restarts, `aria-busy transitions while typing four digits: ${restarts}`).toBeLessThanOrEqual(4);
     // ...and the answer it settles on is still the flyer's, not a discarded intermediate.
-    await page.getByRole("tab", { name: "Analyze" }).click();
+    await page.getByRole("link", { name: "Analyze" }).click();
     await expect(sweep).toContainText("the launch conditions you set");
   });
 
@@ -5365,7 +5469,7 @@ test.describe("Loft", () => {
 
     const config = page.getByLabel(/configuration/i).first();
     await expect(config).toBeVisible();
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     const swap = page.getByLabel(/swap motor/i).first();
     await expect(swap).toBeVisible();
 
@@ -5376,7 +5480,7 @@ test.describe("Loft", () => {
 
     // Both stored configurations here are the same casing, so the choice still applies to the other.
     await config.selectOption({ index: 1 });
-    await page.getByRole("tab", { name: "Design" }).click();
+    await page.getByRole("link", { name: "Design" }).click();
     await expect(swap).toHaveValue(chosen);
     // And it is genuinely being flown, not merely displayed: the design is still an edited one.
     await expect(page.getByRole("button", { name: "Reset to as-designed" })).toBeVisible();
@@ -5393,7 +5497,7 @@ test.describe("Loft", () => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
-    await page.getByRole("tab", { name: "Analyze" }).click();
+    await page.getByRole("link", { name: "Analyze" }).click();
 
     const mc = page.getByRole("region", { name: "Monte-Carlo dispersion" });
     await mc.getByRole("button", { name: "Run dispersion" }).click();
@@ -5430,7 +5534,7 @@ test.describe("Loft", () => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
-    await page.getByRole("tab", { name: "Analyze" }).click();
+    await page.getByRole("link", { name: "Analyze" }).click();
     const mc = page.getByRole("region", { name: "Monte-Carlo dispersion" });
     await mc.getByRole("button", { name: "Run dispersion" }).click();
     const wind = mc.locator("input").and(mc.getByLabel("Wind speed ±1σ")).first();
@@ -5488,7 +5592,7 @@ test.describe("Loft", () => {
 
     const units = page.getByRole("group", { name: /unit/i }).first();
     await units.getByRole("button", { name: "Imperial", exact: true }).click();
-    await page.getByRole("tab", { name: "Analyze" }).click();
+    await page.getByRole("link", { name: "Analyze" }).click();
 
     const mc = page.getByRole("region", { name: "Monte-Carlo dispersion" });
     await mc.getByRole("button", { name: "Run dispersion" }).click();
@@ -5528,7 +5632,7 @@ test.describe("Loft", () => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
-    await page.getByRole("tab", { name: "Analyze" }).click();
+    await page.getByRole("link", { name: "Analyze" }).click();
 
     const sweep = page.getByRole("region", { name: "Motor sweep" });
     await sweep.getByRole("button", { name: /Run motor sweep/ }).click();
@@ -5668,13 +5772,13 @@ test.describe("authoring a motor mount", () => {
     // The same readback the starter's other tests use: the Apogee term's next sibling.
     const apogeeCell = page.getByText("Apogee", { exact: true }).first().locator("xpath=following-sibling::*[1]");
     const apogee = async () => {
-      await page.getByRole("tab", { name: "Flight" }).click();
+      await page.getByRole("link", { name: "Flight" }).click();
       return (await apogeeCell.innerText()).trim();
     };
     const before = await apogee();
     expect(before.length, "a starting apogee to compare against").toBeGreaterThan(0);
 
-    await page.getByRole("tab", { name: "Design", exact: true }).click();
+    await page.getByRole("link", { name: "Design", exact: true }).click();
     const parts = page.locator("table").filter({ hasText: "Dimensions" });
     await page.locator("summary").filter({ hasText: /Parts/ }).first().click();
     // Pick the aft BODY tube — the mount lives on an inner tube inside it, so this one has none.
@@ -5695,7 +5799,7 @@ test.describe("authoring a motor mount", () => {
 
     // Back off again, motor and all — the mount exists only in the edit bag, so dropping the entry
     // is the whole of undo.
-    await page.getByRole("tab", { name: "Design", exact: true }).click();
+    await page.getByRole("link", { name: "Design", exact: true }).click();
     await page.getByRole("button", { name: /Remove the mount on/ }).click();
     await expect(page.getByText(/A motor mount you added/)).toHaveCount(0);
     expect(await apogee(), "removing it put the original flight back").toBe(before);

@@ -124,3 +124,37 @@ export function buttonClass({
     className,
   );
 }
+
+/** --- the workspace spine ------------------------------------------------------------------
+ *
+ *  Loft's five jobs — import, build/edit, simulate, sweep, cross-check — are distinct ROUTES, and
+ *  `DESIGN.md` §7 asks for one navigation spine present on every one of them, showing where the
+ *  flyer is. That spine used to be a `Tabs` tablist switching hidden panels behind a fragment, which
+ *  §5 forbids for exactly this case: "Tabs switch views over one subject *within* a route. Not for
+ *  navigation between jobs; that is a route."
+ *
+ *  The TREATMENT is unchanged — the same sticky underlined bar, the same 44 px targets — because it
+ *  was already right; only the semantics moved from `role="tab"` to a `<nav>` of links. These two
+ *  constants exist so the bar and the tablist cannot drift apart now that two components render it:
+ *  a second copy of the string is precisely how the twelve card variants happened.
+ *
+ *  Spelled out as whole literal class names, never assembled from parts. Tailwind v4 scans SOURCE
+ *  for contiguous utilities, so a hoisted variant prefix emits no rule at all and the class ships in
+ *  the attribute doing nothing. */
+export const NAV_BAR =
+  "sticky top-0 z-20 -mb-px flex gap-1 overflow-x-auto border-b border-zinc-200 bg-white " +
+  "dark:border-zinc-800 dark:bg-zinc-950 sm:static sm:bg-transparent dark:sm:bg-transparent";
+
+/** One item on that bar. `active` is "this is where you are", which the link marks with
+ *  `aria-current="page"` and the tablist with `aria-selected` — the same fact in each pattern's own
+ *  vocabulary. */
+export function navItemClass(active: boolean): string {
+  return cx(
+    "inline-flex shrink-0 items-center whitespace-nowrap border-b-2 px-3.5 py-2 text-sm font-medium outline-none transition",
+    "focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-400",
+    TOUCH_TARGET,
+    active
+      ? "border-indigo-500 text-zinc-900 dark:border-indigo-400 dark:text-zinc-100"
+      : "border-transparent text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200",
+  );
+}
