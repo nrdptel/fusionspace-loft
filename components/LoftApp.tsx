@@ -69,9 +69,11 @@ import {
   primaryParachute,
   defaultPayloadStation,
   canAddStage,
+  canAddMount,
   stageSeedBase,
   addedStageIds,
   type AddedStage,
+  type MountAdd,
 } from "@/lib/model/edit";
 import {
   commit as commitHistory,
@@ -178,6 +180,8 @@ interface Edits {
   moved?: MovedPart[];
   /** Booster stages the flyer has authored — see `AddedStage` in the edit model. */
   addedStages?: AddedStage[];
+  /** Motor mounts authored onto tubes that had none — see `MountAdd`. */
+  mountAdds?: MountAdd[];
   rodLength?: number; // m
   rodAngleDeg?: number;
   windSpeed?: number; // m/s
@@ -1019,6 +1023,36 @@ export default function LoftApp() {
     );
   };
 
+  /** Give a tube a motor mount, and take it back off again.
+   *
+   *  A mount is a FIELD, not a component, so unlike every other authoring gesture there is no part to
+   *  mint an id for — the entry names its HOST and nothing else, which is also how `lib/sim/setup.ts`
+   *  and `lib/ork/export.ts` already key a mount. Removal is dropping the entry, exactly as for a
+   *  stage: the mount exists only in the bag, so there is nothing in the pristine design to mark gone.
+   *
+   *  Nothing to clear on removal, and that is a property of the operation rather than an omission: the
+   *  mount adds no component, so no aim can be pointing INTO it. The motor instance it wrote goes with
+   *  it because the whole thing is replayed from the pristine design on every apply. */
+  const addMount = (hostId: string) => {
+    if (!doc || !removableFrom) return;
+    if ((edits.mountAdds ?? []).some((m) => m.hostId === hostId)) return;
+    const host = flattenRocket(removableFrom).find((p) => p.component.id === hostId)?.component;
+    applyEdit(
+      { mountAdds: [...(edits.mountAdds ?? []), { hostId }] },
+      { label: `adding a motor mount to ${host?.name || "a tube"}`, key: `addmount:${hostId}` },
+    );
+  };
+
+  const removeMount = (hostId: string) => {
+    if (!doc) return;
+    if (!(edits.mountAdds ?? []).some((m) => m.hostId === hostId)) return;
+    const host = flattenRocket(removableFrom ?? doc.rocket).find((p) => p.component.id === hostId)?.component;
+    applyEdit(
+      { mountAdds: (edits.mountAdds ?? []).filter((m) => m.hostId !== hostId) },
+      { label: `removing the motor mount on ${host?.name || "a tube"}`, key: `rmmount:${hostId}` },
+    );
+  };
+
   const removeStage = (seedId: string) => {
     if (!doc || !removableFrom) return;
     const entry = edits.addedStages?.find((s) => s.seedId === seedId);
@@ -1796,6 +1830,13 @@ export default function LoftApp() {
               movePartSlots={movePartSlots}
               onAddStage={stageBase && canAddStage(stageBase) ? addStage : undefined}
               onRemoveStage={removeStage}
+              // Asked of the tree the operation runs against — `stageBase` — for exactly the reason
+              // `canAddStage` is: the mount-add applies before the structural edits, so asking the
+              // fully-edited tree would offer the control where the operation refuses and withhold it
+              // where the operation works.
+              canAddMountTo={(id) => !!stageBase && canAddMount(stageBase, id)}
+              onAddMount={addMount}
+              onRemoveMount={removeMount}
               refuseRemoval={refuseRemoval}
               onSelectPart={(id) => {
                 // A pick that aims nothing — a coupler, a centring ring — must not commit an edit

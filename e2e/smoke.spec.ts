@@ -5561,3 +5561,52 @@ test.describe("Loft", () => {
     await expect(wind).toHaveValue("");
   });
 });
+
+test.describe("authoring a motor mount", () => {
+  // R5's last *done when* clause: "give it its own motor mount and fins". Fins onto a booster already
+  // worked; the missing gesture was a mount, and without it a booster is REFUSED outright on a design
+  // whose aft tube carries none — 1 of the 2 such designs in the corpus is unblocked by this.
+  //
+  // Driven on the starter because its mount sits on an INNER tube nested inside the aft body tube, so
+  // that body tube is a real "tube with no mount" without having to construct one.
+  test("a flyer can give a tube a motor mount, fly it, and take it back off", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: "Start a new design" }).click();
+    await expect(page.getByRole("heading", { name: "Design geometry" })).toBeVisible({ timeout: 15000 });
+
+    // The same readback the starter's other tests use: the Apogee term's next sibling.
+    const apogeeCell = page.getByText("Apogee", { exact: true }).first().locator("xpath=following-sibling::*[1]");
+    const apogee = async () => {
+      await page.getByRole("tab", { name: "Flight" }).click();
+      return (await apogeeCell.innerText()).trim();
+    };
+    const before = await apogee();
+    expect(before.length, "a starting apogee to compare against").toBeGreaterThan(0);
+
+    await page.getByRole("tab", { name: "Design", exact: true }).click();
+    const parts = page.locator("table").filter({ hasText: "Dimensions" });
+    await page.locator("summary").filter({ hasText: /Parts/ }).first().click();
+    // Pick the aft BODY tube — the mount lives on an inner tube inside it, so this one has none.
+    await parts.locator("tbody tr").filter({ hasText: /Body tube/ }).last().click();
+
+    const add = page.getByRole("button", { name: /Add a motor mount to this tube/ });
+    await expect(add, "the gesture is offered on a tube with no mount").toBeVisible();
+    await add.click();
+
+    // It says what it did rather than leaving the flyer to notice the apogee move: a mount with
+    // nothing in it never lights, so Loft puts the design's own motor in it and names that.
+    await expect(page.getByText(/A motor mount you added/)).toBeVisible();
+    await expect(page.getByText(/flies this design's own motor/)).toBeVisible();
+
+    // And it is flown, not just drawn.
+    const after = await apogee();
+    expect(after, "the authored mount's motor changed the flight").not.toBe(before);
+
+    // Back off again, motor and all — the mount exists only in the edit bag, so dropping the entry
+    // is the whole of undo.
+    await page.getByRole("tab", { name: "Design", exact: true }).click();
+    await page.getByRole("button", { name: /Remove the mount on/ }).click();
+    await expect(page.getByText(/A motor mount you added/)).toHaveCount(0);
+    expect(await apogee(), "removing it put the original flight back").toBe(before);
+  });
+});

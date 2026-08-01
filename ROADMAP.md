@@ -499,7 +499,45 @@ move and asserts every one of the 206 actually permuted the list.
 
 ## R5 — Author a staged rocket
 
-**Status:** IN PROGRESS — increment 1 shipped 2026-07-31: the operation, the refusal and the control,
+**Status: SHIPPED 2026-08-01.** Every clause of the *done when* is reachable and pinned by an
+automated check. Increment 4 — the last clause, "give it its own motor mount" — landed as
+`GeometryEdits.mountAdds`: a tube with no motor mount can be given one, which is what lifts the
+refusal that stopped a booster existing at all on such a design. Driven across the corpus: the gesture
+is **offered on 24 of the 35 real designs**, and of the **2 that refused a booster outright, 1 is
+unblocked by it** (`03.Three-stage.ork`). The other stays refused and correctly so — no motor anywhere
+in it resolves, so there is nothing for Loft to put in a mount, and a mount with nothing naming it
+never lights.
+
+Pinned by `lib/model/edit.test.ts`'s *authoring a motor mount* suite (7 cases), by
+`lib/corpus/sweep.test.ts`'s *authors a motor mount on every real design that can take one, and
+unblocks the booster it exists for*, and by the e2e *a flyer can give a tube a motor mount, fly it,
+and take it back off*. Two negative controls, both with their build exits checked: removing the
+mount-add from `stageSeedBase` fails exactly the unblock assertions, and dropping the configuration
+write fails the instance, idempotence and round-trip ones.
+
+**Hazard 1 dissolved rather than needing the pipeline reordered, and the reason is worth keeping.**
+`buildStage` picks its seed by set membership and station alone — `flattenRocket(...)` filtered to
+body tubes, reduced by `xFore` — and a mount-add creates no component and moves none, so it can
+change neither. The three causes of divergence `stageSeedBase` names (an authored tube at the tail, a
+removal, a reorder) are every one of them positional. `applyMountAdds` therefore folds into
+`stageSeedBase` and runs at two points in the pipeline — before the stages so a booster can be
+authored at all, after the adds so a mount can go on a tube the flyer authored — and is idempotent by
+construction, which the corpus test asserts directly rather than assuming.
+
+**Hazards 2 and 4 were closed by the same design rather than left open.** `canAddMount` refuses where
+the design has no motor to clone, which is what stops an EMPTY mount satisfying a `canAddStage` that
+tests only for existence (hazard 2's documented 11.9%-low fallback, reached from a new direction).
+Hazard 4 was fixed ahead of this increment as a Sev-1 — see below; its "not reachable today" premise
+was false.
+
+**What R5 did NOT deliver, recorded here as the next milestone's starting point rather than left
+implied.** A flyer cannot give one mount a different motor from another: `motorSwap` is a whole-design
+what-if, so an authored mount flies the design's own motor and a design with several mounts flies the
+same motor in all of them. `COMPETITION.md` row 27 sizes it — both OpenRocket and RockSim author a
+cluster on the mount you PICKED and build the extra tubes as real components. A per-mount motor
+picker is the first increment of whichever milestone takes this forward.
+
+**Increment 1 shipped 2026-07-31:** the operation, the refusal and the control,
 pinned by `lib/model/edit.test.ts`'s `authoring a booster stage` suite (8 cases), by
 `lib/corpus/sweep.test.ts`'s *authors a booster on every real design, and every one of them separates*
 — which drives **33 authored boosters and 2 refusals across all 35 real designs**, flies 30 of them and
