@@ -141,7 +141,7 @@ export interface Transition extends ComponentBase {
 }
 
 /** Fin edge cross-section, which sets the leading-edge pressure drag. A square edge stagnates
- *  the flow head-on; a rounded edge roughly halves that; an airfoil is streamlined (almost no
+ *  the flow head-on; a rounded edge carries NO stagnation term at all — a radiused leading edge attaches the flow, so subsonically it pays only the same small compressibility rise an airfoil does, plus half a square edge's trailing-edge base wake; an airfoil is streamlined (almost no
  *  subsonic pressure drag). Matches the OpenRocket categories. Absent ⇒ treated as square, the
  *  OpenRocket default. */
 export type FinCrossSection = "square" | "rounded" | "airfoil";

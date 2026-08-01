@@ -110,11 +110,14 @@ export default async function Validation() {
         <code>notsimulated</code>{" "}means the figures are carried in the file for a simulation the tool
         does not consider run. Both are shown — they are still a reference point — but labelled, since
         calling either &ldquo;OpenRocket vs Loft&rdquo; would credit a current prediction to a tool
-        that did not make one. This is not a rare edge: across the corpus 11 of 91 stored OpenRocket
-        runs are outdated and 7 more are marked not simulated. The accuracy census below includes
-        them, which is the honest picture rather than the flattering one; measured separately they
-        agree with Loft about as well as the up-to-date runs do (median apogee disagreement 3.3%
-        against 2.1%).
+        that did not make one. This is not a rare edge: re-measured across the corpus in August 2026,
+        <strong>8 of 79</strong> stored OpenRocket runs are outdated and <strong>7</strong> more are
+        marked not simulated. The accuracy census below includes them, which is the honest picture
+        rather than the flattering one; measured separately they agree with Loft{" "}
+        <em>less</em>{" "}closely than the up-to-date runs, not equally — median apogee disagreement{" "}
+        <strong>3.7%</strong> against <strong>2.0%</strong>. The previous text here said 3.3%
+        against 2.1% and called them comparable, which understated the gap on exactly the runs this
+        page flags.
       </p>
       <p>
         The comparison is shown only when Loft flew the <em>complete</em> design. If the design
@@ -177,10 +180,10 @@ export default async function Validation() {
         one:
       </p>
       <ul>
-        <li>time to apogee <strong>1.7%</strong>, rail-exit velocity <strong>1.9%</strong></li>
-        <li>max Mach <strong>2.1%</strong>, max velocity <strong>2.3%</strong>, optimum delay <strong>2.7%</strong></li>
-        <li>ground-hit velocity <strong>3.0%</strong>, apogee and max acceleration <strong>3.2%</strong>, flight time <strong>3.3%</strong></li>
-        <li>deployment velocity <strong>5.9%</strong></li>
+        <li>time to apogee <strong>1.5%</strong>, rail-exit velocity <strong>1.9%</strong></li>
+        <li>max Mach <strong>2.0%</strong>, max velocity <strong>2.2%</strong>, optimum delay <strong>2.5%</strong></li>
+        <li>ground-hit velocity <strong>3.0%</strong>, apogee <strong>3.1%</strong>, max acceleration <strong>3.2%</strong>, flight time <strong>3.3%</strong></li>
+        <li>deployment velocity <strong>6.0%</strong></li>
       </ul>
       <p>
         Deployment velocity looks like the outlier and mostly isn&apos;t: it is an{" "}

@@ -19,7 +19,8 @@ import type { Positioned } from "./geometry";
 export const NOSE_SHAPES: NoseShape[] = ["ogive", "conical", "ellipsoid", "parabolic", "power", "haack"];
 
 /** Selectable fin edge cross-sections, for the builder's fin-profile picker. Ordered draggiest →
- *  cleanest (square stagnates the flow, rounded halves that, airfoil is streamlined). */
+ *  cleanest (square stagnates the flow; rounded attaches it, so no stagnation term at all, only
+ *  half a square edge's trailing-edge wake; airfoil is streamlined at both edges). */
 export const FIN_CROSS_SECTIONS: FinCrossSection[] = ["square", "rounded", "airfoil"];
 
 /** A selectable fin stock for the builder's material picker: a display label, the bulk density
@@ -286,7 +287,8 @@ export interface GeometryEdits {
    *  edge pressure, wave) and the flutter margin (∝ (t/c)³). Undefined leaves it. */
   finThickness?: number;
   /** Fin edge cross-section for the primary fin group — square, rounded, or airfoil. Sets the fin edge
-   *  pressure drag: a square edge stagnates the flow head-on, a rounded edge roughly halves that,
+   *  pressure drag: a square edge stagnates the flow head-on; a rounded edge attaches it, so it
+   *  carries no stagnation term at all and only half a square edge's trailing-edge base wake;
    *  an airfoil is streamlined. The "what would airfoiling my fins buy?" what-if. Undefined leaves
    *  each set's own profile. */
   finCrossSection?: FinCrossSection;
