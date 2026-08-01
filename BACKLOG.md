@@ -2210,3 +2210,14 @@ big for one pass. Newest first.
   `onForgetRecent` (`LoftApp.tsx:737`) deliberately holds the entry and its index, and a "put back"
   affordance renders from `removedRecents` (`ImportPanel.tsx:96-114`). So this is a craft issue about
   mis-tap cost on a glove, not data loss.
+- **A throwaway probe left in `lib/` silently joins `npm test`.** `vitest.config.ts` includes
+  `lib/**/*.test.ts`, and `.gitignore`'s own comment acknowledges that a session's diagnostics "live
+  in the tree only while they run" — so while one exists, the gate's test count is not the suite's.
+  Hit for real on 2026-08-01: a read-only fan-out held six probes in `lib/corpus/` at once, and a
+  `npm test` run during that window would have reported a number that was not 961 and could have gone
+  red on somebody else's scratch file. The `.gitignore` rule covers the SUFFIX form (`*-tmp.*.ts`)
+  only; the same session named its probes with a `tmp-` PREFIX and they showed up untracked, one
+  `git add -A` away from being committed — which is the exact accident that rule exists to prevent.
+  Two candidate fixes, neither measured: widen the ignore to cover both orderings, or give probes a
+  directory outside `lib/` that vitest does not scan. The second is better if an explicit
+  `npx vitest run <path>` still works from there; check, because `include` filters explicit paths too.
