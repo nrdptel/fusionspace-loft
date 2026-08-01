@@ -1082,6 +1082,46 @@ on the two designs the reverted area-weighted attempt broke" cannot be met by a 
 should be read as pointing at that under-drag rather than as a veto on per-set fin drag.** Published
 on `/docs/limitations` in the same increment, with the numbers, rather than left in this file.
 
+*A STRONG LEAD on that under-drag, from a partial investigation — measured but NOT yet verified.*
+A read-only fan-out was started on it and **interrupted before its adversarial-verification pass
+ran**, so everything here is a first measurement by one agent, not a confirmed finding. It was
+salvaged from the transcripts rather than lost, and it is specific enough to re-drive in minutes.
+**Re-derive each number before building on it.**
+
+Loft assembles this design's body profile with real diameter STEPS that nothing charges:
+
+```
+step at x=18.05 in : 3.000 -> 2.500 in      step at x=55.00 in : 3.000 -> 3.250 in
+step at x=18.75 in : 2.500 -> 3.000 in      step at x=64.00 in : 3.250 -> 6.000 in   <- interstage
+step at x=71.50 in : 6.000 -> 6.500 in      step at x=72.05 in : 6.500 -> 0.000 in   <- base
+```
+
+The 3.25 in → 6 in interstage flare into the booster is the big one, and the shoulder term is very
+nearly empty: measured `full shoulderCdA = 5.0671e-4 m²` against a reference area of `2.1408e-2 m²`.
+Charging that flare as a real shoulder takes it to `1.2023e-2 m²` — a **ΔCd of 0.5380** on the full
+reference area. The apogee effect, measured on both configurations:
+
+| variant | J90W | J180T |
+|---|---|---|
+| baseline today | **+12.3991%** | **+4.5254%** |
+| W1 — interstage flare charged | **−0.7078%** | −9.9212% |
+| W2 — the real stepped profile, no protuberances | −4.9641% | −13.5954% |
+| W3 — W2 plus the protuberance | −6.2143% | −14.7414% |
+
+So W1 very nearly lands J90W (+12.40% → −0.71%) while over-correcting J180T (+4.53% → −9.92%).
+That is not a finished answer, but it is the first change measured that moves the design the RIGHT
+way and by the right order of magnitude, which three fin attempts did not. Drag sensitivity for
+scale: a uniform `dragScale` of 1.10 takes J90W to +6.73% and J180T to −0.95%, so the two
+configurations do not want the same amount of extra drag — whatever is missing is not a flat scale.
+
+*Two loose threads from the same partial run, neither verified.* The file carries
+`<UseBooster1> False` while Loft flies the booster as its own stage (it emits a warning saying so) —
+worth establishing whether RASAero's stored numbers are a sustainer-only flight, because if they are,
+the whole comparison is between two different vehicles. And a probe printed `liftoffMass=NaN` for
+both configurations; that is **most likely the probe reading a field that does not exist on
+`summary`** rather than a real defect — it printed the summary's key list and `liftoffMass` is not
+among them — but a NaN reaching a flyer would be Sev-1, so confirm which it is before dismissing it.
+
 *Remaining:* the thickness-ratio and sweep collapses, both blocked as above; and the adjacent parse
 gaps below.
 
