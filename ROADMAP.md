@@ -783,11 +783,12 @@ against 10.43.
      and `InnerTube` (`types.ts:201`). `buildAdded` can express "a new inner tube carrying that field";
      it has **no shape at all** for "set the field on an existing tube", which mutates rather than
      builds.
-  4. **Cluster count scales the HOST tube's mass.** `lib/sim/mass.ts:216` multiplies any component's own
-     mass and inertia by `motorMount.clusterCount`. Today only motor tubes carry a mount, so only a
-     motor tube scales; author one onto the main airframe with Motors ≥ 2 and the whole tube's mass and
-     inertia multiply, moving dry mass and CG with nothing on screen saying so. *(Not reachable today —
-     filed in `BACKLOG.md`.)*
+  4. ~~**Cluster count scales the HOST tube's mass.**~~ **FIXED 2026-08-01 as a Sev-1, ahead of this
+     increment, because the premise "today only motor tubes carry a mount, so only a motor tube scales"
+     was false: 12 of the 35 real designs carry the mount on a `bodytube`, and the "Motor cluster" field
+     has always been offered on them. Typing a 3 on `01.One-stage.ork` moved dry mass +38.7% and CG
+     +39.7 mm. `lib/sim/mass.ts` now scales only an `innertube`, pinned by three synthetic cases in
+     `mass.test.ts` (no corpus design ships a cluster on a body tube, so the sweep cannot prove it).**
   5. **`primaryMotorClusterCount` reads the FIRST mount in flatten order** (`edit.ts:788`), so a mount
      authored forward of the real one makes the Motors field read 1 while the design flies N.
 

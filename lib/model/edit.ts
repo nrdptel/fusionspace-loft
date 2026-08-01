@@ -783,13 +783,52 @@ export function primaryFinChord(rocket: Rocket, selectedId?: string): number | u
   return placed ? placed.length : undefined;
 }
 
+/** Every component carrying a motor mount, in flatten order. */
+function mountsOf(rocket: Rocket): RocketComponent[] {
+  return flattenRocket(rocket)
+    .map((p) => p.component)
+    .filter((c) => "motorMount" in c && (c as { motorMount?: MotorMount }).motorMount !== undefined);
+}
+
+function clusterOf(c: RocketComponent): number {
+  return (c as { motorMount?: MotorMount }).motorMount?.clusterCount ?? 1;
+}
+
 /** How many motors the design's (first) motor mount holds — 1 for a single motor. Undefined when
  *  the design has no motor mount at all. */
 export function primaryMotorClusterCount(rocket: Rocket): number | undefined {
-  const mount = flattenRocket(rocket)
-    .map((p) => p.component)
-    .find((c) => "motorMount" in c && (c as { motorMount?: MotorMount }).motorMount);
-  return mount ? (mount as { motorMount?: MotorMount }).motorMount?.clusterCount ?? 1 : undefined;
+  const mount = mountsOf(rocket)[0];
+  return mount ? clusterOf(mount) : undefined;
+}
+
+/** The mounts the Motor-cluster field's value TRUTHFULLY describes — the primary mount, plus every
+ *  other mount already holding the same number of motors — and therefore the only ones it may write.
+ *
+ *  Exactly the rule `primaryFinGroupIds` follows a few hundred lines up, for exactly the same reason:
+ *  a field reads back off ONE part and used to write to ALL of them. The reader took the first mount
+ *  in flatten order and the writer matched any component with a `motorMount` at all, so on a design
+ *  whose mounts differ the field stated one number and changed another. Measured on
+ *  `Airstart timing.ork`, whose `54mm center` holds 1 and whose `38mm airstart` holds 3: the field
+ *  read 1, and committing any value flattened the airstart cluster to it — a 3-motor airstart
+ *  silently becoming 2 from a field that never mentioned it. Five corpus designs had one edit rewrite
+ *  two or three mounts.
+ *
+ *  Grouping by the CURRENT count rather than by position is what makes the claim honest: every mount
+ *  in the group is one the displayed number is already true of, so writing the new number to all of
+ *  them is the same statement the field is making. Anything holding a different count is a part this
+ *  panel is not describing, and `unreachableMountCount` is how the surface says so. */
+export function primaryMountGroupIds(rocket: Rocket): Set<string> {
+  const mounts = mountsOf(rocket);
+  if (!mounts.length) return new Set();
+  const n = clusterOf(mounts[0]);
+  return new Set(mounts.filter((c) => clusterOf(c) === n).map((c) => c.id));
+}
+
+/** How many motor mounts sit OUTSIDE the group the Motor-cluster field describes — the mounts a
+ *  flyer can see in the parts table but cannot reach from this panel. 0 means the field speaks for
+ *  every mount on the rocket, which is true of 34 of the 35 real designs. */
+export function unreachableMountCount(rocket: Rocket): number {
+  return mountsOf(rocket).length - primaryMountGroupIds(rocket).size;
 }
 
 /** The primary fin set's root chord (m), only when it's trapezoidal (a generic set's root chord is a
@@ -843,9 +882,10 @@ function editComponent(
   lengths: Map<string, number>,
   finShift: number,
   finTargetIds: Set<string>,
+  mountTargetIds: Set<string>,
 ): RocketComponent {
   const children = c.children.length
-    ? c.children.map((child) => editComponent(child, e, lengths, finShift, finTargetIds))
+    ? c.children.map((child) => editComponent(child, e, lengths, finShift, finTargetIds, mountTargetIds))
     : c.children;
 
   /** Apply the motor-cluster edit to whatever this component has become.
@@ -861,6 +901,9 @@ function editComponent(
   const clustered = (x: RocketComponent): RocketComponent => {
     if (!(e.motorClusterCount !== undefined && e.motorClusterCount >= 1)) return x;
     if (!("motorMount" in x) || !x.motorMount) return x;
+    // Only the mounts the field's own value describes — see `primaryMountGroupIds`. Resolved from
+    // the pristine tree by the caller, so replaying the bag cannot make the group drift.
+    if (!mountTargetIds.has(x.id)) return x;
     const n = Math.round(e.motorClusterCount);
     return { ...x, motorMount: { ...x.motorMount, clusterCount: n > 1 ? n : undefined } };
   };
@@ -2299,8 +2342,12 @@ function applyDimensionEdits(rocket: Rocket, edits: GeometryEdits): Rocket {
   // fields from, plus any set indistinguishable from it (one ring stored as several parts).
   // Resolved once from the pristine design, like the length edits above.
   const finTargetIds = primaryFinGroupIds(rocket, edits.finSetId);
+  // Which mounts the cluster edit lands on — the mount every `primaryMotorClusterCount` readback
+  // seeds the field from, plus any mount already holding that same count. Resolved once from the
+  // pristine design, like the fin group and the length edits above.
+  const mountTargetIds = primaryMountGroupIds(rocket);
   const editOne = (c: RocketComponent): RocketComponent => {
-    let geo = editComponent(c, edits, lengths, finShift, finTargetIds);
+    let geo = editComponent(c, edits, lengths, finShift, finTargetIds, mountTargetIds);
     if (finish) geo = withFinish(geo, finish);
     if (airframeMaterial) geo = withAirframeMaterial(geo, airframeMaterial);
     if (radiusScale !== 1) geo = scaleAirframeRadii(geo, radiusScale);

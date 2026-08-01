@@ -18,6 +18,7 @@ import { flattenRocket } from "@/lib/model/geometry";
 import type { MotorMark } from "@/lib/sim/setup";
 import { useMeasuredWidth } from "./LineChart";
 import { TOUCH_TARGET_SQUARE } from "@/lib/ui-tokens";
+import { Button } from "./ui";
 import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
 
@@ -893,28 +894,35 @@ function ZoomControl({ zoom, onZoom }: { zoom: number; onZoom: (z: number) => vo
   const STEPS = [1, 1.5, 2, 3, 4, 6, 8];
   const i = STEPS.indexOf(zoom);
   const at = i < 0 ? 0 : i;
-  const btn =
-    "inline-flex items-center justify-center rounded-md border border-zinc-200 px-2 font-medium text-zinc-600 " +
-    "hover:bg-zinc-50 disabled:opacity-40 disabled:hover:bg-transparent dark:border-zinc-700 dark:text-zinc-300 " +
-    "dark:hover:bg-zinc-800 " +
-    TOUCH_TARGET_SQUARE;
   return (
     <span className="inline-flex items-center gap-1" role="group" aria-label="Diagram zoom">
-      <button type="button" className={btn} onClick={() => onZoom(STEPS[at - 1])} disabled={at === 0} aria-label="Zoom out">
+      {/* `text-[11px]` because this group is drawn inside the diagram's own figcaption and reads at
+          its size — §3 allows that token for diagram annotation, and it is what these two carried
+          before they took the primitive. `size="sm"` alone puts the glyphs a pixel above the readout
+          they flank, which is the mismatch the conversion introduced. */}
+      <Button
+        size="sm"
+        square
+        className="text-[11px]"
+        onClick={() => onZoom(STEPS[at - 1])}
+        disabled={at === 0}
+        aria-label="Zoom out"
+      >
         −
-      </button>
+      </Button>
       <span className="min-w-10 text-center tabular-nums" aria-live="polite">
         {zoom === 1 ? "Fit" : `${zoom}×`}
       </span>
-      <button
-        type="button"
-        className={btn}
+      <Button
+        size="sm"
+        square
+        className="text-[11px]"
         onClick={() => onZoom(STEPS[at + 1])}
         disabled={at === STEPS.length - 1}
         aria-label="Zoom in"
       >
         +
-      </button>
+      </Button>
     </span>
   );
 }

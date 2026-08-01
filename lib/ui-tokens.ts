@@ -28,15 +28,32 @@ export function cx(...parts: (string | false | null | undefined)[]): string {
  *  refusal colour. `DESIGN.md` §5.
  *
  *  **At most one `primary` per surface.** Two primaries on one screen means neither is. */
+/** A control says it is unavailable in one of TWO ways, and hover has to be off for both.
+ *
+ *  `disabled` is the ordinary one. `aria-disabled` is the one used where the moment of emptying is
+ *  the moment a keyboard user needs the control to stay put — undo/redo — because a `disabled`
+ *  button leaves the accessibility tree and drops focus to `<body>`.
+ *
+ *  Gating on only one of them is not theoretical: gating on `aria-disabled` alone shipped for one
+ *  commit and made the diagram's zoom −/+ light up with the full secondary treatment at the ends of
+ *  their range. Measured on the built export, `disabled=true`: rest `rgba(0,0,0,0)` / zinc-300,
+ *  hover `oklab(0.985 …)` / indigo-400. The hand-rolled string this replaced had carried an explicit
+ *  `disabled:hover:bg-transparent` that the conversion dropped, so the guard existed and was lost.
+ *
+ *  Spelled out in full at every site on purpose. Tailwind scans SOURCE for literal class strings, so
+ *  hoisting the `not-disabled:not-aria-disabled:` prefix into a constant and interpolating it would
+ *  mean the utility never appears contiguously anywhere and no rule is generated — the class would
+ *  sit in the served `class` attribute doing nothing, which is the same silent-loss failure this
+ *  comment is about. The generated stylesheet is checked after every change to this block. */
 const BUTTON_VARIANTS = {
   primary:
-    "border border-transparent bg-indigo-600 text-white hover:bg-indigo-500 dark:bg-indigo-500 dark:hover:bg-indigo-400",
+    "border border-transparent bg-indigo-600 text-white not-disabled:not-aria-disabled:hover:bg-indigo-500 dark:bg-indigo-500 dark:not-disabled:not-aria-disabled:hover:bg-indigo-400",
   secondary:
-    "border border-zinc-300 text-zinc-700 hover:border-indigo-400 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-zinc-100",
+    "border border-zinc-300 text-zinc-700 not-disabled:not-aria-disabled:hover:border-indigo-400 not-disabled:not-aria-disabled:hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:not-disabled:not-aria-disabled:hover:bg-zinc-800 dark:not-disabled:not-aria-disabled:hover:text-zinc-100",
   ghost:
-    "border border-transparent text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100",
+    "border border-transparent text-zinc-600 not-disabled:not-aria-disabled:hover:bg-zinc-100 not-disabled:not-aria-disabled:hover:text-zinc-900 dark:text-zinc-400 dark:not-disabled:not-aria-disabled:hover:bg-zinc-800 dark:not-disabled:not-aria-disabled:hover:text-zinc-100",
   danger:
-    "border border-red-300 text-red-700 hover:bg-red-50 dark:border-red-500/40 dark:text-red-300 dark:hover:bg-red-500/10",
+    "border border-red-300 text-red-700 not-disabled:not-aria-disabled:hover:bg-red-50 dark:border-red-500/40 dark:text-red-300 dark:not-disabled:not-aria-disabled:hover:bg-red-500/10",
 } as const;
 
 export type ButtonVariant = keyof typeof BUTTON_VARIANTS;
@@ -66,15 +83,32 @@ export type ButtonSize = keyof typeof BUTTON_SIZES;
 export function buttonClass({
   variant = "secondary",
   size = "md",
+  square = false,
   className,
-}: { variant?: ButtonVariant; size?: ButtonSize; className?: string } = {}): string {
+}: {
+  variant?: ButtonVariant;
+  size?: ButtonSize;
+  /** The 44 px minimum in BOTH directions, for a control whose label is one glyph. A zoom −/+, an
+   *  undo ↶, a shelf's × all clear the height minimum and land around 24–32 px wide, which is not a
+   *  target. Every such control in the app hand-rolled `TOUCH_TARGET_SQUARE` onto its own class
+   *  string because the primitive had no way to ask for it — which is the same mechanism that
+   *  produced the twelve card treatments. */
+  square?: boolean;
+  className?: string;
+} = {}): string {
   return cx(
     "inline-flex items-center justify-center gap-1.5 rounded-md font-medium transition",
     "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500",
     "disabled:cursor-not-allowed disabled:opacity-50",
+    // `aria-disabled` is the OTHER way a control says it is unavailable, and it is the right one where
+    // the moment of emptying is the moment a keyboard user is stepping back through a mistake: a
+    // `disabled` button leaves the accessibility tree and drops focus to `<body>`, so undo/redo
+    // announce as unavailable and stay reachable by Tab instead. That treatment was worked out once,
+    // in `LoftApp`'s header, and lived in a local class string where no other surface could reuse it.
+    "aria-disabled:cursor-not-allowed aria-disabled:opacity-50",
     BUTTON_VARIANTS[variant],
     BUTTON_SIZES[size],
-    TOUCH_TARGET,
+    square ? TOUCH_TARGET_SQUARE : TOUCH_TARGET,
     className,
   );
 }

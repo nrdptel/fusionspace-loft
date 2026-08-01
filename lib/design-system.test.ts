@@ -86,7 +86,7 @@ const BUDGET = {
   /** Spacing values off the `1 2 3 4 6 8 12` scale. Target 0. */
   offScaleSpacing: 0,
   /** Components importing the shared primitives. Target: most of the 23. This one only goes UP. */
-  uiAdopters: 14,
+  uiAdopters: 16,
   /** Component files where caption size OUTNUMBERS the body default. **At the target**, so this is a
    *  guard rather than a ratchet from here on: a file that inverts again is a decision-grade value
    *  that has been put back at caption size. */
@@ -95,6 +95,44 @@ const BUDGET = {
    *  is a guard rather than a ratchet. `text-lg` sat between `text-base` and `text-xl`, invented once
    *  and copied fourteen times: eleven panel headings and three prominent values. */
   offScaleType: 0,
+  /** `<button>` elements that hand-roll their own geometry instead of taking it from `buttonClass`.
+   *
+   *  **This is the count P1's *done when* is about, and until 2026-08-01 nothing asserted it.** The
+   *  per-primitive adoption count below is necessary and still not sufficient: a file can import
+   *  `Button`, satisfy that check, and go on hand-rolling five more buttons beside it — which is
+   *  exactly what `LoftApp` and `ImportPanel` were doing while both counted as adopters.
+   *
+   *  **The first version of this check excluded two whole FILES and that was wrong**, which an
+   *  outside reading of it caught the same day. `components/ui.tsx` and `components/DataTable.tsx`
+   *  were skipped on the grounds that "a primitive's OWN `<button>` is the thing every other surface
+   *  is being converted onto" — but only ONE of the four `<button>` elements in that pair is that
+   *  button. The other three hand-roll the geometry rather than calling it: `Segmented` re-types
+   *  `buttonClass`'s base line **minus the focus-visible ring entirely**, `Tabs` does the same, and
+   *  `DataTable`'s sort header carries its own string. A target of 0 under file exclusions is a state
+   *  in which three hand-rolled buttons still ship, permanently invisible — inside the two files most
+   *  likely to carry the drift. Worse, it made the ratchet gameable in the exact direction this
+   *  milestone is heading: routing `MotorSweep` and `GeometryInspector` through `DataTable` would
+   *  take the count 3 → 1 with zero buttons converted onto `Button`, because three identical
+   *  hand-rolled sort headers would collapse into one sitting in a skipped file.
+   *
+   *  So the exclusion is now per-ELEMENT and behavioural: a `<button>` is exempt exactly when its own
+   *  opening tag takes its class from `buttonClass`. `Button` is; nothing else is. The count went
+   *  3 → 6 the moment that landed, and the extra three are real: `Segmented`, `Tabs` and
+   *  `DataTable`'s sort header. That is not a raised budget, it is the same budget on a metric that
+   *  can see what it claims to.
+   *
+   *  Comments are stripped before counting rather than excluded by a lookbehind. The first version
+   *  matched `/(?<!`)<button[\s>]/` so that `app/not-found.tsx`'s prose — which explains why a
+   *  `<button>` that navigates is a keyboard defect — did not read as a breach. That made an
+   *  exact-count assertion depend on where a backtick sits inside an English sentence: fence the
+   *  clause instead of the tag and the suite fails on a comment-only edit, pointing a session at a
+   *  file with no button in it.
+   *
+   *  Not in `DESIGN.md` §9's shell block: that file is shared verbatim with the sibling app, and
+   *  `add_repo` for it was refused by the harness again this run (the fourth). Adding the grep here
+   *  alone would put the two copies out of step, which §9 forbids; it is filed in `BACKLOG.md` with
+   *  the two other wordings now owed to both. */
+  handRolledButtons: 6,
 } as const;
 
 /** How many components import EACH primitive by name.
@@ -110,7 +148,7 @@ const BUDGET = {
  *  is closing. What must not happen is a zero silently BECOMING the finished condition. */
 const PRIMITIVE_ADOPTERS: Record<string, number> = {
   Card: 11,
-  Button: 10,
+  Button: 13,
   /** The button geometry as a class, for the two things that must look like a button and cannot BE
    *  one — a `next/link` and an external `<a>`. It is exported from `lib/ui-tokens.ts` rather than
    *  from `components/ui.tsx` because the site header is a SERVER component and cannot call into a
@@ -287,6 +325,33 @@ describe("DESIGN.md §9 — the design system is binding, and this is what check
     const SIZES = /\btext-(?:\[[\d.]+(?:px|rem|em)\]|(?:xs|sm|base|lg|[2-9]?xl)\b)/g;
     const { total, byFile } = countMatches(ui, SIZES, (m) => !ALLOWED.has(m));
     expect(total, `off-scale type sizes, by file:\n${byFile.join("\n")}`).toBe(BUDGET.offScaleType);
+  });
+
+  it(`hand-rolls exactly ${BUDGET.handRolledButtons} <button> elements, on the way to none`, () => {
+    // Comments first: several of these files explain in prose why a `<button>` that navigates is a
+    // keyboard and screen-reader defect, and prose about the rule is not a breach of it.
+    const stripComments = (t: string) =>
+      t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^[ \t]*\/\/.*$/gm, "");
+    // A `<button>` is exempt exactly when its OWN opening tag takes its class from `buttonClass` —
+    // that is what "on the primitive" means, and it is the only thing that should be uncountable.
+    // Matching the opening tag rather than the file is what stops a hand-rolled treatment hiding by
+    // moving into a primitive's module.
+    const OPENING_TAG = /<button\b[^>]*>/g;
+    const files = uiSources(["components", "app"], [".tsx"]);
+    const byFile: string[] = [];
+    let total = 0;
+    for (const f of files) {
+      const hits = (stripComments(f.text).match(OPENING_TAG) ?? []).filter(
+        (tag) => !tag.includes("buttonClass("),
+      );
+      if (hits.length > 0) {
+        total += hits.length;
+        byFile.push(`${f.path}: ${hits.length}`);
+      }
+    }
+    expect(total, `hand-rolled <button>, by file:\n${byFile.sort().join("\n")}`).toBe(
+      BUDGET.handRolledButtons,
+    );
   });
 
   it("keeps the primitives themselves inside the system", () => {

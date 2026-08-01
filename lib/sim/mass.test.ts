@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { combine, dryMassProperties, finChordCentroid, massByComponent, structurePointMasses } from "./mass";
 import { flattenRocket } from "../model/geometry";
 import { importOrk } from "../ork/import";
-import type { Rocket, BodyTube, MassComponent, GenericFinSet, NoseCone } from "../model/types";
+import type { Rocket, BodyTube, InnerTube, MassComponent, GenericFinSet, NoseCone } from "../model/types";
 
 const MAT = { name: "x", density: 1000, type: "bulk" as const };
 
@@ -322,5 +322,74 @@ describe("massByComponent", () => {
       expect(m!.subsumedBy).toBe("Sustainer");
     }
     expect(dryMassProperties(rocket).mass).toBeCloseTo(1.5, 9);
+  });
+});
+
+describe("a clustered motor mount scales the motor tubes, never the airframe", () => {
+  /** An inner tube carrying the mount — one of the N motor tubes a cluster actually is. */
+  function motorTube(clusterCount?: number): InnerTube {
+    return {
+      id: "mt",
+      name: "motor tube",
+      kind: "innertube",
+      placement: { method: "bottom", offset: 0 },
+      material: MAT,
+      outerRadius: 0.015,
+      innerRadius: 0.014,
+      length: 0.2,
+      motorMount: { overhang: 0, clusterCount },
+      children: [],
+    };
+  }
+
+  it("triples an inner tube's own mass, because three motor tubes are three tubes", () => {
+    const single = dryMassProperties({
+      name: "t",
+      stages: [{ name: "s", components: [{ ...tube({}), children: [motorTube()] }] }],
+      configurations: [],
+      referenceType: "maximum",
+    });
+    const clustered = dryMassProperties({
+      name: "t",
+      stages: [{ name: "s", components: [{ ...tube({}), children: [motorTube(3)] }] }],
+      configurations: [],
+      referenceType: "maximum",
+    });
+    const tubeOnly = dryMassProperties({
+      name: "t",
+      stages: [{ name: "s", components: [tube({})] }],
+      configurations: [],
+      referenceType: "maximum",
+    });
+    // The airframe is untouched; the inner tube's contribution is exactly tripled.
+    const oneMotorTube = single.mass - tubeOnly.mass;
+    expect(clustered.mass - tubeOnly.mass).toBeCloseTo(oneMotorTube * 3, 9);
+  });
+
+  it("leaves the AIRFRAME alone when the mount sits on the body tube itself", () => {
+    // The defect this pins: `motorMount` also lives on a `BodyTube`, and a cluster of three motors
+    // inside one 50 mm airframe is three motor tubes inside ONE airframe. Scaling the host regardless
+    // was reachable from the "Motor cluster" field on 12 of the 35 real designs — measured on
+    // `01.One-stage.ork`, dry mass +38.7% and CG +39.7 mm from typing a 3. CG is what the static
+    // margin is measured from, so it published a wrong stability number from a legal edit.
+    //
+    // No real design exercises it: both corpus files that SHIP a cluster carry it on an `innertube`.
+    // That is why this case is synthetic rather than a corpus assertion.
+    const plain = dryMassProperties(rocketOf(tube({})));
+    const withCluster = dryMassProperties(
+      rocketOf(tube({ motorMount: { overhang: 0, clusterCount: 3 } })),
+    );
+    expect(withCluster.mass).toBeCloseTo(plain.mass, 12);
+    expect(withCluster.cg).toBeCloseTo(plain.cg, 12);
+    expect(withCluster.inertia).toBeCloseTo(plain.inertia, 12);
+  });
+
+  it("does not multiply a STATED mass either", () => {
+    // The scale ran after the override, so a part whose weight the file states outright had that
+    // stated figure multiplied too — a number the design says is 120 g reported as 360 g.
+    const stated = dryMassProperties(
+      rocketOf(tube({ overrideMass: 0.12, motorMount: { overhang: 0, clusterCount: 3 } })),
+    );
+    expect(stated.mass).toBeCloseTo(0.12, 9);
   });
 });

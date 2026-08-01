@@ -218,13 +218,7 @@ export default function RocketpyCrossCheck({
               module loading and Loft's baseline flight — there is no runtime to end, and a Stop that
               said it had ended one would be reporting something that never happened. */}
           {state.stoppable && (
-            <button
-              type="button"
-              onClick={stop}
-              className={`rounded-md border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-700 transition hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800 ${TOUCH_TARGET}`}
-            >
-              Stop
-            </button>
+            <Button onClick={stop}>Stop</Button>
           )}
         </div>
       )}
@@ -243,7 +237,13 @@ export default function RocketpyCrossCheck({
             Stopped at &ldquo;{state.stage}&rdquo;. RocketPy reports a finished flight or nothing, so
             that run produced no figures{showing ? " — the comparison below is the earlier run" : ""}.
           </p>
-          <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+          {/* Decision-grade by the rule P1 increment 4 set: a sentence whose purpose is to change
+              what the flyer does NEXT takes the body default, and this one names the price of the
+              button directly above it — running again is a cold start, not a resume. The comment
+              introducing this block already argued exactly that ("a deliberate act with a price, and
+              the price is named rather than discovered") while the type scale filed it as a
+              footnote. */}
+          <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
             Stopping ends the Python runtime, which is what makes it a real stop rather than a
             cancelled wait. Running again starts it from scratch, so it costs what the first run did.
           </p>
