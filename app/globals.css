@@ -84,9 +84,22 @@ input[type="number"] {
 }
 
 /* Documentation prose. A small, self-contained typographic scale for the in-site docs —
-   avoids a plugin dependency and keeps the zinc/indigo system consistent with the app. */
+   avoids a plugin dependency and keeps the zinc/indigo system consistent with the app.
+
+   The three sizes here are DESIGN.md §3's own, spelled as rem because this is a stylesheet rather
+   than a class list. They were 0.925rem, 1.2rem and 0.85rem until 2026-08-01 — a seventh, eighth and
+   ninth size, on every one of the six docs routes, invisible to §9's checks for as long as they have
+   existed because those match class NAMES and a stylesheet declares values. This is the same blind
+   spot that let `.eqn` render an 8 px radius while the off-system-radius count read zero. Any size
+   added here has to be one of §3's six; anything else is off the scale whether or not a grep sees it.
+
+   `code` and `.eqn` keep `0.85em` deliberately: `em` is RELATIVE, so inline code tracks whatever it
+   sits in rather than declaring a size of its own, and §3's scale is about the sizes text is SET at.
+   Measured, inline code lands on 12px — `text-xs`, which is what §3 gives dense metadata. The one
+   thing below that on a docs route is a `<sub>` inside an equation, which the UA renders `smaller`
+   and which is what a subscript IS; it is not a seventh size. */
 .prose-loft {
-  font-size: 0.925rem;
+  font-size: 1rem;          /* §3 text-base — "prose in docs" */
   line-height: 1.7;
   color: #3f3f46; /* zinc-700 */
 }
@@ -96,7 +109,7 @@ input[type="number"] {
 .prose-loft h2 {
   margin-top: 2.25rem;
   margin-bottom: 0.5rem;
-  font-size: 1.2rem;
+  font-size: 1.25rem;       /* §3 text-xl — section heading */
   font-weight: 600;
   letter-spacing: -0.01em;
   color: #18181b;
@@ -107,7 +120,7 @@ input[type="number"] {
 .prose-loft h3 {
   margin-top: 1.5rem;
   margin-bottom: 0.35rem;
-  font-size: 1rem;
+  font-size: 1rem;          /* §3 text-base — subsection heading */
   font-weight: 600;
   color: #27272a;
 }
@@ -192,7 +205,7 @@ input[type="number"] {
 .prose-loft table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.85rem;
+  font-size: 0.875rem;      /* §3 text-sm — the body default, and what every other table uses */
   margin: 0.8rem 0;
   display: block;
   overflow-x: auto;

@@ -369,6 +369,35 @@ describe("DESIGN.md §9 — the design system is binding, and this is what check
     );
   });
 
+  it("declares no font size in the stylesheet that is off the six-size scale", () => {
+    // **§9's checks match class NAMES, and a stylesheet declares VALUES** — so everything in
+    // `app/globals.css` has been invisible to them for as long as they have existed. That is not
+    // theoretical: `.prose-loft` set body text at `0.925rem`, `h2` at `1.2rem` and table text at
+    // `0.85rem` — a seventh, eighth and ninth size, on all six docs routes — while `offScaleType`
+    // read 0 and passed. It is the same blind spot that let `.eqn` render an 8 px radius at an
+    // off-system-radius count of zero.
+    //
+    // RELATIVE sizes are allowed through and that is deliberate rather than a loophole: `em` means
+    // "whatever this sits in", which is a typographic relationship rather than a size on the scale,
+    // and inline code and the equation block both want it. Measured against the built export, both
+    // land on 12 px. An absolute `rem`/`px` declaration is a size, and has to be one of §3's six.
+    const css = readFileSync(join(ROOT, "app/globals.css"), "utf8");
+    // §3's six, in rem: text-3xl 1.875, text-xl 1.25, text-base 1, text-sm 0.875, text-xs 0.75,
+    // and the 11 px annotation size. `inherit`/`smaller` and the like are not declarations of a size.
+    const ALLOWED_REM = new Set(["1.875", "1.25", "1", "0.875", "0.75", "0.6875"]);
+    const off: string[] = [];
+    for (const m of css.matchAll(/font-size:\s*([^;]+);/g)) {
+      const raw = m[1].trim();
+      if (/\bem\b/.test(raw) && !/\brem\b/.test(raw)) continue; // relative — see above
+      const rem = /^([\d.]+)rem$/.exec(raw);
+      const px = /^([\d.]+)px$/.exec(raw);
+      const asRem = rem ? rem[1] : px ? String(Number(px[1]) / 16) : null;
+      if (asRem === null) continue; // a keyword or a var() — not a size declaration
+      if (!ALLOWED_REM.has(asRem.replace(/0+$/, "").replace(/\.$/, ""))) off.push(raw);
+    }
+    expect(off, "font sizes declared in app/globals.css that are not on DESIGN.md §3's scale").toEqual([]);
+  });
+
   it("keeps the primitives themselves inside the system", () => {
     // The file everything else is converted ONTO cannot itself be off-system, and it was: three
     // `rounded-lg` in `Segmented`, `ClosePanel` and `NumberField`. A primitive that breaks the rule
