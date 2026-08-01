@@ -985,8 +985,8 @@ pinned.
 
 ## R7 — Per-set fin drag, and the honest aero the builder needs
 
-**Status: IN PROGRESS** — increment 1 of 3–5 shipped 2026-08-02: the edge **cross-section** is now
-charged per fin set. Pinned by `lib/sim/aero.test.ts`'s *fin cross-section is charged per set, not
+**Status: IN PROGRESS** — increments 1–3 of 3–5 shipped; increment 1 was the edge **cross-section**,
+now charged per fin set. Pinned by `lib/sim/aero.test.ts`'s *fin cross-section is charged per set, not
 design-wide* (four cases, including the exact-halfway assertion that a "less drag" under-count could
 not satisfy) and by the corpus census, whose published figures were tightened in the same change.
 
@@ -1020,7 +1020,7 @@ over-drag). The two were partly cancelling and only one is fixed. Recorded in th
 median — optimumDelay went back 2.5% → 2.7% — and it pushed a real design outside the corpus's own
 agreement tolerance, which is the same shape as the area-weighted thickness attempt before it. It is
 the next slice and it needs its own investigation, not a rider on this one. **Do not simply re-apply
-it.**
+it** — increment 3 below did the investigation and found why both attempts failed.
 
 *Increment 2 — R7's own instrument, fixed.* `runFromDocument` named three of `RunOptions`' twelve
 fields and silently dropped the other nine (`ballistic`, `timeStep`, `ballastKg`, `motorSwap`,
@@ -1037,8 +1037,53 @@ for any of them — the corpus census is identical to the tenth on all ten metri
 `lib/sim/flight.test.ts`'s *runFromDocument forwards what it is given*, three cases, each pairing a
 changed option with the number it must move.
 
-*Remaining:* the thickness-ratio collapse; the sweep collapse (tried and reverted twice — read the
-warning above before touching it); and the adjacent parse gaps below.
+*Increment 3 — the thickness and sweep collapses, measured a third time and REJECTED, with the
+reason found.* Both were implemented per-set and both were reverted. **Do not implement either again
+without first reading this entry — it is the third attempt and the first one that explains the other
+two.**
+
+*What was built and measured.* (a) Fin wetted area banked by (finish, own `1 + 2·(t/c)`) instead of
+by finish alone, so each set is charged its own thickness ratio — the same one-key-wider
+accumulation the finish already gets, with `finThicknessRatio` becoming the area-weighted mean for
+the one whole-vehicle consumer left (wave drag). (b) On top of that, fin frontal area banked by
+(edge, own `cos²Λ`). Both typechecked, both left the corpus suite green at 14/14.
+
+*The measurement, over 97 stored simulations on 35 real designs.* Per-set thickness alone moved no
+census median toward zero, and moved one away: maxMach **1.9918% → 2.0275%**. Every other median was
+identical to four decimals. The two designs R7's *done when* protects both moved the WRONG way —
+`Complex.Two-Stage.CDX1` J180T apogee **+4.5254% → +4.9578%** and J90W **+12.3991% → +12.8813%**,
+`The Red Hunter.ork` **+4.4441% → +5.3484%**. Adding per-set sweep took `Complex.Two-Stage.CDX1` to
+J180T **+13.98%** and J90W **+22.60%** — the J180T configuration is ASSERTED at ±12%, so that is the
+gate failure the earlier session recorded, reproduced exactly, along with its optimumDelay **2.4766%
+→ 2.6593%**.
+
+*Why — and this is the finding that unblocks the slice.* A collapsed value is **not** biased in one
+direction — it lands wherever the last set read puts it, so correcting it adds drag to some designs
+and removes it from others. Of the twelve designs the thickness fix changes, eight carry comparable
+stored results and they went both ways (`APEX_K_Dart.ork` −18.3845% → −18.4635%, i.e. MORE drag;
+`03.Three-stage.ork` +10.7571% → +10.8941%, LESS). What matters is which designs it takes drag away
+from: the two that move most are ones Loft **already flies high**, i.e. already under-dragged from
+somewhere else. `Complex.Two-Stage.CDX1` starts at +4.5%/+12.4% apogee and its
+J90W configuration is already a `KNOWN_ISSUES` entry saying RASAero stores nearly the same apogee for
+two very different motors and Loft does not reproduce that. So removing a spurious over-drag moves
+these designs FURTHER from their stored results. The two collapses are partly compensating for a
+separate, unidentified under-drag — which is why every attempt to fix them in isolation has failed,
+and why fixing both together was worse than either.
+
+*A hypothesis tested and refuted along the way.* The `0.35` floor on `cos²Λ` is NOT what breaks
+`Complex.Two-Stage.CDX1`: its per-set factors are 0.500/0.640/0.367 against a design-wide 0.640, none
+floored. The floor is still worth a source, though, and the scale is now measured: charged per set it
+binds **15 of 51 fin surfaces across 13 designs**, against **8 designs** floored design-wide today.
+
+*So the next slice is not a fin slice.* Find the drag `Complex.Two-Stage.CDX1` is missing — a
+two-stage RASAero design already at the edge of the corpus's tolerance — and the per-set corrections
+land on top of it instead of against it. **The *done when* clause "the corpus census does not regress
+on the two designs the reverted area-weighted attempt broke" cannot be met by a fin change alone, and
+should be read as pointing at that under-drag rather than as a veto on per-set fin drag.** Published
+on `/docs/limitations` in the same increment, with the numbers, rather than left in this file.
+
+*Remaining:* the thickness-ratio and sweep collapses, both blocked as above; and the adjacent parse
+gaps below.
 
 **Outcome.** A rocket a flyer just BUILT with two different fin sets is flown with each set's own
 drag — and every page that describes the model says what the model actually does.

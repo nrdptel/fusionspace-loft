@@ -168,15 +168,49 @@ export default function Limitations() {
         </li>
       </ul>
       <p>
+        Both belong to no fin on such a design, and both change if the sets are reordered without the
+        rocket changing — they read the <em>last</em> set the file happens to list.
+      </p>
+      <p>
         Both are single-set-exact, so the great majority of designs are unaffected. Counted across
         the 35-design real-design corpus: <strong>20</strong> carry exactly one fin set and{" "}
         <strong>2</strong> carry none, leaving 13 with several — and of those, only{" "}
-        <strong>7</strong>{" "}mix edge sections between them. So 28 of 35 are untouched by the per-set
-        cross-section correction, and the two collapses above bite hardest on the remaining few. Where it bites is precisely the rocket
-        a flyer has just built two different fin sets on, which is why it is being worked rather than
-        left. Making the sweep per-set was tried and measured in August 2026 and reverted: it
-        improved no accuracy median and pushed a real design outside the corpus&apos;s own agreement
-        tolerance, so it needs its own investigation rather than a rider on the cross-section fix.
+        <strong>7</strong>{" "}mix edge sections between them, while <strong>11</strong> mix thickness
+        ratios and <strong>11</strong> mix leading-edge sweeps. So 28 of 35 are untouched by the
+        per-set cross-section correction, and the two collapses above bite on 11 designs each. Where
+        it bites is precisely the rocket a flyer has just built two different fin sets on, which is
+        why it is being worked rather than left.
+      </p>
+      <p>
+        <strong>Why they are still here, measured three times.</strong> Correcting either one has
+        been written, measured against the corpus and reverted — twice before, and again on{" "}
+        <strong>2026-08-01</strong>, when both were tried together. The reason is worth publishing,
+        because it is not that the per-set treatment is wrong:
+      </p>
+      <p>
+        A collapsed value is not biased in one direction — it lands wherever the last set read
+        happens to put it, so correcting it adds drag to some designs and removes it from others.
+        It changes twelve of the 35 corpus designs, eight of which carry stored results to compare
+        against, and across those eight it went both ways. The trouble is which designs it removes
+        drag from: the two that move most are ones Loft <em>already</em> flies
+        high, meaning it is giving them too little drag from somewhere else, so taking more away
+        moves them further from the results their own file stores. On{" "}
+        <em>Complex.Two-Stage.CDX1</em>, which starts at{" "}
+        <strong>+4.5%</strong> and <strong>+12.4%</strong> apogee on its two motor configurations,
+        charging each set its own thickness ratio moved the first to <strong>+5.0%</strong>; adding
+        per-set sweep on top took it to <strong>+14.0%</strong>, past the <strong>±12%</strong>{" "}
+        the corpus asserts. <em>The Red Hunter</em> went <strong>+4.4% → +5.3%</strong> the same way.
+        Across all 97 stored simulations the per-set thickness fix moved no accuracy median toward
+        zero and one away from it (max Mach <strong>1.99% → 2.03%</strong>); both together moved
+        optimum delay <strong>2.48% → 2.66%</strong>.
+      </p>
+      <p>
+        So the remaining fin work is blocked on a different question than it looks: the drag those
+        designs are missing has to be found first, and then the per-set corrections land on top of it
+        rather than against it. Charging a fin set for its own geometry is right; doing it while
+        another term is quietly compensating would trade a visible error for an invisible one. The
+        cross-section correction shipped because it was the one of the three that moved these designs
+        not at all.
       </p>
 
       <h3>Design what-ifs address the part you pick — for three kinds of part, not all of them</h3>
