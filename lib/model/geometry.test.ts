@@ -62,6 +62,12 @@ describe("mouldLineSteps", () => {
     expect(out).toHaveLength(1);
     expect(out[0].diameterStep).toBeCloseTo(0.02, 12);
     expect(out[0].id).toBe("a");
+    // The joint's own geometry, pinned so the fore/aft convention cannot invert unnoticed: `fore` is
+    // the radius on the NOSE side of the joint and `aft` the radius behind it, and `x` is the station
+    // the joint sits at — the aft end of the part named by `id`, which is the fore tube's 0.2 m.
+    expect(out[0].foreRadius).toBeCloseTo(0.02, 12);
+    expect(out[0].aftRadius).toBeCloseTo(0.03, 12);
+    expect(out[0].x).toBeCloseTo(0.2, 12);
 
     // …and the same joint the other way round steps IN, which is a negative step, not an absent one.
     const inward = mouldLineSteps(rocket(tube("a", 0.03), tube("b", 0.02)));

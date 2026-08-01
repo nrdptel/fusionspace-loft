@@ -280,11 +280,27 @@ export default function Limitations() {
         length to take an angle over, so nothing charges it. Every flight of a stepped airframe therefore
         under-counts drag and reads optimistically on apogee and speed. This is not a state the editor
         invents, and it is not rare: across the corpus,{" "}<strong>33 of the 115</strong>{" "}airframe
-        joints Loft can judge already step, in 13 of the 35 designs, and{" "}<strong>27 of those steps, in
-        9 designs</strong>, are larger than the 0.5&nbsp;mm at which a step stops being a rounding artefact
-        of a design stated in inches — a median 11.75&nbsp;mm of diameter and up to 82.55&nbsp;mm, the
-        largest being a joint between two stages. A flight of any of them now <strong>says so and names
-        the step</strong>, alongside the parts panel that has always named it for the part you are holding.
+        joints Loft can judge already step, in 13 of the 35 designs (median 11.75&nbsp;mm of diameter),
+        and{" "}<strong>27 of those steps, in 9 designs</strong>, are larger than the 0.5&nbsp;mm at which
+        a step stops being a rounding artefact of a design stated in inches — those 27 run to a median
+        12.70&nbsp;mm and up to 82.55&nbsp;mm, the largest being a joint between two stages. A flight of
+        any of them now <strong>says so and names the step</strong>, alongside the parts panel that has
+        always named it for the part you are holding.
+      </p>
+      <p>
+        <strong>Nothing aft of a transition follows its exit diameter.</strong> Loft has no mechanism that
+        resizes parts you did not pick, and inventing one would silently re-caliber an airframe from a
+        single field. So narrowing a transition&apos;s exit opens a step at the joint behind it — which is
+        the editor-reachable route into the gap above, and why the parts panel says so at the moment you
+        make it.
+      </p>
+      <p>
+        <strong>And the model is discontinuous across that boundary.</strong> The shoulder term is charged
+        on any transition with a length, so <code>φ</code>{" "}approaches 90° as the length approaches zero
+        and a 1&nbsp;mm transition is billed almost the full <code>0.8·ΔA</code> — while the same diameter
+        change with no transition at all is billed nothing. Both ends of that are defensible on their own
+        and they do not meet in the middle. Loft reports the geometry rather than papering over the seam,
+        and closing it properly needs the published step coefficient named below.
       </p>
       <p>
         <strong>What it does not do is put a number on it</strong>, and that is deliberate. The obvious

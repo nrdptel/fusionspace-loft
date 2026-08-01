@@ -2,10 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { Rocket, RocketComponent } from "@/lib/model/types";
-import { flattenRocket } from "@/lib/model/geometry";
+import { flattenRocket, STEP_NOTICE_M } from "@/lib/model/geometry";
 import { massByComponent, dryMassProperties, statedMassHolder } from "@/lib/sim/mass";
 import type { MotorMark } from "@/lib/sim/setup";
-import { STEP_NOTICE_M } from "@/lib/model/geometry";
 import { mouldLineStep, type AddedPart, type AddedStage, type GeometryEdits, type MountAdd, type MoveSlot } from "@/lib/model/edit";
 import { TOUCH_TARGET } from "@/lib/ui-tokens";
 import * as d from "@/lib/display";
@@ -123,9 +122,6 @@ const KIND_LABEL: Record<string, string> = {
   launchlug: "Launch lug",
   railbutton: "Rail button",
 };
-
-/** The authoring controls in the parts panel. One constant so a second one cannot arrive at a
- *  different height from the first. */
 
 /** What kind of part this is, in the reader's words. */
 const kindLabel = (c: RocketComponent): string => KIND_LABEL[c.kind] ?? c.kind;

@@ -3561,7 +3561,10 @@ test.describe("Loft", () => {
     await exit.fill("20");
     await expect(cones.first()).toContainText(/→\s*⌀\s*20/);
     // Nothing sits behind a tail cone, so there is no joint to judge and the step notice stays silent.
-    await expect(page.getByText(/The airframe steps/)).toHaveCount(0);
+    // Scoped to the parts panel's own sentence for the same reason as the sibling case below: the
+    // flight carries an airframe-scope caution about the same geometry, and an unscoped locator
+    // would be asserting about both surfaces while claiming to test this one.
+    await expect(page.getByText(/at the joint behind this part/)).toHaveCount(0);
 
     // And it is undoable, by name, back to the design that never had it.
     await page.getByRole("button", { name: /^Undo the transition exit/ }).click();
