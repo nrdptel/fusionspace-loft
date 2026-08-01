@@ -5,6 +5,7 @@ import type { Rocket, RocketComponent } from "@/lib/model/types";
 import { flattenRocket } from "@/lib/model/geometry";
 import { massByComponent, dryMassProperties, statedMassHolder } from "@/lib/sim/mass";
 import type { MotorMark } from "@/lib/sim/setup";
+import { STEP_NOTICE_M } from "@/lib/model/geometry";
 import { mouldLineStep, type AddedPart, type AddedStage, type GeometryEdits, type MountAdd, type MoveSlot } from "@/lib/model/edit";
 import { TOUCH_TARGET } from "@/lib/ui-tokens";
 import * as d from "@/lib/display";
@@ -125,14 +126,6 @@ const KIND_LABEL: Record<string, string> = {
 
 /** The authoring controls in the parts panel. One constant so a second one cannot arrive at a
  *  different height from the first. */
-/** The smallest mould-line step worth a sentence, in metres of DIAMETER.
- *
- *  Measured across the 35-design corpus: 33 joints step at all, and the sample falls into two groups
- *  with nothing between them — six from 0.0004 to 0.292 mm, which are rounding artefacts of designs
- *  stated in inches rather than steps anyone built, and 27 of 0.800 mm and up, median 12.70 mm. 0.5 mm sits
- *  in that gap, so the threshold is read off the data rather than chosen. Below it the notice would
- *  fire on arithmetic instead of on geometry, and a flag that cries wolf teaches flyers to ignore it. */
-const STEP_NOTICE_M = 0.0005;
 
 /** What kind of part this is, in the reader's words. */
 const kindLabel = (c: RocketComponent): string => KIND_LABEL[c.kind] ?? c.kind;

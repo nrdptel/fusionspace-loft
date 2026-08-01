@@ -287,3 +287,74 @@ describe("simulate — peak acceleration is an ascent quantity", () => {
     expect(summary.maxAcceleration).toBeLessThan(analyticPeak * 1.02);
   });
 });
+
+describe("simulate — a bare mould-line step is said out loud", () => {
+  /** The same rocket twice: once with its two tubes faired, once with the aft tube oversized so the
+   *  airframe steps out at the joint. Everything else is held identical, so the caution is the only
+   *  thing that can differ. */
+  function twoTube(aftRadius: number): Rocket {
+    const fore: BodyTube = {
+      id: "f",
+      name: "fore",
+      kind: "bodytube",
+      placement: { method: "after", offset: 0 },
+      outerRadius: 0.02,
+      thickness: 0.001,
+      length: 0.4,
+      material: { name: "massless", density: 0, type: "bulk" },
+      children: [],
+    };
+    const payload: MassComponent = {
+      id: "m",
+      name: "payload",
+      kind: "masscomponent",
+      placement: { method: "top", offset: 0.1 },
+      mass: 0.9,
+      length: 0.05,
+      children: [],
+    };
+    fore.children.push(payload);
+    const aft: BodyTube = { ...fore, id: "a", name: "aft", outerRadius: aftRadius, children: [] };
+    return {
+      name: "test",
+      stages: [{ name: "s", components: [fore, aft] }],
+      configurations: [],
+      referenceType: "maximum",
+    };
+  }
+
+  const fly = (rocket: Rocket) =>
+    simulate({
+      rocket,
+      config: CONFIG,
+      motors: [{ curve: constMotor(100, 1.0, 0.1), cg: 0.4, ignitionTime: 0 }],
+      recovery: [],
+      conditions: vacuumConditions(),
+    });
+
+  it("cautions when the airframe steps, and names the step", () => {
+    const w = fly(twoTube(0.03)).warnings.find((x) => x.code === "mould-line-step");
+    expect(w).toBeDefined();
+    // The number in the sentence is the step the geometry actually has: 20 mm of DIAMETER, not the
+    // 10 mm of radius. A caveat that misstates its own measurement teaches a flyer to discount it.
+    expect(w!.message).toContain("20 mm");
+    expect(w!.message).toContain("out");
+    // A caution, not a warning: one joint's pressure drag on an otherwise complete build-up, as
+    // against the blunt-nose case where the whole forebody term is missing.
+    expect(w!.severity).toBe("caution");
+  });
+
+  it("says nothing when the joint fairs", () => {
+    expect(fly(twoTube(0.02)).warnings.some((x) => x.code === "mould-line-step")).toBe(false);
+  });
+
+  it("does not claim a drag number it cannot stand behind", () => {
+    // Eq. 3.86's 0.8 is a measured flat-face value in clean flow; an annular step sits inside the
+    // boundary layer of the body ahead of it. Charging it as a flat face took `02.Two-stage.ork`
+    // from agreeing to 35.2% low, so Loft reports the geometry and withholds the estimate. If a
+    // sourced coefficient ever arrives this assertion is what says the message has to change too.
+    const w = fly(twoTube(0.03)).warnings.find((x) => x.code === "mould-line-step");
+    expect(w!.message).not.toMatch(/\d\s*%/);
+    expect(w!.message).toContain("cannot state");
+  });
+});

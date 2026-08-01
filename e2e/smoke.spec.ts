@@ -3648,7 +3648,10 @@ test.describe("Loft", () => {
     const partsTable = page.locator("table").filter({ hasText: "Dimensions" });
     const tubes = partsTable.locator("tr").filter({ hasText: /Body tube/ });
     await expect(tubes).toHaveCount(2);
-    const notice = page.getByText(/The airframe steps/);
+    // Scoped to the sentence only the PARTS PANEL says. The flight now carries its own caution about
+    // the same geometry — at airframe scope, for the design as a whole — so a locator that matched
+    // "the airframe steps" alone would resolve to both surfaces and stop testing this one.
+    const notice = page.getByText(/at the joint behind this part/);
 
     // A transition authored between two sections at the same caliber runs straight through, so it
     // opens nothing and nothing is said. (This fixture already carries a boattail, so count rather

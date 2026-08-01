@@ -17,7 +17,12 @@
  */
 
 import type { Rocket, MotorConfiguration, RocketComponent } from "../model/types";
-import { leadingFaceDiameter } from "../model/geometry";
+import {
+  leadingFaceDiameter,
+  mouldLineSteps,
+  STEP_NOTICE_M,
+  type MouldLineStep,
+} from "../model/geometry";
 import { Atmosphere } from "./atmosphere";
 import { aeroGeometry, barrowman, dragCoefficient, type Stability } from "./aero";
 import { analyzeFlutter, RECOMMENDED_FLUTTER_MARGIN, type FlutterReport } from "./flutter";
@@ -927,6 +932,7 @@ export function simulate(input: SimulateInput): FlightResult {
     ballisticBoosters,
     firmBoosters: boosterDescents.filter((b) => b.terminalSpeed > 7.6),
     leadingFace: leadingFaceDiameter(rocket),
+    mouldLineSteps: mouldLineSteps(rocket),
     deadStages: input.deadStages ?? [],
   });
 
@@ -1193,6 +1199,8 @@ function buildWarnings(
     firmBoosters: BoosterDescent[];
     /** Diameter (m) of the flat face the airframe leads with, or 0 when it leads with a nose cone. */
     leadingFace: number;
+    /** Joints where the outer mould line steps with no transition to take the change over. */
+    mouldLineSteps: MouldLineStep[];
     /** Stages below the top whose motors never light, and whether each is nonetheless shed. */
     deadStages: DeadStage[];
   },
@@ -1280,6 +1288,35 @@ function buildWarnings(
         "no term for a blunt leading face, so the apogee and speeds above are the streamlined design's and read " +
         "optimistically. Put a nose cone at the front of the airframe for a figure the model can stand behind.",
       severity: "warning",
+    });
+  }
+  // A bare step in the outer mould line. The editor has said this since the flyer could author one
+  // — but only about the part they happen to have SELECTED, so an imported design carried it
+  // silently, which is the "reachable only by knowing it is there" failure. The flight is where the
+  // number being read optimistically actually appears, so it is where the caveat belongs.
+  //
+  // A caution rather than a warning, and the distinction is the one the blunt-nose case above draws:
+  // there the whole forebody drag term is absent, here it is one joint's pressure drag on an
+  // otherwise complete build-up. Loft states the geometry rather than an estimate of what it costs,
+  // because eq. 3.86's 0.8 is a measured flat-face value in clean flow and an annular step sits in
+  // the boundary layer of the body ahead of it — charging it as a flat face takes `02.Two-stage.ork`
+  // from agreeing to 35.2% low. Reporting a number Loft cannot stand behind would be the false
+  // precision the brief forbids; reporting the step it cannot charge is the honest half.
+  const steps = ctx.mouldLineSteps.filter((s) => Math.abs(s.diameterStep) > STEP_NOTICE_M);
+  if (steps.length > 0) {
+    const worst = steps.reduce((a, b) => (Math.abs(b.diameterStep) > Math.abs(a.diameterStep) ? b : a));
+    const mm = (m: number) => Math.round(m * 1000 * 10) / 10;
+    out.push({
+      code: "mould-line-step",
+      severity: "caution",
+      message:
+        `This airframe changes diameter at ${steps.length === 1 ? "a joint" : `${steps.length} joints`} with no ` +
+        `transition to take the change over` +
+        (steps.length > 1 ? `; the largest steps` : ` — it steps`) +
+        ` ${worst.diameterStep > 0 ? "out" : "in"} by ${mm(Math.abs(worst.diameterStep))} mm of diameter. ` +
+        "Loft charges a transition by its own joint angle and has no drag term for a bare step, " +
+        "so the drag is under-counted and the apogee and speeds above read optimistically by an " +
+        "amount the model cannot state. Fair the joint with a transition for a figure it can stand behind.",
     });
   }
   if (ctx.staticMarginCal < 1.0) {

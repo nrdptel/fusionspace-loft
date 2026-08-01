@@ -12,6 +12,63 @@ this file, and deliberately does **not** cap craft or product work, because that
 track in `ROADMAP.md` with its own *done when*. Rough edges, missing affordances, and findings too
 big for one pass. Newest first.
 
+- **A design-system audit found 14 classes of divergence from `DESIGN.md` that P1's §9 counts do not
+  measure.** Run 2026-08-02 against the component tree. P1 is shipped and its counts are at target,
+  so these are what the counts do not see rather than a regression in them. Ranked by how much a
+  flyer would notice, with the rule each breaks:
+
+  - `components/ui.tsx:310` — the `Chip` PRIMITIVE ships `px-2.5 py-1` against §5's own
+    "`text-xs`, `rounded-md`, `px-2 py-1`", and `2.5` is not on §4's `1 2 3 4 6 8 12` scale. The
+    primitive itself is off-system, so every future adopter inherits the divergence. `Chip` has
+    **0 adopters** today; `components/ResultsView.tsx:1034` hand-rolls a pill instead.
+  - **10 verbatim copies** of one `<select>` treatment (`rounded-md border border-zinc-300 bg-white
+    px-2.5 py-1.5 …`) across `LoftApp.tsx:1684,1995,2171,2330,2350,2419,2622,2642,2863` and
+    `ParameterSweep.tsx:363,380` — 11 raw `<select>` in the tree, and §5's vocabulary has no `Select`
+    entry at all. §1: "If the primitive does not exist yet, create it in `components/ui.tsx`."
+  - `Disclosure` has **1 adopter** (`InstallHint.tsx:4`) against **4 hand-rolled `<summary>`**
+    treatments — `LoftApp.tsx:2766`, `MassBreakdown.tsx:69`, `GeometryInspector.tsx:652`,
+    `RocketpyCrossCheck.tsx:322`, the first two byte-identical. This is the same
+    "exported and imported nowhere" defect DESIGN.md's preamble filed on 2026-07-30.
+  - A **third hairline value**: `border-zinc-100` paired with `dark:border-zinc-800` in six places
+    (`DataTable.tsx:225`, `MassBreakdown.tsx:80`, `GeometryInspector.tsx:382,648`,
+    `LoftApp.tsx:2770`, `ResultsView.tsx:1189`) against §2's "Two, deliberately". It is asymmetric,
+    so a table's row rules read lighter than the card edge containing them **in light mode only**.
+  - **A fourth and fifth radius**: `rounded-sm` on 4 legend swatches (`DragCrossCheck.tsx:76,79`,
+    `FlightViz.tsx:147`, `LineChart.tsx:262`), bare `rounded` in 13 places
+    (`MotorSweep.tsx:291`, `MonteCarlo.tsx:456`, `RocketpyCrossCheck.tsx:326`, +10 under
+    `app/docs/`), and an arbitrary `rounded-[2px]` at `RocketDiagram.tsx:863` — sitting 15 lines from
+    a `rounded-full` swatch in the same legend.
+  - **A second accent**: `fuchsia-{300..600}` on the mass markers and their legend,
+    `RocketDiagram.tsx:611,612,878` (7 uses), against §2's "`indigo` as the single accent. No other
+    neutral, no second accent."
+  - `components/Footer.tsx:21` — `mt-20 … md:mt-28`, i.e. 80–112 px of dead band above the footer on
+    all 12 routes, against §4's "between sections `gap-8` or `mt-8`" and "Density is the point".
+    Off-scale twice over.
+  - `lib/ui-tokens.ts:153` (`navItemClass`) — `px-3.5 py-2` against §4's "inside a control
+    `px-3 py-1.5`", on the one nav spine §7 requires to be "present on every route".
+  - `components/ResultsView.tsx:1323` — `Stat` takes `label,q,sub,accent` and has **no caveat slot**,
+    so `<Stat label="Apogee" …/>` renders identically inside and outside the Mach-0.8 envelope; the
+    extrapolation flag surfaces only as a separate card at `:432`. §5 requires a `Readout` "with its
+    unit, provenance and optional caveat" and an `Extrapolated` treatment "wherever a number leaves
+    the envelope its method was validated over". This one is the closest of the fourteen to a
+    correctness concern rather than a cosmetic one.
+  - `components/LoftApp.tsx:2758` — the one network surface's catch-all reads "Couldn't fetch weather
+    (offline, or the service is down)", naming neither which nor the way forward, against §5's
+    `ErrorState` ("names the file or field that failed, what was expected, and the way forward").
+
+- **The corpus carries 33 bare mould-line steps that nothing charges drag for, and the honest
+  coefficient is not known.** Closed as far as it can be closed 2026-08-02: the flight now CAUTIONS
+  on the 9 designs whose step clears the 0.5 mm threshold (27 joints, median 12.70 mm, max
+  82.55 mm), and `/docs/limitations` publishes the gap. What is NOT done is charging it.
+  Measured this run: taking Niskanen eq. 3.86 to its own abrupt limit (φ=90°, so `0.8·ΔA`) takes
+  `02.Two-stage.ork` from agreeing to **−35.2%** apogee and `Complex.Two-Stage.CDX1` J180T from
+  **+4.5% to −20.8%**, failing the corpus. The reason is physical rather than arithmetic: 0.8 is
+  Hoerner's measured **flat-face** value for a body in clean air, and a step is an annulus inside
+  the boundary layer of the body ahead of it. **Do not re-apply 0.8.** What would unblock it is a
+  published forward-facing-step coefficient as a function of step height over boundary-layer
+  thickness — that is the source to go looking for, and until it exists the estimate stays withheld.
+
+
 - **Flight and Design run nearly seven screens deep on a phone, against `DESIGN.md` §8's "at most two
   screens deep to its answer".** Measured 2026-08-02 by driving the built export at an iPhone 13
   viewport (390 px), on the 38 mm sample, after the workspace split: `/flight` **6.6 screens**,

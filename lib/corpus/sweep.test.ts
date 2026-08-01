@@ -29,7 +29,12 @@ import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { importDesign } from "../ork/import";
 import { runFromDocument, overridesFromStored } from "../sim/run";
-import { flattenRocket, leadingFaceDiameter } from "../model/geometry";
+import {
+  flattenRocket,
+  leadingFaceDiameter,
+  mouldLineSteps,
+  STEP_NOTICE_M,
+} from "../model/geometry";
 import type { Rocket, RocketComponent } from "../model/types";
 import {
   applyGeometryEdits,
@@ -1197,4 +1202,50 @@ suite("real-design corpus", () => {
     }
     expect(stale, "the Validation page's accuracy census no longer holds — remeasure and update it").toEqual([]);
   }, 900_000);
+  /** Every design whose airframe steps says so, and no design that fairs does.
+   *
+   *  The drag build-up charges a transition by its own joint angle and has no term at all for a
+   *  bare step, so a stepped design flies optimistically by an amount Loft cannot state. The editor
+   *  has said this since a flyer could author one, but only about the part they had SELECTED — so
+   *  an imported design carried it silently. This pins the flight's own caution against the real
+   *  corpus rather than against a synthetic two-tube case.
+   *
+   *  Measured across these 35 designs: 33 joints step in 13 designs; 27 of those steps in 9 designs
+   *  clear the 0.5 mm notice threshold, median 12.70 mm of diameter and up to 82.55 mm. The other
+   *  six are rounding artefacts of designs stated in inches. */
+  it("says so on every real design whose airframe steps, and stays quiet on the rest", async () => {
+    const stepped: string[] = [];
+    const wrong: string[] = [];
+    for (const f of files) {
+      let doc;
+      try {
+        doc = await importDesign(new Uint8Array(readFileSync(f.path)));
+      } catch {
+        continue;
+      }
+      const steps = mouldLineSteps(doc.rocket).filter(
+        (s) => Math.abs(s.diameterStep) > STEP_NOTICE_M,
+      );
+      let run;
+      try {
+        run = runFromDocument(doc);
+      } catch {
+        continue;
+      }
+      const said = run.result.warnings.some((w) => w.code === "mould-line-step");
+      if (steps.length > 0) stepped.push(`${shortName(f.name)} (${steps.length})`);
+      // The caution has to track the geometry in BOTH directions: a design that steps and says
+      // nothing is the silence this closes, and one that fairs and cries wolf teaches flyers to
+      // ignore the flag — which the brief calls out by name.
+      if (steps.length > 0 && !said) wrong.push(`${shortName(f.name)}: steps but says nothing`);
+      if (steps.length === 0 && said) wrong.push(`${shortName(f.name)}: fairs but cautions anyway`);
+    }
+    console.log(
+      `mould-line steps across ${files.length} design files: ${stepped.length} designs step above the ` +
+        `${STEP_NOTICE_M * 1000} mm notice threshold — ${stepped.join(", ")}`,
+    );
+    expect(wrong, "designs whose step caution disagrees with their geometry").toEqual([]);
+    // A floor, not an equality: a re-cut corpus may add designs. Zero would mean the walk broke.
+    expect(stepped.length).toBeGreaterThanOrEqual(9);
+  }, 300_000);
 });
