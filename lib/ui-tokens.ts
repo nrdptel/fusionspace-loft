@@ -10,14 +10,26 @@
  */
 
 /** A 44 px minimum hit target on touch layouts, released back to the design's own density on
- *  pointer layouts (`sm:` and up). 44 px is the Apple HIG / WCAG 2.5.5 figure, and it is not a
- *  nicety here: the stated phone use is a pad check with gloves on. Desktop deliberately keeps its
- *  tighter spacing — the two form factors are tuned separately, not stretched from one layout. */
-export const TOUCH_TARGET = "min-h-11 sm:min-h-0";
+ *  pointer layouts. 44 px is the Apple HIG / WCAG 2.5.5 figure, and it is not a nicety here: the
+ *  stated phone use is a pad check with gloves on. Desktop deliberately keeps its tighter spacing —
+ *  the two form factors are tuned separately, not stretched from one layout.
+ *
+ *  **Keyed on the POINTER, not on the viewport width, and that is a correction rather than a
+ *  preference.** These read `min-h-11 sm:min-h-0` until 2026-08-01: the floor was released at the
+ *  `sm:` breakpoint, 640 px. `DESIGN.md` §8 says "44 px minimum hit target on `pointer: coarse`,
+ *  everywhere, not just where it was first measured", and the sentence above this one has claimed
+ *  "touch layouts" for as long as it has existed — but width is not touch. **Measured on a Pixel 7
+ *  against the built export: 6 controls under 44 px in portrait, and 82 on the same phone rotated to
+ *  landscape**, where the viewport is 863 px and every one of these minima switched itself off. A
+ *  flyer who turns the phone sideways to read the diagram loses the touch contract entirely.
+ *
+ *  Desktop is unchanged and that is checked, not assumed: a 1280 px viewport reports `pointer: fine`,
+ *  so the floor does not apply there any more than `sm:` did. */
+export const TOUCH_TARGET = "pointer-coarse:min-h-11";
 
 /** The same 44 px minimum in BOTH directions, for a control whose text is one glyph — a zoom
  *  &minus;/+ clears the height minimum and still lands at 24 px wide, which is not a target. */
-export const TOUCH_TARGET_SQUARE = "min-h-11 min-w-11 sm:min-h-0 sm:min-w-0";
+export const TOUCH_TARGET_SQUARE = "pointer-coarse:min-h-11 pointer-coarse:min-w-11";
 
 /** Join class strings, dropping the empty ones so a caller can pass `undefined` without a stray space. */
 export function cx(...parts: (string | false | null | undefined)[]): string {
