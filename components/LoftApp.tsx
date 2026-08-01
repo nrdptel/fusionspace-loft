@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import ImportPanel from "./ImportPanel";
 import ResultsView, { type Workspace } from "./ResultsView";
-import { Card, Segmented } from "./ui";
+import { Button, Card, Segmented } from "./ui";
 import { importDesign, sourceTool, type OrkDocument } from "@/lib/ork/import";
 import { newDesign } from "@/lib/model/starter";
 import { exportOrk } from "@/lib/ork/export";
@@ -110,25 +110,12 @@ import {
   type RemovedRecent,
 } from "@/lib/session";
 import { mToFt, ftToM, mpsToMph, mphToMps, radToDeg } from "@/lib/units";
-import { TOUCH_TARGET, TOUCH_TARGET_SQUARE } from "@/lib/ui-tokens";
+import { TOUCH_TARGET } from "@/lib/ui-tokens";
 import { listWords, rangeWords, refusedMessage } from "@/lib/what-if";
 import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
 
 /** Friendly labels for the surface-finish picker (smoothest → roughest). */
-/** The design header's small secondary buttons — Download, Undo, Redo, Reset. One constant because
- *  four hand-copied class strings is how a row of buttons ends up with three different heights. */
-const HEADER_BUTTON =
-  "inline-flex items-center gap-1.5 rounded-md border border-zinc-300 bg-white px-2.5 py-1 text-xs font-medium " +
-  "text-zinc-700 transition hover:border-indigo-400 hover:text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 " +
-  `dark:text-zinc-300 dark:hover:text-zinc-100 ${TOUCH_TARGET}`;
-/** Undo/redo: the same button, plus a disabled state and a square 44 px minimum. It carries only a
- *  glyph on a phone (see the header), and a one-glyph control clears the height minimum while landing
- *  at 32 px wide — which is not a target a gloved thumb can hit. */
-const UNDO_BUTTON =
-  `${HEADER_BUTTON} justify-center ${TOUCH_TARGET_SQUARE} ` +
-  "aria-disabled:opacity-40 aria-disabled:hover:border-zinc-300 dark:aria-disabled:hover:border-zinc-700";
-
 const FINISH_LABELS: Record<SurfaceFinish, string> = {
   mirror: "Mirror",
   polished: "Polished",
@@ -1557,17 +1544,15 @@ export default function LoftApp() {
                 instead, which is the right thing to spend — a name is readable at half its width and a
                 44 px control is not tappable at half of its. */}
             <div className="flex min-w-0 items-center gap-3">
-              <button
-                type="button"
+              <Button
+                variant="ghost"
+                square
                 onClick={reset}
-                className={
-                  "inline-flex items-center justify-center gap-1.5 text-sm text-zinc-600 hover:text-zinc-900 " +
-                  `dark:text-zinc-300 dark:hover:text-white sm:underline sm:underline-offset-2 ${TOUCH_TARGET_SQUARE}`
-                }
+                className="sm:underline sm:underline-offset-2"
               >
                 <span aria-hidden>←</span>
                 <span className="sr-only sm:not-sr-only">Import another</span>
-              </button>
+              </Button>
               <input
                 type="text"
                 aria-label="Design name"
@@ -1582,17 +1567,17 @@ export default function LoftApp() {
                   {fileName}
                 </span>
               )}
-              <button
-                type="button"
+              <Button
+                size="sm"
+                square
                 onClick={downloadOrk}
                 title={downloadOmits() || "Save this design as an OpenRocket .ork file"}
-                className={`${HEADER_BUTTON} justify-center ${TOUCH_TARGET_SQUARE}`}
               >
                 <span aria-hidden className="sm:hidden">
                   ↓
                 </span>
                 <span className="sr-only sm:not-sr-only">Download .ork</span>
-              </button>
+              </Button>
               {/* Undo and redo over every edit, not only the deletions. Each NAMES what it will do,
                   because "Undo" alone asks the flyer to remember what they last did — and after a
                   removal the part is no longer on the diagram to remind them. Disabled rather than
@@ -1612,36 +1597,36 @@ export default function LoftApp() {
                     and drops focus to <body>, and the moment it empties is exactly when a keyboard
                     user is stepping back through a mistake — press Enter once too often and your
                     place in the page is gone. Announced as unavailable, still reachable by Tab. */}
-                <button
-                  type="button"
+                <Button
+                  size="sm"
+                  square
                   onClick={undoStep}
                   aria-disabled={!canUndo || undefined}
                   title={canUndo ? `Undo ${canUndo} (${modKey}+Z)` : "Nothing to undo"}
-                  className={UNDO_BUTTON}
                 >
                   <span aria-hidden>↶</span>
                   <span className="sr-only sm:not-sr-only">Undo{canUndo ? ` ${canUndo}` : ""}</span>
-                </button>
-                <button
-                  type="button"
+                </Button>
+                <Button
+                  size="sm"
+                  square
                   onClick={redoStep}
                   aria-disabled={!canRedo || undefined}
                   title={canRedo ? `Redo ${canRedo} (${modKey}+Shift+Z)` : "Nothing to redo"}
-                  className={UNDO_BUTTON}
                 >
                   <span aria-hidden>↷</span>
                   <span className="sr-only">Redo{canRedo ? ` ${canRedo}` : ""}</span>
-                </button>
+                </Button>
               </span>
               {editsActive && (
-                <button
-                  type="button"
+                <Button
+                  size="sm"
                   onClick={resetEdits}
                   title="Clear every what-if and re-fly the design as the file describes it"
-                  className={`${HEADER_BUTTON} shrink-0`}
+                  className="shrink-0"
                 >
                   Reset<span className="sr-only sm:not-sr-only">&nbsp;to as-designed</span>
-                </button>
+                </Button>
               )}
             </div>
             <Segmented
@@ -1674,13 +1659,9 @@ export default function LoftApp() {
                 Picked up where you left off — <strong className="font-medium">{fileName}</strong>, with
                 any what-ifs you had set. Kept on this device only.
               </span>
-              <button
-                type="button"
-                onClick={reset}
-                className="underline underline-offset-2 hover:text-zinc-900 dark:hover:text-zinc-100"
-              >
+              <Button variant="ghost" size="sm" onClick={reset} className="underline underline-offset-2">
                 Start fresh
-              </button>
+              </Button>
             </Card>
           )}
 
@@ -2723,14 +2704,9 @@ function ConditionsControls({
               placeholder="Launch site, e.g. Lucerne Valley, CA"
               className={`min-w-0 flex-1 rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 ${TOUCH_TARGET}`}
             />
-            <button
-              type="button"
-              onClick={findWeather}
-              disabled={wxBusy || busy}
-              className={`rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-indigo-500 disabled:opacity-60 ${TOUCH_TARGET}`}
-            >
+            <Button variant="primary" onClick={findWeather} disabled={wxBusy || busy}>
               {wxBusy ? "Fetching…" : "Fetch"}
-            </button>
+            </Button>
             {weather && (
               <Segmented
                 value={scenario}

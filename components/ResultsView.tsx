@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { Card, Tabs, type CardTone } from "./ui";
+import { Button, Card, Tabs, type CardTone } from "./ui";
 import { cx } from "@/lib/ui-tokens";
 import DataTable from "./DataTable";
 import type { FlightRun } from "@/lib/sim/run";
@@ -610,16 +610,17 @@ export default function ResultsView({
                     </select>
                   </label>
                   <span>· {log.points.length} points</span>
-                  <button
-                    type="button"
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     onClick={() => {
                       setLog(null);
                       setLogError(null);
                     }}
-                    className="underline underline-offset-2 hover:text-zinc-800 dark:hover:text-zinc-100"
+                    className="underline underline-offset-2"
                   >
                     Remove
-                  </button>
+                  </Button>
                 </>
               )}
               {logError ? (

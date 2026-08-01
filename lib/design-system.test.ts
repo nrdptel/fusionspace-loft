@@ -86,7 +86,7 @@ const BUDGET = {
   /** Spacing values off the `1 2 3 4 6 8 12` scale. Target 0. */
   offScaleSpacing: 0,
   /** Components importing the shared primitives. Target: most of the 23. This one only goes UP. */
-  uiAdopters: 14,
+  uiAdopters: 16,
   /** Component files where caption size OUTNUMBERS the body default. **At the target**, so this is a
    *  guard rather than a ratchet from here on: a file that inverts again is a decision-grade value
    *  that has been put back at caption size. */
@@ -95,6 +95,28 @@ const BUDGET = {
    *  is a guard rather than a ratchet. `text-lg` sat between `text-base` and `text-xl`, invented once
    *  and copied fourteen times: eleven panel headings and three prominent values. */
   offScaleType: 0,
+  /** `<button>` elements written out by hand instead of imported from `components/ui.tsx`.
+   *
+   *  **This is the count P1's *done when* is about, and until now nothing asserted it.** The
+   *  per-primitive adoption count below is necessary and still not sufficient: a file can import
+   *  `Button`, satisfy that check, and go on hand-rolling five more buttons beside it — which is
+   *  exactly what `LoftApp` and `ImportPanel` were doing while both counted as adopters. That is the
+   *  same slackness the header of this file warns about, one level down.
+   *
+   *  Measured 2026-08-01 before the conversion: 17 across seven files — `LoftApp` 7,
+   *  `RocketDiagram` 3, `ImportPanel` 3, and one each in `ResultsView`, `RocketpyCrossCheck`,
+   *  `MotorSweep` and `GeometryInspector`. The last two are table sort headers that go with the
+   *  `DataTable` conversion rather than with a button pass. Target 0.
+   *
+   *  `components/ui.tsx` and `components/DataTable.tsx` are excluded because a primitive's OWN
+   *  `<button>` is the thing every other surface is being converted onto — counting it would make the
+   *  target unreachable by construction.
+   *
+   *  Not in `DESIGN.md` §9's shell block: that file is shared verbatim with the sibling app, and
+   *  `add_repo` for it was refused by the harness again this run (the fourth). Adding the grep here
+   *  alone would put the two copies out of step, which §9 forbids; the wording is owed to both and is
+   *  recorded in `HANDOFF.md` with the rest of that debt. */
+  handRolledButtons: 3,
 } as const;
 
 /** How many components import EACH primitive by name.
@@ -110,7 +132,7 @@ const BUDGET = {
  *  is closing. What must not happen is a zero silently BECOMING the finished condition. */
 const PRIMITIVE_ADOPTERS: Record<string, number> = {
   Card: 11,
-  Button: 10,
+  Button: 13,
   /** The button geometry as a class, for the two things that must look like a button and cannot BE
    *  one — a `next/link` and an external `<a>`. It is exported from `lib/ui-tokens.ts` rather than
    *  from `components/ui.tsx` because the site header is a SERVER component and cannot call into a
@@ -287,6 +309,21 @@ describe("DESIGN.md §9 — the design system is binding, and this is what check
     const SIZES = /\btext-(?:\[[\d.]+(?:px|rem|em)\]|(?:xs|sm|base|lg|[2-9]?xl)\b)/g;
     const { total, byFile } = countMatches(ui, SIZES, (m) => !ALLOWED.has(m));
     expect(total, `off-scale type sizes, by file:\n${byFile.join("\n")}`).toBe(BUDGET.offScaleType);
+  });
+
+  it(`hand-rolls exactly ${BUDGET.handRolledButtons} <button> elements, on the way to none`, () => {
+    // The literal ELEMENT, not a mention of it. `app/not-found.tsx` explains in a comment why a
+    // `<button>` that navigates is a keyboard and screen-reader defect — code-fenced, as prose about
+    // the rule rather than a breach of it — and a naive `<button[\s>]` counts that comment as a
+    // violation the conversion can never clear. The lookbehind drops a backticked mention and keeps
+    // every real tag; measured both ways when this was written, the pair differ by exactly that one.
+    const surfaces = uiSources(["components", "app"], [".tsx"]).filter(
+      (f) => f.path !== "components/ui.tsx" && f.path !== "components/DataTable.tsx",
+    );
+    const { total, byFile } = countMatches(surfaces, /(?<!`)<button[\s>]/g);
+    expect(total, `hand-rolled <button>, by file:\n${byFile.join("\n")}`).toBe(
+      BUDGET.handRolledButtons,
+    );
   });
 
   it("keeps the primitives themselves inside the system", () => {

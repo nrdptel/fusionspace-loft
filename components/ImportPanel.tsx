@@ -2,7 +2,6 @@
 
 import { useRef, useState } from "react";
 
-import { TOUCH_TARGET, TOUCH_TARGET_SQUARE } from "@/lib/ui-tokens";
 import { countWhatIfs, type RecentDesign, type RemovedRecent, type SavedSession } from "@/lib/session";
 import { Button, Card } from "./ui";
 
@@ -176,14 +175,12 @@ export default function ImportPanel({
               e.target.value = "";
             }}
           />
-          <button
-            type="button"
-            disabled={busy}
-            onClick={onNew}
-            className={`inline-flex items-center gap-2 rounded-md border border-zinc-300 bg-white px-4 py-2.5 text-sm font-medium text-zinc-700 transition hover:border-indigo-400 hover:text-zinc-900 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:text-zinc-100 ${TOUCH_TARGET}`}
-          >
+          {/* The peer of the primary beside it, and it used to be visibly taller: `px-4 py-2.5`
+              against `Button`'s `px-3 py-1.5`, so the two controls a first-time visitor chooses
+              between were different heights on the one surface everybody sees first. */}
+          <Button disabled={busy} onClick={onNew}>
             Start a new design
-          </button>
+          </Button>
         </div>
         <p className="mx-auto mt-3 max-w-md text-xs text-zinc-500 dark:text-zinc-400">
           No file? Start from a stable 54&nbsp;mm sport design and edit it — the same engine flies
@@ -202,8 +199,13 @@ export default function ImportPanel({
           <ul className="mt-2 flex flex-wrap gap-2">
             {recents.map((r) => (
               <li key={r.id} className="flex min-w-0 items-stretch rounded-md border border-zinc-300 dark:border-zinc-700">
-                <button
-                  type="button"
+                {/* A split control: the `<li>` owns the outer border and radius, so each half
+                    squares off the edge they meet at. `rounded-r-none` / `rounded-l-none` rather
+                    than a hand-rolled `rounded-l-md` — a corner utility overrides the primitive's
+                    own all-corner radius, which is what lets a split control be built FROM the
+                    primitive instead of beside it. */}
+                <Button
+                  variant="ghost"
                   disabled={busy}
                   onClick={() => onOpenRecent(r.id)}
                   // The visible label is the rocket's name; the accessible name leads with the verb
@@ -211,22 +213,23 @@ export default function ImportPanel({
                   // text. The file it came from goes in the title, where the two differ.
                   aria-label={`Reopen ${r.rocket || r.name}`}
                   title={r.name}
-                  className={`inline-flex min-w-0 items-center rounded-l-md bg-white px-3 py-1.5 text-left text-sm text-zinc-700 transition hover:text-zinc-900 disabled:opacity-60 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:text-zinc-100 ${TOUCH_TARGET}`}
+                  className="min-w-0 justify-start rounded-r-none text-left"
                 >
                   <span className="truncate">{r.rocket || r.name}</span>
-                </button>
-                <button
-                  type="button"
+                </Button>
+                <Button
+                  variant="ghost"
+                  square
                   disabled={busy}
                   onClick={() => onForgetRecent(r.id)}
                   aria-label={`Remove ${r.rocket || r.name} from your designs`}
                   // A one-glyph destructive control sitting against a 240 px open target: it needs the
                   // 44 px minimum in BOTH directions, not just height, or it stays a 24 px-wide delete
                   // button for a thumb aiming at the row beside it.
-                  className={`flex items-center justify-center rounded-r-md border-l border-zinc-200 px-2 text-sm text-zinc-400 transition hover:bg-zinc-50 hover:text-zinc-700 disabled:opacity-60 dark:border-zinc-800 dark:hover:bg-zinc-800/60 dark:hover:text-zinc-200 ${TOUCH_TARGET_SQUARE}`}
+                  className="rounded-l-none border-l border-l-zinc-200 text-zinc-400 dark:border-l-zinc-800"
                 >
                   <span aria-hidden>×</span>
-                </button>
+                </Button>
               </li>
             ))}
           </ul>
