@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 
 import { TOUCH_TARGET_SQUARE, cx } from "@/lib/ui-tokens";
+import { compareCells } from "@/lib/table-sort";
 import type { CsvCell } from "@/lib/csv";
 import DownloadCsv, { CopyTable } from "./DownloadCsv";
 
@@ -21,6 +22,12 @@ export interface Column<R> {
   align?: "left" | "right";
   /** Return a sortable scalar, or omit to make this column unsortable. */
   sortValue?: (row: R) => number | string;
+  /** Which way this column sorts on its FIRST click. Defaults to ascending, which is right for a name
+   *  and wrong for a measurement: someone clicking "Apogee" wants the highest, not the lowest. The
+   *  motor sweep had encoded that per column before it took the primitive — biggest first for a
+   *  number, A→Z for a name — and a table that opens every column ascending makes a flyer click
+   *  twice to ask the question they meant. */
+  sortDir?: 1 | -1;
   cell: (row: R) => React.ReactNode;
   /** Render this column's cell as `<th scope="row">` rather than `<td>` — the column that NAMES the
    *  row. A screen reader then reads "Apogee, 994 m" instead of announcing a bare number, which is
@@ -69,11 +76,33 @@ export default function DataTable<R>({
    *  needs it: its four columns compress into unreadability before the viewport does. */
   minWidth,
   initialSort,
+  /** Controlled sort. Pass BOTH to hold the sort model outside the table — needed when it must
+   *  survive the component (`MotorSweep` persists it per browser, validated against its own column
+   *  list) or when the surface computes something from it (that same panel exports its CSV in the
+   *  order on screen, so it has to know what the order IS).
+   *
+   *  Deliberately a controlled pair rather than a `persistKey` on the primitive. Persistence here is
+   *  not a write-and-read-back: the stored value is validated against the current column set so a
+   *  remembered sort from an older build is discarded rather than leaving the table sorted on a
+   *  column that no longer exists, and key and direction ride in ONE stored string so the pair cannot
+   *  come back inconsistent. A `persistKey` signature holds none of that, and it could not express a
+   *  third state — the parts table's third click returns to the design's own nose-to-tail order,
+   *  which is `null`, not a `{key, dir}`. */
+  sort: controlledSort,
+  onSortChange,
   /** A totals row, keyed by column. Rendered in a `<tfoot>` — which is what it is, semantically, and
    *  which also keeps it OUT of the sort: a dry total that sorted into the middle of the parts it
    *  totals would be worse than no total at all. Columns absent from the record render empty. */
   footer,
   empty,
+  /** Attributes for one row's `<tr>` — selection, hover-linking, a keyboard path, a tone.
+   *
+   *  An escape hatch with a narrow mouth: the primitive owns the row's structure and its border, and
+   *  the caller owns what the row MEANS. The parts table's rows are pickable and link to the diagram
+   *  on hover and on focus, which is seven attributes on the `<tr>` and not one of them a styling
+   *  choice — without this the table could not take the primitive at all, which is why it was still
+   *  hand-rolled. `className` here is appended to the primitive's own, never replaces it. */
+  rowProps,
   className,
 }: {
   columns: Column<R>[];
@@ -84,13 +113,18 @@ export default function DataTable<R>({
   exportSuffix?: string;
   minWidth?: string;
   initialSort?: { key: string; dir: 1 | -1 };
+  sort?: { key: string; dir: 1 | -1 } | null;
+  onSortChange?: (next: { key: string; dir: 1 | -1 } | null) => void;
   footer?: Record<string, React.ReactNode>;
   /** `DESIGN.md` §5: a surface with no empty state is not finished, and "No data" is forbidden — say
    *  what would fill it. Required rather than optional for exactly that reason. */
   empty: React.ReactNode;
+  rowProps?: (row: R, i: number) => React.HTMLAttributes<HTMLTableRowElement> & { className?: string };
   className?: string;
 }) {
-  const [sort, setSort] = useState<{ key: string; dir: 1 | -1 } | null>(initialSort ?? null);
+  const [ownSort, setOwnSort] = useState<{ key: string; dir: 1 | -1 } | null>(initialSort ?? null);
+  const controlled = onSortChange !== undefined;
+  const sort = controlled ? controlledSort ?? null : ownSort;
 
   const sorted = useMemo(() => {
     if (!sort) return rows;
@@ -99,12 +133,9 @@ export default function DataTable<R>({
     const get = col.sortValue;
     // A copy, never in place: `rows` is the caller's array and sorting it under them changes what the
     // surface around the table is holding.
-    return [...rows].sort((a, b) => {
-      const x = get(a);
-      const y = get(b);
-      if (typeof x === "number" && typeof y === "number") return (x - y) * sort.dir;
-      return String(x).localeCompare(String(y)) * sort.dir;
-    });
+    // `compareCells` lives in `lib/` because it is pure and this file is not in vitest's walk — see
+    // the note at the top of that module. It is also where the non-finite-last rule is documented.
+    return [...rows].sort((a, b) => compareCells(get(a), get(b), sort.dir));
   }, [rows, sort, columns]);
 
   // Built from the SORTED rows, so what a flyer copies is what they are looking at. Columns with no
@@ -119,8 +150,15 @@ export default function DataTable<R>({
     return <div className={cx("text-sm text-zinc-600 dark:text-zinc-400", className)}>{empty}</div>;
   }
 
-  const click = (key: string) =>
-    setSort((s) => (s?.key === key ? { key, dir: (s.dir === 1 ? -1 : 1) as 1 | -1 } : { key, dir: 1 }));
+  const click = (key: string) => {
+    const col = columns.find((c) => c.key === key);
+    const next: { key: string; dir: 1 | -1 } =
+      sort?.key === key
+        ? { key, dir: (sort.dir === 1 ? -1 : 1) as 1 | -1 }
+        : { key, dir: col?.sortDir ?? 1 };
+    if (controlled) onSortChange!(next);
+    else setOwnSort(next);
+  };
 
   return (
     <div className={className}>
@@ -178,8 +216,15 @@ export default function DataTable<R>({
             </tr>
           </thead>
           <tbody className="font-mono">
-            {sorted.map((row, i) => (
-              <tr key={rowKey(row, i)} className="border-t border-zinc-100 dark:border-zinc-800">
+            {sorted.map((row, i) => {
+              const extra = rowProps?.(row, i);
+              const { className: rowClass, ...rest } = extra ?? {};
+              return (
+              <tr
+                key={rowKey(row, i)}
+                className={cx("border-t border-zinc-100 dark:border-zinc-800", rowClass)}
+                {...rest}
+              >
                 {columns.map((c, k) => {
                   const Cell = c.rowHeader ? "th" : "td";
                   return (
@@ -198,7 +243,8 @@ export default function DataTable<R>({
                   );
                 })}
               </tr>
-            ))}
+              );
+            })}
           </tbody>
           {footer && (
             <tfoot>

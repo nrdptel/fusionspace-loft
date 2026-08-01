@@ -14,7 +14,8 @@ import { mToFt, mpsToFtps } from "@/lib/units";
 import { usePersistedChoice, useSettled } from "@/lib/session";
 import type { CsvCell } from "@/lib/csv";
 import DownloadCsv, { CopyTable } from "./DownloadCsv";
-import { TOUCH_TARGET_SQUARE } from "@/lib/ui-tokens";
+import DataTable, { type Column } from "./DataTable";
+import { compareCells } from "@/lib/table-sort";
 import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
 import { Button, Card, ClosePanel, useReturnFocus } from "./ui";
@@ -263,23 +264,51 @@ function sweepCsv(rows: MotorSweepRow[], units: UnitSystem): CsvCell[][] {
   return [header, ...body];
 }
 
-/** The sortable columns, and what each sorts on. Apogee descending is the default because the
- *  question this table exists to answer is "how high does each of these get me?" — but it is only
- *  the first question. Which motor clears the rail fastest, which leaves the most flutter margin,
- *  which needs the shortest delay: each is one click, and each is a real reason to pick a motor. */
-const COLUMNS = [
-  { key: "designation", label: "Motor", numeric: false, get: (r: MotorSweepRow) => r.designation },
-  { key: "motorClass", label: "Class", numeric: false, get: (r: MotorSweepRow) => r.motorClass },
-  { key: "apogee", label: "Apogee", numeric: true, get: (r: MotorSweepRow) => r.apogee },
-  { key: "maxVelocity", label: "Max V", numeric: true, get: (r: MotorSweepRow) => r.maxVelocity },
-  { key: "railExitVelocity", label: "Rail exit", numeric: true, get: (r: MotorSweepRow) => r.railExitVelocity },
-  { key: "thrustToWeight", label: "T:W", numeric: true, get: (r: MotorSweepRow) => r.thrustToWeight },
-  { key: "staticMarginCal", label: "Margin", numeric: true, get: (r: MotorSweepRow) => r.staticMarginCal },
-  { key: "flutterMargin", label: "Flutter", numeric: true, get: (r: MotorSweepRow) => r.flutterMargin },
-  { key: "optimumDelay", label: "Delay", numeric: true, get: (r: MotorSweepRow) => r.optimumDelay },
-] as const;
-
-type SortKey = (typeof COLUMNS)[number]["key"];
+/** The sweep's columns on the shared primitive — `DESIGN.md` §5, "every table is this one".
+ *
+ *  Apogee descending is the default because the question this table exists to answer is "how high does
+ *  each of these get me?" — but it is only the first question. Which motor clears the rail fastest,
+ *  which leaves the most flutter margin, which needs the shortest delay: each is one click, and each is
+ *  a real reason to pick a motor. `sortDir` is why the primitive gained that prop: a measurement opens
+ *  biggest-first and a name opens A→Z, and a table that opens every column ascending charges a flyer a
+ *  second click to ask the question they meant.
+ *
+ *  `csv` is deliberately absent from every column, and `exportName` is not passed. The panel keeps its
+ *  OWN export (`sweepCsv`) because that one carries eleven columns to the screen's nine — it splits
+ *  Motor and Manufacturer, adds the Design flag, and puts the unit in each header — and a second pair
+ *  of controls beside it would be two exports of the same table that disagree. */
+const COLUMNS: Column<MotorSweepRow>[] = [
+  {
+    key: "designation",
+    label: "Motor",
+    rowHeader: true,
+    sortValue: (r) => r.designation,
+    cell: (r) => (
+      <span className="font-sans">
+        <span className="font-medium text-zinc-800 dark:text-zinc-100">{r.designation}</span>{" "}
+        <span className="text-zinc-500 dark:text-zinc-400">· {r.manufacturer}</span>
+        {r.isDesign && (
+          <span className="ml-1.5 rounded bg-indigo-600 px-1.5 py-0.5 text-xs font-medium uppercase tracking-wide text-white">
+            Design
+          </span>
+        )}
+      </span>
+    ),
+  },
+  {
+    key: "motorClass",
+    label: "Class",
+    sortValue: (r) => r.motorClass,
+    cell: (r) => <span className="text-zinc-600 dark:text-zinc-300">{r.motorClass}</span>,
+  },
+  { key: "apogee", label: "Apogee", sortDir: -1, sortValue: (r) => r.apogee, cell: () => null },
+  { key: "maxVelocity", label: "Max V", sortDir: -1, sortValue: (r) => r.maxVelocity, cell: () => null },
+  { key: "railExitVelocity", label: "Rail exit", sortDir: -1, sortValue: (r) => r.railExitVelocity, cell: () => null },
+  { key: "thrustToWeight", label: "T:W", sortDir: -1, sortValue: (r) => r.thrustToWeight, cell: () => null },
+  { key: "staticMarginCal", label: "Margin", sortDir: -1, sortValue: (r) => r.staticMarginCal, cell: () => null },
+  { key: "flutterMargin", label: "Flutter", sortDir: -1, sortValue: (r) => r.flutterMargin, cell: () => null },
+  { key: "optimumDelay", label: "Delay", sortDir: -1, sortValue: (r) => r.optimumDelay, cell: () => null },
+];
 
 /** Every "<column>:<direction>" the sort can be in, so a remembered value from a build with a
  *  different column set is discarded rather than leaving the table sorted on nothing. */
@@ -303,149 +332,80 @@ function SweepTable({
 }) {
   // Which column the table is sorted on is a view the flyer chose deliberately — someone picking a
   // motor on flutter margin is doing that across every design they open, not once. Direction rides
-  // along in the same stored value so the pair can't come back inconsistent.
+  // along in the same stored value so the pair can't come back inconsistent. The primitive takes the
+  // sort as a CONTROLLED pair for exactly this: persistence here validates against the column list
+  // rather than writing and reading back, and this panel also needs to KNOW the order, because its
+  // own CSV comes out in the order on screen.
   const [stored, setStored] = usePersistedChoice<string>("motorSweep.sort", "apogee:desc", SORT_CHOICES);
-  const [key, dir] = stored.split(":") as [SortKey, "asc" | "desc"];
+  const [key, dir] = stored.split(":") as [string, "asc" | "desc"];
   const sort = { key, dir: (dir === "asc" ? 1 : -1) as 1 | -1 };
-  const setSort = (next: { key: SortKey; dir: 1 | -1 }) =>
-    setStored(`${next.key}:${next.dir === 1 ? "asc" : "desc"}`);
-  const col = COLUMNS.find((c) => c.key === sort.key)!;
-  const sorted = [...rows].sort((a, b) => {
-    const x = col.get(a);
-    const y = col.get(b);
-    // A motor with no flutter estimate (no fins to flutter) sorts last either way rather than
-    // pretending to be the best or worst of them.
-    if (typeof x === "number" && typeof y === "number") {
-      const xb = !Number.isFinite(x);
-      const yb = !Number.isFinite(y);
-      if (xb || yb) return xb && yb ? 0 : xb ? 1 : -1;
-      return (x - y) * sort.dir;
-    }
-    return String(x).localeCompare(String(y)) * sort.dir;
-  });
+
+  // The unit-bearing cells, kept here rather than in COLUMNS because they close over `units`. The
+  // amber flag rides on a span INSIDE the cell: colour inherits, so the rendered result is identical
+  // to the `<td>`-level class it replaces, and the primitive keeps ownership of the cell's own layout.
+  const amber = (on: boolean) => (on ? "text-amber-700 dark:text-amber-300" : undefined);
+  const cells: Record<string, (r: MotorSweepRow) => React.ReactNode> = {
+    apogee: (r) => d.q(d.altitude(r.apogee, units)),
+    maxVelocity: (r) => d.q(d.speed(r.maxVelocity, units)),
+    railExitVelocity: (r) => {
+      const slow = r.railExitVelocity > 0 && r.railExitVelocity < RAIL_EXIT_GUIDELINE_MPS;
+      return (
+        <span className={amber(slow)}>
+          {d.q(d.speed(r.railExitVelocity, units))}
+          {slow && (
+            <Flag note={`below the ~${d.q(d.speed(RAIL_EXIT_GUIDELINE_MPS, units))} guideline for a stable rail departure`} />
+          )}
+        </span>
+      );
+    },
+    thrustToWeight: (r) => {
+      const low = r.thrustToWeight < LIFTOFF_TWR_GUIDELINE;
+      return (
+        <span className={amber(low)}>
+          {d.fmt(r.thrustToWeight, 1)}
+          {low && <Flag note={`below the ~${LIFTOFF_TWR_GUIDELINE}:1 rule of thumb for clean rail clearance`} />}
+        </span>
+      );
+    },
+    staticMarginCal: (r) => d.q(d.calibers(r.staticMarginCal)),
+    flutterMargin: (r) => {
+      const thin = Number.isFinite(r.flutterMargin) && r.flutterMargin < RECOMMENDED_FLUTTER_MARGIN;
+      return (
+        <span className={amber(thin)}>
+          {Number.isFinite(r.flutterMargin) ? d.flutterMargin(r.flutterMargin) : "—"}
+          {thin && (
+            <Flag note={`below the recommended ${RECOMMENDED_FLUTTER_MARGIN}× fin-flutter margin at this speed`} />
+          )}
+        </span>
+      );
+    },
+    optimumDelay: (r) => (Number.isFinite(r.optimumDelay) ? d.q(d.seconds(r.optimumDelay)) : "—"),
+  };
+  const columns = COLUMNS.map((c) => (cells[c.key] ? { ...c, cell: cells[c.key] } : c));
+
+  // Sorted here as well as inside the table, because the CSV must come out in the order on SCREEN —
+  // a table you sorted and then exported unsorted is a different table from the one you were reading.
+  const col = COLUMNS.find((c) => c.key === sort.key) ?? COLUMNS[0];
+  const sorted = [...rows].sort((a, b) => compareCells(col.sortValue!(a), col.sortValue!(b), sort.dir));
+
   // The design's own row against the flight the flyer actually read — see `ballisticGap` for why a
   // small difference is the method rather than a discrepancy.
   const gap = ballisticGap(sorted.find((r) => r.isDesign)?.apogee, designApogee);
 
-  // Re-clicking the sorted column flips it; a new column starts the way that column is most
-  // useful — biggest first for a number, A→Z for a name.
-  const click = (next: SortKey) =>
-    setSort(
-      sort.key === next
-        ? { key: next, dir: (sort.dir === 1 ? -1 : 1) as 1 | -1 }
-        : { key: next, dir: (COLUMNS.find((c) => c.key === next)!.numeric ? -1 : 1) as 1 | -1 },
-    );
-
   return (
     <div className="mt-3">
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm tabular-nums">
-          <thead>
-            <tr className="text-left text-[11px] uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-              {COLUMNS.map((c, i) => {
-                const active = sort.key === c.key;
-                return (
-                  <th
-                    key={c.key}
-                    className={"py-1 font-medium" + (i < COLUMNS.length - 1 ? " pr-4" : "")}
-                    aria-sort={active ? (sort.dir === 1 ? "ascending" : "descending") : "none"}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => click(c.key)}
-                      className={
-                        `inline-flex items-center gap-1 uppercase tracking-wide hover:text-zinc-800 dark:hover:text-zinc-100 ${TOUCH_TARGET_SQUARE} ` +
-                        (active ? "text-zinc-800 dark:text-zinc-100" : "")
-                      }
-                      title={`Sort by ${c.label.replace(/ /g, " ").toLowerCase()}`}
-                    >
-                      {c.label}
-                      <span aria-hidden className={active ? "" : "opacity-0"}>
-                        {sort.dir === 1 ? "▲" : "▼"}
-                      </span>
-                    </button>
-                  </th>
-                );
-              })}
-            </tr>
-          </thead>
-          <tbody className="font-mono">
-            {sorted.map((r) => {
-              const lowTW = r.thrustToWeight < LIFTOFF_TWR_GUIDELINE;
-              // The caption names this rule and the column was never checked against it. The engine
-              // already raises `low-rail-exit` on the flown design at the same threshold, so a motor
-              // could sit in this table unflagged while picking it raised a caution on the next screen.
-              const slowRail = r.railExitVelocity > 0 && r.railExitVelocity < RAIL_EXIT_GUIDELINE_MPS;
-              const thinFlutter = Number.isFinite(r.flutterMargin) && r.flutterMargin < RECOMMENDED_FLUTTER_MARGIN;
-              return (
-                <tr
-                  key={`${r.manufacturer}|${r.designation}`}
-                  className={
-                    "border-t border-zinc-100 dark:border-zinc-800 " +
-                    (r.isDesign ? "bg-indigo-50/70 dark:bg-indigo-500/10" : "")
-                  }
-                >
-                  <th
-                    scope="row"
-                    className="py-1.5 pr-4 text-left font-sans font-normal text-zinc-700 dark:text-zinc-200"
-                  >
-                    <span className="font-medium text-zinc-800 dark:text-zinc-100">{r.designation}</span>{" "}
-                    <span className="text-zinc-500 dark:text-zinc-400">· {r.manufacturer}</span>
-                    {r.isDesign && (
-                      <span className="ml-1.5 rounded bg-indigo-600 px-1.5 py-0.5 text-xs font-medium uppercase tracking-wide text-white">
-                        Design
-                      </span>
-                    )}
-                  </th>
-                  <td className="py-1.5 pr-4 text-zinc-600 dark:text-zinc-300">{r.motorClass}</td>
-                  <td className="py-1.5 pr-4 text-zinc-800 dark:text-zinc-100">{d.q(d.altitude(r.apogee, units))}</td>
-                  <td className="py-1.5 pr-4 text-zinc-800 dark:text-zinc-100">{d.q(d.speed(r.maxVelocity, units))}</td>
-                  <td
-                    className={
-                      "py-1.5 pr-4 " +
-                      (slowRail ? "text-amber-700 dark:text-amber-300" : "text-zinc-800 dark:text-zinc-100")
-                    }
-                  >
-                    {d.q(d.speed(r.railExitVelocity, units))}
-                    {slowRail && (
-                      <Flag note={`below the ~${d.q(d.speed(RAIL_EXIT_GUIDELINE_MPS, units))} guideline for a stable rail departure`} />
-                    )}
-                  </td>
-                  <td
-                    className={
-                      "py-1.5 pr-4 " +
-                      (lowTW ? "text-amber-700 dark:text-amber-300" : "text-zinc-800 dark:text-zinc-100")
-                    }
-                  >
-                    {d.fmt(r.thrustToWeight, 1)}
-                    {lowTW && (
-                      <Flag note={`below the ~${LIFTOFF_TWR_GUIDELINE}:1 rule of thumb for clean rail clearance`} />
-                    )}
-                  </td>
-                  <td className="py-1.5 pr-4 text-zinc-800 dark:text-zinc-100">{d.q(d.calibers(r.staticMarginCal))}</td>
-                  <td
-                    className={
-                      "py-1.5 pr-4 " +
-                      (thinFlutter ? "text-amber-700 dark:text-amber-300" : "text-zinc-800 dark:text-zinc-100")
-                    }
-                  >
-                    {Number.isFinite(r.flutterMargin) ? d.flutterMargin(r.flutterMargin) : "—"}
-                    {thinFlutter && (
-                      <Flag note={`below the recommended ${RECOMMENDED_FLUTTER_MARGIN}× fin-flutter margin at this speed`} />
-                    )}
-                  </td>
-                  {/* No per-cell `title` here either. It repeated one sentence about what the
-                      COLUMN means on every row, in an attribute a keyboard cannot reach and a phone
-                      cannot hover — and the caption below already says the same thing, once. */}
-                  <td className="py-1.5 text-zinc-800 dark:text-zinc-100">
-                    {Number.isFinite(r.optimumDelay) ? d.q(d.seconds(r.optimumDelay)) : "—"}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+      <DataTable
+        columns={columns}
+        rows={rows}
+        rowKey={(r) => `${r.manufacturer}|${r.designation}`}
+        caption="Motors swept over this airframe"
+        sort={sort}
+        onSortChange={(next) =>
+          setStored(next ? `${next.key}:${next.dir === 1 ? "asc" : "desc"}` : "apogee:desc")
+        }
+        rowProps={(r) => (r.isDesign ? { className: "bg-indigo-50/70 dark:bg-indigo-500/10" } : {})}
+        empty="No motor of this casing flew — widen the casing on the design, or pick a motor by hand."
+      />
       {/* The DESIGN row is the anchor every other row is read against, and on a design whose recovery
           opens before apogee it is NOT the flight shown one tab away — on the bundled USLI airframe the
           row reads 1,888 m against a flight of 342 m. The footnote below has always said the sweep is

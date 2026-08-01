@@ -591,8 +591,11 @@ describe("applyGeometryEdits — motor cluster count", () => {
     expect(mounts.length).toBe(1);
 
     // Give the starter a second mount already holding 3 — the air-start pod's shape.
-    const host = mounts[0] as RocketComponent & { motorMount: { overhang: number; clusterCount?: number } };
-    const pod: RocketComponent = {
+    // `mounts[0]` is a `RocketComponent`, a union whose members do not all carry `motorMount` — so a
+    // literal that spreads it and re-states the field is rejected against the union as a whole. Only
+    // `BodyTube` and `InnerTube` have one, and only those two can be here.
+    const host = mounts[0] as BodyTube;
+    const pod: BodyTube = {
       ...structuredClone(host),
       id: "pod",
       name: "airstart pod",
@@ -632,7 +635,7 @@ describe("applyGeometryEdits — motor cluster count", () => {
     const host = flattenRocket(base)
       .map((p) => p.component)
       .find((c) => "motorMount" in c && c.motorMount)!;
-    const twin: RocketComponent = { ...structuredClone(host), id: "twin", name: "twin", children: [] };
+    const twin: BodyTube = { ...(structuredClone(host) as BodyTube), id: "twin", name: "twin", children: [] };
     const two: Rocket = {
       ...base,
       stages: base.stages.map((st, i) =>
