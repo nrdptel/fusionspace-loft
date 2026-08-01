@@ -42,12 +42,21 @@ own Download button undid Loft's own safety refusal (below).
 Baseline before anything changed, all four green: lint 0 errors / 1 warning (the standing `setDraft`
 one), **944 unit**, build, e2e, corpus **35 design files, 14/14**. Nothing inherited was red.
 
-**Two increments, one per track.**
+**Four increments. P1 is finished; R6 is three slices in.**
 
-| track | increment |
-|---|---|
-| **P1** | the two numeric-input primitives merged into one — `LoftApp`'s `Num` deleted, its 28 call sites and `MonteCarlo`'s 7 now the same `NumberField`. **P1 is DONE.** |
-| **R6** | Sev-1: a stated launch weight is no longer deletable after a round trip through Loft's own export |
+| # | track | increment |
+|---|---|---|
+| 1 | **P1** | the two numeric-input primitives merged into one — `LoftApp`'s `Num` deleted, its 28 call sites and `MonteCarlo`'s 7 now the same `NumberField`. **P1 is DONE.** |
+| 2 | **R6** | Sev-1: a stated launch weight is no longer deletable after a round trip through Loft's own export |
+| 3 | **R6** | per-configuration ignition and configuration names survive a save — an airstart study stops being flattened to one delay |
+| 4 | **R6** | a freeform fin keeps its real outline instead of being written back as an equal-area trapezoid |
+
+**The pattern across 2, 3 and 4 is worth naming: all three were the exporter failing to write something
+the importer already read.** `standsForAirframe` had nowhere to go, but `<ignitionconfiguration>`,
+`<name>` on a configuration and `<finpoints>` were all being parsed on the way in and simply never
+emitted on the way out. **When looking for the next R6 slice, diff what `adapt.ts` reads against what
+`export.ts` writes** — that is where the remaining ones are, and the fan-out inventory in `ROADMAP.md`
+already names them (`plugged`, canopy override mass, component ids).
 
 ### The Sev-1: Loft's Download button undid Loft's own refusal
 
@@ -70,6 +79,19 @@ un-deletable. The cause was not the design: `massByComponent` reports 0 for ever
 by a stage-level subtree override and attributes the lumped mass to **no component at all**, so a
 2000 g stage read as massless. **Deriving from what a removal COSTS avoids that whole class; deriving
 from a sum of parts walks straight into it.**
+
+### The freeform fin, and the near-miss the fix itself created
+
+The largest flight-number loss in the round trip: a freeform fin is defined only by its outline, the
+model reduced that away at import, and the exporter had to invent an equal-area trapezoid whose tip
+solution goes negative on a hard taper — so the exported fin came back LARGER than the one drawn. All 9
+sets on the 8 corpus designs now survive with static margin unchanged to three decimals.
+
+**Then keeping the outline created a new way to lose an edit, and only driving it showed that.** A span
+edit moves the set's `height` and `area`; the points sat there unchanged, so an export wrote the fin
+the flyer started with and saving the design silently undid the edit — `Pods`' "Cockpit" set stretched
+7.0 mm → 10.4 mm reopened at 7.0 mm. **A cache of the input is a new thing that can go stale, and the
+edit path is where to look for it.**
 
 ### The field merge, and the three things only the built export showed
 
