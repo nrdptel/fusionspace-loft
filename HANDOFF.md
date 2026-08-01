@@ -28,12 +28,15 @@ fixed inside R7 increment 1: above about M0.95 an *airfoil* fin was billed more 
 than a *square* one, so the cross-section what-if told a flyer that streamlining their fins costs
 apogee. Pre-existing; the per-set split is what made it reachable on a mixed design.
 
-**Three increments, three pull requests, all gated and all opened.** Production was checked rather
-than assumed: `https://loft.fusionspace.co/flight` returns a real page titled *Flight — Loft*, so P2
-increment 1 is reachable by a flyer. #102 (P2.1 + R7 written) and #103 (R7.1) are MERGED on green CI —
-which runs the real-design corpus and the published accuracy census, the checks a sandbox without
-`FIXTURES_TOKEN` cannot reproduce. #104 (P2.2) was opened green locally; **confirm it merged, and if
-CI went red, fix forward on the same branch.**
+**Everything opened is merged.** #102 (P2.1 + R7 written), #103 (R7.1) and #104 (P2.2) are all on
+`main` — confirmed against `git log`, not assumed. #105 carries this run's four increments (P2.3,
+R7.2, R7.3, P2.4). CI runs the real-design corpus and the published accuracy census, the checks a
+sandbox without `FIXTURES_TOKEN` cannot reproduce.
+
+Production was checked rather than assumed, 2026-08-01: `https://loft.fusionspace.co/` and all four
+workspace routes return **200**, and so does the retired `/analyze`, so P2 increment 1's promise that
+an address which shipped once never becomes a dead end is true of the deployed site and not just of
+the export.
 
 ## The arc so far
 
@@ -46,11 +49,78 @@ CI went red, fix forward on the same branch.**
 | R5 — author a staged rocket | SHIPPED 2026-08-01 |
 | R6 — a built design leaves Loft intact | SHIPPED 2026-08-02 |
 | P1 — one design system, adopted | SHIPPED 2026-08-02 |
-| **P2 — workspaces as routes** | **IN PROGRESS** — increments 1 and 2 of 4–6 shipped 2026-08-02 |
-| **R7 — per-set fin drag, and the honest aero the builder needs** | **IN PROGRESS** — written from the after-list AND increment 1 of 3–5 shipped, 2026-08-02 |
+| **P2 — workspaces as routes** | **IN PROGRESS** — increments 1–4 of 4–6 shipped; 1–2 on 2026-08-01, 3–4 on 2026-08-01 (second run). Remaining: the persistent design strip |
+| **R7 — per-set fin drag, and the honest aero the builder needs** | **IN PROGRESS** — increments 1–3 of 3–5 shipped. Increment 3 REJECTED the remaining two collapses with the measurement that explains all three attempts; the next slice is not a fin slice |
 | P3–P5 | NOT STARTED |
 
-## This session (2026-08-02)
+## This session — second run (2026-08-01)
+
+Four increments, all merged through PR #105. Baseline inherited green.
+
+**A note on the dates in this file.** Entries below say `2026-08-02` for work whose commits git dates
+`2026-08-01`; `date -u`, the harness clock and every commit agree on the earlier date. The older prose
+is left alone rather than rewritten on a guess, but entries from this run use the date the commit
+actually carries. If a later session can settle it, settle it — do not add a third convention.
+
+### P2 increment 3 — the static-export assertion
+
+`scripts/check-routes.mjs`, from `postbuild`. Four claims, each driven as a negative control before
+the check was trusted. **A postbuild script rather than a vitest test on purpose:** `npm test` runs
+before `npm run build`, so a test reading `out/` would skip itself on a clean checkout, and a suite
+that skips prints almost exactly like one that passed.
+
+### R7 increment 2 — `runFromDocument` forwards what it is given
+
+It named three of `RunOptions`' twelve fields and dropped nine silently. `dragScale` 0.1 and 3.0 both
+returned the identical −7.57% apogee on `03.Three-stage.ork`; the range is now +175.81% to −36.27%.
+This is R7's own instrument, and increment 3 could not have been measured without it.
+
+### R7 increment 3 — the third attempt at per-set fin drag, and why all three failed
+
+Implemented per-set thickness (and then per-set sweep on top), measured, **reverted both**. The
+numbers are in `ROADMAP.md` and on `/docs/limitations`. The finding that matters, and the reason this
+increment is a measurement rather than a feature:
+
+> A collapsed value is **not** biased in one direction. It lands wherever the last set read puts it,
+> so correcting it ADDS drag to some designs and takes it from others — of the twelve it changes, the
+> eight with comparable stored results went both ways. What matters is which designs it takes drag
+> *from*, and the two the *done when* protects are ones Loft already flies high, i.e. already
+> under-dragged from somewhere else. The collapses are partly compensating for a separate under-drag.
+
+So **the next R7 slice is not a fin slice**: find the drag `Complex.Two-Stage.CDX1` is missing. Its
+J90W configuration is already a `KNOWN_ISSUES` entry saying RASAero stores nearly the same apogee for
+two very different motors and Loft does not reproduce it. Do not re-implement per-set thickness or
+sweep before that; it is now three attempts and three reverts.
+
+A hypothesis refuted on the way: the `0.35` `cos²Λ` floor is NOT what breaks that design (its per-set
+factors are 0.500/0.640/0.367 against a design-wide 0.640, none floored). The floor still wants a
+source; charged per set it binds 15 of 51 fin surfaces across 13 designs, against 8 floored today.
+
+### P2 increment 4 — the two-screen clause, pinned, and a record corrected
+
+`e2e/depth.spec.ts`. See item 2 of the next-session list below for the numbers and the cause — the
+short version is that **depth to a route's answer is not page height**, this file had been conflating
+them, and the clause was being recorded as failing when three of four routes pass comfortably.
+
+### What went wrong, and what it cost
+
+- **A subagent's headline finding was false on both of its load-bearing premises** and was nearly
+  acted on as a Sev-1: it reported the recents shelf's `Remove` as a one-way door breaching a
+  `DESIGN.md` 8 px destructive-separation rule. There is no such rule in `DESIGN.md`, and the removal
+  is recoverable — `onForgetRecent` deliberately holds the entry and a put-back affordance renders
+  from `removedRecents`. Both took about two minutes to check. **Check the premises of a finding
+  before its severity**, especially one that would preempt the milestone.
+- **A measurement taken at the wrong moment set a ratchet 71 px too tight.** The spine cap was first
+  read right after `loadSample` — before navigation settled — giving ≤1000 px when the real figure is
+  1071 px on every route. Caught only because the ratchet was re-run across all four routes instead
+  of one. Measure the thing where it lives, not where it is convenient.
+- **My own prose was false twice and caught by re-reading it against the data**, both times the same
+  shape: a clean directional claim ("both collapses over-state fin drag") that the per-design numbers
+  contradict (`APEX_K_Dart.ork` goes the other way). Both were corrected before commit. This keeps
+  happening; the fix that works is re-reading each numeric claim against the measurement that
+  produced it, not re-reading for style.
+
+## Previous session (2026-08-02)
 
 Baseline before anything changed, all four green: lint 0 errors / 1 warning (the standing `setDraft`
 one), **950 unit**, build, **e2e 178 + 14 = 192**, corpus **35 design files, 14/14**. Nothing
