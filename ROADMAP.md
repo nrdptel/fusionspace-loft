@@ -848,7 +848,40 @@ against 10.43.
 
 ## R6 — A built design leaves Loft intact
 
-**Status:** NOT STARTED
+**Status: IN PROGRESS — 2026-08-02.** The first slice is a Sev-1 rather than a fidelity gap, and it
+went first for that reason.
+
+**The Sev-1, fixed.** A RASAero file states one launch weight and no per-part masses, so its whole
+mass is a single point mass, and `removalRefusal` refuses to delete it — taking it out leaves a rocket
+with no mass at all, which Loft would still fly and still report a confident apogee for. That refusal
+hung on a `standsForAirframe` flag the RASAero adapter set by hand, and `.ork` has nowhere to write it
+down. So Loft's own Download button undid Loft's own safety refusal: save `Show-off.CDX1` as a `.ork`,
+reopen it, and the 453.6 g is still there but is now deletable — 453.6 g → 0.0 g, still flying.
+`OR vs RAS Test 1.CDX1` went 17145.8 g → 12777.0 g and still reported 7373 m.
+
+It is now **derived rather than remembered**, in the single import funnel, from the thing the refusal
+actually claims: *would taking this out leave the stage with no mass at all?* That question can be
+asked of any design, from any format, at any point in its life, and there is nothing left to lose in a
+file. Per stage, because a staged rocket is several airframes flown in sequence — a whole-design test
+sees `Complex.Two-Stage.CDX1`'s two airframe masses holding each other up and flags neither.
+
+Checked against all 35 corpus designs: it reproduces the hand-set flag **exactly**, both as imported
+and after a round trip, and does not fire on `EscapeVelocity.ork`, whose stage carries its 2000 g as a
+subtree override and whose one mass object is therefore a real part and stays removable. A first
+attempt at the predicate — "the stage's structural mass is zero" — DID fire on it, because
+`massByComponent` reports 0 for components subsumed by a stage-level override and attributes the
+lumped mass to no component at all. Deriving from what removal costs avoids that class of mistake
+entirely; deriving from a sum of parts walks into it.
+
+**What the milestone's own *done when* needs next**, measured rather than guessed: on the first
+export → re-import, **0 of 36** designs (35 corpus + the authored starter) reach a byte-equivalent
+model — 11 field diffs at best, 146 at worst; the model becomes a fixpoint only on the SECOND trip. So
+the next increment is the test that states which fields are allowed to move and which are not, and the
+named exceptions are already inventoried: freeform fin sets written back as trapezoids (9 sets, 8
+designs, up to −32% static margin), per-configuration ignition collapsing to one delay (all 5 of
+`Airstart timing.ork`'s configs become identical), motor-configuration names dropped (29 configs, 9
+designs), plugged motors losing `plugged` and reading as a 0 s delay (42 instances), and canopies
+acquiring an invented `<overridemass>` that then defeats a later resize (24 canopies, 18 designs).
 
 **Outcome.** What a flyer builds is theirs to keep and to take elsewhere.
 
@@ -866,10 +899,36 @@ pinned.
 
 ## P1 — One design system, adopted
 
-**Status: IN PROGRESS — one clause of the *done when* left, and it is named precisely below.** As of
-2026-08-01 every §9 count is at its target or its recorded honest floor, all six tables are on
-`DataTable`, and the hand-rolled `<button>` count is down from 17 to the three primitives that are
-not buttons.
+**Status: DONE — 2026-08-02.** Every §9 count is at its target or its recorded honest floor, all six
+tables are on `DataTable`, the hand-rolled `<button>` count is down from 17 to the three primitives
+that are not buttons, and the last clause — *fields* — closed when the two numeric-input primitives
+became one. `components/LoftApp.tsx`'s `Num` is gone; its 28 call sites and `MonteCarlo`'s 7 are the
+same `NumberField`, so §5's "every numeric input in either app is this" is now true rather than
+aspirational. `PRIMITIVE_ADOPTERS.NumberField` is 2 and ratcheted.
+
+**What the merge cost, and what it caught.** The rule was *keep the stronger of the two at every
+point, never the newer*, and four of the six disagreements went the older primitive's way — see the
+table in `components/ui.tsx`. Driving the merged field in the built export then turned up three things
+no reading of either implementation would have:
+
+- `display()` rendered a numeric **0 as blank**, which is true of the dispersion panel ("no spread")
+  and false of the editor. Typing −30 into Rail angle is pulled to its 0 bound, the bound lands in the
+  flight, and the box went empty — a field showing nothing while the flight used the number it had
+  just been handed. Blank is now the caller's word: the 7 dispersion fields pass `x || ""` with an
+  explicit `placeholder="0"`, so they keep the quiet empty box AND can still say "flying 0" when they
+  refuse something.
+- The visible hint sat **inside the `<label>`**, so it became part of the field's accessible NAME: one
+  box was announced as "Field elev. (m) Height of the launch site above sea level". The guidance and
+  the refusal now sit outside the label and are reached by `aria-describedby`, which is what a
+  description is for; the name is one stable sentence again.
+- Dropping `Num`'s `title` removed the **range words** from 28 fields with nothing put back — they had
+  been hover-only, which §8 forbids outright, but hover-only is still more than nothing. A bounded
+  field with no hint of its own now states its bounds *visibly*.
+
+The latch that clears a refusal when what is being flown changes was the one behaviour recorded only
+in a comment, and it is now pinned by an e2e test with a negative control: disable the latch, rebuild,
+and the field stays `aria-invalid` in imperial while quoting a metric value — the one-way door the
+comment describes.
 
 | §9 count | target | 2026-08-01 |
 |---|---|---|
@@ -901,6 +960,11 @@ sites**, while `ui.tsx`'s `NumberField` is used at **7**, all inside `MonteCarlo
 numeric input in either app is this". The two already disagree: `Num`'s label is `text-[11px]` and it
 bakes the unit into the label string, `NumberField`'s is `text-sm` with a `unit` prop, and
 `NumberField` itself carries no touch minimum while `Num` does.
+
+**Done 2026-08-02.** The paragraph below is the plan as it stood; it is kept because the *why* still
+governs the merged primitive. What actually shipped differs on one point: the `unit` prop won as
+planned, but the 28 converted call sites still bake their unit into the label string, so the prop is
+the vocabulary rather than the practice. Converting those is cosmetic and is filed in `BACKLOG.md`.
 
 **Reconcile before converting, and half of that is done.** `Num` owns the refusal behaviour the SAFETY
 invariant requires — a value that cannot mean anything physically is bounded at the field rather than

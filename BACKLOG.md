@@ -12,6 +12,36 @@ this file, and deliberately does **not** cap craft or product work, because that
 track in `ROADMAP.md` with its own *done when*. Rough edges, missing affordances, and findings too
 big for one pass. Newest first.
 
+- **The e2e run exhausts the box's file descriptors, and the failures it causes look like product
+  regressions.** `npm run test:e2e` serves `out/` with `npx serve`; partway through a full run the
+  server dies with `EMFILE: too many open files`, and every test still to start fails on
+  `page.goto: net::ERR_CONNECTION_REFUSED`. Because `touch.spec.ts` runs last it surfaces as a clean
+  block of 7–8 touch-contract failures — which reads exactly like "my change broke the touch
+  contract". `touch.spec.ts` passes 14/14 on its own, twice, in the same commit.
+
+  **`serve` is the process that REPORTS the error, not the one that causes it**, and the obvious
+  diagnosis is wrong twice over. It is not a `serve` leak: with the e2e config running, 200 repeated
+  requests and 400 distinct files each leave it at a steady **5 open descriptors**. And it is not
+  worker concurrency: `--workers=1` fails the same way, one test worse (8 rather than 7). What is
+  actually happening is that the box crosses its descriptor ceiling while Playwright drives Chromium,
+  and the small static server is simply the next process to ask for one. `ulimit -n` is already at its
+  4096 hard cap here, so it cannot be raised from inside the run.
+
+  Until it is fixed, a full green has to be assembled from two passes — the four other spec files,
+  then `touch.spec.ts` — which is what the 2026-08-02 session gated on. Worth fixing properly because
+  it costs the diagnosis on every run and it teaches a session to distrust a red gate, which is the
+  one thing the gate must never do. The likeliest real fix is to stop launching a separate server
+  process per run and serve from inside the Playwright process, or to reduce the browser's descriptor
+  appetite (fewer contexts, `--single-process`).
+
+
+- **The merged `NumberField`'s `unit` prop is the vocabulary, not the practice.** The merge kept
+  `unit` — a unit in its own span, pointed at by `aria-describedby` — precisely because baking it into
+  the label string means a units switch cannot reach it and a screen reader reads it as part of the
+  field's name. All 28 converted design-editor call sites still bake it: `` label={`Rail length (${lenU})`} ``.
+  They are correct today only because the label string is recomputed when `imperial` changes. Converting
+  them is mechanical, touches one file, and would let the accessible name stop changing with the toggle.
+
 - **`secondary`'s hover fill and `sunken`'s surface are the same token, so a secondary button on a
   sunken surface has no fill feedback.** §5 gives `secondary` `hover:bg-zinc-50`; §2's sunken surface
   IS `bg-zinc-50`. On the import drop zone — the app's first screen — "Start a new design" therefore
