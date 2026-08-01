@@ -1489,13 +1489,24 @@ radius values for one role; `text-xs` and `text-sm` disagreeing between the two 
 
 ## P2 — Workspaces as routes
 
-**Status: IN PROGRESS** — increment 1 of 4–6 shipped 2026-08-02. Flight, Design and Analyze are three
-real static routes (`/flight`, `/design`, `/analyze`) behind one navigation spine, replacing the URL
-fragment and the `Tabs` tablist. Pinned by `e2e/smoke.spec.ts`'s *each workspace is its own route* and
-*a workspace with no design behind it returns to the import screen*. **Not done:** `analyze` still
-carries sweep, Monte-Carlo AND the cross-checks together, so three of the five jobs the *done when*
-names share one route; the static-export assertion is not written; and the design drawing is reachable
-only from `/design` (`COMPETITION.md` row 31).
+**Status: IN PROGRESS** — increments 1 and 2 of 4–6 shipped 2026-08-02.
+
+*Increment 1.* Flight, Design and Analyze became three real static routes behind one navigation
+spine, replacing the URL fragment and the `Tabs` tablist. Pinned by `e2e/smoke.spec.ts`'s *each
+workspace is its own route*, *a workspace with no design behind it returns to the import screen* and
+*the wordmark cannot strand a loaded design at an address that names no workspace*.
+
+*Increment 2.* `analyze` was one route carrying three of the five jobs the *done when* names, while
+the two surfaces that belong beside its second solver sat in the FLIGHT panel a workspace away. It is
+now `/sweep` (the motor and parameter sweeps and the dispersion) and `/validate` (the file's own
+stored numbers, its step-by-step flight, and the independent solver — every "does anything else
+agree?" surface in one place, which North Star #1 asks for and which could not happen while they were
+on different routes). Four workspaces plus the import root; a session stored on `analyze` resumes on
+`sweep` rather than falling back to the flight.
+
+**Not done:** the static-export assertion is not written; the design drawing is still reachable only
+from `/design` (`COMPETITION.md` row 31); and "no route more than two screens deep to its primary
+answer" has not been measured.
 
 **Outcome.** Loft is shaped like an application, not a scrolling page.
 

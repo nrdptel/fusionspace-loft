@@ -187,8 +187,9 @@ const PRIMITIVE_ADOPTERS: Record<string, number> = {
    *
    *  `Tabs` had exactly one adopter — the workspace switcher — and `DESIGN.md` §5 says outright what
    *  that was: "Tabs switch views over one subject *within* a route. Not for navigation between
-   *  jobs; that is a route (§7)." Flight, Design and Analyze are three JOBS, so on 2026-08-02 they
-   *  became three routes and the switcher became `components/WorkspaceNav.tsx`, a `<nav>` of links.
+   *  jobs; that is a route (§7)." Flight, Design, Sweep and Cross-check are four JOBS, so on
+   *  2026-08-02 they became four routes and the switcher became `components/WorkspaceNav.tsx`, a
+   *  `<nav>` of links.
    *  The primitive stays exported for the case it is actually for; nothing renders it today. */
   Tabs: 0,
   /** The tab bar's own treatment, hoisted to a token when two components came to render it — the

@@ -66,7 +66,7 @@ export function noStoredResultsReason(statuses: (string | undefined)[], tool: st
   return (
     `This design carries ${held}${said}, so there is nothing stored in the file to put beside Loft's ` +
     `own numbers above. Import a design whose ${tool} simulation has been run and the comparison ` +
-    `appears here — or open the RocketPy cross-check under Analyze, which flies the design in an ` +
+    `appears here — or run the RocketPy cross-check below, which flies the design in an ` +
     `independent solver and needs nothing stored in the file.`
   );
 }

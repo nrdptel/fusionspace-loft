@@ -15,7 +15,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { isEditedValue } from "./model/edit";
-import { WORKSPACES, type Workspace } from "./workspaces";
+import { resolveWorkspace, type Workspace } from "./workspaces";
 
 const KEY = "loft.session";
 /** localStorage is typically a ~5 MB budget for the whole origin, and base64 costs a third on top
@@ -81,9 +81,11 @@ function readSlot(key: string): SavedSession | null {
       v: 1,
       design: parsed.design,
       name: typeof parsed.name === "string" ? parsed.name : "Saved design",
-      // Asked of the workspace list rather than spelled out, so a workspace added there is not
-      // silently discarded on the next read by a check nobody remembered to extend.
-      opensOn: (WORKSPACES as readonly string[]).includes(parsed.opensOn) ? parsed.opensOn : "flight",
+      // Asked of the workspace vocabulary rather than spelled out, so a workspace added there is not
+      // silently discarded on the next read by a check nobody remembered to extend — and a workspace
+      // that has since been SPLIT resumes on whichever route took its job, instead of falling back
+      // to the flight and moving the flyer somewhere they never were.
+      opensOn: resolveWorkspace(parsed.opensOn) ?? "flight",
       units: parsed.units === "imperial" ? "imperial" : "metric",
       simIndex: Number.isInteger(parsed.simIndex) ? parsed.simIndex : 0,
       edits: parsed.edits && typeof parsed.edits === "object" ? parsed.edits : {},
