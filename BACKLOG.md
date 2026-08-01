@@ -12,6 +12,49 @@ this file, and deliberately does **not** cap craft or product work, because that
 track in `ROADMAP.md` with its own *done when*. Rough edges, missing affordances, and findings too
 big for one pass. Newest first.
 
+- **A workspace switch's router payload cannot be precached the way the routes are, because its URL
+  carries a cache-busting query.** Now that the workspaces are routes, a client-side switch does not
+  fetch the route's `.html` at all — it fetches the React payload. **Measured on the built export by
+  driving a real spine click:** the requests are `/analyze/__next._tree.txt?_rsc=5CB68i4pnAekjehf`,
+  `…/__next._head.txt?_rsc=7h4NYy5eoyMcNlUN`, `…/__next.!KGFwcCk.analyze.txt?_rsc=Fjb1PRZXxsU6F8Ep`
+  and `…__PAGE__.txt?_rsc=Fvwv7geUS-cfWA_u` — four per route, each with an `?_rsc=` token.
+
+  **A fix was written, measured, and reverted in the same increment, and the reason is worth keeping.**
+  Adding every `out/**/*.txt` to the precache list stores them under their BARE paths, and the
+  worker's runtime lookup is `caches.match(req)` with the default `ignoreSearch: false` — so a
+  precached `/analyze/__next._head.txt` never matches a request for the same path with `?_rsc=…`.
+  The change would have shipped a 78-entry precache list, and a comment claiming an offline benefit,
+  that could not deliver one. It also tripled the worker's install-time request count (25 → 103) on a
+  box whose descriptor ceiling already destabilises the suite, and the offline-docs test failed once
+  under full-suite load with it in (6/6 in isolation, and green with it out).
+
+  **What is actually true today:** `<Link>` prefetch fetches all four payloads for every workspace
+  during the first online load — observed in the same trace — and the worker's stale-while-revalidate
+  branch caches each under its full `?_rsc=` URL. So after any online visit the switch works offline.
+  The gap is narrow: a flyer who goes offline between first paint and prefetch completing, or a
+  browser that skips prefetch (save-data, a slow link), gets a document load on the first switch —
+  which remounts the app and discards a running Monte-Carlo. **The real fix is a fetch-handler rule**
+  that matches `_rsc` payloads with `ignoreSearch: true` (safe: the cache is already per-build, and
+  `_rsc` is a cache-buster, not a segment selector), and only then is precaching them worth anything.
+
+- **Back does nothing for a press or two after "Import another", once workspaces are routes.**
+  Discarding a design leaves the history stack holding the workspace addresses it was looked at
+  through — `/flight`, `/analyze` — and each one now has no design behind it, so the guard in
+  `components/LoftApp.tsx:1441` sends it to `/` with `router.replace`. **Measured on the built export
+  (driven, not reasoned):** open the 38 mm sample, visit Flight → Analyze → Design, press "Import
+  another", then press Back. Presses 1 and 2 both land on `/` with the import screen already on
+  screen — nothing visibly happens; press 3 leaves the app. So **two dead presses**, one per stale
+  workspace entry beyond the one `reset` itself rewrote.
+
+  **Not a trap and not a Sev-1** — the flyer sees the import screen throughout, never an empty or
+  broken state, and Back does eventually leave. Filed rather than fixed because every alternative
+  measured worse: `push` instead of `replace` makes Back re-enter the stale route forever; rendering
+  the import screen AT `/analyze` puts an address on screen that names a workspace with nothing in
+  it, which is the lie the redirect exists to prevent; and the History API cannot drop entries. The
+  honest fix is probably for the workspace routes not to enter history as separate entries at all
+  while one design is open — worth costing against how much a flyer uses Back inside the app, which
+  nothing measures today.
+
 - **Saving a design breaks the parachute-resize control, and the obvious fix is wrong — measured.**
   `lib/ork/export.ts` writes `<overridemass>` equal to the computed canopy mass whenever a canopy has
   no override of its own, on 24 canopies across 18 corpus designs. `lib/sim/mass.ts` prefers
