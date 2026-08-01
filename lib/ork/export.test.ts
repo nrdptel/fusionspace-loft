@@ -372,6 +372,57 @@ describe("exportOrk — real-design features round-trip (regression)", () => {
     expect(sc?.["cfg-2"]?.delay).toBeCloseTo(1.5, 6);
   });
 
+  it("keeps each configuration's name and its own airstart delay", async () => {
+    // A design can airstart a mount at a different delay in EACH motor configuration — one
+    // `<ignitionconfiguration configid=…>` block per config — which is exactly how a staggered
+    // airstart study is set up. The importer has always read them; the exporter wrote only the
+    // mount-level pair, taken from the FIRST configuration, so the round trip applied one config's
+    // timing to all of them. Measured on the corpus's `Airstart timing.ork`: four configurations at
+    // +1 s, +2 s, +4 s and +6 s all came back at +0 s, and its five configurations — which fly
+    // 1268.50 m to 1296.52 m — all flew the identical 1296.52 m. The configuration NAME, which is how
+    // a flyer picks which flight they are looking at, was never written at all.
+    //
+    // Built here rather than committed as a fixture: the corpus design that found this carries 280 kB
+    // of stored flight data none of this needs.
+    const base = await importOrk(
+      new Uint8Array(readFileSync(resolve(process.cwd(), "e2e/fixtures/two-stage-firm-booster.ork"))),
+    );
+    const seed = base.rocket.configurations[0];
+    const upper = seed.instances[0];
+    const doc: OrkDocument = {
+      ...base,
+      rocket: {
+        ...base.rocket,
+        configurations: [0, 2, 5].map((delay, n) => ({
+          id: `airstart-${n}`,
+          name: `Airstart @${delay}s`,
+          instances: seed.instances.map((inst) =>
+            inst === upper ? { ...inst, ignitionDelay: delay, ignitionEvent: "burnout" } : { ...inst },
+          ),
+        })),
+        defaultConfigId: "airstart-0",
+      },
+    };
+
+    const back = await roundtrip(doc);
+    const names = (d: OrkDocument) => d.rocket.configurations.map((c) => c.name ?? null);
+    const delays = (d: OrkDocument) =>
+      d.rocket.configurations.map((c) => c.instances.map((i) => i.ignitionDelay ?? 0));
+
+    expect(names(back)).toEqual(["Airstart @0s", "Airstart @2s", "Airstart @5s"]);
+    expect(names(back)).toEqual(names(doc));
+    expect(delays(back)).toEqual(delays(doc));
+
+    // The half that matters: these are three DIFFERENT flights, and they still are afterwards.
+    const apogees = (d: OrkDocument) =>
+      d.rocket.configurations.map((c) =>
+        Number(runFlight(d.rocket, { configId: c.id }).result.summary.apogee.toFixed(2)),
+      );
+    const flown = apogees(doc);
+    expect(new Set(flown).size, `three airstart delays should fly three flights, got ${flown}`).toBe(3);
+    expect(apogees(back)).toEqual(flown);
+  });
+
   it("keeps a stated launch weight un-deletable after the round trip", async () => {
     // A RASAero file states one launch weight and no per-part masses, so its whole mass is a single
     // point mass and `removalRefusal` refuses to delete it — removing it leaves a rocket with no mass

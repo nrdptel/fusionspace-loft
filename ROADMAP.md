@@ -873,6 +873,26 @@ attempt at the predicate — "the stage's structural mass is zero" — DID fire 
 lumped mass to no component at all. Deriving from what removal costs avoids that class of mistake
 entirely; deriving from a sum of parts walks into it.
 
+**Second slice, 2026-08-02 — per-configuration ignition and configuration names.** Two losses where
+the importer already read what the exporter never wrote, so both were one-sided gaps rather than
+format limits.
+
+A design can airstart a mount at a different delay in EACH motor configuration — one
+`<ignitionconfiguration configid=…>` block per config — which is exactly how a staggered airstart
+study is set up. The exporter wrote only the mount-level pair, taken from the FIRST configuration, so
+the round trip applied one config's timing to all of them: `Airstart timing.ork`'s four configurations
+at +1 s, +2 s, +4 s and +6 s all came back at +0 s, and its five configurations — which fly 1268.50 m
+to 1296.52 m — all flew the identical 1296.52 m. The whole reason that design exists was erased by
+saving it. Blocks are written only where a configuration DIFFERS from the mount default, so a design
+that never used the feature gains no elements.
+
+And the configuration NAME — how a flyer picks which flight they are looking at — was never written
+at all: 29 configurations across 9 corpus designs came back labelled with their own raw ids, and on a
+design built here the starter's only motor label "H128W" returned as "cfg-1".
+
+Both pinned by one test built from the small two-stage fixture rather than the 280 kB corpus design
+that found them, with a negative control on each half.
+
 **What the milestone's own *done when* needs next**, measured rather than guessed: on the first
 export → re-import, **0 of 36** designs (35 corpus + the authored starter) reach a byte-equivalent
 model — 11 field diffs at best, 146 at worst; the model becomes a fixpoint only on the SECOND trip. So

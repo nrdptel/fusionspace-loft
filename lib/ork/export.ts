@@ -200,10 +200,33 @@ function motorMountXml(mountId: string, overhang: number, motors: MotorsByMount,
     })
     .join("");
   const first = list[0]?.inst;
+  // Per-configuration ignition, one `<ignitionconfiguration configid=…>` per config that differs from
+  // the mount default. The importer has always READ these (`adapt.ts`, `ignByConfig`) — writing only
+  // the mount-level pair meant `list[0]`'s timing was applied to every configuration, so a design
+  // whose whole reason for existing is a staggered airstart came back with the stagger gone.
+  // Measured on `Airstart timing.ork`: four configurations at +1 s, +2 s, +4 s and +6 s all returned
+  // at +0 s, and its five configurations — which fly 1268.50 m to 1296.52 m — all flew the identical
+  // 1296.52 m. Written only where a configuration DIFFERS from the mount default, so a design that
+  // never used the feature gains no elements.
+  const ignConfigs = list
+    .filter(
+      ({ inst }) =>
+        (inst.ignitionEvent ?? first?.ignitionEvent) !== first?.ignitionEvent ||
+        (inst.ignitionDelay ?? 0) !== (first?.ignitionDelay ?? 0),
+    )
+    .map(
+      ({ configId, inst }) =>
+        `${pad}  <ignitionconfiguration configid="${esc(configId)}">\n` +
+        `${pad}    <ignitionevent>${esc(inst.ignitionEvent ?? first?.ignitionEvent ?? "automatic")}</ignitionevent>\n` +
+        `${pad}    <ignitiondelay>${num(inst.ignitionDelay ?? 0)}</ignitiondelay>\n` +
+        `${pad}  </ignitionconfiguration>\n`,
+    )
+    .join("");
   return (
     `${pad}<motormount>\n` +
     `${pad}  <ignitionevent>${esc(first?.ignitionEvent ?? "automatic")}</ignitionevent>\n` +
     `${pad}  <ignitiondelay>${num(first?.ignitionDelay ?? 0)}</ignitiondelay>\n` +
+    ignConfigs +
     `${pad}  <overhang>${num(overhang)}</overhang>\n` +
     inner +
     `${pad}</motormount>\n`
@@ -458,8 +481,14 @@ function configsXml(rocket: Rocket): string {
   return rocket.configurations
     .map((cfg) => {
       const def = cfg.id === (rocket.defaultConfigId ?? rocket.configurations[0]?.id) ? ' default="true"' : "";
+      // The NAME is how a flyer picks which flight they are looking at — "Airstart @2s", "[J315R-P;
+      // J90W-P]", "H128W". The importer reads it (`adapt.ts`); the exporter simply never wrote it, so
+      // every configuration came back labelled with its own raw id. 29 configurations across 9 corpus
+      // designs, and on a design built here the starter's only motor label "H128W" returned as "cfg-1".
+      const name = cfg.name ? `      <name>${esc(cfg.name)}</name>\n` : "";
       return (
         `    <motorconfiguration configid="${esc(cfg.id)}"${def}>\n` +
+        name +
         `      <stage number="0" active="true"/>\n` +
         `    </motorconfiguration>\n`
       );
