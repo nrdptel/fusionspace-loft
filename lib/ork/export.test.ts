@@ -532,6 +532,81 @@ describe("exportOrk — real-design features round-trip (regression)", () => {
     expect(apogees(back)).toEqual(flown);
   });
 
+  it("round-trips a design authored in Loft, part for part and id for id", async () => {
+    // R6's *done when*, as a test rather than by eye: build a design here — including all three flat
+    // structural adds a builder can make — save it the way the Download button does, reopen it, and get
+    // the same rocket back. Every component, every id, every material and every mass.
+    //
+    // What is allowed to move is named explicitly below rather than compared loosely, because a
+    // tolerance wide enough to swallow a real loss is not an assertion. Everything else must match.
+    const starter = newDesign();
+    const authored: OrkDocument = {
+      ...starter,
+      rocket: applyGeometryEdits(starter.rocket, {
+        boattailLength: 0.05,
+        boattailAftDiameter: 0.03,
+        payloadMassKg: 0.3,
+        drogueDiameter: 0.4,
+        mainDeployAltitude: 150,
+      }),
+    };
+    const back = await roundtrip(authored);
+
+    const byName = (d: OrkDocument) =>
+      new Map(flattenRocket(d.rocket).map((p) => [`${p.component.kind}:${p.component.name}`, p.component]));
+    const before = byName(authored);
+    const after = byName(back);
+
+    // Every part comes back, and comes back as itself.
+    expect([...after.keys()].sort()).toEqual([...before.keys()].sort());
+    expect(before.size).toBeGreaterThanOrEqual(9);
+    for (const [k, c] of before) expect(after.get(k)!.id, `${k} changed identity`).toBe(c.id);
+
+    /** The normalisations a trip through the file is allowed to make.
+     *  - a field that was `undefined` coming back as the default the format writes for it is the same
+     *    statement, not a loss — the file has no way to spell "unset" for these;
+     *  - `.ork` is written at six decimals, so a value can move in the twelfth. */
+    const isDefaulted = (x: unknown, y: unknown) => x === undefined && (y === 0 || y === false);
+    const rounded = (x: unknown, y: unknown) =>
+      typeof x === "number" && typeof y === "number" && Math.abs(x - y) <= 5e-7 * Math.max(1, Math.abs(x));
+
+    const unexplained: string[] = [];
+    for (const [k, c] of before) {
+      const d = after.get(k)! as unknown as Record<string, unknown>;
+      const cc = c as unknown as Record<string, unknown>;
+      for (const f of new Set([...Object.keys(cc), ...Object.keys(d)])) {
+        if (f === "children" || f === "id") continue;
+        const x = cc[f];
+        const y = d[f];
+        if (JSON.stringify(x) === JSON.stringify(y)) continue;
+        if (isDefaulted(x, y) || rounded(x, y)) continue;
+        // A canopy comes back carrying an `<overridemass>` equal to the mass it already had. That is
+        // how the mass survives at all today — dropping it costs `A simple model rocket.ork` 7.976 g →
+        // 4.736 g — and it is filed in `BACKLOG.md`, with the resize it breaks. Allowed here ONLY when
+        // it restates the mass rather than changing it.
+        if (f === "overrideMass" && x === undefined && rounded(cc.mass, y)) continue;
+        if (f === "mass" && rounded(x, y)) continue;
+        // Six-decimal rounding again, one level down: a placement is a method plus an offset.
+        if (
+          f === "placement" &&
+          (x as { method?: string })?.method === (y as { method?: string })?.method &&
+          rounded((x as { offset?: number })?.offset, (y as { offset?: number })?.offset)
+        )
+          continue;
+        unexplained.push(`${k}.${f}: ${JSON.stringify(x)} -> ${JSON.stringify(y)}`);
+      }
+    }
+    expect(unexplained, `fields moved with no reason given:\n  ${unexplained.join("\n  ")}`).toEqual([]);
+
+    // And the flight the design describes is the same flight.
+    const cfg = (d: OrkDocument) => d.rocket.defaultConfigId ?? d.rocket.configurations[0]?.id;
+    const a = runFlight(authored.rocket, { configId: cfg(authored) }).result;
+    const b = runFlight(back.rocket, { configId: cfg(back) }).result;
+    expect(b.summary.apogee).toBeCloseTo(a.summary.apogee, 2);
+    expect(b.staticMarginCal).toBeCloseTo(a.staticMarginCal, 4);
+    expect(b.liftoffMass).toBeCloseTo(a.liftoffMass, 6);
+  });
+
   it("keeps a plugged motor plugged, rather than giving it a 0 s delay", async () => {
     // A plugged motor carries NO ejection charge — it is flown with altimeter deployment — which
     // OpenRocket spells `<delay>none</delay>` and the importer reads back as `plugged`. Its `delay` is

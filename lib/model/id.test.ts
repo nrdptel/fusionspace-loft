@@ -54,14 +54,18 @@ describe("component ids survive an export → import round trip", () => {
     expect(ids((await importOrk(a)).rocket)).toEqual(ids((await importOrk(b)).rocket));
   });
 
-  it("carries a structural add's derived id through as a stable UUID", async () => {
-    // `applyGeometryEdits` mints ids like `<tube>-boattail` for the parts it adds. Those are not UUIDs,
-    // so they are derived — but derived deterministically, or a built-then-exported design would lose the
-    // boattail's identity on every save.
+  it("carries a structural add's id through an export UNCHANGED", async () => {
+    // `applyGeometryEdits` used to mint ids like `<tube>-boattail` for the parts it adds. Those were
+    // deterministic but NOT UUIDs, and `lib/ork/export.ts` hashes a non-UUID id into a fresh one on the
+    // way out — so all three flat structural adds changed identity every time the design was saved.
+    // A design built here is persisted as its own exported bytes, so a selection, an aim or an undo
+    // naming one of those parts stopped resolving after a reload. They are minted as UUIDs now, seeded
+    // from the same host id, so they are stable AND they survive the trip untouched.
     const doc = newDesign();
     const edited = applyGeometryEdits(doc.rocket, { boattailLength: 0.04, boattailAftDiameter: 0.03 });
-    const added = flattenRocket(edited).find((p) => p.component.id.endsWith("-boattail"))!;
+    const added = flattenRocket(edited).find((p) => p.component.name === "Boattail")!;
     expect(added).toBeTruthy();
+    expect(isUuidShaped(added.component.id)).toBe(true);
 
     const back1 = (await importOrk(exportOrk({ ...doc, rocket: edited }))).rocket;
     const back2 = (await importOrk(exportOrk({ ...doc, rocket: edited }))).rocket;
@@ -69,6 +73,8 @@ describe("component ids survive an export → import round trip", () => {
     const boat2 = flattenRocket(back2).find((p) => p.component.name === "Boattail")!;
     expect(isUuidShaped(boat1.component.id)).toBe(true);
     expect(boat1.component.id).toBe(boat2.component.id);
+    // The point of the change: it comes back as the id it went out with, not a hash of it.
+    expect(boat1.component.id).toBe(added.component.id);
     // The parts that already had UUIDs kept theirs, so deriving one id did not disturb the others.
     expect(primaryBodyTube(back1)!.id).toBe(primaryBodyTube(doc.rocket)!.id);
   });

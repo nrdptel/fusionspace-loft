@@ -32,9 +32,10 @@ own Download button undid Loft's own safety refusal (below).
 | R3 — add a component | SHIPPED 2026-07-30 |
 | R4 — reorder and restack | SHIPPED 2026-07-31 |
 | **R5 — author a staged rocket** | **SHIPPED 2026-08-01** — every clause of the *done when* reachable and pinned |
-| **R6 — a built design leaves Loft intact** | **IN PROGRESS 2026-08-02** — the Sev-1 slice is done; the fidelity test is next |
+| **R6 — a built design leaves Loft intact** | **SHIPPED 2026-08-02** — a design authored here round-trips part for part and id for id |
 | **P1 — one design system, adopted** | **SHIPPED 2026-08-02** — the *fields* clause closed; the two numeric primitives are one |
-| **P2 — workspaces as routes** | **NOT STARTED — this is the next P-track milestone** |
+| **P2 — workspaces as routes** | **NOT STARTED — next on the P track, and the bigger of the two** |
+| **R7+** | not yet written; extend `ROADMAP.md` from the after-list |
 | P3–P5 | NOT STARTED |
 
 ## Shipped this session (2026-08-02)
@@ -42,7 +43,7 @@ own Download button undid Loft's own safety refusal (below).
 Baseline before anything changed, all four green: lint 0 errors / 1 warning (the standing `setDraft`
 one), **944 unit**, build, e2e, corpus **35 design files, 14/14**. Nothing inherited was red.
 
-**Four increments. P1 is finished; R6 is three slices in.**
+**Six increments. Both milestones shipped: P1 (product) and R6 (capability).**
 
 | # | track | increment |
 |---|---|---|
@@ -50,6 +51,8 @@ one), **944 unit**, build, e2e, corpus **35 design files, 14/14**. Nothing inher
 | 2 | **R6** | Sev-1: a stated launch weight is no longer deletable after a round trip through Loft's own export |
 | 3 | **R6** | per-configuration ignition and configuration names survive a save — an airstart study stops being flattened to one delay |
 | 4 | **R6** | a freeform fin keeps its real outline instead of being written back as an equal-area trapezoid |
+| 5 | **R6** | a plugged motor stays plugged, instead of coming back with a 0 s delay |
+| 6 | **R6** | the three authored structural adds keep their identity — **R6 is DONE**, its *done when* asserted |
 
 **The pattern across 2, 3 and 4 is worth naming: all three were the exporter failing to write something
 the importer already read.** `standsForAirframe` had nowhere to go, but `<ignitionconfiguration>`,

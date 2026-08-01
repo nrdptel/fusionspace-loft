@@ -848,8 +848,22 @@ against 10.43.
 
 ## R6 — A built design leaves Loft intact
 
-**Status: IN PROGRESS — 2026-08-02.** The first slice is a Sev-1 rather than a fidelity gap, and it
-went first for that reason.
+**Status: DONE — 2026-08-02.** The *done when* is met and asserted: a design authored in Loft — the
+starter plus all three flat structural adds — round-trips through `exportOrk` → `importDesign` with
+every component, every id, every material and every mass surviving, and the flight it describes
+unchanged (`lib/ork/export.test.ts`, "round-trips a design authored in Loft, part for part and id for
+id"). **0 of 9 components change identity**, where 3 did before.
+
+The test names what a trip through the file is ALLOWED to change rather than comparing loosely, because
+a tolerance wide enough to swallow a real loss is not an assertion. Three things are permitted: a field
+that was `undefined` coming back as the default the format writes for it (the file cannot spell
+"unset" for `shapeParameter`, `cantAngle` or the shoulder caps); six-decimal rounding, which is the
+precision `.ork` is written at; and a canopy's restated `overrideMass`, allowed only where it equals
+the mass the canopy already had, and filed. Anything else fails with the field named.
+
+**Not claimed: byte-equivalence for every IMPORTED design.** The milestone's own words are about a
+design authored in Loft, and that is what is asserted. A `.rkt` or `.CDX1` is a translation from a
+format with different primitives, and the remaining gaps are inventoried below and in `BACKLOG.md`.
 
 **The Sev-1, fixed.** A RASAero file states one launch weight and no per-part masses, so its whole
 mass is a single point mass, and `removalRefusal` refuses to delete it — taking it out leaves a rocket
@@ -932,7 +946,20 @@ workaround and it is not: removing it drops `A simple model rocket.ork`'s canopy
 exporter faithfully writes. The real work is finding out why those two disagree. Filed in `BACKLOG.md`
 with both numbers so the next session does not re-derive the dead end.
 
-**What the milestone's own *done when* needs next**, measured rather than guessed: on the first
+**Fifth slice — the authored parts keep their identity.** The three flat structural adds minted
+readable composite ids (`${tube.id}-boattail`, `-payload`, `-drogue`). Deterministic, but not UUIDs —
+and `lib/ork/export.ts` hashes a non-UUID id into a fresh one on the way out, because `.ork` ids are
+UUIDs. So all three changed identity every time the design was saved. A design built here is persisted
+as its own exported bytes, so that is not an export-only detail: a selection, an aim or an undo naming
+one of those parts stopped resolving after a reload — the exact defect R2's id work was meant to close.
+They are minted as UUIDs now, seeded from the same host id, so they stay stable AND survive untouched.
+
+Four tests used the composite id as a lookup channel for "which tube did this attach to", which is why
+it existed. They assert the relationship where it actually lives now: the payload through the TREE (it
+is a child of its tube), the boattail through the GEOMETRY (it is the tube's SIBLING — a transition
+added at the tail hangs off nothing, and the composite id was genuinely the only record of its host).
+
+**State of the round trip for IMPORTED designs**, measured rather than guessed: on the first
 export → re-import, **0 of 36** designs (35 corpus + the authored starter) reach a byte-equivalent
 model — 11 field diffs at best, 146 at worst; the model becomes a fixpoint only on the SECOND trip. So
 the next increment is the test that states which fields are allowed to move and which are not, and the
