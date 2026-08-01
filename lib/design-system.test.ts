@@ -95,28 +95,44 @@ const BUDGET = {
    *  is a guard rather than a ratchet. `text-lg` sat between `text-base` and `text-xl`, invented once
    *  and copied fourteen times: eleven panel headings and three prominent values. */
   offScaleType: 0,
-  /** `<button>` elements written out by hand instead of imported from `components/ui.tsx`.
+  /** `<button>` elements that hand-roll their own geometry instead of taking it from `buttonClass`.
    *
-   *  **This is the count P1's *done when* is about, and until now nothing asserted it.** The
+   *  **This is the count P1's *done when* is about, and until 2026-08-01 nothing asserted it.** The
    *  per-primitive adoption count below is necessary and still not sufficient: a file can import
    *  `Button`, satisfy that check, and go on hand-rolling five more buttons beside it — which is
-   *  exactly what `LoftApp` and `ImportPanel` were doing while both counted as adopters. That is the
-   *  same slackness the header of this file warns about, one level down.
+   *  exactly what `LoftApp` and `ImportPanel` were doing while both counted as adopters.
    *
-   *  Measured 2026-08-01 before the conversion: 17 across seven files — `LoftApp` 7,
-   *  `RocketDiagram` 3, `ImportPanel` 3, and one each in `ResultsView`, `RocketpyCrossCheck`,
-   *  `MotorSweep` and `GeometryInspector`. The last two are table sort headers that go with the
-   *  `DataTable` conversion rather than with a button pass. Target 0.
+   *  **The first version of this check excluded two whole FILES and that was wrong**, which an
+   *  outside reading of it caught the same day. `components/ui.tsx` and `components/DataTable.tsx`
+   *  were skipped on the grounds that "a primitive's OWN `<button>` is the thing every other surface
+   *  is being converted onto" — but only ONE of the four `<button>` elements in that pair is that
+   *  button. The other three hand-roll the geometry rather than calling it: `Segmented` re-types
+   *  `buttonClass`'s base line **minus the focus-visible ring entirely**, `Tabs` does the same, and
+   *  `DataTable`'s sort header carries its own string. A target of 0 under file exclusions is a state
+   *  in which three hand-rolled buttons still ship, permanently invisible — inside the two files most
+   *  likely to carry the drift. Worse, it made the ratchet gameable in the exact direction this
+   *  milestone is heading: routing `MotorSweep` and `GeometryInspector` through `DataTable` would
+   *  take the count 3 → 1 with zero buttons converted onto `Button`, because three identical
+   *  hand-rolled sort headers would collapse into one sitting in a skipped file.
    *
-   *  `components/ui.tsx` and `components/DataTable.tsx` are excluded because a primitive's OWN
-   *  `<button>` is the thing every other surface is being converted onto — counting it would make the
-   *  target unreachable by construction.
+   *  So the exclusion is now per-ELEMENT and behavioural: a `<button>` is exempt exactly when its own
+   *  opening tag takes its class from `buttonClass`. `Button` is; nothing else is. The count went
+   *  3 → 6 the moment that landed, and the extra three are real: `Segmented`, `Tabs` and
+   *  `DataTable`'s sort header. That is not a raised budget, it is the same budget on a metric that
+   *  can see what it claims to.
+   *
+   *  Comments are stripped before counting rather than excluded by a lookbehind. The first version
+   *  matched `/(?<!`)<button[\s>]/` so that `app/not-found.tsx`'s prose — which explains why a
+   *  `<button>` that navigates is a keyboard defect — did not read as a breach. That made an
+   *  exact-count assertion depend on where a backtick sits inside an English sentence: fence the
+   *  clause instead of the tag and the suite fails on a comment-only edit, pointing a session at a
+   *  file with no button in it.
    *
    *  Not in `DESIGN.md` §9's shell block: that file is shared verbatim with the sibling app, and
    *  `add_repo` for it was refused by the harness again this run (the fourth). Adding the grep here
-   *  alone would put the two copies out of step, which §9 forbids; the wording is owed to both and is
-   *  recorded in `HANDOFF.md` with the rest of that debt. */
-  handRolledButtons: 3,
+   *  alone would put the two copies out of step, which §9 forbids; it is filed in `BACKLOG.md` with
+   *  the two other wordings now owed to both. */
+  handRolledButtons: 6,
 } as const;
 
 /** How many components import EACH primitive by name.
@@ -312,16 +328,28 @@ describe("DESIGN.md §9 — the design system is binding, and this is what check
   });
 
   it(`hand-rolls exactly ${BUDGET.handRolledButtons} <button> elements, on the way to none`, () => {
-    // The literal ELEMENT, not a mention of it. `app/not-found.tsx` explains in a comment why a
-    // `<button>` that navigates is a keyboard and screen-reader defect — code-fenced, as prose about
-    // the rule rather than a breach of it — and a naive `<button[\s>]` counts that comment as a
-    // violation the conversion can never clear. The lookbehind drops a backticked mention and keeps
-    // every real tag; measured both ways when this was written, the pair differ by exactly that one.
-    const surfaces = uiSources(["components", "app"], [".tsx"]).filter(
-      (f) => f.path !== "components/ui.tsx" && f.path !== "components/DataTable.tsx",
-    );
-    const { total, byFile } = countMatches(surfaces, /(?<!`)<button[\s>]/g);
-    expect(total, `hand-rolled <button>, by file:\n${byFile.join("\n")}`).toBe(
+    // Comments first: several of these files explain in prose why a `<button>` that navigates is a
+    // keyboard and screen-reader defect, and prose about the rule is not a breach of it.
+    const stripComments = (t: string) =>
+      t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^[ \t]*\/\/.*$/gm, "");
+    // A `<button>` is exempt exactly when its OWN opening tag takes its class from `buttonClass` —
+    // that is what "on the primitive" means, and it is the only thing that should be uncountable.
+    // Matching the opening tag rather than the file is what stops a hand-rolled treatment hiding by
+    // moving into a primitive's module.
+    const OPENING_TAG = /<button\b[^>]*>/g;
+    const files = uiSources(["components", "app"], [".tsx"]);
+    const byFile: string[] = [];
+    let total = 0;
+    for (const f of files) {
+      const hits = (stripComments(f.text).match(OPENING_TAG) ?? []).filter(
+        (tag) => !tag.includes("buttonClass("),
+      );
+      if (hits.length > 0) {
+        total += hits.length;
+        byFile.push(`${f.path}: ${hits.length}`);
+      }
+    }
+    expect(total, `hand-rolled <button>, by file:\n${byFile.sort().join("\n")}`).toBe(
       BUDGET.handRolledButtons,
     );
   });

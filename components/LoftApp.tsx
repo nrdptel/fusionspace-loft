@@ -1546,6 +1546,7 @@ export default function LoftApp() {
             <div className="flex min-w-0 items-center gap-3">
               <Button
                 variant="ghost"
+                size="sm"
                 square
                 onClick={reset}
                 className="sm:underline sm:underline-offset-2"

@@ -612,7 +612,6 @@ export default function ResultsView({
                   <span>· {log.points.length} points</span>
                   <Button
                     variant="ghost"
-                    size="sm"
                     onClick={() => {
                       setLog(null);
                       setLogError(null);

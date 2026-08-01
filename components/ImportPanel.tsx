@@ -213,7 +213,7 @@ export default function ImportPanel({
                   // text. The file it came from goes in the title, where the two differ.
                   aria-label={`Reopen ${r.rocket || r.name}`}
                   title={r.name}
-                  className="min-w-0 justify-start rounded-r-none text-left"
+                  className="min-w-0 justify-start rounded-r-none border-r-0 text-left"
                 >
                   <span className="truncate">{r.rocket || r.name}</span>
                 </Button>
@@ -226,7 +226,14 @@ export default function ImportPanel({
                   // A one-glyph destructive control sitting against a 240 px open target: it needs the
                   // 44 px minimum in BOTH directions, not just height, or it stays a 24 px-wide delete
                   // button for a thumb aiming at the row beside it.
-                  className="rounded-l-none border-l border-l-zinc-200 text-zinc-400 dark:border-l-zinc-800"
+                  // No tint override here: `ghost` already IS the de-emphasised weight, and a
+                  // `text-zinc-400` beside the variant's own `text-zinc-600` is dead in light mode —
+                  // both are bare single-class selectors and Tailwind emits `text-zinc-400` first, so
+                  // the variant wins on source order however the attribute is ordered. It looked like
+                  // an override, rendered as zinc-600, and left the two themes disagreeing about
+                  // which half of the control is muted (dark kept zinc-400 through ghost's own
+                  // `dark:` clause). `className` cannot re-tint a variant; that is what variants are.
+                  className="rounded-l-none border-l border-l-zinc-200 dark:border-l-zinc-800"
                 >
                   <span aria-hidden>×</span>
                 </Button>

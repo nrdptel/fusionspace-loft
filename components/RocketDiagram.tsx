@@ -896,7 +896,18 @@ function ZoomControl({ zoom, onZoom }: { zoom: number; onZoom: (z: number) => vo
   const at = i < 0 ? 0 : i;
   return (
     <span className="inline-flex items-center gap-1" role="group" aria-label="Diagram zoom">
-      <Button size="sm" square onClick={() => onZoom(STEPS[at - 1])} disabled={at === 0} aria-label="Zoom out">
+      {/* `text-[11px]` because this group is drawn inside the diagram's own figcaption and reads at
+          its size — §3 allows that token for diagram annotation, and it is what these two carried
+          before they took the primitive. `size="sm"` alone puts the glyphs a pixel above the readout
+          they flank, which is the mismatch the conversion introduced. */}
+      <Button
+        size="sm"
+        square
+        className="text-[11px]"
+        onClick={() => onZoom(STEPS[at - 1])}
+        disabled={at === 0}
+        aria-label="Zoom out"
+      >
         −
       </Button>
       <span className="min-w-10 text-center tabular-nums" aria-live="polite">
@@ -905,6 +916,7 @@ function ZoomControl({ zoom, onZoom }: { zoom: number; onZoom: (z: number) => vo
       <Button
         size="sm"
         square
+        className="text-[11px]"
         onClick={() => onZoom(STEPS[at + 1])}
         disabled={at === STEPS.length - 1}
         aria-label="Zoom in"

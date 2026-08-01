@@ -12,6 +12,45 @@ this file, and deliberately does **not** cap craft or product work, because that
 track in `ROADMAP.md` with its own *done when*. Rough edges, missing affordances, and findings too
 big for one pass. Newest first.
 
+- **`secondary`'s hover fill and `sunken`'s surface are the same token, so a secondary button on a
+  sunken surface has no fill feedback.** §5 gives `secondary` `hover:bg-zinc-50`; §2's sunken surface
+  IS `bg-zinc-50`. On the import drop zone — the app's first screen — "Start a new design" therefore
+  goes from transparent-over-#fafafa to #fafafa on hover, a zero delta; only the border still moves.
+  Invisible everywhere else because `secondary` normally sits on a raised surface. The fix is a hover
+  token that is a step from the surface rather than an absolute value, which is a §2/§5 change and so
+  owed to both repos. Measured 2026-08-01 against the built export: button and zone both
+  `oklch(.985 0 0)` at rest and hovered.
+
+- **The workspace header's design-name input is the last hand-rolled field on that row, and the button
+  conversion left it visibly out of step in dark mode.** `LoftApp.tsx:1560` hand-rolls a text input at
+  `bg-white dark:bg-zinc-900`; the four buttons beside it are now `Button variant="secondary"`, which
+  `DESIGN.md` §5 defines as a `control` border over a TRANSPARENT fill. Measured on the built export at
+  `prefers-color-scheme: dark`: page `rgb(9,9,11)`, input zinc-900, buttons now page-coloured — so the
+  input reads as a raised chip in a row of flat controls. The buttons are correct by §5 and the input is
+  the outlier, but §5 names no text-field primitive (only `NumberField`, which is numeric and owns the
+  refusal behaviour). The fix is a `TextField` in `components/ui.tsx` with the same geometry
+  `buttonClass` gives, and it wants a §5 sentence — which is a change to a file shared verbatim with the
+  sibling app, so it is filed rather than made. Three inputs would adopt it: the design name, the launch
+  site, and the flight-log unit row.
+
+- **`add_repo` for `nrdptel/fusionspace-debrief` was refused by the harness classifier for the FOURTH
+  consecutive run**, so `DESIGN.md` still cannot be edited without breaking §10's "a change to one is a
+  change to both in the same run". Three wordings are now owed to both copies rather than one: §9's
+  `grep -roh '\btext-lg\b'` (the executable check moved past it in P1 increment 10), §5's "everything
+  below lives in `components/ui.tsx`" (which now has two documented exceptions, `buttonClass` and
+  `DataTable`), and a hand-rolled-`<button>` grep to match the ratchet added 2026-08-01. None is a
+  divergence in BEHAVIOUR — every count agrees — but the prose is drifting a wording at a time, and the
+  invariant exists because that is how it starts. **A session created with both repos attached clears
+  all three in one commit each.** This is an owner-level fix: attach the sibling repo as a source.
+
+- **`Button size="sm"` is `text-xs`, and `DESIGN.md` §3 says every control is `text-sm`.** §4 prescribes
+  `px-2 py-1` "at caption size" for a dense control, so the two sections disagree about the same
+  element. It surfaced twice in one increment on 2026-08-01: the flight-log "Remove" had inherited its
+  row's body default and taking `size="sm"` made it the only sub-body-size thing in the row (reverted to
+  the default), and the diagram's zoom pair needed an explicit `text-[11px]` to keep matching the
+  figcaption they sit in. Neither is wrong on its own surface; what is missing is a sentence saying WHEN
+  a control may drop below the body default. §3/§4 change ⇒ owed to both repos.
+
 - **The per-file caption-inversion guard has the same adoption blind spot the suite-wide ratio had.**
   §9 retired the suite ratio in P1 increment 2 because converting hand-rolled buttons onto `Button`
   moved the totals the wrong way while not one glyph changed size — the `text-sm` had moved INTO the
