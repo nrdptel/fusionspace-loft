@@ -21,6 +21,52 @@ big for one pass. Newest first.
   owed to both repos. Measured 2026-08-01 against the built export: button and zone both
   `oklch(.985 0 0)` at rest and hovered.
 
+- **The design-system audit's top finding, and §9's greps cannot see any of it: `app/globals.css`
+  restates the type scale in raw rem.** `.prose-loft` sets body `0.925rem` (~14.8 px), `h2` `1.2rem`
+  (19.2 px) and table text `0.85rem` (13.6 px) — three sizes that are on no part of `DESIGN.md` §3's
+  six-size scale — and **every one of the six docs routes renders entirely inside that class**, while
+  `offScaleType` asserts 0 because it matches class NAMES. The same file restates the neutral ramp in
+  raw hex at seven sites (`#3f3f46`, `#f4f4f5`, `#a5b4fc`, `#27272a`). This is the same blind spot that
+  let `.eqn` render an 8 px radius while the off-system-radius count read zero. Fixing it is a P-track
+  slice; extending the executable check to parse the stylesheet's declared values rather than its class
+  names is the part that stops it coming back.
+
+- **Six of `DESIGN.md` §5's named primitives do not exist at all**: `Panel`, `Readout`, `Figure`,
+  `EmptyState`, `ErrorState`, `Extrapolated`. `ROADMAP.md` records this as deliberately deferred to a
+  P1 successor rather than half-built, and that stands — but two consequences are live and cheap:
+  `components/LineChart.tsx` renders the literal string **"No data."**, which §5 forbids by name, and
+  `FlightViz` and `GeometryInspector` return `null` rather than showing an empty state, so a surface
+  vanishes inside a Card whose heading stays.
+
+- **`LoftApp`'s `Num` is a second, complete numeric-input primitive** — its own draft buffer, bounds,
+  refusal message and touch target — used at **28 call sites**, while `ui.tsx`'s `NumberField` is used
+  at 7, all inside `MonteCarlo`. §5 says "every numeric input in either app is this". Converting them
+  is a P1-successor slice on its own, and the two must be reconciled before either is changed, because
+  `Num` owns the refusal behaviour the SAFETY invariant requires.
+
+- **`text-[11px]` has become a general label size on the surfaces a flyer reads numbers on.** §3 scopes
+  it to axis ticks and diagram annotations. Live counter-examples: `ResultsView`'s `Stat` label, its
+  sub-line and `WhatIfDelta`'s term; `MonteCarlo`'s four result-card titles including "Recovery radius
+  (95%)"; `Num`'s field label AND its `role="alert"` refusal message; eleven fieldset legends in the
+  design editor. None is an annotation. The executable check cannot catch these because `text-[11px]`
+  is an ALLOWED token — the rule is about WHERE, and only a reading catches it.
+
+- **Two analysis panels run a long solve with no `catch`** — `MonteCarlo` and `MotorSweep`; only
+  `ParameterSweep` has one. An exception mid-run leaves the spinner turning with no error state.
+  **Filed as sev2, not sev1, and the demotion is the point:** a screen reported this as a one-way door,
+  and driving it shows all three render `ClosePanel` while open, so there IS a way back out. The defect
+  is a missing `ErrorState`, not a trap. Reachability was checked before the severity was believed.
+
+- **Four `<select>` controls and two `<summary>` rows carry no touch target**: `ParameterSweep`'s
+  Variable and Y-axis pickers, `ResultsView`'s two flight-log unit pickers (~28 px), and the "Mass &
+  balance" and "Conditions" disclosure rows. §8's 44 px contract is on `pointer: coarse` everywhere,
+  not only where it was last measured. The two summaries have a primitive already — `Disclosure` — with
+  exactly one adopter.
+
+- **Twelve hand-rolled `<h2 className="text-xl font-medium tracking-tight">` headings**, each followed
+  by a description and a body: the exact shape of §5's `Section`, which has **zero** adopters. This is
+  the largest single un-taken conversion left after the button and table passes.
+
 - **The workspace header's design-name input is the last hand-rolled field on that row, and the button
   conversion left it visibly out of step in dark mode.** `LoftApp.tsx:1560` hand-rolls a text input at
   `bg-white dark:bg-zinc-900`; the four buttons beside it are now `Button variant="secondary"`, which

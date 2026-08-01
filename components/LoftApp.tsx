@@ -45,6 +45,7 @@ import {
   primaryFinStation,
   primaryMotorClusterCount,
   unreachableMountCount,
+  primaryMountGroupIds,
   primaryFinRootChord,
   primaryFinTipChord,
   primaryFinSweep,
@@ -1447,12 +1448,14 @@ export default function LoftApp() {
             unreachableParachutes: unreachableParachuteCount(designBase),
             motorClusterCount: primaryMotorClusterCount(designBase),
             unreachableMounts: unreachableMountCount(designBase),
+            mountsWritten: primaryMountGroupIds(designBase).size,
             payloadStation: defaultPayloadStation(designBase, edits.bodyTubeId),
           }
         : {
             finSpan: undefined,
             unreachableFinSets: 0,
             unreachableMounts: 0,
+            mountsWritten: 0,
             finSetPart: undefined,
             finCount: undefined,
             finRootChord: undefined,
@@ -1919,6 +1922,7 @@ function DesignEditor({
     finSpan?: number;
     unreachableFinSets: number;
     unreachableMounts: number;
+    mountsWritten: number;
     finSetPart?: AimedPart;
     finCount?: number;
     finRootChord?: number;
@@ -2068,15 +2072,26 @@ function DesignEditor({
                       min={1}
                       max={12}
                       step={1}
-                      // Say WHICH mounts this speaks for. It reads back off one mount and writes to
-                      // every mount already holding that count, so on a design whose mounts differ —
-                      // an air-start pod beside a centre motor — it is describing some of them and
-                      // not others. Saying "the mount" while changing another one is the defect this
-                      // replaces.
+                      // Say WHICH mounts this speaks for, and HOW MANY. It reads back off one mount
+                      // and writes to every mount already holding that count, so it is wrong in two
+                      // different directions and both are measured on real designs. On a design whose
+                      // mounts differ — an air-start pod beside a centre motor — it describes some of
+                      // them and not others (1 corpus design). And on a staged design where every
+                      // stage's mount holds one, "the mount" is 2 or 3 mounts: typing 3 on
+                      // `02.Two-stage.ork` flies SIX motors and on `03.Three-stage.ork` NINE
+                      // (5 corpus designs). A count a flyer plans a flight around must not be
+                      // multiplied by a number the field never mentions.
                       hint={
-                        designDims.unreachableMounts > 0
-                          ? `How many motors each mount holding ${designDims.motorClusterCount} currently holds — at least one. This design has ${designDims.unreachableMounts} other motor mount${designDims.unreachableMounts === 1 ? "" : "s"} with a different count, which this field does not change.`
-                          : "How many motors the mount holds — at least one."
+                        [
+                          designDims.mountsWritten > 1
+                            ? `How many motors EACH of this design's ${designDims.mountsWritten} motor mounts holds — so a 3 here flies ${designDims.mountsWritten * 3} motors, not 3.`
+                            : "How many motors the mount holds — at least one.",
+                          designDims.unreachableMounts > 0
+                            ? `${designDims.unreachableMounts} other mount${designDims.unreachableMounts === 1 ? " holds" : "s hold"} a different count and ${designDims.unreachableMounts === 1 ? "is" : "are"} not changed by this field.`
+                            : null,
+                        ]
+                          .filter(Boolean)
+                          .join(" ")
                       }
                       onChange={(v) => {
                         const n = v === "" ? undefined : Math.round(Number(v));
