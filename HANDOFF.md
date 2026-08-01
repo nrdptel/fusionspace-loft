@@ -28,10 +28,12 @@ fixed inside R7 increment 1: above about M0.95 an *airfoil* fin was billed more 
 than a *square* one, so the cross-section what-if told a flyer that streamlining their fins costs
 apogee. Pre-existing; the per-set split is what made it reachable on a mixed design.
 
-**Everything this run shipped is MERGED and serving.** Production was checked, not assumed:
-`https://loft.fusionspace.co/flight` returns a real page titled *Flight — Loft*. Two pull requests,
-#102 and #103, both merged on green CI (which runs the real-design corpus and the accuracy census).
-A third increment is on the branch awaiting its pull request — see the end of this file.
+**Three increments, three pull requests, all gated and all opened.** Production was checked rather
+than assumed: `https://loft.fusionspace.co/flight` returns a real page titled *Flight — Loft*, so P2
+increment 1 is reachable by a flyer. #102 (P2.1 + R7 written) and #103 (R7.1) are MERGED on green CI —
+which runs the real-design corpus and the published accuracy census, the checks a sandbox without
+`FIXTURES_TOKEN` cannot reproduce. #104 (P2.2) was opened green locally; **confirm it merged, and if
+CI went red, fix forward on the same branch.**
 
 ## The arc so far
 
