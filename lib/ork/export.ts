@@ -342,10 +342,27 @@ function componentXml(c: RocketComponent, motors: MotorsByMount, depth: number):
       // moved 52.4 mm aft. A fin 52 mm from where the flyer put it is a worse lie than a fin 42%
       // too big, and the margin it produced was better only by the accident of that displacement.
       //
-      // The honest fix is to stop discarding the outline — write `<finpoints>` and round-trip the
-      // real planform — which needs the model to retain the points it currently reduces away at
-      // import. That is R6's work and is filed in `BACKLOG.md` with these measurements. Until then
-      // the loss is disclosed on `/docs/limitations` with its size rather than papered over.
+      // **Done 2026-08-02: the outline is retained, so the shape is written back.** Everything above
+      // is why the trapezoid was never good enough, and it is kept because the fallback below is
+      // still that trapezoid — a set with no outline (an elliptical set, or a freeform set from a
+      // model built before the points were kept) has nothing better available.
+      if (c.kind === "freeformfinset" && c.points && c.points.length >= 3) {
+        const pts = c.points
+          .map((pt) => `${p}  <point x="${num(pt.x)}" y="${num(pt.y)}"/>\n`)
+          .join("");
+        return (
+          `${pad}<freeformfinset>\n${p}<name>${esc(c.name)}</name>\n${p}<id>${componentId(c)}</id>\n` +
+          common + overrides +
+          `${p}<fincount>${c.finCount}</fincount>\n` +
+          `${p}<thickness>${num(c.thickness)}</thickness>\n` +
+          (c.crossSection ? `${p}<crosssection>${c.crossSection}</crosssection>\n` : "") +
+          // A freeform fin carries NO <rootchord>/<height>: its shape is only these points, which is
+          // what the importer reads it back from.
+          `${p}<finpoints>\n${pts}${p}</finpoints>\n` +
+          childrenXml(c.children, motors, depth + 1) +
+          `${pad}</freeformfinset>\n`
+        );
+      }
       const tip = c.height > 0 ? Math.max(0, (2 * c.area) / c.height - c.rootChord) : c.rootChord;
       return (
         `${pad}<trapezoidfinset>\n${p}<name>${esc(c.name)}</name>\n${p}<id>${componentId(c)}</id>\n` +

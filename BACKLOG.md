@@ -27,6 +27,11 @@ big for one pass. Newest first.
   and the small static server is simply the next process to ask for one. `ulimit -n` is already at its
   4096 hard cap here, so it cannot be raised from inside the run.
 
+  **CI is unaffected**, which is the cleanest evidence that this is the box and not the suite: the
+  `e2e` job on GitHub Actions runs the same command against the same commit and passes. So a red local
+  e2e whose failures are all in one trailing spec file, with `EMFILE` in the server output, is this —
+  not a regression to chase.
+
   Until it is fixed, a full green has to be assembled from two passes — the four other spec files,
   then `touch.spec.ts` — which is what the 2026-08-02 session gated on. Worth fixing properly because
   it costs the diagnosis on every run and it teaches a session to distrust a red gate, which is the
@@ -686,26 +691,37 @@ big for one pass. Newest first.
   `AddedPart.after` and `MovedPart.after` would both need to address a parent as well as a sibling — so it
   is worth doing once rather than twice.
 
-- **A freeform fin's outline is discarded on export, and no trapezoid can stand in for it — R6 work,
-  with the measurements already taken.** `lib/ork/export.ts` writes a `freeformfinset` as the
-  equal-area trapezoid, tip = 2·area/height − root. That solution is negative whenever the planform
-  tapers hard, and the tip is then clamped to zero with the root kept, so the exported fin is LARGER
-  in area than the one drawn. Measured 2026-07-31 over all 35 corpus designs: **8 carry a freeform
-  set and 6 of those shift static margin through a download/re-import — median 0.080 cal, worst
-  0.685 cal on `Pods--airframes and winglets.ork` (2.13 → 1.45), whose "Wings" set comes back 42%
-  bigger in area.** No design without a freeform set moves at all.
-  **Shrinking the ROOT to 2·area/height instead was built, measured and REVERTED the same day**, and
-  the reasons are the value of this entry: (1) a zero-area planform — which `planformFromPoints` can
-  produce from collinear points — writes a root of 0, and `finContribution` drops a fin set with no
-  root, so the set VANISHES from lift and drag (measured: 2.44 → 1.53 cal on the starter, ~0.9 cal
-  with no warning); (2) a fin set's `axialLength` IS its root chord, so under a `bottom` or `middle`
-  anchor a shorter root translates the planform down the tube — `Pods`' "Wings" moved **52.4 mm aft**
-  — which is an unlabelled change to a build number; and (3) the margin it produced looked better only
-  because of that displacement, since compensating the offset gives 1.28 cal, worse than either.
-  **The real fix is to stop discarding the outline**: retain the `<finpoints>` on the model at import
-  and write them back, which makes the round trip lossless instead of choosing which way to be wrong.
-  That needs `GenericFinSet` to carry the points it currently reduces away, and it belongs to R6 ("a
-  built design leaves Loft intact"). Disclosed on `/docs/limitations` with its size in the meantime.
+- **RESOLVED 2026-08-02 — a freeform fin's outline now round-trips.** The model retains the
+  outline instead of reducing it away at import, and the exporter writes `<finpoints>` back, for both
+  the OpenRocket and the RockSim reader. All **9 freeform sets across the 8 corpus designs that carry
+  one** now survive a download and re-open with static margin unchanged to three decimals — including
+  `Pods--airframes and winglets.ork`, which was the worst at 2.134 → 1.449 cal (−32%), and
+  `rocksimTestRocket2.rkt`, which had been losing its `over-stable` warning outright. The equal-area
+  trapezoid described below is still what a set with NO outline gets — an elliptical set, or a
+  freeform set read from a design an older Loft saved — so both of its tests stay, now labelled as
+  the fallback. `/docs/limitations` is updated, including why an older saved copy cannot be recovered.
+  Original entry, kept for the measurements and for the reverted alternative:
+
+  > - **A freeform fin's outline is discarded on export, and no trapezoid can stand in for it — R6 work,
+  > with the measurements already taken.** `lib/ork/export.ts` writes a `freeformfinset` as the
+  > equal-area trapezoid, tip = 2·area/height − root. That solution is negative whenever the planform
+  > tapers hard, and the tip is then clamped to zero with the root kept, so the exported fin is LARGER
+  > in area than the one drawn. Measured 2026-07-31 over all 35 corpus designs: **8 carry a freeform
+  > set and 6 of those shift static margin through a download/re-import — median 0.080 cal, worst
+  > 0.685 cal on `Pods--airframes and winglets.ork` (2.13 → 1.45), whose "Wings" set comes back 42%
+  > bigger in area.** No design without a freeform set moves at all.
+  > **Shrinking the ROOT to 2·area/height instead was built, measured and REVERTED the same day**, and
+  > the reasons are the value of this entry: (1) a zero-area planform — which `planformFromPoints` can
+  > produce from collinear points — writes a root of 0, and `finContribution` drops a fin set with no
+  > root, so the set VANISHES from lift and drag (measured: 2.44 → 1.53 cal on the starter, ~0.9 cal
+  > with no warning); (2) a fin set's `axialLength` IS its root chord, so under a `bottom` or `middle`
+  > anchor a shorter root translates the planform down the tube — `Pods`' "Wings" moved **52.4 mm aft**
+  > — which is an unlabelled change to a build number; and (3) the margin it produced looked better only
+  > because of that displacement, since compensating the offset gives 1.28 cal, worse than either.
+  > **The real fix is to stop discarding the outline**: retain the `<finpoints>` on the model at import
+  > and write them back, which makes the round trip lossless instead of choosing which way to be wrong.
+  > That needs `GenericFinSet` to carry the points it currently reduces away, and it belongs to R6 ("a
+  > built design leaves Loft intact"). Disclosed on `/docs/limitations` with its size in the meantime.
 
 - **`Parachute.area` is the one mass- or drag-relevant field the `.ork` export still drops.** Read at
   `lib/sim/setup.ts` and `lib/sim/simulate.ts` as `c.area ?? π(d/2)²`, so a design carrying an explicit

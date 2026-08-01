@@ -1014,11 +1014,22 @@ function editComponent(
     if (c.kind === "ellipticalfinset" || c.kind === "freeformfinset") {
       const height = span ?? c.height;
       // A generic set stores its planform area; scale it with any span change to keep the shape.
-      const area = span !== undefined && c.height > 0 ? c.area * (span / c.height) : c.area;
+      const scale = span !== undefined && c.height > 0 ? span / c.height : 1;
+      const area = c.area * scale;
+      // And the OUTLINE with it. A freeform set keeps the points it was drawn from so an export can
+      // write the shape back rather than an equal-area trapezoid — which means a span edit that moved
+      // `height` and `area` but left the points alone would export the fin the flyer started with.
+      // Measured on `Pods--airframes and winglets.ork` before this line existed: stretching the
+      // "Cockpit" set's span 7.0 mm → 10.4 mm and downloading gave a file that reopened at 7.0 mm,
+      // static margin 2.077 → 2.134 — the edit silently undone by saving it. A span stretch scales y
+      // only; the chord is untouched, which is why `area` above scales linearly with the same factor.
+      const points =
+        scale === 1 || !c.points ? c.points : c.points.map((pt) => ({ x: pt.x, y: pt.y * scale }));
       return {
         ...c,
         height,
         area,
+        points,
         finCount: count ?? c.finCount,
         thickness: thick ?? c.thickness,
         crossSection: cross ?? c.crossSection,

@@ -7,6 +7,7 @@ import { newDesign } from "../model/starter";
 import { applyGeometryEdits, removalRefusal } from "../model/edit";
 import { runFlight } from "../sim/run";
 import { combine, structurePointMasses } from "../sim/mass";
+import { planformFromPoints } from "../model/planform";
 import { flattenRocket } from "../model/geometry";
 import type { OrkDocument } from "./adapt";
 import type { NoseCone, BodyTube, MassComponent, Parachute, InnerTube, TrapezoidFinSet, GenericFinSet, MinorComponent } from "../model/types";
@@ -134,7 +135,10 @@ describe("exportOrk — real-design features round-trip (regression)", () => {
   });
 
   it("keeps a hard-tapered freeform fin's ROOT and POSITION, and does not chase its area", async () => {
-    // A freeform outline is not retained, so the export writes the equal-area trapezoid:
+    // THE FALLBACK, which is still reached by a set with no outline to write — an elliptical set, or a
+    // freeform set read from a design an older Loft saved as a trapezoid. (A freeform set that HAS its
+    // outline now round-trips the real shape; see the test below.) With no outline the export writes
+    // the equal-area trapezoid:
     // tip = 2·area/height − root. That solution is NEGATIVE once the planform tapers hard, and the
     // tip is then clamped to zero while the root is kept — so the exported fin is larger in area than
     // the one drawn. This asserts that deliberate choice, because the obvious alternative is worse:
@@ -142,8 +146,8 @@ describe("exportOrk — real-design features round-trip (regression)", () => {
     // `finContribution` drops a fin set with no root, so the set disappears from lift and drag
     // altogether. It also moves the fin, since a fin set's axial length IS its root chord — measured
     // on `Pods--airframes and winglets.ork`, the "Wings" set translated 52.4 mm aft under its
-    // `bottom` anchor. Tried and reverted 2026-07-31; the real fix is to round-trip `<finpoints>`,
-    // which is R6's and is filed.
+    // `bottom` anchor. Tried and reverted 2026-07-31. Deliberately built WITHOUT `points`, so this
+    // keeps testing the fallback rather than silently becoming a second copy of the test below.
     const doc = newDesign();
     const body = parts(doc).body;
     const height = 0.05;
@@ -176,7 +180,8 @@ describe("exportOrk — real-design features round-trip (regression)", () => {
   });
 
   it("leaves a gently-tapered freeform fin's trapezoid exact", async () => {
-    // Where the tip solution is positive there is no loss at all: area, span and sweep all survive.
+    // The fallback again, on the easy side of it: where the tip solution is positive there is no loss
+    // at all, and area, span and sweep all survive without the outline.
     const doc = newDesign();
     const body = parts(doc).body;
     const height = 0.05;
@@ -370,6 +375,110 @@ describe("exportOrk — real-design features round-trip (regression)", () => {
     expect(sc?.["cfg-1"]?.event).toBe("upperignition");
     expect(sc?.["cfg-2"]?.event).toBe("burnout");
     expect(sc?.["cfg-2"]?.delay).toBeCloseTo(1.5, 6);
+  });
+
+  it("round-trips a freeform fin's actual outline, not a trapezoid of the same area", async () => {
+    // A freeform fin is defined ONLY by its outline, and the outline is now kept on the model rather
+    // than reduced away at import — so the export writes the shape back. Before this, every freeform
+    // set came back as the equal-area trapezoid the two tests above describe, and the cost landed on
+    // static margin, which is a number a flyer acts on: measured over the 8 corpus designs carrying
+    // one, `Pods--airframes and winglets.ork` went 2.134 → 1.449 cal (−32%) and `rocksimTestRocket2`
+    // lost its `over-stable` warning outright.
+    //
+    // A deliberately hard taper: the trapezoid path would clamp this one's tip to zero and export a
+    // fin larger than the one drawn, so if the outline were being dropped the margin would move.
+    const points = [
+      { x: 0, y: 0 },
+      { x: 0.012, y: 0.05 },
+      { x: 0.02, y: 0.05 },
+      { x: 0.06, y: 0 },
+    ];
+    // Derived from the outline rather than stated beside it, which is what an import produces: a
+    // freeform set carries no root/height/area elements of its own, so any hand-written pair would be
+    // inconsistent with its own shape and the re-import would "differ" for that reason instead.
+    const pf = planformFromPoints(points);
+    const doc = newDesign();
+    parts(doc).body.children.push({
+      kind: "freeformfinset",
+      id: "ff-outline",
+      name: "Drawn",
+      finCount: 3,
+      thickness: 0.003,
+      rootChord: pf.rootChord,
+      height: pf.span,
+      sweepLength: pf.sweep,
+      area: pf.area,
+      cpChord: pf.cpChord > 0 ? pf.cpChord : undefined,
+      points,
+      children: [],
+      placement: { method: "bottom", offset: 0 },
+    } as unknown as GenericFinSet);
+
+    const back = await roundtrip(doc);
+    const out = flattenRocket(back.rocket).find((p) => p.component.name === "Drawn")?.component as
+      | GenericFinSet
+      | undefined;
+
+    // It comes back a freeform set, not a trapezoid, and with the same outline.
+    expect(out?.kind).toBe("freeformfinset");
+    expect(out?.points?.map((p) => [p.x, p.y])).toEqual(points.map((p) => [p.x, p.y]));
+    // And the flight number the outline exists to get right does not move.
+    const margin = (d: OrkDocument) =>
+      runFlight(d.rocket, {
+        configId: d.rocket.defaultConfigId ?? d.rocket.configurations[0]?.id,
+      }).result.staticMarginCal;
+    expect(margin(back)).toBeCloseTo(margin(doc), 6);
+  });
+
+  it("exports a freeform fin as EDITED, not as drawn", async () => {
+    // The outline is kept so the shape can be written back — which means a span edit that moves the
+    // set's `height` and `area` but leaves its points alone would export the fin the flyer started
+    // with, and saving the design would silently undo the edit. Measured on
+    // `Pods--airframes and winglets.ork` while this was true: stretching the "Cockpit" set 7.0 mm →
+    // 10.4 mm and downloading gave a file that reopened at 7.0 mm, static margin 2.077 → 2.134.
+    const points = [
+      { x: 0, y: 0 },
+      { x: 0.012, y: 0.05 },
+      { x: 0.02, y: 0.05 },
+      { x: 0.06, y: 0 },
+    ];
+    const pf = planformFromPoints(points);
+    const doc = newDesign();
+    parts(doc).body.children.push({
+      kind: "freeformfinset",
+      id: "ff-edited",
+      name: "Drawn",
+      finCount: 3,
+      thickness: 0.003,
+      rootChord: pf.rootChord,
+      height: pf.span,
+      sweepLength: pf.sweep,
+      area: pf.area,
+      cpChord: pf.cpChord > 0 ? pf.cpChord : undefined,
+      points,
+      children: [],
+      placement: { method: "bottom", offset: 0 },
+    } as unknown as GenericFinSet);
+
+    const stretched = 1.5 * pf.span;
+    const edited: OrkDocument = {
+      ...doc,
+      // Aimed at this set explicitly; `finSpan` alone would land on the starter's own fin set.
+      rocket: applyGeometryEdits(doc.rocket, { finSetId: "ff-edited", finSpan: stretched }),
+    };
+    const back = await roundtrip(edited);
+    const out = flattenRocket(back.rocket).find((p) => p.component.name === "Drawn")?.component as
+      | GenericFinSet
+      | undefined;
+
+    expect(out?.kind).toBe("freeformfinset");
+    expect(out?.height).toBeCloseTo(stretched, 6);
+    // A span stretch scales the outline's span and leaves its chord alone.
+    expect(Math.max(...(out?.points ?? []).map((p) => p.y))).toBeCloseTo(stretched, 6);
+    expect(Math.max(...(out?.points ?? []).map((p) => p.x))).toBeCloseTo(
+      Math.max(...points.map((p) => p.x)),
+      6,
+    );
   });
 
   it("keeps each configuration's name and its own airstart delay", async () => {

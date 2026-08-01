@@ -893,6 +893,30 @@ design built here the starter's only motor label "H128W" returned as "cfg-1".
 Both pinned by one test built from the small two-stage fixture rather than the 280 kB corpus design
 that found them, with a negative control on each half.
 
+**Third slice, 2026-08-02 — a freeform fin keeps its shape.** The largest measured flight-number loss
+in the round trip, and the one the exporter's own comment had already named the fix for: stop
+discarding the outline. A freeform fin is defined ONLY by its outline, and the model reduced it away
+at import to span/area/sweep, so an export had to invent an equal-area trapezoid — whose tip solution
+goes negative whenever the planform tapers hard, at which point the clamp writes a fin strictly LARGER
+than the one drawn.
+
+The model retains the points now, for the OpenRocket and the RockSim reader alike, and the exporter
+writes `<finpoints>` back. All **9 freeform sets across the 8 corpus designs that carry one** survive a
+download and re-open with static margin unchanged to three decimals — including
+`Pods--airframes and winglets.ork` at 2.134 → 1.449 cal (−32%) before, and `rocksimTestRocket2.rkt`,
+which had been losing its `over-stable` warning outright.
+
+**And a near-miss the change itself created, caught by driving it.** Keeping an outline means an edit
+that moves the set's `height` and `area` while leaving the points alone would export the fin the flyer
+STARTED with — so saving a design would silently undo the edit. Measured before the fix: stretching
+`Pods`' "Cockpit" set 7.0 mm → 10.4 mm and downloading gave a file that reopened at 7.0 mm, static
+margin 2.077 → 2.134. `applyGeometryEdits` now scales the outline's span with the same factor it
+already applies to `area`. Pinned, with a negative control.
+
+The equal-area trapezoid is still what a set with NO outline gets — an elliptical set, or a freeform
+set read from a design an older Loft saved — so its two tests stay, relabelled as the fallback.
+`/docs/limitations` is rewritten, including why a design saved by an older copy cannot be recovered.
+
 **What the milestone's own *done when* needs next**, measured rather than guessed: on the first
 export → re-import, **0 of 36** designs (35 corpus + the authored starter) reach a byte-equivalent
 model — 11 field diffs at best, 146 at worst; the model becomes a fixpoint only on the SECOND trip. So

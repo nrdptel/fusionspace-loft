@@ -30,7 +30,7 @@ import type {
 } from "../model/types";
 import { degToRad } from "../units";
 import { parseXml, child, children, childText, childNum, parseNum, type XmlNode } from "./xml";
-import { planformFromPoints, type Planform } from "../model/planform";
+import { planformFromPoints, type FinPoint, type Planform } from "../model/planform";
 
 export interface StoredResults {
   maxAltitude?: number;
@@ -473,11 +473,13 @@ function parseComponent(node: XmlNode, ctx: WalkContext): RocketComponent | null
       let area: number;
       let sweep = childNum(node, "sweeplength", 0) || 0;
       let cpChord: number | undefined;
+      let points: FinPoint[] | undefined;
       if (node.name === "freeformfinset") {
         // A freeform fin defines its shape ONLY by <finpoints>; derive the span, root chord,
         // area, and sweep from the outline so it isn't treated as a zero-span (degenerate) fin,
         // and the exact chordwise CP so the aero doesn't have to reduce it to a trapezoid.
         const fp = freeformPlanform(node);
+        points = freeformPoints(node);
         area = fp.area;
         sweep = fp.sweep;
         height = fp.span;
@@ -493,6 +495,7 @@ function parseComponent(node: XmlNode, ctx: WalkContext): RocketComponent | null
         rootChord,
         area,
         height,
+        points,
         sweepLength: sweep,
         thickness: childNum(node, "thickness", 0.003),
         crossSection: parseFinCrossSection(node),
@@ -681,10 +684,18 @@ function lugMass(node: XmlNode, outerRadius: number | undefined, length: number)
  *  chord, area, sweep and exact CP all come from them (see lib/model/planform.ts, shared with the
  *  RockSim importer, whose custom fin sets carry the same outline in a different spelling). */
 function freeformPlanform(node: XmlNode): Planform {
-  const fp = child(node, "finpoints");
-  if (!fp) return { area: 0, sweep: 0, span: 0, rootChord: 0, cpChord: 0 };
-  const pts = children(fp, "point").map((p) => ({ x: parseNum(p.attrs.x, 0), y: parseNum(p.attrs.y, 0) }));
+  const pts = freeformPoints(node);
+  if (!pts) return { area: 0, sweep: 0, span: 0, rootChord: 0, cpChord: 0 };
   return planformFromPoints(pts);
+}
+
+/** The raw outline, kept on the model so the exporter can write the shape back rather than inventing
+ *  an equal-area trapezoid for it. The reduction above is one-way. */
+function freeformPoints(node: XmlNode): FinPoint[] | undefined {
+  const fp = child(node, "finpoints");
+  if (!fp) return undefined;
+  const pts = children(fp, "point").map((p) => ({ x: parseNum(p.attrs.x, 0), y: parseNum(p.attrs.y, 0) }));
+  return pts.length >= 3 ? pts : undefined;
 }
 
 /** Per-configuration separation overrides: OpenRocket writes a `<separationconfiguration

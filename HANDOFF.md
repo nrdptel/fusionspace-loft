@@ -109,6 +109,9 @@ way, one test worse. The box crosses its descriptor ceiling while Playwright dri
 static server is just the next process to ask for one; `ulimit -n` is at its 4096 hard cap. Filed in
 `BACKLOG.md` with the numbers.
 
+**CI is unaffected** — the `e2e` job on GitHub Actions runs the same command against the same commit
+and passes — which is the cleanest evidence that this is the box and not the suite.
+
 **Until it is fixed, assemble a green from two passes** — the four other spec files, then
 `touch.spec.ts` — which is what this session gated on: 177 + 14 = 191, all passing.
 

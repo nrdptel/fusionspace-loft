@@ -48,6 +48,8 @@ export type SurfaceFinish =
 
 // --- component kinds ------------------------------------------------------------------
 
+import type { FinPoint } from "./planform";
+
 export type ComponentKind =
   | "nosecone"
   | "bodytube"
@@ -167,6 +169,12 @@ export interface GenericFinSet extends ComponentBase {
   /** Planform area of one fin (m²). */
   area: number;
   height: number;
+  /** The freeform outline the shape was reduced FROM, in metres, x chordwise from the root leading
+   *  edge and y spanwise. Kept so the shape can be written back out: the reduced span/area/sweep are
+   *  what the aero uses, but they cannot reconstruct the planform, and an exporter with only those
+   *  has to invent a trapezoid. Absent on an elliptical set, and on a freeform set imported before
+   *  this was retained — both fall back to the equal-area trapezoid. */
+  points?: readonly FinPoint[];
   /** Spanwise distance from root LE to the area centroid's chord LE (m). */
   sweepLength: number;
   thickness: number;
