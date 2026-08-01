@@ -69,12 +69,12 @@ test.describe("phone layout, landscape", () => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 30_000 });
-    for (const tab of ["Flight", "Design", "Analyze"]) {
+    for (const tab of ["Flight", "Design", "Sweep", "Cross-check"]) {
       await page.getByRole("link", { name: tab, exact: true }).click();
       // Gated on the address, because a workspace switch is a navigation and `page.evaluate` below
-      // is a one-shot read: without it, Design and Analyze could both measure the workspace just
+      // is a one-shot read: without it, Design and Sweep could both measure the workspace just
       // left, and a landscape overflow on either would ship green.
-      await page.waitForURL(new RegExp(`/${tab.toLowerCase()}/?$`));
+      await page.waitForURL(new RegExp(`/${tab === "Cross-check" ? "validate" : tab.toLowerCase()}/?$`));
       await expect(page.locator(`nav[aria-label="Workspace"] a[aria-current="page"]`)).toHaveText(tab);
       // `clientWidth`, never `innerWidth`: under Playwright's mobile emulation Chromium widens the
       // LAYOUT viewport to swallow an overflow, so both sides of an `innerWidth` comparison move

@@ -46,7 +46,7 @@ const CARD_TONES = {
    *  INSIDE a raised one needs no border, because the tone change is the separation — and in dark mode
    *  it genuinely has none to offer there: over a raised card this composites to the card's own colour,
    *  so the inset is carried entirely by the hairline. Measured on the built export: 1 of the 2 sunken
-   *  cards rendered on the Design tab and 1 of the 2 on Analyze have a card ancestor. Dropping the
+   *  cards rendered on the Design tab and 1 of the 2 on the sweeps have a card ancestor. Dropping the
    *  border is a per-site judgement about each parent, and doing it in the same pass as the conversion
    *  would make this a repaint rather than an extraction. Recorded in `ROADMAP.md` under *Decisions
    *  taken without the owner*, with the probe that redoes the count. */
@@ -322,7 +322,7 @@ export function Chip({ label, value }: { label: string; value: string }) {
  *
  *  Closing a panel unmounts the Close button while it is the focused element, and a removed element
  *  takes focus with it: the browser falls back to `<body>`, so a keyboard or screen-reader user who
- *  closed a panel near the bottom of Analyze was thrown back to the top of the document with no way
+ *  closed a panel near the bottom of a long workspace was thrown back to the top of the document with no way
  *  to tell what had happened. The Run button that takes its place does not exist until the state
  *  change has rendered, so the focus is asked for and then applied on the render that produces it.
  *
@@ -349,7 +349,7 @@ export function useReturnFocus(): [
  *  The dispersion run and the two sweeps each open on a Run button and, until this existed, offered
  *  nothing that closed them again: once opened they stayed open for the rest of the session. That
  *  cost twice. On a 390 px phone the open dispersion panel measured 2,195 px against 308 px closed
- *  — two and a half screens a flyer scrolls past on every visit to Analyze. And an open panel
+ *  — two and a half screens a flyer scrolls past on every visit to the sweeps. And an open panel
  *  re-flies whenever the design changes, so an ordinary nose-ballast edit re-ran hundreds of
  *  flights: 2.5 s of blocked work per edit, per open panel, for a result nobody was reading.
  *

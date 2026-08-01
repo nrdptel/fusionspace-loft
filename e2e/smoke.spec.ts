@@ -15,6 +15,19 @@ function refusalOf(page: Page, describedBy: string | null) {
   return page.locator(ids.map((id) => `[id="${id}"][role="alert"]`).join(", ") || "alert-none");
 }
 
+/** "No stored-tool comparison is rendered for this design" — asked on the workspace the comparison
+ *  actually lives on.
+ *
+ *  This exists because the same assertion, left on Flight after the comparison moved to Cross-check,
+ *  passes for the wrong reason: `getByRole` does not match inside a `hidden` subtree, so a Validation
+ *  panel wrongly rendered on the new workspace satisfies every one of these guards. Navigating first
+ *  is what makes the absence mean something. */
+async function expectNoComparison(page: import("@playwright/test").Page) {
+  await page.getByRole("link", { name: "Cross-check" }).click();
+  await page.waitForURL(/\/validate\/?$/);
+  await expect(page.getByRole("region", { name: "Validation" })).toHaveCount(0);
+}
+
 test.describe("Loft", () => {
   test("loads with a clean hydration and the heading", async ({ page }) => {
     const errors: string[] = [];
@@ -50,7 +63,7 @@ test.describe("Loft", () => {
     await expect(page.getByRole("heading", { name: /Altitude \(m\) vs time/ })).toBeVisible();
 
     // The OpenRocket comparison renders.
-    await expect(page.getByRole("region", { name: "Validation" })).toHaveCount(0);
+    await expectNoComparison(page);
 
     // The Design workspace opens with the to-scale side-view — with the loaded motor and the CG
     // marked ahead of the CP, the stability picture read off the airframe.
@@ -109,7 +122,7 @@ test.describe("Loft", () => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
-    await page.getByRole("link", { name: "Analyze" }).click();
+    await page.getByRole("link", { name: "Sweep" }).click();
 
     const sweep = page.getByRole("region", { name: "Motor sweep" });
     await sweep.getByRole("button", { name: "Run motor sweep" }).click();
@@ -127,7 +140,7 @@ test.describe("Loft", () => {
 
   test("a design edit re-runs an open sweep instead of throwing it away", async ({ page }) => {
     // The workbench loop: change something, see how the comparison moved. It used to be impossible —
-    // any edit remounted the Analyze panels to idle, so a completed sweep (or a 300-flight
+    // any edit remounted the heavy analysis panels to idle, so a completed sweep (or a 300-flight
     // Monte-Carlo) vanished with no notice and the "before" was gone.
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
@@ -143,7 +156,7 @@ test.describe("Loft", () => {
         ).replace(/[^\d.]/g, ""),
       );
 
-    await page.getByRole("link", { name: "Analyze" }).click();
+    await page.getByRole("link", { name: "Sweep" }).click();
     const sweep = page.getByRole("region", { name: "Motor sweep" });
     await sweep.getByRole("button", { name: "Run motor sweep" }).click();
     const firstRow = () => sweep.locator("tbody tr").first().locator("td").nth(1);
@@ -158,7 +171,7 @@ test.describe("Loft", () => {
     await span.blur();
     await expect.poll(apogee).not.toBe(flownBefore);
 
-    await page.getByRole("link", { name: "Analyze" }).click();
+    await page.getByRole("link", { name: "Sweep" }).click();
     // The sweep is still open, and it has re-flown every motor on the edited design.
     await expect(sweep.locator("table")).toBeVisible();
     await expect.poll(async () => firstRow().innerText()).not.toBe(sweptBefore);
@@ -210,20 +223,28 @@ test.describe("Loft", () => {
     await expect(page.locator("#main")).toBeVisible();
   });
 
-  test("a staged design is told why three Analyze tools aren't offered", async ({ page }) => {
-    // Three of the four are single-stage only. Rendering nothing at all reads as "Loft doesn't have
-    // these", which is a different claim from "they don't apply to this design".
+  test("a staged design is told why the sweeps aren't offered, on both workspaces", async ({ page }) => {
+    // Rendering nothing at all reads as "Loft doesn't have these", which is a different claim from
+    // "they don't apply to this design". Both workspaces have to say it now: the sweeps are
+    // single-stage because there is no one "the" nose or fin set to vary, and the second solver —
+    // which moved to Cross-check — is single-stage because RocketPy's flight is.
     await page.goto("/");
     await page
       .getByLabel(/^Choose an OpenRocket/)
       .setInputFiles(resolve(process.cwd(), "e2e/fixtures/two-stage-firm-booster.ork"));
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
-    await page.getByRole("link", { name: "Analyze" }).click();
-    const panel = page.locator("#panel-analyze");
-    await expect(panel.getByRole("heading", { name: /Second solver and design sweeps/ })).toBeVisible();
+    await page.getByRole("link", { name: "Sweep" }).click();
+    const panel = page.locator("#panel-sweep");
+    await expect(panel.getByRole("heading", { name: /Design sweeps/ })).toBeVisible();
     await expect(panel).toContainText(/flies 2 stages/);
     // The one that does apply is still there.
     await expect(panel.getByRole("heading", { name: /Monte-Carlo/ })).toBeVisible();
+
+    // …and the second solver says the same thing on the workspace it moved to, rather than simply
+    // being absent there.
+    await page.getByRole("link", { name: "Cross-check" }).click();
+    await page.waitForURL(/\/validate\/?$/);
+    await expect(page.locator("#panel-validate").getByRole("region", { name: "RocketPy cross-check" })).toHaveCount(0);
   });
 
   test("a file Loft can't read says so in the flyer's words", async ({ page }) => {
@@ -365,6 +386,10 @@ test.describe("Loft", () => {
       .getByLabel(/^Choose an OpenRocket/)
       .setInputFiles(resolve(process.cwd(), "e2e/fixtures/logged-sample.ork"));
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    // The stored-tool comparison moved to its own workspace on 2026-08-02, beside the step-by-step
+    // cross-check and the second solver — every "does anything else agree?" surface in one place.
+    await page.getByRole("link", { name: "Cross-check" }).click();
+    await page.waitForURL(/\/validate\/?$/);
     const comparison = page.getByRole("heading", { name: /vs Loft/ });
     const reset = page.getByRole("button", { name: /Reset to as-designed/ });
     await expect(comparison).toHaveCount(1);
@@ -405,24 +430,24 @@ test.describe("Loft", () => {
     await page.waitForURL(/\/flight\/?$/);
     expect(path()).toBe("/flight");
 
-    await page.getByRole("link", { name: "Analyze" }).click();
-    await page.waitForURL(/\/analyze\/?$/);
+    await page.getByRole("link", { name: "Sweep" }).click();
+    await page.waitForURL(/\/sweep\/?$/);
     await page.getByRole("link", { name: "Design" }).click();
     await page.waitForURL(/\/design\/?$/);
 
     // Back returns to the workspace you came from rather than leaving the app.
     await page.goBack();
-    await page.waitForURL(/\/analyze\/?$/);
-    await expect(current).toHaveText("Analyze");
+    await page.waitForURL(/\/sweep\/?$/);
+    await expect(current).toHaveText("Sweep");
 
     // …and a reload picks the same workspace back up, not the one the design loaded on.
     await page.reload();
     await expect(page.getByRole("navigation", { name: "Workspace" })).toBeVisible({ timeout: 15000 });
-    expect(path()).toBe("/analyze");
-    await expect(current).toHaveText("Analyze");
+    expect(path()).toBe("/sweep");
+    await expect(current).toHaveText("Sweep");
 
     // A workspace opened COLD from its own address — the bookmark case — restores the session and
-    // stays where it was asked to be. The saved session remembers Analyze; Design is what the flyer
+    // stays where it was asked to be. The saved session remembers Sweep; Design is what the flyer
     // typed, and what a flyer typed outranks what the session remembers.
     await page.goto("/design");
     await expect(page.getByRole("heading", { name: "Design geometry" })).toBeVisible({ timeout: 15000 });
@@ -440,31 +465,31 @@ test.describe("Loft", () => {
     // following it does not unmount anything. The design survived while the address stopped naming
     // a workspace, and the result was the Flight panel rendered under `/`, with no link on the
     // spine marked current and the tab title back to the site's. Worse, the session-save effect
-    // read the address for "where I left off", so the same click quietly rewrote Analyze to Flight
+    // read the address for "where I left off", so the same click quietly rewrote Sweep to Flight
     // and the next cold open came back on the wrong workspace.
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
-    await page.getByRole("link", { name: "Analyze" }).click();
-    await page.waitForURL(/\/analyze\/?$/);
+    await page.getByRole("link", { name: "Sweep" }).click();
+    await page.waitForURL(/\/sweep\/?$/);
 
     await page.getByRole("link", { name: "Loft", exact: true }).click();
     // Back where the flyer was, not at an address that names nothing.
-    await page.waitForURL(/\/analyze\/?$/);
-    await expect(page.locator('nav[aria-label="Workspace"] a[aria-current="page"]')).toHaveText("Analyze");
+    await page.waitForURL(/\/sweep\/?$/);
+    await expect(page.locator('nav[aria-label="Workspace"] a[aria-current="page"]')).toHaveText("Sweep");
 
     // …and the session still remembers it, which is the half no amount of looking at the screen
     // would have shown.
     await page.reload();
     await expect(page.getByRole("navigation", { name: "Workspace" })).toBeVisible({ timeout: 15000 });
-    await expect(page.locator('nav[aria-label="Workspace"] a[aria-current="page"]')).toHaveText("Analyze");
+    await expect(page.locator('nav[aria-label="Workspace"] a[aria-current="page"]')).toHaveText("Sweep");
   });
 
   test("a workspace with no design behind it returns to the import screen", async ({ page }) => {
     // The stale-bookmark case, and the one a route split creates that a fragment never could: an
     // address that names a workspace can now be reached with nothing loaded. A page that renders an
     // empty shell there is a state with no way out — the spine's other links are just as empty.
-    await page.goto("/analyze");
+    await page.goto("/sweep");
     await expect(page.getByLabel(/^Choose an OpenRocket/)).toBeVisible({ timeout: 15000 });
     expect(new URL(page.url()).pathname.replace(/\/$/, "") || "/").toBe("/");
   });
@@ -671,7 +696,7 @@ test.describe("Loft", () => {
     expect(parseFloat(apogee.replace(/[^\d.]/g, ""))).toBeGreaterThan(100);
 
     // No stored source, so it is not mislabelled with an OpenRocket/RockSim comparison.
-    await expect(page.getByRole("region", { name: "Validation" })).toHaveCount(0);
+    await expectNoComparison(page);
   });
 
   test("exports the current design as a downloadable .ork", async ({ page }) => {
@@ -728,7 +753,7 @@ test.describe("Loft", () => {
     const before = await summaryApogee();
     expect(before).toBeGreaterThan(0);
     // The as-designed flight shows the OpenRocket comparison and offers no reset (nothing to undo).
-    await expect(page.getByRole("region", { name: "Validation" })).toHaveCount(0);
+    await expectNoComparison(page);
     await expect(page.getByRole("button", { name: "Reset to as-designed" })).toHaveCount(0);
 
     // Stack a design what-if: nose ballast makes the rocket heavier and lower.
@@ -739,7 +764,7 @@ test.describe("Loft", () => {
     // Back on Flight, the hypothetical flight has dropped the stored comparison, and the header now
     // offers a one-click way back.
     await page.getByRole("link", { name: "Flight" }).click();
-    await expect(page.getByRole("region", { name: "Validation" })).toHaveCount(0);
+    await expectNoComparison(page);
     const resetBtn = page.getByRole("button", { name: "Reset to as-designed" });
     await expect(resetBtn).toBeVisible();
 
@@ -747,7 +772,7 @@ test.describe("Loft", () => {
     // the control disappears (nothing left to undo).
     await resetBtn.click();
     await expect.poll(summaryApogee).toBe(before);
-    await expect(page.getByRole("region", { name: "Validation" })).toHaveCount(0);
+    await expectNoComparison(page);
     await expect(resetBtn).toHaveCount(0);
   });
 
@@ -822,7 +847,10 @@ test.describe("Loft", () => {
     await expect(page.getByText("J420R", { exact: false }).first()).toBeVisible();
     await expect(page.getByText(/RockSim format/).first()).toBeVisible();
 
-    // The comparison is labelled for RockSim, not OpenRocket.
+    // The comparison is labelled for RockSim, not OpenRocket — on the Cross-check workspace, which
+    // is where every "does anything else agree?" surface moved.
+    await page.getByRole("link", { name: "Cross-check" }).click();
+    await page.waitForURL(/\/validate\/?$/);
     await expect(page.getByRole("heading", { name: "RockSim vs Loft" })).toBeVisible();
   });
 
@@ -833,7 +861,7 @@ test.describe("Loft", () => {
     await page.getByRole("button", { name: /RockSim · 54 mm sport/ }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
 
-    await page.getByRole("link", { name: "Analyze" }).click();
+    await page.getByRole("link", { name: "Sweep" }).click();
     await expect(page.getByRole("region", { name: "Motor sweep" })).toBeVisible();
 
     await page.getByRole("link", { name: "Design" }).click();
@@ -898,7 +926,7 @@ test.describe("Loft", () => {
 
     // A shipped sample states no flight results, so no comparison panel appears for it — there is
     // nothing to compare against, and inventing something to show would be the wrong answer.
-    await expect(page.getByRole("region", { name: "Validation" })).toHaveCount(0);
+    await expectNoComparison(page);
   });
 
   test("an imported file with a stored per-step log shows the drag cross-check", async ({ page }) => {
@@ -909,6 +937,10 @@ test.describe("Loft", () => {
       .setInputFiles(resolve(process.cwd(), "e2e/fixtures/logged-sample.ork"));
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
 
+    // The stored-tool comparison moved to its own workspace on 2026-08-02, beside the step-by-step
+    // cross-check and the second solver — every "does anything else agree?" surface in one place.
+    await page.getByRole("link", { name: "Cross-check" }).click();
+    await page.waitForURL(/\/validate\/?$/);
     // Loft overlays its own solver on the file's stored per-step flight: an altitude curve and a
     // drag-coefficient curve, the latter quantified with a mean-gap figure.
     const panel = page.getByRole("region", { name: "Stored-flight cross-check" });
@@ -956,7 +988,7 @@ test.describe("Loft", () => {
     await expect(page.getByRole("region", { name: "No flight simulated" })).toBeVisible({ timeout: 15000 });
 
     // All three workspaces are there, and it lands on Design — the one with something in it.
-    await expect(page.getByRole("navigation", { name: "Workspace" }).getByRole("link")).toHaveCount(3);
+    await expect(page.getByRole("navigation", { name: "Workspace" }).getByRole("link")).toHaveCount(4);
     await expect(page.getByRole("link", { name: "Design" })).toHaveAttribute("aria-current", "page");
     // The geometry is real and motor-independent, so the diagram and the parts table are shown.
     await expect(page.getByLabel(/Scale side-view/)).toBeVisible();
@@ -966,9 +998,9 @@ test.describe("Loft", () => {
     await expect(page.getByRole("region", { name: "Flight unavailable" })).toBeVisible();
     await expect(page.getByLabel("Results", { exact: true })).toHaveCount(0);
 
-    // Analyze does the same — and offers the motor sweep, which flies the bundled substitutes
+    // Sweep does the same — and offers the motor sweep, which flies the bundled substitutes
     // themselves and so is the one analysis that still works on a design with no resolved motor.
-    await page.getByRole("link", { name: "Analyze" }).click();
+    await page.getByRole("link", { name: "Sweep" }).click();
     await expect(page.getByRole("region", { name: /unavailable$/ })).toBeVisible();
     await expect(page.getByRole("region", { name: "Motor sweep" })).toBeVisible();
 
@@ -1017,6 +1049,8 @@ test.describe("Loft", () => {
     // The file's own stored numbers are attributed to RASAero, not to OpenRocket — as is the
     // format stamp. A prediction belongs to the tool that made it.
     await expect(page.getByText(/RASAero format 2/).first()).toBeVisible();
+    await page.getByRole("link", { name: "Cross-check" }).click();
+    await page.waitForURL(/\/validate\/?$/);
     await expect(page.getByRole("heading", { name: "RASAero vs Loft" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "OpenRocket vs Loft" })).toHaveCount(0);
     await expect(page.getByText(/OpenRocket format \d/)).toHaveCount(0);
@@ -1299,8 +1333,8 @@ test.describe("Loft", () => {
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
 
-    // The sweep panel lives in the Analyze workspace; it offers to fly every fitting bundled motor.
-    await page.getByRole("link", { name: "Analyze" }).click();
+    // The sweep panel lives in the Sweep workspace; it offers to fly every fitting bundled motor.
+    await page.getByRole("link", { name: "Sweep" }).click();
     const panel = page.getByRole("region", { name: "Motor sweep" });
     await expect(panel).toBeVisible();
     await panel.getByRole("button", { name: /Run motor sweep/ }).click();
@@ -1369,7 +1403,7 @@ test.describe("Loft", () => {
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
 
-    await page.getByRole("link", { name: "Analyze" }).click();
+    await page.getByRole("link", { name: "Sweep" }).click();
     const panel = page.getByRole("region", { name: "Motor sweep" });
     await panel.getByRole("button", { name: /Run motor sweep/ }).click();
     await expect(panel.locator("tbody tr").first()).toBeVisible();
@@ -1393,7 +1427,7 @@ test.describe("Loft", () => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
-    await page.getByRole("link", { name: "Analyze" }).click();
+    await page.getByRole("link", { name: "Sweep" }).click();
     const panel = page.getByRole("region", { name: "Motor sweep" });
     await panel.getByRole("button", { name: /Run motor sweep/ }).click();
     await expect(panel.locator("tbody tr").first()).toBeVisible();
@@ -1430,7 +1464,7 @@ test.describe("Loft", () => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
-    await page.getByRole("link", { name: "Analyze" }).click();
+    await page.getByRole("link", { name: "Sweep" }).click();
     const panel = page.getByRole("region", { name: /dispersion/i });
     await panel.getByRole("button", { name: /Run dispersion/ }).click();
     const impulse = panel.getByLabel(/Motor impulse/i);
@@ -1439,14 +1473,14 @@ test.describe("Loft", () => {
 
     await page.reload();
     await expect(page.getByText(/Picked up where you left off/)).toBeVisible({ timeout: 30_000 });
-    await page.getByRole("link", { name: "Analyze" }).click();
+    await page.getByRole("link", { name: "Sweep" }).click();
     await panel.getByRole("button", { name: /Run dispersion/ }).click();
     await expect(panel.getByLabel(/Motor impulse/i)).toHaveValue("8");
 
     // …and they outlive the design, because they describe the flyer, not the rocket.
     await page.getByRole("button", { name: "Start fresh" }).click();
     await page.getByRole("button", { name: /54 mm dual-deploy/ }).click();
-    await page.getByRole("link", { name: "Analyze" }).click();
+    await page.getByRole("link", { name: "Sweep" }).click();
     await panel.getByRole("button", { name: /Run dispersion/ }).click();
     await expect(panel.getByLabel(/Motor impulse/i)).toHaveValue("8");
   });
@@ -1457,7 +1491,7 @@ test.describe("Loft", () => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
-    await page.getByRole("link", { name: "Analyze" }).click();
+    await page.getByRole("link", { name: "Sweep" }).click();
 
     const sweep = page.getByRole("region", { name: /Parameter sweep/i });
     await sweep.getByRole("button", { name: /Run parameter sweep/ }).click();
@@ -1471,7 +1505,7 @@ test.describe("Loft", () => {
 
     await page.reload();
     await expect(page.getByText(/Picked up where you left off/)).toBeVisible({ timeout: 30_000 });
-    await page.getByRole("link", { name: "Analyze" }).click();
+    await page.getByRole("link", { name: "Sweep" }).click();
     await sweep.getByRole("button", { name: /Run parameter sweep/ }).click();
     await expect(sweep.getByLabel("Sweep variable")).toHaveValue("bodyLength");
     await expect(sweep.getByLabel("Sweep metric")).toHaveValue("staticMarginCal");
@@ -1490,7 +1524,7 @@ test.describe("Loft", () => {
     await page.goto("/");
     await page.getByRole("button", { name: /54 mm dual-deploy/ }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
-    await page.getByRole("link", { name: "Analyze" }).click();
+    await page.getByRole("link", { name: "Sweep" }).click();
 
     // What has to be asserted is the WORK, not the rows: a re-run of an unchanged rocket returns
     // rows identical to the ones it replaced, so comparing them cannot tell "kept" from "re-flown".
@@ -1559,7 +1593,7 @@ test.describe("Loft", () => {
     const ballast = page.locator("input").and(page.getByLabel(/Nose ballast/i)).first();
     await ballast.fill("50");
     await ballast.press("Enter");
-    await page.getByRole("link", { name: "Analyze" }).click();
+    await page.getByRole("link", { name: "Sweep" }).click();
     await expect
       .poll(async () => (await motors.locator("tbody tr").allInnerTexts()).join("|"), { timeout: 30_000 })
       .not.toBe(rowsBefore.join("|"));
@@ -2338,10 +2372,14 @@ test.describe("Loft", () => {
     // The RockSim sample deliberately, NOT the 38 mm one: only a design carrying stored results
     // renders the Validation panel, and that panel holds the "Max acceleration" row which was one of
     // the surfaces this guards. On the bundled .ork samples the panel is absent, so the census would
-    // have passed without ever seeing it.
+    // have passed without ever seeing it. That panel moved to the Cross-check workspace, so the
+    // control has to be taken there — asserting it on Flight would now pass or fail for a reason
+    // that has nothing to do with units.
     await page.goto("/");
     await page.getByRole("button", { name: /RockSim · 54 mm sport/ }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+    await page.getByRole("link", { name: "Cross-check" }).click();
+    await page.waitForURL(/\/validate\/?$/);
     await expect(
       page.getByRole("row", { name: /Max acceleration/ }),
       "the census must actually reach the validation row it guards",
@@ -2373,16 +2411,25 @@ test.describe("Loft", () => {
         return { checked, bad };
       });
 
-    for (const tab of ["Flight", "Design", "Analyze"]) {
+    // Label and route stopped being the same word when Analyze split: the Cross-check workspace
+    // lives at /validate, because that is what the job is called in the model and the spine label is
+    // what it is called to a flyer.
+    const ROUTE: Record<string, string> = {
+      Flight: "flight",
+      Design: "design",
+      Sweep: "sweep",
+      "Cross-check": "validate",
+    };
+    for (const tab of ["Flight", "Design", "Sweep", "Cross-check"]) {
       await page.getByRole("button", { name: "Imperial", exact: true }).click();
       await page.getByRole("link", { name: tab }).click();
       // Before anything is counted: a hidden panel's buttons are invisible to `getByRole`, so the
       // `count()` below silently found zero and skipped all three sweeps — and the census then ran
-      // on an Analyze workspace with no sweep tables on it, which is the vacuity the note below
+      // on a Sweep workspace with no sweep tables on it, which is the vacuity the note below
       // says was already fixed once.
-      await page.waitForURL(new RegExp(`/${tab.toLowerCase()}/?$`));
+      await page.waitForURL(new RegExp(`/${ROUTE[tab]}/?$`));
       await expect(page.getByRole("link", { name: tab })).toHaveAttribute("aria-current", "page");
-      if (tab === "Analyze")
+      if (tab === "Sweep")
         for (const label of [/Run motor sweep/, /Run parameter sweep|Run sweep/, /Run dispersion/]) {
           const b = page.getByRole("button", { name: label }).first();
           if ((await b.count()) > 0) {
@@ -2496,14 +2543,14 @@ test.describe("Loft", () => {
     await expect.poll(async () => parseFloat((await dia.getAttribute("aria-valuenow")) ?? "0")).toBeLessThan(afterDrag);
   });
 
-  test("results split into Flight / Design / Analyze workspaces", async ({ page }) => {
+  test("results split into Flight / Design / Sweep / Cross-check workspaces", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
 
     const flightTab = page.getByRole("link", { name: "Flight" });
     const designTab = page.getByRole("link", { name: "Design" });
-    const analyzeTab = page.getByRole("link", { name: "Analyze" });
+    const sweepTab = page.getByRole("link", { name: "Sweep" });
     await expect(flightTab).toHaveAttribute("aria-current", "page");
 
     // Flight leads with the plots; the design diagram is not stacked on this view.
@@ -2516,8 +2563,8 @@ test.describe("Loft", () => {
     await expect(page.getByRole("heading", { name: "Design geometry" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Flight path" })).toBeHidden();
 
-    // Analyze holds the heavy tools; run a sweep there.
-    await analyzeTab.click();
+    // Sweep holds the heavy tools; run a sweep there.
+    await sweepTab.click();
     const sweep = page.getByRole("region", { name: "Parameter sweep" });
     await expect(sweep).toBeVisible();
     await sweep.getByRole("button", { name: /Run parameter sweep/ }).click();
@@ -2526,7 +2573,7 @@ test.describe("Loft", () => {
     // Switching away and back keeps the run — the panels stay mounted, not rebuilt from scratch.
     await flightTab.click();
     await expect(sweep).toBeHidden();
-    await analyzeTab.click();
+    await sweepTab.click();
     await expect(sweep.getByRole("img", { name: /Apogee.*versus/i })).toBeVisible();
 
     // The spine is keyboard-complete, which for a navigation means Tab reaches every link in order
@@ -2537,7 +2584,9 @@ test.describe("Loft", () => {
     await page.keyboard.press("Tab");
     await expect(page.locator("a:focus")).toHaveText("Design");
     await page.keyboard.press("Tab");
-    await expect(page.locator("a:focus")).toHaveText("Analyze");
+    await expect(page.locator("a:focus")).toHaveText("Sweep");
+    await page.keyboard.press("Tab");
+    await expect(page.locator("a:focus")).toHaveText("Cross-check");
     await flightTab.focus();
     await page.keyboard.press("Enter");
     await expect(flightTab).toHaveAttribute("aria-current", "page");
@@ -2550,7 +2599,7 @@ test.describe("Loft", () => {
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
 
-    await page.getByRole("link", { name: "Analyze" }).click();
+    await page.getByRole("link", { name: "Sweep" }).click();
     const panel = page.getByRole("region", { name: "Parameter sweep" });
     await expect(panel).toBeVisible();
     await panel.getByRole("button", { name: /Run parameter sweep/ }).click();
@@ -2607,7 +2656,7 @@ test.describe("Loft", () => {
     await page.getByRole("button", { name: /Add a tube behind this/ }).click();
     await expect(tubes).toHaveCount(2);
 
-    await page.getByRole("link", { name: "Analyze" }).click();
+    await page.getByRole("link", { name: "Sweep" }).click();
     const panel = page.getByRole("region", { name: "Parameter sweep" });
     await panel.getByRole("button", { name: /Run parameter sweep/ }).click();
     await panel.getByLabel("Sweep variable").selectOption("bodyLength");
@@ -2636,7 +2685,7 @@ test.describe("Loft", () => {
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
 
-    await page.getByRole("link", { name: "Analyze" }).click();
+    await page.getByRole("link", { name: "Sweep" }).click();
     const panel = page.getByRole("region", { name: "Monte-Carlo dispersion" });
     await expect(panel).toBeVisible();
     await panel.getByRole("button", { name: /Run dispersion/ }).click();
@@ -3119,13 +3168,14 @@ test.describe("Loft", () => {
   test("has no serious accessibility violations on the results view", async ({ page }) => {
     // Audit the full results state across all three workspaces — stat grid, warnings, plots, and the
     // design-tool comparison table on Flight; the editable diagram (a slider group) on Design; the
-    // sweep and dispersion tools on Analyze — not just the empty landing page. The comparison table
+    // sweep and dispersion tools on Sweep, and all three stored-result comparisons on Cross-check — not
+    // just the empty landing page. The comparison table
     // renders deviation values in a semantic caution colour, exactly the honesty-relevant numbers
     // that must stay readable, and the workspace spine adds a new keyboard-reachable landmark to check.
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
     await page.getByRole("heading", { name: "Flight", exact: true }).waitFor();
-    await expect(page.getByRole("region", { name: "Validation" })).toHaveCount(0);
+    await expectNoComparison(page);
 
     const seriousViolations = async () => {
       const results = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze();
@@ -3138,9 +3188,16 @@ test.describe("Loft", () => {
     await page.getByRole("link", { name: "Design" }).click();
     await expect(page.getByRole("heading", { name: "Design geometry" })).toBeVisible();
     expect(await seriousViolations()).toEqual([]); // Design
-    await page.getByRole("link", { name: "Analyze" }).click();
+    await page.getByRole("link", { name: "Sweep" }).click();
     await expect(page.getByRole("region", { name: "Motor sweep" })).toBeVisible();
-    expect(await seriousViolations()).toEqual([]); // Analyze
+    expect(await seriousViolations()).toEqual([]); // Sweep
+    // Cross-check too. Axe skips `hidden` subtrees, so renaming the third pass rather than adding a
+    // fourth would have quietly retired the audit that `ValidationPanel`, `DragCrossCheck` and the
+    // RocketPy panel had while all three sat behind one workspace.
+    await page.getByRole("link", { name: "Cross-check" }).click();
+    await page.waitForURL(/\/validate\/?$/);
+    await expect(page.locator("#panel-validate")).toBeVisible();
+    expect(await seriousViolations()).toEqual([]); // Cross-check
   });
 
   test("has no serious accessibility violations on the results view in dark mode", async ({
@@ -3151,7 +3208,7 @@ test.describe("Loft", () => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
     await page.getByRole("heading", { name: "Flight", exact: true }).waitFor();
-    await expect(page.getByRole("region", { name: "Validation" })).toHaveCount(0);
+    await expectNoComparison(page);
     const results = await new AxeBuilder({ page })
       .withTags(["wcag2a", "wcag2aa"])
       .analyze();
@@ -4433,8 +4490,8 @@ test.describe("Loft", () => {
     await expect(cannotFire).toHaveCount(0);
   });
 
-  test("authoring a booster withdraws the single-stage-only Analyze tools", async ({ page }) => {
-    // The Analyze tools gated on "is this design staged?" read the PRISTINE stage count, which a booster
+  test("authoring a booster withdraws the single-stage-only tools, on both workspaces", async ({ page }) => {
+    // The tools gated on "is this design staged?" read the PRISTINE stage count, which a booster
     // in the edit bag never touches — so they stayed offered on a design that had become two stages. The
     // RocketPy cross-check is the one that then publishes a number: it builds its spec from the EDITED
     // rocket, and that spec carries a SINGLE motor, folding `motors.length` of them into one coaxial
@@ -4447,21 +4504,36 @@ test.describe("Loft", () => {
     await page.getByRole("button", { name: "Start a new design" }).click();
     await expect(page.getByRole("heading", { name: "Design geometry" })).toBeVisible({ timeout: 15000 });
 
-    await page.getByRole("link", { name: "Analyze" }).click();
     const crossCheck = page.getByRole("region", { name: "RocketPy cross-check" });
     const sweep = page.getByRole("region", { name: "Parameter sweep" });
     // The motor sweep too: it is gated on `!staged` for the same reason — with several stages there is
     // no single airframe to swap the motor of — and asserting only the other two left `!staged` free to
     // be deleted from `canSweepMotors` with everything still green.
     const motors = page.getByRole("region", { name: "Motor sweep" });
+    // The three live on TWO workspaces since the Analyze split: the second solver moved to Cross-check
+    // with the other things that compare Loft against somebody else, and the two sweeps stayed
+    // together. One gate, two places to look — which is exactly the shape a check like this must
+    // survive, so it walks both rather than trusting one to stand in for the other.
+    const onSweep = async () => {
+      await page.getByRole("link", { name: "Sweep" }).click();
+      await page.waitForURL(/\/sweep\/?$/);
+    };
+    const onCrossCheck = async () => {
+      await page.getByRole("link", { name: "Cross-check" }).click();
+      await page.waitForURL(/\/validate\/?$/);
+    };
+
+    await onCrossCheck();
     await expect(crossCheck).toBeVisible({ timeout: 20000 });
+    await onSweep();
     await expect(sweep).toBeVisible();
     await expect(motors).toBeVisible();
 
     await page.getByRole("link", { name: "Design" }).click();
     await page.getByRole("button", { name: /Add a booster stage/ }).click();
-    await page.getByRole("link", { name: "Analyze" }).click();
+    await onCrossCheck();
     await expect(crossCheck).toHaveCount(0, { timeout: 20000 });
+    await onSweep();
     await expect(sweep).toHaveCount(0);
     await expect(motors).toHaveCount(0);
     // And it SAYS SO — three absences are not the assertion. "A panel that is simply absent reads as a
@@ -4475,8 +4547,9 @@ test.describe("Loft", () => {
     // And back, because a withdrawal that does not reverse is a tool the flyer has lost.
     await page.getByRole("link", { name: "Design" }).click();
     await page.getByRole("button", { name: /Remove Booster/ }).click();
-    await page.getByRole("link", { name: "Analyze" }).click();
+    await onCrossCheck();
     await expect(crossCheck).toBeVisible({ timeout: 20000 });
+    await onSweep();
     await expect(sweep).toBeVisible();
     await expect(motors).toBeVisible();
   });
@@ -4935,6 +5008,8 @@ test.describe("Loft", () => {
     await page.goto("/");
     await page.getByRole("button", { name: /RockSim · 54 mm sport/ }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    await page.getByRole("link", { name: "Cross-check" }).click();
+    await page.waitForURL(/\/validate\/?$/);
     const comparison = page.getByRole("region", { name: "Validation" });
     await expect(comparison).toBeVisible();
 
@@ -4946,7 +5021,8 @@ test.describe("Loft", () => {
 
     // The design is not edited by it, so the comparison it would have hidden is still there.
     await expect(page.getByRole("button", { name: "Reset to as-designed" })).toHaveCount(0);
-    await page.getByRole("link", { name: "Flight" }).click();
+    await page.getByRole("link", { name: "Cross-check" }).click();
+    await page.waitForURL(/\/validate\/?$/);
     await expect(comparison).toBeVisible();
   });
 
@@ -4960,15 +5036,17 @@ test.describe("Loft", () => {
     await page.getByRole("button", { name: /54 mm dual-deploy/ }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
 
+    await page.getByRole("link", { name: "Cross-check" }).click();
+    await page.waitForURL(/\/validate\/?$/);
     const note = page.getByRole("region", { name: /comparison unavailable/i });
     await expect(note).toBeVisible();
     await expect(note).toContainText("holds its launch setup and no results");
     // It passes on what the file itself says, rather than only reporting an absence...
     await expect(note).toContainText("not OpenRocket's own simulator output");
     // ...and names the cross-check that does not need the file to carry anything.
-    await expect(note).toContainText("RocketPy cross-check under Analyze");
+    await expect(note).toContainText("run the RocketPy cross-check below");
     // The comparison panel itself is genuinely absent — the note stands in for it, not beside it.
-    await expect(page.getByRole("region", { name: "Validation" })).toHaveCount(0);
+    await expectNoComparison(page);
   });
 
   test("a design whose file does store results gets the comparison, not the note", async ({ page }) => {
@@ -4976,6 +5054,8 @@ test.describe("Loft", () => {
     await page.goto("/");
     await page.getByRole("button", { name: /RockSim · 54 mm sport/ }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    await page.getByRole("link", { name: "Cross-check" }).click();
+    await page.waitForURL(/\/validate\/?$/);
     await expect(page.getByRole("region", { name: "Validation" })).toBeVisible();
     await expect(page.getByRole("region", { name: /comparison unavailable/i })).toHaveCount(0);
   });
@@ -5312,7 +5392,7 @@ test.describe("Loft", () => {
       await page.waitForFunction(() => !/Refining/.test(document.body.innerText), null, { timeout: 150_000 });
     };
 
-    await page.getByRole("link", { name: "Analyze" }).click();
+    await page.getByRole("link", { name: "Sweep" }).click();
     await mc.getByRole("button", { name: /Run dispersion/i }).click();
     await settle();
     const asDesigned = await radius();
@@ -5331,7 +5411,7 @@ test.describe("Loft", () => {
     await wind.press("Enter");
     await wind.blur();
 
-    await page.getByRole("link", { name: "Analyze" }).click();
+    await page.getByRole("link", { name: "Sweep" }).click();
     // Poll the VALUE, not the spinner. The conditions key is debounced, so for the first third of a
     // second after the last keystroke there is no run in flight to wait for — a "wait until it stops
     // refining" check passes immediately and reads the previous cloud. Ask for the answer instead.
@@ -5379,7 +5459,7 @@ test.describe("Loft", () => {
         .map((speeds) => Number((speeds[speeds.length - 1].match(/^[\d.,]+/) ?? ["0"])[0].replace(/,/g, "")));
     };
 
-    await page.getByRole("link", { name: "Analyze" }).click();
+    await page.getByRole("link", { name: "Sweep" }).click();
     await sweep.getByRole("button", { name: /Run motor sweep|Compare fitting motors/i }).first().click();
     await expect(async () => expect((await railExits()).length).toBeGreaterThan(3)).toPass({ timeout: 90_000 });
     const onDesignRail = await railExits();
@@ -5398,7 +5478,7 @@ test.describe("Loft", () => {
     await rail.press("Enter");
     await rail.blur();
 
-    await page.getByRole("link", { name: "Analyze" }).click();
+    await page.getByRole("link", { name: "Sweep" }).click();
     await expect(async () => {
       const shortened = await railExits();
       expect(shortened.length).toBe(onDesignRail.length);
@@ -5423,7 +5503,7 @@ test.describe("Loft", () => {
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
 
     const sweep = page.getByRole("region", { name: "Motor sweep" });
-    await page.getByRole("link", { name: "Analyze" }).click();
+    await page.getByRole("link", { name: "Sweep" }).click();
     await sweep.getByRole("button", { name: /Run/i }).first().click();
     await sweep.getByRole("table").waitFor({ timeout: 120_000 });
 
@@ -5452,7 +5532,7 @@ test.describe("Loft", () => {
     // One restart is two transitions (busy on, busy off). Four digits must not mean four restarts.
     expect(restarts, `aria-busy transitions while typing four digits: ${restarts}`).toBeLessThanOrEqual(4);
     // ...and the answer it settles on is still the flyer's, not a discarded intermediate.
-    await page.getByRole("link", { name: "Analyze" }).click();
+    await page.getByRole("link", { name: "Sweep" }).click();
     await expect(sweep).toContainText("the launch conditions you set");
   });
 
@@ -5497,7 +5577,7 @@ test.describe("Loft", () => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
-    await page.getByRole("link", { name: "Analyze" }).click();
+    await page.getByRole("link", { name: "Sweep" }).click();
 
     const mc = page.getByRole("region", { name: "Monte-Carlo dispersion" });
     await mc.getByRole("button", { name: "Run dispersion" }).click();
@@ -5534,7 +5614,7 @@ test.describe("Loft", () => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
-    await page.getByRole("link", { name: "Analyze" }).click();
+    await page.getByRole("link", { name: "Sweep" }).click();
     const mc = page.getByRole("region", { name: "Monte-Carlo dispersion" });
     await mc.getByRole("button", { name: "Run dispersion" }).click();
     const wind = mc.locator("input").and(mc.getByLabel("Wind speed ±1σ")).first();
@@ -5592,7 +5672,7 @@ test.describe("Loft", () => {
 
     const units = page.getByRole("group", { name: /unit/i }).first();
     await units.getByRole("button", { name: "Imperial", exact: true }).click();
-    await page.getByRole("link", { name: "Analyze" }).click();
+    await page.getByRole("link", { name: "Sweep" }).click();
 
     const mc = page.getByRole("region", { name: "Monte-Carlo dispersion" });
     await mc.getByRole("button", { name: "Run dispersion" }).click();
@@ -5632,7 +5712,7 @@ test.describe("Loft", () => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
-    await page.getByRole("link", { name: "Analyze" }).click();
+    await page.getByRole("link", { name: "Sweep" }).click();
 
     const sweep = page.getByRole("region", { name: "Motor sweep" });
     await sweep.getByRole("button", { name: /Run motor sweep/ }).click();

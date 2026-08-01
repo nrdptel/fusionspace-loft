@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
+import { resolveWorkspace, WORKSPACES } from "./workspaces";
 import {
   toBase64,
   fromBase64,
@@ -453,5 +454,29 @@ describe("an emptied removal list is not a what-if", () => {
     // single shared definition exists to prevent.
     expect(countWhatIfs(sess({ removedIds: [] }))).toBe(0);
     expect(countWhatIfs(sess({ removedIds: ["some-component"] }))).toBe(1);
+  });
+});
+
+describe("a workspace that has been retired", () => {
+  it("resumes a session on whichever workspace took the retired one's job", () => {
+    // `analyze` was split into `sweep` and `validate` on 2026-08-02. Without this mapping a stored
+    // session naming it falls through the unknown-name guard to `flight` — which does not fail
+    // anything, and silently returns every returning flyer to a workspace they were not on.
+    expect(resolveWorkspace("analyze")).toBe("sweep");
+    localStorage.setItem(
+      "loft.session",
+      JSON.stringify({ v: 1, design: "AA==", name: "x", opensOn: "analyze", units: "metric", simIndex: 0, edits: {} }),
+    );
+    expect(loadSession()?.opensOn).toBe("sweep");
+  });
+
+  it("still refuses a name that means nothing, rather than inventing a route for it", () => {
+    expect(resolveWorkspace("nonsense")).toBeNull();
+    expect(resolveWorkspace("")).toBeNull();
+    expect(resolveWorkspace(undefined)).toBeNull();
+  });
+
+  it("passes a live workspace through untouched", () => {
+    for (const w of WORKSPACES) expect(resolveWorkspace(w)).toBe(w);
   });
 });

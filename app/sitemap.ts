@@ -6,7 +6,8 @@ export const dynamic = "force-static";
 
 /** Every route worth INDEXING, which is not every route the site serves.
  *
- *  The workspace routes (`/flight`, `/design`, `/analyze`) are deliberately absent, and each marks
+ *  The workspace routes (`/flight`, `/design`, `/sweep`, `/validate`, plus the `/analyze` forward the
+ *  split left behind) are deliberately absent, and each marks
  *  itself `robots: { index: false }` for the same reason: a workspace's content is the flyer's own
  *  design, held on their own device, so its prerendered document is empty by construction and a
  *  visitor arriving without a design is sent to the import screen. Submitting them would advertise

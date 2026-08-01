@@ -216,25 +216,27 @@ export default function Faq() {
 
       <QA q="How are the results laid out?">
         <p>
-          Once a design is flying, the results split into three workspaces, each at its own address —{" "}
-          <code className="font-mono">/flight</code>, <code className="font-mono">/design</code> and{" "}
-          <code className="font-mono">/analyze</code> — on one row of links under the design summary.
-          Each is a focused view rather than one endless scroll, and each is a real page: you can
-          bookmark one, share the link, and use the browser&apos;s Back and Forward between them.{" "}
-          <em>Flight</em> holds the simulated flight: the summary numbers, the trajectory and plots,
-          and the comparison against whatever results the file itself stored. <em>Design</em>{" "}is the
-          rocket — the to-scale, editable side-view and the part-by-part mass &amp; balance.{" "}
-          <em>Analyze</em> gathers the heavier, opt-in tools: the motor and parameter sweeps, the
-          Monte-Carlo dispersion, and the independent RocketPy second opinion. The design summary and
-          any flight warnings sit above that row, shared by every view — and moving between
-          workspaces never interrupts them: a dispersion left running keeps running while you look at
-          the diagram.
+          Once a design is flying, the results split into four workspaces, each at its own address —{" "}
+          <code className="font-mono">/flight</code>, <code className="font-mono">/design</code>,{" "}
+          <code className="font-mono">/sweep</code> and <code className="font-mono">/validate</code>{" "}
+          — on one row of links under the design summary. Each is a focused view rather than one
+          endless scroll, and each is a real page: you can bookmark one, share the link, and use the
+          browser&apos;s Back and Forward between them. <em>Flight</em>{" "}holds the simulated flight:
+          the summary numbers, the trajectory and the plots. <em>Design</em>{" "}is the rocket — the
+          to-scale, editable side-view and the part-by-part mass &amp; balance. <em>Sweep</em>{" "}is
+          for varying one thing and seeing what it does: the motor and parameter sweeps and the
+          Monte-Carlo dispersion. <em>Cross-check</em>{" "}is every &ldquo;does anything else
+          agree?&rdquo; surface in one place — the numbers the file&apos;s own tool stored, its
+          step-by-step flight overlaid on Loft&apos;s, and the independent RocketPy second opinion,
+          which used to be a workspace apart from the other two. The design summary and any flight
+          warnings sit above that row, shared by every view — and moving between workspaces never
+          interrupts them: a dispersion left running keeps running while you look at the diagram.
         </p>
       </QA>
 
       <QA q="Can I compare all the motors that fit at once?">
         <p>
-          Yes. In the <em>Analyze</em> workspace, <em>Compare fitting motors</em>{" "}flies your airframe
+          Yes. In the <em>Sweep</em> workspace, <em>Compare fitting motors</em>{" "}flies your airframe
           on every bundled motor of the same casing it already flies — all at once, on your device — and lays them
           out highest-apogee first: apogee, max speed, rail-exit velocity, thrust-to-weight,
           stability margin, fin-flutter margin, and the optimum ejection delay for each, with your
@@ -257,7 +259,7 @@ export default function Faq() {
 
       <QA q="Can I see a whole range at once — a response curve?">
         <p>
-          Yes. In the <em>Analyze</em> workspace, <em>Sweep a parameter</em>{" "}varies one variable — fin span, fin
+          Yes. In the <em>Sweep</em> workspace, <em>Sweep a parameter</em>{" "}varies one variable — fin span, fin
           thickness, fin position, nose length, body length or diameter, or nose ballast — across a
           range and plots how a metric responds: apogee, max speed, rail-exit velocity, stability
           margin, or fin-flutter margin, switchable on the y-axis. A marker shows the design&apos;s own
@@ -274,7 +276,7 @@ export default function Faq() {
 
       <QA q="How high will it really go, and where will it land?">
         <p>
-          In the <em>Analyze</em> workspace, <em>Flight dispersion (Monte-Carlo)</em>{" "}flies the design a few hundred
+          In the <em>Sweep</em> workspace, <em>Flight dispersion (Monte-Carlo)</em>{" "}flies the design a few hundred
           times with the motor impulse, dry mass, aerodynamic drag, rail angle, and wind jittered
           around their nominal values, and shows the <em>spread</em>{" "}instead of a single number: the
           apogee band you can expect (5th to
@@ -462,7 +464,7 @@ export default function Faq() {
 
       <QA q="Can I get a second opinion from RocketPy?">
         <p>
-          Yes. In the <em>Analyze</em> workspace, <em>Second opinion: RocketPy</em>{" "}flies your design in{" "}
+          Yes. In the <em>Cross-check</em> workspace, <em>Second opinion: RocketPy</em>{" "}flies your design in{" "}
           <a href="https://github.com/RocketPy-Team/RocketPy" target="_blank" rel="noopener noreferrer">
             RocketPy
           </a>{" "}

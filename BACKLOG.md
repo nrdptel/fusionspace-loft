@@ -12,6 +12,19 @@ this file, and deliberately does **not** cap craft or product work, because that
 track in `ROADMAP.md` with its own *done when*. Rough edges, missing affordances, and findings too
 big for one pass. Newest first.
 
+- **Flight and Design run nearly seven screens deep on a phone, against `DESIGN.md` §8's "at most two
+  screens deep to its answer".** Measured 2026-08-02 by driving the built export at an iPhone 13
+  viewport (390 px), on the 38 mm sample, after the workspace split: `/flight` **6.6 screens**,
+  `/design` **6.9**, `/sweep` **4.1**, `/validate` **3.5**. Zero controls under 44 px and zero
+  horizontal overflow on all four, so the touch contract's measurable half is clean — it is the
+  DEPTH clause that is not.
+
+  Splitting Analyze helped the two it split: sweep and cross-check are each under half what the
+  combined workspace was. Flight and Design are untouched by that split and are the deep ones. The
+  answer is not another route — a flyer on Flight wants the flight — but ordering and disclosure
+  within the workspace, which is P4's job (a touch-native builder) rather than P2's. Filed with the
+  numbers so P4 starts from a measurement instead of an audit.
+
 - **A `flownAsReduced` design is dropped from the accuracy assertion AND from the census, so the
   designs Loft simplifies are measured by nothing at all.** `lib/sim/run.ts:241` withholds
   `validateAgainst` when a design was flown reduced (pods, parallel boosters, a ring tail), which is

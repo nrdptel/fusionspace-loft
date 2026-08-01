@@ -19,12 +19,23 @@
 
 /** The workspaces a loaded design can be looked at through, in spine order.
  *
- *  `analyze` still carries sweep, Monte-Carlo AND the cross-checks together; P2's *done when* wants
- *  sweep/Monte-Carlo and validate/cross-check as separate routes, which is the next slice. Adding
- *  one here is all a new route needs from this file. */
-export const WORKSPACES = ["flight", "design", "analyze"] as const;
+ *  Four, since 2026-08-02. `analyze` was one route carrying three of the five jobs P2's *done when*
+ *  names — a motor and parameter sweep, a Monte-Carlo dispersion, AND an independent second solver —
+ *  while the two cross-checks that belong beside that solver sat in the FLIGHT panel, a workspace
+ *  away from it. Splitting on the question each answers puts sweeps with sweeps and every "does
+ *  something else agree?" surface in one place. Adding one here is all a new route needs from this
+ *  file: the pages, the spine, the sitemap and the session all read it. */
+export const WORKSPACES = ["flight", "design", "sweep", "validate"] as const;
 
 export type Workspace = (typeof WORKSPACES)[number];
+
+/** A workspace name that no longer exists, mapped to the one that took its job over.
+ *
+ *  A session stored before a split names a workspace this build has never heard of, and the generic
+ *  fallback is `flight` — which silently moves the flyer somewhere they were not. `analyze` became
+ *  `sweep` (the two sweeps and the dispersion stayed together; only the second solver left), so that
+ *  is where a session left on it resumes. */
+const RETIRED: Record<string, Workspace> = { analyze: "sweep" };
 
 /** What each workspace is called on the spine, and the one line that says what the job IS. The
  *  description is the route's own `<title>`/meta description — a route that cannot say what it is
@@ -34,7 +45,7 @@ export const WORKSPACE_META: Record<Workspace, { label: string; title: string; d
     label: "Flight",
     title: "Flight",
     description:
-      "The simulated flight — apogee, velocity, the plots and the flight path — beside the numbers the design file's own tool stored for it.",
+      "The simulated flight — apogee, velocity, the plots and the flight path — for the design as it is currently set up.",
   },
   design: {
     label: "Design",
@@ -42,11 +53,17 @@ export const WORKSPACE_META: Record<Workspace, { label: string; title: string; d
     description:
       "Build and edit the rocket on its own to-scale diagram: parts, dimensions, motors, recovery, and the mass and balance they produce.",
   },
-  analyze: {
-    label: "Analyze",
-    title: "Analyze",
+  sweep: {
+    label: "Sweep",
+    title: "Sweep",
     description:
-      "Sweep a motor or a dimension, run a dispersion, and cross-check the flight against an independent solver.",
+      "Vary one thing and see what it does: compare every motor that fits, sweep a dimension, and run a dispersion study over the whole flight.",
+  },
+  validate: {
+    label: "Cross-check",
+    title: "Cross-check",
+    description:
+      "Loft's answer beside somebody else's — the numbers the design file's own tool stored, its step-by-step flight, and an independent second solver run in the browser.",
   },
 };
 
@@ -61,4 +78,13 @@ export function workspaceFromPath(pathname: string | null | undefined): Workspac
   if (!pathname) return null;
   const seg = pathname.replace(/\/+$/, "").replace(/^\//, "");
   return (WORKSPACES as readonly string[]).includes(seg) ? (seg as Workspace) : null;
+}
+
+/** A workspace name from somewhere that outlives a build — a saved session, an old bookmark — mapped
+ *  onto one that exists, or null if it names nothing. Callers decide what null means; the session
+ *  falls back to the flight. */
+export function resolveWorkspace(name: string | null | undefined): Workspace | null {
+  if (!name) return null;
+  if ((WORKSPACES as readonly string[]).includes(name)) return name as Workspace;
+  return RETIRED[name] ?? null;
 }

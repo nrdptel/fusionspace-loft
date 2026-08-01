@@ -23,12 +23,17 @@ forbids. The queue is now FOUR, all in `BACKLOG.md`:
 None is a divergence in BEHAVIOUR — every count agrees — but the prose drifts a wording at a time.
 **A session created with both repos attached as sources clears all four in one commit each.**
 
-**A published docs page currently overstates the model, and R7's first slice is to fix it.**
-`app/docs/methods/page.tsx:347` says the fin `cos²Λ` reduction "uses each fin's actual leading-edge
-sweep". Measured this run on real files: it is one design-wide angle. `Mini Honest John.ork` reads
-**0.0°** where its working 4-fin set sweeps **44.5°**. Not filed as a Sev-1 (it is a claim about the
-method, not a wrong number on a surface a flyer acts on) but it is a false statement on a public
-artifact, and it is R7 increment 1, not a someday.
+**`BACKLOG.md`'s Sev-1 count is ZERO at the end of this run.** One wrong-number defect was found and
+fixed inside R7 increment 1: above about M0.95 an *airfoil* fin was billed more leading-edge drag
+than a *square* one, so the cross-section what-if told a flyer that streamlining their fins costs
+apogee. Pre-existing; the per-set split is what made it reachable on a mixed design.
+
+**Three increments, three pull requests, all gated and all opened.** Production was checked rather
+than assumed: `https://loft.fusionspace.co/flight` returns a real page titled *Flight — Loft*, so P2
+increment 1 is reachable by a flyer. #102 (P2.1 + R7 written) and #103 (R7.1) are MERGED on green CI —
+which runs the real-design corpus and the published accuracy census, the checks a sandbox without
+`FIXTURES_TOKEN` cannot reproduce. #104 (P2.2) was opened green locally; **confirm it merged, and if
+CI went red, fix forward on the same branch.**
 
 ## The arc so far
 
@@ -41,8 +46,8 @@ artifact, and it is R7 increment 1, not a someday.
 | R5 — author a staged rocket | SHIPPED 2026-08-01 |
 | R6 — a built design leaves Loft intact | SHIPPED 2026-08-02 |
 | P1 — one design system, adopted | SHIPPED 2026-08-02 |
-| **P2 — workspaces as routes** | **IN PROGRESS** — increment 1 of 4–6 shipped 2026-08-02 |
-| **R7 — per-set fin drag, and the honest aero the builder needs** | **WRITTEN 2026-08-02**, not started. The R-track was dry; extending it was the work. |
+| **P2 — workspaces as routes** | **IN PROGRESS** — increments 1 and 2 of 4–6 shipped 2026-08-02 |
+| **R7 — per-set fin drag, and the honest aero the builder needs** | **IN PROGRESS** — written from the after-list AND increment 1 of 3–5 shipped, 2026-08-02 |
 | P3–P5 | NOT STARTED |
 
 ## This session (2026-08-02)
@@ -115,32 +120,86 @@ prerendered document is empty by construction — a search result titled "Flight
 apogee and plots, landing on an import screen, is a promise the page cannot keep. Still linkable,
 bookmarkable and precached; only indexing is withheld.
 
-### R7 written from the after-list, and every number in it re-measured
+### R7 increment 1 — each fin set is charged for the edge it actually has
 
-The R-track was dry (R6 shipped), so extending `ROADMAP.md` was the work. R7 is decomposed with
-measurements taken **this run**, not carried from the ledger — I drove `aeroGeometry` over the corpus
-myself rather than trusting the fan-out:
+The R-track was dry, so R7 was written from the after-list AND its first slice shipped. Every number
+in the milestone was driven this run rather than carried from the ledger.
 
-| design | per-set | what the model uses |
-|---|---|---|
-| `Show-off.CDX1` | t/c 0.500, 0.500 · airfoil, square | t/c **1.000** · **square** |
-| `Mini Honest John.ork` | sweep **44.5°**, 0.0° | **0.0°** |
-| `03.Three-stage.ork` | rounded, rounded, square, rounded, square | **square** (3 rounded sets billed square) |
-| `Pods--airframes and winglets.ork` | t/c 0.297, 0.038, 0.062, 0.041, 0.041 | t/c **0.122** |
-| `Complex.Two-Stage.CDX1` | all six square | square — **unchanged by the fix** |
-| `The Red Hunter.ork` | both square | square — **unchanged by the fix** |
+**There are THREE collapses in the fin drag build-up, not the two `BACKLOG.md` records**, and the
+unfiled one is the largest: `aeroGeometry` billed every fin set the DRAGGIEST cross-section present.
+Fixed. Over 97 stored simulations on 35 designs — timeToApogee 1.7 → **1.5%**, maxMach 2.1 →
+**2.0%**, maxVelocity 2.3 → **2.2%**, optimumDelay 2.7 → **2.5%**, maxAltitude 3.2 → **3.1%**;
+deploymentVelocity went the other way, 5.9 → **6.0%**, and is published at its new figure.
 
-**There are THREE collapses, not the two `BACKLOG.md` records.** The unfiled one — the draggiest
-cross-section present is billed to every set — is also the largest and the cheapest to fix, and it is
-exactly value-preserving on the two designs the reverted area-weighted attempt regressed. That is
-R7's first slice.
+**Two things to carry forward, both the kind that would otherwise be re-derived.**
 
-**R7's own instrument is broken and this blocks measurement, not shipping.** `lib/sim/run.ts:242` —
-`runFromDocument` forwards only `configId`/`overrides`/`validateAgainst` to `runFlight` and drops
-`dragScale`, `geometry`, `ballistic`, `timeStep`, `ballastKg`, `motorSwap`, `massScale`,
-`thrustScale`, `recoveryCdScale`. The corpus suite drives that function, so no corpus-level drag
-sensitivity is measurable through it. Nothing user-facing is affected (the app calls `runFlight`
-directly).
+*Per-set SWEEP was written, measured and reverted in the same increment.* It improved no census
+median and pushed a real design outside the corpus's agreement tolerance — the same shape as the
+area-weighted thickness attempt before it. **Do not simply re-apply it.**
+
+*`03.Three-stage.ork` got worse and that is recorded rather than glossed:* apogee −7.57% → **+10.76%**,
+flight time −5.6% → **+10.67%**. Its sweep collapse was partly cancelling its cross-section one and
+only one is fixed. In its `KNOWN_ISSUES` entry with both figures.
+
+### P2 increment 2 — Analyze split into Sweep and Cross-check
+
+`analyze` carried three of the five jobs the *done when* names, while the two surfaces that belong
+beside its second solver sat in the FLIGHT panel a workspace away. Now `/sweep` (the two sweeps and
+the dispersion) and `/validate` (the file's own stored numbers, its step-by-step flight, and the
+independent solver). North Star #1 asks for independent estimates side by side; they could not be
+side by side while they were on different routes.
+
+**Driven on the built export, not asserted:**
+
+| route | title | desktop depth | phone depth | controls under 44 px |
+|---|---|---|---|---|
+| `/flight` | Flight — Loft | 3.2 screens | 6.6 | 0 |
+| `/design` | Design — Loft | 3.4 | 6.9 | 0 |
+| `/sweep` | Sweep — Loft | 2.0 | 4.1 | 0 |
+| `/validate` | Cross-check — Loft | 1.8 | 3.5 | 0 |
+
+Zero horizontal overflow on all four at 390 px. **And the load-bearing claim, verified by driving
+it: a Monte-Carlo left running survives a round trip to another workspace and back.** That is the
+whole reason the design is mounted in the layout rather than in the pages.
+
+**Flight and Design at ~7 phone screens is the honest bad number here** — `DESIGN.md` §8 wants at
+most two to the answer. Splitting Analyze halved the two it split and left those two untouched.
+Filed in `BACKLOG.md` for P4 with the measurement.
+
+## What the pre-push reviews caught, across three of them
+
+The single most valuable habit this run. Three reviews, ten agent-lenses, and the pattern is worth
+naming: **most of what came back was false prose I had written, not broken code.**
+
+- a burnout regression guard I "re-centred" had in fact been **widened nine-fold**, behind a comment
+  asserting that re-centring is not loosening — and both of that comment's justifications were
+  arithmetically false (a booster/sustainer swap fails 2 of 4 assertions, not 4);
+- `/docs/validation` said outdated stored runs agree "about as well" as current ones at 3.3% against
+  2.1%. Re-measured: **3.7% against 2.0%**, i.e. they agree LESS closely, and the old text understated
+  the gap on exactly the runs that page flags;
+- "22 of the 35 designs have one fin set" — 20 do, 2 have none, 28 are unaffected;
+- `lib/model/types.ts` and `lib/model/edit.ts` both still described a rounded fin edge as "roughly
+  halving" square stagnation drag, which is the model the solver explicitly rejected and documents
+  rejecting;
+- and the checks that had quietly stopped being able to fail: a unit census asking for
+  `div[role=tabpanel]` after the panels became regions (so it censused the whole document three
+  times and called it three workspaces), a touch scan still selecting `[role=tab]` (so the app's
+  primary navigation was measured in neither dimension), and six one-shot reads racing a navigation.
+
+**The third review, on the workspace split, is the one to read if you take only one.** It found that
+the FAQ I had just rewritten sent a flyer to the wrong workspace for the second solver; that a staged
+design got a BLANK Cross-check workspace because the notice explaining the solver's absence stayed
+behind on Sweep; that `/analyze` — an address shipped that same morning and advertised as
+bookmarkable — now answered with the 404 page; that nine `Validation` absence guards had become
+vacuous because `getByRole` skips hidden subtrees; that the accessibility audit and the touch scan
+had each lost a workspace; and that the migration hinge for the whole split (`RETIRED`) had no test
+at any level. All fixed. `/analyze` is now a real route that forwards, and says so rather than
+flashing.
+
+**A blanket replace corrupted an unrelated assertion, twice.** `aria-selected` on `DataTable` rows in
+one pass, and `toHaveCount(3)` → `4` on a parts-table row count and two diagram-handle counts in
+another. Caught the second time only by running the control against the pre-change build. **After any
+mechanical rename across the suite, list every site it touched and read each one.**
 
 ## Read this before trusting a red e2e run
 
@@ -246,23 +305,31 @@ should not have, and an address disagreeing with what is on screen.
 
 ## Pick up first
 
-1. **R7 increment 1 — per-set fin cross-section, and make the methods page true.** The measurements
-   are in `ROADMAP.md`, the code is `lib/sim/aero.ts:343,523,640-663`, and the change is to accumulate
-   fin frontal area PER cross-section class instead of billing every set the draggiest edge present.
-   Value-preserving on `Complex.Two-Stage.CDX1`, `The Red Hunter.ork` and all 22 single-set designs;
-   the design it moves is 7.57% low on apogee, so it moves toward zero. Needs no new source — the
-   code already cites a model that is defined per fin set.
+1. **P2 increment 3 — the persistent design strip (`COMPETITION.md` row 31).** The one thing the
+   route split COSTS that the scrolling page did not: `RocketDiagram` is reachable only through
+   `GeometryInspector`, which renders only inside `#panel-design`, so a flyer sweeping a fin or
+   reading a dispersion loses sight of the airframe both are about. All three desktop competitors
+   keep a view of the rocket on screen across their tabs — verified from OpenRocket's own
+   documentation (its Rocket Views Pane is a separate section BELOW the task tabs), the RockSim
+   program guide and the RASAero II manual. `app/(app)/layout.tsx` is the right home because it does
+   not remount.
 
-2. **P2 increment 2 — split `/analyze` into `/sweep` and `/validate`.** Three of the five jobs the
-   *done when* names still share one route, and "validate/cross-check" is currently split across two
-   panels: `ValidationPanel` and `DragCrossCheck` sit inside the FLIGHT panel while
-   `RocketpyCrossCheck` sits inside Analyze.
+2. **P2's remaining *done when* clauses.** The static-export assertion is not written (assert
+   `out/flight/index.html` and friends exist, and that the sitemap and `robots` agree with
+   `lib/workspaces.ts`). And "no route more than two screens deep to its primary answer" has been
+   MEASURED but not pinned — the numbers are in the table above and in `BACKLOG.md`.
 
-3. **P2 — the persistent design strip (`COMPETITION.md` row 31).** The one thing the split COSTS that
-   the scrolling page did not: the drawing is reachable only from `/design`, while all three desktop
-   competitors keep a view of the rocket on screen across their tabs. `app/(app)/layout.tsx` is the
-   right home because it does not remount.
+3. **R7 increment 2 — the thickness-ratio collapse**, which is the one of the remaining two that has
+   no failed attempt behind it. `finThicknessRatio` is the largest thickness on the rocket over the
+   LAST set walked's mean chord: on a two-set design whose sets are both 0.50 it reads 1.00. Per-set
+   SWEEP is the other one and it has already been tried and reverted twice by two different routes —
+   read `ROADMAP.md` before touching it.
 
-4. **`Section` still has ZERO adopters** while twelve surfaces hand-roll its exact shape. Measured
-   again this run. The largest un-taken conversion left, and P2 moves those surfaces rather than
-   rewriting them — so it is cheaper to do it before the remaining splits, not after.
+4. **`runFromDocument` drops nine of `runFlight`'s options** (`lib/sim/run.ts:242`), so the corpus
+   suite cannot measure drag sensitivity at all: `dragScale` 0.1 and 3.0 both leave
+   `03.Three-stage.ork` at exactly −7.57%. Nothing user-facing depends on it, but it is R7's own
+   instrument and it is broken. Small, and it unblocks measuring the two remaining collapses.
+
+5. **`Section` still has ZERO adopters** while twelve surfaces hand-roll its exact shape. The largest
+   un-taken conversion left, and P2's remaining slices move those surfaces rather than rewriting
+   them — cheaper before the remaining splits than after.

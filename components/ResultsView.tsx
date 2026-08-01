@@ -116,7 +116,7 @@ const COLORS = {
   thrust: "#ef4444",
 };
 
-/** Why an Analyze tool isn't offered for this design — said out loud, because a panel that simply
+/** Why a tool isn't offered for this design — said out loud, because a panel that simply
  *  isn't there reads as a missing feature rather than a modelling limit. */
 function ToolUnavailable({ title, reason }: { title: string; reason: string }) {
   return (
@@ -361,7 +361,7 @@ export default function ResultsView({
   // (also edited) flight reports. Ballast and motor-swap what-ifs don't change the shape — they
   // shift only the CG marker — so applying the geometry edits alone keeps the picture consistent.
   const editing = !!(geometry && hasGeometryEdits(geometry));
-  // What the Analyze panels are keyed on: change any of it and a completed run no longer describes
+  // What the heavy analysis panels are keyed on: change any of it and a completed run no longer describes
   // the design on screen, so the panel resets rather than showing a stale answer as a current one.
   const dkey = designKey({ loadId, simIndex, configId: run.config.id, ballastKg, recoveryCdScale, motorSwap, geometry });
   const shownRocket = editing ? applyGeometryEdits(doc.rocket, geometry) : doc.rocket;
@@ -376,7 +376,7 @@ export default function ResultsView({
    *  a wrong number on the one surface whose whole job is to say whether Loft's number can be trusted. */
   const staged = (shownRocket.stages?.length ?? 1) > 1;
   // The motor sweep flies the bundled candidates itself rather than the design's own configuration,
-  // so it is the one Analyze tool that still works when no motor resolved — and on that design it is
+  // so it is the one sweep that still works when no motor resolved — and on that design it is
   // the most useful one there is.
   const canSweepMotors = !staged && !!swapOptions && swapOptions.length > 1;
   // A design can state its weight as a whole-assembly override, and a part added INSIDE that
@@ -443,7 +443,9 @@ export default function ResultsView({
           workspace shares. */}
       <WorkspaceNav />
 
-      {/* FLIGHT — the simulated flight and its comparison to the file's own stored numbers. */}
+      {/* FLIGHT — the simulated flight itself. The comparison against the file's own stored numbers
+          used to live here too and moved to Cross-check, beside the other two surfaces that answer
+          the same question. */}
       {/* A landmark region per workspace, not a `tabpanel`: there is no tablist above them any more,
           and a `tabpanel` with nothing controlling it is a lie told to a screen reader. The ids are
           kept — they are what a skip link and the suite address a workspace by. */}
@@ -456,7 +458,7 @@ export default function ResultsView({
           title="Flight"
           reason={`Flying this design needs a thrust curve, and none of ${
             run.resolutions.length > 1 ? "its motors" : "its motor"
-          } could be matched to one — see the notice above. The flight results, plots, flight path and ${toolName} comparison all depend on that thrust, so they are withheld rather than shown as zeros. Swap in a bundled motor under Design and they fill in.`}
+          } could be matched to one — see the notice above. The flight results, the plots and the flight path all depend on that thrust, so they are withheld rather than shown as zeros. Swap in a bundled motor under Design and they fill in. (The ${toolName} comparison depends on it too, and says so on Cross-check.)`}
         />
       )}
       {run.hasPropulsion && (<>
@@ -645,59 +647,6 @@ export default function ResultsView({
         )}
         </div>
       </section>
-
-      {run.validation && run.validation.count > 0 && (
-        <ValidationPanel
-          report={run.validation}
-          units={units}
-          storedName={doc.simulations[simIndex]?.name}
-          toolName={toolName}
-          external={doc.simulations[simIndex]?.status === "external"}
-          storedStatus={doc.simulations[simIndex]?.status}
-        />
-      )}
-
-      {/* Per-step cross-check: when the file carries the design tool's own step-by-step flight and
-          Loft flew the design as stored (run.validation present ⇒ no what-if edits, not reduced),
-          overlay Loft's trajectory and drag against it — an independent per-step oracle beyond the
-          summary numbers above. */}
-      {run.validation && doc.simulations[simIndex]?.flightData && (
-        <DragCrossCheck
-          result={r}
-          flightData={doc.simulations[simIndex]!.flightData!}
-          toolName={toolName}
-          storedName={doc.simulations[simIndex]?.name}
-          storedStatus={doc.simulations[simIndex]?.status}
-          units={units}
-        />
-      )}
-
-        {/* Why there is no stored comparison at all: the file carries simulations, and not one of
-            them holds a result. Absence is the state that reads as "Loft cannot do this" — and the
-            import screen has just said it can — so say what the file has instead of showing nothing.
-            The reduced-vehicle panel below is gated on a stored result EXISTING, so the two cannot
-            both fire. */}
-        {doc.simulations.length > 0 && !doc.simulations.some((sim) => sim.hasResults) && (
-          <ToolUnavailable
-            title={`${toolName} comparison`}
-            reason={noStoredResultsReason(doc.simulations.map((sim) => sim.status), toolName)!}
-          />
-        )}
-
-        {/* Why the metric-by-metric stored comparison is withheld for a design Loft flew reduced. */}
-        {doc.flownAsReduced && doc.simulations.some((sim) => sim.hasResults) && (
-          <Card as="section" tone="warn" aria-label="Comparison withheld" className="text-sm">
-            <h2 className="text-base font-semibold tracking-tight">{toolName} comparison withheld</h2>
-            <p className="mt-1.5">
-              This design contains something Loft flew in simplified form — staging, pods, parallel
-              boosters, or a fin type it can&apos;t model (see the warnings above) — so the stored{" "}
-              {toolName}{" "}
-              results describe a different flight than the one simulated here. Comparing them
-              would misstate the engine&apos;s accuracy, so the metric-by-metric comparison is
-              withheld — import a design Loft flies complete for a like-for-like check.
-            </p>
-          </Card>
-        )}
       </>)}
       </div>
 
@@ -757,19 +706,23 @@ export default function ResultsView({
         />
       </div>
 
-      {/* ANALYZE — the heavier, opt-in tools: an independent second solver, and design-space sweeps. */}
-      <div role="region" id="panel-analyze" aria-label="Analyze workspace" hidden={tab !== "analyze"} className="space-y-8">
-      {/* Three of the four tools are single-stage only — a swept "primary" fin or nose is ambiguous
-          once there are several stages, and the second solver flies one stage. Saying so is the
-          point: a panel that is simply absent reads as a feature Loft doesn't have. */}
+      {/* SWEEP — vary one thing and see what it does. The heavier, opt-in tools that re-fly the
+          design hundreds of times: every motor that fits, one dimension at a time, and a dispersion
+          over the whole flight. The second solver used to sit here too and now has its own route,
+          beside the other two surfaces that answer "does something else agree?". */}
+      <div role="region" id="panel-sweep" aria-label="Sweep workspace" hidden={tab !== "sweep"} className="space-y-8">
+      {/* Two of the three tools here are single-stage only — a swept "primary" fin or nose is
+          ambiguous once there are several stages. Saying so is the point: a panel that is simply
+          absent reads as a feature Loft doesn't have. The second solver has the same limit and now
+          says so on its own workspace rather than here. */}
       {staged && (
         <ToolUnavailable
-          title="Second solver and design sweeps"
+          title="Design sweeps"
           // The EDITED count, for the same reason `staged` above is: on a design with a booster authored
           // in the editor `doc.rocket.stages.length` is still the file's 1, so this read "This design
           // flies 1 stages." — a wrong number and a broken sentence, on the copy whose only job is to
           // explain why three tools just disappeared.
-          reason={`This design flies ${shownRocket.stages.length} stages. The RocketPy cross-check flies a single-stage vehicle, and a motor or parameter sweep needs one unambiguous airframe to vary — with several stages there is no single "the" nose, body or fin set to sweep. The dispersion study below is over the whole flight and does run on a staged design.`}
+          reason={`This design flies ${shownRocket.stages.length} stages. A motor or parameter sweep needs one unambiguous airframe to vary — with several stages there is no single "the" nose, body or fin set to sweep. The dispersion study below is over the whole flight and does run on a staged design, and the second solver on Cross-check has the same single-stage limit.`}
         />
       )}
       {/* Without a resolved motor there is no flight to analyze, and every tool here is built on one
@@ -777,7 +730,7 @@ export default function ResultsView({
           the question this design actually has: which motor to put in it. */}
       {!run.hasPropulsion && (
         <ToolUnavailable
-          title={canSweepMotors ? "Second solver, parameter sweep and dispersion study" : "Analysis"}
+          title={canSweepMotors ? "Parameter sweep and dispersion study" : "Design sweeps"}
           reason={`These tools re-fly the design hundreds of times, and this one has no thrust curve to fly on — see the notice above.${
             canSweepMotors
               ? " The motor sweep below is the exception: it flies the bundled substitutes themselves, so it works here and is the fastest way to see what this airframe would do on each of them."
@@ -785,23 +738,6 @@ export default function ResultsView({
           }`}
         />
       )}
-      {/* An independent second solver on the flyer's own design — RocketPy's flight is single-stage,
-          so offer it only for single-stage designs that actually have propulsion.
-          Key on the design + configuration + active what-if so any change (config switch, ballast,
-          motor swap) remounts the panel to idle instead of leaving a stale RocketPy result on screen. */}
-      {!staged && run.hasPropulsion && (
-        <RocketpyCrossCheck
-          designKey={dkey}
-          doc={doc}
-          config={run.config}
-          simIndex={simIndex}
-          units={units}
-          ballastKg={ballastKg}
-          motorSwap={motorSwap}
-          geometry={geometry}
-        />
-      )}
-
       {/* Motor sweep: only when there's a real choice (more than one fitting bundled motor) and a
           single-stage vehicle, so each swept flight is a like-for-like whole-rocket comparison.
           Keyed on the design + config + active geometry/ballast what-if so it resets when the design
@@ -858,6 +794,106 @@ export default function ResultsView({
           units={units}
           ballastKg={ballastKg}
           recoveryCdScale={recoveryCdScale}
+          motorSwap={motorSwap}
+          geometry={geometry}
+        />
+      )}
+
+      </div>
+
+      {/* CROSS-CHECK — every surface that answers "does anything else agree?", in one place. Two of
+          the three were in the FLIGHT panel and the third was in ANALYZE, which put the file's own
+          stored numbers a workspace away from the independent solver run against the same design.
+          North Star #1 is that these are shown side by side as independent estimates that can
+          disagree; they could not be side by side while they were on different routes. */}
+      <div role="region" id="panel-validate" aria-label="Cross-check workspace" hidden={tab !== "validate"} className="space-y-8">
+      {/* The same gate these two carried in the Flight panel, moved with them: with no thrust there
+          is no flight to compare against anything. Said, rather than left blank — a workspace that
+          simply vanishes reads as a feature Loft does not have. */}
+      {!run.hasPropulsion && (
+        <ToolUnavailable
+          title="Cross-check"
+          reason={`Every check here puts a flight beside something else — ${toolName}'s own stored numbers, its step-by-step trajectory, or an independent solver run in your browser. None of ${
+            run.resolutions.length > 1 ? "this design's motors" : "this design's motor"
+          } could be matched to a thrust curve, so there is no flight to put beside them. Swap in a bundled motor under Design and these fill in.`}
+        />
+      )}
+      {/* The second solver flies a single-stage vehicle. On a staged design it is simply not
+          offered, and until this notice existed the whole workspace could go blank on a design that
+          carries no stored results either — three surfaces absent, nothing said, which is exactly
+          the "reads as a feature Loft doesn't have" case the notice pattern exists for. */}
+      {staged && run.hasPropulsion && (
+        <ToolUnavailable
+          title="Second solver"
+          reason={`This design flies ${shownRocket.stages.length} stages, and the RocketPy cross-check flies a single-stage vehicle. The comparisons against ${toolName}'s own stored numbers are unaffected and appear here whenever the file carries them.`}
+        />
+      )}
+      {run.hasPropulsion && (<>
+      {run.validation && run.validation.count > 0 && (
+        <ValidationPanel
+          report={run.validation}
+          units={units}
+          storedName={doc.simulations[simIndex]?.name}
+          toolName={toolName}
+          external={doc.simulations[simIndex]?.status === "external"}
+          storedStatus={doc.simulations[simIndex]?.status}
+        />
+      )}
+
+      {/* Per-step cross-check: when the file carries the design tool's own step-by-step flight and
+          Loft flew the design as stored (run.validation present ⇒ no what-if edits, not reduced),
+          overlay Loft's trajectory and drag against it — an independent per-step oracle beyond the
+          summary numbers above. */}
+      {run.validation && doc.simulations[simIndex]?.flightData && (
+        <DragCrossCheck
+          result={r}
+          flightData={doc.simulations[simIndex]!.flightData!}
+          toolName={toolName}
+          storedName={doc.simulations[simIndex]?.name}
+          storedStatus={doc.simulations[simIndex]?.status}
+          units={units}
+        />
+      )}
+
+        {/* Why there is no stored comparison at all: the file carries simulations, and not one of
+            them holds a result. Absence is the state that reads as "Loft cannot do this" — and the
+            import screen has just said it can — so say what the file has instead of showing nothing.
+            The reduced-vehicle panel below is gated on a stored result EXISTING, so the two cannot
+            both fire. */}
+        {doc.simulations.length > 0 && !doc.simulations.some((sim) => sim.hasResults) && (
+          <ToolUnavailable
+            title={`${toolName} comparison`}
+            reason={noStoredResultsReason(doc.simulations.map((sim) => sim.status), toolName)!}
+          />
+        )}
+
+        {/* Why the metric-by-metric stored comparison is withheld for a design Loft flew reduced. */}
+        {doc.flownAsReduced && doc.simulations.some((sim) => sim.hasResults) && (
+          <Card as="section" tone="warn" aria-label="Comparison withheld" className="text-sm">
+            <h2 className="text-base font-semibold tracking-tight">{toolName} comparison withheld</h2>
+            <p className="mt-1.5">
+              This design contains something Loft flew in simplified form — staging, pods, parallel
+              boosters, or a fin type it can&apos;t model (see the warnings above) — so the stored{" "}
+              {toolName}{" "}
+              results describe a different flight than the one simulated here. Comparing them
+              would misstate the engine&apos;s accuracy, so the metric-by-metric comparison is
+              withheld — import a design Loft flies complete for a like-for-like check.
+            </p>
+          </Card>
+        )}
+      </>)}
+      {/* An independent second solver on the flyer's own design — RocketPy's flight is single-stage,
+          so offer it only for single-stage designs that actually have propulsion.
+          Key on the design + configuration + active what-if so any change (config switch, ballast,
+          motor swap) remounts the panel to idle instead of leaving a stale RocketPy result on screen. */}
+      {!staged && run.hasPropulsion && (
+        <RocketpyCrossCheck
+          designKey={dkey}
+          doc={doc}
+          config={run.config}
+          simIndex={simIndex}
+          units={units}
+          ballastKg={ballastKg}
           motorSwap={motorSwap}
           geometry={geometry}
         />

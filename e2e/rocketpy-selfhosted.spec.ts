@@ -24,8 +24,8 @@ test.describe("in-browser RocketPy second solver (self-hosted Pyodide)", () => {
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
 
-    // The second-opinion section lives in the Analyze workspace, offered on this single-stage design.
-    await page.getByRole("link", { name: "Analyze" }).click();
+    // The second-opinion section lives in the Cross-check workspace, offered on this single-stage design.
+    await page.getByRole("link", { name: "Cross-check" }).click();
     const panel = page.getByRole("region", { name: "RocketPy cross-check" });
     await expect(panel.getByRole("heading", { name: "Second opinion: RocketPy" })).toBeVisible();
 
@@ -56,8 +56,8 @@ test.describe("in-browser RocketPy second solver (self-hosted Pyodide)", () => {
     await page.getByRole("button", { name: /Motor comparison/ }).click();
     await expect(page.getByRole("heading", { name: /Loft Demo/ })).toBeVisible();
 
-    // The RocketPy panel is in the Analyze workspace; it stays selected across the config switch below.
-    await page.getByRole("link", { name: "Analyze" }).click();
+    // The RocketPy panel is in the Cross-check workspace; it stays selected across the config switch below.
+    await page.getByRole("link", { name: "Cross-check" }).click();
     const panel = page.getByRole("region", { name: "RocketPy cross-check" });
     const rpApogee = async () =>
       parseFloat(
@@ -102,8 +102,8 @@ test.describe("in-browser RocketPy second solver (self-hosted Pyodide)", () => {
     await page.getByRole("link", { name: "Design" }).click();
     await page.getByLabel(/Nose ballast/).fill("500");
 
-    // The RocketPy panel is in the Analyze workspace.
-    await page.getByRole("link", { name: "Analyze" }).click();
+    // The RocketPy panel is in the Cross-check workspace.
+    await page.getByRole("link", { name: "Cross-check" }).click();
     const panel = page.getByRole("region", { name: "RocketPy cross-check" });
     await panel.getByRole("button", { name: /Run RocketPy/ }).click();
 
@@ -187,7 +187,7 @@ test.describe("when the second solver stops", () => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
-    await page.getByRole("link", { name: "Analyze" }).click();
+    await page.getByRole("link", { name: "Cross-check" }).click();
     const panel = page.getByRole("region", { name: "RocketPy cross-check" });
     await panel.getByRole("button", { name: "Run RocketPy" }).click();
     await expect(panel.getByText(/RocketPy couldn't run/)).toBeVisible();
@@ -262,7 +262,7 @@ test.describe("when the second solver stops", () => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
-    await page.getByRole("link", { name: "Analyze" }).click();
+    await page.getByRole("link", { name: "Cross-check" }).click();
 
     await page.context().setOffline(true);
     const panel = page.getByRole("region", { name: "RocketPy cross-check" });
@@ -339,7 +339,7 @@ test.describe("when the second solver stops", () => {
       await silentWorker(page);
       await page.goto("/");
       await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
-      await page.getByRole("link", { name: "Analyze" }).click();
+      await page.getByRole("link", { name: "Cross-check" }).click();
       const panel = page.getByRole("region", { name: "RocketPy cross-check" });
       await panel.getByRole("button", { name: "Run RocketPy" }).click();
       await expect(panel.getByRole("button", { name: "Stop" })).toBeVisible();
@@ -441,7 +441,7 @@ test.describe("when the second solver stops", () => {
       });
       await page.goto("/");
       await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
-      await page.getByRole("link", { name: "Analyze" }).click();
+      await page.getByRole("link", { name: "Cross-check" }).click();
       const panel = page.getByRole("region", { name: "RocketPy cross-check" });
 
       await panel.getByRole("button", { name: "Run RocketPy" }).click();
@@ -455,7 +455,7 @@ test.describe("when the second solver stops", () => {
       });
       await page.getByRole("link", { name: "Design" }).click();
       await page.getByLabel(/Nose ballast/).fill("250");
-      await page.getByRole("link", { name: "Analyze" }).click();
+      await page.getByRole("link", { name: "Cross-check" }).click();
       await expect(panel.getByText(/has changed since this ran/)).toBeVisible();
 
       await panel.getByRole("button", { name: "Run RocketPy again" }).click();

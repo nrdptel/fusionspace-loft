@@ -14,7 +14,7 @@ describe("noStoredResultsReason", () => {
     expect(msg).toContain("a simulation that holds its launch setup and no results");
     expect(msg).toContain("not OpenRocket's own simulator output");
     // It has to name the way back, or it is only an apology.
-    expect(msg).toContain("RocketPy cross-check under Analyze");
+    expect(msg).toContain("run the RocketPy cross-check below");
   });
 
   it("counts them, and reads as a sentence at more than one", () => {

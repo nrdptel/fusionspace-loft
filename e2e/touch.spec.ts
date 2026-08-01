@@ -47,7 +47,7 @@ test.describe("phone layout", () => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 30_000 });
-    for (const name of ["Flight", "Design", "Analyze"]) {
+    for (const name of ["Flight", "Design", "Sweep", "Cross-check"]) {
       const box = await page.getByRole("link", { name, exact: true }).first().boundingBox();
       expect(box?.height ?? 0, `${name} link height`).toBeGreaterThanOrEqual(44);
     }
@@ -143,7 +143,7 @@ test.describe("phone layout", () => {
     for (const width of [320, 360, 390]) {
       await page.setViewportSize({ width, height: 844 });
 
-      for (const tab of ["Flight", "Design", "Analyze"]) {
+      for (const tab of ["Flight", "Design", "Sweep", "Cross-check"]) {
         await page.getByRole("link", { name: tab }).click();
         await expect(page.locator('nav[aria-label="Workspace"] a[aria-current="page"]')).toHaveText(tab);
         // CONTROL: the grid must actually be on the page, or this measures an empty workspace and
@@ -265,7 +265,7 @@ test.describe("phone layout", () => {
 
   test("every operable control clears the hit target, on every workspace", async ({ page }) => {
     // The existing case scans the Design panel only. These are the surfaces a pad check actually
-    // touches on the way there: the sticky header, the Conditions row, the Analyze run buttons and
+    // touches on the way there: the sticky header, the Conditions row, the Sweep run buttons and
     // the motor-sweep sort headers were 30-36 px, and the two disclosure rows 16-20 px.
     //
     // Excluded, deliberately, and each for a reason rather than to make the test pass: an inline
@@ -316,28 +316,38 @@ test.describe("phone layout", () => {
     // A workspace switch is a navigation now, not a `setState`, and `scan()` is a one-shot
     // `$$eval`. Without this wait it measured the workspace just left — and every control still in
     // a `hidden` panel has a zero rect, which this scan's own `width < 4` filter drops, so it
-    // reported "Analyze workspace" clean by measuring nothing.
-    await page.getByRole("link", { name: "Analyze" }).click();
-    await page.waitForURL(/\/analyze\/?$/);
+    // reported "Sweep workspace" clean by measuring nothing.
+    await page.getByRole("link", { name: "Sweep" }).click();
+    await page.waitForURL(/\/sweep\/?$/);
     await expect(page.getByRole("region", { name: "Motor sweep" })).toBeVisible();
-    expect(await scan(), "Analyze workspace").toEqual([]);
+    expect(await scan(), "Sweep workspace").toEqual([]);
 
+    // Cross-check too — added when Sweep split, because the scan's own `width < 4` filter drops
+    // every zero-rect control in a hidden panel, so a workspace this loop does not visit is a
+    // workspace whose hit targets are measured nowhere at all.
+    await page.getByRole("link", { name: "Cross-check" }).click();
+    await page.waitForURL(/\/validate\/?$/);
+    await expect(page.locator("#panel-validate")).toBeVisible();
+    expect(await scan(), "Cross-check workspace").toEqual([]);
+
+    await page.getByRole("link", { name: "Sweep" }).click();
+    await page.waitForURL(/\/sweep\/?$/);
     // The motor-sweep table's sort headers only exist once a sweep has run.
     const sweep = page.getByRole("region", { name: "Motor sweep" });
     await sweep.getByRole("button", { name: /Run/i }).first().click();
     await sweep.getByRole("table").waitFor({ timeout: 120000 });
-    expect(await scan(), "Analyze with the motor-sweep table").toEqual([]);
+    expect(await scan(), "Sweep with the motor-sweep table").toEqual([]);
 
     // The dispersion panel's OWN fields, which nothing had ever measured. The scan above walks the
-    // Analyze workspace with the panels CLOSED, so `NumberField` — the primitive §5 says every numeric
+    // Sweep workspace with the panels CLOSED, so `NumberField` — the primitive §5 says every numeric
     // input in either app is — was never in it: all seven of its instances rendered 36 px tall while
     // `LoftApp`'s hand-rolled `Num`, the thing it is meant to replace, cleared 44. A check that stops
     // at the Run button cannot see the surface behind it.
-    await page.getByRole("link", { name: "Analyze" }).click();
+    await page.getByRole("link", { name: "Sweep" }).click();
     const disp = page.getByRole("region", { name: /dispersion/i });
     await disp.getByRole("button", { name: /Run dispersion/ }).first().click();
     await expect(disp.locator('[role="status"]')).toHaveCount(0, { timeout: 120000 });
-    expect(await scan(), "Analyze with the dispersion panel open").toEqual([]);
+    expect(await scan(), "Sweep with the dispersion panel open").toEqual([]);
 
     await page.getByRole("link", { name: "Design" }).click();
     await page.locator("summary", { hasText: /Parts ·/ }).click();
@@ -428,7 +438,7 @@ test.describe("phone layout", () => {
     await page.goto("/");
     await page.getByRole("button", { name: /54 mm dual-deploy/ }).click();
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 30_000 });
-    await page.getByRole("link", { name: "Analyze" }).click();
+    await page.getByRole("link", { name: "Sweep" }).click();
 
     const panels: [string, RegExp][] = [
       ["Motor sweep", /Run motor sweep/],
@@ -468,7 +478,7 @@ test.describe("phone layout", () => {
       await expect(panel.getByRole("button", { name: run })).toBeVisible();
       // And focus lands on that offer. Closing unmounts the focused button, and a removed element
       // takes focus with it — without this the browser falls back to <body> and a keyboard user is
-      // thrown from the bottom of Analyze to the top of the document with nothing saying why.
+      // thrown from the bottom of Sweep to the top of the document with nothing saying why.
       // Asserted on the button itself: `document.activeElement.textContent` is no test at all,
       // because when focus HAS fallen back to <body> that string is the whole page, "Run dispersion"
       // included, so the check passed in exactly the case it existed to catch.

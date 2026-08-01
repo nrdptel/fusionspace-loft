@@ -408,7 +408,7 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
    *
    *  The root is the front door, and a flyer with a design open can reach it — the wordmark in the
    *  header is a link home. `workspace` is null there, so anything reading it as "where I left off"
-   *  writes `flight` over the truth: tap the wordmark from Analyze, reload, and the session comes
+   *  writes `flight` over the truth: tap the wordmark from a workspace, reload, and the session comes
    *  back on Flight. A ref rather than state because nothing renders from it. */
   const lastWorkspace = useRef<Workspace>("flight");
   /** The loaded design's own bytes, kept so the session can be written back verbatim — the file
@@ -1402,7 +1402,7 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
         if (cancelled) return;
         setUnits(saved.units);
         // A workspace the flyer ASKED for outranks the one the session remembers. Opening
-        // loft.fusionspace.co/design from a bookmark, or reloading while on Analyze, has to land
+        // loft.fusionspace.co/design from a bookmark, or reloading while on the sweeps, has to land
         // where the address says — otherwise a deep link is only a suggestion, which is exactly the
         // thing routes were supposed to fix. The session's own workspace is the fallback for a load
         // that named none, which is every arrival at the import screen.
