@@ -12,6 +12,18 @@ this file, and deliberately does **not** cap craft or product work, because that
 track in `ROADMAP.md` with its own *done when*. Rough edges, missing affordances, and findings too
 big for one pass. Newest first.
 
+- **The `extrapolated` marker carries a prose string where it should carry an enumerated flag.**
+  Filed 2026-08-02 from the competitive probe that produced `COMPETITION.md` row 33. The marker Loft
+  now puts on an out-of-envelope readout is the right SHAPE — bound to the value it qualifies, which
+  is more than any of the four competitors does — but its payload is free text built at render time.
+  The established conventions outside rocketry all enumerate: CF binds a `status_flag` variable to
+  its data variable via `ancillary_variables` with `flag_values`/`flag_meanings`; QARTOD uses an
+  ordinal scale (1 Good, 2 Not-evaluated, 3 Suspect, 4 Fail, 9 Missing); NIST REFPROP returns
+  range-of-validity codes; ASME V&V 10/20 calls the concept the "validation domain". Two concrete
+  improvements: an ordinal severity, and reasons drawn from an enumeration rather than composed as
+  prose — which would also let a surface sort or filter by it, and let an export carry it.
+
+
 - **60 of the 108 bundled motor curves carry no recorded licence, and 3 may be GPL.** Measured
   2026-08-02 while establishing the licensing position for R8. `lib/motors/catalog.ts` stores a
   `license` field per curve, taken from ThrustCurve's own four classes: **PD 45, `null` 38, `"?"` 22,
@@ -79,12 +91,13 @@ big for one pass. Newest first.
     Off-scale twice over.
   - `lib/ui-tokens.ts:153` (`navItemClass`) — `px-3.5 py-2` against §4's "inside a control
     `px-3 py-1.5`", on the one nav spine §7 requires to be "present on every route".
-  - `components/ResultsView.tsx:1323` — `Stat` takes `label,q,sub,accent` and has **no caveat slot**,
-    so `<Stat label="Apogee" …/>` renders identically inside and outside the Mach-0.8 envelope; the
-    extrapolation flag surfaces only as a separate card at `:432`. §5 requires a `Readout` "with its
-    unit, provenance and optional caveat" and an `Extrapolated` treatment "wherever a number leaves
-    the envelope its method was validated over". This one is the closest of the fourteen to a
-    correctness concern rather than a cosmetic one.
+  - ~~`Stat` has no caveat slot, so a number renders identically inside and outside the Mach-0.8
+    envelope.~~ **FIXED 2026-08-02** — this was the closest of the fourteen to a correctness concern
+    and it is closed. `Stat` now takes `extrapolated` (the reason and the range, on the number, as
+    §5's `Extrapolated` requires) and `withheld` (for a figure the solver carries only as a
+    sentinel). Seven ascent-derived readouts carry the marker on a transonic flight and none does on
+    a subsonic one, both pinned in `e2e/smoke.spec.ts`. The remaining §5 gap on this primitive is
+    `provenance` — a readout still cannot say WHERE its number came from.
   - `components/LoftApp.tsx:2758` — the one network surface's catch-all reads "Couldn't fetch weather
     (offline, or the service is down)", naming neither which nor the way forward, against §5's
     `ErrorState` ("names the file or field that failed, what was expected, and the way forward").
@@ -105,7 +118,14 @@ big for one pass. Newest first.
 - **Flight and Design run nearly seven screens deep on a phone, against `DESIGN.md` §8's "at most two
   screens deep to its answer".** Measured 2026-08-02 by driving the built export at an iPhone 13
   viewport (390 px), on the 38 mm sample, after the workspace split: `/flight` **6.6 screens**,
-  `/design` **6.9**, `/sweep` **4.1**, `/validate` **3.5**. Zero controls under 44 px and zero
+  `/design` **6.9**, `/sweep` **4.1**, `/validate` **3.5**.
+
+  **Two corrections, 2026-08-02.** (a) These are TOTAL PAGE HEIGHTS, not depth to the route's
+  answer — `e2e/depth.spec.ts` measures the latter and every route is inside two screens on it, so
+  do not read this entry as a breach of that clause; it is a separate quantity about scrolling.
+  (b) All four numbers PREDATE the summary fold and the sweep-copy change, which together took
+  157 px + 140 px out of the phone, and they were taken on a fine-pointer context that renders
+  `TOUCH_TARGET` controls 18 px short. Re-measure before quoting. Zero controls under 44 px and zero
   horizontal overflow on all four, so the touch contract's measurable half is clean — it is the
   DEPTH clause that is not.
 

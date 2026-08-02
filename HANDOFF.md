@@ -109,6 +109,52 @@ done.
 which puts the chrome back over the ratchet just tightened and `/sweep` back over two screens. It is
 the P-track's next opening measurement, not a rider on this.
 
+### The optimum delay was computed for the wrong vehicle
+
+`lib/sim/run.ts` recomputes the delay from a recovery-free coast when a design deploys before apogee
+— and read `built.input`, the raw build, instead of the flight actually flown. It dropped the
+flyer's nose ballast and the thrust/mass/drag scales silently. On `The Red Hunter.ork` the delay sat
+at exactly **4.66 s** for ballast 0 through 0.1 kg while apogee fell 258.5 → 147.4 m; the correct
+figures are 4.66 / 4.99 / 5.20 / 5.31 / 4.58. Picking a delay is one of the three things this tool
+exists to help with.
+
+Pinned by the INVARIANT rather than those numbers — the delay a run reports must equal the delay of
+the same run flown ballistic — over 6 early-deploying corpus flights, with the count asserted
+non-zero so it cannot pass by finding nothing.
+
+**Why the corpus never caught it: the census flies no what-ifs.** That is worth remembering when
+judging what the corpus does and does not protect.
+
+### R8 increment 1 — the fin shear moduli were fourteen uncited numbers, and two were wrong
+
+Flutter speed goes as √G, so it is the most leveraged input in the one output this app produces that
+is a safety estimate — and the whole table was "representative engineering figures" under a method
+that cites NACA TN 4197 precisely. They turned out to be round US-customary values (3,800 ksi,
+89,000 psi, 13,000 psi), i.e. inherited from the hobby fin-flutter literature rather than any primary
+document.
+
+**basswood 0.17 → 0.511 GPa (low by 3×)**, balsa 0.09 → 0.138, aluminium 26 → 26.2, titanium
+44 → 42.75. Woods from USDA Wood Handbook FPL-GTR-282 ch. 5 as E_L × 1.10 × G_LT/E_L; metals from
+MIL-HDBK-5J. Six rows have no published value and now say so in words. Every error ran the same way
+— too little stiffness, so a margin reported thinner than it is — which is the right direction for a
+safety estimate and still not a number to hand out uncited.
+
+**Densities are the remaining half and are NOT done**; what was measured for them is in `ROADMAP.md`.
+
+### P3 increments 2 and 3 — the caveat goes on the number, and the docs pages get found
+
+`DESIGN.md` §5 requires the `Extrapolated` treatment wherever a number leaves its validated envelope.
+Loft raised a transonic caution CARD while the apogee itself rendered byte-identical either way — and
+a flyer reading the number does not necessarily read the card. Seven ascent-derived readouts now
+carry the marker with its reason; rail-exit and thrust-to-weight deliberately do not, because they
+are inside the envelope whatever the flight does later.
+
+Then the three docs pages the milestone names. **Limitations** was linked only from inside the
+no-motor notice, so an ordinary flight had no route to it. **Validation** was reachable only when the
+file carried stored results — and none of the three bundled samples does, so every stranger's first
+run hit an empty comparison whose only content was why it was empty. `ToolUnavailable` gained a slot
+for the way forward, which §5 asks of an empty state and the primitive had nowhere to put.
+
 ### R7 increment 4 — the under-drag is a bare mould-line step, and it is NOT charged
 
 Increment 3 said "the next slice is not a fin slice; find the drag `Complex.Two-Stage.CDX1` is
