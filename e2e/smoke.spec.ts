@@ -284,7 +284,7 @@ test.describe("Loft", () => {
     expect(await apogee()).toBeGreaterThan(0);
 
     await page.locator("summary", { hasText: /conditions/i }).first().click();
-    const angle = page.getByLabel(/Rail angle/i).first();
+    const angle = page.locator("input").and(page.getByLabel(/Rail angle/i)).first();
     await angle.fill("120");
     await angle.blur();
     await expect(angle).toHaveValue("45");
@@ -298,7 +298,7 @@ test.describe("Loft", () => {
     // Nor is a negative wind speed a wind from the other side.
     await angle.fill("");
     await angle.blur();
-    const wind = page.getByLabel(/Surface wind/i).first();
+    const wind = page.locator("input").and(page.getByLabel(/Surface wind/i)).first();
     await wind.fill("-50");
     await wind.blur();
     await expect(wind).toHaveValue(/^0(\.0+)?$/);
@@ -320,7 +320,7 @@ test.describe("Loft", () => {
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
     await page.locator("summary", { hasText: /conditions/i }).first().click();
 
-    const rail = page.getByLabel(/Rail length/i).first();
+    const rail = page.locator("input").and(page.getByLabel(/Rail length/i)).first();
     const apogee = page
       .getByLabel("Results")
       .getByText("Apogee", { exact: true })
@@ -395,7 +395,7 @@ test.describe("Loft", () => {
     await expect(comparison).toHaveCount(1);
 
     await page.locator("summary", { hasText: /conditions/i }).first().click();
-    const rail = page.getByLabel(/Rail length/i).first();
+    const rail = page.locator("input").and(page.getByLabel(/Rail length/i)).first();
     await rail.fill("2");
     await expect(comparison).toHaveCount(0);
     await expect(reset).toBeVisible();
@@ -758,7 +758,7 @@ test.describe("Loft", () => {
 
     // Stack a design what-if: nose ballast makes the rocket heavier and lower.
     await page.getByRole("link", { name: "Design" }).click();
-    await page.getByLabel(/Nose ballast/).fill("500");
+    await page.locator("input").and(page.getByLabel(/Nose ballast/)).first().fill("500");
     await expect.poll(summaryApogee).toBeLessThan(before);
 
     // Back on Flight, the hypothetical flight has dropped the stored comparison, and the header now
@@ -1167,7 +1167,7 @@ test.describe("Loft", () => {
 
     // Add a heavy nose ballast — a "what-if" design change — on the Design workspace, then read.
     await page.getByRole("link", { name: "Design" }).click();
-    await page.getByLabel(/Nose ballast/).fill("500");
+    await page.locator("input").and(page.getByLabel(/Nose ballast/)).first().fill("500");
     await page.getByRole("link", { name: "Flight" }).click();
 
     // Re-flies on change: the heavier rocket doesn't reach as high.
@@ -1205,7 +1205,7 @@ test.describe("Loft", () => {
     // Edit on the Design workspace and stay there: the above-tabs apogee re-flies live, so the
     // heavier rocket's lower apogee is visible without leaving the editing surface.
     await page.getByRole("link", { name: "Design" }).click();
-    await page.getByLabel(/Nose ballast/).fill("500");
+    await page.locator("input").and(page.getByLabel(/Nose ballast/)).first().fill("500");
     await expect.poll(summaryApogee).toBeLessThan(before);
   });
 
@@ -2874,7 +2874,7 @@ test.describe("Loft", () => {
     await page.locator("summary", { hasText: "Conditions" }).click();
 
     // A steady crosswind so the drift is large and observable under the single apogee chute.
-    await page.getByLabel(/Surface wind/).fill("6");
+    await page.locator("input").and(page.getByLabel(/Surface wind/)).first().fill("6");
     const drift = async () => {
       const txt = await page
         .getByLabel("Results")

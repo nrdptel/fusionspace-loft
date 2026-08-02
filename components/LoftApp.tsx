@@ -1679,11 +1679,10 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
               </Button>
               <input
                 type="text"
-                aria-label="Design name"
+                aria-label="Design name — used as the results title and the .ork filename"
                 value={doc.rocket.name}
                 onChange={(e) => renameDesign(e.target.value)}
                 placeholder="Design name"
-                title="Rename this design — used as the results title and the .ork filename"
                 className={`min-w-0 max-w-[11rem] rounded-md border border-zinc-300 bg-white px-2.5 py-1 text-sm font-medium text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 ${TOUCH_TARGET}`}
               />
               {fileName && fileName !== doc.rocket.name && (
@@ -1695,7 +1694,13 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
                 size="sm"
                 square
                 onClick={downloadOrk}
-                title={downloadOmits() || "Save this design as an OpenRocket .ork file"}
+                // **Begins with the VISIBLE label, deliberately.** `aria-label` REPLACES the
+                // accessible name where `title` only supplemented it, so the first version of this
+                // made the button announce "Save this design as an OpenRocket .ork file" — losing
+                // the words on screen, which is WCAG 2.5.3 (label in name) and the thing a voice-
+                // control user actually says. The description follows the label rather than
+                // replacing it.
+                aria-label={`Download .ork — ${downloadOmits() || "save this design as an OpenRocket .ork file"}`}
               >
                 <span aria-hidden className="sm:hidden">
                   ↓
@@ -1726,7 +1731,15 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
                   square
                   onClick={undoStep}
                   aria-disabled={!canUndo || undefined}
-                  title={canUndo ? `Undo ${canUndo} (${modKey}+Z)` : "Nothing to undo"}
+                  // Set only when there IS something to undo, and both halves of that are
+                  // deliberate. `aria-label` REPLACES the accessible name where `title` merely
+                  // supplements it, so overriding the disabled state renamed a button whose visible
+                  // word is "Undo" — WCAG 2.5.3, and the name a voice-control user says out loud.
+                  // The disabled arm's old tooltip said "Nothing to undo", which is exactly what
+                  // `aria-disabled` already conveys, so it is dropped rather than relocated: a
+                  // tooltip that restates the state it sits on teaches nothing and, being a `title`,
+                  // never reached a phone at all.
+                  aria-label={canUndo ? `Undo ${canUndo} (${modKey}+Z)` : undefined}
                 >
                   <span aria-hidden>↶</span>
                   <span className="sr-only sm:not-sr-only">Undo{canUndo ? ` ${canUndo}` : ""}</span>
@@ -1736,7 +1749,7 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
                   square
                   onClick={redoStep}
                   aria-disabled={!canRedo || undefined}
-                  title={canRedo ? `Redo ${canRedo} (${modKey}+Shift+Z)` : "Nothing to redo"}
+                  aria-label={canRedo ? `Redo ${canRedo} (${modKey}+Shift+Z)` : undefined}
                 >
                   <span aria-hidden>↷</span>
                   <span className="sr-only">Redo{canRedo ? ` ${canRedo}` : ""}</span>
@@ -1746,7 +1759,7 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
                 <Button
                   size="sm"
                   onClick={resetEdits}
-                  title="Clear every what-if and re-fly the design as the file describes it"
+                  aria-label="Reset to as-designed — clear every what-if and re-fly the design as the file describes it"
                   className="shrink-0"
                 >
                   Reset<span className="sr-only sm:not-sr-only">&nbsp;to as-designed</span>

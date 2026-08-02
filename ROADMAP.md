@@ -2227,7 +2227,38 @@ STRING, not the computed style, so adding `pointer-coarse:opacity-100` beside th
 `group-hover:` variant would leave the count exactly where it was — and leave the defect in place
 too. The literal has to be deleted.
 
-*Increment 3 — NEXT, and it is a different problem from increment 2.* The remaining 25 all sit on
+*Increment 3 — SHIPPED. 25 → 1, without writing a pixel.*
+
+All 25 sat on the app chrome above the workspace spine, where writing anything visibly spends the
+phone chrome ratchet and the two-screen depth cap at once — the trade increment 1 records making and
+reverting. So nothing was written: each moved onto the **accessible name**. A `title` reaches a mouse
+only; an `aria-label` reaches assistive tech on every form factor and costs no layout. Where the
+tooltip restated a visible label it was deleted (the stability hint already carried an `aria-label`
+superset); where it carried something real — what a `.ork` download omits, an undo's keyboard
+shortcut, which motor a designation matched — it was relocated rather than lost.
+
+**One is not "almost §8", and the check now says why.** `GeometryInspector`'s gesture bar —
+remove, reorder, add a tube / fin set / mass object / transition / motor mount, eleven controls —
+renders only once a part is SELECTED, and the walk never selects one, so those eleven have
+contributed 0 to every reading this ratchet has ever taken and are **still hover-only**. The
+remaining 1 is that file's "Add a booster stage", the only control in it that renders unselected.
+
+**Converting those eleven was tried in this increment and REVERTED**, which is the lesson worth more
+than the count: `aria-label` REPLACES the accessible name where `title` only supplements it, so
+"Add a tube behind this" became "Add a body tube immediately behind this one, faired to it, and
+re-fly the design" — no longer containing the visible label, which is WCAG 2.5.3 and what a
+voice-control user actually says. Fourteen specs caught it by finding those buttons by the words on
+screen. Doing it properly means prefixing each visible label one control at a time; filed. Two ways
+of reaching them from the walk also failed and are recorded in the spec: `getByRole("row")` matches
+nothing for that table, and a direct row click times out because the table is 1,198 px wide inside a
+390 px viewport in its own scrolling container.
+
+*Increment 4 — NEXT.* Reach the selection-gated surface, which is the remaining blind spot, and then
+walk the three pad journeys the *done when* actually names — pick a motor, check stability,
+sanity-check a delay — one-handed and offline. The hit-target and hover counts are the finish; those
+three journeys are the substance, and nothing has walked them yet.
+
+*Superseded note — the problem increment 3 was expected to be:* The remaining 25 all sit on
 the app chrome ABOVE the workspace spine — `Undo`/`Redo`'s disabled reason, the design-name field,
 `Download .ork`, the motor-match badge, the stability `<abbr>` — so each renders on four routes
 rather than six, and writing any of them visibly spends the phone chrome ratchet (1060 px, measured

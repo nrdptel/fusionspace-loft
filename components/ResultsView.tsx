@@ -1132,7 +1132,7 @@ function RocketSummary({
                   : "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300"
                 : "border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-300")
             }
-            title={
+            aria-label={
               res.match
                 ? `Matched ${res.match.entry.designation} (${res.match.quality})${res.count > 1 ? ` — cluster of ${res.count}` : ""}`
                 : "No thrust curve found"
@@ -1457,13 +1457,12 @@ function Field({
       <dd className="font-mono text-sm tabular-nums text-zinc-800 dark:text-zinc-200">
         {value}
         {hint && (
-          <abbr
-            title={hintWhy}
+          <span
             aria-label={hintWhy ? `${hint} — ${hintWhy}` : hint}
             className="ml-1 text-xs uppercase text-amber-700 no-underline dark:text-amber-400"
           >
             {hint}
-          </abbr>
+          </span>
         )}
         {/* NOT written out on a coarse pointer, and the reason is a measurement rather than a
             preference. `Field` renders inside the design-summary strip, which is the shared chrome

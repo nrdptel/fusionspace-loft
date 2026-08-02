@@ -506,7 +506,17 @@ test.describe("phone layout", () => {
  *  improvement fails this test just as a regression does, so the figure in this file and the figure
  *  on the page can never drift apart silently.
  *
- *  **96 → 75 → 67 → 25.** The 67 → 25 step took the whole SHARED CHROME, which is why it is the
+ *  **96 → 75 → 67 → 25 → 1**, and the last step is the one to read carefully: **one here is not
+ *  "almost §8".** It is zero on the six routes this walk visits, with no part selected — see the
+ *  blind spot recorded in the loop below, which eleven real controls sit inside — and those eleven
+ *  are STILL hover-only. The honest claim is narrow: every hover-only state this check can SEE is
+ *  gone. Closing the gap means reaching them, not lowering a number.
+ *
+ *  The remaining 1 is `GeometryInspector`'s "Add a booster stage", the only control in that file
+ *  that renders without a part selected — see the blind spot below for why the other eleven in it
+ *  read as zero.
+ *
+ *  The 67 → 25 step took the whole SHARED CHROME, which is why it is the
  *  large one: every site there renders on all six routes, so five files paid for forty-two of them.
  *  Both invisible-until-hover arrows (footer and badge) are now always drawn — a flyer on a phone
  *  could not previously tell those links leave the site at all; the duplicated brand `title`, the
@@ -514,14 +524,16 @@ test.describe("phone layout", () => {
  *  bar are deleted; and the Ko-fi link's destination moved INTO its visible label rather than being
  *  deleted with it, because "Ko-fi" appeared nowhere else on the surface.
  *
- *  **What is left is 25, and it is a different problem.** Every one sits on the app chrome above the
- *  workspace spine — Undo/Redo's disabled reason, the design-name field, Download .ork, the motor
- *  match badge, the stability `<abbr>` — so it renders on four routes rather than six, and writing
- *  any of it visibly spends the phone chrome ratchet (1060 px, measured 1011 → 49 px of headroom)
- *  and the two-screen route depth cap at the same time. That is the exact trade `ROADMAP.md` records
- *  being made once and reverted. The next increment needs somewhere to put the words, not a shorter
- *  string. */
-const HOVER_ONLY_FLOOR = 25;
+ *  **The 25 → 1 step did NOT write anything visibly, and that was the constraint.** Every one of
+ *  those 25 sat on the app chrome above the workspace spine — Undo/Redo's disabled reason, the
+ *  design-name field, Download .ork, the motor-match badge, the stability hint — so writing any of
+ *  them into the page spends the phone chrome ratchet (1060 px, measured 1011 → 49 px of headroom)
+ *  and the two-screen depth cap at once, which `ROADMAP.md` records being tried and reverted. They
+ *  moved onto the ACCESSIBLE NAME instead: a `title` reaches a mouse only, an `aria-label` reaches
+ *  assistive tech on every form factor, and neither costs a pixel. Where the tooltip merely restated
+ *  a visible label it was deleted outright; where it carried something real — what a download
+ *  omits, an undo's keyboard shortcut, why a stability flag fired — it was kept and relocated. */
+const HOVER_ONLY_FLOOR = 1;
 
 test("counts the states a flyer at the pad cannot reach, and holds the number down", async ({ page }) => {
   const ROUTES = ["/flight", "/design", "/sweep", "/validate", "/docs", "/docs/methods"];
@@ -533,6 +545,24 @@ test("counts the states a flyer at the pad cannot reach, and holds the number do
   const found: string[] = [];
   for (const route of ROUTES) {
     await page.goto(route);
+    // **KNOWN BLIND SPOT, and it is recorded rather than left to be rediscovered.**
+    // `GeometryInspector`'s gesture bar — remove, reorder, add a tube / fin set / mass object /
+    // transition / motor mount, eleven controls — renders only once a part is SELECTED, and this
+    // walk never selects one. So those eleven have contributed 0 to every reading this ratchet has
+    // ever taken, while being exactly the kind of state it exists to find.
+    //
+    // **They are STILL `title` attributes and are still hover-only** — converting them was tried in
+    // this same increment and reverted, because `aria-label` REPLACES the accessible name where
+    // `title` only supplements it: "Add a tube behind this" became "Add a body tube immediately
+    // behind this one, faired to it, and re-fly the design", which no longer contains the visible
+    // label. That is WCAG 2.5.3, and fourteen specs caught it by finding those buttons by the words
+    // on screen. Doing it properly means prefixing each visible label, one control at a time, and it
+    // is filed in `BACKLOG.md` with this measurement.
+    //
+    // Two ways of reaching them from here also failed and are worth not repeating:
+    // `getByRole("row")` matches nothing for this table's rows, and a direct `tbody tr` click times
+    // out because the table is 1,198 px wide inside a 390 px viewport in its own horizontally
+    // scrolling container. Reaching it wants the diagram's selection path or a wider viewport.
     // Wait for the route to finish rendering before counting. Without this the count RACES
     // hydration and moves between runs — measured 60 and 71 on two runs of an identical build,
     // which would make an exact ratchet worse than no check at all: it would fail for timing and
