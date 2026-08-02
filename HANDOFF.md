@@ -128,6 +128,46 @@ writing any of them visibly spends the phone chrome ratchet (1060 px, measured 1
 two-screen depth cap at once — the trade increment 1 records making and reverting. The next
 increment needs somewhere to put the words, not a shorter string.
 
+### R8 increment 4 — the vendor's wall, stock and weight
+
+The *done when*'s material clause. Measured with the catalogue's own Rocketarium BT-60 (0.533 mm wall
+at 782.88 kg/m³): **528.0 g → 342.3 g** on the demo, a 35% change in dry mass.
+
+**Three things it had to get right, and the review found that two of them were wrong first:**
+
+- **A pick is a body-tube FIELD, not a free-standing record.** `withCatalogTube` resolves its target
+  through the `bodyTubeId` aim at apply time, so a pick that outlived its aim MIGRATED — removing the
+  tube it was made for re-landed the vendor's wall and stock on the primary-tube fallback (411.6 g →
+  53.9 g), and merely clicking another tube to READ it moved them there too (305.4 g → 129.1 g), with
+  the caption still naming the part. It is now a `targets` entry on that aim. The registry test then
+  caught that it also needed an undo label — that guard earning its keep.
+- **The vendor's published WEIGHT beats the derived one.** Seven body tubes state a mass and every one
+  disagrees with the computed figure by 3–5× (PS-7.5: 589.7 g published, 116.7 g derived). Applied as
+  `overrideMass`, which does NOT subsume the subtree — a tube carries its mount, fins and parachute.
+- **The solid-rod clamp is reachable from the other side.** A wall ≥ the tube's radius makes
+  `mass.ts` clamp the inner radius to 0. No bad data needed: `bodyDiameter` scales the airframe and is
+  a sweep axis, so a 48.8 mm pick narrowed under ~17.9 mm crosses it. Refused now.
+
+### The worst thing this run did, kept because it is the transferable lesson
+
+**The increment-4 measurement recorded in `ROADMAP.md` and a commit message was not reproducible, and
+nothing in the gate could have told me.** It quoted a 0.27 mm wall and a density of 848.98 — a figure
+that appears in NO row of the shipped catalogue. Both the probe and the unit test hand-typed "the
+vendor's published figures" rather than reading them out of the data, so the numbers were internally
+consistent, passed every check, and described a part that does not exist. The real BT-60 is 0.533 mm
+at 782.88, and the corrected figure is 342.3 g rather than 344.4 g.
+
+**The fix is structural, not a corrected number:** the test now resolves the part through
+`findParts`/`materialOf` at run time and asserts against what it read, so a hand-typed figure cannot
+be asserted against again. `MAINTAINING.md` already says "measure, don't remember" about the repo's
+own state — this is the same failure about the repo's own DATA, and it is easier to walk into,
+because a hand-typed constant looks exactly like a measured one three weeks later.
+
+The same review also found that the e2e's "the mass moved" assertion was a verbatim duplicate of a
+caption check three lines above it and could never fail. **Two of the four pre-push reviews this run
+found a tautological or unreproducible check rather than a code defect** — that is worth knowing
+about what the review is FOR.
+
 ### The sibling repo is ATTACHABLE now, and that clears a six-run blocker
 
 `add_repo` for `nrdptel/fusionspace-debrief` **succeeded this run** — the previous five handoffs
@@ -143,6 +183,30 @@ subtracts the allowed six, rather than looking for `text-lg` alone). It also car
 analyzer readouts that Loft's copy lacks. **Reconciling them is milestone-sized, not a wording fix**,
 and it is filed rather than half-done: adopting Debrief's greps into Loft would change what
 `lib/design-system.test.ts` counts, so it needs its own increment with the numbers re-measured.
+
+### Where the work is, and what to pick up first
+
+**Four increments, all on `claude/ultracode-maintenance-1wbrx5`, all in pull request #113.**
+
+| SHA | what |
+|---|---|
+| `4ba6dd9` | R8 inc 3 — the parts picker; the catalogue reaches the app |
+| `bdff258` | the Sev-1 — drift and the recovery radius filtered to landed flights |
+| `9cef2b6` | P4 inc 2 — hover-only states 67 → 25 |
+| `07519af` | R8 inc 4 — the vendor's wall, stock and published weight |
+
+**Pick up first, in this order:**
+
+1. **P4 increment 3 — the remaining 25 hover-only states, and it needs a DESIGN idea rather than more
+   deletions.** All 25 are on the app chrome above the workspace spine (Undo/Redo's disabled reason,
+   the design-name field, Download .ork, the motor-match badge, the stability `<abbr>`), so writing
+   any of them visibly spends the phone chrome ratchet (1060 px, measured 1011 → 49 px of headroom)
+   and the two-screen depth cap at once. Somewhere to PUT the words is the increment.
+2. **R8 increment 5 — the other four kinds.** Nose cone, coupler, centring ring and parachute cannot
+   be authored by `AddedPart` at all today, so "any of five kinds" is four new build paths, not one.
+   The parachute is hardest: the model requires `cd`, the catalogue has no such field, and only 21 of
+   151 canopies state a mass.
+3. **Reconcile the two `DESIGN.md` copies — now possible for the first time in six runs.** See below.
 
 ### What the pre-push reviews caught that the whole gate could not
 
