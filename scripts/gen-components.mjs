@@ -53,7 +53,14 @@ function convert(node, table, what) {
   if (!node) return undefined;
   const raw = Number(node.text);
   if (!Number.isFinite(raw)) return undefined;
-  const unit = node.attrs.Unit ?? "m";
+  // An ABSENT unit is an error too, not an assumed metre. 96% of this database is in inches, so
+  // defaulting would turn a 0.976 in tube into a 0.976 m one — a 39x error, silently, straight
+  // into CG and stability. Every one of the 12,863 dimension and mass elements carries a Unit
+  // today; this is the guard for the day a re-vendored file does not.
+  const unit = node.attrs.Unit;
+  if (unit === undefined) {
+    throw new Error(`gen-components: <${node.name}> states no Unit — refusing to assume one`);
+  }
   const factor = table[unit];
   if (factor === undefined) throw new Error(`gen-components: unknown ${what} unit "${unit}"`);
   return raw * factor;
@@ -76,12 +83,23 @@ const TYPE_TO_SI = { BULK: "bulk", SURFACE: "surface", LINE: "line" };
 
 const files = (await readdir(orcDir)).filter((f) => f.toLowerCase().endsWith(".orc")).sort();
 
-/** Per-file material tables, plus a global fallback in file order. A vendor file that redefines
- *  a material name means "for MY parts, this value" — six names are defined more than once with
- *  different densities — so resolution is file-local first and only then global. Resolving
- *  globally alone would make a part's mass depend on the order the files happened to load. */
+/** Per-file material tables, plus the shared table every vendor file is written against.
+ *
+ *  A vendor file that redefines a material name means "for MY parts, this value" — six names are
+ *  defined more than once with different densities — so resolution is file-local FIRST. The
+ *  fallback is `generic_materials.orc`, which is the database's own shared table, named as such
+ *  rather than "whichever file happened to sort first": a `readdir().sort()` fallback put
+ *  `BMS.ORC` ahead of it purely because uppercase sorts first, which is not a decision anyone
+ *  made. A name in neither is resolved from the remaining files in sorted order, as a last resort.
+ *
+ *  Refused definitions (see below) are authoritative for their OWN file — a part whose own vendor
+ *  states an impossible density gets nothing rather than someone else's number — but they are kept
+ *  OUT of the fallback tables, so one file's bad row cannot shadow a good row for another file's
+ *  parts. */
+const SHARED_MATERIALS_FILE = "generic_materials.orc";
 const perFile = new Map();
-const globalMats = new Map();
+const sharedMats = new Map();
+const otherMats = new Map();
 const refused = [];
 
 for (const file of files) {
@@ -102,11 +120,17 @@ for (const file of files) {
     table.set(name, { type: TYPE_TO_SI[type], density });
   }
   perFile.set(file, table);
-  for (const [k, v] of table) if (!globalMats.has(k)) globalMats.set(k, v);
+  const fallback = file === SHARED_MATERIALS_FILE ? sharedMats : otherMats;
+  for (const [k, v] of table) {
+    if (v.density === null) continue; // never let a refused row become another file's answer
+    if (!fallback.has(k)) fallback.set(k, v);
+  }
 }
 
 const resolveMaterial = (file, name) =>
-  (name && (perFile.get(file).get(name) ?? globalMats.get(name))) || undefined;
+  (name &&
+    (perFile.get(file).get(name) ?? sharedMats.get(name) ?? otherMats.get(name))) ||
+  undefined;
 
 // --- parts ---------------------------------------------------------------------------------
 // One reader per `.orc` element name. Every dimension the database records for that kind is
@@ -207,10 +231,43 @@ function intOf(n, name) {
   return Number.isFinite(v) ? v : undefined;
 }
 
+/** Why a part cannot be built, or undefined when it can. Each test is a strict impossibility, not
+ *  a plausibility heuristic: the database contains genuinely unusual parts (a solid coupler states
+ *  a bore of 0, a foam nose cone is 48 kg/m³) and none of them trip these. */
+function geometryRefusal(part) {
+  // A bore wider than the outside is a swapped or mistyped pair. A solid part legitimately states
+  // a bore of 0, so the test is `>=` against a POSITIVE outer diameter, not `> 0`.
+  if (
+    part.innerDiameter !== undefined &&
+    part.outerDiameter !== undefined &&
+    part.innerDiameter >= part.outerDiameter
+  ) {
+    return {
+      reason: "inner diameter is not smaller than the outer diameter",
+      innerDiameter: part.innerDiameter,
+      outerDiameter: part.outerDiameter,
+    };
+  }
+  // A wall at least as thick as the radius leaves no bore to be a wall around. One Estes nose cone
+  // states 4.250 in of wall on a 0.974 in body — plainly a decimal slip for 0.250 — and nothing in
+  // the database sits between a quarter of the diameter and this, so the boundary is unambiguous.
+  if (
+    part.thickness !== undefined &&
+    part.outerDiameter !== undefined &&
+    part.thickness * 2 >= part.outerDiameter
+  ) {
+    return {
+      reason: "wall thickness is at least the outer radius, leaving no bore",
+      innerDiameter: part.outerDiameter - 2 * part.thickness,
+      outerDiameter: part.outerDiameter,
+    };
+  }
+  return undefined;
+}
+
 const parts = [];
 const sources = [];
 const refusedParts = [];
-let skippedUnnamed = 0;
 const kindCounts = {};
 
 for (const file of files) {
@@ -224,11 +281,19 @@ for (const file of files) {
     const read = READERS[node.name];
     if (!read) continue;
     const partNumber = childText(node, "PartNumber");
-    // One BulkHead in the database carries a Description and nothing else. A part a flyer
-    // cannot name is a part they cannot pick, so it is dropped and counted rather than
-    // shipped under a blank.
+    // A part a flyer cannot name is a part they cannot pick. Every one of the 3,449 entries in
+    // today's database carries a part number, so this has never fired — it is the guard for a
+    // re-vendor that introduces one, and it is counted so that stays visible rather than silent.
     if (!partNumber) {
-      skippedUnnamed++;
+      refusedParts.push({
+        file,
+        kind: read(node).kind,
+        manufacturer: childText(node, "Manufacturer") ?? vendorOf.get(file) ?? "",
+        partNumber: "",
+        reason: "no part number, so the part cannot be named or chosen",
+        innerDiameter: 0,
+        outerDiameter: 0,
+      });
       continue;
     }
     const materialName = childText(node, "Material");
@@ -261,22 +326,17 @@ for (const file of files) {
     // Drop the keys a kind does not carry, so the emitted module stays readable and small.
     for (const k of Object.keys(part)) if (part[k] === undefined) delete part[k];
 
-    // A bore wider than the outside is not a tolerance question — it is a swapped or mistyped
-    // pair, and it makes the part's material volume negative. A solid coupler legitimately
-    // states a bore of 0, so the test is `>=` against a POSITIVE outer diameter, not `> 0`.
-    if (
-      part.innerDiameter !== undefined &&
-      part.outerDiameter !== undefined &&
-      part.innerDiameter >= part.outerDiameter
-    ) {
+    // Geometry that cannot be built. Both tests below describe a part with NEGATIVE material
+    // volume, which is a mistyped or swapped figure rather than an unusual design, and which would
+    // produce a negative mass if it reached the solver.
+    const unbuildable = geometryRefusal(part);
+    if (unbuildable) {
       refusedParts.push({
         file,
         kind: part.kind,
         manufacturer: part.manufacturer,
         partNumber: part.partNumber,
-        reason: "inner diameter is not smaller than the outer diameter",
-        innerDiameter: part.innerDiameter,
-        outerDiameter: part.outerDiameter,
+        ...unbuildable,
       });
       continue;
     }
@@ -433,7 +493,7 @@ console.log(
     (refused.map((r) => `${r.file}:${r.name}=${r.density}`).join(", ") || "none"),
 );
 console.log(
-  `  refused ${refusedParts.length} part(s) for unbuildable geometry: ` +
-    (refusedParts.map((r) => `${r.file}:${r.partNumber}`).join(", ") || "none"),
+  `  refused ${refusedParts.length} part(s): ` +
+    (refusedParts.map((r) => `${r.file}:${r.partNumber || "(unnamed)"} — ${r.reason}`).join("; ") ||
+      "none"),
 );
-if (skippedUnnamed) console.log(`  skipped ${skippedUnnamed} entr(ies) with no part number`);

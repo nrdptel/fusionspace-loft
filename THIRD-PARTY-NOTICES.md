@@ -11,10 +11,13 @@ cleanly licensed, because a bundle that lists only its well-licensed half is wor
 
 ## 1. OpenRocket component database — Apache License 2.0
 
-**What it is.** 3,446 real commercial rocketry parts — body tubes, nose cones, transitions,
+**What it is.** 3,445 real commercial rocketry parts — body tubes, nose cones, transitions,
 couplers, centring rings, bulkheads, launch lugs, engine blocks, parachutes and streamers — from
-sixteen manufacturers, each with its manufacturer, part number, published dimensions and named
-material.
+fourteen manufacturers, each with its part number, published dimensions and named material. The
+catalogue carries sixteen distinct manufacturer *strings* for those fourteen companies, because
+`quest.orc` writes both "Quest" and "Quest Aerospace" and `mpc.orc` writes both "MPC" and "MRC" —
+the strings are kept as the vendor files state them rather than merged, so a lookup by manufacturer
+must expect both spellings.
 
 | | |
 |---|---|
@@ -75,12 +78,15 @@ commit named above. The single exception is a file mode: `loc_precision.orc` is 
 
 1. **Normalised to SI.** The source states dimensions in inches, millimetres, centimetres or feet
    and masses in ounces, grams or kilograms, with the unit as an attribute on each element. Every
-   value is converted to metres and kilograms. An unrecognised unit is a hard error rather than a
-   silent 1:1, because a wrong length is a wrong rocket.
-2. **Materials resolved per file, then globally.** Six material names are defined more than once
-   with different densities, so a part uses its own file's definition first and the shared
-   `generic_materials.orc` only as a fallback. Resolving globally alone would make a part's mass
-   depend on the order the files happened to be read.
+   value is converted to metres and kilograms. An unrecognised unit — or an ABSENT one — is a hard
+   error rather than a silent 1:1, because a wrong length is a wrong rocket: 96% of this database
+   is in inches, so assuming metres would inflate a 0.976 in tube 39-fold.
+2. **Materials resolved per file, then from the shared table.** Six material names are defined more
+   than once with different densities, so a part uses its own file's definition first, then
+   `generic_materials.orc` — the database's own shared table, named explicitly rather than reached
+   by whichever filename sorted first — and only then the remaining files in sorted order.
+   Resolving by read order alone would make a part's mass depend on the fact that `BMS.ORC` is
+   capitalised.
 3. **A material's unit is taken from its `<Type>`, never from `UnitsOfMeasure`.** The upstream
    maintainer records that the attribute is often wrong, and it is: six `SURFACE` materials declare
    `g/m2` while carrying values in kg/m² (1.9 oz ripstop at 0.0589). Believing the attribute would
@@ -90,14 +96,20 @@ commit named above. The single exception is a file mode: `loc_precision.orc` is 
    `ROCKETARIUM.ORC` (lighter than air, and referenced by 18 real parts), and
    `Elastic, flat, 3/8 in. width` at 0.006087 typed as `BULK` when it is plainly a line material.
    They are listed in the generated `REFUSED_MATERIALS`.
-5. **Three parts are dropped for unbuildable geometry** — a stated bore wider than the outside
-   diameter, which gives a negative material volume: `quest.orc` `CR2924, Q14022`, `semroc.orc`
-   `HTC-11`, and `semroc.orc` `RA-55-70`. They are listed in the generated `REFUSED_PARTS`.
-6. **One entry with no part number is dropped** — a bulkhead in `BMS.ORC` carrying a description
-   and nothing else. A part a flyer cannot name is a part they cannot pick.
+5. **Four parts are dropped for unbuildable geometry**, each stating a negative material volume.
+   Three state a bore wider than the outside diameter — `quest.orc` `CR2924, Q14022`, `semroc.orc`
+   `HTC-11`, `semroc.orc` `RA-55-70` — and one states a wall thicker than its own radius,
+   `estes_classic.orc` `PRP-1H, 032487, 032492` at 4.250 in of wall on a 0.974 in body, plainly a
+   decimal slip for 0.250 in. They are listed in the generated `REFUSED_PARTS`.
 
 None of these change a published figure. They refuse figures that cannot be published values, and
 each refusal is recorded in the bundle rather than only in this file.
+
+**What is NOT refused, and why.** `ROCKETARIUM.ORC` states `Paper, spiral kraft, Motor Mount,
+BT-50, bulk` as 9,072 kg/m³ — denser than copper, and certainly wrong for paper. It is not refused,
+because 9,072 kg/m³ is a physically possible density for *something*; refusing it would mean
+judging the value against its NAME rather than against physics, and that is a heuristic this
+generator deliberately does not apply. It is recorded here instead, and in `BACKLOG.md`.
 
 ---
 
@@ -124,7 +136,7 @@ otherwise would be the kind of quiet claim this project does not make**:
 `free` includes GPL, so the three `free` curves are not necessarily compatible with an MIT bundle
 either. This is a pre-existing gap, it is tracked in `BACKLOG.md`, and it is stated here rather
 than left for someone to discover. The component catalogue above was built deliberately not to
-reproduce it: a single explicit Apache-2.0 grant covers every one of its 3,446 parts.
+reproduce it: a single explicit Apache-2.0 grant covers every one of its 3,445 parts.
 
 ---
 

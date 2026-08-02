@@ -128,17 +128,30 @@ describe("the bundled component catalogue", () => {
   });
 
   it("ships no part whose geometry cannot be built, and says which it dropped", () => {
-    // Three upstream entries state a bore wider than the outside, which makes the material
-    // volume — and so the mass — negative. They are refused at generate time, and a flyer
-    // cannot reach one; the record of what was dropped stays in the bundle.
+    // Four upstream entries describe a negative material volume: three state a bore wider than the
+    // outside, and one a wall thicker than its own radius. They are refused at generate time, and
+    // a flyer cannot reach one; the record of what was dropped stays in the bundle.
     for (const p of allParts()) {
-      if (p.innerDiameter === undefined || p.outerDiameter === undefined) continue;
-      expect(p.innerDiameter, `${p.manufacturer} ${p.partNumber}`).toBeLessThan(p.outerDiameter);
+      if (p.innerDiameter !== undefined && p.outerDiameter !== undefined) {
+        expect(p.innerDiameter, `${p.manufacturer} ${p.partNumber}`).toBeLessThan(p.outerDiameter);
+      }
+      if (p.thickness !== undefined && p.outerDiameter !== undefined) {
+        expect(p.thickness * 2, `${p.manufacturer} ${p.partNumber} wall`).toBeLessThan(p.outerDiameter);
+      }
     }
     expect(REFUSED_PARTS.length).toBeGreaterThan(0);
     for (const r of REFUSED_PARTS) {
       expect(r.reason.length).toBeGreaterThan(0);
-      expect(r.innerDiameter).toBeGreaterThanOrEqual(r.outerDiameter);
+      // Every refusal describes an impossible wall, and it must be impossible in one of exactly
+      // two ways: a bore at least as wide as the outside, or a wall so thick the implied bore is
+      // negative. Anything else in this list would be a part refused for a reason that is not a
+      // physical impossibility, which is a bug in the refusal rather than in the data.
+      const boreTooWide = r.innerDiameter >= r.outerDiameter;
+      const wallEatsBore = r.innerDiameter < 0;
+      expect(
+        boreTooWide || wallEatsBore,
+        `${r.partNumber} was refused but its geometry is buildable (ID ${r.innerDiameter}, OD ${r.outerDiameter})`,
+      ).toBe(true);
       // The dropped part must genuinely be absent, not merely listed.
       expect(findParts(r.partNumber, r.manufacturer).length).toBe(0);
     }
@@ -184,18 +197,31 @@ describe("the bundled component catalogue", () => {
 
   it("filters by what a part has to fit, not just by its name", () => {
     // The question a builder actually asks: what coupler goes inside this tube? The tube's inner
-    // diameter is the coupler's outer one, to a slip fit.
+    // diameter is the coupler's outer one, to a slip fit. Asserted against an INDEPENDENT count —
+    // the same predicate applied to the whole catalogue by hand — rather than by re-running the
+    // filter's own condition over its own output, which would pass however wrong the filter is.
     const tube = findPart("MMT-0.71-34", "LOC Precision")!;
-    const fits = searchParts({ fitsOuterDiameter: tube.innerDiameter, tolerance: 0.0005 });
+    const tol = 0.0005;
+    const byHand = allParts().filter(
+      (p) => p.outerDiameter !== undefined && Math.abs(p.outerDiameter - tube.innerDiameter!) <= tol,
+    );
+    const fits = searchParts({ fitsOuterDiameter: tube.innerDiameter, tolerance: tol });
     expect(fits.length).toBeGreaterThan(0);
-    for (const p of fits) expect(Math.abs(p.outerDiameter! - tube.innerDiameter!)).toBeLessThan(0.0005);
+    expect(fits.map((p) => p.partNumber).sort()).toEqual(byHand.map((p) => p.partNumber).sort());
+    // And it must EXCLUDE the near misses, or "fits" means nothing.
+    const nearMiss = allParts().find(
+      (p) =>
+        p.outerDiameter !== undefined &&
+        Math.abs(p.outerDiameter - tube.innerDiameter!) > tol &&
+        Math.abs(p.outerDiameter - tube.innerDiameter!) < tol * 6,
+    );
+    if (nearMiss) expect(fits).not.toContain(nearMiss);
 
     const locTubes = searchParts({ kind: "bodytube", manufacturer: "LOC Precision" });
+    expect(locTubes.length).toBe(
+      allParts().filter((p) => p.kind === "bodytube" && p.manufacturer === "LOC Precision").length,
+    );
     expect(locTubes.length).toBeGreaterThan(0);
-    for (const p of locTubes) {
-      expect(p.kind).toBe("bodytube");
-      expect(p.manufacturer).toBe("LOC Precision");
-    }
     // Text runs over the description too, which is where a size like "18mm" is written.
     const byText = searchParts({ kind: "bodytube", text: "MMT-0.71" });
     expect(byText.some((p) => p.partNumber === "MMT-0.71-34")).toBe(true);
@@ -207,11 +233,11 @@ describe("the bundled component catalogue", () => {
     // Breadth is the point of the milestone: authoring becomes selection only if the part a
     // flyer owns is in the list. These floors are the honest measured counts, ratcheted so a
     // re-vendor that silently loses a file fails here rather than in a picker.
-    expect(COMPONENT_CATALOG.length).toBeGreaterThanOrEqual(3446);
+    expect(COMPONENT_CATALOG.length).toBeGreaterThanOrEqual(3445);
     expect(manufacturers().length).toBeGreaterThanOrEqual(16);
     for (const [kind, floor] of [
       ["bodytube", 1089],
-      ["nosecone", 855],
+      ["nosecone", 854],
       ["centeringring", 497],
       ["transition", 360],
       ["tubecoupler", 236],
@@ -261,6 +287,44 @@ describe("the bundled component catalogue", () => {
       // A gram to five kilograms covers every part in a hobby catalogue.
       expect(p.mass!, p.partNumber).toBeLessThan(5);
       expect(p.mass!, p.partNumber).toBeGreaterThan(1e-5);
+    }
+    // A five-order-of-magnitude bound cannot catch a unit slip, so the DISTRIBUTION is pinned too:
+    // the measured range is 5.67e-4 .. 2.296 kg. An ounces-for-kilograms slip would multiply every
+    // one of these by 28 and a grams slip divide by 1000, and either moves these bounds well out.
+    const masses = stated.map((p) => p.mass!);
+    expect(Math.min(...masses)).toBeGreaterThan(1e-4);
+    expect(Math.min(...masses)).toBeLessThan(5e-3);
+    expect(Math.max(...masses)).toBeGreaterThan(1);
+    expect(Math.max(...masses)).toBeLessThan(4);
+
+    // Where a vendor states BOTH a mass and enough geometry to compute one, the two are checked
+    // against each other — a stated figure against an independently derived one, with no single
+    // unit table feeding both sides, which is what makes it able to catch a conversion error.
+    //
+    // The bound is ONE-DIRECTIONAL on the low side and generous on the high side, and that
+    // asymmetry is the data's, not a convenience. A part cannot contain LESS material than its own
+    // walls describe, so `stated >= wall` is a hard floor — and a grams-for-kilograms slip divides
+    // by 1000, which lands far under it. It can easily contain MORE: all seven body tubes that
+    // state a mass here are PML piston ASSEMBLIES ("Body tube, phenolic, 1.5, piston assy"), a
+    // tube plus a piston head plus hardware, and they run 3.1x to 5.1x the bare cylinder. That is
+    // the part being heavier than its tube, not the tube being wrong. An ounces-for-kilograms slip
+    // multiplies by 28 and still fails the ceiling.
+    const withGeometry = allParts().filter(
+      (p) =>
+        p.kind === "bodytube" &&
+        p.mass !== undefined &&
+        p.material?.density != null &&
+        p.length !== undefined &&
+        p.innerDiameter !== undefined &&
+        p.outerDiameter !== undefined,
+    );
+    expect(withGeometry.length, "nothing to cross-check, so this asserted nothing").toBeGreaterThan(0);
+    for (const p of withGeometry) {
+      const wallArea = (Math.PI / 4) * (p.outerDiameter! ** 2 - p.innerDiameter! ** 2);
+      const wall = wallArea * p.length! * p.material!.density!;
+      const ratio = p.mass! / wall;
+      expect(ratio, `${p.manufacturer} ${p.partNumber} is lighter than its own walls`).toBeGreaterThan(0.9);
+      expect(ratio, `${p.manufacturer} ${p.partNumber} is far heavier than its geometry allows`).toBeLessThan(10);
     }
   });
 });
