@@ -151,6 +151,9 @@ export const EDIT_ACTIONS: Readonly<Record<string, string>> = {
   finCrossSection: "the fin cross-section",
   finMaterial: "the fin material",
   // Airframe
+  // Spacing the field name out would give "the catalog body tube", which is the internal name for
+  // the record and not what the flyer did. The gesture is choosing a real commercial part.
+  catalogBodyTube: "the catalogue tube",
   noseLength: "the nose length",
   noseShape: "the nose shape",
   bodyLength: "the body length",

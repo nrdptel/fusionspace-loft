@@ -11,7 +11,9 @@ export default function FusionSpaceBadge({ className = "" }: { className?: strin
       href="https://fusionspace.co"
       target="_blank"
       rel="noopener noreferrer"
-      title="Fusion Space — free, polished tools for high-power rocketry"
+      // See the footer's copy of this link: the deleted tooltip's description moves onto the
+      // accessible name rather than off the page.
+      aria-label="Fusion Space — free, polished tools for high-power rocketry (opens in a new tab)"
       className={`group inline-flex w-fit items-center gap-1 transition hover:opacity-80 ${TOUCH_TARGET} ${className}`}
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -26,10 +28,10 @@ export default function FusionSpaceBadge({ className = "" }: { className?: strin
           inherits the footer's own body size, so this one states the same rather than inheriting a
           header that sets none. Left to inherit, it took the page's 16 px and became the largest
           glyph in the lockup. */}
-      <span
-        aria-hidden
-        className="text-sm text-zinc-400 opacity-0 transition group-hover:opacity-100 dark:text-zinc-500"
-      >
+      {/* Always visible — see the identical mark in the footer, which also explains why the class
+          literal it replaced is not named in either comment. `text-zinc-500` is §2's `tertiary`
+          role; `text-zinc-400` is 2.57:1 on white and fails WCAG 1.4.11. */}
+      <span aria-hidden className="text-sm text-zinc-500 dark:text-zinc-500">
         ↗
       </span>
     </a>

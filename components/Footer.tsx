@@ -60,7 +60,12 @@ export default function Footer() {
           href="https://fusionspace.co"
           target="_blank"
           rel="noopener noreferrer"
-          title="Fusion Space — free, polished tools for high-power rocketry"
+          // The description the deleted `title` carried, on the accessible name instead — where
+          // it reaches every form factor rather than a mouse only. Deleting the tooltip without
+          // this would have LOST it: it survived nowhere else on any rendered surface, which is the
+          // same test the Ko-fi link was held to two files away. The new-tab fact rides here too,
+          // because the ↗ that states it visually is `aria-hidden`.
+          aria-label="Fusion Space — free, polished tools for high-power rocketry (opens in a new tab)"
           className={`group inline-flex items-center gap-1.5 transition hover:opacity-80 ${TOUCH_TARGET}`}
         >
           <span>A</span>
@@ -74,7 +79,21 @@ export default function Footer() {
           />
           <span>
             project{" "}
-            <span aria-hidden className="opacity-0 transition group-hover:opacity-100">
+            {/* Always visible. It used to be revealed only on hover, which on a coarse pointer
+                means never — no touch gesture brings it up — so the one mark saying this link leaves
+                the site did not exist on a phone. It already occupied its box, so showing it changes
+                no layout and spends nothing against the chrome height ratchet.
+
+                The class literal is deliberately NOT written here. Tailwind v4 scans raw file text
+                and cannot tell a mention from a use, so naming it in a comment about removing it
+                would keep generating the very utility this deleted — the trap `lib/ui-tokens.ts` and
+                the design-system ratchet both carry warnings about.
+
+                `text-zinc-500` is §2's `tertiary` role. It is also what this glyph INHERITED from the
+                footer before it carried a colour of its own; the first draft wrote `text-zinc-400`,
+                which is 2.57:1 on white — under WCAG 1.4.11 — and would have made the mark this
+                change exists to reveal the least readable thing in the chrome. */}
+            <span aria-hidden className="text-zinc-500 dark:text-zinc-500">
               ↗
             </span>
           </span>

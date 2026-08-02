@@ -686,13 +686,21 @@ export default function Methods() {
         (½·m·v² for the whole vehicle) — the figure many fields and waivers cap per section, so its
         95th percentile is the worst case to check against a limit; a design that lands in separated
         sections divides it among them, so read the whole-airframe number as conservative.{" "}
-        <strong>Both landing figures describe only the dispersed flights that reached the ground</strong>{" "}
+        <strong>
+          All FOUR landing figures — speed, energy, drift and the recovery radius — describe only the
+          dispersed flights that reached the ground
+        </strong>{" "}
         inside the simulation&apos;s time cap, and the panel says how many of the total that was. A
         flight still descending at the cap has no landing speed and no landing energy — it carries
         zeros that are placeholders rather than measurements, and averaging those in reported a
         soft landing that never happened: on one real design at a legal recovery size, every sample
-        was such a placeholder and the panel read 0.00 m/s and 0 J. Where none of them land, both
-        figures are withheld with the reason instead. Every sample runs through
+        was such a placeholder and the panel read 0.00 m/s and 0 J. Drift and the recovery radius
+        joined that population on 2026-08-02, and they are why the rule is stated as four rather
+        than two: an un-landed flight&apos;s drift is not a placeholder zero but the distance it had
+        covered when the cap stopped it, so it read as an ordinary smaller number and pulled the
+        recovery area DOWN — understating the figure whose only job is to say how much ground to plan
+        for. Where none of them land, all four are withheld with the reason instead, and the landing
+        scatter says so rather than drawing an empty plot. Every sample runs through
         the same solver as the main flight; nothing about the physics changes. The uncertainty is
         entirely in the inputs, which are your own stated assumptions, so the result is an honest
         propagation of that spread — not a claim of new precision.
@@ -723,7 +731,9 @@ export default function Methods() {
         read it as the recovery area for THAT day rather than for any wind. The whole run is
         driven by a fixed-seed pseudo-random generator, so the same design and the same dispersions
         reproduce the same cloud — a dispersion is a stable property of the design, not wall-clock
-        noise. The reported bands are 5th-to-95th percentiles of the flown samples.
+        noise. The reported bands are 5th-to-95th percentiles: of every flown sample for
+        apogee and max speed, and of the flights that reached the ground for the four landing
+        figures.
       </p>
       <p>
         If you enter a <strong>waiver ceiling</strong>, Loft reports the fraction of the dispersed

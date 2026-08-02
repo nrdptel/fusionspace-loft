@@ -1427,14 +1427,109 @@ source carrying licence/repo/commit, no shipped density outside its physical ban
 with unbuildable geometry, and a stated mass cross-checked against one computed from geometry and
 density.
 
-*Increment 3 — NEXT.* The picker in the builder, and the model wiring: choosing a part populates
-dimensions and material, and the flight moves. This is the whole remaining gap to the *done when*.
-Two things already known that it should absorb: `materialOf` returns `undefined` for the 18 parts
-whose density was refused, and the picker has to surface that rather than substitute a default; and
-a vendor-alias table is owed, because the catalogue carries sixteen manufacturer strings for
-fourteen companies ("Quest" and "Quest Aerospace", "MPC" and "MRC").
+*Increment 3 — SHIPPED. The picker exists, and a chosen tube flies.*
 
-**Size.** 3–5 increments.
+`components/PartPicker.tsx`: a flyer opens the Design workspace, searches 1,089 published body tubes
+by number or description, filters by vendor or to their own caliber, and picks one. The vendor's
+outer diameter and length land in `bodyDiameter` and `bodyLength` — the two fields that were already
+there — and the flight moves. Pinned by `e2e/smoke.spec.ts`'s *a real commercial tube can be chosen
+instead of measured, and it flies*, which drives the whole gesture in a browser: the lazy chunk
+resolves, a BT-60 is found, the caliber field reads the vendor's 41.6 mm, apogee changes, and the
+clear path puts the original flight back.
+
+**The catalogue is a SEPARATE CHUNK, and that had to be established rather than assumed.** It is
+85 KB gzipped against a 343 KB whole-app budget — a quarter more JS on every first load, carried for
+a table most sessions never open. `PartPicker` reaches it through the app's first dynamic `import()`,
+and the split was verified from the built export rather than from the bundler's intent: the chunk
+carrying `BT-60` is referenced by **no prerendered document**. The service worker precaches
+everything under `_next/static`, so offline is unaffected.
+
+**What it deliberately does NOT do, said on the surface rather than left to be inferred.** The pick
+sets the caliber and the length; the wall and the material stay the design's own, so the resulting
+MASS is Loft's scaled figure and not the vendor's published weight. The panel says exactly that,
+because the material column sits right beside it and a flyer could otherwise reasonably read the mass
+as published. Carrying the vendor's density is increment 4, and it needs a new edit field: measured
+this run, the catalogue's 39 material strings for body tubes have **zero** overlap with
+`AIRFRAME_MATERIALS`' seven keys, and `airframeMaterial` takes a key — so the published figure cannot
+travel through it without being snapped to a generic one, which is the substitution
+`lib/components/db.ts` explicitly refuses to make. Filed in `BACKLOG.md` with the measurement.
+
+Two things this increment did NOT need, and the reason is worth keeping: it drives the EXISTING
+`bodyDiameter`/`bodyLength` edits rather than building a new part, so it inherits the whole-airframe
+caliber scale and never creates the mould-line step `buildAdded` argues at length against — and it
+never hands a tube a material without a wall, which `lib/sim/mass.ts` would fly as a solid rod
+(measured previously at 2.13× the mass).
+
+*Increment 4 — SHIPPED. The vendor's wall and stock, and the mass moves with them.*
+
+The *done when*'s "and material" clause. `PickedBodyTube` now carries the published bore and the
+vendor's own stock by value, and `withCatalogTube` puts both on the tube the body fields are aimed
+at — never the whole airframe, because a pick is a statement about ONE part.
+
+**Measured on the demo design with the catalogue's own Rocketarium BT-60 — 41.58 mm OD, 40.51 mm ID,
+so a 0.533 mm wall at 782.88 kg/m³: 528.0 g with the dimensions alone, 342.3 g once the vendor's wall
+and stock land. A 35% change in dry mass**, which moves CG, stability and apogee with it.
+
+**The first version of that measurement was wrong, and the way it was wrong is the lesson.** It
+quoted a 0.27 mm wall and a density of 848.98 — a figure that appears in no row of the catalogue —
+because the probe and the unit test both hand-typed "the vendor's published figures" instead of
+reading them out of the shipped data. The numbers were arithmetically self-consistent and
+reproducible from nothing. The test now resolves the part through `findParts`/`materialOf` at run
+time, so a hand-typed figure cannot be asserted against again.
+
+Three things it had to get right, each recorded because each is a way to ship a wrong number:
+
+- **The wall is DERIVED, not read.** The catalogue states an inner and an outer diameter and never a
+  thickness — 0 of 1,089 body tubes carry one — so it is `(OD − ID) / 2`.
+- **The wall and the stock travel together or neither travels.** `lib/sim/mass.ts` flies a tube that
+  has a material and no wall as a SOLID ROD, previously measured at 2.13× the mass and 72% off the
+  apogee with no error anywhere. A pick with no usable density therefore keeps the design's own wall
+  AND stock. **None of the 18 parts whose upstream density was refused is a body tube** — measured, 0
+  of 1,089 — so that path is defence against a future re-cut rather than a state today's picker can
+  reach, and an earlier draft of this entry claimed otherwise.
+- **The same clamp is reachable from the other side, and now is not.** A wall at least as wide as the
+  tube's own radius makes `lib/sim/mass.ts` clamp the inner radius to 0 and fly a solid rod. It needs
+  no bad data: `bodyDiameter` scales the whole airframe and is also a sweep axis, so picking a
+  48.8 mm tube and then narrowing the design under ~17.9 mm crosses it. The wall is refused in that
+  case and the stock still lands.
+- **The vendor's own published WEIGHT beats the derived one.** Seven body tubes state a mass, all
+  Public Missiles, and every one disagrees with the figure computed from its own geometry and stock
+  by 3–5× — PS-7.5 publishes 589.7 g against 116.7 g derived. Applied as `overrideMass`, which
+  replaces the component's own mass and NOT its subtree: a tube carries its mount, fins and parachute
+  as children, and swallowing those would be a far larger error than the one it fixes.
+- **It is not scaled by the caliber what-if.** `scaleAirframeRadii` touches `outerRadius` and never
+  `thickness`, which is right rather than incidental: a real tube's wall is a property of the tube,
+  not a ratio of its diameter.
+
+**And a pick is a body-tube FIELD, not a free-standing record — which the first draft got wrong in a
+way worth recording.** `withCatalogTube` resolves its target through the `bodyTubeId` aim at apply
+time, so a pick that outlived its aim migrated: removing the tube it was made for re-landed the
+vendor's wall and stock on whatever the primary-tube fallback found (measured on a two-tube design,
+411.6 g → 53.9 g), and merely clicking another tube to READ it moved them there too (305.4 g →
+129.1 g), with the caption still naming the part in both. `catalogBodyTube` is now a `targets` entry
+on that aim, so it clears exactly when `bodyLength` and `bodyDiameter` do.
+
+It also stopped being inert. A pick now changes the flight with both dimension fields blank, so
+`catalogBodyTube` left `INERT_EDIT_FIELDS` and `hasGeometryEdits` counts it — and the picker's clear
+path now appears whenever a part is set rather than only while the numbers still match, because the
+narrower rule would have re-created the one-way door increment 3 shipped and fixed. The attribution
+is what narrows instead: "Flying Estes BT-60" while the figures are the vendor's, "Wall and stock
+from Estes BT-60, with your own dimensions" once they are not.
+
+Pinned by four cases in `lib/model/edit.test.ts` and by the e2e, which now drives the whole arc —
+pick, read the vendor's caliber back, edit it, watch the claim narrow without the way out
+disappearing, then clear and land back on the design's own flight.
+
+*Increment 5 — NEXT.* The other kinds. Three things already known that it
+should absorb: `materialOf` returns `undefined` for the 18 parts whose density was refused, and the
+picker has to surface that rather than substitute a default; a vendor-alias table is owed, because
+the catalogue carries sixteen manufacturer strings for fourteen companies ("Quest" and "Quest
+Aerospace", "MPC" and "MRC"); and four of the five *done when* kinds (nose cone, coupler, centering
+ring, parachute) cannot be authored by `AddedPart` at all today, so "any of five kinds" is four new
+build paths rather than one. A parachute is the hardest: the model requires `cd`, the catalogue has
+no such field, and only 21 of 151 canopies state a mass.
+
+**Size.** 3–5 increments, and 4–6 now looks honest.
 
 **Notes.** `COMPETITION.md` rows 2 and 3. Keep the corpus honest: a catalogue part must produce the
 same internal Rocket model an imported one does, or the solver ends up with two shapes of truth.
@@ -2072,7 +2167,8 @@ sibling app's 27 KB — the front door is thin in both senses.
 
 ## P4 — A touch-native builder
 
-**Status: IN PROGRESS** — increment 1 of 4–6 shipped 2026-08-02, along with the decomposition.
+**Status: IN PROGRESS** — increments 1 and 2 of 4–6 shipped 2026-08-02, along with the
+decomposition. The hover-only count is **25**, down from 96 when it was first taken.
 
 *Increment 1 — SHIPPED. The other half of §8's contract, which nothing had ever measured.*
 
@@ -2109,10 +2205,36 @@ per-column `title="Sort by mass"` on a button already reading "Mass" is deleted 
 restates its own label is a named tell, and the `aria-label` already carried the verb for assistive
 tech on every form factor.
 
-*Increment 2 — NEXT.* Drive the 67 down. The bulk is shared chrome, so it is a small number of
-surfaces: the footer and badge `opacity-0 group-hover:opacity-100` external-link arrows are simply
-INVISIBLE on touch, so a flyer cannot tell those links leave the site at all; the theme toggle's
-`title` carries its current state; and `Undo`/`Redo` explain *why* they are disabled only on hover.
+*Increment 2 — SHIPPED. 67 → 25, and the whole shared-chrome category is gone.*
+
+Five files, and the leverage is that every site in the shared chrome renders on all six routes the
+ratchet walks — so five edits paid for forty-two states. Both invisible-until-hover external-link
+arrows (`components/Footer.tsx`, `components/FusionSpaceBadge.tsx`) are now always drawn: at
+`opacity-0` they were the one mark saying those links leave the site, and no touch gesture brings
+them up, so on a phone that mark did not exist. They already occupied their box, so showing them
+costs no layout and spends nothing against the chrome ratchet. The duplicated brand `title`, the
+theme toggle's (its `aria-label` is a strict superset), and a `title` on a decorative `aria-hidden`
+bar are deleted — that last one reached neither touch nor assistive tech, only a mouse.
+
+**The Ko-fi link is the one where deletion alone was the wrong fix**, and it is the general lesson:
+"Ko-fi" appeared nowhere else on the surface, so removing the tooltip would have removed the only
+statement of where the link goes. The destination moved INTO the visible label instead, which costs
+nothing on an existing 44 px control. A `title` is only safely deleted when its information is
+genuinely somewhere else.
+
+**A trap worth recording, because it would have looked like a fix.** The check matches the class
+STRING, not the computed style, so adding `pointer-coarse:opacity-100` beside the
+`group-hover:` variant would leave the count exactly where it was — and leave the defect in place
+too. The literal has to be deleted.
+
+*Increment 3 — NEXT, and it is a different problem from increment 2.* The remaining 25 all sit on
+the app chrome ABOVE the workspace spine — `Undo`/`Redo`'s disabled reason, the design-name field,
+`Download .ork`, the motor-match badge, the stability `<abbr>` — so each renders on four routes
+rather than six, and writing any of them visibly spends the phone chrome ratchet (1060 px, measured
+1011, so 49 px of headroom) and the two-screen depth cap simultaneously. That is the exact trade
+increment 1 recorded making once and reverting. **The next increment needs somewhere to put the
+words, not a shorter string** — a disclosure, a details row under the fold, or the reasoning moving
+to where `StabilityTrimHint` already writes it in full.
 
 **Outcome.** A phone at the pad is a first-class tool, not a rescaled desktop.
 
@@ -2201,6 +2323,19 @@ Beyond these, decompose from the North Star in `MAINTAINING.md` and from `COMPET
 Unattended runs do not stop to ask (see *Unattended operation* in `MAINTAINING.md`). Every decision
 that would otherwise have been a question goes here, with the option rejected, so it can be reversed
 cheaply instead of re-derived. Newest first.
+
+- **The Ko-fi link's destination went to its ACCESSIBLE NAME rather than its visible label
+  (2026-08-02).** P4 increment 2 deletes hover-only `title`s, and this one carried the only mention
+  of where the link goes — "Ko-fi" appears nowhere else on the surface — so deleting it alone would
+  have lost information rather than relocated it. **The rejected option was writing it visibly**
+  ("Tip on Ko-fi"), which was tried and MEASURED: it wraps the header on a 390 px phone and took the
+  shared chrome from 1011 px to **1074**, past the 1060 px cap that every route's depth is built on,
+  failing `e2e/depth.spec.ts` on all four workspace routes. Two contracts collided and the chrome
+  ratchet is the harder one — it is a ceiling on every route at once, where the destination of a tip
+  link is a nicety. `aria-label="Tip the project on Ko-fi"` reaches assistive tech on every form
+  factor, where the `title` reached none on touch, so the change is a strict improvement for the
+  users most in need of it and neutral for a sighted touch user. Reverse it by finding the label
+  63 px of room, or by naming Ko-fi in the footer where there is space.
 
 - **2026-08-02 — a published accuracy figure was RAISED rather than the gate slackened.**
   `groundHitVelocity`'s census median goes 3.0% → 8.3% because the metric stopped being measured on

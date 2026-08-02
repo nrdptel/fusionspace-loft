@@ -64,7 +64,6 @@ export default function ThemeToggle() {
   return (
     <Button
       onClick={cycle}
-      title={`Theme: ${LABEL[shown]} (click to change)`}
       aria-label={`Color theme: ${LABEL[shown]}. Click to change.`}
     >
       <span aria-hidden className="leading-none">

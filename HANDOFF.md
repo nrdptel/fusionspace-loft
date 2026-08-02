@@ -4,61 +4,35 @@ Overwritten each session. What shipped, what is part-way, and what to pick up fi
 
 ## Read this first
 
-**`npx playwright install chromium` is a SILENT NO-OP in this sandbox. Use
-`./node_modules/.bin/playwright install chromium`.** Measured 2026-08-02 (this run): `npx` exits 0,
-prints nothing at all, and installs nothing — the previous session's note crediting `npx` with the
-fix is wrong, and following it costs a full e2e run to discover. The direct binary downloads
-chromium-1228 and chromium_headless_shell-1228 in about ninety seconds through the proxy. Check
-`ls /opt/pw-browsers` for `chromium_headless_shell-1228` afterwards rather than trusting the exit
-code. **This still belongs in the environment's setup script**; it is paid for again every session
-until it is, and that is the owner's fix.
+**The environment gave us BOTH repos and NO Playwright browser, again.** `/home/user/loft-fixtures`
+was present (link its per-tool directories into `corpus/` and the suite names `35 present`), and
+`/opt/pw-browsers` again lacked `chromium_headless_shell-1228`. **`./node_modules/.bin/playwright
+install chromium` is the command that works** — it exits 0 and lands 1228 in about ninety seconds.
+The previous handoff is right that bare `npx playwright install` is a silent no-op. **This still
+belongs in the environment's setup script and is the owner's fix**; it is paid for every session.
 
-**And never pipe `playwright test` into `tail` to read its result.** The pipeline's exit code is
-`tail`'s, which is always 0. This run's baseline e2e reported "green" that way while both shards were
-in fact failing all 208 tests on the missing browser. Redirect to a file and check `$?`.
+**`pkill -f <pattern>` killed my own gate with exit 144, exactly as the previous handoff warned.**
+I read the warning and walked into it anyway. Use `fuser -k 3100/tcp`. Leaving this at the top
+because it has now cost two sessions.
 
-**The corpus arrives as a second attached repo and it was present this run** — `/home/user/loft-fixtures`
-beside the app repo. `ln -sfn` each per-tool directory into `corpus/` and the suite names its count:
-`imports every design file (35 present)`. `FIXTURES_TOKEN` is unset here, so `npm run fetch-fixtures`
-would have exited 0 and the suite would have skipped itself silently.
+**`pgrep -af` is worse than useless here** — it matches the harness launcher and dumps its entire
+multi-kilobyte argv into the session. Use `pgrep -f <pat> >/dev/null && echo yes`.
 
-**The Playwright browser this repo manages was NOT present in the sandbox, and the whole e2e suite
-failed until it was installed.** Measured 2026-08-02: `PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers` is
-set by the environment, `@playwright/test` 1.61.1 wants **chromium_headless_shell-1228**, and the
-directory did not contain it — every test died with `Executable doesn't exist`, which reads as 200
-real failures rather than a missing binary. `npx playwright install chromium` fetched it (~114 MB,
-about a minute, through the proxy) and the suite went green. **This belongs in the environment setup
-script**; it is paid for again every session until it is. Do not reach for `PW_EXECUTABLE_PATH` —
-that is what silently runs the suite against the wrong revision.
+**A case-sensitive Playwright name regex turned a pure refactor red, and only in the FULL run.**
+Converting the picker's clear control onto the `Button` primitive capitalised its label;
+`getByRole("button", {name: /back to the design/})` then matched nothing. It passed in isolation
+against the older build minutes earlier. Prefer `/…/i` for any control whose label a refactor could
+recase.
 
-**And do not run two e2e shards concurrently.** Both back onto one `serve` process and one port, so
-overlapping runs report unstable counts (100, then 86, then 31 passed) with no failure line and a
-"did not run" list that looks exactly like the file-descriptor exhaustion `MAINTAINING.md`
-documents. It is not that. Run the shards sequentially and the counts are stable at 100 + 100.
+**`scripts/check-text-gaps.mjs` earned its keep this run, and detector 1 is a REAL lead, not noise.**
+It flagged one new hit in new copy; driving the rendered text in a browser found **two** genuine
+missing spaces (`1089catalogued`, `(16 vendor files)— see`). Both were green through lint, unit,
+build and e2e, because the defect exists only after the JSX transform. Verify a lead by reading the
+RENDERED text, then fix it with an explicit `{" "}`.
 
-**The sibling repo is owed four wording changes, for the SIXTH run running, and it is an OWNER fix.**
-`add_repo` for `nrdptel/fusionspace-debrief` is still refused by the harness's permission classifier.
-`DESIGN.md` §10 makes a change to one copy a change to both **in the same run**, so every wording
-owed to that file stays unmade rather than creating the divergence the invariant forbids. The four
-are listed in `BACKLOG.md` unchanged. **A session created with both repos attached clears all four in
-one commit each.**
-
-**`BACKLOG.md`'s Sev-1 count is ZERO at the end of this run** — one was found and fixed (below), and
-the next-worst known correctness item (the optimum delay computed for the wrong vehicle when a
-what-if is set) is filed with its numbers rather than left in anyone's head.
-
-**Everything this run is MERGED except one pull request.** #107 and #108 and #109 are on `main` and
-deployed; the dispersion-filter hardening is the only thing pending, on the working branch. Production
-was checked rather than assumed: all eight routes 200, and `/docs/limitations` serves this run's text.
-
-**The run's own worst moment, kept because it is the transferable lesson.** P2's two-screen clause was
-declared met, the `test.fail` pinning it deleted, and `ROADMAP.md`, `HANDOFF.md` and `COMPETITION.md`
-all updated to say so — on a measurement taken with `pointer: fine`. `e2e/depth.spec.ts`'s phone was a
-phone-sized viewport over `devices["Desktop Chrome"]`, so every `TOUCH_TARGET` control rendered 26 px
-instead of 44 and the shared chrome came out **97 px short**, in the direction that makes the app look
-like it passes. The adversarial diff review caught it; the marker went back with the true figure; and
-the clause was then closed for real on a coarse pointer. **Any viewport-based contract in this repo
-must set `hasTouch` from the first line it is written.**
+**The pre-push agent review found ELEVEN defects in code that had already passed the whole gate**,
+including a one-way door. It is not optional and it is the highest-yield fifteen minutes in the loop.
+Details below.
 
 ## The arc so far
 
@@ -70,12 +44,187 @@ must set `hasTouch` from the first line it is written.**
 | R4 — reorder and restack | SHIPPED 2026-07-31 |
 | R5 — author a staged rocket | SHIPPED 2026-08-01 |
 | R6 — a built design leaves Loft intact | SHIPPED 2026-08-02 |
+| R7 — per-set fin drag | SHIPPED 2026-08-02, one *done when* clause undelivered with the reason measured |
 | P1 — one design system, adopted | SHIPPED 2026-08-02 |
-| P2 — workspaces as routes | SHIPPED 2026-08-02 — all five clauses met and pinned. `/sweep` closed at **1.90 screens on a coarse pointer**, after a false close at 914 px on a fine one that is documented in `ROADMAP.md` rather than quietly fixed |
-| **R7 — per-set fin drag, and the honest aero the builder needs** | **IN PROGRESS** — increments 1–5 of 3–5 shipped. Increment 4 FOUND the under-drag increment 3 sent it looking for (a bare mould-line step) and deliberately did not charge it, for a sourced reason; increment 5 was a Sev-1 on the same surface |
-| **P3 — a stranger's first five minutes** | **IN PROGRESS** — increment 1 of 3–4 shipped 2026-08-02: the cold-load walkthrough exists and found two real gaps, both fixed |
-| **R8 — component and material catalogues** | **IN PROGRESS** — decomposed with its licence question settled, and increment 1 shipped: every fin shear modulus now cites a source, and two were wrong (basswood by 3×) |
-| P4–P5 | NOT STARTED |
+| P2 — workspaces as routes | SHIPPED 2026-08-02 |
+| P3 — a stranger's first five minutes | SHIPPED 2026-08-02 |
+| **R8 — component and material catalogues** | **IN PROGRESS** — increments 1–3 of 4–6. The picker ships this run and the catalogue is finally reachable from the app; the wall and the material are increment 4 |
+| **P4 — a touch-native builder** | **IN PROGRESS** — increment 1 of 4–6 |
+| P5 | NOT STARTED |
+
+## This session — fourth run (2026-08-02)
+
+**Baseline inherited, all measured before anything was changed:** lint 0 errors / 1 standing warning,
+**997 unit** across 53 files, build, corpus **35 design files / 21 tests / 0 findings** with the
+census medians unmoved from the last run (groundHitVelocity 8.3%, deploymentVelocity 6.0%,
+flightTime 3.3%, maxAcceleration 3.2%, maxAltitude 3.1%, optimumDelay 2.5%, maxVelocity 2.2%,
+maxMach 2.0%, launchRodVelocity 1.9%, timeToApogee 1.5%), and e2e **105 + 104 = 209 passed, 0
+failed** once the browser was installed. **Zero open pull requests at session start** — everything
+from the previous run was merged and live, so this run started from a clean `origin/main`.
+
+### R8 increment 3 — the parts picker, and the catalogue is finally reachable
+
+`components/PartPicker.tsx`. 1,089 published body tubes, searchable by number or description,
+filterable by vendor or to the design's own caliber. Picking one writes the vendor's outer diameter
+and length into `bodyDiameter`/`bodyLength` and the flight moves.
+
+**Three things worth keeping:**
+
+- **The catalogue is the app's FIRST dynamic `import()`**, and the split was verified from the built
+  export rather than from intent: the chunk carrying `BT-60` is referenced by **no prerendered
+  document**. 85 KB gz against a 343 KB whole-app budget. The service worker precaches everything
+  under `_next/static`, so offline is unaffected. **Copy this pattern for the next big table** —
+  `lib/motors/catalog.ts` (26.8 KB gz) is still statically imported.
+- **A pick sets DIMENSIONS only, and the panel says so.** The wall and the material stay the
+  design's own, so the mass is Loft's scaled figure, not the vendor's published weight. The material
+  column sits right beside it, so silence there would have read as a claim.
+- **The material half cannot use the existing field.** Measured: the catalogue's 39 material strings
+  for body tubes have **zero** overlap with `AIRFRAME_MATERIALS`' seven keys, and `airframeMaterial`
+  takes a key. Increment 4 needs an edit field carrying an explicit `Material`.
+
+### The Sev-1 — the recovery radius was measuring rockets that were still in the air
+
+Found by the opening fan-out's Sev-1 screen, **reproduced before it was touched**, and it is the
+subtlest of this class the repo has hit. `lib/sim/montecarlo.ts` summarised `driftDistance` and
+`landingRadiusP95` over EVERY sample while `landingSpeed`/`landingEnergy` beside them had been
+filtered to landed flights the previous run.
+
+**Why it survived that fix: a sentinel drift is not a zero.** `simulate` takes `driftDistance` from
+the exit position unconditionally, so a flight still descending at the 1,200 s cap contributes how
+far downwind it had got — a plausible, smaller number. Reproduced on `Complex.Two-Stage.CDX1` at 5x
+recovery size (inside the field's own 0.1–10x range): **0 of 12 samples landed**, the panel correctly
+withheld landing speed as "no dispersed flight reached the ground", and printed a **58.0 m median
+drift and a 121.4 m recovery radius** beside it. Understated, in the unsafe direction, on the one
+figure whose job is to size a recovery area.
+
+Fixed on every surface that presents it — the radius card, the landing scatter, the "covers N of M"
+note, the dispersion CSV (which gained a `Landed` column and blanks rather than zeros), and the
+single-flight card's `Drift from pad` — plus the limitations page, whose existing passage named only
+two figures and is now four. Pinned in `lib/corpus/sweep.test.ts` by CONSTRUCTION rather than by
+threshold: re-summarising the landed subset must give the same band and radius as summarising the
+whole set, which is only true if the whole-set summary already ignores the un-landed ones. **As a
+negative control the old code fails it**, naming the design and the exact figures.
+
+### P4 increment 2 — the hover-only count, 67 → 25
+
+Five files in the shared chrome, and the leverage is that each renders on all six routes the ratchet
+walks: five edits paid for forty-two states. The two `opacity-0` + `group-hover:` `opacity-100`
+external-link arrows are now always drawn — at opacity 0 they were the only mark saying those links
+leave the site, and no touch gesture brings them up. Three `title`s deleted, one of them on a
+decorative `aria-hidden` bar that reached neither touch nor assistive tech.
+
+**The Ko-fi link is the general lesson: deletion alone was the wrong fix there.** "Ko-fi" appeared
+nowhere else on the surface, so removing the tooltip would have removed the only statement of the
+destination. It moved into the visible label instead. A `title` is safely deleted only when its
+information is genuinely elsewhere.
+
+**And the trap that would have looked like a fix:** the check matches the class STRING, not the
+computed style, so pairing `pointer-coarse:opacity-100` with `group-hover:` `opacity-100` moves the
+count not at all — and leaves the defect. Delete the literal.
+
+**The remaining 25 are a different problem and should not be attacked the same way.** All of them
+sit on the app chrome above the workspace spine, so each renders on four routes rather than six, and
+writing any of them visibly spends the phone chrome ratchet (1060 px, measured 1011 → 49 px) and the
+two-screen depth cap at once — the trade increment 1 records making and reverting. The next
+increment needs somewhere to put the words, not a shorter string.
+
+### R8 increment 4 — the vendor's wall, stock and weight
+
+The *done when*'s material clause. Measured with the catalogue's own Rocketarium BT-60 (0.533 mm wall
+at 782.88 kg/m³): **528.0 g → 342.3 g** on the demo, a 35% change in dry mass.
+
+**Three things it had to get right, and the review found that two of them were wrong first:**
+
+- **A pick is a body-tube FIELD, not a free-standing record.** `withCatalogTube` resolves its target
+  through the `bodyTubeId` aim at apply time, so a pick that outlived its aim MIGRATED — removing the
+  tube it was made for re-landed the vendor's wall and stock on the primary-tube fallback (411.6 g →
+  53.9 g), and merely clicking another tube to READ it moved them there too (305.4 g → 129.1 g), with
+  the caption still naming the part. It is now a `targets` entry on that aim. The registry test then
+  caught that it also needed an undo label — that guard earning its keep.
+- **The vendor's published WEIGHT beats the derived one.** Seven body tubes state a mass and every one
+  disagrees with the computed figure by 3–5× (PS-7.5: 589.7 g published, 116.7 g derived). Applied as
+  `overrideMass`, which does NOT subsume the subtree — a tube carries its mount, fins and parachute.
+- **The solid-rod clamp is reachable from the other side.** A wall ≥ the tube's radius makes
+  `mass.ts` clamp the inner radius to 0. No bad data needed: `bodyDiameter` scales the airframe and is
+  a sweep axis, so a 48.8 mm pick narrowed under ~17.9 mm crosses it. Refused now.
+
+### The worst thing this run did, kept because it is the transferable lesson
+
+**The increment-4 measurement recorded in `ROADMAP.md` and a commit message was not reproducible, and
+nothing in the gate could have told me.** It quoted a 0.27 mm wall and a density of 848.98 — a figure
+that appears in NO row of the shipped catalogue. Both the probe and the unit test hand-typed "the
+vendor's published figures" rather than reading them out of the data, so the numbers were internally
+consistent, passed every check, and described a part that does not exist. The real BT-60 is 0.533 mm
+at 782.88, and the corrected figure is 342.3 g rather than 344.4 g.
+
+**The fix is structural, not a corrected number:** the test now resolves the part through
+`findParts`/`materialOf` at run time and asserts against what it read, so a hand-typed figure cannot
+be asserted against again. `MAINTAINING.md` already says "measure, don't remember" about the repo's
+own state — this is the same failure about the repo's own DATA, and it is easier to walk into,
+because a hand-typed constant looks exactly like a measured one three weeks later.
+
+The same review also found that the e2e's "the mass moved" assertion was a verbatim duplicate of a
+caption check three lines above it and could never fail. **Two of the four pre-push reviews this run
+found a tautological or unreproducible check rather than a code defect** — that is worth knowing
+about what the review is FOR.
+
+### The sibling repo is ATTACHABLE now, and that clears a six-run blocker
+
+`add_repo` for `nrdptel/fusionspace-debrief` **succeeded this run** — the previous five handoffs
+record it being refused by the permission classifier, and every `DESIGN.md` wording change owed to
+the sibling has been held back since, because §10 makes a change to one copy a change to both in the
+same run. It is cloned at `/home/user/fusionspace-debrief`.
+
+**The two copies have genuinely diverged — 103 diff lines — and Debrief's is AHEAD in places**, which
+was not what the ledger assumed. Its §9 compliance block has strictly better greps (the card-treatment
+grep handles trailing whitespace and `:` variants; the spacing grep enumerates the whole scale
+instead of six hand-picked off-scale values; the type-size grep matches any Tailwind size and
+subtracts the allowed six, rather than looking for `text-lg` alone). It also carries a paragraph on
+analyzer readouts that Loft's copy lacks. **Reconciling them is milestone-sized, not a wording fix**,
+and it is filed rather than half-done: adopting Debrief's greps into Loft would change what
+`lib/design-system.test.ts` counts, so it needs its own increment with the numbers re-measured.
+
+### Where the work is, and what to pick up first
+
+**Four increments, all on `claude/ultracode-maintenance-1wbrx5`, all in pull request #113.**
+
+| SHA | what |
+|---|---|
+| `4ba6dd9` | R8 inc 3 — the parts picker; the catalogue reaches the app |
+| `bdff258` | the Sev-1 — drift and the recovery radius filtered to landed flights |
+| `9cef2b6` | P4 inc 2 — hover-only states 67 → 25 |
+| `07519af` | R8 inc 4 — the vendor's wall, stock and published weight |
+
+**Pick up first, in this order:**
+
+1. **P4 increment 3 — the remaining 25 hover-only states, and it needs a DESIGN idea rather than more
+   deletions.** All 25 are on the app chrome above the workspace spine (Undo/Redo's disabled reason,
+   the design-name field, Download .ork, the motor-match badge, the stability `<abbr>`), so writing
+   any of them visibly spends the phone chrome ratchet (1060 px, measured 1011 → 49 px of headroom)
+   and the two-screen depth cap at once. Somewhere to PUT the words is the increment.
+2. **R8 increment 5 — the other four kinds.** Nose cone, coupler, centring ring and parachute cannot
+   be authored by `AddedPart` at all today, so "any of five kinds" is four new build paths, not one.
+   The parachute is hardest: the model requires `cd`, the catalogue has no such field, and only 21 of
+   151 canopies state a mass.
+3. **Reconcile the two `DESIGN.md` copies — now possible for the first time in six runs.** See below.
+
+### What the pre-push reviews caught that the whole gate could not
+
+Twice, and both times on code that had already passed lint, unit, build and e2e.
+
+- **On the picker, ELEVEN findings, one a one-way door.** The provenance record was not in
+  `INERT_EDIT_FIELDS`, so a pick whose two fields were later blanked left the design pristine but
+  still reading as edited — stored-tool comparison withheld, the picker's own clear control already
+  unmounted, and nothing on the panel able to clear it. It survived a reload, because the bag is
+  persisted unfiltered. Also: a fixed-precision table disagreeing with the field it writes on 642 of
+  1,089 tubes; a `failed` flag that latched forever under copy promising a retry; index-bearing row
+  keys remounting 1,089 rows per keystroke; a provenance line quoting 16 vendor files when 12 carry
+  a body tube; an unnamed `<th>`; CSV accessors emitting metres under mm/in headers.
+- **On the Sev-1 fix, a NaN I had just created.** Withholding the radius made `Scatter`'s
+  `Math.max(radiusP95, ...points, 1)` NaN, so the SVG would have carried `r="NaN"` and the caption
+  read "circle = 95% within NaN m". The scatter now has the empty state `DESIGN.md` §5 requires.
+  **Withholding a value is a change to every consumer of it**, and this is the second time that has
+  bitten on this exact pair of figures.
 
 ## This session — third run (2026-08-02)
 

@@ -504,8 +504,24 @@ test.describe("phone layout", () => {
  *
  *  **The number is an EXACT ratchet, deliberately**, the same way `DESIGN.md` §9's counts are: an
  *  improvement fails this test just as a regression does, so the figure in this file and the figure
- *  on the page can never drift apart silently. */
-const HOVER_ONLY_FLOOR = 67;
+ *  on the page can never drift apart silently.
+ *
+ *  **96 → 75 → 67 → 25.** The 67 → 25 step took the whole SHARED CHROME, which is why it is the
+ *  large one: every site there renders on all six routes, so five files paid for forty-two of them.
+ *  Both invisible-until-hover arrows (footer and badge) are now always drawn — a flyer on a phone
+ *  could not previously tell those links leave the site at all; the duplicated brand `title`, the
+ *  theme toggle's (its `aria-label` is a superset), and the `title` on a decorative `aria-hidden`
+ *  bar are deleted; and the Ko-fi link's destination moved INTO its visible label rather than being
+ *  deleted with it, because "Ko-fi" appeared nowhere else on the surface.
+ *
+ *  **What is left is 25, and it is a different problem.** Every one sits on the app chrome above the
+ *  workspace spine — Undo/Redo's disabled reason, the design-name field, Download .ork, the motor
+ *  match badge, the stability `<abbr>` — so it renders on four routes rather than six, and writing
+ *  any of it visibly spends the phone chrome ratchet (1060 px, measured 1011 → 49 px of headroom)
+ *  and the two-screen route depth cap at the same time. That is the exact trade `ROADMAP.md` records
+ *  being made once and reverted. The next increment needs somewhere to put the words, not a shorter
+ *  string. */
+const HOVER_ONLY_FLOOR = 25;
 
 test("counts the states a flyer at the pad cannot reach, and holds the number down", async ({ page }) => {
   const ROUTES = ["/flight", "/design", "/sweep", "/validate", "/docs", "/docs/methods"];

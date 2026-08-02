@@ -285,6 +285,23 @@ export default function Limitations() {
         back.
       </p>
       <p>
+        <strong>
+          Drift and the Monte-Carlo recovery radius are withheld on the same test, and were not until
+          2026-08-02.
+        </strong>{" "}
+        They are the one landing quantity that did not look like a sentinel. Where the ground-hit
+        speed of an un-landed flight is a zero, its drift is the distance it had covered by the time
+        the cap stopped it — a smaller, entirely plausible number, taken while the rocket was still
+        travelling downwind. Summarised across a dispersion, those partial distances pulled the
+        recovery area DOWN: it was understated, in the unsafe direction, on the figure whose only job
+        is to say how large an area to plan for.
+        Measured on a real design at a recovery size the field itself offers: none of twelve dispersed
+        flights landed, the panel correctly withheld landing speed, and it printed a 58&nbsp;m median
+        drift and a 121&nbsp;m recovery radius beside it. Both figures, the landing scatter, and the
+        per-flight rows of the dispersion export now describe the flights that reached the ground and
+        only those; the panel says how many of the set that is.
+      </p>
+      <p>
         <strong>An open canopy bounds the integrator&apos;s step, and that bound has an envelope.</strong>{" "}
         A parachute&apos;s quadratic drag is stiff, so the explicit RK4 step is only stable while
         dt·λ stays inside its stability region. Loft shortens the step to hold that, with a floor of

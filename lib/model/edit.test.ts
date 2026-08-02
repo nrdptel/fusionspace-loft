@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { importOrk } from "../ork/import";
 import { flattenRocket } from "./geometry";
+import { findParts, materialOf } from "../components/db";
 import {
   applyGeometryEdits,
   moveTarget,
@@ -3146,5 +3147,167 @@ describe("material catalogues carry their provenance", () => {
     expect(blue).toBeDefined();
     expect(blue!.name).not.toMatch(/vulcanis|vulcaniz/i);
     expect(blue!.source).toMatch(/publishes no composition/i);
+  });
+});
+
+describe("a catalogued part's published wall and stock", () => {
+  const tube = (r: Rocket) =>
+    flattenRocket(r).find((x) => x.component.kind === "bodytube")!.component as BodyTube;
+
+  // **Read out of the shipped catalogue rather than typed here**, because a hand-written "vendor's
+  // figure" is not one. The first draft of this test invented a density (848.98) that appears in no
+  // row, and the roadmap entry it produced quoted a 0.27 mm wall where the real one is 0.533 —
+  // numbers that were arithmetically self-consistent and reproducible from nothing.
+  const PART = (() => {
+    const p = findParts("BT-60")[0];
+    if (!p || p.outerDiameter === undefined || p.innerDiameter === undefined || p.length === undefined) {
+      throw new Error("BT-60 missing from the catalogue — this test asserts against real data");
+    }
+    const m = materialOf(p);
+    return {
+      manufacturer: p.manufacturer,
+      partNumber: p.partNumber,
+      outerDiameter: p.outerDiameter,
+      innerDiameter: p.innerDiameter,
+      length: p.length,
+      ...(m ? { material: { name: m.name, density: m.density } } : {}),
+      ...(p.mass !== undefined ? { mass: p.mass } : {}),
+    };
+  })();
+
+  it("lands on the tube the body fields are aimed at, and changes its mass", async () => {
+    // R8's *done when*: the chosen part's dimensions AND MATERIAL populate the model. The material
+    // half needs its own field because the catalogue's names have zero overlap with the seven
+    // `AIRFRAME_MATERIALS` keys, so a pick cannot travel through `airframeMaterial` without being
+    // snapped onto a generic figure.
+    const doc = await importOrk(readFileSync(resolve(process.cwd(), "fixtures/demo-single-deploy.ork")));
+    const before = tube(doc.rocket);
+
+    const built = applyGeometryEdits(doc.rocket, {
+      bodyDiameter: PART.outerDiameter,
+      bodyLength: PART.length,
+      catalogBodyTube: PART,
+    });
+    const after = tube(built);
+
+    expect(after.material?.name, "the vendor's own stock, not a category").toBe(PART.material!.name);
+    // 782.88 kg/m3 — Rocketarium's spiral kraft glassine, read from the catalogue above.
+    expect(after.material?.density).toBe(PART.material!.density);
+    expect(after.material?.density).toBeCloseTo(782.88, 2);
+    // The wall is DERIVED from the two published diameters — the catalogue states no thickness for
+    // any of its 1,089 body tubes. A BT-60's is 0.533 mm.
+    expect(after.thickness).toBeCloseTo((PART.outerDiameter - PART.innerDiameter) / 2, 9);
+    expect((after.thickness ?? 0) * 1000).toBeCloseTo(0.533, 2);
+    expect(after.outerRadius).toBeCloseTo(PART.outerDiameter / 2, 9);
+    expect(after.thickness).not.toBe(before.thickness);
+  });
+
+  it("is not scaled by the caliber what-if, because a real tube's wall is not a ratio", () => {
+    // Asserted against `scaleAirframeRadii`'s OWN behaviour rather than against the assignment that
+    // happens to run after it: the caliber edit below more than doubles the tube, so a wall that
+    // scaled would be unmistakable, and the published figure is what must survive.
+    // `scaleAirframeRadii` multiplies `outerRadius` and never `thickness`. That is load-bearing
+    // here rather than incidental: an Estes BT-60's wall is 0.27 mm whatever else the airframe does,
+    // so a wall that scaled with a caliber edit would report a mass the vendor never published.
+    const r: Rocket = {
+      name: "Wall test",
+      configurations: [],
+      referenceType: "maximum",
+      stages: [
+        {
+          name: "S",
+          components: [
+            {
+              id: "t", name: "Body", kind: "bodytube", placement: { method: "after", offset: 0 },
+              length: 0.3, outerRadius: 0.02, thickness: 0.001, children: [],
+            } as BodyTube,
+          ],
+        },
+      ],
+    };
+    const built = applyGeometryEdits(r, {
+      bodyTubeId: "t",
+      bodyDiameter: PART.outerDiameter,
+      bodyLength: PART.length,
+      catalogBodyTube: PART,
+    });
+    const t = tube(built);
+    expect(t.thickness).toBeCloseTo((PART.outerDiameter - PART.innerDiameter) / 2, 9);
+  });
+
+  it("keeps the design's own stock when the pick carries no usable density", async () => {
+    // 18 catalogued parts state a density that cannot describe matter and `materialOf` refuses them.
+    // **None of the 18 is a body tube** — measured, 0 of 1,089 — so this path is defence rather than
+    // a state today's picker can reach, and saying so is the point: the roadmap first claimed the
+    // picker surfaces it for tubes, which is not true. It is asserted because the catalogue is
+    // re-cut against newer upstream commits and a refused density can arrive on a tube at any time,
+    // and because a pick with a material and no WALL flies as a SOLID ROD in `lib/sim/mass.ts`.
+    const doc = await importOrk(readFileSync(resolve(process.cwd(), "fixtures/demo-single-deploy.ork")));
+    const before = tube(doc.rocket);
+    const built = applyGeometryEdits(doc.rocket, {
+      bodyDiameter: PART.outerDiameter,
+      bodyLength: PART.length,
+      catalogBodyTube: { ...PART, material: undefined },
+    });
+    const after = tube(built);
+    expect(after.material?.name).toBe(before.material?.name);
+    expect(after.thickness).toBe(before.thickness);
+  });
+
+  it("refuses a wall at least as wide as the tube it lands on", () => {
+    // Reachable without any bad data: `bodyDiameter` scales the whole airframe and is also a sweep
+    // axis, so a flyer who picks a wide tube and then narrows the design crosses it. Left unguarded,
+    // `lib/sim/mass.ts` clamps the inner radius at 0 and flies a SOLID ROD — the exact failure the
+    // wall exists to prevent, from the other side.
+    const r: Rocket = {
+      name: "Guard", configurations: [], referenceType: "maximum",
+      stages: [{ name: "S", components: [{
+        id: "t", name: "Body", kind: "bodytube", placement: { method: "after", offset: 0 },
+        length: 0.3, outerRadius: 0.02, thickness: 0.001, children: [],
+      } as BodyTube] }],
+    };
+    // An 8.94 mm wall (a real row: Estes 31361, OD 48.8 / ID 30.9) on a tube taken down to 17 mm.
+    const wide = { ...PART, outerDiameter: 0.048768, innerDiameter: 0.030886 };
+    const built = applyGeometryEdits(r, { bodyTubeId: "t", bodyDiameter: 0.017, catalogBodyTube: wide });
+    const t = tube(built);
+    expect(t.thickness, "the impossible wall is refused, not clamped downstream").toBe(0.001);
+    expect(t.material?.name, "the stock still lands").toBe(PART.material!.name);
+  });
+
+  it("flies the vendor's OWN published weight where they publish one", async () => {
+    // Seven body tubes state a mass and every one disagrees with the figure derived from their own
+    // geometry and stock by 3-5x — PS-7.5 publishes 589.7 g against 116.7 g derived. The vendor's is
+    // the number they will weigh, and the derived one under a caption naming the part would be a
+    // confident wrong mass on the figure CG, stability and apogee all sit on.
+    const pml = findParts("PS-7.5")[0];
+    expect(pml?.mass, "the fixture this asserts against still publishes a mass").toBeDefined();
+    const doc = await importOrk(readFileSync(resolve(process.cwd(), "fixtures/demo-single-deploy.ork")));
+    const built = applyGeometryEdits(doc.rocket, {
+      catalogBodyTube: {
+        manufacturer: pml.manufacturer, partNumber: pml.partNumber,
+        outerDiameter: pml.outerDiameter!, innerDiameter: pml.innerDiameter!,
+        length: pml.length!, mass: pml.mass,
+        ...(materialOf(pml) ? { material: { name: materialOf(pml)!.name, density: materialOf(pml)!.density } } : {}),
+      },
+    });
+    // `overrideMass`, not a replacement for the subtree — the tube carries its mount, fins and
+    // parachute as children and swallowing those would be a far larger error than the one this fixes.
+    expect(tube(built).overrideMass).toBe(pml.mass);
+    expect(tube(built).overrideSubcomponents).toBeUndefined();
+  });
+
+  it("counts as an edit even with both dimension fields blank", () => {
+    // It stopped being a pure provenance record the moment it began carrying a wall and a stock, so
+    // it came out of `INERT_EDIT_FIELDS` in the same change. If this ever reads false again, a flyer
+    // can reach a design that is edited while the app believes it is pristine.
+    expect(hasGeometryEdits({ catalogBodyTube: PART })).toBe(true);
+    expect(INERT_EDIT_FIELDS.has("catalogBodyTube")).toBe(false);
+    // ...but a bag written before the field carried a bore applies nothing, so it must NOT read as
+    // edited — otherwise replaying one calls an untouched design edited and withholds the file's own
+    // stored-simulation comparison.
+    const legacy = { manufacturer: "X", partNumber: "Y", outerDiameter: 0.04, length: 0.3 } as unknown as typeof PART;
+    expect(hasGeometryEdits({ catalogBodyTube: legacy })).toBe(false);
+    expect(isEditedValue("catalogBodyTube", legacy)).toBe(false);
+    expect(isEditedValue("catalogBodyTube", PART)).toBe(true);
   });
 });
