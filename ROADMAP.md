@@ -1270,8 +1270,9 @@ instead of an inferred edge class.
 
 ## R8 — Component and material catalogues
 
-**Status:** NOT STARTED. Decomposed 2026-08-02, with the licence question — which the after-list
-named as possibly the whole first increment — **answered up front** so it is not re-litigated.
+**Status: IN PROGRESS** — increment 1 of 3–5 shipped 2026-08-02, along with the decomposition. The
+licence question the after-list named as possibly the whole first increment is **answered up front**
+so it is not re-litigated.
 
 **Outcome.** Authoring becomes SELECTION rather than measurement: a flyer picks a real body tube by
 vendor and part number and gets its dimensions and mass, instead of typing eight numbers off a ruler.
@@ -1326,12 +1327,52 @@ OpenRocket's GPL table (acrylic 1.15e9 against their 1.7e9, Lexan 0.79e9 against
 increment 1, and it is worth doing first because it is small, it is the honest half, and it does not
 depend on any of the above.
 
-*Increment 1.* Give every material Loft already uses a cited source. Woods from the **USDA Wood
-Handbook FPL-GTR-282 ch. 5** (a US Government work, so no US copyright — G derived as E_L × the
-Table 5-1 elastic ratio); metals from **MIL-HDBK-5J** (also PD; note its successor MMPDS is
-Battelle-copyrighted and is not usable); G10/FR-4, carbon and the plastics from manufacturers'
-published laminate datasheets, cited individually. A dozen individually-attributed physical constants
-is not a protectable compilation. Pinned by a test that every material row has a non-empty `source`.
+*Increment 1 — SHIPPED. Every shear modulus carries its source, and two were wrong.*
+
+`lib/sim/flutter.ts`'s fourteen values were uncited "representative engineering figures" sitting
+under a method that cites NACA TN 4197 precisely — a citation gap on the one output in this app that
+is a safety estimate. Chasing them established the provenance: they are round US-CUSTOMARY numbers
+(3,800 ksi, 6,200 ksi, 89,000 psi, 725,000 psi, 435,000 psi, 13,000 psi), so the table descends from
+the hobby fin-flutter literature rather than any primary materials document — and the current version
+of that literature (Apogee *Peak of Flight* #615, 2023) disagrees with several of them.
+
+**Corrected against primary sources:**
+- **basswood 0.17 → 0.511 GPa** — low by a factor of THREE. USDA Wood Handbook FPL-GTR-282 ch. 5:
+  E_L 10,100 MPa (Table 5-3a) × 1.10 × G_LT/E_L 0.046 (Table 5-1).
+- **balsa 0.09 → 0.138 GPa.** Same derivation, E_L 3,400 MPa × 1.10 × 0.037.
+- **aluminium 26 → 26.2 GPa** and **titanium 44 → 42.75 GPa**, MIL-HDBK-5J Tables 3.6.2.0(b1) and
+  5.4.1.0(b). Both US Government works, so no licence question.
+
+The 1.10 is the handbook's own footnote correcting for the shear deflection inside a bending test.
+G_LT rather than G_LR because a design tool cannot know whether the flyer's stock is quarter- or
+flat-sawn, so Loft takes the lower of the two in-plane constants. (G_RT, rolling shear, is the wrong
+constant entirely — balsa's is ~11× smaller.)
+
+**Six rows have no published value and now SAY so** rather than reading like the sourced ones:
+phenolic, acrylic, polycarbonate, PLA, ABS, acetal, cardboard. The datasheets publish tensile and
+flexural moduli and shear STRENGTH, but not shear modulus. For a wound kraft tube none is likely to
+exist — winding angle, ply count, adhesive and paper grade dominate and no vendor states them. Two
+more are indefensible as a single number at all: a carbon fin's in-plane modulus spans an order of
+magnitude with layup (Loft takes the UD-lamina lower bound), and published G10 runs 2.9–11.7 GPa
+(Loft keeps the low end deliberately, because it is also the fallback for unrecognised materials).
+
+**Every error ran the same way** — too little stiffness, so too low a flutter speed, so a margin
+reported thinner than it is. That is the right direction for a safety estimate to be wrong in, and it
+is still not a number to hand out uncited: a flag that cries wolf teaches flyers to ignore it.
+
+Pinned by `lib/sim/flutter.test.ts` — every row has a non-empty source, an unsourced row must say so
+in words, and the two wood values are asserted against the handbook arithmetic rather than against
+the constants. Published on `/docs/limitations`.
+
+*Densities are NOT done and are increment 1's remaining half.* `FIN_MATERIALS` and
+`AIRFRAME_MATERIALS` in `lib/model/edit.ts` are still uncited. What was found: balsa 130 against the
+handbook's own ~185 sample (balsa is graded by density over 100–250, so one number is a
+simplification either way), basswood 420 → 414, birch 680 → 694 (solid yellow birch; the handbook has
+no plywood), G10 1850 → 1770 (Norplex-Micarta NP500A), carbon 1550 → 1560–1580 (Hexcel 8552),
+aluminium 2700 → 2713. Cardboard, kraft phenolic and Blue Tube have no published density at all —
+Blue Tube's composition is undisclosed, and 1250 is supported only by arithmetic on the vendor's own
+published tube dimensions and weights (1266 and 1301 across two sizes), which is the strongest
+citation available and should be recorded as a derivation rather than a material property.
 
 *Increment 2.* `scripts/gen-components.mjs` + `lib/components/catalog.ts` + `components/provenance.json`
 + `THIRD-PARTY-NOTICES.md`, modelled on `gen-motors.mjs`. Parse the `.orc` XML at generate time,

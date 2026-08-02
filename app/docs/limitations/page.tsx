@@ -478,7 +478,7 @@ export default function Limitations() {
         and it assumes a uniform, isotropic fin of the design&apos;s stated material stiffness. A real
         fin&apos;s construction (tip-to-tip lamination, a spar, a bonded-on airfoil, grain direction
         in wood) changes its stiffness and so its true flutter speed. The shear modulus comes from
-        matching the design&apos;s material name to a representative value, and G10 fibreglass is
+        matching the design&apos;s material name to a table, and G10 fibreglass is
         assumed (and labelled as such) when the material is missing or unrecognised. Loft therefore
         keeps a recommended margin and cautions when it is thin; it never reports a fin as
         flutter-safe. Treat it as a reason to add thickness or reduce span, not as a pass/fail. When
@@ -486,6 +486,43 @@ export default function Limitations() {
         (a closed-form inverse of the same estimate, erring a touch thick) — but it inherits the
         estimate&apos;s ±20% method spread and its uniform-isotropic-fin assumption, so it is a
         starting point for a real structural design, not a substitute for one.
+      </p>
+
+      <p>
+        <strong>And the stiffness that estimate rests on is now cited — where a citation exists.</strong>{" "}
+        Flutter speed goes as the square root of the shear modulus, so it is the most leveraged input
+        in the whole calculation, and until 2026-08-02 all fourteen values were uncited
+        &ldquo;representative engineering figures&rdquo; sitting under a method that cites its source
+        precisely. Chasing them found they were round US-customary numbers — 3,800 ksi, 89,000 psi,
+        13,000 psi — inherited from the hobby fin-flutter literature rather than any primary materials
+        document.
+      </p>
+      <p>
+        <strong>Two were wrong.</strong> Basswood shipped at 0.17&nbsp;GPa against the 0.511&nbsp;GPa
+        the USDA Wood Handbook supports — low by a factor of three — and balsa at 0.09 against 0.138.
+        Both are corrected, derived as E<sub>L</sub> × 1.10 × G<sub>LT</sub>/E<sub>L</sub>{" "}from
+        FPL-GTR-282 ch. 5 (the 1.10 is the handbook&apos;s own correction for the shear deflection inside a
+        bending test). G<sub>LT</sub> rather than G<sub>LR</sub>{" "}because a tool cannot know
+        whether the flyer&apos;s stock is quarter- or flat-sawn, so Loft takes the lower. Aluminium
+        and titanium now carry MIL-HDBK-5J&apos;s own figures (26.2 and 42.75&nbsp;GPa).
+      </p>
+      <p>
+        <strong>Six still have no published value, and they say so rather than reading like the
+        others.</strong> Phenolic, acrylic, polycarbonate, PLA, ABS, acetal and wound cardboard: the
+        manufacturers&apos; datasheets publish tensile and flexural moduli, and shear
+        <em>strength</em>, but not shear modulus. For cardboard none is likely to exist at all — a
+        wound kraft tube&apos;s stiffness is set by winding angle, ply count, adhesive and paper
+        grade, none of which any vendor states. Two more are indefensible as a single number whatever
+        the source: a carbon fin&apos;s in-plane modulus spans an order of magnitude with layup (Loft
+        takes a unidirectional-lamina lower bound, 5&nbsp;GPa), and published G10 figures run
+        2.9–11.7&nbsp;GPa (Loft keeps the low end, deliberately, because it is also the fallback for
+        any material it does not recognise).
+      </p>
+      <p>
+        Every one of those errors ran in the same direction — too little stiffness, so too low a
+        flutter speed, so a margin reported as thinner than it is. That is the right way for a safety
+        estimate to be wrong, and it is still not a number this tool should have been handing out
+        without saying where it came from. A flag that cries wolf teaches flyers to ignore it.
       </p>
 
       <h3>Serial staging is simulated; parallel and strap-on staging isn&apos;t</h3>
