@@ -77,6 +77,7 @@ import {
   type AddedStage,
   type MountAdd,
   type PickedBodyTube,
+  type PickedNoseCone,
 } from "@/lib/model/edit";
 import PartPicker from "./PartPicker";
 import {
@@ -207,6 +208,7 @@ interface Edits {
   bodyLength?: number; // builder edit: the picked body tube's length (m)
   bodyDiameter?: number; // builder edit: the picked tube's outer diameter (m); scales the airframe to it
   catalogBodyTube?: PickedBodyTube; // builder edit: which catalogued part the two above came from
+  catalogNoseCone?: PickedNoseCone; // builder edit: the published cone the nose fields came from
   transitionLength?: number; // builder edit: the picked transition's length (m)
   transitionAftDiameter?: number; // builder edit: the picked transition's exit diameter (m)
   massObjectMass?: number; // builder edit: the picked mass object's weight (kg)
@@ -2515,6 +2517,7 @@ function DesignEditor({
                     `PartPicker`. */}
                 {designDims.bodyDiameter !== undefined && (
                   <PartPicker
+                    kind="bodytube"
                     imperial={imperial}
                     currentOuterDiameter={edits.bodyDiameter ?? designDims.bodyDiameter}
                     // The record itself is always passed, because since the pick began carrying a
@@ -2535,16 +2538,41 @@ function DesignEditor({
                     // panel with an obvious name was the one the undo button could not say — and
                     // pick-then-unpick shared a derived key, so the pair merged into a single step
                     // inside the coalescing window instead of being separately undoable.
-                    onPick={(p) =>
+                    // The picker hands over the catalogue row and the stock it resolved; building
+                    // the edit-bag record is done HERE, beside the rest of the patch, so one picker
+                    // can serve two kinds without a union type threaded through it. The picker has
+                    // already refused a row that cannot be built, and `usableCatalogTube` refuses it
+                    // again at apply time — this arm is the third statement of the same rule and the
+                    // one that stops a partial record ever being written.
+                    onPick={(p, material) => {
+                      if (
+                        p.outerDiameter === undefined ||
+                        p.length === undefined ||
+                        p.innerDiameter === undefined
+                      )
+                        return;
                       onEdit(
                         {
                           bodyDiameter: p.outerDiameter,
                           bodyLength: p.length,
-                          catalogBodyTube: p,
+                          catalogBodyTube: {
+                            manufacturer: p.manufacturer,
+                            partNumber: p.partNumber,
+                            outerDiameter: p.outerDiameter,
+                            length: p.length,
+                            innerDiameter: p.innerDiameter,
+                            // The vendor's own published weight where there is one. Seven body tubes
+                            // state one and every one disagrees with the figure computed from their
+                            // own geometry and stock by 3-5x — see `PickedBodyTube.mass`.
+                            ...(p.mass !== undefined && p.mass > 0 ? { mass: p.mass } : {}),
+                            ...(material
+                              ? { material: { name: material.name, density: material.density } }
+                              : {}),
+                          },
                         },
                         { label: `${p.manufacturer} ${p.partNumber}`, key: `catalog-pick-${p.partNumber}` },
-                      )
-                    }
+                      );
+                    }}
                     onClear={() =>
                       onEdit(
                         {
@@ -2553,6 +2581,77 @@ function DesignEditor({
                           catalogBodyTube: undefined,
                         },
                         { label: "the catalogue tube", key: "catalog-clear" },
+                      )
+                    }
+                  />
+                )}
+                {/* The same gesture for the nose, and the catalogue describes a cone far better than
+                    it describes a tube: all 854 state a contour, a base, a length, a shoulder and a
+                    usable density, where 0 of 1,089 tubes state a wall. So a cone pick takes the
+                    whole published part rather than two figures out of it. */}
+                {designDims.noseLength !== undefined && (
+                  <PartPicker
+                    kind="nosecone"
+                    imperial={imperial}
+                    // The caliber to open on is the BODY's, not the nose's own base: a flyer looking
+                    // for a cone wants the ones that fit the tube they are building on, which is
+                    // exactly the fit OpenRocket filters its presets by.
+                    currentOuterDiameter={edits.bodyDiameter ?? designDims.bodyDiameter}
+                    picked={edits.catalogNoseCone}
+                    // Length and contour are the two the flyer can retype afterwards; the base, the
+                    // shoulder and the wall have no fields of their own, so those cannot drift.
+                    dimensionsMatch={
+                      !!edits.catalogNoseCone &&
+                      edits.noseLength === edits.catalogNoseCone.length &&
+                      edits.noseShape === edits.catalogNoseCone.shape
+                    }
+                    onPick={(p, material) => {
+                      if (
+                        p.outerDiameter === undefined ||
+                        p.length === undefined ||
+                        p.shape === undefined ||
+                        p.shoulderDiameter === undefined ||
+                        p.shoulderLength === undefined
+                      )
+                        return;
+                      onEdit(
+                        {
+                          noseLength: p.length,
+                          noseShape: p.shape,
+                          catalogNoseCone: {
+                            manufacturer: p.manufacturer,
+                            partNumber: p.partNumber,
+                            outerDiameter: p.outerDiameter,
+                            length: p.length,
+                            shape: p.shape,
+                            shoulderDiameter: p.shoulderDiameter,
+                            shoulderLength: p.shoulderLength,
+                            // Absent means SOLID, which is what 728 of the 854 are — see
+                            // `PickedNoseCone.thickness`. `filled` is not carried separately
+                            // because the two are exhaustive and disjoint over the catalogue.
+                            ...(p.filled !== true && p.thickness !== undefined && p.thickness > 0
+                              ? { thickness: p.thickness }
+                              : {}),
+                            ...(p.mass !== undefined && p.mass > 0 ? { mass: p.mass } : {}),
+                            ...(material
+                              ? { material: { name: material.name, density: material.density } }
+                              : {}),
+                          },
+                        },
+                        {
+                          label: `${p.manufacturer} ${p.partNumber}`,
+                          key: `catalog-nose-pick-${p.partNumber}`,
+                        },
+                      );
+                    }}
+                    onClear={() =>
+                      onEdit(
+                        {
+                          noseLength: undefined,
+                          noseShape: undefined,
+                          catalogNoseCone: undefined,
+                        },
+                        { label: "the catalogue nose cone", key: "catalog-nose-clear" },
                       )
                     }
                   />

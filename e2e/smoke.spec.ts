@@ -6004,4 +6004,62 @@ test.describe("choosing a real commercial part", () => {
     // flight is the design's own again even though a dimension was hand-edited in between.
     await expect.poll(apogee, { timeout: 15_000 }).toBe(before);
   });
+
+  test("a real nose cone can be chosen, and a base that does not fit says so", async ({ page }) => {
+    // The second kind the picker serves, walked in a real browser for the reason the tube walk
+    // above is: the catalogue is a lazily-imported chunk, and a component that only ever runs in a
+    // bundler graph has not been shown to load.
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+    const apogee = async () =>
+      parseFloat(
+        (
+          await page
+            .getByLabel("Results")
+            .getByText("Apogee", { exact: true })
+            .locator("xpath=following-sibling::div[1]")
+            .innerText()
+        ).replace(/[^\d.]/g, ""),
+      );
+    const before = await apogee();
+
+    await page.getByRole("link", { name: "Design", exact: true }).click();
+    await page.getByRole("button", { name: "Pick a real nose cone" }).click();
+
+    const search = page.getByLabel("Search", { exact: true });
+    await expect(search).toBeVisible();
+    await search.fill("BNC-55D2");
+
+    const row = page.locator("tbody tr", { hasText: "BNC-55D2" }).first();
+    await expect(row).toBeVisible();
+    // The two columns a cone has and a tube does not, and the reason this kind needed its own
+    // column set rather than borrowing the tube's: the contour is what a flyer is choosing on, and
+    // "solid" is the whole mass story for 728 of the 854.
+    await expect(row).toContainText("ogive");
+    await expect(row).toContainText("solid");
+    await row.getByRole("button", { name: "Use" }).click();
+
+    await expect(page.getByText(/Flying .*BNC-55D2/)).toBeVisible();
+
+    // The vendor's contour landed in the field the flyer can still edit.
+    await expect(page.locator("label", { hasText: /Nose shape/ }).locator("select")).toHaveValue(
+      "ogive",
+    );
+
+    // It FLIES — the whole point of a catalogue that is wired in rather than bolted on.
+    await expect.poll(apogee, { timeout: 15_000 }).not.toBe(before);
+
+    // **And the honest half.** This cone's base is 39.95 mm on a 38.0 mm airframe. Loft does not
+    // silently rescale the rocket to fit the part, so that is a real mould-line step — and the
+    // flight says so, in the words the picker's own copy promises, using the check that already
+    // existed. A pick that quietly resized the design would show no warning here.
+    await page.getByRole("link", { name: "Flight", exact: true }).click();
+    await expect(page.getByText(/changes diameter at a joint/i).first()).toBeVisible();
+
+    await page.getByRole("link", { name: "Design", exact: true }).click();
+    await page.getByRole("button", { name: /back to the design/i }).click();
+    await expect(page.getByText(/BNC-55D2/)).toHaveCount(0);
+    await expect.poll(apogee, { timeout: 15_000 }).toBe(before);
+  });
 });

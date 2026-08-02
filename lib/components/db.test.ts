@@ -18,6 +18,7 @@ import {
   searchParts,
   sourceOf,
 } from "./db";
+import { usableCatalogTube, usableCatalogNose } from "../model/edit";
 
 const IN = 0.0254;
 /** Published dimensions are quoted to three decimal places of an inch, so agreement is asserted
@@ -326,5 +327,73 @@ describe("the bundled component catalogue", () => {
       expect(ratio, `${p.manufacturer} ${p.partNumber} is lighter than its own walls`).toBeGreaterThan(0.9);
       expect(ratio, `${p.manufacturer} ${p.partNumber} is far heavier than its geometry allows`).toBeLessThan(10);
     }
+  });
+
+  it("every catalogued row the picker would offer is one the model will actually apply", () => {
+    // **The agreement nothing pinned.** `buildable()` in `components/PartPicker.tsx` decides whether
+    // a row's Use button is enabled; `usableCatalogTube`/`usableCatalogNose` in `lib/model/edit.ts`
+    // decide whether the resulting record is applied. They are the same rule at two points on the
+    // wire — the catalogue row, and the finished record — so they cannot share a signature, and they
+    // can drift. The failure is quiet in the bad direction: a row the picker enables and the model
+    // then refuses is a tap that changes no number, which is the "controls that forget" tell.
+    //
+    // This walks all 3,445 rows through both. It is written here rather than in the component's
+    // tests because the CATALOGUE is what makes it interesting — a re-cut against a newer upstream
+    // commit is exactly what would introduce a disagreement.
+    const disagreed: string[] = [];
+    for (const p of partsOfKind("bodytube")) {
+      const offered =
+        p.outerDiameter !== undefined &&
+        p.outerDiameter > 0 &&
+        p.length !== undefined &&
+        p.length > 0 &&
+        p.innerDiameter !== undefined &&
+        p.innerDiameter > 0 &&
+        p.innerDiameter < p.outerDiameter;
+      if (!offered) continue;
+      const m = materialOf(p);
+      const applied = usableCatalogTube({
+        manufacturer: p.manufacturer,
+        partNumber: p.partNumber,
+        outerDiameter: p.outerDiameter!,
+        length: p.length!,
+        innerDiameter: p.innerDiameter!,
+        ...(p.mass !== undefined && p.mass > 0 ? { mass: p.mass } : {}),
+        ...(m ? { material: { name: m.name, density: m.density } } : {}),
+      });
+      if (!applied) disagreed.push(`bodytube ${p.manufacturer} ${p.partNumber}`);
+    }
+    for (const p of partsOfKind("nosecone")) {
+      const offered =
+        p.outerDiameter !== undefined &&
+        p.outerDiameter > 0 &&
+        p.length !== undefined &&
+        p.length > 0 &&
+        p.shape !== undefined &&
+        p.shoulderDiameter !== undefined &&
+        p.shoulderDiameter > 0 &&
+        p.shoulderDiameter <= p.outerDiameter &&
+        p.shoulderLength !== undefined &&
+        p.shoulderLength >= 0 &&
+        (p.thickness === undefined || (p.thickness > 0 && p.thickness < p.outerDiameter / 2));
+      if (!offered) continue;
+      const m = materialOf(p);
+      const applied = usableCatalogNose({
+        manufacturer: p.manufacturer,
+        partNumber: p.partNumber,
+        outerDiameter: p.outerDiameter!,
+        length: p.length!,
+        shape: p.shape!,
+        shoulderDiameter: p.shoulderDiameter!,
+        shoulderLength: p.shoulderLength!,
+        ...(p.filled !== true && p.thickness !== undefined && p.thickness > 0
+          ? { thickness: p.thickness }
+          : {}),
+        ...(p.mass !== undefined && p.mass > 0 ? { mass: p.mass } : {}),
+        ...(m ? { material: { name: m.name, density: m.density } } : {}),
+      });
+      if (!applied) disagreed.push(`nosecone ${p.manufacturer} ${p.partNumber}`);
+    }
+    expect(disagreed, `offered but not applicable:\n${disagreed.slice(0, 10).join("\n")}`).toEqual([]);
   });
 });

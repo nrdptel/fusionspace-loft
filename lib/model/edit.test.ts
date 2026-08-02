@@ -3,7 +3,8 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { importOrk } from "../ork/import";
 import { flattenRocket } from "./geometry";
-import { findParts, materialOf } from "../components/db";
+import { findParts, materialOf, partsOfKind } from "../components/db";
+import type { CatalogPart } from "../components/db";
 import {
   applyGeometryEdits,
   moveTarget,
@@ -34,6 +35,8 @@ import {
   primaryMassObjectStation,
   aimsClearedByAiming,
   primaryNoseShape,
+  usableCatalogNose,
+  type PickedNoseCone,
   primaryBodyDiameter,
   primaryBodyTube,
   primaryFinish,
@@ -67,6 +70,7 @@ import type {
   MassComponent,
   GenericFinSet,
   NoseCone,
+  NoseShape,
   Transition,
   Parachute,
   Rocket,
@@ -3309,5 +3313,299 @@ describe("a catalogued part's published wall and stock", () => {
     expect(hasGeometryEdits({ catalogBodyTube: legacy })).toBe(false);
     expect(isEditedValue("catalogBodyTube", legacy)).toBe(false);
     expect(isEditedValue("catalogBodyTube", PART)).toBe(true);
+  });
+
+});
+
+describe("a catalogued nose cone's published contour, shoulder and stock", () => {
+  const nose = (r: Rocket) =>
+    flattenRocket(r).find((x) => x.component.kind === "nosecone")!.component as NoseCone;
+
+  // Read out of the shipped catalogue at runtime, for the reason the tube suite above records at
+  // length: a hand-written "vendor's figure" is not one, and the first version of that suite quoted
+  // a wall and a density that appear in no row.
+  const pick = (want: (p: CatalogPart) => boolean): PickedNoseCone => {
+    const p = partsOfKind("nosecone").find(want);
+    if (
+      !p ||
+      p.outerDiameter === undefined ||
+      p.length === undefined ||
+      p.shape === undefined ||
+      p.shoulderDiameter === undefined ||
+      p.shoulderLength === undefined
+    ) {
+      throw new Error("no catalogued nose cone matches — this test asserts against real data");
+    }
+    const m = materialOf(p);
+    return {
+      manufacturer: p.manufacturer,
+      partNumber: p.partNumber,
+      outerDiameter: p.outerDiameter,
+      length: p.length,
+      shape: p.shape,
+      shoulderDiameter: p.shoulderDiameter,
+      shoulderLength: p.shoulderLength,
+      ...(p.filled !== true && p.thickness !== undefined && p.thickness > 0
+        ? { thickness: p.thickness }
+        : {}),
+      ...(p.mass !== undefined && p.mass > 0 ? { mass: p.mass } : {}),
+      ...(m ? { material: { name: m.name, density: m.density } } : {}),
+    };
+  };
+
+  /** A SOLID cone — 728 of the 854 are, and it is the case a tube can never be. */
+  const SOLID = pick((p) => p.filled === true && p.shoulderLength !== undefined && p.shoulderLength > 0);
+  /** One of the 126 that publish a wall instead. */
+  const HOLLOW = pick((p) => p.filled !== true && p.thickness !== undefined && p.thickness > 0);
+  /** One of the 50 that BUTT rather than plug. */
+  const BUTTED = pick((p) => p.shoulderLength === 0);
+
+  it("the catalogue really does state a contour, a base, a shoulder and a stock for every cone", () => {
+    // The premise the whole increment rests on, asserted rather than remembered — if a re-cut of the
+    // catalogue ever loosens it, the picker's claim ("the whole part as the vendor publishes it")
+    // becomes false and this says so before a flyer reads it.
+    const cones = partsOfKind("nosecone");
+    expect(cones.length).toBeGreaterThan(800);
+    for (const c of cones) {
+      expect(c.shape, `${c.manufacturer} ${c.partNumber}`).toBeDefined();
+      expect(c.outerDiameter).toBeGreaterThan(0);
+      expect(c.length).toBeGreaterThan(0);
+      expect(c.shoulderDiameter).toBeGreaterThan(0);
+      expect(c.shoulderLength).toBeGreaterThanOrEqual(0);
+      expect(materialOf(c), "no cone's density was refused").toBeDefined();
+      // Solid or walled, exhaustive and disjoint — the fact `PickedNoseCone.thickness` encodes as
+      // one optional field rather than a wall plus a flag.
+      expect(c.filled === true).not.toBe(c.thickness !== undefined);
+    }
+  });
+
+  it("lands the vendor's whole part on the design's nose, and the mass moves with it", async () => {
+    const doc = await importOrk(readFileSync(resolve(process.cwd(), "fixtures/demo-single-deploy.ork")));
+    const before = nose(doc.rocket);
+
+    const built = applyGeometryEdits(doc.rocket, {
+      noseLength: HOLLOW.length,
+      noseShape: HOLLOW.shape,
+      catalogNoseCone: HOLLOW,
+    });
+    const after = nose(built);
+
+    expect(after.shape).toBe(HOLLOW.shape);
+    expect(after.length).toBeCloseTo(HOLLOW.length, 9);
+    expect(after.aftRadius).toBeCloseTo(HOLLOW.outerDiameter / 2, 9);
+    expect(after.aftShoulderRadius).toBeCloseTo(HOLLOW.shoulderDiameter / 2, 9);
+    expect(after.aftShoulderLength).toBeCloseTo(HOLLOW.shoulderLength, 9);
+    expect(after.thickness).toBeCloseTo(HOLLOW.thickness!, 9);
+    expect(after.material?.name, "the vendor's own stock, not a category").toBe(HOLLOW.material!.name);
+    expect(after.material?.density).toBe(HOLLOW.material!.density);
+    // The point of the milestone: the number a flyer acts on actually moved.
+    expect(after.aftRadius).not.toBeCloseTo(before.aftRadius, 6);
+  });
+
+  it("the flight changes accordingly, and a base that does not fit says so", async () => {
+    // R8's *done when* in one case — "the chosen part's dimensions and material populate the model
+    // and the flight changes accordingly" — plus the claim the picker's own copy makes about what
+    // happens when the cone does not match the tube behind it.
+    //
+    // Measured on `demo-single-deploy.ork`, whose nose is a 250 mm fibreglass ogive (1850 kg/m3,
+    // 3 mm wall) on a 38.0 mm airframe. Picking SEMROC BNC-55D2 — an ogive, 39.95 mm at the base,
+    // 76.2 mm long, SOLID balsa at 112 kg/m3 — takes the dry mass 600.2 g -> 525.6 g, the CG
+    // 572.5 mm -> 456.9 mm, the static margin 4.065 -> 2.712 cal, the apogee 992.79 -> 1043.84 m
+    // and max velocity 205.2 -> 225.1 m/s. A shorter, far lighter nose on a rocket that was already
+    // over-stable: every number moves in the direction it should.
+    const doc = await importOrk(readFileSync(resolve(process.cwd(), "fixtures/demo-single-deploy.ork")));
+    const cone = pick((p) => p.manufacturer === "SEMROC" && p.partNumber === "BNC-55D2");
+    const built = applyGeometryEdits(doc.rocket, {
+      noseLength: cone.length,
+      noseShape: cone.shape,
+      catalogNoseCone: cone,
+    });
+
+    const m0 = dryMassProperties(doc.rocket);
+    const m1 = dryMassProperties(built);
+    expect(m0.mass).toBeCloseTo(0.6002, 4);
+    expect(m1.mass).toBeCloseTo(0.5256, 4);
+    const f0 = runFlight(doc.rocket, {}).result;
+    const f1 = runFlight(built, {}).result;
+    expect(f0.summary.apogee).toBeCloseTo(992.79, 1);
+    expect(f1.summary.apogee).toBeCloseTo(1043.84, 1);
+    expect(f0.staticMarginCal).toBeCloseTo(4.065, 3);
+    expect(f1.staticMarginCal).toBeCloseTo(2.712, 3);
+
+    // **The base is NOT scaled onto the airframe, and this is what makes that honest.** A 39.95 mm
+    // cone on a 38.0 mm tube is a real mould-line step, and the flight already walks the airframe
+    // for those. So the flyer is not silently handed a resized rocket, and not silently handed an
+    // optimistic number either — the existing check names the step and says the drag reads light.
+    // If a future change starts rescaling the airframe to fit a pick, this goes red.
+    expect(built).not.toBe(doc.rocket);
+    const stepped = f1.warnings.map((w) => JSON.stringify(w)).join(" ");
+    expect(stepped, "the step caution the picker's copy promises").toMatch(/changes diameter at a joint/i);
+    expect(stepped).toMatch(/under-counted/i);
+    const clean = f0.warnings.map((w) => JSON.stringify(w)).join(" ");
+    expect(clean, "and it was not already saying that").not.toMatch(/changes diameter at a joint/i);
+  });
+
+  it("a cone the vendor calls SOLID is flown solid, not as a shell with no wall", () => {
+    // The trap this inverts: `lib/sim/mass.ts` flies a shell with a material and no wall as a solid
+    // rod, which is a DEFECT for a tube (the reason `usableCatalogTube` refuses a bore-less pick)
+    // and the CORRECT answer for a turned balsa cone. So the same absence has to mean opposite
+    // things for the two kinds, and this is the assertion that says the cone side is deliberate.
+    expect(SOLID.thickness).toBeUndefined();
+    expect(usableCatalogNose(SOLID)).toBe(true);
+  });
+
+  it("a cone that butts rather than plugs gets no shoulder at all", async () => {
+    // 50 of the 854 publish a shoulder length of 0. Writing that through as a zero-length shoulder
+    // would add a ring of mass at the very front of the rocket that the vendor does not sell — and
+    // the front is where a gram moves the CG most.
+    expect(BUTTED.shoulderLength).toBe(0);
+    const doc = await importOrk(readFileSync(resolve(process.cwd(), "fixtures/demo-single-deploy.ork")));
+    const built = applyGeometryEdits(doc.rocket, {
+      noseLength: BUTTED.length,
+      noseShape: BUTTED.shape,
+      catalogNoseCone: BUTTED,
+    });
+    expect(nose(built).aftShoulderLength).toBeUndefined();
+    expect(nose(built).aftShoulderRadius).toBeUndefined();
+  });
+
+  it("does not inherit the replaced cone's shoulder wall or end cap", async () => {
+    // Found by reading `shoulderContribs` in `lib/sim/mass.ts` rather than by any failing test: it
+    // reads `aftShoulderThickness` and `aftShoulderCapped`, and the applier originally left both
+    // alone while replacing the shoulder's radius and length around them. So a cone picked onto a
+    // design whose own nose had a capped or separately-walled shoulder kept those — a bulkhead disc
+    // and a wall the vendor never published, at the very front of the rocket where a gram moves the
+    // CG furthest. The catalogue states neither for any of the 854.
+    const doc = await importOrk(readFileSync(resolve(process.cwd(), "fixtures/demo-single-deploy.ork")));
+    const n0 = nose(doc.rocket);
+    // Give the design's own cone both, so the assertion is about them being CLEARED rather than
+    // about them having been absent all along.
+    const dirty: Rocket = {
+      ...doc.rocket,
+      stages: doc.rocket.stages.map((st) => ({
+        ...st,
+        components: st.components.map((c) =>
+          c.id === n0.id ? { ...c, aftShoulderThickness: 0.004, aftShoulderCapped: true } : c,
+        ),
+      })),
+    };
+    expect(nose(dirty).aftShoulderCapped).toBe(true);
+
+    const built = applyGeometryEdits(dirty, {
+      noseLength: SOLID.length,
+      noseShape: SOLID.shape,
+      catalogNoseCone: SOLID,
+    });
+    expect(nose(built).aftShoulderThickness).toBeUndefined();
+    expect(nose(built).aftShoulderCapped).toBeUndefined();
+    // And the mass really did depend on them — otherwise this is asserting a field nobody reads.
+    expect(dryMassProperties(built).mass).not.toBeCloseTo(dryMassProperties(dirty).mass, 6);
+  });
+
+  it("does not fly the replaced cone's weighed mass or its measured CG", async () => {
+    // **The pre-push review found this and it is the increment's Sev-1.** `overrideMass` wins
+    // outright in `lib/sim/mass.ts` and additionally suppresses the shoulder, so a design whose
+    // nose carried one took the vendor's whole geometry and went on flying the OLD mass — under a
+    // caption reading "Flying <vendor> <part>". Reproduced on `rocksimTestRocket1.rkt`, whose nose
+    // is overridden to 126.438 g with a CG measured 65.4 mm from the tip of a 396.9 mm cone:
+    // dry mass 387.736 g before the pick and 387.736 g after, identical to the digit. Picking a
+    // 233.7 mm cone would then have pinned that 65.4 mm CG onto it.
+    //
+    // 10 of the 41 corpus designs with a nose carry the mass override and 5 carry the CG one, so
+    // this is the common case rather than an edge — `<overridemass>` is how a real file records a
+    // cone somebody put on a scale.
+    const doc = await importOrk(readFileSync(resolve(process.cwd(), "fixtures/demo-single-deploy.ork")));
+    const n0 = nose(doc.rocket);
+    const weighed: Rocket = {
+      ...doc.rocket,
+      stages: doc.rocket.stages.map((st) => ({
+        ...st,
+        components: st.components.map((c) =>
+          c.id === n0.id ? { ...c, overrideMass: 0.126438, overrideCGx: 0.0654 } : c,
+        ),
+      })),
+    };
+    const massBefore = dryMassProperties(weighed).mass;
+
+    // The cone this picks publishes no weight of its own, which is the case that exposed it: 717 of
+    // the 854 do not, so the pick has nothing to overwrite the stale figure with.
+    expect(SOLID.mass).toBeUndefined();
+    const built = applyGeometryEdits(weighed, {
+      noseLength: SOLID.length,
+      noseShape: SOLID.shape,
+      catalogNoseCone: SOLID,
+    });
+    expect(nose(built).overrideMass, "the replaced cone's weighed mass").toBeUndefined();
+    expect(nose(built).overrideCGx, "a CG measured on a cone that is gone").toBeUndefined();
+    expect(dryMassProperties(built).mass, "the mass actually moved").not.toBeCloseTo(massBefore, 6);
+
+    // And where the vendor DOES publish a weight, that is the one flown — the override is replaced
+    // rather than merely dropped.
+    const withMass = pick((p) => p.mass !== undefined && p.mass > 0);
+    const built2 = applyGeometryEdits(weighed, {
+      noseLength: withMass.length,
+      noseShape: withMass.shape,
+      catalogNoseCone: withMass,
+    });
+    expect(nose(built2).overrideMass).toBeCloseTo(withMass.mass!, 9);
+    expect(nose(built2).overrideCGx).toBeUndefined();
+  });
+
+  it("refuses a shoulder length the applier would otherwise install", () => {
+    // `withCatalogNose` reads `shoulderLength` as both the gate and the value, so the predicate has
+    // to bound it. A replayed record carrying 1.5 m installed a collar longer than the rocket
+    // (600.2 g -> 670.8 g on the demo design); NaN and a negative dropped the shoulder silently
+    // while the record still counted as an edit.
+    for (const bad of [undefined, Number.NaN, -0.02, SOLID.length * 2]) {
+      const rec = { ...SOLID, shoulderLength: bad as unknown as number };
+      expect(usableCatalogNose(rec), `shoulderLength ${String(bad)}`).toBe(false);
+      expect(isEditedValue("catalogNoseCone", rec), `shoulderLength ${String(bad)}`).toBe(false);
+    }
+    expect(usableCatalogNose({ ...SOLID, shoulderLength: 0 }), "zero is a cone that butts").toBe(true);
+  });
+
+  it("does not land a wall without the stock that makes it a mass", async () => {
+    // The rule `withCatalogTube` already enforced by refusing both without a material, which the
+    // cone applier originally broke from the other side: a SOLID cone's absent thickness landing on
+    // the design's OWN density turns a 3 mm-walled fibreglass cone into a solid one. No catalogued
+    // cone reaches this today — 0 of 854 had its density refused — but the catalogue is re-cut
+    // against newer upstream commits, so it is one regeneration away.
+    const doc = await importOrk(readFileSync(resolve(process.cwd(), "fixtures/demo-single-deploy.ork")));
+    const before = nose(doc.rocket);
+    expect(before.thickness, "the fixture's own cone is walled").toBeGreaterThan(0);
+    const built = applyGeometryEdits(doc.rocket, {
+      noseLength: SOLID.length,
+      noseShape: SOLID.shape,
+      catalogNoseCone: { ...SOLID, material: undefined },
+    });
+    expect(nose(built).thickness, "kept, because no stock came with the pick").toBe(before.thickness);
+    expect(nose(built).material?.name).toBe(before.material?.name);
+    // The geometry the catalogue DOES state still lands — this is narrower than the tube's refusal,
+    // and deliberately so: a base and a shoulder are not a mass claim.
+    expect(nose(built).aftRadius).toBeCloseTo(SOLID.outerDiameter / 2, 9);
+  });
+
+  it("counts as an edit, and a record that cannot be applied does not", () => {
+    expect(hasGeometryEdits({ catalogNoseCone: SOLID })).toBe(true);
+    expect(INERT_EDIT_FIELDS.has("catalogNoseCone")).toBe(false);
+    expect(isEditedValue("catalogNoseCone", SOLID)).toBe(true);
+    // Every way a stored record can fail to describe a buildable cone. Each of these is reachable
+    // from a bag persisted by an older build, which `lib/session.ts` replays on the next visit —
+    // and one that reads as edited while the applier refuses it withholds the imported file's own
+    // stored-simulation comparison on a design nothing changed.
+    const bad: Record<string, PickedNoseCone> = {
+      "no shape": { ...SOLID, shape: undefined as unknown as NoseShape },
+      "unknown shape": { ...SOLID, shape: "cylinder" as unknown as NoseShape },
+      "no base": { ...SOLID, outerDiameter: 0 },
+      "no length": { ...SOLID, length: 0 },
+      "no shoulder diameter": { ...SOLID, shoulderDiameter: 0 },
+      "shoulder wider than the base": { ...SOLID, shoulderDiameter: SOLID.outerDiameter * 1.5 },
+      "a wall that leaves no bore": { ...SOLID, thickness: SOLID.outerDiameter / 2 },
+    };
+    for (const [why, rec] of Object.entries(bad)) {
+      expect(usableCatalogNose(rec), why).toBe(false);
+      expect(hasGeometryEdits({ catalogNoseCone: rec }), why).toBe(false);
+      expect(isEditedValue("catalogNoseCone", rec), why).toBe(false);
+    }
   });
 });

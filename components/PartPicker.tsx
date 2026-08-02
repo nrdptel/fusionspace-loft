@@ -8,7 +8,7 @@ import { TOUCH_TARGET, cx } from "@/lib/ui-tokens";
 import { mToIn } from "@/lib/units";
 import { fmtEditable } from "@/lib/display";
 import type { CatalogPart, CatalogSource } from "@/lib/components/db";
-import type { PickedBodyTube } from "@/lib/model/edit";
+import type { Material } from "@/lib/model/types";
 
 /** Choose a real commercial part instead of measuring one.
  *
@@ -58,8 +58,78 @@ function materialLabel(part: CatalogPart): string {
   return name.replace(/,\s*bulk$/i, "");
 }
 
+/** The kinds of part this picker can offer. One component rather than one per kind, deliberately:
+ *  the catalogue fetch, the failed-fetch state, the search, the vendor filter, the caliber filter,
+ *  the provenance line and the table are the same surface for every kind, and the repo has spent
+ *  three milestones collapsing five partial implementations of a table into one. What differs is
+ *  four strings and which columns a kind actually states — which is what `KIND` below holds. */
+export type PickerKind = "bodytube" | "nosecone";
+
+/** Everything about a kind that is not shared, in one table, so adding the next kind is an entry
+ *  rather than an edit spread through the body. */
+const KIND: Record<
+  PickerKind,
+  {
+    /** Singular, lower case, as it appears mid-sentence. */
+    noun: string;
+    /** Plural, for the count line. */
+    plural: string;
+    /** The button that opens the list. */
+    open: string;
+    /** The path back to the design's own part. */
+    back: string;
+    /** What the caliber filter is filtering, and the search box's own example. */
+    fitsNoun: string;
+    placeholder: string;
+  }
+> = {
+  bodytube: {
+    noun: "body tube",
+    plural: "body tubes",
+    open: "Pick a real body tube",
+    back: "Back to the design's own tube",
+    fitsNoun: "tubes",
+    placeholder: "BT-60, 38 mm, phenolic…",
+  },
+  nosecone: {
+    noun: "nose cone",
+    plural: "nose cones",
+    open: "Pick a real nose cone",
+    back: "Back to the design's own nose",
+    fitsNoun: "cones",
+    placeholder: "BT-60, ogive, balsa…",
+  },
+};
+
+/** Whether a catalogue row carries enough for the model to apply it — the picker's half of the same
+ *  question `usableCatalogTube` and `usableCatalogNose` answer in `lib/model/edit.ts`.
+ *
+ *  It is asked here so a row that cannot be built is DISABLED rather than silently doing nothing on
+ *  a tap, which on a 390 px viewport is indistinguishable from a missed target. The two must agree:
+ *  a row this lets through and the model then refuses is a pick that appears to work and changes no
+ *  number, which is the "controls that forget" tell. Kept deliberately as a mirror rather than an
+ *  import — the model's predicates take the finished record, and this takes the catalogue row it
+ *  would be built from, so they are the same rule at two different points on the wire. */
+function buildable(p: CatalogPart, kind: PickerKind): boolean {
+  if (p.outerDiameter === undefined || !(p.outerDiameter > 0)) return false;
+  if (p.length === undefined || !(p.length > 0)) return false;
+  if (kind === "bodytube") {
+    return p.innerDiameter !== undefined && p.innerDiameter > 0 && p.innerDiameter < p.outerDiameter;
+  }
+  return (
+    p.shape !== undefined &&
+    p.shoulderDiameter !== undefined &&
+    p.shoulderDiameter > 0 &&
+    p.shoulderDiameter <= p.outerDiameter &&
+    p.shoulderLength !== undefined &&
+    p.shoulderLength >= 0 &&
+    (p.thickness === undefined || (p.thickness > 0 && p.thickness < p.outerDiameter / 2))
+  );
+}
+
 export default function PartPicker({
-  /** Metres. The caliber the design is at now, so the list can open on tubes that actually fit it. */
+  kind,
+  /** Metres. The caliber the design is at now, so the list can open on parts that actually fit it. */
   currentOuterDiameter,
   imperial,
   onPick,
@@ -67,17 +137,27 @@ export default function PartPicker({
   dimensionsMatch,
   onClear,
 }: {
+  kind: PickerKind;
   currentOuterDiameter?: number;
   imperial: boolean;
-  onPick: (part: PickedBodyTube) => void;
-  /** What the flyer chose, so the surface can say so rather than leaving four changed numbers to
-   *  speak for themselves. `DESIGN.md` §6: every reference value names its source. */
-  picked?: PickedBodyTube;
-  /** Whether the caliber and length being flown are still the ones this part published — see the
-   *  note at the attribution line. Governs the wording, never whether the clear path exists. */
+  /** The catalogue row and its resolved stock, NOT a finished edit-bag record.
+   *
+   *  The picker's job is choosing a published part; turning that choice into a `PickedBodyTube` or a
+   *  `PickedNoseCone` is the model's, and it is done at the call site where the rest of the patch is
+   *  assembled. That is what lets one component serve two kinds without a union type running through
+   *  it — and it keeps `materialOf`'s refusal (a density the catalogue would not stand behind) as a
+   *  single decision made here and passed on, rather than re-derived per kind. */
+  onPick: (part: CatalogPart, material: Material | undefined) => void;
+  /** What the flyer chose, so the surface can say so rather than leaving changed numbers to speak
+   *  for themselves. `DESIGN.md` §6: every reference value names its source. Only the identity is
+   *  needed — the caption names the part, and the record itself lives in the edit bag. */
+  picked?: { manufacturer: string; partNumber: string };
+  /** Whether the dimensions being flown are still the ones this part published — see the note at the
+   *  attribution line. Governs the wording, never whether the clear path exists. */
   dimensionsMatch: boolean;
   onClear: () => void;
 }) {
+  const copy = KIND[kind];
   const [open, setOpen] = useState(false);
   const [parts, setParts] = useState<CatalogPart[] | null>(null);
   /** The lazily-imported module itself, so `materialOf` — which is where the refused densities are
@@ -107,13 +187,13 @@ export default function PartPicker({
     import("@/lib/components/db")
       .then((db) => {
         if (!live) return;
-        const tubes = db.partsOfKind("bodytube");
+        const tubes = db.partsOfKind(kind);
         setDb(db);
         setParts(tubes);
-        // The files that actually CONTRIBUTE a body tube, not all 16 vendored `.orc`. Four of them
-        // (apogee, competition_chutes, generic_materials, top_flight) carry none, so quoting the
-        // full count attached a provenance figure to a list it does not describe — in the one
-        // sentence whose whole job is to say where these numbers came from.
+        // The files that actually CONTRIBUTE a part OF THIS KIND, not all 16 vendored `.orc`.
+        // Quoting the full count would attach a provenance figure to a list it does not describe —
+        // in the one sentence whose whole job is to say where these numbers came from. It differs
+        // by kind: 12 of the 16 files carry a body tube, 11 carry a nose cone.
         const used = new Set(tubes.map((t) => t.source));
         setSources(db.allSources().filter((_, i) => used.has(i)));
       })
@@ -127,7 +207,7 @@ export default function PartPicker({
     return () => {
       live = false;
     };
-  }, [open, parts, failed]);
+  }, [open, parts, failed, kind]);
 
   const makers = useMemo(() => {
     if (!parts) return [];
@@ -175,20 +255,86 @@ export default function PartPicker({
     },
     {
       key: "od",
-      label: `OD (${unit})`,
+      // A tube's outer diameter is the whole part; a cone's is only its BASE, and the shoulder
+      // below it is a second diameter on the same row. Naming both "OD" would put two different
+      // measurements under one header on a surface whose entire job is published dimensions.
+      label: kind === "nosecone" ? `Base (${unit})` : `OD (${unit})`,
       align: "right",
       sortValue: (p) => p.outerDiameter ?? Infinity,
       cell: (p) => <span className="font-mono tabular-nums">{span(p.outerDiameter, imperial)}</span>,
       csv: (p) => span(p.outerDiameter, imperial),
     },
-    {
-      key: "id",
-      label: `ID (${unit})`,
-      align: "right",
-      sortValue: (p) => p.innerDiameter ?? Infinity,
-      cell: (p) => <span className="font-mono tabular-nums">{span(p.innerDiameter, imperial)}</span>,
-      csv: (p) => span(p.innerDiameter, imperial),
-    },
+    // The bore, for the kind that states one. Every body tube publishes it and it is where the wall
+    // comes from; only 37 of the 854 nose cones do, so the column would be a dash on 96% of the
+    // rows it headed — and for a cone the wall is told by `filled` and `thickness` instead, which
+    // is what the two columns after this one say.
+    ...(kind === "bodytube"
+      ? [
+          {
+            key: "id",
+            label: `ID (${unit})`,
+            align: "right" as const,
+            sortValue: (p: CatalogPart) => p.innerDiameter ?? Infinity,
+            cell: (p: CatalogPart) => (
+              <span className="font-mono tabular-nums">{span(p.innerDiameter, imperial)}</span>
+            ),
+            csv: (p: CatalogPart) => span(p.innerDiameter, imperial),
+          },
+        ]
+      : [
+          {
+            key: "shape",
+            label: "Shape",
+            // The vendor's own contour, and the reason this column exists at all: it is the field a
+            // flyer is actually choosing on. 464 of the 854 are ogive, 233 ellipsoid, 135 conical,
+            // 12 parabolic, 10 Haack — so a list sorted any other way buries every low-drag cone.
+            sortValue: (p: CatalogPart) => p.shape ?? "",
+            cell: (p: CatalogPart) => <span>{p.shape ?? "—"}</span>,
+            csv: (p: CatalogPart) => p.shape ?? "",
+          },
+          {
+            key: "shoulder",
+            label: `Shoulder (${unit})`,
+            align: "right" as const,
+            sortValue: (p: CatalogPart) => p.shoulderDiameter ?? Infinity,
+            // Diameter x length, because both matter and neither is guessable: the diameter says
+            // which tube it plugs into, the length says how much mass sits at the very front of the
+            // rocket. 50 of the 854 publish a length of 0 — a cone that BUTTS rather than plugs —
+            // and that is said in words rather than shown as a zero a reader would take for missing.
+            cell: (p: CatalogPart) =>
+              p.shoulderLength === 0 ? (
+                <span>no shoulder</span>
+              ) : (
+                <span className="font-mono tabular-nums">
+                  {span(p.shoulderDiameter, imperial)} x {span(p.shoulderLength, imperial)}
+                </span>
+              ),
+            csv: (p: CatalogPart) =>
+              p.shoulderLength === 0
+                ? "none"
+                : `${span(p.shoulderDiameter, imperial)} x ${span(p.shoulderLength, imperial)}`,
+          },
+          {
+            key: "wall",
+            label: "Wall",
+            // Solid or hollow, which for a cone is the whole mass story and is EXHAUSTIVE over the
+            // catalogue: 728 of the 854 state `filled`, the other 126 state a thickness, none states
+            // both and none states neither. `lib/sim/mass.ts` flies a shell with a material and no
+            // wall as a solid rod — a defect for a tube, and the right answer for a turned balsa
+            // cone — so which of the two a part is has to be visible before it is chosen.
+            sortValue: (p: CatalogPart) => (p.filled ? 0 : (p.thickness ?? Infinity)),
+            cell: (p: CatalogPart) =>
+              p.filled ? (
+                <span>solid</span>
+              ) : p.thickness !== undefined ? (
+                <span className="font-mono tabular-nums">{span(p.thickness, imperial)}</span>
+              ) : (
+                <span>not stated</span>
+              ),
+            csv: (p: CatalogPart) =>
+              p.filled ? "solid" : p.thickness !== undefined ? span(p.thickness, imperial) : "",
+          },
+        ]),
     {
       key: "len",
       label: `Length (${unit})`,
@@ -246,44 +392,27 @@ export default function PartPicker({
       // exactly that context.
       label: "Choose",
       cell: (p) => {
+        // `materialOf` returns undefined for the parts whose upstream density was refused as
+        // physically impossible. It is resolved here, once, and handed to the call site rather than
+        // re-derived there — the flyer chose a specific part, and a density they did not choose is
+        // a mass they will not check. The row says so beside the button.
         const material = db?.materialOf(p);
-        const buildable =
-          p.outerDiameter !== undefined &&
-          p.length !== undefined &&
-          p.innerDiameter !== undefined &&
-          p.innerDiameter < p.outerDiameter;
         return (
         <Button
           variant="secondary"
           onClick={() => {
-            if (p.outerDiameter === undefined || p.length === undefined) return;
-            if (p.innerDiameter === undefined || !(p.innerDiameter < p.outerDiameter)) return;
-            onPick({
-              manufacturer: p.manufacturer,
-              partNumber: p.partNumber,
-              outerDiameter: p.outerDiameter,
-              length: p.length,
-              innerDiameter: p.innerDiameter,
-              // The vendor's own published weight where there is one. Seven body tubes state one and
-              // every one of them disagrees with the figure computed from their own geometry and
-              // stock by 3-5x — see `PickedBodyTube.mass`.
-              ...(p.mass !== undefined && p.mass > 0 ? { mass: p.mass } : {}),
-              // `materialOf` returns undefined for the parts whose upstream density was refused as
-              // physically impossible. That is passed through as absent rather than defaulted — the
-              // flyer chose a specific part, and a mass they did not choose is a mass they will not
-              // check. The row says so beside the button.
-              ...(material ? { material: { name: material.name, density: material.density } } : {}),
-            });
+            if (!buildable(p, kind)) return;
+            onPick(p, material);
             setOpen(false);
           }}
-          disabled={!buildable}
+          disabled={!buildable(p, kind)}
         >
           Use
         </Button>
         );
       },
     },
-  ], [imperial, unit, onPick, db]);
+  ], [imperial, unit, onPick, db, kind]);
 
   const control =
     "mt-1 w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100";
@@ -292,7 +421,7 @@ export default function PartPicker({
     <div className="mt-3">
       <div className="flex flex-wrap items-center gap-2">
         <Button variant="secondary" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
-          {open ? "Close the parts list" : "Pick a real body tube"}
+          {open ? "Close the parts list" : copy.open}
         </Button>
         {picked && (
           // Named rather than implied. Numbers changing at once with nothing saying why is the
@@ -306,14 +435,29 @@ export default function PartPicker({
           // component already shipped once. `dimensionsMatch` governs only the wording.
           <p className="flex flex-wrap items-center gap-2 text-xs text-zinc-600 dark:text-zinc-400">
             <span>
-              {dimensionsMatch ? "Flying" : "Wall and stock from"}{" "}
+              {/* The narrowed wording differs by kind because what SURVIVES a hand edit differs by
+                  kind. Every figure a tube pick writes has a field the flyer can retype, so once
+                  they do, the only thing still the vendor's is the wall and the stock. A cone pick
+                  writes six figures and only two of them — length and contour — have fields at all:
+                  the base, the shoulder, the wall and the stock have none, so "with your own
+                  dimensions" would be false in the one direction that matters, because the vendor's
+                  base is what raises the mould-line-step caution the flyer then reads on the
+                  flight. */}
+              {dimensionsMatch
+                ? "Flying"
+                : kind === "nosecone"
+                  ? "Base, shoulder, wall and stock from"
+                  : "Wall and stock from"}{" "}
               <span className="font-medium text-zinc-900 dark:text-zinc-100">
                 {picked.manufacturer} {picked.partNumber}
               </span>
-              {!dimensionsMatch && ", with your own dimensions"}
+              {!dimensionsMatch &&
+                (kind === "nosecone"
+                  ? ", with your own length or contour"
+                  : ", with your own dimensions")}
             </span>
             <Button variant="ghost" onClick={onClear}>
-              Back to the design&apos;s own tube
+              {copy.back}
             </Button>
           </p>
         )}
@@ -341,7 +485,7 @@ export default function PartPicker({
                     type="search"
                     value={text}
                     onChange={(e) => setText(e.target.value)}
-                    placeholder="BT-60, 38 mm, phenolic…"
+                    placeholder={copy.placeholder}
                     className={cx(control, TOUCH_TARGET)}
                   />
                 </label>
@@ -372,8 +516,15 @@ export default function PartPicker({
                       className="mb-2 h-4 w-4"
                     />
                     <span className="mb-1.5 text-zinc-700 dark:text-zinc-300">
-                      Only tubes at this design&apos;s caliber ({span(currentOuterDiameter, imperial)}{" "}
-                      {unit})
+                      {/* Explicit space expressions, not trusted whitespace — the same transform
+                          trap the provenance line below already carries a note about. This exact
+                          label lost the space after `{copy.fitsNoun}` on the way through the
+                          bundler ("Only tubesat this design's caliber"), green through lint, unit,
+                          build and e2e, because the defect exists only after the transform. It was
+                          `scripts/check-text-gaps.mjs` that found it, and it is the SECOND time that
+                          check has earned itself on this one component. */}
+                      Only {copy.fitsNoun}{" "}
+                      at this design&apos;s caliber ({span(currentOuterDiameter, imperial)} {unit})
                     </span>
                   </label>
                 )}
@@ -385,23 +536,39 @@ export default function PartPicker({
                     "1089catalogued" and the vendor-file count butted straight against the em dash —
                     both green through lint, unit, build and e2e, because the defect exists only after
                     the transform. `scripts/check-text-gaps.mjs` is what catches it. */}
-                {rows.length} of {parts.length}{" "}
-                catalogued body tubes. Dimensions are the vendor&apos;s own published figures, from
+                {rows.length} of {parts.length} catalogued {copy.plural}
+                . Dimensions are the vendor&apos;s own published figures, from
                 the Apache-2.0 openrocket-database
                 {sources && sources.length > 0 ? ` (${sources.length} vendor files)` : ""}{" "}
-                — see THIRD-PARTY-NOTICES.md. Choosing one sets this design&apos;s body diameter and
-                length;
-                the airframe is scaled to the caliber you pick so the mould line stays faired.{" "}
-                {/* Said plainly rather than left to be inferred. The material column beside it is the
-                    vendor's, so a flyer could reasonably read the resulting MASS as the vendor's too —
-                    and it is not: the design keeps its own wall and stock, scaled. Claiming otherwise
-                    would be exactly the false precision the safety posture forbids, on the number CG,
-                    stability and apogee all sit on. Wall and material are the next increment. */}
-                <span className="text-zinc-600 dark:text-zinc-300">
-                  Choosing one also takes the vendor&apos;s wall and stock, so the mass moves with it —
-                  and where they publish a weight of their own, that is the one flown rather than a
-                  figure computed from the geometry.
-                </span>
+                — see THIRD-PARTY-NOTICES.md.{" "}
+                {/* Said plainly rather than left to be inferred, and it differs by kind because what
+                    a pick can honestly claim differs by kind. A tube pick rescales the airframe to
+                    the caliber chosen, because a body tube IS the caliber; a cone pick deliberately
+                    does not, because resizing a whole rocket to fit a part costing a few pounds is
+                    the tail wagging the airframe — so a cone whose base disagrees with the tube
+                    behind it makes a real mould-line step, and the flight already says so. */}
+                {kind === "bodytube" ? (
+                  <>
+                    Choosing one sets this design&apos;s body diameter and length; the airframe is
+                    scaled to the caliber you pick so the mould line stays faired.{" "}
+                    <span className="text-zinc-600 dark:text-zinc-300">
+                      Choosing one also takes the vendor&apos;s wall and stock, so the mass moves with
+                      it — and where they publish a weight of their own, that is the one flown rather
+                      than a figure computed from the geometry.
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    Choosing one sets this design&apos;s nose length, contour, base diameter,
+                    shoulder, wall and stock — the whole part as the vendor publishes it, and where
+                    they publish a weight that is the one flown.{" "}
+                    <span className="text-zinc-600 dark:text-zinc-300">
+                      The airframe behind it is left alone. A cone whose base does not match the tube
+                      it sits on leaves a step in the mould line, and the flight says so rather than
+                      the design being quietly resized around the part.
+                    </span>
+                  </>
+                )}
               </p>
 
               <div className="mt-3 max-h-96 overflow-y-auto">
@@ -417,11 +584,14 @@ export default function PartPicker({
                     `${p.manufacturer}/${p.partNumber}/${p.outerDiameter ?? ""}/${p.length ?? ""}`
                   }
                   initialSort={{ key: "od", dir: 1 }}
-                  minWidth="34rem"
+                  // A nose row states three more figures than a tube row — contour, shoulder and
+                  // wall — and squeezing them into the tube width collapses the shoulder pair onto
+                  // two lines on every row. The table scrolls inside its own container either way.
+                  minWidth={kind === "nosecone" ? "46rem" : "34rem"}
                   empty={
                     <p>
-                      No catalogued body tube matches that. Clear the search, or turn off the caliber
-                      filter to see tubes of every diameter.
+                      No catalogued {copy.noun} matches that. Clear the search, or turn off the
+                      caliber filter to see {copy.fitsNoun} of every diameter.
                     </p>
                   }
                 />
