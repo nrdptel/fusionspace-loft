@@ -162,14 +162,21 @@ is the failure mode that teaches a session to re-run until green; give it an exp
 
 ### Where the work is, and what production is serving
 
-**Seven commits, all on the working branch, all in PR #111 against `main`. NOTHING reached
-production this run.** Measured rather than assumed: all ten routes on `loft.fusionspace.co` answer
-200, and none of them carries this run's text (`Arrival speed`, `8.3%`, `this fin set reaches` all
-return 0 hits), while the local built export of `ddbed12` carries all of them. Production is still
-serving `e97770a`. **Merging PR #111 is what makes any of this reachable by a flyer**, and CI on the
-first six commits went green on both jobs — including the `frontend` job, which is the one that
-fetches the real corpus and runs the accuracy census, so the raised 8.3% figure is validated
-upstream and not just locally.
+**All nine commits are MERGED and LIVE.** PR #111 merged as `96fcd9f` with both CI jobs green —
+including the `frontend` job, which is the one that fetches the real corpus and runs the accuracy
+census, so the raised 8.3% figure is validated upstream and not only locally. The deploy landed
+about 80 seconds later.
+
+Verified against production rather than assumed, after the deploy: all ten routes on
+`loft.fusionspace.co` answer 200, `/docs/validation` serves the **8.3%** figure and the paragraph
+explaining why it rose, and `/docs/methods` serves all three of this run's new passages — the two
+landing speeds, the stage-attachment window, and the landed-only dispersion band. Before the merge
+the same probes returned 0 on every one of them, which is what makes this a measurement of the
+deploy rather than a hope about it.
+
+**The working branch was restarted from the merged `main` afterwards**, per the harness rule that a
+merged pull request is finished and cannot track new work. Anything after `96fcd9f` is a fresh
+change on the same branch name and needs its own pull request.
 
 ### The measurement that is now owed to `DESIGN.md`
 
