@@ -58,7 +58,13 @@ for (const [label, size] of [
   ["phone", PHONE],
 ] as const) {
   test.describe(`a stranger's first screen — ${label}`, () => {
-    test.use({ viewport: size });
+    // `hasTouch` on the phone, and it is not cosmetic — the same false pass `depth.spec.ts` records.
+    // A phone-sized viewport over the default desktop context reports `pointer: fine`, so every
+    // `TOUCH_TARGET` control renders 26 px instead of 44 and the chrome above the fold comes out
+    // ~97 px SHORT, in the direction that makes an above-the-fold assertion pass. This file's whole
+    // subject is what a stranger sees without scrolling on a phone, so it was the one spec that
+    // could least afford to measure the wrong pointer.
+    test.use({ viewport: size, hasTouch: size === PHONE, isMobile: size === PHONE });
 
     test("says what the tool DOES before asking for a file", async ({ page }) => {
       await coldLoad(page);

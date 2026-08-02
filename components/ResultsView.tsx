@@ -1457,6 +1457,15 @@ function Field({
             {hint}
           </abbr>
         )}
+        {/* NOT written out on a coarse pointer, and the reason is a measurement rather than a
+            preference. `Field` renders inside the design-summary strip, which is the shared chrome
+            every workspace route sits under — so a permanent reasoning line here is paid for on all
+            four routes at once, and it took the phone chrome past the 1060 px ratchet and `/sweep`
+            back over the two screens §8 allows. Both halves of §8 are contracts, so the answer is
+            not to spend one on the other: the flag's reasoning is already written in full, in
+            words, by `StabilityTrimHint` and `FlutterFixHint` below the fold, which render exactly
+            when a flag is raised. The `title` is a pointer-only convenience on top of that, not the
+            only route to it. */}
         {sub && <div className="text-xs tabular-nums text-zinc-500 dark:text-zinc-400">{sub}</div>}
       </dd>
     </div>
@@ -1513,6 +1522,14 @@ function Stat({
             >
               extrapolated
             </abbr>
+          )}
+          {/* The reason and the range it left, written out where there is no hover to reveal them.
+              `DESIGN.md` §5 defines the `Extrapolated` treatment as "the warn treatment plus the
+              reason and the range it left" — on a phone the marker was arriving without either. */}
+          {extrapolated && (
+            <div className="hidden text-xs font-sans font-normal text-zinc-600 pointer-coarse:block dark:text-zinc-400">
+              {extrapolated}
+            </div>
           )}
         </div>
       )}

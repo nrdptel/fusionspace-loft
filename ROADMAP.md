@@ -1976,7 +1976,18 @@ rather than rewriting them.
 
 ## P3 — A stranger's first five minutes
 
-**Status: IN PROGRESS** — increments 1–3 of 3–4 shipped 2026-08-02. All four *done when* clauses are pinned; what remains is strength, not coverage.
+**Status: SHIPPED 2026-08-02** — pinned by `e2e/first-run.spec.ts`, seven cases from a cold load with
+empty storage, covering all four *done when* clauses.
+
+**Closed on a corrected measurement, which is the part worth keeping.** The spec's phone context was
+`test.use({ viewport: size })` with no `hasTouch`, so it reported `pointer: fine` and rendered every
+`TOUCH_TARGET` control at 26 px instead of 44 — understating the chrome above the fold by about
+97 px, in the direction that makes an above-the-fold assertion pass. This is the same false pass
+`depth.spec.ts` records, in the one spec whose entire subject is what a stranger sees without
+scrolling on a phone. `hasTouch` and `isMobile` are now set, and **all seven cases still pass on a
+real coarse pointer** — so the clauses were genuinely met and the instrument was wrong, rather than
+the other way round. A milestone marked shipped on a fine-pointer measurement would have been the
+second time that happened here.
 
 *Increment 1 — the walkthrough the milestone asks for, and the three things it found.* `e2e/first-run.spec.ts`
 starts where every other spec does not: a cold browser, empty storage, no file. `addInitScript` clears
@@ -2061,7 +2072,47 @@ sibling app's 27 KB — the front door is thin in both senses.
 
 ## P4 — A touch-native builder
 
-**Status:** NOT STARTED
+**Status: IN PROGRESS** — increment 1 of 4–6 shipped 2026-08-02, along with the decomposition.
+
+*Increment 1 — SHIPPED. The other half of §8's contract, which nothing had ever measured.*
+
+`DESIGN.md` §8 states the check as two numbers: "at a 390 px viewport, count controls under 44 px
+and states unreachable without hover. **Both counts are zero** or the surface is not done." The hit
+targets have been asserted for several runs. **The hover count had never been taken.** Taken now, on
+a phone with a design loaded, it was **75**.
+
+`e2e/touch.spec.ts` asserts it as an EXACT ratchet, the way §9's counts work — an improvement fails
+just as a regression does, so the number in the spec and the number in reality cannot drift apart.
+It prints which states it found, because a bare integer would send the next session back to writing
+the probe again.
+
+Three things the measurement taught, all of them recorded rather than smoothed over:
+
+- **The first version of the count raced hydration** — 60 on one run and 71 on the next against an
+  identical build. An exact ratchet that is racy is worse than no check, because it fails for timing
+  and teaches a session to re-run until green. It now waits for the route to render, and is stable.
+- **"Has a `title`" is not the same as "unreachable".** A tooltip whose words are also rendered
+  nearby costs a touch user nothing, so the check compares the title against the surrounding block's
+  visible text. Without that it would have punished the fix for the defect it exists to find.
+- **The two halves of §8 can be spent against each other, and must not be.** Writing the stability
+  flag's reasoning into the design summary on a coarse pointer took the phone chrome past the
+  1060 px ratchet and `/sweep` back over two screens — because that strip is the shared chrome all
+  four routes sit under. Reverted, and the reasoning is instead already written in full by
+  `StabilityTrimHint`/`FlutterFixHint` below the fold, which render exactly when a flag is raised.
+  **Decision recorded:** a `title` is acceptable as a pointer-only convenience where the same
+  information is written in words elsewhere on the surface; it is not acceptable as the only route.
+
+Fixed here, taking 75 → **67**: the extrapolated marker's reason and range now render as visible
+text on a coarse pointer (`DESIGN.md` §5 defines that treatment as *the warn treatment plus the
+reason and the range it left*, and on a phone it was arriving with neither); and `DataTable`'s
+per-column `title="Sort by mass"` on a button already reading "Mass" is deleted — a tooltip that
+restates its own label is a named tell, and the `aria-label` already carried the verb for assistive
+tech on every form factor.
+
+*Increment 2 — NEXT.* Drive the 67 down. The bulk is shared chrome, so it is a small number of
+surfaces: the footer and badge `opacity-0 group-hover:opacity-100` external-link arrows are simply
+INVISIBLE on touch, so a flyer cannot tell those links leave the site at all; the theme toggle's
+`title` carries its current state; and `Undo`/`Redo` explain *why* they are disabled only on hover.
 
 **Outcome.** A phone at the pad is a first-class tool, not a rescaled desktop.
 
