@@ -195,27 +195,41 @@ copy. Both now carry that sentence.
 
 ### Where the work is, and what to pick up first
 
-**Four increments, all on `claude/ultracode-maintenance-1wbrx5`, all in pull request #113.**
+**Six increments, all MERGED and LIVE.** Three pull requests, each green on both CI jobs before
+merging, each deploy verified against production rather than assumed — the docs probes returned 0
+before a merge and 1 after, and all ten routes answer 200.
 
-| SHA | what |
+| merge | what |
 |---|---|
-| `4ba6dd9` | R8 inc 3 — the parts picker; the catalogue reaches the app |
-| `bdff258` | the Sev-1 — drift and the recovery radius filtered to landed flights |
-| `9cef2b6` | P4 inc 2 — hover-only states 67 → 25 |
-| `07519af` | R8 inc 4 — the vendor's wall, stock and published weight |
+| `dd92ae0` (#113) | R8-3 the parts picker · the Sev-1 · P4-2 the phone chrome · R8-4 the vendor's wall, stock and weight |
+| `529e84d` (#114) | P4-3 the app chrome's tooltips, 25 → 1 |
+| `bc5b183` (#115) | the two `DESIGN.md` copies converged, and the drift the weaker greps hid |
+
+**The sibling repo has one commit waiting**: `nrdptel/fusionspace-debrief`, branch
+`claude/ultracode-maintenance-1wbrx5`, the companion `DESIGN.md` note. It is pushed and needs a pull
+request opened and merged — **that is the one thing this run left for the owner**, and it is one
+click. Under SHIPPED-MEANS-REACHABLE it counts as pending, not shipped.
+
+**A note on branch mechanics that cost time twice.** `main` here is SQUASH-merged, so after a merge
+the working branch's commits no longer exist on `main` by SHA and the next pull request opens
+`dirty`. The fix each time is `git checkout -B <branch> origin/main` and cherry-pick or re-apply —
+which is exactly what the harness rule says, and worth doing IMMEDIATELY after every merge rather
+than at the next push.
 
 **Pick up first, in this order:**
 
-1. **P4 increment 3 — the remaining 25 hover-only states, and it needs a DESIGN idea rather than more
-   deletions.** All 25 are on the app chrome above the workspace spine (Undo/Redo's disabled reason,
-   the design-name field, Download .ork, the motor-match badge, the stability `<abbr>`), so writing
-   any of them visibly spends the phone chrome ratchet (1060 px, measured 1011 → 49 px of headroom)
-   and the two-screen depth cap at once. Somewhere to PUT the words is the increment.
+1. **P4 increment 4 — reach the selection-gated surface.** Ten of `GeometryInspector`'s eleven gesture
+   tooltips render only once a part is SELECTED, the walk never selects one, and they are still
+   hover-only. The count of 1 is honest but narrow. The correct fix per control is
+   `<visible label> — <description>` (never a bare description, which renames the control), one at a
+   time with its spec — filed in `BACKLOG.md` with both failed ways of reaching them.
 2. **R8 increment 5 — the other four kinds.** Nose cone, coupler, centring ring and parachute cannot
-   be authored by `AddedPart` at all today, so "any of five kinds" is four new build paths, not one.
-   The parachute is hardest: the model requires `cd`, the catalogue has no such field, and only 21 of
-   151 canopies state a mass.
-3. **Reconcile the two `DESIGN.md` copies — now possible for the first time in six runs.** See below.
+   be authored by `AddedPart` at all today, so "any of five kinds" is four new build paths. The
+   parachute is hardest: the model requires `cd`, the catalogue has no such field, and only 21 of 151
+   canopies state a mass.
+3. **The three walks P4's *done when* actually names** — pick a motor, check stability, sanity-check a
+   delay, one-handed and offline. Nothing has walked them. The hit-target and hover counts are the
+   finish; those journeys are the substance.
 
 ### What the pre-push reviews caught that the whole gate could not
 
