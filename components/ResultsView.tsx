@@ -1030,6 +1030,7 @@ function RocketSummary({
   const r = run.result;
   const length = overallLength(rocket);
   const dia = r.stability.refRadius * 2;
+  const [detailOpen, setDetailOpen] = useState(false);
   return (
     <Card as="section">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -1065,12 +1066,37 @@ function RocketSummary({
         ))}
       </div>
 
+      {/* THE HEADLINE THREE, visible on every viewport.
+          This strip is the chrome every workspace route sits under, so its height is a term in all
+          four routes' depth — measured at 1,071 px on a 390 px phone, of which this summary was 508,
+          i.e. 1.61 of the two screens `DESIGN.md` §8 allows BEFORE any workspace renders a pixel.
+          `/sweep` is the route with no room left, at 2.10 screens.
+          Which three stay is not a layout preference: static margin is what a flyer reads for a
+          go/no-go, liftoff mass is what they check against the motor's minimum and their waiver, and
+          apogee is the number two e2e cases exist to prove updates live while editing on `/design`.
+          The rest are reference figures a flyer looks up rather than watches. */}
       <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-4">
         {/* Apogee leads the strip so a design edit's headline flight effect is visible from any
             workspace — the editors live on Design, but this summary sits above the tabs. Only with
             propulsion: a design whose motor didn't resolve has no meaningful apogee. */}
         {run.hasPropulsion && <Field term="Apogee" value={d.q(d.altitude(r.summary.apogee, units))} />}
         <Field term="Liftoff mass" value={d.q(d.mass(r.liftoffMass, units))} />
+      </dl>
+
+      {/* THE REFERENCE FIGURES. Shown outright from `sm:` up — a desktop has the width, and the
+          two-screen contract is a phone one — and folded behind a control below it. Not a
+          `Disclosure`: that primitive takes a static `open`, and a native `<details>` cannot be
+          talked out of hiding its content by a media query, so a viewport-driven fold cannot be
+          expressed with it. The control is a `Button`, so nothing here is a hand-rolled treatment.
+          Both states come from one server-rendered tree, so the desktop layout waits on no client
+          decision and nothing shifts after hydration. */}
+      <dl
+        id="rocket-summary-detail"
+        className={cx(
+          "mt-2 grid-cols-2 gap-x-4 gap-y-2 text-sm sm:mt-2 sm:grid sm:grid-cols-4",
+          detailOpen ? "grid" : "hidden",
+        )}
+      >
         <Field term="Burnout mass" value={d.q(d.mass(r.burnoutMass, units))} />
         <Field term="Length" value={d.q(d.lengthMm(length, units))} />
         <Field term="Max diameter" value={d.q(d.lengthMm(dia, units))} />
@@ -1100,6 +1126,23 @@ function RocketSummary({
         )}
       </dl>
 
+      {/* Only on a phone: from `sm:` up the figures above are already showing. */}
+      <Button
+        variant="ghost"
+        size="sm"
+        className="mt-2 sm:hidden"
+        aria-expanded={detailOpen}
+        aria-controls="rocket-summary-detail"
+        onClick={() => setDetailOpen((v) => !v)}
+      >
+        {detailOpen ? "Hide" : "Show"} mass, length and balance
+      </Button>
+
+      {/* Deliberately OUTSIDE the fold, on every viewport. Both render only when there is something
+          wrong to say — a margin outside 1-3 cal, a thin flutter margin — and both are the only
+          place the reasoning behind that flag is spelled out. A safety-relevant sentence a flyer has
+          to go looking for is the "reachable only by knowing it is there" failure, and folding them
+          would save nothing on the healthy designs the depth measurement is taken on anyway. */}
       <StabilityTrimHint run={run} rocket={rocket} units={units} />
       <FlutterFixHint run={run} doc={doc} units={units} geometry={geometry} />
     </Card>

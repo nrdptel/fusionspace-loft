@@ -40,7 +40,7 @@ what-if is set) is filed with its numbers rather than left in anyone's head.
 | R5 — author a staged rocket | SHIPPED 2026-08-01 |
 | R6 — a built design leaves Loft intact | SHIPPED 2026-08-02 |
 | P1 — one design system, adopted | SHIPPED 2026-08-02 |
-| **P2 — workspaces as routes** | **IN PROGRESS** — increments 1–4 of 4–6 shipped; 1–2 on 2026-08-01, 3–4 on 2026-08-01 (second run). Remaining: the persistent design strip |
+| P2 — workspaces as routes | SHIPPED 2026-08-02 — all five *done when* clauses met and pinned; the phone chrome went 1071 → 914 px and `/sweep` came inside two screens |
 | **R7 — per-set fin drag, and the honest aero the builder needs** | **IN PROGRESS** — increments 1–5 of 3–5 shipped. Increment 4 FOUND the under-drag increment 3 sent it looking for (a bare mould-line step) and deliberately did not charge it, for a sourced reason; increment 5 was a Sev-1 on the same surface |
 | P3–P5 | NOT STARTED |
 
@@ -76,6 +76,24 @@ Census identical to the tenth on all ten metrics — this changed nothing that w
 diverging. Pinned by a corpus assertion flying all 35 designs at 0.1/2/5/10× (124 flights), driven as
 a negative control: with the old step selection restored it names all three divergences and their
 exact figures.
+
+### P2 increment 5 — the chrome fix, and P2 is done
+
+The design summary above the workspace spine cost a 390 px phone **508 px** of the 1071 px of shared
+chrome every route sits under. Three headline fields stay (apogee, liftoff mass, static margin); the
+other seven fold behind a phone-only `Button`, shown outright from `sm:` up. `StabilityTrimHint` and
+`FlutterFixHint` stay OUTSIDE the fold — they render only when something is wrong and are the only
+place the reasoning behind that flag is written.
+
+**Phone chrome 1071 → 914 px, identical on all four routes. Desktop unchanged at 773 px** — the split
+grid cost 8 px there at first and that was restored before anything shipped. `/sweep`'s 2.10-screen
+breach is closed, its `test.fail` marker deleted as its own comment asked, and the phone ratchet
+tightened 1120 → 960. §9's counts are unmoved (the control is the `Button` primitive, so the
+hand-rolled-`<button>` count stays at 3).
+
+**The design strip is NOT done and is deliberately out of P2.** It costs a phone another 130–160 px,
+which puts the chrome back over the ratchet just tightened and `/sweep` back over two screens. It is
+the P-track's next opening measurement, not a rider on this.
 
 ### R7 increment 4 — the under-drag is a bare mould-line step, and it is NOT charged
 

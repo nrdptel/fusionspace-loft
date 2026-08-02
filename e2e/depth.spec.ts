@@ -113,19 +113,18 @@ for (const size of [DESKTOP, PHONE]) {
     });
 
     test("the sweep's answer, not just the button that asks for it, is within two screens", async ({ page }) => {
-      // KNOWN BREACH on the phone, pinned rather than described. Measured 2026-08-01 at 390x664: the
-      // first swept-motor row lands at 1393 px = 2.10 screens. The cause is not this panel — it is
-      // the 1071 px of shared chrome above the workspace spine (header 73, toolbar 68, restore
-      // banner 112, collapsed Conditions 44, design summary 508, warnings 74), which is 1.61 screens
-      // before any workspace renders a pixel. Every route pays it; /sweep is simply the one whose
-      // own content does not fit in the 0.39 screens left. Tightening this panel's copy cannot close
-      // it — the whole paragraph is 140 px and the gap is 65.
+      // WAS a known breach on the phone, pinned with `test.fail` rather than described: measured
+      // 2026-08-01 at 390x664 the first swept-motor row landed at 1393 px = 2.10 screens, against a
+      // gap of 65 px. The cause was never this panel — it was the 1071 px of shared chrome above the
+      // workspace spine (header 73, toolbar 68, restore banner 112, collapsed Conditions 44, design
+      // summary 508, warnings 74), 1.61 screens before any workspace rendered a pixel.
       //
-      // `test.fail` and not a skip, a widened threshold or a deleted assert: the test still RUNS and
-      // still measures, the suite stays green on a breach that predates this check, and the moment
-      // the summary strip stops costing a phone 508 px this goes red and tells the next session to
-      // delete the marker. A threshold moved to 2.2 screens would have said nothing, ever.
-      if (size === PHONE) test.fail();
+      // CLOSED 2026-08-02 by folding the design summary's reference figures behind a phone-only
+      // control, which took the shared chrome to 914 px — identical on all four routes, so every one
+      // of them got the 157 px back, not just this one. The marker is deleted rather than left
+      // passing-as-failing, which is what the comment it replaces asked the next session to do.
+      // Desktop is unchanged at 773 px, re-measured after the fold to make sure the split grid did
+      // not cost width what it saved in height.
       await loadSample(page);
       await goWorkspace(page, "/sweep");
       const run = page.getByRole("button", { name: /Run motor sweep/ });
@@ -150,16 +149,18 @@ test.describe("the shared chrome every route's depth is built on", () => {
   // fires them, loose enough that a font-metric difference does not.
   for (const [size, cap] of [
     [DESKTOP, 820],
-    [PHONE, 1120],
+    [PHONE, 960],
   ] as const) {
     const label = size === DESKTOP ? "desktop" : "phone";
     test(`${label}: the workspace spine stays within ${cap}px of the top`, async ({ page }) => {
       await page.setViewportSize(size);
       await loadSample(page);
       // Measured on every route rather than one. It comes out identical on all four — 773 px
-      // desktop, 1071 px phone, measured 2026-08-01 — which is the point: this is ONE term that
-      // every route's depth is built on, so the check should fail on whichever route grows it
-      // first rather than trusting that they stay in step.
+      // desktop, 914 px phone, re-measured 2026-08-02 after the design summary's reference figures
+      // were folded behind a phone-only control (the phone term was 1071 px before that, and the
+      // cap 1120). This is ONE term every route's depth is built on, so the check should fail on
+      // whichever route grows it first rather than trusting that they stay in step. The phone cap
+      // came down with the measurement: a ratchet left at its old value has stopped ratcheting.
       const deepest: string[] = [];
       for (const route of ["/flight", "/design", "/sweep", "/validate"]) {
         await goWorkspace(page, route);

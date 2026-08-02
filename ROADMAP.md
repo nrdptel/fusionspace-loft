@@ -1638,7 +1638,7 @@ radius values for one role; `text-xs` and `text-sm` disagreeing between the two 
 
 ## P2 — Workspaces as routes
 
-**Status: IN PROGRESS** — increments 1 and 2 of 4–6 shipped 2026-08-02.
+**Status: DONE — 2026-08-02.** All five *done when* clauses are met and each is pinned by a check that goes red if it regresses. Increments 1–5 of 4–6.
 
 *Increment 1.* Flight, Design and Analyze became three real static routes behind one navigation
 spine, replacing the URL fragment and the `Tabs` tablist. Pinned by `e2e/smoke.spec.ts`'s *each
@@ -1689,9 +1689,35 @@ designs over one model, so collapsing the 508 px summary to a disclosure on a co
 pattern Conditions already uses at 44 px — is the obvious fix and returns ~460 px to all four routes
 at once. Filed in `BACKLOG.md` with the breakdown.
 
-**Not done:** the design drawing is still reachable only from `/design` (`COMPETITION.md` row 31).
-**Sequence it after the chrome fix, not before** — the strip costs a phone another 130–160 px, which
-is more than `/sweep` has left, so shipping it first puts a second route over the line.
+*Increment 5 — the chrome fix, and the last open clause closes.* The design summary's ten-field strip
+sat above the workspace spine on all four routes and cost a 390 px phone **508 px**. Its three
+headline fields — apogee, liftoff mass, static margin — now stay visible on every viewport and the
+other seven fold behind a phone-only control, shown outright from `sm:` up. Which three stay is not a
+layout preference: static margin is the go/no-go read, liftoff mass is what a flyer checks against
+the motor's minimum and their waiver, and apogee is the number two e2e cases exist to prove updates
+live while editing on `/design`. `StabilityTrimHint` and `FlutterFixHint` are deliberately OUTSIDE
+the fold — they render only when something is wrong and they are the only place the reasoning behind
+that flag is written, so folding them would be the "reachable only by knowing it is there" failure.
+
+**Measured, on every route:** shared chrome above the spine **1071 → 914 px** on a phone, identical
+on all four, so every route got the 157 px back rather than just the one that needed it. Desktop is
+**unchanged at 773 px** — the split grid first cost 8 px there and the rhythm was restored before
+anything shipped, because a P-track increment that trades one form factor for the other has not
+done its job. `/sweep`, the one real breach at 2.10 screens, is now inside two. The `test.fail`
+marker that pinned it is **deleted**, which is exactly what its own comment asked the next session to
+do; the phone ratchet came down 1120 → 960 with the measurement, because a ratchet left at its old
+value has stopped ratcheting.
+
+Not a `Disclosure`: that primitive takes a static `open`, and a native `<details>` cannot be talked
+out of hiding its content by a media query, so a viewport-driven fold cannot be expressed with it.
+The control is a `Button`, so §9's hand-rolled-`<button>` count is unmoved at 3.
+
+**Not done, and deliberately not in this milestone:** the design drawing is still reachable only from
+`/design` (`COMPETITION.md` row 31). The strip costs a phone another 130–160 px, which would take the
+chrome to ~1050–1075 and put it straight back over the 960 ratchet and `/sweep` back over two
+screens. It needs its own budget and its own increment — folding it into P2 would mean re-breaching
+the contract this milestone just closed. Carried to the P-track's next milestone as its opening
+measurement.
 
 **Outcome.** Loft is shaped like an application, not a scrolling page.
 
