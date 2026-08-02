@@ -207,9 +207,10 @@ copy. Both now carry that sentence.
 
 ### Where the work is, and what to pick up first
 
-**Eight increments, all MERGED and LIVE.** Each shipped through a pull request green on both CI jobs
-before merging, each deploy verified against production rather than assumed — the docs probes
-returned 0 before a merge and 1 after, and all ten routes answer 200.
+**Eight increments, all MERGED and LIVE**, across both repos. Each shipped through a pull request
+green on both CI jobs before merging, each deploy verified against production rather than assumed —
+the live probe returned 0 before a merge and 1 after, and all ten routes answer 200. The last one
+was checked with `"Pick a real nose cone"`, 0 chunks before and 1 after.
 
 | merge | what |
 |---|---|
@@ -217,7 +218,9 @@ returned 0 before a merge and 1 after, and all ten routes answer 200.
 | `529e84d` (#114) | P4-3 the app chrome's tooltips, 25 → 1 |
 | `bc5b183` (#115) | the two `DESIGN.md` copies converged, and the drift the weaker greps hid |
 | `8c33186` (#117) | P4-4 the builder's eleven gesture controls, 1 → 0 |
-| `#118` | R8-5 the second kind — 854 nose cones, and the step a mismatched base leaves |
+| `3fa86aa` (#118) | R8-5 the second kind — 854 nose cones, the Sev-1 in the mass it replaces, and the step a mismatched base leaves |
+
+And on the sibling: `nrdptel/fusionspace-debrief` `07198a0` (#95), the companion `DESIGN.md` note.
 
 A pull request that carries only THIS file is a correction to the record, not an increment, so it is
 counted in neither the total above nor the table (#116 was the first of them). **Write the count that
@@ -244,10 +247,16 @@ filtering its presets to what fits; the measurement that says Loft's answer is a
 than a rationalisation is that **0 of 854 cones** sit within 0.5 mm of a 38.0 mm airframe, so that
 filter would show a metric builder an empty list too.
 
-**The sibling repo has one commit waiting**: `nrdptel/fusionspace-debrief`, branch
-`claude/ultracode-maintenance-1wbrx5`, the companion `DESIGN.md` note. It is pushed and needs a pull
-request opened and merged — **that is the one thing this run left for the owner**, and it is one
-click. Under SHIPPED-MEANS-REACHABLE it counts as pending, not shipped.
+**The sibling repo is CLOSED OUT, and `DESIGN.md` §10's invariant holds for the first time.**
+`nrdptel/fusionspace-debrief` #95 is merged (`07198a0`), so the companion note shipped rather than
+being left for the owner. Verified from both checkouts after both merges: `md5sum` of `DESIGN.md` is
+`e9d28c1a92974b17fbdb83edee7723c7` on each, and `diff` is silent. **This run leaves the owner
+nothing.**
+
+The thing to carry forward is HOW that was reachable at all: the divergence is invisible from inside
+one repo, because each copy looks internally consistent. It took a session with BOTH attached. So the
+standing instruction stays — whichever session next has both, `diff` them before trusting either, and
+`add_repo` the sibling early rather than at the end.
 
 **A note on branch mechanics that cost time twice.** `main` here is SQUASH-merged, so after a merge
 the working branch's commits no longer exist on `main` by SHA and the next pull request opens
