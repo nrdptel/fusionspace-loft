@@ -726,13 +726,28 @@ export default function ResultsView({
       {/* DESIGN — the rocket itself: its shape (editable on the diagram) and where its mass sits. */}
       <div role="region" id="panel-design" aria-label="Design workspace" hidden={tab !== "design"} className="space-y-8">
         {/* The parsed component tree with each part's dimensions and station — import verification.
-            The diagram marks the loaded CG and CP so the stability picture reads off the airframe. */}
+            The diagram marks the loaded CG and CP so the stability picture reads off the airframe.
+
+            **The CG and the margin are withheld when a motor is missing, and this is the call site
+            that decides it.** `GeometryInspector` takes them as plain optional numbers, so there is
+            nowhere in its contract to say the motor is absent — which is precisely how the diagram
+            came to draw a "CG" mark at the DRY station, caption it with the unloaded margin, and
+            assert that margin in the SVG's own `aria-label` (the one a screen reader speaks, and the
+            one that travels with a copied graphic) while the same screen's summary strip withheld
+            it. Passing `undefined` retires all three together, because each is already gated on the
+            value being present. `shownMotors` was ALREADY gated on `hasPropulsion` here, so the
+            picture drew an empty motor tube beside a CG that assumed a motor was in it. */}
         <GeometryInspector
           rocket={shownRocket}
           units={units}
-          cg={run.result.cgLoaded}
+          cg={run.motorsComplete ? run.result.cgLoaded : undefined}
           cp={run.result.stability.cp}
-          marginCal={run.result.staticMarginCal}
+          marginCal={run.motorsComplete ? run.result.staticMarginCal : undefined}
+          cgWithheldReason={
+            run.motorsComplete
+              ? undefined
+              : "The centre of gravity and the static margin are not marked: a motor in this configuration could not be matched to a thrust curve, so it is left out of the build entirely and the balance would be drawn without its mass. Match the motor, or swap in a substitute, and both come back — including the live margin readout while you drag."
+          }
           edited={editing}
           motors={shownMotors}
           onEdit={onEditGeometry}
@@ -969,7 +984,11 @@ export default function ResultsView({
           so offer it only for single-stage designs that actually have propulsion.
           Key on the design + configuration + active what-if so any change (config switch, ballast,
           motor swap) remounts the panel to idle instead of leaving a stale RocketPy result on screen. */}
-      {!staged && run.hasPropulsion && (
+      {/* `motorsComplete`, not `hasPropulsion`: this panel runs its own `runFlight` and puts
+          `staticMarginCal` in a comparison row against RocketPy's, so on a partial cluster it would
+          republish the very margin the summary strip above it withholds — and label the disagreement
+          with RocketPy as an accuracy gap when the real cause is a motor Loft could not find. */}
+      {!staged && run.motorsComplete && (
         <RocketpyCrossCheck
           designKey={dkey}
           doc={doc}
@@ -1064,11 +1083,26 @@ function NoPropulsionNotice({
         </Link>
         . Check the designation
         {!canSubstitute && canPickConfig ? ", or pick a configuration whose motor is in the set" : ""}. The rocket
-        geometry and stability below are computed independently and remain valid.
+        geometry below — lengths, diameters, and the dry mass — is computed independently and remains
+        valid. <strong>Stability is not:</strong> an unmatched motor is left out of the build
+        entirely rather than carried as dead weight, so the centre of gravity sits forward of where
+        it would fly and the static margin is withheld rather than reported over-stable.
       </p>
     </Card>
   );
 }
+
+/** Why the loaded figures are withheld, in the few words a `Field`'s sub-line has room for.
+ *
+ *  There are TWO states behind `!motorsComplete` and they need different words. When nothing
+ *  resolved, `NoPropulsionNotice` renders above the strip and explains at length, so this only has
+ *  to name the cause. When SOME motors resolved — a cluster with one missing — that notice does not
+ *  render at all, so this sub-line is the only thing on the surface saying why a number vanished.
+ *  A single string would have been wrong in one of the two, and silent in the one with no notice. */
+const MOTOR_GAP_SHORT = (run: FlightRun): string =>
+  run.hasPropulsion
+    ? "a motor in this configuration could not be matched, so its mass is missing from the build"
+    : "needs a motor: without one the CG sits forward of where it flies";
 
 /** Where the design fields are, named once. Every design reaches the Design workspace now — a
  *  design with no flight included — so advice can point at one place instead of guessing which
@@ -1175,19 +1209,55 @@ function RocketSummary({
             workspace — the editors live on Design, but this summary sits above the tabs. Only with
             propulsion: a design whose motor didn't resolve has no meaningful apogee. */}
         {run.hasPropulsion && <Field term="Apogee" value={d.q(d.altitude(r.summary.apogee, units))} />}
-        <Field term="Liftoff mass" value={d.q(d.mass(r.liftoffMass, units))} />
-        <Field
-          term="Static margin"
-          value={d.q(d.calibers(r.staticMarginCal))}
-          hint={r.staticMarginCal < 1 ? "low" : r.staticMarginCal > 3 ? "high" : undefined}
-          hintWhy={
-            r.staticMarginCal < 1
-              ? "under 1 caliber: the centre of pressure is close enough to the centre of gravity that the rocket may not hold a straight course off the rail"
-              : r.staticMarginCal > 3
-                ? "over 3 calibers: strongly over-stable, so the rocket weathercocks hard into wind and loses altitude and downrange predictability"
-                : undefined
-          }
-        />
+        {/* **The motor is not "dead mass" when it fails to resolve — it is ABSENT.** `lib/sim/setup.ts`
+            skips an unmatched instance entirely, so it contributes neither mass nor CG, and the two
+            figures below are then measuring a rocket with nothing in the tube. Apogee has always been
+            guarded; these two were not, and they are the pair a flyer reads for a go/no-go.
+
+            Measured on `demo-single-deploy.ork` with its motor made unresolvable: liftoff mass
+            0.8018 → 0.6002 kg (which is exactly the dry mass), static margin 4.065 → 5.921 cal —
+            +46%, and MORE stable than the truth, which is the reassuring direction. The old strip
+            published both under their loaded labels, and the notice directly above said the
+            stability "remains valid".
+
+            **Both are gated on `motorsComplete`, NOT on `hasPropulsion`, and the difference is a
+            whole state.** `hasPropulsion` is `some(match)`: a cluster of four with one motor missing
+            satisfies it. Gating here on that while the Design panel and the folded pair below gate
+            on `motorsComplete` would put the published margin and the withheld CG it is computed
+            from on the same card — one caveated, its neighbour stated with a `high` verdict on it.
+
+            **The mass is withheld too, rather than relabelled, and the first draft got that wrong.**
+            "Dry mass" is only right in the state where NOTHING resolved. On a partial cluster
+            `liftoffMass` is the dry mass plus whichever motors happened to be found — a wrong number
+            under a right label, which is worse than the single-motor case this was reasoned about.
+            And `liftoffMass` is `massAt(0)`, which also carries the flyer's what-if nose ballast, so
+            "Dry mass" disagreed with the two surfaces that publish the real dry figure
+            (`MassBreakdown` and the parts panel) the moment any ballast was set. One withheld cell
+            with a true reason beats a label that is right in one of three states. */}
+        {run.motorsComplete ? (
+          <Field term="Liftoff mass" value={d.q(d.mass(r.liftoffMass, units))} />
+        ) : (
+          <Field term="Liftoff mass" value="—" sub={MOTOR_GAP_SHORT(run)} />
+        )}
+        {run.motorsComplete ? (
+          <Field
+            term="Static margin"
+            value={d.q(d.calibers(r.staticMarginCal))}
+            hint={r.staticMarginCal < 1 ? "low" : r.staticMarginCal > 3 ? "high" : undefined}
+            hintWhy={
+              r.staticMarginCal < 1
+                ? "under 1 caliber: the centre of pressure is close enough to the centre of gravity that the rocket may not hold a straight course off the rail"
+                : r.staticMarginCal > 3
+                  ? "over 3 calibers: strongly over-stable, so the rocket weathercocks hard into wind and loses altitude and downrange predictability"
+                  : undefined
+            }
+          />
+        ) : (
+          // Withheld rather than blank, with the reason ON the cell. It cannot lean on the notice
+          // above — that renders only when NOTHING resolved, so on a partial cluster there would be
+          // no sentence anywhere. `MOTOR_GAP_SHORT` says which of the two states this is.
+          <Field term="Static margin" value="—" sub={MOTOR_GAP_SHORT(run)} />
+        )}
 
       </dl>
 
@@ -1216,10 +1286,32 @@ function RocketSummary({
           detailOpen ? "grid" : "hidden",
         )}
       >
-        <Field term="Burnout mass" value={d.q(d.mass(r.burnoutMass, units))} />
+        {/* Both of these are the same defect as the margin above, one fold deeper — and the fold is
+            not a guard: `sm:grid` opens it on every desktop width, and the print stylesheet restyles
+            the live DOM, so an ungated cell here reaches the range card handed to an RSO.
+
+            "Burnout mass" is withheld rather than relabelled because there is no burn to be after:
+            with no motor placed the burnout time is 0, so it reads the dry mass under a label naming
+            a state the flight never entered — and the cell two rows up already says "Dry mass". Two
+            identical numbers under different labels is worse than one withheld. */}
+        {run.motorsComplete ? (
+          <Field term="Burnout mass" value={d.q(d.mass(r.burnoutMass, units))} />
+        ) : (
+          // "no motor burned" is only true when NONE resolved. On a partial cluster the flight has a
+          // real burnout — the Flight panel publishes a burnout velocity from the same run — so that
+          // reason would be a false claim beside a withheld number, which is worse than a blank.
+          <Field term="Burnout mass" value={"—"} sub={MOTOR_GAP_SHORT(run)} />
+        )}
         <Field term="Length" value={d.q(d.lengthMm(length, units))} />
         <Field term="Max diameter" value={d.q(d.lengthMm(dia, units))} />
-        <Field term="CG (loaded)" value={d.q(d.lengthMm(r.cgLoaded, units))} />
+        {/* The loaded CG is what the withheld margin is computed FROM, so publishing it while
+            withholding the margin would hand over the same claim one step earlier. CP is geometry
+            and stays. */}
+        {run.motorsComplete ? (
+          <Field term="CG (loaded)" value={d.q(d.lengthMm(r.cgLoaded, units))} />
+        ) : (
+          <Field term="CG (loaded)" value="—" sub={MOTOR_GAP_SHORT(run)} />
+        )}
         <Field term="CP" value={d.q(d.lengthMm(r.stability.cp, units))} />
         <Field term="CNα" value={d.fmt(r.stability.cnAlpha, 2) + " /rad"} />
         {r.flutter && (
@@ -1323,6 +1415,15 @@ function StabilityTrimHint({
   units: UnitSystem;
 }) {
   const r = run.result;
+  // **The most damaging of the unloaded-margin surfaces, because it is PRESCRIPTIVE.** Everything
+  // else on that path published a wrong number; this one reads it, goal-seeks against it, and tells
+  // the flyer to move a part — "at 5.92 cal this is over-stable … moving the fin set about N mm
+  // forward would ease the margin" — computed from a CG and a mass with the motor missing. It
+  // rendered directly beneath the strip that had just withheld the very margin it was quoting.
+  //
+  // It returns nothing rather than being caveated: a trim instruction is only worth having if the
+  // margin it trims is the flown one, and the notice above already says why there is no margin.
+  if (!run.motorsComplete) return null;
   const refD = r.stability.refRadius * 2;
   const trim = marginTrim(
     {

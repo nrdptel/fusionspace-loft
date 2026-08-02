@@ -448,8 +448,13 @@ export function buildSimulateInput(
   conditions: LaunchConditions,
 ): { input: SimulateInput; resolutions: MotorResolution[] } {
   const { motors, recovery, resolutions, phases, deadStages } = buildRocketDynamics(rocket, config);
+  // Cluster-expanded, which is what makes it comparable with `motors.length`. Every instance pushes
+  // a resolution carrying its mount's cluster count BEFORE the `if (!match) continue` above, so
+  // this sums the motors the design calls for whether or not each was found — which is exactly the
+  // number the partial-cluster warning needs and could not previously get.
+  const motorsCalledFor = resolutions.reduce((sum, r) => sum + r.count, 0);
   return {
-    input: { rocket, config, motors, recovery, conditions, phases, deadStages },
+    input: { rocket, config, motors, recovery, conditions, phases, deadStages, motorsCalledFor },
     resolutions,
   };
 }

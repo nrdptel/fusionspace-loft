@@ -12,6 +12,128 @@ this file, and deliberately does **not** cap craft or product work, because that
 track in `ROADMAP.md` with its own *done when*. Rough edges, missing affordances, and findings too
 big for one pass. Newest first.
 
+- **`e2e/docs.spec.ts:32` "every docs page is readable offline" is load-sensitive, and it failed once
+  in a full shard while passing everywhere else.** Filed 2026-08-02 with the evidence, because a
+  future session meeting it needs to know this before diagnosing its own change. The test waits up to
+  20 s for the service worker to become the controller AND for six URLs to be in the cache; under a
+  full shard on this sandbox that budget is occasionally not enough. Measured this run: it failed once
+  in `--shard=1/2`, then **passed in isolation** and **passed in a full re-run of the same shard
+  (106/106)** against the identical build, and the change in flight touched no docs page, no service
+  worker and no precache script. Not EMFILE — `grep -c EMFILE` was 0. The fix is a longer or
+  condition-based wait, not a retry.
+
+- **`lib/design-system.test.ts` reports 11 green while TEN classes of `DESIGN.md` drift cannot fail
+  it.** Filed 2026-08-02 from a design-system audit, every count re-measured and the claims
+  adversarially verified. The suite is honest about what it implements — §9's six shell greps — but
+  §9 itself does not reach these, and §9 is shared verbatim with the sibling app, so this is §9's gap
+  as much as the test's. Live, on surfaces a flyer reaches in under a minute:
+  - **`lib/ui-tokens.ts` is outside every walk.** `uiSources(["components","app"])` never reads `lib/`,
+    and that file holds `buttonClass`, `navItemClass` and `NAV_BAR` — the strings every converted
+    surface now inherits. A probe planting `rounded-lg` and `px-5` there leaves all counts at 0 and
+    the suite green. Latent today (it is clean), and it gets worse the more adoption succeeds.
+  - **Primitive EXISTENCE is never asserted**, only adoption counts — and `Section`, `Tabs` and `Chip`
+    are asserted at exactly 0 adopters, so deleting them from `ui.tsx` still passes.
+  - **Six primitives `DESIGN.md` §5 says "live in `components/ui.tsx` and are imported" do not
+    exist**: `Panel`, `Readout`, `Figure`, `EmptyState`, `ErrorState`, `Extrapolated`. Each is
+    hand-rolled per file instead — `ResultsView`'s `Stat` and `MonteCarlo`'s `StatCard` are two
+    Readouts; `ResultsView`'s `Plot` is a Figure; `FlightViz` and `LineChart` carry two legends. This
+    is the exact mechanism that produced the twelve card treatments.
+  - **`text-[11px]` is unconditionally allowed**, so §3's scoping of it to "axis ticks and diagram
+    annotations only" is unenforced: 47 occurrences, on `<legend>`, field labels, `<dt>` and
+    `DataTable`'s entire header row.
+  - **The radius grep names `rounded-lg` alone** — 5 live off-system radii pass (4x `rounded-sm`, 1x
+    `rounded-[2px]`), and `app/globals.css` declares `border-radius: 3px` on the global focus outline
+    and `4px` on docs inline code, which the stylesheet check does not read (it parses `font-size`
+    only — the blind spot its own comment says it closed for `.eqn`).
+  - **No colour assertion at all**, though §2 says indigo is the single accent: fuchsia on the mass
+    marker and its legend (`RocketDiagram.tsx:611,612,878`), plus 24 hard-coded hex occurrences over
+    10 distinct values used for chart series identity.
+  - **No font-weight assertion**, though §3 reserves `font-semibold` for "the one number a surface
+    exists to show": 23 uses, plus `globals.css` setting h2/h3/strong/th to 600.
+  - **The hand-rolled-control check matches `<button>` only**, so 12 hand-rolled `<select>` elements
+    across 4 distinct class strings ship under a budget asserting exactly 3 hand-rolled controls.
+    There is no `Select` primitive.
+  - **No assertion for §3's `font-mono tabular-nums` rule** on compared numerals, and none for §5's
+    five required states.
+  Correcting one claim from the audit while filing it: `grep -c fuchsia` counts LINES (3), not
+  occurrences (7); and the hex figure is 24 occurrences over 10 distinct, not 8 — reaching 8 requires
+  excusing `app/layout.tsx`'s two `<meta name="theme-color">` values, which cannot take a token.
+
+- **Two data surfaces implement none of `DESIGN.md` §5's five required states.**
+  `components/FlightViz.tsx:37` returns `null` when `traj.length < 2` — a flight that ends on the rail,
+  or a design flown before a motor is picked, leaves a blank hole where the trajectory chart should
+  say what would fill it, while `LineChart` two files away implements the state correctly.
+  `components/DragCrossCheck.tsx` has zero of the five (`grep -ciE 'loading|error|offline|extrapolat'`
+  returns 0) and renders two `LineChart`s unconditionally, so it cannot say "this stored log had no
+  usable drag column" — it just shows one line where a flyer expects two. §5: "a surface with no empty
+  state is not finished. It is the state a flyer sees first."
+
+- **The parts-table geometry that made the touch ratchet's blind spot unreachable is STALE, and the
+  entry below still repeats it.** Measured 2026-08-02 on the built export at 390x664: the parts table
+  is **418 px inside a 324 px `overflow-x-auto` container**, not 1,198 px inside 390; `getByRole("row")`
+  returns **9**, not nothing; and rows 0 and 7 both `.click()` clean on the 38 mm sample and on the
+  54 mm one. The `DataTable` conversion fixed all three and nothing re-measured, so the recorded
+  reason nobody reached the selection-gated surface had been false for several runs. Correcting the
+  record rather than deleting it, because the wrong measurement is what kept the blind spot open.
+
+- **Only 2 of a design's 8 parts have a tap target on the diagram, and both are 12 px tall.** Filed
+  2026-08-02, measured on the built export at 390 px with the 38 mm sample. `components/RocketDiagram.tsx:551`
+  builds hover/select overlays from `o.parts`, which is body silhouettes only — fins, the mass object,
+  the parachute, the inner tube and both centring rings get no overlay at all, so six of eight parts
+  are reachable only through the table. The two that exist measure **78x12 and 218x12 px** against
+  §8's 44. `BACKLOG.md` already carried this at 66/101/129 x 10.3; the shape changed, the defect did not.
+
+- **A drag handle's 44 px touch circle sits ON the airframe and steals the part underneath it.**
+  Filed 2026-08-02. `components/RocketDiagram.tsx:176` sets `hitR = coarse ? 22 : 0`, so on a phone
+  each of the three centreline grips carries a 44x44 transparent hit circle drawn over the body
+  silhouette. Measured: the body tube's geometric centre resolves to `circle.fill-indigo-500/90`, and
+  **9 of 19 points sampled across its width** belong to a handle rather than the part — tapping the
+  middle of the body tube leaves the nose selected. `e2e/touch.spec.ts:248` checks handle-vs-handle
+  overlap and never checks handle-vs-part.
+
+- **The motor sweep ranks 15 candidate motors and cannot apply one.** Filed 2026-08-02.
+  `components/MotorSweep.tsx` contains exactly one `<Button>` in the whole file, and it is *Run*. A
+  flyer who sweeps motors must memorise the winning designation, navigate to `/design`, and scroll
+  **2.77 screens** to find it again in the *Swap motor* select (`components/LoftApp.tsx:2181`). That
+  is what "pick a motor" — one of P4's three named pad journeys — actually costs today.
+
+- **Two of P4's three pad journeys breach `DESIGN.md` §8's two-screen cap, and `e2e/depth.spec.ts`
+  anchors above both.** Filed 2026-08-02, measured at 390x664 on the built export. *Sanity-check a
+  delay*: the Optimum delay tile is 12th of 14 at **1,666 px = 2.51 screens** on `/flight`, while
+  `e2e/depth.spec.ts:63` anchors that route on the Apogee tile at 1,138 px = 1.71 and passes. *Pick a
+  motor*: the Swap motor select sits at **1,841 px = 2.77 screens** on `/design`. *Check stability* is
+  healthy at 1.03 screens. The depth spec measures the route's primary answer, not each journey's, so
+  neither breach fails anything today.
+
+- **`RocketpyCrossCheck` borrows its propulsion guard from its call site.** Filed 2026-08-02.
+  `components/RocketpyCrossCheck.tsx:122-137` runs its own `runFlight` and reads `staticMarginCal` off
+  it without checking that run's own `hasPropulsion`/`motorsComplete`; it is safe only because
+  `components/ResultsView.tsx:972` gates the panel. Contrast `lib/sim/sweep.ts:107`, which guards in
+  the library. One prop-move from publishing an unloaded margin.
+
+- **The Validation docs page flies committed reference designs without checking they still resolve.**
+  Filed 2026-08-02. `app/docs/validation/page.tsx:34` puts `run.result.staticMarginCal` into the
+  published RocketPy comparison at BUILD time and never checks `hasPropulsion`, so a reference design
+  whose motor stopped resolving after a database re-cut would silently publish an unloaded margin as
+  Loft's own accuracy record. Latent rather than live — today's references all resolve.
+
+- **`scripts/gen-components.mjs` drops four upstream fields it could read.** Filed 2026-08-02, from a
+  read of the `.orc` schema against the readers. `TubeCoupler` and `CenteringRing` read only
+  InsideDiameter / OutsideDiameter / Length and never `Thickness`; `Parachute` reads Diameter / Sides /
+  LineCount / LineLength and drops `DragCoefficient`, `PackedLength` and `PackedDiameter`. Harmless
+  against today's vendor set — 0 couplers and 0 rings state a thickness and 0 of 151 chutes state a Cd
+  or a packed size — but a re-vendor that fixed any of them upstream would be silently ignored.
+
+- **The catalogue needs a vendor-alias table: 16 manufacturer strings for 14 companies.** Filed
+  2026-08-02, measured over all 3,445 rows. "MPC" and "MRC" both appear in couplers (4 parts and 2);
+  "Quest" and "Quest Aerospace" both appear in centring rings. The vendor filter therefore splits one
+  company into two options.
+
+- **`PartPicker`'s `rowKey` collides on centring rings.** Filed 2026-08-02. The key is
+  `manufacturer/partNumber/outerDiameter/length`, and five ring rows duplicate it — SEMROC CR-7-18,
+  RA-50/52H-101(BT-50), CR-9-225X2, CR-9-225X2P and CR-9-175P. A React key collision the first time a
+  ring picker is opened; parachutes collapse the key to `mfr/part//` with 0 collisions.
+
 - ~~**`GeometryInspector`'s eleven gesture tooltips are still hover-only.**~~ **FIXED 2026-08-02**,
   on the second attempt, in the form the first attempt established. Each now carries an `aria-label`
   that BEGINS with the control's own visible text and then adds what the tooltip said, so the
@@ -21,9 +143,14 @@ big for one pass. Newest first.
   the same component or stage name the visible text does.
   **What is NOT fixed, and stays filed:** `e2e/touch.spec.ts` still never selects a part, so ten of
   these eleven render outside its reach and a regression on them would not fail it — the count reads
-  0 either way. Reaching them needs the diagram's selection path or a wider viewport;
+  0 either way. ~~Reaching them needs the diagram's selection path or a wider viewport;
   `getByRole("row")` matches nothing for that table and a direct row click times out, because it is
-  1,198 px wide inside a 390 px viewport in its own scrolling container.
+  1,198 px wide inside a 390 px viewport in its own scrolling container.~~ **That sentence was stale
+  and is corrected in the entry at the top of this file** — measured 2026-08-02, the table is 418 px
+  inside 324, `getByRole("row")` returns 9, and a row click works. Also measured: the roadmap's
+  "eleven … renders only once a part is SELECTED" is itself an overstatement — **eight** are strictly
+  selection-gated, two more need a mount or a stage to exist first, and *Add a booster stage* renders
+  ungated.
 
 - **A picked catalogue part silently overrides the whole-airframe material control, and neither
   surface says so.** Filed 2026-08-02, **REPRODUCED by the reviewer, not re-driven by me.**

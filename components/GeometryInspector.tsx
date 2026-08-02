@@ -161,6 +161,7 @@ export default function GeometryInspector({
   cg,
   cp,
   marginCal,
+  cgWithheldReason,
   edited = false,
   motors,
   onEdit,
@@ -188,6 +189,15 @@ export default function GeometryInspector({
   cg?: number;
   cp?: number;
   marginCal?: number;
+  /** Why `cg`/`marginCal` are absent, when they are absent for a reason a flyer should hear rather
+   *  than because there is no flight at all.
+   *
+   *  A blank is a bug (`DESIGN.md` §6: a withheld value says why and what would restore it), and
+   *  this panel is where the withholding becomes VISIBLE — the CG mark, the margin in the caption
+   *  and the margin in the diagram's accessible name all simply stop being drawn. Without a
+   *  sentence, a flyer whose motor did not resolve sees a stability picture quietly lose half its
+   *  marks and has nothing on this surface telling them why or how to get it back. */
+  cgWithheldReason?: string;
   /** True when `rocket` reflects active what-if geometry edits rather than the imported design, so
    *  the panel can say so — it's then a live preview of the edit, not the parsed original. */
   edited?: boolean;
@@ -632,14 +642,30 @@ export default function GeometryInspector({
             and not the total.
           </p>
         )}
+        {/* Placed directly under the diagram, because that is where the absence is visible: the CG
+            mark, its legend swatch and the margin in the caption all stop being drawn together. §6
+            requires a withheld value to say why and what would bring it back, and the alternative
+            here is worse than a blank — before this the marks were drawn anyway, at the DRY station,
+            and the caption asserted a margin the summary strip was withholding two panels up. */}
+        {cgWithheldReason && cg === undefined && (
+          <p className="mt-2 text-xs text-amber-700 dark:text-amber-400">{cgWithheldReason}</p>
+        )}
         {onEdit && (
           <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
             Grab a handle to reshape the design right on the picture — slide the fin group fore or aft,
             pull a fin tip up to resize the span, pull the body wall out to resize the caliber, drag the
             tube&apos;s aft edge to lengthen it, drag the nose/body joint to lengthen or blunt the nose,
             or (on straight-edged fins) rake the tip or resize the root and tip chords by their corner
-            handles. The design re-flies live, so the
-            margin updates as you drag; arrow keys nudge a focused handle a hundredth of its range, and
+            handles. The design re-flies live, so the{" "}
+            {/* The margin promise is conditional on there BEING a margin. This paragraph and the
+                withheld-value sentence above are adjacent siblings — `onEdit` is always supplied —
+                so an unconditional "the margin updates as you drag" told the flyer, one sentence
+                after being told the margin cannot be marked, that it would update live if they
+                dragged. The reassuring sentence is the one that would have survived unedited. */}
+            {marginCal !== undefined
+              ? "margin updates as you drag"
+              : "picture and the mass update as you drag"}
+            ; arrow keys nudge a focused handle a hundredth of its range, and
             Shift makes that ten times bigger.
           </p>
         )}
@@ -719,7 +745,8 @@ export default function GeometryInspector({
           per-fin chords and span. Any column heading sorts the table; the design&apos;s own
           nose-to-tail order is the default. The mass column is dry structure only; this design&apos;s
           dry mass is {d.q(d.mass(dryTotal, units))}; the motor and any what-if ballast are added on
-          top of it at launch and are in the flight&apos;s liftoff mass, not in this column or in the{" "}
+          top of it at launch and are in the flight&apos;s liftoff mass — where a motor was
+          matched — not in this column or in the{" "}
           <em>Mass &amp; balance</em>{" "}panel, which breaks the same dry figure down part by part.
           {unlisted > 1e-6 && (
             <>

@@ -2440,6 +2440,31 @@ Unattended runs do not stop to ask (see *Unattended operation* in `MAINTAINING.m
 that would otherwise have been a question goes here, with the option rejected, so it can be reversed
 cheaply instead of re-derived. Newest first.
 
+- **2026-08-02 — the liftoff mass is WITHHELD when a motor is missing, not relabelled "Dry mass".**
+  The Sev-1 fix's first draft relabelled it, on the reasoning that the figure is a correct number
+  under a wrong name and a flyer building to a weight still wants it. **Rejected on measurement**,
+  in two states it would have been wrong in: on a partial cluster `liftoffMass` is the dry mass plus
+  whichever motors happened to resolve — a wrong number under a right label, which is worse than the
+  single-motor case the reasoning was built on — and `liftoffMass` is `massAt(0)`, which also carries
+  the flyer's what-if nose ballast, so with 50 g of ballast set the strip would have read "Dry mass
+  650 g" while `MassBreakdown` and the parts panel both published 600 g for the same design. Three
+  surfaces, one label, two numbers. **What this COSTS:** a flyer with an unmatched motor can no
+  longer read a mass off the summary strip; they get it from Mass & balance or the parts panel, both
+  of which publish the real dry figure and are unaffected. Reverse it by giving the strip a genuine
+  dry-mass source (`dryMassProperties`) rather than reusing the flight's loaded figure — which is the
+  right fix if the cell is wanted back, and is not a relabel.
+
+- **2026-08-02 — the OVER-stable caution is gated on a complete motor set; the LOW-stability warning
+  is deliberately not.** Both read the same figure, and the first draft of the fix gated both.
+  **Rejected once measured against the direction of the bias:** a missing motor is missing AFT mass,
+  so the CG sits forward and the margin reads high. That makes the over-stable caution a false alarm
+  about a vehicle nobody flew — gate it. It makes a LOW reading conservative: if an incomplete build
+  still computes under 1 cal, the complete one is lower still, so suppressing that warning adds a
+  false negative in the one direction where the number already errs safe. The low branch keeps firing
+  and appends the reason the figure is not final. `upper-stage-stability` is ungated for the same
+  reason, and additionally because an unresolved LOWER-stage motor has already detached by the time
+  that margin is taken. Reverse it by gating both, and accept losing a real warning.
+
 - **The Ko-fi link's destination went to its ACCESSIBLE NAME rather than its visible label
   (2026-08-02).** P4 increment 2 deletes hover-only `title`s, and this one carried the only mention
   of where the link goes — "Ko-fi" appears nowhere else on the surface — so deleting it alone would

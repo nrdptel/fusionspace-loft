@@ -117,8 +117,13 @@ export default function MassBreakdown({
           ]}
         />
         <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
+          {/* "are in the liftoff mass above" was an unconditional promise, and this panel takes no
+              run so it cannot see when the promise breaks: a motor that did not resolve is left out
+              of the build entirely, and the figure above is then titled "Dry mass" with no motor in
+              it. Narrowed rather than made conditional — the clause is true in both states, and it
+              is the reconciliation a flyer opens this panel to make. */}
           Dry structure only — the motor and nose ballast add their mass at launch and are not
-          shown here; they are in the flight&apos;s liftoff mass above. A design what-if that changes
+          shown here; where a motor was matched, they are in the flight&apos;s liftoff mass above. A design what-if that changes
           the airframe is shown here — resizing a part moves its row, and adding a payload or a
           drogue adds one — unless the design overrides the mass of the assembly the part sits in.
           Where a component or a stage states the mass of its whole subassembly, that measured figure

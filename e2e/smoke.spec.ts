@@ -1027,9 +1027,20 @@ test.describe("Loft", () => {
     await expect(page.getByRole("region", { name: /unavailable$/ })).toBeVisible();
     await expect(page.getByRole("region", { name: "Motor sweep" })).toBeVisible();
 
-    // Advice points at the Design workspace, which now exists on every design.
+    // The Design workspace tells the flyer why the stability marks are missing, and how to get them
+    // back. **This assertion used to read `getByText("in the Design workspace")`**, which was
+    // satisfied by `StabilityTrimHint` — and on THIS design that hint was the Sev-1: it read the
+    // unloaded margin (5.92 cal against a flown 4.07), decided the rocket was over-stable, and told
+    // the flyer to move the fin set, all computed from a build with the motor left out. The hint is
+    // now suppressed when a motor did not resolve, so the old assertion was pinning the defect in
+    // place. What replaces it is the guarantee that actually holds: the workspace still says
+    // something actionable rather than going quiet.
     await page.getByRole("link", { name: "Design" }).click();
-    await expect(page.getByText("in the Design workspace").first()).toBeVisible();
+    await expect(page.getByText(/could not be matched to a thrust curve/i).first()).toBeVisible();
+    await expect(
+      page.getByText(/centre of gravity and the static margin are not marked/i),
+      "the diagram drops its CG mark and must say why",
+    ).toBeVisible();
     // Nothing may offer a configuration picker that only renders for a multi-config design.
     if ((await page.getByRole("combobox", { name: /configuration/i }).count()) === 0) {
       await expect(page.getByText("pick a configuration")).toHaveCount(0);
@@ -6061,5 +6072,64 @@ test.describe("choosing a real commercial part", () => {
     await page.getByRole("button", { name: /back to the design/i }).click();
     await expect(page.getByText(/BNC-55D2/)).toHaveCount(0);
     await expect.poll(apogee, { timeout: 15_000 }).toBe(before);
+  });
+
+  test("withholds every loaded figure when a motor did not resolve, and says why", async ({ page }) => {
+    // **The Sev-1 this pins: a motor that cannot be matched is left OUT of the build entirely**
+    // (`lib/sim/setup.ts` skips the instance), so it contributes neither mass nor CG — and every
+    // figure that assumes it is aboard was published anyway, under its loaded label. Measured on
+    // `demo-single-deploy.ork` with the motor made unresolvable: liftoff mass 0.8018 -> 0.6002 kg
+    // (the dry mass), loaded CG 0.6430 -> 0.5725 m, static margin 4.065 -> 5.921 cal. That last one
+    // is +46% and reads MORE stable than the truth, which is the reassuring direction, and the
+    // notice directly above it said the stability "remains valid".
+    //
+    // Driven from the COMMITTED fixture rather than the corpus, for the reason the test above
+    // records: a corpus-driven test skips on CI and on any public clone, reporting green without
+    // executing an assertion.
+    await page.goto("/");
+    await page.setInputFiles('input[type="file"]', resolve(process.cwd(), "e2e/fixtures/unresolved-motor.ork"));
+    await expect(page.getByRole("region", { name: "No flight simulated" })).toBeVisible();
+
+    // Both loaded figures are withheld, each with its reason on the cell. A blank is a bug
+    // (`DESIGN.md` §6). The mass was RELABELLED to "Dry mass" in the first draft of this fix, and
+    // that was wrong in two of the three states it has to cover: on a partial cluster the figure is
+    // dry plus whichever motors resolved, and `liftoffMass` carries the flyer's what-if nose ballast
+    // either way — so the label disagreed with the two panels that publish the real dry mass.
+    const cell = (term: string) =>
+      page.locator("div", { has: page.getByText(term, { exact: true }) }).last();
+    await expect(cell("Liftoff mass")).toContainText("—");
+    await expect(cell("Liftoff mass")).toContainText(/needs a motor/i);
+    await expect(cell("Static margin")).toContainText("—");
+    await expect(cell("Static margin")).toContainText(/needs a motor/i);
+
+    // No surface anywhere on the page may still be quoting the unloaded margin. This is the
+    // assertion that would have caught the five surfaces the first pass at this fix missed —
+    // the folded detail row, the trim prescription, the warning cards and the diagram caption.
+    // Asserted as "no margin VALUE is quoted anywhere", not as "the words never appear": the
+    // corrected notice itself says the margin is withheld "rather than reported over-stable", and a
+    // word-level assertion would forbid the very sentence that fixes this. What must not survive is
+    // a NUMBER in calibers, which is the claim.
+    await expect(page.getByText(/\d\s*cal\b/)).toHaveCount(0);
+    await expect(page.getByText(/weathercock/i)).toHaveCount(0);
+    await expect(page.getByText(/moving the fin set/i)).toHaveCount(0);
+
+    // The notice above the strip has to say the stability is NOT valid — it used to say the
+    // opposite, in the same breath as the numbers it was wrong about.
+    const notice = page.getByRole("region", { name: "No flight simulated" });
+    await expect(notice).toContainText(/stability is not/i);
+    await expect(notice, "the sentence that made the wrong numbers look checked").not.toContainText(
+      "geometry and stability below are computed independently and remain valid",
+    );
+
+    // The Design workspace is the other half: the diagram drew a "CG" mark at the DRY station and
+    // asserted the margin in its own accessible name, which is what a screen reader speaks.
+    await page.getByRole("link", { name: "Design", exact: true }).click();
+    await expect(page.getByText(/could not be matched to a thrust curve/i).first()).toBeVisible();
+    const figure = page.locator("svg[aria-label*='Scale side-view']").first();
+    await expect(figure).toBeVisible();
+    const label = await figure.getAttribute("aria-label");
+    expect(label, "the SVG's accessible name still asserts a margin nobody is flying").not.toMatch(
+      /centre of gravity ahead of centre of pressure/,
+    );
   });
 });

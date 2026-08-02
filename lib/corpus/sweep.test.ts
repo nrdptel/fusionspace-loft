@@ -28,7 +28,7 @@ import { describe, it, expect } from "vitest";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { importDesign } from "../ork/import";
-import { runFromDocument, overridesFromStored } from "../sim/run";
+import { runFlight, runFromDocument, overridesFromStored } from "../sim/run";
 import { monteCarlo, summarizeSamples } from "../sim/montecarlo";
 import {
   flattenRocket,
@@ -663,6 +663,85 @@ suite("real-design corpus", () => {
     expect(disagreeing.length, "no real design carries mounts with different counts").toBeGreaterThan(0);
     expect(rewritten, "a mount the field never described was rewritten by it").toEqual([]);
   });
+
+  it("says so on every real design that loses a motor, clustered or not", async () => {
+    // A motor that does not resolve is left OUT of the build (`lib/sim/setup.ts` skips it), so the
+    // flight runs on less thrust and less mass than the design calls for and reads low. One warning
+    // exists to say that — and for as long as it has existed it could not fire on a clustered
+    // design, because it compared the cluster-EXPANDED flown count against the UN-EXPANDED instance
+    // count. Any cluster made the left side the larger one.
+    //
+    // Driven by CONSTRUCTION rather than against a threshold: break exactly one instance of every
+    // configuration on every real design, and require the result to say a motor is missing. The
+    // clustered subset is counted and asserted non-empty, because it is the subset the defect lived
+    // in and an assertion that never reaches it is watching nothing.
+    const silent: string[] = [];
+    const clustered: string[] = [];
+    let broken = 0;
+    let wouldHaveBeenMissed = 0;
+    for (const f of files) {
+      const doc = await importDesign(new Uint8Array(readFileSync(f.path)));
+      for (const cfg of doc.rocket.configurations) {
+        if (cfg.instances.length === 0) continue;
+        // The expanded count the design calls for, read the way the solver reads it: a mount's
+        // `clusterCount`, not the length of the instance list.
+        const mountCount = new Map<string, number>();
+        for (const p of flattenRocket(doc.rocket)) {
+          const mm = (p.component as { motorMount?: { clusterCount?: number } }).motorMount;
+          if (mm) mountCount.set(p.component.id, Math.max(1, Math.round(mm.clusterCount ?? 1)));
+        }
+        const expanded = cfg.instances.reduce((s, i) => s + (mountCount.get(i.mountId) ?? 1), 0);
+        if (expanded > cfg.instances.length) clustered.push(`${shortName(f.name)}/${cfg.name ?? cfg.id}`);
+        for (let k = 0; k < cfg.instances.length; k++) {
+          const rocket = {
+            ...doc.rocket,
+            configurations: doc.rocket.configurations.map((c) =>
+              c.id !== cfg.id
+                ? c
+                : {
+                    ...c,
+                    instances: c.instances.map((inst, i) =>
+                      i === k ? { ...inst, motor: { ...inst.motor, designation: "ZZ-NOT-A-MOTOR" } } : inst,
+                    ),
+                  },
+            ),
+          };
+          let run;
+          try {
+            run = runFlight(rocket, { configId: cfg.id });
+          } catch {
+            continue; // a design with nothing left to fly is another test's business
+          }
+          broken++;
+          const codes = run.result.warnings.map((w) => w.code);
+          const said = codes.includes("partial-cluster") || codes.includes("no-motor");
+          if (!said) {
+            silent.push(
+              `${shortName(f.name)}/${cfg.name ?? cfg.id}: broke instance ${k + 1} of ` +
+                `${cfg.instances.length} (${expanded} expanded) and the flight said nothing — ${codes.join(", ") || "no warnings at all"}`,
+            );
+          }
+          // The negative control, computed rather than asserted: how many of these the OLD
+          // comparison (`placed < instances.length`) would have let through in silence. It is the
+          // clustered ones, and it is printed so a future reader can see the defect's real size.
+          const placed = run.resolutions.reduce((s, r) => s + (r.match ? (r.count ?? 1) : 0), 0);
+          if (placed > 0 && placed < expanded && !(placed < cfg.instances.length)) wouldHaveBeenMissed++;
+        }
+      }
+    }
+    console.log(
+      `lost-motor check across ${files.length} design files: ${broken} single-motor removals driven, ` +
+        `${new Set(clustered).size} clustered configuration(s), ` +
+        `${wouldHaveBeenMissed} that the pre-fix comparison would have passed over in silence`,
+    );
+    expect(broken, "no motor was ever broken — this test proves nothing").toBeGreaterThan(20);
+    expect(
+      new Set(clustered).size,
+      "no real design carries a cluster, so the branch the defect lived in is untested",
+    ).toBeGreaterThan(0);
+    expect(wouldHaveBeenMissed, "the negative control found nothing the old code missed").toBeGreaterThan(0);
+    expect(silent, "a design flew on a missing motor and said nothing").toEqual([]);
+  }, 300_000);
 
   it("finds no real design that leads with anything but a nose cone", async () => {
     // The denominator behind the blunt-face warning R4's drag made necessary. Loft takes forebody
