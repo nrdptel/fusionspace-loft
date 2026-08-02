@@ -110,11 +110,17 @@ Six sizes, each with one job. Geist Sans throughout; Geist Mono for numerals tha
 | `text-xs` | captions, units, footnotes, dense table metadata |
 | `text-[11px]` | axis ticks and diagram annotations only |
 
-**Six means six.** `text-lg` is not on this scale and is the one to watch: it reads as "a bit bigger",
-so it lands between `text-base` and `text-xl` and quietly becomes a seventh size. Measured 2026-07-31,
-it had reached **fourteen** uses — eleven panel headings and three prominent values — which is a
-heading rhythm that is not a rhythm. Taken to zero and now asserted at zero, so it is a guard rather
-than a ratchet.
+**Six means six**, and the sizes that break it are the ones that read as "a bit bigger" rather than as
+a decision — `text-lg` between `text-base` and `text-xl`, `text-2xl` between `text-xl` and `text-3xl`.
+Measured 2026-07-31: Loft had reached **fourteen** `text-lg` (eleven panel headings and three prominent
+values), and Debrief **twenty** across `text-lg`, `text-2xl` and `text-4xl`, five of them page titles
+where this table says `text-3xl`. That is a heading rhythm that is not a rhythm. Both apps count and
+ratchet it toward zero; neither may let it grow.
+
+**An analyzer's big readout is `text-xl`, not a seventh size.** The number a metric tile exists to show
+wants weight, and `font-semibold` plus `font-mono` at `text-xl` gives it that against `text-base`
+siblings. Reaching for `text-2xl` because it looks better in isolation is how the scale acquired its
+seventh entry in the first place.
 
 **`text-sm` is the floor for anything a flyer reads to make a decision.** `text-xs` is for the text
 *around* such a value — its unit, its provenance, its caveat — never the value. Debrief's 212-to-82
@@ -256,14 +262,17 @@ adjectives.
 grep -roh 'rounded-lg' components app | wc -l                      # target: 0
 
 # card treatments hand-rolled instead of <Card>
-grep -roh 'rounded-xl border[a-z0-9 /-]*' components | sort -u | wc -l   # target: 1 (+ any named
-                                                                        # non-card primitive, see below)
+grep -roh 'rounded-xl border[a-z0-9:/ -]*' components \
+  | sed 's/[[:space:]]*$//' | sort -u | wc -l                       # target: 1 (+ any named
+                                                                    # non-card primitive, see below)
 
-# off-scale spacing
-grep -roh '\b[pmg][xytblr]\?-\(5\|7\|9\|10\|11\|14\)\b' components app | wc -l   # target: 0
+# off-scale spacing — every spacing utility, minus the scale
+grep -rohE '\b((p|m)[xytblr]?|(gap|space)(-[xy])?)-[0-9]+\b' components app \
+  | grep -vE -- '-(0|1|2|3|4|6|8|12)$' | wc -l                      # target: 0
 
-# a size that is not on the scale at all — text-lg is not one of the six
-grep -roh '\btext-lg\b' components app | wc -l                     # target: 0
+# a size that is not on the scale at all — anything but the six in §3
+grep -rohE '\btext-(xs|sm|base|lg|xl|[0-9]xl)\b' components app \
+  | grep -vxE 'text-(xs|sm|base|xl|3xl)' | wc -l                   # target: 0
 
 # decision-grade text at caption size — count the INVERTED FILES, not the suite total
 for f in components/*.tsx; do xs=$(grep -oh 'text-xs' "$f" | wc -l); \
@@ -271,7 +280,7 @@ for f in components/*.tsx; do xs=$(grep -oh 'text-xs' "$f" | wc -l); \
                                                                    # target: 0 inverted files
 
 # primitives actually adopted
-grep -rl 'from "./ui"' components | wc -l                          # target: most components
+grep -rlE "from ['\"](\./ui|@/components/ui)['\"]" components | wc -l   # target: most components
 ```
 
 **The suite-wide ratio was removed on 2026-07-31, and the reason is worth keeping.** It hid what it
@@ -284,16 +293,69 @@ one glyph on screen changed size — the `text-sm` had moved INTO the primitive.
 suite ratio the wrong way for the right reason**, which makes it useless during exactly the milestone
 that raises adoption. Count the inverted FILES.
 
-**The adoption grep used to be written with single quotes** (`from './ui'`) and every import in the repo
-is double-quoted, so it answered **0** whether adoption was 0% or 100% — for as long as this file has
-existed. Corrected 2026-07-31. A compliance command that cannot fail is worse than none, because a
-session runs it, sees the target, and moves on.
+**The adoption grep used to carry a hard-coded quote character**, and it could only ever be right in
+one of the two repos: Loft's imports are double-quoted and Debrief's are single-quoted, so whichever
+form this shared file picked, the other app got a command that answered **0** whether adoption was 0%
+or 100%. It was written `from './ui'` while Loft was double-quoted (corrected 2026-07-31), then
+`from "./ui"` while Debrief was single-quoted, which is the same bug pointing the other way. It is
+quote-agnostic now, and any grep added here must be. A compliance command that cannot fail is worse
+than none, because a session runs it, sees the target, and moves on.
+
+**The off-scale-type grep was widened for the same reason.** It named `text-lg` because that is the
+one Loft had. Run against Debrief on 2026-07-31 it reported **5** where the true count was **19** —
+`text-2xl` used 13 times, including five of six page titles where §3 says `text-3xl`, and one
+`text-4xl` — and called the other 14 compliant. A grep that names one instance of a class of drift
+will always be read as covering the class. It matches every `text-` size and subtracts the six.
+
+**Two more greps were generalised on 2026-07-31, and both had the same shape as the two above: a
+pattern that named the drift somebody had in front of them rather than the class it belongs to.**
+
+- **The card grep's character class had no `:`,** so every treatment truncated at the first
+  `dark:` variant and two cards differing only in their dark surface counted as one. **The count
+  does not move — 7 before, 7 after** — because today's seven strings happen to differ before their
+  first `dark:` as well; what the fix buys is what the metric is able to *distinguish* for the rest
+  of the milestone, not a correction banked now. Say that rather than claim a number that did not
+  change. **The `sed` is part of the rule, not tidiness:** one call site ends its class string with
+  a space before an interpolation, so untrimmed the shell answers 8 where the test answers 7, and
+  the two copies of this block have to agree or neither is the authority.
+- **The spacing grep enumerated forbidden values, and the enumeration stopped at 14.** Two whole
+  prefixes were never matched at all — `gap-` and `space-{x,y}-` are the same scale applied to a
+  different property — and nothing above 14 was named. It reported **0** while 8 occurrences over 6
+  sites remained: `mt-20 md:mt-28` twice, `mt-16`, `space-y-5`, `gap-5`, `gap-y-5`. Enumerating what
+  is allowed and subtracting it cannot go stale the way enumerating what is forbidden does, which is
+  the same correction the off-scale-type grep already took.
+
+  **`gap`/`space` need their own prefix branch, and the first draft of this very fix got that
+  wrong.** They take the axis as a separate segment (`gap-y-5`) where padding and margin fold it in
+  (`py-5`), so a shared `[xytblr]?` cannot match both. Written as one pattern it reported 0 again,
+  with `gap-y-5` sitting live in `app/methods/page.tsx` — a second false green inside the commit
+  that existed to remove the first. Caught by review, not by the grep.
+
+**Half-steps are deliberately out of this grep's scope, and that is a decision rather than an
+oversight.** §4's own table sanctions `px-3 py-1.5` and `px-2 py-1`, so `-1.5` is *in* the system and
+a grep that forbade every half-step would contradict the section it enforces. The unsanctioned ones
+(`-0.5` ×48, `-2.5` ×21, `-3.5` ×1; `-1.5` ×78 is sanctioned) are recorded in `BACKLOG.md` rather than
+silently swept in or silently ignored; settling them means saying in §4 which half-steps are on the
+scale, and that is a change to this file in both repos.
+
+**The two copies of this block had DRIFTED, and the weaker side hid real drift in its app.**
+Reconciled 2026-08-02 — the first session in which both repos could be attached at once and the
+copies actually compared, which is why it stood for six runs. Three of Loft's greps were the weaker
+side: the spacing one listed a handful of off-scale values to hunt for instead of enumerating the
+scale and subtracting it, so it could not see a `gap-*`, a half-step, or anything past its largest
+alternative — and Loft's footer had sat two steps outside the scale on both top margins, reading as
+compliant, for as long as the check existed. The type one matched a single size name, so a seventh
+or eighth size under any other name passed. The card one could not survive a trailing space or a
+`dark:` variant. **The lesson is not "Loft was behind"** — Debrief's adoption grep was the weaker
+side of the same coin a run earlier. It is that a file shared verbatim between two repos cannot be
+verified from inside one of them, so whichever session next has both attached should diff them
+first, before trusting either copy.
 
 **Pin what you fix.** A drift you correct without a check comes back. The suite-level target is that
-these counts are asserted by a test, not re-measured by hand each run — and in Loft they now are:
-`lib/design-system.test.ts` is the executable copy of this block, with each count an EXACT ratchet so
-that an improvement and a regression both fail until the number is updated in the same commit as the
-work. Neither file may drift from the other.
+these counts are asserted by a test, not re-measured by hand each run — and in both apps they now
+are: `lib/design-system.test.ts` is the executable copy of this block, with each count an EXACT
+ratchet so that an improvement and a regression both fail until the number is updated in the same
+commit as the work. Neither file may drift from the other, and neither may drift from its sibling.
 
 **Where the card target is not 1, say so rather than quietly missing it.** A treatment that matches the
 grep but is genuinely not a card — a floating toast that needs elevation, an interactive drop zone —

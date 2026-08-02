@@ -18,7 +18,15 @@ export default function Footer() {
     // figure Loft shows is a model's estimate and never a go/no-go — the one sentence the safety
     // posture requires be visible — plus a row of nav links, which are controls. Both are body text
     // by the type scale, and setting them a step below it put the safety line in the fine print.
-    <footer className="mt-20 border-t border-zinc-200 pt-6 text-sm text-zinc-500 dark:border-zinc-800 dark:text-zinc-400 md:mt-28">
+    //
+    // The top margins are on §4's `1 2 3 4 6 8 12` scale, and are the same pair the sibling's footer
+    // uses, so the two apps separate their footer by the same amount. They were two steps off the
+    // scale entirely, and §9's spacing check could not see them: the grep listed a handful of
+    // off-scale values to hunt for rather than enumerating the scale and subtracting it, so anything
+    // outside that handful read as compliant. The old values are deliberately NOT written here —
+    // that grep, and Tailwind's own source scan, cannot tell a mention from a use, so naming them
+    // would both re-fail the check and regenerate the utilities.
+    <footer className="mt-8 border-t border-zinc-200 pt-6 text-sm text-zinc-500 dark:border-zinc-800 dark:text-zinc-400 md:mt-12">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         {/* The one region the hit-target passes never reached. These are `<nav>` links, not words in
             a sentence, so the "inline in a block of text" exemption does not cover them: measured on

@@ -175,14 +175,23 @@ record it being refused by the permission classifier, and every `DESIGN.md` word
 the sibling has been held back since, because §10 makes a change to one copy a change to both in the
 same run. It is cloned at `/home/user/fusionspace-debrief`.
 
-**The two copies have genuinely diverged — 103 diff lines — and Debrief's is AHEAD in places**, which
-was not what the ledger assumed. Its §9 compliance block has strictly better greps (the card-treatment
-grep handles trailing whitespace and `:` variants; the spacing grep enumerates the whole scale
-instead of six hand-picked off-scale values; the type-size grep matches any Tailwind size and
-subtracts the allowed six, rather than looking for `text-lg` alone). It also carries a paragraph on
-analyzer readouts that Loft's copy lacks. **Reconciling them is milestone-sized, not a wording fix**,
-and it is filed rather than half-done: adopting Debrief's greps into Loft would change what
-`lib/design-system.test.ts` counts, so it needs its own increment with the numbers re-measured.
+**They had diverged 103 lines, Debrief's was AHEAD in three places, and they are now BYTE-IDENTICAL.**
+Its §9 block had strictly better greps, and the difference was hiding real drift in Loft: the spacing
+grep listed a handful of off-scale values to hunt for rather than enumerating the scale and
+subtracting it, so it could see neither a `gap-*`, nor a half-step, nor anything past its largest
+alternative — and **Loft's footer had sat two steps outside the scale on both top margins, reading as
+compliant, for as long as that check has existed.** The type grep matched one size name; the card
+grep could not survive a trailing space or a `dark:` variant.
+
+**The correction the reconciliation forced is in `lib/design-system.test.ts`'s own comment**, which
+said widening the spacing regex "would put the two out of step, and §9 is shared verbatim with the
+sibling app". That was exactly backwards — the sibling already had the wider form, so Loft's was the
+stale side and widening it CONVERGED them.
+
+**The lesson is not "Loft was behind."** Debrief's adoption grep was the weaker half of the same coin
+a run earlier. It is that **a file shared verbatim between two repos cannot be verified from inside
+one of them**, so whichever session next has both attached should diff them before trusting either
+copy. Both now carry that sentence.
 
 ### Where the work is, and what to pick up first
 
