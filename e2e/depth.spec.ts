@@ -120,27 +120,22 @@ for (const size of [DESKTOP, PHONE]) {
     });
 
     test("the sweep's answer, not just the button that asks for it, is within two screens", async ({ page }) => {
-      // STILL A BREACH on the phone, and the number is worse than this file used to record because
-      // the measurement was wrong, not because the app got worse.
+      // CLOSED 2026-08-02, and on a measurement that holds this time.
       //
-      // Measured 2026-08-02 on a genuinely coarse pointer: the first swept-motor row lands at
-      // 1410 px = 2.12 screens. The old 1393 px / 2.10 screens was taken on a phone-sized viewport
-      // reporting `pointer: fine`, which renders every `TOUCH_TARGET` control at its 26 px desktop
-      // height instead of 44 px and so understated the shared chrome by 97 px. A phone with a mouse
-      // is not a phone; see the `hasTouch` note above.
+      // The history is worth keeping because it is the whole lesson of this check. It was a real
+      // breach at 2.10 screens; earlier the same day it was declared closed at 914 px of shared
+      // chrome and the marker deleted — on a phone-sized viewport reporting `pointer: fine`, which
+      // renders every `TOUCH_TARGET` control at 26 px instead of 44 and understated the chrome by
+      // 97 px. The marker went back, with the true figure of 2.12 screens on a coarse pointer.
       //
-      // Folding the design summary's reference figures behind a control DID help, and by more than
-      // the remaining gap suggests — it took 157 px out of the chrome on all four routes at once.
-      // It just did not close this. Two screens of a 664 px phone is 1328 px and the answer sits at
-      // 1410, so 82 px are still owed. The next candidates are the same shared chrome the summary
-      // came out of, in order of size: the 112 px restore banner, the 74 px warnings stack, and the
-      // toolbar — all of which every route pays, and none of which is this panel.
+      // Two changes actually closed it, and neither is this panel's copy being "tightened": the
+      // design summary's reference figures folded behind a phone-only control (157 px off the
+      // shared chrome, on all four routes at once), and the sweep's own explanatory paragraph is
+      // now shown only until the sweep has run — after which the TABLE answers the question the
+      // prose was answering, and 140 px of preamble sat between the flyer and their result.
       //
-      // `test.fail` and not a skip, a widened threshold or a deleted assert: the test still RUNS and
-      // still measures, the suite stays green on a breach that predates it, and it goes RED the day
-      // it is fixed. It was deleted earlier this same run on the strength of the fine-pointer
-      // number, which is exactly the mistake this comment now exists to stop being repeated.
-      if (size === PHONE) test.fail();
+      // Measured on a coarse pointer: the first swept-motor row is at 1260 px = 1.90 screens
+      // against the 1328 px two screens allow, so 68 px of headroom. Desktop is 898 px = 1.00.
       await loadSample(page);
       await goWorkspace(page, "/sweep");
       const run = page.getByRole("button", { name: /Run motor sweep/ });

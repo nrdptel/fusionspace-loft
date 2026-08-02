@@ -1742,9 +1742,11 @@ radius values for one role; `text-xs` and `text-sm` disagreeing between the two 
 
 ## P2 — Workspaces as routes
 
-**Status: IN PROGRESS** — increments 1–5 of 4–6. Four of the five *done when* clauses are met and
-pinned. **The two-screen clause is NOT met**, and it was briefly and wrongly recorded here as met on
-2026-08-02 — see increment 5, which corrects it. The remaining gap is 82 px on one route.
+**Status: DONE — 2026-08-02.** All five *done when* clauses met, each pinned by a check that goes red
+if it regresses. Increments 1–6 of 4–6. The two-screen clause was briefly and WRONGLY recorded as met
+in increment 5 on a fine-pointer measurement; increment 5's entry keeps that correction, and
+increment 6 closed it for real on a coarse one. Read both before trusting any px figure in this
+section.
 
 *Increment 1.* Flight, Design and Analyze became three real static routes behind one navigation
 spine, replacing the URL fragment and the `Tabs` tablist. Pinned by `e2e/smoke.spec.ts`'s *each
@@ -1823,9 +1825,25 @@ does not repeat it. The phone ratchet moved 1120 → **1060** rather than to the
 would have justified: down, because the fold really did buy room, but not to a number measured on a
 phone that does not exist.
 
-**Where the remaining 82 px are**, in order of size, all of it shared chrome every route pays and
-none of it this panel: the **112 px restore banner**, the **74 px warnings stack**, and the toolbar.
-That is the next increment, and it is now a measurement rather than a hunt.
+**Where the remaining 82 px were:** not the shared chrome after all. Increment 6 found them in
+`/sweep`'s own panel — see below.
+
+*Increment 6 — the pitch stops competing with the answer.* `MotorSweep`'s opening paragraph explains
+what a sweep is and why to run one. That is a question the TABLE answers once the sweep has actually
+run, at which point the prose was **140 px of preamble sitting between the flyer and their result**.
+It is now shown only until the panel is open; closing the panel brings it back, so it is sequenced
+rather than hidden.
+
+**Measured on a coarse pointer**: `/sweep`'s first swept-motor row is at **1260 px = 1.90 screens**
+against the 1328 px two screens allow — **68 px of headroom**, where it had been 82 px short.
+Desktop is 898 px = 1.00 screens. The `test.fail` marker is deleted, and this time the measurement
+underneath it is one a real phone produces.
+
+**The lesson this milestone actually taught**, worth more than the pixels: a contract `DESIGN.md`
+writes for touch has to be MEASURED on touch. A phone-sized viewport over `devices["Desktop Chrome"]`
+reports `pointer: fine`, and every `TOUCH_TARGET` control renders at 26 px instead of 44 — a 97 px
+error, in the direction that makes the app look like it passes. Any future viewport-based contract in
+this repo should set `hasTouch` from the first line it is written.
 
 Not a `Disclosure`: that primitive takes a static `open`, and a native `<details>` cannot be talked
 out of hiding its content by a media query, so a viewport-driven fold cannot be expressed with it.

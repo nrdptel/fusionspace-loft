@@ -195,14 +195,22 @@ export default function MotorSweep({
           {open && <ClosePanel onClose={() => { setOpen(false); returnFocusToRun(); }} what="the motor sweep" />}
         </div>
       </div>
-      <p className="mt-1.5 text-sm text-zinc-600 dark:text-zinc-300">
-        Fly this airframe on every bundled motor of the {casingMm}{" "}
-        mm casing{" "}
-        {designMotorFlies === false ? "its file states for its motor" : "it already flies"}, all at once, and see
-        how apogee, speed, rail-exit velocity, stability, and fin-flutter margin change across them —
-        the classic &ldquo;which motor gets me to my target?&rdquo; sweep (and whether a punchier one
-        pushes the fins toward flutter), run entirely on your device.
-      </p>
+      {/* The pitch, and only until it has been taken up. This paragraph answers "what is this and
+          why would I run it" — a question the TABLE answers once the sweep has actually run, at
+          which point the prose is 140 px of preamble sitting between the flyer and their answer.
+          Measured on a 390x664 phone: it is the difference between `/sweep` clearing `DESIGN.md`
+          §8's two-screen contract and missing it. Closing the panel brings it back, so nothing is
+          lost — it is sequenced, not hidden. */}
+      {!open && (
+        <p className="mt-1.5 text-sm text-zinc-600 dark:text-zinc-300">
+          Fly this airframe on every bundled motor of the {casingMm}{" "}
+          mm casing{" "}
+          {designMotorFlies === false ? "its file states for its motor" : "it already flies"}, all at once, and see
+          how apogee, speed, rail-exit velocity, stability, and fin-flutter margin change across them —
+          the classic &ldquo;which motor gets me to my target?&rdquo; sweep (and whether a punchier one
+          pushes the fins toward flutter), run entirely on your device.
+        </p>
+      )}
 
       {!open && (
         <div className="mt-3">
