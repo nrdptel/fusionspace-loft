@@ -43,10 +43,18 @@ export default function SiteHeader({ compact = false }: { compact?: boolean }) {
           href={KOFI_URL}
           target="_blank"
           rel="noopener noreferrer"
-          title="Tip the project — buy me a coffee on Ko-fi"
+          aria-label="Tip the project on Ko-fi"
           className={buttonClass()}
         >
           <span aria-hidden className="leading-none">♥</span>
+          {/* The destination rides the ACCESSIBLE NAME, not the visible label and not a `title`.
+              Deleting the tooltip alone would have lost the only mention of where this link goes;
+              writing "Tip on Ko-fi" visibly instead was MEASURED and cost 63 px — it wraps the
+              header on a 390 px phone and took the shared chrome from 1011 px to 1074, past the
+              1060 px cap that every route's depth is built on, failing `e2e/depth.spec.ts`. The
+              chrome ratchet is the harder contract of the two, and `aria-label` reaches assistive
+              tech on every form factor where a `title` reaches none on touch. Recorded in
+              `ROADMAP.md` under decisions taken without the owner. */}
           Tip
         </a>
         <Link

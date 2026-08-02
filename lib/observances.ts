@@ -24,8 +24,15 @@ export type Observance = {
   href?: string;
   /** Visible label for the link (an arrow is appended in the UI). */
   hrefLabel?: string;
-  /** Optional thin accent rule at the top of the page. `background` is any CSS
-   *  background value; `title` is the hover/AT tooltip (the bar is aria-hidden). */
+  /** Optional thin accent rule at the top of the page. `background` is any CSS background value.
+   *
+   *  `title` is NOT rendered anywhere as of 2026-08-02. It used to be a `title` on the bar, which
+   *  reached neither touch (native tooltips do not fire) nor assistive tech (the bar is
+   *  `aria-hidden`) — a mouse-only string on a decorative element — so it was deleted with the rest
+   *  of P4 increment 2's hover-only states. It is KEPT as the human-readable name of what the stripe
+   *  represents, because a bare gradient with no name in the source is unmaintainable and the unit
+   *  test that requires one is worth more than the field costs. What a reader actually sees is
+   *  `message`, printed in words in the footer. Do not re-attach it to the DOM. */
   bar?: { background: string; title: string };
 };
 

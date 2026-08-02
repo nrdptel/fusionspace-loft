@@ -2108,7 +2108,8 @@ sibling app's 27 KB — the front door is thin in both senses.
 
 ## P4 — A touch-native builder
 
-**Status: IN PROGRESS** — increment 1 of 4–6 shipped 2026-08-02, along with the decomposition.
+**Status: IN PROGRESS** — increments 1 and 2 of 4–6 shipped 2026-08-02, along with the
+decomposition. The hover-only count is **25**, down from 96 when it was first taken.
 
 *Increment 1 — SHIPPED. The other half of §8's contract, which nothing had ever measured.*
 
@@ -2145,10 +2146,36 @@ per-column `title="Sort by mass"` on a button already reading "Mass" is deleted 
 restates its own label is a named tell, and the `aria-label` already carried the verb for assistive
 tech on every form factor.
 
-*Increment 2 — NEXT.* Drive the 67 down. The bulk is shared chrome, so it is a small number of
-surfaces: the footer and badge `opacity-0 group-hover:opacity-100` external-link arrows are simply
-INVISIBLE on touch, so a flyer cannot tell those links leave the site at all; the theme toggle's
-`title` carries its current state; and `Undo`/`Redo` explain *why* they are disabled only on hover.
+*Increment 2 — SHIPPED. 67 → 25, and the whole shared-chrome category is gone.*
+
+Five files, and the leverage is that every site in the shared chrome renders on all six routes the
+ratchet walks — so five edits paid for forty-two states. Both invisible-until-hover external-link
+arrows (`components/Footer.tsx`, `components/FusionSpaceBadge.tsx`) are now always drawn: at
+`opacity-0` they were the one mark saying those links leave the site, and no touch gesture brings
+them up, so on a phone that mark did not exist. They already occupied their box, so showing them
+costs no layout and spends nothing against the chrome ratchet. The duplicated brand `title`, the
+theme toggle's (its `aria-label` is a strict superset), and a `title` on a decorative `aria-hidden`
+bar are deleted — that last one reached neither touch nor assistive tech, only a mouse.
+
+**The Ko-fi link is the one where deletion alone was the wrong fix**, and it is the general lesson:
+"Ko-fi" appeared nowhere else on the surface, so removing the tooltip would have removed the only
+statement of where the link goes. The destination moved INTO the visible label instead, which costs
+nothing on an existing 44 px control. A `title` is only safely deleted when its information is
+genuinely somewhere else.
+
+**A trap worth recording, because it would have looked like a fix.** The check matches the class
+STRING, not the computed style, so adding `pointer-coarse:opacity-100` beside the
+`group-hover:` variant would leave the count exactly where it was — and leave the defect in place
+too. The literal has to be deleted.
+
+*Increment 3 — NEXT, and it is a different problem from increment 2.* The remaining 25 all sit on
+the app chrome ABOVE the workspace spine — `Undo`/`Redo`'s disabled reason, the design-name field,
+`Download .ork`, the motor-match badge, the stability `<abbr>` — so each renders on four routes
+rather than six, and writing any of them visibly spends the phone chrome ratchet (1060 px, measured
+1011, so 49 px of headroom) and the two-screen depth cap simultaneously. That is the exact trade
+increment 1 recorded making once and reverting. **The next increment needs somewhere to put the
+words, not a shorter string** — a disclosure, a details row under the fold, or the reasoning moving
+to where `StabilityTrimHint` already writes it in full.
 
 **Outcome.** A phone at the pad is a first-class tool, not a rescaled desktop.
 
@@ -2237,6 +2264,19 @@ Beyond these, decompose from the North Star in `MAINTAINING.md` and from `COMPET
 Unattended runs do not stop to ask (see *Unattended operation* in `MAINTAINING.md`). Every decision
 that would otherwise have been a question goes here, with the option rejected, so it can be reversed
 cheaply instead of re-derived. Newest first.
+
+- **The Ko-fi link's destination went to its ACCESSIBLE NAME rather than its visible label
+  (2026-08-02).** P4 increment 2 deletes hover-only `title`s, and this one carried the only mention
+  of where the link goes — "Ko-fi" appears nowhere else on the surface — so deleting it alone would
+  have lost information rather than relocated it. **The rejected option was writing it visibly**
+  ("Tip on Ko-fi"), which was tried and MEASURED: it wraps the header on a 390 px phone and took the
+  shared chrome from 1011 px to **1074**, past the 1060 px cap that every route's depth is built on,
+  failing `e2e/depth.spec.ts` on all four workspace routes. Two contracts collided and the chrome
+  ratchet is the harder one — it is a ceiling on every route at once, where the destination of a tip
+  link is a nicety. `aria-label="Tip the project on Ko-fi"` reaches assistive tech on every form
+  factor, where the `title` reached none on touch, so the change is a strict improvement for the
+  users most in need of it and neutral for a sighted touch user. Reverse it by finding the label
+  63 px of room, or by naming Ko-fi in the footer where there is space.
 
 - **2026-08-02 — a published accuracy figure was RAISED rather than the gate slackened.**
   `groundHitVelocity`'s census median goes 3.0% → 8.3% because the metric stopped being measured on

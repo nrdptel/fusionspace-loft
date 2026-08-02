@@ -105,6 +105,45 @@ threshold: re-summarising the landed subset must give the same band and radius a
 whole set, which is only true if the whole-set summary already ignores the un-landed ones. **As a
 negative control the old code fails it**, naming the design and the exact figures.
 
+### P4 increment 2 — the hover-only count, 67 → 25
+
+Five files in the shared chrome, and the leverage is that each renders on all six routes the ratchet
+walks: five edits paid for forty-two states. The two `opacity-0` + `group-hover:` `opacity-100`
+external-link arrows are now always drawn — at opacity 0 they were the only mark saying those links
+leave the site, and no touch gesture brings them up. Three `title`s deleted, one of them on a
+decorative `aria-hidden` bar that reached neither touch nor assistive tech.
+
+**The Ko-fi link is the general lesson: deletion alone was the wrong fix there.** "Ko-fi" appeared
+nowhere else on the surface, so removing the tooltip would have removed the only statement of the
+destination. It moved into the visible label instead. A `title` is safely deleted only when its
+information is genuinely elsewhere.
+
+**And the trap that would have looked like a fix:** the check matches the class STRING, not the
+computed style, so pairing `pointer-coarse:opacity-100` with `group-hover:` `opacity-100` moves the
+count not at all — and leaves the defect. Delete the literal.
+
+**The remaining 25 are a different problem and should not be attacked the same way.** All of them
+sit on the app chrome above the workspace spine, so each renders on four routes rather than six, and
+writing any of them visibly spends the phone chrome ratchet (1060 px, measured 1011 → 49 px) and the
+two-screen depth cap at once — the trade increment 1 records making and reverting. The next
+increment needs somewhere to put the words, not a shorter string.
+
+### The sibling repo is ATTACHABLE now, and that clears a six-run blocker
+
+`add_repo` for `nrdptel/fusionspace-debrief` **succeeded this run** — the previous five handoffs
+record it being refused by the permission classifier, and every `DESIGN.md` wording change owed to
+the sibling has been held back since, because §10 makes a change to one copy a change to both in the
+same run. It is cloned at `/home/user/fusionspace-debrief`.
+
+**The two copies have genuinely diverged — 103 diff lines — and Debrief's is AHEAD in places**, which
+was not what the ledger assumed. Its §9 compliance block has strictly better greps (the card-treatment
+grep handles trailing whitespace and `:` variants; the spacing grep enumerates the whole scale
+instead of six hand-picked off-scale values; the type-size grep matches any Tailwind size and
+subtracts the allowed six, rather than looking for `text-lg` alone). It also carries a paragraph on
+analyzer readouts that Loft's copy lacks. **Reconciling them is milestone-sized, not a wording fix**,
+and it is filed rather than half-done: adopting Debrief's greps into Loft would change what
+`lib/design-system.test.ts` counts, so it needs its own increment with the numbers re-measured.
+
 ### What the pre-push reviews caught that the whole gate could not
 
 Twice, and both times on code that had already passed lint, unit, build and e2e.

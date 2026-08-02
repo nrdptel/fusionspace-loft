@@ -92,7 +92,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <div
             key={i}
             aria-hidden
-            title={b.title}
             className="h-1.5 w-full shrink-0"
             style={{ background: b.background }}
           />

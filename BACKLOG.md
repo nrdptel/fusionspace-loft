@@ -446,12 +446,7 @@ big for one pass. Newest first.
   which carry WCAG 2.5.8's "inline in a block of text" exemption and are correctly left alone. A
   width minimum on the footer links is the one worth taking first.
 
-- **Two hover-only states, which `DESIGN.md` §8 forbids outright.** Both are the same `↗`
-  external-link glyph at `opacity-0 transition group-hover:opacity-100` —
-  `components/FusionSpaceBadge.tsx` in the header and `components/Footer.tsx` in the "A Fusion Space
-  project" lockup. On a phone they are permanently invisible, so the one affordance saying the link
-  leaves the app never appears on the form factor where leaving is most disruptive.
-
+- ~~**Two hover-only states, which `DESIGN.md` §8 forbids outright.**~~ **FIXED 2026-08-02** as P4 increment 2. Both external-link arrows — `components/FusionSpaceBadge.tsx` in the header and `components/Footer.tsx` — are now always drawn rather than revealed on hover, so a flyer on a phone can finally tell those links leave the site. Two things the fix had to get right that the entry did not anticipate: the class literal has to be DELETED rather than paired with a `pointer-coarse:` variant, because `e2e/touch.spec.ts` matches the class string and not the computed style; and the first draft coloured the now-permanent glyph `text-zinc-400`, which is 2.57:1 on white and fails WCAG 1.4.11 — it is `text-zinc-500`, §2's `tertiary` role, which is also what it inherited before. The hover-only ratchet went 67 → 25 in the same commit.
 - **Three docs routes are 20–34 screens deep on a phone**, measured at 390 px — and this run made
   them DEEPER, which is the honest half of a fix that was still right. Putting `.prose-loft` on §3's
   scale took body text from 14.8 px to 16 px, and re-measured against the built export of `be6a5b7`:

@@ -102,6 +102,18 @@ npm run fetch-fixtures          # the real-design corpus (needs FIXTURES_TOKEN)
   you sharded and give both counts.
 - **The clone may be shallow.** Check `git rev-parse --is-shallow-repository` before quoting any
   commit count or file history — on a shallow clone both are a window, not the record.
+- **Tailwind v4 scans the WHOLE project's raw text, including MARKDOWN — so documenting a class you
+  just deleted regenerates it.** Measured 2026-08-02. P4 increment 2 removed the last use of a
+  `group-hover:` opacity utility from every component, and the built stylesheet still shipped the
+  rule. Nothing in `app/`, `components/` or `lib/` mentioned it: the two files keeping it alive were
+  `ROADMAP.md` and `HANDOFF.md`, which quoted the literal while explaining that it had been removed.
+  `DESIGN.md` §9 already carries this warning for `app/globals.css` — "the grep cannot tell a mention
+  from a use" — and it is true one level further out than that note implies. **Write a removed class
+  broken up** (`` `group-hover:` `` + `` `opacity-100` ``) in any prose, comment or ledger entry, and
+  confirm with a clean `rm -rf out .next && npm run build` before believing the utility is gone.
+- **`out/` and `.next/` are NOT cleaned between builds**, so a stale chunk can outlive the source that
+  produced it and a "did my change land?" grep over `out/` will lie. `rm -rf out .next` before any
+  build whose output you are about to measure.
 - **Throwaway probes** are named `*-tmp.*` and gitignored. Check the glob covers the exact name you
   chose.
 
