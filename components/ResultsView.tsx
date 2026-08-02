@@ -530,12 +530,24 @@ export default function ResultsView({
           <Stat
             label="Ground-hit speed"
             q={d.speed(s.groundHitVelocity, units)}
+            sub="descent rate at impact"
             withheld={s.landed ? undefined : "no landing inside the time cap"}
           />
+          {/* The speed over the ground is a different question from the descent rate, and under
+              wind it is a materially different number — up to twice it on a light canopy. It is
+              shown beside rather than folded in, and only when the two actually diverge, because a
+              second stat repeating the first to three significant figures is noise. */}
+          {s.landed && s.groundHitTotalVelocity > s.groundHitVelocity * 1.05 && (
+            <Stat
+              label="Arrival speed"
+              q={d.speed(s.groundHitTotalVelocity, units)}
+              sub="over the ground, drift included"
+            />
+          )}
           <Stat
             label="Landing energy"
             q={d.energy(s.landingEnergy, units)}
-            sub="whole vehicle"
+            sub="whole vehicle, from descent rate"
             withheld={s.landed ? undefined : "no landing inside the time cap"}
           />
           <Stat label="Optimum delay" q={d.seconds(s.optimumDelay)} sub="burnout → apogee" extrapolated={extrapolatedWhy} />

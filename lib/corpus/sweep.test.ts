@@ -115,13 +115,23 @@ const PUBLISHED_MEDIAN_PCT: Record<string, number> = {
   // optimumDelay 2.7 -> 2.5, maxAltitude 3.2 -> 3.1. Tightened here in the same change as the
   // engine and the page, because a claim left at its old, looser figure is a gate that has stopped
   // gating.
+  // groundHitVelocity 3.0 -> 8.3, and it is the one figure here that got WORSE without the engine
+  // getting worse. It used to be measured on the total ground-frame speed, which folds in the
+  // horizontal drift the canopy is carrying; every stored figure it is compared against is the
+  // vertical descent rate. On the openrocket files that error ran OPPOSITE to Loft's own
+  // descent-rate error and partly cancelled it — `pods--airframes and winglets` reads -14.5%
+  // vertical but -3.0% total — so 3.0% was two errors meeting in the middle. Measured on the nine
+  // stored sims where wind exceeds 4 m/s, where the two cannot cancel, the vertical figure agrees
+  // to a median 0.68% and the total is out by 25.27%. 8.3% is therefore the honest number and the
+  // gap it exposes is real: Loft's descent rate under a canopy disagrees with OpenRocket's by more
+  // than the old figure ever admitted. Raised here rather than slackened, and said on the page.
   timeToApogee: 1.5,
   launchRodVelocity: 1.9,
   maxMach: 2.0,
   maxVelocity: 2.2,
   optimumDelay: 2.5,
-  groundHitVelocity: 3.0,
   maxAltitude: 3.1,
+  groundHitVelocity: 8.3,
   flightTime: 3.3,
   maxAcceleration: 3.2,
   deploymentVelocity: 6.0,
@@ -1298,6 +1308,73 @@ suite("real-design corpus", () => {
     console.log(`recovery-size sweep across ${files.length} design files: ${flown} flights at 0.1/2/5/10×`);
     expect(flown, "no design flew, so this asserted nothing").toBeGreaterThan(50);
     expect(absurd, "a legal recovery size produced a number physics cannot produce").toEqual([]);
+  }, 900_000);
+
+  /** The landing speed a canopy is judged by does not change because the wind got up.
+   *
+   *  `groundHitVelocity` was the full ground-frame speed, `mag(state.vel)`, so under an open canopy
+   *  it carried the horizontal drift — which IS the wind. The figure it is compared against, and
+   *  the 25 ft/s and 35 ft/s rules of thumb it feeds, and the per-section landing energy a waiver
+   *  cites, are all descent rates. On `USLI2025-FULLSCALE-10.15` it read 10.46 m/s at 20 mph
+   *  against the file's own 5.61 at every wind, and the landing energy built on it was 3.7x too
+   *  large — on the surface a flyer sizes a canopy from.
+   *
+   *  Driven as a NEGATIVE CONTROL: restore `mag(state.vel)` at the `groundHitVelocity` assignment
+   *  and this names the designs and the exact speeds it moved to. The total is asserted to move in
+   *  the same breath, so the test cannot be satisfied by making both wind-blind. */
+  it("judges a canopy by its descent rate, which the wind does not change", async () => {
+    const WINDS = [0, 4, 9];
+    const drifted: string[] = [];
+    let checked = 0;
+    let sawTotalRise = 0;
+    for (const f of files) {
+      let doc;
+      try {
+        doc = await importDesign(new Uint8Array(readFileSync(f.path)));
+      } catch {
+        continue;
+      }
+      const runs = WINDS.map((windSpeed) => {
+        try {
+          return runFromDocument(doc, { overrides: { windSpeed } });
+        } catch {
+          return undefined;
+        }
+      });
+      if (runs.some((r) => !r?.hasPropulsion)) continue;
+      const sums = runs.map((r) => r!.result.summary);
+      // Only designs that actually come down under a canopy: a ballistic arrival is dominated by
+      // the vertical term anyway, so it cannot tell the two conventions apart.
+      if (!sums.every((s) => s.landed && s.groundHitVelocity > 0 && s.groundHitVelocity < 30)) continue;
+      checked++;
+
+      const calm = sums[0].groundHitVelocity;
+      for (let i = 1; i < sums.length; i++) {
+        const moved = Math.abs(sums[i].groundHitVelocity - calm) / calm;
+        // 2% covers the genuine second-order effect of a longer, wind-lengthened descent; the
+        // defect moved it by 93% on the worst design.
+        if (moved > 0.02) {
+          drifted.push(
+            `${shortName(f.name)}: descent rate ${calm.toFixed(2)} m/s calm -> ` +
+              `${sums[i].groundHitVelocity.toFixed(2)} m/s at ${WINDS[i]} m/s of wind (+${(moved * 100).toFixed(0)}%)`,
+          );
+        }
+      }
+      // The drift is not discarded — it is reported as the arrival speed, and that one MUST rise.
+      if (sums[sums.length - 1].groundHitTotalVelocity > sums[0].groundHitTotalVelocity * 1.05) {
+        sawTotalRise++;
+      }
+    }
+    console.log(
+      `landing-speed wind invariance across ${files.length} design files: ${checked} designs flown at ` +
+        `${WINDS.join("/")} m/s, ${sawTotalRise} whose arrival speed rises with the wind`,
+    );
+    expect(checked, "no design came down under a canopy, so this asserted nothing").toBeGreaterThan(5);
+    expect(drifted, "the descent rate a canopy is judged by moved with the wind").toEqual([]);
+    expect(
+      sawTotalRise,
+      "no design's arrival speed rose with the wind — the drift term has been dropped, not separated",
+    ).toBeGreaterThan(0);
   }, 900_000);
   /** The optimum delay describes the vehicle on screen, not the one in the file.
    *

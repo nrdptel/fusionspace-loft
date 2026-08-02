@@ -81,7 +81,11 @@ export interface MonteCarloSample {
   /** Landing point relative to the pad (m), for the 2D scatter. */
   landingX: number;
   landingY: number;
-  /** Speed at ground impact (m/s) — how hard it lands under recovery, the recovery-adequacy figure. */
+  /** VERTICAL descent speed at impact (m/s) — how hard it lands under recovery, the
+   *  recovery-adequacy figure, and the convention `FIRM_LANDING_MPS` / `HARD_LANDING_MPS` below
+   *  are written in. Not the speed over the ground: wind drift moves that without making the
+   *  canopy any smaller, so a dispersion over it would report the weather's spread, not the
+   *  design's. */
   landingSpeed: number;
   /** Kinetic energy at ground impact (J), ½·m·v² for the whole vehicle — the recovery-adequacy figure
    *  many fields and waivers set a per-section limit on, so its worst-case matters as much as speed. */

@@ -574,6 +574,21 @@ export default function Methods() {
         conditions&rdquo; re-run, the wind varies with altitude from the winds-aloft profile.
       </p>
       <p>
+        <strong>Two landing speeds, because they answer different questions.</strong>{" "}
+        <em>Ground-hit speed</em> is the <strong>vertical</strong>{" "}descent rate at the moment of
+        impact. That is the convention the rules of thumb above are written in, the one the
+        per-section landing energy a waiver is judged on is computed from, and the one every design
+        file&apos;s own stored figure uses — so it is the number Loft compares against OpenRocket,
+        RockSim and RASAero. <em>Arrival speed</em> is the total speed over the ground with the
+        sideways drift included, and it appears only when the wind makes it materially larger. Both
+        are real: a canopy descending at a comfortable 5 m/s in a 20 mph wind arrives at about
+        10 m/s over the ground, and a glancing arrival is harder on an airframe than the descent
+        rate alone suggests — but it is the descent rate that says whether the canopy is big enough.
+        Folding the two together is a mistake Loft used to make: the hard-landing flag then fired on
+        the weather rather than on the recovery, and the landing energy read almost four times too
+        high on a windy day.
+      </p>
+      <p>
         <strong>Recovery sizing (goal-seek).</strong> When a design lands harder than it should, Loft
         solves the canopy that would bring it down gently rather than leaving you to guess and re-fly
         (<code>lib/sim/recovery.ts</code>). It is the recovery-side companion to the stability trim,

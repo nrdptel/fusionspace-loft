@@ -151,7 +151,7 @@ test.describe("Loft", () => {
           await page
             .getByLabel("Results")
             .getByText("Apogee", { exact: true })
-            .locator("xpath=following-sibling::div")
+            .locator("xpath=following-sibling::div[1]")
             .innerText()
         ).replace(/[^\d.]/g, ""),
       );
@@ -277,7 +277,7 @@ test.describe("Loft", () => {
           await page
             .getByLabel("Results")
             .getByText("Apogee", { exact: true })
-            .locator("xpath=following-sibling::div")
+            .locator("xpath=following-sibling::div[1]")
             .innerText()
         ).replace(/[^\d.]/g, ""),
       );
@@ -691,7 +691,7 @@ test.describe("Loft", () => {
     const apogee = await page
       .getByLabel("Results")
       .getByText("Apogee", { exact: true })
-      .locator("xpath=following-sibling::div")
+      .locator("xpath=following-sibling::div[1]")
       .innerText();
     expect(parseFloat(apogee.replace(/[^\d.]/g, ""))).toBeGreaterThan(100);
 
@@ -1104,7 +1104,7 @@ test.describe("Loft", () => {
       const txt = await page
         .getByLabel("Results")
         .getByText("Apogee", { exact: true })
-        .locator("xpath=following-sibling::div")
+        .locator("xpath=following-sibling::div[1]")
         .innerText();
       return parseFloat(txt.replace(/[^\d.]/g, ""));
     };
@@ -1129,7 +1129,7 @@ test.describe("Loft", () => {
       const txt = await page
         .getByLabel("Results")
         .getByText("Apogee", { exact: true })
-        .locator("xpath=following-sibling::div")
+        .locator("xpath=following-sibling::div[1]")
         .innerText();
       return parseFloat(txt.replace(/[^\d.]/g, ""));
     };
@@ -1158,7 +1158,7 @@ test.describe("Loft", () => {
       const txt = await page
         .getByLabel("Results")
         .getByText("Apogee", { exact: true })
-        .locator("xpath=following-sibling::div")
+        .locator("xpath=following-sibling::div[1]")
         .innerText();
       return parseFloat(txt.replace(/[^\d.]/g, ""));
     };
@@ -1218,7 +1218,7 @@ test.describe("Loft", () => {
       const txt = await page
         .getByLabel("Results")
         .getByText("Apogee", { exact: true })
-        .locator("xpath=following-sibling::div")
+        .locator("xpath=following-sibling::div[1]")
         .innerText();
       return parseFloat(txt.replace(/[^\d.]/g, ""));
     };
@@ -1254,7 +1254,7 @@ test.describe("Loft", () => {
       const txt = await page
         .getByLabel("Results")
         .getByText(label, { exact: true })
-        .locator("xpath=following-sibling::div")
+        .locator("xpath=following-sibling::div[1]")
         .innerText();
       return parseFloat(txt.replace(/[^\d.]/g, ""));
     };
@@ -1284,7 +1284,7 @@ test.describe("Loft", () => {
       const txt = await page
         .getByLabel("Results")
         .getByText(label, { exact: true })
-        .locator("xpath=following-sibling::div")
+        .locator("xpath=following-sibling::div[1]")
         .innerText();
       return parseFloat(txt.replace(/[^\d.]/g, ""));
     };
@@ -1319,7 +1319,7 @@ test.describe("Loft", () => {
       const txt = await page
         .getByLabel("Results")
         .getByText("Apogee", { exact: true })
-        .locator("xpath=following-sibling::div")
+        .locator("xpath=following-sibling::div[1]")
         .innerText();
       return parseFloat(txt.replace(/[^\d.]/g, ""));
     };
@@ -2783,7 +2783,7 @@ test.describe("Loft", () => {
       const txt = await page
         .getByLabel("Results")
         .getByText("Apogee", { exact: true })
-        .locator("xpath=following-sibling::div")
+        .locator("xpath=following-sibling::div[1]")
         .innerText();
       return parseFloat(txt.replace(/[^\d.]/g, ""));
     };
@@ -2814,7 +2814,7 @@ test.describe("Loft", () => {
       const txt = await page
         .getByLabel("Results")
         .getByText("Apogee", { exact: true })
-        .locator("xpath=following-sibling::div")
+        .locator("xpath=following-sibling::div[1]")
         .innerText();
       return parseFloat(txt.replace(/[^\d.]/g, ""));
     };
@@ -2846,7 +2846,7 @@ test.describe("Loft", () => {
       const txt = await page
         .getByLabel("Results")
         .getByText("Apogee", { exact: true })
-        .locator("xpath=following-sibling::div")
+        .locator("xpath=following-sibling::div[1]")
         .innerText();
       return parseFloat(txt.replace(/[^\d.]/g, ""));
     };
@@ -2879,7 +2879,7 @@ test.describe("Loft", () => {
       const txt = await page
         .getByLabel("Results")
         .getByText("Drift from pad", { exact: true })
-        .locator("xpath=following-sibling::div")
+        .locator("xpath=following-sibling::div[1]")
         .innerText();
       return parseFloat(txt.replace(/[^\d.]/g, ""));
     };
@@ -2934,7 +2934,7 @@ test.describe("Loft", () => {
       const txt = await page
         .getByLabel("Results")
         .getByText("Apogee", { exact: true })
-        .locator("xpath=following-sibling::div")
+        .locator("xpath=following-sibling::div[1]")
         .innerText();
       return parseFloat(txt.replace(/[^\d.]/g, ""));
     };
@@ -2957,7 +2957,7 @@ test.describe("Loft", () => {
       const txt = await page
         .getByLabel("Results")
         .getByText("Apogee", { exact: true })
-        .locator("xpath=following-sibling::div")
+        .locator("xpath=following-sibling::div[1]")
         .innerText();
       return parseFloat(txt.replace(/[^\d.]/g, ""));
     };
@@ -2983,7 +2983,7 @@ test.describe("Loft", () => {
       const txt = await page
         .getByLabel("Results")
         .getByText("Apogee", { exact: true })
-        .locator("xpath=following-sibling::div")
+        .locator("xpath=following-sibling::div[1]")
         .innerText();
       return parseFloat(txt.replace(/[^\d.]/g, ""));
     };
@@ -3007,7 +3007,7 @@ test.describe("Loft", () => {
       const txt = await page
         .getByLabel("Results")
         .getByText("Apogee", { exact: true })
-        .locator("xpath=following-sibling::div")
+        .locator("xpath=following-sibling::div[1]")
         .innerText();
       return parseFloat(txt.replace(/[^\d.]/g, ""));
     };
@@ -3031,7 +3031,7 @@ test.describe("Loft", () => {
       const txt = await page
         .getByLabel("Results")
         .getByText("Apogee", { exact: true })
-        .locator("xpath=following-sibling::div")
+        .locator("xpath=following-sibling::div[1]")
         .innerText();
       return parseFloat(txt.replace(/[^\d.]/g, ""));
     };
@@ -3083,7 +3083,7 @@ test.describe("Loft", () => {
       const txt = await page
         .getByLabel("Results")
         .getByText("Apogee", { exact: true })
-        .locator("xpath=following-sibling::div")
+        .locator("xpath=following-sibling::div[1]")
         .innerText();
       return parseFloat(txt.replace(/[^\d.]/g, ""));
     };
@@ -3115,7 +3115,7 @@ test.describe("Loft", () => {
       const txt = await page
         .getByLabel("Results")
         .getByText("Apogee", { exact: true })
-        .locator("xpath=following-sibling::div")
+        .locator("xpath=following-sibling::div[1]")
         .innerText();
       return parseFloat(txt.replace(/[^\d.]/g, ""));
     };
@@ -3482,7 +3482,7 @@ test.describe("Loft", () => {
       const txt = await page
         .getByLabel("Results")
         .getByText("Apogee", { exact: true })
-        .locator("xpath=following-sibling::div")
+        .locator("xpath=following-sibling::div[1]")
         .innerText();
       return parseFloat(txt.replace(/[^\d.]/g, ""));
     };
@@ -3548,7 +3548,7 @@ test.describe("Loft", () => {
       const txt = await page
         .getByLabel("Results")
         .getByText("Apogee", { exact: true })
-        .locator("xpath=following-sibling::div")
+        .locator("xpath=following-sibling::div[1]")
         .innerText();
       return parseFloat(txt.replace(/[^\d.]/g, ""));
     };
@@ -3848,7 +3848,7 @@ test.describe("Loft", () => {
       const txt = await page
         .getByLabel("Results")
         .getByText("Apogee", { exact: true })
-        .locator("xpath=following-sibling::div")
+        .locator("xpath=following-sibling::div[1]")
         .innerText();
       return parseFloat(txt.replace(/[^\d.]/g, ""));
     };
@@ -3959,7 +3959,7 @@ test.describe("Loft", () => {
       const txt = await page
         .getByLabel("Results")
         .getByText("Apogee", { exact: true })
-        .locator("xpath=following-sibling::div")
+        .locator("xpath=following-sibling::div[1]")
         .innerText();
       return parseFloat(txt.replace(/[^\d.]/g, ""));
     };

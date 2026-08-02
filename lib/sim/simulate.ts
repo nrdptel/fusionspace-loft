@@ -182,7 +182,16 @@ export interface FlightSummary {
   burnoutVelocity: number;
   burnoutAltitude: number;
   maxDynamicPressure: number;
+  /** VERTICAL descent speed at impact (m/s) — the convention every consumer of it means: the
+   *  firm/hard-landing rules of thumb, the per-section landing energy a waiver cites, and the
+   *  figure `.ork`, `.rkt` and RASAero files store to be compared against. Horizontal drift is
+   *  reported separately as `driftDistance` and, as a speed, `groundHitTotalVelocity`. */
   groundHitVelocity: number;
+  /** Total ground-frame speed at impact (m/s), drift included — what the airframe actually
+   *  arrives at. Larger than `groundHitVelocity` whenever there is wind, by up to a factor of two
+   *  on a light canopy in a stiff breeze, and it is the number that decides whether a landing
+   *  zippers rather than merely thumps. Not comparable to another tool's stored figure. */
+  groundHitTotalVelocity: number;
   /** Optimum ejection delay for apogee deployment (s from burnout). */
   optimumDelay: number;
   deploymentVelocity: number;
@@ -863,11 +872,30 @@ export function simulate(input: SimulateInput): FlightResult {
     }
   }
 
-  const groundHitVelocity = landed ? mag(state.vel) : 0;
+  // Landing speed, and the two of them are NOT the same number under wind.
+  //
+  // `groundHitVelocity` is the VERTICAL descent speed at impact, because that is what every
+  // consumer of it means: the 25 ft/s and 35 ft/s rules of thumb below, the per-section kinetic
+  // energy a waiver is judged on, and the stored figure every design file carries to be compared
+  // against. It used to be `mag(state.vel)` — the full ground-frame speed — which folds in the
+  // horizontal drift the canopy is carrying, and under an open canopy that horizontal component
+  // IS the wind. Measured across the corpus: on the nine stored simulations where wind is above
+  // 4 m/s the vertical figure agrees with the design file's own to a median 0.68%, while the
+  // total-speed figure is off by 25.27%. On one 20 mph case it read 10.46 m/s against the file's
+  // 5.61, and the landing energy built on it was 3.7x too large — on the surface a flyer sizes a
+  // canopy from.
+  //
+  // The total is still real and still reported, as `groundHitTotalVelocity`: the airframe does
+  // arrive at that speed over the ground, and an oblique 20 mph arrival zippers airframes that a
+  // vertical 5 m/s one does not. It is a different question, so it is a different number rather
+  // than the same one silently redefined.
+  const groundHitVelocity = landed ? Math.abs(state.vel.z) : 0;
+  const groundHitTotalVelocity = landed ? mag(state.vel) : 0;
   const driftDistance = Math.hypot(state.pos.x, state.pos.y);
   const burnoutMass = massAt(Math.max(burnout, 0)).mass;
-  // Kinetic energy at impact (½·m·v²) from the descent mass and the ground-hit speed — the
-  // recovery-adequacy figure many fields and waivers cite. 0 when the vehicle never reaches the
+  // Kinetic energy at impact (½·m·v²) from the descent mass and the VERTICAL ground-hit speed —
+  // the recovery-adequacy figure many fields and waivers cite, and those are all specified on
+  // descent rate rather than on speed over the ground. 0 when the vehicle never reaches the
   // ground (groundHitVelocity is 0 there).
   const landingEnergy = 0.5 * burnoutMass * groundHitVelocity * groundHitVelocity;
 
@@ -956,6 +984,7 @@ export function simulate(input: SimulateInput): FlightResult {
     anyRecoveryOpened: recovery.some((d) => d.opened),
     plugged: ejectionPlugged && recovery.some((d) => d.event === "ejection"),
     groundHitVelocity,
+    groundHitTotalVelocity,
     ballisticBoosters,
     firmBoosters: boosterDescents.filter((b) => b.terminalSpeed > 7.6),
     leadingFace: leadingFaceDiameter(rocket),
@@ -1011,6 +1040,7 @@ export function simulate(input: SimulateInput): FlightResult {
       burnoutAltitude: burnoutAlt,
       maxDynamicPressure: maxQ,
       groundHitVelocity,
+      groundHitTotalVelocity,
       landed,
       optimumDelay,
       deploymentVelocity: deploymentV,
@@ -1219,7 +1249,11 @@ function buildWarnings(
     plugged: boolean;
     /** At least one recovery device actually opened during the flight. */
     anyRecoveryOpened: boolean;
+    /** Vertical descent speed at impact — the convention the firm/hard thresholds below are
+     *  written in. */
     groundHitVelocity: number;
+    /** Total ground-frame speed at impact, drift included. */
+    groundHitTotalVelocity: number;
     /** Names of spent lower stages that dropped away with no recovery device — ballistic, untracked. */
     ballisticBoosters: string[];
     /** Separated lower stages that DO recover but land firm or hard under their own canopy
@@ -1240,7 +1274,7 @@ function buildWarnings(
       code: "ballistic-descent",
       message:
         `No recovery device deployed before the rocket reached the ground — it comes in ballistic ` +
-        `at about ${ctx.groundHitVelocity.toFixed(0)} m/s. ` +
+        `at about ${ctx.groundHitTotalVelocity.toFixed(0)} m/s. ` +
         (ctx.plugged
           ? "The design's motor is plugged — it carries no ejection charge — and the recovery is set to " +
             "open on that charge. If the flight deploys on an altimeter, set the deployment to apogee or " +
@@ -1267,15 +1301,29 @@ function buildWarnings(
   // the ballistic case above (there nothing opened); here the rocket lands harder than the
   // ~3–6 m/s (10–20 ft/s) most designs aim for. Above ~25 ft/s a landing gets firm; past ~35 ft/s
   // it risks damage on all but the toughest airframes. A rule of thumb, not a verdict.
+  //
+  // These thresholds are DESCENT RATES, so they are tested against the vertical speed. Testing
+  // them against the speed over the ground made the flag fire on the weather: a canopy descending
+  // at a comfortable 5.4 m/s tripped "firm landing" at 10 mph of wind and approached the hard
+  // threshold at 20 mph, with nothing about the recovery having changed. A flag that fires on
+  // wind teaches a flyer to ignore it on the flight where the canopy really is too small.
   if (ctx.anyRecoveryOpened && ctx.landed && ctx.groundHitVelocity > 7.6) {
     const hard = ctx.groundHitVelocity > 10.7;
+    // Drift does not make the canopy wrong, but it does change what the arrival is like, so it is
+    // named when it dominates rather than being folded into the figure being judged.
+    const oblique = ctx.groundHitTotalVelocity > ctx.groundHitVelocity * 1.25;
     out.push({
       code: "hard-landing",
       message:
-        `The rocket lands at about ${ctx.groundHitVelocity.toFixed(1)} m/s under its recovery ` +
+        `The rocket descends at about ${ctx.groundHitVelocity.toFixed(1)} m/s under its recovery ` +
         `device — ${hard ? "a hard landing that can damage the airframe" : "a firm landing"}. ` +
         "Most designs aim for ~3–6 m/s (10–20 ft/s); a larger canopy lands softer. Verify it's " +
-        "acceptable for your airframe's mass and construction.",
+        "acceptable for your airframe's mass and construction." +
+        (oblique
+          ? ` The wind carries it sideways as it lands, so it arrives at about ` +
+            `${ctx.groundHitTotalVelocity.toFixed(1)} m/s over the ground — a glancing arrival is ` +
+            `harder on an airframe than the descent rate alone suggests.`
+          : ""),
       severity: hard ? "warning" : "caution",
     });
   }

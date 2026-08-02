@@ -182,9 +182,23 @@ export default async function Validation() {
       <ul>
         <li>time to apogee <strong>1.5%</strong>, rail-exit velocity <strong>1.9%</strong></li>
         <li>max Mach <strong>2.0%</strong>, max velocity <strong>2.2%</strong>, optimum delay <strong>2.5%</strong></li>
-        <li>ground-hit velocity <strong>3.0%</strong>, apogee <strong>3.1%</strong>, max acceleration <strong>3.2%</strong>, flight time <strong>3.3%</strong></li>
-        <li>deployment velocity <strong>6.0%</strong></li>
+        <li>apogee <strong>3.1%</strong>, max acceleration <strong>3.2%</strong>, flight time <strong>3.3%</strong></li>
+        <li>deployment velocity <strong>6.0%</strong>, ground-hit velocity <strong>8.3%</strong></li>
       </ul>
+      <p>
+        <strong>Ground-hit velocity moved from 3.0% to 8.3%, and the engine did not get worse.</strong>{" "}
+        Loft used to measure it as the total speed over the ground, which folds in the sideways drift
+        the canopy is carrying — under an open parachute that horizontal component is simply the
+        wind. Every figure it is compared against is a <em>descent rate</em>, and so are the rules of
+        thumb it feeds and the per-section landing energy a waiver is judged on. On the openrocket
+        files the two errors ran opposite ways and partly cancelled, which is what made 3.0% look
+        good: one design reads 14.5% low on descent rate but only 3.0% low once the wind term is
+        added back. Measured on the nine stored simulations where the wind is strong enough that
+        they cannot cancel, the descent rate agrees to <strong>0.68%</strong> while the total speed
+        is out by <strong>25.3%</strong>. So 8.3% is the number that was always true, and the gap it
+        exposes is real: Loft&apos;s descent under a canopy disagrees with OpenRocket&apos;s by more
+        than the old figure ever admitted. Closing that gap is the next thing owed here.
+      </p>
       <p>
         Deployment velocity looks like the outlier and mostly isn&apos;t: it is an{" "}
         <em>ill-conditioned</em> metric, not a badly modelled one. Near apogee the rocket is barely
