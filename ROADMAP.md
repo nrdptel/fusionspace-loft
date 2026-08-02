@@ -1270,9 +1270,11 @@ instead of an inferred edge class.
 
 ## R8 — Component and material catalogues
 
-**Status: IN PROGRESS** — increment 1 of 3–5 shipped 2026-08-02, along with the decomposition. The
-licence question the after-list named as possibly the whole first increment is **answered up front**
-so it is not re-litigated.
+**Status: IN PROGRESS** — increments 1 and 2 of 3–5 shipped 2026-08-02, along with the
+decomposition. The licence question the after-list named as possibly the whole first increment is
+**answered up front** so it is not re-litigated. **What remains is increment 3, the picker**, and it
+is the only thing between this milestone and its *done when*: the data, its provenance and its query
+API all exist and are pinned; nothing in the app imports them yet.
 
 **Outcome.** Authoring becomes SELECTION rather than measurement: a flyer picks a real body tube by
 vendor and part number and gets its dimensions and mass, instead of typing eight numbers off a ruler.
@@ -1395,12 +1397,42 @@ sizes) and recorded as a derivation, not as a material property.
 Pinned by `lib/model/edit.test.ts`: every row has a non-empty source, an unsourced row must say so,
 and Blue Tube's name must not claim a composition.
 
-*Increment 2.* `scripts/gen-components.mjs` + `lib/components/catalog.ts` + `components/provenance.json`
-+ `THIRD-PARTY-NOTICES.md`, modelled on `gen-motors.mjs`. Parse the `.orc` XML at generate time,
-normalise to SI, record upstream commit SHA per file.
+*Increment 2 — SHIPPED. 3,445 real parts, and six entries refused for lying.*
+`scripts/gen-components.mjs` + `lib/components/catalog.ts` + `lib/components/orc/provenance.json` +
+`THIRD-PARTY-NOTICES.md`, modelled on `gen-motors.mjs`. The 16 `.orc` files are vendored verbatim
+under `lib/components/orc/` (2.2 MB) so the copyright headers Apache §4 requires travel with the
+data; the generator parses them with `lib/ork/xml.ts` — the same parser that reads a flyer's
+design — normalises to SI, and records the upstream commit per file. 82 KB gzipped, and nothing in
+the app imports it yet, so the bundle is unchanged until the picker lands.
 
-*Increment 3.* The picker in the builder, and the model wiring: choosing a part populates dimensions
-and material, and the flight moves.
+**The roadmap's own figure of "2,990 parts across 13 vendors" was low, and the reason is worth
+keeping: it came from a case-sensitive `*.orc` glob that missed `BMS.ORC` and `ROCKETARIUM.ORC`.**
+The real database is 16 files and 3,449 entries.
+
+Three properties of the source data turned out to be load-bearing, each measured: a material's unit
+comes from its `<Type>` and never from the `UnitsOfMeasure` attribute (six SURFACE rows declare
+`g/m2` while carrying kg/m², which would fly canopies a thousand times too light); six material
+names are defined more than once with different densities, so resolution is own-file first and then
+`generic_materials.orc` by name rather than by filename sort order; and 113 part numbers collide
+across manufacturers with 21 colliding inside one, so `findPart` returns nothing rather than a guess.
+
+Six entries are refused rather than shipped, each recorded in the bundle as `REFUSED_MATERIALS` /
+`REFUSED_PARTS`: `Paper, bulk` at 0.0011 kg/m³ in two files (lighter than air, referenced by 18 real
+parts), an elastic cord typed `BULK`, three parts stating a bore wider than their outside, and one
+Estes nose cone stating 4.250 in of wall on a 0.974 in body.
+
+Pinned by `lib/components/db.test.ts` — a part number resolving to its vendor's published
+dimensions, the BT-50/BT-60 industry standard reproduced from outside the vendored file, every
+source carrying licence/repo/commit, no shipped density outside its physical band, no shipped part
+with unbuildable geometry, and a stated mass cross-checked against one computed from geometry and
+density.
+
+*Increment 3 — NEXT.* The picker in the builder, and the model wiring: choosing a part populates
+dimensions and material, and the flight moves. This is the whole remaining gap to the *done when*.
+Two things already known that it should absorb: `materialOf` returns `undefined` for the 18 parts
+whose density was refused, and the picker has to surface that rather than substitute a default; and
+a vendor-alias table is owed, because the catalogue carries sixteen manufacturer strings for
+fourteen companies ("Quest" and "Quest Aerospace", "MPC" and "MRC").
 
 **Size.** 3–5 increments.
 
@@ -1944,7 +1976,18 @@ rather than rewriting them.
 
 ## P3 — A stranger's first five minutes
 
-**Status: IN PROGRESS** — increments 1–3 of 3–4 shipped 2026-08-02. All four *done when* clauses are pinned; what remains is strength, not coverage.
+**Status: SHIPPED 2026-08-02** — pinned by `e2e/first-run.spec.ts`, seven cases from a cold load with
+empty storage, covering all four *done when* clauses.
+
+**Closed on a corrected measurement, which is the part worth keeping.** The spec's phone context was
+`test.use({ viewport: size })` with no `hasTouch`, so it reported `pointer: fine` and rendered every
+`TOUCH_TARGET` control at 26 px instead of 44 — understating the chrome above the fold by about
+97 px, in the direction that makes an above-the-fold assertion pass. This is the same false pass
+`depth.spec.ts` records, in the one spec whose entire subject is what a stranger sees without
+scrolling on a phone. `hasTouch` and `isMobile` are now set, and **all seven cases still pass on a
+real coarse pointer** — so the clauses were genuinely met and the instrument was wrong, rather than
+the other way round. A milestone marked shipped on a fine-pointer measurement would have been the
+second time that happened here.
 
 *Increment 1 — the walkthrough the milestone asks for, and the three things it found.* `e2e/first-run.spec.ts`
 starts where every other spec does not: a cold browser, empty storage, no file. `addInitScript` clears
@@ -2029,7 +2072,47 @@ sibling app's 27 KB — the front door is thin in both senses.
 
 ## P4 — A touch-native builder
 
-**Status:** NOT STARTED
+**Status: IN PROGRESS** — increment 1 of 4–6 shipped 2026-08-02, along with the decomposition.
+
+*Increment 1 — SHIPPED. The other half of §8's contract, which nothing had ever measured.*
+
+`DESIGN.md` §8 states the check as two numbers: "at a 390 px viewport, count controls under 44 px
+and states unreachable without hover. **Both counts are zero** or the surface is not done." The hit
+targets have been asserted for several runs. **The hover count had never been taken.** Taken now, on
+a phone with a design loaded, it was **75**.
+
+`e2e/touch.spec.ts` asserts it as an EXACT ratchet, the way §9's counts work — an improvement fails
+just as a regression does, so the number in the spec and the number in reality cannot drift apart.
+It prints which states it found, because a bare integer would send the next session back to writing
+the probe again.
+
+Three things the measurement taught, all of them recorded rather than smoothed over:
+
+- **The first version of the count raced hydration** — 60 on one run and 71 on the next against an
+  identical build. An exact ratchet that is racy is worse than no check, because it fails for timing
+  and teaches a session to re-run until green. It now waits for the route to render, and is stable.
+- **"Has a `title`" is not the same as "unreachable".** A tooltip whose words are also rendered
+  nearby costs a touch user nothing, so the check compares the title against the surrounding block's
+  visible text. Without that it would have punished the fix for the defect it exists to find.
+- **The two halves of §8 can be spent against each other, and must not be.** Writing the stability
+  flag's reasoning into the design summary on a coarse pointer took the phone chrome past the
+  1060 px ratchet and `/sweep` back over two screens — because that strip is the shared chrome all
+  four routes sit under. Reverted, and the reasoning is instead already written in full by
+  `StabilityTrimHint`/`FlutterFixHint` below the fold, which render exactly when a flag is raised.
+  **Decision recorded:** a `title` is acceptable as a pointer-only convenience where the same
+  information is written in words elsewhere on the surface; it is not acceptable as the only route.
+
+Fixed here, taking 75 → **67**: the extrapolated marker's reason and range now render as visible
+text on a coarse pointer (`DESIGN.md` §5 defines that treatment as *the warn treatment plus the
+reason and the range it left*, and on a phone it was arriving with neither); and `DataTable`'s
+per-column `title="Sort by mass"` on a button already reading "Mass" is deleted — a tooltip that
+restates its own label is a named tell, and the `aria-label` already carried the verb for assistive
+tech on every form factor.
+
+*Increment 2 — NEXT.* Drive the 67 down. The bulk is shared chrome, so it is a small number of
+surfaces: the footer and badge `opacity-0 group-hover:opacity-100` external-link arrows are simply
+INVISIBLE on touch, so a flyer cannot tell those links leave the site at all; the theme toggle's
+`title` carries its current state; and `Undo`/`Redo` explain *why* they are disabled only on hover.
 
 **Outcome.** A phone at the pad is a first-class tool, not a rescaled desktop.
 
@@ -2118,6 +2201,35 @@ Beyond these, decompose from the North Star in `MAINTAINING.md` and from `COMPET
 Unattended runs do not stop to ask (see *Unattended operation* in `MAINTAINING.md`). Every decision
 that would otherwise have been a question goes here, with the option rejected, so it can be reversed
 cheaply instead of re-derived. Newest first.
+
+- **2026-08-02 — a published accuracy figure was RAISED rather than the gate slackened.**
+  `groundHitVelocity`'s census median goes 3.0% → 8.3% because the metric stopped being measured on
+  the total ground-frame speed. **Rejected:** keeping the total-speed convention so the median stayed
+  at 3.0%. That figure was two errors cancelling — Loft's own descent rate runs low on the openrocket
+  files and the wind term ran high — and on the nine stored sims where wind is strong enough that
+  they cannot cancel, the vertical figure agrees to 0.68% against 25.27% for the total. Widening
+  `CENSUS_SLACK_PCT` was also rejected outright: `MAINTAINING.md` names that as a regression dressed
+  as a pass. The page says why the number rose. **Reversing this means reverting the convention, not
+  the figure.**
+
+- **2026-08-02 — a `title` is acceptable as a pointer-only convenience, never as the only route.**
+  Writing the stability flag's reasoning into the design summary on a coarse pointer put the phone
+  chrome past the 1060 px ratchet and `/sweep` back over two screens — §8's depth clause and its
+  hover clause were being spent against each other. **Rejected:** keeping the visible line and
+  raising the depth ratchet, which would have traded a measured contract for an unmeasured one. The
+  reasoning is already written in full by `StabilityTrimHint`/`FlutterFixHint` below the fold, which
+  render exactly when a flag is raised, so the tooltip is redundancy rather than the only path. The
+  hover-only count treats a tooltip whose words appear nearby as reachable, which is what encodes
+  this decision in a check rather than in prose.
+
+- **2026-08-02 — the parts catalogue refuses six upstream entries rather than shipping them.**
+  Three material densities that cannot describe matter (`Paper, bulk` at 0.0011 kg/m³ in two files,
+  referenced by 18 real parts) and three parts with negative material volume. **Rejected:** shipping
+  them and letting the UI cope, which would have put a made-up mass under CG, stability and apogee
+  with nothing saying so. Also **rejected:** refusing `ROCKETARIUM.ORC`'s 9,072 kg/m³ "paper" —
+  that is a possible density for *something*, and refusing it would mean judging a value against its
+  NAME rather than against physics. It is recorded in `THIRD-PARTY-NOTICES.md` and `BACKLOG.md`
+  instead. **Reversing any of this is one edit to the bands in `scripts/gen-components.mjs`.**
 
 - **2026-08-02 — P2's workspaces are mounted in the route-group LAYOUT, not in the route pages.**
   `app/(app)/layout.tsx` renders the design, its chrome and every workspace panel; each

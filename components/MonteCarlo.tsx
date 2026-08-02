@@ -427,15 +427,36 @@ function Report({
           stat={result.maxVelocity}
           fmt={(v) => d.q(d.speed(v, units))}
         />
-        <StatCard
-          title="Landing speed"
-          stat={result.landingSpeed}
-          fmt={(v) => d.q(d.speed(v, units))}
-        />
+        {/* Withheld, not zeroed, when nothing reached the ground. `landingSpeed` and
+            `landingEnergy` are 0 sentinels on a flight still airborne at the time cap, and
+            summarising them published a 0.00 m/s median landing speed for a design where no sample
+            landed at all — while the flight card one route away withholds those exact two figures
+            with a reason. Two surfaces disagreeing about whether a number exists is worse than
+            either alone. */}
+        {result.landedN > 0 ? (
+          <StatCard
+            title="Landing speed"
+            stat={result.landingSpeed}
+            fmt={(v) => d.q(d.speed(v, units))}
+          />
+        ) : (
+          <WithheldCard
+            title="Landing speed"
+            why="no dispersed flight reached the ground inside the time cap — enlarge the recovery or check the deployment"
+          />
+        )}
         <RadiusCard radius={result.landingRadiusP95} drift={result.driftDistance} units={units} />
       </div>
 
-      {result.landingEnergy.p95 > 0 && (
+      {result.landedN > 0 && result.landedN < result.n && (
+        <p className="mt-3 text-sm text-amber-700 dark:text-amber-400">
+          <span className="font-medium">Landing figures cover {result.landedN} of {result.n} flights.</span>{" "}
+          The rest were still descending at the {"1,200"} s cap, so they carry no landing speed or
+          energy and are left out of both rather than counted as a soft landing.
+        </p>
+      )}
+
+      {result.landedN > 0 && result.landingEnergy.p95 > 0 && (
         <p className="mt-3 text-sm text-zinc-500 dark:text-zinc-400">
           <span className="font-medium">Landing energy:</span> {d.q(d.energy(result.landingEnergy.p50, units))} median,{" "}
           {d.q(d.energy(result.landingEnergy.p95, units))} worst-case (95th percentile) — the whole vehicle
@@ -539,6 +560,20 @@ function Report({
         <CopyTable rows={csvRows(result, units)} />
       </div>
     </div>
+  );
+}
+
+/** A stat that cannot be computed, saying why and what would restore it. `DESIGN.md` §6: "a
+ *  withheld value says why, and what would restore it. A blank cell is a bug." */
+function WithheldCard({ title, why }: { title: string; why: string }) {
+  return (
+    <Card tone="sunken">
+      <div className="text-[11px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">{title}</div>
+      <div className="mt-1 text-xl font-semibold tabular-nums text-zinc-400 dark:text-zinc-500" aria-label={`${title} withheld: ${why}`}>
+        —
+      </div>
+      <div className="mt-0.5 text-sm text-zinc-500 dark:text-zinc-400">{why}</div>
+    </Card>
   );
 }
 

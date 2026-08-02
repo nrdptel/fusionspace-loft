@@ -78,10 +78,18 @@ export interface MonteCarloSample {
   maxVelocity: number;
   /** Horizontal distance from the pad to the landing point (m). */
   driftDistance: number;
+  /** Whether this flight reached the ground inside the time cap. When false its `landingSpeed` and
+   *  `landingEnergy` are 0 sentinels rather than measurements, and the summary leaves it out of
+   *  both. */
+  landed: boolean;
   /** Landing point relative to the pad (m), for the 2D scatter. */
   landingX: number;
   landingY: number;
-  /** Speed at ground impact (m/s) — how hard it lands under recovery, the recovery-adequacy figure. */
+  /** VERTICAL descent speed at impact (m/s) — how hard it lands under recovery, the
+   *  recovery-adequacy figure, and the convention `FIRM_LANDING_MPS` / `HARD_LANDING_MPS` below
+   *  are written in. Not the speed over the ground: wind drift moves that without making the
+   *  canopy any smaller, so a dispersion over it would report the weather's spread, not the
+   *  design's. */
   landingSpeed: number;
   /** Kinetic energy at ground impact (J), ½·m·v² for the whole vehicle — the recovery-adequacy figure
    *  many fields and waivers set a per-section limit on, so its worst-case matters as much as speed. */
@@ -106,14 +114,22 @@ export interface MonteCarloResult {
   driftDistance: Stat;
   /** Radius (m) from the pad containing 95% of the landings — the recovery area to plan for. */
   landingRadiusP95: number;
-  /** Ground-impact speed spread (m/s) — how hard it lands across the dispersion; the 95th percentile
-   *  is the worst-case a flyer sizes recovery against. */
+  /** Ground-impact descent-rate spread (m/s) — how hard it lands across the dispersion; the 95th
+   *  percentile is the worst-case a flyer sizes recovery against. Computed over the flights that
+   *  actually REACHED the ground: a flight still airborne at the time cap carries a 0 sentinel, not
+   *  a measurement, and averaging those in reported a soft landing that never happened. */
   landingSpeed: Stat;
   /** Ground-impact kinetic energy spread (J) for the whole vehicle — the field/waiver recovery-
-   *  adequacy figure; its 95th percentile is the worst-case to check against a landing-energy limit. */
+   *  adequacy figure; its 95th percentile is the worst-case to check against a landing-energy limit.
+   *  Same population as `landingSpeed`. */
   landingEnergy: Stat;
   /** Flights that actually flew (a sample whose motor can't resolve is dropped). */
   n: number;
+  /** Of those, how many reached the ground inside the time cap. `landingSpeed` and `landingEnergy`
+   *  describe these and only these, so a surface must withhold both when this is 0 — the same house
+   *  rule the flight card follows, and for the same reason: a flyer enlarging a canopy watched the
+   *  landing energy fall to 0 J and read it as success. */
+  landedN: number;
 }
 
 /** mulberry32 — a small, fast, well-distributed 32-bit PRNG. Seeded and deterministic. */
@@ -270,6 +286,7 @@ export function* monteCarloSamples(rocket: Rocket, opts: MonteCarloOptions): Gen
         landingY: s.landingY,
         landingSpeed: s.groundHitVelocity,
         landingEnergy: s.landingEnergy,
+        landed: s.landed,
       };
     } catch {
       // A sample that can't be flown is dropped from the distribution.
@@ -280,15 +297,23 @@ export function* monteCarloSamples(rocket: Rocket, opts: MonteCarloOptions): Gen
 /** Summarize a set of dispersed samples into per-metric bands and the recovery radius. */
 export function summarizeSamples(samples: MonteCarloSample[]): MonteCarloResult {
   const driftSorted = samples.map((s) => s.driftDistance).sort((a, b) => a - b);
+  // Landing statistics come from the flights that LANDED. `groundHitVelocity` and `landingEnergy`
+  // are 0 on a flight still airborne at the 1,200 s cap — a sentinel the solver documents as such,
+  // not a measurement — and summarising them alongside real landings published a distribution the
+  // flight card one route away refuses to publish as a single number. Measured on
+  // `Complex.Two-Stage.CDX1` at a recovery size inside the field's own 0.1-10x range: 40 of 40
+  // samples were sentinels, and the panel read 0.00 m/s median landing speed and 0.0 J.
+  const landed = samples.filter((s) => s.landed);
   return {
     samples,
     apogee: summarize(samples.map((s) => s.apogee)),
     maxVelocity: summarize(samples.map((s) => s.maxVelocity)),
     driftDistance: summarize(samples.map((s) => s.driftDistance)),
     landingRadiusP95: percentile(driftSorted, 0.95),
-    landingSpeed: summarize(samples.map((s) => s.landingSpeed)),
-    landingEnergy: summarize(samples.map((s) => s.landingEnergy)),
+    landingSpeed: summarize(landed.map((s) => s.landingSpeed)),
+    landingEnergy: summarize(landed.map((s) => s.landingEnergy)),
     n: samples.length,
+    landedN: landed.length,
   };
 }
 
@@ -318,9 +343,15 @@ export const HARD_LANDING_MPS = 10.7;
 /** Fraction of dispersed flights that land at or above `speedMps` — the chance of a landing at least
  *  that hard, the recovery-adequacy companion to the waiver-ceiling exceedance. For a marginal
  *  recovery it answers the actionable question the band alone doesn't: not just how hard the worst
- *  case is, but how often it happens. In [0,1]; NaN with no samples or a non-positive threshold. */
+ *  case is, but how often it happens.
+ *
+ *  Denominated over the flights that LANDED, not over every flight. Counting a still-airborne
+ *  sample as "did not land hard" is the most flattering possible reading of a flight that has not
+ *  finished: it reported 0.0% chance of a firm landing on a design where no sample reached the
+ *  ground at all. In [0,1]; NaN when nothing landed or the threshold is not positive. */
 export function landingSpeedExceedance(result: MonteCarloResult, speedMps: number): number {
-  if (result.n === 0 || !(speedMps > 0)) return NaN;
-  const over = result.samples.reduce((c, s) => c + (s.landingSpeed > speedMps ? 1 : 0), 0);
-  return over / result.n;
+  if (result.landedN === 0 || !(speedMps > 0)) return NaN;
+  const landed = result.samples.filter((s) => s.landed);
+  const over = landed.reduce((c, s) => c + (s.landingSpeed > speedMps ? 1 : 0), 0);
+  return over / landed.length;
 }

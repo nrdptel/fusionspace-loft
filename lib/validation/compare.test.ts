@@ -16,6 +16,7 @@ const summary: FlightSummary = {
   burnoutAltitude: 120,
   maxDynamicPressure: 20000,
   groundHitVelocity: 5,
+  groundHitTotalVelocity: 6,
   optimumDelay: 10,
   deploymentVelocity: 3,
   driftDistance: 40,

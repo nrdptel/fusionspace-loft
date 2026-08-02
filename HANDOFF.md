@@ -4,6 +4,24 @@ Overwritten each session. What shipped, what is part-way, and what to pick up fi
 
 ## Read this first
 
+**`npx playwright install chromium` is a SILENT NO-OP in this sandbox. Use
+`./node_modules/.bin/playwright install chromium`.** Measured 2026-08-02 (this run): `npx` exits 0,
+prints nothing at all, and installs nothing — the previous session's note crediting `npx` with the
+fix is wrong, and following it costs a full e2e run to discover. The direct binary downloads
+chromium-1228 and chromium_headless_shell-1228 in about ninety seconds through the proxy. Check
+`ls /opt/pw-browsers` for `chromium_headless_shell-1228` afterwards rather than trusting the exit
+code. **This still belongs in the environment's setup script**; it is paid for again every session
+until it is, and that is the owner's fix.
+
+**And never pipe `playwright test` into `tail` to read its result.** The pipeline's exit code is
+`tail`'s, which is always 0. This run's baseline e2e reported "green" that way while both shards were
+in fact failing all 208 tests on the missing browser. Redirect to a file and check `$?`.
+
+**The corpus arrives as a second attached repo and it was present this run** — `/home/user/loft-fixtures`
+beside the app repo. `ln -sfn` each per-tool directory into `corpus/` and the suite names its count:
+`imports every design file (35 present)`. `FIXTURES_TOKEN` is unset here, so `npm run fetch-fixtures`
+would have exited 0 and the suite would have skipped itself silently.
+
 **The Playwright browser this repo manages was NOT present in the sandbox, and the whole e2e suite
 failed until it was installed.** Measured 2026-08-02: `PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers` is
 set by the environment, `@playwright/test` 1.61.1 wants **chromium_headless_shell-1228**, and the
@@ -58,6 +76,108 @@ must set `hasTouch` from the first line it is written.**
 | **P3 — a stranger's first five minutes** | **IN PROGRESS** — increment 1 of 3–4 shipped 2026-08-02: the cold-load walkthrough exists and found two real gaps, both fixed |
 | **R8 — component and material catalogues** | **IN PROGRESS** — decomposed with its licence question settled, and increment 1 shipped: every fin shear modulus now cites a source, and two were wrong (basswood by 3×) |
 | P4–P5 | NOT STARTED |
+
+## This session — third run (2026-08-02)
+
+Three commits on the working branch, none merged yet. Baseline inherited: lint 0 errors / 1 standing
+warning, **983 unit**, build, corpus **35 design files 18/18** — and e2e **RED**, 208 failures, all
+of them the missing browser above rather than a defect.
+
+### R8 increment 2 — the component catalogue (`ebbb9ab`, hardened by `1f38898`)
+
+`scripts/gen-components.mjs` parses the vendored Apache-2.0 openrocket-database (16 `.orc` files,
+2.2 MB, `lib/components/orc/`) into `lib/components/catalog.ts`: **3,445 parts** from fourteen
+manufacturers, normalised to SI, 82 KB gzipped. It reuses `lib/ork/xml.ts` — the same parser that
+reads a flyer's design — via Node 22's type stripping, rather than carrying a second XML
+implementation. `lib/components/db.ts` is the query API; `THIRD-PARTY-NOTICES.md` carries the
+Apache grant, sixteen retained copyright notices and the statement of modifications.
+
+**Nothing in the app imports it yet, so the bundle is unchanged. The picker is increment 3, and it
+is the next R-track work.**
+
+Three properties of the source data are load-bearing and all were measured: a material's unit comes
+from its `<Type>` and never from `UnitsOfMeasure` (six SURFACE rows declare `g/m2` while carrying
+kg/m²); six material names are defined more than once with different densities; 113 part numbers
+collide across manufacturers and 21 within one, so `findPart` refuses to guess. Six entries are
+refused outright — `Paper, bulk` at 0.0011 kg/m³ in two files (referenced by 18 real parts), an
+elastic cord typed BULK, three parts with a bore wider than their outside, and one nose cone with
+4.250 in of wall on a 0.974 in body.
+
+### The Sev-1: landing speed was measuring the weather (`a4abebb`)
+
+`groundHitVelocity` was `mag(state.vel)`, the full speed over the ground, so under a canopy it
+carried the wind. Every consumer means the vertical descent rate — the 25/35 ft/s rules of thumb,
+the per-section landing energy a waiver is judged on, and the stored figure in every design file.
+On `USLI2025-FULLSCALE-10.15` it read **10.46 m/s at 20 mph against the file's own 5.607**, and the
+landing energy built on it was **801 J against 215 J**. The file's five stored runs sit at
+5.607–5.610 across 0–20 mph — flat while their flight time and altitude move — which is what
+established the convention rather than assuming it.
+
+The drift is separated, not discarded: `groundHitTotalVelocity` shows as "Arrival speed" when wind
+makes it materially larger.
+
+**The census figure got worse and that is the point: groundHitVelocity 3.0% → 8.3%, raised rather
+than slackened, and said on `/docs/validation`.** The old figure was two errors cancelling — on the
+openrocket files Loft's descent rate runs low and the wind term ran high. On the nine stored sims
+where wind exceeds 4 m/s the vertical figure agrees to **0.68%** and the total is out by **25.27%**.
+The descent-rate gap this exposes is real and is now visible work.
+
+Pinned by a corpus assertion flying all 35 designs at 0/4/9 m/s; as a negative control the old code
+names **56 violations** with exact figures.
+
+### Two more Sev-1s, both reproduced before they were touched
+
+**`lib/sim/flutter.ts` — a booster's fins were judged against the speed the SUSTAINER reached after
+they were shed** (`f8cc5f7`). Every fin set on `Three stage low power rocket.ork` reported the
+identical 77.1 m/s at 95 m, which is the tell. The red 0.68 margin belonged to a fin set shed at
+0.86 s; over its own flight it is 2.11. Fixed by passing the realised phase timeline; **it reassigns
+warnings rather than suppressing them** — `03.Three-stage.ork` keeps its 0.23 flag because that fin
+set really is attached. Pinned over 12 shed fin sets, negative control names six violations.
+
+**`lib/sim/montecarlo.ts` — a dispersion reported landings that never happened** (`ddbed12`). At
+`recoveryCdScale: 5`, inside the field's own advertised range, **40 of 40 samples were 0 sentinels**
+and the panel read 0.00 m/s and 0.0 J — while `ResultsView` withholds those exact two figures one
+route away. Landing stats now come from the flights that landed, the result carries `landedN`, and
+the panel withholds with a reason or says "covers N of M flights".
+
+### What is still NOT reproduced
+
+The remaining fan-out findings are filed at the top of `BACKLOG.md` **marked UNREPRODUCED**, with the
+filer's numbers. Both Sev-1s above reproduced exactly as filed, so these are worth taking seriously —
+but they are still claims. Ranked by claimed damage:
+
+1. `lib/ork/export.ts:568` — a Loft-exported `.ork` re-imports with no stored simulations, so it
+   flies a different motor configuration: claimed **52.9 → 317.1 m** on `A simple model rocket.ork`.
+   **Reproduce this first**; it is the largest claimed number left.
+2. `components/LoftApp.tsx:1347` — "Pick it back up" replays the edit bag onto bytes that already
+   contain it: claimed −15% apogee and a duplicated part, from the undo button.
+3. `components/LoftApp.tsx:515` — a from-scratch build stops being tracked by its shelf row after any
+   reload, which also disables motor-swap baking in `downloadOrk`.
+4. `lib/sim/simulate.ts:931` — with no liftoff, six summary figures are initialisation zeros printed
+   as facts.
+
+Also filed: `lib/weather.test.ts:139` is a **load-dependent red** in the unit gate (5768 ms against
+vitest's 5000 ms default) — it went red once here under concurrent load and passes 16/16 alone. That
+is the failure mode that teaches a session to re-run until green; give it an explicit timeout.
+
+### Where the work is, and what production is serving
+
+**Seven commits, all on the working branch, all in PR #111 against `main`. NOTHING reached
+production this run.** Measured rather than assumed: all ten routes on `loft.fusionspace.co` answer
+200, and none of them carries this run's text (`Arrival speed`, `8.3%`, `this fin set reaches` all
+return 0 hits), while the local built export of `ddbed12` carries all of them. Production is still
+serving `e97770a`. **Merging PR #111 is what makes any of this reachable by a flyer**, and CI on the
+first six commits went green on both jobs — including the `frontend` job, which is the one that
+fetches the real corpus and runs the accuracy census, so the raised 8.3% figure is validated
+upstream and not just locally.
+
+### The measurement that is now owed to `DESIGN.md`
+
+§9's compliance block should gain the hover-only count that `e2e/touch.spec.ts` now takes. It was
+NOT added, because §10 makes a change to one copy of `DESIGN.md` a change to both repos in the same
+run and the sibling is not attached here. That is now **five** things owed to the sibling copy, the
+other four unchanged from the last five runs. A session created with both repos attached clears all
+five.
 
 ## This session (2026-08-02)
 

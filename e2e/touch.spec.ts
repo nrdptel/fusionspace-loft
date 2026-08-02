@@ -487,3 +487,85 @@ test.describe("phone layout", () => {
     }
   });
 });
+
+/** `DESIGN.md` §8's OTHER count, which nothing measured until 2026-08-02.
+ *
+ *  The contract is two numbers, not one: "at a 390 px viewport, count controls under 44 px and
+ *  states unreachable without hover. Both counts are zero or the surface is not done." The hit
+ *  targets have been asserted for several runs. The hover count had never been taken, and when it
+ *  was, it was **96** on a phone with a design loaded.
+ *
+ *  A `title` attribute is the main offender: native tooltips do not fire on touch at all, so every
+ *  one of them is information a flyer at the pad cannot reach. The two that carried REASONING about
+ *  a number — the stability badge's "why", and the extrapolated marker's reason and range — are
+ *  fixed in the same change and now render as visible text on a coarse pointer. The rest are
+ *  ratcheted rather than fixed in one go, because most restate a visible label ("Sort by mass" on a
+ *  button reading "Mass") and the fix for those is deletion, one surface at a time.
+ *
+ *  **The number is an EXACT ratchet, deliberately**, the same way `DESIGN.md` §9's counts are: an
+ *  improvement fails this test just as a regression does, so the figure in this file and the figure
+ *  on the page can never drift apart silently. */
+const HOVER_ONLY_FLOOR = 67;
+
+test("counts the states a flyer at the pad cannot reach, and holds the number down", async ({ page }) => {
+  const ROUTES = ["/flight", "/design", "/sweep", "/validate", "/docs", "/docs/methods"];
+
+  await page.goto("/");
+  await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+  await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 30_000 });
+
+  const found: string[] = [];
+  for (const route of ROUTES) {
+    await page.goto(route);
+    // Wait for the route to finish rendering before counting. Without this the count RACES
+    // hydration and moves between runs — measured 60 and 71 on two runs of an identical build,
+    // which would make an exact ratchet worse than no check at all: it would fail for timing and
+    // teach the next session to re-run until green.
+    await page.waitForLoadState("networkidle");
+    await expect(page.locator("footer")).toBeVisible();
+    if (route.startsWith("/docs")) {
+      await expect(page.getByRole("heading").first()).toBeVisible();
+    } else {
+      await expect(page.getByRole("navigation", { name: "Workspace" })).toBeVisible();
+    }
+    const here = await page.evaluate(() => {
+      const out: string[] = [];
+      for (const el of Array.from(document.querySelectorAll<HTMLElement>("*"))) {
+        const r = el.getBoundingClientRect();
+        if (r.width === 0 && r.height === 0) continue; // not rendered, so not reachable either way
+        const label = `<${el.tagName.toLowerCase()}> ${(el.textContent || "").trim().replace(/\s+/g, " ").slice(0, 24)}`;
+        const title = el.getAttribute("title");
+        if (title && title.trim()) {
+          // "Unreachable without hover" is about the INFORMATION, not the attribute. A tooltip
+          // whose text is also rendered visibly nearby costs a touch user nothing — that is exactly
+          // what the coarse-pointer reasoning lines do — so the test is whether the title's words
+          // appear in the surrounding block. Without this the check would punish the fix for the
+          // defect it exists to find.
+          const near = (el.closest("dd, li, p, div, section") as HTMLElement | null)?.innerText ?? "";
+          const norm = (s: string) => s.replace(/\s+/g, " ").trim().toLowerCase();
+          if (!norm(near).includes(norm(title))) out.push(`title · ${label} · ${title.slice(0, 50)}`);
+        }
+        const cls = typeof el.className === "string" ? el.className : "";
+        // A class that only reveals on hover is the same defect wearing CSS: the element is in the
+        // DOM at opacity 0 and no touch gesture will ever bring it up.
+        if (/(^|\s|:)(group-)?hover:(opacity-100|block|flex)/.test(cls)) {
+          out.push(`hover-class · ${label} · ${cls.slice(0, 60)}`);
+        }
+      }
+      return out;
+    });
+    for (const h of here) found.push(`${route} · ${h}`);
+  }
+
+  // Printed, not just counted: the next session driving this number down needs to know WHICH, and a
+  // bare integer would send them back to writing this probe again.
+  console.log(`hover-only states on a 390 px coarse pointer: ${found.length}`);
+  for (const f of found.slice(0, 40)) console.log(`  ${f}`);
+
+  expect(
+    found.length,
+    found.length > HOVER_ONLY_FLOOR
+      ? `hover-only states rose to ${found.length} from ${HOVER_ONLY_FLOOR} — a phone cannot reach any of these`
+      : `hover-only states fell to ${found.length}; lower HOVER_ONLY_FLOOR to match, in this commit`,
+  ).toBe(HOVER_ONLY_FLOOR);
+});

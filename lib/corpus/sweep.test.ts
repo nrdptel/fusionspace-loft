@@ -115,13 +115,23 @@ const PUBLISHED_MEDIAN_PCT: Record<string, number> = {
   // optimumDelay 2.7 -> 2.5, maxAltitude 3.2 -> 3.1. Tightened here in the same change as the
   // engine and the page, because a claim left at its old, looser figure is a gate that has stopped
   // gating.
+  // groundHitVelocity 3.0 -> 8.3, and it is the one figure here that got WORSE without the engine
+  // getting worse. It used to be measured on the total ground-frame speed, which folds in the
+  // horizontal drift the canopy is carrying; every stored figure it is compared against is the
+  // vertical descent rate. On the openrocket files that error ran OPPOSITE to Loft's own
+  // descent-rate error and partly cancelled it — `pods--airframes and winglets` reads -14.5%
+  // vertical but -3.0% total — so 3.0% was two errors meeting in the middle. Measured on the nine
+  // stored sims where wind exceeds 4 m/s, where the two cannot cancel, the vertical figure agrees
+  // to a median 0.68% and the total is out by 25.27%. 8.3% is therefore the honest number and the
+  // gap it exposes is real: Loft's descent rate under a canopy disagrees with OpenRocket's by more
+  // than the old figure ever admitted. Raised here rather than slackened, and said on the page.
   timeToApogee: 1.5,
   launchRodVelocity: 1.9,
   maxMach: 2.0,
   maxVelocity: 2.2,
   optimumDelay: 2.5,
-  groundHitVelocity: 3.0,
   maxAltitude: 3.1,
+  groundHitVelocity: 8.3,
   flightTime: 3.3,
   maxAcceleration: 3.2,
   deploymentVelocity: 6.0,
@@ -1298,6 +1308,239 @@ suite("real-design corpus", () => {
     console.log(`recovery-size sweep across ${files.length} design files: ${flown} flights at 0.1/2/5/10×`);
     expect(flown, "no design flew, so this asserted nothing").toBeGreaterThan(50);
     expect(absurd, "a legal recovery size produced a number physics cannot produce").toEqual([]);
+  }, 900_000);
+
+  /** A dispersion never reports a landing that did not happen.
+   *
+   *  `groundHitVelocity` and `landingEnergy` are 0 on a flight still airborne at the 1,200 s cap —
+   *  a sentinel the solver documents as such — and the Monte-Carlo summary averaged them in
+   *  alongside real landings. Measured on `Complex.Two-Stage.CDX1` at `recoveryCdScale: 5`, inside
+   *  the field's own advertised 0.1–10x range: **40 of 40 samples were sentinels**, the panel read
+   *  a median landing speed of 0.00 m/s and 0.0 J of landing energy, and the firm-landing chance
+   *  came out 0.0% — the most flattering possible reading of a flight that never finished. The
+   *  flight card one route away withholds those exact two figures with a reason, so two surfaces
+   *  disagreed about whether the number existed at all.
+   *
+   *  Driven as a NEGATIVE CONTROL: summarise over `samples` instead of the landed ones and this
+   *  names the designs and the recovery sizes whose landing statistics are pure sentinel. */
+  it("never averages a landing that never happened into a dispersion", async () => {
+    const sentinels: string[] = [];
+    let checked = 0;
+    let sawUnlanded = 0;
+    for (const f of files) {
+      let doc;
+      try {
+        doc = await importDesign(new Uint8Array(readFileSync(f.path)));
+      } catch {
+        continue;
+      }
+      // 5x is a legal entry in the recovery-size field, and it is where flights stop landing.
+      for (const scale of [1, 5]) {
+        let mc;
+        try {
+          mc = monteCarlo(doc.rocket, {
+            n: 12,
+            seed: 11,
+            dispersions: { impulseFrac: 0.05, massFrac: 0.03, rodAngleDeg: 1 },
+            recoveryCdScale: scale,
+          });
+        } catch {
+          continue;
+        }
+        if (mc.n === 0) continue;
+        checked++;
+        if (mc.landedN < mc.n) sawUnlanded++;
+        // Where nothing landed, both figures must be absent rather than zero. Where some did, the
+        // summary must describe those and only those — a zero surviving into the band is a sample
+        // that never reached the ground being counted as the softest landing in the set.
+        if (mc.landedN === 0) {
+          if (Number.isFinite(mc.landingSpeed.p50) || Number.isFinite(mc.landingEnergy.p50)) {
+            sentinels.push(
+              `${shortName(f.name)} at ${scale}x: nothing landed, yet landing speed reads ` +
+                `${mc.landingSpeed.p50} m/s and energy ${mc.landingEnergy.p50} J`,
+            );
+          }
+        } else if (mc.landingSpeed.min === 0) {
+          sentinels.push(
+            `${shortName(f.name)} at ${scale}x: ${mc.n - mc.landedN} of ${mc.n} never landed and a ` +
+              `0 m/s sentinel reached the band`,
+          );
+        }
+      }
+    }
+    console.log(
+      `dispersion landing sentinels across ${files.length} design files: ${checked} dispersions, ` +
+        `${sawUnlanded} with at least one flight still airborne at the cap`,
+    );
+    expect(checked, "no dispersion ran, so this asserted nothing").toBeGreaterThan(10);
+    expect(
+      sawUnlanded,
+      "no dispersion had an unlanded flight, so the sentinel path was never exercised",
+    ).toBeGreaterThan(0);
+    expect(sentinels, "a flight that never landed was reported as a landing").toEqual([]);
+  }, 900_000);
+
+  /** A fin set is judged for flutter only over the flight its own stage was still attached for.
+   *
+   *  `analyzeFlutter` walked the whole ascent for every fin set, so on a staged design a booster's
+   *  fins were charged with the speed the SUSTAINER reached after they were already on the ground —
+   *  and `results.reduce` made that the `worst` the entire flutter surface reports. Measured before
+   *  the fix, every fin set on `Three stage low power rocket.ork` reported the identical 77.1 m/s at
+   *  95 m, and the 0.68 margin lighting the red warning belonged to a fin set shed at 0.86 s; judged
+   *  over its own flight it is 2.11. Flutter speed is the one safety estimate this app produces, and
+   *  the worst fin set is also the one `FlutterFixHint` names and thickens.
+   *
+   *  Driven as a NEGATIVE CONTROL: drop the `phases` argument at the `analyzeFlutter` call in
+   *  `simulate.ts` and this names every design whose fin sets collapse onto one sample. */
+  it("judges each fin set over the flight its own stage was attached for", async () => {
+    /** Which stage each fin set sits on, read from the MODEL rather than from the solver, so this
+     *  is an independent derivation and not a restatement of the implementation. */
+    const finStageOf = (rocket: Rocket): Map<string, number> => {
+      const m = new Map<string, number>();
+      const walk = (cs: RocketComponent[], stage: number) => {
+        for (const c of cs) {
+          if (
+            c.kind === "trapezoidfinset" ||
+            c.kind === "ellipticalfinset" ||
+            c.kind === "freeformfinset"
+          ) {
+            m.set(c.id, stage);
+          }
+          walk(c.children, stage);
+        }
+      };
+      rocket.stages.forEach((s, i) => walk(s.components, i));
+      return m;
+    };
+
+    const late: string[] = [];
+    let checked = 0;
+    for (const f of files) {
+      let doc;
+      let run;
+      try {
+        doc = await importDesign(new Uint8Array(readFileSync(f.path)));
+        run = runFromDocument(doc);
+      } catch {
+        continue;
+      }
+      if (!run.hasPropulsion) continue;
+      const flutter = run.result.flutter;
+      // Detach times from the phase timeline the run reports, read through `StagePhase`'s own
+      // documented meaning: `stageCount` is how many stages are still attached counting from the
+      // nose, so stage `s` is gone from the first phase whose count has fallen to or below `s`.
+      //
+      // Counting separation EVENTS instead does not work, and getting that wrong made this test
+      // silently weaker rather than louder: a serial stack can part at ONE joint and shed two
+      // stages on a single event — `03.Three-stage.ork` does exactly that, phases
+      // [{0,3},{7.33,1}] — so "the i-th separation removes stage n-i" assigned stage 1 an infinite
+      // detach time and skipped the very fin set most likely to be judged out of its window.
+      const phases = run.phases;
+      if (!flutter || phases.length < 2) continue;
+      const stageOf = finStageOf(doc.rocket);
+      const detachOf = (stage: number): number =>
+        phases.find((p) => p.stageCount <= stage)?.startTime ?? Infinity;
+
+      // Narrowing a fin set's window can empty it: a stage shed before the rocket ever exceeds
+      // 1 m/s leaves that set with no sample, and it then drops out of `finSets` with no error and
+      // no marker — and if every fin-bearing stage went that early the whole flutter surface would
+      // vanish from the flight card rather than say why. Nothing on today's corpus reaches it, and
+      // this is what keeps it that way.
+      if (flutter.finSets.length !== stageOf.size) {
+        late.push(
+          `${shortName(f.name)}: the design has ${stageOf.size} fin set(s) but flutter reports ` +
+            `${flutter.finSets.length} — one was judged over an empty window and vanished silently`,
+        );
+      }
+
+      for (const s of flutter.finSets) {
+        const stage = stageOf.get(s.finId);
+        if (stage === undefined || s.time === undefined) continue;
+        const until = detachOf(stage);
+        if (!Number.isFinite(until)) continue; // still attached at the end — nothing to check
+        checked++;
+        // A tenth of a second of slack: the trajectory is sampled, so the last sample before
+        // separation can sit fractionally either side of the event's own timestamp.
+        if (s.time > until + 0.1) {
+          late.push(
+            `${shortName(f.name)}: "${s.finName}" (stage ${stage}, shed at ${until.toFixed(2)} s) ` +
+              `judged at t=${s.time.toFixed(2)} s, ${s.velocity.toFixed(1)} m/s, margin ${s.margin.toFixed(2)}`,
+          );
+        }
+      }
+    }
+    console.log(
+      `flutter stage-attachment across ${files.length} design files: ${checked} fin sets on stages that were shed`,
+    );
+    expect(checked, "no fin set was ever shed, so this asserted nothing").toBeGreaterThan(3);
+    expect(late, "a shed stage's fins were judged at a speed they never saw").toEqual([]);
+  }, 900_000);
+
+  /** The landing speed a canopy is judged by does not change because the wind got up.
+   *
+   *  `groundHitVelocity` was the full ground-frame speed, `mag(state.vel)`, so under an open canopy
+   *  it carried the horizontal drift — which IS the wind. The figure it is compared against, and
+   *  the 25 ft/s and 35 ft/s rules of thumb it feeds, and the per-section landing energy a waiver
+   *  cites, are all descent rates. On `USLI2025-FULLSCALE-10.15` it read 10.46 m/s at 20 mph
+   *  against the file's own 5.61 at every wind, and the landing energy built on it was 3.7x too
+   *  large — on the surface a flyer sizes a canopy from.
+   *
+   *  Driven as a NEGATIVE CONTROL: restore `mag(state.vel)` at the `groundHitVelocity` assignment
+   *  and this names the designs and the exact speeds it moved to. The total is asserted to move in
+   *  the same breath, so the test cannot be satisfied by making both wind-blind. */
+  it("judges a canopy by its descent rate, which the wind does not change", async () => {
+    const WINDS = [0, 4, 9];
+    const drifted: string[] = [];
+    let checked = 0;
+    let sawTotalRise = 0;
+    for (const f of files) {
+      let doc;
+      try {
+        doc = await importDesign(new Uint8Array(readFileSync(f.path)));
+      } catch {
+        continue;
+      }
+      const runs = WINDS.map((windSpeed) => {
+        try {
+          return runFromDocument(doc, { overrides: { windSpeed } });
+        } catch {
+          return undefined;
+        }
+      });
+      if (runs.some((r) => !r?.hasPropulsion)) continue;
+      const sums = runs.map((r) => r!.result.summary);
+      // Only designs that actually come down under a canopy: a ballistic arrival is dominated by
+      // the vertical term anyway, so it cannot tell the two conventions apart.
+      if (!sums.every((s) => s.landed && s.groundHitVelocity > 0 && s.groundHitVelocity < 30)) continue;
+      checked++;
+
+      const calm = sums[0].groundHitVelocity;
+      for (let i = 1; i < sums.length; i++) {
+        const moved = Math.abs(sums[i].groundHitVelocity - calm) / calm;
+        // 2% covers the genuine second-order effect of a longer, wind-lengthened descent; the
+        // defect moved it by 93% on the worst design.
+        if (moved > 0.02) {
+          drifted.push(
+            `${shortName(f.name)}: descent rate ${calm.toFixed(2)} m/s calm -> ` +
+              `${sums[i].groundHitVelocity.toFixed(2)} m/s at ${WINDS[i]} m/s of wind (+${(moved * 100).toFixed(0)}%)`,
+          );
+        }
+      }
+      // The drift is not discarded — it is reported as the arrival speed, and that one MUST rise.
+      if (sums[sums.length - 1].groundHitTotalVelocity > sums[0].groundHitTotalVelocity * 1.05) {
+        sawTotalRise++;
+      }
+    }
+    console.log(
+      `landing-speed wind invariance across ${files.length} design files: ${checked} designs flown at ` +
+        `${WINDS.join("/")} m/s, ${sawTotalRise} whose arrival speed rises with the wind`,
+    );
+    expect(checked, "no design came down under a canopy, so this asserted nothing").toBeGreaterThan(5);
+    expect(drifted, "the descent rate a canopy is judged by moved with the wind").toEqual([]);
+    expect(
+      sawTotalRise,
+      "no design's arrival speed rose with the wind — the drift term has been dropped, not separated",
+    ).toBeGreaterThan(0);
   }, 900_000);
   /** The optimum delay describes the vehicle on screen, not the one in the file.
    *

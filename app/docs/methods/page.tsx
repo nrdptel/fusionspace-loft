@@ -574,6 +574,21 @@ export default function Methods() {
         conditions&rdquo; re-run, the wind varies with altitude from the winds-aloft profile.
       </p>
       <p>
+        <strong>Two landing speeds, because they answer different questions.</strong>{" "}
+        <em>Ground-hit speed</em> is the <strong>vertical</strong>{" "}descent rate at the moment of
+        impact. That is the convention the rules of thumb above are written in, the one the
+        per-section landing energy a waiver is judged on is computed from, and the one every design
+        file&apos;s own stored figure uses — so it is the number Loft compares against OpenRocket,
+        RockSim and RASAero. <em>Arrival speed</em> is the total speed over the ground with the
+        sideways drift included, and it appears only when the wind makes it materially larger. Both
+        are real: a canopy descending at a comfortable 5 m/s in a 20 mph wind arrives at about
+        10 m/s over the ground, and a glancing arrival is harder on an airframe than the descent
+        rate alone suggests — but it is the descent rate that says whether the canopy is big enough.
+        Folding the two together is a mistake Loft used to make: the hard-landing flag then fired on
+        the weather rather than on the recovery, and the landing energy read almost four times too
+        high on a windy day.
+      </p>
+      <p>
         <strong>Recovery sizing (goal-seek).</strong> When a design lands harder than it should, Loft
         solves the canopy that would bring it down gently rather than leaving you to guess and re-fly
         (<code>lib/sim/recovery.ts</code>). It is the recovery-side companion to the stability trim,
@@ -611,6 +626,17 @@ export default function Methods() {
         airspeed the fin actually sees — sampling the real ambient pressure and speed of sound at
         every altitude the vehicle passes through, since the boundary rises as the air thins. Neither
         OpenRocket nor RockSim reports this, so it is Loft&apos;s own safety heuristic.
+      </p>
+      <p>
+        <strong>On a staged rocket each fin set is judged only over the part of the flight its own
+        stage was still attached for.</strong> A booster&apos;s fins come off with the booster, so
+        the speed the sustainer reaches afterwards is not a speed those fins ever saw. Until
+        2026-08-02 Loft charged them with it anyway, and because the reported margin is the worst
+        across all fin sets, a shed booster could supply the whole warning: on a three-stage sample
+        design the red flag came from a fin set that left the stack at 0.86 s, judged at 2.37 s and
+        77 m/s. Over its own flight that same fin set has a margin of 2.11 rather than 0.68. The
+        worst fin set also selects which fin the thicken-to hint names, so the wrong one being worst
+        pointed the fix at the wrong part of the rocket.
       </p>
       <p>
         The estimate is the simplified flutter-boundary closed form,{" "}
@@ -659,8 +685,14 @@ export default function Methods() {
         own hard-landing warning uses. It also reports the <strong>landing-energy</strong> band
         (½·m·v² for the whole vehicle) — the figure many fields and waivers cap per section, so its
         95th percentile is the worst case to check against a limit; a design that lands in separated
-        sections divides it among them, so read the whole-airframe number as conservative. Every
-        sample runs through
+        sections divides it among them, so read the whole-airframe number as conservative.{" "}
+        <strong>Both landing figures describe only the dispersed flights that reached the ground</strong>{" "}
+        inside the simulation&apos;s time cap, and the panel says how many of the total that was. A
+        flight still descending at the cap has no landing speed and no landing energy — it carries
+        zeros that are placeholders rather than measurements, and averaging those in reported a
+        soft landing that never happened: on one real design at a legal recovery size, every sample
+        was such a placeholder and the panel read 0.00 m/s and 0 J. Where none of them land, both
+        figures are withheld with the reason instead. Every sample runs through
         the same solver as the main flight; nothing about the physics changes. The uncertainty is
         entirely in the inputs, which are your own stated assumptions, so the result is an honest
         propagation of that spread — not a claim of new precision.

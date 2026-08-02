@@ -187,7 +187,12 @@ export default function DataTable<R>({
                       <button
                         type="button"
                         onClick={() => click(c.key)}
-                        title={`Sort by ${c.label.toLowerCase()}`}
+                        // No `title`. It said "Sort by mass" on a button already reading "Mass",
+                        // which is `MAINTAINING.md`'s named tell — a tooltip that restates the label
+                        // instead of teaching something — and on a phone a native tooltip never
+                        // fires at all, so it counted against §8's hover-only budget while telling
+                        // nobody anything. The `aria-label` below is what actually carries the verb,
+                        // and it reaches a screen reader on every form factor.
                         // The accessible name says what the control DOES, not just what the column is
                         // called. Without it a column header is named only by its label, and a column
                         // called "Metric" is then indistinguishable from the units toggle's "Metric"

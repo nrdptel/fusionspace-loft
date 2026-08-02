@@ -1,0 +1,93 @@
+{
+  "upstream": {
+    "repo": "https://github.com/openrocket/openrocket-database",
+    "commit": "1512874ace50917e25ccf7d7df1f616b5f39a8b5",
+    "path": "orc/",
+    "license": "Apache-2.0",
+    "licenseFile": "LICENSE-Apache-2.0.txt",
+    "retrieved": "2026-08-02",
+    "note": "Vendored verbatim, byte for byte, from the commit above. The only modification is the file mode on loc_precision.orc (0755 upstream, 0644 here). Apache-2.0 section 4 requires the licence to travel with the files, the copyright notices below to be retained, and modifications to be stated; all three are satisfied here and restated in THIRD-PARTY-NOTICES.md."
+  },
+  "files": [
+    {
+      "file": "apogee.orc",
+      "vendor": "Apogee Components",
+      "copyright": "by Dave Cook  NAR 21953  caveduck17@gmail.com 2021"
+    },
+    {
+      "file": "bluetube.orc",
+      "vendor": "Always Ready Rocketry (Blue Tube)",
+      "copyright": "by Dave Cook NAR 21953  caveduck17@gmail.com 2017"
+    },
+    {
+      "file": "BMS.ORC",
+      "vendor": "Balsa Machining Service",
+      "copyright": "Copyright (c) 2022 by Stephen J. Heilman  (sj_h1@live.com) and Dave Cook (caveduck17@gmail.com)"
+    },
+    {
+      "file": "competition_chutes.orc",
+      "vendor": "Generic competition",
+      "copyright": "Copyright 2017 by Dave Cook  NAR 21953  caveduck17@gmail.com"
+    },
+    {
+      "file": "estes_classic.orc",
+      "vendor": "Estes",
+      "copyright": "by Dave Cook  NAR 21953  caveduck17@gmail.com 2014-2017"
+    },
+    {
+      "file": "estes_ps2.orc",
+      "vendor": "Estes (Pro Series II)",
+      "copyright": "by Dave Cook  NAR 21953  caveduck17@gmail.com 2014-2017"
+    },
+    {
+      "file": "generic_materials.orc",
+      "vendor": "(materials only)",
+      "copyright": "Copyright 2014-2018 by Dave Cook  NAR 21953  caveduck17@gmail.com"
+    },
+    {
+      "file": "giantleaprocketry.orc",
+      "vendor": "Giant Leap Rocketry",
+      "copyright": "See LICENSE in the upstream distribution; no per-file notice."
+    },
+    {
+      "file": "loc_precision.orc",
+      "vendor": "LOC Precision",
+      "copyright": "Copyright 2014-2019 by Dave Cook  NAR 21953  caveduck17@gmail.com"
+    },
+    {
+      "file": "madcow.orc",
+      "vendor": "Madcow Rocketry",
+      "copyright": "by Dave Cook  NAR 21953  caveduck17@gmail.com  2017-2018"
+    },
+    {
+      "file": "mpc.orc",
+      "vendor": "MPC (1969-1973)",
+      "copyright": "by Dave Cook  NAR 21953  caveduck17@gmail.com 2014-2017"
+    },
+    {
+      "file": "publicmissiles.orc",
+      "vendor": "Public Missiles Ltd.",
+      "copyright": "See LICENSE in the upstream distribution; no per-file notice."
+    },
+    {
+      "file": "quest.orc",
+      "vendor": "Quest Aerospace",
+      "copyright": "Copyright 2018 by Dave Cook NAR 21953  caveduck17@gmail.com"
+    },
+    {
+      "file": "ROCKETARIUM.ORC",
+      "vendor": "Rocketarium",
+      "copyright": "by Stephen J. Heilman  sj_h1@live.com"
+    },
+    {
+      "file": "semroc.orc",
+      "vendor": "SEMROC",
+      "copyright": "Copyright 2017-2019 by Dave Cook NAR 21953  caveduck17@gmail.com"
+    },
+    {
+      "file": "top_flight.orc",
+      "vendor": "Top Flight Recovery",
+      "copyright": "Copyright 2017-2022 by Dave Cook  NAR 21953  caveduck17@gmail.com"
+    }
+  ]
+}

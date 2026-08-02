@@ -530,12 +530,24 @@ export default function ResultsView({
           <Stat
             label="Ground-hit speed"
             q={d.speed(s.groundHitVelocity, units)}
+            sub="descent rate at impact"
             withheld={s.landed ? undefined : "no landing inside the time cap"}
           />
+          {/* The speed over the ground is a different question from the descent rate, and under
+              wind it is a materially different number — up to twice it on a light canopy. It is
+              shown beside rather than folded in, and only when the two actually diverge, because a
+              second stat repeating the first to three significant figures is noise. */}
+          {s.landed && s.groundHitTotalVelocity > s.groundHitVelocity * 1.05 && (
+            <Stat
+              label="Arrival speed"
+              q={d.speed(s.groundHitTotalVelocity, units)}
+              sub="over the ground, drift included"
+            />
+          )}
           <Stat
             label="Landing energy"
             q={d.energy(s.landingEnergy, units)}
-            sub="whole vehicle"
+            sub="whole vehicle, from descent rate"
             withheld={s.landed ? undefined : "no landing inside the time cap"}
           />
           <Stat label="Optimum delay" q={d.seconds(s.optimumDelay)} sub="burnout → apogee" extrapolated={extrapolatedWhy} />
@@ -1207,7 +1219,7 @@ function RocketSummary({
             term="Fin flutter (est.)"
             value={d.q(d.speed(r.flutter.worst.flutterVelocity, units))}
             hint={r.flutter.worst.margin < RECOMMENDED_FLUTTER_MARGIN ? "thin" : undefined}
-            hintWhy={`the estimated flutter speed is under ${RECOMMENDED_FLUTTER_MARGIN}× the peak airspeed, the margin the method's own spread calls for`}
+            hintWhy={`the estimated flutter speed is under ${RECOMMENDED_FLUTTER_MARGIN}× the fastest this fin set flies, the margin the method's own spread calls for`}
             sub={`${d.flutterMargin(r.flutter.worst.margin)} margin`}
           />
         )}
@@ -1445,6 +1457,15 @@ function Field({
             {hint}
           </abbr>
         )}
+        {/* NOT written out on a coarse pointer, and the reason is a measurement rather than a
+            preference. `Field` renders inside the design-summary strip, which is the shared chrome
+            every workspace route sits under — so a permanent reasoning line here is paid for on all
+            four routes at once, and it took the phone chrome past the 1060 px ratchet and `/sweep`
+            back over the two screens §8 allows. Both halves of §8 are contracts, so the answer is
+            not to spend one on the other: the flag's reasoning is already written in full, in
+            words, by `StabilityTrimHint` and `FlutterFixHint` below the fold, which render exactly
+            when a flag is raised. The `title` is a pointer-only convenience on top of that, not the
+            only route to it. */}
         {sub && <div className="text-xs tabular-nums text-zinc-500 dark:text-zinc-400">{sub}</div>}
       </dd>
     </div>
@@ -1501,6 +1522,14 @@ function Stat({
             >
               extrapolated
             </abbr>
+          )}
+          {/* The reason and the range it left, written out where there is no hover to reveal them.
+              `DESIGN.md` §5 defines the `Extrapolated` treatment as "the warn treatment plus the
+              reason and the range it left" — on a phone the marker was arriving without either. */}
+          {extrapolated && (
+            <div className="hidden text-xs font-sans font-normal text-zinc-600 pointer-coarse:block dark:text-zinc-400">
+              {extrapolated}
+            </div>
           )}
         </div>
       )}
