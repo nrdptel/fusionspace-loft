@@ -628,6 +628,17 @@ export default function Methods() {
         OpenRocket nor RockSim reports this, so it is Loft&apos;s own safety heuristic.
       </p>
       <p>
+        <strong>On a staged rocket each fin set is judged only over the part of the flight its own
+        stage was still attached for.</strong> A booster&apos;s fins come off with the booster, so
+        the speed the sustainer reaches afterwards is not a speed those fins ever saw. Until
+        2026-08-02 Loft charged them with it anyway, and because the reported margin is the worst
+        across all fin sets, a shed booster could supply the whole warning: on a three-stage sample
+        design the red flag came from a fin set that left the stack at 0.86 s, judged at 2.37 s and
+        77 m/s. Over its own flight that same fin set has a margin of 2.11 rather than 0.68. The
+        worst fin set also selects which fin the thicken-to hint names, so the wrong one being worst
+        pointed the fix at the wrong part of the rocket.
+      </p>
+      <p>
         The estimate is the simplified flutter-boundary closed form,{" "}
         <code>
           V<sub>f</sub> = a·√( G / [ 1.337·A³·P·(λ+1) / (2·(A+2)·(t/c)³) ] )

@@ -21,11 +21,11 @@
  *  airspeed — rather than to trust the number to the metre. Loft reports the margin and cautions
  *  when it is thin; it never reports "flutter-safe". */
 
-import type { Rocket, Material, TrapezoidFinSet, GenericFinSet } from "../model/types";
-import { flattenRocket } from "../model/geometry";
+import type { Rocket, Material, RocketComponent, TrapezoidFinSet, GenericFinSet } from "../model/types";
 import type { Atmosphere } from "./atmosphere";
 
-/** Recommended minimum flutter margin (flutter speed ÷ peak airspeed). Below this the fins are
+/** Recommended minimum flutter margin (flutter speed ÷ the peak airspeed that fin set sees, which
+ *  on a staged design ends at its own separation). Below this the fins are
  *  cautioned; the rocketry rule of thumb is 1.5× or more (Apogee suggests up to 2× given the
  *  method's spread). */
 export const RECOMMENDED_FLUTTER_MARGIN = 1.5;
@@ -339,6 +339,10 @@ export interface FinFlutter {
   velocity: number;
   /** Altitude AGL at that point (m). */
   altitude: number;
+  /** Time of that point (s from launch), when the trajectory carried one. This is what makes the
+   *  stage-attachment window checkable from outside: a booster's worst point must fall before the
+   *  separation that removed it, and until 2026-08-02 it routinely did not. */
+  time?: number;
   /** flutterVelocity ÷ velocity there — the flutter margin (dimensionless). */
   margin: number;
   /** Shear modulus used (Pa) and where it came from. */
@@ -355,35 +359,85 @@ export interface FlutterReport {
   finSets: FinFlutter[];
 }
 
-type AscentSample = { velocity: number; altitude: number; phase: string };
+type AscentSample = { velocity: number; altitude: number; phase: string; t?: number };
+
+/** When the stack shed stages, and how many were left. Structurally the solver's `StagePhase`,
+ *  restated here so this module does not import from `simulate.ts`, which imports it. */
+type StagePhaseLike = { startTime: number; stageCount: number };
+
+/** The fin sets carried by each stage, indexed the way `StagePhase.stageCount` counts: from the
+ *  top (nose) down, so stage 0 is the sustainer and the last is the first booster to leave. */
+function finSetsByStage(rocket: Rocket): (TrapezoidFinSet | GenericFinSet)[][] {
+  const isFinSet = (c: RocketComponent): c is TrapezoidFinSet | GenericFinSet =>
+    c.kind === "trapezoidfinset" ||
+    c.kind === "ellipticalfinset" ||
+    c.kind === "freeformfinset";
+  const collect = (cs: RocketComponent[], out: (TrapezoidFinSet | GenericFinSet)[]) => {
+    for (const c of cs) {
+      if (isFinSet(c)) out.push(c);
+      collect(c.children, out);
+    }
+    return out;
+  };
+  return rocket.stages.map((s) => collect(s.components, []));
+}
+
+/** The time each stage leaves the stack, indexed as above. `Infinity` for a stage that is still
+ *  attached at the end of the flight — including every stage of a single-stage design, and every
+ *  stage when the caller passes no phase timeline at all. */
+function detachTimes(stageCount: number, phases: StagePhaseLike[] | undefined): number[] {
+  const out = new Array<number>(stageCount).fill(Infinity);
+  if (!phases?.length) return out;
+  for (let stage = 0; stage < stageCount; stage++) {
+    // A phase leaving `stageCount` stages attached is carrying stages 0 … stageCount-1, so this
+    // stage is gone from the first phase whose count has dropped to or below its own index.
+    const gone = phases.find((p) => p.stageCount <= stage);
+    if (gone) out[stage] = gone.startTime;
+  }
+  return out;
+}
 
 /** Estimate each fin set's flutter margin over the ascent and return the worst (lowest-margin)
  *  point, sampling the flutter speed against the real ambient pressure and speed of sound at each
  *  altitude the vehicle passes through. Flutter is an ascent (high-speed) concern, so descent and
  *  landed samples are ignored. Returns undefined when the design has no fins with a usable
- *  thickness, or never moves. */
+ *  thickness, or never moves.
+ *
+ *  **Each fin set is judged only over the part of the flight its own stage was still attached
+ *  for.** Without `phases` this cannot be known and every fin set is judged over the whole ascent,
+ *  which is what this used to do unconditionally — and on a staged design that means charging a
+ *  booster's fins with the speed the SUSTAINER reached after they were already on the ground. It is
+ *  not a small effect: on `Three stage low power rocket.ork` all three fin sets reported the
+ *  identical 77.1 m/s at 95 m, and the "worst" margin of 0.68 that lit the red flutter warning
+ *  belonged to a fin set shed at 0.86 s. Flutter speed is the one safety estimate this app
+ *  produces, and it also selects which fin set the fix hint names. */
 export function analyzeFlutter(
   rocket: Rocket,
   trajectory: AscentSample[],
   atmosphere: Atmosphere,
   groundAltitudeMsl: number,
+  phases?: StagePhaseLike[],
 ): FlutterReport | undefined {
-  const finSets = flattenRocket(rocket)
-    .map((p) => p.component)
-    .filter(
-      (c): c is TrapezoidFinSet | GenericFinSet =>
-        c.kind === "trapezoidfinset" || c.kind === "ellipticalfinset" || c.kind === "freeformfinset",
-    );
+  const byStage = finSetsByStage(rocket);
+  const detach = detachTimes(byStage.length, phases);
+  const finSets: { fin: TrapezoidFinSet | GenericFinSet; until: number }[] = [];
+  byStage.forEach((sets, stage) => {
+    for (const fin of sets) finSets.push({ fin, until: detach[stage] });
+  });
   if (!finSets.length) return undefined;
 
   const results: FinFlutter[] = [];
-  for (const fin of finSets) {
+  for (const { fin, until } of finSets) {
     const dims = finDims(fin);
     if (!dims) continue;
     const sm = shearModulusFor(fin.material);
     let worst: FinFlutter | undefined;
     for (const s of trajectory) {
       if (s.phase === "descent" || s.phase === "landed") continue; // flutter is an ascent concern
+      // Past this stage's separation the fin is no longer on the vehicle these samples describe.
+      // A sample with no time is treated as attached, which keeps a caller that has no timeline
+      // (and every single-stage design, where `until` is Infinity) behaving exactly as before.
+      if (s.t !== undefined && s.t >= until) continue;
       if (!(s.velocity > 1)) continue;
       const atm = atmosphere.sample(groundAltitudeMsl + s.altitude);
       const vf = finFlutterVelocity({
@@ -405,6 +459,7 @@ export function analyzeFlutter(
           flutterVelocity: vf,
           velocity: s.velocity,
           altitude: s.altitude,
+          time: s.t,
           margin,
           shearModulus: sm.g,
           material: sm.label,

@@ -1219,7 +1219,7 @@ function RocketSummary({
             term="Fin flutter (est.)"
             value={d.q(d.speed(r.flutter.worst.flutterVelocity, units))}
             hint={r.flutter.worst.margin < RECOMMENDED_FLUTTER_MARGIN ? "thin" : undefined}
-            hintWhy={`the estimated flutter speed is under ${RECOMMENDED_FLUTTER_MARGIN}× the peak airspeed, the margin the method's own spread calls for`}
+            hintWhy={`the estimated flutter speed is under ${RECOMMENDED_FLUTTER_MARGIN}× the fastest this fin set flies, the margin the method's own spread calls for`}
             sub={`${d.flutterMargin(r.flutter.worst.margin)} margin`}
           />
         )}

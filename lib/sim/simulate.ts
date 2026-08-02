@@ -993,10 +993,27 @@ export function simulate(input: SimulateInput): FlightResult {
   });
 
   // Fin-flutter safety estimate over the ascent. Below the recommended margin the fins are
-  // cautioned; below 1 the peak airspeed is past the estimated flutter boundary (a warning). The
+  // cautioned; below 1 the peak airspeed that fin set sees is past the estimated flutter boundary
+  // (a warning). The
   // number is a preliminary-design estimate (see flutter.ts), so it is never used to certify a fin
   // as safe — only to flag a thin margin.
-  const flutter = analyzeFlutter(rocket, trajectory, conditions.atmosphere, conditions.launchAltitude);
+  //
+  // Without this timeline every fin set is judged over the entire ascent, which charges a booster's
+  // fins with the speed the sustainer reached after they were shed.
+  //
+  // `realisedPhases` rather than `phases` for consistency with the rest of the summary, though for
+  // flutter specifically it is a no-op and it is worth saying so rather than implying a reason it
+  // does not have: the two differ only when the flight ENDS before a scheduled separation, and
+  // there are no samples after the flight ends for the wider window to reach. A stage whose motor
+  // never lit is a different case again and never enters `phases` at all (`setup.ts` gives it an
+  // infinite detach time).
+  const flutter = analyzeFlutter(
+    rocket,
+    trajectory,
+    conditions.atmosphere,
+    conditions.launchAltitude,
+    realisedPhases,
+  );
   if (flutter && Number.isFinite(flutter.worst.margin) && flutter.worst.margin < RECOMMENDED_FLUTTER_MARGIN) {
     const w = flutter.worst;
     const attrib = w.assumedMaterial ? ` (assuming ${w.material})` : ` (${w.material})`;
@@ -1007,7 +1024,7 @@ export function simulate(input: SimulateInput): FlightResult {
             severity: "warning",
             message:
               `Fins may flutter: the estimated flutter speed (~${Math.round(w.flutterVelocity)} m/s${attrib}) ` +
-              `is below the ${Math.round(w.velocity)} m/s peak airspeed. Thicken the fins, shorten the span, ` +
+              `is below the ${Math.round(w.velocity)} m/s this fin set reaches. Thicken the fins, shorten the span, ` +
               `or use a stiffer material.`,
           }
         : {
@@ -1020,7 +1037,7 @@ export function simulate(input: SimulateInput): FlightResult {
               // trailing zero ("1.0×" against "1×"), and this banner and that card render on the
               // same screen. The core stays free of the display module — a flutter test pins the
               // two together instead. This branch only runs at margin ≥ 1, so it cannot reach zero.
-              `is only ${Math.round(w.margin * 10) / 10}× the ${Math.round(w.velocity)} m/s peak airspeed ` +
+              `is only ${Math.round(w.margin * 10) / 10}× the ${Math.round(w.velocity)} m/s this fin set reaches ` +
               `(keep ≥ ${RECOMMENDED_FLUTTER_MARGIN}×).`,
           },
     );

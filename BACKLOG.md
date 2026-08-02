@@ -12,19 +12,19 @@ this file, and deliberately does **not** cap craft or product work, because that
 track in `ROADMAP.md` with its own *done when*. Rough edges, missing affordances, and findings too
 big for one pass. Newest first.
 
-- **A booster's fins are judged for flutter against the speed the SUSTAINER reached after they were
-  gone.** Filed 2026-08-02 from the opening fan-out; **UNREPRODUCED by me — the numbers below are the
-  filer's** and are the first thing to check. `lib/sim/flutter.ts:385` `analyzeFlutter` walks the
-  whole ascent for every fin set and filters only `descent`/`landed` samples, never asking whether
-  that fin set's stage was still attached; `results.reduce` at `:418` then makes that the `worst` the
-  whole flutter surface reports. Claimed: on `three stage low power rocket.ork` the reported worst is
-  stage 3's fin — **shed at 0.86 s** — at margin **0.68** (red "Fins may flutter"), while truncating
-  the trajectory to `t ≤ 0.86` gives **2.11** and the sustainer's own fin is 1.50, i.e. no flag at
-  all. Also claimed: `Two stage high power rocket.ork` 0.52 vs 1.20, `02.Two-stage.ork` 0.21 vs 0.29,
-  `03.Three-stage.ork` 0.23 vs 0.72. This is the ONE safety estimate in the app, and it drives
-  `ResultsView.tsx:1208`, the `fin-flutter` warning, `FlutterFixHint`'s thicken-to thickness *and
-  which fin set it names*, and the sweep's Flutter column. **Sev-1 if it reproduces** — it is the
-  highest-damage item in this file.
+- ~~**A booster's fins are judged for flutter against the speed the SUSTAINER reached after they
+  were gone.**~~ **REPRODUCED and FIXED 2026-08-02**, and every figure the filer gave reproduced
+  exactly: `Three stage low power rocket.ork` 0.68 → 2.11, `Two stage high power rocket.ork`
+  0.52 → 1.20, `02.Two-stage.ork` 0.21 → 0.29, `03.Three-stage.ork` 0.23 → 0.72. `analyzeFlutter`
+  now takes the realised phase timeline and judges each fin set only over its own attachment
+  window. Pinned by a corpus assertion over 12 shed fin sets; as a negative control the old code
+  names six violations with their times. **One thing it left behind, and it is latent rather than
+  live:** a stage shed before the rocket exceeds 1 m/s leaves its fin set with no sample, and it
+  then drops out of `finSets` with no error — and `finSets` has no consumer in `components/` or
+  `app/` at all (only `worst` is read), so nothing would notice. The corpus assertion now also
+  requires the reported fin-set count to equal the design's, which keeps it at zero; the real fix
+  is a "not applicable" state on the flutter surface, and that belongs with whatever next touches
+  it.
 
 - **Monte-Carlo publishes as a distribution the two numbers the flight card explicitly withholds.**
   Filed 2026-08-02 from the opening fan-out; **UNREPRODUCED by me.** `lib/sim/montecarlo.ts:271`

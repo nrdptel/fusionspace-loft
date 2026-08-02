@@ -1310,6 +1310,102 @@ suite("real-design corpus", () => {
     expect(absurd, "a legal recovery size produced a number physics cannot produce").toEqual([]);
   }, 900_000);
 
+  /** A fin set is judged for flutter only over the flight its own stage was still attached for.
+   *
+   *  `analyzeFlutter` walked the whole ascent for every fin set, so on a staged design a booster's
+   *  fins were charged with the speed the SUSTAINER reached after they were already on the ground —
+   *  and `results.reduce` made that the `worst` the entire flutter surface reports. Measured before
+   *  the fix, every fin set on `Three stage low power rocket.ork` reported the identical 77.1 m/s at
+   *  95 m, and the 0.68 margin lighting the red warning belonged to a fin set shed at 0.86 s; judged
+   *  over its own flight it is 2.11. Flutter speed is the one safety estimate this app produces, and
+   *  the worst fin set is also the one `FlutterFixHint` names and thickens.
+   *
+   *  Driven as a NEGATIVE CONTROL: drop the `phases` argument at the `analyzeFlutter` call in
+   *  `simulate.ts` and this names every design whose fin sets collapse onto one sample. */
+  it("judges each fin set over the flight its own stage was attached for", async () => {
+    /** Which stage each fin set sits on, read from the MODEL rather than from the solver, so this
+     *  is an independent derivation and not a restatement of the implementation. */
+    const finStageOf = (rocket: Rocket): Map<string, number> => {
+      const m = new Map<string, number>();
+      const walk = (cs: RocketComponent[], stage: number) => {
+        for (const c of cs) {
+          if (
+            c.kind === "trapezoidfinset" ||
+            c.kind === "ellipticalfinset" ||
+            c.kind === "freeformfinset"
+          ) {
+            m.set(c.id, stage);
+          }
+          walk(c.children, stage);
+        }
+      };
+      rocket.stages.forEach((s, i) => walk(s.components, i));
+      return m;
+    };
+
+    const late: string[] = [];
+    let checked = 0;
+    for (const f of files) {
+      let doc;
+      let run;
+      try {
+        doc = await importDesign(new Uint8Array(readFileSync(f.path)));
+        run = runFromDocument(doc);
+      } catch {
+        continue;
+      }
+      if (!run.hasPropulsion) continue;
+      const flutter = run.result.flutter;
+      // Detach times from the phase timeline the run reports, read through `StagePhase`'s own
+      // documented meaning: `stageCount` is how many stages are still attached counting from the
+      // nose, so stage `s` is gone from the first phase whose count has fallen to or below `s`.
+      //
+      // Counting separation EVENTS instead does not work, and getting that wrong made this test
+      // silently weaker rather than louder: a serial stack can part at ONE joint and shed two
+      // stages on a single event — `03.Three-stage.ork` does exactly that, phases
+      // [{0,3},{7.33,1}] — so "the i-th separation removes stage n-i" assigned stage 1 an infinite
+      // detach time and skipped the very fin set most likely to be judged out of its window.
+      const phases = run.phases;
+      if (!flutter || phases.length < 2) continue;
+      const stageOf = finStageOf(doc.rocket);
+      const detachOf = (stage: number): number =>
+        phases.find((p) => p.stageCount <= stage)?.startTime ?? Infinity;
+
+      // Narrowing a fin set's window can empty it: a stage shed before the rocket ever exceeds
+      // 1 m/s leaves that set with no sample, and it then drops out of `finSets` with no error and
+      // no marker — and if every fin-bearing stage went that early the whole flutter surface would
+      // vanish from the flight card rather than say why. Nothing on today's corpus reaches it, and
+      // this is what keeps it that way.
+      if (flutter.finSets.length !== stageOf.size) {
+        late.push(
+          `${shortName(f.name)}: the design has ${stageOf.size} fin set(s) but flutter reports ` +
+            `${flutter.finSets.length} — one was judged over an empty window and vanished silently`,
+        );
+      }
+
+      for (const s of flutter.finSets) {
+        const stage = stageOf.get(s.finId);
+        if (stage === undefined || s.time === undefined) continue;
+        const until = detachOf(stage);
+        if (!Number.isFinite(until)) continue; // still attached at the end — nothing to check
+        checked++;
+        // A tenth of a second of slack: the trajectory is sampled, so the last sample before
+        // separation can sit fractionally either side of the event's own timestamp.
+        if (s.time > until + 0.1) {
+          late.push(
+            `${shortName(f.name)}: "${s.finName}" (stage ${stage}, shed at ${until.toFixed(2)} s) ` +
+              `judged at t=${s.time.toFixed(2)} s, ${s.velocity.toFixed(1)} m/s, margin ${s.margin.toFixed(2)}`,
+          );
+        }
+      }
+    }
+    console.log(
+      `flutter stage-attachment across ${files.length} design files: ${checked} fin sets on stages that were shed`,
+    );
+    expect(checked, "no fin set was ever shed, so this asserted nothing").toBeGreaterThan(3);
+    expect(late, "a shed stage's fins were judged at a speed they never saw").toEqual([]);
+  }, 900_000);
+
   /** The landing speed a canopy is judged by does not change because the wind got up.
    *
    *  `groundHitVelocity` was the full ground-frame speed, `mag(state.vel)`, so under an open canopy
