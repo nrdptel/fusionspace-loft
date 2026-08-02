@@ -483,8 +483,21 @@ export default function ResultsView({
             <Stat label="Drogue descent" q={d.speed(s.drogueDescentRate, units)} sub="under drogue" />
           )}
           <Stat label="Drift from pad" q={d.distance(s.driftDistance, units)} />
-          <Stat label="Ground-hit speed" q={d.speed(s.groundHitVelocity, units)} />
-          <Stat label="Landing energy" q={d.energy(s.landingEnergy, units)} sub="whole vehicle" />
+          {/* Both are 0 when the flight never reached the ground — a sentinel the solver carries,
+              not a measurement, and these are the two numbers a recovery setup is judged on. Shown
+              as zeros, a flyer enlarging a canopy watched the landing energy fall to 0 J and read
+              it as success. */}
+          <Stat
+            label="Ground-hit speed"
+            q={d.speed(s.groundHitVelocity, units)}
+            withheld={s.landed ? undefined : "no landing inside the time cap"}
+          />
+          <Stat
+            label="Landing energy"
+            q={d.energy(s.landingEnergy, units)}
+            sub="whole vehicle"
+            withheld={s.landed ? undefined : "no landing inside the time cap"}
+          />
           <Stat label="Optimum delay" q={d.seconds(s.optimumDelay)} sub="burnout → apogee" />
           <Stat label="Flight time" q={d.seconds(s.flightTime)} />
           <Stat label="Max dynamic pressure" q={d.dynamicPressure(s.maxDynamicPressure, units)} />
@@ -1320,15 +1333,39 @@ function Field({
   );
 }
 
-function Stat({ label, q, sub, accent }: { label: string; q: d.Quantity; sub?: string; accent?: boolean }) {
+function Stat({
+  label,
+  q,
+  sub,
+  accent,
+  withheld,
+}: {
+  label: string;
+  q: d.Quantity;
+  sub?: string;
+  accent?: boolean;
+  /** Why this figure is not being shown. When set, the value is replaced by an em dash and this
+   *  reason takes the place of `sub` — the house rule is "withheld rather than shown as zeros", and
+   *  a withheld estimate has to say why (see the no-propulsion notice, which does the same thing for
+   *  the whole panel). Used where the solver carries a sentinel that is not a measurement. */
+  withheld?: string;
+}) {
   return (
     <Card>
       <div className="text-[11px] uppercase tracking-wide text-zinc-500 dark:text-zinc-400">{label}</div>
-      <div className={"mt-1 font-mono tabular-nums " + (accent ? "text-xl font-semibold text-indigo-600 dark:text-indigo-400" : "text-xl text-zinc-900 dark:text-zinc-100")}>
-        {q.value}
-        <span className="ml-1 text-xs font-normal text-zinc-500 dark:text-zinc-400">{q.unit}</span>
-      </div>
-      {sub && <div className="mt-0.5 text-[11px] text-zinc-500 dark:text-zinc-400">{sub}</div>}
+      {withheld ? (
+        <div className="mt-1 font-mono text-xl tabular-nums text-zinc-400 dark:text-zinc-500" aria-label={`${label} withheld: ${withheld}`}>
+          —
+        </div>
+      ) : (
+        <div className={"mt-1 font-mono tabular-nums " + (accent ? "text-xl font-semibold text-indigo-600 dark:text-indigo-400" : "text-xl text-zinc-900 dark:text-zinc-100")}>
+          {q.value}
+          <span className="ml-1 text-xs font-normal text-zinc-500 dark:text-zinc-400">{q.unit}</span>
+        </div>
+      )}
+      {(withheld ?? sub) && (
+        <div className="mt-0.5 text-[11px] text-zinc-500 dark:text-zinc-400">{withheld ?? sub}</div>
+      )}
     </Card>
   );
 }

@@ -358,3 +358,74 @@ describe("simulate — a bare mould-line step is said out loud", () => {
     expect(w!.message).toContain("cannot state");
   });
 });
+
+describe("simulate — a canopy open before apogee cannot make the integrator diverge", () => {
+  /** The step bound that keeps an open parachute's stiff quadratic drag inside RK4's stability
+   *  region used to be reachable only once the flight had passed apogee (`phase === "descent"`).
+   *  A canopy that opened at or before apogee was therefore integrated at the flat 0.01 s boost
+   *  step with no bound at all, and it diverged. Two of the 35 corpus designs did:
+   *  `FullScaleModelTH.rkt` ejects 0.5 s before apogee at 250 m/s and returned an apogee of
+   *  2.07e13 m at a recovery size of 5x (3.30e2 m at 4x), and `Complex.Two-Stage.CDX1` — whose
+   *  drogue opens exactly AT apogee, so one unbounded step is enough — returned a ground-hit speed
+   *  of 7.52e32 m/s and a landing energy of 4.00e65 J under a confident "hard landing" warning.
+   *  Both inputs are inside the recovery-size field's own advertised 0.1-10x range.
+   *
+   *  Driven here as a big canopy opening 0.2 s after launch, under full thrust — the reachable
+   *  shape of the same geometry, and it needs no corpus to run. */
+  const CHUTE = { name: "main", cdA: 1.5 * Math.PI * 0.6 * 0.6, event: "launch" as const, deployDelay: 0.35 };
+
+  // `recoveryCdScale` is a RunOptions field that `run.ts` applies by scaling `cdA` before the
+  // solver ever sees it, so the scale is applied here the same way rather than passed to
+  // `simulate`, which has no such field and would silently ignore it.
+  const flyWithCanopy = (scale = 1) =>
+    simulate({
+      rocket: testRocket(0.9),
+      config: CONFIG,
+      motors: [{ curve: constMotor(1000, 1.0, 0.1), cg: 0.4, ignitionTime: 0 }],
+      recovery: [{ ...CHUTE, cdA: CHUTE.cdA * scale }],
+      conditions: { ...vacuumConditions(), atmosphere: new Atmosphere() },
+    });
+
+  it("returns a physical flight with a large canopy opening at speed", () => {
+    const { summary } = flyWithCanopy();
+    // Finiteness and physical scale, not a specific number: the bug produced 1e13 m and 1e32 m/s
+    // from a flight whose real apogee is tens of metres.
+    expect(Number.isFinite(summary.apogee)).toBe(true);
+    expect(summary.apogee).toBeGreaterThan(0);
+    expect(summary.apogee).toBeLessThan(100_000);
+    expect(Number.isFinite(summary.maxVelocity)).toBe(true);
+    expect(summary.maxVelocity).toBeLessThan(10_000);
+    expect(Number.isFinite(summary.groundHitVelocity)).toBe(true);
+    expect(summary.groundHitVelocity).toBeLessThan(10_000);
+  });
+
+  it("stays physical across the whole recovery-size range the field offers", () => {
+    // 0.1x to 10x is the range `Recovery size (x)` accepts, and that the input is LEGAL is exactly
+    // what made this a Sev-1 rather than an edge case.
+    for (const scale of [0.1, 0.5, 1, 2, 4, 5, 7, 10]) {
+      const { summary } = flyWithCanopy(scale);
+      expect(Number.isFinite(summary.apogee), `apogee at ${scale}x`).toBe(true);
+      expect(summary.apogee, `apogee at ${scale}x`).toBeLessThan(100_000);
+      expect(Number.isFinite(summary.groundHitVelocity), `ground-hit speed at ${scale}x`).toBe(true);
+      expect(summary.groundHitVelocity, `ground-hit speed at ${scale}x`).toBeLessThan(10_000);
+      expect(Number.isFinite(summary.landingEnergy), `landing energy at ${scale}x`).toBe(true);
+    }
+  });
+
+  it("gets slower on the ground the bigger the canopy, instead of jumping orders of magnitude", () => {
+    // The physical direction, which a diverged flight cannot satisfy: more drag area lands softer.
+    const speeds = [1, 2, 4].map((k) => flyWithCanopy(k)).map((r) => r.summary.groundHitVelocity);
+    expect(speeds.every((v) => Number.isFinite(v) && v > 0)).toBe(true);
+    expect(speeds[1]).toBeLessThan(speeds[0]);
+    expect(speeds[2]).toBeLessThan(speeds[1]);
+  });
+
+  it("carries whether it landed, so a surface can withhold the figures that need one", () => {
+    // groundHitVelocity and landingEnergy are 0 when the flight never reaches the ground — a
+    // sentinel, not a measurement. `landed` is what lets a surface tell that from a soft landing.
+    const { summary } = flyWithCanopy();
+    expect(typeof summary.landed).toBe("boolean");
+    expect(summary.landed).toBe(true);
+    expect(summary.groundHitVelocity).toBeGreaterThan(0);
+  });
+});

@@ -1248,4 +1248,54 @@ suite("real-design corpus", () => {
     // A floor, not an equality: a re-cut corpus may add designs. Zero would mean the walk broke.
     expect(stepped.length).toBeGreaterThanOrEqual(9);
   }, 300_000);
+  /** No recovery size the field offers may return a number physics cannot produce.
+   *
+   *  The step bound that keeps an open canopy's stiff drag inside RK4's stability region was
+   *  reachable only once the flight had passed apogee, so a device opening at or before apogee was
+   *  integrated at the flat boost step with no bound. Two designs here diverged from inputs inside
+   *  the `Recovery size (×)` field's own advertised 0.1–10× range: `FullScaleModelTH.rkt`, which
+   *  ejects half a second before apogee at 250 m/s, returned an apogee of 2.07e13 m at 5× (3.30e2 m
+   *  at 4×); and `Complex.Two-Stage.CDX1`, whose drogue opens exactly AT apogee so a single
+   *  unbounded step is enough, returned a ground-hit speed of 7.52e32 m/s and a landing energy of
+   *  4.00e65 J at 10× — under a confident "hard landing" warning.
+   *
+   *  Driven across every design rather than the two known ones: the bug was reachable on any design
+   *  whose recovery opens early, and which those are is a property of the corpus, not a constant. */
+  it("returns a physical flight at every recovery size the field offers, on every design", async () => {
+    const absurd: string[] = [];
+    let flown = 0;
+    for (const f of files) {
+      let doc;
+      try {
+        doc = await importDesign(new Uint8Array(readFileSync(f.path)));
+      } catch {
+        continue;
+      }
+      for (const scale of [0.1, 2, 5, 10]) {
+        let run;
+        try {
+          run = runFromDocument(doc, { recoveryCdScale: scale });
+        } catch {
+          continue;
+        }
+        if (!run.hasPropulsion) continue;
+        flown++;
+        const s = run.result.summary;
+        // Ceilings a real hobby flight cannot reach, not tolerances: the Kármán line for altitude
+        // and roughly orbital speed. A number past either is the integrator, not the rocket.
+        const bad: string[] = [];
+        if (!Number.isFinite(s.apogee) || s.apogee > 100_000) bad.push(`apogee ${s.apogee.toExponential(3)} m`);
+        if (!Number.isFinite(s.maxVelocity) || s.maxVelocity > 8_000)
+          bad.push(`max velocity ${s.maxVelocity.toExponential(3)} m/s`);
+        if (!Number.isFinite(s.groundHitVelocity) || s.groundHitVelocity > 8_000)
+          bad.push(`ground-hit ${s.groundHitVelocity.toExponential(3)} m/s`);
+        if (!Number.isFinite(s.landingEnergy) || s.landingEnergy > 1e9)
+          bad.push(`landing energy ${s.landingEnergy.toExponential(3)} J`);
+        if (bad.length) absurd.push(`${shortName(f.name)} at ${scale}×: ${bad.join(", ")}`);
+      }
+    }
+    console.log(`recovery-size sweep across ${files.length} design files: ${flown} flights at 0.1/2/5/10×`);
+    expect(flown, "no design flew, so this asserted nothing").toBeGreaterThan(50);
+    expect(absurd, "a legal recovery size produced a number physics cannot produce").toEqual([]);
+  }, 900_000);
 });

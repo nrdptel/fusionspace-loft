@@ -4,6 +4,7 @@ import type { FlightSummary } from "../sim/simulate";
 
 const summary: FlightSummary = {
   apogee: 1100,
+  landed: true,
   maxVelocity: 200,
   maxAcceleration: 240,
   maxMach: 0.58,

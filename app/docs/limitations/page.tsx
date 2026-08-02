@@ -275,6 +275,29 @@ export default function Limitations() {
         touch.
       </p>
       <p>
+        <strong>A flight that never reaches the ground reports no landing figures.</strong> The
+        simulation runs to a 1,200&nbsp;s cap, and a canopy large enough to descend slower than that
+        allows for hits the cap still in the air. The solver carries a ground-hit speed and a landing
+        energy of zero in that case — a sentinel, not a measurement — and those two numbers are exactly
+        what a recovery setup is judged against, so they are now <strong>withheld</strong>{" "}
+        rather than rendered: a flyer enlarging a canopy could otherwise watch the landing energy fall to
+        0&nbsp;J and read it as success. The flight says which cap it hit and how to get the figures
+        back.
+      </p>
+      <p>
+        <strong>An open canopy bounds the integrator&apos;s step, and that bound has an envelope.</strong>{" "}
+        A parachute&apos;s quadratic drag is stiff, so the explicit RK4 step is only stable while
+        dt·λ stays inside its stability region. Loft shortens the step to hold that, with a floor of
+        0.2&nbsp;ms — which covers a response rate λ up to about 13,900/s, i.e. a canopy ten times the
+        design&apos;s own opening at roughly 670&nbsp;m/s. Past that the floor binds before the bound
+        does. No real deployment reaches it; it is recorded because it is the limit of the guard rather
+        than of the physics. <strong>Until 2026-08-02 the bound was not applied at all before apogee</strong>,
+        so a device opening at or before it integrated at the flat boost step: two real corpus designs
+        returned an apogee of 2.07e13&nbsp;m and a ground-hit speed of 7.52e32&nbsp;m/s from recovery
+        sizes inside the field&apos;s own range. Both now fly physically, and every design in the corpus
+        is flown at 0.1×, 2×, 5× and 10× on every build to keep it that way.
+      </p>
+      <p>
         <strong>There is no drag term for a bare step in the outer mould line.</strong> Loft models a
         transition&apos;s own slope — a shoulder&apos;s joint angle, a boattail&apos;s — but a step has no
         length to take an angle over, so nothing charges it. Every flight of a stepped airframe therefore
