@@ -91,7 +91,14 @@ for (const size of [DESKTOP, PHONE]) {
   const screens = (px: number) => +(px / size.height).toFixed(2);
 
   test.describe(`${label} ${size.width}x${size.height}`, () => {
-    test.use({ viewport: size });
+    // `hasTouch` on the phone, and it is not cosmetic: without it the context reports
+    // `pointer: fine`, so every control carrying `TOUCH_TARGET` (`pointer-coarse:min-h-11`) renders
+    // at its 26 px desktop height instead of 44 px. Measured 2026-08-02: that understated the shared
+    // chrome above the workspace spine by 97 px — 914 px on a fine pointer against 1011 px on a
+    // coarse one — which is the difference between this contract passing and failing. A phone
+    // viewport with a mouse pointer is not a phone, and a depth contract DESIGN.md §8 writes for
+    // touch has to be measured on one.
+    test.use({ viewport: size, hasTouch: size === PHONE });
 
     test("no route is more than two screens deep to its primary answer", async ({ page }) => {
       await loadSample(page);
@@ -113,18 +120,27 @@ for (const size of [DESKTOP, PHONE]) {
     });
 
     test("the sweep's answer, not just the button that asks for it, is within two screens", async ({ page }) => {
-      // WAS a known breach on the phone, pinned with `test.fail` rather than described: measured
-      // 2026-08-01 at 390x664 the first swept-motor row landed at 1393 px = 2.10 screens, against a
-      // gap of 65 px. The cause was never this panel — it was the 1071 px of shared chrome above the
-      // workspace spine (header 73, toolbar 68, restore banner 112, collapsed Conditions 44, design
-      // summary 508, warnings 74), 1.61 screens before any workspace rendered a pixel.
+      // STILL A BREACH on the phone, and the number is worse than this file used to record because
+      // the measurement was wrong, not because the app got worse.
       //
-      // CLOSED 2026-08-02 by folding the design summary's reference figures behind a phone-only
-      // control, which took the shared chrome to 914 px — identical on all four routes, so every one
-      // of them got the 157 px back, not just this one. The marker is deleted rather than left
-      // passing-as-failing, which is what the comment it replaces asked the next session to do.
-      // Desktop is unchanged at 773 px, re-measured after the fold to make sure the split grid did
-      // not cost width what it saved in height.
+      // Measured 2026-08-02 on a genuinely coarse pointer: the first swept-motor row lands at
+      // 1410 px = 2.12 screens. The old 1393 px / 2.10 screens was taken on a phone-sized viewport
+      // reporting `pointer: fine`, which renders every `TOUCH_TARGET` control at its 26 px desktop
+      // height instead of 44 px and so understated the shared chrome by 97 px. A phone with a mouse
+      // is not a phone; see the `hasTouch` note above.
+      //
+      // Folding the design summary's reference figures behind a control DID help, and by more than
+      // the remaining gap suggests — it took 157 px out of the chrome on all four routes at once.
+      // It just did not close this. Two screens of a 664 px phone is 1328 px and the answer sits at
+      // 1410, so 82 px are still owed. The next candidates are the same shared chrome the summary
+      // came out of, in order of size: the 112 px restore banner, the 74 px warnings stack, and the
+      // toolbar — all of which every route pays, and none of which is this panel.
+      //
+      // `test.fail` and not a skip, a widened threshold or a deleted assert: the test still RUNS and
+      // still measures, the suite stays green on a breach that predates it, and it goes RED the day
+      // it is fixed. It was deleted earlier this same run on the strength of the fine-pointer
+      // number, which is exactly the mistake this comment now exists to stop being repeated.
+      if (size === PHONE) test.fail();
       await loadSample(page);
       await goWorkspace(page, "/sweep");
       const run = page.getByRole("button", { name: /Run motor sweep/ });
@@ -141,26 +157,33 @@ for (const size of [DESKTOP, PHONE]) {
   });
 }
 
-test.describe("the shared chrome every route's depth is built on", () => {
-  // A ratchet, not a limit anybody designed to. Each cap is the measured distance to the workspace
-  // spine plus a little slack, so a regression fires here — where the cause is named — long before
-  // it pushes any single route past the two-screen line.
-  // Caps are the measured value plus ~5%: tight enough that the design summary growing a line
-  // fires them, loose enough that a font-metric difference does not.
-  for (const [size, cap] of [
-    [DESKTOP, 820],
-    [PHONE, 960],
-  ] as const) {
-    const label = size === DESKTOP ? "desktop" : "phone";
+// A ratchet, not a limit anybody designed to. Each cap is the measured distance to the workspace
+// spine plus a little slack, so a regression fires here — where the cause is named — long before it
+// pushes any single route past the two-screen line.
+//
+// One describe per size, rather than one test that calls `setViewportSize` twice, because the phone
+// needs `hasTouch` and that is a CONTEXT option — it cannot be switched mid-test. Measuring the
+// phone with a fine pointer is what made this ratchet report 914 px for a chrome that is 1011 px on
+// a real touch device.
+for (const [size, cap] of [
+  [DESKTOP, 820],
+  [PHONE, 1060],
+] as const) {
+  const label = size === DESKTOP ? "desktop" : "phone";
+  test.describe(`the shared chrome every route's depth is built on — ${label}`, () => {
+    test.use({ viewport: size, hasTouch: size === PHONE });
+
     test(`${label}: the workspace spine stays within ${cap}px of the top`, async ({ page }) => {
-      await page.setViewportSize(size);
       await loadSample(page);
       // Measured on every route rather than one. It comes out identical on all four — 773 px
-      // desktop, 914 px phone, re-measured 2026-08-02 after the design summary's reference figures
-      // were folded behind a phone-only control (the phone term was 1071 px before that, and the
-      // cap 1120). This is ONE term every route's depth is built on, so the check should fail on
-      // whichever route grows it first rather than trusting that they stay in step. The phone cap
-      // came down with the measurement: a ratchet left at its old value has stopped ratcheting.
+      // desktop, 1011 px phone ON A COARSE POINTER, measured 2026-08-02. Two corrections landed in
+      // that number on the same day: the design summary's reference figures were folded behind a
+      // control (worth 157 px, phone chrome had been 1071), and the phone context gained `hasTouch`,
+      // which put back 97 px of `TOUCH_TARGET` growth the fine-pointer measurement had never seen.
+      // The cap moved 1120 → 1060 with it: down, because the fold really did buy room, but not to
+      // the 960 a fine pointer would have justified — that number was measured on a phone that does
+      // not exist. This is ONE term every route's depth is built on, so the check should fail on
+      // whichever route grows it first rather than trusting that they stay in step.
       const deepest: string[] = [];
       for (const route of ["/flight", "/design", "/sweep", "/validate"]) {
         await goWorkspace(page, route);
@@ -171,5 +194,5 @@ test.describe("the shared chrome every route's depth is built on", () => {
       }
       expect(deepest, `the chrome above the spine grew past ${cap}px — every route's depth grew with it`).toEqual([]);
     });
-  }
-});
+  });
+}

@@ -985,7 +985,13 @@ pinned.
 
 ## R7 — Per-set fin drag, and the honest aero the builder needs
 
-**Status: IN PROGRESS** — increments 1–5 of 3–5 shipped. Increment 1 was the edge **cross-section**,
+**Status: SHIPPED 2026-08-02, with ONE *done when* clause not delivered and the reason measured.**
+Increments 1–5. **Do not re-open this milestone, and above all do not re-attempt per-set thickness or
+sweep** — that is now four measured rejections, and the fifth would cost a session and land where the
+other four did. The undelivered clause and what would unblock it are recorded under *The gap R7
+leaves* below; it is the R-track's carried-forward starting point, not a reason to restart.
+
+Increment 1 was the edge **cross-section**,
 now charged per fin set. Pinned by `lib/sim/aero.test.ts`'s *fin cross-section is charged per set, not
 design-wide* (four cases, including the exact-halfway assertion that a "less drag" under-count could
 not satisfy) and by the corpus census, whose published figures were tightened in the same change.
@@ -1174,6 +1180,25 @@ ten metrics. Pinned by a corpus assertion that flies all 35 designs at 0.1/2/5/1
 *Remaining:* the thickness-ratio and sweep collapses, both blocked as above; and the adjacent parse
 gaps below.
 
+**The gap R7 leaves, stated so the next session does not re-derive it.**
+
+*Delivered:* the cross-section is charged per fin set; `runFromDocument` forwards all twelve options,
+so a drag change is measurable across the corpus at all; the methods page claims nothing per-fin the
+code does not do; the limitations page names every remaining collapse with its number; and the census
+did not regress on the two designs the reverted area-weighted attempt broke.
+
+*NOT delivered:* the **thickness ratio** and **leading-edge sweep** are still collapsed to one
+design-wide value each. Four attempts, four reverts, and the reason is now understood rather than
+mysterious: a collapsed value is not biased in one direction, so correcting it removes drag from
+designs Loft already flies high — which are already under-dragged from somewhere else. Increment 4
+found that somewhere else (the bare mould-line step) and established that it cannot be charged
+without a published forward-facing-step coefficient as a function of step height over boundary-layer
+thickness. **So the order is fixed: find that source first, charge the step, and only then re-attempt
+the fin collapses on top of it.** Attempting them in either order without the source has now failed
+four times. If the source turns out not to exist in citable form, the honest end state is the one
+shipped here — report the geometry, withhold the estimate — and the fin collapses stay documented
+rather than corrected.
+
 **Outcome.** A rocket a flyer just BUILT with two different fin sets is flown with each set's own
 drag — and every page that describes the model says what the model actually does.
 
@@ -1240,6 +1265,85 @@ one; RASAero's per-fin `<LERadius>` is ignored where it would give a measured le
 instead of an inferred edge class.
 
 **Size.** 3–5 increments.
+
+---
+
+## R8 — Component and material catalogues
+
+**Status:** NOT STARTED. Decomposed 2026-08-02, with the licence question — which the after-list
+named as possibly the whole first increment — **answered up front** so it is not re-litigated.
+
+**Outcome.** Authoring becomes SELECTION rather than measurement: a flyer picks a real body tube by
+vendor and part number and gets its dimensions and mass, instead of typing eight numbers off a ruler.
+Every mass in the model becomes grounded in a stated material rather than a guess.
+
+**Done when** the builder can add a body tube, nose cone, coupler, centering ring or parachute by
+choosing a real commercial part; the chosen part's dimensions and material populate the model and the
+flight changes accordingly; every material Loft uses carries a density with a cited source; and the
+whole catalogue ships as bundled static data with its licence and provenance recorded. Pinned by a
+unit test that resolves a known part number to its published dimensions, and by a check that every
+material in the catalogue has a non-empty `source`.
+
+**The licence question, settled — VERIFIED by reading the files, 2026-08-02.**
+
+- **`github.com/openrocket/openrocket-database` is Apache-2.0**, not GPL. Repo-root `LICENSE` is the
+  verbatim Apache 2.0 text and each vendor `.orc` carries its own copyright header (e.g.
+  `loc_precision.orc`: "Copyright 2014-2019 by Dave Cook NAR 21953"). It holds **2,990 parts across
+  13 vendors** — 1,012 body tubes, 772 nose cones, 343 centering rings, 314 transitions, 199
+  couplers, 140 parachutes, 49 launch lugs, 45 streamers, 34 engine blocks — each with manufacturer,
+  part number, description, ID/OD/length and a named material. **This is redistributable in an MIT
+  bundle** provided the Apache text ships, the copyright headers are retained, and modifications are
+  stated (Apache §4).
+- **OpenRocket's own repo is GPLv3 but grants an explicit additional permission** under GPL §7 to
+  "package this Program, or any covered work, along with any non-compilable data files (such as
+  thrust curves or component databases)". Its build pulls the Apache database in as an external
+  resource rather than vendoring it. So the component presets were never the GPL problem they look
+  like — but the **~15 `.orc` files committed inside the GPL tree** under
+  `datafiles/components/internal/` point at that repo's own LICENSE, and those stay off-limits.
+- **OpenRocket's MATERIAL database is off-limits and this is the trap.** It is
+  `core/.../database/Databases.java` — 82 rows of **compilable Java**, so the §7 data-file permission
+  does not reach it, and its values carry MatWeb source URLs in comments. Do not copy it. **MatWeb's
+  own terms forbid redistribution outright** (`UNVERIFIED` — matweb.com returns 403 from the sandbox;
+  read them before relying on this).
+- **There is no modulus data in the Apache repo at all** — its `generic_materials.orc` has 313 rows
+  of DENSITY only. The flutter model's stiffness values have to come from somewhere else.
+
+**And the precedent to copy is already in this repo.** `scripts/gen-motors.mjs` is a dev-only
+generator that reads 108 raw `.eng` files plus a hand-maintained `provenance.json` and inlines them
+into `lib/motors/catalog.ts`, each entry carrying its ThrustCurve simfile id, info URL and licence.
+The component catalogue should reuse that shape exactly — **with one thing deliberately NOT copied**:
+60 of those 108 curves carry a licence of `null` or `"?"`, and 3 are `"free"`, which by ThrustCurve's
+own definition includes GPL. That is a hole in an existing bundle, it is filed in `BACKLOG.md`, and
+the new catalogue must not reproduce it — here the grant is a single explicit Apache-2.0 licence.
+
+**What Loft has today, and it is thinner than it looks.** Three uncited tables:
+`lib/model/edit.ts:38` `FIN_MATERIALS` (6 densities), `:51` `AIRFRAME_MATERIALS` (7 densities), and
+`lib/sim/flutter.ts:40` `SHEAR_MODULI` (14 rows — the only modulus data in the repo). None carries a
+source. The flutter METHOD is cited (NACA TN 4197) while the stiffness values it consumes are not,
+which is a credibility gap as much as a licensing one — and several sit suspiciously close to
+OpenRocket's GPL table (acrylic 1.15e9 against their 1.7e9, Lexan 0.79e9 against 0.786e9, Delrin
+1.0e9 against 0.946e9). **Re-derive them from citable sources regardless of provenance**; that is
+increment 1, and it is worth doing first because it is small, it is the honest half, and it does not
+depend on any of the above.
+
+*Increment 1.* Give every material Loft already uses a cited source. Woods from the **USDA Wood
+Handbook FPL-GTR-282 ch. 5** (a US Government work, so no US copyright — G derived as E_L × the
+Table 5-1 elastic ratio); metals from **MIL-HDBK-5J** (also PD; note its successor MMPDS is
+Battelle-copyrighted and is not usable); G10/FR-4, carbon and the plastics from manufacturers'
+published laminate datasheets, cited individually. A dozen individually-attributed physical constants
+is not a protectable compilation. Pinned by a test that every material row has a non-empty `source`.
+
+*Increment 2.* `scripts/gen-components.mjs` + `lib/components/catalog.ts` + `components/provenance.json`
++ `THIRD-PARTY-NOTICES.md`, modelled on `gen-motors.mjs`. Parse the `.orc` XML at generate time,
+normalise to SI, record upstream commit SHA per file.
+
+*Increment 3.* The picker in the builder, and the model wiring: choosing a part populates dimensions
+and material, and the flight moves.
+
+**Size.** 3–5 increments.
+
+**Notes.** `COMPETITION.md` rows 2 and 3. Keep the corpus honest: a catalogue part must produce the
+same internal Rocket model an imported one does, or the solver ends up with two shapes of truth.
 
 ---
 
@@ -1638,7 +1742,9 @@ radius values for one role; `text-xs` and `text-sm` disagreeing between the two 
 
 ## P2 — Workspaces as routes
 
-**Status: DONE — 2026-08-02.** All five *done when* clauses are met and each is pinned by a check that goes red if it regresses. Increments 1–5 of 4–6.
+**Status: IN PROGRESS** — increments 1–5 of 4–6. Four of the five *done when* clauses are met and
+pinned. **The two-screen clause is NOT met**, and it was briefly and wrongly recorded here as met on
+2026-08-02 — see increment 5, which corrects it. The remaining gap is 82 px on one route.
 
 *Increment 1.* Flight, Design and Analyze became three real static routes behind one navigation
 spine, replacing the URL fragment and the `Tabs` tablist. Pinned by `e2e/smoke.spec.ts`'s *each
@@ -1699,14 +1805,27 @@ live while editing on `/design`. `StabilityTrimHint` and `FlutterFixHint` are de
 the fold — they render only when something is wrong and they are the only place the reasoning behind
 that flag is written, so folding them would be the "reachable only by knowing it is there" failure.
 
-**Measured, on every route:** shared chrome above the spine **1071 → 914 px** on a phone, identical
-on all four, so every route got the 157 px back rather than just the one that needed it. Desktop is
-**unchanged at 773 px** — the split grid first cost 8 px there and the rhythm was restored before
-anything shipped, because a P-track increment that trades one form factor for the other has not
-done its job. `/sweep`, the one real breach at 2.10 screens, is now inside two. The `test.fail`
-marker that pinned it is **deleted**, which is exactly what its own comment asked the next session to
-do; the phone ratchet came down 1120 → 960 with the measurement, because a ratchet left at its old
-value has stopped ratcheting.
+**Measured, on every route:** the fold took **157 px** out of the shared chrome above the spine, on
+all four routes at once rather than just the one that needed it. Desktop is **unchanged at 773 px** —
+the split grid first cost 8 px there and the rhythm was restored before anything shipped, because a
+P-track increment that trades one form factor for the other has not done its job.
+
+**It did not close the two-screen clause, and the first version of this entry said it did.** The
+correction is the more valuable half of the increment. The phone context in `e2e/depth.spec.ts` was
+`viewport: PHONE` over `devices["Desktop Chrome"]`, so it reported `pointer: fine` — and every
+control carrying `TOUCH_TARGET` (`pointer-coarse:min-h-11`) rendered at its 26 px desktop height
+instead of 44 px. **That understated the shared chrome by 97 px**: 914 px measured, 1011 px on a
+genuinely coarse pointer. The spec now sets `hasTouch` on the phone, and on that measurement
+`/sweep`'s answer sits at **1410 px = 2.12 screens** against the 1328 px two screens allow — **82 px
+still owed**. The `test.fail` marker was deleted on the strength of the fine-pointer number and is
+**restored**, with the true figure and with the reason it was briefly removed, so the next session
+does not repeat it. The phone ratchet moved 1120 → **1060** rather than to the 960 a fine pointer
+would have justified: down, because the fold really did buy room, but not to a number measured on a
+phone that does not exist.
+
+**Where the remaining 82 px are**, in order of size, all of it shared chrome every route pays and
+none of it this panel: the **112 px restore banner**, the **74 px warnings stack**, and the toolbar.
+That is the next increment, and it is now a measurement rather than a hunt.
 
 Not a `Disclosure`: that primitive takes a static `open`, and a native `<details>` cannot be talked
 out of hiding its content by a media query, so a viewport-driven fold cannot be expressed with it.
@@ -1745,7 +1864,35 @@ rather than rewriting them.
 
 ## P3 — A stranger's first five minutes
 
-**Status:** NOT STARTED
+**Status: IN PROGRESS** — increment 1 of 3–4 shipped 2026-08-02.
+
+*Increment 1 — the walkthrough the milestone asks for, and the three things it found.* `e2e/first-run.spec.ts`
+starts where every other spec does not: a cold browser, empty storage, no file. `addInitScript` clears
+storage BEFORE any page script runs, so the app reads an empty store on its first read rather than
+one cleared after the fact — which would be a warm start wearing a cold one's clothes.
+
+It went red on two real gaps and both are fixed in the same increment:
+
+- **The one-click example was below the fold on a phone** — the first bundled design sat at 753 px
+  against a 664 px viewport, so the clause "fly a real example in one click without supplying a file"
+  cost a scroll a stranger had to know to make. The cause was that the landing renders a 270 px
+  dashed DROP ZONE on a device that cannot drag a file: 64 px of padding, a brand mark, and a
+  "drop a file here" instruction a phone cannot follow, all sitting directly above the one control a
+  flyer with no file needs. The drop affordance and its instruction are now `sm:` only, with a
+  shorter sentence below that stating the formats and the privacy promise — the parts that are true
+  on every device.
+- **A flown number had no route to how it was computed.** The "see how they're computed" link lives
+  on the import screen, so it disappeared at exactly the moment a flyer had a figure in front of them
+  to doubt. There is now a link in the design summary's header row — the row the format label already
+  occupies, so it costs the shared chrome no height, and it is present on all four workspace routes.
+
+The third clause it checks — that an import says what was and was not understood — already passed,
+and is now pinned rather than assumed.
+
+*Remaining:* the milestone's "understand what the tool is within one screen" clause is asserted only
+weakly (the first screen must mention a flight at all). A stranger still meets a file-import
+instruction before a statement of what Loft is for. And the README is 4.7 KB against the sibling
+app's 27 KB.
 
 **Outcome.** Someone who has never heard of Loft gets to a flight they believe in, without being told
 how.

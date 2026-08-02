@@ -1037,6 +1037,15 @@ function RocketSummary({
         <h2 className="text-xl font-medium tracking-tight">{doc.rocket.name}</h2>
         <span className="text-xs text-zinc-500 dark:text-zinc-400">
           {formatLabel(doc)}
+          {" · "}
+          {/* The route to the method, from where the question arises. Every number on every
+              workspace sits under this strip, and until now the only link to how they are computed
+              was on the import screen — which is to say it disappeared at exactly the moment a
+              flyer had a figure in front of them to doubt. It rides the row the format label
+              already occupies, so it costs the shared chrome no height. */}
+          <Link href="/docs/methods" className="underline underline-offset-2 hover:text-zinc-700 dark:hover:text-zinc-300">
+            how these are computed
+          </Link>
         </span>
       </div>
 
@@ -1066,42 +1075,36 @@ function RocketSummary({
         ))}
       </div>
 
-      {/* THE HEADLINE THREE, visible on every viewport.
-          This strip is the chrome every workspace route sits under, so its height is a term in all
-          four routes' depth — measured at 1,071 px on a 390 px phone, of which this summary was 508,
-          i.e. 1.61 of the two screens `DESIGN.md` §8 allows BEFORE any workspace renders a pixel.
-          `/sweep` is the route with no room left, at 2.10 screens.
-          Which three stay is not a layout preference: static margin is what a flyer reads for a
-          go/no-go, liftoff mass is what they check against the motor's minimum and their waiver, and
-          apogee is the number two e2e cases exist to prove updates live while editing on `/design`.
-          The rest are reference figures a flyer looks up rather than watches. */}
+      {/* THE HEADLINE THREE, visible on every viewport, and the rest folded behind a control on a
+          phone. This strip is the chrome every workspace route sits under, so its height is a term
+          in all four routes' depth — it cost a 390 px phone 508 px of the 1,071 px above the
+          workspace spine, i.e. 1.61 of the two screens `DESIGN.md` §8 allows before any workspace
+          renders a pixel. Folding it took 157 px out of that on all four routes at once; it did NOT
+          close the contract, and `e2e/depth.spec.ts` still carries `/sweep` as a breach at 2.12
+          screens once the pointer is measured as coarse.
+
+          Which three stay is not a layout preference: STATIC MARGIN is what a flyer reads for a
+          go/no-go, LIFTOFF MASS is what they check against the motor's minimum and their waiver, and
+          APOGEE is the number two e2e cases exist to prove updates live while editing on `/design`.
+          The rest are reference figures a flyer looks up rather than watches.
+
+          Two lists rather than one, with the control between them: a `<button>` is not a permitted
+          child of `<dl>`, and putting it inside to keep a single list failed the accessibility gate.
+          Two lists is the honest structure anyway — these ARE two groups, the figures a flyer
+          watches and the ones they look up.
+
+          Not a `Disclosure`: that primitive takes a static `open`, and a native `<details>` cannot
+          be talked out of hiding its content by a media query, so a viewport-driven fold cannot be
+          expressed with it. The control is a `Button`, so nothing here is a hand-rolled treatment,
+          and it sits BEFORE the region it controls — expanding must not push the control that did
+          it off the bottom of the screen, and a reader should meet the trigger before the content
+          it reveals. */}
       <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-4">
         {/* Apogee leads the strip so a design edit's headline flight effect is visible from any
             workspace — the editors live on Design, but this summary sits above the tabs. Only with
             propulsion: a design whose motor didn't resolve has no meaningful apogee. */}
         {run.hasPropulsion && <Field term="Apogee" value={d.q(d.altitude(r.summary.apogee, units))} />}
         <Field term="Liftoff mass" value={d.q(d.mass(r.liftoffMass, units))} />
-      </dl>
-
-      {/* THE REFERENCE FIGURES. Shown outright from `sm:` up — a desktop has the width, and the
-          two-screen contract is a phone one — and folded behind a control below it. Not a
-          `Disclosure`: that primitive takes a static `open`, and a native `<details>` cannot be
-          talked out of hiding its content by a media query, so a viewport-driven fold cannot be
-          expressed with it. The control is a `Button`, so nothing here is a hand-rolled treatment.
-          Both states come from one server-rendered tree, so the desktop layout waits on no client
-          decision and nothing shifts after hydration. */}
-      <dl
-        id="rocket-summary-detail"
-        className={cx(
-          "mt-2 grid-cols-2 gap-x-4 gap-y-2 text-sm sm:mt-2 sm:grid sm:grid-cols-4",
-          detailOpen ? "grid" : "hidden",
-        )}
-      >
-        <Field term="Burnout mass" value={d.q(d.mass(r.burnoutMass, units))} />
-        <Field term="Length" value={d.q(d.lengthMm(length, units))} />
-        <Field term="Max diameter" value={d.q(d.lengthMm(dia, units))} />
-        <Field term="CG (loaded)" value={d.q(d.lengthMm(r.cgLoaded, units))} />
-        <Field term="CP" value={d.q(d.lengthMm(r.stability.cp, units))} />
         <Field
           term="Static margin"
           value={d.q(d.calibers(r.staticMarginCal))}
@@ -1114,6 +1117,39 @@ function RocketSummary({
                 : undefined
           }
         />
+
+      </dl>
+
+      {/* The control, then the region it controls. Outside the list because a `<button>` is not a
+          permitted child of `<dl>` — axe flags it, and the a11y gate caught exactly that when this
+          was first written with the control inside. Placing it BETWEEN the two lists is what keeps
+          the trigger ahead of its content: expanding must not push the control that did it off the
+          bottom of the screen, and a reader should meet the trigger before what it reveals.
+          Named for what is actually behind it — a label that omits half its contents is how a flyer
+          concludes a figure is missing rather than folded. */}
+      <Button
+        variant="ghost"
+        size="sm"
+        className="mt-2 sm:hidden"
+        aria-expanded={detailOpen}
+        aria-controls="rocket-summary-detail"
+        onClick={() => setDetailOpen((v) => !v)}
+      >
+        {detailOpen ? "Hide" : "Show"} mass, balance and fin figures
+      </Button>
+
+      <dl
+        id="rocket-summary-detail"
+        className={cx(
+          "mt-2 grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid sm:grid-cols-4",
+          detailOpen ? "grid" : "hidden",
+        )}
+      >
+        <Field term="Burnout mass" value={d.q(d.mass(r.burnoutMass, units))} />
+        <Field term="Length" value={d.q(d.lengthMm(length, units))} />
+        <Field term="Max diameter" value={d.q(d.lengthMm(dia, units))} />
+        <Field term="CG (loaded)" value={d.q(d.lengthMm(r.cgLoaded, units))} />
+        <Field term="CP" value={d.q(d.lengthMm(r.stability.cp, units))} />
         <Field term="CNα" value={d.fmt(r.stability.cnAlpha, 2) + " /rad"} />
         {r.flutter && (
           <Field
@@ -1125,18 +1161,6 @@ function RocketSummary({
           />
         )}
       </dl>
-
-      {/* Only on a phone: from `sm:` up the figures above are already showing. */}
-      <Button
-        variant="ghost"
-        size="sm"
-        className="mt-2 sm:hidden"
-        aria-expanded={detailOpen}
-        aria-controls="rocket-summary-detail"
-        onClick={() => setDetailOpen((v) => !v)}
-      >
-        {detailOpen ? "Hide" : "Show"} mass, length and balance
-      </Button>
 
       {/* Deliberately OUTSIDE the fold, on every viewport. Both render only when there is something
           wrong to say — a margin outside 1-3 cal, a thin flutter margin — and both are the only

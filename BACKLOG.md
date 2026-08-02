@@ -12,6 +12,18 @@ this file, and deliberately does **not** cap craft or product work, because that
 track in `ROADMAP.md` with its own *done when*. Rough edges, missing affordances, and findings too
 big for one pass. Newest first.
 
+- **60 of the 108 bundled motor curves carry no recorded licence, and 3 may be GPL.** Measured
+  2026-08-02 while establishing the licensing position for R8. `lib/motors/catalog.ts` stores a
+  `license` field per curve, taken from ThrustCurve's own four classes: **PD 45, `null` 38, `"?"` 22,
+  `"free"` 3**. ThrustCurve defines "Free Usage" as "traditional free software licenses (i.e., GPL,
+  Creative Commons, Apache)" — so the three `"free"` entries are not automatically MIT-safe, and 60
+  entries have no basis recorded at all. The field is shipped to the browser and never surfaced. The
+  standing argument is that thrust-vs-time is factual certification data, which is probably right and
+  is nowhere written down. Two things would close it: record the argument in `app/docs/methods`, and
+  chase the 60 back to their ThrustCurve simfile ids (which the catalogue already stores, so this is
+  a lookup rather than a hunt).
+
+
 - **RASAero's `<Protuberance>` is silently dropped AND its warning can never fire.**
   `lib/rasaero/adapt.ts:268` handles `Protuberance` in the `parseParts` switch, but that switch walks
   `design.children` only and RASAero nests `<Protuberance>` INSIDE `<BodyTube>`. Measured 2026-08-02 on

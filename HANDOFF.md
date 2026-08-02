@@ -40,9 +40,10 @@ what-if is set) is filed with its numbers rather than left in anyone's head.
 | R5 — author a staged rocket | SHIPPED 2026-08-01 |
 | R6 — a built design leaves Loft intact | SHIPPED 2026-08-02 |
 | P1 — one design system, adopted | SHIPPED 2026-08-02 |
-| P2 — workspaces as routes | SHIPPED 2026-08-02 — all five *done when* clauses met and pinned; the phone chrome went 1071 → 914 px and `/sweep` came inside two screens |
+| **P2 — workspaces as routes** | **IN PROGRESS** — 4 of 5 *done when* clauses met and pinned. The fold took 157 px out of the shared chrome, but the two-screen clause is still open by **82 px** on `/sweep`, and the measurement that said otherwise was taken on a fine pointer |
 | **R7 — per-set fin drag, and the honest aero the builder needs** | **IN PROGRESS** — increments 1–5 of 3–5 shipped. Increment 4 FOUND the under-drag increment 3 sent it looking for (a bare mould-line step) and deliberately did not charge it, for a sourced reason; increment 5 was a Sev-1 on the same surface |
-| P3–P5 | NOT STARTED |
+| **P3 — a stranger's first five minutes** | **IN PROGRESS** — increment 1 of 3–4 shipped 2026-08-02: the cold-load walkthrough exists and found two real gaps, both fixed |
+| P4–P5 | NOT STARTED |
 
 ## This session (2026-08-02)
 
@@ -85,11 +86,20 @@ other seven fold behind a phone-only `Button`, shown outright from `sm:` up. `St
 `FlutterFixHint` stay OUTSIDE the fold — they render only when something is wrong and are the only
 place the reasoning behind that flag is written.
 
-**Phone chrome 1071 → 914 px, identical on all four routes. Desktop unchanged at 773 px** — the split
-grid cost 8 px there at first and that was restored before anything shipped. `/sweep`'s 2.10-screen
-breach is closed, its `test.fail` marker deleted as its own comment asked, and the phone ratchet
-tightened 1120 → 960. §9's counts are unmoved (the control is the `Button` primitive, so the
-hand-rolled-`<button>` count stays at 3).
+**The fold took 157 px out of the shared chrome on all four routes. Desktop unchanged at 773 px.**
+§9's counts are unmoved (the control is the `Button` primitive, so the hand-rolled-`<button>` count
+stays at 3).
+
+**It did NOT close the two-screen clause, and this file said it had.** The phone context in
+`e2e/depth.spec.ts` was a phone-sized viewport over `devices["Desktop Chrome"]`, so it reported
+`pointer: fine` and every `TOUCH_TARGET` control rendered 26 px instead of 44 — understating the
+shared chrome by **97 px** (914 measured, **1011** on a real coarse pointer). With `hasTouch` set,
+`/sweep` sits at **1410 px = 2.12 screens** against 1328, so **82 px are still owed**. The
+`test.fail` marker was deleted on the fine-pointer number and is restored with the true one. The
+ratchet went 1120 → **1060**, not the 960 that measurement would have justified.
+
+**The remaining 82 px are the restore banner (112 px), the warnings stack (74 px) and the toolbar** —
+all shared chrome, none of it the summary. That is the next P2 increment.
 
 **The design strip is NOT done and is deliberately out of P2.** It costs a phone another 130–160 px,
 which puts the chrome back over the ratchet just tightened and `/sweep` back over two screens. It is
