@@ -118,11 +118,23 @@ const COLORS = {
 
 /** Why a tool isn't offered for this design — said out loud, because a panel that simply
  *  isn't there reads as a missing feature rather than a modelling limit. */
-function ToolUnavailable({ title, reason }: { title: string; reason: string }) {
+function ToolUnavailable({
+  title,
+  reason,
+  children,
+}: {
+  title: string;
+  reason: string;
+  /** Anything the flyer can DO about it, or read next. A surface that says only why it is empty
+   *  leaves them where they were standing; `DESIGN.md` §5 asks an empty state to name the way
+   *  forward, and this primitive had nowhere to put one. */
+  children?: ReactNode;
+}) {
   return (
     <Card as="section" tone="muted" aria-label={`${title} unavailable`} className="text-sm">
       <h2 className="text-base font-semibold tracking-tight text-zinc-700 dark:text-zinc-300">{title}</h2>
       <p className="mt-1.5">{reason}</p>
+      {children && <p className="mt-1.5">{children}</p>}
     </Card>
   );
 }
@@ -264,6 +276,14 @@ export default function ResultsView({
 }) {
   const r = run.result;
   const s = r.summary;
+  /** The envelope the ascent numbers left, or undefined while they are inside it. `DESIGN.md` §5
+   *  requires the `Extrapolated` treatment wherever a number leaves the envelope its method was
+   *  validated over; the drag model's is subsonic, and above about M0.8 it is a bounded parametric
+   *  estimate rather than a solution. Worded to match the `transonic` caution the solver already
+   *  raises, so the marker and the card cannot drift apart. */
+  const extrapolatedWhy = r.extrapolatedTransonic
+    ? `this flight reaches M${d.fmt(s.maxMach, 2)}, outside the drag model's validated subsonic envelope (M ≤ 0.8) — treat it as rough`
+    : undefined;
   const markers = eventMarkers(r);
   // Which workspace is open — the route, handed down. The panels below all stay mounted and the
   // route only decides which one is visible, which is deliberate rather than incidental: a
@@ -464,16 +484,36 @@ export default function ResultsView({
       {run.hasPropulsion && (<>
       {/* Key results */}
       <section aria-label="Results">
-        <h2 className="text-xl font-medium tracking-tight">Flight</h2>
+        <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+          <h2 className="text-xl font-medium tracking-tight">Flight</h2>
+          {/* Where these numbers are weak, beside the numbers. This link only ever appeared inside
+              the NO-MOTOR notice, so a flyer looking at a perfectly ordinary flight had no route to
+              the limitations log at all — the milestone's clause is that these pages are found
+              "from where the question arises rather than from a footer", and it arises here.
+              Deliberately NOT in the design summary beside the methods link: that strip is shared
+              chrome above the workspace spine, and putting a second link in it wrapped the row and
+              took the phone chrome from 1060 to 1070 px, which the depth ratchet caught. Inside the
+              panel it costs every route's depth nothing. */}
+          <Link
+            href="/docs/limitations"
+            className="text-sm text-zinc-500 underline underline-offset-2 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300"
+          >
+            where it&apos;s weak
+          </Link>
+        </div>
         {baseline && baseline.hasPropulsion && <WhatIfDelta run={run} baseline={baseline} units={units} />}
         <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-          <Stat label="Apogee" q={d.altitude(s.apogee, units)} accent />
-          <Stat label="Max velocity" q={d.speed(s.maxVelocity, units)} sub={d.q(d.mach(s.maxMach))} />
-          <Stat label="Max acceleration" q={d.accel(s.maxAcceleration)} />
+          {/* Marked on the numbers the transonic drag extrapolation actually drives — the ascent.
+              Rail-exit velocity (~20 m/s off the rail) and thrust-to-weight (static) are inside the
+              validated envelope whatever the flight does later, so marking them would be the flag
+              crying wolf that the brief warns teaches flyers to ignore every flag. */}
+          <Stat label="Apogee" q={d.altitude(s.apogee, units)} accent extrapolated={extrapolatedWhy} />
+          <Stat label="Max velocity" q={d.speed(s.maxVelocity, units)} sub={d.q(d.mach(s.maxMach))} extrapolated={extrapolatedWhy} />
+          <Stat label="Max acceleration" q={d.accel(s.maxAcceleration)} extrapolated={extrapolatedWhy} />
           <Stat label="Rail-exit velocity" q={d.speed(s.railExitVelocity, units)} />
           <Stat label="Thrust-to-weight" q={d.ratio(s.thrustToWeight)} sub="liftoff" />
-          <Stat label="Time to apogee" q={d.seconds(s.timeToApogee)} />
-          <Stat label="Burnout velocity" q={d.speed(s.burnoutVelocity, units)} />
+          <Stat label="Time to apogee" q={d.seconds(s.timeToApogee)} extrapolated={extrapolatedWhy} />
+          <Stat label="Burnout velocity" q={d.speed(s.burnoutVelocity, units)} extrapolated={extrapolatedWhy} />
           <Stat
             label="Descent rate"
             q={d.speed(s.descentRate, units)}
@@ -498,9 +538,9 @@ export default function ResultsView({
             sub="whole vehicle"
             withheld={s.landed ? undefined : "no landing inside the time cap"}
           />
-          <Stat label="Optimum delay" q={d.seconds(s.optimumDelay)} sub="burnout → apogee" />
+          <Stat label="Optimum delay" q={d.seconds(s.optimumDelay)} sub="burnout → apogee" extrapolated={extrapolatedWhy} />
           <Stat label="Flight time" q={d.seconds(s.flightTime)} />
-          <Stat label="Max dynamic pressure" q={d.dynamicPressure(s.maxDynamicPressure, units)} />
+          <Stat label="Max dynamic pressure" q={d.dynamicPressure(s.maxDynamicPressure, units)} extrapolated={extrapolatedWhy} />
         </div>
         <RecoverySizingHint run={run} units={units} />
         <BoosterDescentNote run={run} units={units} />
@@ -877,7 +917,17 @@ export default function ResultsView({
           <ToolUnavailable
             title={`${toolName} comparison`}
             reason={noStoredResultsReason(doc.simulations.map((sim) => sim.status), toolName)!}
-          />
+          >
+            {/* The question this design cannot answer is still worth answering. "How far off is
+                Loft?" is exactly what a flyer wants when the file gives them nothing to compare
+                against, and until now the only route to that evidence was a page they had to know
+                existed. All three bundled samples land here, so it is also what a stranger sees. */}
+            Loft&apos;s own accuracy is measured against 35 real design files with stored results —{" "}
+            <Link href="/docs/validation" className="underline underline-offset-2">
+              see how this is measured
+            </Link>
+            .
+          </ToolUnavailable>
         )}
 
         {/* Why the metric-by-metric stored comparison is withheld for a design Loft flew reduced. */}
@@ -1030,12 +1080,23 @@ function RocketSummary({
   const r = run.result;
   const length = overallLength(rocket);
   const dia = r.stability.refRadius * 2;
+  const [detailOpen, setDetailOpen] = useState(false);
   return (
     <Card as="section">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="text-xl font-medium tracking-tight">{doc.rocket.name}</h2>
         <span className="text-xs text-zinc-500 dark:text-zinc-400">
           {formatLabel(doc)}
+          {" · "}
+          {/* The route to the method, from where the question arises. Every number on every
+              workspace sits under this strip, and until now the only link to how they are computed
+              was on the import screen — which is to say it disappeared at exactly the moment a
+              flyer had a figure in front of them to doubt. It rides the row the format label
+              already occupies, so it costs the shared chrome no height. */}
+          <Link href="/docs/methods" className="underline underline-offset-2 hover:text-zinc-700 dark:hover:text-zinc-300">
+            how these are computed
+          </Link>
+
         </span>
       </div>
 
@@ -1065,17 +1126,36 @@ function RocketSummary({
         ))}
       </div>
 
+      {/* THE HEADLINE THREE, visible on every viewport, and the rest folded behind a control on a
+          phone. This strip is the chrome every workspace route sits under, so its height is a term
+          in all four routes' depth — it cost a 390 px phone 508 px of the 1,071 px above the
+          workspace spine, i.e. 1.61 of the two screens `DESIGN.md` §8 allows before any workspace
+          renders a pixel. Folding it took 157 px out of that on all four routes at once; it did NOT
+          close the contract, and `e2e/depth.spec.ts` still carries `/sweep` as a breach at 2.12
+          screens once the pointer is measured as coarse.
+
+          Which three stay is not a layout preference: STATIC MARGIN is what a flyer reads for a
+          go/no-go, LIFTOFF MASS is what they check against the motor's minimum and their waiver, and
+          APOGEE is the number two e2e cases exist to prove updates live while editing on `/design`.
+          The rest are reference figures a flyer looks up rather than watches.
+
+          Two lists rather than one, with the control between them: a `<button>` is not a permitted
+          child of `<dl>`, and putting it inside to keep a single list failed the accessibility gate.
+          Two lists is the honest structure anyway — these ARE two groups, the figures a flyer
+          watches and the ones they look up.
+
+          Not a `Disclosure`: that primitive takes a static `open`, and a native `<details>` cannot
+          be talked out of hiding its content by a media query, so a viewport-driven fold cannot be
+          expressed with it. The control is a `Button`, so nothing here is a hand-rolled treatment,
+          and it sits BEFORE the region it controls — expanding must not push the control that did
+          it off the bottom of the screen, and a reader should meet the trigger before the content
+          it reveals. */}
       <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-4">
         {/* Apogee leads the strip so a design edit's headline flight effect is visible from any
             workspace — the editors live on Design, but this summary sits above the tabs. Only with
             propulsion: a design whose motor didn't resolve has no meaningful apogee. */}
         {run.hasPropulsion && <Field term="Apogee" value={d.q(d.altitude(r.summary.apogee, units))} />}
         <Field term="Liftoff mass" value={d.q(d.mass(r.liftoffMass, units))} />
-        <Field term="Burnout mass" value={d.q(d.mass(r.burnoutMass, units))} />
-        <Field term="Length" value={d.q(d.lengthMm(length, units))} />
-        <Field term="Max diameter" value={d.q(d.lengthMm(dia, units))} />
-        <Field term="CG (loaded)" value={d.q(d.lengthMm(r.cgLoaded, units))} />
-        <Field term="CP" value={d.q(d.lengthMm(r.stability.cp, units))} />
         <Field
           term="Static margin"
           value={d.q(d.calibers(r.staticMarginCal))}
@@ -1088,6 +1168,39 @@ function RocketSummary({
                 : undefined
           }
         />
+
+      </dl>
+
+      {/* The control, then the region it controls. Outside the list because a `<button>` is not a
+          permitted child of `<dl>` — axe flags it, and the a11y gate caught exactly that when this
+          was first written with the control inside. Placing it BETWEEN the two lists is what keeps
+          the trigger ahead of its content: expanding must not push the control that did it off the
+          bottom of the screen, and a reader should meet the trigger before what it reveals.
+          Named for what is actually behind it — a label that omits half its contents is how a flyer
+          concludes a figure is missing rather than folded. */}
+      <Button
+        variant="ghost"
+        size="sm"
+        className="mt-2 sm:hidden"
+        aria-expanded={detailOpen}
+        aria-controls="rocket-summary-detail"
+        onClick={() => setDetailOpen((v) => !v)}
+      >
+        {detailOpen ? "Hide" : "Show"} mass, balance and fin figures
+      </Button>
+
+      <dl
+        id="rocket-summary-detail"
+        className={cx(
+          "mt-2 grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid sm:grid-cols-4",
+          detailOpen ? "grid" : "hidden",
+        )}
+      >
+        <Field term="Burnout mass" value={d.q(d.mass(r.burnoutMass, units))} />
+        <Field term="Length" value={d.q(d.lengthMm(length, units))} />
+        <Field term="Max diameter" value={d.q(d.lengthMm(dia, units))} />
+        <Field term="CG (loaded)" value={d.q(d.lengthMm(r.cgLoaded, units))} />
+        <Field term="CP" value={d.q(d.lengthMm(r.stability.cp, units))} />
         <Field term="CNα" value={d.fmt(r.stability.cnAlpha, 2) + " /rad"} />
         {r.flutter && (
           <Field
@@ -1100,6 +1213,11 @@ function RocketSummary({
         )}
       </dl>
 
+      {/* Deliberately OUTSIDE the fold, on every viewport. Both render only when there is something
+          wrong to say — a margin outside 1-3 cal, a thin flutter margin — and both are the only
+          place the reasoning behind that flag is spelled out. A safety-relevant sentence a flyer has
+          to go looking for is the "reachable only by knowing it is there" failure, and folding them
+          would save nothing on the healthy designs the depth measurement is taken on anyway. */}
       <StabilityTrimHint run={run} rocket={rocket} units={units} />
       <FlutterFixHint run={run} doc={doc} units={units} geometry={geometry} />
     </Card>
@@ -1339,6 +1457,7 @@ function Stat({
   sub,
   accent,
   withheld,
+  extrapolated,
 }: {
   label: string;
   q: d.Quantity;
@@ -1349,6 +1468,12 @@ function Stat({
    *  a withheld estimate has to say why (see the no-propulsion notice, which does the same thing for
    *  the whole panel). Used where the solver carries a sentinel that is not a measurement. */
   withheld?: string;
+  /** The envelope this number left, when it left one. `DESIGN.md` §5 requires the `Extrapolated`
+   *  treatment — "the warn treatment plus the reason and the range it left" — WHEREVER a number
+   *  leaves the envelope its method was validated over, and until now a transonic apogee rendered
+   *  byte-identical to a subsonic one, with the caveat surfacing only as a separate card further up
+   *  the page. A flyer reading the number does not necessarily read the card. */
+  extrapolated?: string;
 }) {
   return (
     <Card>
@@ -1361,6 +1486,22 @@ function Stat({
         <div className={"mt-1 font-mono tabular-nums " + (accent ? "text-xl font-semibold text-indigo-600 dark:text-indigo-400" : "text-xl text-zinc-900 dark:text-zinc-100")}>
           {q.value}
           <span className="ml-1 text-xs font-normal text-zinc-500 dark:text-zinc-400">{q.unit}</span>
+          {/* Inside the value's own line, not a sibling of it. `abbr` is the same affordance
+              `Field`'s hint already uses, so a pointer, a keyboard and a screen reader all reach the
+              reason from the number itself rather than from the caution card further up the page —
+              which a flyer reading the number does not necessarily read. Kept in this element
+              because the readouts are located by walking the label's following siblings, and a new
+              sibling div silently broke two of those locators. Block rather than inline: beside the
+              value it pushed a 320 px metric tile into clipping its own number. */}
+          {extrapolated && (
+            <abbr
+              title={extrapolated}
+              aria-label={`Extrapolated — ${extrapolated}`}
+              className="mt-1 block w-fit cursor-help rounded-md bg-amber-500/10 px-2 py-1 font-sans text-[11px] font-medium uppercase tracking-wide text-amber-700 no-underline dark:text-amber-400"
+            >
+              extrapolated
+            </abbr>
+          )}
         </div>
       )}
       {(withheld ?? sub) && (

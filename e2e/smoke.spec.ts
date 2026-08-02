@@ -897,11 +897,34 @@ test.describe("Loft", () => {
     await expect.poll(summaryApogee).toBeGreaterThan(asDesigned);
   });
 
+  test("a subsonic flight marks nothing as extrapolated", async ({ page }) => {
+    // The other half of the §5 contract, and the one that keeps the marker meaningful: a flag that
+    // fires on every flight teaches a flyer to ignore it on the flight where it matters.
+    await page.goto("/");
+    await page
+      .getByLabel(/^Choose an OpenRocket/)
+      .setInputFiles(resolve(process.cwd(), "fixtures/demo-single-deploy.ork"));
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText("Apogee", { exact: true }).first()).toBeVisible();
+    expect(
+      await page.getByText("extrapolated", { exact: true }).count(),
+      "a subsonic flight marked a number as extrapolated",
+    ).toBe(0);
+  });
+
   test("dual-deploy sample flags transonic and shows two deploy markers", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: /54 mm dual-deploy/ }).click();
     await expect(page.getByRole("heading", { name: /Loft Demo/ })).toBeVisible();
     await expect(page.getByText(/transonic|supersonic/i).first()).toBeVisible();
+    // DESIGN.md §5: the `Extrapolated` treatment is "required wherever a number leaves the envelope
+    // its method was validated over". The caution card above is not that — a flyer reading the
+    // apogee does not necessarily read the card, and the two rendered byte-identically whether the
+    // flight went transonic or not. The marker rides the numbers the extrapolation actually drives.
+    const marks = page.getByText("extrapolated", { exact: true });
+    expect(await marks.count(), "no number is marked as extrapolated on a transonic flight").toBeGreaterThan(0);
+    // It carries the reason and the range, not just a label — §5 asks for both.
+    await expect(marks.first()).toHaveAttribute("title", /M\d|envelope|subsonic/i);
     // A dual-deploy flight reports two descent rates: the fast phase under the drogue and the slower
     // final descent under the main — a single-deploy flight shows only the one.
     const results = page.getByLabel("Results");

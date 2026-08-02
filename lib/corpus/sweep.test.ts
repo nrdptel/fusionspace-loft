@@ -1298,4 +1298,53 @@ suite("real-design corpus", () => {
     expect(flown, "no design flew, so this asserted nothing").toBeGreaterThan(50);
     expect(absurd, "a legal recovery size produced a number physics cannot produce").toEqual([]);
   }, 900_000);
+  /** The optimum delay describes the vehicle on screen, not the one in the file.
+   *
+   *  When a design deploys before apogee its own apogee time reads low, so the delay is recomputed
+   *  from a recovery-free coast. That recompute used the RAW build rather than the flight actually
+   *  flown, and silently dropped every caller option — nose ballast, and the thrust/mass/drag scales
+   *  and time step. Measured on `The Red Hunter.ork`: the delay sat at exactly 4.66 s for ballast 0,
+   *  0.01, 0.02, 0.05 and 0.1 kg while apogee fell 258.5 → 147.4 m; the correct figures are
+   *  4.66 / 4.99 / 5.20 / 5.31 / 4.58, so at 0.05 kg a flyer was told 4.66 s for a rocket that wants
+   *  5.31 — on a number they set on the motor itself.
+   *
+   *  The invariant, which does not depend on any one design: the delay a run reports must equal the
+   *  delay of the SAME run flown ballistic. Anything else means the two describe different vehicles. */
+  it("reports an optimum delay for the vehicle it flew, ballast and all", async () => {
+    const wrong: string[] = [];
+    let exercised = 0;
+    for (const f of files) {
+      let doc;
+      try {
+        doc = await importDesign(new Uint8Array(readFileSync(f.path)));
+      } catch {
+        continue;
+      }
+      for (const ballastKg of [0, 0.05]) {
+        let run;
+        let ballistic;
+        try {
+          run = runFromDocument(doc, { ballastKg });
+          ballistic = runFromDocument(doc, { ballastKg, ballistic: true });
+        } catch {
+          continue;
+        }
+        // Only designs that actually take the recompute branch can say anything here.
+        if (!run.hasPropulsion || !run.result.deployedBeforeApogee) continue;
+        const shown = run.result.summary.optimumDelay;
+        const truth = ballistic.result.summary.optimumDelay;
+        if (!Number.isFinite(shown) || !Number.isFinite(truth)) continue;
+        exercised++;
+        if (Math.abs(shown - truth) > 0.01) {
+          wrong.push(
+            `${shortName(f.name)} @ ${ballastKg} kg: shows ${shown.toFixed(2)} s, flew a rocket wanting ${truth.toFixed(2)} s`,
+          );
+        }
+      }
+    }
+    console.log(`optimum delay checked on ${exercised} early-deploying flights across ${files.length} design files`);
+    // Non-vacuous: if nothing deploys early the assert below proves nothing at all.
+    expect(exercised, "no corpus design deployed before apogee, so this asserted nothing").toBeGreaterThan(0);
+    expect(wrong, "the optimum delay describes a different vehicle than the flight beside it").toEqual([]);
+  }, 300_000);
 });

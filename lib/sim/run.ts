@@ -173,8 +173,19 @@ export function runFlight(rocket: Rocket, opts: RunOptions = {}): FlightRun {
   // opens the canopy before apogee, the primary run's coast is cut short, so its apogee time (and
   // the optimum delay derived from it) reads low — which would recommend an even shorter delay,
   // compounding the mistake. Recompute it from a recovery-free coast under the same conditions.
-  if (!opts.ballistic && result.deployedBeforeApogee && built.input.recovery.length > 0) {
-    const freeCoast = simulate({ ...built.input, recovery: [] });
+  //
+  // Recomputed from `input` — the flight that was actually flown — and NOT from `built.input`, which
+  // is the raw build before any of the caller's options were folded in. Reading the raw one dropped
+  // `extraMasses` (the flyer's nose ballast), `thrustScale`, `massScale`, `dragScale` and `timeStep`
+  // silently, so the delay on screen belonged to a different vehicle than every other number beside
+  // it. Measured on `The Red Hunter.ork`, which deploys before apogee and so takes this branch: the
+  // delay sat at exactly 4.66 s for ballast 0, 0.01, 0.02, 0.05 and 0.1 kg while apogee fell
+  // 258.5 → 147.4 m. The correct figures are 4.66 / 4.99 / 5.20 / 5.31 / 4.58 — so at 0.05 kg a
+  // flyer was told 4.66 s for a rocket that wants 5.31, on a number they set on the motor itself.
+  // `input` is `base` on this branch (the ballistic strip is the other one), so this is the same
+  // flight minus its recovery, which is exactly the quantity the comment above describes.
+  if (!opts.ballistic && result.deployedBeforeApogee && input.recovery.length > 0) {
+    const freeCoast = simulate({ ...input, recovery: [] });
     result.summary.optimumDelay = freeCoast.summary.optimumDelay;
   }
   const hasPropulsion = resolutions.some((r) => r.match !== null);

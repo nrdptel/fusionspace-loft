@@ -40,9 +40,11 @@ what-if is set) is filed with its numbers rather than left in anyone's head.
 | R5 — author a staged rocket | SHIPPED 2026-08-01 |
 | R6 — a built design leaves Loft intact | SHIPPED 2026-08-02 |
 | P1 — one design system, adopted | SHIPPED 2026-08-02 |
-| **P2 — workspaces as routes** | **IN PROGRESS** — increments 1–4 of 4–6 shipped; 1–2 on 2026-08-01, 3–4 on 2026-08-01 (second run). Remaining: the persistent design strip |
+| P2 — workspaces as routes | SHIPPED 2026-08-02 — all five clauses met and pinned. `/sweep` closed at **1.90 screens on a coarse pointer**, after a false close at 914 px on a fine one that is documented in `ROADMAP.md` rather than quietly fixed |
 | **R7 — per-set fin drag, and the honest aero the builder needs** | **IN PROGRESS** — increments 1–5 of 3–5 shipped. Increment 4 FOUND the under-drag increment 3 sent it looking for (a bare mould-line step) and deliberately did not charge it, for a sourced reason; increment 5 was a Sev-1 on the same surface |
-| P3–P5 | NOT STARTED |
+| **P3 — a stranger's first five minutes** | **IN PROGRESS** — increment 1 of 3–4 shipped 2026-08-02: the cold-load walkthrough exists and found two real gaps, both fixed |
+| **R8 — component and material catalogues** | **IN PROGRESS** — decomposed with its licence question settled, and increment 1 shipped: every fin shear modulus now cites a source, and two were wrong (basswood by 3×) |
+| P4–P5 | NOT STARTED |
 
 ## This session (2026-08-02)
 
@@ -76,6 +78,82 @@ Census identical to the tenth on all ten metrics — this changed nothing that w
 diverging. Pinned by a corpus assertion flying all 35 designs at 0.1/2/5/10× (124 flights), driven as
 a negative control: with the old step selection restored it names all three divergences and their
 exact figures.
+
+### P2 increment 5 — the chrome fix, and P2 is done
+
+The design summary above the workspace spine cost a 390 px phone **508 px** of the 1071 px of shared
+chrome every route sits under. Three headline fields stay (apogee, liftoff mass, static margin); the
+other seven fold behind a phone-only `Button`, shown outright from `sm:` up. `StabilityTrimHint` and
+`FlutterFixHint` stay OUTSIDE the fold — they render only when something is wrong and are the only
+place the reasoning behind that flag is written.
+
+**The fold took 157 px out of the shared chrome on all four routes. Desktop unchanged at 773 px.**
+§9's counts are unmoved (the control is the `Button` primitive, so the hand-rolled-`<button>` count
+stays at 3).
+
+**It did NOT close the two-screen clause, and this file said it had.** The phone context in
+`e2e/depth.spec.ts` was a phone-sized viewport over `devices["Desktop Chrome"]`, so it reported
+`pointer: fine` and every `TOUCH_TARGET` control rendered 26 px instead of 44 — understating the
+shared chrome by **97 px** (914 measured, **1011** on a real coarse pointer). With `hasTouch` set,
+`/sweep` sits at **1410 px = 2.12 screens** against 1328, so **82 px are still owed**. The
+`test.fail` marker was deleted on the fine-pointer number and is restored with the true one. The
+ratchet went 1120 → **1060**, not the 960 that measurement would have justified.
+
+**The remaining 82 px were not the shared chrome.** Increment 6 found them in `/sweep`'s own panel:
+its explanatory paragraph is a PITCH, and once the sweep has run the table answers the same question,
+so 140 px of prose sat between the flyer and their result. Shown only until the panel opens now.
+`/sweep` measures **1260 px = 1.90 screens** on a coarse pointer, 68 px inside the contract. P2 is
+done.
+
+**The design strip is NOT done and is deliberately out of P2.** It costs a phone another 130–160 px,
+which puts the chrome back over the ratchet just tightened and `/sweep` back over two screens. It is
+the P-track's next opening measurement, not a rider on this.
+
+### The optimum delay was computed for the wrong vehicle
+
+`lib/sim/run.ts` recomputes the delay from a recovery-free coast when a design deploys before apogee
+— and read `built.input`, the raw build, instead of the flight actually flown. It dropped the
+flyer's nose ballast and the thrust/mass/drag scales silently. On `The Red Hunter.ork` the delay sat
+at exactly **4.66 s** for ballast 0 through 0.1 kg while apogee fell 258.5 → 147.4 m; the correct
+figures are 4.66 / 4.99 / 5.20 / 5.31 / 4.58. Picking a delay is one of the three things this tool
+exists to help with.
+
+Pinned by the INVARIANT rather than those numbers — the delay a run reports must equal the delay of
+the same run flown ballistic — over 6 early-deploying corpus flights, with the count asserted
+non-zero so it cannot pass by finding nothing.
+
+**Why the corpus never caught it: the census flies no what-ifs.** That is worth remembering when
+judging what the corpus does and does not protect.
+
+### R8 increment 1 — the fin shear moduli were fourteen uncited numbers, and two were wrong
+
+Flutter speed goes as √G, so it is the most leveraged input in the one output this app produces that
+is a safety estimate — and the whole table was "representative engineering figures" under a method
+that cites NACA TN 4197 precisely. They turned out to be round US-customary values (3,800 ksi,
+89,000 psi, 13,000 psi), i.e. inherited from the hobby fin-flutter literature rather than any primary
+document.
+
+**basswood 0.17 → 0.511 GPa (low by 3×)**, balsa 0.09 → 0.138, aluminium 26 → 26.2, titanium
+44 → 42.75. Woods from USDA Wood Handbook FPL-GTR-282 ch. 5 as E_L × 1.10 × G_LT/E_L; metals from
+MIL-HDBK-5J. Six rows have no published value and now say so in words. Every error ran the same way
+— too little stiffness, so a margin reported thinner than it is — which is the right direction for a
+safety estimate and still not a number to hand out uncited.
+
+**Densities are the remaining half and are NOT done**; what was measured for them is in `ROADMAP.md`.
+
+### P3 increments 2 and 3 — the caveat goes on the number, and the docs pages get found
+
+`DESIGN.md` §5 requires the `Extrapolated` treatment wherever a number leaves its validated envelope.
+Loft raised a transonic caution CARD while the apogee itself rendered byte-identical either way — and
+a flyer reading the number does not necessarily read the card. Seven ascent-derived readouts now
+carry the marker with its reason; rail-exit and thrust-to-weight deliberately do not, because they
+are inside the envelope whatever the flight does later.
+
+Then the three docs pages the milestone names. **Limitations** was linked only from inside the
+no-motor notice, so an ordinary flight had no route to it. **Validation** was reachable only when the
+file carried stored results — and none of the three bundled samples does, so every stranger's first
+run hit an empty comparison whose only content was why it was empty. `ToolUnavailable` gained a slot
+for the way forward, which §5 asks of an empty state and the primitive had nowhere to put.
 
 ### R7 increment 4 — the under-drag is a bare mould-line step, and it is NOT charged
 

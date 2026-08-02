@@ -30,33 +30,197 @@ import type { Atmosphere } from "./atmosphere";
  *  method's spread). */
 export const RECOMMENDED_FLUTTER_MARGIN = 1.5;
 
-/** Fin material shear moduli (Pa), for the flutter estimate. Matched against the design's own
- *  material name; the values are representative engineering figures for the common fin stocks.
+/** Fin material shear moduli (Pa), for the flutter estimate — each with the source it comes from.
+ *
+ *  **Every row carries a `source`, and rows that have none say so in it.** That is the point of the
+ *  field. Until 2026-08-02 this table was fourteen uncited numbers described only as "representative
+ *  engineering figures", while the METHOD consuming them cites NACA TN 4197 — a citation gap on the
+ *  one output in this app that is a safety estimate. Chasing them established where they came from:
+ *  they are round US-CUSTOMARY values (26e9 = 3.8e3 ksi, 44e9 = 6.2e3 ksi, 0.62e9 = 89,000 psi,
+ *  5.0e9 = 725,000 psi, 3.0e9 = 435,000 psi, 0.09e9 = 13,000 psi), i.e. the table descends from the
+ *  hobby fin-flutter literature rather than from any primary materials document — and the current
+ *  version of that literature disagrees with several of them.
+ *
+ *  Two were refuted outright by the USDA Wood Handbook and are corrected here. Where a published
+ *  value is HIGHER than what shipped, note which way that cuts: flutter velocity goes as sqrt(G), so
+ *  a too-low G under-states the safe speed and over-warns. That is the right direction to be wrong
+ *  in, but "wrong in a safe direction and uncited" is still not a number this tool should hand out.
+ *
+ *  Where the published spread is genuinely wide, Loft takes the LOW end deliberately and says so on
+ *  the row. That is a stated choice, not an accident.
+ *
  *  Ordered so the more specific patterns win (carbon/aluminium before the generic composites). */
 interface ShearEntry {
   pattern: RegExp;
   g: number;
   label: string;
+  /** Where this number comes from. Never empty — a row with nothing behind it says that outright,
+   *  and `sourced` is false so a surface can mark the estimate as unsupported. */
+  source: string;
+  /** True when `g` traces to a published document. False for a representative engineering figure
+   *  with no primary source found. */
+  sourced: boolean;
 }
+
+/** The wood values are derived, so the arithmetic is here rather than hidden in a constant.
+ *
+ *  USDA Wood Handbook FPL-GTR-282 (2021) ch. 5 gives modulus of elasticity E_L (Table 5-3a/5-5a) and
+ *  the elastic RATIOS G/E_L per species (Table 5-1, p. 5-2). Table 5-1's footnote a says E_L "may be
+ *  approximated by increasing modulus of elasticity values in Table 5-3 by 10%", which removes the
+ *  shear deflection included in a bending test — so the derivation is E_L x 1.10 x ratio.
+ *
+ *  A fin twisting about its span is a thin rectangular section, so the shear that matters runs in
+ *  the PLANE of the fin. With the grain along the chord that is G_LR for quarter-sawn stock and
+ *  G_LT for flat-sawn, and a design tool cannot know which the flyer bought — so Loft takes G_LT,
+ *  the lower of the two. (G_RT, rolling shear, is emphatically not it: balsa's is ~11x smaller.)
+ *  It is a US Government work, so there is no licence question. */
+const woodG = (elMPa: number, ratioLT: number): number => elMPa * 1.1 * ratioLT * 1e6;
+
 const SHEAR_MODULI: ShearEntry[] = [
-  { pattern: /carbon/i, g: 5.0e9, label: "carbon fibre" },
-  { pattern: /alumin/i, g: 26e9, label: "aluminium" },
-  { pattern: /titanium/i, g: 44e9, label: "titanium" },
-  { pattern: /phenolic/i, g: 1.4e9, label: "phenolic" },
-  { pattern: /g-?10|fr-?4|fibregla|fibergla|glass|frp/i, g: 3.0e9, label: "G10 fibreglass" },
-  { pattern: /birch|plywood|\bply\b/i, g: 0.62e9, label: "plywood" },
-  { pattern: /basswood/i, g: 0.17e9, label: "basswood" },
-  { pattern: /balsa/i, g: 0.09e9, label: "balsa" },
-  { pattern: /acrylic|plexi|pmma/i, g: 1.15e9, label: "acrylic" },
-  { pattern: /polycarb|lexan/i, g: 0.79e9, label: "polycarbonate" },
-  { pattern: /\bpla\b/i, g: 1.09e9, label: "PLA" },
-  { pattern: /\babs\b/i, g: 0.8e9, label: "ABS" },
-  { pattern: /delrin|acetal|\bpom\b/i, g: 1.0e9, label: "acetal" },
-  { pattern: /cardboard|cardstock|kraft|\bpaper\b/i, g: 0.02e9, label: "cardboard" },
+  {
+    pattern: /carbon/i,
+    g: 5.0e9,
+    label: "carbon fibre",
+    source:
+      "lower bound. NCAMP NCP-RP-2010-008 Rev D (Hexcel 8552/AS4 unitape) Table 4-11 gives an " +
+      "in-plane G12 of 4.83 GPa for a UNIDIRECTIONAL lamina — a matrix-dominated property. A real " +
+      "fin is woven or +/-45, where the effective in-plane modulus is several times higher (a +/-45 " +
+      "laminate approaches E1/4, of order 33 GPa). The honest range spans an order of magnitude and " +
+      "is set by layup and fibre fraction, so this is deliberately near the bottom of it.",
+    sourced: true,
+  },
+  {
+    pattern: /alumin/i,
+    g: 26.2e9,
+    label: "aluminium",
+    source:
+      "MIL-HDBK-5J (2003) Table 3.6.2.0(b1), 6061 sheet: G = 3.8e3 ksi = 26.2 GPa. A US " +
+      "Government work, unlimited distribution. (Its successor MMPDS is Battelle-copyrighted and is " +
+      "not usable here.)",
+    sourced: true,
+  },
+  {
+    pattern: /titanium/i,
+    g: 42.75e9,
+    label: "titanium",
+    source: "MIL-HDBK-5J (2003) Table 5.4.1.0(b), annealed Ti-6Al-4V sheet: G = 6.2e3 ksi = 42.75 GPa.",
+    sourced: true,
+  },
+  {
+    pattern: /phenolic/i,
+    g: 1.4e9,
+    label: "phenolic",
+    source:
+      "NO PUBLISHED VALUE FOUND. NEMA Grade X paper phenolic datasheets (e.g. Norplex-Micarta " +
+      "NP610) publish flexural modulus and shear STRENGTH but no shear modulus — and a rocketry " +
+      "phenolic tube is convolute-wound with far less resin than that pressed sheet anyway, so the " +
+      "sheet would be the wrong material to cite. Representative engineering figure.",
+    sourced: false,
+  },
+  {
+    pattern: /g-?10|fr-?4|fibregla|fibergla|glass|frp/i,
+    g: 3.0e9,
+    label: "G10 fibreglass",
+    source:
+      "low end, deliberately. Neither NEMA-grade datasheet (Norplex-Micarta NP500A for G-10, GSFR4 " +
+      "for FR-4) publishes a shear modulus at all. Apogee Peak of Flight #615 (Bennett, 2023) " +
+      "collects published values spanning 2.9-11.7 GPa, measures ~5.34 GPa directly and recommends " +
+      "4.14 GPa as a working figure. Loft keeps the low end because this is also the FALLBACK for " +
+      "any material it does not recognise, where under-stating stiffness is the safe way to be wrong.",
+    sourced: true,
+  },
+  {
+    pattern: /birch|plywood|\bply\b/i,
+    g: 0.62e9,
+    label: "plywood",
+    source:
+      "Apogee Peak of Flight #615 (Bennett, 2023), 'Birch Aircraft Plywood' 89,000 psi = 0.614 GPa. " +
+      "The Wood Handbook has no plywood at all — it is clear-wood only — and solid yellow birch " +
+      "derives to 1.04 GPa, which is a different material: aircraft ply is Baltic birch, and ply " +
+      "count, veneer thickness and glue lines all move it.",
+    sourced: true,
+  },
+  {
+    pattern: /basswood/i,
+    g: woodG(10100, 0.046),
+    label: "basswood",
+    source:
+      "USDA Wood Handbook FPL-GTR-282 ch. 5: American basswood E_L = 10,100 MPa (Table 5-3a, 12% " +
+      "MC) x 1.10 x G_LT/E_L 0.046 (Table 5-1) = 0.511 GPa. CORRECTED 2026-08-02 from an uncited " +
+      "0.17 GPa, which was low by a factor of 3.",
+    sourced: true,
+  },
+  {
+    pattern: /balsa/i,
+    g: woodG(3400, 0.037),
+    label: "balsa",
+    source:
+      "USDA Wood Handbook FPL-GTR-282 ch. 5: Ochroma pyramidale E_L = 3,400 MPa (Table 5-5a, 12% " +
+      "MC) x 1.10 x G_LT/E_L 0.037 (Table 5-1) = 0.138 GPa. CORRECTED 2026-08-02 from an uncited " +
+      "0.09 GPa. Balsa is sold GRADED BY DENSITY over roughly 100-250 kg/m3 and its stiffness " +
+      "tracks that, so one number for balsa is a simplification whichever number it is; the " +
+      "handbook's own sample is denser than typical hobby stock.",
+    sourced: true,
+  },
+  {
+    pattern: /acrylic|plexi|pmma/i,
+    g: 1.15e9,
+    label: "acrylic",
+    source:
+      "NO STATIC VALUE FOUND. Rohm's PLEXIGLAS sheet datasheet (211-1) publishes only a DYNAMIC " +
+      "shear modulus of 1.70 GPa at ~10 Hz (ISO 537); deriving from its own E = 3300 MPa and " +
+      "nu = 0.37 gives 1.20 GPa, which this figure is close to. Representative engineering figure.",
+    sourced: false,
+  },
+  {
+    pattern: /polycarb|lexan/i,
+    g: 0.79e9,
+    label: "polycarbonate",
+    source:
+      "NO PUBLISHED VALUE FOUND. The Makrolon 2405 datasheet publishes tensile and flexural moduli " +
+      "but neither a shear modulus nor a Poisson's ratio. Representative engineering figure.",
+    sourced: false,
+  },
+  {
+    pattern: /\bpla\b/i,
+    g: 1.09e9,
+    label: "PLA",
+    source:
+      "NO PUBLISHED VALUE FOUND. And a printed part is the wrong thing to look one up for: infill, " +
+      "raster angle and inter-layer bond dominate, and the result is strongly anisotropic, so a " +
+      "bulk-resin figure is an upper bound a printed fin will not reach. Representative estimate.",
+    sourced: false,
+  },
+  {
+    pattern: /\babs\b/i,
+    g: 0.8e9,
+    label: "ABS",
+    source:
+      "NO PUBLISHED VALUE FOUND. Same printed-part caveat as PLA. Representative estimate.",
+    sourced: false,
+  },
+  {
+    pattern: /delrin|acetal|\bpom\b/i,
+    g: 1.0e9,
+    label: "acetal",
+    source:
+      "NO TABULATED VALUE. DuPont's Delrin design guide gives nu = 0.35 and torsional G' only as a " +
+      "temperature curve, and warns that G' = E/(2(1+nu)) 'is only an approximation' for Delrin; " +
+      "that derivation at 23 C gives 1.11 GPa. Representative engineering figure.",
+    sourced: false,
+  },
+  {
+    pattern: /cardboard|cardstock|kraft|\bpaper\b/i,
+    g: 0.02e9,
+    label: "cardboard",
+    source:
+      "NO PUBLISHED VALUE FOUND, and none is likely to exist: a spiral- or convolute-wound kraft " +
+      "tube's stiffness is dominated by winding angle, ply count, adhesive and paper grade, none of " +
+      "which any vendor publishes. Representative engineering figure.",
+    sourced: false,
+  },
 ];
 
-/** G10 fibreglass — by far the most common high-power fin material — is assumed when the design
- *  names no material, or one we don't recognise, so the estimate still has a defensible stiffness. */
 const DEFAULT_SHEAR = 3.0e9;
 const DEFAULT_LABEL = "G10 fibreglass";
 
@@ -67,6 +231,13 @@ export interface ShearModulus {
   label: string;
   /** True when the material couldn't be identified and the default (G10) was assumed. */
   assumed: boolean;
+  /** Where `g` comes from — a citation, or a plain statement that none was found. Never empty. */
+  source: string;
+  /** True when `g` traces to a published document. A flutter margin resting on a `false` here is
+   *  resting on an engineering estimate, and the surfaces that present it should say so: the brief's
+   *  safety posture asks that a warning whose most leveraged input is uncertain says which. Flutter
+   *  velocity goes as sqrt(G), so this is the most leveraged input there is. */
+  sourced: boolean;
 }
 
 /** Resolve a fin material to a shear modulus, falling back to G10 fibreglass when unknown. */
@@ -74,10 +245,26 @@ export function shearModulusFor(material?: Material): ShearModulus {
   const name = material?.name?.trim();
   if (name) {
     for (const e of SHEAR_MODULI) {
-      if (e.pattern.test(name)) return { g: e.g, label: name, assumed: false };
+      if (e.pattern.test(name)) {
+        return { g: e.g, label: name, assumed: false, source: e.source, sourced: e.sourced };
+      }
     }
   }
-  return { g: DEFAULT_SHEAR, label: name ? `${name} (assumed ${DEFAULT_LABEL})` : DEFAULT_LABEL, assumed: true };
+  // The fallback IS the G10 row, so it inherits that row's source rather than restating it.
+  const fallback = SHEAR_MODULI.find((e) => e.label === DEFAULT_LABEL);
+  return {
+    g: DEFAULT_SHEAR,
+    label: name ? `${name} (assumed ${DEFAULT_LABEL})` : DEFAULT_LABEL,
+    assumed: true,
+    source: fallback?.source ?? "no source recorded",
+    sourced: fallback?.sourced ?? false,
+  };
+}
+
+/** Every material Loft can name, with its stiffness and where that figure comes from. Exported so a
+ *  docs surface can publish the provenance rather than leaving it in a source file. */
+export function shearModulusTable(): { label: string; g: number; source: string; sourced: boolean }[] {
+  return SHEAR_MODULI.map((e) => ({ label: e.label, g: e.g, source: e.source, sourced: e.sourced }));
 }
 
 /** The simplified NACA TN 4197 flutter velocity (m/s) for a trapezoidal fin, all SI. Returns

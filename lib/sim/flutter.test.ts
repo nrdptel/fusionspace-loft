@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import {
   finFlutterVelocity,
   shearModulusFor,
+  shearModulusTable,
   analyzeFlutter,
   thicknessForFlutterMargin,
   RECOMMENDED_FLUTTER_MARGIN,
@@ -92,7 +93,9 @@ describe("shearModulusFor — material lookup", () => {
   it("recognises the common fin materials from the design's own name", () => {
     expect(shearModulusFor({ name: "G10 fiberglass", density: 1850, type: "bulk" }).assumed).toBe(false);
     expect(shearModulusFor({ name: "Carbon fiber", density: 1600, type: "bulk" }).g).toBe(5.0e9);
-    expect(shearModulusFor({ name: "Aluminum 6061", density: 2700, type: "bulk" }).g).toBe(26e9);
+    // MIL-HDBK-5J Table 3.6.2.0(b1) gives 3.8e3 ksi for 6061 sheet, which is 26.2 GPa, not the
+    // round 26 this asserted while the table was uncited.
+    expect(shearModulusFor({ name: "Aluminum 6061", density: 2700, type: "bulk" }).g).toBe(26.2e9);
     expect(shearModulusFor({ name: "Birch plywood", density: 680, type: "bulk" }).g).toBeLessThan(1e9);
     // Ordering: carbon/aluminium win over the generic composite pattern.
     expect(shearModulusFor({ name: "Balsa", density: 170, type: "bulk" }).label).toBe("Balsa");
@@ -106,6 +109,43 @@ describe("shearModulusFor — material lookup", () => {
     expect(weird.assumed).toBe(true);
     expect(weird.g).toBe(3.0e9);
     expect(weird.label).toContain("assumed");
+  });
+
+  it("carries where every figure came from, and admits the ones with no source", () => {
+    // The whole point of the `source` field: this table was fourteen uncited numbers under a method
+    // that cites NACA TN 4197, on the one output in this app that is a safety estimate. A row with
+    // nothing behind it must SAY so rather than read like the sourced ones.
+    for (const row of shearModulusTable()) {
+      expect(row.source.trim().length, `${row.label} has no source string`).toBeGreaterThan(0);
+      expect(row.g, `${row.label} has a non-positive shear modulus`).toBeGreaterThan(0);
+      if (!row.sourced) {
+        expect(row.source, `${row.label} is unsourced but does not say so`).toMatch(
+          /NO (PUBLISHED|STATIC|TABULATED) VALUE|no source/i,
+        );
+      }
+    }
+    // And the flyer-facing lookup carries it through, including on the assumed fallback.
+    const assumed = shearModulusFor({ name: "Unobtainium", density: 1000, type: "bulk" });
+    expect(assumed.source.length).toBeGreaterThan(0);
+    const balsa = shearModulusFor({ name: "Balsa", density: 130, type: "bulk" });
+    expect(balsa.sourced).toBe(true);
+    expect(balsa.source).toMatch(/Wood Handbook/);
+  });
+
+  it("uses the wood figures the handbook actually supports", () => {
+    // Both were refuted by USDA Wood Handbook FPL-GTR-282 ch. 5 and corrected 2026-08-02. Basswood
+    // was the worse of the two: 0.17 GPa shipped against 0.511 supported, low by a factor of 3.
+    // E_L x 1.10 (Table 5-1 footnote a, removing the bending test's own shear deflection) x G_LT/E_L.
+    const basswood = shearModulusFor({ name: "Basswood", density: 420, type: "bulk" });
+    expect(basswood.g).toBeCloseTo(10100 * 1.1 * 0.046 * 1e6, -6);
+    expect(basswood.g).toBeGreaterThan(0.5e9);
+    const balsa = shearModulusFor({ name: "Balsa", density: 130, type: "bulk" });
+    expect(balsa.g).toBeCloseTo(3400 * 1.1 * 0.037 * 1e6, -6);
+    expect(balsa.g).toBeGreaterThan(0.13e9);
+    // G_LT, the lower of the two in-plane constants, because a tool cannot know whether the flyer's
+    // stock is quarter- or flat-sawn. G_LR would be 0.202 for balsa; rolling shear G_RT would be
+    // 0.020 and is the wrong constant entirely.
+    expect(balsa.g).toBeLessThan(3400 * 1.1 * 0.054 * 1e6);
   });
 });
 

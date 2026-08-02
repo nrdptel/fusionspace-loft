@@ -985,7 +985,13 @@ pinned.
 
 ## R7 — Per-set fin drag, and the honest aero the builder needs
 
-**Status: IN PROGRESS** — increments 1–5 of 3–5 shipped. Increment 1 was the edge **cross-section**,
+**Status: SHIPPED 2026-08-02, with ONE *done when* clause not delivered and the reason measured.**
+Increments 1–5. **Do not re-open this milestone, and above all do not re-attempt per-set thickness or
+sweep** — that is now four measured rejections, and the fifth would cost a session and land where the
+other four did. The undelivered clause and what would unblock it are recorded under *The gap R7
+leaves* below; it is the R-track's carried-forward starting point, not a reason to restart.
+
+Increment 1 was the edge **cross-section**,
 now charged per fin set. Pinned by `lib/sim/aero.test.ts`'s *fin cross-section is charged per set, not
 design-wide* (four cases, including the exact-halfway assertion that a "less drag" under-count could
 not satisfy) and by the corpus census, whose published figures were tightened in the same change.
@@ -1174,6 +1180,25 @@ ten metrics. Pinned by a corpus assertion that flies all 35 designs at 0.1/2/5/1
 *Remaining:* the thickness-ratio and sweep collapses, both blocked as above; and the adjacent parse
 gaps below.
 
+**The gap R7 leaves, stated so the next session does not re-derive it.**
+
+*Delivered:* the cross-section is charged per fin set; `runFromDocument` forwards all twelve options,
+so a drag change is measurable across the corpus at all; the methods page claims nothing per-fin the
+code does not do; the limitations page names every remaining collapse with its number; and the census
+did not regress on the two designs the reverted area-weighted attempt broke.
+
+*NOT delivered:* the **thickness ratio** and **leading-edge sweep** are still collapsed to one
+design-wide value each. Four attempts, four reverts, and the reason is now understood rather than
+mysterious: a collapsed value is not biased in one direction, so correcting it removes drag from
+designs Loft already flies high — which are already under-dragged from somewhere else. Increment 4
+found that somewhere else (the bare mould-line step) and established that it cannot be charged
+without a published forward-facing-step coefficient as a function of step height over boundary-layer
+thickness. **So the order is fixed: find that source first, charge the step, and only then re-attempt
+the fin collapses on top of it.** Attempting them in either order without the source has now failed
+four times. If the source turns out not to exist in citable form, the honest end state is the one
+shipped here — report the geometry, withhold the estimate — and the fin collapses stay documented
+rather than corrected.
+
 **Outcome.** A rocket a flyer just BUILT with two different fin sets is flown with each set's own
 drag — and every page that describes the model says what the model actually does.
 
@@ -1240,6 +1265,126 @@ one; RASAero's per-fin `<LERadius>` is ignored where it would give a measured le
 instead of an inferred edge class.
 
 **Size.** 3–5 increments.
+
+---
+
+## R8 — Component and material catalogues
+
+**Status: IN PROGRESS** — increment 1 of 3–5 shipped 2026-08-02, along with the decomposition. The
+licence question the after-list named as possibly the whole first increment is **answered up front**
+so it is not re-litigated.
+
+**Outcome.** Authoring becomes SELECTION rather than measurement: a flyer picks a real body tube by
+vendor and part number and gets its dimensions and mass, instead of typing eight numbers off a ruler.
+Every mass in the model becomes grounded in a stated material rather than a guess.
+
+**Done when** the builder can add a body tube, nose cone, coupler, centering ring or parachute by
+choosing a real commercial part; the chosen part's dimensions and material populate the model and the
+flight changes accordingly; every material Loft uses carries a density with a cited source; and the
+whole catalogue ships as bundled static data with its licence and provenance recorded. Pinned by a
+unit test that resolves a known part number to its published dimensions, and by a check that every
+material in the catalogue has a non-empty `source`.
+
+**The licence question, settled — VERIFIED by reading the files, 2026-08-02.**
+
+- **`github.com/openrocket/openrocket-database` is Apache-2.0**, not GPL. Repo-root `LICENSE` is the
+  verbatim Apache 2.0 text and each vendor `.orc` carries its own copyright header (e.g.
+  `loc_precision.orc`: "Copyright 2014-2019 by Dave Cook NAR 21953"). It holds **2,990 parts across
+  13 vendors** — 1,012 body tubes, 772 nose cones, 343 centering rings, 314 transitions, 199
+  couplers, 140 parachutes, 49 launch lugs, 45 streamers, 34 engine blocks — each with manufacturer,
+  part number, description, ID/OD/length and a named material. **This is redistributable in an MIT
+  bundle** provided the Apache text ships, the copyright headers are retained, and modifications are
+  stated (Apache §4).
+- **OpenRocket's own repo is GPLv3 but grants an explicit additional permission** under GPL §7 to
+  "package this Program, or any covered work, along with any non-compilable data files (such as
+  thrust curves or component databases)". Its build pulls the Apache database in as an external
+  resource rather than vendoring it. So the component presets were never the GPL problem they look
+  like — but the **~15 `.orc` files committed inside the GPL tree** under
+  `datafiles/components/internal/` point at that repo's own LICENSE, and those stay off-limits.
+- **OpenRocket's MATERIAL database is off-limits and this is the trap.** It is
+  `core/.../database/Databases.java` — 82 rows of **compilable Java**, so the §7 data-file permission
+  does not reach it, and its values carry MatWeb source URLs in comments. Do not copy it. **MatWeb's
+  own terms forbid redistribution outright** (`UNVERIFIED` — matweb.com returns 403 from the sandbox;
+  read them before relying on this).
+- **There is no modulus data in the Apache repo at all** — its `generic_materials.orc` has 313 rows
+  of DENSITY only. The flutter model's stiffness values have to come from somewhere else.
+
+**And the precedent to copy is already in this repo.** `scripts/gen-motors.mjs` is a dev-only
+generator that reads 108 raw `.eng` files plus a hand-maintained `provenance.json` and inlines them
+into `lib/motors/catalog.ts`, each entry carrying its ThrustCurve simfile id, info URL and licence.
+The component catalogue should reuse that shape exactly — **with one thing deliberately NOT copied**:
+60 of those 108 curves carry a licence of `null` or `"?"`, and 3 are `"free"`, which by ThrustCurve's
+own definition includes GPL. That is a hole in an existing bundle, it is filed in `BACKLOG.md`, and
+the new catalogue must not reproduce it — here the grant is a single explicit Apache-2.0 licence.
+
+**What Loft has today, and it is thinner than it looks.** Three uncited tables:
+`lib/model/edit.ts:38` `FIN_MATERIALS` (6 densities), `:51` `AIRFRAME_MATERIALS` (7 densities), and
+`lib/sim/flutter.ts:40` `SHEAR_MODULI` (14 rows — the only modulus data in the repo). None carries a
+source. The flutter METHOD is cited (NACA TN 4197) while the stiffness values it consumes are not,
+which is a credibility gap as much as a licensing one — and several sit suspiciously close to
+OpenRocket's GPL table (acrylic 1.15e9 against their 1.7e9, Lexan 0.79e9 against 0.786e9, Delrin
+1.0e9 against 0.946e9). **Re-derive them from citable sources regardless of provenance**; that is
+increment 1, and it is worth doing first because it is small, it is the honest half, and it does not
+depend on any of the above.
+
+*Increment 1 — SHIPPED. Every shear modulus carries its source, and two were wrong.*
+
+`lib/sim/flutter.ts`'s fourteen values were uncited "representative engineering figures" sitting
+under a method that cites NACA TN 4197 precisely — a citation gap on the one output in this app that
+is a safety estimate. Chasing them established the provenance: they are round US-CUSTOMARY numbers
+(3,800 ksi, 6,200 ksi, 89,000 psi, 725,000 psi, 435,000 psi, 13,000 psi), so the table descends from
+the hobby fin-flutter literature rather than any primary materials document — and the current version
+of that literature (Apogee *Peak of Flight* #615, 2023) disagrees with several of them.
+
+**Corrected against primary sources:**
+- **basswood 0.17 → 0.511 GPa** — low by a factor of THREE. USDA Wood Handbook FPL-GTR-282 ch. 5:
+  E_L 10,100 MPa (Table 5-3a) × 1.10 × G_LT/E_L 0.046 (Table 5-1).
+- **balsa 0.09 → 0.138 GPa.** Same derivation, E_L 3,400 MPa × 1.10 × 0.037.
+- **aluminium 26 → 26.2 GPa** and **titanium 44 → 42.75 GPa**, MIL-HDBK-5J Tables 3.6.2.0(b1) and
+  5.4.1.0(b). Both US Government works, so no licence question.
+
+The 1.10 is the handbook's own footnote correcting for the shear deflection inside a bending test.
+G_LT rather than G_LR because a design tool cannot know whether the flyer's stock is quarter- or
+flat-sawn, so Loft takes the lower of the two in-plane constants. (G_RT, rolling shear, is the wrong
+constant entirely — balsa's is ~11× smaller.)
+
+**Six rows have no published value and now SAY so** rather than reading like the sourced ones:
+phenolic, acrylic, polycarbonate, PLA, ABS, acetal, cardboard. The datasheets publish tensile and
+flexural moduli and shear STRENGTH, but not shear modulus. For a wound kraft tube none is likely to
+exist — winding angle, ply count, adhesive and paper grade dominate and no vendor states them. Two
+more are indefensible as a single number at all: a carbon fin's in-plane modulus spans an order of
+magnitude with layup (Loft takes the UD-lamina lower bound), and published G10 runs 2.9–11.7 GPa
+(Loft keeps the low end deliberately, because it is also the fallback for unrecognised materials).
+
+**Every error ran the same way** — too little stiffness, so too low a flutter speed, so a margin
+reported thinner than it is. That is the right direction for a safety estimate to be wrong in, and it
+is still not a number to hand out uncited: a flag that cries wolf teaches flyers to ignore it.
+
+Pinned by `lib/sim/flutter.test.ts` — every row has a non-empty source, an unsourced row must say so
+in words, and the two wood values are asserted against the handbook arithmetic rather than against
+the constants. Published on `/docs/limitations`.
+
+*Densities are NOT done and are increment 1's remaining half.* `FIN_MATERIALS` and
+`AIRFRAME_MATERIALS` in `lib/model/edit.ts` are still uncited. What was found: balsa 130 against the
+handbook's own ~185 sample (balsa is graded by density over 100–250, so one number is a
+simplification either way), basswood 420 → 414, birch 680 → 694 (solid yellow birch; the handbook has
+no plywood), G10 1850 → 1770 (Norplex-Micarta NP500A), carbon 1550 → 1560–1580 (Hexcel 8552),
+aluminium 2700 → 2713. Cardboard, kraft phenolic and Blue Tube have no published density at all —
+Blue Tube's composition is undisclosed, and 1250 is supported only by arithmetic on the vendor's own
+published tube dimensions and weights (1266 and 1301 across two sizes), which is the strongest
+citation available and should be recorded as a derivation rather than a material property.
+
+*Increment 2.* `scripts/gen-components.mjs` + `lib/components/catalog.ts` + `components/provenance.json`
++ `THIRD-PARTY-NOTICES.md`, modelled on `gen-motors.mjs`. Parse the `.orc` XML at generate time,
+normalise to SI, record upstream commit SHA per file.
+
+*Increment 3.* The picker in the builder, and the model wiring: choosing a part populates dimensions
+and material, and the flight moves.
+
+**Size.** 3–5 increments.
+
+**Notes.** `COMPETITION.md` rows 2 and 3. Keep the corpus honest: a catalogue part must produce the
+same internal Rocket model an imported one does, or the solver ends up with two shapes of truth.
 
 ---
 
@@ -1638,7 +1783,11 @@ radius values for one role; `text-xs` and `text-sm` disagreeing between the two 
 
 ## P2 — Workspaces as routes
 
-**Status: IN PROGRESS** — increments 1 and 2 of 4–6 shipped 2026-08-02.
+**Status: DONE — 2026-08-02.** All five *done when* clauses met, each pinned by a check that goes red
+if it regresses. Increments 1–6 of 4–6. The two-screen clause was briefly and WRONGLY recorded as met
+in increment 5 on a fine-pointer measurement; increment 5's entry keeps that correction, and
+increment 6 closed it for real on a coarse one. Read both before trusting any px figure in this
+section.
 
 *Increment 1.* Flight, Design and Analyze became three real static routes behind one navigation
 spine, replacing the URL fragment and the `Tabs` tablist. Pinned by `e2e/smoke.spec.ts`'s *each
@@ -1689,9 +1838,64 @@ designs over one model, so collapsing the 508 px summary to a disclosure on a co
 pattern Conditions already uses at 44 px — is the obvious fix and returns ~460 px to all four routes
 at once. Filed in `BACKLOG.md` with the breakdown.
 
-**Not done:** the design drawing is still reachable only from `/design` (`COMPETITION.md` row 31).
-**Sequence it after the chrome fix, not before** — the strip costs a phone another 130–160 px, which
-is more than `/sweep` has left, so shipping it first puts a second route over the line.
+*Increment 5 — the chrome fix, and the last open clause closes.* The design summary's ten-field strip
+sat above the workspace spine on all four routes and cost a 390 px phone **508 px**. Its three
+headline fields — apogee, liftoff mass, static margin — now stay visible on every viewport and the
+other seven fold behind a phone-only control, shown outright from `sm:` up. Which three stay is not a
+layout preference: static margin is the go/no-go read, liftoff mass is what a flyer checks against
+the motor's minimum and their waiver, and apogee is the number two e2e cases exist to prove updates
+live while editing on `/design`. `StabilityTrimHint` and `FlutterFixHint` are deliberately OUTSIDE
+the fold — they render only when something is wrong and they are the only place the reasoning behind
+that flag is written, so folding them would be the "reachable only by knowing it is there" failure.
+
+**Measured, on every route:** the fold took **157 px** out of the shared chrome above the spine, on
+all four routes at once rather than just the one that needed it. Desktop is **unchanged at 773 px** —
+the split grid first cost 8 px there and the rhythm was restored before anything shipped, because a
+P-track increment that trades one form factor for the other has not done its job.
+
+**It did not close the two-screen clause, and the first version of this entry said it did.** The
+correction is the more valuable half of the increment. The phone context in `e2e/depth.spec.ts` was
+`viewport: PHONE` over `devices["Desktop Chrome"]`, so it reported `pointer: fine` — and every
+control carrying `TOUCH_TARGET` (`pointer-coarse:min-h-11`) rendered at its 26 px desktop height
+instead of 44 px. **That understated the shared chrome by 97 px**: 914 px measured, 1011 px on a
+genuinely coarse pointer. The spec now sets `hasTouch` on the phone, and on that measurement
+`/sweep`'s answer sits at **1410 px = 2.12 screens** against the 1328 px two screens allow — **82 px
+still owed**. The `test.fail` marker was deleted on the strength of the fine-pointer number and is
+**restored**, with the true figure and with the reason it was briefly removed, so the next session
+does not repeat it. The phone ratchet moved 1120 → **1060** rather than to the 960 a fine pointer
+would have justified: down, because the fold really did buy room, but not to a number measured on a
+phone that does not exist.
+
+**Where the remaining 82 px were:** not the shared chrome after all. Increment 6 found them in
+`/sweep`'s own panel — see below.
+
+*Increment 6 — the pitch stops competing with the answer.* `MotorSweep`'s opening paragraph explains
+what a sweep is and why to run one. That is a question the TABLE answers once the sweep has actually
+run, at which point the prose was **140 px of preamble sitting between the flyer and their result**.
+It is now shown only until the panel is open; closing the panel brings it back, so it is sequenced
+rather than hidden.
+
+**Measured on a coarse pointer**: `/sweep`'s first swept-motor row is at **1260 px = 1.90 screens**
+against the 1328 px two screens allow — **68 px of headroom**, where it had been 82 px short.
+Desktop is 898 px = 1.00 screens. The `test.fail` marker is deleted, and this time the measurement
+underneath it is one a real phone produces.
+
+**The lesson this milestone actually taught**, worth more than the pixels: a contract `DESIGN.md`
+writes for touch has to be MEASURED on touch. A phone-sized viewport over `devices["Desktop Chrome"]`
+reports `pointer: fine`, and every `TOUCH_TARGET` control renders at 26 px instead of 44 — a 97 px
+error, in the direction that makes the app look like it passes. Any future viewport-based contract in
+this repo should set `hasTouch` from the first line it is written.
+
+Not a `Disclosure`: that primitive takes a static `open`, and a native `<details>` cannot be talked
+out of hiding its content by a media query, so a viewport-driven fold cannot be expressed with it.
+The control is a `Button`, so §9's hand-rolled-`<button>` count is unmoved at 3.
+
+**Not done, and deliberately not in this milestone:** the design drawing is still reachable only from
+`/design` (`COMPETITION.md` row 31). The strip costs a phone another 130–160 px, which would take the
+chrome to ~1050–1075 and put it straight back over the 960 ratchet and `/sweep` back over two
+screens. It needs its own budget and its own increment — folding it into P2 would mean re-breaching
+the contract this milestone just closed. Carried to the P-track's next milestone as its opening
+measurement.
 
 **Outcome.** Loft is shaped like an application, not a scrolling page.
 
@@ -1719,7 +1923,70 @@ rather than rewriting them.
 
 ## P3 — A stranger's first five minutes
 
-**Status:** NOT STARTED
+**Status: IN PROGRESS** — increments 1–3 of 3–4 shipped 2026-08-02. All four *done when* clauses are pinned; what remains is strength, not coverage.
+
+*Increment 1 — the walkthrough the milestone asks for, and the three things it found.* `e2e/first-run.spec.ts`
+starts where every other spec does not: a cold browser, empty storage, no file. `addInitScript` clears
+storage BEFORE any page script runs, so the app reads an empty store on its first read rather than
+one cleared after the fact — which would be a warm start wearing a cold one's clothes.
+
+It went red on two real gaps and both are fixed in the same increment:
+
+- **The one-click example was below the fold on a phone** — the first bundled design sat at 753 px
+  against a 664 px viewport, so the clause "fly a real example in one click without supplying a file"
+  cost a scroll a stranger had to know to make. The cause was that the landing renders a 270 px
+  dashed DROP ZONE on a device that cannot drag a file: 64 px of padding, a brand mark, and a
+  "drop a file here" instruction a phone cannot follow, all sitting directly above the one control a
+  flyer with no file needs. The drop affordance and its instruction are now `sm:` only, with a
+  shorter sentence below that stating the formats and the privacy promise — the parts that are true
+  on every device.
+- **A flown number had no route to how it was computed.** The "see how they're computed" link lives
+  on the import screen, so it disappeared at exactly the moment a flyer had a figure in front of them
+  to doubt. There is now a link in the design summary's header row — the row the format label already
+  occupies, so it costs the shared chrome no height, and it is present on all four workspace routes.
+
+The third clause it checks — that an import says what was and was not understood — already passed,
+and is now pinned rather than assumed.
+
+*Increment 2 — a number that left its envelope says so, on the number.* `DESIGN.md` §5 requires the
+`Extrapolated` treatment — "the warn treatment plus the reason and the range it left" — **wherever** a
+number leaves the envelope its method was validated over. Loft's drag model is validated subsonic,
+and above about M0.8 it is a bounded parametric estimate; the flight raised a `transonic` caution
+card, but the apogee itself rendered byte-identical whether the rocket went transonic or not. **A
+flyer reading the number does not necessarily read the card**, which is the whole reason §5 puts the
+treatment on the number.
+
+`Stat` gains an `extrapolated` slot carrying the reason and the range, rendered as an `abbr` — the
+same affordance `Field`'s hint already uses, so a pointer, a keyboard and a screen reader all reach
+the explanation from the figure itself. Applied to the seven ascent-derived readouts the
+extrapolation actually drives, and deliberately NOT to rail-exit velocity (~20 m/s off the rail) or
+thrust-to-weight (static), which are inside the validated envelope whatever the flight does later —
+a flag that fires on everything teaches a flyer to ignore it on the flight where it matters.
+
+Pinned both ways in `e2e/smoke.spec.ts`: a transonic flight marks numbers and the marker carries its
+reason, and a subsonic flight marks nothing. Two DOM lessons paid for on the way, both recorded in
+the component: the readouts are located by walking the label's following siblings, so a new sibling
+`div` silently broke two unrelated locators; and beside the value the marker pushed a 320 px metric
+tile into clipping its own number, so it stacks.
+
+*Increment 3 — all three docs pages reachable from where the question arises.* The clause names
+methods, limitations AND validation. Methods landed in increment 2; the other two did not exist on
+any path a flyer actually walks. **Limitations** was linked only from inside the NO-MOTOR notice, so
+an ordinary flight had no route to it at all — it now sits beside the Flight heading, in the panel
+rather than in the shared chrome above the spine (putting it next to the methods link wrapped that
+row and took the phone chrome 1060 → 1070 px, which the depth ratchet caught within the same
+increment). **Validation** was reachable only when the file carried stored results to compare
+against — and none of the three bundled samples does, so every stranger's first run landed on an
+empty comparison whose only content was why it was empty. `ToolUnavailable` gained a slot for the
+way forward (`DESIGN.md` §5 asks an empty state for one and the primitive had nowhere to put it), and
+that notice now says Loft's accuracy is measured against 35 real designs and links to the evidence.
+
+All four *done when* clauses are now pinned by `e2e/first-run.spec.ts`, seven cases from a cold load.
+
+*Remaining:* the "understand what the tool is within one screen" clause is asserted only weakly (the
+first screen must mention a flight at all), though the landing paragraph does say Loft "simulates the
+flight in your browser — apogee, speed, stability, and recovery". And the README is 4.7 KB against
+the sibling app's 27 KB, which is P5's territory as much as P3's.
 
 **Outcome.** Someone who has never heard of Loft gets to a flight they believe in, without being told
 how.

@@ -143,21 +143,34 @@ export default function ImportPanel({
         className={
           // Capped at the reading measure: this is a landing surface, not the workspace, and a
           // 1600 px drop zone reads as a stretched page rather than a considered one.
-          "mx-auto max-w-3xl rounded-xl border-2 border-dashed p-8 text-center transition " +
+          //
+          // The generous padding is `sm:` only. Below that the surface is not a drop zone at all —
+          // you cannot drag a file onto a phone — so 64 px of vertical padding is spent advertising
+          // an affordance the device does not have, and it was spending it directly above the one
+          // control a flyer with no file needs. Measured: the first bundled example sat at 753 px
+          // on a 390x664 phone, 89 px below the fold.
+          "mx-auto max-w-3xl rounded-xl border-2 border-dashed p-4 text-center transition sm:p-8 " +
           (dragging
             ? "border-indigo-400 bg-indigo-50/60 dark:bg-indigo-500/10"
             : "border-zinc-300 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900/40")
         }
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/brand/fusion-space-mark.svg" alt="" aria-hidden width={880} height={815} className="mx-auto h-9 w-auto opacity-80" />
-        <p className="mt-4 text-base font-medium text-zinc-800 dark:text-zinc-100">
+        <img src="/brand/fusion-space-mark.svg" alt="" aria-hidden width={880} height={815} className="mx-auto hidden h-9 w-auto opacity-80 sm:block" />
+        <p className="text-base font-medium text-zinc-800 dark:text-zinc-100 sm:mt-4">
           Import an OpenRocket, RockSim or RASAero design
         </p>
-        <p className="mx-auto mt-1 max-w-md text-sm text-zinc-500 dark:text-zinc-400">
+        {/* Two sentences for two devices, because "drop a file here" is an instruction a phone
+            cannot follow. The desktop copy keeps the drag affordance; the phone copy states the
+            formats and the privacy promise, which are the parts that are true everywhere. */}
+        <p className="mx-auto mt-1 hidden max-w-md text-sm text-zinc-500 dark:text-zinc-400 sm:block">
           Drop an OpenRocket <code className="font-mono">.ork</code>, RockSim{" "}
           <code className="font-mono">.rkt</code>{" "}or RASAero <code className="font-mono">.CDX1</code>{" "}
           file here, or choose one. Everything runs in your browser — your design is never uploaded.
+        </p>
+        <p className="mx-auto mt-1 max-w-md text-sm text-zinc-500 dark:text-zinc-400 sm:hidden">
+          <code className="font-mono">.ork</code>, <code className="font-mono">.rkt</code>{" "}or{" "}
+          <code className="font-mono">.CDX1</code>. Runs in your browser — never uploaded.
         </p>
         <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
           <Button variant="primary" disabled={busy} onClick={() => inputRef.current?.click()}>
@@ -182,7 +195,9 @@ export default function ImportPanel({
             Start a new design
           </Button>
         </div>
-        <p className="mx-auto mt-3 max-w-md text-xs text-zinc-500 dark:text-zinc-400">
+        {/* `sm:` only. On a phone this sentence sits between the flyer and the bundled examples,
+            which are the better answer to "no file?" — they need no editing at all. */}
+        <p className="mx-auto mt-3 hidden max-w-md text-xs text-zinc-500 dark:text-zinc-400 sm:block">
           No file? Start from a stable 54&nbsp;mm sport design and edit it — the same engine flies
           whatever you build.
         </p>
