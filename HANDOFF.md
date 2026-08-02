@@ -195,15 +195,28 @@ copy. Both now carry that sentence.
 
 ### Where the work is, and what to pick up first
 
-**Six increments, all MERGED and LIVE.** Three pull requests, each green on both CI jobs before
-merging, each deploy verified against production rather than assumed — the docs probes returned 0
-before a merge and 1 after, and all ten routes answer 200.
+**Seven increments, all MERGED and LIVE.** Each shipped through a pull request green on both CI jobs
+before merging, each deploy verified against production rather than assumed — the docs probes
+returned 0 before a merge and 1 after, and all ten routes answer 200.
 
 | merge | what |
 |---|---|
 | `dd92ae0` (#113) | R8-3 the parts picker · the Sev-1 · P4-2 the phone chrome · R8-4 the vendor's wall, stock and weight |
 | `529e84d` (#114) | P4-3 the app chrome's tooltips, 25 → 1 |
 | `bc5b183` (#115) | the two `DESIGN.md` copies converged, and the drift the weaker greps hid |
+| `8c33186` (#117) | P4-4 the builder's eleven gesture controls, 1 → 0 |
+
+A pull request that carries only THIS file is a correction to the record, not an increment, so it is
+counted in neither the total above nor the table (#116 was the first of them). **Write the count that
+will be true once the correction lands** — the entry this replaces claimed six and three because it
+was written to describe the moment before its own merge, and it went stale on the way in.
+
+**Production was driven, not just polled.** The sandbox's Chromium cannot reach the public internet
+(`net::ERR_CONNECTION_RESET`; `curl` goes through the agent proxy and Playwright does not), so the
+live check is `curl` against `/sw.js`'s own precache manifest and then each chunk it lists. That
+found the picker's control string, the 3,445-part catalogue chunk (1,083,579 bytes, precached so it
+is there offline), and the label-first `aria-label`s. **Do not try to point Playwright at the live
+site from here** — it fails on the network, not on the product.
 
 **The sibling repo has one commit waiting**: `nrdptel/fusionspace-debrief`, branch
 `claude/ultracode-maintenance-1wbrx5`, the companion `DESIGN.md` note. It is pushed and needs a pull
