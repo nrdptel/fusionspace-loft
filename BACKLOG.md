@@ -26,17 +26,16 @@ big for one pass. Newest first.
   is a "not applicable" state on the flutter surface, and that belongs with whatever next touches
   it.
 
-- **Monte-Carlo publishes as a distribution the two numbers the flight card explicitly withholds.**
-  Filed 2026-08-02 from the opening fan-out; **UNREPRODUCED by me.** `lib/sim/montecarlo.ts:271`
-  copies `landingSpeed`/`landingEnergy` off the summary with no `landed` check, and
-  `physicallyPossible` at `:183` bounds magnitude only — so a flight that hits the 1,200 s cap
-  contributes its `0` sentinels as measurements. Claimed: `Complex.Two-Stage.CDX1` at
-  `recoveryCdScale: 5` (inside the field's own advertised 0.1–10× range) gives **40/40 samples with
-  landingSpeed 0 and landingEnergy 0**, a "Landing speed" card reading 0.00 m/s median, and
-  `landingSpeedExceedance` returning 0.0%; at ×1 one sample in 40 is still a zero, poisoning
-  min/mean/p5. One tab away, `ResultsView` withholds those exact two figures with "no landing inside
-  the time cap". Two surfaces disagreeing about whether a number exists is worse than either alone.
-  **Sev-1 if it reproduces.**
+- ~~**Monte-Carlo publishes as a distribution the two numbers the flight card explicitly
+  withholds.**~~ **REPRODUCED and FIXED 2026-08-02.** Confirmed exactly as filed:
+  `Complex.Two-Stage.CDX1` at `recoveryCdScale: 5` — inside the field's own advertised 0.1–10×
+  range — gives **40 of 40 samples with landingSpeed 0 and landingEnergy 0**, and the panel read a
+  median landing speed of **0.00 m/s** and **0.0 J** of landing energy, with the firm-landing chance
+  at 0.0%. `summarizeSamples` now computes both figures over the flights that reached the ground,
+  `landingSpeedExceedance` is denominated the same way, the result carries `landedN`, and the panel
+  withholds both with the reason when nothing landed — and says "covers N of M flights" when only
+  some did. Pinned by a corpus assertion over 62 dispersions, with a guard that the unlanded path
+  was actually exercised; the negative control fires. Published on `/docs/methods`.
 
 - **A Loft-exported `.ork` re-imports as a different flight.** Filed 2026-08-02 from the opening
   fan-out; **UNREPRODUCED by me.** `lib/ork/export.ts:568` writes no `<simulation>` element, so a

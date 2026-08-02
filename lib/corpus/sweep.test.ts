@@ -1310,6 +1310,76 @@ suite("real-design corpus", () => {
     expect(absurd, "a legal recovery size produced a number physics cannot produce").toEqual([]);
   }, 900_000);
 
+  /** A dispersion never reports a landing that did not happen.
+   *
+   *  `groundHitVelocity` and `landingEnergy` are 0 on a flight still airborne at the 1,200 s cap —
+   *  a sentinel the solver documents as such — and the Monte-Carlo summary averaged them in
+   *  alongside real landings. Measured on `Complex.Two-Stage.CDX1` at `recoveryCdScale: 5`, inside
+   *  the field's own advertised 0.1–10x range: **40 of 40 samples were sentinels**, the panel read
+   *  a median landing speed of 0.00 m/s and 0.0 J of landing energy, and the firm-landing chance
+   *  came out 0.0% — the most flattering possible reading of a flight that never finished. The
+   *  flight card one route away withholds those exact two figures with a reason, so two surfaces
+   *  disagreed about whether the number existed at all.
+   *
+   *  Driven as a NEGATIVE CONTROL: summarise over `samples` instead of the landed ones and this
+   *  names the designs and the recovery sizes whose landing statistics are pure sentinel. */
+  it("never averages a landing that never happened into a dispersion", async () => {
+    const sentinels: string[] = [];
+    let checked = 0;
+    let sawUnlanded = 0;
+    for (const f of files) {
+      let doc;
+      try {
+        doc = await importDesign(new Uint8Array(readFileSync(f.path)));
+      } catch {
+        continue;
+      }
+      // 5x is a legal entry in the recovery-size field, and it is where flights stop landing.
+      for (const scale of [1, 5]) {
+        let mc;
+        try {
+          mc = monteCarlo(doc.rocket, {
+            n: 12,
+            seed: 11,
+            dispersions: { impulseFrac: 0.05, massFrac: 0.03, rodAngleDeg: 1 },
+            recoveryCdScale: scale,
+          });
+        } catch {
+          continue;
+        }
+        if (mc.n === 0) continue;
+        checked++;
+        if (mc.landedN < mc.n) sawUnlanded++;
+        // Where nothing landed, both figures must be absent rather than zero. Where some did, the
+        // summary must describe those and only those — a zero surviving into the band is a sample
+        // that never reached the ground being counted as the softest landing in the set.
+        if (mc.landedN === 0) {
+          if (Number.isFinite(mc.landingSpeed.p50) || Number.isFinite(mc.landingEnergy.p50)) {
+            sentinels.push(
+              `${shortName(f.name)} at ${scale}x: nothing landed, yet landing speed reads ` +
+                `${mc.landingSpeed.p50} m/s and energy ${mc.landingEnergy.p50} J`,
+            );
+          }
+        } else if (mc.landingSpeed.min === 0) {
+          sentinels.push(
+            `${shortName(f.name)} at ${scale}x: ${mc.n - mc.landedN} of ${mc.n} never landed and a ` +
+              `0 m/s sentinel reached the band`,
+          );
+        }
+      }
+    }
+    console.log(
+      `dispersion landing sentinels across ${files.length} design files: ${checked} dispersions, ` +
+        `${sawUnlanded} with at least one flight still airborne at the cap`,
+    );
+    expect(checked, "no dispersion ran, so this asserted nothing").toBeGreaterThan(10);
+    expect(
+      sawUnlanded,
+      "no dispersion had an unlanded flight, so the sentinel path was never exercised",
+    ).toBeGreaterThan(0);
+    expect(sentinels, "a flight that never landed was reported as a landing").toEqual([]);
+  }, 900_000);
+
   /** A fin set is judged for flutter only over the flight its own stage was still attached for.
    *
    *  `analyzeFlutter` walked the whole ascent for every fin set, so on a staged design a booster's

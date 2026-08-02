@@ -685,8 +685,14 @@ export default function Methods() {
         own hard-landing warning uses. It also reports the <strong>landing-energy</strong> band
         (½·m·v² for the whole vehicle) — the figure many fields and waivers cap per section, so its
         95th percentile is the worst case to check against a limit; a design that lands in separated
-        sections divides it among them, so read the whole-airframe number as conservative. Every
-        sample runs through
+        sections divides it among them, so read the whole-airframe number as conservative.{" "}
+        <strong>Both landing figures describe only the dispersed flights that reached the ground</strong>{" "}
+        inside the simulation&apos;s time cap, and the panel says how many of the total that was. A
+        flight still descending at the cap has no landing speed and no landing energy — it carries
+        zeros that are placeholders rather than measurements, and averaging those in reported a
+        soft landing that never happened: on one real design at a legal recovery size, every sample
+        was such a placeholder and the panel read 0.00 m/s and 0 J. Where none of them land, both
+        figures are withheld with the reason instead. Every sample runs through
         the same solver as the main flight; nothing about the physics changes. The uncertainty is
         entirely in the inputs, which are your own stated assumptions, so the result is an honest
         propagation of that spread — not a claim of new precision.
