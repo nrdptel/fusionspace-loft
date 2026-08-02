@@ -314,6 +314,41 @@ export interface PickedBodyTube {
   outerDiameter: number;
   /** Metres — what the pick wrote to `bodyLength`. */
   length: number;
+  /** Kilograms — the vendor's OWN published weight, where they publish one.
+   *
+   *  Carried because the derived figure and the published one disagree badly on the parts that state
+   *  both. Measured over the catalogue: 7 body tubes publish a mass, all Public Missiles, and the
+   *  figure computed from their geometry and material density is **3–5× light** — PS-7.5 publishes
+   *  589.7 g against 116.7 g derived, PS-1.5 21.3 g against 6.7 g. Whatever the cause upstream (a
+   *  glassed phenolic whose stated stock is the paper core, most likely), the vendor's own number is
+   *  the one they will weigh, and publishing 116.7 g under a caption reading "Flying Public Missiles
+   *  PS-7.5" would be a confident wrong mass on the figure CG, stability and apogee all sit on.
+   *
+   *  Applied as `overrideMass`, which replaces the component's OWN mass and NOT its subtree — a tube
+   *  carries its motor mount, its fins and its parachute as children, and swallowing those into a
+   *  tube's published weight would be a much larger error than the one this fixes. */
+  mass?: number;
+  /** Metres. The vendor's published bore, from which the WALL is derived — `(OD − ID) / 2`.
+   *
+   *  The catalogue states an inner and an outer diameter and never a thickness (0 of 1,089 body
+   *  tubes carry one), so the wall has to be derived rather than read. It matters more than its size
+   *  suggests: `lib/sim/mass.ts` models a tube that has a material and NO wall as a solid rod —
+   *  measured previously on a hand-built part at 2.13x the mass and 72% off the apogee, with no
+   *  error shown anywhere. So the wall and the material travel together or neither travels. */
+  innerDiameter: number;
+  /** The vendor's own published stock, carried by VALUE with its density.
+   *
+   *  **Not an `AIRFRAME_MATERIALS` key, and that is the whole point of the milestone.** Measured
+   *  2026-08-02: the catalogue's 39 material strings for body tubes have ZERO overlap with the seven
+   *  keys — they are descriptive ("Paper, spiral kraft glassine, Estes avg, bulk") where the keys are
+   *  nominal ("cardboard") — so routing a pick through `airframeMaterial` would snap a published
+   *  figure onto a generic one. That is exactly the substitution `lib/components/db.ts` refuses to
+   *  make, and the reason it refuses is that mass feeds CG, stability and apogee.
+   *
+   *  Absent when the catalogue has no usable density for the part (`materialOf` returns undefined for
+   *  the 18 whose upstream figure was refused as physically impossible). The picker surfaces that
+   *  rather than substituting a default, and this stays `undefined` so the tube keeps its own stock. */
+  material?: { name: string; density: number };
 }
 
 export interface GeometryEdits {
@@ -563,6 +598,20 @@ export interface GeometryEdits {
 
 
 /** True when at least one edit actually changes something. */
+/** Whether a stored pick carries enough to change anything — the ONE test, so the three places that
+ *  ask (`hasGeometryEdits`, `isEditedValue`, and the applier) cannot drift. A bore that is absent,
+ *  non-positive, or not inside the outer diameter derives a wall of zero or one at least as wide as
+ *  the tube, and `lib/sim/mass.ts` clamps the inner radius at 0 — which flies the tube as a SOLID
+ *  ROD, the exact failure the wall exists to prevent, reached from the other side. */
+export function usableCatalogTube(p: PickedBodyTube | undefined): boolean {
+  return (
+    p !== undefined &&
+    typeof p.innerDiameter === "number" &&
+    p.innerDiameter > 0 &&
+    p.innerDiameter < p.outerDiameter
+  );
+}
+
 export function hasGeometryEdits(e: GeometryEdits): boolean {
   return (
     (e.removedIds !== undefined && e.removedIds.length > 0) ||
@@ -586,6 +635,10 @@ export function hasGeometryEdits(e: GeometryEdits): boolean {
     e.noseShape !== undefined ||
     (e.bodyLength !== undefined && e.bodyLength > 0) ||
     (e.bodyDiameter !== undefined && e.bodyDiameter > 0) ||
+    // A picked part now carries a WALL and a STOCK of its own, so it changes the flight even with
+    // both dimension fields blank — it stopped being the pure provenance record it was when it
+    // shipped, and it came out of `INERT_EDIT_FIELDS` in the same change.
+    usableCatalogTube(e.catalogBodyTube) ||
     (e.transitionLength !== undefined && e.transitionLength > 0) ||
     (e.transitionAftDiameter !== undefined && e.transitionAftDiameter > 0) ||
     (e.massObjectMass !== undefined && e.massObjectMass >= 0) ||
@@ -777,7 +830,19 @@ export const AIM_SLOTS: Readonly<Record<string, AimSlot>> = {
       "finMaterial",
     ],
   },
-  bodyTubeId: { kinds: ["bodytube"], targets: ["bodyLength", "bodyDiameter"], groupWide: ["bodyDiameter"] },
+  // `catalogBodyTube` is a TARGET of this aim, not a free-standing record, and leaving it out was a
+  // real defect rather than an omission. `withCatalogTube` resolves its tube through this same aim at
+  // apply time, so a pick that outlived the aim MIGRATED: removing the tube it was made for re-landed
+  // the vendor's wall and stock on whatever `primaryBodyTube` fell back to, and merely clicking
+  // another tube to READ it — the gesture this slot exists to support — moved them there too.
+  // Measured on a two-tube design: 411.6 g to 53.9 g on the removal, 305.4 g to 129.1 g on the re-aim,
+  // with the caption still naming the part in both. Listed here, it clears exactly when `bodyLength`
+  // and `bodyDiameter` do, which is the behaviour a flyer already understands.
+  bodyTubeId: {
+    kinds: ["bodytube"],
+    targets: ["bodyLength", "bodyDiameter", "catalogBodyTube"],
+    groupWide: ["bodyDiameter"],
+  },
   transitionId: { kinds: ["transition"], targets: ["transitionLength", "transitionAftDiameter"] },
   massObjectId: { kinds: ["masscomponent"], targets: ["massObjectMass", "massObjectStation"] },
   parachuteId: {
@@ -798,18 +863,6 @@ export const AIM_SLOTS: Readonly<Record<string, AimSlot>> = {
 export const INERT_EDIT_FIELDS: ReadonlySet<string> = new Set([
   ...Object.keys(AIM_SLOTS),
   "payloadStation",
-  // `catalogBodyTube` is PROVENANCE — which published part `bodyDiameter` and `bodyLength` came
-  // from — and applies no geometry of its own, so it belongs here for the same reason
-  // `payloadStation` does: on its own it produces a flight byte-identical to the design's.
-  //
-  // Leaving it out was a ONE-WAY DOOR, and it is worth naming because the JSDoc on the field already
-  // claimed this behaviour while nothing implemented it. Pick a tube, then blank both fields by hand:
-  // the design is pristine again, but the stranded key kept `hasActiveEdits` true, so the stored-tool
-  // comparison stayed withheld and the button that restores it stayed hidden — and the picker's own
-  // "back to the design's own tube" control had already unmounted, because it renders only while the
-  // pick still matches what is being flown. Nothing left on the panel could clear it, and
-  // `lib/session.ts` stores the bag unfiltered, so it survived a reload.
-  "catalogBodyTube",
 ]);
 
 /** Just the aims out of an edit bag, keyed by slot — what a view needs to show which part each group of
@@ -834,6 +887,13 @@ export function aimsOf(e: GeometryEdits): Readonly<Record<string, string | undef
  *  one of the three and not the others is exactly how this drifts, so there is now only one. */
 export function isEditedValue(key: string, value: unknown): boolean {
   if (INERT_EDIT_FIELDS.has(key)) return false;
+  // A pick stored before this field carried a bore applies NOTHING — `applyGeometryEdits` needs
+  // `innerDiameter` to derive a wall, and refuses without one — so counting it as an edit would call
+  // an untouched design edited, withhold the file's stored-simulation comparison and hide the button
+  // that restores it. The bag is persisted and replayed (`lib/session.ts`), so a bag written by the
+  // build that shipped the picker's first increment reaches this code on the next visit. That exact
+  // regression has been fixed here once before, from a different direction.
+  if (key === "catalogBodyTube") return usableCatalogTube(value as PickedBodyTube | undefined);
   if (value === undefined || value === "") return false;
   if (Array.isArray(value) && value.length === 0) return false;
   return true;
@@ -1245,6 +1305,59 @@ function withFinish(c: RocketComponent, finish: SurfaceFinish): RocketComponent 
  *  instead of fibreglass?" edit. Applied only to the external shell (nose, body tubes, transitions)
  *  whose mass is computed from geometry × density; fins keep their own material (their density and
  *  flutter stiffness are their own choice), and internal fittings and recovery keep theirs. */
+/** Put a catalogued part's published WALL and STOCK on one body tube — the one the body fields are
+ *  aimed at, never the whole airframe.
+ *
+ *  This is deliberately narrower than `withAirframeMaterial` below, which is a whole-airframe what-if
+ *  ("the same design in cardboard"). A pick is a statement about ONE part: the flyer said they are
+ *  holding an Estes BT-60, not that every tube on the rocket is one. Widening it would overwrite the
+ *  stock of parts they never chose.
+ *
+ *  It runs AFTER the whole-airframe material edit in `editOne`, so an explicit pick beats the generic
+ *  one where both are set — the published figure is the better number, and silently replacing a part
+ *  the flyer named with a category they picked from a dropdown is the wrong way round.
+ *
+ *  The wall is NOT scaled by the caliber what-if. `scaleAirframeRadii` touches `outerRadius` and
+ *  never `thickness`, which is right here rather than incidental: a real tube's wall is a property of
+ *  the tube, not a ratio of its diameter. */
+function withCatalogTube(
+  c: RocketComponent,
+  id: string,
+  thickness: number,
+  material: Material | undefined,
+  publishedMass: number | undefined,
+): RocketComponent {
+  const children = c.children.length
+    ? c.children.map((ch) => withCatalogTube(ch, id, thickness, material, publishedMass))
+    : c.children;
+  if (c.kind === "bodytube" && c.id === id) {
+    // The wall and the material travel TOGETHER — see `PickedBodyTube.innerDiameter`. Where the
+    // catalogue has no usable density the tube keeps its own material rather than being handed one
+    // it did not state, and it keeps its own wall with it, because a real wall under an invented
+    // stock is the same wrong mass from the other direction.
+    if (!material) return children === c.children ? c : { ...c, children };
+    // A wall at least as wide as the tube's own radius is not a thin-walled tube at all, and
+    // `lib/sim/mass.ts` clamps the inner radius at 0 and flies it as a SOLID ROD without complaint.
+    // Reachable without any bad data: `bodyDiameter` scales the airframe and is also a sweep axis, so
+    // a flyer who picks a 48.8 mm tube and then narrows the design under ~17.9 mm crosses it. The
+    // wall is left alone in that case and the stock still lands, which is the pair's own rule.
+    if (!(thickness < c.outerRadius)) {
+      return { ...c, material, children };
+    }
+    return {
+      ...c,
+      thickness,
+      material,
+      // The vendor's own weight where they publish one — see `PickedBodyTube.mass`. Set alongside
+      // the geometry rather than instead of it, so the diagram and the drag still use the real
+      // dimensions and only the MASS comes from the published figure.
+      ...(publishedMass !== undefined && publishedMass > 0 ? { overrideMass: publishedMass } : {}),
+      children,
+    };
+  }
+  return children === c.children ? c : { ...c, children };
+}
+
 function withAirframeMaterial(c: RocketComponent, material: Material): RocketComponent {
   const children = c.children.length ? c.children.map((ch) => withAirframeMaterial(ch, material)) : c.children;
   if (c.kind === "nosecone" || c.kind === "bodytube" || c.kind === "transition") {
@@ -2600,6 +2713,15 @@ function applyDimensionEdits(rocket: Rocket, edits: GeometryEdits): Rocket {
       ? { id: transTarget.id, aftRadius: edits.transitionAftDiameter / 2 }
       : undefined;
   const finish = edits.finish;
+  // The picked part's wall and stock, resolved against the tube the body fields are aimed at — the
+  // same tube `bodyLength` resizes and `bodyDiameter` takes its scale factor from, so the three
+  // cannot describe different parts.
+  const picked = edits.catalogBodyTube;
+  const pickedTubeId = usableCatalogTube(picked) ? primaryBodyTube(rocket, edits.bodyTubeId)?.id : undefined;
+  const pickedWall = picked ? (picked.outerDiameter - picked.innerDiameter) / 2 : 0;
+  const pickedMaterial: Material | undefined = picked?.material
+    ? { name: picked.material.name, density: picked.material.density, type: "bulk" }
+    : undefined;
   const matOpt = AIRFRAME_MATERIALS.find((m) => m.key === edits.airframeMaterial);
   const airframeMaterial: Material | undefined = matOpt
     ? { name: matOpt.name, density: matOpt.density, type: "bulk" }
@@ -2638,6 +2760,8 @@ function applyDimensionEdits(rocket: Rocket, edits: GeometryEdits): Rocket {
     if (finish) geo = withFinish(geo, finish);
     if (airframeMaterial) geo = withAirframeMaterial(geo, airframeMaterial);
     if (radiusScale !== 1) geo = scaleAirframeRadii(geo, radiusScale);
+    if (pickedTubeId && pickedWall > 0)
+      geo = withCatalogTube(geo, pickedTubeId, pickedWall, pickedMaterial, picked?.mass);
     if (transExit) geo = withTransitionExit(geo, transExit.id, transExit.aftRadius);
     if (massTarget && edits.massObjectMass !== undefined && edits.massObjectMass >= 0) {
       geo = withMassObject(geo, massTarget.id, edits.massObjectMass, undefined);

@@ -12,6 +12,26 @@ this file, and deliberately does **not** cap craft or product work, because that
 track in `ROADMAP.md` with its own *done when*. Rough edges, missing affordances, and findings too
 big for one pass. Newest first.
 
+- **A picked catalogue part silently overrides the whole-airframe material control, and neither
+  surface says so.** Filed 2026-08-02, **REPRODUCED by the reviewer, not re-driven by me.**
+  `withCatalogTube` runs after `withAirframeMaterial` in `editOne`, which is the right precedence —
+  a part the flyer NAMED should beat a category they chose from a dropdown — but nothing tells them.
+  Measured: pick a BT-60, then set Airframe material = Cardboard, and the picked tube flies kraft at
+  782.88 while every other tube flies cardboard at 700, with the select reading "Cardboard" and its
+  "As designed (…)" label reading the pristine design's stock. The control that claims to state the
+  airframe's material names neither of the two actually being flown. The fix is a note on the select
+  when a pick is active, not a change to the precedence.
+
+- **The dispersion CSV's `Landed` column has no e2e covering it**, and neither does the withheld
+  recovery radius. Both shipped this run with unit/corpus coverage only. `e2e/smoke.spec.ts:737` is
+  the only positional CSV parse in the suite and it reads the FLIGHT export, so a column inserted
+  into the dispersion export is unguarded either way. Filed 2026-08-02.
+
+- **`summarize([])` returns `sd: 0` — a confident finite zero — while every other field is `NaN`.**
+  `lib/sim/montecarlo.ts:172,178`. No surface reads `sd` today, so this is latent; it matters because
+  the withheld-value contract is per-field, and a future "drift σ" readout would print "0 m" for a
+  set where nothing landed, re-creating this run's Sev-1 one field over. Filed 2026-08-02.
+
 - **A `<select>` with no `TOUCH_TARGET`, four of them, and two withheld values with no reason.**
   Filed by the design-system audit, 2026-08-02, **UNREPRODUCED by me** — read from the code, not
   driven. `components/ParameterSweep.tsx:363` and `:380` (`px-2.5 py-1.5`) and

@@ -2504,16 +2504,18 @@ function DesignEditor({
                   <PartPicker
                     imperial={imperial}
                     currentOuterDiameter={edits.bodyDiameter ?? designDims.bodyDiameter}
-                    picked={
-                      // Shown only while BOTH figures the pick wrote are still the ones being flown.
-                      // The bag is persisted and replayed, so a flyer can pick a tube, retype the
-                      // caliber, and reload; without this the caption would put a vendor's part
-                      // number on a number that vendor never published.
-                      edits.catalogBodyTube &&
+                    // The record itself is always passed, because since the pick began carrying a
+                    // wall and a stock it changes the flight even with both dimension fields blank —
+                    // so the clear path has to exist whenever it is set. What the MATCH governs is
+                    // only the wording: the bag is persisted and replayed, so a flyer can pick a
+                    // tube, retype the caliber and reload, and a caption reading "flying an Estes
+                    // BT-60" would then put a vendor's part number on a number that vendor never
+                    // published.
+                    picked={edits.catalogBodyTube}
+                    dimensionsMatch={
+                      !!edits.catalogBodyTube &&
                       edits.bodyDiameter === edits.catalogBodyTube.outerDiameter &&
                       edits.bodyLength === edits.catalogBodyTube.length
-                        ? edits.catalogBodyTube
-                        : undefined
                     }
                     // Both gestures NAME themselves. A three-key patch otherwise falls through
                     // `describeEdit`'s multi-field arm to "the design", so the one action on this

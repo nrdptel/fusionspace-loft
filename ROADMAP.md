@@ -1460,8 +1460,67 @@ caliber scale and never creates the mould-line step `buildAdded` argues at lengt
 never hands a tube a material without a wall, which `lib/sim/mass.ts` would fly as a solid rod
 (measured previously at 2.13× the mass).
 
-*Increment 4 — NEXT.* The vendor's wall and material, which is the *done when*'s "and material"
-clause and the mass half of the outcome. Then the other kinds. Three things already known that it
+*Increment 4 — SHIPPED. The vendor's wall and stock, and the mass moves with them.*
+
+The *done when*'s "and material" clause. `PickedBodyTube` now carries the published bore and the
+vendor's own stock by value, and `withCatalogTube` puts both on the tube the body fields are aimed
+at — never the whole airframe, because a pick is a statement about ONE part.
+
+**Measured on the demo design with the catalogue's own Rocketarium BT-60 — 41.58 mm OD, 40.51 mm ID,
+so a 0.533 mm wall at 782.88 kg/m³: 528.0 g with the dimensions alone, 342.3 g once the vendor's wall
+and stock land. A 35% change in dry mass**, which moves CG, stability and apogee with it.
+
+**The first version of that measurement was wrong, and the way it was wrong is the lesson.** It
+quoted a 0.27 mm wall and a density of 848.98 — a figure that appears in no row of the catalogue —
+because the probe and the unit test both hand-typed "the vendor's published figures" instead of
+reading them out of the shipped data. The numbers were arithmetically self-consistent and
+reproducible from nothing. The test now resolves the part through `findParts`/`materialOf` at run
+time, so a hand-typed figure cannot be asserted against again.
+
+Three things it had to get right, each recorded because each is a way to ship a wrong number:
+
+- **The wall is DERIVED, not read.** The catalogue states an inner and an outer diameter and never a
+  thickness — 0 of 1,089 body tubes carry one — so it is `(OD − ID) / 2`.
+- **The wall and the stock travel together or neither travels.** `lib/sim/mass.ts` flies a tube that
+  has a material and no wall as a SOLID ROD, previously measured at 2.13× the mass and 72% off the
+  apogee with no error anywhere. A pick with no usable density therefore keeps the design's own wall
+  AND stock. **None of the 18 parts whose upstream density was refused is a body tube** — measured, 0
+  of 1,089 — so that path is defence against a future re-cut rather than a state today's picker can
+  reach, and an earlier draft of this entry claimed otherwise.
+- **The same clamp is reachable from the other side, and now is not.** A wall at least as wide as the
+  tube's own radius makes `lib/sim/mass.ts` clamp the inner radius to 0 and fly a solid rod. It needs
+  no bad data: `bodyDiameter` scales the whole airframe and is also a sweep axis, so picking a
+  48.8 mm tube and then narrowing the design under ~17.9 mm crosses it. The wall is refused in that
+  case and the stock still lands.
+- **The vendor's own published WEIGHT beats the derived one.** Seven body tubes state a mass, all
+  Public Missiles, and every one disagrees with the figure computed from its own geometry and stock
+  by 3–5× — PS-7.5 publishes 589.7 g against 116.7 g derived. Applied as `overrideMass`, which
+  replaces the component's own mass and NOT its subtree: a tube carries its mount, fins and parachute
+  as children, and swallowing those would be a far larger error than the one it fixes.
+- **It is not scaled by the caliber what-if.** `scaleAirframeRadii` touches `outerRadius` and never
+  `thickness`, which is right rather than incidental: a real tube's wall is a property of the tube,
+  not a ratio of its diameter.
+
+**And a pick is a body-tube FIELD, not a free-standing record — which the first draft got wrong in a
+way worth recording.** `withCatalogTube` resolves its target through the `bodyTubeId` aim at apply
+time, so a pick that outlived its aim migrated: removing the tube it was made for re-landed the
+vendor's wall and stock on whatever the primary-tube fallback found (measured on a two-tube design,
+411.6 g → 53.9 g), and merely clicking another tube to READ it moved them there too (305.4 g →
+129.1 g), with the caption still naming the part in both. `catalogBodyTube` is now a `targets` entry
+on that aim, so it clears exactly when `bodyLength` and `bodyDiameter` do.
+
+It also stopped being inert. A pick now changes the flight with both dimension fields blank, so
+`catalogBodyTube` left `INERT_EDIT_FIELDS` and `hasGeometryEdits` counts it — and the picker's clear
+path now appears whenever a part is set rather than only while the numbers still match, because the
+narrower rule would have re-created the one-way door increment 3 shipped and fixed. The attribution
+is what narrows instead: "Flying Estes BT-60" while the figures are the vendor's, "Wall and stock
+from Estes BT-60, with your own dimensions" once they are not.
+
+Pinned by four cases in `lib/model/edit.test.ts` and by the e2e, which now drives the whole arc —
+pick, read the vendor's caliber back, edit it, watch the claim narrow without the way out
+disappearing, then clear and land back on the design's own flight.
+
+*Increment 5 — NEXT.* The other kinds. Three things already known that it
 should absorb: `materialOf` returns `undefined` for the 18 parts whose density was refused, and the
 picker has to surface that rather than substitute a default; a vendor-alias table is owed, because
 the catalogue carries sixteen manufacturer strings for fourteen companies ("Quest" and "Quest

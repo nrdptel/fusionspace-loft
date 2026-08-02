@@ -64,6 +64,7 @@ export default function PartPicker({
   imperial,
   onPick,
   picked,
+  dimensionsMatch,
   onClear,
 }: {
   currentOuterDiameter?: number;
@@ -72,10 +73,16 @@ export default function PartPicker({
   /** What the flyer chose, so the surface can say so rather than leaving four changed numbers to
    *  speak for themselves. `DESIGN.md` §6: every reference value names its source. */
   picked?: PickedBodyTube;
+  /** Whether the caliber and length being flown are still the ones this part published — see the
+   *  note at the attribution line. Governs the wording, never whether the clear path exists. */
+  dimensionsMatch: boolean;
   onClear: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [parts, setParts] = useState<CatalogPart[] | null>(null);
+  /** The lazily-imported module itself, so `materialOf` — which is where the refused densities are
+   *  known — is called rather than re-implemented. */
+  const [db, setDb] = useState<typeof import("@/lib/components/db") | null>(null);
   const [sources, setSources] = useState<readonly CatalogSource[] | null>(null);
   const [failed, setFailed] = useState(false);
   const [text, setText] = useState("");
@@ -101,6 +108,7 @@ export default function PartPicker({
       .then((db) => {
         if (!live) return;
         const tubes = db.partsOfKind("bodytube");
+        setDb(db);
         setParts(tubes);
         // The files that actually CONTRIBUTE a body tube, not all 16 vendored `.orc`. Four of them
         // (apogee, competition_chutes, generic_materials, top_flight) carry none, so quoting the
@@ -190,10 +198,44 @@ export default function PartPicker({
       csv: (p) => span(p.length, imperial),
     },
     {
+      key: "mass",
+      label: `Mass (${imperial ? "oz" : "g"})`,
+      align: "right",
+      sortValue: (p) => p.mass ?? Infinity,
+      // Stated where the vendor states one, and blank rather than derived where they do not — a
+      // computed figure printed in a column headed by published ones would be the two kinds of
+      // number sharing a cell. `DESIGN.md` §6: every reference value names its source.
+      cell: (p) => (
+        <span className="font-mono tabular-nums">
+          {p.mass === undefined
+            ? "—"
+            : (imperial ? p.mass * 35.274 : p.mass * 1000).toFixed(imperial ? 2 : 1)}
+        </span>
+      ),
+      csv: (p) => (p.mass === undefined ? "" : imperial ? p.mass * 35.274 : p.mass * 1000),
+    },
+    {
       key: "material",
       label: "Material",
       sortValue: (p) => materialLabel(p).toLowerCase(),
-      cell: (p) => <span className="text-xs">{materialLabel(p)}</span>,
+      cell: (p) => {
+        // 18 catalogued parts state a density that cannot describe matter (two files define
+        // `Paper, bulk` as 0.0011 kg/m³), and `materialOf` refuses those rather than handing back a
+        // plausible number. The picker has to SURFACE that rather than paper over it: the part's
+        // dimensions are still good, so it is worth offering — with its mass left to the design's
+        // own stock and the reason said, not with a default silently substituted.
+        const usable = db ? db.materialOf(p) !== undefined : true;
+        return (
+          <span className="text-xs">
+            {materialLabel(p)}
+            {!usable && (
+              <span className="block text-amber-700 dark:text-amber-400">
+                no usable published density — this design&apos;s own stock is kept
+              </span>
+            )}
+          </span>
+        );
+      },
       csv: (p) => materialLabel(p),
     },
     {
@@ -203,26 +245,45 @@ export default function PartPicker({
       // place them (WCAG 1.3.1) — on a table whose row header is otherwise set up to give them
       // exactly that context.
       label: "Choose",
-      cell: (p) => (
+      cell: (p) => {
+        const material = db?.materialOf(p);
+        const buildable =
+          p.outerDiameter !== undefined &&
+          p.length !== undefined &&
+          p.innerDiameter !== undefined &&
+          p.innerDiameter < p.outerDiameter;
+        return (
         <Button
           variant="secondary"
           onClick={() => {
             if (p.outerDiameter === undefined || p.length === undefined) return;
+            if (p.innerDiameter === undefined || !(p.innerDiameter < p.outerDiameter)) return;
             onPick({
               manufacturer: p.manufacturer,
               partNumber: p.partNumber,
               outerDiameter: p.outerDiameter,
               length: p.length,
+              innerDiameter: p.innerDiameter,
+              // The vendor's own published weight where there is one. Seven body tubes state one and
+              // every one of them disagrees with the figure computed from their own geometry and
+              // stock by 3-5x — see `PickedBodyTube.mass`.
+              ...(p.mass !== undefined && p.mass > 0 ? { mass: p.mass } : {}),
+              // `materialOf` returns undefined for the parts whose upstream density was refused as
+              // physically impossible. That is passed through as absent rather than defaulted — the
+              // flyer chose a specific part, and a mass they did not choose is a mass they will not
+              // check. The row says so beside the button.
+              ...(material ? { material: { name: material.name, density: material.density } } : {}),
             });
             setOpen(false);
           }}
-          disabled={p.outerDiameter === undefined || p.length === undefined}
+          disabled={!buildable}
         >
           Use
         </Button>
-      ),
+        );
+      },
     },
-  ], [imperial, unit, onPick]);
+  ], [imperial, unit, onPick, db]);
 
   const control =
     "mt-1 w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100";
@@ -234,15 +295,22 @@ export default function PartPicker({
           {open ? "Close the parts list" : "Pick a real body tube"}
         </Button>
         {picked && (
-          // Named rather than implied. Four numbers changing at once with nothing saying why is the
-          // "controls that forget" tell wearing the opposite hat — the flyer needs to be able to read
-          // back what they chose, on the surface that changed.
+          // Named rather than implied. Numbers changing at once with nothing saying why is the
+          // "controls that forget" tell wearing the opposite hat — the flyer needs to read back what
+          // they chose, on the surface that changed.
+          //
+          // **The control appears whenever a part is picked; the CLAIM is narrower.** Since the pick
+          // began carrying a wall and a stock it changes the flight even with both dimension fields
+          // blanked, so a clear path that vanished when the numbers stopped matching would strand
+          // the flyer with an edit and nothing to undo it — which is exactly the one-way door this
+          // component already shipped once. `dimensionsMatch` governs only the wording.
           <p className="flex flex-wrap items-center gap-2 text-xs text-zinc-600 dark:text-zinc-400">
             <span>
-              Flying{" "}
+              {dimensionsMatch ? "Flying" : "Wall and stock from"}{" "}
               <span className="font-medium text-zinc-900 dark:text-zinc-100">
                 {picked.manufacturer} {picked.partNumber}
               </span>
+              {!dimensionsMatch && ", with your own dimensions"}
             </span>
             <Button variant="ghost" onClick={onClear}>
               Back to the design&apos;s own tube
@@ -330,8 +398,9 @@ export default function PartPicker({
                     would be exactly the false precision the safety posture forbids, on the number CG,
                     stability and apogee all sit on. Wall and material are the next increment. */}
                 <span className="text-zinc-600 dark:text-zinc-300">
-                  The wall and the material stay the design&apos;s own — so the mass is Loft&apos;s,
-                  scaled, not the vendor&apos;s published weight.
+                  Choosing one also takes the vendor&apos;s wall and stock, so the mass moves with it —
+                  and where they publish a weight of their own, that is the one flown rather than a
+                  figure computed from the geometry.
                 </span>
               </p>
 

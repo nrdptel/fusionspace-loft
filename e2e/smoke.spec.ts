@@ -5935,6 +5935,13 @@ test.describe("choosing a real commercial part", () => {
         ).replace(/[^\d.]/g, ""),
       );
     const before = await apogee();
+    // `Liftoff mass` is a <Field term=…> — a definition list, so the value is the sibling <dd>.
+    const liftoffMass = async () =>
+      parseFloat(
+        (await page.getByRole("term").filter({ hasText: "Liftoff mass" }).first()
+          .locator("xpath=following-sibling::dd[1]").innerText()).replace(/[^\d.]/g, ""),
+      );
+    const massBefore = await liftoffMass();
 
     await page.getByRole("link", { name: "Design", exact: true }).click();
     await page.getByRole("button", { name: "Pick a real body tube" }).click();
@@ -5966,12 +5973,33 @@ test.describe("choosing a real commercial part", () => {
     // catalogue bolted onto the side of the tool rather than wired into it.
     await expect.poll(apogee, { timeout: 15_000 }).not.toBe(before);
 
+    // The vendor's WALL and STOCK came with it, so the MASS moved too — not just the outline. Read
+    // off the surface as a number rather than re-asserting a caption that has been visible since the
+    // pick, which is what the first version of this check did and why it could never fail.
+    const massAfter = await liftoffMass();
+    expect(massAfter, "a liftoff mass is actually being read").toBeGreaterThan(0);
+    expect(
+      massAfter,
+      `liftoff mass ${massBefore} -> ${massAfter}: the vendor's 0.533 mm wall is thinner than this design's own`,
+    ).toBeLessThan(massBefore);
+
+    // Edit the caliber afterwards and the attribution must stop claiming that number — but the way
+    // back must NOT disappear with it. Since a pick began carrying a wall and a stock it changes the
+    // flight even with the dimension fields blank, so a clear path that vanished when the numbers
+    // stopped matching would strand the flyer with an edit and nothing to undo it.
+    await dia.fill(String(parseFloat(od) + 3));
+    await dia.blur();
+    await expect(page.getByText(/Wall and stock from .*BT-60/)).toBeVisible();
+    await expect(page.getByText(/with your own dimensions/)).toBeVisible();
+
     // And there is a way back out — a state a flyer can enter with no way back is a named tell.
     // Matched case-insensitively: this control's label gained a capital when it was converted onto
     // the `Button` primitive, and a case-sensitive regex turned a pure refactor into a red suite —
     // one that passed in isolation against the older build and only failed in the full run.
     await page.getByRole("button", { name: /back to the design/i }).click();
-    await expect(page.getByText(/Flying .*BT-60/)).toHaveCount(0);
+    await expect(page.getByText(/BT-60/)).toHaveCount(0);
+    // Clearing drops the caliber, the length AND the picked wall and stock in one step, so the
+    // flight is the design's own again even though a dimension was hand-edited in between.
     await expect.poll(apogee, { timeout: 15_000 }).toBe(before);
   });
 });
