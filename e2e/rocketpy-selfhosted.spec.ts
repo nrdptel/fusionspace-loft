@@ -100,7 +100,7 @@ test.describe("in-browser RocketPy second solver (self-hosted Pyodide)", () => {
     // Add a heavy nose ballast before running the cross-check — a design edit, on the Design
     // workspace where the editing surface now lives.
     await page.getByRole("link", { name: "Design" }).click();
-    await page.getByLabel(/Nose ballast/).fill("500");
+    await page.locator("input").and(page.getByLabel(/Nose ballast/)).first().fill("500");
 
     // The RocketPy panel is in the Cross-check workspace.
     await page.getByRole("link", { name: "Cross-check" }).click();
@@ -454,7 +454,7 @@ test.describe("when the second solver stops", () => {
         (window as unknown as { __answer: boolean }).__answer = false;
       });
       await page.getByRole("link", { name: "Design" }).click();
-      await page.getByLabel(/Nose ballast/).fill("250");
+      await page.locator("input").and(page.getByLabel(/Nose ballast/)).first().fill("250");
       await page.getByRole("link", { name: "Cross-check" }).click();
       await expect(panel.getByText(/has changed since this ran/)).toBeVisible();
 
