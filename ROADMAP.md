@@ -1923,7 +1923,7 @@ rather than rewriting them.
 
 ## P3 — A stranger's first five minutes
 
-**Status: IN PROGRESS** — increments 1–2 of 3–4 shipped 2026-08-02.
+**Status: IN PROGRESS** — increments 1–3 of 3–4 shipped 2026-08-02. All four *done when* clauses are pinned; what remains is strength, not coverage.
 
 *Increment 1 — the walkthrough the milestone asks for, and the three things it found.* `e2e/first-run.spec.ts`
 starts where every other spec does not: a cold browser, empty storage, no file. `addInitScript` clears
@@ -1969,12 +1969,24 @@ the component: the readouts are located by walking the label's following sibling
 `div` silently broke two unrelated locators; and beside the value the marker pushed a 320 px metric
 tile into clipping its own number, so it stacks.
 
-*Remaining:* the milestone's "understand what the tool is within one screen" clause is asserted only
-weakly (the first screen must mention a flight at all) — though the landing's own paragraph does say
-Loft "simulates the flight in your browser — apogee, speed, stability, and recovery". The clause to
-strengthen is the LAST one: methods is now reachable from a flown number, but **limitations and
-validation are not**, and §5's own list names all three. And the README is 4.7 KB against the sibling
-app's 27 KB.
+*Increment 3 — all three docs pages reachable from where the question arises.* The clause names
+methods, limitations AND validation. Methods landed in increment 2; the other two did not exist on
+any path a flyer actually walks. **Limitations** was linked only from inside the NO-MOTOR notice, so
+an ordinary flight had no route to it at all — it now sits beside the Flight heading, in the panel
+rather than in the shared chrome above the spine (putting it next to the methods link wrapped that
+row and took the phone chrome 1060 → 1070 px, which the depth ratchet caught within the same
+increment). **Validation** was reachable only when the file carried stored results to compare
+against — and none of the three bundled samples does, so every stranger's first run landed on an
+empty comparison whose only content was why it was empty. `ToolUnavailable` gained a slot for the
+way forward (`DESIGN.md` §5 asks an empty state for one and the primitive had nowhere to put it), and
+that notice now says Loft's accuracy is measured against 35 real designs and links to the evidence.
+
+All four *done when* clauses are now pinned by `e2e/first-run.spec.ts`, seven cases from a cold load.
+
+*Remaining:* the "understand what the tool is within one screen" clause is asserted only weakly (the
+first screen must mention a flight at all), though the landing paragraph does say Loft "simulates the
+flight in your browser — apogee, speed, stability, and recovery". And the README is 4.7 KB against
+the sibling app's 27 KB, which is P5's territory as much as P3's.
 
 **Outcome.** Someone who has never heard of Loft gets to a flight they believe in, without being told
 how.

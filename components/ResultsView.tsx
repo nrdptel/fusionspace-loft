@@ -118,11 +118,23 @@ const COLORS = {
 
 /** Why a tool isn't offered for this design — said out loud, because a panel that simply
  *  isn't there reads as a missing feature rather than a modelling limit. */
-function ToolUnavailable({ title, reason }: { title: string; reason: string }) {
+function ToolUnavailable({
+  title,
+  reason,
+  children,
+}: {
+  title: string;
+  reason: string;
+  /** Anything the flyer can DO about it, or read next. A surface that says only why it is empty
+   *  leaves them where they were standing; `DESIGN.md` §5 asks an empty state to name the way
+   *  forward, and this primitive had nowhere to put one. */
+  children?: ReactNode;
+}) {
   return (
     <Card as="section" tone="muted" aria-label={`${title} unavailable`} className="text-sm">
       <h2 className="text-base font-semibold tracking-tight text-zinc-700 dark:text-zinc-300">{title}</h2>
       <p className="mt-1.5">{reason}</p>
+      {children && <p className="mt-1.5">{children}</p>}
     </Card>
   );
 }
@@ -472,7 +484,23 @@ export default function ResultsView({
       {run.hasPropulsion && (<>
       {/* Key results */}
       <section aria-label="Results">
-        <h2 className="text-xl font-medium tracking-tight">Flight</h2>
+        <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+          <h2 className="text-xl font-medium tracking-tight">Flight</h2>
+          {/* Where these numbers are weak, beside the numbers. This link only ever appeared inside
+              the NO-MOTOR notice, so a flyer looking at a perfectly ordinary flight had no route to
+              the limitations log at all — the milestone's clause is that these pages are found
+              "from where the question arises rather than from a footer", and it arises here.
+              Deliberately NOT in the design summary beside the methods link: that strip is shared
+              chrome above the workspace spine, and putting a second link in it wrapped the row and
+              took the phone chrome from 1060 to 1070 px, which the depth ratchet caught. Inside the
+              panel it costs every route's depth nothing. */}
+          <Link
+            href="/docs/limitations"
+            className="text-sm text-zinc-500 underline underline-offset-2 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300"
+          >
+            where it&apos;s weak
+          </Link>
+        </div>
         {baseline && baseline.hasPropulsion && <WhatIfDelta run={run} baseline={baseline} units={units} />}
         <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
           {/* Marked on the numbers the transonic drag extrapolation actually drives — the ascent.
@@ -889,7 +917,17 @@ export default function ResultsView({
           <ToolUnavailable
             title={`${toolName} comparison`}
             reason={noStoredResultsReason(doc.simulations.map((sim) => sim.status), toolName)!}
-          />
+          >
+            {/* The question this design cannot answer is still worth answering. "How far off is
+                Loft?" is exactly what a flyer wants when the file gives them nothing to compare
+                against, and until now the only route to that evidence was a page they had to know
+                existed. All three bundled samples land here, so it is also what a stranger sees. */}
+            Loft&apos;s own accuracy is measured against 35 real design files with stored results —{" "}
+            <Link href="/docs/validation" className="underline underline-offset-2">
+              see how this is measured
+            </Link>
+            .
+          </ToolUnavailable>
         )}
 
         {/* Why the metric-by-metric stored comparison is withheld for a design Loft flew reduced. */}
@@ -1058,6 +1096,7 @@ function RocketSummary({
           <Link href="/docs/methods" className="underline underline-offset-2 hover:text-zinc-700 dark:hover:text-zinc-300">
             how these are computed
           </Link>
+
         </span>
       </div>
 

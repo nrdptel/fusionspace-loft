@@ -116,6 +116,29 @@ test.describe("a stranger's first five minutes", () => {
       methods.first(),
       "a flown number is on screen with no link to how it was computed",
     ).toBeVisible();
+    // The clause names three pages, not one: "the methods, limitations and validation pages from
+    // where the question arises rather than from a footer".
+    await expect(
+      page.getByRole("link", { name: /where it.s weak|limitations/i }).first(),
+      "a flown number is on screen with no link to where the model is weak",
+    ).toBeVisible();
+  });
+
+  test("offers the accuracy evidence from the surface that compares against it", async ({ page }) => {
+    // Validation answers "how far off is Loft, generally?" — a question that arises where the
+    // file's own stored numbers sit beside Loft's, which is `/validate`. Asserted there rather than
+    // on the flight, because a link to an accuracy census is noise until you are looking at a
+    // comparison.
+    await coldLoad(page);
+    await page.getByRole("button", { name: /·/ }).first().click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({
+      timeout: 20000,
+    });
+    await page.getByRole("link", { name: "Cross-check" }).click();
+    await expect(
+      page.getByRole("link", { name: /how this is measured|validation/i }).first(),
+      "the cross-check offers no route to how Loft's accuracy is measured",
+    ).toBeVisible();
   });
 
   test("tells an importing stranger what was and was not understood about their file", async ({
