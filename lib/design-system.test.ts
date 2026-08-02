@@ -238,15 +238,27 @@ describe("DESIGN.md §9 — the design system is binding, and this is what check
     // The scale is 1 2 3 4 6 8 12. A `mt-5` between two things that are `mt-4` apart everywhere else
     // is invisible on its own page and is exactly how a layout stops lining up across surfaces.
     //
-    // AT the target, so this is a guard rather than a ratchet from here. THREE blind spots in the
-    // pattern are measured and filed in `BACKLOG.md` rather than silently counted as clean: it cannot
-    // match a `gap-*` (the character after `g` is not one of `xytblr`, so the `-` never lines up), it
-    // cannot match a half-step, and its alternation stops at 14 so nothing larger is seen either. The
-    // single `gap-5` was fixed with the rest; 98 half-steps and two values above 14 are left, because
-    // §4 states the scale and then prescribes a half-step as the padding inside a control — so half of
-    // them are the file's own instruction. Widening this regex without widening §9's would put the two
-    // out of step, and §9 is shared verbatim with the sibling app.
-    const { total, byFile } = countMatches(ui, /\b[pmg][xytblr]?-(?:5|7|9|10|11|14)\b/g);
+    // **The pattern ENUMERATES the scale and subtracts it, rather than listing off-scale values to
+    // look for — and that change found real drift the old one could not.** It used to alternate over
+    // six hand-picked numbers (5, 7, 9, 10, 11, 14), which left three blind spots its own comment
+    // recorded: no `gap-*`, no half-steps, and nothing above 14. The footer sat two steps outside the
+    // scale on both of its top margins and read as compliant for as long as this check has existed.
+    //
+    // The reason it was left narrow is worth correcting rather than deleting, because it was exactly
+    // backwards: the old note said widening it "would put the two out of step, and §9 is shared
+    // verbatim with the sibling app". The SIBLING'S §9 already carried this wider form. Loft's copy
+    // was the stale one, so widening it CONVERGED the two rather than forking them — which is what
+    // §10 asks for, and which could not be checked until both repos were attached in one session
+    // (2026-08-02, the first time that was possible).
+    //
+    // Half-steps still pass, by construction rather than by exemption: `py-1.5` matches at `py-1`,
+    // and 1 is on the scale. §4 states the scale and then prescribes `px-3 py-1.5` as the padding
+    // inside a control, so a check that failed on half-steps would be failing the file's own
+    // instruction.
+    const { total, byFile } = countMatches(
+      ui,
+      /\b((p|m)[xytblr]?|(gap|space)(-[xy])?)-(?!(0|1|2|3|4|6|8|12)\b)[0-9]+\b/g,
+    );
     expect(total, `off-scale spacing, by file:\n${byFile.join("\n")}`).toBe(BUDGET.offScaleSpacing);
   });
 
