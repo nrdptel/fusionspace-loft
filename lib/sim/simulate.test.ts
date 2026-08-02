@@ -287,3 +287,145 @@ describe("simulate — peak acceleration is an ascent quantity", () => {
     expect(summary.maxAcceleration).toBeLessThan(analyticPeak * 1.02);
   });
 });
+
+describe("simulate — a bare mould-line step is said out loud", () => {
+  /** The same rocket twice: once with its two tubes faired, once with the aft tube oversized so the
+   *  airframe steps out at the joint. Everything else is held identical, so the caution is the only
+   *  thing that can differ. */
+  function twoTube(aftRadius: number): Rocket {
+    const fore: BodyTube = {
+      id: "f",
+      name: "fore",
+      kind: "bodytube",
+      placement: { method: "after", offset: 0 },
+      outerRadius: 0.02,
+      thickness: 0.001,
+      length: 0.4,
+      material: { name: "massless", density: 0, type: "bulk" },
+      children: [],
+    };
+    const payload: MassComponent = {
+      id: "m",
+      name: "payload",
+      kind: "masscomponent",
+      placement: { method: "top", offset: 0.1 },
+      mass: 0.9,
+      length: 0.05,
+      children: [],
+    };
+    fore.children.push(payload);
+    const aft: BodyTube = { ...fore, id: "a", name: "aft", outerRadius: aftRadius, children: [] };
+    return {
+      name: "test",
+      stages: [{ name: "s", components: [fore, aft] }],
+      configurations: [],
+      referenceType: "maximum",
+    };
+  }
+
+  const fly = (rocket: Rocket) =>
+    simulate({
+      rocket,
+      config: CONFIG,
+      motors: [{ curve: constMotor(100, 1.0, 0.1), cg: 0.4, ignitionTime: 0 }],
+      recovery: [],
+      conditions: vacuumConditions(),
+    });
+
+  it("cautions when the airframe steps, and names the step", () => {
+    const w = fly(twoTube(0.03)).warnings.find((x) => x.code === "mould-line-step");
+    expect(w).toBeDefined();
+    // The number in the sentence is the step the geometry actually has: 20 mm of DIAMETER, not the
+    // 10 mm of radius. A caveat that misstates its own measurement teaches a flyer to discount it.
+    expect(w!.message).toContain("20 mm");
+    expect(w!.message).toContain("out");
+    // A caution, not a warning: one joint's pressure drag on an otherwise complete build-up, as
+    // against the blunt-nose case where the whole forebody term is missing.
+    expect(w!.severity).toBe("caution");
+  });
+
+  it("says nothing when the joint fairs", () => {
+    expect(fly(twoTube(0.02)).warnings.some((x) => x.code === "mould-line-step")).toBe(false);
+  });
+
+  it("does not claim a drag number it cannot stand behind", () => {
+    // Eq. 3.86's 0.8 is a measured flat-face value in clean flow; an annular step sits inside the
+    // boundary layer of the body ahead of it. Charging it as a flat face took `02.Two-stage.ork`
+    // from agreeing to 35.2% low, so Loft reports the geometry and withholds the estimate. If a
+    // sourced coefficient ever arrives this assertion is what says the message has to change too.
+    const w = fly(twoTube(0.03)).warnings.find((x) => x.code === "mould-line-step");
+    expect(w!.message).not.toMatch(/\d\s*%/);
+    expect(w!.message).toContain("cannot state");
+  });
+});
+
+describe("simulate — a canopy open before apogee cannot make the integrator diverge", () => {
+  /** The step bound that keeps an open parachute's stiff quadratic drag inside RK4's stability
+   *  region used to be reachable only once the flight had passed apogee (`phase === "descent"`).
+   *  A canopy that opened at or before apogee was therefore integrated at the flat 0.01 s boost
+   *  step with no bound at all, and it diverged. Two of the 35 corpus designs did:
+   *  `FullScaleModelTH.rkt` ejects 0.5 s before apogee at 250 m/s and returned an apogee of
+   *  2.07e13 m at a recovery size of 5x (3.30e2 m at 4x), and `Complex.Two-Stage.CDX1` — whose
+   *  drogue opens exactly AT apogee, so one unbounded step is enough — returned a ground-hit speed
+   *  of 7.52e32 m/s and a landing energy of 4.00e65 J under a confident "hard landing" warning.
+   *  Both inputs are inside the recovery-size field's own advertised 0.1-10x range.
+   *
+   *  Driven here as a big canopy opening 0.2 s after launch, under full thrust — the reachable
+   *  shape of the same geometry, and it needs no corpus to run. */
+  const CHUTE = { name: "main", cdA: 1.5 * Math.PI * 0.6 * 0.6, event: "launch" as const, deployDelay: 0.35 };
+
+  // `recoveryCdScale` is a RunOptions field that `run.ts` applies by scaling `cdA` before the
+  // solver ever sees it, so the scale is applied here the same way rather than passed to
+  // `simulate`, which has no such field and would silently ignore it.
+  const flyWithCanopy = (scale = 1) =>
+    simulate({
+      rocket: testRocket(0.9),
+      config: CONFIG,
+      motors: [{ curve: constMotor(1000, 1.0, 0.1), cg: 0.4, ignitionTime: 0 }],
+      recovery: [{ ...CHUTE, cdA: CHUTE.cdA * scale }],
+      conditions: { ...vacuumConditions(), atmosphere: new Atmosphere() },
+    });
+
+  it("returns a physical flight with a large canopy opening at speed", () => {
+    const { summary } = flyWithCanopy();
+    // Finiteness and physical scale, not a specific number: the bug produced 1e13 m and 1e32 m/s
+    // from a flight whose real apogee is tens of metres.
+    expect(Number.isFinite(summary.apogee)).toBe(true);
+    expect(summary.apogee).toBeGreaterThan(0);
+    expect(summary.apogee).toBeLessThan(100_000);
+    expect(Number.isFinite(summary.maxVelocity)).toBe(true);
+    expect(summary.maxVelocity).toBeLessThan(10_000);
+    expect(Number.isFinite(summary.groundHitVelocity)).toBe(true);
+    expect(summary.groundHitVelocity).toBeLessThan(10_000);
+  });
+
+  it("stays physical across the whole recovery-size range the field offers", () => {
+    // 0.1x to 10x is the range `Recovery size (x)` accepts, and that the input is LEGAL is exactly
+    // what made this a Sev-1 rather than an edge case.
+    for (const scale of [0.1, 0.5, 1, 2, 4, 5, 7, 10]) {
+      const { summary } = flyWithCanopy(scale);
+      expect(Number.isFinite(summary.apogee), `apogee at ${scale}x`).toBe(true);
+      expect(summary.apogee, `apogee at ${scale}x`).toBeLessThan(100_000);
+      expect(Number.isFinite(summary.groundHitVelocity), `ground-hit speed at ${scale}x`).toBe(true);
+      expect(summary.groundHitVelocity, `ground-hit speed at ${scale}x`).toBeLessThan(10_000);
+      expect(Number.isFinite(summary.landingEnergy), `landing energy at ${scale}x`).toBe(true);
+    }
+  });
+
+  it("gets slower on the ground the bigger the canopy, instead of jumping orders of magnitude", () => {
+    // The physical direction, which a diverged flight cannot satisfy: more drag area lands softer.
+    const speeds = [1, 2, 4].map((k) => flyWithCanopy(k)).map((r) => r.summary.groundHitVelocity);
+    expect(speeds.every((v) => Number.isFinite(v) && v > 0)).toBe(true);
+    expect(speeds[1]).toBeLessThan(speeds[0]);
+    expect(speeds[2]).toBeLessThan(speeds[1]);
+  });
+
+  it("carries whether it landed, so a surface can withhold the figures that need one", () => {
+    // groundHitVelocity and landingEnergy are 0 when the flight never reaches the ground — a
+    // sentinel, not a measurement. `landed` is what lets a surface tell that from a soft landing.
+    const { summary } = flyWithCanopy();
+    expect(typeof summary.landed).toBe("boolean");
+    expect(summary.landed).toBe(true);
+    expect(summary.groundHitVelocity).toBeGreaterThan(0);
+  });
+});

@@ -3561,7 +3561,10 @@ test.describe("Loft", () => {
     await exit.fill("20");
     await expect(cones.first()).toContainText(/→\s*⌀\s*20/);
     // Nothing sits behind a tail cone, so there is no joint to judge and the step notice stays silent.
-    await expect(page.getByText(/The airframe steps/)).toHaveCount(0);
+    // Scoped to the parts panel's own sentence for the same reason as the sibling case below: the
+    // flight carries an airframe-scope caution about the same geometry, and an unscoped locator
+    // would be asserting about both surfaces while claiming to test this one.
+    await expect(page.getByText(/at the joint behind this part/)).toHaveCount(0);
 
     // And it is undoable, by name, back to the design that never had it.
     await page.getByRole("button", { name: /^Undo the transition exit/ }).click();
@@ -3648,7 +3651,10 @@ test.describe("Loft", () => {
     const partsTable = page.locator("table").filter({ hasText: "Dimensions" });
     const tubes = partsTable.locator("tr").filter({ hasText: /Body tube/ });
     await expect(tubes).toHaveCount(2);
-    const notice = page.getByText(/The airframe steps/);
+    // Scoped to the sentence only the PARTS PANEL says. The flight now carries its own caution about
+    // the same geometry — at airframe scope, for the design as a whole — so a locator that matched
+    // "the airframe steps" alone would resolve to both surfaces and stop testing this one.
+    const notice = page.getByText(/at the joint behind this part/);
 
     // A transition authored between two sections at the same caliber runs straight through, so it
     // opens nothing and nothing is said. (This fixture already carries a boattail, so count rather

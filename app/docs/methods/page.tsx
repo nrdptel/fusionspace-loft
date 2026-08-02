@@ -398,10 +398,14 @@ export default function Methods() {
           <strong>Shoulder pressure drag</strong> — a diameter-<em>increasing</em>{" "}transition
           (a shoulder) forces the flow outward, adding a stagnation-like pressure drag
           <code>C<sub>d</sub> = 0.8·sin²φ</code> over the frontal-area increase, where{" "}
-          <code>φ</code>{" "}is the conical joint angle: a gentle shoulder drags little, an abrupt step
-          approaches the <code>0.8</code> stagnation value. After the OpenRocket technical
-          documentation (Niskanen, eq. 3.86), following Hoerner. It is a low-subsonic separation
-          effect, so it is not compressibility-corrected.
+          <code>φ</code>{" "}is the conical joint angle, so a gentle shoulder drags little. After the
+          OpenRocket technical documentation (Niskanen, eq. 3.86), following Hoerner. It is a
+          low-subsonic separation effect, so it is not compressibility-corrected. This term is charged
+          on <em>transitions</em>{" "}— parts with a length to take the angle over. Where an airframe
+          changes diameter with no transition at all, there is no <code>φ</code> to read and{" "}
+          <strong>nothing is charged</strong>; the flight says so and the{" "}
+          <a className="underline" href="/docs/limitations">limitations log</a>{" "}gives the measured size
+          of that gap.
         </li>
         <li>
           <strong>Boattail pressure drag</strong> — a diameter-<em>decreasing</em>{" "}transition

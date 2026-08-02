@@ -29,7 +29,12 @@ import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { importDesign } from "../ork/import";
 import { runFromDocument, overridesFromStored } from "../sim/run";
-import { flattenRocket, leadingFaceDiameter } from "../model/geometry";
+import {
+  flattenRocket,
+  leadingFaceDiameter,
+  mouldLineSteps,
+  STEP_NOTICE_M,
+} from "../model/geometry";
 import type { Rocket, RocketComponent } from "../model/types";
 import {
   applyGeometryEdits,
@@ -1196,5 +1201,101 @@ suite("real-design corpus", () => {
       }
     }
     expect(stale, "the Validation page's accuracy census no longer holds — remeasure and update it").toEqual([]);
+  }, 900_000);
+  /** Every design whose airframe steps says so, and no design that fairs does.
+   *
+   *  The drag build-up charges a transition by its own joint angle and has no term at all for a
+   *  bare step, so a stepped design flies optimistically by an amount Loft cannot state. The editor
+   *  has said this since a flyer could author one, but only about the part they had SELECTED — so
+   *  an imported design carried it silently. This pins the flight's own caution against the real
+   *  corpus rather than against a synthetic two-tube case.
+   *
+   *  Measured across these 35 designs: 33 joints step in 13 designs; 27 of those steps in 9 designs
+   *  clear the 0.5 mm notice threshold, median 12.70 mm of diameter and up to 82.55 mm. The other
+   *  six are rounding artefacts of designs stated in inches. */
+  it("says so on every real design whose airframe steps, and stays quiet on the rest", async () => {
+    const stepped: string[] = [];
+    const wrong: string[] = [];
+    for (const f of files) {
+      let doc;
+      try {
+        doc = await importDesign(new Uint8Array(readFileSync(f.path)));
+      } catch {
+        continue;
+      }
+      const steps = mouldLineSteps(doc.rocket).filter(
+        (s) => Math.abs(s.diameterStep) > STEP_NOTICE_M,
+      );
+      let run;
+      try {
+        run = runFromDocument(doc);
+      } catch {
+        continue;
+      }
+      const said = run.result.warnings.some((w) => w.code === "mould-line-step");
+      if (steps.length > 0) stepped.push(`${shortName(f.name)} (${steps.length})`);
+      // The caution has to track the geometry in BOTH directions: a design that steps and says
+      // nothing is the silence this closes, and one that fairs and cries wolf teaches flyers to
+      // ignore the flag — which the brief calls out by name.
+      if (steps.length > 0 && !said) wrong.push(`${shortName(f.name)}: steps but says nothing`);
+      if (steps.length === 0 && said) wrong.push(`${shortName(f.name)}: fairs but cautions anyway`);
+    }
+    console.log(
+      `mould-line steps across ${files.length} design files: ${stepped.length} designs step above the ` +
+        `${STEP_NOTICE_M * 1000} mm notice threshold — ${stepped.join(", ")}`,
+    );
+    expect(wrong, "designs whose step caution disagrees with their geometry").toEqual([]);
+    // A floor, not an equality: a re-cut corpus may add designs. Zero would mean the walk broke.
+    expect(stepped.length).toBeGreaterThanOrEqual(9);
+  }, 300_000);
+  /** No recovery size the field offers may return a number physics cannot produce.
+   *
+   *  The step bound that keeps an open canopy's stiff drag inside RK4's stability region was
+   *  reachable only once the flight had passed apogee, so a device opening at or before apogee was
+   *  integrated at the flat boost step with no bound. Two designs here diverged from inputs inside
+   *  the `Recovery size (×)` field's own advertised 0.1–10× range: `FullScaleModelTH.rkt`, which
+   *  ejects half a second before apogee at 250 m/s, returned an apogee of 2.07e13 m at 5× (3.30e2 m
+   *  at 4×); and `Complex.Two-Stage.CDX1`, whose drogue opens exactly AT apogee so a single
+   *  unbounded step is enough, returned a ground-hit speed of 7.52e32 m/s and a landing energy of
+   *  4.00e65 J at 10× — under a confident "hard landing" warning.
+   *
+   *  Driven across every design rather than the two known ones: the bug was reachable on any design
+   *  whose recovery opens early, and which those are is a property of the corpus, not a constant. */
+  it("returns a physical flight at every recovery size the field offers, on every design", async () => {
+    const absurd: string[] = [];
+    let flown = 0;
+    for (const f of files) {
+      let doc;
+      try {
+        doc = await importDesign(new Uint8Array(readFileSync(f.path)));
+      } catch {
+        continue;
+      }
+      for (const scale of [0.1, 2, 5, 10]) {
+        let run;
+        try {
+          run = runFromDocument(doc, { recoveryCdScale: scale });
+        } catch {
+          continue;
+        }
+        if (!run.hasPropulsion) continue;
+        flown++;
+        const s = run.result.summary;
+        // Ceilings a real hobby flight cannot reach, not tolerances: the Kármán line for altitude
+        // and roughly orbital speed. A number past either is the integrator, not the rocket.
+        const bad: string[] = [];
+        if (!Number.isFinite(s.apogee) || s.apogee > 100_000) bad.push(`apogee ${s.apogee.toExponential(3)} m`);
+        if (!Number.isFinite(s.maxVelocity) || s.maxVelocity > 8_000)
+          bad.push(`max velocity ${s.maxVelocity.toExponential(3)} m/s`);
+        if (!Number.isFinite(s.groundHitVelocity) || s.groundHitVelocity > 8_000)
+          bad.push(`ground-hit ${s.groundHitVelocity.toExponential(3)} m/s`);
+        if (!Number.isFinite(s.landingEnergy) || s.landingEnergy > 1e9)
+          bad.push(`landing energy ${s.landingEnergy.toExponential(3)} J`);
+        if (bad.length) absurd.push(`${shortName(f.name)} at ${scale}×: ${bad.join(", ")}`);
+      }
+    }
+    console.log(`recovery-size sweep across ${files.length} design files: ${flown} flights at 0.1/2/5/10×`);
+    expect(flown, "no design flew, so this asserted nothing").toBeGreaterThan(50);
+    expect(absurd, "a legal recovery size produced a number physics cannot produce").toEqual([]);
   }, 900_000);
 });

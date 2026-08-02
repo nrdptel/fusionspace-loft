@@ -10,7 +10,7 @@
 import type { Rocket, RocketComponent, ComponentKind, NoseCone, BodyTube, Transition, Parachute, Material, SurfaceFinish, NoseShape, FinCrossSection, MotorMount, MassComponent,
   Stage,
 } from "./types";
-import { flattenRocket } from "./geometry";
+import { flattenRocket, aftOuterRadius, foreOuterRadius, nextTopLevel } from "./geometry";
 import { uniqueUuidFrom, uuidFrom } from "./id";
 import type { Positioned } from "./geometry";
 
@@ -1248,43 +1248,6 @@ function withMassObject(
   }
   if (!c.children.length) return c;
   return { ...c, children: c.children.map((k) => withMassObject(k, id, mass, offset)) };
-}
-
-/** The outer radius a part presents at its AFT face, or undefined for a part that is not on the outer
- *  mould line at all (a coupler, a fin set, a point mass). This is the joint diameter a part stacked
- *  behind it has to fair to. */
-function aftOuterRadius(c: RocketComponent): number | undefined {
-  return c.kind === "bodytube"
-    ? c.outerRadius
-    : c.kind === "nosecone" || c.kind === "transition"
-      ? c.aftRadius
-      : undefined;
-}
-
-/** The outer radius a part presents at its FORE face. A nose cone comes to a point, so 0. */
-function foreOuterRadius(c: RocketComponent): number | undefined {
-  return c.kind === "bodytube"
-    ? c.outerRadius
-    : c.kind === "transition"
-      ? c.foreRadius
-      : c.kind === "nosecone"
-        ? 0
-        : undefined;
-}
-
-/** The part that sits immediately behind `afterId` in the airframe's nose-to-tail chain, if any.
- *
- *  Top-level components only, because that is the only list a part can be stacked into (see
- *  `applyAdds`), so it is also the only list whose neighbour a new part has to fair to — but ACROSS
- *  stage boundaries, because a stack is one airframe until it separates. Searching one stage's list
- *  read the last tube of a booster as having nothing behind it, which is how an "add a tail cone"
- *  gesture put a contracting cone in the MIDDLE of a multi-stage rocket. Measured over the starter plus
- *  the corpus: 12 stage boundaries, all 12 joined end to end with no gap, and 10 of the 91 body tubes
- *  mis-read — the worst opening a 77.4 mm step on `02.Two-stage.ork`. */
-function nextTopLevel(rocket: Rocket, afterId: string): RocketComponent | undefined {
-  const chain = rocket.stages.flatMap((s) => s.components);
-  const i = chain.findIndex((c) => c.id === afterId);
-  return i === -1 ? undefined : chain[i + 1];
 }
 
 /** How far the mould line steps at the joint immediately behind a component — the difference in

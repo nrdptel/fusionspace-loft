@@ -17,7 +17,12 @@
  */
 
 import type { Rocket, MotorConfiguration, RocketComponent } from "../model/types";
-import { leadingFaceDiameter } from "../model/geometry";
+import {
+  leadingFaceDiameter,
+  mouldLineSteps,
+  STEP_NOTICE_M,
+  type MouldLineStep,
+} from "../model/geometry";
 import { Atmosphere } from "./atmosphere";
 import { aeroGeometry, barrowman, dragCoefficient, type Stability } from "./aero";
 import { analyzeFlutter, RECOMMENDED_FLUTTER_MARGIN, type FlutterReport } from "./flutter";
@@ -197,8 +202,13 @@ export interface FlightSummary {
    *  mass and the ground-hit speed. Many flying fields and waivers reference a per-section landing
    *  energy as their recovery-adequacy check, so it's reported alongside the descent rate. Loft
    *  flies the whole (top) vehicle down, so this is that vehicle's energy as one piece — a design
-   *  that lands in separated sections would divide it among them. 0 when it doesn't reach the ground. */
+   *  that lands in separated sections would divide it among them. Meaningless unless `landed`. */
   landingEnergy: number;
+  /** Whether the flight actually reached the ground inside the time cap. `groundHitVelocity` and
+   *  `landingEnergy` are both 0 when it did not — a sentinel, not a measurement, and the two numbers
+   *  a recovery setup is judged on. Surfaces must withhold them rather than render the zeros: a
+   *  flyer enlarging a canopy watched the landing energy fall to 0 J and read it as success. */
+  landed: boolean;
 }
 
 export interface FlightResult {
@@ -359,10 +369,18 @@ const MAX_TIME = 1200; // s, hard cap
  *  quarter (measured), for a sub-metre landing shift (nil on a single-deploy demo, ~0.06% on a
  *  dual-deploy). */
 const DESCENT_STEP = 0.2;
-/** Floor on the descent step. Small enough to stay stable through the opening-shock transient of a
- *  realistic (even a mistimed high-speed) deployment; only reached briefly, since the drag pulls the
- *  speed back to terminal within a few steps. */
-const DESCENT_STEP_MIN = 0.002;
+/** Floor on the step an open canopy is integrated at. Only reached briefly, since the drag pulls the
+ *  speed back to terminal within a few steps.
+ *
+ *  This is a FLOOR on a stability bound, so it decides the envelope the bound can actually hold: the
+ *  step is stable while dt·λ stays under RK4's ~2.78, so a floor of `f` covers λ up to 2.78/f and
+ *  diverges above it however stiff the canopy really is. At the old 0.002 that was λ ≈ 1,390 — which
+ *  a 10× canopy exceeds above about 67 m/s, so the floor, not the bound, was the binding constraint
+ *  on exactly the mistimed high-speed deployment the bound exists for. 2e-4 covers λ ≈ 13,900, i.e.
+ *  that same 10× canopy opening at ~670 m/s, past any real deployment. It costs nothing on a normal
+ *  flight: the floor is only reached inside the opening transient, and a steady descent runs three
+ *  orders of magnitude above it at `DESCENT_STEP`. */
+const DESCENT_STEP_MIN = 0.0002;
 /** Target for (step × drag-response-rate) through an open canopy. An open parachute's quadratic
  *  drag is a stiff decay: the explicit RK4 step is stable only while dt·λ stays inside its stability
  *  region (~2.78 on the real axis), where λ = ρ·(Cd·A)·v/m is the linearised response rate. Holding
@@ -583,19 +601,32 @@ export function simulate(input: SimulateInput): FlightResult {
     return a;
   };
 
-  // Descent step: capped at the (converged) ceiling, but shortened through an open canopy's stiff
-  // opening transient so a fast deployment cannot make the explicit integrator diverge. Before the
-  // canopy opens the fall is a smooth free-fall (small drag, not stiff), so it runs at the ceiling.
-  const descentStep = (s: SimState): number => {
-    if (!anyDeployed(recovery, s.t)) return dtDescent;
+  // The step an OPEN canopy allows, or `nominal` when nothing is deployed.
+  //
+  // An open parachute's quadratic drag is stiff, and an explicit RK4 step is only stable while
+  // dt·λ stays inside its stability region — so the step has to be bound to the CANOPY, not to the
+  // phase of flight. It used to be reachable only once `phase === "descent"`, which is set when
+  // apogee has passed, and that left every canopy open at or before apogee integrating at the flat
+  // 0.01 s boost step with no bound at all. Two of the 35 corpus designs diverge on it, both from
+  // inputs inside the recovery-size field's own advertised 0.1–10× range:
+  // `FullScaleModelTH.rkt` ejects 0.5 s before apogee at 250 m/s and at 5× returns an apogee of
+  // 2.07e13 m (3.30e2 m at 4×); `Complex.Two-Stage.CDX1` opens its drogue exactly AT apogee, so a
+  // single unbounded step is enough — at 10× it reported a ground-hit speed of 7.52e32 m/s and a
+  // landing energy of 4.00e65 J, under a confident "hard landing" warning.
+  //
+  // Taking the minimum of the phase's nominal step and this bound fixes both without touching the
+  // boost step a powered flight actually needs: with no canopy out the bound does not apply, and
+  // the ascent still runs at `dtBoost`.
+  const stableStep = (s: SimState, nominal: number): number => {
+    if (!anyDeployed(recovery, s.t)) return nominal;
     const mass = Math.max(1e-6, massSumAt(s.t));
     const rho = conditions.atmosphere.sample(conditions.launchAltitude + s.pos.z).density;
     const wind = windAt(s.pos.z);
     const airSpeed = Math.hypot(s.vel.x - wind.x, s.vel.y - wind.y, s.vel.z - wind.z);
     const cdA = deployedCdA(recovery, s.t) + geomAt(s.t).refArea * 0.5;
     const rate = (rho * cdA * airSpeed) / mass; // linearised drag response rate λ (1/s)
-    if (!(rate > 0)) return dtDescent;
-    return Math.min(dtDescent, Math.max(DESCENT_STEP_MIN, DESCENT_STABILITY / rate));
+    if (!(rate > 0)) return nominal;
+    return Math.min(nominal, Math.max(DESCENT_STEP_MIN, DESCENT_STABILITY / rate));
   };
 
   let dt = dtBoost;
@@ -606,8 +637,9 @@ export function simulate(input: SimulateInput): FlightResult {
 
   while (!landed && state.t < MAX_TIME && steps < maxSteps) {
     steps++;
-    // Phase-adaptive step: fine during powered/near-apogee, adaptive (stability-bounded) descent.
-    dt = phase === "descent" ? descentStep(state) : dtBoost;
+    // Phase-adaptive step: fine during powered/near-apogee, coarser on descent — and in either
+    // case bound by what an open canopy allows, because a deployment does not wait for apogee.
+    dt = stableStep(state, phase === "descent" ? dtDescent : dtBoost);
 
     const prev = state;
     state = rk4Step(state, dt, accel);
@@ -927,6 +959,7 @@ export function simulate(input: SimulateInput): FlightResult {
     ballisticBoosters,
     firmBoosters: boosterDescents.filter((b) => b.terminalSpeed > 7.6),
     leadingFace: leadingFaceDiameter(rocket),
+    mouldLineSteps: mouldLineSteps(rocket),
     deadStages: input.deadStages ?? [],
   });
 
@@ -978,6 +1011,7 @@ export function simulate(input: SimulateInput): FlightResult {
       burnoutAltitude: burnoutAlt,
       maxDynamicPressure: maxQ,
       groundHitVelocity,
+      landed,
       optimumDelay,
       deploymentVelocity: deploymentV,
       driftDistance,
@@ -1193,6 +1227,8 @@ function buildWarnings(
     firmBoosters: BoosterDescent[];
     /** Diameter (m) of the flat face the airframe leads with, or 0 when it leads with a nose cone. */
     leadingFace: number;
+    /** Joints where the outer mould line steps with no transition to take the change over. */
+    mouldLineSteps: MouldLineStep[];
     /** Stages below the top whose motors never light, and whether each is nonetheless shed. */
     deadStages: DeadStage[];
   },
@@ -1280,6 +1316,35 @@ function buildWarnings(
         "no term for a blunt leading face, so the apogee and speeds above are the streamlined design's and read " +
         "optimistically. Put a nose cone at the front of the airframe for a figure the model can stand behind.",
       severity: "warning",
+    });
+  }
+  // A bare step in the outer mould line. The editor has said this since the flyer could author one
+  // — but only about the part they happen to have SELECTED, so an imported design carried it
+  // silently, which is the "reachable only by knowing it is there" failure. The flight is where the
+  // number being read optimistically actually appears, so it is where the caveat belongs.
+  //
+  // A caution rather than a warning, and the distinction is the one the blunt-nose case above draws:
+  // there the whole forebody drag term is absent, here it is one joint's pressure drag on an
+  // otherwise complete build-up. Loft states the geometry rather than an estimate of what it costs,
+  // because eq. 3.86's 0.8 is a measured flat-face value in clean flow and an annular step sits in
+  // the boundary layer of the body ahead of it — charging it as a flat face takes `02.Two-stage.ork`
+  // from agreeing to 35.2% low. Reporting a number Loft cannot stand behind would be the false
+  // precision the brief forbids; reporting the step it cannot charge is the honest half.
+  const steps = ctx.mouldLineSteps.filter((s) => Math.abs(s.diameterStep) > STEP_NOTICE_M);
+  if (steps.length > 0) {
+    const worst = steps.reduce((a, b) => (Math.abs(b.diameterStep) > Math.abs(a.diameterStep) ? b : a));
+    const mm = (m: number) => Math.round(m * 1000 * 10) / 10;
+    out.push({
+      code: "mould-line-step",
+      severity: "caution",
+      message:
+        `This airframe changes diameter at ${steps.length === 1 ? "a joint" : `${steps.length} joints`} with no ` +
+        `transition to take the change over` +
+        (steps.length > 1 ? `; the largest steps` : ` — it steps`) +
+        ` ${worst.diameterStep > 0 ? "out" : "in"} by ${mm(Math.abs(worst.diameterStep))} mm of diameter. ` +
+        "Loft charges a transition by its own joint angle and has no drag term for a bare step, " +
+        "so the drag is under-counted and the apogee and speeds above read optimistically by an " +
+        "amount the model cannot state. Fair the joint with a transition for a figure it can stand behind.",
     });
   }
   if (ctx.staticMarginCal < 1.0) {
@@ -1429,8 +1494,12 @@ function buildWarnings(
   if (!ctx.landed && ctx.liftedOff) {
     out.push({
       code: "no-landing",
-      message: "The simulation hit its time cap before landing — descent figures may be incomplete.",
-      severity: "info",
+      message:
+        "The simulation hit its time cap before the rocket reached the ground, so it has no landing to " +
+        "report: the ground-hit speed and landing energy are withheld rather than shown as the zeros " +
+        "the solver carries for them. A canopy this large descends slower than the cap allows for — " +
+        "reduce the recovery size to bring the landing back inside it.",
+      severity: "caution",
     });
   }
 }

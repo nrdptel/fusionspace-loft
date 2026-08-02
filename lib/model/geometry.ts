@@ -162,8 +162,6 @@ export function isBody(c: RocketComponent): boolean {
   return c.kind === "nosecone" || c.kind === "bodytube" || c.kind === "transition";
 }
 
-/** Body outer radius at an arbitrary axial station x (m) — used to seat a fin set on the
- *  body for the fin-body interference factor. Returns the max radius spanning x. */
 /** The diameter (m) of the flat face the airframe presents to the airstream, or 0 when it leads with
  *  a nose cone or a full taper.
  *
@@ -190,6 +188,111 @@ export function leadingFaceDiameter(rocket: Rocket): number {
   return r > 0 ? 2 * r : 0;
 }
 
+/** The outer radius (m) a part presents at its AFT face, or undefined when it is not on the outer
+ *  mould line at all (a fin set, a mass object, anything internal). */
+export function aftOuterRadius(c: RocketComponent): number | undefined {
+  return c.kind === "bodytube"
+    ? c.outerRadius
+    : c.kind === "nosecone" || c.kind === "transition"
+      ? c.aftRadius
+      : undefined;
+}
+
+/** The outer radius (m) a part presents at its FORE face. A nose cone comes to a point, so 0. */
+export function foreOuterRadius(c: RocketComponent): number | undefined {
+  return c.kind === "bodytube"
+    ? c.outerRadius
+    : c.kind === "transition"
+      ? c.foreRadius
+      : c.kind === "nosecone"
+        ? 0
+        : undefined;
+}
+
+/** The part that sits immediately behind `afterId` in the airframe's nose-to-tail chain, if any.
+ *
+ *  Top-level components only — an inner tube or a coupler is not on the outer mould line, so a walk
+ *  that descended into children would read a joint that the airstream never sees, and it is also the
+ *  only list a part can be stacked into (see `applyAdds`). But ACROSS stage boundaries, because a
+ *  stack is one airframe until it separates. Searching one stage's list read the last tube of a
+ *  booster as having nothing behind it, which is how an "add a tail cone" gesture put a contracting
+ *  cone in the MIDDLE of a multi-stage rocket. Measured over the starter plus the corpus: 12 stage
+ *  boundaries, all 12 joined end to end with no gap, and 10 of the 91 body tubes mis-read — the
+ *  worst opening a 77.4 mm step on `02.Two-stage.ork`. */
+export function nextTopLevel(rocket: Rocket, afterId: string): RocketComponent | undefined {
+  const chain = rocket.stages.flatMap((s) => s.components);
+  const i = chain.findIndex((c) => c.id === afterId);
+  return i === -1 ? undefined : chain[i + 1];
+}
+
+/** The smallest mould-line step worth a sentence, in metres of DIAMETER.
+ *
+ *  Measured across the 35-design corpus: 33 joints step at all, and the sample falls into two groups
+ *  with nothing between them — six from 0.0004 to 0.292 mm, which are rounding artefacts of designs
+ *  stated in inches rather than steps anyone built, and 27 of 0.800 mm and up, median 12.70 mm. 0.5 mm sits
+ *  in that gap, so the threshold is read off the data rather than chosen. Below it the notice would
+ *  fire on arithmetic instead of on geometry, and a flag that cries wolf teaches flyers to ignore it. */
+export const STEP_NOTICE_M = 0.0005;
+
+/** One joint at which the airframe's outer mould line steps, with no length to take a slope over. */
+export interface MouldLineStep {
+  /** The component the step sits immediately behind. */
+  id: string;
+  /** Axial station of the joint (m). */
+  x: number;
+  /** Outer radius (m) each side of the joint. */
+  foreRadius: number;
+  aftRadius: number;
+  /** The change in DIAMETER (m) across the joint: positive steps out, negative steps in. */
+  diameterStep: number;
+}
+
+/** Every joint at which the mould line steps, nose→tail.
+ *
+ *  A shoulder that has LENGTH is a transition, and the drag model charges it by its joint angle
+ *  (Niskanen eq. 3.86 for a shoulder, 3.88 for a boattail). A bare step is the same geometry with
+ *  the length taken to zero, and the model has no term for it — eq. 3.86's own 0.8 is Hoerner's
+ *  measured FLAT-FACE value for a body in clean flow, not for an annulus sitting inside the
+ *  boundary layer of the body ahead of it, and charging it as though it were takes the corpus from
+ *  agreeing to 35% low on `02.Two-stage.ork`. So the step is reported, not estimated.
+ *
+ *  It is not exotic and it is not something the editor invents: measured across the 35-design
+ *  corpus, 33 of the 115 joints this can judge already step, in 13 of the 35 designs, by a median
+ *  11.75 mm of diameter and up to 82.55 mm. `Show-off.CDX1` runs a 1.5 in tube straight into a
+ *  2.73 in fin can.
+ *
+ *  A joint is only judged when the two parts actually meet: a gap between them is a different
+ *  geometry, and one Loft does not model either. */
+export function mouldLineSteps(rocket: Rocket): MouldLineStep[] {
+  const flat = flattenRocket(rocket);
+  const placed = new Map(flat.map((p) => [p.component.id, p]));
+  const out: MouldLineStep[] = [];
+  for (const stage of rocket.stages) {
+    for (const c of stage.components) {
+      const self = placed.get(c.id);
+      const next = nextTopLevel(rocket, c.id);
+      const after = next ? placed.get(next.id) : undefined;
+      if (!self || !next || !after) continue;
+      const fore = aftOuterRadius(c);
+      const aft = foreOuterRadius(next);
+      if (fore === undefined || aft === undefined) continue;
+      // Only a joint the two parts actually share.
+      if (Math.abs(after.xFore - (self.xFore + self.length)) > 1e-6) continue;
+      if (fore === aft) continue;
+      out.push({
+        id: c.id,
+        x: after.xFore,
+        foreRadius: fore,
+        aftRadius: aft,
+        diameterStep: 2 * (aft - fore),
+      });
+    }
+  }
+  return out;
+}
+
+/** Body outer radius at an arbitrary axial station x (m) — used to seat a fin set on the
+ *  body for the fin-body interference factor. Returns the max radius spanning x. */
 export function radiusAtStation(rocket: Rocket, x: number): number {
   let r = 0;
   for (const p of flattenRocket(rocket)) {

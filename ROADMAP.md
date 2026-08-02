@@ -985,7 +985,7 @@ pinned.
 
 ## R7 — Per-set fin drag, and the honest aero the builder needs
 
-**Status: IN PROGRESS** — increments 1–3 of 3–5 shipped; increment 1 was the edge **cross-section**,
+**Status: IN PROGRESS** — increments 1–5 of 3–5 shipped. Increment 1 was the edge **cross-section**,
 now charged per fin set. Pinned by `lib/sim/aero.test.ts`'s *fin cross-section is charged per set, not
 design-wide* (four cases, including the exact-halfway assertion that a "less drag" under-count could
 not satisfy) and by the corpus census, whose published figures were tightened in the same change.
@@ -1121,6 +1121,55 @@ the whole comparison is between two different vehicles. And a probe printed `lif
 both configurations; that is **most likely the probe reading a field that does not exist on
 `summary`** rather than a real defect — it printed the summary's key list and `liftoffMass` is not
 among them — but a NaN reaching a flyer would be Sev-1, so confirm which it is before dismissing it.
+
+*Increment 4 — the missing drag is found, and deliberately NOT charged.* The under-drag increment 3
+sent the next slice looking for is a **bare mould-line step**: a diameter increase the airframe makes
+with no transition to make it over. `aero.ts` charges a transition by its joint angle and has no term
+for a step, and that silence was already recorded in two code comments and on the limitations page
+without ever being closed. It is not rare — 33 of the 115 judgeable joints step, in 13 of the 35
+designs; 27 of those, in 9 designs, clear the 0.5 mm threshold at which a step stops being a rounding
+artefact, median 12.70 mm and up to 82.55 mm. `Show-off.CDX1` runs a 1.5 in tube straight into a
+2.73 in fin can.
+
+**Charging it was tried and reverted, and this is the fourth such measurement on R7 — read it before
+trying a fifth.** Taking Niskanen eq. 3.86 to its own abrupt limit (φ=90°, so `0.8·ΔA`) takes
+`02.Two-stage.ork` from agreeing to **−35.2%** apogee and `Complex.Two-Stage.CDX1` J180T from +4.5%
+to **−20.8%**, failing the corpus. The reason is physical rather than arithmetic: 0.8 is Hoerner's
+measured **flat-face** value for a body meeting clean air (Niskanen eq. 3.86 cites NAVWEPS 1488;
+Hoerner Fig 3.11 supplies the 0.8 flat / 0.2 rounded / 0.01 spherical values), and a step is an
+annulus sitting inside the boundary layer of the body ahead of it. **What would unblock it is a
+published forward-facing-step coefficient as a function of step height over boundary-layer
+thickness** — that is the source to go looking for, and it is `UNVERIFIED` whether one exists in
+citable form. Until it does, the estimate stays withheld and the geometry is reported: a flight of a
+stepped airframe now cautions and names the step. Pinned by `lib/model/geometry.test.ts` and by the
+corpus's *says so on every real design whose airframe steps*.
+
+Two threads increment 3 left open are settled, both against the file rather than by inference.
+`Complex.Two-Stage.CDX1`'s design-level `<UseBooster1>False</UseBooster1>` does **not** mean its
+stored results are a sustainer-only flight — every `<Simulation>` carries `<IncludeBooster1>True`
+with a booster motor and stack weight, and `lib/rasaero/adapt.ts:339` already reads that flag rather
+than the design-level one, so the comparison is between the same vehicle. (Corroborated by
+measurement: flying the sustainer alone gives −11.76% / −10.41%, worse on J180T and no better on
+J90W.) And `liftoffMass` is not a field on the run summary at all, so the `NaN` a probe once printed
+was the probe's bug.
+
+**A correction to this file's own record.** The W2 figures above (−4.96% / −13.60%) do **not**
+reproduce. Two independent measurements this run put that variant at **−12.92% / −20.92%**. The W1
+figures reproduce to within 0.03 pp. The salvaged table's step list was also mislabelled in two
+places: the interstage flare is 2.750→6.000 in, not 3.250→6.000 (a boattail already tapers
+3.25→2.75 first), and the 6.000→6.500 entry is not an uncharged step at all — it is a real
+transition, and it is the entire 5.0671e-4 m² the design's shoulder term already carries.
+
+*Increment 5 — a Sev-1 found by the opening fan-out, in the same slice's surface.* The RK4 step bound
+that keeps an open canopy's stiff drag stable was reachable only after apogee, so a device opening at
+or before apogee integrated at the flat boost step unbounded. `FullScaleModelTH.rkt` returned an
+apogee of **2.07e13 m** at a recovery size of 5×, and `Complex.Two-Stage.CDX1` a ground-hit speed of
+**7.52e32 m/s** and a landing energy of **4.00e65 J** at 10×, under a confident "hard landing"
+warning — both from inputs inside the field's own 0.1–10× range. The step now follows the canopy
+rather than the clock, and `DESCENT_STEP_MIN` moved 0.002 → 2e-4 because the floor, not the bound,
+was binding above ~67 m/s on a 10× canopy. A flight that never lands now withholds its ground-hit
+speed and landing energy instead of reporting the solver's sentinel zeros. Census identical on all
+ten metrics. Pinned by a corpus assertion that flies all 35 designs at 0.1/2/5/10× — 124 flights.
 
 *Remaining:* the thickness-ratio and sweep collapses, both blocked as above; and the adjacent parse
 gaps below.

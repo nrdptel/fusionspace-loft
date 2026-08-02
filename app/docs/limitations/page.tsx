@@ -275,16 +275,67 @@ export default function Limitations() {
         touch.
       </p>
       <p>
-        <strong>Nothing aft of a transition follows its exit diameter.</strong> Loft has no mechanism
-        that resizes parts you did not pick, and inventing one would silently re-caliber an airframe from
-        a single field. So narrowing an exit can leave the outer mould line <em>stepping</em>{" "}at the joint
-        behind it — and Loft models a transition&apos;s own slope (a shoulder&apos;s joint angle, a
-        boattail&apos;s) but has <em>no drag term at all for a bare step</em>, which has no length to take
-        an angle over. Where a step is present the parts panel says so and by how much, and the drag there
-        should be read as optimistic. This is not a state the editor invents: across the corpus,{" "}
-        <strong>33 of the 115</strong>{" "}airframe joints Loft can judge already step, in 13 of the 35
-        designs, by a median 11.75&nbsp;mm of diameter and up to 82.55&nbsp;mm — including the largest,
-        which is a joint between two stages.
+        <strong>A flight that never reaches the ground reports no landing figures.</strong> The
+        simulation runs to a 1,200&nbsp;s cap, and a canopy large enough to descend slower than that
+        allows for hits the cap still in the air. The solver carries a ground-hit speed and a landing
+        energy of zero in that case — a sentinel, not a measurement — and those two numbers are exactly
+        what a recovery setup is judged against, so they are now <strong>withheld</strong>{" "}
+        rather than rendered: a flyer enlarging a canopy could otherwise watch the landing energy fall to
+        0&nbsp;J and read it as success. The flight says which cap it hit and how to get the figures
+        back.
+      </p>
+      <p>
+        <strong>An open canopy bounds the integrator&apos;s step, and that bound has an envelope.</strong>{" "}
+        A parachute&apos;s quadratic drag is stiff, so the explicit RK4 step is only stable while
+        dt·λ stays inside its stability region. Loft shortens the step to hold that, with a floor of
+        0.2&nbsp;ms — which covers a response rate λ up to about 13,900/s, i.e. a canopy ten times the
+        design&apos;s own opening at roughly 670&nbsp;m/s. Past that the floor binds before the bound
+        does. No real deployment reaches it; it is recorded because it is the limit of the guard rather
+        than of the physics. <strong>Until 2026-08-02 the bound was not applied at all before apogee</strong>,
+        so a device opening at or before it integrated at the flat boost step: two real corpus designs
+        returned an apogee of 2.07e13&nbsp;m and a ground-hit speed of 7.52e32&nbsp;m/s from recovery
+        sizes inside the field&apos;s own range. Both now fly physically, and every design in the corpus
+        is flown at 0.1×, 2×, 5× and 10× on every build to keep it that way.
+      </p>
+      <p>
+        <strong>There is no drag term for a bare step in the outer mould line.</strong> Loft models a
+        transition&apos;s own slope — a shoulder&apos;s joint angle, a boattail&apos;s — but a step has no
+        length to take an angle over, so nothing charges it. Every flight of a stepped airframe therefore
+        under-counts drag and reads optimistically on apogee and speed. This is not a state the editor
+        invents, and it is not rare: across the corpus,{" "}<strong>33 of the 115</strong>{" "}airframe
+        joints Loft can judge already step, in 13 of the 35 designs (median 11.75&nbsp;mm of diameter),
+        and{" "}<strong>27 of those steps, in 9 designs</strong>, are larger than the 0.5&nbsp;mm at which
+        a step stops being a rounding artefact of a design stated in inches — those 27 run to a median
+        12.70&nbsp;mm and up to 82.55&nbsp;mm, the largest being a joint between two stages. A flight of
+        any of them now <strong>says so and names the step</strong>, alongside the parts panel that has
+        always named it for the part you are holding.
+      </p>
+      <p>
+        <strong>Nothing aft of a transition follows its exit diameter.</strong> Loft has no mechanism that
+        resizes parts you did not pick, and inventing one would silently re-caliber an airframe from a
+        single field. So narrowing a transition&apos;s exit opens a step at the joint behind it — which is
+        the editor-reachable route into the gap above, and why the parts panel says so at the moment you
+        make it.
+      </p>
+      <p>
+        <strong>And the model is discontinuous across that boundary.</strong> The shoulder term is charged
+        on any transition with a length, so <code>φ</code>{" "}approaches 90° as the length approaches zero
+        and a 1&nbsp;mm transition is billed almost the full <code>0.8·ΔA</code> — while the same diameter
+        change with no transition at all is billed nothing. Both ends of that are defensible on their own
+        and they do not meet in the middle. Loft reports the geometry rather than papering over the seam,
+        and closing it properly needs the published step coefficient named below.
+      </p>
+      <p>
+        <strong>What it does not do is put a number on it</strong>, and that is deliberate. The obvious
+        estimate is the shoulder model at its own abrupt limit — a joint angle of 90°, which leaves
+        0.8&nbsp;× the frontal area the step adds. That 0.8 is Hoerner&apos;s <em>measured flat-face</em>{" "}
+        value for a body meeting clean air, and a step is an annulus sitting inside the boundary layer of
+        the body ahead of it, so the two are not the same case. Charged as though they were, the corpus
+        moves the wrong way: <em>02.Two-stage.ork</em>{" "}goes from agreeing with its stored apogee to{" "}
+        <strong>35.2% low</strong>, and <em>Complex.Two-Stage.CDX1</em>{" "}from +4.5% to −20.8%. Rather than
+        publish a correction that large with no source behind it, Loft reports the geometry it cannot charge
+        and leaves the estimate withheld. Fairing the joint with a transition gets a figure the model can
+        stand behind.
       </p>
       <p>
         <strong>Reordering can put something other than a nose cone at the front, and the drag model has
