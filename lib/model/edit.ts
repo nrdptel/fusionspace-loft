@@ -300,6 +300,22 @@ export interface MovedPart {
   after: string | null;
 }
 
+/** A real commercial body tube a flyer selected from the bundled catalogue, and the two figures that
+ *  selection wrote into the design. See `GeometryEdits.bodyTubePart` for why both halves are here.
+ *
+ *  `manufacturer` AND `partNumber`, never the number alone: 113 part numbers in the catalogue are
+ *  carried by more than one vendor and 21 collide inside a single one, which is why
+ *  `lib/components/db.ts`'s own `findPart` refuses a bare number rather than picking a winner. A
+ *  caption reading "BT-60" without a vendor would be ambiguous in exactly the same way. */
+export interface PickedBodyTube {
+  manufacturer: string;
+  partNumber: string;
+  /** Metres — what the pick wrote to `bodyDiameter`. */
+  outerDiameter: number;
+  /** Metres — what the pick wrote to `bodyLength`. */
+  length: number;
+}
+
 export interface GeometryEdits {
   /** Which fin set the fin fields describe and edit. Undefined means the frontmost one, which is
    *  what the panel has always used and what every readback below still falls back to. This is a
@@ -454,6 +470,26 @@ export interface GeometryEdits {
    *  one of them were widened alone, so the picked tube sets the TARGET and the airframe follows it.
    *  Undefined leaves it. */
   bodyDiameter?: number;
+  /** The real commercial part the flyer CHOSE, when they chose one instead of measuring — its
+   *  identity, plus the two figures the choice wrote.
+   *
+   *  **Provenance, not a third edit.** The geometry a pick asks for is already expressed by
+   *  `bodyDiameter` and `bodyLength`, which the picker sets; this records WHICH published part those
+   *  numbers came from, so the surface can say "flying an Estes BT-60" rather than leaving two changed
+   *  values to speak for themselves. `DESIGN.md` §6 — every reference value names its source.
+   *  `hasGeometryEdits` ignores it for exactly that reason: on its own it changes no geometry, the
+   *  same way the `*Id` aims do not.
+   *
+   *  **It carries the VALUES it wrote, not the identity alone, and that is what stops it lying.** The
+   *  bag is persisted and replayed (`lib/session.ts`), so a flyer can pick a tube, retype the
+   *  diameter, and reload; an identity-only record would then caption someone else's number with a
+   *  vendor's part number. Holding what the pick wrote lets the surface show the attribution only
+   *  while both figures are still the ones that part published.
+   *
+   *  Resolved at PICK time rather than at apply time, for the same reason `AddedPart` carries a length
+   *  rather than a reference to one: `lib/components/catalog.ts` is re-cut against newer upstream
+   *  commits, and a stored pointer would silently redimension a saved design the day it moved. */
+  catalogBodyTube?: PickedBodyTube;
   /** Absolute length (m) for the transition `transitionId` names — the frontmost when nothing is
    *  picked. Only that one transition resizes; everything aft of it restacks, exactly as a body
    *  tube's length does. This is the fairing-angle lever: a boattail's own pressure drag fades to
@@ -762,6 +798,18 @@ export const AIM_SLOTS: Readonly<Record<string, AimSlot>> = {
 export const INERT_EDIT_FIELDS: ReadonlySet<string> = new Set([
   ...Object.keys(AIM_SLOTS),
   "payloadStation",
+  // `catalogBodyTube` is PROVENANCE — which published part `bodyDiameter` and `bodyLength` came
+  // from — and applies no geometry of its own, so it belongs here for the same reason
+  // `payloadStation` does: on its own it produces a flight byte-identical to the design's.
+  //
+  // Leaving it out was a ONE-WAY DOOR, and it is worth naming because the JSDoc on the field already
+  // claimed this behaviour while nothing implemented it. Pick a tube, then blank both fields by hand:
+  // the design is pristine again, but the stranded key kept `hasActiveEdits` true, so the stored-tool
+  // comparison stayed withheld and the button that restores it stayed hidden — and the picker's own
+  // "back to the design's own tube" control had already unmounted, because it renders only while the
+  // pick still matches what is being flown. Nothing left on the panel could clear it, and
+  // `lib/session.ts` stores the bag unfiltered, so it survived a reload.
+  "catalogBodyTube",
 ]);
 
 /** Just the aims out of an edit bag, keyed by slot — what a view needs to show which part each group of

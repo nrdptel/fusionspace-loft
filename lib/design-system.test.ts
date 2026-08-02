@@ -86,7 +86,7 @@ const BUDGET = {
   /** Spacing values off the `1 2 3 4 6 8 12` scale. Target 0. */
   offScaleSpacing: 0,
   /** Components importing the shared primitives. Target: most of the 23. This one only goes UP. */
-  uiAdopters: 16,
+  uiAdopters: 17,
   /** Component files where caption size OUTNUMBERS the body default. **At the target**, so this is a
    *  guard rather than a ratchet from here on: a file that inverts again is a decision-grade value
    *  that has been put back at caption size. */
@@ -162,8 +162,8 @@ const BUDGET = {
  *  state `DESIGN.md` recorded for `Chip` and `Disclosure` on 2026-07-30 and the state this milestone
  *  is closing. What must not happen is a zero silently BECOMING the finished condition. */
 const PRIMITIVE_ADOPTERS: Record<string, number> = {
-  Card: 11,
-  Button: 13,
+  Card: 12,
+  Button: 14,
   /** The button geometry as a class, for the two things that must look like a button and cannot BE
    *  one — a `next/link` and an external `<a>`. It is exported from `lib/ui-tokens.ts` rather than
    *  from `components/ui.tsx` because the site header is a SERVER component and cannot call into a
@@ -180,7 +180,7 @@ const PRIMITIVE_ADOPTERS: Record<string, number> = {
    *  (`ui → DownloadCsv → ui`). §5 says the vocabulary lives in `ui.tsx`; the wording wants a sentence
    *  admitting the two exceptions, and that is a change to a file shared verbatim with the sibling
    *  app, so it is FILED rather than made here. The regex below reads this module for that reason. */
-  DataTable: 6,
+  DataTable: 7,
   Section: 0,
   Segmented: 2,
   /** Zero, and that is the milestone rather than a regression.

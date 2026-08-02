@@ -4,61 +4,35 @@ Overwritten each session. What shipped, what is part-way, and what to pick up fi
 
 ## Read this first
 
-**`npx playwright install chromium` is a SILENT NO-OP in this sandbox. Use
-`./node_modules/.bin/playwright install chromium`.** Measured 2026-08-02 (this run): `npx` exits 0,
-prints nothing at all, and installs nothing — the previous session's note crediting `npx` with the
-fix is wrong, and following it costs a full e2e run to discover. The direct binary downloads
-chromium-1228 and chromium_headless_shell-1228 in about ninety seconds through the proxy. Check
-`ls /opt/pw-browsers` for `chromium_headless_shell-1228` afterwards rather than trusting the exit
-code. **This still belongs in the environment's setup script**; it is paid for again every session
-until it is, and that is the owner's fix.
+**The environment gave us BOTH repos and NO Playwright browser, again.** `/home/user/loft-fixtures`
+was present (link its per-tool directories into `corpus/` and the suite names `35 present`), and
+`/opt/pw-browsers` again lacked `chromium_headless_shell-1228`. **`./node_modules/.bin/playwright
+install chromium` is the command that works** — it exits 0 and lands 1228 in about ninety seconds.
+The previous handoff is right that bare `npx playwright install` is a silent no-op. **This still
+belongs in the environment's setup script and is the owner's fix**; it is paid for every session.
 
-**And never pipe `playwright test` into `tail` to read its result.** The pipeline's exit code is
-`tail`'s, which is always 0. This run's baseline e2e reported "green" that way while both shards were
-in fact failing all 208 tests on the missing browser. Redirect to a file and check `$?`.
+**`pkill -f <pattern>` killed my own gate with exit 144, exactly as the previous handoff warned.**
+I read the warning and walked into it anyway. Use `fuser -k 3100/tcp`. Leaving this at the top
+because it has now cost two sessions.
 
-**The corpus arrives as a second attached repo and it was present this run** — `/home/user/loft-fixtures`
-beside the app repo. `ln -sfn` each per-tool directory into `corpus/` and the suite names its count:
-`imports every design file (35 present)`. `FIXTURES_TOKEN` is unset here, so `npm run fetch-fixtures`
-would have exited 0 and the suite would have skipped itself silently.
+**`pgrep -af` is worse than useless here** — it matches the harness launcher and dumps its entire
+multi-kilobyte argv into the session. Use `pgrep -f <pat> >/dev/null && echo yes`.
 
-**The Playwright browser this repo manages was NOT present in the sandbox, and the whole e2e suite
-failed until it was installed.** Measured 2026-08-02: `PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers` is
-set by the environment, `@playwright/test` 1.61.1 wants **chromium_headless_shell-1228**, and the
-directory did not contain it — every test died with `Executable doesn't exist`, which reads as 200
-real failures rather than a missing binary. `npx playwright install chromium` fetched it (~114 MB,
-about a minute, through the proxy) and the suite went green. **This belongs in the environment setup
-script**; it is paid for again every session until it is. Do not reach for `PW_EXECUTABLE_PATH` —
-that is what silently runs the suite against the wrong revision.
+**A case-sensitive Playwright name regex turned a pure refactor red, and only in the FULL run.**
+Converting the picker's clear control onto the `Button` primitive capitalised its label;
+`getByRole("button", {name: /back to the design/})` then matched nothing. It passed in isolation
+against the older build minutes earlier. Prefer `/…/i` for any control whose label a refactor could
+recase.
 
-**And do not run two e2e shards concurrently.** Both back onto one `serve` process and one port, so
-overlapping runs report unstable counts (100, then 86, then 31 passed) with no failure line and a
-"did not run" list that looks exactly like the file-descriptor exhaustion `MAINTAINING.md`
-documents. It is not that. Run the shards sequentially and the counts are stable at 100 + 100.
+**`scripts/check-text-gaps.mjs` earned its keep this run, and detector 1 is a REAL lead, not noise.**
+It flagged one new hit in new copy; driving the rendered text in a browser found **two** genuine
+missing spaces (`1089catalogued`, `(16 vendor files)— see`). Both were green through lint, unit,
+build and e2e, because the defect exists only after the JSX transform. Verify a lead by reading the
+RENDERED text, then fix it with an explicit `{" "}`.
 
-**The sibling repo is owed four wording changes, for the SIXTH run running, and it is an OWNER fix.**
-`add_repo` for `nrdptel/fusionspace-debrief` is still refused by the harness's permission classifier.
-`DESIGN.md` §10 makes a change to one copy a change to both **in the same run**, so every wording
-owed to that file stays unmade rather than creating the divergence the invariant forbids. The four
-are listed in `BACKLOG.md` unchanged. **A session created with both repos attached clears all four in
-one commit each.**
-
-**`BACKLOG.md`'s Sev-1 count is ZERO at the end of this run** — one was found and fixed (below), and
-the next-worst known correctness item (the optimum delay computed for the wrong vehicle when a
-what-if is set) is filed with its numbers rather than left in anyone's head.
-
-**Everything this run is MERGED except one pull request.** #107 and #108 and #109 are on `main` and
-deployed; the dispersion-filter hardening is the only thing pending, on the working branch. Production
-was checked rather than assumed: all eight routes 200, and `/docs/limitations` serves this run's text.
-
-**The run's own worst moment, kept because it is the transferable lesson.** P2's two-screen clause was
-declared met, the `test.fail` pinning it deleted, and `ROADMAP.md`, `HANDOFF.md` and `COMPETITION.md`
-all updated to say so — on a measurement taken with `pointer: fine`. `e2e/depth.spec.ts`'s phone was a
-phone-sized viewport over `devices["Desktop Chrome"]`, so every `TOUCH_TARGET` control rendered 26 px
-instead of 44 and the shared chrome came out **97 px short**, in the direction that makes the app look
-like it passes. The adversarial diff review caught it; the marker went back with the true figure; and
-the clause was then closed for real on a coarse pointer. **Any viewport-based contract in this repo
-must set `hasTouch` from the first line it is written.**
+**The pre-push agent review found ELEVEN defects in code that had already passed the whole gate**,
+including a one-way door. It is not optional and it is the highest-yield fifteen minutes in the loop.
+Details below.
 
 ## The arc so far
 

@@ -5914,3 +5914,64 @@ test.describe("authoring a motor mount", () => {
     expect(await apogee(), "removing it put the original flight back").toBe(before);
   });
 });
+
+test.describe("choosing a real commercial part", () => {
+  test("a real commercial tube can be chosen instead of measured, and it flies", async ({ page }) => {
+    // R8's *done when*, through the button a flyer presses: authoring becomes SELECTION rather than
+    // measurement. The catalogue is 3,445 published parts and is a SEPARATE chunk — nothing imports
+    // it until this picker is opened — so this also pins that the lazy load actually resolves in a
+    // real browser rather than only in a bundler graph.
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+    const apogee = async () =>
+      parseFloat(
+        (
+          await page
+            .getByLabel("Results")
+            .getByText("Apogee", { exact: true })
+            .locator("xpath=following-sibling::div[1]")
+            .innerText()
+        ).replace(/[^\d.]/g, ""),
+      );
+    const before = await apogee();
+
+    await page.getByRole("link", { name: "Design", exact: true }).click();
+    await page.getByRole("button", { name: "Pick a real body tube" }).click();
+
+    // The list arrives from its own chunk, so it has a real loading state to leave.
+    const search = page.getByLabel("Search", { exact: true });
+    await expect(search).toBeVisible();
+    await search.fill("BT-60");
+
+    // A part number alone is ambiguous across vendors — the catalogue carries 113 numbers used by
+    // more than one — so the row is identified by vendor AND number, which is what the flyer reads.
+    const row = page.locator("tbody tr", { hasText: "BT-60" }).first();
+    await expect(row).toBeVisible();
+    const od = await row.locator("td").nth(1).innerText();
+    await row.getByRole("button", { name: "Use" }).click();
+
+    // The pick names its source on the surface it changed, rather than leaving two moved numbers to
+    // speak for themselves.
+    await expect(page.getByText(/Flying .*BT-60/)).toBeVisible();
+
+    // And the vendor's published caliber is in the field the flyer can still edit.
+    const dia = page.locator("label", { hasText: /Body diameter/ }).locator("input");
+    // Compared as a NUMBER against the vendor figure in the row, not as a rounded string: a
+    // BT-60 is 1.637 in = 41.6 mm, and asserting on whole millimetres both fails and would have
+    // hidden a real 0.4 mm error if it had passed.
+    expect(Math.abs(parseFloat(await dia.inputValue()) - parseFloat(od))).toBeLessThan(0.05);
+
+    // The whole point: it FLIES. A part that changed the dimensions but not the flight would be a
+    // catalogue bolted onto the side of the tool rather than wired into it.
+    await expect.poll(apogee, { timeout: 15_000 }).not.toBe(before);
+
+    // And there is a way back out — a state a flyer can enter with no way back is a named tell.
+    // Matched case-insensitively: this control's label gained a capital when it was converted onto
+    // the `Button` primitive, and a case-sensitive regex turned a pure refactor into a red suite —
+    // one that passed in isolation against the older build and only failed in the full run.
+    await page.getByRole("button", { name: /back to the design/i }).click();
+    await expect(page.getByText(/Flying .*BT-60/)).toHaveCount(0);
+    await expect.poll(apogee, { timeout: 15_000 }).toBe(before);
+  });
+});

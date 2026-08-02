@@ -1427,14 +1427,50 @@ source carrying licence/repo/commit, no shipped density outside its physical ban
 with unbuildable geometry, and a stated mass cross-checked against one computed from geometry and
 density.
 
-*Increment 3 — NEXT.* The picker in the builder, and the model wiring: choosing a part populates
-dimensions and material, and the flight moves. This is the whole remaining gap to the *done when*.
-Two things already known that it should absorb: `materialOf` returns `undefined` for the 18 parts
-whose density was refused, and the picker has to surface that rather than substitute a default; and
-a vendor-alias table is owed, because the catalogue carries sixteen manufacturer strings for
-fourteen companies ("Quest" and "Quest Aerospace", "MPC" and "MRC").
+*Increment 3 — SHIPPED. The picker exists, and a chosen tube flies.*
 
-**Size.** 3–5 increments.
+`components/PartPicker.tsx`: a flyer opens the Design workspace, searches 1,089 published body tubes
+by number or description, filters by vendor or to their own caliber, and picks one. The vendor's
+outer diameter and length land in `bodyDiameter` and `bodyLength` — the two fields that were already
+there — and the flight moves. Pinned by `e2e/smoke.spec.ts`'s *a real commercial tube can be chosen
+instead of measured, and it flies*, which drives the whole gesture in a browser: the lazy chunk
+resolves, a BT-60 is found, the caliber field reads the vendor's 41.6 mm, apogee changes, and the
+clear path puts the original flight back.
+
+**The catalogue is a SEPARATE CHUNK, and that had to be established rather than assumed.** It is
+85 KB gzipped against a 343 KB whole-app budget — a quarter more JS on every first load, carried for
+a table most sessions never open. `PartPicker` reaches it through the app's first dynamic `import()`,
+and the split was verified from the built export rather than from the bundler's intent: the chunk
+carrying `BT-60` is referenced by **no prerendered document**. The service worker precaches
+everything under `_next/static`, so offline is unaffected.
+
+**What it deliberately does NOT do, said on the surface rather than left to be inferred.** The pick
+sets the caliber and the length; the wall and the material stay the design's own, so the resulting
+MASS is Loft's scaled figure and not the vendor's published weight. The panel says exactly that,
+because the material column sits right beside it and a flyer could otherwise reasonably read the mass
+as published. Carrying the vendor's density is increment 4, and it needs a new edit field: measured
+this run, the catalogue's 39 material strings for body tubes have **zero** overlap with
+`AIRFRAME_MATERIALS`' seven keys, and `airframeMaterial` takes a key — so the published figure cannot
+travel through it without being snapped to a generic one, which is the substitution
+`lib/components/db.ts` explicitly refuses to make. Filed in `BACKLOG.md` with the measurement.
+
+Two things this increment did NOT need, and the reason is worth keeping: it drives the EXISTING
+`bodyDiameter`/`bodyLength` edits rather than building a new part, so it inherits the whole-airframe
+caliber scale and never creates the mould-line step `buildAdded` argues at length against — and it
+never hands a tube a material without a wall, which `lib/sim/mass.ts` would fly as a solid rod
+(measured previously at 2.13× the mass).
+
+*Increment 4 — NEXT.* The vendor's wall and material, which is the *done when*'s "and material"
+clause and the mass half of the outcome. Then the other kinds. Three things already known that it
+should absorb: `materialOf` returns `undefined` for the 18 parts whose density was refused, and the
+picker has to surface that rather than substitute a default; a vendor-alias table is owed, because
+the catalogue carries sixteen manufacturer strings for fourteen companies ("Quest" and "Quest
+Aerospace", "MPC" and "MRC"); and four of the five *done when* kinds (nose cone, coupler, centering
+ring, parachute) cannot be authored by `AddedPart` at all today, so "any of five kinds" is four new
+build paths rather than one. A parachute is the hardest: the model requires `cd`, the catalogue has
+no such field, and only 21 of 151 canopies state a mass.
+
+**Size.** 3–5 increments, and 4–6 now looks honest.
 
 **Notes.** `COMPETITION.md` rows 2 and 3. Keep the corpus honest: a catalogue part must produce the
 same internal Rocket model an imported one does, or the solver ends up with two shapes of truth.

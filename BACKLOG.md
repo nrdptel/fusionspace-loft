@@ -12,6 +12,91 @@ this file, and deliberately does **not** cap craft or product work, because that
 track in `ROADMAP.md` with its own *done when*. Rough edges, missing affordances, and findings too
 big for one pass. Newest first.
 
+- **A `<select>` with no `TOUCH_TARGET`, four of them, and two withheld values with no reason.**
+  Filed by the design-system audit, 2026-08-02, **UNREPRODUCED by me** — read from the code, not
+  driven. `components/ParameterSweep.tsx:363` and `:380` (`px-2.5 py-1.5`) and
+  `components/ResultsView.tsx:621` and `:681` (`px-2 py-1`) carry no `TOUCH_TARGET`, so they are
+  under the 44 px `DESIGN.md` §8 contract on a coarse pointer. Separately
+  `components/MotorSweep.tsx:390` (`optimumDelay`) and `:383` (`flutterMargin`) render a withheld
+  value as a bare em dash with no reason, no `aria-label` and no restoring action — §6 says "a
+  withheld value says why, and what would restore it. A blank cell is a bug." Both are P-track
+  craft work rather than defect-ledger clearing.
+
+- **Six primitives `DESIGN.md` §5 names as living in `components/ui.tsx` do not exist.**
+  `Panel`, `Readout`, `Figure`, `EmptyState`, `ErrorState`, `Extrapolated` — verified absent by
+  grep, 2026-08-02. §5's preamble says "a surface that needs one of these and hand-rolls it instead
+  is not done", and `Readout` in particular is hand-rolled at least five times with five different
+  geometries (`components/ResultsView.tsx:1490` and around). **The file and the code disagree, and
+  `MAINTAINING.md` says the repo wins** — so either the primitives get built or §5 gets corrected;
+  it should not be left as a standing contradiction in the binding document. Also filed: `Chip`
+  (`components/ui.tsx:308`) and `Section` (`:121`) have ZERO adopters, asserted at 0 in
+  `lib/design-system.test.ts`, while four hand-rolled chips and eight hand-rolled section headings
+  ship beside them.
+
+- **No text-input or select primitive exists at all**, so every search box and dropdown in the app
+  copies a class string by hand — `components/LoftApp.tsx:2639` is the canonical one and
+  `components/PartPicker.tsx` copied it again on 2026-08-02 because there was nothing to adopt.
+  Measured: `grep -rn 'role="dialog"\|<dialog\|combobox' components/` returns zero hits, and
+  `DESIGN.md` §2 names "dialogs" as a surface the token table covers. This is the missing half of
+  the §5 vocabulary and it is the reason the parts picker is a `Disclosure`-shaped panel rather
+  than a real combobox.
+
+- **The catalogue's material names have ZERO overlap with the model's seven airframe keys.**
+  Measured 2026-08-02: 1,089 catalogued body tubes carry 39 distinct material strings, all
+  descriptive (`"Paper, spiral kraft glassine, Estes avg, bulk"`), while `AIRFRAME_MATERIALS` keys
+  are `cardboard`/`kraft-phenolic`/`bluetube`/… . So a picked part's published DENSITY cannot be
+  carried into the model through `airframeMaterial`, which takes a key. R8 increment 4 needs an
+  edit field that carries an explicit `Material` (name + density + type) rather than a key, or the
+  vendor's own figure gets snapped to one of seven generic ones — which is the substitution
+  `lib/components/db.ts:133-141` explicitly refuses to make.
+
+- **`manufacturers()` returns 16 strings for 14 companies.** "Quest"/"Quest Aerospace" and
+  "MPC"/"MRC" are each one vendor twice, so the parts picker's vendor filter lists a company twice
+  with its parts split between the entries. Measured 2026-08-02 from `lib/components/db.ts:90`.
+  `ROADMAP.md` already names the alias table as owed by R8; this is the measurement that makes it
+  actionable.
+
+- **A three-stage stack that parts at ONE joint mis-attributes booster descent mass.**
+  Filed by the Sev-1 screen, 2026-08-02, **UNREPRODUCED by me.** `lib/sim/simulate.ts:962` reads
+  `phases[nStages - i]?.startTime`, assuming `phases[p].stageCount === nStages - p`; but
+  `lib/sim/setup.ts:217-229` skips stages already gone, so a 3-stage serial stack that separates
+  once yields `phases = [{0,3},{t,1}]`. One shed stage then resolves to `undefined` → mass 0 → its
+  `boosterDescent` is dropped silently; the other is charged the COMBINED mass of everything that
+  left. Latent: no corpus 3-stage design carries a chute on a lower stage (the filer checked all
+  four), so it needs an authored design to reach. Booster descent speed and landing energy are
+  range-safety numbers, so this is worth reproducing before it becomes reachable.
+
+- **`maxAcceleration` is a printed 0 g on any design whose recovery deploys at `launch`.**
+  Filed by the Sev-1 screen, 2026-08-02, **UNREPRODUCED by me.** `lib/sim/simulate.ts:782` updates
+  `maxA` only while `!anyDeployed(...)`, and a `launch` deploy event is true from the first
+  post-liftoff step, so the peak never leaves its initialisation zero and is rendered with no
+  caveat. No corpus file uses `launch`, so it is latent — but the model accepts it and the importer
+  maps it, so a real `.ork` can reach it.
+
+- **`Flight time` prints the 1,200 s solver cap as a fact when the flight never landed.**
+  Filed by the Sev-1 screen, 2026-08-02, **UNREPRODUCED by me.** `components/ResultsView.tsx:554`
+  renders `s.flightTime` unconditionally while `Ground-hit speed` and `Landing energy` in the same
+  grid are correctly gated on `s.landed`. Same class as the drift defect fixed this run, on the
+  same card — worth doing with whatever next touches that grid.
+
+- **The cross-check compares a 0 m/s sentinel against a real stored ground-hit velocity.**
+  Filed by the Sev-1 screen, 2026-08-02, **UNREPRODUCED by me.** `lib/validation/compare.ts:43`
+  compares `groundHitVelocity` whenever the file carries one, but the solver returns 0 when
+  `landed` is false, so a −100% row enters `mape` and is printed as Loft's answer. The accuracy
+  panel is the surface whose whole job is to say whether Loft can be trusted.
+
+- **Typing a main-deploy altitude alone does nothing, and says nothing.**
+  Filed by the Sev-1 screen, 2026-08-02, **UNREPRODUCED by me.** `applyDualDeploy` and
+  `hasGeometryEdits` both require `mainDeployAltitude` AND `drogueDiameter`, so a lone altitude
+  leaves the flight byte-identical with no notice, while the field's own placeholder reads
+  "apogee". The boattail pair at least hints at its partner in the placeholder.
+
+- **The flutter estimate's `sourced: false` flag reaches no screen.** `lib/sim/flutter.ts:240`
+  documents the field as existing "so a surface can mark the estimate as unsupported", and six of
+  fourteen rows are unsourced — but `FinFlutter` does not carry it and `grep -rn "sourced"
+  components/ app/` returns nothing. Flutter velocity goes as sqrt(G), so this is the most
+  leveraged input in the app's only safety estimate. Filed 2026-08-02.
+
 - ~~**A booster's fins are judged for flutter against the speed the SUSTAINER reached after they
   were gone.**~~ **REPRODUCED and FIXED 2026-08-02**, and every figure the filer gave reproduced
   exactly: `Three stage low power rocket.ork` 0.68 → 2.11, `Two stage high power rocket.ork`

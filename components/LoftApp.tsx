@@ -76,7 +76,9 @@ import {
   addedStageIds,
   type AddedStage,
   type MountAdd,
+  type PickedBodyTube,
 } from "@/lib/model/edit";
+import PartPicker from "./PartPicker";
 import {
   commit as commitHistory,
   undo as undoHistory,
@@ -204,6 +206,7 @@ interface Edits {
   noseShape?: NoseShape; // builder edit: nose-cone contour
   bodyLength?: number; // builder edit: the picked body tube's length (m)
   bodyDiameter?: number; // builder edit: the picked tube's outer diameter (m); scales the airframe to it
+  catalogBodyTube?: PickedBodyTube; // builder edit: which catalogued part the two above came from
   transitionLength?: number; // builder edit: the picked transition's length (m)
   transitionAftDiameter?: number; // builder edit: the picked transition's exit diameter (m)
   massObjectMass?: number; // builder edit: the picked mass object's weight (kg)
@@ -2037,7 +2040,10 @@ function DesignEditor({
 }: {
   units: UnitSystem;
   edits: Edits;
-  onEdit: (patch: Edits) => void;
+  /** `applyEdit` — the optional second argument names the gesture for the undo control. Without it
+   *  a multi-field patch falls back to "the design", which is right for a patch that has no single
+   *  name and wrong for one that does. */
+  onEdit: (patch: Edits, action?: { label?: string; key?: string } | null) => void;
   swap: SwapInfo | null;
   /** The tool whose stored comparison an edit hides — named by the importer, never assumed. */
   tool: string;
@@ -2489,6 +2495,53 @@ function DesignEditor({
                     />
                   )}
                 </div>
+                {/* R8: authoring by SELECTION rather than by measurement. It sits under the two fields
+                    it writes — a flyer who owns a BT-60 says so here instead of reading a caliber and
+                    a length off a rule, and the fields above then show the vendor's own figures, still
+                    editable. The catalogue is a separate chunk fetched on first open; see
+                    `PartPicker`. */}
+                {designDims.bodyDiameter !== undefined && (
+                  <PartPicker
+                    imperial={imperial}
+                    currentOuterDiameter={edits.bodyDiameter ?? designDims.bodyDiameter}
+                    picked={
+                      // Shown only while BOTH figures the pick wrote are still the ones being flown.
+                      // The bag is persisted and replayed, so a flyer can pick a tube, retype the
+                      // caliber, and reload; without this the caption would put a vendor's part
+                      // number on a number that vendor never published.
+                      edits.catalogBodyTube &&
+                      edits.bodyDiameter === edits.catalogBodyTube.outerDiameter &&
+                      edits.bodyLength === edits.catalogBodyTube.length
+                        ? edits.catalogBodyTube
+                        : undefined
+                    }
+                    // Both gestures NAME themselves. A three-key patch otherwise falls through
+                    // `describeEdit`'s multi-field arm to "the design", so the one action on this
+                    // panel with an obvious name was the one the undo button could not say — and
+                    // pick-then-unpick shared a derived key, so the pair merged into a single step
+                    // inside the coalescing window instead of being separately undoable.
+                    onPick={(p) =>
+                      onEdit(
+                        {
+                          bodyDiameter: p.outerDiameter,
+                          bodyLength: p.length,
+                          catalogBodyTube: p,
+                        },
+                        { label: `${p.manufacturer} ${p.partNumber}`, key: `catalog-pick-${p.partNumber}` },
+                      )
+                    }
+                    onClear={() =>
+                      onEdit(
+                        {
+                          bodyDiameter: undefined,
+                          bodyLength: undefined,
+                          catalogBodyTube: undefined,
+                        },
+                        { label: "the catalogue tube", key: "catalog-clear" },
+                      )
+                    }
+                  />
+                )}
               </fieldset>
             )}
 
