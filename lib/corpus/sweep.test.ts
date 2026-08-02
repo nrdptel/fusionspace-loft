@@ -29,6 +29,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { importDesign } from "../ork/import";
 import { runFromDocument, overridesFromStored } from "../sim/run";
+import { monteCarlo } from "../sim/montecarlo";
 import {
   flattenRocket,
   leadingFaceDiameter,
@@ -1347,4 +1348,62 @@ suite("real-design corpus", () => {
     expect(exercised, "no corpus design deployed before apogee, so this asserted nothing").toBeGreaterThan(0);
     expect(wrong, "the optimum delay describes a different vehicle than the flight beside it").toEqual([]);
   }, 300_000);
+  /** The waiver number a flyer actually acts on, over real designs.
+   *
+   *  "Chance over ceiling" is the most actionable figure in the app. Its inputs are dispersed
+   *  samples, and the sample filter used to ask only whether the apogee was FINITE — which a
+   *  diverged integration is. Measured before the fix, on `FullScaleModelTH.rkt` at the panel's own
+   *  default dispersions with a nominal recovery size of 4x: apogee p50 332 m but p95 4.881e18 m,
+   *  and exceedance against a 1,000 m ceiling read 17.5% where the truth is 0%.
+   *
+   *  Driven at a recovery scale in the region that used to diverge, because that is the input that
+   *  produced it — a Monte-Carlo at nominal settings would have passed throughout. */
+  it("gives a dispersion a flyer could act on, at a recovery size that used to diverge", async () => {
+    const bad: string[] = [];
+    let checked = 0;
+    for (const f of files.slice(0, 12)) {
+      let doc;
+      try {
+        doc = await importDesign(new Uint8Array(readFileSync(f.path)));
+      } catch {
+        continue;
+      }
+      let res;
+      try {
+        res = monteCarlo(doc.rocket, {
+          n: 40,
+          seed: 12345,
+          recoveryCdScale: 4,
+          dispersions: {
+            impulseFrac: 0.05,
+            massFrac: 0.03,
+            dragFrac: 0.1,
+            recoveryFrac: 0.15,
+            rodAngleDeg: 2,
+            windSpeedMps: 2,
+          },
+        });
+      } catch {
+        continue;
+      }
+      if (res.samples.length === 0) continue;
+      checked++;
+      // The band, not just the median: a single diverged sample moves p95 and leaves p50 alone,
+      // which is exactly how this hid.
+      for (const [name, stat] of [
+        ["apogee", res.apogee],
+        ["landing speed", res.landingSpeed],
+      ] as const) {
+        for (const [k, v] of Object.entries(stat)) {
+          if (typeof v !== "number") continue;
+          if (!Number.isFinite(v) || Math.abs(v) > 100_000) {
+            bad.push(`${shortName(f.name)} ${name}.${k} = ${v.toExponential(3)}`);
+          }
+        }
+      }
+    }
+    console.log(`dispersion bands checked on ${checked} designs at 4x recovery, 40 samples each`);
+    expect(checked, "no design produced a dispersion, so this asserted nothing").toBeGreaterThan(0);
+    expect(bad, "a dispersion band contains a figure physics cannot produce").toEqual([]);
+  }, 900_000);
 });
