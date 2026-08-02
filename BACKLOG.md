@@ -2534,3 +2534,25 @@ big for one pass. Newest first.
   Two candidate fixes, neither measured: widen the ignore to cover both orderings, or give probes a
   directory outside `lib/` that vitest does not scan. The second is better if an explicit
   `npx vitest run <path>` still works from there; check, because `include` filters explicit paths too.
+- **The nose picker's caliber filter matches nothing on a metric airframe, and that is the
+  catalogue rather than the filter.** Measured 2026-08-02 against `demo-single-deploy.ork` (38.0 mm):
+  **0 of 854** catalogued nose cones sit within the picker's own 0.5 mm tolerance — 0 at 1 mm, 18 at
+  2 mm, 231 at 5 mm. The cones are imperial stock (SEMROC 573, Estes 95, BalsaMachining 76) across
+  103 distinct base diameters from 7.14 mm to 296.16 mm. The filter is off by default and the empty
+  state says how to clear it, so nothing is broken — a flyer sees every cone and picks one. What is
+  missing is that the tool does not SAY why the fitted list is empty, which reads as a bug in the
+  filter rather than as a fact about what SEMROC sells. **Do not widen the tolerance to hide it**: a
+  2 mm mismatch is a real mould-line step and the flight already names it, so a looser fit would be
+  inventing agreement the vendor does not publish. The honest fix is an empty state that names the
+  nearest stock sizes. Note the 0.5 mm is shared with `searchParts`' own fit clauses, so it cannot be
+  changed for one surface alone.
+- **There is still no nose-cone aim slot, and it is a latch rather than a wrong number.**
+  `AIM_SLOTS` has no nose entry, so `withoutRemovedAims` can never clear `catalogNoseCone`,
+  `noseLength` or `noseShape`. Checked before filing: the migration this causes for body tubes is NOT
+  reachable for cones today — all 41 corpus and fixture designs import with exactly one nose cone
+  (the two `.ork` files carrying 2 and 3 `<nosecone>` elements lose their pod cones on import),
+  `AddedPart` cannot author a nose, and an added stage does not mint one. What IS reachable: remove
+  the only nose while a pick is live and the three fields stay in the bag with no way to clear them,
+  because the picker unmounts — so undoing the removal silently re-applies the pick. Add the slot
+  before the third kind lands; it is the cheap prophylactic, and the body-tube version of this was a
+  shipped defect.

@@ -32,7 +32,19 @@ RENDERED text, then fix it with an explicit `{" "}`.
 
 **The pre-push agent review found ELEVEN defects in code that had already passed the whole gate**,
 including a one-way door. It is not optional and it is the highest-yield fifteen minutes in the loop.
-Details below.
+Details below. **It then did it again on the last increment of the run** — a Sev-1 the whole gate was
+green over: a catalogue nose pick kept the replaced cone's `overrideMass`, so on 10 of 41 real
+designs the dry mass did not move by a single digit while the caption read "Flying SEMROC BNC-70HAC".
+Two runs, two Sev-1s found only here. Budget for it.
+
+**`EMFILE: too many open files` is what a broken e2e run looks like here, and it is not the
+product.** `ulimit -n` is 4096 and `npx playwright test` with default workers exhausts it — worse if
+anything else heavy is running. It kills the static server, so the report is dozens of
+`page.goto: net::ERR_CONNECTION_REFUSED` and one buried `EMFILE`. Twice this run: 150/60 once and
+91/120 once, both with an untouched product. **Run the two shards sequentially** (the recipe that
+gives 105 + 105) and run NOTHING else while they go — in particular not `npx vitest run lib/corpus/`,
+which is four and a half minutes of its own file handles. Grep the log for `EMFILE` before believing
+any mass failure.
 
 ## The arc so far
 
@@ -48,8 +60,8 @@ Details below.
 | P1 — one design system, adopted | SHIPPED 2026-08-02 |
 | P2 — workspaces as routes | SHIPPED 2026-08-02 |
 | P3 — a stranger's first five minutes | SHIPPED 2026-08-02 |
-| **R8 — component and material catalogues** | **IN PROGRESS** — increments 1–3 of 4–6. The picker ships this run and the catalogue is finally reachable from the app; the wall and the material are increment 4 |
-| **P4 — a touch-native builder** | **IN PROGRESS** — increment 1 of 4–6 |
+| **R8 — component and material catalogues** | **IN PROGRESS** — increments 1–5 of 4–6. Two of the five *done when* kinds are pickable (body tube, nose cone); coupler, centring ring and parachute remain, and each is a new build path |
+| **P4 — a touch-native builder** | **IN PROGRESS** — increments 1–3 of 4–6. Both of `DESIGN.md` §8's counts are 0; increment 4 is reaching the selection-gated surface and the three pad journeys |
 | P5 | NOT STARTED |
 
 ## This session — fourth run (2026-08-02)
@@ -195,15 +207,42 @@ copy. Both now carry that sentence.
 
 ### Where the work is, and what to pick up first
 
-**Six increments, all MERGED and LIVE.** Three pull requests, each green on both CI jobs before
-merging, each deploy verified against production rather than assumed — the docs probes returned 0
-before a merge and 1 after, and all ten routes answer 200.
+**Eight increments, all MERGED and LIVE.** Each shipped through a pull request green on both CI jobs
+before merging, each deploy verified against production rather than assumed — the docs probes
+returned 0 before a merge and 1 after, and all ten routes answer 200.
 
 | merge | what |
 |---|---|
 | `dd92ae0` (#113) | R8-3 the parts picker · the Sev-1 · P4-2 the phone chrome · R8-4 the vendor's wall, stock and weight |
 | `529e84d` (#114) | P4-3 the app chrome's tooltips, 25 → 1 |
 | `bc5b183` (#115) | the two `DESIGN.md` copies converged, and the drift the weaker greps hid |
+| `8c33186` (#117) | P4-4 the builder's eleven gesture controls, 1 → 0 |
+| `#118` | R8-5 the second kind — 854 nose cones, and the step a mismatched base leaves |
+
+A pull request that carries only THIS file is a correction to the record, not an increment, so it is
+counted in neither the total above nor the table (#116 was the first of them). **Write the count that
+will be true once the correction lands** — the entry this replaces claimed six and three because it
+was written to describe the moment before its own merge, and it went stale on the way in.
+
+**Production was driven, not just polled.** The sandbox's Chromium cannot reach the public internet
+(`net::ERR_CONNECTION_RESET`; `curl` goes through the agent proxy and Playwright does not), so the
+live check is `curl` against `/sw.js`'s own precache manifest and then each chunk it lists. That
+found the picker's control string, the 3,445-part catalogue chunk (1,083,579 bytes, precached so it
+is there offline), and the label-first `aria-label`s. **Do not try to point Playwright at the live
+site from here** — it fails on the network, not on the product.
+
+**R8-5, the last increment of the run, in one paragraph.** A nose cone is now pickable, and the
+catalogue describes one far better than it describes a tube — 854 of 854 cones state a contour, a
+base, a length, a shoulder and a usable density, against 0 of 1,089 tubes stating a wall. So the pick
+takes the whole published part. `PartPicker` grew a `kind` and a per-kind table of copy and columns
+rather than being copied; both walks are green. **The decision worth carrying forward is the one that
+looks like a gap and is not:** a cone pick deliberately does NOT rescale the airframe the way a tube
+pick does, so a 39.95 mm cone on a 38.0 mm tube leaves a real 2 mm step — and the mould-line check
+Loft already had says so on the flight, in words. That was reproduced BEFORE the UI copy claiming it
+was written, and it is pinned in both the unit test and the e2e. OpenRocket solves the same problem by
+filtering its presets to what fits; the measurement that says Loft's answer is a real trade rather
+than a rationalisation is that **0 of 854 cones** sit within 0.5 mm of a 38.0 mm airframe, so that
+filter would show a metric builder an empty list too.
 
 **The sibling repo has one commit waiting**: `nrdptel/fusionspace-debrief`, branch
 `claude/ultracode-maintenance-1wbrx5`, the companion `DESIGN.md` note. It is pushed and needs a pull

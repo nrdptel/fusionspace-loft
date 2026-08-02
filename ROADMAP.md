@@ -1270,11 +1270,11 @@ instead of an inferred edge class.
 
 ## R8 — Component and material catalogues
 
-**Status: IN PROGRESS** — increments 1 and 2 of 3–5 shipped 2026-08-02, along with the
-decomposition. The licence question the after-list named as possibly the whole first increment is
-**answered up front** so it is not re-litigated. **What remains is increment 3, the picker**, and it
-is the only thing between this milestone and its *done when*: the data, its provenance and its query
-API all exist and are pinned; nothing in the app imports them yet.
+**Status: IN PROGRESS** — increments 1–5 of 4–6 shipped 2026-08-02, along with the decomposition.
+The licence question the after-list named as possibly the whole first increment is **answered up
+front** so it is not re-litigated. **Two of the five kinds the *done when* names are pickable** —
+body tube and nose cone — and what remains is the other three: coupler, centring ring and parachute.
+Unlike the first two, none of them exists on a design to be edited, so each is a new build path.
 
 **Outcome.** Authoring becomes SELECTION rather than measurement: a flyer picks a real body tube by
 vendor and part number and gets its dimensions and mass, instead of typing eight numbers off a ruler.
@@ -1520,14 +1520,92 @@ Pinned by four cases in `lib/model/edit.test.ts` and by the e2e, which now drive
 pick, read the vendor's caliber back, edit it, watch the claim narrow without the way out
 disappearing, then clear and land back on the design's own flight.
 
-*Increment 5 — NEXT.* The other kinds. Three things already known that it
-should absorb: `materialOf` returns `undefined` for the 18 parts whose density was refused, and the
-picker has to surface that rather than substitute a default; a vendor-alias table is owed, because
-the catalogue carries sixteen manufacturer strings for fourteen companies ("Quest" and "Quest
-Aerospace", "MPC" and "MRC"); and four of the five *done when* kinds (nose cone, coupler, centering
-ring, parachute) cannot be authored by `AddedPart` at all today, so "any of five kinds" is four new
-build paths rather than one. A parachute is the hardest: the model requires `cd`, the catalogue has
-no such field, and only 21 of 151 canopies state a mass.
+*Increment 5 — SHIPPED. The second kind, and the catalogue turns out to describe it far better.*
+
+The *done when* names five kinds. Nose cones are the second, and picking one takes the WHOLE
+published part rather than two figures out of it — because the data supports that and for a tube it
+does not. Measured over all 854 catalogued cones: every one states a contour, a base diameter, a
+length, a shoulder diameter, a shoulder length and a density that survived the refusal pass. 854 of
+854 on each, against 0 of 1,089 tubes stating a wall at all. Contours: 464 ogive, 233 ellipsoid, 135
+conical, 12 parabolic, 10 Haack, 0 power.
+
+**Measured on `demo-single-deploy.ork`** — a 250 mm fibreglass ogive (1850 kg/m³, 3 mm wall) on a
+38.0 mm airframe. Picking SEMROC BNC-55D2, an ogive 39.95 mm at the base, 76.2 mm long, SOLID balsa
+at 112 kg/m³:
+
+| | before | after |
+|---|---|---|
+| dry mass | 600.2 g | 525.6 g |
+| CG | 572.5 mm | 456.9 mm |
+| static margin | 4.065 cal | 2.712 cal |
+| apogee | 992.79 m | 1043.84 m |
+| max velocity | 205.2 m/s | 225.1 m/s |
+
+**The design decision worth recording, because it is the opposite of the tube's.** A tube pick
+rescales the whole airframe to the caliber chosen — a body tube IS the caliber. A cone pick
+deliberately does NOT: resizing a whole rocket to fit a part costing a few pounds is the tail wagging
+the airframe. So the vendor's base lands on the nose and nothing else moves, which means a 39.95 mm
+cone on a 38.0 mm tube leaves a real 2 mm mould-line step — and Loft **already** walks the airframe
+for those. The flight says, in the words it already had: *"This airframe changes diameter at a joint
+with no transition to take the change over… the drag is under-counted and the apogee and speeds above
+read optimistically."* Reproduced before the copy claiming it was written, and pinned by both the unit
+test and the e2e. That is the honest answer to what OpenRocket solves by filtering its presets to
+what fits the parent: offer the part, take it faithfully, and let the check that already exists name
+the consequence.
+
+**Solid is the majority case, and it inverts a trap.** 728 of the 854 state `filled`, the other 126
+state a thickness; none states both and none states neither, which is why `PickedNoseCone.thickness`
+is one optional field rather than a wall plus a flag. `lib/sim/mass.ts` flies a shell with a material
+and no wall as a solid rod — the DEFECT that `usableCatalogTube` exists to refuse, and the CORRECT
+answer for a turned balsa cone. The same absence has to mean opposite things for the two kinds, and
+a test asserts the cone side is deliberate. 50 cones publish a shoulder length of 0 — they butt
+rather than plug — and that is written through as no shoulder rather than as a missing field, because
+a ring of mass at the very front is where a gram moves the CG most.
+
+**The pre-push review found a Sev-1 in this increment, and it is the one worth reading.** A pick
+never cleared the replaced cone's own `overrideMass` / `overrideCGx`. `overrideMass` wins outright in
+`lib/sim/mass.ts` and additionally suppresses the shoulder, so a design whose nose carried one took
+the vendor's whole geometry and went on flying the OLD mass — measured on `rocksimTestRocket1.rkt`
+(nose overridden to 126.438 g): **dry mass 387.736 g before the pick and 387.736 g after, identical
+to the digit**, under a caption reading "Flying SEMROC BNC-70HAC" and a panel claiming "the whole
+part as the vendor publishes it". `overrideCGx` was worse than stale — 65.4 mm, measured on a
+396.9 mm cone, about to be pinned onto the 233.7 mm one replacing it. **10 of the 41 corpus designs
+with a nose carry the mass override and 5 carry the CG one**, so it is the common case: an
+`<overridemass>` on a nose is how a real file records a cone somebody put on a scale. Both are now
+cleared, with the vendor's published weight still winning where they publish one — and
+`withCatalogTube` had the identical hole, which SHIPPED, so it was fixed in the same change.
+
+Three more from the same review, each a real defect and none of them a wrong number today: the
+predicate did not validate `shoulderLength` although the applier reads it as both gate and value (a
+replayed 1.5 m installed a collar longer than the rocket, 600.2 g → 670.8 g); the wall was written
+outside the material guard, so a materialless record would turn a 3 mm-walled fibreglass cone solid
+(600.2 g → 826.7 g, +37.7%) — the mirror of the rule the tube applier already enforced; and the
+narrowed caption used the tube's wording, which is false for a cone because the base and shoulder
+have no fields to retype. **The agreement between the picker's `buildable()` and the model's two
+predicates is now pinned** by a walk of all 3,445 catalogue rows: 0 disagreements.
+
+**One picker, not two.** `PartPicker` took a `kind` and a per-kind table of copy and columns rather
+than being copied; the fetch, the failed-fetch state, the search, the vendor and caliber filters, the
+provenance line and the table are shared. A cone's row states its contour, its shoulder (diameter ×
+length, or "no shoulder") and its wall ("solid" or a thickness) where a tube's states a bore — the
+bore column would have been a dash on 96% of cone rows. Both walks are green, so the refactor did not
+disturb the tube path.
+
+**What this did NOT fix, measured rather than assumed:** the caliber filter finds **0 of 854** cones
+within the picker's own 0.5 mm of this design's 38.0 mm — 0 at 1 mm, 18 at 2 mm, 231 at 5 mm. The
+catalogue's cones are imperial stock (SEMROC 573, Estes 95, BalsaMachining 76) across 103 distinct
+base diameters from 7.14 mm to 296.16 mm, so a metric HPR airframe matches nothing. The filter is
+off by default and the empty state says how to clear it, which is correct behaviour on a real gap —
+but it is a gap, and widening the tolerance to hide it would be inventing a fit the vendor does not
+publish. Filed in `BACKLOG.md`.
+
+*Increment 6 — NEXT.* Coupler, centring ring, parachute. Still true from before: a vendor-alias table
+is owed (sixteen manufacturer strings for fourteen companies — "Quest" and "Quest Aerospace", "MPC"
+and "MRC"), and those three kinds cannot be authored by `AddedPart` at all, so they are three new
+build paths rather than three more entries in `KIND`. A parachute is the hardest: the model requires
+`cd`, the catalogue has no such field, and only 21 of 151 canopies state a mass. The nose needed none
+of that because a design already HAS a nose — the pick edits the part that is there, which is why it
+was the right second kind and why the remaining three are a bigger step than this one was.
 
 **Size.** 3–5 increments, and 4–6 now looks honest.
 
@@ -2167,8 +2245,10 @@ sibling app's 27 KB — the front door is thin in both senses.
 
 ## P4 — A touch-native builder
 
-**Status: IN PROGRESS** — increments 1 and 2 of 4–6 shipped 2026-08-02, along with the
-decomposition. The hover-only count is **25**, down from 96 when it was first taken.
+**Status: IN PROGRESS** — increments 1–3 of 4–6 shipped 2026-08-02, along with the decomposition.
+The hover-only count is **0**, down from 96 when it was first taken — and `DESIGN.md` §8's other
+count, controls under 44 px, is 0 too. What increment 3 records about the narrowness of that zero
+still stands and is the whole of increment 4.
 
 *Increment 1 — SHIPPED. The other half of §8's contract, which nothing had ever measured.*
 

@@ -351,6 +351,64 @@ export interface PickedBodyTube {
   material?: { name: string; density: number };
 }
 
+/** A real commercial nose cone a flyer selected from the bundled catalogue.
+ *
+ *  Same rule as `PickedBodyTube` — the record carries the VALUES it wrote, never a pointer into a
+ *  catalogue that is re-cut against newer upstream commits — and the same `manufacturer` AND
+ *  `partNumber` pairing, for the same collision reason.
+ *
+ *  **The catalogue describes a nose cone far better than it describes a tube**, and that changes what
+ *  a pick can honestly claim. Measured over the 854 catalogued cones: every one states a contour, a
+ *  base diameter, a length, a shoulder diameter, a shoulder length and a material whose density
+ *  survived the refusal pass — 854 of 854 on each, where 0 of 1,089 body tubes state a wall at all.
+ *  So where a tube pick has to derive its wall and leave the shape alone, a nose pick can take the
+ *  vendor's actual geometry. */
+export interface PickedNoseCone {
+  manufacturer: string;
+  partNumber: string;
+  /** Metres — the BASE (aft) outer diameter, written to the nose's `aftRadius` as half of it.
+   *
+   *  **Deliberately not scaled onto the airframe.** `bodyDiameter` scales every outer radius so the
+   *  mould line stays faired, and doing the same from the nose would resize the whole rocket to fit
+   *  a part costing a few pounds — the tail wagging the airframe. A cone whose base disagrees with
+   *  the tube behind it produces a real mould-line step, and Loft already walks the airframe for
+   *  those and cautions on the flight (`mouldLineSteps`), naming the step and saying the drag reads
+   *  optimistically. Letting the existing check speak is better than either silently resizing the
+   *  design or refusing the pick. */
+  outerDiameter: number;
+  /** Metres — what the pick wrote to `noseLength`. */
+  length: number;
+  /** The vendor's contour, written to `noseShape`. The catalogue's own `shape` values are already
+   *  exactly this union — `.orc` records the same five contours upper-cased — so nothing is mapped
+   *  or guessed. Of the 854, 464 are ogive, 233 ellipsoid, 135 conical, 12 parabolic and 10 Haack;
+   *  none is `power`. */
+  shape: NoseShape;
+  /** Metres. The shoulder that plugs into the tube — its diameter and its length.
+   *
+   *  Carried because a shoulder is real mass sitting at the very front of the rocket, where it moves
+   *  the CG most per gram. 50 of the 854 publish a shoulder length of 0, which is a cone that butts
+   *  rather than plugs, and that is written through as no shoulder rather than treated as missing. */
+  shoulderDiameter: number;
+  shoulderLength: number;
+  /** Metres, or absent for a cone the vendor states is SOLID.
+   *
+   *  The two are exhaustive and disjoint over the catalogue, which is why this is one optional field
+   *  rather than a wall plus a flag: 728 of 854 state `filled`, the other 126 state a thickness, none
+   *  states both and none states neither. A solid cone is `NoseCone.thickness` undefined, which the
+   *  mass model already reads as solid — the same behaviour that is a DEFECT for a tube (a shell with
+   *  a material and no wall becomes a rod) is the correct answer for a turned balsa cone. */
+  thickness?: number;
+  /** Kilograms — the vendor's own published weight, where they publish one. 137 of the 854 do.
+   *
+   *  Applied as `overrideMass`, on the component only and not its subtree, for the reason
+   *  `PickedBodyTube.mass` sets out at length. */
+  mass?: number;
+  /** The vendor's published stock, by value with its density. Never an `AIRFRAME_MATERIALS` key —
+   *  see `PickedBodyTube.material`. Optional for the same reason it is there, though as of this
+   *  catalogue no nose cone's density was refused, so it is present on all 854. */
+  material?: { name: string; density: number };
+}
+
 export interface GeometryEdits {
   /** Which fin set the fin fields describe and edit. Undefined means the frontmost one, which is
    *  what the panel has always used and what every readback below still falls back to. This is a
@@ -525,6 +583,14 @@ export interface GeometryEdits {
    *  rather than a reference to one: `lib/components/catalog.ts` is re-cut against newer upstream
    *  commits, and a stored pointer would silently redimension a saved design the day it moved. */
   catalogBodyTube?: PickedBodyTube;
+  /** The real commercial NOSE CONE the flyer chose, when they chose one instead of measuring.
+   *
+   *  The nose's own geometry is already partly expressed by `noseLength` and `noseShape`, which the
+   *  pick sets alongside this — but unlike the tube case, those two do not express the whole part.
+   *  A cone's base diameter, its shoulder, its wall and its stock have no scalar edit fields at all,
+   *  so this record is where they live, and it is a real edit rather than pure provenance from the
+   *  first version. `usableCatalogNose` is the one test of whether it can be applied. */
+  catalogNoseCone?: PickedNoseCone;
   /** Absolute length (m) for the transition `transitionId` names — the frontmost when nothing is
    *  picked. Only that one transition resizes; everything aft of it restacks, exactly as a body
    *  tube's length does. This is the fairing-angle lever: a boattail's own pressure drag fades to
@@ -612,6 +678,42 @@ export function usableCatalogTube(p: PickedBodyTube | undefined): boolean {
   );
 }
 
+/** The same ONE test for a nose pick, and it asks a different question because the catalogue answers
+ *  a different one. A tube pick is refused without a bore; a cone has no bore to state — 728 of the
+ *  854 are solid and say so — so what has to be present is the geometry the cone IS: a base, a
+ *  length, a contour, and a shoulder that fits inside the base.
+ *
+ *  A stated wall must leave a bore, exactly as the tube test requires: a thickness at or past the
+ *  base radius is a cone with no cavity, which `lib/sim/mass.ts` would clamp to a solid anyway, so
+ *  taking it would fly a mass the vendor never published under their name. A cone with NO thickness
+ *  is not refused — that is the solid case, and it is the majority. */
+export function usableCatalogNose(p: PickedNoseCone | undefined): boolean {
+  return (
+    p !== undefined &&
+    typeof p.outerDiameter === "number" &&
+    p.outerDiameter > 0 &&
+    typeof p.length === "number" &&
+    p.length > 0 &&
+    NOSE_SHAPES.includes(p.shape) &&
+    typeof p.shoulderDiameter === "number" &&
+    p.shoulderDiameter > 0 &&
+    p.shoulderDiameter <= p.outerDiameter &&
+    // The applier reads `shoulderLength` as both the gate and the value, so leaving it unchecked
+    // let a replayed record install a collar as long as the rocket — a stored 1.5 m took the demo
+    // design 600.2 g to 670.8 g — or drop the shoulder silently on a NaN while still counting as an
+    // edit. Bounded by the cone's own length: a shoulder longer than the part it hangs off is not a
+    // shoulder. Zero is legal and means the cone butts rather than plugs.
+    typeof p.shoulderLength === "number" &&
+    Number.isFinite(p.shoulderLength) &&
+    p.shoulderLength >= 0 &&
+    p.shoulderLength <= p.length &&
+    // A stated wall must leave a bore, exactly as the tube test requires: a thickness at or past the
+    // base radius is a cone with no cavity, which `lib/sim/mass.ts` would clamp to a solid anyway,
+    // so taking it would fly a mass the vendor never published under their name.
+    (p.thickness === undefined || (p.thickness > 0 && p.thickness < p.outerDiameter / 2))
+  );
+}
+
 export function hasGeometryEdits(e: GeometryEdits): boolean {
   return (
     (e.removedIds !== undefined && e.removedIds.length > 0) ||
@@ -639,6 +741,11 @@ export function hasGeometryEdits(e: GeometryEdits): boolean {
     // both dimension fields blank — it stopped being the pure provenance record it was when it
     // shipped, and it came out of `INERT_EDIT_FIELDS` in the same change.
     usableCatalogTube(e.catalogBodyTube) ||
+    // A nose pick is a real edit from the outset, not provenance: `noseLength` and `noseShape` carry
+    // two of its six figures, and the base diameter, the shoulder, the wall and the stock are
+    // expressed nowhere else. Omitting this disjunct makes `applyDimensionEdits` early-return and a
+    // design whose only edit is a chosen cone flies pristine.
+    usableCatalogNose(e.catalogNoseCone) ||
     (e.transitionLength !== undefined && e.transitionLength > 0) ||
     (e.transitionAftDiameter !== undefined && e.transitionAftDiameter > 0) ||
     (e.massObjectMass !== undefined && e.massObjectMass >= 0) ||
@@ -894,6 +1001,11 @@ export function isEditedValue(key: string, value: unknown): boolean {
   // build that shipped the picker's first increment reaches this code on the next visit. That exact
   // regression has been fixed here once before, from a different direction.
   if (key === "catalogBodyTube") return usableCatalogTube(value as PickedBodyTube | undefined);
+  // Same reasoning, and it is not optional for a new field either: without this branch the generic
+  // `value !== undefined` below passes ANY object, so a half-written record — or one persisted by a
+  // build whose `PickedNoseCone` carried fewer fields — reads as an edit while the applier refuses
+  // it, which withholds the imported file's stored-simulation comparison on an unchanged design.
+  if (key === "catalogNoseCone") return usableCatalogNose(value as PickedNoseCone | undefined);
   if (value === undefined || value === "") return false;
   if (Array.isArray(value) && value.length === 0) return false;
   return true;
@@ -1351,7 +1463,90 @@ function withCatalogTube(
       // The vendor's own weight where they publish one — see `PickedBodyTube.mass`. Set alongside
       // the geometry rather than instead of it, so the diagram and the drag still use the real
       // dimensions and only the MASS comes from the published figure.
-      ...(publishedMass !== undefined && publishedMass > 0 ? { overrideMass: publishedMass } : {}),
+      //
+      // **And the replaced tube's own weighed figures are cleared where they do not.** This shipped
+      // with the hole and the nose applier inherited it: `overrideMass` wins outright in
+      // `lib/sim/mass.ts`, so a tube carrying one took the vendor's wall and stock and went on
+      // flying the mass of the part it replaced. Less reachable than on the nose — 2 of 27 corpus
+      // designs carry one on the primary tube against 10 of 41 on the cone — but wrong in exactly
+      // the same way, and a mass override is how a real file records a part somebody weighed.
+      overrideMass: publishedMass !== undefined && publishedMass > 0 ? publishedMass : undefined,
+      overrideCGx: undefined,
+      children,
+    };
+  }
+  return children === c.children ? c : { ...c, children };
+}
+
+/** Put a catalogued nose cone's published geometry and stock on the design's nose.
+ *
+ *  Broader than `withCatalogTube` because the catalogue says more about a cone than it does about a
+ *  tube: the base, the shoulder, the wall and the stock all come from the vendor. `length` and
+ *  `shape` are NOT set here — they are already carried by `noseLength` and `noseShape`, which the
+ *  pick writes alongside this record and `editComponent` applies in its own branch. Setting them
+ *  twice would put the same figure in two places and let them disagree after a later edit to either.
+ *
+ *  Runs at the same point in `editOne` as the tube applier and for the same reasons: after the
+ *  whole-airframe material what-if, so an explicit pick beats a generic one; and after
+ *  `scaleAirframeRadii`, which is what makes the base diameter here a deliberate override of the
+ *  caliber scaling rather than a race with it. That ordering has a consequence worth stating: a
+ *  flyer who picks a cone and THEN runs the caliber what-if gets a rocket whose airframe scaled and
+ *  whose nose base did not, so the mould line steps — which `mouldLineSteps` sees and the flight
+ *  cautions about, in words, on the surface. That is the honest outcome; silently rescaling the
+ *  vendor's part to fit would be a number nobody published. */
+function withCatalogNose(
+  c: RocketComponent,
+  id: string,
+  p: PickedNoseCone,
+  material: Material | undefined,
+): RocketComponent {
+  const children = c.children.length
+    ? c.children.map((ch) => withCatalogNose(ch, id, p, material))
+    : c.children;
+  if (c.kind === "nosecone" && c.id === id) {
+    return {
+      ...c,
+      aftRadius: p.outerDiameter / 2,
+      // A stated thickness, or SOLID — but only alongside the vendor's stock, which is the rule the
+      // tube applier already enforces by refusing both without a material. Writing the wall outside
+      // that guard was the same defect from the other side: a SOLID cone's absent thickness landing
+      // on the design's OWN density turns a 3 mm-walled fibreglass cone into a solid one, measured
+      // at 600.2 g -> 826.7 g (+37.7%) on the demo design. No catalogued cone reaches it today
+      // (0 of 854 had its density refused), but the catalogue is re-cut against newer upstream
+      // commits and `db.ts` refuses densities at generate time, so it is one regeneration away.
+      //
+      // `thickness: undefined` is how the model spells solid, and 728 of the 854 are exactly that —
+      // a turned balsa or plastic cone with no cavity, which is most small-field hardware.
+      ...(material ? { thickness: p.thickness } : {}),
+      // A shoulder of zero length is a cone that BUTTS rather than plugs, and 50 of the 854 publish
+      // one. Written through as such rather than treated as an absent field, so the mass model adds
+      // no shoulder that the vendor does not sell.
+      aftShoulderRadius: p.shoulderLength > 0 ? p.shoulderDiameter / 2 : undefined,
+      aftShoulderLength: p.shoulderLength > 0 ? p.shoulderLength : undefined,
+      // The shoulder's OWN wall and end cap are cleared, not inherited, and this is a real defect
+      // rather than tidiness. `shoulderContribs` in `lib/sim/mass.ts` reads both: a stale
+      // `aftShoulderThickness` walls the vendor's shoulder to the dimensions of the cone the flyer
+      // replaced, and a stale `aftShoulderCapped` adds a bulkhead disc the catalogue never states —
+      // both at the very front of the rocket, where a gram moves the CG furthest. The catalogue
+      // states neither for any of the 854, so the honest value is absent: undefined thickness makes
+      // the shoulder follow the nose's own wall, which is what a real moulded cone does.
+      aftShoulderThickness: undefined,
+      aftShoulderCapped: undefined,
+      // The stock travels only when the catalogue has a usable density, exactly as it does for a
+      // tube: a real wall under an invented density is a wrong mass from the other direction.
+      ...(material ? { material } : {}),
+      // **The replaced cone's own weighed figures are CLEARED, not kept**, and this was a defect
+      // found by the pre-push review rather than by any test. `overrideMass` wins outright in
+      // `lib/sim/mass.ts` and additionally suppresses the shoulder, so a design whose nose carried
+      // one took the vendor's whole geometry and flew the OLD mass — measured on
+      // `rocksimTestRocket1.rkt` (nose override 126.4 g): dry mass 387.736 g before the pick and
+      // 387.736 g after, byte for byte, under a caption reading "Flying SEMROC BNC-70HAC".
+      // `overrideCGx` is worse than merely stale: 65.4 mm was measured on a 396.9 mm cone and would
+      // have been pinned onto the 233.7 mm one that replaced it. 10 of the 41 corpus designs with a
+      // nose carry the mass override and 5 carry the CG one, so this is the common case rather than
+      // an edge. The vendor's own published weight still wins where they publish one.
+      overrideMass: p.mass !== undefined && p.mass > 0 ? p.mass : undefined,
+      overrideCGx: undefined,
       children,
     };
   }
@@ -2722,6 +2917,15 @@ function applyDimensionEdits(rocket: Rocket, edits: GeometryEdits): Rocket {
   const pickedMaterial: Material | undefined = picked?.material
     ? { name: picked.material.name, density: picked.material.density, type: "bulk" }
     : undefined;
+  // The picked cone, resolved against the SAME nose `noseLength` and `noseShape` target — which is
+  // `primaryNose`, the frontmost cone, and it takes no selection because there is no nose aim slot.
+  // Resolving both through one function is what stops the record and the two scalars describing
+  // different parts on a design that carries more than one cone.
+  const nosePick = usableCatalogNose(edits.catalogNoseCone) ? edits.catalogNoseCone : undefined;
+  const nosePickId = nosePick ? primaryNose(rocket)?.id : undefined;
+  const nosePickMaterial: Material | undefined = nosePick?.material
+    ? { name: nosePick.material.name, density: nosePick.material.density, type: "bulk" }
+    : undefined;
   const matOpt = AIRFRAME_MATERIALS.find((m) => m.key === edits.airframeMaterial);
   const airframeMaterial: Material | undefined = matOpt
     ? { name: matOpt.name, density: matOpt.density, type: "bulk" }
@@ -2762,6 +2966,7 @@ function applyDimensionEdits(rocket: Rocket, edits: GeometryEdits): Rocket {
     if (radiusScale !== 1) geo = scaleAirframeRadii(geo, radiusScale);
     if (pickedTubeId && pickedWall > 0)
       geo = withCatalogTube(geo, pickedTubeId, pickedWall, pickedMaterial, picked?.mass);
+    if (nosePickId && nosePick) geo = withCatalogNose(geo, nosePickId, nosePick, nosePickMaterial);
     if (transExit) geo = withTransitionExit(geo, transExit.id, transExit.aftRadius);
     if (massTarget && edits.massObjectMass !== undefined && edits.massObjectMass >= 0) {
       geo = withMassObject(geo, massTarget.id, edits.massObjectMass, undefined);
