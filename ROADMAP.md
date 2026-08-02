@@ -1270,9 +1270,11 @@ instead of an inferred edge class.
 
 ## R8 — Component and material catalogues
 
-**Status: IN PROGRESS** — increment 1 of 3–5 shipped 2026-08-02, along with the decomposition. The
-licence question the after-list named as possibly the whole first increment is **answered up front**
-so it is not re-litigated.
+**Status: IN PROGRESS** — increments 1 and 2 of 3–5 shipped 2026-08-02, along with the
+decomposition. The licence question the after-list named as possibly the whole first increment is
+**answered up front** so it is not re-litigated. **What remains is increment 3, the picker**, and it
+is the only thing between this milestone and its *done when*: the data, its provenance and its query
+API all exist and are pinned; nothing in the app imports them yet.
 
 **Outcome.** Authoring becomes SELECTION rather than measurement: a flyer picks a real body tube by
 vendor and part number and gets its dimensions and mass, instead of typing eight numbers off a ruler.
@@ -1395,12 +1397,42 @@ sizes) and recorded as a derivation, not as a material property.
 Pinned by `lib/model/edit.test.ts`: every row has a non-empty source, an unsourced row must say so,
 and Blue Tube's name must not claim a composition.
 
-*Increment 2.* `scripts/gen-components.mjs` + `lib/components/catalog.ts` + `components/provenance.json`
-+ `THIRD-PARTY-NOTICES.md`, modelled on `gen-motors.mjs`. Parse the `.orc` XML at generate time,
-normalise to SI, record upstream commit SHA per file.
+*Increment 2 — SHIPPED. 3,445 real parts, and six entries refused for lying.*
+`scripts/gen-components.mjs` + `lib/components/catalog.ts` + `lib/components/orc/provenance.json` +
+`THIRD-PARTY-NOTICES.md`, modelled on `gen-motors.mjs`. The 16 `.orc` files are vendored verbatim
+under `lib/components/orc/` (2.2 MB) so the copyright headers Apache §4 requires travel with the
+data; the generator parses them with `lib/ork/xml.ts` — the same parser that reads a flyer's
+design — normalises to SI, and records the upstream commit per file. 82 KB gzipped, and nothing in
+the app imports it yet, so the bundle is unchanged until the picker lands.
 
-*Increment 3.* The picker in the builder, and the model wiring: choosing a part populates dimensions
-and material, and the flight moves.
+**The roadmap's own figure of "2,990 parts across 13 vendors" was low, and the reason is worth
+keeping: it came from a case-sensitive `*.orc` glob that missed `BMS.ORC` and `ROCKETARIUM.ORC`.**
+The real database is 16 files and 3,449 entries.
+
+Three properties of the source data turned out to be load-bearing, each measured: a material's unit
+comes from its `<Type>` and never from the `UnitsOfMeasure` attribute (six SURFACE rows declare
+`g/m2` while carrying kg/m², which would fly canopies a thousand times too light); six material
+names are defined more than once with different densities, so resolution is own-file first and then
+`generic_materials.orc` by name rather than by filename sort order; and 113 part numbers collide
+across manufacturers with 21 colliding inside one, so `findPart` returns nothing rather than a guess.
+
+Six entries are refused rather than shipped, each recorded in the bundle as `REFUSED_MATERIALS` /
+`REFUSED_PARTS`: `Paper, bulk` at 0.0011 kg/m³ in two files (lighter than air, referenced by 18 real
+parts), an elastic cord typed `BULK`, three parts stating a bore wider than their outside, and one
+Estes nose cone stating 4.250 in of wall on a 0.974 in body.
+
+Pinned by `lib/components/db.test.ts` — a part number resolving to its vendor's published
+dimensions, the BT-50/BT-60 industry standard reproduced from outside the vendored file, every
+source carrying licence/repo/commit, no shipped density outside its physical band, no shipped part
+with unbuildable geometry, and a stated mass cross-checked against one computed from geometry and
+density.
+
+*Increment 3 — NEXT.* The picker in the builder, and the model wiring: choosing a part populates
+dimensions and material, and the flight moves. This is the whole remaining gap to the *done when*.
+Two things already known that it should absorb: `materialOf` returns `undefined` for the 18 parts
+whose density was refused, and the picker has to surface that rather than substitute a default; and
+a vendor-alias table is owed, because the catalogue carries sixteen manufacturer strings for
+fourteen companies ("Quest" and "Quest Aerospace", "MPC" and "MRC").
 
 **Size.** 3–5 increments.
 

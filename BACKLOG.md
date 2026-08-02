@@ -12,6 +12,125 @@ this file, and deliberately does **not** cap craft or product work, because that
 track in `ROADMAP.md` with its own *done when*. Rough edges, missing affordances, and findings too
 big for one pass. Newest first.
 
+- **A booster's fins are judged for flutter against the speed the SUSTAINER reached after they were
+  gone.** Filed 2026-08-02 from the opening fan-out; **UNREPRODUCED by me — the numbers below are the
+  filer's** and are the first thing to check. `lib/sim/flutter.ts:385` `analyzeFlutter` walks the
+  whole ascent for every fin set and filters only `descent`/`landed` samples, never asking whether
+  that fin set's stage was still attached; `results.reduce` at `:418` then makes that the `worst` the
+  whole flutter surface reports. Claimed: on `three stage low power rocket.ork` the reported worst is
+  stage 3's fin — **shed at 0.86 s** — at margin **0.68** (red "Fins may flutter"), while truncating
+  the trajectory to `t ≤ 0.86` gives **2.11** and the sustainer's own fin is 1.50, i.e. no flag at
+  all. Also claimed: `Two stage high power rocket.ork` 0.52 vs 1.20, `02.Two-stage.ork` 0.21 vs 0.29,
+  `03.Three-stage.ork` 0.23 vs 0.72. This is the ONE safety estimate in the app, and it drives
+  `ResultsView.tsx:1208`, the `fin-flutter` warning, `FlutterFixHint`'s thicken-to thickness *and
+  which fin set it names*, and the sweep's Flutter column. **Sev-1 if it reproduces** — it is the
+  highest-damage item in this file.
+
+- **Monte-Carlo publishes as a distribution the two numbers the flight card explicitly withholds.**
+  Filed 2026-08-02 from the opening fan-out; **UNREPRODUCED by me.** `lib/sim/montecarlo.ts:271`
+  copies `landingSpeed`/`landingEnergy` off the summary with no `landed` check, and
+  `physicallyPossible` at `:183` bounds magnitude only — so a flight that hits the 1,200 s cap
+  contributes its `0` sentinels as measurements. Claimed: `Complex.Two-Stage.CDX1` at
+  `recoveryCdScale: 5` (inside the field's own advertised 0.1–10× range) gives **40/40 samples with
+  landingSpeed 0 and landingEnergy 0**, a "Landing speed" card reading 0.00 m/s median, and
+  `landingSpeedExceedance` returning 0.0%; at ×1 one sample in 40 is still a zero, poisoning
+  min/mean/p5. One tab away, `ResultsView` withholds those exact two figures with "no landing inside
+  the time cap". Two surfaces disagreeing about whether a number exists is worse than either alone.
+  **Sev-1 if it reproduces.**
+
+- **A Loft-exported `.ork` re-imports as a different flight.** Filed 2026-08-02 from the opening
+  fan-out; **UNREPRODUCED by me.** `lib/ork/export.ts:568` writes no `<simulation>` element, so a
+  re-imported export has `simulations: []` and `runFromDocument` falls back to a different motor
+  configuration and to default launch conditions. Claimed over the corpus: `A simple model
+  rocket.ork` apogee **52.9 → 317.1 m** and liftoff mass 0.0630 → 0.0698 kg (a different motor);
+  `Punisher Apprentice.ork` **89.7 → 1309.0 m**. Geometry itself is clean — dry mass, CP and dry
+  static margin identical across all 35 files — so this is purely the lost simulation and
+  configuration. "Download .ork" is the file a flyer re-opens, and `/docs/limitations` documents the
+  fin-outline fidelity of that round trip without mentioning that the flown configuration does not
+  survive it. Note this is adjacent to R6, which is marked SHIPPED, so it is worked forward as a gap
+  rather than by re-opening R6.
+
+- **"Pick it back up" replays the edit bag onto bytes that already contain it.** Filed 2026-08-02
+  from the opening fan-out; **UNREPRODUCED by me.** `components/LoftApp.tsx:1347` `reset()` calls
+  `syncShelfRow()`, which rewrites `designBytes.current` with the geometry edits baked in
+  (`:531-532`), stores the discarded session from those baked bytes at `:1351`, and still carries the
+  unbaked edit bag at `:1357`; `onRestoreDiscarded` (`:697`) then replays the bag on top. Claimed
+  repro in the shipped UI: new design → Parts → Body tube → "Add a tube behind this" → Flight
+  (848 m) → "Import another" → "Pick it back up" → **724 m, a 9th row, a second Body tube at
+  1,150 mm**: −15% apogee and +310 mm of length, unlabelled, produced by the button whose only job is
+  to undo the destructive act. Root cause is claimed to be `lib/model/edit.ts:2446` — `applyAdds` and
+  `applyAddedStages` insert unconditionally with no check that the id is already present, unlike
+  `applyMountAdds` which is explicitly idempotent — which also makes one authored UUID appear twice
+  in one tree, and `lib/model/id.ts:81` names that as exactly what `uniqueUuidFrom` exists to
+  prevent. **Sev-1 if it reproduces** (one-way door on an undo).
+
+- **A from-scratch build stops being tracked by its shelf row after any reload.** Filed 2026-08-02
+  from the opening fan-out; **UNREPRODUCED by me.** `components/LoftApp.tsx:515` `syncShelfRow` no-ops
+  unless `builtHere.current && shelfRowId.current`, and a resumed session restores neither
+  (`builtHere.current = true` only at `:800` in `onNew`; `shelfRowId` only at `:588` behind
+  `bytes && !resume`). Claimed: insert `await page.reload()` after the rename in the shipped
+  `e2e/smoke.spec.ts:532` and the build itself restores fine (930 m on screen) but "Import another"
+  shows no "My build" row at all — the shelf still holds "New design" with the untouched 994 m
+  starter. Same root cause is claimed to disable motor-swap baking in `downloadOrk` (`:850`), where
+  the code's own measurement at `:845` is that 7 of 15 offered swaps put the saved file >100% from
+  the screen, worst **+1369%**.
+
+- **With no liftoff, six summary figures are initialisation zeros printed as facts.** Filed
+  2026-08-02 from the opening fan-out; **UNREPRODUCED by me.** `lib/sim/simulate.ts:931` — with no
+  liftoff `apogeeTime` stays 0, so `optimumDelay = max(0, 0 − burnout) = 0`, and `railExitVelocity`,
+  `burnoutVelocity`, `descentRate`, `timeToApogee` and `maxAcceleration` are all still zero, while
+  `ResultsView` gates the whole card on `hasPropulsion` alone, which is true. Claimed: `A simple model
+  rocket.ork` with `ballastKg: 1` (the nose-ballast field is `min={0}` with no max at
+  `LoftApp.tsx:2252`) prints `optimumDelay 0.00, railExit 0.00, burnoutV 0.0, descentRate 0.00,
+  timeToApogee 0.00, maxAccel 0.0, T:W 0.92` — and `simulate.ts:1527` gates its low-rail-exit caution
+  on `railExitV > 0`, so a 0.00 m/s rail exit is displayed uncautioned. Same sentinel-as-fact shape as
+  the already-fixed no-motor entry below, in the no-liftoff branch instead.
+
+- **One shed stage is charged the mass of every stage that left with it, and the others vanish.**
+  Filed 2026-08-02 from the opening fan-out; **UNREPRODUCED by me, and its reach today is zero.**
+  `lib/sim/simulate.ts:961` `const sepT = phases[nStages - i]` assumes one phase per stage; when a
+  serial stack parts at ONE joint, `phases` is shorter. Claimed on `03.Three-stage.ork` with a
+  parachute injected into stages 1 and 2: a single entry, "Booster 2" at **1.8318 kg / 22.77 m/s /
+  475.1 J** raising a `booster-hard-landing` warning, against Booster 2's own dry mass of
+  **0.2154 kg** — terminal speed goes as √m so ~2.3× high and the energy ~5× high on a range-safety
+  readout — while Booster 1 appears in neither `boosterDescents` nor the `untracked-booster` warning.
+  Every three-stage corpus booster has cdA 0 today, so nothing bundled reaches it; it is one added
+  chute away.
+
+- **"Drift from pad" is rendered as a fact while its two neighbours are withheld.** Filed 2026-08-02
+  from the opening fan-out; **UNREPRODUCED by me.** `lib/sim/simulate.ts:894` computes
+  `driftDistance` as `hypot(x, y)` at whatever state the loop exited on, and
+  `components/ResultsView.tsx:525` renders it unconditionally while the two `Stat`s immediately
+  beside it are withheld on `!landed`. Claimed: `Complex.Two-Stage.CDX1` at `recoveryCdScale: 5`
+  shows "Drift from pad" **407 m** with the rocket still **525 m up**, under a `no-landing` caution
+  whose text names only ground-hit speed and landing energy. Drift is what a recovery area is sized
+  from, it is understated because the rocket keeps drifting, and its withheld neighbours make it read
+  as the one landing figure that survived.
+
+- **`lib/weather.test.ts:139` is a load-dependent red in the unit gate.** Measured 2026-08-02: a
+  brute-forced 360×360 bearing loop with no explicit timeout takes **5768 ms** against vitest's
+  5000 ms default, so `npx vitest run` goes `1 failed | 995 passed` when anything else is running on
+  the box, while the file alone passes 16/16 in 3.22 s. A gate that goes red for load rather than for
+  a defect is what teaches a session to re-run until green — the single most expensive habit this
+  repo could acquire. Give it an explicit timeout, or reduce the sweep to the resolution the
+  assertion actually needs.
+
+- **`ROCKETARIUM.ORC` states a paper density denser than copper.** Measured 2026-08-02 while building
+  R8 increment 2. `Paper, spiral kraft, Motor Mount, BT-50, bulk` is **9,072 kg/m³**. The generator
+  does not refuse it, deliberately: 9,072 kg/m³ is a possible density for *something*, so refusing it
+  would mean judging a value against its NAME rather than against physics, which is a heuristic
+  `scripts/gen-components.mjs` does not apply. It is recorded in `THIRD-PARTY-NOTICES.md` and here
+  instead. The fix is upstream, or a per-material-family plausibility table — the latter is a real
+  design question, not a quick guard.
+
+- **`searchParts({ manufacturer: "Quest" })` silently misses three Quest parts.** Measured 2026-08-02.
+  The catalogue carries sixteen manufacturer STRINGS for fourteen companies, because `quest.orc`
+  writes both "Quest" (67 parts) and "Quest Aerospace" (3) and `mpc.orc` writes both "MPC" (47) and
+  "MRC" (2). The strings are kept verbatim as the vendor files state them, which is right for
+  provenance and wrong for a picker's filter. A vendor-alias table in `lib/components/db.ts` closes
+  it; do it when the picker lands (R8 increment 3), not before, so the alias set is driven by what
+  the UI actually needs to group.
+
 - **The `extrapolated` marker carries a prose string where it should carry an enumerated flag.**
   Filed 2026-08-02 from the competitive probe that produced `COMPETITION.md` row 33. The marker Loft
   now puts on an out-of-envelope readout is the right SHAPE — bound to the value it qualifies, which
