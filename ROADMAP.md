@@ -2227,7 +2227,7 @@ STRING, not the computed style, so adding `pointer-coarse:opacity-100` beside th
 `group-hover:` variant would leave the count exactly where it was — and leave the defect in place
 too. The literal has to be deleted.
 
-*Increment 3 — SHIPPED. 25 → 1, without writing a pixel.*
+*Increment 3 — SHIPPED. 25 → 0, without writing a pixel.*
 
 All 25 sat on the app chrome above the workspace spine, where writing anything visibly spends the
 phone chrome ratchet and the two-screen depth cap at once — the trade increment 1 records making and
@@ -2237,21 +2237,26 @@ tooltip restated a visible label it was deleted (the stability hint already carr
 superset); where it carried something real — what a `.ork` download omits, an undo's keyboard
 shortcut, which motor a designation matched — it was relocated rather than lost.
 
-**One is not "almost §8", and the check now says why.** `GeometryInspector`'s gesture bar —
+**Both of §8's counts are now zero — and the check says what that does and does not establish.** `GeometryInspector`'s gesture bar —
 remove, reorder, add a tube / fin set / mass object / transition / motor mount, eleven controls —
-renders only once a part is SELECTED, and the walk never selects one, so those eleven have
-contributed 0 to every reading this ratchet has ever taken and are **still hover-only**. The
-remaining 1 is that file's "Add a booster stage", the only control in it that renders unselected.
+renders only once a part is SELECTED, and the walk never selects one — so TEN of the eleven
+contributed 0 to every reading this ratchet has ever taken while being exactly the kind of state it
+exists to find. (The eleventh, "Add a booster stage", renders unselected and was the whole reason the
+floor stood at 1.) **All eleven are fixed**, in the same increment, and a regression on the ten still
+would not fail the check. That is recorded in the spec rather than smoothed over: the zero is honest about the app and
+narrow about the check.
 
-**Converting those eleven was tried in this increment and REVERTED**, which is the lesson worth more
-than the count: `aria-label` REPLACES the accessible name where `title` only supplements it, so
-"Add a tube behind this" became "Add a body tube immediately behind this one, faired to it, and
-re-fly the design" — no longer containing the visible label, which is WCAG 2.5.3 and what a
-voice-control user actually says. Fourteen specs caught it by finding those buttons by the words on
-screen. Doing it properly means prefixing each visible label one control at a time; filed. Two ways
-of reaching them from the walk also failed and are recorded in the spec: `getByRole("row")` matches
-nothing for that table, and a direct row click times out because the table is 1,198 px wide inside a
-390 px viewport in its own scrolling container.
+**Getting them right took two attempts, and the failed one is the lesson.** A regex sweep replaced
+each `title` with an `aria-label` carrying the description alone — and `aria-label` REPLACES the
+accessible name where `title` only supplements it, so "Add a tube behind this" became "Add a body
+tube immediately behind this one, faired to it, and re-fly the design". That no longer contains the
+visible label, which is WCAG 2.5.3 and the words a voice-control user says out loud; **fourteen e2e
+specs caught it** by finding those buttons by the words on screen. The shipped form is label-first:
+the control's own visible text, then an em dash, then what the tooltip said — with the three dynamic
+labels interpolating the same name the visible text does. Two ways of reaching the surface from the
+walk also failed and are recorded in the spec: `getByRole("row")` matches nothing for that table, and
+a direct row click times out because it is 1,198 px wide inside a 390 px viewport in its own
+scrolling container.
 
 *Increment 4 — NEXT.* Reach the selection-gated surface, which is the remaining blind spot, and then
 walk the three pad journeys the *done when* actually names — pick a motor, check stability,

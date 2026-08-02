@@ -436,7 +436,7 @@ export default function GeometryInspector({
               <Button
                 variant="danger"
                 onClick={() => onRemove(selectedId)}
-                title="Remove this part from the design and re-fly it"
+                aria-label={`Remove ${parts.find((x) => x.component.id === selectedId)?.component.name || KIND_LABEL[parts.find((x) => x.component.id === selectedId)?.component.kind ?? ""] || "this part"} from the design and re-fly it`}
               >
                 Remove{" "}
                 {parts.find((x) => x.component.id === selectedId)?.component.name ||
@@ -455,17 +455,21 @@ export default function GeometryInspector({
             {canMove?.(selectedId, -1) && (
               <Button
                 onClick={() => onMove(selectedId, -1)}
-                title="Move this part one place toward the nose and re-fly the design"
+                aria-label="Move toward the nose — one place, and re-fly the design"
               >
-                ← Move toward the nose
+                {/* `aria-hidden` like every other glyph in this file. Left visible it was part of the
+                    accessible name, so the `aria-label` beside it — which does not carry an arrow —
+                    would not have contained the visible label. That is the WCAG 2.5.3 failure this
+                    conversion was redone to avoid, hiding in the two controls nobody re-read. */}
+                <span aria-hidden>←</span> Move toward the nose
               </Button>
             )}
             {canMove?.(selectedId, 1) && (
               <Button
                 onClick={() => onMove(selectedId, 1)}
-                title="Move this part one place toward the tail and re-fly the design"
+                aria-label="Move toward the tail — one place, and re-fly the design"
               >
-                Move toward the tail →
+                Move toward the tail <span aria-hidden>→</span>
               </Button>
             )}
           </p>
@@ -479,7 +483,7 @@ export default function GeometryInspector({
           <p className="mt-1 text-sm">
             <Button
               onClick={() => onAddAfter(selectedId)}
-              title="Add a body tube immediately behind this one, faired to it, and re-fly the design"
+              aria-label="Add a tube behind this — a body tube faired to it, and re-fly the design"
             >
               <span aria-hidden>+</span> Add a tube behind this
             </Button>
@@ -490,7 +494,7 @@ export default function GeometryInspector({
               <Button
                 className="ml-1.5"
                 onClick={() => onAddAfter(selectedId, "trapezoidfinset")}
-                title="Add a fin set to this tube, matching the design's own fins, and re-fly it"
+                aria-label="Add fins to this tube — matching the design's own fins, and re-fly it"
               >
                 <span aria-hidden>+</span> Add fins to this tube
               </Button>
@@ -507,14 +511,14 @@ export default function GeometryInspector({
             <Button
               className="ml-1.5"
               onClick={() => onAddAfter(selectedId, "masscomponent")}
-              title="Add a mass object inside this tube — electronics, a tracker, ballast — and re-fly the design"
+              aria-label="Add a mass inside this — electronics, a tracker, ballast — and re-fly the design"
             >
               <span aria-hidden>+</span> Add a mass inside this
             </Button>
             <Button
               className="ml-1.5"
               onClick={() => onAddAfter(selectedId, "transition")}
-              title="Add a transition behind this — faired to what follows it, or contracting into a tail cone where nothing does — and re-fly the design"
+              aria-label="Add a transition behind this — faired to what follows it, or contracting into a tail cone where nothing does, and re-fly the design"
             >
               <span aria-hidden>+</span> Add a transition behind this
             </Button>
@@ -530,7 +534,7 @@ export default function GeometryInspector({
           <p className="mt-1 text-sm">
             <Button
               onClick={() => onAddMount(selectedId)}
-              title="Give this tube a motor mount flying the design's own motor, and re-fly it"
+              aria-label="Add a motor mount to this tube — flying the design's own motor, and re-fly it"
             >
               <span aria-hidden>+</span> Add a motor mount to this tube
             </Button>
@@ -557,7 +561,7 @@ export default function GeometryInspector({
                     <Button
                       variant="danger"
                       onClick={() => onRemoveMount?.(m.hostId)}
-                      title="Take this motor mount back off, with the motor that came with it"
+                      aria-label={`Remove the mount on ${host?.name || KIND_LABEL[host?.kind ?? ""] || "that tube"} — with the motor that came with it`}
                     >
                       <span aria-hidden>−</span> Remove the mount on{" "}
                       {host?.name || KIND_LABEL[host?.kind ?? ""] || "that tube"}
@@ -584,7 +588,7 @@ export default function GeometryInspector({
         {(onAddStage || (addedStages ?? []).length > 0) && (
           <p className="mt-1 flex flex-wrap items-center gap-2 text-sm">
             {onAddStage && (
-              <Button onClick={onAddStage} title="Add a booster stage below the design, seeded from its own aft airframe, and re-fly it">
+              <Button onClick={onAddStage} aria-label="Add a booster stage — below the design, seeded from its own aft airframe, and re-fly it">
                 <span aria-hidden>+</span> Add a booster stage
               </Button>
             )}
@@ -593,7 +597,7 @@ export default function GeometryInspector({
                 key={s.seedId}
                 variant="danger"
                 onClick={() => onRemoveStage?.(s.seedId)}
-                title={`Remove ${s.name} and re-fly the design without it`}
+                aria-label={`Remove ${s.name} — and re-fly the design without it`}
               >
                 Remove {s.name}
               </Button>

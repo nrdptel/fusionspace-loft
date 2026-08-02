@@ -4314,7 +4314,7 @@ test.describe("Loft", () => {
     await mounts.last().click();
     await page
       .getByRole("button", { name: /^Remove / })
-      .and(page.locator('[title="Remove this part from the design and re-fly it"]'))
+      .and(page.locator('[aria-label$="from the design and re-fly it"]'))
       .click();
     await page.getByRole("link", { name: "Flight" }).click();
     await expect(table.getByText(/nothing separated/i)).toBeVisible({ timeout: 20000 });
@@ -4486,10 +4486,12 @@ test.describe("Loft", () => {
     await page.getByRole("link", { name: "Design" }).click();
     await mounts().last().click();
     // `/^Remove /` alone is a strict-mode violation here: the stage's own "Remove Booster" control is
-    // on the same panel. The part control is the one carrying the part-removal title.
+    // on the same panel. The part control is the one whose accessible name ENDS with the
+    // part-removal phrase — it used to be discriminated by a `title`, which was deleted when these
+    // gestures moved onto `aria-label` so a phone could reach them.
     const remove = page
       .getByRole("button", { name: /^Remove / })
-      .and(page.locator('[title="Remove this part from the design and re-fly it"]'));
+      .and(page.locator('[aria-label$="from the design and re-fly it"]'));
     await expect(remove).toBeVisible();
     await remove.click();
     await expect.poll(async () => mounts().count(), { timeout: 20000 }).toBe(mountsBefore);

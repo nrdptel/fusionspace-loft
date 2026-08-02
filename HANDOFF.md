@@ -218,11 +218,13 @@ than at the next push.
 
 **Pick up first, in this order:**
 
-1. **P4 increment 4 — reach the selection-gated surface.** Ten of `GeometryInspector`'s eleven gesture
-   tooltips render only once a part is SELECTED, the walk never selects one, and they are still
-   hover-only. The count of 1 is honest but narrow. The correct fix per control is
-   `<visible label> — <description>` (never a bare description, which renames the control), one at a
-   time with its spec — filed in `BACKLOG.md` with both failed ways of reaching them.
+1. **P4 increment 4 — give the ratchet a way to SEE the selection-gated surface.** The eleven gesture
+   controls themselves are fixed, and `DESIGN.md` §8's two counts are both zero. What is not fixed is
+   that ten of them render only once a part is selected and the walk never selects one, so a
+   regression there would not fail anything. Two ways in failed and are recorded in the spec:
+   `getByRole("row")` matches nothing for that table, and a direct row click times out because it is
+   1,198 px wide inside a 390 px viewport in its own scrolling container. It wants the diagram's own
+   selection path, or a second walk at a wider viewport.
 2. **R8 increment 5 — the other four kinds.** Nose cone, coupler, centring ring and parachute cannot
    be authored by `AddedPart` at all today, so "any of five kinds" is four new build paths. The
    parachute is hardest: the model requires `cd`, the catalogue has no such field, and only 21 of 151
