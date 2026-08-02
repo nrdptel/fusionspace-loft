@@ -29,6 +29,19 @@ one commit each.**
 the next-worst known correctness item (the optimum delay computed for the wrong vehicle when a
 what-if is set) is filed with its numbers rather than left in anyone's head.
 
+**Everything this run is MERGED except one pull request.** #107 and #108 and #109 are on `main` and
+deployed; the dispersion-filter hardening is the only thing pending, on the working branch. Production
+was checked rather than assumed: all eight routes 200, and `/docs/limitations` serves this run's text.
+
+**The run's own worst moment, kept because it is the transferable lesson.** P2's two-screen clause was
+declared met, the `test.fail` pinning it deleted, and `ROADMAP.md`, `HANDOFF.md` and `COMPETITION.md`
+all updated to say so — on a measurement taken with `pointer: fine`. `e2e/depth.spec.ts`'s phone was a
+phone-sized viewport over `devices["Desktop Chrome"]`, so every `TOUCH_TARGET` control rendered 26 px
+instead of 44 and the shared chrome came out **97 px short**, in the direction that makes the app look
+like it passes. The adversarial diff review caught it; the marker went back with the true figure; and
+the clause was then closed for real on a coarse pointer. **Any viewport-based contract in this repo
+must set `hasTouch` from the first line it is written.**
+
 ## The arc so far
 
 | milestone | state |
@@ -271,6 +284,33 @@ them, and the clause was being recorded as failing when three of four routes pas
   contradict (`APEX_K_Dart.ork` goes the other way). Both were corrected before commit. This keeps
   happening; the fix that works is re-reading each numeric claim against the measurement that
   produced it, not re-reading for style.
+
+### What went wrong this run, and what each cost
+
+- **A false claim shipped into three files before the review caught it** (above). The fix that works
+  is not "re-read the prose" — it is re-deriving the MEASUREMENT under the conditions the contract
+  names, before writing anything down.
+- **A regression test passed against the broken code twice.** The first version passed
+  `recovery: []`, so no canopy ever deployed; the second deployed one at 58 m/s, where dt·λ is 1.04
+  and RK4 is comfortably stable. Only the negative control caught either. **A regression test for a
+  numerical bug has to be shown to FAIL against the old code**, and for a stability bug that means
+  computing the regime rather than guessing a severe-looking input.
+- **Overlapping background e2e runs impersonated the sandbox's documented descriptor exhaustion.**
+  Two shards sharing one port reported 100, then 86, then 31 passed with no failure line. Nearly
+  filed as an environment defect; it was self-inflicted concurrency.
+- **A python dedupe removed the wrong copy**, shipping two headline fields under a comment claiming
+  three — and the one that got folded was static margin, the go/no-go number. Caught by review, not
+  by the gate, because no check asserted what the strip contains.
+
+### What to pick up first
+
+1. **R8 increment 2** — the component catalogue itself. The licence question is settled and the
+   pattern to copy (`scripts/gen-motors.mjs` + a `provenance.json` + an inlined TS module) is named
+   in `ROADMAP.md`. This is the biggest single capability available on either track.
+2. **The four wording changes owed to the sibling repo's `DESIGN.md`**, still blocked on an owner
+   fix — `add_repo` for `nrdptel/fusionspace-debrief` is refused by the harness.
+3. **P4 — a touch-native builder.** Already decomposed. Its opening measurement is the persistent
+   design strip, which costs a phone 130–160 px against the 68 px of headroom `/sweep` now has.
 
 ## Previous session (2026-08-02)
 

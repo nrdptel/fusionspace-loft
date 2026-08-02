@@ -163,6 +163,41 @@ function summarize(values: number[]): Stat {
   };
 }
 
+/** Whether a flown sample describes something a hobby rocket could actually have done.
+ *
+ *  This was `Number.isFinite(apogee)` alone, and finiteness is not the same question. A sample whose
+ *  integration diverges comes back FINITE and enormous, so it passed straight through and poisoned
+ *  the distribution — measured on `FullScaleModelTH.rkt` at the dispersion panel's own defaults with
+ *  a nominal recovery size of 4x: apogee p50 332 m, **p95 4.881e18 m**, and "chance over ceiling"
+ *  against a 1,000 m waiver read **17.5%** where the true answer is 0%. That is the single most
+ *  actionable number in the app — a flyer reads it to decide whether a flight busts their waiver.
+ *
+ *  The divergence that produced it is fixed at source (the integrator's step is now bound by the
+ *  canopy rather than by the flight phase, and the corpus flies every design at 0.1/2/5/10x to keep
+ *  it that way), so this filter should now never fire. It is here because the consequence of the
+ *  next one is a confidently wrong safety number rather than a crash, and a filter that only asks
+ *  about finiteness cannot see that shape of wrong at all.
+ *
+ *  The bounds are ceilings no hobby flight approaches, not tolerances: the Karman line, and roughly
+ *  orbital speed. A sample past either is the integrator talking, not the rocket. */
+function physicallyPossible(s: {
+  apogee: number;
+  maxVelocity: number;
+  groundHitVelocity: number;
+  landingEnergy: number;
+}): boolean {
+  return (
+    Number.isFinite(s.apogee) &&
+    s.apogee <= 100_000 &&
+    Number.isFinite(s.maxVelocity) &&
+    s.maxVelocity <= 8_000 &&
+    Number.isFinite(s.groundHitVelocity) &&
+    s.groundHitVelocity <= 8_000 &&
+    Number.isFinite(s.landingEnergy) &&
+    s.landingEnergy <= 1e9
+  );
+}
+
 /** Fly the dispersed samples one at a time, yielding each successful flight, so a caller can spread
  *  the work across the event loop (the UI stays responsive during a few hundred flights). Advances
  *  the seeded PRNG deterministically regardless of how the caller consumes it. A sample whose flight
@@ -226,7 +261,7 @@ export function* monteCarloSamples(rocket: Rocket, opts: MonteCarloOptions): Gen
       });
       if (!run.hasPropulsion) continue;
       const s = run.result.summary;
-      if (!Number.isFinite(s.apogee)) continue;
+      if (!physicallyPossible(s)) continue;
       yield {
         apogee: s.apogee,
         maxVelocity: s.maxVelocity,
