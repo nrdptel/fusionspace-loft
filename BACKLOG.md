@@ -12,6 +12,40 @@ this file, and deliberately does **not** cap craft or product work, because that
 track in `ROADMAP.md` with its own *done when*. Rough edges, missing affordances, and findings too
 big for one pass. Newest first.
 
+- **RASAero's `<Protuberance>` is silently dropped AND its warning can never fire.**
+  `lib/rasaero/adapt.ts:268` handles `Protuberance` in the `parseParts` switch, but that switch walks
+  `design.children` only and RASAero nests `<Protuberance>` INSIDE `<BodyTube>`. Measured 2026-08-02 on
+  `Complex.Two-Stage.CDX1`, which declares `StreamlinedWithBaseDrag 0.25` and
+  `InclinedPlate1FrontalArea 0.25` at 30°: `doc.warnings` has exactly one entry (the booster-stage
+  note) and no protuberance line. So the drag is dropped and the flyer is not told — the warning that
+  exists to disclose it is unreachable for every real file. Worth ~0.97 pp of apogee on that design.
+  Fixing the reachability is small; modelling the protuberance is its own slice.
+
+- **The optimum delay is computed for a different vehicle than the one on screen when a what-if is
+  set.** `lib/sim/run.ts:177` — `const freeCoast = simulate({ ...built.input, recovery: [] })`
+  recomputes the recovery-free coast from `built.input` rather than from the input the flight actually
+  used, so it silently drops `extraMasses` (the flyer's nose ballast), `thrustScale`, `massScale`,
+  `dragScale` and `timeStep`. It fires whenever `deployedBeforeApogee` is true — 5 of the 35 corpus
+  designs. Measured 2026-08-02 on `The Red Hunter.ork`: ballast 0 / 0.01 / 0.02 / 0.05 / 0.1 kg all
+  return an optimum delay of **exactly 4.66 s** while apogee falls 258.5 → 147.4 m; the correct value
+  at 0.05 kg is **5.31 s**. On `FullScaleModelTH.rkt` the shown delay is 16.16 s for ballast 0 through
+  1 kg and for `dragScale` 2× and `thrustScale` 1.3×, while apogee moves 342 → 441 m. The Stat is
+  labelled "Optimum delay · burnout → apogee" for the flight in view, and picking a delay is one of
+  the three things the app exists to help with. **Filed rather than fixed only because the run's Sev-1
+  preemption was already spent on the integrator divergence; this is the next correctness item.**
+
+- **A diverged Monte-Carlo sample was kept because it was finite.** `lib/sim/montecarlo.ts:229` —
+  `if (!Number.isFinite(s.apogee)) continue` is the only sanity filter on a dispersion sample. The
+  divergence that produced 1e13 m apogees was finite, so it was kept and poisoned the waiver-ceiling
+  exceedance: measured 2026-08-02 on `FullScaleModelTH.rkt` at the panel's own default dispersions
+  with recovery size 4×, apogee p50 332 m but p95 **4.881e18 m**, and `exceedanceProbability(1000 m)`
+  read **17.5%** where the true answer is 0%. **The symptom is gone** — the integrator fix removes the
+  divergence at source, and the corpus now flies every design at 0.1/2/5/10× to keep it that way — but
+  the filter itself is still only a finiteness check, so a future divergence would poison the same
+  number the same way. A plausibility bound (apogee under the Kármán line, speeds under orbital) on
+  the sample filter is the cheap hardening.
+
+
 - **A design-system audit found 14 classes of divergence from `DESIGN.md` that P1's §9 counts do not
   measure.** Run 2026-08-02 against the component tree. P1 is shipped and its counts are at target,
   so these are what the counts do not see rather than a regression in them. Ranked by how much a

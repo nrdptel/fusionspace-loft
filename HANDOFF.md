@@ -4,39 +4,30 @@ Overwritten each session. What shipped, what is part-way, and what to pick up fi
 
 ## Read this first
 
-**The sibling repo is owed three wording changes, for the FIFTH run running, and it is an OWNER fix.**
-`add_repo` for `nrdptel/fusionspace-debrief` was refused by the harness's permission classifier again
-on 2026-08-02. `DESIGN.md` §10 makes a change to one copy a change to both **in the same run**, so
-every wording owed to that file stays unmade rather than creating the divergence the invariant
-forbids. The queue is now FOUR, all in `BACKLOG.md`:
+**The Playwright browser this repo manages was NOT present in the sandbox, and the whole e2e suite
+failed until it was installed.** Measured 2026-08-02: `PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers` is
+set by the environment, `@playwright/test` 1.61.1 wants **chromium_headless_shell-1228**, and the
+directory did not contain it — every test died with `Executable doesn't exist`, which reads as 200
+real failures rather than a missing binary. `npx playwright install chromium` fetched it (~114 MB,
+about a minute, through the proxy) and the suite went green. **This belongs in the environment setup
+script**; it is paid for again every session until it is. Do not reach for `PW_EXECUTABLE_PATH` —
+that is what silently runs the suite against the wrong revision.
 
-1. §9's shell block still says `grep -roh '\btext-lg\b'` while the executable check moved past it;
-2. §5's "everything below lives in `components/ui.tsx`" now has two documented exceptions —
-   `buttonClass` (a server component cannot call into a `"use client"` module) and `DataTable` (it
-   needs `DownloadCsv`, which imports `Button`, so putting it in `ui.tsx` makes a cycle);
-3. a hand-rolled-`<button>` grep and a stylesheet-value type check, to match the two ratchets added
-   2026-08-01;
-4. **new this run** — §5's component vocabulary has no entry for the workspace SPINE, which is now a
-   real thing (`components/WorkspaceNav.tsx`). §7 already blesses it in prose ("navigation is one
-   spine, present on every route, showing where the flyer is"); §5's table does not name it.
+**And do not run two e2e shards concurrently.** Both back onto one `serve` process and one port, so
+overlapping runs report unstable counts (100, then 86, then 31 passed) with no failure line and a
+"did not run" list that looks exactly like the file-descriptor exhaustion `MAINTAINING.md`
+documents. It is not that. Run the shards sequentially and the counts are stable at 100 + 100.
 
-None is a divergence in BEHAVIOUR — every count agrees — but the prose drifts a wording at a time.
-**A session created with both repos attached as sources clears all four in one commit each.**
+**The sibling repo is owed four wording changes, for the SIXTH run running, and it is an OWNER fix.**
+`add_repo` for `nrdptel/fusionspace-debrief` is still refused by the harness's permission classifier.
+`DESIGN.md` §10 makes a change to one copy a change to both **in the same run**, so every wording
+owed to that file stays unmade rather than creating the divergence the invariant forbids. The four
+are listed in `BACKLOG.md` unchanged. **A session created with both repos attached clears all four in
+one commit each.**
 
-**`BACKLOG.md`'s Sev-1 count is ZERO at the end of this run.** One wrong-number defect was found and
-fixed inside R7 increment 1: above about M0.95 an *airfoil* fin was billed more leading-edge drag
-than a *square* one, so the cross-section what-if told a flyer that streamlining their fins costs
-apogee. Pre-existing; the per-set split is what made it reachable on a mixed design.
-
-**Everything opened is merged.** #102 (P2.1 + R7 written), #103 (R7.1) and #104 (P2.2) are all on
-`main` — confirmed against `git log`, not assumed. #105 carries this run's four increments (P2.3,
-R7.2, R7.3, P2.4). CI runs the real-design corpus and the published accuracy census, the checks a
-sandbox without `FIXTURES_TOKEN` cannot reproduce.
-
-Production was checked rather than assumed, 2026-08-01: `https://loft.fusionspace.co/` and all four
-workspace routes return **200**, and so does the retired `/analyze`, so P2 increment 1's promise that
-an address which shipped once never becomes a dead end is true of the deployed site and not just of
-the export.
+**`BACKLOG.md`'s Sev-1 count is ZERO at the end of this run** — one was found and fixed (below), and
+the next-worst known correctness item (the optimum delay computed for the wrong vehicle when a
+what-if is set) is filed with its numbers rather than left in anyone's head.
 
 ## The arc so far
 
@@ -50,8 +41,91 @@ the export.
 | R6 — a built design leaves Loft intact | SHIPPED 2026-08-02 |
 | P1 — one design system, adopted | SHIPPED 2026-08-02 |
 | **P2 — workspaces as routes** | **IN PROGRESS** — increments 1–4 of 4–6 shipped; 1–2 on 2026-08-01, 3–4 on 2026-08-01 (second run). Remaining: the persistent design strip |
-| **R7 — per-set fin drag, and the honest aero the builder needs** | **IN PROGRESS** — increments 1–3 of 3–5 shipped. Increment 3 REJECTED the remaining two collapses with the measurement that explains all three attempts; the next slice is not a fin slice |
+| **R7 — per-set fin drag, and the honest aero the builder needs** | **IN PROGRESS** — increments 1–5 of 3–5 shipped. Increment 4 FOUND the under-drag increment 3 sent it looking for (a bare mould-line step) and deliberately did not charge it, for a sourced reason; increment 5 was a Sev-1 on the same surface |
 | P3–P5 | NOT STARTED |
+
+## This session (2026-08-02)
+
+Three increments, all pushed to the working branch. Baseline inherited green once the browser was
+installed: lint 0 errors / 1 standing warning, **961 unit**, build, **e2e 100 + 100 = 200**, corpus
+**35 design files, 14/14**, census matching every published figure.
+
+### The Sev-1, and it was in the recovery numbers
+
+The RK4 step bound that keeps an open canopy's stiff quadratic drag stable was gated on
+`phase === "descent"`, which is only set after apogee. **Any recovery device opening at or before
+apogee was integrated at the flat 0.01 s boost step with no bound at all**, and it diverged:
+
+| design | recovery size | reported |
+|---|---|---|
+| `FullScaleModelTH.rkt` (ejects 0.5 s pre-apogee at 250 m/s) | 5× | apogee **2.07e13 m** (3.30e2 m at 4×) |
+| `Complex.Two-Stage.CDX1` (drogue opens AT apogee) | 10× | ground-hit **7.52e32 m/s**, landing energy **4.00e65 J**, under a confident *hard landing* warning |
+
+Both inputs are inside the `Recovery size (×)` field's own advertised 0.1–10× range, and ground-hit
+speed and landing energy are the two numbers a field waiver is judged against. The step now follows
+the canopy rather than the clock. **`DESCENT_STEP_MIN` was the second half**: it is a floor ON a
+stability bound, so at 0.002 s it capped the bound at λ ≈ 1,390 — which a 10× canopy exceeds above
+about 67 m/s, i.e. the floor was binding on exactly the case the bound exists for. Now 2e-4.
+
+Also on that surface: a flight that hits the 1,200 s cap without landing carried
+`groundHitVelocity` 0 and `landingEnergy` 0 as **sentinels** and rendered them as fact. A flyer
+enlarging a canopy could watch the landing energy fall to 0 J and read it as success. The summary now
+carries `landed` and both figures are withheld with the reason.
+
+Census identical to the tenth on all ten metrics — this changed nothing that was not already
+diverging. Pinned by a corpus assertion flying all 35 designs at 0.1/2/5/10× (124 flights), driven as
+a negative control: with the old step selection restored it names all three divergences and their
+exact figures.
+
+### R7 increment 4 — the under-drag is a bare mould-line step, and it is NOT charged
+
+Increment 3 said "the next slice is not a fin slice; find the drag `Complex.Two-Stage.CDX1` is
+missing". It is a **bare step in the outer mould line** — a diameter increase with no transition to
+take it over, which `aero.ts` has no term for. The silence was already recorded in two code comments
+and on the limitations page and had never been closed. 33 of 115 judgeable joints step, in 13 of 35
+designs; 27 of those in 9 designs clear the 0.5 mm notice threshold.
+
+**Charging it fails, and this is now the fourth measured rejection on R7 — read `ROADMAP.md` before
+attempting a fifth.** Eq. 3.86 at its abrupt limit (`0.8·ΔA`) takes `02.Two-stage.ork` from agreeing
+to **−35.2%** and `Complex.Two-Stage.CDX1` J180T from +4.5% to **−20.8%**. The reason is physical:
+0.8 is Hoerner's measured **flat-face** value in clean air, and a step is an annulus inside the
+boundary layer of the body ahead of it. So the flight **reports the step and withholds the estimate**.
+What would unblock it is a published forward-facing-step coefficient as a function of step height
+over boundary-layer thickness; `UNVERIFIED` whether one exists in citable form.
+
+**Two of this file's own recorded numbers were wrong and are corrected in `ROADMAP.md`:** the W2
+variant does not reproduce at −4.96% / −13.60% — two independent measurements put it at
+**−12.92% / −20.92%** — and the salvaged step list mislabelled the interstage flare (2.750→6.000 in,
+not 3.250→6.000) and counted a real charged transition (6.000→6.500) as an uncharged step.
+
+`<UseBooster1>False` is **not** a sustainer-only marker: each `<Simulation>` carries
+`<IncludeBooster1>True` and the adapter already reads that. The `liftoffMass=NaN` thread was a probe
+bug — there is no such field on the summary.
+
+### What the pre-push review caught that the gate could not
+
+An adversarial read of the diff with no other context found **a wrong number on a public page**: the
+limitations page attached the median to the wrong population (11.75 mm is all 33 steps; the 27 above
+threshold are 12.70 mm), while three other places in the same change said 12.70 correctly. It also
+caught a paragraph the rewrite had deleted that was still true, a second e2e locator that matched two
+surfaces while claiming to test one, and three `MouldLineStep` fields with no test holding their
+meaning. Its differential test is worth keeping: `mouldLineStep` (singular) and `mouldLineSteps`
+(plural) agree on sign and magnitude across every top-level component of all 35 corpus designs and
+4,000 generated rockets — 0 mismatches.
+
+### What went wrong, and what it cost
+
+- **A synthetic regression test passed against the broken code, twice.** The first version passed
+  `recovery: []`, so no canopy ever deployed; the second deployed one but at 58 m/s, where dt·λ is
+  1.04 and RK4 is comfortably stable. Only the negative control caught either. **A regression test
+  for a numerical bug has to be shown to fail against the old code**, and for a stability bug that
+  means computing the regime it needs to be in rather than guessing a severe-looking input.
+- **Overlapping background e2e runs looked exactly like the sandbox's documented descriptor
+  exhaustion.** Two shards sharing one port gave 100, then 86, then 31 passed with no failure line.
+  Nearly filed as an environment defect; it was self-inflicted concurrency.
+- **My own published prose was wrong once and caught by the review, not by me** — the same shape as
+  the last two runs (a clean claim the per-population numbers contradict). The check that works is
+  re-reading each number against the measurement that produced it.
 
 ## This session — second run (2026-08-01)
 

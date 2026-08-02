@@ -74,6 +74,16 @@ npm run fetch-fixtures          # the real-design corpus (needs FIXTURES_TOKEN)
   `PW_EXECUTABLE_PATH` only when the install genuinely cannot run, and **say in the report which
   revision the suite actually ran against.**
   *Porting the sibling's revision guard into this repo's config is filed in `BACKLOG.md`.*
+  - **Measured 2026-08-02: the managed browser was simply ABSENT, and it looks like 200 real
+    failures.** `/opt/pw-browsers` had no `chromium_headless_shell-1228`, so every test died with
+    `Executable doesn't exist at …` — a wall of red that reads as a broken baseline rather than a
+    missing binary. `npx playwright install chromium` fixed it in about a minute. **Run it first,
+    before believing an inherited red e2e gate.** It is paid for again every session until it is in
+    the environment's setup script, which is the actual fix and is the owner's to make.
+  - **Never run two shards concurrently.** They back onto one `serve` process and one port, so
+    overlapping runs report unstable counts — measured 100, then 86, then 31 passed — with **no
+    failure line** and a "did not run" list that looks exactly like the descriptor exhaustion below.
+    It is not that. Sequential shards are stable at 100 + 100. Check this before diagnosing EMFILE.
 - **The full e2e suite exhausts this sandbox's file-descriptor limit, and it looks exactly like six
   real failures.** Measured 2026-07-31 at 185 tests: the `serve` process backing the suite dies with
   `EMFILE: too many open files` somewhere around test 180, and every test after it fails with
