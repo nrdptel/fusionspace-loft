@@ -442,17 +442,29 @@ function Report({
         ) : (
           <WithheldCard
             title="Landing speed"
-            why="no dispersed flight reached the ground inside the time cap — enlarge the recovery or check the deployment"
+            why="no dispersed flight reached the ground inside the time cap — reduce the recovery size, or check the deployment altitude and event"
           />
         )}
-        <RadiusCard radius={result.landingRadiusP95} drift={result.driftDistance} units={units} />
+        {/* Withheld on the same population as the card beside it. Drift is taken from the
+            solver's exit position, which for a flight still descending at the cap is where it had
+            got to — a plausible smaller number rather than an obvious zero, understating the
+            recovery area on the one figure that exists to size it. */}
+        {result.landedN > 0 ? (
+          <RadiusCard radius={result.landingRadiusP95} drift={result.driftDistance} units={units} />
+        ) : (
+          <WithheldCard
+            title="Recovery radius (95%)"
+            why="no dispersed flight reached the ground inside the time cap, so none has a landing point to draw a radius around — reduce the recovery size, or check the deployment altitude and event"
+          />
+        )}
       </div>
 
       {result.landedN > 0 && result.landedN < result.n && (
         <p className="mt-3 text-sm text-amber-700 dark:text-amber-400">
           <span className="font-medium">Landing figures cover {result.landedN} of {result.n} flights.</span>{" "}
-          The rest were still descending at the {"1,200"} s cap, so they carry no landing speed or
-          energy and are left out of both rather than counted as a soft landing.
+          The rest were still descending at the {"1,200"} s cap, so they carry no landing speed,
+          energy, drift or landing point, and are left out of all four rather than counted as a soft
+          landing that happened nearer the pad than it would have.
         </p>
       )}
 
@@ -534,7 +546,11 @@ function Report({
             Landing scatter (from the pad)
           </h3>
           <Scatter
-            points={result.samples.map((s) => ({ x: s.landingX, y: s.landingY }))}
+            // Landed samples only. `landingX`/`landingY` are the solver's exit position, so an
+            // un-landed flight plotted as a landing point is a rocket drawn on the ground where it
+            // was still in the air — and it sits INSIDE the real scatter, pulling the cloud toward
+            // the pad rather than looking like the outlier it is.
+            points={result.samples.filter((s) => s.landed).map((s) => ({ x: s.landingX, y: s.landingY }))}
             radiusP95={result.landingRadiusP95}
             toNumber={(v) => (units === "imperial" ? mToFt(v) : v)}
             unit={units === "imperial" ? "ft" : "m"}
@@ -547,7 +563,14 @@ function Report({
             and it shipped "300flights;" here. The sibling caption above survives only because its
             text sits on its own line. */}
         {result.n}{" "}
-        flights; the bands are 5th–95th percentiles. Rail-lean and wind directions are
+        flights; the bands are 5th–95th percentiles.{" "}
+        {/* One caption, two populations, and it used to claim all of them for both charts. The
+            apogee histogram is over every flown sample; the scatter and the drift band are over the
+            ones that reached the ground. Naming the split here as well as in the amber note above
+            costs a clause and stops the charts and the cards disagreeing. */}
+        {result.landedN < result.n &&
+          `The apogee spread covers all ${result.n}; the scatter and the drift band cover the ${result.landedN} that landed. `}
+        Rail-lean and wind directions are
         sampled from all bearings, so the scatter maps the recovery area to plan for regardless of the
         day&apos;s wind heading.{" "}
         {Number.isFinite(exceed) &&
@@ -724,6 +747,19 @@ function Scatter({
 }) {
   const S = 150;
   const c = S / 2;
+  // Nothing landed, so there is no scatter and no circle — say that instead of drawing an empty
+  // plot. This is `DESIGN.md` §5's empty state, and without it the arithmetic below propagates:
+  // `Math.max(NaN, ...[], 1)` is NaN, so `scale` and `rCircle` are NaN, React writes `r="NaN"` into
+  // the SVG, and the caption reads "circle = 95% within NaN m". Withholding the radius upstream is
+  // what makes this reachable, so the two changes belong together.
+  if (points.length === 0 || !Number.isFinite(radiusP95)) {
+    return (
+      <div className="mt-1.5 text-sm text-zinc-500 dark:text-zinc-400">
+        No dispersed flight reached the ground inside the time cap, so there are no landing points to
+        plot. Reduce the recovery size, or check the deployment altitude and event.
+      </div>
+    );
+  }
   // Scale so the furthest landing (or the 95% circle, whichever is larger) fits with a small margin.
   const maxR = Math.max(radiusP95, ...points.map((p) => Math.hypot(p.x, p.y)), 1);
   const scale = (c - 8) / maxR;
@@ -757,10 +793,19 @@ function csvRows(result: MonteCarloResult, units: UnitSystem): CsvCell[][] {
   const toAlt = (m: number) => (units === "imperial" ? mToFt(m) : m);
   const toSpd = (mps: number) => (units === "imperial" ? mpsToFtps(mps) : mps);
   const toEnergy = (j: number) => (units === "imperial" ? j * 0.737562 : j);
+  // `Landed` first among the landing columns, and every landing cell BLANK when it is false.
+  //
+  // The export carried what the panel refuses to show: a sample still airborne at the cap emitted a
+  // 0 m/s landing speed, a 0 J energy and a part-way drift under plain headers, with nothing to tell
+  // them from measurements. A flyer pulling the CSV into a spreadsheet to find the worst-case
+  // landing energy for a waiver averaged initialisation zeros into it — the exact failure the panel
+  // itself was fixed for, one click away. A blank cell is the honest form here: it is what the CSV
+  // reader's own aggregate functions skip, where a 0 is what they average.
   const header: CsvCell[] = [
     "Flight",
     `Apogee (${alt})`,
     `Max velocity (${spd})`,
+    "Landed",
     `Drift distance (${alt})`,
     `Landing downrange (${alt})`,
     `Landing crossrange (${alt})`,
@@ -771,11 +816,16 @@ function csvRows(result: MonteCarloResult, units: UnitSystem): CsvCell[][] {
     i + 1,
     round(toAlt(s.apogee), 1),
     round(toSpd(s.maxVelocity), 1),
-    round(toAlt(s.driftDistance), 1),
-    round(toAlt(s.landingX), 1),
-    round(toAlt(s.landingY), 1),
-    round(toSpd(s.landingSpeed), 1),
-    round(toEnergy(s.landingEnergy), 1),
+    s.landed ? "yes" : "no",
+    ...(s.landed
+      ? [
+          round(toAlt(s.driftDistance), 1),
+          round(toAlt(s.landingX), 1),
+          round(toAlt(s.landingY), 1),
+          round(toSpd(s.landingSpeed), 1),
+          round(toEnergy(s.landingEnergy), 1),
+        ]
+      : ["", "", "", "", ""]),
   ]);
   return [header, ...body];
 }

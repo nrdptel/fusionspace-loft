@@ -29,7 +29,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { importDesign } from "../ork/import";
 import { runFromDocument, overridesFromStored } from "../sim/run";
-import { monteCarlo } from "../sim/montecarlo";
+import { monteCarlo, summarizeSamples } from "../sim/montecarlo";
 import {
   flattenRocket,
   leadingFaceDiameter,
@@ -1327,6 +1327,12 @@ suite("real-design corpus", () => {
     const sentinels: string[] = [];
     let checked = 0;
     let sawUnlanded = 0;
+    // Counted and printed separately because the two new drift checks below sit on opposite
+    // branches: one fires only where NOTHING landed, the other only where some did. A corpus that
+    // happened to contain only one shape would leave the other silently vacuous, and this file's own
+    // convention is that a check which cannot fail is worse than none.
+    let sawNoneLanded = 0;
+    let sawPartial = 0;
     for (const f of files) {
       let doc;
       try {
@@ -1350,6 +1356,8 @@ suite("real-design corpus", () => {
         if (mc.n === 0) continue;
         checked++;
         if (mc.landedN < mc.n) sawUnlanded++;
+        if (mc.landedN === 0) sawNoneLanded++;
+        else if (mc.landedN < mc.n) sawPartial++;
         // Where nothing landed, both figures must be absent rather than zero. Where some did, the
         // summary must describe those and only those — a zero surviving into the band is a sample
         // that never reached the ground being counted as the softest landing in the set.
@@ -1366,11 +1374,48 @@ suite("real-design corpus", () => {
               `0 m/s sentinel reached the band`,
           );
         }
+        // **Drift and the recovery radius ride the same population**, and until 2026-08-02 they did
+        // not — they were summarised over every sample while the two figures above were already
+        // filtered. The reason it survived that fix is that a sentinel drift is not a zero: it is
+        // the distance the flight had covered when the cap stopped it, so it reads as a plausible
+        // smaller number from a rocket that was still going downwind. Understated, on the figure a
+        // flyer sizes a recovery area from.
+        //
+        // Asserted by CONSTRUCTION rather than by threshold: re-summarising the landed subset alone
+        // must give the same drift band and the same radius as summarising the whole set does, which
+        // is only true if the whole-set summary already ignores the un-landed ones. As a negative
+        // control the old code fails this on the first design that hits the cap.
+        if (mc.landedN > 0 && mc.landedN < mc.n) {
+          const landedOnly = summarizeSamples(mc.samples.filter((x) => x.landed));
+          const same = (a: number, b: number) => Math.abs(a - b) < 1e-9;
+          if (
+            !same(landedOnly.driftDistance.p50, mc.driftDistance.p50) ||
+            !same(landedOnly.landingRadiusP95, mc.landingRadiusP95)
+          ) {
+            sentinels.push(
+              `${shortName(f.name)} at ${scale}x: ${mc.n - mc.landedN} of ${mc.n} never landed, and ` +
+                `their mid-air positions moved the drift band (${mc.driftDistance.p50.toFixed(1)} vs ` +
+                `${landedOnly.driftDistance.p50.toFixed(1)} m) or the recovery radius ` +
+                `(${mc.landingRadiusP95.toFixed(1)} vs ${landedOnly.landingRadiusP95.toFixed(1)} m)`,
+            );
+          }
+        }
+        // Where NOTHING landed there is no radius to draw at all, so both must be absent rather than
+        // describing twelve rockets that were still in the air. Reproduced on
+        // `Complex.Two-Stage.CDX1` at 5x: 0 of 12 landed, landing speed correctly withheld, and a
+        // 58.0 m median drift and 121.4 m radius printed beside it.
+        if (mc.landedN === 0 && (Number.isFinite(mc.driftDistance.p50) || Number.isFinite(mc.landingRadiusP95))) {
+          sentinels.push(
+            `${shortName(f.name)} at ${scale}x: nothing landed, yet median drift reads ` +
+              `${mc.driftDistance.p50} m and the recovery radius ${mc.landingRadiusP95} m`,
+          );
+        }
       }
     }
     console.log(
       `dispersion landing sentinels across ${files.length} design files: ${checked} dispersions, ` +
-        `${sawUnlanded} with at least one flight still airborne at the cap`,
+        `${sawUnlanded} with at least one flight still airborne at the cap ` +
+        `(${sawNoneLanded} where NONE landed, ${sawPartial} where some did) `,
     );
     expect(checked, "no dispersion ran, so this asserted nothing").toBeGreaterThan(10);
     expect(

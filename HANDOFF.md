@@ -44,12 +44,84 @@ Details below.
 | R4 — reorder and restack | SHIPPED 2026-07-31 |
 | R5 — author a staged rocket | SHIPPED 2026-08-01 |
 | R6 — a built design leaves Loft intact | SHIPPED 2026-08-02 |
+| R7 — per-set fin drag | SHIPPED 2026-08-02, one *done when* clause undelivered with the reason measured |
 | P1 — one design system, adopted | SHIPPED 2026-08-02 |
-| P2 — workspaces as routes | SHIPPED 2026-08-02 — all five clauses met and pinned. `/sweep` closed at **1.90 screens on a coarse pointer**, after a false close at 914 px on a fine one that is documented in `ROADMAP.md` rather than quietly fixed |
-| **R7 — per-set fin drag, and the honest aero the builder needs** | **IN PROGRESS** — increments 1–5 of 3–5 shipped. Increment 4 FOUND the under-drag increment 3 sent it looking for (a bare mould-line step) and deliberately did not charge it, for a sourced reason; increment 5 was a Sev-1 on the same surface |
-| **P3 — a stranger's first five minutes** | **IN PROGRESS** — increment 1 of 3–4 shipped 2026-08-02: the cold-load walkthrough exists and found two real gaps, both fixed |
-| **R8 — component and material catalogues** | **IN PROGRESS** — decomposed with its licence question settled, and increment 1 shipped: every fin shear modulus now cites a source, and two were wrong (basswood by 3×) |
-| P4–P5 | NOT STARTED |
+| P2 — workspaces as routes | SHIPPED 2026-08-02 |
+| P3 — a stranger's first five minutes | SHIPPED 2026-08-02 |
+| **R8 — component and material catalogues** | **IN PROGRESS** — increments 1–3 of 4–6. The picker ships this run and the catalogue is finally reachable from the app; the wall and the material are increment 4 |
+| **P4 — a touch-native builder** | **IN PROGRESS** — increment 1 of 4–6 |
+| P5 | NOT STARTED |
+
+## This session — fourth run (2026-08-02)
+
+**Baseline inherited, all measured before anything was changed:** lint 0 errors / 1 standing warning,
+**997 unit** across 53 files, build, corpus **35 design files / 21 tests / 0 findings** with the
+census medians unmoved from the last run (groundHitVelocity 8.3%, deploymentVelocity 6.0%,
+flightTime 3.3%, maxAcceleration 3.2%, maxAltitude 3.1%, optimumDelay 2.5%, maxVelocity 2.2%,
+maxMach 2.0%, launchRodVelocity 1.9%, timeToApogee 1.5%), and e2e **105 + 104 = 209 passed, 0
+failed** once the browser was installed. **Zero open pull requests at session start** — everything
+from the previous run was merged and live, so this run started from a clean `origin/main`.
+
+### R8 increment 3 — the parts picker, and the catalogue is finally reachable
+
+`components/PartPicker.tsx`. 1,089 published body tubes, searchable by number or description,
+filterable by vendor or to the design's own caliber. Picking one writes the vendor's outer diameter
+and length into `bodyDiameter`/`bodyLength` and the flight moves.
+
+**Three things worth keeping:**
+
+- **The catalogue is the app's FIRST dynamic `import()`**, and the split was verified from the built
+  export rather than from intent: the chunk carrying `BT-60` is referenced by **no prerendered
+  document**. 85 KB gz against a 343 KB whole-app budget. The service worker precaches everything
+  under `_next/static`, so offline is unaffected. **Copy this pattern for the next big table** —
+  `lib/motors/catalog.ts` (26.8 KB gz) is still statically imported.
+- **A pick sets DIMENSIONS only, and the panel says so.** The wall and the material stay the
+  design's own, so the mass is Loft's scaled figure, not the vendor's published weight. The material
+  column sits right beside it, so silence there would have read as a claim.
+- **The material half cannot use the existing field.** Measured: the catalogue's 39 material strings
+  for body tubes have **zero** overlap with `AIRFRAME_MATERIALS`' seven keys, and `airframeMaterial`
+  takes a key. Increment 4 needs an edit field carrying an explicit `Material`.
+
+### The Sev-1 — the recovery radius was measuring rockets that were still in the air
+
+Found by the opening fan-out's Sev-1 screen, **reproduced before it was touched**, and it is the
+subtlest of this class the repo has hit. `lib/sim/montecarlo.ts` summarised `driftDistance` and
+`landingRadiusP95` over EVERY sample while `landingSpeed`/`landingEnergy` beside them had been
+filtered to landed flights the previous run.
+
+**Why it survived that fix: a sentinel drift is not a zero.** `simulate` takes `driftDistance` from
+the exit position unconditionally, so a flight still descending at the 1,200 s cap contributes how
+far downwind it had got — a plausible, smaller number. Reproduced on `Complex.Two-Stage.CDX1` at 5x
+recovery size (inside the field's own 0.1–10x range): **0 of 12 samples landed**, the panel correctly
+withheld landing speed as "no dispersed flight reached the ground", and printed a **58.0 m median
+drift and a 121.4 m recovery radius** beside it. Understated, in the unsafe direction, on the one
+figure whose job is to size a recovery area.
+
+Fixed on every surface that presents it — the radius card, the landing scatter, the "covers N of M"
+note, the dispersion CSV (which gained a `Landed` column and blanks rather than zeros), and the
+single-flight card's `Drift from pad` — plus the limitations page, whose existing passage named only
+two figures and is now four. Pinned in `lib/corpus/sweep.test.ts` by CONSTRUCTION rather than by
+threshold: re-summarising the landed subset must give the same band and radius as summarising the
+whole set, which is only true if the whole-set summary already ignores the un-landed ones. **As a
+negative control the old code fails it**, naming the design and the exact figures.
+
+### What the pre-push reviews caught that the whole gate could not
+
+Twice, and both times on code that had already passed lint, unit, build and e2e.
+
+- **On the picker, ELEVEN findings, one a one-way door.** The provenance record was not in
+  `INERT_EDIT_FIELDS`, so a pick whose two fields were later blanked left the design pristine but
+  still reading as edited — stored-tool comparison withheld, the picker's own clear control already
+  unmounted, and nothing on the panel able to clear it. It survived a reload, because the bag is
+  persisted unfiltered. Also: a fixed-precision table disagreeing with the field it writes on 642 of
+  1,089 tubes; a `failed` flag that latched forever under copy promising a retry; index-bearing row
+  keys remounting 1,089 rows per keystroke; a provenance line quoting 16 vendor files when 12 carry
+  a body tube; an unnamed `<th>`; CSV accessors emitting metres under mm/in headers.
+- **On the Sev-1 fix, a NaN I had just created.** Withholding the radius made `Scatter`'s
+  `Math.max(radiusP95, ...points, 1)` NaN, so the SVG would have carried `r="NaN"` and the caption
+  read "circle = 95% within NaN m". The scatter now has the empty state `DESIGN.md` §5 requires.
+  **Withholding a value is a change to every consumer of it**, and this is the second time that has
+  bitten on this exact pair of figures.
 
 ## This session — third run (2026-08-02)
 

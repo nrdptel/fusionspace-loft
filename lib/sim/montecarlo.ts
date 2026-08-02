@@ -111,6 +111,9 @@ export interface MonteCarloResult {
   samples: MonteCarloSample[];
   apogee: Stat;
   maxVelocity: Stat;
+  /** Horizontal distance from the pad to the landing point (m). **Landed flights only**, like the
+   *  three figures below it — see `landedN`. `NaN` throughout when none landed, which a surface must
+   *  withhold rather than render. */
   driftDistance: Stat;
   /** Radius (m) from the pad containing 95% of the landings — the recovery area to plan for. */
   landingRadiusP95: number;
@@ -125,10 +128,12 @@ export interface MonteCarloResult {
   landingEnergy: Stat;
   /** Flights that actually flew (a sample whose motor can't resolve is dropped). */
   n: number;
-  /** Of those, how many reached the ground inside the time cap. `landingSpeed` and `landingEnergy`
-   *  describe these and only these, so a surface must withhold both when this is 0 — the same house
-   *  rule the flight card follows, and for the same reason: a flyer enlarging a canopy watched the
-   *  landing energy fall to 0 J and read it as success. */
+  /** Of those, how many reached the ground inside the time cap. `landingSpeed`, `landingEnergy`,
+   *  `driftDistance` and `landingRadiusP95` describe these and only these, so a surface must
+   *  withhold ALL FOUR when this is 0 — the same house rule the flight card follows, and for the
+   *  same reason: a flyer enlarging a canopy watched the landing energy fall to 0 J and read it as
+   *  success. Drift and the radius joined that list on 2026-08-02; they had been summarised over
+   *  every sample, which understated the recovery area in the unsafe direction. */
   landedN: number;
 }
 
@@ -296,7 +301,6 @@ export function* monteCarloSamples(rocket: Rocket, opts: MonteCarloOptions): Gen
 
 /** Summarize a set of dispersed samples into per-metric bands and the recovery radius. */
 export function summarizeSamples(samples: MonteCarloSample[]): MonteCarloResult {
-  const driftSorted = samples.map((s) => s.driftDistance).sort((a, b) => a - b);
   // Landing statistics come from the flights that LANDED. `groundHitVelocity` and `landingEnergy`
   // are 0 on a flight still airborne at the 1,200 s cap — a sentinel the solver documents as such,
   // not a measurement — and summarising them alongside real landings published a distribution the
@@ -304,12 +308,28 @@ export function summarizeSamples(samples: MonteCarloSample[]): MonteCarloResult 
   // `Complex.Two-Stage.CDX1` at a recovery size inside the field's own 0.1-10x range: 40 of 40
   // samples were sentinels, and the panel read 0.00 m/s median landing speed and 0.0 J.
   const landed = samples.filter((s) => s.landed);
+  // **Drift and the recovery radius belong to that same population, and until 2026-08-02 they did
+  // not.** They were the one landing quantity still summarised over EVERY sample, and the reason it
+  // survived the fix above is that a sentinel drift does not look like a sentinel: `simulate` sets
+  // `driftDistance` from `state.pos` at loop exit unconditionally (`groundHitVelocity` beside it is
+  // gated on `landed`), so a flight still descending at the cap contributes the distance it had
+  // reached SO FAR. Not a zero anyone would notice — a plausible, smaller number, from a rocket that
+  // was still travelling downwind when it was measured.
+  //
+  // That is understated in the unsafe direction on the one figure whose whole job is to say how big
+  // a recovery area to plan for. Reproduced on `Complex.Two-Stage.CDX1` at 5x recovery size, a value
+  // inside the field's own 0.1-10x range: 0 of 12 samples landed, the panel correctly withheld
+  // landing speed as "no dispersed flight reached the ground" — and printed a 58.0 m median drift
+  // and a 121.4 m recovery radius beside it, describing twelve rockets that were all still in the
+  // air. Two stats in one card disagreeing about whether the flight finished is worse than either
+  // alone.
+  const landedDriftSorted = landed.map((s) => s.driftDistance).sort((a, b) => a - b);
   return {
     samples,
     apogee: summarize(samples.map((s) => s.apogee)),
     maxVelocity: summarize(samples.map((s) => s.maxVelocity)),
-    driftDistance: summarize(samples.map((s) => s.driftDistance)),
-    landingRadiusP95: percentile(driftSorted, 0.95),
+    driftDistance: summarize(landed.map((s) => s.driftDistance)),
+    landingRadiusP95: percentile(landedDriftSorted, 0.95),
     landingSpeed: summarize(landed.map((s) => s.landingSpeed)),
     landingEnergy: summarize(landed.map((s) => s.landingEnergy)),
     n: samples.length,

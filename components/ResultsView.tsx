@@ -522,7 +522,15 @@ export default function ResultsView({
           {s.drogueDescentRate !== undefined && (
             <Stat label="Drogue descent" q={d.speed(s.drogueDescentRate, units)} sub="under drogue" />
           )}
-          <Stat label="Drift from pad" q={d.distance(s.driftDistance, units)} />
+          {/* Withheld on the same test as the two below, and it was not until 2026-08-02. Drift is
+              `simulate`'s exit position taken unconditionally, so a flight still descending at the
+              cap reports how far downwind it had got — a plausible smaller number rather than an
+              obvious zero, sitting between two figures that correctly say they do not exist. */}
+          <Stat
+            label="Drift from pad"
+            q={d.distance(s.driftDistance, units)}
+            withheld={s.landed ? undefined : "no landing inside the time cap"}
+          />
           {/* Both are 0 when the flight never reached the ground — a sentinel the solver carries,
               not a measurement, and these are the two numbers a recovery setup is judged on. Shown
               as zeros, a flyer enlarging a canopy watched the landing energy fall to 0 J and read
