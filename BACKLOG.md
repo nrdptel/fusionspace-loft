@@ -37,17 +37,34 @@ big for one pass. Newest first.
   some did. Pinned by a corpus assertion over 62 dispersions, with a guard that the unlanded path
   was actually exercised; the negative control fires. Published on `/docs/methods`.
 
-- **A Loft-exported `.ork` re-imports as a different flight.** Filed 2026-08-02 from the opening
-  fan-out; **UNREPRODUCED by me.** `lib/ork/export.ts:568` writes no `<simulation>` element, so a
-  re-imported export has `simulations: []` and `runFromDocument` falls back to a different motor
-  configuration and to default launch conditions. Claimed over the corpus: `A simple model
-  rocket.ork` apogee **52.9 → 317.1 m** and liftoff mass 0.0630 → 0.0698 kg (a different motor);
-  `Punisher Apprentice.ork` **89.7 → 1309.0 m**. Geometry itself is clean — dry mass, CP and dry
-  static margin identical across all 35 files — so this is purely the lost simulation and
-  configuration. "Download .ork" is the file a flyer re-opens, and `/docs/limitations` documents the
-  fin-outline fidelity of that round trip without mentioning that the flown configuration does not
-  survive it. Note this is adjacent to R6, which is marked SHIPPED, so it is worked forward as a gap
-  rather than by re-opening R6.
+- **A Loft-exported `.ork` re-opens on a different motor configuration, and says nothing about it.**
+  **REPRODUCED 2026-08-02, and the diagnosis in the original filing is WRONG — read this one, not
+  that one.** The claim was that the export loses the motor. It does not: dumping the emitted XML,
+  all five `<motor configid=…>` entries carry exactly the designations the original had, and the
+  `default="true"` marker lands on the right configuration. Geometry is clean too.
+
+  What actually happens: `exportOrk` writes no `<simulation>` element, so the re-imported document
+  has `simulations: []` — and `runFromDocument` with no explicit `configId` flies **the first stored
+  simulation's configuration** when there is one, and falls back to the design's **default
+  configuration** when there is not. On `Deployable payload.ork` those are different configurations
+  of the same rocket: the first stored sim used the A8 (apogee **30.8 m**), the design's default is
+  the C6 (**257.6 m**). Both numbers are correct for the motor actually flown, and the motor chip
+  names it — which is why this is filed rather than treated as a Sev-1.
+
+  Measured across the first 12 openrocket corpus files, every one going `sims N → 0`:
+  `Deployable payload` 30.8 → 257.6 m (**+736.6%**), `Pods--airframes and winglets` 41.8 → 216.8
+  (+419.0%), `Clustered motors` 62.9 → 308.9 (+391.1%), `3D printable nose cone and fins` 40.0 →
+  119.6 (+199.2%), `Chute release` 313.4 → 497.7 (+58.8%), `Dual parachute deployment` 579.0 → 871.7
+  (+50.5%). Seven of the twelve are unchanged, which is the tell that this is configuration
+  selection rather than a geometry or motor defect.
+
+  **Two candidate fixes, and they are not equivalent.** Carry the flown configuration through the
+  export (a `<simulation>` element, or at minimum making the flown config the default on the way
+  out) — or leave the file alone and have the IMPORT say plainly which configuration it chose and
+  why, when a file offers several and names no simulation. The second is smaller and helps every
+  file with multiple configs, not just Loft's own exports. `/docs/limitations` documents this round
+  trip's fin-outline fidelity without mentioning either. Adjacent to R6, which is SHIPPED, so it is
+  worked forward as a gap rather than by re-opening R6.
 
 - **"Pick it back up" replays the edit bag onto bytes that already contain it.** Filed 2026-08-02
   from the opening fan-out; **UNREPRODUCED by me.** `components/LoftApp.tsx:1347` `reset()` calls
