@@ -2202,6 +2202,35 @@ Unattended runs do not stop to ask (see *Unattended operation* in `MAINTAINING.m
 that would otherwise have been a question goes here, with the option rejected, so it can be reversed
 cheaply instead of re-derived. Newest first.
 
+- **2026-08-02 — a published accuracy figure was RAISED rather than the gate slackened.**
+  `groundHitVelocity`'s census median goes 3.0% → 8.3% because the metric stopped being measured on
+  the total ground-frame speed. **Rejected:** keeping the total-speed convention so the median stayed
+  at 3.0%. That figure was two errors cancelling — Loft's own descent rate runs low on the openrocket
+  files and the wind term ran high — and on the nine stored sims where wind is strong enough that
+  they cannot cancel, the vertical figure agrees to 0.68% against 25.27% for the total. Widening
+  `CENSUS_SLACK_PCT` was also rejected outright: `MAINTAINING.md` names that as a regression dressed
+  as a pass. The page says why the number rose. **Reversing this means reverting the convention, not
+  the figure.**
+
+- **2026-08-02 — a `title` is acceptable as a pointer-only convenience, never as the only route.**
+  Writing the stability flag's reasoning into the design summary on a coarse pointer put the phone
+  chrome past the 1060 px ratchet and `/sweep` back over two screens — §8's depth clause and its
+  hover clause were being spent against each other. **Rejected:** keeping the visible line and
+  raising the depth ratchet, which would have traded a measured contract for an unmeasured one. The
+  reasoning is already written in full by `StabilityTrimHint`/`FlutterFixHint` below the fold, which
+  render exactly when a flag is raised, so the tooltip is redundancy rather than the only path. The
+  hover-only count treats a tooltip whose words appear nearby as reachable, which is what encodes
+  this decision in a check rather than in prose.
+
+- **2026-08-02 — the parts catalogue refuses six upstream entries rather than shipping them.**
+  Three material densities that cannot describe matter (`Paper, bulk` at 0.0011 kg/m³ in two files,
+  referenced by 18 real parts) and three parts with negative material volume. **Rejected:** shipping
+  them and letting the UI cope, which would have put a made-up mass under CG, stability and apogee
+  with nothing saying so. Also **rejected:** refusing `ROCKETARIUM.ORC`'s 9,072 kg/m³ "paper" —
+  that is a possible density for *something*, and refusing it would mean judging a value against its
+  NAME rather than against physics. It is recorded in `THIRD-PARTY-NOTICES.md` and `BACKLOG.md`
+  instead. **Reversing any of this is one edit to the bands in `scripts/gen-components.mjs`.**
+
 - **2026-08-02 — P2's workspaces are mounted in the route-group LAYOUT, not in the route pages.**
   `app/(app)/layout.tsx` renders the design, its chrome and every workspace panel; each
   `app/(app)/<workspace>/page.tsx` carries that route's title, description and canonical, and renders

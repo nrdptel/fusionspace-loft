@@ -125,27 +125,59 @@ The descent-rate gap this exposes is real and is now visible work.
 Pinned by a corpus assertion flying all 35 designs at 0/4/9 m/s; as a negative control the old code
 names **56 violations** with exact figures.
 
-### What the fan-out found and what is NOT yet reproduced
+### Two more Sev-1s, both reproduced before they were touched
 
-Seven agents ran. Their high-severity findings are filed at the top of `BACKLOG.md` **marked
-UNREPRODUCED**, with the filer's numbers, because this repo's rule is that a finding is a claim
-until it is seen. The next session should reproduce before scoping. Ranked by claimed damage:
+**`lib/sim/flutter.ts` — a booster's fins were judged against the speed the SUSTAINER reached after
+they were shed** (`f8cc5f7`). Every fin set on `Three stage low power rocket.ork` reported the
+identical 77.1 m/s at 95 m, which is the tell. The red 0.68 margin belonged to a fin set shed at
+0.86 s; over its own flight it is 2.11. Fixed by passing the realised phase timeline; **it reassigns
+warnings rather than suppressing them** — `03.Three-stage.ork` keeps its 0.23 flag because that fin
+set really is attached. Pinned over 12 shed fin sets, negative control names six violations.
 
-1. **`lib/sim/flutter.ts:385` — a booster's fins judged against the speed the SUSTAINER reached
-   after they were shed.** I confirmed the code shape myself: the per-fin-set loop filters only on
-   `phase`, never on whether that stage is still attached. Claimed margin 0.68 (red flag) against
-   2.11 truncated to separation, on four corpus designs. This is the one safety estimate in the app.
-   **Reproduce this first.**
-2. `lib/sim/montecarlo.ts:271` — landing speed/energy `0` sentinels published as a distribution
-   while `ResultsView` withholds those exact two figures one tab away.
-3. `lib/ork/export.ts:568` — a Loft-exported `.ork` re-imports with `simulations: []`, so it flies a
-   different motor configuration: claimed 52.9 → 317.1 m on `A simple model rocket.ork`.
-4. `components/LoftApp.tsx:1347` — "Pick it back up" replays the edit bag onto bytes that already
+**`lib/sim/montecarlo.ts` — a dispersion reported landings that never happened** (`ddbed12`). At
+`recoveryCdScale: 5`, inside the field's own advertised range, **40 of 40 samples were 0 sentinels**
+and the panel read 0.00 m/s and 0.0 J — while `ResultsView` withholds those exact two figures one
+route away. Landing stats now come from the flights that landed, the result carries `landedN`, and
+the panel withholds with a reason or says "covers N of M flights".
+
+### What is still NOT reproduced
+
+The remaining fan-out findings are filed at the top of `BACKLOG.md` **marked UNREPRODUCED**, with the
+filer's numbers. Both Sev-1s above reproduced exactly as filed, so these are worth taking seriously —
+but they are still claims. Ranked by claimed damage:
+
+1. `lib/ork/export.ts:568` — a Loft-exported `.ork` re-imports with no stored simulations, so it
+   flies a different motor configuration: claimed **52.9 → 317.1 m** on `A simple model rocket.ork`.
+   **Reproduce this first**; it is the largest claimed number left.
+2. `components/LoftApp.tsx:1347` — "Pick it back up" replays the edit bag onto bytes that already
    contain it: claimed −15% apogee and a duplicated part, from the undo button.
+3. `components/LoftApp.tsx:515` — a from-scratch build stops being tracked by its shelf row after any
+   reload, which also disables motor-swap baking in `downloadOrk`.
+4. `lib/sim/simulate.ts:931` — with no liftoff, six summary figures are initialisation zeros printed
+   as facts.
 
 Also filed: `lib/weather.test.ts:139` is a **load-dependent red** in the unit gate (5768 ms against
 vitest's 5000 ms default) — it went red once here under concurrent load and passes 16/16 alone. That
 is the failure mode that teaches a session to re-run until green; give it an explicit timeout.
+
+### Where the work is, and what production is serving
+
+**Seven commits, all on the working branch, all in PR #111 against `main`. NOTHING reached
+production this run.** Measured rather than assumed: all ten routes on `loft.fusionspace.co` answer
+200, and none of them carries this run's text (`Arrival speed`, `8.3%`, `this fin set reaches` all
+return 0 hits), while the local built export of `ddbed12` carries all of them. Production is still
+serving `e97770a`. **Merging PR #111 is what makes any of this reachable by a flyer**, and CI on the
+first six commits went green on both jobs — including the `frontend` job, which is the one that
+fetches the real corpus and runs the accuracy census, so the raised 8.3% figure is validated
+upstream and not just locally.
+
+### The measurement that is now owed to `DESIGN.md`
+
+§9's compliance block should gain the hover-only count that `e2e/touch.spec.ts` now takes. It was
+NOT added, because §10 makes a change to one copy of `DESIGN.md` a change to both repos in the same
+run and the sibling is not attached here. That is now **five** things owed to the sibling copy, the
+other four unchanged from the last five runs. A session created with both repos attached clears all
+five.
 
 ## This session (2026-08-02)
 
