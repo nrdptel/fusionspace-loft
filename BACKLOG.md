@@ -12,22 +12,18 @@ this file, and deliberately does **not** cap craft or product work, because that
 track in `ROADMAP.md` with its own *done when*. Rough edges, missing affordances, and findings too
 big for one pass. Newest first.
 
-- **`GeometryInspector`'s eleven gesture tooltips are still hover-only, and the check is blind to
-  ten of them.** Measured 2026-08-02. Remove, reorder, add a tube / fin set / mass object /
-  transition / motor mount, remove a mount, remove a booster — each explains what the gesture DOES in
-  a `title`, which never fires on a coarse pointer. Ten render only once a part is SELECTED and
-  `e2e/touch.spec.ts` never selects one, so they have contributed 0 to every reading that ratchet has
-  taken; the eleventh ("Add a booster stage") is the 1 the floor now sits at.
-  **Converting them to `aria-label` was tried this run and reverted, and the reason is the fix's
-  shape:** `aria-label` REPLACES the accessible name where `title` only supplements it, so
-  "Add a tube behind this" became "Add a body tube immediately behind this one, faired to it, and
-  re-fly the design" — no longer containing the visible label, which is WCAG 2.5.3 (label in name)
-  and what a voice-control user says out loud. Fourteen e2e specs caught it by finding those buttons
-  by the words on screen. **The correct form is `<visible label> — <description>` per control**, done
-  one at a time with its spec, not a regex over the file. Reaching them from the walk needs the
-  diagram's selection path or a wider viewport: `getByRole("row")` matches nothing for that table and
-  a direct row click times out, because it is 1,198 px wide inside a 390 px viewport in its own
-  scrolling container.
+- ~~**`GeometryInspector`'s eleven gesture tooltips are still hover-only.**~~ **FIXED 2026-08-02**,
+  on the second attempt, in the form the first attempt established. Each now carries an `aria-label`
+  that BEGINS with the control's own visible text and then adds what the tooltip said, so the
+  accessible name is extended rather than replaced — `aria-label` overrides where `title` only
+  supplements, and the regex sweep that substituted the description for the name renamed
+  "Add a tube behind this" out from under fourteen e2e specs. The three dynamic labels interpolate
+  the same component or stage name the visible text does.
+  **What is NOT fixed, and stays filed:** `e2e/touch.spec.ts` still never selects a part, so ten of
+  these eleven render outside its reach and a regression on them would not fail it — the count reads
+  0 either way. Reaching them needs the diagram's selection path or a wider viewport;
+  `getByRole("row")` matches nothing for that table and a direct row click times out, because it is
+  1,198 px wide inside a 390 px viewport in its own scrolling container.
 
 - **A picked catalogue part silently overrides the whole-airframe material control, and neither
   surface says so.** Filed 2026-08-02, **REPRODUCED by the reviewer, not re-driven by me.**

@@ -506,15 +506,9 @@ test.describe("phone layout", () => {
  *  improvement fails this test just as a regression does, so the figure in this file and the figure
  *  on the page can never drift apart silently.
  *
- *  **96 → 75 → 67 → 25 → 1**, and the last step is the one to read carefully: **one here is not
- *  "almost §8".** It is zero on the six routes this walk visits, with no part selected — see the
- *  blind spot recorded in the loop below, which eleven real controls sit inside — and those eleven
- *  are STILL hover-only. The honest claim is narrow: every hover-only state this check can SEE is
+ *  **96 → 75 → 67 → 25 → 1 → 0**, and the zero is the one to read carefully. It is zero on the six routes this walk visits, with no part selected — see the
+ *  blind spot recorded in the loop below. The honest claim is narrow: every hover-only state this check can SEE is
  *  gone. Closing the gap means reaching them, not lowering a number.
- *
- *  The remaining 1 is `GeometryInspector`'s "Add a booster stage", the only control in that file
- *  that renders without a part selected — see the blind spot below for why the other eleven in it
- *  read as zero.
  *
  *  The 67 → 25 step took the whole SHARED CHROME, which is why it is the
  *  large one: every site there renders on all six routes, so five files paid for forty-two of them.
@@ -533,7 +527,7 @@ test.describe("phone layout", () => {
  *  assistive tech on every form factor, and neither costs a pixel. Where the tooltip merely restated
  *  a visible label it was deleted outright; where it carried something real — what a download
  *  omits, an undo's keyboard shortcut, why a stability flag fired — it was kept and relocated. */
-const HOVER_ONLY_FLOOR = 1;
+const HOVER_ONLY_FLOOR = 0;
 
 test("counts the states a flyer at the pad cannot reach, and holds the number down", async ({ page }) => {
   const ROUTES = ["/flight", "/design", "/sweep", "/validate", "/docs", "/docs/methods"];
@@ -551,13 +545,16 @@ test("counts the states a flyer at the pad cannot reach, and holds the number do
     // walk never selects one. So those eleven have contributed 0 to every reading this ratchet has
     // ever taken, while being exactly the kind of state it exists to find.
     //
-    // **They are STILL `title` attributes and are still hover-only** — converting them was tried in
-    // this same increment and reverted, because `aria-label` REPLACES the accessible name where
-    // `title` only supplements it: "Add a tube behind this" became "Add a body tube immediately
-    // behind this one, faired to it, and re-fly the design", which no longer contains the visible
-    // label. That is WCAG 2.5.3, and fourteen specs caught it by finding those buttons by the words
-    // on screen. Doing it properly means prefixing each visible label, one control at a time, and it
-    // is filed in `BACKLOG.md` with this measurement.
+    // **They are FIXED — and this check did not verify that, which is the point of saying so here.**
+    // Each now carries an `aria-label` that BEGINS with its own visible text and then adds what the
+    // tooltip said. Getting there took two attempts: a regex sweep that substituted the description
+    // for the name shipped first, and fourteen specs caught it by finding those buttons by the words
+    // on screen — `aria-label` REPLACES the accessible name where `title` only supplements it, so
+    // "Add a tube behind this" had become "Add a body tube immediately behind this one, faired to
+    // it, and re-fly the design". That is WCAG 2.5.3, and it is why the form is label-first.
+    //
+    // A regression on any of the TEN behind a selection would not fail this test — it reads zero
+    // either way. The eleventh, "Add a booster stage", renders unselected and IS covered.
     //
     // Two ways of reaching them from here also failed and are worth not repeating:
     // `getByRole("row")` matches nothing for this table's rows, and a direct `tbody tr` click times
