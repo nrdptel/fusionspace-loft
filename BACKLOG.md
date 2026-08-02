@@ -33,19 +33,6 @@ big for one pass. Newest first.
   exists to disclose it is unreachable for every real file. Worth ~0.97 pp of apogee on that design.
   Fixing the reachability is small; modelling the protuberance is its own slice.
 
-- **The optimum delay is computed for a different vehicle than the one on screen when a what-if is
-  set.** `lib/sim/run.ts:177` — `const freeCoast = simulate({ ...built.input, recovery: [] })`
-  recomputes the recovery-free coast from `built.input` rather than from the input the flight actually
-  used, so it silently drops `extraMasses` (the flyer's nose ballast), `thrustScale`, `massScale`,
-  `dragScale` and `timeStep`. It fires whenever `deployedBeforeApogee` is true — 5 of the 35 corpus
-  designs. Measured 2026-08-02 on `The Red Hunter.ork`: ballast 0 / 0.01 / 0.02 / 0.05 / 0.1 kg all
-  return an optimum delay of **exactly 4.66 s** while apogee falls 258.5 → 147.4 m; the correct value
-  at 0.05 kg is **5.31 s**. On `FullScaleModelTH.rkt` the shown delay is 16.16 s for ballast 0 through
-  1 kg and for `dragScale` 2× and `thrustScale` 1.3×, while apogee moves 342 → 441 m. The Stat is
-  labelled "Optimum delay · burnout → apogee" for the flight in view, and picking a delay is one of
-  the three things the app exists to help with. **Filed rather than fixed only because the run's Sev-1
-  preemption was already spent on the integrator divergence; this is the next correctness item.**
-
 - **A diverged Monte-Carlo sample was kept because it was finite.** `lib/sim/montecarlo.ts:229` —
   `if (!Number.isFinite(s.apogee)) continue` is the only sanity filter on a dispersion sample. The
   divergence that produced 1e13 m apogees was finite, so it was kept and poisoned the waiver-ceiling
