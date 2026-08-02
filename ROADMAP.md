@@ -1923,7 +1923,7 @@ rather than rewriting them.
 
 ## P3 — A stranger's first five minutes
 
-**Status: IN PROGRESS** — increment 1 of 3–4 shipped 2026-08-02.
+**Status: IN PROGRESS** — increments 1–2 of 3–4 shipped 2026-08-02.
 
 *Increment 1 — the walkthrough the milestone asks for, and the three things it found.* `e2e/first-run.spec.ts`
 starts where every other spec does not: a cold browser, empty storage, no file. `addInitScript` clears
@@ -1948,9 +1948,32 @@ It went red on two real gaps and both are fixed in the same increment:
 The third clause it checks — that an import says what was and was not understood — already passed,
 and is now pinned rather than assumed.
 
+*Increment 2 — a number that left its envelope says so, on the number.* `DESIGN.md` §5 requires the
+`Extrapolated` treatment — "the warn treatment plus the reason and the range it left" — **wherever** a
+number leaves the envelope its method was validated over. Loft's drag model is validated subsonic,
+and above about M0.8 it is a bounded parametric estimate; the flight raised a `transonic` caution
+card, but the apogee itself rendered byte-identical whether the rocket went transonic or not. **A
+flyer reading the number does not necessarily read the card**, which is the whole reason §5 puts the
+treatment on the number.
+
+`Stat` gains an `extrapolated` slot carrying the reason and the range, rendered as an `abbr` — the
+same affordance `Field`'s hint already uses, so a pointer, a keyboard and a screen reader all reach
+the explanation from the figure itself. Applied to the seven ascent-derived readouts the
+extrapolation actually drives, and deliberately NOT to rail-exit velocity (~20 m/s off the rail) or
+thrust-to-weight (static), which are inside the validated envelope whatever the flight does later —
+a flag that fires on everything teaches a flyer to ignore it on the flight where it matters.
+
+Pinned both ways in `e2e/smoke.spec.ts`: a transonic flight marks numbers and the marker carries its
+reason, and a subsonic flight marks nothing. Two DOM lessons paid for on the way, both recorded in
+the component: the readouts are located by walking the label's following siblings, so a new sibling
+`div` silently broke two unrelated locators; and beside the value the marker pushed a 320 px metric
+tile into clipping its own number, so it stacks.
+
 *Remaining:* the milestone's "understand what the tool is within one screen" clause is asserted only
-weakly (the first screen must mention a flight at all). A stranger still meets a file-import
-instruction before a statement of what Loft is for. And the README is 4.7 KB against the sibling
+weakly (the first screen must mention a flight at all) — though the landing's own paragraph does say
+Loft "simulates the flight in your browser — apogee, speed, stability, and recovery". The clause to
+strengthen is the LAST one: methods is now reachable from a flown number, but **limitations and
+validation are not**, and §5's own list names all three. And the README is 4.7 KB against the sibling
 app's 27 KB.
 
 **Outcome.** Someone who has never heard of Loft gets to a flight they believe in, without being told

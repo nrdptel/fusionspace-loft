@@ -264,6 +264,14 @@ export default function ResultsView({
 }) {
   const r = run.result;
   const s = r.summary;
+  /** The envelope the ascent numbers left, or undefined while they are inside it. `DESIGN.md` §5
+   *  requires the `Extrapolated` treatment wherever a number leaves the envelope its method was
+   *  validated over; the drag model's is subsonic, and above about M0.8 it is a bounded parametric
+   *  estimate rather than a solution. Worded to match the `transonic` caution the solver already
+   *  raises, so the marker and the card cannot drift apart. */
+  const extrapolatedWhy = r.extrapolatedTransonic
+    ? `this flight reaches M${d.fmt(s.maxMach, 2)}, outside the drag model's validated subsonic envelope (M ≤ 0.8) — treat it as rough`
+    : undefined;
   const markers = eventMarkers(r);
   // Which workspace is open — the route, handed down. The panels below all stay mounted and the
   // route only decides which one is visible, which is deliberate rather than incidental: a
@@ -467,13 +475,17 @@ export default function ResultsView({
         <h2 className="text-xl font-medium tracking-tight">Flight</h2>
         {baseline && baseline.hasPropulsion && <WhatIfDelta run={run} baseline={baseline} units={units} />}
         <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-          <Stat label="Apogee" q={d.altitude(s.apogee, units)} accent />
-          <Stat label="Max velocity" q={d.speed(s.maxVelocity, units)} sub={d.q(d.mach(s.maxMach))} />
-          <Stat label="Max acceleration" q={d.accel(s.maxAcceleration)} />
+          {/* Marked on the numbers the transonic drag extrapolation actually drives — the ascent.
+              Rail-exit velocity (~20 m/s off the rail) and thrust-to-weight (static) are inside the
+              validated envelope whatever the flight does later, so marking them would be the flag
+              crying wolf that the brief warns teaches flyers to ignore every flag. */}
+          <Stat label="Apogee" q={d.altitude(s.apogee, units)} accent extrapolated={extrapolatedWhy} />
+          <Stat label="Max velocity" q={d.speed(s.maxVelocity, units)} sub={d.q(d.mach(s.maxMach))} extrapolated={extrapolatedWhy} />
+          <Stat label="Max acceleration" q={d.accel(s.maxAcceleration)} extrapolated={extrapolatedWhy} />
           <Stat label="Rail-exit velocity" q={d.speed(s.railExitVelocity, units)} />
           <Stat label="Thrust-to-weight" q={d.ratio(s.thrustToWeight)} sub="liftoff" />
-          <Stat label="Time to apogee" q={d.seconds(s.timeToApogee)} />
-          <Stat label="Burnout velocity" q={d.speed(s.burnoutVelocity, units)} />
+          <Stat label="Time to apogee" q={d.seconds(s.timeToApogee)} extrapolated={extrapolatedWhy} />
+          <Stat label="Burnout velocity" q={d.speed(s.burnoutVelocity, units)} extrapolated={extrapolatedWhy} />
           <Stat
             label="Descent rate"
             q={d.speed(s.descentRate, units)}
@@ -498,9 +510,9 @@ export default function ResultsView({
             sub="whole vehicle"
             withheld={s.landed ? undefined : "no landing inside the time cap"}
           />
-          <Stat label="Optimum delay" q={d.seconds(s.optimumDelay)} sub="burnout → apogee" />
+          <Stat label="Optimum delay" q={d.seconds(s.optimumDelay)} sub="burnout → apogee" extrapolated={extrapolatedWhy} />
           <Stat label="Flight time" q={d.seconds(s.flightTime)} />
-          <Stat label="Max dynamic pressure" q={d.dynamicPressure(s.maxDynamicPressure, units)} />
+          <Stat label="Max dynamic pressure" q={d.dynamicPressure(s.maxDynamicPressure, units)} extrapolated={extrapolatedWhy} />
         </div>
         <RecoverySizingHint run={run} units={units} />
         <BoosterDescentNote run={run} units={units} />
@@ -1406,6 +1418,7 @@ function Stat({
   sub,
   accent,
   withheld,
+  extrapolated,
 }: {
   label: string;
   q: d.Quantity;
@@ -1416,6 +1429,12 @@ function Stat({
    *  a withheld estimate has to say why (see the no-propulsion notice, which does the same thing for
    *  the whole panel). Used where the solver carries a sentinel that is not a measurement. */
   withheld?: string;
+  /** The envelope this number left, when it left one. `DESIGN.md` §5 requires the `Extrapolated`
+   *  treatment — "the warn treatment plus the reason and the range it left" — WHEREVER a number
+   *  leaves the envelope its method was validated over, and until now a transonic apogee rendered
+   *  byte-identical to a subsonic one, with the caveat surfacing only as a separate card further up
+   *  the page. A flyer reading the number does not necessarily read the card. */
+  extrapolated?: string;
 }) {
   return (
     <Card>
@@ -1428,6 +1447,22 @@ function Stat({
         <div className={"mt-1 font-mono tabular-nums " + (accent ? "text-xl font-semibold text-indigo-600 dark:text-indigo-400" : "text-xl text-zinc-900 dark:text-zinc-100")}>
           {q.value}
           <span className="ml-1 text-xs font-normal text-zinc-500 dark:text-zinc-400">{q.unit}</span>
+          {/* Inside the value's own line, not a sibling of it. `abbr` is the same affordance
+              `Field`'s hint already uses, so a pointer, a keyboard and a screen reader all reach the
+              reason from the number itself rather than from the caution card further up the page —
+              which a flyer reading the number does not necessarily read. Kept in this element
+              because the readouts are located by walking the label's following siblings, and a new
+              sibling div silently broke two of those locators. Block rather than inline: beside the
+              value it pushed a 320 px metric tile into clipping its own number. */}
+          {extrapolated && (
+            <abbr
+              title={extrapolated}
+              aria-label={`Extrapolated — ${extrapolated}`}
+              className="mt-1 block w-fit cursor-help rounded-md bg-amber-500/10 px-2 py-1 font-sans text-[11px] font-medium uppercase tracking-wide text-amber-700 no-underline dark:text-amber-400"
+            >
+              extrapolated
+            </abbr>
+          )}
         </div>
       )}
       {(withheld ?? sub) && (
