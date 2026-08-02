@@ -25,8 +25,13 @@ export const FIN_CROSS_SECTIONS: FinCrossSection[] = ["square", "rounded", "airf
 
 /** A selectable fin stock for the builder's material picker: a display label, the bulk density
  *  that sets the fin mass, and a material name the flutter estimate recognises for its shear
- *  modulus. Densities are representative engineering figures for the common fin stocks; ordered
- *  lightest/floppiest → heaviest/stiffest, which is also roughly the flutter-resistance order. */
+ *  modulus.
+ *
+ *  **Every row carries where its density came from, and the ones with no published figure say so.**
+ *  These set authored-part MASS, and mass feeds everything downstream of it, so "representative
+ *  engineering figure" is a claim to label rather than imply — the same contract the shear moduli
+ *  in `lib/sim/flutter.ts` now carry. Four are cited to a document, one to arithmetic on a vendor's
+ *  own published tube dimensions, and four are honest estimates that say as much. */
 export interface FinMaterialOption {
   key: string;
   label: string;
@@ -34,28 +39,164 @@ export interface FinMaterialOption {
   name: string;
   /** Bulk density (kg/m³). */
   density: number;
+  /** Where `density` comes from. Never empty — a row with no published figure says so, the same
+   *  contract `lib/sim/flutter.ts`'s shear moduli carry. These feed authored-part MASS, and mass
+   *  feeds every number downstream of it, so "representative engineering figure" is a claim that
+   *  has to be labelled rather than implied. */
+  source: string;
+  /** True when `density` traces to a published document or to arithmetic on published vendor
+   *  dimensions. False for a representative figure with no primary source found. */
+  sourced: boolean;
 }
+
+/** Fin-stock materials for the builder's fin material picker, lightest/floppiest → heaviest/stiffest,
+ *  which is also roughly the flutter-resistance order. The `name` is what the flutter estimate matches
+ *  against to resolve a shear modulus. */
 export const FIN_MATERIALS: FinMaterialOption[] = [
-  { key: "balsa", label: "Balsa", name: "balsa", density: 130 },
-  { key: "basswood", label: "Basswood", name: "basswood", density: 420 },
-  { key: "plywood", label: "Birch plywood", name: "birch plywood", density: 680 },
-  { key: "g10", label: "G10 fibreglass", name: "G10 fibreglass", density: 1850 },
-  { key: "carbon", label: "Carbon fibre", name: "carbon fibre", density: 1550 },
-  { key: "aluminium", label: "Aluminium", name: "aluminium", density: 2700 },
+  {
+    key: "balsa",
+    label: "Balsa",
+    name: "balsa",
+    density: 130,
+    source:
+      "typical hobby sheet. Balsa is sold GRADED BY DENSITY over roughly 100-250 kg/m3, so a single " +
+      "figure is a simplification whichever one it is. The USDA Wood Handbook FPL-GTR-282's own " +
+      "Ochroma pyramidale sample (Table 5-5a) is SG 0.16, about 185 kg/m3 — denser than typical " +
+      "contest stock, which is why the handbook figure is cited here rather than adopted.",
+    sourced: false,
+  },
+  {
+    key: "basswood",
+    label: "Basswood",
+    name: "basswood",
+    density: 414,
+    source:
+      "USDA Wood Handbook FPL-GTR-282 ch. 5, Table 5-3a: American basswood SG 0.37 at 12% moisture " +
+      "content (ovendry weight, volume at 12% MC), i.e. 414 kg/m3.",
+    sourced: true,
+  },
+  {
+    key: "plywood",
+    label: "Birch plywood",
+    name: "birch plywood",
+    density: 680,
+    source:
+      "typical aircraft-grade birch ply. The Wood Handbook has no plywood at all — it is clear-wood " +
+      "only — and its solid yellow birch (Table 5-3a, SG 0.62) is 694 kg/m3, which is a different " +
+      "material: aircraft ply is Baltic birch, and ply count, veneer thickness and glue lines all " +
+      "move it.",
+    sourced: false,
+  },
+  {
+    key: "g10",
+    label: "G10 fibreglass",
+    name: "G10 fibreglass",
+    density: 1770,
+    source:
+      "Norplex-Micarta Technical Data Bulletin NP500A (NEMA G-10), Physical Properties: specific " +
+      "gravity 1.77 by ASTM D792.",
+    sourced: true,
+  },
+  {
+    key: "carbon",
+    label: "Carbon fibre",
+    name: "carbon fibre",
+    density: 1570,
+    source:
+      "Hexcel HexPly 8552 product data sheet, prepreg properties: nominal laminate density 1.56-1.58 " +
+      "g/cm3 across UD and woven AS4 layups. Laminate density moves with fibre volume fraction, so " +
+      "this is the middle of a narrow published band rather than a constant.",
+    sourced: true,
+  },
+  {
+    key: "aluminium",
+    label: "Aluminium",
+    name: "aluminium",
+    density: 2713,
+    source: "MIL-HDBK-5J Table 3.6.2.0(b1), 6061: 0.098 lb/in3 = 2,713 kg/m3.",
+    sourced: true,
+  },
 ];
 
-/** Airframe-shell materials for the builder's body/nose/transition material picker — the common
- *  tube stocks, lightest → heaviest. Bulk densities are representative values for the laminate or
- *  stock (fibreglass/carbon/phenolic laminates, vulcanised-fibre "Blue Tube", spiral-wound kraft
- *  cardboard, birch ply, 6061 aluminium). Reuses the fin-material option shape. */
+/** Airframe-shell materials for the builder's body/nose/transition material picker, lightest →
+ *  heaviest. Reuses the fin-material option shape.
+ *
+ *  Three of these have no published density and are unlikely ever to get one: a rocketry body tube is
+ *  a WOUND structure, and its bulk density is set by winding angle, ply count and adhesive rather
+ *  than by a material anyone publishes a datasheet for. Where a vendor publishes a tube's inside and
+ *  outside diameters, its length and its weight, the density follows by arithmetic — which is a
+ *  weaker citation than a datasheet but a far stronger one than a round number, and it is recorded
+ *  as a derivation so nobody mistakes it for a material property. */
 export const AIRFRAME_MATERIALS: FinMaterialOption[] = [
-  { key: "cardboard", label: "Cardboard", name: "cardboard", density: 700 },
-  { key: "plywood", label: "Birch plywood", name: "birch plywood", density: 680 },
-  { key: "kraft-phenolic", label: "Kraft phenolic", name: "kraft phenolic", density: 950 },
-  { key: "bluetube", label: "Blue Tube", name: "vulcanised fibre", density: 1250 },
-  { key: "carbon", label: "Carbon fibre", name: "carbon fibre", density: 1550 },
-  { key: "fibreglass", label: "Fibreglass", name: "fibreglass", density: 1850 },
-  { key: "aluminium", label: "Aluminium", name: "aluminium", density: 2700 },
+  {
+    key: "cardboard",
+    label: "Cardboard",
+    name: "cardboard",
+    density: 700,
+    source:
+      "NO PUBLISHED DENSITY. Derived from two LOC kraft tubes' published dimensions and weights " +
+      "(3.9 in: ID 3.900\u2033, OD 4.000\u2033, 34\u2033, 298 g; 3.00 in: ID 3.000\u2033, OD 3.100\u2033, 34\u2033, 226 g) the " +
+      "figure is 847-862 kg/m3 — but that derivation is very sensitive to the 0.050\u2033 wall, which is " +
+      "the difference of two 3-decimal diameters, so a 0.005\u2033 rounding moves it about 10%. Kept at " +
+      "700 pending a measurement rather than moved onto arithmetic that fragile.",
+    sourced: false,
+  },
+  {
+    key: "plywood",
+    label: "Birch plywood",
+    name: "birch plywood",
+    density: 680,
+    source: "as FIN_MATERIALS — typical aircraft-grade birch ply; the Wood Handbook has no plywood.",
+    sourced: false,
+  },
+  {
+    key: "kraft-phenolic",
+    label: "Kraft phenolic",
+    name: "kraft phenolic",
+    density: 950,
+    source:
+      "NO PUBLISHED DENSITY for a wound rocketry tube. NEMA Grade X paper phenolic (Norplex-Micarta " +
+      "NP610) is SG 1.40, but that is a hot-pressed fully-consolidated SHEET with far more resin " +
+      "than a convolute-wound tube — citing it would be citing the wrong material and would push " +
+      "this to 1,400. Representative engineering figure.",
+    sourced: false,
+  },
+  {
+    key: "bluetube",
+    label: "Blue Tube",
+    name: "Blue Tube",
+    density: 1270,
+    source:
+      "derived from the vendor's own published tube dimensions and weights: 2.56 in (ID 2.551\u2033, " +
+      "OD 2.671\u2033, 48\u2033, 490 g) gives 1,266 kg/m3 and 98 mm (ID 3.900\u2033, OD 4.014\u2033, 48\u2033, 725 g) " +
+      "gives 1,301. Always Ready Rocketry publishes no composition and no material properties, so " +
+      "there is no datasheet to cite and this arithmetic is the strongest citation available.",
+    sourced: true,
+  },
+  {
+    key: "carbon",
+    label: "Carbon fibre",
+    name: "carbon fibre",
+    density: 1570,
+    source: "as FIN_MATERIALS — Hexcel HexPly 8552 nominal laminate density.",
+    sourced: true,
+  },
+  {
+    key: "fibreglass",
+    label: "Fibreglass",
+    name: "fibreglass",
+    density: 1770,
+    source: "as FIN_MATERIALS' G10 — Norplex-Micarta NP500A, specific gravity 1.77 (ASTM D792).",
+    sourced: true,
+  },
+  {
+    key: "aluminium",
+    label: "Aluminium",
+    name: "aluminium",
+    density: 2713,
+    source: "as FIN_MATERIALS — MIL-HDBK-5J Table 3.6.2.0(b1).",
+    sourced: true,
+  },
 ];
 
 /** The canonical shape parameter to give each nose shape when it's chosen from the picker, so the

@@ -1364,15 +1364,36 @@ Pinned by `lib/sim/flutter.test.ts` — every row has a non-empty source, an uns
 in words, and the two wood values are asserted against the handbook arithmetic rather than against
 the constants. Published on `/docs/limitations`.
 
-*Densities are NOT done and are increment 1's remaining half.* `FIN_MATERIALS` and
-`AIRFRAME_MATERIALS` in `lib/model/edit.ts` are still uncited. What was found: balsa 130 against the
-handbook's own ~185 sample (balsa is graded by density over 100–250, so one number is a
-simplification either way), basswood 420 → 414, birch 680 → 694 (solid yellow birch; the handbook has
-no plywood), G10 1850 → 1770 (Norplex-Micarta NP500A), carbon 1550 → 1560–1580 (Hexcel 8552),
-aluminium 2700 → 2713. Cardboard, kraft phenolic and Blue Tube have no published density at all —
-Blue Tube's composition is undisclosed, and 1250 is supported only by arithmetic on the vendor's own
-published tube dimensions and weights (1266 and 1301 across two sizes), which is the strongest
-citation available and should be recorded as a derivation rather than a material property.
+*Increment 1's second half — SHIPPED. The densities carry their sources too.* `FIN_MATERIALS` and
+`AIRFRAME_MATERIALS` in `lib/model/edit.ts` set authored-part MASS, and mass feeds everything
+downstream of it, so an uncited figure there is the same claim the shear moduli were making.
+
+**Cited and corrected:** basswood 420 → **414** (Wood Handbook Table 5-3a, SG 0.37 at 12% MC), G10
+and fibreglass 1850 → **1770** (Norplex-Micarta NP500A, SG 1.77 by ASTM D792), carbon 1550 → **1570**
+(Hexcel HexPly 8552 nominal laminate density 1.56–1.58, the middle of a narrow band that moves with
+fibre volume fraction), aluminium 2700 → **2713** (MIL-HDBK-5J, 0.098 lb/in³).
+
+**Left alone, with the reason recorded rather than the number changed:**
+- **balsa 130.** The handbook's own *Ochroma pyramidale* sample is SG 0.16 ≈ 185 — DENSER than
+  typical contest stock. Balsa is sold graded by density over 100–250, so a single figure is a
+  simplification whichever it is; adopting the handbook's would misrepresent what a flyer buys.
+- **birch plywood 680.** The handbook has no plywood at all — it is clear-wood only — and its solid
+  yellow birch (694) is a different material from Baltic aircraft ply.
+- **cardboard 700.** No published density, and the derivation from two LOC tubes' published
+  dimensions and weights (847–862) is very sensitive to the 0.050 in wall, which is the difference of
+  two 3-decimal diameters: a 0.005 in rounding moves it ~10%. Not moved onto arithmetic that fragile.
+- **kraft phenolic 950.** NEMA Grade X paper phenolic is SG 1.40, but that is a hot-pressed
+  consolidated sheet, not a convolute-wound tube — citing it would be citing the wrong material.
+
+**Blue Tube 1250 → 1270, and it stops claiming to know what it is made of.** Its `name` was
+"vulcanised fibre", which is a GUESS — the vendor publishes no composition, and even Apogee's copy
+says only that it is *suspected* to be a vulcanised cellulose fibre. That name is also what the
+flutter estimate matches on, so a wrong one is a wrong stiffness under a confident label. The density
+is derived from the vendor's own published tube dimensions and weights (1,266 and 1,301 across two
+sizes) and recorded as a derivation, not as a material property.
+
+Pinned by `lib/model/edit.test.ts`: every row has a non-empty source, an unsourced row must say so,
+and Blue Tube's name must not claim a composition.
 
 *Increment 2.* `scripts/gen-components.mjs` + `lib/components/catalog.ts` + `components/provenance.json`
 + `THIRD-PARTY-NOTICES.md`, modelled on `gen-motors.mjs`. Parse the `.orc` XML at generate time,

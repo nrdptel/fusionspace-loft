@@ -3111,3 +3111,40 @@ describe("moveTarget — where a nudge lands, and when there is nowhere to go", 
     expect(moveTarget(doc.rocket, "boost", -1)).toBeNull();
   });
 });
+
+describe("material catalogues carry their provenance", () => {
+  /** The densities set authored-part mass, and mass feeds every number downstream of it. Until
+   *  2026-08-02 they were "representative engineering figures" with nothing behind them, in a repo
+   *  whose physics is otherwise cited line by line. The rule is not that every figure must be
+   *  sourced — several of these genuinely cannot be, because a wound rocketry tube's density is set
+   *  by its winding rather than by a material anyone publishes — but that a figure with nothing
+   *  behind it must SAY so rather than read like the ones that do. */
+  for (const [name, table] of [
+    ["FIN_MATERIALS", FIN_MATERIALS],
+    ["AIRFRAME_MATERIALS", AIRFRAME_MATERIALS],
+  ] as const) {
+    it(`${name}: every row says where its density came from`, () => {
+      expect(table.length).toBeGreaterThan(0);
+      for (const row of table) {
+        expect(row.source.trim().length, `${row.label} has no source`).toBeGreaterThan(0);
+        expect(row.density, `${row.label} has a non-positive density`).toBeGreaterThan(0);
+        if (!row.sourced) {
+          expect(row.source, `${row.label} is unsourced but does not say so`).toMatch(
+            /NO PUBLISHED|typical|representative|as FIN_MATERIALS/i,
+          );
+        }
+      }
+    });
+  }
+
+  it("keeps Blue Tube's composition an open question rather than a guess", () => {
+    // Its name was "vulcanised fibre", which is a guess — the vendor publishes no composition, and
+    // Apogee's own copy says only that it is *suspected* to be a vulcanised cellulose fibre. The
+    // name is also what the flutter estimate matches on, so a wrong one is a wrong stiffness with a
+    // confident label on it.
+    const blue = AIRFRAME_MATERIALS.find((m) => m.key === "bluetube");
+    expect(blue).toBeDefined();
+    expect(blue!.name).not.toMatch(/vulcanis|vulcaniz/i);
+    expect(blue!.source).toMatch(/publishes no composition/i);
+  });
+});
