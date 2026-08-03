@@ -4,64 +4,76 @@ Overwritten each session. What shipped, what is part-way, and what to pick up fi
 
 ## Read this first
 
-**The previous run's ten commits are ON `main` and deployed.** Pull request #120 merged as `4bb2e22`
-on 2026-08-03 with both CI jobs green — the corpus job's log names `imports every design file
-(35 present)` and prints the accuracy census, so the physics gate really ran. Nothing is stranded.
+**R8 and P4 are both DONE, and both tracks now start on a milestone that does not exist yet.** R8's
+last *done when* clause closed this run — all five kinds the milestone names can be picked from the
+catalogue. P4 was already done and the roadmap did not say so: increment 7 shipped as `1a336f8` and
+that commit never updated the status line, so the file said "6 of 7" while the code, the specs and
+this file all said 7. Corrected in `ROADMAP.md` this run, with the reason, because a status line that
+lags the work is how one run redoes what the last one shipped.
 
-**The e2e CI job could not finish, and the failure does not look like one.** The suite reached 220
-tests and the job hit its `timeout-minutes: 15`; GitHub reports a job timeout as **"cancelled"**, so
-run 30810888408 read as though somebody had stopped it — 160 tests in, nothing red, no failure line.
-Measured on that run: 11 min 09 s of checkout, `npm ci`, `playwright install` and build before the
-first test, then ~1.38 s per test at the one worker the config pins in CI. The ceiling is 30 now and
-`CONTRIBUTING.md` carries the numbers. **If you ever see e2e "cancelled" with nothing red, read the
-elapsed time before diagnosing anything else.**
+**So the next R-track milestone has to be WRITTEN before it can be worked**, and the opening fan-out
+did the groundwork — see `ROADMAP.md`'s after-list and the R-track scout's proposal recorded there.
+The short version, and it is a reordering rather than an addition: the after-list's R9
+("cross-check as a first-class view") was already half-delivered by P2's `/validate` route, so
+charging a whole milestone for it overstates the work — while the corpus points at a gap nobody has
+queued. **Ground-hit velocity is the most-oracled figure in the corpus (91 of 91 stored sims carry
+one) and the one Loft agrees with least (8.3% median against apogee's 3.1%), and the single input
+that drives it — the parachute drag coefficient — is on no surface in the app.** Three adapters carry
+three uncited defaults for the same physical quantity (ork 0.8, rkt 0.8/0.75, rasaero 0.8) and the
+descent body-drag factor is typed as a bare `0.5` in two places in `lib/sim/simulate.ts` beside a
+`DESCENT_BODY_CDA_FACTOR` export that claims to be the one they use.
 
-**Run the local gate only when no subagents are running.** Twice this run a shard failed with a wall
-of `net::ERR_CONNECTION_REFUSED` and zero `EMFILE` — 14 tests once, 60 the next — while fan-out agents
-were serving their own builds and driving their own browsers (20 `serve`/`chrome-headless` processes
-at the peak). Both passed on a clean re-run. Clear strays with `fuser -k <port>/tcp`, never
-`pkill -f`, which has killed a live run three times. Agents also create and delete probe files inside
-the repo unless told not to, which makes `npm test`'s file count wander mid-run; this run's fan-out
-prompt forbids writing inside the checkout and that held.
+**The next P-track milestone is P5 as written, and that call was taken against a real argument for
+reordering.** `HANDOFF.md` last run argued a design-system milestone beats P5. The measured case
+against reordering: the design-system gap is held stationary by an EXACT ratchet
+(`lib/design-system.test.ts` asserts adoption per primitive as an equality, so it cannot decay while
+it waits), whereas P5's gap is a tracked `COMPETITION.md` conclusion costing users daily, and
+`ROADMAP.md` explicitly gates P6 behind P5. **The honest concession, and it should be honoured:**
+P5's landing and README increments are new surface, so build them FROM the missing primitives
+(`EmptyState`, `Readout`, `Panel`) rather than hand-rolling a twelfth card treatment on the one page
+a stranger sees first. That buys most of the audit's value inside the milestone that is queued.
 
-## This run — four merged to `main`, one part-way on the branch
+**P5 measured, clause by clause, before anyone starts it** (fan-out, 2026-08-03): README images —
+**NOT** (two shields.io badges, zero screenshots, no image assets anywhere); landing states the three
+differentiators — **PARTLY** (`components/ImportPanel.tsx` states the formats and "never uploaded",
+never free/no-install/offline); visible changelog + versioned release — **NOT on all three counts**
+(no CHANGELOG file, `git tag` is empty, version is `0.1.0` and no component renders it); limitations
+page — **DONE** (`app/docs/limitations/page.tsx`, 900 lines, linked from four places); in-app bug
+report — **PARTLY** (`components/Footer.tsx` links the repo root on every app route; issue links exist
+only on docs pages). The milestone's own pinning — link-checking plus a build-time assertion that the
+shown version matches the release — **does not exist**; `scripts/check-routes.mjs` asserts routes,
+sitemap and noindex, nothing about links or versions.
+
+**Environment facts this run measured, and each cost time until it was.** The managed Playwright
+browser (**chromium-1228**) was ABSENT — `/opt/pw-browsers` carried 1194 — and `npx playwright
+install chromium` fixed it in about a minute. `node_modules` was also absent and `npm install` is
+~90 s. Both are paid for every session until they are in the environment's setup script, which is
+the owner's fix to make. The fixtures repo WAS attached, so the corpus is real: the suite names
+`imports every design file (35 present)`. `tsc --noEmit` is **red on `main`** — 3 errors, all in
+`lib/model/edit.test.ts`, invisible to `npm run build` because Next type-checks the app graph and not
+the test files; filed in `BACKLOG.md`.
+
+## This run — R8's last slice, and P4's status corrected
 
 | # | SHA | what | verified by |
 |---|---|---|---|
-| 1 | `aaf64fd` | The e2e CI job gets a budget the 220-test suite can finish in | the next PR run completed in 6:19 where the previous was cancelled at 15:00 |
-| 2 | `999fbda` | P4 inc 6 — fin sets and mass objects get a 44 px tap column, and the columns stay a fallback | e2e pinning paint ORDER in the DOM and whole-diagram area per part, both with negative controls |
-| 3 | `1a336f8` | P4 inc 7 — the touch scan's two blind spots closed, and the three controls behind them fixed | each fix reverted alone; the scan names `label"Overlay a flight log" 148x30`, `select"Sweep variable" 137x34`, `select"Sweep metric" 152x34` |
-| 4 | `d4562bd` | **Sev-1** — a withheld stored-results comparison no longer returns through Loft's own export with a fabricated figure | corpus test over the 3 reduced designs, asking for results explicitly; negative control names all three |
-| — | `bc3b78a` | R8 inc 8 **part-way**: the model layer and the picker's half, gated and tested. **Nothing renders it, so no flyer can reach it and it is NOT shipped** | 4 cases in `edit.test.ts`; catalogue measured over all 733 rows |
+| 1 | `PENDING` | **R8 inc 8, the last slice** — a real coupler or centring ring can be picked from the catalogue for the part you authored, and R8 is done | 6 cases in `edit.test.ts` + an e2e walking the whole gesture; both proved able to fail by reverting one thing each |
+| 1 | — | **Sev-1 inside it** — a picked part was silently cut down when its host shrank, under the vendor's own part number (203.2 mm part flown at 200.0 mm, captioned *Flying …*) | the unit case reds when the fit rule is reverted alone |
+| 1 | — | P4 marked SHIPPED and the stale "6 of 7" line corrected, with the reason | `git show --stat 1a336f8`, and both blind spots closed in `e2e/touch.spec.ts` today |
 
-**Both merges reached production.** #120 merged as `4bb2e22` and #121 as `1eb6dd6`; the Cloudflare
-deploy workflow reports success for each of those exact SHAs. `loft.fusionspace.co` answers 200.
-
-**Where to start next run: thread two props and R8 is done.** `GeometryInspector` owns the part
-selection and would host the ring picker, but it receives neither the `added` list nor `imperial`.
-Thread those from `LoftApp`, render a `PartPicker` against the selected authored coupler or ring, and
-write the pick onto that `AddedPart` entry — the applier, the predicate, the `buildable` arm, the
-columns, the row key and the placeholders are all done and green. That closes R8's last *done when*
-clause.
-
-**Then the P-track's next milestone writes itself, and the fan-out's design-system audit is the
-brief.** Six primitives `DESIGN.md` §5 declares do not exist (`Panel`, `Readout`, `Figure`,
-`EmptyState`, `ErrorState`); three that do exist have ZERO call sites (`Section`, `Chip`, `Tabs`);
-`Readout` is hand-rolled six ways that disagree with each other; and 14 `<select>` elements hand-roll
-five distinct class strings with no `Select` primitive at all. P5 is the next unstarted P milestone as
-written, but this is the better one — decompose it into `ROADMAP.md` first.
-
-**The Sev-1 in 4 was opened by the previous run's own export fix**, which is worth reading as a pair:
-writing the `<simulations>` block closed a real Sev-1 and made a second one reachable, because
-`flownAsReduced` is derived from geometry the export drops. One idea, only half of it thought through.
-
-**Where the two tracks are.** P4 is at increment 7 of 7 — `DESIGN.md` §8's two counts are 0 and, as of
-this run, that zero is measured by a scan with no known blind spot. R8 is at increment 7 of 8: the
-coupler and the centring ring can be AUTHORED but not yet PICKED from the catalogue, which is the
-milestone's last *done when* clause and the next R-track increment. The milestone scout's notes on it
-are in `ROADMAP.md` and the sharpest is this: all three shipped pickers write into a part that already
-exists, through an aim slot; these two do not exist until the flyer adds them, so increment 8 needs a
-different shape rather than a fourth copy of the same one.
+**The lesson worth carrying, and it is about how the fix was found.** The first Sev-1 fix was itself
+wrong, in the opposite direction, and only a pre-push review agent reading the diff cold caught it.
+Fitting a picked coupler to its host was being decided in TWO places against TWO different rockets —
+`buildAdded` against the host's pristine length, the shrink clamp against the edited one. Shortening
+the tube was caught by the clamp; LENGTHENING it was caught by nobody, and failed the other way: a
+coupler that fits the tube on screen was refused for not fitting the tube in the file, after which
+`applyAdds` drops the entry and the part the flyer just chose disappears. **Two gates over two
+rockets is the shape to look for** — it is now one, `fitAddedInternalParts`, run dead last over the
+finished tree. The same review found three more, all real and all in what the surface SAYS rather
+than what it computes: a caption reading *Flying <part>* directly beneath a notice saying the part is
+not in the flight; the coupler picker's provenance line falling through to the nose cone's arm and
+promising to set "nose length, contour, base diameter, shoulder"; and the fit filter showing the
+picked part's own diameter under a label naming the tube's bore.
 
 ## The run before this one — nine increments, all now on `main`
 

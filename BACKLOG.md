@@ -19,6 +19,102 @@ Loft can only fly reduced. The rest are below, newest first, each with the measu
 actionable. **Nothing here has been reproduced by hand unless it says so**; treat each as a hypothesis
 to re-measure before it becomes work, which is the lesson the last run filed one line down.
 
+**Filed 2026-08-03 (second run of the day) from a six-lens opening fan-out and a three-lens pre-push
+review.** One of its findings — a picked coupler silently cut down when its host shrank, under the
+vendor's own part number — was a Sev-1 that the same run's own increment made reachable, and it was
+fixed in that increment rather than filed. The rest are below.
+
+- **Nothing bounds a picked coupler's or ring's DIAMETER against the tube it goes inside. Measured
+  2026-08-03, and it is the sibling of a rule that ships today for LENGTH.** A part longer than its
+  host is refused at three layers and explained on the panel; a part WIDER than the host's bore is
+  accepted silently by all of them — `buildable` (`components/PartPicker.tsx`), `usableCatalogRing`
+  and `buildAdded` (`lib/model/edit.ts`) each check the bore against the part's own outer diameter
+  and never against the host's. The caliber filter is the only affordance and it defaults OFF
+  (`useState(false)`). So a 54.5 mm coupler goes inside a 51.0 mm bore, its mass lands in liftoff
+  mass, CG and static margin, and the parts row reads it back as a real vendor part. Deliberately NOT
+  ruled Sev-1: the mass is honestly computed for the part the flyer chose, the label is the part they
+  chose, and OpenRocket does not refuse this either — but it is squarely "an input that accepts a
+  value it cannot physically mean, and reports a confident number from it". The fit filter now opens
+  on the host's bore, which is the affordance; making it a refusal, a caution, or a default-on filter
+  is the open question.
+
+- **A picked part left out of the flight explains itself only while its own row is selected, and
+  never after a reload.** `components/GeometryInspector.tsx` gates the "not in the flight" notice on
+  `pickTarget`, which requires `selectedId` to be that part; the added-parts effect deliberately
+  adopts the list on first run WITHOUT selecting, so a resumed session shows a design quietly missing
+  a part and its mass with nothing on screen saying so. Reachable: pick a coupler, shorten the tube
+  under it, click any other row. The flight is CORRECT for the design as flown — what is missing is
+  the explanation, which is why this is filed rather than fixed in the increment that created it.
+  Fixing it means the notice living above the selection, beside where the design's other standing
+  cautions render.
+
+- **`PartPicker`'s `columns` memo lists `onPick` in its dependency array and every call site passes a
+  fresh inline arrow**, so the memo recomputes on every render and the optimisation its own comment
+  describes never happens. Four call sites, all inline. Harmless today at 1,089 rows because
+  `DataTable` re-renders anyway; worth a `useCallback` at the call sites or dropping `onPick` from
+  the deps and reading it from a ref.
+
+- **The whole R8 catalogue-picker surface forgets everything between opens. Measured 2026-08-03.**
+  `components/PartPicker.tsx:248-257`: `open`, `text`, `maker` and `fitsOnly` are component-local
+  `useState`, reset on every close, and `lib/session.ts` — which persists the edit bag, the weather,
+  the scenario and the sim index — carries none of them. A flyer picking tubes for a four-tube build
+  retypes the vendor filter four times. OpenRocket persists its preset-dialog column widths, sort and
+  filter across sessions (`ComponentPresetChooserDialog` + `Preferences`). This is the "controls that
+  forget" tell, on the newest surface in the app.
+
+- **The picker's fit filter is a 0.5 mm ABSOLUTE band where OpenRocket's is 5% with a 1 mm floor.**
+  `components/PartPicker.tsx:309` (`const tol = 0.0005`) against
+  `ComponentPresetRowFilter.java`'s `epsilon = MathUtil.max(value * 0.05, 0.001)`. At a 38 mm
+  airframe theirs admits ±1.9 mm and ours ±0.5 mm, so Loft's "only parts at this caliber" hides rows
+  a flyer would consider a fit. Ours is deliberate and arguably better for a coupler, whose bore
+  really is cut to stock — but `COMPETITION.md` row 2 justifies the position with a sentence about
+  their tolerance that is measurably wrong, and that sentence should be corrected either way.
+
+- **Every picker column defines a `csv:` closure and none of them is reachable.**
+  `components/PartPicker.tsx:739` — `DataTable` renders the copy/CSV controls only when `exportName`
+  is passed (`components/DataTable.tsx:280`) and `PartPicker` passes none. So 8 columns of export
+  code across 1,089 tubes, 854 cones, 236 couplers, 497 rings and 151 canopies is dead. One prop.
+
+- **`tsc --noEmit` is red on `main` and has been for at least a run — 3 errors, all in
+  `lib/model/edit.test.ts`.** Measured 2026-08-03 on `9ae41ee` with a clean stash: two at
+  `:3915-3916` (an `innertube` literal missing `placement`, so it is not assignable to
+  `RocketComponent`) and one at `:4018` (`designation` is not a key of `MotorMount`). `npm run build`
+  does not catch them because Next type-checks the app graph, not the test files, so the gate is
+  green and the editor is red. Either the test literals are fixed or `tsc --noEmit` joins the gate;
+  a type error nobody sees is a type error that will be joined by others.
+
+- **The parameter-sweep panel and the flight-path figure both vanish rather than saying why.**
+  `components/ParameterSweep.tsx:328` (`if (axes.length === 0) return null`) and
+  `components/FlightViz.tsx:37` (`if (traj.length < 2) return null`). `DESIGN.md` §5 requires an
+  empty state on a data surface; a panel that disappears is the one state that teaches nothing. Both
+  are call sites for the `EmptyState` primitive §5 declares and that does not exist.
+
+- **A second `warn` card tone, disagreeing with the token.** `components/ResultsView.tsx:1234` spells
+  `border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300` inline, against
+  `CARD_TONES.warn` at `components/ui.tsx:34` (`text-amber-900 dark:text-amber-200`). One character
+  of tone difference on a caution surface, and `lib/design-system.test.ts`'s card-treatment count
+  does not see it because it counts treatments, not tones.
+
+- **Two unit `<select>`s carry no `TOUCH_TARGET` while the other ten do.**
+  `components/ResultsView.tsx:648` and `:706`, at `px-2 py-1` against the others' `px-2.5 py-1.5`.
+  Not caught by `e2e/touch.spec.ts` — re-measure at 390 px before treating this as real, because the
+  scan that covers exactly this was widened and re-pinned in P4 increment 7 and reports 0.
+
+- **`text-[11px]` is used 47 times across 10 files, ~21 of them on field labels, legends and readout
+  labels.** `DESIGN.md` §3 scopes that size to axis ticks and diagram annotations only and names
+  `text-sm` the floor for anything a flyer reads a number from. Measured 2026-08-03;
+  `components/LoftApp.tsx:2228` is a representative site.
+
+- **Six of `DESIGN.md` §5's declared primitives do not exist, and two that exist have zero call
+  sites.** Re-measured 2026-08-03: absent are `Panel`, `Readout`, `Figure`, `EmptyState`,
+  `ErrorState` and `Extrapolated` (the previous run counted five and missed `Extrapolated`); present
+  with no callers are `Section` and `Chip` (`Tabs` is also 0 but that is the documented consequence
+  of the route split, not drift). The labelled-value treatment `Readout` would own is hand-rolled
+  **27 times in 7 disagreeing class strings**; there is no `Select` primitive and **12** real
+  `<select>` elements hand-roll **5** class strings. `lib/design-system.test.ts` holds all six §9
+  counts at their budgets, so none of this can decay further — but none of the greps can see it
+  either, which is why it took a reading agent to find.
+
 - **"A design built from scratch is never written back to the shelf" — NOT REPRODUCED, corrected the
   same day it was filed.** Filed 2026-08-03 from the tenth-use cold walk as a Sev-1 against
   `components/LoftApp.tsx:532` (`syncShelfRow`), claiming an author's whole build is lost on leaving

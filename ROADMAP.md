@@ -1270,15 +1270,14 @@ instead of an inferred edge class.
 
 ## R8 — Component and material catalogues
 
-**Status: IN PROGRESS** — increments 1–7 of 8 shipped 2026-08-02/03, along with the decomposition.
-**Increment 8 is PART-WAY**: its model layer and the picker's own half are gated and tested on the
-working branch, and nothing renders them, so no flyer can reach it. See the increment-8 entry for
-exactly which two props remain to be threaded.
+**Status: SHIPPED 2026-08-03** — pinned by `lib/model/edit.test.ts`'s `picking a real coupler or
+centring ring` (5 cases, including `drops a picked part when the host is shortened under it, and
+still clamps a derived one`, proved able to fail by reverting the clamp arm alone) and by
+`e2e/smoke.spec.ts`'s *a real coupler can be chosen for the part you authored, and it leaves rather
+than fly short*, proved able to fail by cutting the `added` prop at the `ResultsView` call site.
+**All five kinds the *done when* names are pickable**, the last two as of increment 8.
 The licence question the after-list named as possibly the whole first increment is **answered up
-front** so it is not re-litigated. **Three of the five kinds the *done when* names are pickable** —
-body tube, nose cone and parachute. The coupler and the centring ring can now be **authored** as of
-increment 7, sized from the design and the corpus, but **not yet picked from the catalogue**: that
-last clause is increment 8 and is the only thing between this milestone and done.
+front** so it is not re-litigated.
 
 **Outcome.** Authoring becomes SELECTION rather than measurement: a flyer picks a real body tube by
 vendor and part number and gets its dimensions and mass, instead of typing eight numbers off a ruler.
@@ -1857,8 +1856,88 @@ props have to be threaded from `LoftApp` before a `PartPicker` can render agains
 authored part. That is the increment's last slice and it is where the next run should start; the
 model beneath it is done and green.
 
+*Increment 8's last slice — SHIPPED. The picker renders, and the wiring was one prop rather than two.*
+
+**The handoff's own brief was off by one file, and measuring it saved most of the work.**
+`GeometryInspector` is rendered from `ResultsView.tsx`, not `LoftApp`, and both wanted values already
+arrive there: `added` rides inside the `geometry` bag beside `addedStages` and `mountAdds`, and
+`imperial` is `units === "imperial"` on a prop the panel has always had. So the thread is **one new
+prop and one call-site line**, plus the two handlers that turn a catalogue row into a `PickedRing` —
+built in `LoftApp` beside the other three picks, because that is where the rest of the bag is
+assembled and where the refusal of a density the catalogue would not stand behind stays one decision.
+
+**Authoring the part now picks it out, and without that the picker was unreachable.** A coupler and a
+centring ring have no `AIM_SLOTS` entry — deliberately; no field on the editor describes one — so
+`aimEditsAt` returns an empty patch and the panel's aim-following effect cannot show a newly authored
+one as the pick the way it does for a tube, a fin set, a transition or a mass object. Authoring a
+coupler left the panel still pointing at its HOST, with the picker behind an unexplained click on a
+row a flyer has no reason to think is interactive. The same rule the aim effect already states — a
+part that just arrived shows as the pick — now applies to the two kinds no aim can speak for.
+
+**A Sev-1 this increment made reachable, found by the pre-push fan-out and confirmed in a browser —
+and the first fix for it was wrong in the other direction, which the pre-push review then caught.**
+
+`buildAdded` REFUSES a picked part longer than its host rather than cutting it down, and the reason
+is stated in its own comment: a vendor's part number over a length that vendor never published is a
+wrong number under a real label. But it judges against the host's **pristine** length, and
+`applyDimensionEdits` runs afterwards. Measured on the starter: pick a 203.2 mm Always Ready Rocketry
+TC_2.15_8 for the 620 mm tube, then type 200 into *Body length*, and the shrink clamp cut the part to
+**200.0 mm** while the panel still read *Flying Always Ready Rocketry TC_2.15_8*.
+
+Teaching the shrink clamp to drop a picked part fixed that case and left the rule split across two
+gates judging two different rockets — and the review found the other half immediately: **lengthen**
+the tube instead and a coupler that fits the tube on screen is refused for not fitting the tube in
+the file, after which `applyAdds` drops the entry and the part the flyer just chose disappears. Two
+gates, two rockets, wrong in both directions.
+
+So there is now **one** gate. `fitAddedInternalParts` runs dead last in `applyGeometryEdits`, over the
+finished tree, and asks the question once: a PICKED part longer than its host is left out, a DERIVED
+one is cut down. That asymmetry is the rule rather than a deletion — a derived length is Loft's own
+estimate and shortening it is honest — and it is the negative control in the test. Design-arrived
+fittings stay with the shrink clamp, which is the right home for them: their geometry is the file's
+own until the flyer types a length that contradicts it. One class of part, one rule, one home.
+
+**Which meant the disappearance had to be said out loud.** A part leaving the design with a caption
+still claiming to fly it is two surfaces disagreeing about one rocket, so the panel now names the
+part, both lengths, why it is left out, and the two ways back — lengthen the tube, or drop the pick.
+`DESIGN.md` §6: a withheld value says why and how to get it back.
+
+**And the picker refuses a too-long row up front rather than at apply time**, because `applyAdds`
+skips a part it cannot build: without the bound, tapping *Use* on a 1.2192 m coupler would delete the
+flyer's authored part with nothing said. It is disabled with the reason on the row rather than
+filtered out, so a flyer who searched for a part number they own reads "longer than the 620.0 mm it
+goes into" instead of finding nothing. The fit filter also names the **host tube's bore** rather than
+"this design's caliber" for these two kinds — a coupler at the airframe's caliber does not go inside
+the airframe, and the old wording named the wrong dimension while showing the right number.
+
+**Three more the review found on the new surface, all real, all in what it SAYS rather than what it
+computes.** The picker's caption read *Flying Always Ready Rocketry TC_2.15_8* directly beneath the
+notice saying the part is not in the flight — two lines about one part, disagreeing; both now read
+the same comparison off the same two lengths. The provenance paragraph had no arm for the two
+internal kinds and fell through to the nose cone's, so the coupler picker told a flyer that choosing
+a part sets "this design's nose length, contour, base diameter, shoulder" and warned about a
+mould-line step, on a part that touches no mould line at all. And with the part out of the tree there
+was no built component to read a caliber off, so the fit checkbox vanished while the filter behind it
+stayed latched — "0 of 236 catalogued couplers" with no control on screen to clear it, which is a
+state with no way back out; the caliber now falls back to the pick's own.
+
+**And the fit filter was showing the wrong number under the right name.** Opening it on the picked
+PART's outer diameter agreed with the tube only until a pick landed — `buildAdded` overwrites that
+figure with the vendor's — so after choosing a 50.8 mm coupler the label read "Only couplers that fit
+this tube's bore (50.8 mm)" over a 51.0 mm bore, and ticking the box filtered for parts matching the
+last choice rather than the tube. It now reads the host's own bore, by the same expression the
+applier sizes a derived coupler with.
+
+Pinned by the six `picking a real coupler or centring ring` cases and by an e2e that authors a
+coupler, reads the picker off the authored part, checks the filter names and shows the tube's 51.0 mm
+bore both before and after a pick, is refused an 863.6 mm row with its reason, takes a 152.4 mm one,
+shortens the host under it, reads the notice, checks the caption agrees with it, re-opens the list to
+prove the filter can still be cleared, and drops the pick to get the derived part back. Both were
+proved able to fail: reverting the fit rule alone reds the unit case, cutting the `added` prop alone
+reds the e2e.
+
 **Size.** 3–5 increments; 4–6 was the last estimate and **8 is now honest** — the catalogue pickers
-for these two kinds are still owed.
+for these two kinds were still owed, and increment 8 took two passes.
 
 **Notes.** `COMPETITION.md` rows 2 and 3. Keep the corpus honest: a catalogue part must produce the
 same internal Rocket model an imported one does, or the solver ends up with two shapes of truth.
@@ -2496,17 +2575,19 @@ sibling app's 27 KB — the front door is thin in both senses.
 
 ## P4 — A touch-native builder
 
-**Status: IN PROGRESS** — increments 1–6 of 7 shipped 2026-08-02/03, along with the decomposition.
+**Status: SHIPPED 2026-08-03** — all seven increments, pinned by `e2e/touch.spec.ts`: the
+under-44 px scan (now with the widened `label:has(input.sr-only)` selector and the parameter sweep
+opened), the hover-count ratchet, and *the three pad journeys work one-handed, and survive losing
+signal*. **This status line was stale and is corrected rather than re-decided**: increment 7 shipped
+as `1a336f8` on 2026-08-03 and the commit did not update it, so the file said 6 of 7 while the code,
+the specs and `HANDOFF.md` all said 7. Confirmed by `git show --stat 1a336f8` and by the two blind
+spots being closed in the spec today. The roadmap is the baton; a status line that lags the work is
+how a run redoes what the last one shipped.
+
 Two of the *done when*'s three pad journeys were already sound; the third, *pick a motor*, dead-ended
 in a table that could not apply its own recommendation, and does not any more. The diagram's own touch
-targets closed across increments 5 and 6 — every part it draws now has a column.
-
-**`DESIGN.md` §8's two counts read 0, and increment 7 exists because that zero is narrower than it
-looks.** The hover count is real. The hit-target count is produced by a scan with two measured blind
-spots — a panel it never opens and a control shape its selector does not match — and behind them sit
-three controls at 137x34, 152x34 and 148x30. A ratchet that cannot see a surface reports it clean, and
-this milestone's *done when* rests on that number, so closing the holes is part of the milestone
-rather than a defect filed against it.
+targets closed across increments 5 and 6 — every part it draws now has a column. §8's two counts read
+0, and as of increment 7 that zero is measured by a scan with no known blind spot.
 
 *Increment 1 — SHIPPED. The other half of §8's contract, which nothing had ever measured.*
 
@@ -2810,7 +2891,7 @@ clears 44 px tall, every column's reach is above 40%, a tap on the mass object's
 name, and the per-column attribution is PRINTED so the next session reads numbers rather than a pass.
 Negative control: with the two kinds' columns removed it fails naming both uncovered parts.
 
-*Increment 7 — NEXT, and the fan-out found it rather than the roadmap.* **`DESIGN.md` §8's "zero
+*Increment 7 — SHIPPED as `1a336f8`, and the fan-out found it rather than the roadmap.* **`DESIGN.md` §8's "zero
 controls under 44 px" is asserted by a scan with two measured blind spots, so the count is 0 because
 of what it cannot see.** (1) The scan visits `/sweep` and runs the MOTOR sweep, but never opens the
 PARAMETER sweep — its two hand-rolled `<select>`s (`ParameterSweep.tsx:360` and `:377`) render only
@@ -2820,6 +2901,13 @@ after *Run parameter sweep* and measure **137x34 and 152x34**. (2) The scan's se
 matched at all. It measures **148x30**. The scan's own comment exempts it on the grounds that it sits
 "behind a visible 44 px trigger"; that trigger is 30 px, so a documented exemption rests on a wrong
 measurement. Fix the three controls, then close both holes in the scan so they cannot reopen.
+
+**All of that shipped.** `e2e/touch.spec.ts` now carries `label:has(input.sr-only)` in the scanned
+selector and opens the parameter sweep before counting, and the scan itself names the three controls
+it used to miss — `label"Overlay a flight log" 148x30`, `select"Sweep variable" 137x34`,
+`select"Sweep metric" 152x34` — each fix reverted alone to prove the widened scan sees it. That
+closed the milestone: §8's two counts are 0, and the zero is now measured by a scan whose blind spots
+were found, closed, and pinned against reopening.
 
 *Superseded note — the problem increment 3 was expected to be:* The remaining 25 all sit on
 the app chrome ABOVE the workspace spine — `Undo`/`Redo`'s disabled reason, the design-name field,

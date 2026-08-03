@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { Rocket, RocketComponent } from "@/lib/model/types";
+import type { Material, Rocket, RocketComponent } from "@/lib/model/types";
 import { flattenRocket, STEP_NOTICE_M } from "@/lib/model/geometry";
 import { massByComponent, dryMassProperties, statedMassHolder } from "@/lib/sim/mass";
 import type { MotorMark } from "@/lib/sim/setup";
@@ -9,8 +9,10 @@ import { mouldLineStep, type AddedPart, type AddedStage, type GeometryEdits, typ
 import { TOUCH_TARGET } from "@/lib/ui-tokens";
 import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
+import type { CatalogPart } from "@/lib/components/db";
 import RocketDiagram from "./RocketDiagram";
 import DataTable, { type Column } from "./DataTable";
+import PartPicker from "./PartPicker";
 import { Button, Card } from "./ui";
 
 type PartRow = { p: ReturnType<typeof flattenRocket>[number]; i: number };
@@ -181,6 +183,9 @@ export default function GeometryInspector({
   onRemoveMount,
   refuseRemoval,
   aims,
+  added,
+  onPickPart,
+  onClearPick,
 }: {
   rocket: Rocket;
   units: UnitSystem;
@@ -258,6 +263,26 @@ export default function GeometryInspector({
    *  pick. Taken as the whole map rather than one prop per slot: the editor grows a slot per role, and
    *  a prop list that grows with it is a list to forget to extend. */
   aims?: Readonly<Record<string, string | undefined>>;
+  /** The parts the flyer has AUTHORED, so the panel can tell an authored coupler or centring ring
+   *  from one the design arrived with. Only the two internal kinds read it today — they are the only
+   *  authored parts that carry a catalogue pick — but it is the whole list rather than a filtered one
+   *  because filtering here would put a second copy of "which kinds can be picked" on this side of
+   *  the wire, and the two would drift.
+   *
+   *  It arrives from the same edit bag `addedStages` and `mountAdds` already come from, for the same
+   *  reason: the pick rides on the `AddedPart` entry (see `PickedRing`), so the entry is what the
+   *  picker has to be shown to know whether one is set. */
+  added?: readonly AddedPart[];
+  /** A catalogued coupler or centring ring chosen for the authored part `id`. The catalogue ROW and
+   *  the stock the picker resolved, not a finished record — turning those into a `PickedRing` is the
+   *  edit model's call and is made where the rest of the bag is assembled, exactly as the three
+   *  pickers that already exist do it. That is also what keeps the refusal of a density the catalogue
+   *  would not stand behind a single decision, made in the picker and passed on. */
+  onPickPart?: (id: string, part: CatalogPart, material: Material | undefined) => void;
+  /** Drop the pick on `id`, returning the part to the size Loft derived for it. Separate from
+   *  `onPickPart` rather than a pick of `undefined`, because the two gestures carry different undo
+   *  labels and different keys — a pick names the vendor's part, a clear names the kind. */
+  onClearPick?: (id: string) => void;
 }) {
   const parts = flattenRocket(rocket);
   // Each part's own dry mass, keyed by the same component id the diagram and the table share, so a
@@ -317,6 +342,31 @@ export default function GeometryInspector({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [aimSig]);
 
+  // **The same rule as the effect above, for the two kinds no aim can speak for.** A coupler and a
+  // centring ring have no `AIM_SLOTS` entry — deliberately, because the editor has no field that
+  // describes one — so `aimEditsAt` returns an empty patch for them and the aim-following effect
+  // cannot show a newly authored one as the pick the way it does for a tube, a fin set, a transition
+  // or a mass object. Without this, authoring a coupler leaves the panel still pointing at its HOST,
+  // and the catalogue picker below is one unexplained click away on a row the flyer has no reason to
+  // think is now interactive: "a feature reachable only by knowing it is there".
+  //
+  // Keyed on the id LIST rather than the count, so an undo followed by a re-add is a change; and the
+  // first run adopts the list without selecting, so a restored session comes back where the flyer
+  // left it rather than jumping to a coupler they authored days ago.
+  const addedSig = (added ?? []).map((a) => a.id).join(",");
+  const lastAdded = useRef<string | null>(null);
+  useEffect(() => {
+    const before = lastAdded.current;
+    lastAdded.current = addedSig;
+    if (before === null) return;
+    const had = new Set(before ? before.split(",") : []);
+    const fresh = (added ?? []).find(
+      (a) => !had.has(a.id) && (a.kind === "tubecoupler" || a.kind === "centeringring"),
+    );
+    if (fresh) setSelectedId(fresh.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [addedSig]);
+
   // The diagram, a table row click and a row's Enter/Space all pick the same way, so they go through
   // one toggle — three copies could not stay in step once picking gained a second effect.
   //
@@ -338,6 +388,63 @@ export default function GeometryInspector({
   // Judged on the model being flown, which is the one this panel draws, so a step the flyer just
   // opened by typing an exit diameter is stated by the same render that shows the new shape.
   const stepBehind = selectedId ? mouldLineStep(rocket, selectedId) : undefined;
+  /** The picked-out part where it is an AUTHORED coupler or centring ring — the only two kinds a
+   *  catalogue pick can be recorded against — together with the outer diameter the part is being
+   *  flown at. Null on everything else, which is what gates the picker below.
+   *
+   *  The diameter is read off the BUILT component rather than off the entry, because the entry
+   *  states no diameter at all: `buildAdded` derives it from the host's bore, or takes the pick's
+   *  own where one is set. So this is the figure a flyer is looking at, and it is the one the fit
+   *  filter has to open on. */
+  const pickEntry = selectedId ? (added ?? []).find((a) => a.id === selectedId) : undefined;
+  const pickTarget =
+    pickEntry && (pickEntry.kind === "tubecoupler" || pickEntry.kind === "centeringring")
+      ? {
+          entry: pickEntry,
+          // **The HOST TUBE'S BORE, which is the caliber these two parts have to match — read off the
+          // host rather than off the part itself.** Reading the built part's own outer diameter is
+          // what `buildAdded` derives it FROM when nothing is picked, so the two agree until a pick
+          // lands and then diverge: after picking a 54.5 mm coupler the label read "Only couplers
+          // that fit this tube's bore (54.5 mm)" over a 51.0 mm bore, and ticking the box then
+          // filtered the catalogue to parts matching the last pick instead of matching the tube. A
+          // wrong number under a label that names the right dimension.
+          //
+          // It is also what keeps the figure available when the part is NOT in the tree: a pick left
+          // out for being too long has no built component to read, and an undefined caliber HIDES
+          // the fit checkbox while the filter behind it stays latched — "0 of 236 catalogued
+          // couplers" with no control on screen to clear it.
+          outerDiameter: (() => {
+            const h = parts.find((x) => x.component.id === pickEntry.after)?.component;
+            if (!h || !("outerRadius" in h) || !(h.outerRadius > 0)) return undefined;
+            // The same expression the applier sizes a derived coupler with: a tube that states no
+            // wall has no inner radius to speak of, so its own outer radius is the honest fallback
+            // rather than an invented wall.
+            const wall = "thickness" in h && h.thickness !== undefined && h.thickness > 0 ? h.thickness : 0;
+            const bore = (h.outerRadius - wall) * 2;
+            return bore > 0 ? bore : undefined;
+          })(),
+          // The host's own length, which is the longest part that can go inside it. `buildAdded`
+          // REFUSES a pick longer than this rather than cutting it down — a vendor's part number on
+          // a shortened part is a wrong number under a real name — and `applyAdds` then skips the
+          // entry, so a picker that offered one would delete the flyer's part on a tap. Read off the
+          // host as it is being flown, so a tube the flyer has just shortened bounds the list
+          // immediately.
+          hostLength: (() => {
+            const h = parts.find((x) => x.component.id === pickEntry.after)?.component;
+            const l = h && "length" in h ? h.length : undefined;
+            return l !== undefined && l > 0 ? l : undefined;
+          })(),
+        }
+      : null;
+  /** Whether the pick is set but NOT being flown — it is longer than the tube it goes in, so
+   *  `fitAddedInternalParts` left it out rather than shortening a part that carries a vendor's part
+   *  number. Derived once and read by both the notice and the picker's own caption, because those
+   *  two sit one line apart and a flyer reading "not in the flight" above "Flying …" is being told
+   *  two things about one part. The comparison is the model's own, on the same two numbers. */
+  const pickDropped =
+    !!pickTarget?.entry.pick &&
+    pickTarget.hostLength !== undefined &&
+    pickTarget.entry.pick.length > pickTarget.hostLength;
 
   // The table's rows in the chosen order. Sorting is stable against the design order, so parts that
   // tie on a column still read nose-to-tail rather than shuffling.
@@ -562,6 +669,60 @@ export default function GeometryInspector({
               <span aria-hidden>+</span> Add a centering ring inside this
             </Button>
           </p>
+        )}
+        {/* Authoring by SELECTION for the two internal kinds, on the part it describes. It sits HERE
+            rather than in the editor below with the other three pickers, and that placement is the
+            whole reason this took a shape of its own: a body tube, a nose cone and a canopy exist on
+            the design before anyone picks one, so their pickers belong beside the fields that edit
+            them. A coupler and a centring ring do not exist until they are authored, so the only
+            thing that can name WHICH one is being picked for is the part that is picked out — and
+            that lives on this panel. The pick rides on the `AddedPart` entry for the same reason
+            (see `PickedRing`).
+
+            The caliber to open on is the part's OWN outer diameter — the host's bore, which is what
+            `buildAdded` sized it to — not the airframe's. A coupler at the airframe's caliber does
+            not go inside the airframe. */}
+        {onPickPart && onClearPick && pickTarget && (
+          <div className="mt-2">
+            {/* **The one case where a pick stops being flown, said out loud.** A picked part is
+                refused rather than cut down when its host is shorter than it (see the clamp in
+                `applyDimensionEdits`), so shortening the tube under a coupler takes the coupler out
+                of the design. The row simply disappearing from the parts table with a caption still
+                reading "Flying Always Ready Rocketry TC_2.15_8" is a surface disagreeing with itself
+                about what is being flown, and it is reachable in two keystrokes.
+                `DESIGN.md` §6: a withheld value says why and how to get it back — here there are two
+                ways back and both are named. */}
+            {pickDropped && pickTarget.entry.pick && pickTarget.hostLength !== undefined && (
+                <Card tone="warn" className="mb-2 text-sm" role="status">
+                  <p>
+                    <strong className="font-medium">
+                      This {pickTarget.entry.kind === "tubecoupler" ? "coupler" : "centering ring"} is
+                      not in the flight.
+                    </strong>{" "}
+                    {pickTarget.entry.pick.manufacturer} {pickTarget.entry.pick.partNumber} is{" "}
+                    {d.q(d.lengthMm(pickTarget.entry.pick.length, units))} long and the part it goes
+                    inside is now {d.q(d.lengthMm(pickTarget.hostLength, units))}. It is left out rather than
+                    flown short, because a shortened part under a vendor&apos;s part number is not
+                    that part. Lengthen the tube, or take the pick back below.
+                  </p>
+                </Card>
+              )}
+            <PartPicker
+              kind={pickTarget.entry.kind === "tubecoupler" ? "tubecoupler" : "centeringring"}
+              imperial={units === "imperial"}
+              currentOuterDiameter={pickTarget.outerDiameter}
+              maxLength={pickTarget.hostLength}
+              picked={pickTarget.entry.pick}
+              // These two have no editable dimension of their own, so nothing a flyer can type can
+              // make the flown figures drift from the pick's — the part is either built at all four
+              // of them or not built at all. So the one thing this flag can say for them is whether
+              // the pick is IN THE FLIGHT, which is exactly what the notice above reports, read off
+              // the same two lengths so the two lines cannot contradict each other.
+              dimensionsMatch={!pickDropped}
+              onPick={(p, material) => onPickPart(pickTarget.entry.id, p, material)}
+              onClear={() => onClearPick(pickTarget.entry.id)}
+            />
+          </div>
         )}
         {/* A motor mount on a tube that has none. It sits with the other authoring acts and on the
             picked part, because a mount belongs to ONE tube — unlike a stage, which is the level

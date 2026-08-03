@@ -4150,6 +4150,86 @@ describe("picking a real coupler or centring ring", () => {
     expect(dryMassProperties(applyGeometryEdits(doc.rocket, { added: [entry] })).mass).toBeCloseTo(derived, 12);
   });
 
+  it("drops a picked part when the host is shortened under it, and still clamps a derived one", async () => {
+    // **The refusal above is unreachable by the route a flyer actually takes, and this is that
+    // route.** `applyAdds` runs BEFORE `applyDimensionEdits`, so a pick is judged against the host's
+    // PRISTINE length — pick a coupler that fits, then type a smaller number into Body length and the
+    // birth-time guard has already passed. What then reached the part was the shrink clamp, which
+    // cut it to the new host length: measured on the starter before this fix, a 203.2 mm Always
+    // Ready Rocketry TC_2.15_8 was flown at 200.0 mm with the panel still captioned "Flying Always
+    // Ready Rocketry TC_2.15_8". A vendor's part number over a length that vendor never published is
+    // the wrong-number-under-a-real-label case, so the part is left out instead.
+    const doc = await load(SINGLE);
+    const host = firstTube(doc.rocket);
+    const id = newPartId(doc.rocket, undefined, host.id);
+    // A pick that fits the tube as it stands, so the birth guard passes and only the clamp can act.
+    const fits: PickedRing = { ...PICK, partNumber: "TC_2.15_8", length: host.length * 0.6 };
+    const entry = { id, kind: "tubecoupler" as const, after: host.id, length: 0, pick: fits };
+    const asIs = flattenRocket(applyGeometryEdits(doc.rocket, { added: [entry] })).find((p) => p.component.id === id);
+    expect(asIs, "the pick did not build even before the host was touched").toBeDefined();
+    expect(asIs!.component.length).toBeCloseTo(fits.length, 9);
+
+    // Now shrink the host under it — the whole tube, to half the picked part's length.
+    const shrunk = { added: [entry], bodyTubeId: host.id, bodyLength: fits.length / 2 };
+    const after = flattenRocket(applyGeometryEdits(doc.rocket, shrunk));
+    expect(after.find((p) => p.component.id === host.id)!.component.length ?? 0).toBeCloseTo(fits.length / 2, 9);
+    expect(
+      after.find((p) => p.component.id === id),
+      "a picked coupler was flown at a length its vendor never published",
+    ).toBeUndefined();
+
+    // **The negative control, and it is the half that makes this a rule rather than a deletion.** The
+    // SAME entry with no pick is Loft's own derived part, and that one is still clamped rather than
+    // dropped — shortening it is honest, because the length was never anybody's published figure.
+    const derivedEntry = { id, kind: "tubecoupler" as const, after: host.id, length: 0 };
+    const derivedAfter = flattenRocket(
+      applyGeometryEdits(doc.rocket, { added: [derivedEntry], bodyTubeId: host.id, bodyLength: fits.length / 2 }),
+    ).find((p) => p.component.id === id);
+    expect(derivedAfter, "a derived coupler was dropped instead of clamped").toBeDefined();
+    expect(derivedAfter!.component.length).toBeLessThanOrEqual(fits.length / 2 + 1e-9);
+    expect(derivedAfter!.component.length).toBeGreaterThan(0);
+
+    // And lengthening the tube again brings the picked part back at its published length — the way
+    // out the panel tells the flyer about.
+    const back = flattenRocket(
+      applyGeometryEdits(doc.rocket, { added: [entry], bodyTubeId: host.id, bodyLength: host.length }),
+    ).find((p) => p.component.id === id);
+    expect(back, "the picked part did not come back when the tube was lengthened again").toBeDefined();
+    expect(back!.component.length).toBeCloseTo(fits.length, 9);
+  });
+
+  it("judges the fit against the tube being FLOWN, not the one the file described", async () => {
+    // **The other direction, and the pre-push review found it after the first fix was already
+    // green.** Fitting was decided in two places against two different rockets: `buildAdded` judged
+    // a pick against the host's PRISTINE length, and the shrink clamp judged it against the edited
+    // one. Shortening was caught by the clamp; LENGTHENING was caught by nobody, and it fails the
+    // opposite way — a coupler that fits the tube on screen perfectly well is refused for not
+    // fitting a tube that no longer exists, and `applyAdds` then drops the entry, so the part the
+    // flyer just chose disappears. Both gates are now one, run over the finished tree.
+    const doc = await load(SINGLE);
+    const host = firstTube(doc.rocket);
+    const id = newPartId(doc.rocket, undefined, host.id);
+    // Longer than the tube the FILE describes, comfortably inside the tube the flyer is flying.
+    const longPick: PickedRing = { ...PICK, partNumber: "TC_2.15_48", length: host.length * 1.5 };
+    const entry = { id, kind: "tubecoupler" as const, after: host.id, length: 0, pick: longPick };
+
+    const lengthened = flattenRocket(
+      applyGeometryEdits(doc.rocket, { added: [entry], bodyTubeId: host.id, bodyLength: host.length * 3 }),
+    ).find((p) => p.component.id === id);
+    expect(
+      lengthened,
+      "a coupler that fits the tube on screen was refused for not fitting the one in the file",
+    ).toBeDefined();
+    expect(lengthened!.component.length).toBeCloseTo(longPick.length, 9);
+
+    // The same pick with no length edit at all is still refused, because then the tube being flown
+    // IS the file's — so this is one rule reading one rocket, not a relaxation.
+    expect(
+      flattenRocket(applyGeometryEdits(doc.rocket, { added: [entry] })).find((p) => p.component.id === id),
+      "the refusal stopped working when there was no length edit to hide behind",
+    ).toBeUndefined();
+  });
+
   it("refuses a stored pick a build cannot use", async () => {
     // Reachable from a bag persisted by an older build, which `lib/session.ts` replays on the next
     // visit. A record that reads as picked while the applier refuses it is a pick that appears to
