@@ -476,9 +476,16 @@ test.describe("phone layout", () => {
     // abstract. The drag grips keep their own 44x44 hit circles and legitimately win where they
     // overlap — a grip is a smaller, more specific target the flyer aimed at — so the honest
     // question is what is left. Sampled on a grid over each column with `elementFromPoint`.
+    //
+    // **Resolved by `data-part`, not by element identity, and the difference is not cosmetic.** This
+    // counted a point only when it landed on that exact rect, so a point landing on the DRAWN fin —
+    // which selects the very same part — counted as a miss. When the fin sets and mass objects got
+    // columns of their own, the fin column measured 32% under that rule and 100% under this one. A
+    // metric that punishes a more specific target for existing would have argued for deleting it.
     const reach = await page.locator("svg rect.fill-transparent").evaluateAll((ns) =>
       ns.map((n) => {
         const r = n.getBoundingClientRect();
+        const id = n.getAttribute("data-part");
         let part = 0;
         let total = 0;
         for (let i = 1; i < 10; i++) {
@@ -488,7 +495,7 @@ test.describe("phone layout", () => {
             const el = document.elementFromPoint(x, y);
             if (!el) continue;
             total++;
-            if (el === n) part++;
+            if (el.closest("[data-part]")?.getAttribute("data-part") === id) part++;
           }
         }
         return total ? Math.round((100 * part) / total) : 0;
@@ -500,6 +507,110 @@ test.describe("phone layout", () => {
       reach.filter((pct) => pct < 40),
       `share of each part's column that reaches the part: ${reach.map((p) => `${p}%`).join(", ")}`,
     ).toEqual([]);
+
+    // **Every part the diagram DRAWS has a column, not just the ones with a body outline.** The
+    // columns above are built from the silhouette list, which is nose cones, tubes and transitions
+    // only — a fin set and a mass object are drawn from their own geometry and were left with the
+    // shape they are drawn as. Measured across all 35 corpus designs at this width: of 64 fin sets
+    // the planform is a median 32.1 x 16.0 px, with 45 under 44 wide and 63 under 44 tall; a mass
+    // object is an r=3.5 dot, so 7 px, on all 56 of them.
+    //
+    // Asserted as a SET comparison rather than a count, because a count passes when a column exists
+    // for the wrong part.
+    const drawnParts = await page.locator("svg [data-part]").evaluateAll((ns) =>
+      [...new Set(ns.map((n) => n.getAttribute("data-part")))].filter(Boolean),
+    );
+    const columnParts = await page.locator("svg rect.fill-transparent").evaluateAll((ns) =>
+      ns.map((n) => n.getAttribute("data-part")).filter(Boolean),
+    );
+    expect(drawnParts.length, "nothing on the diagram carries a part id").toBeGreaterThan(3);
+    expect(
+      drawnParts.filter((id) => !columnParts.includes(id)),
+      `parts drawn on the diagram with no tap column: ${drawnParts.filter((id) => !columnParts.includes(id)).join(", ")}`,
+    ).toEqual([]);
+
+    // **Every tap column is painted BEFORE every drawn shape, and this asserts the ORDER rather than
+    // its consequences.** The columns only work as a fallback: SVG hit-tests the topmost painted
+    // element, so a column that comes after the drawn parts stops catching what nothing else claims
+    // and starts WINNING — covering any body part narrower than its own 44 px (56 of the 150 body
+    // parts across the corpus are), and burying the drawn fin planform a mass column sits on.
+    //
+    // A pre-push review found both by reading the paint order, and every other assertion here passed
+    // with them present: each one measures a column against itself, and the bundled samples have no
+    // body part narrow enough to disappear. Order is the property, so order is what is pinned — it is
+    // cheap, it is exact, and it fails on the mistake rather than on one design that happens to show
+    // it.
+    const paintOrder = await page
+      .locator("svg")
+      .filter({ has: page.locator("rect.fill-transparent") })
+      .first()
+      .evaluate((svg) => {
+        const all = [...svg.querySelectorAll("[data-part]")];
+        const lastColumn = all.findLastIndex((n) => n.tagName === "rect" && n.classList.contains("fill-transparent"));
+        const firstDrawn = all.findIndex((n) => !(n.tagName === "rect" && n.classList.contains("fill-transparent")));
+        return { lastColumn, firstDrawn, total: all.length };
+      });
+    expect(paintOrder.total, "no part-bearing elements on the diagram").toBeGreaterThan(4);
+    expect(paintOrder.firstDrawn, "no drawn part shapes on the diagram").toBeGreaterThanOrEqual(0);
+    expect(
+      paintOrder.lastColumn,
+      `a tap column is painted after a drawn part (column at ${paintOrder.lastColumn}, first drawn shape at ${paintOrder.firstDrawn}) — columns must stay a fallback, not win`,
+    ).toBeLessThan(paintOrder.firstDrawn);
+
+    // **NOTHING the diagram draws may be left with no tap point at all**, and this is the assertion
+    // the pre-push review asked for by finding two ways to break it. The fin and mass columns are
+    // 44 px wide and painted over the airframe; move them later in the paint order and they cover a
+    // narrower body part whole (56 of the 150 body parts across the corpus are under 44 px wide), or
+    // bury the drawn fin planform a mass column happens to sit on. Both produce a part that is drawn,
+    // listed in the parts table, and unreachable on the picture — and every other assertion in this
+    // test still passed with both regressions present, because each measures a column against ITSELF.
+    //
+    // Sampled over the WHOLE diagram rather than per column, which is what makes it able to see a
+    // part whose own column was covered by someone else's.
+    const owned = await page.locator("svg").filter({ has: page.locator("rect.fill-transparent") }).first().evaluate((svg) => {
+      const r = svg.getBoundingClientRect();
+      const tally: Record<string, number> = {};
+      for (let i = 0; i < 60; i++) {
+        for (let j = 0; j < 24; j++) {
+          const el = document.elementFromPoint(r.left + (r.width * (i + 0.5)) / 60, r.top + (r.height * (j + 0.5)) / 24);
+          const id = el?.closest("[data-part]")?.getAttribute("data-part");
+          if (id) tally[id] = (tally[id] ?? 0) + 1;
+        }
+      }
+      return tally;
+    });
+    const unreachable = drawnParts.filter((id) => !(owned[id ?? ""] > 0));
+    expect(
+      unreachable,
+      `parts drawn on the diagram that no point of it resolves to: ${unreachable.length} of ${drawnParts.length}`,
+    ).toEqual([]);
+    console.log(
+      `diagram area by part (of 1440 sampled points): ${drawnParts.map((id) => owned[id ?? ""] ?? 0).join(", ")}`,
+    );
+
+    // **Where every point in a column actually goes**, attributed rather than summarised, because
+    // "52%" on its own reads as half the target being broken when it is not. Printed for the next
+    // session; the assertion below is on the one thing that would be a defect.
+    const attribution = await page.locator("svg rect.fill-transparent").evaluateAll((ns) =>
+      ns.map((n) => {
+        const r = n.getBoundingClientRect();
+        const id = n.getAttribute("data-part");
+        const tally: Record<string, number> = {};
+        for (let i = 1; i < 10; i++) {
+          for (let j = 1; j < 10; j++) {
+            const el = document.elementFromPoint(r.left + (r.width * i) / 10, r.top + (r.height * j) / 10);
+            if (!el) continue;
+            const owner = el.closest("[data-part]")?.getAttribute("data-part");
+            const grip = el.closest("[role='slider']")?.getAttribute("aria-label");
+            const key = owner === id ? "self" : owner ? "another part" : grip ? `grip: ${grip}` : el.tagName;
+            tally[key] = (tally[key] ?? 0) + 1;
+          }
+        }
+        return `${Math.round(r.width)}x${Math.round(r.height)} ${JSON.stringify(tally)}`;
+      }),
+    );
+    console.log(`diagram tap columns at ${page.viewportSize()!.width} px:`);
+    for (const a of attribution) console.log(`  ${a}`);
 
     // And it drives the real gesture: tapping a part's column selects THAT part in the parts table,
     // and two different columns select two different parts. Asserted as distinctness rather than
@@ -521,6 +632,21 @@ test.describe("phone layout", () => {
     const secondName = (await second.innerText()).trim();
 
     expect(secondName, `both columns selected "${firstName}"`).not.toBe(firstName);
+
+    // **A tap on a MASS OBJECT's column selects it.** Before this it was a 7 px dot — the smallest
+    // thing on the diagram by a factor of six, and the only way to pick it out on the picture at all.
+    // Its column is the last one painted, and it reaches the mass on 81 of 81 sampled points.
+    const massRow = page
+      .locator("table")
+      .filter({ hasText: "Dimensions" })
+      .locator("tr")
+      .filter({ hasText: /Mass object|Altimeter/ });
+    await expect(massRow.first(), "no mass object on this sample to test").toBeVisible();
+    const massName = (await massRow.first().innerText()).split("\t")[0].trim();
+    await page.locator("svg rect.fill-transparent").last().click({ position: { x: 22, y: 8 } });
+    const pickedMass = page.locator('tr[aria-selected="true"]');
+    await expect(pickedMass, "a tap on the mass object's column selected nothing").toHaveCount(1);
+    expect((await pickedMass.innerText()).trim()).toContain(massName);
 
     // **And the columns must not BURY what was already tappable.** Fin sets and mass objects carry
     // their own `hoverProps` and were selectable from the diagram before this existed; a fin's
