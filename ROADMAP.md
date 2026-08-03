@@ -1270,12 +1270,12 @@ instead of an inferred edge class.
 
 ## R8 — Component and material catalogues
 
-**Status: IN PROGRESS** — increments 1–6 of 4–7 shipped 2026-08-02/03, along with the decomposition.
+**Status: IN PROGRESS** — increments 1–7 of 8 shipped 2026-08-02/03, along with the decomposition.
 The licence question the after-list named as possibly the whole first increment is **answered up
 front** so it is not re-litigated. **Three of the five kinds the *done when* names are pickable** —
-body tube, nose cone and parachute — and what remains is the coupler and the centring ring. Those two
-are the ones that genuinely do not exist on a design to be edited, so they are a new build path; the
-parachute turned out NOT to be, which is why it went first.
+body tube, nose cone and parachute. The coupler and the centring ring can now be **authored** as of
+increment 7, sized from the design and the corpus, but **not yet picked from the catalogue**: that
+last clause is increment 8 and is the only thing between this milestone and done.
 
 **Outcome.** Authoring becomes SELECTION rather than measurement: a flyer picks a real body tube by
 vendor and part number and gets its dimensions and mass, instead of typing eight numbers off a ruler.
@@ -1731,20 +1731,78 @@ path, a pick clears the weighed override and keeps the `cd`, a typed diameter sc
 weight, all three edits stay on one canopy, a massless canopy stays massless, and a removal takes the
 pick with it — and by an e2e that drives the whole gesture in a browser, including the clear path back.
 
-*Increment 7 — NEXT.* Coupler and centring ring, TOGETHER: they are the same `RingComponent` shape in
-the model (`length`, `outerRadius`, `innerRadius`), the catalogue states all three on 236 of 236 and
-497 of 497, and each needs the same new build path — a union member on `AddedPart`, a `buildAdded`
-arm placing it INSIDE its host, an aim slot, an inspector button and a picker kind. Doing them apart
-would build that path twice. Fit is real for these two where it was not for a cone: **232 of 236
-couplers and 478 of 497 rings** have an outer diameter within 0.5 mm of some catalogued body tube's
-bore, because they are cut to the same imperial stock — so the caliber filter earns its place here.
-Two measured gotchas: `PartPicker`'s `rowKey` collides on **five** centring rings (SEMROC CR-7-18,
-RA-50/52H-101(BT-50), CR-9-225X2, CR-9-225X2P, CR-9-175P), and 7 of 236 couplers state an inner
-diameter of 0 — solid balsa plugs, which `lib/sim/mass.ts` already flies correctly. A vendor-alias
-table is still owed (sixteen manufacturer strings for fourteen companies — "Quest" and "Quest
-Aerospace", "MPC" and "MRC"). Both are in `BACKLOG.md`.
+*Increment 7 — SHIPPED, but only the BUILD PATH. The coupler and the centring ring can be authored;
+they cannot yet be picked from the catalogue.*
 
-**Size.** 3–5 increments, and 4–6 now looks honest.
+The two internal kinds, together, because they are the same `RingComponent` shape in the model
+(`length`, `outerRadius`, `innerRadius`) and needed the same new path: a union member on
+`AddedPart`, a `buildAdded` arm placing them INSIDE their host, an `ADD_LABEL`, an `addPartAfter`
+arm and an inspector button. Doing them apart would have built that path twice.
+
+**Scope taken deliberately, and the remainder is named rather than implied.** This ships the two
+kinds as AUTHORABLE parts sized from the design. It does NOT ship a `PartPicker` kind for them, so
+the *done when* clause "add a … coupler, centering ring … by choosing a real commercial part" is
+**still open** — that is increment 8, and the two gotchas already measured for it stand: `rowKey`
+collides on five centring rings (SEMROC CR-7-18, RA-50/52H-101(BT-50), CR-9-225X2, CR-9-225X2P,
+CR-9-175P), and 7 of 236 couplers state an inner diameter of 0 (solid balsa plugs, which
+`lib/sim/mass.ts` already flies correctly). Fit is real for these two where it was not for a cone —
+**232 of 236 couplers and 478 of 497 rings** sit within 0.5 mm of some catalogued tube's bore,
+because they are cut to the same imperial stock — so the caliber filter will earn its place there.
+
+**Both sizes come from the corpus, and the single most important thing here is that ONE default
+could not have served both.** They are the same shape in the model and could not be less alike in
+proportion. Measured over the real corpus: **31 couplers, median 1.859 calibers** (p25 1.287, p75
+2.323, never once below 1.0537); **83 centring rings, median 3.18 mm thick** — which is 1/8 inch, a
+stock plywood sheet. A first draft gave both a 50 mm slug and shipped a **134 g median ring, 1.74 kg
+at worst**, on a part that really weighs a gram and a half. Thickness generalises better than a ratio
+on its own numbers too: the rings' length/diameter spans 0.020–1.000, a 50x spread, against the
+thickness's 25x — and ring stock is sold in sheets, not in calibers.
+
+**A ring is always bored, and that is a measurement rather than a preference: 0 of the 83 real rings
+in the corpus is solid.** A disc with no hole is a bulkhead, a different part doing a different job.
+The bore is read off the `innertube` the host carries — that IS the motor mount a ring centres, since
+`MotorMount` is a marker with no diameter of its own — descending the tree rather than checking only
+direct children, because 41 corpus body tubes keep theirs deeper, and preferring a tube actually
+carrying a mount because `innertube` also models av-bay sleeves. Where the host has no mount at all
+the fallback is the corpus median ratio, 0.87.
+
+**Four defects the pre-push review found after the gate was green, all real, and two of them were in
+this increment's own honesty rather than its logic:**
+
+- **the coupler's wall was a FLOOR wearing a fallback's comment.** `Math.max(wall, ro * 0.05)` reads
+  as "5% where the host states none" and behaves as "at least 5%, always" — so it overrode the host's
+  own stated wall on **56 of the 78 corpus tubes that state one (72%)**, inflating the coupler's mass
+  by a median 1.93x and up to 12.85x (+416 g on `FullScaleModelTH.rkt` alone). A design that states
+  its wall has answered the question. Fixing it took the corpus median coupler from 12.97 g to
+  **3.54 g**;
+- **the birth clamp was measured against the wrong tree.** `applyAdds` runs before
+  `applyDimensionEdits`, so a coupler was clamped to the host's PRISTINE length and a `bodyLength`
+  edit afterwards resized the tube underneath it. Seated `bottom`-flush, the overhang goes out the
+  FRONT: on the starter, 74.8 mm of a 94.8 mm coupler ends up inside the nose cone still carrying its
+  un-shrunk mass. A tube that shrinks now takes its internal fittings with it — applied to the
+  fittings a design ARRIVED with too, since the geometry is equally impossible either way. This is
+  the class `withMassStation` already closed for point masses, reopened for a new kind;
+- **the e2e's headline assertion could not fail.** It read overall length to prove the parts went
+  inside — but `overallLength` maxes over body kinds only, so it is structurally blind to these two.
+  The whole test passed with `inside: false` and both parts built at a NEGATIVE station, ahead of the
+  nose tip. It now reads the Station column and the stated length and asserts containment directly;
+- **the corpus check's count had 43% of slack** (`> 40` against an actual 70) while every list it
+  fills sits behind an `if (!made) continue`, so half the corpus could have stopped building with
+  every assertion still green. It is `eligible * 2` exactly.
+
+Two smaller honesty corrections from the same review: "never below 1.054" was false as written (the
+corpus minimum is 1.05374), and the e2e's comment named cardboard and ply for parts that inherit the
+starter's fibreglass.
+
+Pinned by seven cases in `lib/model/edit.test.ts` — the two sizes diverge from one host and the gap
+widens with diameter, the bore comes from a nested mount with a negative control where there is none,
+the built part uses the resolved bore rather than only the helper reporting it, the mass is a plate's
+rather than a slug's, a short host clamps at birth, a shrinking host clamps after, and a non-tube is
+refused — by a corpus sweep authoring both kinds on all 35 designs, and by an e2e that drives both
+buttons and reads the stations back.
+
+**Size.** 3–5 increments; 4–6 was the last estimate and **8 is now honest** — the catalogue pickers
+for these two kinds are still owed.
 
 **Notes.** `COMPETITION.md` rows 2 and 3. Keep the corpus honest: a catalogue part must produce the
 same internal Rocket model an imported one does, or the solver ends up with two shapes of truth.

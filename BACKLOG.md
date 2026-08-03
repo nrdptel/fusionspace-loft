@@ -12,6 +12,128 @@ this file, and deliberately does **not** cap craft or product work, because that
 track in `ROADMAP.md` with its own *done when*. Rough edges, missing affordances, and findings too
 big for one pass. Newest first.
 
+- **Loft's own `.ork` export writes no `<simulations>` block, so every launch condition and the motor
+  configuration are silently dropped on a round trip. SEV-1.** Filed 2026-08-03 from a cold walk of
+  the built export. `lib/ork/export.ts`'s `serializeRocketXml` takes only the rocket and never emits
+  `<simulations>`, while `lib/ork/adapt.ts:788 parseSimulations` is where rod length, rod angle, wind,
+  launch altitude and the atmosphere all come FROM — so re-importing a file Loft just wrote gives
+  surface wind 3.0 m/s → 0.0, rail length 2.0 m → 1.0, and **drift from pad 630 m → 0 m**. Apogee is
+  unchanged, so nothing on screen flags the loss, and the disclosure still reads "Conditions · as
+  designed" over Loft's defaults. Drift and rail-exit are exactly the two figures used to decide
+  whether the field and the rail are big enough. The same omission takes the motor-configuration
+  picker with it (it is built from the stored sims): on `A simple model rocket.ork`, import → A8 →
+  apogee 53 m, download, re-import → C6 → apogee 317 m, and no control left in the app gets back to
+  the A8 that was exported. Reproduce: import `fixtures/demo-dual-deploy.ork`, note drift, Download
+  .ork, Import another, pick the file just saved. `exportOrk` already RECEIVES `doc.simulations` —
+  `components/LoftApp.tsx:860` passes `{...doc, rocket}` — so the conditions are in hand and simply
+  not written. Preserve them verbatim; do not synthesise `<flightdata>` from Loft's own solver, or
+  the Cross-check page ends up comparing Loft against itself at 0% error.
+
+- **A motor that does not resolve exactly is substituted with one that does not FIT the mount, and the
+  whole flight is reported off it. SEV-1.** Filed 2026-08-03 from a cold walk. An `.ork` whose
+  designation is `H999ZZ` on a 29 mm mount is matched to `H999N`, a **38 mm** motor, and the app
+  reports apogee 1,471 m, Mach 1.04, 161 g, thrust-to-weight 162:1 with the only cue a small
+  "· approx" in the chip. Loft knows the mount is 29 mm — the motor sweep on the same airframe says
+  "15 bundled 29 mm motors" and does not list H999N. The unmatched-entirely case (`MYMOTOR`) is
+  handled well, with the flight withheld and an honest explanation; the dangerous case is the one
+  that looks fine. Knock-on: with the flying motor absent from the sweep's list, all 15 rows read
+  "Use", none says "flying now", and no row carries the DESIGN badge, so there is nothing to anchor
+  the comparison against.
+
+- **A one-tap parachute pick can produce an unflagged lawn dart, on a page that DOES police the other
+  launch-safety numbers. SEV-1.** Filed 2026-08-03 from a cold walk, against the control shipped in
+  R8 increment 6. Fitting PAR-9TM (228.6 mm) to the 0.78 kg H-powered sample takes descent rate
+  7 → 18 m/s and landing energy 17 → 113 J with zero cautions on `/flight` — no marker, no prose —
+  while the same page says "below the 5:1 minimum commonly taught for high-power rockets" for
+  thrust-to-weight and "below the ~50 ft/s (15 m/s) guideline for stable rail departure" for rail
+  exit. Recovery is the one side not policed, on the very control that makes it one tap to get wrong.
+
+- **The validation CSV exports carry no units, and the same filename and header hold metric or
+  imperial depending on a toggle elsewhere. SEV-1.** Filed 2026-08-03 from a cold walk. `/validate`'s
+  OpenRocket table exports `Metric,Stored,Loft,Δ` over rows mixing metres, m/s, m/s², seconds, Mach
+  and percent; apogee exports as `50.6` in Metric and `165.97769028871392` in Imperial, both as
+  `openrocket-validation.csv`, with nothing in the file to tell them apart. Values are raw 16-digit
+  floats including visible float noise (`74.09000000000054`, `2.789999999999969`) for figures the UI
+  shows as 74.1 s and 2.8 s, and the Δ column is a percentage with no `%`. The RocketPy table beside
+  it fails the opposite way — display strings with thousands separators and a U+2212 MINUS SIGN, so
+  every numeric cell lands in a spreadsheet as text. The dispersion CSV one workspace over does this
+  correctly (`Apogee (m),Max velocity (m/s)…`, rounded), so this is an outlier rather than a house
+  style. Filename is also `rocketpy-cross-check-cross-check.csv`.
+
+- **An ordinary one-thumb scroll that starts on a diagram drag handle both scrolls the page AND drags
+  the handle. SEV-1.** Filed 2026-08-03 from a phone cold walk. Flicking up from the body-diameter
+  handle at 390x844 took ⌀38 mm → 205 mm, apogee 993 m → 133 m, static margin 4.07 → 1.12 cal, while
+  scrolling the page 500 → 1274 px so the diagram was off screen before the numbers settled. Zoomed
+  3x — the only way to see the fins on a phone — a left pan started on the nose-length handle panned
+  the diagram AND shortened the nose 250 → 230 mm. Control cases prove it is the handle: the same
+  flick started 40 px away on plain airframe only scrolls. Undo restores it, but only if you noticed.
+  The handles are 44x44 on a coarse pointer by design (P4 increment 5 measured them), so the fix is a
+  gesture discipline — a touch-action or a movement threshold before a drag commits — not a smaller
+  target.
+
+- **The diagram's tap columns went to the two parts that were already easiest to hit, and the fin set
+  still has no 44 px target.** Filed 2026-08-03 from a phone cold walk, against P4 increment 5. The
+  nose cone and body tube got full-height columns; the fin set is selectable only in a 17 px band at
+  the far right, because above the centreline the fin-position drag handle sits on top of it and
+  directly above and below the planform the body-tube column claims the tap. The mass object is a
+  7 px dot. Increment 5's claim that nothing reachable became unreachable holds — both were tappable
+  before and still are — but `DESIGN.md` §8's 44 px minimum is not met on either, and the increment
+  described itself as closing the diagram's touch gap. It closed two thirds of it.
+
+- **Tapping an already-selected part on the diagram un-selects it, with nothing on screen saying so,
+  and the caption is desktop copy.** Filed 2026-08-03 from a phone cold walk. On a coarse pointer
+  there is no hover to fall back on, so an accidental double-tap costs the identify readout entirely.
+  The caption reads "Point at a part of the airframe to identify it; click one to keep it picked out"
+  — a phone can do neither, and it never mentions un-picking.
+
+- **A what-if edit makes the entire OpenRocket comparison vanish from Cross-check with no message.**
+  Filed 2026-08-03 from a cold walk. The stored-vs-Loft table, the mean-abs-error headline and both
+  overlay charts disappear on any what-if; the tab still says "Cross-check" and nothing says a what-if
+  caused it or how to get it back. Loft knows how to write this state — for the bundled demo it
+  prints a full paragraph explaining exactly why the comparison is unavailable. `DESIGN.md`'s "a
+  withheld value says why, and what would restore it" is unmet here.
+
+- **What-if edits survive a reload but the undo history does not, so a flyer returns to a modified
+  design with a dead Undo.** Filed 2026-08-03 from a cold walk. The banner on that screen promises
+  "Picked up where you left off — …, with any what-ifs you had set", which is exactly the case where
+  knowing what changed matters most. Recoverable today only because the field placeholder happens to
+  show the as-designed value.
+
+- **The dispersion panel's Waiver ceiling is the only one of its seven controls not persisted, and it
+  is the one that produces the go/no-go readout.** Filed 2026-08-03 from a cold walk. Six ±1σ inputs
+  survive a reload; the ceiling box comes back empty and the CHANCE OVER CEILING tile is simply
+  absent, with nothing saying the value was dropped.
+
+- **No docs heading carries an id, so every contextual "how these are computed" link lands at the top
+  of a 47,600-character article.** Filed 2026-08-03 from a cold walk. `/docs/methods` has 14 h2s and
+  no in-page contents list; the explanation for the panel a flyer is standing in ("Monte-Carlo
+  dispersion") is the 13th. These pages are the app's whole answer to "is this number trustworthy".
+
+- **The landing-scatter chart has no axis, tick, scale bar, ring label or hover readout — 302 circles
+  and zero text.** Filed 2026-08-03 from a cold walk. The only scale reference anywhere is the caption
+  "circle = 95% within 1,203 m", on the chart that exists to tell a flyer how big a recovery area to
+  plan for. Downrange/crossrange numbers exist only in the CSV.
+
+- **The two `/validate` tables are rendered identically and sort differently.** Filed 2026-08-03 from
+  a cold walk. The OpenRocket table's four columns all sort; the RocketPy table below has exactly one
+  sort button, and the Δ column — the only one worth sorting a validation table by — is fixed.
+  Separately, sorting Δ ascending orders by MAGNITUDE while the column shows signed values, so −12%
+  appears after +5% with nothing saying the sign is ignored.
+
+- **Exports carry none of the assumptions that produced them.** Filed 2026-08-03 from a cold walk.
+  The dispersion CSV is 300 rows with no record of the six ±1σ values, the waiver ceiling, the
+  conditions, the motor or the date — and since the sigmas are re-typable, two files from one design
+  are indistinguishable. The cross-check CSV is `openrocket-validation.csv` regardless of design or
+  which stored simulation it compared, even though every row changes with the motor configuration.
+
+- **Authoring a coupler or a centring ring on a materials-less design is fully inert, yet the design
+  flips to "edited" and the file's stored-simulation cross-check is withheld.** Filed 2026-08-03 from
+  the pre-push review, where it was raised as a defect against R8 increment 7 and REFUTED as one: all
+  12 corpus body tubes that state no wall are RASAero's, which state no materials either, so the part
+  adds 0.000 g and the honest branch is the one that declines to invent a stock. What survives is
+  general and pre-existing: these are the first authoring acts that can change nothing at all, and the
+  stored-comparison panel vanishing on ANY edit is the same gap filed two entries above.
+
 - **An UNAIMED absolute edit value survives removal of the part it was typed for, and re-lands on
   whatever the fallback resolves to next.** Filed 2026-08-03. `aimsClearedByRemoving` only fires when
   `bag[slot]` is a string — an explicit aim — so with the default (no aim) `mainParachuteDiameter`,

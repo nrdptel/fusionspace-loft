@@ -35,6 +35,7 @@ import {
   leadingFaceDiameter,
   mouldLineSteps,
   STEP_NOTICE_M,
+  overallLength,
 } from "../model/geometry";
 import type { Rocket, RocketComponent } from "../model/types";
 import {
@@ -741,6 +742,104 @@ suite("real-design corpus", () => {
     ).toBeGreaterThan(0);
     expect(wouldHaveBeenMissed, "the negative control found nothing the old code missed").toBeGreaterThan(0);
     expect(silent, "a design flew on a missing motor and said nothing").toEqual([]);
+  }, 300_000);
+
+  it("authors a coupler and a centring ring on every real design, inside the tube and massing something", async () => {
+    // The two INTERNAL kinds. Unlike every previously authorable part they touch no outer mould line
+    // at all — so the check is the mirror image of the authored-part sweep above: the airframe must
+    // NOT move, and the dry mass must.
+    const stepped: string[] = [];
+    const weightless: string[] = [];
+    const outside: string[] = [];
+    const solid: string[] = [];
+    const wrongShape: string[] = [];
+    const addedG: Record<string, number[]> = { tubecoupler: [], centeringring: [] };
+    let authored = 0;
+    let eligible = 0;
+    let exempt = 0;
+    let clamped = 0;
+    for (const f of files) {
+      const doc = await importDesign(new Uint8Array(readFileSync(f.path)));
+      const rocket = doc.rocket;
+      const tubes = flattenRocket(rocket).filter((p) => p.component.kind === "bodytube");
+      if (!tubes.length) continue;
+      eligible++;
+      const host = tubes[0];
+      const beforeLen = overallLength(rocket);
+      const beforeMass = dryMassProperties(rocket).mass;
+      for (const kind of ["tubecoupler", "centeringring"] as const) {
+        const id = newPartId(rocket, undefined, host.component.id);
+        // `length: 0` is what the button sends — the size is the corpus figure, resolved against the
+        // host by `internalPartDefaults`. Driving the default path is the point: a test that names its
+        // own length checks the clamp and nothing about the part a flyer would actually get.
+        const built = applyGeometryEdits(rocket, {
+          added: [{ id, kind, after: host.component.id, length: 0 }],
+        });
+        const made = flattenRocket(built).find((p) => p.component.id === id);
+        if (!made) continue;
+        authored++;
+        const name = `${shortName(f.name)}/${kind}`;
+        // 1. It goes INSIDE the host, not behind it — so the rocket is exactly as long as it was.
+        if (Math.abs(overallLength(built) - beforeLen) > 1e-9) stepped.push(`${name}: length moved`);
+        // 2. It sits within the host's own span, which is what "inside" has to mean geometrically.
+        if (made.xFore < host.xFore - 1e-9 || made.xFore + made.length > host.xFore + host.length + 1e-9) {
+          outside.push(`${name}: ${made.xFore.toFixed(4)}..${(made.xFore + made.length).toFixed(4)} outside host ${host.xFore.toFixed(4)}..${(host.xFore + host.length).toFixed(4)}`);
+        }
+        // 3. It weighs something wherever the host states a stock AND the design counts per-part
+        //    mass at all. A part that adds nothing is an edit that changes no number — the "controls
+        //    that forget" tell — but there is a legitimate exemption and it is the majority on some
+        //    files: a design whose enclosing ASSEMBLY states its own weight subsumes everything
+        //    inside it, so adding a part there moves the balance and not the total. That is exactly
+        //    what `statedMassHolder` reports, and what the parts panel already tells the flyer in
+        //    words. Counted rather than waved through, so the exemption is visible.
+        const c = made.component as { material?: unknown; innerRadius: number; outerRadius: number };
+        const subsumed = statedMassHolder(built, id);
+        if (subsumed) {
+          exempt++;
+        } else if (c.material !== undefined && dryMassProperties(built).mass <= beforeMass + 1e-12) {
+          weightless.push(`${name}: stock but no mass`);
+        }
+        addedG[kind].push((dryMassProperties(built).mass - beforeMass) * 1000);
+        // 4. **A ring is bored and a coupler is long, and neither is negotiable.** Both kinds are the
+        //    same `RingComponent`, so the one way to author them wrong is to size them alike — which
+        //    the first draft did, giving every ring a 50 mm SOLID slug at 134 g median and 1.74 kg at
+        //    worst. 0 of the 83 real centring rings in the corpus have a zero bore, and none of the 31
+        //    real couplers is shorter than 1.0537 calibers.
+        if (kind === "centeringring") {
+          if (!(c.innerRadius > 0)) solid.push(`${name}: bore 0 — that is a bulkhead, not a ring`);
+          if (made.length > 0.033) wrongShape.push(`${name}: ${(made.length * 1000).toFixed(1)} mm thick, past the corpus's thickest ring`);
+        } else if (made.length < 1.05 * 2 * c.outerRadius - 1e-9) {
+          // Below the corpus floor ONLY where the host is too short to hold one — the clamp, which
+          // has to win, since a coupler past the fore end is the defect that clamp exists for.
+          if (made.length >= host.length - 1e-9) clamped++;
+          else wrongShape.push(`${name}: ${(made.length / (2 * c.outerRadius)).toFixed(2)} calibers in a host with room for more`);
+        }
+      }
+    }
+    const med = (a: number[]) => { const s = [...a].sort((x, y) => x - y); return s[Math.floor(s.length / 2)]; };
+    console.log(
+      `internal parts authored across ${files.length} design files: ${authored} ` +
+        `(coupler + centring ring on every design with a body tube), ` +
+        `${exempt} inside an assembly whose stated weight already subsumes them, ` +
+        `${clamped} couplers cut down to a host too short to hold one; ` +
+        `median added mass ${med(addedG.tubecoupler).toFixed(2)} g coupler, ` +
+        `${med(addedG.centeringring).toFixed(2)} g ring`,
+    );
+    // **Both kinds on every eligible design, counted exactly.** This read `> 40` against an actual 70
+    // — 43% of slack, so half the corpus could stop building and every list below would still be
+    // empty for the wrong reason, since each one is filled behind `if (!made) continue`. Every corpus
+    // file has a body tube, so the number is 2 per file and there is no reason to leave it loose.
+    expect(eligible, "no design had a body tube — the corpus is not loaded").toBe(files.length);
+    expect(authored, "a design refused to build one of the two internal kinds").toBe(eligible * 2);
+    expect(stepped, "an internal part changed the airframe's length").toEqual([]);
+    expect(outside, "an internal part sits outside the tube that holds it").toEqual([]);
+    expect(weightless, "an internal part with a stock added no mass").toEqual([]);
+    expect(solid, "a centring ring was authored with no bore").toEqual([]);
+    expect(wrongShape, "an internal part was authored at a size no real one has").toEqual([]);
+    // The mass a ring adds is what the sizing is FOR, so it is asserted rather than only printed: a
+    // 1/8 inch bored plate is single-digit grams, and the solid 50 mm slug this replaced was 134.
+    expect(med(addedG.centeringring), "the median centring ring is heavier than a plate of ply").toBeLessThan(20);
+    expect(med(addedG.centeringring), "the median centring ring weighs nothing at all").toBeGreaterThan(0);
   }, 300_000);
 
   it("finds no real design that leads with anything but a nose cone", async () => {

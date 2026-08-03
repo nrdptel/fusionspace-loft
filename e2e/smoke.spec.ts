@@ -3687,6 +3687,95 @@ test.describe("Loft", () => {
     await expect(rows).toHaveCount(1);
   });
 
+  test("a coupler and a centring ring go inside the tube, and only the balance moves", async ({ page }) => {
+    // R8's two INTERNAL kinds, and the first authored parts that touch no outer mould line at all.
+    // That is what this drives: the airframe the solver sees must be untouched — same apogee-driving
+    // drag, same length — while dry mass and the balance move. A test that only counted rows would
+    // pass on a part built in the wrong place, which is exactly the defect the corpus sweep caught.
+    await page.goto("/");
+    await page.getByRole("button", { name: "Start a new design" }).click();
+    await page.getByRole("link", { name: "Flight" }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    const figure = async (label: string) => {
+      const t = await page.getByText(label, { exact: true }).locator("xpath=following-sibling::dd").innerText();
+      return parseFloat(t.replace(/[^\d.]/g, ""));
+    };
+    const asBuilt = {
+      margin: await figure("Static margin"),
+      mass: await figure("Liftoff mass"),
+    };
+    expect(asBuilt.mass).toBeGreaterThan(0);
+
+    await page.getByRole("link", { name: "Design" }).click();
+    await page.locator("summary", { hasText: /Parts ·/ }).click();
+    const partsTable = page.locator("table").filter({ hasText: "Dimensions" });
+    const before = await partsTable.locator("tr").count();
+
+    // **Where a part SITS is read from the Station column, not from the airframe's overall length.**
+    // The pre-push review proved the obvious check vacuous: `overallLength` maxes over body kinds
+    // only (nose cone, body tube, transition), so it is structurally blind to these two — the whole
+    // test passed with `inside: false`, both parts built as top-level siblings at a NEGATIVE station,
+    // entirely ahead of the nose tip. Station and the stated length are what can actually tell.
+    // Column addressed by its header rather than by index, because inserting a column silently
+    // re-points an `nth-child` and this suite has already been bitten by that.
+    const headers = (await partsTable.locator("thead").innerText()).split("\t").map((h) => h.trim());
+    const colOf = (label: string) => {
+      const i = headers.findIndex((h) => h.toUpperCase().startsWith(label.toUpperCase()));
+      expect(i, `no "${label}" column — headers were ${JSON.stringify(headers)}`).toBeGreaterThanOrEqual(0);
+      return i;
+    };
+    const stationCol = colOf("Station");
+    const dimsCol = colOf("Dimensions");
+    const spanOf = async (rowText: RegExp) => {
+      const cells = partsTable.locator("tr").filter({ hasText: rowText }).first().locator("th, td");
+      const at = parseFloat((await cells.nth(stationCol).innerText()).replace(/[^\d.-]/g, ""));
+      const dims = await cells.nth(dimsCol).innerText();
+      const len = parseFloat(/L\s*([\d.]+)/.exec(dims)?.[1] ?? "NaN");
+      expect(Number.isFinite(at) && Number.isFinite(len), `unreadable row ${rowText}: "${dims}"`).toBe(true);
+      return { at, len };
+    };
+
+    await partsTable.locator("tr").filter({ hasText: /Body tube/ }).first().click();
+    await page.getByRole("button", { name: /^Add a coupler inside this/ }).click();
+    await page.getByRole("button", { name: /^Add a centering ring inside this/ }).click();
+    await expect(partsTable.locator("tr")).toHaveCount(before + 2);
+    await expect(partsTable.locator("tr").filter({ hasText: /Coupler/ })).toHaveCount(1);
+    await expect(partsTable.locator("tr").filter({ hasText: /Centering ring/ })).toHaveCount(1);
+
+    // **Both sit within the host's own span**, which is what "inside" has to mean geometrically, and
+    // it is the assertion the whole gesture rests on.
+    const host = await spanOf(/Body tube/);
+    for (const [what, row] of [["coupler", /Coupler/] as const, ["ring", /Centering ring/] as const]) {
+      const p = await spanOf(row);
+      expect(p.at, `${what} starts ahead of its host`).toBeGreaterThanOrEqual(host.at - 0.05);
+      expect(p.at + p.len, `${what} runs past the aft end of its host`).toBeLessThanOrEqual(host.at + host.len + 0.05);
+    }
+    // A coupler is a TUBE and a ring is a PLATE, and the panel shows the difference rather than two
+    // parts of the same made-up size — the defect the corpus check caught before this shipped.
+    expect((await spanOf(/Coupler/)).len).toBeGreaterThan((await spanOf(/Centering ring/)).len * 5);
+
+    // The weight moved too, by an amount a flyer would recognise rather than a slug. Both parts
+    // inherit the HOST's stock, which on the starter is fibreglass rather than the cardboard and ply
+    // a coupler and a ring are usually cut from — so this bound is generous by design and the check
+    // that pins the sizes is the corpus sweep, over 35 real designs and their real materials. The
+    // 50 mm solid version this replaced put 134 g on the corpus median design.
+    await page.getByRole("link", { name: "Flight" }).click();
+    await expect.poll(() => figure("Liftoff mass"), { timeout: 20000 }).not.toBe(asBuilt.mass);
+    const added = (await figure("Liftoff mass")) - asBuilt.mass;
+    expect(added).toBeGreaterThan(0);
+    expect(added).toBeLessThan(0.2);
+    // And seated at the aft end, they pull the balance back — the reason to model them at all.
+    expect(await figure("Static margin")).not.toBe(asBuilt.margin);
+
+    // Each is its own undo step, named after the part it made.
+    await page.getByRole("link", { name: "Design" }).click();
+    await page.getByRole("button", { name: /^Undo adding a centering ring/ }).click();
+    await page.getByRole("button", { name: /^Undo adding a coupler/ }).click();
+    await expect(partsTable.locator("tr")).toHaveCount(before);
+    await page.getByRole("link", { name: "Flight" }).click();
+    await expect.poll(() => figure("Liftoff mass"), { timeout: 20000 }).toBe(asBuilt.mass);
+  });
+
   test("the parts panel says where the airframe steps, and how far", async ({ page }) => {
     // The user-visible half of the mould-line work, and it had no test at all. Loft models a
     // transition's own slope (Niskanen 3.86 for a shoulder, 3.88 for a boattail) and has no drag term

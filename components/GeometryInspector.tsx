@@ -532,6 +532,35 @@ export default function GeometryInspector({
             >
               <span aria-hidden>+</span> Add a transition behind this
             </Button>
+            {/* The two INTERNAL parts, and they are the first authored kinds that touch no outer
+                mould line at all: a coupler joins two tubes from inside, a centring ring holds a
+                motor mount concentric. Neither changes the airframe the solver sees — they move dry
+                mass and CG and nothing else — which is why they sit after the four that do.
+
+                Both size themselves from the part they go into rather than asking, and the two sizes
+                have nothing in common even though the model calls them the same shape: a coupler is a
+                TUBE at the host's bore and 1.86 calibers long, a ring is a bored PLATE 3.18 mm thick.
+                `internalPartDefaults` holds both figures and where in the corpus they come from. The
+                alternative was a modal of number fields, which is what the roadmap says to resist.
+
+                A coupler is cut down where the tube is shorter than 1.86 calibers — 3 of the 35
+                corpus designs — because a part longer than its host does not overhang the back, it
+                overhangs the FRONT into whatever is ahead of it. The label says "as long as the tube
+                allows" rather than promising a length the tube cannot give. */}
+            <Button
+              className="ml-1.5"
+              onClick={() => onAddAfter(selectedId, "tubecoupler")}
+              aria-label="Add a coupler inside this — a tube at this one's bore, as long as the tube allows, and re-fly the design"
+            >
+              <span aria-hidden>+</span> Add a coupler inside this
+            </Button>
+            <Button
+              className="ml-1.5"
+              onClick={() => onAddAfter(selectedId, "centeringring")}
+              aria-label="Add a centering ring inside this — a plate bored to the motor mount where this tube has one, or to a typical bore where it has none, and re-fly the design"
+            >
+              <span aria-hidden>+</span> Add a centering ring inside this
+            </Button>
           </p>
         )}
         {/* A motor mount on a tube that has none. It sits with the other authoring acts and on the

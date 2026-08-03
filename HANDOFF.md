@@ -5,9 +5,11 @@ Overwritten each session. What shipped, what is part-way, and what to pick up fi
 ## Read this first
 
 **THE WORK IS ON A BRANCH AND NOT ON `main`. Opening and merging one pull request is all that is
-needed.** This run pushed verified increments to `origin` on the session's pinned branch, each gated
-green (lint, unit + corpus, build, e2e in two shards) and each reviewed by a fresh agent before the
-push. **No pull request was opened**, and that is deliberate rather than an oversight: this session's
+needed.** This run pushed **four verified increments** to `origin` on the session's pinned branch —
+`29d8fc0`, `b295895`, `f55516c`, `79a72a6` — each gated green (lint, unit + corpus, build, e2e in two
+shards) and each reviewed by a fresh agent before the push. **Measured against production at the end
+of the run: `loft.fusionspace.co` carries NONE of it** — three probe strings from this run's copy
+appear in the local build's chunks and in zero bytes of the served site. **No pull request was opened**, and that is deliberate rather than an oversight: this session's
 harness instructs that a pull request must not be created unless the owner explicitly asks, and
 `MAINTAINING.md`'s own conflict rule says the harness wins and that the instruction not honoured must
 be named. So it is named here. Under the SHIPPED-MEANS-REACHABLE invariant this counts as **pending,
@@ -54,6 +56,52 @@ disagree** — correctness, safety-claims and test-quality found different thing
 418 px inside a 324 px scroller (not 1,198 inside 390), `getByRole("row")` returns 9 (not nothing),
 and a row click works (it did not "time out"). The `DataTable` conversion had fixed all three and
 nobody re-measured. Both records are corrected.
+
+## This run's five increments, and how each was verified
+
+| # | SHA | what | verified by |
+|---|---|---|---|
+| 1 | `29d8fc0` | Two Sev-1s: the partial-cluster warning could never fire on a cluster, and every loaded figure was published as if a missing motor were aboard | corpus sweep, 129 single-motor removals across 35 designs with a negative control naming the 5 the old code missed; e2e asserting no margin VALUE survives on the page |
+| 2 | `b295895` | P4 inc 4 — the touch ratchet reaches the selection-gated surface, and the motor sweep can apply the motor it recommends | both §8 counts over the gated surface; an e2e walking all three pad journeys, asserting the Use control is on screen at 390 px and that the swap is undoable |
+| 3 | `f55516c` | R8 inc 6 — a real commercial parachute can be chosen; landing speed spans 2.16–18.15 m/s across the catalogue | six cases in `edit.test.ts` incl. a negative control; an e2e driving the whole gesture and the clear path back |
+| 4 | `79a72a6` | P4 inc 5 — the diagram gets a full-height tap column per body part | e2e asserting 44 px height on every column, ≥40% reach, distinct selection, and that a fin set is still selectable — with a negative control |
+| 5 | `PENDING` | R8 inc 7 — a coupler and a centring ring can be authored, sized from the corpus rather than alike | 7 cases in `edit.test.ts` incl. two negative controls; corpus sweep over all 35 designs; e2e reading the Station column back |
+
+**Gate at the end:** lint 0 errors / 1 standing warning · **1029 unit across 53 files** · build ·
+corpus **35 design files / 23 tests / 0 findings**, census medians unmoved · e2e **108 + 108 = 216**,
+which is the suite's full count. `DESIGN.md` §9 unmoved: rounded-lg 0, card treatments 3 (recorded
+floor), off-scale spacing 0, off-scale type 0, inverted files 0, adoption 17/27.
+
+**Sev-1 count in `BACKLOG.md` at the end of the run: FIVE, all filed this run and none of them yet
+fixed.** Two cold walks of the built export found them and they are the top five entries in that
+file: the `.ork` export drops every launch condition and the motor configuration on a round trip
+(drift from pad 630 m → 0 m); an unmatched motor is substituted with one that does not FIT the mount
+and the whole flight is reported off it; a one-tap parachute pick can produce an unflagged 18 m/s
+descent on a page that DOES police thrust-to-weight and rail exit; the validation CSVs carry no units
+and the same filename holds metric or imperial; and an ordinary one-thumb scroll that starts on a
+diagram drag handle both scrolls AND drags. **Take these before the roadmap queue** — that is what
+`MAINTAINING.md` says a Sev-1 does, and the first of them is the cheapest: `exportOrk` already
+receives `doc.simulations` and simply never writes them.
+
+## The one lesson this run would send back
+
+**The pre-push agent review found nineteen real defects in code that had already passed the whole
+gate — three of them Sev-1 — and the most valuable ones were about the run's own HONESTY, not its
+logic.** Two are worth carrying forward as a checklist:
+
+- **A comment claiming an ordering prevents a defect is worth testing, because it may be what causes
+  it.** The parachute applier's own note said its ordering stopped a pick from sending a deployment to
+  a canopy nobody named. Putting the pick first is exactly what made another canopy the largest.
+- **"Measured" is a claim like any other.** A note said "Public Missiles' three agree to within 4%".
+  Public Missiles publishes a weight on TWELVE canopies, running 0.99x to 1.69x; the three quoted were
+  the three closest. Recomputing over all 21 supported the rule more strongly than the wrong number
+  did. Run the probe over the whole set, and put the distribution in the note, not the best case.
+- **Two of this run's own new assertions were VACUOUS** and both looked fine: a disabled `<button>`
+  still has `role=button`, so counting them proves nothing about enablement; and
+  `getByRole("columnheader", {name: /^Length/})` matches nothing on ANY kind, because `DataTable`
+  renders headers as buttons carrying `aria-label="Sort by …"` and Playwright returns that first.
+  **Pair every negative assertion with a positive one over the same read**, so a broken selector
+  fails instead of passing.
 
 ## The arc so far
 

@@ -160,6 +160,8 @@ const ADD_LABEL: Readonly<Record<AddedPart["kind"], string>> = {
   trapezoidfinset: "adding a fin set",
   transition: "adding a transition",
   masscomponent: "adding a mass object",
+  tubecoupler: "adding a coupler",
+  centeringring: "adding a centering ring",
 };
 
 interface Edits {
@@ -1155,6 +1157,12 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
       // aim at the part immediately, so the next keystroke replaces the starting weight rather than
       // a modal asking for it before anything exists to see.
       part = { id, kind, after: afterId, length: 0, name: "Mass object" };
+    } else if (kind === "tubecoupler" || kind === "centeringring") {
+      // The two INTERNAL kinds. `length: 0` is deliberate and means "the corpus figure": both sizes
+      // are decided by `internalPartDefaults` against the host, so the button and any other caller
+      // build the identical part rather than two that agree by argument. A coupler is 1.86 calibers
+      // and a ring is 3.18 mm — see there for why one number could not have served both.
+      part = { id, kind, after: afterId, length: 0, name: kind === "tubecoupler" ? "Coupler" : "Centering ring" };
     } else {
       part = { id, kind: "bodytube", after: afterId, length: Math.max(anchor.length / 2, 2 * anchor.outerRadius) };
     }

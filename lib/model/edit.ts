@@ -8,7 +8,7 @@
  *  centre of pressure, and motor position. Fin span moves the centre of pressure (stability). */
 
 import type { Rocket, RocketComponent, ComponentKind, NoseCone, BodyTube, Transition, Parachute, Material, SurfaceFinish, NoseShape, FinCrossSection, MotorMount, MassComponent,
-  Stage,
+  Stage, InnerTube, RingComponent,
 } from "./types";
 import { flattenRocket, aftOuterRadius, foreOuterRadius, nextTopLevel } from "./geometry";
 import { uniqueUuidFrom, uuidFrom } from "./id";
@@ -231,7 +231,7 @@ export interface AddedPart {
    *  exported to `.ork` and re-imported as itself — see `lib/model/id.ts` for why that shape. */
   id: string;
   /** What to build. The switch in `buildAdded` is where the rest arrive. */
-  kind: "bodytube" | "trapezoidfinset" | "transition" | "masscomponent";
+  kind: "bodytube" | "trapezoidfinset" | "transition" | "masscomponent" | "tubecoupler" | "centeringring";
   /** The component this goes immediately AFTER, in its stage's own top-level list. An id rather than an
    *  index or a role, so it still means the same part after a length edit, a removal, or a reload. */
   after: string;
@@ -1402,7 +1402,24 @@ function editComponent(
     };
   }
   if (newLen !== undefined && "length" in c) {
-    return clustered({ ...c, length: newLen, children });
+    // **A tube that shrinks takes its internal fittings with it.** `applyAdds` runs BEFORE this, so
+    // an authored coupler was clamped against the host's PRISTINE length; shrinking the host
+    // afterwards leaves the part hanging out — and because these sit `bottom`-flush, they grow
+    // FORWARD, out of the tube's fore end and into whatever is ahead. Measured on the starter before
+    // this clamp: add a coupler to the 620 mm tube (94.8 mm, +40.9 g), then type 20 into Body length
+    // and 74.8 mm of it sits inside the nose cone, still counting its full un-shrunk mass.
+    //
+    // Applied to the fittings the design ARRIVED with too, not only authored ones: the geometry is
+    // equally impossible either way, and the flyer typing the length is making the same claim about
+    // the same tube. Ring kinds only — a fin set or a mass object inside a shortened tube is
+    // repositioned by `flattenRocket`, not overhung by it.
+    const fitted =
+      c.kind === "bodytube"
+        ? children.map((ch) =>
+            isRing(ch) && ch.length > newLen ? { ...ch, length: Math.max(1e-4, newLen) } : ch,
+          )
+        : children;
+    return clustered({ ...c, length: newLen, children: fitted });
   }
 
   // Motor cluster count: how many motors the mount holds, set on every motor mount (a from-scratch
@@ -1995,6 +2012,89 @@ export function transitionDefaults(
       ? Math.max(TRANSITION_SLENDERNESS * 2 * taper, TRANSITION_MIN_LENGTH)
       : TRANSITION_MEDIAN_LENGTH;
   return { foreRadius, aftRadius, length };
+}
+
+/** The `RingComponent` kinds — everything that mounts INSIDE a tube as an annular or solid cylinder
+ *  (`types.ts`). They share a shape and, for the fitting rule, a constraint: none can be longer than
+ *  the tube holding it. */
+const RING_KINDS: ReadonlySet<string> = new Set(["tubecoupler", "centeringring", "bulkhead", "engineblock"]);
+const isRing = (c: RocketComponent): c is RingComponent => RING_KINDS.has(c.kind);
+
+/** A coupler's length as a multiple of the tube it joins. Median of the 31 real couplers in the
+ *  corpus (p25 1.287, p75 2.323, and never once below 1.0537 — a coupler shorter than its own
+ *  diameter does not hold a joint straight, and no designer in the corpus drew one). */
+const COUPLER_CALIBERS = 1.859;
+/** A centring ring's thickness, ABSOLUTE rather than a fraction of the tube. The corpus median over
+ *  83 real rings is 3.18 mm, which is 1/8 inch — ring stock is sold in sheet thicknesses, so the
+ *  number that generalises is the sheet, not a ratio. (p25 2.0 mm, p75 6.35 mm = 1/4 inch; the
+ *  length/diameter ratio spans 0.020–1.000 over the same set, a 50x spread against the thickness's
+ *  25x, so the ratio is the worse predictor as well as the less physical one.) */
+const RING_THICKNESS = 0.003175;
+/** What a centring ring bores to when its host carries no inner tube to centre, as a fraction of the
+ *  ring's own outer radius: the corpus median over 83 rings, every one of which is bored. */
+const RING_BORE_FRACTION = 0.87;
+
+/** Geometry for the two INTERNAL kinds, from the corpus rather than from taste — the same rule the
+ *  transition defaults above follow, and for the same reason: a part that arrives at a made-up size
+ *  is a mass the flyer will not think to check.
+ *
+ *  **A coupler and a centring ring are the same `RingComponent` and could not be less alike in
+ *  proportion.** A coupler is a TUBE — 1.86 calibers long with a wall, spanning a joint. A ring is a
+ *  PLATE — 3.18 mm of ply with a big hole in it. Sizing them alike is how the first draft of this
+ *  gave every ring a 50 mm solid slug: 134 g at the corpus median and 1.74 kg at its worst, on a part
+ *  that really weighs a few grams.
+ *
+ *  **The bore is where the ring earns its name, and it is read from the design wherever the design
+ *  states it**: the `innertube` mounted in the host IS the motor mount a ring centres (`MotorMount`
+ *  is a marker carrying no diameter of its own — see `types.ts`), so a host that has one fixes the
+ *  bore exactly. Where the host has none there is no measurement to take, and the fallback is the
+ *  corpus median ratio rather than a solid disc: **0 of the 83 real centring rings in the corpus are
+ *  solid.** A disc with no hole is a bulkhead, which is a different part doing a different job. */
+export function internalPartDefaults(
+  kind: "tubecoupler" | "centeringring",
+  host: RocketComponent,
+): { length: number; innerRadius: number } {
+  const hostR = aftOuterRadius(host) ?? 0;
+  const wall = "thickness" in host && host.thickness !== undefined && host.thickness > 0 ? host.thickness : 0;
+  const ro = Math.max(1e-6, hostR - wall);
+  if (kind === "tubecoupler") {
+    // A coupler is a tube, so it keeps a wall like the tube it joins: **the host's own wherever the
+    // host states one**, and 5% of the radius only for the 12 corpus tubes that state none.
+    //
+    // This read `Math.max(wall, ro * 0.05)`, which is a FLOOR rather than a fallback and was caught
+    // by the pre-push review disagreeing with the sentence above it. The floor won on 56 of the 78
+    // corpus tubes that DO state a wall — 72% — because a real airframe wall is thin next to its
+    // bore: it inflated the coupler's mass by a median 1.93x and up to 12.85x, +416 g on
+    // `FullScaleModelTH.rkt` alone, which moves liftoff mass and static margin. A design that states
+    // its wall has already answered this question and Loft has no business overriding the answer.
+    const w = wall > 0 ? wall : ro * 0.05;
+    return { length: COUPLER_CALIBERS * 2 * ro, innerRadius: Math.max(0, ro - w) };
+  }
+  // The mount is not always a direct child — 41 corpus body tubes hold one deeper — so this descends,
+  // and it prefers a tube actually CARRYING a motor mount over the first inner tube it meets. The
+  // label on the button says "bored to the motor mount", and this is what makes that true rather than
+  // usually-true: `innertube` is also how a design models an av-bay sleeve or a coupler stub.
+  const mounts = innerTubesWithin(host);
+  const innerTube = mounts.find((t) => t.motorMount) ?? mounts[0];
+  const bore =
+    innerTube && innerTube.outerRadius > 0
+      ? Math.min(innerTube.outerRadius, ro * 0.95)
+      : ro * RING_BORE_FRACTION;
+  return { length: RING_THICKNESS, innerRadius: bore };
+}
+
+/** Every inner tube at or below `host`, nearest first. A motor mount is frequently nested one or two
+ *  levels down — inside a coupler, inside an assembly — rather than sitting as a direct child. */
+function innerTubesWithin(host: RocketComponent): InnerTube[] {
+  const out: InnerTube[] = [];
+  const walk = (c: RocketComponent) => {
+    for (const ch of c.children ?? []) {
+      if (ch.kind === "innertube") out.push(ch);
+      walk(ch);
+    }
+  };
+  walk(host);
+  return out;
 }
 
 /** What to call a transition authored behind `afterId`, decided once at birth and then carried on the
@@ -2854,6 +2954,49 @@ function buildAdded(
         // the picture match the gesture. Cloning the source's own placement would carry an offset
         // measured inside a different part.
         placement: { method: "bottom", offset: 0 },
+        children: [],
+      },
+    };
+  }
+  if (part.kind === "tubecoupler" || part.kind === "centeringring") {
+    // **Both kinds are the same `RingComponent` in the model** — `length`, `outerRadius`,
+    // `innerRadius` — and both mount INSIDE the tube that carries them rather than stacking behind
+    // it, which is the fin set's placement mode, not the tube's. A coupler joining two tubes and a
+    // ring centring a motor mount are internal parts: nothing about them changes the outer mould
+    // line, so `lib/sim/aero` never sees them and they move dry mass and CG only.
+    if (after.kind !== "bodytube") return null;
+    const hostR = aftOuterRadius(after);
+    if (hostR === undefined || !(hostR > 0)) return null;
+    // The bore the host actually has. A coupler slides INSIDE the tube, so its outer radius is the
+    // tube's INNER radius — that is what "coupler" means — and a tube with no stated wall has no
+    // inner radius to speak of, so the host's own outer radius is the honest fallback rather than an
+    // invented wall. Measured across the corpus: of 90 body tubes, 12 state no thickness and all 12
+    // are RASAero's, whose geometry is deliberately massless.
+    const wall = "thickness" in after && after.thickness !== undefined && after.thickness > 0 ? after.thickness : 0;
+    const ro = Math.max(1e-6, hostR - wall);
+    const geom = internalPartDefaults(part.kind, after);
+    return {
+      inside: true,
+      component: {
+        id: part.id,
+        name: part.name || (part.kind === "tubecoupler" ? "Coupler" : "Centering ring"),
+        kind: part.kind,
+        // Seated at the aft end of its host, where a coupler joining the next tube actually sits and
+        // where a ring carrying a mount usually does. `bottom` is also the only method that keeps
+        // meaning the same thing when the host is later lengthened.
+        placement: { method: "bottom", offset: 0 },
+        // **Clamped to the host, always.** An internal part seated at the host's aft end with a
+        // length longer than the host does not stick out the back — it sticks out the FRONT, past
+        // the fore end, into whatever is ahead of it. Caught by the corpus sweep before it shipped:
+        // `02.Two-stage.ork`'s first body tube is 7.5 mm long and `Cherokee-E-5055.ork`'s is 25.4 mm,
+        // so a coupler at its corpus length ran past both fore ends.
+        length: Math.max(1e-4, Math.min(part.length > 0 ? part.length : geom.length, after.length)),
+        outerRadius: ro,
+        innerRadius: Math.min(geom.innerRadius, ro),
+        // The host's own stock, for the reason every other authored part inherits it: a part that
+        // arrives in a material the flyer never chose is a mass they will not check. A host with no
+        // material leaves the ring massless, exactly as the tube builder does.
+        ...(after.material ? { material: after.material } : {}),
         children: [],
       },
     };
