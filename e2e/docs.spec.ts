@@ -1,5 +1,12 @@
 import { test, expect } from "@playwright/test";
 
+// **A STATIC import, and it has to be.** Both cases below first read this module with a dynamic
+// `await import("../lib/version")`, which works locally and fails in CI with
+// `SyntaxError: Unexpected token 'export'`: a dynamic import is resolved at RUNTIME, so Playwright's
+// TypeScript transform never sees the file and Node is handed `export interface` to parse. A static
+// import goes through the transform like every other import in this suite.
+import { RELEASES, VERSION, RELEASED } from "../lib/version";
+
 test.describe("Docs", () => {
   test("the docs hub links to the trust pages", async ({ page }) => {
     await page.goto("/docs");
@@ -75,7 +82,6 @@ test.describe("Docs", () => {
     // and refused by the build when it disagrees with `package.json` — so the page, the version in
     // the chrome and the file in the repository are one source with two readers rather than three
     // things somebody has to keep in step.
-    const { RELEASES, VERSION } = await import("../lib/version");
     await page.goto("/docs/changelog");
     await expect(page.getByRole("heading", { name: "Changelog", exact: true })).toBeVisible();
 
@@ -138,7 +144,6 @@ test.describe("Docs", () => {
     // REACHABILITY, and `lib/version.test.ts` asserts AGREEMENT. Neither claim covers the other: a
     // version can be correct in three files and rendered nowhere, which is exactly the state before
     // this shipped.
-    const { VERSION, RELEASED } = await import("../lib/version");
     // Every workspace route plus the docs, because the footer renders on all of them and a version
     // that appears on the landing surface only is a version most sessions never see.
     for (const path of ["/", "/design", "/flight", "/sweep", "/validate", "/docs"]) {

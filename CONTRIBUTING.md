@@ -105,6 +105,12 @@ npm run build       # also type-checks (CI gate; tsconfig has noUnusedLocals/Par
 npm run test:e2e    # Playwright (incl. an axe accessibility audit) — run after a build
 ```
 
+**A dynamic `await import(...)` of a `.ts` module inside an e2e spec passes locally and fails in CI.**
+It is resolved at RUNTIME, so Playwright's TypeScript transform never sees the file and Node is handed
+`export interface` to parse: `SyntaxError: Unexpected token 'export'`. Local runs happen to get away
+with it; the CI runner does not. Use a static `import` at the top of the spec, like every other import
+in the suite. Measured 2026-08-03, on two cases that were green locally and red in CI.
+
 **Never pipe a gate step into `tail`, `head` or `grep` — the pipeline's exit code is the pipe's, not
 the command's.** `npm run build | tail -3` reports success whatever the build did, so a `&&` chain
 built that way runs the e2e suite on a build that failed and the gate reads green. It happened on
