@@ -1944,6 +1944,80 @@ same internal Rocket model an imported one does, or the solver ends up with two 
 
 ---
 
+## R9 — The descent Loft cannot defend, and the flyer cannot reach
+
+**Status:** NOT STARTED
+
+**Outcome.** The descent half of every flight becomes a number Loft can stand behind and a flyer can
+steer. The parachute drag coefficient becomes visible, sourced and editable wherever it is flown; the
+airframe's own descent drag stops being an undocumented `0.5` typed into two files; and the worst
+figure in the accuracy census stops being the one nobody can reach.
+
+**Why this and not the after-list's R9.** The after-list names "the multi-solver cross-check as a
+first-class view" next — but P2 already shipped `/validate` as a real route rendering
+`ValidationPanel`, `DragCrossCheck` and `RocketpyCrossCheck`, so a whole milestone for it overstates
+what is left. Meanwhile the corpus points at a gap nobody has queued, and the numbers are this run's
+own measurement rather than a recollection:
+
+```
+corpus census (median |Δ| vs each file's stored results, known issues included):
+  groundHitVelocity    n= 94  8.3%      ← worst of ten, 2.7× apogee's
+  deploymentVelocity   n= 76  6.0%
+  flightTime           n= 94  3.3%
+  maxAltitude          n= 97  3.1%
+  …
+  timeToApogee         n= 97  1.5%
+```
+
+**Ground-hit velocity is carried by 94 of the corpus's stored simulations and is the metric Loft
+agrees with least** — nearly three times apogee's error. And the single input that drives it is on no
+surface in the app: a flyer cannot see the parachute drag coefficient, cannot change it, and is not
+told where it came from. Landing speed and landing energy are what an RSO and a waiver actually check.
+
+**The state of it today, measured 2026-08-03 rather than assumed:**
+
+- `lib/sim/recovery.ts:21` exports `DESCENT_BODY_CDA_FACTOR = 0.5` with a comment saying it "matches
+  the descent model in `simulate.ts`" — and `simulate.ts:612` and `:654` each type a bare `* 0.5`
+  instead of importing it. One physical quantity, three literals, one of them claiming to be the
+  source of the other two.
+- Three adapters carry uncited defaults for the same coefficient: `lib/ork/adapt.ts:555` 0.8 (and
+  `:576` 0.75 for a streamer), `lib/rkt/adapt.ts:465` 0.8 and `:486` 0.75, `lib/rasaero/adapt.ts:400`
+  0.8. None names a source.
+- `COMPETITION.md` row 35 is the same gap from the competitive side, and two of the four competitors
+  DO state a basis: RASAero II's 1.33 with its stated derivation, RocketPy's 1.4 cited to NASA
+  SP-8066. Loft states nothing.
+
+**Done when** a canopy's Cd is readable and editable on `/design` for imported and authored chutes
+alike, with its origin named (file value · catalogue part · Loft's default) and the default's basis
+cited on the methods page; the descent body-drag factor is ONE exported, cited constant that
+`simulate.ts` imports rather than re-types; every adapter's recovery-Cd default carries a source
+string or an explicit "no published basis"; the derived readouts a defaulted Cd feeds — descent rate,
+arrival speed, landing energy — carry the `extrapolated` marker the rest of the app already uses; and
+the census figure for `groundHitVelocity` is re-measured and published, whatever it turns out to be.
+
+**Pinned by** a unit test asserting the three descent-drag literals are one imported constant and that
+every adapter default has a non-empty source; an e2e that reads the Cd off `/design`, changes it, and
+watches ground-hit speed move; and the corpus census itself, whose `PUBLISHED_MEDIAN_PCT` gate already
+fails CI on a regression.
+
+**Size.** 4–6 increments. The first three, in order, because each is cheap and none depends on the
+next: (1) import `DESCENT_BODY_CDA_FACTOR` in both places in `simulate.ts` and state whether it has a
+source or explicitly has none; (2) give every adapter default a source string or an honest "no
+published basis"; (3) **measure where the 8.3% actually comes from before moving any number** — print
+stored versus Loft descent rate for all 94, split by stated-Cd against auto-Cd designs and by wind
+above and below 4 m/s. Only then (4) put the coefficient on screen read-only with its provenance,
+(5) make it editable and let the edit flow through a re-fly and the `.ork` round trip R6 pinned, and
+(6) re-measure the census and update `PUBLISHED_MEDIAN_PCT`, `/docs/validation` and the methods page
+in ONE commit.
+
+**Notes.** `COMPETITION.md` rows 35 and 33. **Do not move a number before increment 3.** The 8.3% has
+not been attributed, and "improve the descent" without knowing whether the error lives in the
+coefficient, the body drag, the wind model or the stored figures themselves is how a tolerance gets
+widened to fit. This milestone is allowed to end with the coefficient unchanged and honestly labelled;
+that would still meet the *done when*.
+
+---
+
 ## P1 — One design system, adopted
 
 **Status: DONE — 2026-08-02.** Every §9 count is at its target or its recorded honest floor, all six
@@ -3166,6 +3240,69 @@ invariant: whatever ships here ships in both apps.
 
 ---
 
+## P6 — The primitives the design system already declares
+
+**Status:** NOT STARTED
+
+**Outcome.** `DESIGN.md` §5's component vocabulary stops being a description of what the app should
+have and becomes what it is built from — so a surface added next run inherits the system instead of
+re-deciding it.
+
+**Why now, and why not before P5.** This gap has been visible since P1 and was deliberately not taken
+first, for a measured reason: it is **held stationary by an exact ratchet**.
+`lib/design-system.test.ts` asserts adoption per primitive as an equality, and all six `DESIGN.md` §9
+counts are at their target or their recorded honest floor, so the divergence cannot decay while it
+waits. P5's gap could not wait the same way — it was costing every stranger who arrived, and P6 was
+gated behind it. With P5 shipped, this is the obvious next P milestone.
+
+**The audit, re-measured 2026-08-03** (the previous count was five absent primitives and missed one):
+
+- **Six primitives §5 declares do not exist**: `Panel`, `Readout`, `Figure`, `EmptyState`,
+  `ErrorState`, `Extrapolated`.
+- **Two exist with ZERO call sites**: `Section` (while 12 sites hand-roll its exact heading across 6
+  files) and `Chip`. (`Tabs` is also 0 and is NOT drift — it is the documented consequence of the
+  route split.)
+- **`Readout` — the labelled-value-with-unit treatment — is hand-rolled ~27 times in 7 disagreeing
+  class strings** across `ResultsView`, `MonteCarlo`, `LoftApp`, `ImportPanel`, `ParameterSweep` and
+  `ui`. A cheap proxy to re-measure it: `grep -roh 'uppercase tracking-wide' components app | wc -l`
+  returns **31**, which counts the label half of the treatment plus a few section eyebrows. It is the
+  single most-repeated treatment in the app and the one a flyer reads every number through — start
+  here, and take the exact count as the first thing the increment does.
+- **There is no `Select` primitive and 12 real `<select>` elements hand-roll their own class
+  strings** — LoftApp 7, ParameterSweep 2, ResultsView 2, PartPicker 1. (`grep '<select'` returns 14;
+  two of those are inside comments, which is worth stating because the next session will run the same
+  grep and get the larger number.)
+- **`EmptyState` / `ErrorState` are hand-rolled 10 ways**, and two surfaces have neither:
+  `ParameterSweep.tsx:328` and `FlightViz.tsx:37` both `return null`, so the panel VANISHES rather
+  than saying why — the one state that teaches nothing.
+- **A second `warn` card tone** is spelled inline at `ResultsView.tsx:1234`, disagreeing with
+  `CARD_TONES.warn` by one shade in each theme.
+- **`text-[11px]` is used 47 times across 10 files**, ~21 of them on field labels, legends and readout
+  labels — §3 scopes that size to axis ticks and diagram annotations only.
+
+**Done when** every primitive `DESIGN.md` §5 declares exists in `components/ui.tsx` and is used at
+every site that hand-rolls it today; `Readout` is the only labelled-value treatment; a `Select`
+primitive is the only `<select>` treatment; no data surface returns `null` where an empty or error
+state belongs; and `lib/design-system.test.ts` gains a per-primitive adoption ratchet for each new
+one, so the next hand-rolled copy fails the suite rather than being found by a later audit.
+
+**Pinned by** that ratchet — which is the point of the milestone as much as the components are. A
+design system that is enforced only by somebody re-running an audit is a description, not a system.
+
+**Size.** 4–6 increments. Take `Readout` first: 27 sites, one treatment, and it is the one a flyer
+reads every number through — so it is both the biggest single win and the clearest test of whether the
+primitive's API is right before four more are built on the same pattern. Then `Select` (12 sites),
+then `EmptyState`/`ErrorState` (10, plus the two surfaces that have none), then `Panel`, `Figure` and
+`Extrapolated`.
+
+**Notes.** Convert, do not repaint. Where a hand-rolled site differs from the primitive, the primitive
+wins and the difference is a defect — that is what `DESIGN.md` being binding means. Where a site
+differs for a REASON, change `DESIGN.md` first, with the reason, and then the primitive. The two
+zero-call-site primitives (`Section`, `Chip`) are a live question this milestone must answer rather
+than inherit: either they gain their call sites or they are deleted from the file and from §5.
+
+---
+
 ## After R6 and P5 — extend this file yourself, in this order
 
 **Do not ask which of these to do, and do not fall back to the defect ledger because the list above
@@ -3217,6 +3354,43 @@ Beyond these, decompose from the North Star in `MAINTAINING.md` and from `COMPET
 Unattended runs do not stop to ask (see *Unattended operation* in `MAINTAINING.md`). Every decision
 that would otherwise have been a question goes here, with the option rejected, so it can be reversed
 cheaply instead of re-derived. Newest first.
+
+- **2026-08-03 — the next R milestone is R9 *the descent Loft cannot defend*, not the after-list's
+  "multi-solver cross-check as a first-class view".** The after-list names the cross-check next, and
+  reordering a queue the owner set is a call I took rather than asked about. The reason is measured:
+  P2 already shipped `/validate` as a real route rendering `ValidationPanel`, `DragCrossCheck` and
+  `RocketpyCrossCheck`, so a whole milestone for it overstates what is left — while this run's own
+  census run puts `groundHitVelocity` at **8.3% median across 94 stored simulations, the worst of ten
+  metrics and 2.7x apogee's**, with the coefficient that drives it reachable on no surface in the app.
+  **Rejected alternative:** take the after-list in order and file the descent gap as a defect. That
+  loses, because it is not a defect — nothing is wrong, a whole input is missing — and the defect
+  ledger is exactly where such things go to wait forever. The cross-check remains on the after-list
+  and is unharmed by being second.
+
+- **2026-08-03 — "the release" means `CHANGELOG.md`'s newest released version, not a git tag.**
+  `git tag` is empty, and cutting this project's first tag is a publishing act that belongs to the
+  owner rather than being a side effect of a maintenance run. A static export also cannot ask GitHub
+  what the latest release is at request time. So the build-time assertion P5's *done when* asks for is
+  that the version the UI renders, the version `package.json` declares and the newest changelog entry
+  are one string. **Rejected alternative:** cut a `v0.9.0` tag and assert against it. That publishes
+  something on the owner's behalf and would need re-cutting every release by a session, which is worse
+  than the check being one comparison narrower. If tagging starts, `scripts/gen-version.mjs` gains one
+  more comparison and nothing else changes.
+
+- **2026-08-03 — the version moved 0.1.0 to 0.9.0 rather than 0.2.0 or 1.0.0.** `0.1.0` was the
+  scaffold default and had never been touched. 1.0.0 would claim the editor and the physics are done,
+  which they are not; anything near 0.1 misrepresents five import formats, a from-scratch staged
+  builder, a 2,990-part catalogue, sweeps, Monte-Carlo and two cross-check solvers. **Rejected
+  alternative:** leave it at 0.1.0 and let the changelog carry the meaning. That ships a version
+  string that is visibly false on the one surface the milestone added it to.
+
+- **2026-08-03 — a picked coupler or centring ring WIDER than its host's bore is accepted, not
+  refused.** The length rule refuses, because a shortened part under a vendor's part number is a wrong
+  number under a real label; a too-wide one is not mislabelled, it is the flyer's own choice of a part
+  that does not fit, and its mass is honestly computed for the part they chose. OpenRocket does not
+  refuse it either. **Rejected alternative:** refuse or clamp it. Refusing removes a choice a flyer may
+  have a reason for; clamping would invent a size no vendor published. Filed in `BACKLOG.md` with the
+  measurement, because it is squarely "an input that accepts a value it cannot physically mean".
 
 - **2026-08-02 — the liftoff mass is WITHHELD when a motor is missing, not relabelled "Dry mass".**
   The Sev-1 fix's first draft relabelled it, on the reasoning that the figure is a correct number
