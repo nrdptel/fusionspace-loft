@@ -64,7 +64,9 @@ import {
   canAddMount,
   stageSeedBase,
   internalPartDefaults,
+  usableCatalogRing,
   type GeometryEdits,
+  type PickedRing,
   addedStageIds,
 } from "./edit";
 import type {
@@ -79,6 +81,7 @@ import type {
   RocketComponent,
   RingComponent,
   InnerTube,
+  Material,
   TrapezoidFinSet,
 } from "./types";
 import { overallLength } from "./geometry";
@@ -4066,5 +4069,102 @@ describe("authoring a coupler and a centring ring", () => {
     expect(made.length).toBeLessThanOrEqual(tube.length + 1e-9);
     expect(made.xFore).toBeGreaterThanOrEqual(tube.xFore - 1e-9);
     expect(made.length).toBeGreaterThan(0);
+  });
+});
+
+describe("picking a real coupler or centring ring", () => {
+  const SINGLE = "fixtures/demo-single-deploy.ork";
+  const load = async (f: string) => importOrk(readFileSync(resolve(process.cwd(), f)));
+  const firstTube = (r: Rocket) => flattenRocket(r).find((p) => p.component.kind === "bodytube")!.component as BodyTube;
+  const PLY: Material = { name: "Plywood, light, bulk", density: 352, type: "bulk" };
+  const PICK: PickedRing = {
+    manufacturer: "SEMROC",
+    partNumber: "CR-9-175P",
+    outerDiameter: 0.0443992,
+    innerDiameter: 0.0254,
+    length: 0.003175,
+    material: PLY,
+  };
+
+  it("replaces every dimension AND the stock, rather than three of the four", async () => {
+    // A derived ring is Loft's estimate of what a flyer would fit; a catalogued one is a real object
+    // with a published bore, outer diameter, length and material. Taking the geometry and keeping the
+    // host's stock would fly a part that exists nowhere — and every catalogue row states all four
+    // (236 of 236 couplers, 497 of 497 rings), so there is no partial case.
+    const doc = await load(SINGLE);
+    const host = firstTube(doc.rocket);
+    const id = newPartId(doc.rocket, undefined, host.id);
+    const derived = flattenRocket(
+      applyGeometryEdits(doc.rocket, { added: [{ id, kind: "centeringring", after: host.id, length: 0 }] }),
+    ).find((p) => p.component.id === id)!.component as RingComponent;
+    const picked = flattenRocket(
+      applyGeometryEdits(doc.rocket, { added: [{ id, kind: "centeringring", after: host.id, length: 0, pick: PICK }] }),
+    ).find((p) => p.component.id === id)!.component as RingComponent;
+
+    expect(picked.outerRadius).toBeCloseTo(PICK.outerDiameter / 2, 9);
+    expect(picked.innerRadius).toBeCloseTo(PICK.innerDiameter / 2, 9);
+    expect(picked.length).toBeCloseTo(PICK.length, 9);
+    expect(picked.material?.name).toBe(PLY.name);
+    // And it really is a different part from the derived one, so none of the above passes by matching
+    // what Loft would have chosen anyway.
+    expect(picked.outerRadius).not.toBeCloseTo(derived.outerRadius, 4);
+    expect(picked.material?.name).not.toBe(derived.material?.name);
+  });
+
+  it("refuses a picked part too long for its host rather than cutting it down", async () => {
+    // The DERIVED length is Loft's own number and clamping it is honest. A picked one carries a
+    // vendor's part number on the parts row, and silently flying a shortened version of a named
+    // product is a wrong number under a label naming a real part. Couplers run to 1.2192 m in the
+    // catalogue, so this is reachable rather than theoretical.
+    const doc = await load(SINGLE);
+    const host = firstTube(doc.rocket);
+    const id = newPartId(doc.rocket, undefined, host.id);
+    const tooLong: PickedRing = { ...PICK, partNumber: "C5-34", length: host.length * 2 };
+    const built = applyGeometryEdits(doc.rocket, {
+      added: [{ id, kind: "tubecoupler", after: host.id, length: 0, pick: tooLong }],
+    });
+    expect(flattenRocket(built).find((p) => p.component.id === id), "a coupler twice its host's length was built").toBeUndefined();
+    // The same pick at a length that fits does build, so the refusal is about the length and not
+    // about picks in general.
+    const fits: PickedRing = { ...tooLong, length: host.length / 2 };
+    const ok = applyGeometryEdits(doc.rocket, {
+      added: [{ id, kind: "tubecoupler", after: host.id, length: 0, pick: fits }],
+    });
+    expect(flattenRocket(ok).find((p) => p.component.id === id)).toBeDefined();
+  });
+
+  it("weighs the part the vendor describes, and comes back when the pick is dropped", async () => {
+    const doc = await load(SINGLE);
+    const host = firstTube(doc.rocket);
+    const id = newPartId(doc.rocket, undefined, host.id);
+    const entry = { id, kind: "centeringring" as const, after: host.id, length: 0 };
+    const bare = dryMassProperties(doc.rocket).mass;
+    const withPick = dryMassProperties(applyGeometryEdits(doc.rocket, { added: [{ ...entry, pick: PICK }] })).mass;
+    const derived = dryMassProperties(applyGeometryEdits(doc.rocket, { added: [entry] })).mass;
+    // Neither kind states a mass anywhere in the catalogue, so the weight is computed from geometry
+    // and stock by the same path a hand-typed ring goes through — but it must be the PICK's geometry.
+    expect(withPick).toBeGreaterThan(bare);
+    expect(withPick).not.toBeCloseTo(derived, 6);
+    // Dropping the pick returns the derived part exactly: the pick rides on the entry, so there is no
+    // second place for it to survive.
+    expect(dryMassProperties(applyGeometryEdits(doc.rocket, { added: [entry] })).mass).toBeCloseTo(derived, 12);
+  });
+
+  it("refuses a stored pick a build cannot use", async () => {
+    // Reachable from a bag persisted by an older build, which `lib/session.ts` replays on the next
+    // visit. A record that reads as picked while the applier refuses it is a pick that appears to
+    // work and changes no number.
+    const bad: Record<string, PickedRing> = {
+      "no part number": { ...PICK, partNumber: "" },
+      "no outer diameter": { ...PICK, outerDiameter: 0 },
+      "bore wider than the part": { ...PICK, innerDiameter: PICK.outerDiameter },
+      "no length": { ...PICK, length: 0 },
+      "a stock with no density": { ...PICK, material: { ...PLY, density: 0 } },
+    };
+    for (const [why, rec] of Object.entries(bad)) expect(usableCatalogRing(rec), why).toBe(false);
+    expect(usableCatalogRing(PICK)).toBe(true);
+    // A solid plug is LEGAL, not a defect: 7 of the 236 catalogued couplers state a zero bore, and
+    // `lib/sim/mass.ts` already flies one as a solid cylinder.
+    expect(usableCatalogRing({ ...PICK, innerDiameter: 0 }), "a solid balsa plug was refused").toBe(true);
   });
 });

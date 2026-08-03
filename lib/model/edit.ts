@@ -247,6 +247,67 @@ export interface AddedPart {
    *  Ignored by every other kind. Its STATION is not here: it is derived from the anchor at every
    *  apply (see `massObjectStation`), so a bay stays where it sits in a tube that is later resized. */
   mass?: number;
+  /** A real catalogued coupler or centring ring, chosen for THIS authored part.
+   *
+   *  **It rides on the `AddedPart` rather than becoming a fourth `catalog…` key on `GeometryEdits`,
+   *  and that is the structural difference between these two kinds and the three that already have
+   *  pickers.** A body tube, a nose cone and a parachute all exist on the design before the flyer
+   *  picks one, so each pick is an EDIT to a part an aim slot can name. A coupler and a centring ring
+   *  do not exist until they are authored — there is nothing to aim at, and a bag-level key would
+   *  have to carry the target's id anyway. Putting the pick on the entry that creates the part says
+   *  the same thing with no new addressing, and it inherits everything the entry already has: one
+   *  undo step takes the part and its pick together, removing the part cannot leave the pick behind,
+   *  and none of `hasGeometryEdits`, `INERT_EDIT_FIELDS`, `isEditedValue` or `AIM_SLOTS` needs a new
+   *  case — four hand-maintained enumerations this would otherwise have had to be added to. */
+  pick?: PickedRing;
+}
+
+/** A catalogued coupler or centring ring, as a pick records it.
+ *
+ *  **Every field is stated by every row, which is why this shape has no optionals and no derivation.**
+ *  Measured over the whole catalogue: all 236 couplers and all 497 rings state an outer diameter, an
+ *  inner diameter, a length and a material — and **none of either states a mass or a thickness**. So
+ *  unlike the nose cone and the parachute, there is no published-versus-derived question to get wrong
+ *  here: the mass is computed from the geometry and the stock in every single case, by the same
+ *  `lib/sim/mass.ts` path a hand-typed ring goes through.
+ *
+ *  14 of the 497 rings carry a material with no density; `usableCatalogRing` refuses those, because a
+ *  ring that cannot be weighed is a pick that changes the balance by nothing while naming a real part.
+ *  7 of the 236 couplers state an inner diameter of exactly 0 — solid balsa plugs, which are a real
+ *  product and which `lib/sim/mass.ts` already flies correctly as a solid cylinder. */
+export interface PickedRing {
+  manufacturer: string;
+  partNumber: string;
+  /** Metres. */
+  outerDiameter: number;
+  /** Metres. 0 is legal and means a solid plug — 7 of the 236 couplers are. */
+  innerDiameter: number;
+  /** Metres. */
+  length: number;
+  material: Material;
+}
+
+/** Whether a stored pick describes a ring the applier can actually build.
+ *
+ *  Mirrors the absolute bands the model enforces, for the reason the picker's own `buildable` header
+ *  gives: a row the list lets through and the applier then refuses is a pick that appears to work and
+ *  changes no number. A bag persisted by an older build replays through `lib/session.ts` on the next
+ *  visit, so this is the guard on data this build never wrote. */
+export function usableCatalogRing(p: PickedRing | undefined): p is PickedRing {
+  return (
+    !!p &&
+    typeof p.partNumber === "string" &&
+    p.partNumber.length > 0 &&
+    p.outerDiameter > 0 &&
+    p.outerDiameter < 1 &&
+    p.innerDiameter >= 0 &&
+    p.innerDiameter < p.outerDiameter &&
+    p.length > 0 &&
+    p.length < 2 &&
+    !!p.material &&
+    typeof p.material.density === "number" &&
+    p.material.density > 0
+  );
 }
 
 /** A booster stage the flyer authored, appended below everything already in the stack.
@@ -2975,6 +3036,19 @@ function buildAdded(
     const wall = "thickness" in after && after.thickness !== undefined && after.thickness > 0 ? after.thickness : 0;
     const ro = Math.max(1e-6, hostR - wall);
     const geom = internalPartDefaults(part.kind, after);
+    // **A pick replaces every dimension AND the stock, or it replaces none of them.** The derived
+    // sizes above are Loft's estimate of what a flyer would fit; a catalogued part is a real object
+    // with a published outer diameter, bore, length and material, and taking three of those while
+    // keeping the host's stock would fly a part that exists nowhere. Every catalogue row states all
+    // four — 236 of 236 couplers and 497 of 497 rings — so there is no partial case to handle.
+    //
+    // **A part too long for its host is REFUSED, not cut down.** The derived length is Loft's own
+    // number and clamping it is honest; a picked one carries a vendor's part number on the parts row,
+    // and silently flying a shortened version of a named product is the shape `MAINTAINING.md` calls
+    // a wrong number under a label naming a real part. The picker only offers rings that fit, so this
+    // is the guard on a bag replayed from an older session against a design since shortened.
+    const pick = usableCatalogRing(part.pick) ? part.pick : undefined;
+    if (pick && pick.length > after.length + 1e-9) return null;
     return {
       inside: true,
       component: {
@@ -2990,13 +3064,17 @@ function buildAdded(
         // the fore end, into whatever is ahead of it. Caught by the corpus sweep before it shipped:
         // `02.Two-stage.ork`'s first body tube is 7.5 mm long and `Cherokee-E-5055.ork`'s is 25.4 mm,
         // so a coupler at its corpus length ran past both fore ends.
-        length: Math.max(1e-4, Math.min(part.length > 0 ? part.length : geom.length, after.length)),
-        outerRadius: ro,
-        innerRadius: Math.min(geom.innerRadius, ro),
+        length: pick
+          ? pick.length
+          : Math.max(1e-4, Math.min(part.length > 0 ? part.length : geom.length, after.length)),
+        outerRadius: pick ? pick.outerDiameter / 2 : ro,
+        innerRadius: pick ? pick.innerDiameter / 2 : Math.min(geom.innerRadius, ro),
         // The host's own stock, for the reason every other authored part inherits it: a part that
         // arrives in a material the flyer never chose is a mass they will not check. A host with no
-        // material leaves the ring massless, exactly as the tube builder does.
-        ...(after.material ? { material: after.material } : {}),
+        // material leaves the ring massless, exactly as the tube builder does. A PICK brings its own,
+        // because the vendor states one on every row and it is the only thing that makes the part's
+        // weight the part's rather than the airframe's.
+        ...(pick ? { material: pick.material } : after.material ? { material: after.material } : {}),
         children: [],
       },
     };
