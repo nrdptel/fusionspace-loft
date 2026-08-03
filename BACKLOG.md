@@ -19,11 +19,16 @@ Loft can only fly reduced. The rest are below, newest first, each with the measu
 actionable. **Nothing here has been reproduced by hand unless it says so**; treat each as a hypothesis
 to re-measure before it becomes work, which is the lesson the last run filed one line down.
 
-- **A design built from scratch is never written back to the shelf. SEV-1, UNREPRODUCED.** Filed
-  2026-08-03. `components/LoftApp.tsx:532` (`syncShelfRow`): the row reportedly stays the untouched
-  factory starter under the name "New design", so an author's whole build is lost on leaving the page
-  while the shelf claims it is saved. If it reproduces this is a one-way door and the highest-value
-  item in this file — verify before anything else here.
+- **"A design built from scratch is never written back to the shelf" — NOT REPRODUCED, corrected the
+  same day it was filed.** Filed 2026-08-03 from the tenth-use cold walk as a Sev-1 against
+  `components/LoftApp.tsx:532` (`syncShelfRow`), claiming an author's whole build is lost on leaving
+  the page while the shelf claims it is saved. Driven in a browser against the built export: start a
+  new design, set fin span to 123, go to Flight, then *Import another*. The landing surface reads
+  "You were working on **New design** with 1 what-if set" and offers *Pick it back up*; reopening it
+  shows the fin-span field advertising **123** as its placeholder, which is how this app displays the
+  value being flown. The edit survives. Left here rather than deleted, because a ledger that quietly
+  loses a false Sev-1 teaches the next session nothing — and this is the second run running in which
+  the highest-severity cold-walk finding was the wrong one.
 
 - **A transonic result is published with no out-of-envelope marker on the three surfaces where the
   motor is actually chosen. SEV-1, UNREPRODUCED.** Filed 2026-08-03. `lib/sim/sweep.ts:22-42` and
