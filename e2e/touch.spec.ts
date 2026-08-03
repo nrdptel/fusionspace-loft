@@ -270,8 +270,16 @@ test.describe("phone layout", () => {
     //
     // Excluded, deliberately, and each for a reason rather than to make the test pass: an inline
     // prose link is text bound by its line height and carries the WCAG "inline in a block of text"
-    // exemption; the file input is 1x1 and sr-only behind a visible 44 px trigger; the skip link is
-    // offscreen until focused; and the wordmark is exempted by the header test above.
+    // exemption; the skip link is offscreen until focused; and the wordmark is exempted by the header
+    // test above.
+    //
+    // **One exclusion was removed because its stated reason was false.** This list used to read "the
+    // file input is 1x1 and sr-only behind a visible 44 px trigger". The input is indeed 1x1 — which
+    // the `width < 4` filter below drops — but the visible trigger is a `<label>`, which this
+    // selector never matched, and it measured **148x30** on a phone. So the one control the comment
+    // singled out as checked was the one control nothing measured. `label:has(input.sr-only)` is in
+    // the selector now: it matches the shape rather than that one instance, so the next
+    // visually-styled label wrapping a hidden input is caught on the day it lands.
     //
     // The footer used to be excluded WHOLESALE on that reasoning, and the reasoning did not fit:
     // its `<nav>` row is six standalone navigation links, not words in a sentence, and they measured
@@ -291,7 +299,7 @@ test.describe("phone layout", () => {
       // primary navigation entirely. Its width is checked nowhere else — the two height assertions
       // elsewhere in this suite would pass a 20 px-wide link.
       page.$$eval(
-        'button, input:not([type=hidden]), select, summary, nav[aria-label="Workspace"] a',
+        'button, input:not([type=hidden]), select, summary, nav[aria-label="Workspace"] a, label:has(input.sr-only)',
         (ns) =>
           ns
             .map((n) => {
@@ -337,6 +345,17 @@ test.describe("phone layout", () => {
     await sweep.getByRole("button", { name: /Run/i }).first().click();
     await sweep.getByRole("table").waitFor({ timeout: 120000 });
     expect(await scan(), "Sweep with the motor-sweep table").toEqual([]);
+
+    // **The PARAMETER sweep, which shares this route with the motor sweep and was never opened.**
+    // Its controls render only after *Run parameter sweep*, and until then they have a zero rect that
+    // this scan's own `width < 4` filter drops — so the route reported clean while two hand-rolled
+    // `<select>`s sat at 137x34 and 152x34 behind one button. A panel the scan does not open is a
+    // panel measured nowhere, and that is exactly how `DESIGN.md` §8's count stayed at zero.
+    const paramSweep = page.getByRole("region", { name: "Parameter sweep" });
+    await expect(paramSweep, "the parameter sweep is not on this route any more").toBeVisible();
+    await paramSweep.getByRole("button", { name: /Run parameter sweep/i }).click();
+    await expect(paramSweep.getByLabel("Sweep variable")).toBeVisible();
+    expect(await scan(), "Sweep with the parameter sweep open").toEqual([]);
 
     // The dispersion panel's OWN fields, which nothing had ever measured. The scan above walks the
     // Sweep workspace with the panels CLOSED, so `NumberField` — the primitive §5 says every numeric
@@ -524,10 +543,16 @@ test.describe("phone layout", () => {
       ns.map((n) => n.getAttribute("data-part")).filter(Boolean),
     );
     expect(drawnParts.length, "nothing on the diagram carries a part id").toBeGreaterThan(3);
-    expect(
-      drawnParts.filter((id) => !columnParts.includes(id)),
-      `parts drawn on the diagram with no tap column: ${drawnParts.filter((id) => !columnParts.includes(id)).join(", ")}`,
-    ).toEqual([]);
+    // **Asserted as "has a column OR is reachable anyway", because the component deliberately does
+    // not promise a column to everything.** Two mass objects at the SAME station collapse both
+    // midpoints onto themselves and get none — the corpus has such a pair — and that is the right
+    // answer rather than a defect: one station is one place to tap. A flat "every drawn part has a
+    // column" would have been a check the code is documented not to hold, green only because the
+    // bundled samples happen to have no coincident pair. The universal contract is the one below:
+    // nothing the diagram draws is left unreachable.
+    const noColumn = drawnParts.filter((id) => !columnParts.includes(id));
+    console.log(`diagram parts drawn: ${drawnParts.length}, with a tap column: ${columnParts.length}`);
+    if (noColumn.length) console.log(`  no column (must still be reachable below): ${noColumn.join(", ")}`);
 
     // **Every tap column is painted BEFORE every drawn shape, and this asserts the ORDER rather than
     // its consequences.** The columns only work as a fallback: SVG hit-tests the topmost painted
@@ -643,7 +668,12 @@ test.describe("phone layout", () => {
       .filter({ hasText: /Mass object|Altimeter/ });
     await expect(massRow.first(), "no mass object on this sample to test").toBeVisible();
     const massName = (await massRow.first().innerText()).split("\t")[0].trim();
-    await page.locator("svg rect.fill-transparent").last().click({ position: { x: 22, y: 8 } });
+    // Clicked at the column's own midpoint rather than a hard-coded 22 px in: the neighbour clipping
+    // can make a mass column narrower than half of `TAP_MIN`, and a fixed offset would then land
+    // outside the rect and fail as "outside the bounds of element" rather than as the thing tested.
+    const massColumn = page.locator("svg rect.fill-transparent").last();
+    const mb = (await massColumn.boundingBox())!;
+    await massColumn.click({ position: { x: mb.width / 2, y: 8 } });
     const pickedMass = page.locator('tr[aria-selected="true"]');
     await expect(pickedMass, "a tap on the mass object's column selected nothing").toHaveCount(1);
     expect((await pickedMass.innerText()).trim()).toContain(massName);

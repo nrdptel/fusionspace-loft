@@ -16,6 +16,7 @@ import LineChart from "./LineChart";
 import DownloadCsv, { CopyTable } from "./DownloadCsv";
 import type { UnitSystem } from "@/lib/display";
 import { Button, Card, ClosePanel, useReturnFocus } from "./ui";
+import { cx, TOUCH_TARGET } from "@/lib/ui-tokens";
 
 const round = (n: number, dp: number) => (Number.isFinite(n) ? Math.round(n * 10 ** dp) / 10 ** dp : "");
 
@@ -360,7 +361,10 @@ export default function ParameterSweep({
                 aria-label="Sweep variable"
                 value={axisKey}
                 onChange={(e) => setAxisKey(e.target.value as SweepAxis)}
-                className="mt-1 rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                className={cx(
+                  "mt-1 rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100",
+                  TOUCH_TARGET,
+                )}
               >
                 {axes.map((a) => (
                   <option key={a.axis} value={a.axis}>
@@ -377,7 +381,10 @@ export default function ParameterSweep({
                 aria-label="Sweep metric"
                 value={metricKey}
                 onChange={(e) => setMetricKey(e.target.value as MetricDef["key"])}
-                className="mt-1 rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                className={cx(
+                  "mt-1 rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100",
+                  TOUCH_TARGET,
+                )}
               >
                 {metrics.map((m) => (
                   <option key={m.key} value={m.key}>

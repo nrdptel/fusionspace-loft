@@ -2724,18 +2724,20 @@ apart, one of them at 0.0**. Two unclipped columns would overlap, and in an over
 one wins, so which mass a tap selected would have depended on nothing but list order. Clipped, a tap
 resolves to the NEAREST mass and each gets every pixel the geometry allows.
 
-**Two orderings were tried and the second was measured, not reasoned.** Painted before the per-part
-silhouettes, the body tube's own overlay covered the middle of every fin column and the fin was
-reachable only in two thin bands — 49% and 41% of its column on the two bundled samples, a 44 px
-target on paper and about 20 px of it in practice. Painted after them, each fin set and each mass
-object owns its whole column.
+**Two orderings were tried, and the pre-push review caught the wrong one.** Painting the columns
+AFTER the per-part silhouettes buys the fin a bigger share of its own column — 52% against 49%, and
+the mass 100% against 90% — and costs two things that matter more: a body part narrower than 44 px
+lying inside a fin's or mass's column is covered whole and has no tap point at all (56 of the 150
+body parts across the corpus are under 44 px wide), and a mass column at a fin's station buries the
+fin's drawn planform. Increment 5 had already written the rule down from the other side — a column
+catches what nothing more specific claims — and it is worth more than the percentage.
 
 **What it does NOT close, stated rather than implied.** Sampling every column on a 9x9 grid and
-attributing each point: the mass object's column reaches it on **81 of 81**. A fin set's reaches it on
-**42 of 81** — and all 39 of the rest go to one place, the fin's own *Fin position* grip, a 44x44
-circle on the centreline at exactly that station. So the PRIMARY fin set (the only one that gets a
-grip) is selectable in two 44x20 bands plus its drawn planform; every other fin set owns its whole
-column. That is a real gain on 32x16 and it is not yet 44x44. Closing it means the grip and the fin
+attributing each point: a mass object's column reaches it on **73 of 81**, the rest going to the body
+silhouette it sits inside. A fin set's reaches it on **40 of 81**, and the largest single claimant of
+the rest is the fin's own *Fin position* grip — a 44x44 circle on the centreline at exactly that
+station. So the PRIMARY fin set (the only one that gets a grip) is selectable in the bands above and
+below its own grip plus its drawn planform; every other fin set keeps more. That is a real gain on 32x16 and it is not yet 44x44. Closing it means the grip and the fin
 wanting different places to live — a taller diagram on a coarse pointer — which spends the depth
 contract `e2e/depth.spec.ts` holds, so it is filed rather than bundled in here.
 
