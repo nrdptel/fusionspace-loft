@@ -373,6 +373,120 @@ test.describe("phone layout", () => {
     await expect(page.getByRole("button", { name: /^Add fins to this tube/i })).toBeVisible();
     expect(await scan(), "Design workspace with a part SELECTED").toEqual([]);
   });
+  test("every part on the diagram is tappable, and the handles do not steal it", async ({ page }) => {
+    // **The diagram was the last surface with no touch target worth the name.** Measured on the
+    // built export at this viewport before the fix: the body parts' hit shapes were the SILHOUETTE,
+    // which at fit width is about eleven pixels tall — 78x12 and 218x12 px against `DESIGN.md` §8's
+    // 44 — and each drag grip's own 44x44 circle sits ON the airframe, so 9 of 19 points sampled
+    // across the body tube resolved to a HANDLE rather than the part. Tapping the middle of the body
+    // tube left the nose selected.
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 30_000 });
+    await page.getByRole("link", { name: "Design", exact: true }).click();
+    await expect(page.getByLabel(/Scale side-view/)).toBeVisible();
+
+    // Every part's tap area clears the contract in BOTH dimensions. Measured from the rendered
+    // boxes, not from the class list — the whole point is what a thumb can actually hit.
+    const boxes = await page.locator("svg rect.fill-transparent").evaluateAll((ns) =>
+      ns.map((n) => {
+        const r = n.getBoundingClientRect();
+        return { w: Math.round(r.width), h: Math.round(r.height) };
+      }),
+    );
+    expect(boxes.length, "no part tap targets rendered at all").toBeGreaterThan(1);
+    // **HEIGHT is the contract this fixes, and it is asserted for every column.** Width is not, and
+    // that is a limit rather than an oversight: a column is as wide as the part is LONG on screen,
+    // and measured across the 39 corpus files **56 of 150 body parts are under 44 px wide** at this
+    // fit width — the narrowest is 0.8 px, a transition on `silsim/rocket.ork`. A part that short
+    // cannot be given its own 44 px column without stealing area from its neighbours, and since the
+    // later-drawn column wins an overlap the theft would be arbitrary. The diagram's zoom control is
+    // the real answer there, and it is already a 44 px target. Asserting width here would pass only
+    // because the bundled sample happens to be generous.
+    expect(
+      boxes.filter((b) => b.h < 44),
+      `part tap targets under 44 px tall: ${boxes.map((b) => `${b.w}x${b.h}`).join(", ")}`,
+    ).toEqual([]);
+
+    // **How much of each column actually reaches the PART**, measured rather than asserted in the
+    // abstract. The drag grips keep their own 44x44 hit circles and legitimately win where they
+    // overlap — a grip is a smaller, more specific target the flyer aimed at — so the honest
+    // question is what is left. Sampled on a grid over each column with `elementFromPoint`.
+    const reach = await page.locator("svg rect.fill-transparent").evaluateAll((ns) =>
+      ns.map((n) => {
+        const r = n.getBoundingClientRect();
+        let part = 0;
+        let total = 0;
+        for (let i = 1; i < 10; i++) {
+          for (let j = 1; j < 10; j++) {
+            const x = r.left + (r.width * i) / 10;
+            const y = r.top + (r.height * j) / 10;
+            const el = document.elementFromPoint(x, y);
+            if (!el) continue;
+            total++;
+            if (el === n) part++;
+          }
+        }
+        return total ? Math.round((100 * part) / total) : 0;
+      }),
+    );
+    // Before the column existed this was ZERO outside an eleven-pixel silhouette — every point in a
+    // part's area that was not on the drawn shape reached nothing at all.
+    expect(
+      reach.filter((pct) => pct < 40),
+      `share of each part's column that reaches the part: ${reach.map((p) => `${p}%`).join(", ")}`,
+    ).toEqual([]);
+
+    // And it drives the real gesture: tapping a part's column selects THAT part in the parts table,
+    // and two different columns select two different parts. Asserted as distinctness rather than
+    // against a name string, because that is the property — a column that selected the same part
+    // whichever one you tapped would be worse than no target at all, and is exactly what the drag
+    // handles used to produce (tapping the body tube left the NOSE selected).
+    await page.locator("summary", { hasText: /Parts ·/ }).click();
+    await expect(page.locator('tr[aria-selected="true"]')).toHaveCount(0);
+    const columns = page.locator("svg rect.fill-transparent");
+
+    await columns.nth(0).click({ position: { x: 8, y: 8 } });
+    const first = page.locator('tr[aria-selected="true"]');
+    await expect(first, "a tap on a part's column must select that part").toHaveCount(1);
+    const firstName = (await first.innerText()).trim();
+
+    await columns.nth(1).click({ position: { x: 8, y: 8 } });
+    const second = page.locator('tr[aria-selected="true"]');
+    await expect(second).toHaveCount(1);
+    const secondName = (await second.innerText()).trim();
+
+    expect(secondName, `both columns selected "${firstName}"`).not.toBe(firstName);
+
+    // **And the columns must not BURY what was already tappable.** Fin sets and mass objects carry
+    // their own `hoverProps` and were selectable from the diagram before this existed; a fin's
+    // planform sits inside its host tube's x-range and inside the column's full height, so an
+    // earlier paint order swallowed it whole and tapping a fin selected "Body tube". The columns are
+    // painted FIRST for exactly this reason — anything more specific still wins on top.
+    // Clicked on the fin PATH itself rather than its group's bounding box, and via
+    // `elementFromPoint` on the path's own centroid, so the point is provably inside the polygon
+    // rather than in the box's empty corner.
+    // `locator.click()` rather than a raw mouse click at a computed point: it scrolls the element
+    // into view first (the diagram sits above the fold once the parts disclosure is open — measured,
+    // the fin's box was at y = -178) and it dispatches at a point it has verified belongs to the
+    // element, which a trapezoid's bounding-box centre is not guaranteed to be.
+    const finGroup = page.locator("svg g[class*='fill-zinc-300'], svg g[class*='fill-indigo-300']").first();
+    await expect(finGroup, "no fin planform on the diagram to test").toHaveCount(1);
+    const gb = (await finGroup.boundingBox())!;
+    // The aft-OUTER corner of the lower fin, not the group's centre and not its top-left. The group's
+    // box is the union of the top and bottom planforms, so its middle is the airframe and its
+    // top-left is the empty notch ahead of a 45-degree leading edge — and that notch is exactly where
+    // the fin-station handle's transparent 44 px circle sits, which would intercept the click and
+    // fail as "intercepts pointer events" rather than as the thing being tested.
+    await page.mouse.click(gb.x + gb.width - 4, gb.y + gb.height - 6);
+    const afterFin = page.locator('tr[aria-selected="true"]');
+    await expect(afterFin, "tapping a fin selected nothing — the columns buried it").toHaveCount(1);
+    expect(
+      (await afterFin.innerText()).toLowerCase(),
+      "tapping a fin set selected something else — the columns buried it",
+    ).toContain("fin");
+  });
+
   test("the three pad journeys work one-handed, and survive losing signal", async ({ page, context }) => {
     // Three route walks, a fifteen-motor sweep, an undo and an offline reload do not fit the file's
     // 60 s budget (`playwright.config.ts`), and asking for 120 s on a single `expect` inside a 60 s

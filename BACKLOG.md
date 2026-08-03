@@ -44,6 +44,20 @@ big for one pass. Newest first.
   reach it), but the column now puts the trigger one tap away inside the panel making the claim. The
   comparison is only meaningful with no swap active, or against the swapped motor's own row.
 
+- **Shard 1 fails a DIFFERENT test almost every run, and the common factor is the four self-hosted
+  RocketPy/Pyodide tests it carries.** Filed 2026-08-03 with the evidence, because this is the entry
+  that stops a future session diagnosing its own change. `playwright.config.ts` sets
+  `workers: process.env.CI ? 1 : undefined`, so locally Playwright runs ~half the cores in parallel
+  while four tests each boot a Python runtime. Measured across three runs of the same build:
+  run 1 failed `depth.spec.ts` "phone: the workspace spine stays within 1060px" after **31.2 s**
+  (passes in **5.4 s** alone); run 2 failed `rocketpy-selfhosted.spec.ts` "names the connection when
+  the run fails with no signal" after **6.3 s** (passes in **1.3 s** alone). **Two different tests on
+  two runs is the signature of resource pressure rather than a defect** — a deterministic break fails
+  deterministically. `grep -c EMFILE` is 0 in both, so it is not the file-descriptor exhaustion this
+  file already documents. **Run shard 1 with `--workers=2` before believing it**, and say in the
+  report if you did. The real fix is either capping workers in the config for the Pyodide file or
+  giving it its own project.
+
 - **`e2e/docs.spec.ts:32` "every docs page is readable offline" is load-sensitive, and it failed once
   in a full shard while passing everywhere else.** Filed 2026-08-02 with the evidence, because a
   future session meeting it needs to know this before diagnosing its own change. The test waits up to
@@ -108,20 +122,32 @@ big for one pass. Newest first.
   reason nobody reached the selection-gated surface had been false for several runs. Correcting the
   record rather than deleting it, because the wrong measurement is what kept the blind spot open.
 
-- **Only 2 of a design's 8 parts have a tap target on the diagram, and both are 12 px tall.** Filed
-  2026-08-02, measured on the built export at 390 px with the 38 mm sample. `components/RocketDiagram.tsx:551`
-  builds hover/select overlays from `o.parts`, which is body silhouettes only — fins, the mass object,
-  the parachute, the inner tube and both centring rings get no overlay at all, so six of eight parts
-  are reachable only through the table. The two that exist measure **78x12 and 218x12 px** against
-  §8's 44. `BACKLOG.md` already carried this at 66/101/129 x 10.3; the shape changed, the defect did not.
+- **A body part's diagram tap column is only as wide as the part is long, and 37% of real parts are
+  under 44 px wide.** Filed 2026-08-03, measured over all 39 corpus files at a 390 px fit width:
+  **56 of 150 body parts** fall short, the narrowest being a 0.8 px transition on
+  `github-issuiuc-silsim-rocket/rocket.ork`, with 3.3 px and 6.0 px close behind. The full-height
+  column shipped this run fixes the HEIGHT contract on every part; the width follows the geometry and
+  cannot be padded without stealing area from a neighbour (the later-drawn column wins an overlap, so
+  which part loses would be arbitrary). The diagram's zoom control is the real answer and is already a
+  44 px target — what is missing is any hint that zooming is what makes a short part tappable.
 
-- **A drag handle's 44 px touch circle sits ON the airframe and steals the part underneath it.**
-  Filed 2026-08-02. `components/RocketDiagram.tsx:176` sets `hitR = coarse ? 22 : 0`, so on a phone
-  each of the three centreline grips carries a 44x44 transparent hit circle drawn over the body
-  silhouette. Measured: the body tube's geometric centre resolves to `circle.fill-indigo-500/90`, and
-  **9 of 19 points sampled across its width** belong to a handle rather than the part — tapping the
-  middle of the body tube leaves the nose selected. `e2e/touch.spec.ts:248` checks handle-vs-handle
-  overlap and never checks handle-vs-part.
+- ~~**Only 2 of a design's 8 parts have a tap target on the diagram, and both are 12 px tall.**~~
+  **HALF FIXED 2026-08-03** — the two that HAVE a target now get a full-height tap column on a coarse
+  pointer, measured 78x84 and 218x84 px with 80% and 73% of each reaching the part. **What stays
+  filed is the other FOUR, and the count in the first version of this entry was wrong.** Fin sets and
+  mass objects were ALREADY tappable — `o.fins` and `o.masses` both carry `hoverProps` — so 4 of the
+  sample's 8 parts have a diagram target, not 2. That false count nearly shipped a regression: it is
+  what let the tap columns be described as pure gain while an earlier paint order buried the fins.
+  The four genuinely unreachable on the picture are the parachute, the inner tube and the two centring
+  rings, for which `rocketOutline` produces no silhouette at all — so for those the honest answer may
+  be that the table IS the surface and the diagram should say so rather than pretend.
+
+- ~~**A drag handle's 44 px touch circle sits ON the airframe and steals the part underneath it.**~~
+  **FIXED 2026-08-03**, by giving the part a target the handle cannot cover rather than by shrinking
+  the handle. The grips keep their 44x44 circles and still win where they overlap — a grip is a
+  smaller, more specific target the flyer aimed at — but they now account for only 20–27% of a part's
+  column instead of being the only thing hittable near the centreline. `e2e/touch.spec.ts` measures
+  the share and prints it rather than asserting a bare pass.
 
 - **The motor sweep ranks 15 candidate motors and cannot apply one.** Filed 2026-08-02.
   `components/MotorSweep.tsx` contains exactly one `<Button>` in the whole file, and it is *Run*. A

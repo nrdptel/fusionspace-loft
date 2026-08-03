@@ -2382,7 +2382,7 @@ sibling app's 27 KB — the front door is thin in both senses.
 
 ## P4 — A touch-native builder
 
-**Status: IN PROGRESS** — increments 1–4 of 4–6 shipped 2026-08-02, along with the decomposition.
+**Status: IN PROGRESS** — increments 1–5 of 4–6 shipped 2026-08-02/03, along with the decomposition.
 Both of `DESIGN.md` §8's counts are **0**, down from 96 and from an unmeasured floor — and as of
 increment 4 that zero is no longer narrow: the selection-gated surface increment 3 could only assert
 in prose is now walked by the check. Two of the *done when*'s three pad journeys were already sound;
@@ -2563,7 +2563,83 @@ confident about:
   the FLOWN apogee, so after a swap it attributes a motor difference to the ballistic-vs-recovery
   method; both are in `BACKLOG.md`.
 
-*Increment 5 — NEXT.* The diagram is the remaining touch gap and it is a real one, measured this run:
+*Increment 5 — SHIPPED. The diagram gets a touch target the silhouette could never be.*
+
+**The problem is that the hit shape WAS the rocket, drawn to scale.** At a phone's fit width the
+airframe is about eleven pixels tall, so the two body parts that carried an overlay measured
+**78x12 and 218x12 px** against §8's 44 — and no amount of care on the shape fixes that, because the
+shape is the thing being drawn. Worse, each of the three centreline drag grips carries its own 44x44
+transparent hit circle sitting ON the airframe (`hitR = coarse ? 22 : 0`), so the grips were stealing
+the part underneath: measured, **9 of 19 points sampled across the body tube resolved to a handle**,
+and tapping the middle of the body tube left the NOSE selected.
+
+**Each body part now gets a full-height tap COLUMN on a coarse pointer**, spanning the diagram's
+vertical extent over that part's x-range. Measured on the built export at 390 px with the bundled
+sample: **78x84 and 218x84 px**, with **80% and 73%** of each column reaching the part when sampled
+on a 9x9 grid with `elementFromPoint`. Not a drawn pixel changed.
+
+**HEIGHT is what this fixes, and the width limit is stated rather than glossed.** A column is as wide
+as its part is LONG on screen, so measured across all 39 corpus files **56 of 150 body parts are
+under 44 px wide** at this fit width — the narrowest 0.8 px, a transition on `silsim/rocket.ork`. A
+part that short cannot get its own 44 px column without stealing area from its neighbours, and since
+the later-drawn column wins an overlap the theft would be arbitrary. The diagram's zoom control is
+the real answer there and is already a 44 px target. The check asserts height on every column and
+prints the widths rather than asserting them, because a width assertion would pass only on a
+generous sample.
+
+**The grips still win where they overlap, and that is deliberate rather than a compromise.** SVG
+hit-tests the topmost painted element, so drawing the columns BEFORE the handles leaves a grip as the
+winner on its own 44 px circle — which is right: a grip is a smaller, more specific target the flyer
+aimed at. What changed is that everywhere else in a part's area now selects the part, where before
+there was nothing at all outside an eleven-pixel silhouette. The remaining 20–27% IS the grips, and
+the check prints the figure rather than asserting a bare pass.
+
+Fine pointers are untouched: a mouse has the precision for the silhouette, and full-height columns
+there would swallow the hover previews the diagram is built around.
+
+Pinned by `e2e/touch.spec.ts` — every column clears 44 px in BOTH dimensions, each column's reach is
+above 40%, and two different columns select two different parts. That last one is the assertion that
+matters: a column selecting the same part whichever you tapped would be worse than no target, and is
+exactly what the handles used to produce.
+
+**The pre-push review caught a Sev-1 here, and the premise behind it was the real error.** The first
+version painted the columns AFTER the fin sets — and a fin's planform sits inside its host tube's
+x-range and inside the column's full height, so on a phone **tapping a fin selected "Body tube"**.
+That is a strict LOSS of a working target on the surface this increment exists to improve.
+
+It was hidden by a wrong count that this file itself recorded: "2 of 8 parts are reachable on the
+picture". **Four were.** `o.fins` carries `hoverProps(fin.id)` and `o.masses` carries
+`hoverProps(m.id)`, so fin sets and mass objects were already tappable — the measurement had looked
+only at `o.parts` and generalised. The columns are now painted FIRST, before the fins, the masses,
+the silhouette and every handle, which makes them a FALLBACK: they catch the area nothing more
+specific claims, and take nothing from anything. Pinned by an assertion that a fin set is still
+selectable from the diagram after the change.
+
+Three more from the same review. The rect hand-rolled its click instead of spreading `hoverProps`,
+which killed a live path rather than a theoretical one: a coarse pointer still fires compatibility
+mouse events, `hoveredId` is what they set, and `activeId = hoveredId ?? selectedId` drives both the
+diagram tint and the "what you just pointed at" readout — so with only a click the readout rode on
+`selectedId` alone, and `pick` TOGGLES, meaning a second tap anywhere in the now much larger column
+cleared the selection and blanked the readout. The render guard read `onHover || onSelect` while the
+rect wired neither hover handler, so a caller passing hover alone would get invisible rects that
+swallow taps and do nothing. And the CG/CP marks — guide lines, dots and the "CG"/"CP" text — are
+painted after the columns with no `pointer-events-none`, so they punched dead holes through the new
+target, where a tap did nothing at all because the mark is not a descendant of the rect; they are
+part of the unexplained 20–27% the check prints, which the first draft attributed wholly to the grips.
+
+**And the guard that pins the Sev-1 was itself broken in the way the defect predicts.** It clicked the
+fin group's top-left corner — which is the empty notch ahead of a 45° leading edge, and is exactly
+where the fin-station handle's transparent 44 px circle sits, so it failed as "intercepts pointer
+events" rather than as the thing under test. It now clicks the lower planform's aft-outer corner.
+Negative control run: with the columns painted back after the fins it fails with its own message,
+*tapping a fin selected nothing — the columns buried it*.
+
+**What this does NOT fix, corrected:** the four kinds with no diagram target of any sort remain the
+parachute, the inner tube and the two centring rings — `rocketOutline` produces no silhouette for
+them, so there is nothing to attach one to. 4 of the sample's 8 parts are reachable on the picture;
+the other four are table-only. Filed in `BACKLOG.md`.
+
+*Increment 6 — NEXT.* The diagram is still the touch gap for the four part kinds with no outline:
 only **2 of the sample's 8 parts** carry a tap overlay at all (`o.parts` is body silhouettes only), and
 both measure **12 px tall** against §8's 44 — while each drag handle's `hitR = coarse ? 22 : 0` puts a
 44x44 hit circle ON the airframe that steals the part beneath it (9 of 19 points sampled across the

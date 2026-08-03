@@ -507,6 +507,63 @@ export default function RocketDiagram({
           strokeDasharray="4 4"
         />
 
+        {/* **A full-height tap COLUMN per part, on a coarse pointer only** — the touch target the
+            silhouette itself can never be. Measured on the built export at 390 px with the bundled
+            sample: the two body parts that carry an overlay render **78x12 and 218x12 px** against
+            `DESIGN.md` §8's 44, because at fit width the airframe is about eleven pixels tall. No
+            amount of care on the shape fixes that; the shape IS the rocket, drawn to scale.
+            Extending each part's hit area over the diagram's whole height gives it a target a thumb
+            can find without changing a drawn pixel.
+
+            **Drawn FIRST — before the fins, the masses, the silhouette and every handle — and the
+            order is the whole of the correctness here.** SVG paints in document order and hit-tests
+            the topmost, so anything painted later still wins inside a column. That is what keeps the
+            grips working (each carries its own 44x44 `hitR` circle, and a grip is a smaller, more
+            specific target the flyer aimed at), and it is what keeps the FIN SETS and MASS OBJECTS
+            working — both already carried `hoverProps` and were tappable on a phone.
+
+            **A first version put these after the fins and buried them**: a fin's planform sits
+            inside its host tube's x-range and inside the column's full height, so tapping a fin
+            selected "Body tube". That is a strict LOSS of a working target on the surface this
+            exists to improve, and it was hidden by a wrong premise — that only the two body parts
+            had diagram targets. Four of the sample's eight parts did. Painted first, the column is
+            the FALLBACK: it catches the area nothing more specific claims, which is exactly the
+            eleven-pixel gap that made the picture untappable, and it takes nothing from anything.
+
+            Not on a fine pointer: a mouse has the precision for the silhouette, and full-height
+            columns there would swallow the hover previews the diagram is built around. */}
+        {/* Gated on `onSelect` alone, not `onHover || onSelect`: the rect wires only a click, so a
+            caller passing hover and no select would get invisible full-height rects that do nothing
+            but swallow taps meant for the fins and the silhouette beneath. Latent today —
+            `GeometryInspector` passes both — but it is a trap one prop away. */}
+        {coarse &&
+          onSelect &&
+          o.parts.map((part) => {
+            const xs = part.profile.map(([x]) => X(x));
+            const x0 = Math.min(...xs);
+            const x1 = Math.max(...xs);
+            if (!(x1 > x0)) return null;
+            return (
+              <rect
+                key={`tap${uid}${part.id}`}
+                x={x0}
+                y={0}
+                width={x1 - x0}
+                height={H}
+                className="fill-transparent"
+                // `hoverProps` rather than a hand-rolled click, and that is not just less code. It
+                // carries the onMouseEnter/onMouseLeave pair the silhouette has, and a coarse pointer
+                // still fires those as compatibility events — which is what sets `hoveredId`, and
+                // `activeId = hoveredId ?? selectedId` is what drives both the diagram tint and the
+                // "what you just pointed at" readout. A click-only rect left that path dead, so the
+                // readout rode on `selectedId` alone — and `pick` TOGGLES, so a second tap anywhere
+                // in the now much larger column cleared the selection and blanked the readout. It
+                // also inherits the reorder-drag suppression, keeping the two in step if that
+                // gesture ever becomes touch-capable.
+                {...hoverProps(part.id)}
+              />
+            );
+          })}
         {/* fins, top and bottom, behind the body edge — highlighted when their row is hovered */}
         {o.fins.map((fin) => (
           <g
@@ -618,17 +675,22 @@ export default function RocketDiagram({
           </circle>
         ))}
 
-        {/* centre of pressure (aft of CG when stable) — draw first, so CG sits on top if they meet */}
+        {/* centre of pressure (aft of CG when stable) — draw first, so CG sits on top if they meet.
+            `pointer-events-none` on both marks, like the carry indicator: they are annotations, not
+            controls, and they sit in the middle of a part's tap column. Without it the guide lines,
+            the r=4 dots and the CG/CP text labels punch dead holes straight through the target this
+            increment exists to create — a tap on "CG" would do nothing at all, because the mark is
+            not a descendant of the rect and so nothing falls through to it. */}
         {showCp && (
-          <g>
+          <g className="pointer-events-none">
             <line x1={X(cp!)} x2={X(cp!)} y1={markTop} y2={markBot} className="stroke-amber-500" strokeWidth={1.3} strokeDasharray="3 3" />
             <circle cx={X(cp!)} cy={centerY} r={4} className="fill-amber-500" />
             <text x={X(cp!)} y={markBot + 11} textAnchor="middle" className="fill-amber-600 text-[11px] font-semibold dark:fill-amber-400">CP</text>
           </g>
         )}
-        {/* centre of gravity (loaded) */}
+        {/* centre of gravity (loaded) — annotation, not a control; see the CP note above. */}
         {showCg && (
-          <g>
+          <g className="pointer-events-none">
             <line x1={X(cg!)} x2={X(cg!)} y1={markTop} y2={markBot} className="stroke-indigo-500" strokeWidth={1.3} strokeDasharray="3 3" />
             <circle cx={X(cg!)} cy={centerY} r={4} className="fill-indigo-500" />
             <text x={X(cg!)} y={markTop - 3} textAnchor="middle" className="fill-indigo-600 text-[11px] font-semibold dark:fill-indigo-400">CG</text>
