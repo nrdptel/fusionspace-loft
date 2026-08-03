@@ -658,6 +658,23 @@ export function exportOrk(
   doc: OrkDocument,
   opts: { storedResultsDescribeThisRocket?: boolean } = {},
 ): Uint8Array {
-  const xml = serializeRocketXml(doc.rocket, doc.simulations, opts.storedResultsDescribeThisRocket === true);
+  // **`flownAsReduced` vetoes the results outright, and this is the second half of the same rule the
+  // caller's flag states.** That flag answers "has the flyer edited this rocket"; it cannot answer
+  // "can Loft fly the rocket this file describes at all". `adapt.ts` sets `flownAsReduced` from the
+  // RAW XML when a design carries pods or parallel/strap-on stages — geometry the internal model
+  // does not represent — and the app then withholds the stored-results comparison, because those
+  // results describe a flight of a vehicle Loft did not simulate.
+  //
+  // Export drops that geometry with everything else, so the file Loft writes is the SIMPLIFIED
+  // design. Re-imported, nothing in it looks reduced any more, `flownAsReduced` comes back false,
+  // and the comparison Loft deliberately withheld reappears — now scoring OpenRocket's numbers for
+  // the full design against Loft's flight of the simplified one, and calling the difference Loft's
+  // accuracy. Measured over the corpus: 3 of the 27 OpenRocket designs are flown as reduced, and all
+  // three lost the flag and kept their results across one round trip.
+  //
+  // The conditions still travel, as they do for an edited rocket: a rail length and a wind speed are
+  // not a result and stay true whatever geometry was dropped.
+  const withResults = opts.storedResultsDescribeThisRocket === true && !doc.flownAsReduced;
+  const xml = serializeRocketXml(doc.rocket, doc.simulations, withResults);
   return storeZip([{ name: "rocket.ork", data: new TextEncoder().encode(xml) }]);
 }

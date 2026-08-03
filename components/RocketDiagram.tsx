@@ -279,9 +279,10 @@ export default function RocketDiagram({
           // It exists because the touch check could not otherwise ask the right question. It sampled
           // each column with `elementFromPoint` and counted a point as reaching the part only when it
           // landed on that exact rect — so a point landing on the DRAWN fin, which selects the very
-          // same part, counted as a miss. The fin column measured 32% by that rule and 100% by the
-          // one that matters. A metric that punishes a more specific target for existing would have
-          // pushed the next session to delete it.
+          // same part, counted as a miss. The fin column measured 32% by that rule and 49% by the one
+          // that matters — and this suite gates reach at 40%, so the identity rule would have FAILED
+          // the very target it exists to check. A metric that punishes a more specific target for
+          // existing would have pushed the next session to delete it.
           "data-part": id,
           onMouseEnter: () => onHover?.(id),
           onMouseLeave: () => onHover?.(null),

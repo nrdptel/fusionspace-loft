@@ -499,8 +499,9 @@ test.describe("phone layout", () => {
     // **Resolved by `data-part`, not by element identity, and the difference is not cosmetic.** This
     // counted a point only when it landed on that exact rect, so a point landing on the DRAWN fin —
     // which selects the very same part — counted as a miss. When the fin sets and mass objects got
-    // columns of their own, the fin column measured 32% under that rule and 100% under this one. A
-    // metric that punishes a more specific target for existing would have argued for deleting it.
+    // columns of their own, the fin column measured 32% under that rule and 49% under this one — and
+    // the gate below is `pct < 40`, so the identity rule would have FAILED the target it exists to
+    // check. A metric that punishes a more specific target for existing argues for deleting it.
     const reach = await page.locator("svg rect.fill-transparent").evaluateAll((ns) =>
       ns.map((n) => {
         const r = n.getBoundingClientRect();
@@ -660,7 +661,8 @@ test.describe("phone layout", () => {
 
     // **A tap on a MASS OBJECT's column selects it.** Before this it was a 7 px dot — the smallest
     // thing on the diagram by a factor of six, and the only way to pick it out on the picture at all.
-    // Its column is the last one painted, and it reaches the mass on 81 of 81 sampled points.
+    // Its column is the last one painted, and it reaches the mass on 73 of 81 sampled points — the
+    // remaining 8 go to the body silhouette it sits inside.
     const massRow = page
       .locator("table")
       .filter({ hasText: "Dimensions" })
