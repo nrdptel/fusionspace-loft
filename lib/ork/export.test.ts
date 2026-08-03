@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
-import { importOrk } from "./import";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { join, resolve } from "node:path";
+import { importDesign, importOrk } from "./import";
 import { exportOrk, serializeRocketXml } from "./export";
 import { newDesign } from "../model/starter";
 import { applyGeometryEdits, removalRefusal } from "../model/edit";
@@ -738,6 +738,49 @@ describe("exportOrk — the launch setup survives the round trip", () => {
     expect(dropped.simulations[0].hasResults).toBe(false);
     expect(dropped.simulations[0].conditions.rodLength).toBeCloseTo(doc.simulations[0].conditions.rodLength!, 6);
   });
+
+  it("never carries stored results out of a design Loft could only fly REDUCED", async () => {
+    // **The comparison Loft deliberately withholds must not come back through its own export.**
+    // `flownAsReduced` is set from the raw XML when a design carries pods or parallel stages —
+    // geometry the internal model does not represent — and `/validate` then withholds the
+    // stored-results comparison, because those numbers describe a flight of a vehicle Loft did not
+    // simulate. Export drops that geometry, so the file Loft writes is the SIMPLIFIED design: nothing
+    // in it looks reduced any more, the flag comes back false, and the comparison reappears scoring
+    // OpenRocket's full-design numbers against Loft's simplified flight.
+    //
+    // Driven on the corpus because the committed fixtures have no pods or parallel stages — 3 of the
+    // 27 corpus OpenRocket designs do, and all three lost the flag and kept their results before this.
+    // Skips itself with no corpus, like the rest of the corpus-backed suite.
+    const dir = process.env.LOFT_CORPUS_DIR ?? resolve(process.cwd(), "corpus");
+    if (!existsSync(dir)) return;
+    const found: string[] = [];
+    const leaked: string[] = [];
+    const walk = (d: string) => {
+      for (const e of readdirSync(d)) {
+        const p = join(d, e);
+        if (statSync(p).isDirectory()) walk(p);
+        else if (/\.ork$/i.test(e)) found.push(p);
+      }
+    };
+    walk(dir);
+    let reduced = 0;
+    for (const path of found) {
+      const doc = await importDesign(new Uint8Array(readFileSync(path)));
+      if (!doc.flownAsReduced) continue;
+      reduced++;
+      // Asked for explicitly — the strongest form of the caller's request — so the veto has to be
+      // the export's own rule rather than something the call site happens not to ask for.
+      const back = await importDesign(exportOrk(doc, { storedResultsDescribeThisRocket: true }));
+      if (back.simulations.some((s) => s.hasResults)) {
+        leaked.push(`${path.split("/").pop()}: reduced design exported ${back.simulations.length} sims WITH results`);
+      }
+      // And the launch setup still travels, because conditions are not results.
+      const rod = doc.simulations[0]?.conditions.rodLength;
+      if (rod !== undefined) expect(back.simulations[0]?.conditions.rodLength).toBeCloseTo(rod, 6);
+    }
+    expect(reduced, "no corpus design is flown as reduced — this proves nothing").toBeGreaterThan(0);
+    expect(leaked, "a reduced design carried another tool's results into its export").toEqual([]);
+  }, 120_000);
 
   it("writes no simulations block at all for a design that has none", async () => {
     // A from-scratch design carries no stored run, and inventing an empty one would put a

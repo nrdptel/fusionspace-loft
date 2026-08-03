@@ -12,6 +12,114 @@ this file, and deliberately does **not** cap craft or product work, because that
 track in `ROADMAP.md` with its own *done when*. Rough edges, missing affordances, and findings too
 big for one pass. Newest first.
 
+**Filed 2026-08-03 from a six-lens opening fan-out** (phone walk, desktop tenth-use walk, design-system
+audit, competitive probe, milestone scout, Sev-1 number screen). Two of its findings became increments
+the same run — the touch scan's blind spots, and the export carrying stored results out of a design
+Loft can only fly reduced. The rest are below, newest first, each with the measurement that makes it
+actionable. **Nothing here has been reproduced by hand unless it says so**; treat each as a hypothesis
+to re-measure before it becomes work, which is the lesson the last run filed one line down.
+
+- **"A design built from scratch is never written back to the shelf" — NOT REPRODUCED, corrected the
+  same day it was filed.** Filed 2026-08-03 from the tenth-use cold walk as a Sev-1 against
+  `components/LoftApp.tsx:532` (`syncShelfRow`), claiming an author's whole build is lost on leaving
+  the page while the shelf claims it is saved. Driven in a browser against the built export: start a
+  new design, set fin span to 123, go to Flight, then *Import another*. The landing surface reads
+  "You were working on **New design** with 1 what-if set" and offers *Pick it back up*; reopening it
+  shows the fin-span field advertising **123** as its placeholder, which is how this app displays the
+  value being flown. The edit survives. Left here rather than deleted, because a ledger that quietly
+  loses a false Sev-1 teaches the next session nothing — and this is the second run running in which
+  the highest-severity cold-walk finding was the wrong one.
+
+- **A transonic result is published with no out-of-envelope marker on the three surfaces where the
+  motor is actually chosen. SEV-1, UNREPRODUCED.** Filed 2026-08-03. `lib/sim/sweep.ts:22-42` and
+  `:171-182`: neither `MotorSweepRow` nor the parameter-sweep or dispersion row types carries `maxMach`
+  or `extrapolated`, so the caveat exists only on the Flight card's stat grid. The motor sweep is
+  precisely where a flyer picks the motor that takes the design supersonic.
+
+- **On a multi-motor design the thrust plot describes only the first resolved motor. SEV-1,
+  UNREPRODUCED.** Filed 2026-08-03. `components/ResultsView.tsx:1850`: `resolutions.find(x => x.match)`
+  feeds both the series and the caption, so a cluster or a staged design is plotted and labelled as
+  one motor.
+
+- **`.ork` is Loft's only export, so a RockSim or RASAero design is re-attributed to OpenRocket on
+  re-import.** Filed 2026-08-03. `lib/ork/export.ts` writes an `<openrocket creator="Loft">` root
+  whatever the design came from, and the format label follows the file. Now that stored results and
+  conditions travel too (this run), the mislabelling reaches the cross-check page.
+
+- **The stored WIND DIRECTION is read from the launch-ROD direction tag.** Filed 2026-08-03.
+  `lib/ork/adapt.ts:802`: `conditions.windDirectionDeg = numOrUndef(cond, "launchroddirection")` — the
+  same tag as `rodDirectionDeg` one line above. Two different physical quantities from one field.
+
+- **Every solver warning states its figure in SI regardless of the units toggle.** Filed 2026-08-03.
+  `lib/sim/simulate.ts:1356` (hard landing), `:1312` (ballistic) and the rest render "18.1 m/s"
+  directly above a stat grid showing the same quantity in ft/s.
+
+- **Airframe dimension fields are bounded only by `min={0}`.** Filed 2026-08-03.
+  `components/LoftApp.tsx:2514` and the fin/nose fields: a body diameter smaller than the motor inside
+  it is accepted and flown into a confident number, because the motor and mount keep their size. Fin
+  count accepts 1 and 2 with no caveat that the CP method assumes three or more symmetric fins.
+  `MAINTAINING.md`'s safety posture names this shape explicitly.
+
+- **Four indigo primary buttons render on `/sweep` at once** — Fetch, Run motor sweep, Run parameter
+  sweep, Run dispersion — against `DESIGN.md` §5's "at most one per surface". Filed 2026-08-03 from the
+  design-system audit.
+
+- **Six primitives `DESIGN.md` §5 declares do not exist**: `Panel`, `Readout`, `Figure`, `EmptyState`,
+  `ErrorState` and one more, while `Section`, `Chip` and `Tabs` exist with **zero** call sites. Filed
+  2026-08-03. The missing `Readout` is hand-rolled six ways that disagree with each other
+  (`Stat`'s sub-line is `text-[11px]`, `StatCard`'s is `text-sm`). 14 `<select>` elements hand-roll
+  five distinct class strings with no `Select` primitive at all. This is the P-track's next milestone
+  in everything but name.
+
+- **`text-[11px]`, scoped by §3 to "axis ticks and diagram annotations only", carries the labels of
+  every decision-grade readout and every editor field.** Filed 2026-08-03.
+  `components/ResultsView.tsx:1630,1682,1718,1810`.
+
+- **`/analyze` tells the flyer it is forwarding somewhere it is not.** Filed 2026-08-03.
+  `app/(app)/analyze/page.tsx:16`: `RETIRED = { analyze: "sweep" }` and the canonical route is
+  `/sweep`, but the visible text names a different destination.
+
+- **The docs pages are 22 to 44 screens deep with no in-page contents and no heading ids.** Filed
+  2026-08-03, measured at 390x844: methods 30,856 px = 36.6 screens over 14 h2s, limitations 36,953 px
+  = 43.8 screens, faq 18,672 px = 22.1. Every contextual "how these are computed" link lands at the
+  top. This restates and measures an entry filed one run earlier.
+
+- **The motor-sweep table is 734 px wide inside a 324 px scroller and the MOTOR column does not
+  stick.** Filed 2026-08-03. At `maxScrollLeft` the only position where DELAY is visible has the
+  motor's own name off screen, so the row cannot be identified while reading its numbers. The
+  cross-check and parts tables share the pattern more mildly (480 px in 324).
+
+- **The body-diameter grip moves 6.63 mm of diameter per pixel at phone fit width.** Filed
+  2026-08-03: an 8 px drag took ⌀38 mm to 91 mm, a 48 px drag to 205 mm. The grip is a 44 px target
+  with no fine-adjust on a coarse pointer; the keyboard path exists but a phone has no keyboard.
+
+- **Switching workspaces preserves `scrollY`.** Filed 2026-08-03: at scrollY 3,200 on `/flight`,
+  tapping Design lands 2,100 px below the design surface. Every workspace also carries 1,054 px of
+  preamble above the spine — 1.25 screens on every route.
+
+- **Expensive computed results are lost on reload while everything cheap is persisted.** Filed
+  2026-08-03: the motor sweep, parameter sweep and dispersion all clear, while the design, the unit
+  choice, the motor configuration and the picked part all survive.
+
+- **Parts and Mass tables sort one direction only** — the second click returns to design order rather
+  than reversing, so ascending is unreachable on `components/GeometryInspector.tsx:725`. Filed
+  2026-08-03. Pickable rows are `<tr tabindex="0">` with no role and no `aria-selected`.
+
+- **Every workspace route throws React error #418 (hydration mismatch) on load**, with or without a
+  design; `/docs` and `/` are clean. Filed 2026-08-03, UNREPRODUCED.
+
+- **COMPETITION.md row 8 is REFUTED and row 11 is stale both ways.** Filed 2026-08-03 from the
+  competitive probe. Row 8 says Loft's wind model is not real-data driven; `lib/weather.ts:200`
+  fetches Open-Meteo pressure-level winds and builds a real profile. Row 11 says Loft has no fin
+  flutter; `lib/sim/flutter.ts` shipped it with cited moduli. Both want resolving rather than building.
+
+- **Eight candidate COMPETITION rows from the same probe**, each with a verbatim competitor citation:
+  per-component aerodynamic contribution (OpenRocket's Component analysis); a design carrying N NAMED
+  simulations rather than one live one; plot-any-variable-against-any-variable; automatic design
+  optimization; pods and parallel boosters; canted fins and roll; wind turbulence (OpenRocket writes
+  `<windturbulence>` on all 91 corpus sims and Loft reads none of it); and a CD-vs-Mach curve
+  (RASAero II's Aerodynamic Plots).
+
 - **Loft's own `.ork` export writes no `<simulations>` block, so every launch condition and the motor
   configuration are silently dropped on a round trip. SEV-1 — FIXED 2026-08-03.** Filed and closed
   the same run, from a cold walk of the built export. `lib/ork/export.ts`'s `serializeRocketXml` takes only the rocket and never emits

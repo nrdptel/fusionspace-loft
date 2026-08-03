@@ -4,60 +4,48 @@ Overwritten each session. What shipped, what is part-way, and what to pick up fi
 
 ## Read this first
 
-**THE WORK IS ON A BRANCH AND NOT ON `main`. Opening and merging one pull request is all that is
-needed.** This run pushed **four verified increments** to `origin` on the session's pinned branch —
-`29d8fc0`, `b295895`, `f55516c`, `79a72a6` — each gated green (lint, unit + corpus, build, e2e in two
-shards) and each reviewed by a fresh agent before the push. **Measured against production at the end
-of the run: `loft.fusionspace.co` carries NONE of it** — three probe strings from this run's copy
-appear in the local build's chunks and in zero bytes of the served site. **No pull request was opened**, and that is deliberate rather than an oversight: this session's
-harness instructs that a pull request must not be created unless the owner explicitly asks, and
-`MAINTAINING.md`'s own conflict rule says the harness wins and that the instruction not honoured must
-be named. So it is named here. Under the SHIPPED-MEANS-REACHABLE invariant this counts as **pending,
-never as shipped** — a flyer cannot reach any of it until that pull request is merged.
+**The previous run's ten commits are ON `main` and deployed.** Pull request #120 merged as `4bb2e22`
+on 2026-08-03 with both CI jobs green — the corpus job's log names `imports every design file
+(35 present)` and prints the accuracy census, so the physics gate really ran. Nothing is stranded.
 
+**The e2e CI job could not finish, and the failure does not look like one.** The suite reached 220
+tests and the job hit its `timeout-minutes: 15`; GitHub reports a job timeout as **"cancelled"**, so
+run 30810888408 read as though somebody had stopped it — 160 tests in, nothing red, no failure line.
+Measured on that run: 11 min 09 s of checkout, `npm ci`, `playwright install` and build before the
+first test, then ~1.38 s per test at the one worker the config pins in CI. The ceiling is 30 now and
+`CONTRIBUTING.md` carries the numbers. **If you ever see e2e "cancelled" with nothing red, read the
+elapsed time before diagnosing anything else.**
 
-**The environment gave us BOTH repos and NO Playwright browser, again — third session running.**
-`/home/user/loft-fixtures` was present (link its per-tool directories into `corpus/` and the suite
-names `35 present`), and `/opt/pw-browsers` again lacked `chromium_headless_shell-1228`.
-**`./node_modules/.bin/playwright install chromium` is the command that works** — about ninety
-seconds. `node_modules` was also absent, so `npm install` is paid for too. **All three belong in the
-environment's setup script and that is the owner's fix**; they are paid for every single session.
+**Run the local gate only when no subagents are running.** Twice this run a shard failed with a wall
+of `net::ERR_CONNECTION_REFUSED` and zero `EMFILE` — 14 tests once, 60 the next — while fan-out agents
+were serving their own builds and driving their own browsers (20 `serve`/`chrome-headless` processes
+at the peak). Both passed on a clean re-run. Clear strays with `fuser -k <port>/tcp`, never
+`pkill -f`, which has killed a live run three times. Agents also create and delete probe files inside
+the repo unless told not to, which makes `npm test`'s file count wander mid-run; this run's fan-out
+prompt forbids writing inside the checkout and that held.
 
-**`pkill -f vitest` killed the run I had JUST STARTED, exit 144 — the trap this file already warned
-about, walked into a third time.** The pattern matches the new process as readily as the old one. If
-a suite must be replaced, start the new one and let the old finish, or kill by PID. Leaving this at
-the top because it has now cost three sessions.
+## This run so far — three increments on the branch
 
-**`| tail -n` on a backgrounded gate does TWO damaging things, and the second one nearly shipped a
-red gate as green.** It buffers the whole run, so the output file sits at 0 bytes for five minutes
-and looks hung (it is not) — and, worse, **a pipeline's exit code is the exit code of the LAST
-command**, so `npx playwright test … | tail -3` always exits 0. A chain of
-`shard1 | tail && shard2 | tail` therefore runs shard 2 and reports success even when shard 1 failed,
-and `tail -3` hides the "2 failed" heading while leaving the two test names visible above the
-"105 passed" line. **Redirect to a file and echo `$?` per step.** Cross-check the count too: this
-suite has 213 tests, so two shards summing to 211 is two tests that did not pass, however green the
-last line reads.
+| # | SHA | what | verified by |
+|---|---|---|---|
+| 1 | `aaf64fd` | The e2e CI job gets a budget the 220-test suite can finish in | the next PR run completed in 6:19 where the previous was cancelled at 15:00 |
+| 2 | `999fbda` | P4 inc 6 — fin sets and mass objects get a 44 px tap column, and the columns stay a fallback | e2e pinning paint ORDER in the DOM and whole-diagram area per part, both with negative controls |
+| 3 | `1a336f8` | P4 inc 7 — the touch scan's two blind spots closed, and the three controls behind them fixed | each fix reverted alone; the scan names `label"Overlay a flight log" 148x30`, `select"Sweep variable" 137x34`, `select"Sweep metric" 152x34` |
+| 4 | `d4562bd` | **Sev-1** — a withheld stored-results comparison no longer returns through Loft's own export with a fabricated figure | corpus test over the 3 reduced designs, asking for results explicitly; negative control names all three |
 
-**A full e2e shard occasionally fails `e2e/docs.spec.ts:32` "every docs page is readable offline"
-and it is NOT your change.** Measured this run: failed once in `--shard=1/2`, then passed in
-isolation AND passed in a full re-run of the same shard (106/106) against the identical build, with
-`grep -c EMFILE` at 0. It waits 20 s for the service worker to control the page and hold six URLs;
-under a full shard that budget is occasionally short. Re-run the shard before believing it.
+**The Sev-1 in 4 was opened by the previous run's own export fix**, which is worth reading as a pair:
+writing the `<simulations>` block closed a real Sev-1 and made a second one reachable, because
+`flownAsReduced` is derived from geometry the export drops. One idea, only half of it thought through.
 
-**The pre-push agent review found FOUR more real defects in a fix that had already passed the whole
-gate, two of them Sev-1 — and one of those was in the fix itself.** `motorsComplete` was written as
-`resolutions.every(match)`, which is vacuously TRUE for a design with no motor assigned, so the
-entire withholding fix was bypassed on precisely the emptiest case. It is the third run in a row
-where this review caught something the gate could not. **Budget for it, and give it lenses that
-disagree** — correctness, safety-claims and test-quality found different things here.
+**Where the two tracks are.** P4 is at increment 7 of 7 — `DESIGN.md` §8's two counts are 0 and, as of
+this run, that zero is measured by a scan with no known blind spot. R8 is at increment 7 of 8: the
+coupler and the centring ring can be AUTHORED but not yet PICKED from the catalogue, which is the
+milestone's last *done when* clause and the next R-track increment. The milestone scout's notes on it
+are in `ROADMAP.md` and the sharpest is this: all three shipped pickers write into a part that already
+exists, through an aim slot; these two do not exist until the flyer adds them, so increment 8 needs a
+different shape rather than a fourth copy of the same one.
 
-**Trust nothing in these files that is a MEASUREMENT you did not take.** Two load-bearing numbers in
-`ROADMAP.md`/`BACKLOG.md` were stale and had held work back for several runs: the parts table is
-418 px inside a 324 px scroller (not 1,198 inside 390), `getByRole("row")` returns 9 (not nothing),
-and a row click works (it did not "time out"). The `DataTable` conversion had fixed all three and
-nobody re-measured. Both records are corrected.
-
-## This run's nine increments, and how each was verified
+## The run before this one — nine increments, all now on `main`
 
 | # | SHA | what | verified by |
 |---|---|---|---|

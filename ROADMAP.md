@@ -2440,12 +2440,17 @@ sibling app's 27 KB — the front door is thin in both senses.
 
 ## P4 — A touch-native builder
 
-**Status: IN PROGRESS** — increments 1–5 of 4–6 shipped 2026-08-02/03, along with the decomposition.
-Both of `DESIGN.md` §8's counts are **0**, down from 96 and from an unmeasured floor — and as of
-increment 4 that zero is no longer narrow: the selection-gated surface increment 3 could only assert
-in prose is now walked by the check. Two of the *done when*'s three pad journeys were already sound;
-the third, *pick a motor*, dead-ended in a table that could not apply its own recommendation, and
-does not any more. What remains is the diagram's own touch targets — see increment 5.
+**Status: IN PROGRESS** — increments 1–6 of 7 shipped 2026-08-02/03, along with the decomposition.
+Two of the *done when*'s three pad journeys were already sound; the third, *pick a motor*, dead-ended
+in a table that could not apply its own recommendation, and does not any more. The diagram's own touch
+targets closed across increments 5 and 6 — every part it draws now has a column.
+
+**`DESIGN.md` §8's two counts read 0, and increment 7 exists because that zero is narrower than it
+looks.** The hover count is real. The hit-target count is produced by a scan with two measured blind
+spots — a panel it never opens and a control shape its selector does not match — and behind them sit
+three controls at 137x34, 152x34 and 148x30. A ratchet that cannot see a surface reports it clean, and
+this milestone's *done when* rests on that number, so closing the holes is part of the milestone
+rather than a defect filed against it.
 
 *Increment 1 — SHIPPED. The other half of §8's contract, which nothing had ever measured.*
 
@@ -2697,13 +2702,68 @@ parachute, the inner tube and the two centring rings — `rocketOutline` produce
 them, so there is nothing to attach one to. 4 of the sample's 8 parts are reachable on the picture;
 the other four are table-only. Filed in `BACKLOG.md`.
 
-*Increment 6 — NEXT.* The diagram is still the touch gap for the four part kinds with no outline:
-only **2 of the sample's 8 parts** carry a tap overlay at all (`o.parts` is body silhouettes only), and
-both measure **12 px tall** against §8's 44 — while each drag handle's `hitR = coarse ? 22 : 0` puts a
-44x44 hit circle ON the airframe that steals the part beneath it (9 of 19 points sampled across the
-body tube resolve to a handle, so tapping the middle of the tube leaves the nose selected). Direct
-manipulation on a phone is the half of P4 that the table currently stands in for. Both are in
-`BACKLOG.md` with their measurements.
+*Increment 6 — SHIPPED. The two kinds the columns could not reach, and an honest limit on one of them.*
+
+Increment 5 gave every BODY part a full-height tap column. It could not reach the other two kinds,
+and the reason is structural: the columns are built from `o.parts`, which is the silhouette list —
+nose cones, tubes and transitions. A fin set and a mass object are drawn from their own geometry, so
+each was left with the shape it is DRAWN as.
+
+**Measured across all 35 corpus designs at phone fit width:** of 64 fin sets the planform is a median
+**32.1 x 16.0 px** — 45 under 44 wide, **63 of 64 under 44 tall**. A mass object does not vary at all:
+it is an `r=3.5` dot, so **7 px**, on all 56 of them. That is the smallest thing on the diagram by a
+factor of six and the only way to pick one out on the picture.
+
+Both now get the same column: full height, at least 44 px wide, transparent, not a drawn pixel
+changed.
+
+**A mass object's column is clipped to the midpoint between it and its neighbours**, and that is the
+part that needed measuring rather than deciding. A fin set has a real extent to widen; a mass is a
+station, and stations cluster — **12 of the 30 neighbouring pairs in the corpus sit closer than 44 px
+apart, one of them at 0.0**. Two unclipped columns would overlap, and in an overlap the later-painted
+one wins, so which mass a tap selected would have depended on nothing but list order. Clipped, a tap
+resolves to the NEAREST mass and each gets every pixel the geometry allows.
+
+**Two orderings were tried, and the pre-push review caught the wrong one.** Painting the columns
+AFTER the per-part silhouettes buys the fin a bigger share of its own column — 52% against 49%, and
+the mass 100% against 90% — and costs two things that matter more: a body part narrower than 44 px
+lying inside a fin's or mass's column is covered whole and has no tap point at all (56 of the 150
+body parts across the corpus are under 44 px wide), and a mass column at a fin's station buries the
+fin's drawn planform. Increment 5 had already written the rule down from the other side — a column
+catches what nothing more specific claims — and it is worth more than the percentage.
+
+**What it does NOT close, stated rather than implied.** Sampling every column on a 9x9 grid and
+attributing each point: a mass object's column reaches it on **73 of 81**, the rest going to the body
+silhouette it sits inside. A fin set's reaches it on **40 of 81**, and the largest single claimant of
+the rest is the fin's own *Fin position* grip — a 44x44 circle on the centreline at exactly that
+station. So the PRIMARY fin set (the only one that gets a grip) is selectable in the bands above and
+below its own grip plus its drawn planform; every other fin set keeps more. That is a real gain on 32x16 and it is not yet 44x44. Closing it means the grip and the fin
+wanting different places to live — a taller diagram on a coarse pointer — which spends the depth
+contract `e2e/depth.spec.ts` holds, so it is filed rather than bundled in here.
+
+**And the check had to be able to ask the right question first.** It sampled each column and counted
+a point as reaching the part only when it landed on that exact rect — so a point landing on the DRAWN
+fin, which selects the very same part, counted as a miss. The fin column measured 32% under that rule
+and 100% under the one that matters. Every hit-bearing element now carries `data-part` through the one
+`hoverProps` helper, and the metric resolves by part. A metric that punishes a more specific target for
+existing would have argued for deleting it.
+
+Pinned by `e2e/touch.spec.ts`: every part the diagram DRAWS has a column (asserted as a set
+comparison, not a count — a count passes when the column exists for the wrong part), every column
+clears 44 px tall, every column's reach is above 40%, a tap on the mass object's column selects it by
+name, and the per-column attribution is PRINTED so the next session reads numbers rather than a pass.
+Negative control: with the two kinds' columns removed it fails naming both uncovered parts.
+
+*Increment 7 — NEXT, and the fan-out found it rather than the roadmap.* **`DESIGN.md` §8's "zero
+controls under 44 px" is asserted by a scan with two measured blind spots, so the count is 0 because
+of what it cannot see.** (1) The scan visits `/sweep` and runs the MOTOR sweep, but never opens the
+PARAMETER sweep — its two hand-rolled `<select>`s (`ParameterSweep.tsx:360` and `:377`) render only
+after *Run parameter sweep* and measure **137x34 and 152x34**. (2) The scan's selector is
+`button, input, select, summary, nav a`, and the flight-log control is a `<label>` wrapping an
+`sr-only` file input — so the 1x1 input is dropped by the `width < 4` filter and the label is not
+matched at all. It measures **148x30**. The scan's own comment exempts it on the grounds that it sits
+"behind a visible 44 px trigger"; that trigger is 30 px, so a documented exemption rests on a wrong
+measurement. Fix the three controls, then close both holes in the scan so they cannot reopen.
 
 *Superseded note — the problem increment 3 was expected to be:* The remaining 25 all sit on
 the app chrome ABOVE the workspace spine — `Undo`/`Redo`'s disabled reason, the design-name field,

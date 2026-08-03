@@ -196,6 +196,54 @@ export default function RocketDiagram({
   const top = (r: number) => centerY - r * s;
   const bot = (r: number) => centerY + r * s;
 
+  /** Tap columns for the parts with no body outline — fin sets and mass objects. See where they are
+   *  rendered for what they cost and why they sit where they do in the paint order.
+   *
+   *  **A mass object's column is clipped to the midpoint between it and its neighbours, and that is
+   *  the whole of the difficulty.** A fin set has a real extent to widen; a mass is a station, and
+   *  stations cluster — measured across the corpus, **12 of 30 neighbouring pairs sit closer than
+   *  44 px apart at this width, one of them at 0.0**. Two unclipped 44 px columns would overlap, and
+   *  in an overlap the later-painted one wins, so which mass a tap selected would depend on nothing
+   *  but list order. Clipping to the midpoint makes a tap resolve to the NEAREST mass, always, and
+   *  gives each one every pixel the geometry allows. **Two masses at the SAME station collapse both
+   *  midpoints onto themselves and get no column at all** — the corpus has such a pair, the 0.0 in
+   *  that spread — and that is the right answer rather than a defect: at one station there is one
+   *  place to tap and no rule can hand it to both. They keep their drawn dots, and the zoom control,
+   *  already a 44 px target, is what separates them. */
+  const TAP_MIN = 44;
+  const tapColumns: { id: string; x0: number; x1: number }[] = [];
+  /** Clamp into the drawing, and drop anything too thin to be a target. Both halves are load-bearing:
+   *  `Math.max(0, …)` and `Math.min(W, …)` applied independently can cross over for a part centred
+   *  outside the viewBox and emit `<rect width="-12">`, which a browser rejects with a console error
+   *  and no rect at all — a silently missing target. And a column a few pixels wide is not a touch
+   *  target, only a way for one part to shadow another. A part left with none keeps the shape it is
+   *  drawn as, exactly as before this existed. */
+  const column = (id: string, from: number, to: number) => {
+    const x0 = Math.min(Math.max(0, from), W);
+    const x1 = Math.min(Math.max(x0, to), W);
+    if (x1 - x0 >= 4) tapColumns.push({ id, x0, x1 });
+  };
+  for (const fin of o.fins) {
+    const xs = fin.poly.map(([x]) => X(x));
+    const lo = Math.min(...xs);
+    const hi = Math.max(...xs);
+    if (!Number.isFinite(lo) || !Number.isFinite(hi)) continue;
+    const mid = (lo + hi) / 2;
+    const half = Math.max((hi - lo) / 2, TAP_MIN / 2);
+    column(fin.id, mid - half, mid + half);
+  }
+  // Sorted by station so "neighbour" means what it says. Masses go in AFTER the fins so a mass that
+  // shares a fin set's station stays reachable — it is the smaller, more specific object, and the
+  // fin's own drawn planform is painted later still and wins back its exact shape.
+  const massAt = o.masses.map((m) => ({ id: m.id, cx: X(m.x) })).sort((a, b) => a.cx - b.cx);
+  massAt.forEach((m, i) => {
+    const before = massAt[i - 1];
+    const after = massAt[i + 1];
+    const lo = before ? (before.cx + m.cx) / 2 : 0;
+    const hi = after ? (m.cx + after.cx) / 2 : W;
+    column(m.id, Math.max(m.cx - TAP_MIN / 2, lo), Math.min(m.cx + TAP_MIN / 2, hi));
+  });
+
   // Closed body silhouette: top profile out, bottom profile (mirror) back.
   let bodyPath = `M ${X(o.body[0][0]).toFixed(1)} ${top(o.body[0][1]).toFixed(1)}`;
   for (let i = 1; i < o.body.length; i++) bodyPath += ` L ${X(o.body[i][0]).toFixed(1)} ${top(o.body[i][1]).toFixed(1)}`;
@@ -223,6 +271,19 @@ export default function RocketDiagram({
   const hoverProps = (id: string) =>
     onHover || onSelect
       ? {
+          // **Which PART this element selects, readable from the DOM.** Every hit-bearing shape on
+          // the diagram goes through this helper — the tap columns, the per-part silhouettes, the fin
+          // planforms, the mass dots — so one attribute here labels all of them and nothing can carry
+          // a click without carrying its identity.
+          //
+          // It exists because the touch check could not otherwise ask the right question. It sampled
+          // each column with `elementFromPoint` and counted a point as reaching the part only when it
+          // landed on that exact rect — so a point landing on the DRAWN fin, which selects the very
+          // same part, counted as a miss. The fin column measured 32% by that rule and 49% by the one
+          // that matters — and this suite gates reach at 40%, so the identity rule would have FAILED
+          // the very target it exists to check. A metric that punishes a more specific target for
+          // existing would have pushed the next session to delete it.
+          "data-part": id,
           onMouseEnter: () => onHover?.(id),
           onMouseLeave: () => onHover?.(null),
           onClick: () => {
@@ -564,6 +625,63 @@ export default function RocketDiagram({
               />
             );
           })}
+        {/* **The two kinds with no body outline, and the reason increment 5 stopped short of them.**
+            The columns above are built from `o.parts`, which is body silhouettes only — a nose cone,
+            a tube, a transition. A fin set and a mass object are drawn from their own geometry and
+            were left with the shape they are DRAWN as, which is what a thumb then has to hit.
+
+            Measured over all 35 corpus designs at this fit width: of 64 fin sets, the planform is a
+            median 32.1 px wide and 16.0 px tall — **45 of 64 under 44 px wide and 63 of 64 under
+            44 px tall**. A mass object is worse and does not vary: it is drawn as an r=3.5 dot, so
+            **7 px**, on all 56 of them.
+
+            Same column, then, and the same reasoning as above: full height, at least `TAP_MIN` wide,
+            transparent, not a drawn pixel changed. Painted AFTER the body columns and BEFORE the
+            drawn fins and masses, which is the only ordering that works — earlier and the body column
+            covers the same area and wins, so the target would do nothing at all.
+
+            **Painted BEFORE the drawn fins, the silhouette and the per-part overlays — a fallback,
+            never a winner — and a version that got this wrong was caught by the pre-push review.**
+            Moving them after the per-part overlays does buy the fin a bigger share of its own column
+            (52% against 49%, and the mass 100% against 90%), and it costs two things that matter
+            more. A body part NARROWER than 44 px that happens to lie inside a fin's or a mass's
+            column is then covered whole and has no tap point at all — 56 of the 150 body parts across
+            the corpus are under 44 px wide, so this is not a corner case. And a mass column sitting
+            at a fin's station buries the fin's own drawn planform, destroying the target this exists
+            to create. Increment 5 learned the same lesson from the other side and wrote it down; the
+            rule is that a column catches what nothing more specific claims, and it is worth more than
+            the percentage.
+
+            **What that costs, stated rather than glossed:** at a fin set's own station the column now
+            beats the body tube's. Tapping the tube's centre between the two fin planforms selects the
+            FIN. That is the right answer where a fin is drawn — it is what the flyer is looking at —
+            and it is a small slice of the tube: 44 px against body columns of 78 and 218 px on the
+            bundled sample. The alternative, two rects that stop at the centreline, cannot reach 44 px
+            tall at all, because the whole diagram is 84 px high at this width.
+
+            **And what it does NOT close, measured rather than implied.** Sampling each column on a
+            9x9 grid and attributing every point: a mass object's column reaches it on 73 of 81, the
+            rest going to the body silhouette it sits inside. A fin set's reaches it on 40 of 81, and
+            the largest single claimant of the rest is the fin's own *Fin position* grip — a 44x44
+            circle on the centreline at exactly that station. So the PRIMARY fin set (the only one
+            that gets a grip) is selectable in bands above and below its own grip plus its drawn
+            planform; every other fin set keeps more. That is a real gain on 32x16 and it is not yet
+            44x44. Closing it means the grip and the fin wanting different places to live — a taller
+            diagram on a coarse pointer — which spends the depth contract `e2e/depth.spec.ts` holds,
+            so it is filed rather than bundled in here. */}
+        {coarse &&
+          onSelect &&
+          tapColumns.map((c) => (
+            <rect
+              key={`tap${uid}${c.id}`}
+              x={c.x0}
+              y={0}
+              width={c.x1 - c.x0}
+              height={H}
+              className="fill-transparent"
+              {...hoverProps(c.id)}
+            />
+          ))}
         {/* fins, top and bottom, behind the body edge — highlighted when their row is hovered */}
         {o.fins.map((fin) => (
           <g
