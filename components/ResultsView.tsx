@@ -12,6 +12,8 @@ import type { ConditionOverrides } from "@/lib/sim/setup";
 import type { ConditionsSource } from "@/lib/what-if";
 import { applyGeometryEdits, hasGeometryEdits, primaryFinGroupIds, structureOf, aimsOf, type AddedPart, type GeometryEdits, type MoveSlot } from "@/lib/model/edit";
 import { designKey } from "@/lib/model/design-key";
+import type { CatalogPart } from "@/lib/components/db";
+import type { Material } from "@/lib/model/types";
 import { formatLabel, sourceTool, type OrkDocument } from "@/lib/ork/import";
 import type { FlightResult } from "@/lib/sim/simulate";
 import { RECOMMENDED_FLUTTER_MARGIN, thicknessForFlutterMargin } from "@/lib/sim/flutter";
@@ -195,6 +197,8 @@ export default function ResultsView({
   onRemoveStage,
   canAddMountTo,
   onAddMount,
+  onPickPart,
+  onClearPick,
   onRemoveMount,
   refuseRemoval,
   workspace,
@@ -272,6 +276,14 @@ export default function ResultsView({
   canAddMountTo?: (id: string) => boolean;
   onAddMount?: (id: string) => void;
   onRemoveMount?: (hostId: string) => void;
+  /** Choose a real catalogued coupler or centring ring for the authored part `id`, and drop that
+   *  choice again. Passed straight through to the geometry panel, which is where the part is picked
+   *  out and therefore the only surface that can say WHICH authored part is being picked for. The
+   *  catalogue row goes up rather than a finished record, for the reason `GeometryInspector`'s own
+   *  prop note gives: building the record is the edit model's call and is made beside the rest of
+   *  the bag. */
+  onPickPart?: (id: string, part: CatalogPart, material: Material | undefined) => void;
+  onClearPick?: (id: string) => void;
   /** Why a part cannot be removed, or null. Asked of the app rather than judged in the panel, so the reason
    *  shown and the guard that enforces it cannot disagree about which design they are judging. */
   refuseRemoval?: (id: string) => string | null;
@@ -789,6 +801,12 @@ export default function ResultsView({
           onAddMount={onAddMount}
           onRemoveMount={onRemoveMount}
           refuseRemoval={refuseRemoval}
+          // The authored parts themselves, from the same bag `addedStages` and `mountAdds` come from
+          // — the catalogue pick rides on the `AddedPart` entry, so the entry is what the panel has
+          // to see to know whether one is set.
+          added={geometry?.added}
+          onPickPart={onPickPart}
+          onClearPick={onClearPick}
           // The aim map, so a role added to the edit model needs no new prop on the way down. Projected
           // through the registry, never the raw bag: a typed span is not an aim.
           aims={geometry ? aimsOf(geometry) : undefined}

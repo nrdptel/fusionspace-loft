@@ -79,6 +79,7 @@ import {
   type PickedBodyTube,
   type PickedNoseCone,
   type PickedParachute,
+  type PickedRing,
 } from "@/lib/model/edit";
 import PartPicker from "./PartPicker";
 import {
@@ -92,7 +93,8 @@ import {
   EMPTY_HISTORY,
   type History,
 } from "@/lib/model/history";
-import type { SurfaceFinish, NoseShape, FinCrossSection } from "@/lib/model/types";
+import type { Material, SurfaceFinish, NoseShape, FinCrossSection } from "@/lib/model/types";
+import type { CatalogPart } from "@/lib/components/db";
 import { designMotorIdentity, swapOptions, swapStillOffered, type SwapOption,
   bakeMotorSwap,
 } from "@/lib/motors/swap";
@@ -1196,6 +1198,81 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
     );
   };
 
+  /** Record a real catalogued coupler or centring ring against the authored part it was chosen for.
+   *
+   *  **The record is built HERE, from the catalogue row, exactly as the three pickers above it do.**
+   *  `PartPicker` hands over the row and the stock it resolved rather than a finished record, so the
+   *  refusal of a density the catalogue would not stand behind stays one decision made in one place —
+   *  and so one component can serve five kinds without a union type threaded through it. This arm is
+   *  then the second of the three statements of the same rule: the picker has already disabled a row
+   *  it cannot build, and `usableCatalogRing` refuses it again at apply time on a bag replayed from
+   *  an older session.
+   *
+   *  The pick is spliced onto the `AddedPart` entry rather than written to a bag-level key — see
+   *  `PickedRing` for why — so one undo takes the part and its pick together and removing the part
+   *  cannot leave the pick behind. */
+  const pickPartFromCatalog = (id: string, p: CatalogPart, material: Material | undefined) => {
+    const list = edits.added ?? [];
+    if (!list.some((a) => a.id === id)) return;
+    // The three DIMENSIONS are stated by every catalogued coupler and every catalogued ring — 236 of
+    // 236 and 497 of 497 — so no partial geometry can be written here. The fourth term, the stock, is
+    // not the same claim: `materialOf` refuses a density the catalogue would not stand behind, and it
+    // refuses **14 of the 497 rings** (0 of the 236 couplers), so this guard does fire on real data.
+    // The picker already disables those rows, which is what makes the return unreachable today rather
+    // than what makes it unnecessary. A bore of exactly 0 is legal and deliberate: 7 couplers are
+    // solid balsa plugs, which `lib/sim/mass.ts` already flies as a solid cylinder.
+    if (
+      p.outerDiameter === undefined ||
+      p.innerDiameter === undefined ||
+      p.length === undefined ||
+      !material
+    )
+      return;
+    const pick: PickedRing = {
+      manufacturer: p.manufacturer,
+      partNumber: p.partNumber,
+      outerDiameter: p.outerDiameter,
+      innerDiameter: p.innerDiameter,
+      length: p.length,
+      material: { name: material.name, density: material.density, type: material.type },
+    };
+    applyEdit(
+      { added: list.map((a) => (a.id === id ? { ...a, pick } : a)) },
+      // Keyed on the part AND the part number, so walking the catalogue coalesces into one undo step
+      // per row while two picks on two different authored parts stay separately undoable. The clear
+      // below takes a key of its own for the reason the tube picker records: a pick and an unpick
+      // sharing a derived key merged into a single step inside the coalescing window, and the flyer
+      // could not get back to the part they had just chosen.
+      { label: `${p.manufacturer} ${p.partNumber}`, key: `ring-pick-${id}-${p.partNumber}` },
+    );
+  };
+
+  /** Drop the pick, returning the part to the size Loft derived from its host. The whole `pick` key
+   *  goes rather than being set to undefined: `usableCatalogRing` is a type guard over an optional
+   *  field, so an entry carrying `pick: undefined` and one carrying no `pick` fly identically today —
+   *  but only one of them survives a round trip through `JSON.stringify` in `lib/session.ts`
+   *  unchanged, and an edit bag that differs from itself after a reload is the kind of drift the
+   *  design-key memoisation is built on top of. */
+  const clearPartPick = (id: string) => {
+    const list = edits.added ?? [];
+    const entry = list.find((a) => a.id === id);
+    if (!entry?.pick) return;
+    applyEdit(
+      {
+        added: list.map((a) => {
+          if (a.id !== id) return a;
+          const rest: AddedPart = { ...a };
+          delete rest.pick;
+          return rest;
+        }),
+      },
+      {
+        label: entry.kind === "tubecoupler" ? "the catalogue coupler" : "the catalogue centering ring",
+        key: `ring-clear-${id}`,
+      },
+    );
+  };
+
   /** Whether a nudge is available, judged against the SAME tree `movePart` applies it to. The panel
    *  asks this rather than working it out from the rocket it was handed, exactly as it asks
    *  `refuseRemoval` — the shown rocket carries the dimension edits, which synthesise top-level parts
@@ -1986,6 +2063,8 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
               canAddMountTo={(id) => !!stageBase && canAddMount(stageBase, id)}
               onAddMount={addMount}
               onRemoveMount={removeMount}
+              onPickPart={pickPartFromCatalog}
+              onClearPick={clearPartPick}
               refuseRemoval={refuseRemoval}
               onSelectPart={(id) => {
                 // A pick that aims nothing — a coupler, a centring ring — must not commit an edit

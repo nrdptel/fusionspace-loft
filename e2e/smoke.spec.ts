@@ -3846,8 +3846,18 @@ test.describe("Loft", () => {
       return { at, len };
     };
 
-    await partsTable.locator("tr").filter({ hasText: /Body tube/ }).first().click();
+    const tubeRow = partsTable.locator("tr").filter({ hasText: /Body tube/ }).first();
+    await tubeRow.click();
     await page.getByRole("button", { name: /^Add a coupler inside this/ }).click();
+    // **The host has to be picked again between the two adds, and that is a deliberate change rather
+    // than a wart in this test.** Authoring an internal part now PICKS IT OUT — without that the
+    // catalogue picker, which lives on the picked part, sat behind an unexplained click on a row a
+    // flyer has no reason to think is interactive. The add controls are gated on the picked part
+    // being a body tube, so the panel correctly stops offering them once a coupler is what is picked.
+    // Every other authored kind with an aim slot — a fin set, a transition, a mass object — has
+    // charged exactly this click since it gained one; these two were the inconsistent pair, because
+    // no aim slot describes them.
+    await tubeRow.click();
     await page.getByRole("button", { name: /^Add a centering ring inside this/ }).click();
     await expect(partsTable.locator("tr")).toHaveCount(before + 2);
     await expect(partsTable.locator("tr").filter({ hasText: /Coupler/ })).toHaveCount(1);
@@ -3885,6 +3895,108 @@ test.describe("Loft", () => {
     await expect(partsTable.locator("tr")).toHaveCount(before);
     await page.getByRole("link", { name: "Flight" }).click();
     await expect.poll(() => figure("Liftoff mass"), { timeout: 20000 }).toBe(asBuilt.mass);
+  });
+
+  test("a real coupler can be chosen for the part you authored, and it leaves rather than fly short", async ({ page }) => {
+    // **R8's last *done when* clause, and the first of the five kinds whose picker could not be
+    // reached at all.** The model layer, the applier and the picker's own half shipped a run before
+    // this and nothing rendered them, so no flyer could pick a coupler or a centring ring. This walks
+    // the whole gesture in a real browser, for the reason the three picker walks above it do: the
+    // catalogue is a lazily-imported chunk, and a component that only ever runs in a bundler graph
+    // has not been shown to load.
+    await page.goto("/");
+    await page.getByRole("button", { name: "Start a new design" }).click();
+    await page.getByRole("link", { name: "Design", exact: true }).click();
+    await page.locator("summary", { hasText: /Parts ·/ }).click();
+    const partsTable = page.locator("table").filter({ hasText: "Dimensions" });
+    const couplerRow = partsTable.locator("tr").filter({ hasText: /Coupler/ });
+    const dimsOf = async () => {
+      const cells = await couplerRow.first().locator("th, td").allInnerTexts();
+      return cells.join(" | ");
+    };
+
+    await partsTable.locator("tr").filter({ hasText: /Body tube/ }).first().click();
+    await page.getByRole("button", { name: /^Add a coupler inside this/ }).click();
+    const derived = await dimsOf();
+
+    // **Authoring the part picks it out.** The two internal kinds have no aim slot, so the panel's
+    // aim-following effect cannot do this for them the way it does for a tube or a fin set — without
+    // it the picker sits behind an unexplained click on a row the flyer has no reason to think is
+    // interactive.
+    const open = page.getByRole("button", { name: "Pick a real coupler" });
+    await expect(open, "authoring a coupler did not pick it out, so the picker never appeared").toBeVisible();
+    await open.click();
+    const search = page.getByLabel("Search", { exact: true });
+    await expect(search).toBeVisible({ timeout: 20000 });
+
+    // **The fit filter names the HOST'S BORE, and shows it.** A coupler at the airframe's caliber
+    // does not go inside the airframe, so "this design's caliber" named the wrong dimension; and
+    // reading the figure off the picked PART instead of off the tube then showed the wrong number
+    // under the right name, because a pick overwrites the part's own outer diameter. The starter's
+    // 54 mm tube has a 1.5 mm wall, so the bore is 51.0 mm, and that is what has to be on screen
+    // both before a pick and after one.
+    const fitLabel = page.locator("label", { hasText: /^Only couplers/ });
+    await expect(fitLabel).toContainText("that fit this tube's bore");
+    await expect(fitLabel).toContainText("51");
+
+    // **A part too long for the tube is refused on the row, with the reason.** Reachable rather than
+    // theoretical — catalogued couplers run to 1.2192 m. Without this the model would refuse it at
+    // apply time and `applyAdds` would skip the entry, deleting the flyer's authored part on a tap.
+    const picker = page.locator("table").filter({ hasText: "Choose" });
+    await search.fill("C204-34");
+    const tooLong = picker.locator("tbody tr").first();
+    await expect(tooLong).toContainText(/longer than the .* it goes into/);
+    await expect(tooLong.getByRole("button", { name: "Use" })).toBeDisabled();
+
+    // One that fits is offered, and taking it replaces the part's dimensions with the vendor's.
+    await search.fill("STC-2.14");
+    const row = picker.locator("tbody tr").first();
+    await expect(row).toBeVisible();
+    await row.getByRole("button", { name: "Use" }).click();
+    await expect(page.getByText(/Flying LOC Precision STC-2\.14/)).toBeVisible();
+    // Re-opened after the pick, the filter still names the TUBE's bore rather than the 50.8 mm part
+    // just chosen — the number moved with the pick before, so a flyer who ticked the box after one
+    // pick was filtering for parts matching their last choice instead of their tube.
+    await page.getByRole("button", { name: "Pick a real coupler" }).click();
+    await expect(fitLabel).toContainText("51");
+    await page.getByRole("button", { name: "Close the parts list" }).click();
+    const picked = await dimsOf();
+    expect(picked, `the pick did not change the part: ${derived}`).not.toBe(derived);
+    // 152.4 mm is the vendor's published length, and it is what the parts row must read.
+    expect(picked).toContain("152");
+
+    // **Shorten the host under it and the part LEAVES, rather than being cut down to fit.** A
+    // derived length is Loft's own number and clamping it is honest; a picked one carries a vendor's
+    // part number, and a 200 mm part under the name of a 203.2 mm product is a wrong number under a
+    // real label. This is the route that reaches it — the birth-time refusal is judged against the
+    // host's pristine length and has already passed by the time the flyer types.
+    const lenField = page.locator("label", { hasText: /Body length/ }).locator("input");
+    await lenField.fill("100");
+    await lenField.blur();
+    await expect(couplerRow).toHaveCount(0, { timeout: 20000 });
+    // And it says so, with both ways back — a part that vanishes silently while a caption still
+    // claims to be flying it is two surfaces disagreeing about the same design.
+    const notice = page.getByRole("status").filter({ hasText: /This coupler is not in the flight/ });
+    await expect(notice).toBeVisible();
+    await expect(notice).toContainText("Lengthen the tube, or take the pick back");
+    // **And the caption one line below it must agree.** It read "Flying Always Ready Rocketry
+    // TC_2.15_8" directly under a notice saying the part is not in the flight — two lines about one
+    // part, disagreeing. Both now read the same comparison off the same two lengths.
+    await expect(page.getByText(/Flying LOC Precision/)).toHaveCount(0);
+    await expect(page.getByText(/Not in the flight — LOC Precision STC-2\.14/)).toBeVisible();
+
+    // **The way back must still be openable.** With the part out of the tree there is no built
+    // component to read a caliber off, and an undefined caliber hides the fit checkbox while the
+    // filter behind it stays on — leaving "0 of 236 catalogued couplers" and no control to clear it.
+    await page.getByRole("button", { name: "Pick a real coupler" }).click();
+    await expect(page.locator("label", { hasText: /^Only couplers/ })).toBeVisible();
+    await page.getByRole("button", { name: "Close the parts list" }).click();
+
+    // Taking the pick back returns the derived part exactly — the way out the notice names.
+    await page.getByRole("button", { name: /back to the sized-to-fit coupler/i }).click();
+    await expect(couplerRow).toHaveCount(1, { timeout: 20000 });
+    await expect(page.getByText(/This coupler is not in the flight/)).toHaveCount(0);
+    await expect(page.getByText(/Flying LOC Precision/)).toHaveCount(0);
   });
 
   test("the parts panel says where the airframe steps, and how far", async ({ page }) => {

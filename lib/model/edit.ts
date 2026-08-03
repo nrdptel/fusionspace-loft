@@ -1474,10 +1474,18 @@ function editComponent(
     // equally impossible either way, and the flyer typing the length is making the same claim about
     // the same tube. Ring kinds only — a fin set or a mass object inside a shortened tube is
     // repositioned by `flattenRocket`, not overhung by it.
+    // **AUTHORED fittings are not fitted here — `fitAddedInternalParts` owns those, over the final
+    // tree.** This arm can only see the length this ONE edit is setting, and an authored part has to
+    // be judged against the length its host ends up with; running both rules over an authored part
+    // gave two gates judging two different rockets, which is exactly how a picked coupler came to be
+    // offered at a length the applier would then refuse. One class of part, one rule, one home.
+    const authored = new Set((e.added ?? []).map((a) => a.id));
     const fitted =
       c.kind === "bodytube"
         ? children.map((ch) =>
-            isRing(ch) && ch.length > newLen ? { ...ch, length: Math.max(1e-4, newLen) } : ch,
+            isRing(ch) && !authored.has(ch.id) && ch.length > newLen
+              ? { ...ch, length: Math.max(1e-4, newLen) }
+              : ch,
           )
         : children;
     return clustered({ ...c, length: newLen, children: fitted });
@@ -2951,6 +2959,50 @@ export function structureOf(rocket: Rocket, edits: GeometryEdits): Rocket {
  *  is returned only where something changed), so callers can keep the imported model pristine.
  *
  *  Removals come first and the dimension edits are applied to what is left — see `applyRemovals`. */
+/** Make every AUTHORED coupler and centring ring fit the part it sits inside — the one place that
+ *  question is asked, over the tree that is actually flown.
+ *
+ *  **It runs last, and that is the whole point.** An internal part is seated `bottom`-flush in its
+ *  host, so one longer than its host does not overhang the back — it overhangs the FRONT, past the
+ *  fore end, into whatever is ahead of it. Which lengths are involved is only settled once the adds,
+ *  the removals, the moves and the dimension edits have all run, so any earlier gate is judging a
+ *  rocket that is not the one being flown. Two earlier gates did exactly that, and disagreed with
+ *  each other in both directions: `buildAdded` refused a pick against the host's PRISTINE length, so
+ *  a coupler picked for a tube the flyer had lengthened was refused for fitting a tube that no longer
+ *  exists; and the shrink clamp in `applyDimensionEdits` only fired when that one tube carried a
+ *  length edit, so a part could be left overhanging by any other route.
+ *
+ *  **A PICKED part is dropped; a DERIVED one is cut down.** The derived length is Loft's own estimate
+ *  of what a flyer would fit, and shortening it is honest. A picked one carries a vendor's part
+ *  number on the parts row, so flying a shortened version of a named product is a wrong number under
+ *  a label naming a real part — `MAINTAINING.md`'s safety posture — and the honest move is to leave
+ *  it out. `GeometryInspector` says so on the surface, names both lengths, and gives the two ways
+ *  back: lengthen the tube, or drop the pick.
+ *
+ *  Design-arrived fittings are NOT touched here. Those stay with the shrink clamp, which is the right
+ *  home for them: their geometry is the file's own until the flyer types a length that contradicts
+ *  it, and that is the moment the clamp fires. One class of part, one rule, one home. */
+function fitAddedInternalParts(rocket: Rocket, added?: readonly AddedPart[]): Rocket {
+  if (!added?.length) return rocket;
+  const authored = new Map(added.map((a) => [a.id, a]));
+  const walk = (list: RocketComponent[]): RocketComponent[] =>
+    list.map((c) => {
+      const kids = c.children.length ? walk(c.children) : c.children;
+      if (c.kind !== "bodytube") return kids === c.children ? c : { ...c, children: kids };
+      const host: number = c.length;
+      const fitted = kids.flatMap((ch): RocketComponent[] => {
+        if (!isRing(ch)) return [ch];
+        const entry = authored.get(ch.id);
+        if (!entry || ch.length <= host + 1e-9) return [ch];
+        if (usableCatalogRing(entry.pick)) return [];
+        const cut: RingComponent = { ...ch, length: Math.max(1e-4, host) };
+        return [cut];
+      });
+      return { ...c, children: fitted };
+    });
+  return { ...rocket, stages: rocket.stages.map((s) => ({ ...s, components: walk(s.components) })) };
+}
+
 export function applyGeometryEdits(rocket: Rocket, edits: GeometryEdits): Rocket {
   // ADDS FIRST, then removals, then the dimension edits. The order is not arbitrary and each step of it
   // was chosen against a case:
@@ -2972,15 +3024,21 @@ export function applyGeometryEdits(rocket: Rocket, edits: GeometryEdits): Rocket
   //    exists for, and the reason `canAddStage` refuses them today. After the adds, so a mount can go
   //    on a tube the flyer authored. The operation is idempotent: the second pass finds the field set
   //    and `canAddMount` returns false.
-  return applyDimensionEdits(
-    applyMoves(
-      applyRemovals(
-        applyMountAdds(applyAdds(applyAddedStages(applyMountAdds(rocket, edits.mountAdds), edits.addedStages), edits.added), edits.mountAdds),
-        edits.removedIds,
+  //  - and FITTING the authored internal parts dead last, over the finished tree, because whether a
+  //    coupler fits its tube is only answerable once every step above has run. See
+  //    `fitAddedInternalParts` for the two gates this replaced and how they disagreed.
+  return fitAddedInternalParts(
+    applyDimensionEdits(
+      applyMoves(
+        applyRemovals(
+          applyMountAdds(applyAdds(applyAddedStages(applyMountAdds(rocket, edits.mountAdds), edits.addedStages), edits.added), edits.mountAdds),
+          edits.removedIds,
+        ),
+        edits.moved,
       ),
-      edits.moved,
+      withoutRemovedAims(edits),
     ),
-    withoutRemovedAims(edits),
+    edits.added,
   );
 }
 
@@ -3042,13 +3100,15 @@ function buildAdded(
     // keeping the host's stock would fly a part that exists nowhere. Every catalogue row states all
     // four — 236 of 236 couplers and 497 of 497 rings — so there is no partial case to handle.
     //
-    // **A part too long for its host is REFUSED, not cut down.** The derived length is Loft's own
-    // number and clamping it is honest; a picked one carries a vendor's part number on the parts row,
-    // and silently flying a shortened version of a named product is the shape `MAINTAINING.md` calls
-    // a wrong number under a label naming a real part. The picker only offers rings that fit, so this
-    // is the guard on a bag replayed from an older session against a design since shortened.
+    // **Whether it FITS is not decided here**, and that is the correction rather than an omission.
+    // A part too long for its host is refused rather than cut down — a vendor's part number over a
+    // length that vendor never published is a wrong number under a label naming a real product — but
+    // this function only ever sees the host as the FILE describes it, because `applyAdds` runs before
+    // `applyDimensionEdits`. Judging here made the rule disagree with itself in both directions: a
+    // coupler picked for a tube the flyer had LENGTHENED was refused against the shorter original,
+    // and one picked before the tube was SHORTENED was never re-judged at all.
+    // `fitAddedInternalParts` asks the question once, over the tree that is actually flown.
     const pick = usableCatalogRing(part.pick) ? part.pick : undefined;
-    if (pick && pick.length > after.length + 1e-9) return null;
     return {
       inside: true,
       component: {

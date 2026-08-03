@@ -80,6 +80,12 @@ const KIND: Record<
     back: string;
     /** What the caliber filter is filtering, and the search box's own example. */
     fitsNoun: string;
+    /** What the diameter the filter compares against IS, in the flyer's words. It is the airframe's
+     *  caliber for the two kinds that make up the outer mould line, and the HOST TUBE'S BORE for the
+     *  two that go inside one — a coupler at the airframe's caliber does not fit inside the
+     *  airframe, so calling that figure "this design's caliber" on an internal part would name the
+     *  wrong dimension while showing the right number. */
+    fitsAt: string;
     placeholder: string;
   }
 > = {
@@ -89,6 +95,7 @@ const KIND: Record<
     open: "Pick a real body tube",
     back: "Back to the design's own tube",
     fitsNoun: "tubes",
+    fitsAt: "at this design's caliber",
     placeholder: "BT-60, 38 mm, phenolic…",
   },
   nosecone: {
@@ -97,6 +104,7 @@ const KIND: Record<
     open: "Pick a real nose cone",
     back: "Back to the design's own nose",
     fitsNoun: "cones",
+    fitsAt: "at this design's caliber",
     placeholder: "BT-60, ogive, balsa…",
   },
   parachute: {
@@ -105,6 +113,7 @@ const KIND: Record<
     open: "Pick a real parachute",
     back: "Back to the design's own canopy",
     fitsNoun: "canopies",
+    fitsAt: "at this design's caliber",
     // Every term here is checked against the shipped catalogue, because the placeholder is the field
     // TEACHING a flyer what the box accepts: "18 in" → 16 rows, "nylon" → 80, "PAR-" → 36. A vendor
     // NAME is deliberately absent — the filter reads `partNumber` and `description` only, and the
@@ -122,6 +131,7 @@ const KIND: Record<
     open: "Pick a real coupler",
     back: "Back to the sized-to-fit coupler",
     fitsNoun: "couplers",
+    fitsAt: "that fit this tube's bore",
     // **Every term measured against the shipped catalogue, and the first draft's were wrong.** It
     // read "JT-60C, 38 mm, phenolic…" — and "38 mm" matches **0 of 236**, because the filter reads
     // part number and description and no coupler's description states a millimetre size (they read
@@ -136,6 +146,7 @@ const KIND: Record<
     open: "Pick a real centering ring",
     back: "Back to the sized-to-fit ring",
     fitsNoun: "rings",
+    fitsAt: "that fit this tube's bore",
     // Same rule, same measurement: "29 mm" matches 0 of 497 while a bare "29" matches 32, so the
     // millimetre form is the trap here too. Counted: "CR-" → 186, "fiber" → 242, "plywood" → 125.
     placeholder: "CR-7-18, fiber, plywood…",
@@ -218,6 +229,7 @@ export default function PartPicker({
   kind,
   /** Metres. The caliber the design is at now, so the list can open on parts that actually fit it. */
   currentOuterDiameter,
+  maxLength,
   imperial,
   onPick,
   picked,
@@ -226,6 +238,13 @@ export default function PartPicker({
 }: {
   kind: PickerKind;
   currentOuterDiameter?: number;
+  /** Metres — the longest part that can go in, where the kind goes INSIDE something. A coupler and a
+   *  centring ring are seated in a host tube and the model refuses a picked one longer than it, so a
+   *  row past this is disabled with the reason rather than offered: `applyAdds` skips a part it
+   *  cannot build, so a pick this let through would delete the flyer's authored part on a tap.
+   *
+   *  Absent for the three kinds that go on the outside of the airframe, which nothing bounds. */
+  maxLength?: number;
   imperial: boolean;
   /** The catalogue row and its resolved stock, NOT a finished edit-bag record.
    *
@@ -512,7 +531,17 @@ export default function PartPicker({
             {materialLabel(p)}
             {!usable && (
               <span className="block text-amber-700 dark:text-amber-400">
-                no usable published density — this design&apos;s own stock is kept
+                {/* **What happens next differs by kind, and one sentence for both was false on one
+                    of them.** An airframe part still lands without a usable density — its geometry
+                    is the pick and the design's own stock is kept. A coupler or a centring ring
+                    cannot: neither states a mass anywhere in the catalogue, so the stock IS the
+                    weight, and `buildable` disables the row rather than flying a named part that
+                    moves the balance by nothing. Telling a flyer their own stock is kept, beside a
+                    button that does nothing, describes a fallback the code does not perform.
+                    Measured: 14 of the 497 rings and 0 of the 236 couplers. */}
+                {kind === "tubecoupler" || kind === "centeringring"
+                  ? "no usable published density — this part cannot be weighed, so it cannot be picked"
+                  : "no usable published density — this design's own stock is kept"}
               </span>
             )}
           </span>
@@ -533,22 +562,42 @@ export default function PartPicker({
         // re-derived there — the flyer chose a specific part, and a density they did not choose is
         // a mass they will not check. The row says so beside the button.
         const material = db?.materialOf(p);
+        // **A part longer than the space it goes into is refused HERE, with the reason on the row.**
+        // The model refuses it too — `buildAdded` returns null for a picked coupler or ring longer
+        // than its host, because a named commercial part silently flown at a shortened length is a
+        // wrong number under a vendor's part number. But `applyAdds` skips a part it cannot build,
+        // so a pick the picker allowed and the model then refused would make the flyer's authored
+        // part VANISH from the design on a tap, with nothing said. Reachable rather than
+        // theoretical: catalogued couplers run to 1.2192 m, and the starter's tube is 0.4 m.
+        //
+        // Disabled with the reason rather than filtered out of the list, because a flyer who
+        // searched for a part number they own is owed "that one is too long for this tube" — a row
+        // that silently is not there teaches nothing.
+        const tooLong = maxLength !== undefined && p.length !== undefined && p.length > maxLength + 1e-9;
+        const refused = !buildable(p, kind) || tooLong;
         return (
+        <>
         <Button
           variant="secondary"
           onClick={() => {
-            if (!buildable(p, kind)) return;
+            if (refused) return;
             onPick(p, material);
             setOpen(false);
           }}
-          disabled={!buildable(p, kind)}
+          disabled={refused}
         >
           Use
         </Button>
+        {tooLong && (
+          <span className="block text-xs text-amber-700 dark:text-amber-400">
+            longer than the {span(maxLength, imperial)} {unit} it goes into
+          </span>
+        )}
+        </>
         );
       },
     },
-  ], [imperial, unit, onPick, db, kind]);
+  ], [imperial, unit, onPick, db, kind, maxLength]);
 
   const control =
     "mt-1 w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100";
@@ -589,7 +638,16 @@ export default function PartPicker({
                     // scaled with the area.
                     kind === "parachute"
                     ? "Weight scaled from"
-                    : "Wall and stock from"}{" "}
+                    : // An internal fitting has no editable dimension of its own, so the only way
+                      // `dimensionsMatch` can be false here is that the part is NOT BEING FLOWN — it
+                      // is longer than the tube it goes in and was left out rather than shortened.
+                      // The tube wording would have said "Wall and stock from …, with your own
+                      // dimensions", which is a claim about a part that is in the design; this one
+                      // was reading "Flying …" directly beneath a notice saying it is not in the
+                      // flight, two lines disagreeing about the same part.
+                      kind === "tubecoupler" || kind === "centeringring"
+                      ? "Not in the flight —"
+                      : "Wall and stock from"}{" "}
               <span className="font-medium text-zinc-900 dark:text-zinc-100">
                 {picked.manufacturer} {picked.partNumber}
               </span>
@@ -598,7 +656,12 @@ export default function PartPicker({
                   ? ", with your own length or contour"
                   : kind === "parachute"
                     ? ", at your own diameter"
-                    : ", with your own dimensions")}
+                    : // Nothing trailing for the two internal kinds: the notice above this picker
+                      // has already given both lengths and both ways back, and repeating it here
+                      // would be the same sentence twice on one panel.
+                      kind === "tubecoupler" || kind === "centeringring"
+                      ? ""
+                      : ", with your own dimensions")}
             </span>
             <Button variant="ghost" onClick={onClear}>
               {copy.back}
@@ -674,7 +737,7 @@ export default function PartPicker({
                           `scripts/check-text-gaps.mjs` that found it, and it is the SECOND time that
                           check has earned itself on this one component. */}
                       Only {copy.fitsNoun}{" "}
-                      at this design&apos;s caliber ({span(currentOuterDiameter, imperial)} {unit})
+                      {copy.fitsAt} ({span(currentOuterDiameter, imperial)} {unit})
                     </span>
                   </label>
                 )}
@@ -719,6 +782,24 @@ export default function PartPicker({
                       Choosing one also takes the vendor&apos;s wall and stock, so the mass moves with
                       it — and where they publish a weight of their own, that is the one flown rather
                       than a figure computed from the geometry.
+                    </span>
+                  </>
+                ) : kind === "tubecoupler" || kind === "centeringring" ? (
+                  <>
+                    {/* The two INTERNAL kinds had no arm of their own and fell through to the nose
+                        cone's, so the coupler picker told a flyer that choosing a part sets "this
+                        design's nose length, contour, base diameter, shoulder" and warned them about
+                        a mould-line step — on a part that touches no mould line at all. A provenance
+                        line whose whole job is to say what a pick changes cannot name four
+                        properties the part does not have. */}
+                    Choosing one sets this part&apos;s outer diameter, bore, length and stock — the
+                    whole fitting as the vendor publishes it, and its weight follows from those, since
+                    no coupler or ring in this catalogue states one.{" "}
+                    <span className="text-zinc-600 dark:text-zinc-300">
+                      The airframe around it is left alone: these go INSIDE a tube and change dry mass
+                      and balance, not the shape the solver flies. A part longer than the tube it goes
+                      in is left out rather than flown short, because a shortened part under a
+                      vendor&apos;s part number is not that part.
                     </span>
                   </>
                 ) : (
