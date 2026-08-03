@@ -7,8 +7,19 @@ export interface Release {
   version: string;
   /** ISO date the release reached production. */
   date: string;
-  /** The entry's markdown body, rendered by `/docs/changelog`. */
+  /** The entry's markdown body, kept whole so a check can read it as written. */
   body: string;
+  /** That body's structure, resolved at build time so the route renders data, not markdown. */
+  sections: readonly Section[];
+}
+
+/** One `### Heading` block of a release entry. */
+export interface Section {
+  heading: string;
+  /** Prose before the first bullet, where the entry has any. */
+  lead: string;
+  /** Bullets, each still carrying inline markdown for `lib/inline-markdown.tsx`. */
+  items: readonly string[];
 }
 
 /** The version the app is running, shown in the footer on every route. */
@@ -22,6 +33,53 @@ export const RELEASES: readonly Release[] = [
   {
     "version": "0.9.0",
     "date": "2026-08-03",
-    "body": "Loft's first described release. It covers what the tool can do today rather than every step that got\nit here — the per-change record starts from this entry.\n\n### Build and edit\n\n- **Build a rocket from scratch, or edit one you imported** — the same surface, the same model, the\n  same solver. *Start a new design* opens a stable 54 mm sport rocket already flying, rather than a\n  blank slate.\n- **Add, remove, reorder and restack parts** — body tubes, fin sets, transitions, mass objects,\n  couplers, centring rings, motor mounts and booster stages. Every structural act is one undo step,\n  named after the part it made.\n- **Edit the part you picked**, on designs with several of a kind: click any tube, fin set, canopy or\n  mass object on the diagram or in the parts list and the fields aim at *that* one, named. The\n  selection survives a re-fly and a reload.\n- **Choose real commercial parts from a bundled catalogue** — body tubes, nose cones, parachutes,\n  couplers and centring rings, 2,990 parts across 13 vendors, with each vendor's own dimensions,\n  material and part number. A part that does not fit is refused with the reason rather than flown at\n  a size its vendor never published.\n- **Author a staged rocket** and fly the separation.\n- **A design built in Loft leaves intact** as an `.ork` file — geometry, materials, motor\n  configuration and launch conditions — and reopens as itself.\n\n### Simulate and check\n\n- **Import the file you already have**: OpenRocket `.ork`, RockSim `.rkt`, RASAero `.CDX1`, RocketPy\n  and SpaceCAD.\n- **See more than one answer.** Loft's own solver, the numbers the design file already stores from\n  the tool that made it, and an in-browser RocketPy second opinion — presented side by side, with\n  disagreement flagged rather than hidden.\n- **Sweep a motor selection, sweep a parameter, and run a Monte-Carlo dispersion** — all in the\n  browser, on your own machine.\n- **Per-set fin drag and a cited fin-flutter estimate** (NACA TN 4197), with every shear modulus and\n  every material density carrying its published source — or saying plainly that no published value\n  exists.\n\n### The tool itself\n\n- **Distinct workspaces as real routes** — import, design, flight, sweep, validate, docs — rather\n  than one scrolling page.\n- **A touch-native phone layout**, held to a 44 px hit target with no state reachable only by hover,\n  and the three things a range day needs — pick a motor, check stability, sanity-check a delay —\n  walked one-handed and offline.\n- **Installable and offline** from the second visit, including the parts catalogue and the motor\n  data.\n- **Everything runs on your device.** No account, no upload, no tracking, no server. Free.\n\n### Honesty\n\n- **Every number is a prediction from a model, never a measurement and never a go/no-go.** A value\n  that is withheld says why and how to get it back; an extrapolated one says so; a reference figure\n  names the tool that produced it and any caveat that tool attached.\n- **A candid, dated [limitations log](https://loft.fusionspace.co/docs/limitations)**, a\n  [methods page](https://loft.fusionspace.co/docs/methods) linking every calculation to its published\n  source, and a [validation page](https://loft.fusionspace.co/docs/validation) with the measured\n  accuracy against real design files."
+    "body": "Loft's first described release. It covers what the tool can do today rather than every step that got\nit here — the per-change record starts from this entry.\n\n### Build and edit\n\n- **Build a rocket from scratch, or edit one you imported** — the same surface, the same model, the\n  same solver. *Start a new design* opens a stable 54 mm sport rocket already flying, rather than a\n  blank slate.\n- **Add, remove, reorder and restack parts** — body tubes, fin sets, transitions, mass objects,\n  couplers, centring rings, motor mounts and booster stages. Every structural act is one undo step,\n  named after the part it made.\n- **Edit the part you picked**, on designs with several of a kind: click any tube, fin set, canopy or\n  mass object on the diagram or in the parts list and the fields aim at *that* one, named. The\n  selection survives a re-fly and a reload.\n- **Choose real commercial parts from a bundled catalogue** — body tubes, nose cones, parachutes,\n  couplers and centring rings, 2,990 parts across 13 vendors, with each vendor's own dimensions,\n  material and part number. A part that does not fit is refused with the reason rather than flown at\n  a size its vendor never published.\n- **Author a staged rocket** and fly the separation.\n- **A design built in Loft leaves intact** as an `.ork` file — geometry, materials, motor\n  configuration and launch conditions — and reopens as itself.\n\n### Simulate and check\n\n- **Import the file you already have**: OpenRocket `.ork`, RockSim `.rkt`, RASAero `.CDX1`, RocketPy\n  and SpaceCAD.\n- **See more than one answer.** Loft's own solver, the numbers the design file already stores from\n  the tool that made it, and an in-browser RocketPy second opinion — presented side by side, with\n  disagreement flagged rather than hidden.\n- **Sweep a motor selection, sweep a parameter, and run a Monte-Carlo dispersion** — all in the\n  browser, on your own machine.\n- **Per-set fin drag and a cited fin-flutter estimate** (NACA TN 4197), with every shear modulus and\n  every material density carrying its published source — or saying plainly that no published value\n  exists.\n\n### The tool itself\n\n- **Distinct workspaces as real routes** — import, design, flight, sweep, validate, docs — rather\n  than one scrolling page.\n- **A touch-native phone layout**, held to a 44 px hit target with no state reachable only by hover,\n  and the three things a range day needs — pick a motor, check stability, sanity-check a delay —\n  walked one-handed and offline.\n- **Installable and offline** from the second visit, including the parts catalogue and the motor\n  data.\n- **Everything runs on your device.** No account, no upload, no tracking, no server. Free.\n\n### Honesty\n\n- **Every number is a prediction from a model, never a measurement and never a go/no-go.** A value\n  that is withheld says why and how to get it back; an extrapolated one says so; a reference figure\n  names the tool that produced it and any caveat that tool attached.\n- **A candid, dated [limitations log](https://loft.fusionspace.co/docs/limitations)**, a\n  [methods page](https://loft.fusionspace.co/docs/methods) linking every calculation to its published\n  source, and a [validation page](https://loft.fusionspace.co/docs/validation) with the measured\n  accuracy against real design files.",
+    "sections": [
+      {
+        "heading": "",
+        "lead": "Loft's first described release. It covers what the tool can do today rather than every step that got it here — the per-change record starts from this entry.",
+        "items": []
+      },
+      {
+        "heading": "Build and edit",
+        "lead": "",
+        "items": [
+          "**Build a rocket from scratch, or edit one you imported** — the same surface, the same model, the same solver. *Start a new design* opens a stable 54 mm sport rocket already flying, rather than a blank slate.",
+          "**Add, remove, reorder and restack parts** — body tubes, fin sets, transitions, mass objects, couplers, centring rings, motor mounts and booster stages. Every structural act is one undo step, named after the part it made.",
+          "**Edit the part you picked**, on designs with several of a kind: click any tube, fin set, canopy or mass object on the diagram or in the parts list and the fields aim at *that* one, named. The selection survives a re-fly and a reload.",
+          "**Choose real commercial parts from a bundled catalogue** — body tubes, nose cones, parachutes, couplers and centring rings, 2,990 parts across 13 vendors, with each vendor's own dimensions, material and part number. A part that does not fit is refused with the reason rather than flown at a size its vendor never published.",
+          "**Author a staged rocket** and fly the separation.",
+          "**A design built in Loft leaves intact** as an `.ork` file — geometry, materials, motor configuration and launch conditions — and reopens as itself."
+        ]
+      },
+      {
+        "heading": "Simulate and check",
+        "lead": "",
+        "items": [
+          "**Import the file you already have**: OpenRocket `.ork`, RockSim `.rkt`, RASAero `.CDX1`, RocketPy and SpaceCAD.",
+          "**See more than one answer.** Loft's own solver, the numbers the design file already stores from the tool that made it, and an in-browser RocketPy second opinion — presented side by side, with disagreement flagged rather than hidden.",
+          "**Sweep a motor selection, sweep a parameter, and run a Monte-Carlo dispersion** — all in the browser, on your own machine.",
+          "**Per-set fin drag and a cited fin-flutter estimate** (NACA TN 4197), with every shear modulus and every material density carrying its published source — or saying plainly that no published value exists."
+        ]
+      },
+      {
+        "heading": "The tool itself",
+        "lead": "",
+        "items": [
+          "**Distinct workspaces as real routes** — import, design, flight, sweep, validate, docs — rather than one scrolling page.",
+          "**A touch-native phone layout**, held to a 44 px hit target with no state reachable only by hover, and the three things a range day needs — pick a motor, check stability, sanity-check a delay — walked one-handed and offline.",
+          "**Installable and offline** from the second visit, including the parts catalogue and the motor data.",
+          "**Everything runs on your device.** No account, no upload, no tracking, no server. Free."
+        ]
+      },
+      {
+        "heading": "Honesty",
+        "lead": "",
+        "items": [
+          "**Every number is a prediction from a model, never a measurement and never a go/no-go.** A value that is withheld says why and how to get it back; an extrapolated one says so; a reference figure names the tool that produced it and any caveat that tool attached.",
+          "**A candid, dated [limitations log](https://loft.fusionspace.co/docs/limitations)**, a [methods page](https://loft.fusionspace.co/docs/methods) linking every calculation to its published source, and a [validation page](https://loft.fusionspace.co/docs/validation) with the measured accuracy against real design files."
+        ]
+      }
+    ]
   }
 ];

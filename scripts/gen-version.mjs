@@ -35,8 +35,47 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
  *  it as one would ship a version string the tool cannot stand behind. */
 const RELEASE = /^## \[(\d+\.\d+\.\d+)\][^\S\n]*[—-][^\S\n]*(\d{4}-\d{2}-\d{2})[^\S\n]*$/gm;
 
-/** Parse every released entry, newest first, with its body. Exported shape is deliberately small —
- *  the route renders the markdown body itself, so nothing here needs to understand the sections. */
+/** Split one entry's body into its `### Heading` sections and their bullets.
+ *
+ *  **The structure is resolved HERE, not in the page**, so `/docs/changelog` renders data rather than
+ *  parsing markdown at runtime — no markdown library in a bundle that is already budgeted to 335 KB
+ *  gzipped, and no `dangerouslySetInnerHTML` on text that a generator writes. What survives into the
+ *  page is a heading, a list of bullets, and whatever INLINE markdown each bullet carries
+ *  (`**bold**`, `` `code` ``, `[text](url)`), which `lib/inline-markdown.tsx` turns into elements.
+ *
+ *  A bullet may wrap across lines in the source — the file is hard-wrapped at 100 columns — so a
+ *  continuation line is joined onto the bullet above it rather than becoming an empty one. Prose
+ *  paragraphs that are not bullets are kept as a section's `lead`, because the first entry has one
+ *  and dropping it would silently lose text a human wrote. */
+function parseSections(body) {
+  const sections = [];
+  let current = null;
+  for (const raw of body.split("\n")) {
+    const line = raw.trimEnd();
+    const head = /^### (.+)$/.exec(line);
+    if (head) {
+      current = { heading: head[1], lead: "", items: [] };
+      sections.push(current);
+      continue;
+    }
+    if (!current) {
+      current = { heading: "", lead: "", items: [] };
+      sections.push(current);
+    }
+    const bullet = /^[-*] (.+)$/.exec(line);
+    if (bullet) {
+      current.items.push(bullet[1]);
+      continue;
+    }
+    if (!line.trim()) continue;
+    // A hard-wrapped continuation of the bullet above, or lead prose where there is no bullet yet.
+    if (current.items.length) current.items[current.items.length - 1] += " " + line.trim();
+    else current.lead = current.lead ? `${current.lead} ${line.trim()}` : line.trim();
+  }
+  return sections.filter((s) => s.heading || s.lead || s.items.length);
+}
+
+/** Parse every released entry, newest first, with its body and that body's structure. */
 export function parseChangelog(text) {
   const heads = [...text.matchAll(RELEASE)];
   return heads.map((m, i) => {
@@ -48,7 +87,7 @@ export function parseChangelog(text) {
       .slice(start, end)
       .replace(/^\[[^\]]+\]:\s*\S+$/gm, "")
       .trim();
-    return { version: m[1], date: m[2], body };
+    return { version: m[1], date: m[2], body, sections: parseSections(body) };
   });
 }
 
@@ -84,8 +123,18 @@ export function generate() {
     "  version: string;\n" +
     "  /** ISO date the release reached production. */\n" +
     "  date: string;\n" +
-    "  /** The entry's markdown body, rendered by `/docs/changelog`. */\n" +
+    "  /** The entry's markdown body, kept whole so a check can read it as written. */\n" +
     "  body: string;\n" +
+    "  /** That body's structure, resolved at build time so the route renders data, not markdown. */\n" +
+    "  sections: readonly Section[];\n" +
+    "}\n\n" +
+    "/** One `### Heading` block of a release entry. */\n" +
+    "export interface Section {\n" +
+    "  heading: string;\n" +
+    "  /** Prose before the first bullet, where the entry has any. */\n" +
+    "  lead: string;\n" +
+    "  /** Bullets, each still carrying inline markdown for `lib/inline-markdown.tsx`. */\n" +
+    "  items: readonly string[];\n" +
     "}\n\n" +
     "/** The version the app is running, shown in the footer on every route. */\n" +
     `export const VERSION = ${JSON.stringify(latest.version)};\n\n` +

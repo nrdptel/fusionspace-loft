@@ -3039,6 +3039,60 @@ deletion fails; the substance behind the two a sceptic would test; the five form
 placement, measured as a document offset against the examples. Proved able to fail: rewriting the
 third claim's heading alone reds it with `the landing surface never claims: more than one answer`.
 
+*Increment 3 — SHIPPED. The changelog is a page in the app, generated from the file rather than
+written twice.*
+
+`/docs/changelog` renders `RELEASES` from `lib/version.ts`, which increment 1 already generates from
+`CHANGELOG.md` and refuses to build when `package.json` disagrees. So the page, the version in the
+chrome and the file in the repository are **one source with two readers**, not three artifacts
+somebody keeps in step. The footer's version now goes there rather than off-site, and the docs hub
+links it.
+
+**The block structure is resolved at BUILD time and the inline markdown at render time**, which is
+the split that keeps a markdown library out of a bundle budgeted to 335 KB gzipped.
+`scripts/gen-version.mjs` turns each entry into `{ heading, lead, items }`, and
+`lib/inline-markdown.tsx` — thirty lines — turns `**bold**`, `` `code` `` and `[text](url)` into
+ELEMENTS. Never `dangerouslySetInnerHTML`: the input is a file in this repository, so that is not a
+live injection path today, but it would make the changelog the one surface in the app where writing
+a file is writing markup, and that property is only ever discovered later.
+
+**Two real defects, both found by running the parser over the file it exists to render rather than
+over invented examples.**
+
+- **A link inside a bold run came out as literal `[text](url)`.** The changelog's own honesty section
+  opens `**A candid, dated [limitations log](…)**`, so the very first release entry would have
+  printed the parser's syntax at a flyer. The bold arm recurses now; a bold run cannot contain
+  another `*` by construction, so it terminates in one step.
+- **`vitest.config.ts` had no `lib/**/*.test.tsx` include at all.** `app` carried both extensions and
+  `lib` only `.ts`, so the first test file under `lib` that renders anything reported *No test files
+  found* — a red exit for a filtered run, and for the whole suite simply a file that never runs and
+  never says so. That is the false all-clear shape `MAINTAINING.md` warns about for the corpus suite,
+  one directory over, and it would have swallowed any future `.tsx` test silently.
+
+Pinned by `lib/inline-markdown.test.tsx` (the four forms; that it escapes rather than emitting markup,
+inside each construct as well as around it; that unparsable syntax stays literal rather than being
+swallowed; and a sweep over **every bullet the shipped changelog contains**, asserting no bullet loses
+a word — which is the case that found the nesting bug) and by `e2e/docs.spec.ts`'s *the changelog is a
+page in the app*, which asserts every release and date from the module appears, every section heading,
+that no unrendered link or bold syntax reaches the page, and that it is reachable from the docs hub as
+well as the footer. It also joins the offline docs walk.
+
+*Increment 5 — SHIPPED, out of order and deliberately: it lands on the same component as 1 and 3 and
+shares their gate run.*
+
+**A flyer can report a bug or ask for an unsupported format from every route.** It existed on three
+docs pages and the docs hub only, each hard-coding the same URL, and the footer's GitHub link went to
+the repository ROOT — so a flyer whose import went wrong on `/flight` had to find the documentation
+before they could say so. One `NEW_ISSUE_URL` constant, pointed at the form rather than the issue
+list, in the footer that renders on all six routes.
+
+**The accessible name names BOTH jobs**, because asking for a format Loft does not read yet is the
+request a flyer is least likely to guess is welcome — and ingestion breadth is a North Star, so those
+requests are how that queue gets its evidence.
+
+Pinned by `e2e/docs.spec.ts`'s *a flyer can report a bug or ask for a format from any route*, walking
+all six and asserting the destination, both jobs in the accessible name, and the new-tab contract.
+
 **Outcome.** Someone can find Loft, understand it, use it, trust it, and tell someone else about it.
 
 **Done when** the README shows what the tool does with images rather than describing it; the landing
