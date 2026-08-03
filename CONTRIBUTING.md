@@ -105,6 +105,15 @@ npm run build       # also type-checks (CI gate; tsconfig has noUnusedLocals/Par
 npm run test:e2e    # Playwright (incl. an axe accessibility audit) — run after a build
 ```
 
+**Kill any `serve` you started by hand before running the gate, and it will not look like a server
+problem when you do not.** `playwright.config.ts` sets `reuseExistingServer` outside CI, so a
+`serve` left over from `npm run screenshots` — or from a previous interrupted run — is silently
+adopted by the suite. That is harmless until the gate's `rm -rf out` deletes the directory underneath
+it mid-build, at which point the shard reports a wildly low pass count with **no failure line at
+all**: measured 2026-08-03 at 13 of 112, and 112 of 112 on a clean re-run one minute later. It reads
+exactly like the descriptor exhaustion and the concurrent-shard symptom this file already describes,
+and it is neither. Check port 3000 is free before believing a low count.
+
 **The e2e job's budget is measured, not guessed, and a timeout reads as "cancelled" rather than as a
 failure.** On a GitHub runner the job spends about 11 minutes on checkout, `npm ci`,
 `playwright install` and `npm run build` before the first test, and the suite itself runs at roughly

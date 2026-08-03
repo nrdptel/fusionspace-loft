@@ -20,6 +20,33 @@ Part of [Fusion Space](https://fusionspace.co) — free, polished tools for high
 See also the [HPR Motor Finder](https://motor.fusionspace.co),
 [Charge](https://charge.fusionspace.co), and [Window](https://window.fusionspace.co).
 
+## What it looks like
+
+Every picture below is taken from the built export by `scripts/gen-screenshots.mjs`, which loads a
+real bundled design and waits for the numbers to be on screen before capturing — so they cannot
+quietly drift out of date, and regenerating them is one command rather than an afternoon.
+
+**A design, flown.** Apogee, mass, stability margin, fin flutter and the rest, with the cautions the
+numbers earn — here a 4.07-cal margin that will weathercock, and the weight-free trim that would fix
+it.
+
+![Loft's flight results for a 38 mm single-deploy design: apogee 993 m, liftoff mass 0.802 kg, static margin 4.07 cal flagged high, with a stability-trim note and an over-stable caution](docs/screenshots/flight.png)
+
+**The builder.** A to-scale airframe you reshape by dragging it — fin group fore and aft, fin span,
+body caliber, tube length, nose bluntness — with CG and CP marked and the design re-flying live as
+you drag. The parts table underneath is the component tree exactly as Loft parsed it.
+
+![Loft's design workspace: a to-scale side view of the rocket with drag handles, CG and CP marked, above a parts table listing each component's station, mass and dimensions](docs/screenshots/design.png)
+
+**At the pad.** The same flight, one-handed, at 390 px, with no signal.
+
+<img src="docs/screenshots/phone.png" alt="Loft on a phone: the flight summary for the same design, laid out for one-handed use" width="320">
+
+**And the first screen, with no file** — two bundled examples and a from-scratch builder, so the tool
+is usable before you have anything to import.
+
+![Loft's landing surface: a drop zone for an OpenRocket, RockSim or RASAero file, buttons to start a new design or open a bundled example, and the three things Loft does that other tools do not](docs/screenshots/landing.png)
+
 ## What it does
 
 - **Imports OpenRocket `.ork` files** (also gzip-wrapped or raw OpenRocket XML), reading the

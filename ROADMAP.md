@@ -2935,8 +2935,15 @@ layout at a narrow width — capability first, hit targets are the finish rather
 
 ## P5 — Ready for the public
 
-**Status: IN PROGRESS** — decomposed 2026-08-03 with every clause measured first, so no increment is
-spent discovering that its work was already done.
+**Status: SHIPPED 2026-08-03** — all six increments, every *done when* clause met and pinned.
+Decomposed the same day with every clause measured first, so no increment was spent discovering that
+its work was already done.
+
+**Pinned by:** `lib/version.test.ts` and `scripts/gen-version.mjs`'s build-time refusal (the version
+shown is the release described); `lib/inline-markdown.test.tsx`; `e2e/first-run.spec.ts`'s *says the
+three things it does that no other tool does*; `e2e/docs.spec.ts`'s three cases for the version, the
+changelog page and the report link; and `scripts/check-links.mjs` in `postbuild`, which is the
+*done when*'s own "link-checking" clause. Every one was proved able to fail by reverting one thing.
 
 **Where each *done when* clause stands, measured 2026-08-03 rather than assumed:**
 
@@ -3092,6 +3099,55 @@ requests are how that queue gets its evidence.
 
 Pinned by `e2e/docs.spec.ts`'s *a flyer can report a bug or ask for a format from any route*, walking
 all six and asserting the destination, both jobs in the accessible name, and the new-tab contract.
+
+*Increment 4 — SHIPPED. The README shows the tool, from pictures a script takes rather than a human
+remembers to retake.*
+
+**The trap in this clause is not taking the screenshots — it is that hand-captured ones are wrong
+within a fortnight and nobody notices, because a README image has no test and no 404.** It renders as
+a broken-image icon on the project's front page for as long as it takes somebody to look.
+`scripts/gen-screenshots.mjs` makes them the output of a committed script, so "are these current?" is
+a command anybody can run: four shots — the landing surface, a flown design, the builder, and the
+same flight on a 390 px phone.
+
+**Every shot is DRIVEN, not posed.** Each loads a real bundled sample and waits for the numbers to be
+on screen before capturing, so a picture can never show a loading state or an empty panel — and if
+the app stops being able to reach that state, the script fails loudly instead of writing a screenshot
+of the failure. Dev-only and deliberately not in `prebuild`: it needs a browser and a running server,
+which the deploy job has neither of, and a build that failed for a missing Chromium would gate the
+deploy on something the deploy does not need.
+
+**One thing worth carrying: a structural locator that happens to resolve is not one that resolves to
+the thing you meant.** The builder shot first waited on `page.locator("svg").first()`, which on
+`/design` is an icon inside the HIDDEN flight panel — so it timed out while the page was perfectly
+ready. It anchors on the workspace region and the parts table now, and scrolls to the region's own
+top, because opening the disclosure scrolled the airframe half out of frame in the first take.
+
+*Increment 6 — SHIPPED. Link-checking as a build gate, which is the other half of this milestone's
+own pinning.*
+
+`scripts/check-links.mjs` runs in `postbuild` beside `check-routes` and makes two claims, because
+there are two ways an internal link dies and only one is visible from inside the app:
+
+- **Every in-app link points at a document the export actually contains** — 425 of them across 14
+  exported documents. A route renamed or retired leaves anchors behind on pages nobody edited: the
+  docs hub links five pages, the footer links three more, and every one is a literal in a file that
+  is not touched when a route moves.
+- **Every relative link and image in the repository's markdown points at a file that exists** and is
+  not empty. This is what stops increment 4's four screenshots from becoming four broken-image icons
+  the day someone renames a directory.
+
+**External links are NOT fetched, deliberately.** A build that fails because somebody else's site is
+down is a build that teaches a session to ignore it, and a red gate meaning something is this repo's
+whole safety net under unreviewed merges. Off-site rot wants a scheduled check, not this one.
+
+**And it refuses to pass on an empty scan.** Both halves assert they had something to look at, because
+a link checker that found no links prints exactly like one that found no problems — the false
+all-clear this repo has been caught by twice.
+
+Both halves proved able to fail: renaming one README image reds it with
+`README.md links docs/screenshots/flght.png, which does not exist`, and pointing one docs anchor at a
+missing route reds it with `docs.html links /docs/limitationz, which the export does not serve`.
 
 **Outcome.** Someone can find Loft, understand it, use it, trust it, and tell someone else about it.
 
