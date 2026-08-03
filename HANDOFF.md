@@ -57,7 +57,7 @@ disagree** — correctness, safety-claims and test-quality found different thing
 and a row click works (it did not "time out"). The `DataTable` conversion had fixed all three and
 nobody re-measured. Both records are corrected.
 
-## This run's eight increments, and how each was verified
+## This run's nine increments, and how each was verified
 
 | # | SHA | what | verified by |
 |---|---|---|---|
@@ -68,14 +68,15 @@ nobody re-measured. Both records are corrected.
 | 5 | `6cbaa5d` | R8 inc 7 — a coupler and a centring ring can be authored, sized from the corpus rather than alike | 7 cases in `edit.test.ts` incl. two negative controls; corpus sweep over all 35 designs; e2e reading the Station column back |
 | 6 | `36d811d` | **Sev-1** — a motor that does not fit the mount is refused instead of flown, and the refusal explains itself | catalogue-wide probe (2,271 withheld, 0 promoted); corpus no-regression over 105 stated casings; e2e on a new fixture asserting the copy |
 | 7 | `0bc50ea` | **Sev-1** — the `.ork` export carries the launch setup, so a downloaded design reopens on its own conditions | 3 cases in `export.test.ts`; e2e reading drift off the page, with a negative control that reads `0m` |
-| 8 | `PENDING` | A reported Sev-1 re-measured and REFUTED, and the test gap under it closed | e2e pinning the landing caution at both thresholds and the silence below them |
+| 8 | `8c8d31a` | A reported Sev-1 re-measured and REFUTED, and the test gap under it closed | e2e pinning the landing caution at both thresholds and the silence below them |
+| 9 | `PENDING` | **Sev-1** — a flick starting on a diagram grip no longer scrolls the page while it edits the design | e2e driving REAL touch through CDP, with an off-handle control and a negative control |
 
 **Gate at the end:** lint 0 errors / 1 standing warning · **1043 unit across 55 files** · build ·
-corpus **35 design files / 24 tests / 0 findings**, census medians unmoved · e2e **110 + 109 = 219**,
+corpus **35 design files / 24 tests / 0 findings**, census medians unmoved · e2e **110 + 110 = 220**,
 which is the suite's full count. `DESIGN.md` §9 unmoved: rounded-lg 0, card treatments 3 (recorded
 floor), off-scale spacing 0, off-scale type 0, inverted files 0, adoption 17/27.
 
-**Sev-1 count in `BACKLOG.md` at the end of the run: TWO open, two fixed, one refuted.** Two cold walks of the built export found them and they are the top five entries in that
+**Sev-1 count in `BACKLOG.md` at the end of the run: ONE open, three fixed, one refuted.** Two cold walks of the built export found them and they are the top five entries in that
 file: the `.ork` export drops every launch condition and the motor configuration on a round trip
 (drift from pad 630 m → 0 m); an unmatched motor is substituted with one that does not FIT the mount
 and the whole flight is reported off it; a one-tap parachute pick can produce an unflagged 18 m/s

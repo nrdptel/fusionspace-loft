@@ -373,6 +373,70 @@ test.describe("phone layout", () => {
     await expect(page.getByRole("button", { name: /^Add fins to this tube/i })).toBeVisible();
     expect(await scan(), "Design workspace with a part SELECTED").toEqual([]);
   });
+  test("a flick that starts on a diagram grip drags it and does NOT scroll the page away", async ({ page }) => {
+    // **The Sev-1 a phone cold walk found, on the surface P4 increment 5 had just worked on.** A
+    // one-thumb flick that happened to land on a drag grip did BOTH: it dragged the handle AND
+    // scrolled the page. Measured before the fix at this viewport, flicking up 220 px from the
+    // body-diameter grip: ⌀38 mm to 205 mm and the page 500 to 731 px, so the airframe was off screen
+    // before the numbers settled — a silent design edit with the evidence scrolled out of view.
+    //
+    // The `<g>` carried `touch-none` the whole time; `touch-action` is simply not honoured on an
+    // inner SVG element in Chromium, and `preventDefault()` on the pointerdown does not stop a scroll
+    // either. Only a non-passive `touchmove` does.
+    //
+    // Driven through CDP because this needs REAL touch events: `page.touchscreen` has only `tap`, and
+    // synthetic `PointerEvent`s dispatched from the page do not reach the handler at all — a first
+    // version of this probe reported "no drag, no scroll" for both, which reads as a pass.
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    await page.getByRole("link", { name: "Design" }).click();
+    await page.waitForTimeout(1000);
+
+    const cdp = await page.context().newCDPSession(page);
+    const flick = async (x: number, y: number, dy: number) => {
+      const send = (type: string, py: number) =>
+        cdp.send("Input.dispatchTouchEvent", {
+          type,
+          touchPoints: type === "touchEnd" ? [] : [{ x, y: py }],
+        } as never);
+      await send("touchStart", y);
+      for (let i = 1; i <= 14; i++) {
+        await send("touchMove", y + (dy * i) / 14);
+        await page.waitForTimeout(16);
+      }
+      await send("touchEnd", y + dy);
+      await page.waitForTimeout(700);
+    };
+
+    const grip = page.getByRole("slider", { name: /Body diameter/i });
+    const box = (await grip.boundingBox())!;
+    // The grip must actually be a 44 px target for this to be the gesture a thumb makes.
+    expect(Math.min(box.width, box.height)).toBeGreaterThanOrEqual(44);
+    const valueBefore = await grip.getAttribute("aria-valuenow");
+    const scrollBefore = await page.evaluate(() => window.scrollY);
+
+    await flick(box.x + box.width / 2, box.y + box.height / 2, -220);
+
+    // The handle did its job — it is a slider, and a flick along its axis is a drag.
+    expect(await grip.getAttribute("aria-valuenow"), "the grip stopped responding to a drag").not.toBe(valueBefore);
+    // And the page stayed exactly where it was, which is the whole of the fix.
+    expect(
+      await page.evaluate(() => window.scrollY),
+      "the page scrolled while the grip was being dragged — the flyer loses sight of the edit",
+    ).toBe(scrollBefore);
+
+    // **The control that makes the assertion above mean something**: the same flick 60 px away, on
+    // plain airframe, must still scroll normally. Without this, a page that had simply stopped
+    // scrolling anywhere would pass.
+    const stillBefore = await page.evaluate(() => window.scrollY);
+    await flick(box.x + box.width / 2 + 60, box.y + box.height / 2, -220);
+    expect(
+      await page.evaluate(() => window.scrollY),
+      "the diagram stopped scrolling everywhere, not just on the grip",
+    ).toBeGreaterThan(stillBefore);
+  });
+
   test("every part on the diagram is tappable, and the handles do not steal it", async ({ page }) => {
     // **The diagram was the last surface with no touch target worth the name.** Measured on the
     // built export at this viewport before the fix: the body parts' hit shapes were the SILHOUETTE,

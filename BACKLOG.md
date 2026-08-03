@@ -116,15 +116,27 @@ big for one pass. Newest first.
   style. Filename is also `rocketpy-cross-check-cross-check.csv`.
 
 - **An ordinary one-thumb scroll that starts on a diagram drag handle both scrolls the page AND drags
-  the handle. SEV-1.** Filed 2026-08-03 from a phone cold walk. Flicking up from the body-diameter
+  the handle. SEV-1 — FIXED 2026-08-03.** Filed and closed the same run, from a phone cold walk. Flicking up from the body-diameter
   handle at 390x844 took ⌀38 mm → 205 mm, apogee 993 m → 133 m, static margin 4.07 → 1.12 cal, while
   scrolling the page 500 → 1274 px so the diagram was off screen before the numbers settled. Zoomed
   3x — the only way to see the fins on a phone — a left pan started on the nose-length handle panned
   the diagram AND shortened the nose 250 → 230 mm. Control cases prove it is the handle: the same
   flick started 40 px away on plain airframe only scrolls. Undo restores it, but only if you noticed.
   The handles are 44x44 on a coarse pointer by design (P4 increment 5 measured them), so the fix is a
-  gesture discipline — a touch-action or a movement threshold before a drag commits — not a smaller
-  target.
+  gesture discipline, not a smaller target.
+
+  **Fixed, and the two obvious fixes both turned out not to work.** The `<g>` already carried
+  `touch-none` — `touch-action` is not honoured on an inner SVG element in Chromium — and
+  `preventDefault()` on the pointerdown does not stop a scroll either. Only a NON-PASSIVE `touchmove`
+  listener does, registered synchronously in the pointerdown so it is in place before the first move.
+  **An axis lock was tried and measured and does not work**: two of the three grips are horizontal,
+  so a vertical flick on one is unambiguously a scroll, but waiting 8 px to decide still let the page
+  go — ⌀38 mm to 139 mm AND 500 to 747 px — because Chromium commits to the scroll inside the slop
+  window and the `touchmove` stops being `cancelable`. The decision has to be made on the first move
+  or not at all, so the gesture belongs to the handle, as it does on a native range input. **Cost,
+  stated:** a flick starting exactly on one of the three 44 px grips no longer scrolls the page.
+  Pinned in `e2e/touch.spec.ts` with a control asserting plain airframe 60 px away still scrolls, and
+  with a negative control that fails reading 590 to 823 px.
 
 - **The diagram's tap columns went to the two parts that were already easiest to hit, and the fin set
   still has no 44 px target.** Filed 2026-08-03 from a phone cold walk, against P4 increment 5. The

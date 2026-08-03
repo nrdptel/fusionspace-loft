@@ -1145,6 +1145,27 @@ function FinHandle({
     [apply],
   );
 
+  /** Cancel the browser's scroll for the whole of a handle drag — from the FIRST move, with no slop.
+   *
+   *  **An axis lock was the obvious refinement and it does not work.** Two of the three grips are
+   *  horizontal (fin position, nose length), so a vertical flick on one is unambiguously a scroll,
+   *  and a version of this waited 8 px before deciding which way the gesture was going. Measured, it
+   *  fixed nothing on the case that matters: a vertical flick on the body-diameter grip still took
+   *  ⌀38 mm to 139 mm AND scrolled the page 500 to 747 px. Chromium commits to the scroll inside
+   *  that slop window, and once committed the `touchmove` is no longer `cancelable` — there is no
+   *  point later at which the decision can still be made. The choice has to be taken on the first
+   *  move or not at all.
+   *
+   *  So the gesture belongs to the handle, which is what a native range input does too. The cost is
+   *  stated rather than hidden: a flick that starts exactly on one of the three 44 px grips will not
+   *  scroll the page. That is a small target on a 324 px-wide diagram, and the alternative is the
+   *  Sev-1 this replaces — a flick doing BOTH, silently editing the design while scrolling it out of
+   *  view. `cancelable` is still checked, because a `touchmove` the browser has already committed to
+   *  cannot be cancelled and calling `preventDefault` on one only logs an error. */
+  const preventScroll = useCallback((ev: TouchEvent) => {
+    if (ev.cancelable) ev.preventDefault();
+  }, []);
+
   const end = useCallback(() => {
     dragRef.current?.controller.abort();
     dragRef.current = null;
@@ -1206,6 +1227,18 @@ function FinHandle({
         const mapped = (axis === "y" ? (centerY - local.y) / s : (local.x - padX) / s) * axisScale;
         const controller = new AbortController();
         dragRef.current = { grabOffset: mapped - current, s, padX, centerY, axisScale, lo, hi, svg, controller };
+        // **The gesture belongs to the handle, and this is the only thing that makes that true on a
+        // phone.** The `<g>` carries `touch-none`, but `touch-action` is not honoured on an inner SVG
+        // element in Chromium — so a one-thumb flick that happened to start on a handle did BOTH: it
+        // scrolled the page AND dragged. Measured at 390x844 with real touch events, flicking up
+        // 220 px from the body-diameter grip: ⌀38 mm to 205 mm and the page scrolled 500 to 731 px,
+        // so the airframe was off screen before the numbers settled. Apogee went 993 m to 133 m and
+        // static margin 4.07 to 1.12 cal, and nothing on screen said a design edit had happened.
+        // `ev.preventDefault()` on the pointerdown does not do it either — only a NON-PASSIVE
+        // `touchmove` can cancel a scroll once it has been offered, and it has to be registered
+        // before the first move, which is here. Aborted with everything else when the drag ends, so
+        // the diagram scrolls normally the rest of the time.
+        window.addEventListener("touchmove", preventScroll, { passive: false, signal: controller.signal });
         window.addEventListener("pointermove", onMove, { signal: controller.signal });
         window.addEventListener("pointerup", end, { signal: controller.signal });
         window.addEventListener("pointercancel", end, { signal: controller.signal });
