@@ -109,6 +109,47 @@ for thrust-to-weight and for rail exit, so recovery is the one side of the same 
   inside the repo, so `npm test` reported 55 files, then 54, then 53 across three runs of the same
   commit. Every count taken during a review is unreliable. Run the gate after they finish.
 
+## The done-check, answered out loud
+
+**What can a flyer DO that they could not before this run?**
+
+1. **See that a motor is missing instead of reading a confident number computed without it.** Liftoff
+   mass, static margin, CG loaded, burnout mass and the diagram's CG/CP marks are all withheld when a
+   configuration's motors do not all resolve, with a reason in place of each.
+2. **Apply the motor the sweep recommends, in one tap**, instead of memorising a designation and
+   scrolling 1,841 px to a sixteen-option select on another workspace.
+3. **Choose a real commercial parachute** — 151 of them — and see the landing speed move by a factor
+   of 8.4 across the catalogue, with the drag coefficient left where their own file put it.
+4. **Select any part of the airframe on a phone**, on a diagram whose hit shape used to be an
+   eleven-pixel-tall silhouette.
+5. **Author a coupler and a centring ring**, at 1.86 calibers and 3.18 mm — the sizes real ones are.
+6. **Trust that a flight is not being reported off a motor that cannot fit the mount**, and be told
+   which motor their designation nearly named and by how much the diameter is wrong.
+7. **Download a design and reopen it on its own launch setup** rather than on Loft's defaults —
+   drift from pad round-trips 629.7 m instead of collapsing to 0.
+8. **Scroll past the design diagram on a phone without silently resizing the rocket.**
+
+**What is measurably better?**
+
+- Unit suite **1021 → 1043**; e2e **215 → 220**; corpus tests **22 → 24**, still 0 findings across 35
+  real design files, with the accuracy gate untouched and no tolerance widened.
+- **Four Sev-1s closed** (two found by this run's own cold walks, two by the pre-push reviews), and a
+  fifth re-measured and **refuted** rather than acted on.
+- The corpus median coupler fell **12.97 g → 3.54 g** once a 5% wall floor stopped overriding designs
+  that state their own wall — a median 1.93x mass inflation removed, up to 12.85x.
+- The centring ring fell from a **134 g median slug (1.74 kg at worst) to 1.53 g**, and is bored on
+  100% of designs where it was solid on 27 of 35.
+- `swapOptions` now offers a 76 mm design **9 motors instead of 2**, because the catalogue's 75 and
+  76 mm entries are one physical class.
+- `DESIGN.md` §9 counts unmoved throughout: rounded-lg 0, card treatments 3, off-scale spacing 0,
+  off-scale type 0, inverted files 0, adoption 17/27.
+
+**What is NOT better, stated rather than left implied.** R8 is not done — the coupler and the centring
+ring can be authored but not yet PICKED from the catalogue, which is the milestone's last clause and
+now increment 8. The fin set and the mass object still have no 44 px diagram target. One Sev-1 remains
+open (the validation CSVs' units), plus nine smaller cold-walk findings. And **none of this is on
+`main`**, so a flyer can do none of it yet.
+
 ## The one lesson this run would send back
 
 **The pre-push agent review found nineteen real defects in code that had already passed the whole
