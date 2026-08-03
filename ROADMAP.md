@@ -2935,7 +2935,80 @@ layout at a narrow width — capability first, hit targets are the finish rather
 
 ## P5 — Ready for the public
 
-**Status:** NOT STARTED
+**Status: IN PROGRESS** — decomposed 2026-08-03 with every clause measured first, so no increment is
+spent discovering that its work was already done.
+
+**Where each *done when* clause stands, measured 2026-08-03 rather than assumed:**
+
+| clause | today | what it needs |
+|---|---|---|
+| README shows the tool with images | **NOT** — two `shields.io` badges, zero screenshots, no image asset anywhere in the repo | increment 4 |
+| landing states the three differentiators | **PARTLY** — `components/ImportPanel.tsx` says the formats and "never uploaded"; never free / no-install / offline, never the multi-answer cross-check | increment 2 |
+| a visible changelog and a versioned release the flyer can see | **NOT, on all three counts** — no `CHANGELOG.md`, `git tag` is empty, version is `0.1.0` and no component renders it | increments 1 and 3 |
+| a limitations page a sceptic can read | **DONE** — `app/docs/limitations/page.tsx`, dated, linked from four places | nothing |
+| a way to report a bug or request a format from inside the app | **PARTLY** — `components/Footer.tsx` links the repo ROOT on every route; issue links exist only on docs pages | increment 5 |
+| *pinned by* link-checking and a build-time assertion that the shown version matches the release | **does not exist** — `scripts/check-routes.mjs` asserts routes, sitemap and noindex, nothing about links or versions | increments 1 and 6 |
+
+**The decomposition, and the ordering rule behind it.** The version work comes first because it is the
+half of the milestone's own pinning check that everything else is then measured against, and because
+a changelog is the one artifact that gets harder to write the longer the history gets. The reachability
+work (2, 5) comes before the presentation work (4), because a screenshot of a landing surface that
+still does not say what the tool is would have to be retaken.
+
+1. **A version a flyer can see, and a changelog that is one source.** `CHANGELOG.md` as the only
+   place a release is described; a prebuild generator turning it into the module the UI reads, which
+   FAILS THE BUILD when it disagrees with `package.json`; the version in the footer on every route.
+2. **The landing surface says the three things.** `COMPETITION.md`'s standing conclusion, in the
+   flyer's words, where a stranger sees it first.
+3. **The changelog as a route** — `/docs/changelog`, rendered from the same generated module, so the
+   file and the page cannot drift.
+4. **The README shows the tool.** Screenshots taken from the built export by a committed script, so
+   they can be regenerated rather than going stale by hand.
+5. **Report a bug or request a format from inside the app**, from every route rather than from the
+   docs only.
+6. **Link-checking as a build-time gate**, which is the other half of the *done when*'s pinning.
+
+**A decision taken without the owner: "the release" means `CHANGELOG.md`'s newest released version,
+not a git tag.** `git tag` is empty and cutting the project's first tag is a publishing act that is
+the owner's to make, not a side effect of a maintenance run. A static export cannot ask GitHub what
+the latest release is at request time either, so the assertion a build can actually make is that the
+version the UI renders, the version `package.json` declares, and the newest entry in `CHANGELOG.md`
+are the same string. That is the check that ships. If the owner starts tagging, the same script gains
+one more comparison and nothing else changes.
+
+*Increment 1 — SHIPPED. One version string, three files that must agree, and a build that fails when
+they do not.*
+
+`CHANGELOG.md` is the single source. `scripts/gen-version.mjs` parses its newest released heading,
+refuses to emit anything when that disagrees with `package.json`, and writes `lib/version.ts` — the
+one module the UI imports. It runs in `prebuild`, so the failure is a red build with a sentence
+naming both numbers rather than a version string nobody backs. The footer renders `v0.9.0` on every
+route, linking to the changelog, with the release date on the accessible name.
+
+**The version moved 0.1.0 → 0.9.0, and that is a claim rather than a formality.** `0.1.0` was the
+`create-next-app` default and had never been touched across eight R milestones and four P ones. Loft
+is pre-1.0 because the editor is younger than OpenRocket's and the physics is not 6-DOF; it is not at
+0.1, because a flyer can import five formats, build and edit a staged rocket from scratch, pick real
+commercial parts from a 2,990-part catalogue, sweep, run a Monte-Carlo and cross-check against two
+other solvers. The changelog's first entry describes what the tool DOES rather than reconstructing
+every step that got here — the per-change record starts from it.
+
+**The date rides on the accessible name rather than beside the number**, because the phone chrome
+ratchet has 49 px of headroom and this renders on all six routes at once. It is asserted there, so it
+is not lost.
+
+Pinned by `lib/version.test.ts` (four cases: the three files agree; the committed module is byte for
+byte what the generator produces, so a hand-edit reds `npm test` rather than shipping; every release
+is semantic, dated, non-empty and newest-first; and the disagreement path is driven rather than
+assumed) and by `e2e/docs.spec.ts`'s *the version a flyer is running is on every route*, which walks
+all six and reads the text, the accessible name and the destination. The unit case was proved able to
+fail by editing `lib/version.ts` alone: `lib/version.ts disagrees with CHANGELOG.md: expected '0.8.0'
+to be '0.9.0'`.
+
+**Why both a test and a build step, when the build already checks.** The gate runs `npm test` before
+`npm run build`, and a stale committed `lib/version.ts` is a real state — edit the changelog, do not
+rebuild, push. The test fails in seconds where the build fails in three minutes, for the same reason
+and with the same message.
 
 **Outcome.** Someone can find Loft, understand it, use it, trust it, and tell someone else about it.
 

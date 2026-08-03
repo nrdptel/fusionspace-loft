@@ -68,4 +68,32 @@ test.describe("Docs", () => {
 
     await context.setOffline(false);
   });
+
+  test("the version a flyer is running is on every route, and it is the released one", async ({ page }) => {
+    // **P5: a versioned release the flyer can see in the UI.** A tool that shows no version cannot be
+    // told apart from a stale cached copy of itself, and this one is installable and served by a
+    // service worker, so "which build am I looking at" is a question a flyer can genuinely have.
+    //
+    // The version is read from `lib/version.ts`, which `scripts/gen-version.mjs` derives from
+    // `CHANGELOG.md` and refuses to emit when `package.json` disagrees — so this test asserts
+    // REACHABILITY, and `lib/version.test.ts` asserts AGREEMENT. Neither claim covers the other: a
+    // version can be correct in three files and rendered nowhere, which is exactly the state before
+    // this shipped.
+    const { VERSION, RELEASED } = await import("../lib/version");
+    // Every workspace route plus the docs, because the footer renders on all of them and a version
+    // that appears on the landing surface only is a version most sessions never see.
+    for (const path of ["/", "/design", "/flight", "/sweep", "/validate", "/docs"]) {
+      await page.goto(path);
+      const link = page.getByRole("link", { name: new RegExp(`^Version ${VERSION.replace(/\./g, "\\.")}`) });
+      await expect(link, `no version on ${path}`).toBeVisible();
+      await expect(link).toHaveText(`v${VERSION}`);
+      // The release DATE rides on the accessible name rather than as a second visible token — the
+      // phone chrome ratchet has 49 px of headroom and this renders on six routes at once — so it
+      // has to be asserted there or it is asserted nowhere.
+      await expect(link).toHaveAttribute("aria-label", new RegExp(`released ${RELEASED}`));
+      // And it goes somewhere: a version string with no way to find out what is in it is a number
+      // for its own sake.
+      await expect(link).toHaveAttribute("href", /CHANGELOG\.md$/);
+    }
+  });
 });

@@ -4,6 +4,12 @@
 export const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://loft.fusionspace.co";
 export const HUB_URL = "https://fusionspace.co";
 export const REPO_URL = "https://github.com/nrdptel/fusionspace-loft";
+
+/** What changed, release by release. The repository's own `CHANGELOG.md` rather than a Releases
+ *  page: `git tag` is empty and the changelog is the single source the app's version string is
+ *  generated and checked against (`scripts/gen-version.mjs`), so this is the artifact that is
+ *  guaranteed to describe the version the footer is showing. */
+export const CHANGELOG_URL = `${REPO_URL}/blob/main/CHANGELOG.md`;
 export const KOFI_URL = "https://ko-fi.com/nrdptel";
 
 // Sibling Fusion Space tools, linked inline in the footer the way the live siblings do.

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { TOUCH_TARGET } from "@/lib/ui-tokens";
-import { REPO_URL, SIBLING_TOOLS, THRUSTCURVE_URL, OPENROCKET_URL } from "@/lib/links";
+import { REPO_URL, SIBLING_TOOLS, THRUSTCURVE_URL, OPENROCKET_URL, CHANGELOG_URL } from "@/lib/links";
+import { VERSION, RELEASED } from "@/lib/version";
 import { observancesForDate } from "@/lib/observances";
 
 function Dot() {
@@ -50,6 +51,27 @@ export default function Footer() {
           <Link href="/docs" className={`inline-flex items-center hover:text-zinc-800 dark:hover:text-zinc-200 ${TOUCH_TARGET}`}>
             Docs
           </Link>
+          <Dot />
+          {/* **The version a flyer is actually running, on every route.** P5's *done when* asks for a
+              versioned release they can see, and a tool that shows no version cannot be told apart
+              from a stale cached copy of itself — which matters more here than in most apps, because
+              this one is installable and serves from a service worker. It sits in the nav row rather
+              than in the disclaimer paragraph because it is a control: it goes to the changelog.
+
+              `VERSION` is generated from `CHANGELOG.md` and checked against `package.json` at build
+              time (`scripts/gen-version.mjs`), so this string cannot disagree with the release that
+              describes it. The date is the accessible name rather than more visible text — the
+              chrome height ratchet is 49 px from its cap and a second visible token here spends it
+              on all six routes at once. */}
+          <a
+            href={CHANGELOG_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={`Version ${VERSION}, released ${RELEASED} — see what changed (opens in a new tab)`}
+            className={`inline-flex items-center font-medium tabular-nums hover:text-zinc-800 dark:hover:text-zinc-200 ${TOUCH_TARGET}`}
+          >
+            v{VERSION}
+          </a>
           {SIBLING_TOOLS.map((t) => (
             <span key={t.href} className="inline-flex items-center gap-4">
               <Dot />

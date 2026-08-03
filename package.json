@@ -1,10 +1,10 @@
 {
   "name": "fusionspace-loft",
-  "version": "0.1.0",
+  "version": "0.9.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "prebuild": "node scripts/gen-og.mjs && node scripts/pyodide/vendor.mjs",
+    "prebuild": "node scripts/gen-version.mjs && node scripts/gen-og.mjs && node scripts/pyodide/vendor.mjs",
     "build": "next build",
     "postbuild": "node scripts/gen-sw-precache.mjs && node scripts/check-text-gaps.mjs && node scripts/check-routes.mjs",
     "start": "next start",
