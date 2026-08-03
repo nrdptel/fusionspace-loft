@@ -556,15 +556,14 @@ function parseComponent(node: XmlNode, ctx: WalkContext): RocketComponent | null
       // `auto` means "use OpenRocket's own default", so the fallback is a value the file
       // delegated rather than one Loft chose — see `ORK_PARACHUTE_CD` for the provenance and for
       // how often it is actually reached (17 of the corpus's 24 .ork canopies).
-      const cd =
-        cdText === "auto" || cdText === undefined
-          ? ORK_PARACHUTE_CD.cd
-          : parseNum(cdText, ORK_PARACHUTE_CD.cd);
+      const stated = cdText !== "auto" && cdText !== undefined && Number.isFinite(parseNum(cdText, NaN));
+      const cd = stated ? parseNum(cdText, ORK_PARACHUTE_CD.cd) : ORK_PARACHUTE_CD.cd;
       const mass = parachuteMass(node, diameter);
       return {
         ...b,
         kind: "parachute",
         cd,
+        cdFrom: stated ? ("file" as const) : ("default" as const),
         diameter,
         mass,
         deployEvent: mapDeployEvent(childText(node, "deployevent")),
@@ -581,6 +580,7 @@ function parseComponent(node: XmlNode, ctx: WalkContext): RocketComponent | null
         ...b,
         kind: "streamer",
         cd: parseNum(childText(node, "cd"), ORK_STREAMER_CD.cd),
+        cdFrom: Number.isFinite(parseNum(childText(node, "cd"), NaN)) ? ("file" as const) : ("default" as const),
         stripLength: childNum(node, "striplength", 0),
         stripWidth: childNum(node, "stripwidth", 0),
         mass: streamerMass(node),

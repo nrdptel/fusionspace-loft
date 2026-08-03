@@ -586,6 +586,13 @@ describe("exportOrk — real-design features round-trip (regression)", () => {
         // it restates the mass rather than changing it.
         if (f === "overrideMass" && x === undefined && rounded(cc.mass, y)) continue;
         if (f === "mass" && rounded(x, y)) continue;
+        // **`cdFrom` legitimately changes on a round trip, and that is the field being accurate
+        // rather than drifting.** It records whether the drag coefficient is the FILE's figure or a
+        // fallback Loft supplied. A design authored in Loft has no file, so it is `undefined`;
+        // exporting writes `<cd>` explicitly, so the re-imported design's coefficient really is
+        // stated by a file — and anyone opening that `.ork` in OpenRocket sees it stated too.
+        // Allowed only in that direction: a `"file"` coefficient must never come back as a default.
+        if (f === "cdFrom" && x === undefined && y === "file") continue;
         // Six-decimal rounding again, one level down: a placement is a method plus an offset.
         if (
           f === "placement" &&

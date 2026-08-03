@@ -105,6 +105,14 @@ npm run build       # also type-checks (CI gate; tsconfig has noUnusedLocals/Par
 npm run test:e2e    # Playwright (incl. an axe accessibility audit) — run after a build
 ```
 
+**Never pipe a gate step into `tail`, `head` or `grep` — the pipeline's exit code is the pipe's, not
+the command's.** `npm run build | tail -3` reports success whatever the build did, so a `&&` chain
+built that way runs the e2e suite on a build that failed and the gate reads green. It happened on
+2026-08-03: `scripts/check-text-gaps.mjs` found two lost spaces in a docs page, `postbuild` exited 1,
+and the chain carried on to a full green e2e run — the failure only surfaced in CI, where nothing
+swallows it. If you want a short transcript, redirect each step to a file and read its `$?`, or set
+`set -o pipefail` first.
+
 **Kill any `serve` you started by hand before running the gate, and it will not look like a server
 problem when you do not.** `playwright.config.ts` sets `reuseExistingServer` outside CI, so a
 `serve` left over from `npm run screenshots` — or from a previous interrupted run — is silently

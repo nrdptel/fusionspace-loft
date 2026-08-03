@@ -467,6 +467,7 @@ function parseComponent(
         // missing one TO — see `RKT_PARACHUTE_CD`, which says so and records that it is reached by
         // 0 of the corpus's RockSim designs.
         cd: n(node, "DragCoefficient", RKT_PARACHUTE_CD.cd) || RKT_PARACHUTE_CD.cd,
+        cdFrom: n(node, "DragCoefficient", 0) > 0 ? ("file" as const) : ("default" as const),
         diameter: n(node, "Dia", 0) * MM,
         mass: fileMassKg(node, useKnownMass) ?? 0,
         // The design tree doesn't pin a deploy event/altitude (that lives in the sim setup), but a
@@ -488,6 +489,7 @@ function parseComponent(
         ...b,
         kind: "streamer",
         cd: n(node, "DragCoefficient", RKT_STREAMER_CD.cd) || RKT_STREAMER_CD.cd,
+        cdFrom: n(node, "DragCoefficient", 0) > 0 ? ("file" as const) : ("default" as const),
         stripLength: n(node, "Len", 0) * MM,
         stripWidth: n(node, "Width", 0) * MM,
         mass: fileMassKg(node, useKnownMass) ?? 0,

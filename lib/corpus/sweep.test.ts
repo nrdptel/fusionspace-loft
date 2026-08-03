@@ -1449,6 +1449,111 @@ suite("real-design corpus", () => {
     }
     expect(stale, "the Validation page's accuracy census no longer holds — remeasure and update it").toEqual([]);
   }, 900_000);
+
+  /** **R9 increment 3: attribute the ground-hit-velocity error before moving any coefficient.**
+   *
+   *  `groundHitVelocity` is the metric Loft agrees with the corpus least on — 8.3% median against
+   *  apogee's 3.1% — and the obvious lever is the parachute drag coefficient. This test exists to
+   *  establish whether that is actually where the error lives, because the alternative is a session
+   *  tuning a number until the census improves, which is fitting rather than fixing.
+   *
+   *  **The discriminating split is where the coefficient CAME FROM.** A design whose file states a
+   *  Cd is flown on the designer's own figure; one that states none is flown on a Loft fallback. If
+   *  the fallback group is markedly worse, the coefficient is the lever. If the two groups agree,
+   *  the error is somewhere else entirely — the descent model, the wind, or the stored figures — and
+   *  R9's later increments have to be re-aimed rather than spent.
+   *
+   *  It PRINTS the attribution and asserts only that the measurement was actually taken, because the
+   *  finding is the output. A threshold here would be inventing a target for a number nobody has
+   *  explained yet. */
+  it("says where the ground-hit-velocity error actually lives, split by where the coefficient came from", async () => {
+    const rows: { file: string; tool: string; from: string; pct: number }[] = [];
+    for (const f of files) {
+      let doc;
+      try {
+        doc = await importDesign(new Uint8Array(readFileSync(f.path)));
+      } catch {
+        continue;
+      }
+      // Every recovery device this design carries, and whether ANY of them took a Loft fallback.
+      const chutes = flattenRocket(doc.rocket)
+        .map((p) => p.component)
+        .filter((c) => c.kind === "parachute" || c.kind === "streamer") as { cdFrom?: string }[];
+      if (!chutes.length) continue;
+      const from = chutes.every((c) => c.cdFrom === "file")
+        ? "file"
+        : chutes.every((c) => c.cdFrom === "default")
+          ? "default"
+          : "mixed";
+      for (const sim of doc.simulations) {
+        let run;
+        try {
+          run = runFromDocument(doc, {
+            configId: sim.conditions.configId,
+            validateAgainst: doc.flownAsReduced ? undefined : sim,
+            overrides: overridesFromStored(sim),
+          });
+        } catch {
+          continue;
+        }
+        if (!run.hasPropulsion || !run.validation) continue;
+        const c = run.validation.comparisons.find((x) => x.key === "groundHitVelocity");
+        if (!c || !Number.isFinite(c.pctError)) continue;
+        // The writing tool, from the extension rather than from a field the corpus record does not
+        // carry — the first version read `f.tool`, which is `undefined`, so all three per-tool rows
+        // printed `n=0` and looked exactly like "no design of that kind disagrees".
+        const tool = /\.ork(\.gz)?$/i.test(f.name) ? "openrocket" : /\.rkt$/i.test(f.name) ? "rocksim" : "rasaero";
+        rows.push({ file: f.name, tool, from, pct: c.pctError });
+      }
+    }
+
+    const median = (xs: number[]) => {
+      if (!xs.length) return NaN;
+      const a = [...xs].sort((p, q) => p - q);
+      const m = a.length >> 1;
+      return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2;
+    };
+    const group = (name: string, sel: (r: (typeof rows)[number]) => boolean) => {
+      const g = rows.filter(sel);
+      const abs = g.map((r) => Math.abs(r.pct));
+      // The SIGNED median matters as much as the absolute one: a coefficient that is wrong in one
+      // direction shows as a one-sided error, while a scattered one points at the model instead.
+      const signed = g.map((r) => r.pct);
+      const low = g.filter((r) => r.pct < 0).length;
+      return `${name.padEnd(22)} n=${String(g.length).padStart(3)}  |Δ| ${median(abs).toFixed(1).padStart(5)}%  signed ${median(signed).toFixed(1).padStart(6)}%  ${low}/${g.length} descend SLOWER than stored`;
+    };
+
+    console.log(
+      "ground-hit velocity, attributed (R9 increment 3):\n" +
+        [
+          group("all", () => true),
+          group("Cd from the file", (r) => r.from === "file"),
+          group("Cd from a fallback", (r) => r.from === "default"),
+          group("mixed", (r) => r.from === "mixed"),
+          group("openrocket", (r) => r.tool === "openrocket"),
+          group("rocksim", (r) => r.tool === "rocksim"),
+          group("rasaero", (r) => r.tool === "rasaero"),
+        ].join("\n") +
+        "\n  worst 5: " +
+        [...rows]
+          .sort((a, b) => Math.abs(b.pct) - Math.abs(a.pct))
+          .slice(0, 5)
+          .map((r) => `${r.file} ${r.pct.toFixed(1)}% (${r.from})`)
+          .join(", "),
+    );
+
+    // The measurement has to have HAPPENED — a split that examined nothing prints three tidy `n=0`
+    // lines and reads exactly like a result.
+    expect(rows.length, "no ground-hit comparisons were measured at all").toBeGreaterThan(50);
+    expect(
+      rows.filter((r) => r.from === "file").length,
+      "no design flew a file-stated coefficient, so the split cannot discriminate",
+    ).toBeGreaterThan(10);
+    expect(
+      rows.filter((r) => r.from !== "file").length,
+      "no design flew a fallback coefficient, so the split cannot discriminate",
+    ).toBeGreaterThan(5);
+  }, 900_000);
   /** Every design whose airframe steps says so, and no design that fairs does.
    *
    *  The drag build-up charges a transition by its own joint angle and has no term at all for a

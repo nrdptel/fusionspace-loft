@@ -24,6 +24,24 @@ review.** One of its findings — a picked coupler silently cut down when its ho
 vendor's own part number — was a Sev-1 that the same run's own increment made reachable, and it was
 fixed in that increment rather than filed. The rest are below.
 
+- **RockSim designs disagree with Loft on ground-hit velocity 3.3x worse than OpenRocket ones, and
+  one design is most of it. Measured 2026-08-03 by R9 increment 3.** Across the corpus's stored
+  simulations: `.rkt` files median **25.7%** absolute against `.ork` files' **7.8%**, and the five
+  worst cases in the whole corpus are all `.rkt` — four of them
+  `rocksim__rocketryforum-rocket1student-usli-fullscale__FullScaleModelTH.rkt` at ~65%. This is the
+  real lever on the census's worst metric, and it is an ADAPTER or a definitional question rather
+  than a physics one: the parachute-coefficient split that R9 was scoped around does not discriminate
+  at all (8.3% whether the file states a Cd or Loft supplies one). Start by reading what that one
+  design stores for ground-hit velocity and what Loft flies for it. Queued as R9's increment 6, so
+  this entry is a pointer rather than unqueued work.
+
+- **86 of 92 corpus flights descend SLOWER than the file's own stored figure — 40 of 40 among those
+  flown on a Loft fallback coefficient.** Measured 2026-08-03. A one-directional bias of that size is
+  not a wrong coefficient (which would scatter); it points at the descent model or at a definitional
+  difference in what each tool means by "ground-hit velocity". Recorded here because it outlives R9:
+  whatever that milestone concludes, the sign of this error is a fact about the engine that a future
+  session should not have to rediscover.
+
 - **Nothing bounds a picked coupler's or ring's DIAMETER against the tube it goes inside. Measured
   2026-08-03, and it is the sibling of a rule that ships today for LENGTH.** A part longer than its
   host is refused at three layers and explained on the panel; a part WIDER than the host's bore is

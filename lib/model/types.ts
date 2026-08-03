@@ -256,10 +256,25 @@ export interface DeploySetting {
   delay: number;
 }
 
+/** Where a recovery device's drag coefficient came from — the file that was imported, or a fallback
+ *  because the file stated none.
+ *
+ *  **It is on the model rather than derived later, because it cannot be derived later.** A canopy
+ *  imported at 0.8 and one that fell back to 0.8 are indistinguishable by value, and they are not the
+ *  same claim: the first is the designer's figure and the second is Loft's. Ground-hit velocity is
+ *  the metric Loft agrees with the corpus least on (8.3% median over 94 stored simulations, against
+ *  apogee's 3.1%), so telling the two apart is what makes the error attributable at all — and
+ *  `DESIGN.md` §6 requires a reference value to name its source, which a surface cannot do from the
+ *  number alone. `lib/sim/recovery-defaults.ts` holds each fallback and what backs it. */
+export type CdProvenance = "file" | "default";
+
 export interface Parachute extends ComponentBase {
   kind: "parachute";
   /** Drag coefficient of the canopy. */
   cd: number;
+  /** Whether `cd` is the file's own figure or a fallback Loft supplied. Absent on a design authored
+   *  in Loft, which has no file to have stated one. */
+  cdFrom?: CdProvenance;
   /** Canopy diameter (m). Area is derived as a flat circle unless `area` is given. */
   diameter: number;
   /** Explicit reference area (m²), if the format supplied it instead of a diameter. */
@@ -280,6 +295,8 @@ export interface Parachute extends ComponentBase {
 export interface Streamer extends ComponentBase {
   kind: "streamer";
   cd: number;
+  /** As on `Parachute`. */
+  cdFrom?: CdProvenance;
   stripLength: number;
   stripWidth: number;
   mass: number;

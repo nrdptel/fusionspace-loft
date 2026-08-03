@@ -1946,7 +1946,9 @@ same internal Rocket model an imported one does, or the solver ends up with two 
 
 ## R9 — The descent Loft cannot defend, and the flyer cannot reach
 
-**Status: IN PROGRESS** — increments 1 and 2 shipped 2026-08-03, along with the decomposition.
+**Status: IN PROGRESS** — increments 1, 2 and 3 shipped 2026-08-03, along with the decomposition.
+**Increment 3 disproved the milestone's own premise and the remaining increments are re-aimed** —
+read its entry before building 4 onward, and note the *done when* is amended there.
 
 *Increments 1 and 2 — SHIPPED. Six figures the descent is computed from, in one place each, saying
 what backs them. No flown number moved, and that was the contract.*
@@ -1994,9 +1996,62 @@ source or says "no published basis" in words; no adapter types a recovery Cd by 
 fallback carries its corpus hit count, with the RASAero discrepancy asserted to still be written
 down). Published on `/docs/limitations`.
 
-**Where increment 3 starts:** attribute the 8.3%. Print stored versus Loft descent rate for all 94,
-split by stated-Cd against auto-Cd designs and by wind above and below 4 m/s. **Do not move a number
-before that.**
+*Increment 3 — SHIPPED, and it does NOT support this milestone's own premise. Read this before
+building increments 4–6 as written.*
+
+The milestone was scoped on the hypothesis that the parachute drag coefficient is the lever on the
+8.3%. **The measurement says it is not.** Every recovery device now records whether its coefficient
+came from the file or from a Loft fallback (`Parachute.cdFrom`), which is what makes the split
+possible at all — a canopy imported at 0.8 and one that fell back to 0.8 are indistinguishable by
+value:
+
+```
+ground-hit velocity, attributed (R9 increment 3):
+all                    n= 92  |Δ|   8.3%  signed   -8.2%  86/92 descend SLOWER than stored
+Cd from the file       n= 52  |Δ|   8.3%  signed   -5.7%  46/52 descend SLOWER than stored
+Cd from a fallback     n= 40  |Δ|   8.3%  signed   -8.3%  40/40 descend SLOWER than stored
+openrocket             n= 76  |Δ|   7.8%  signed   -7.8%  74/76 descend SLOWER than stored
+rocksim                n= 16  |Δ|  25.7%  signed  -14.9%  12/16 descend SLOWER than stored
+```
+
+**Three things fall out of that, and the first two kill the original plan.**
+
+1. **The coefficient's provenance does not discriminate at all.** Designs flown on their own designer's
+   figure and designs flown on a Loft fallback have the *same* median absolute error, to a tenth of a
+   percent. Whatever is wrong is wrong for both, so changing a fallback cannot fix it. Increments 4–6
+   as written — put the Cd on screen, make it editable, re-measure the census — would have shipped a
+   real capability and moved the census by approximately nothing, and the re-measure at the end is
+   where anyone would have found that out.
+2. **The error is one-directional, which a wrong coefficient would not be.** 86 of 92 flights descend
+   SLOWER than the file's stored figure, and **40 of 40** in the fallback group. A coefficient that is
+   merely wrong scatters; a systematic one-sided offset points at the descent MODEL, at a definitional
+   difference in what "ground-hit velocity" means between the tools, or at both.
+3. **The tool discriminates where the coefficient does not.** RockSim files are **3.3x worse** than
+   OpenRocket files — 25.7% against 7.8% — and the five worst cases in the corpus are all `.rkt`, four
+   of them the same design at ~65%. That is the lever, and it is an adapter or a definitional question
+   rather than a physics one.
+
+**So R9's remaining increments are re-aimed, and the *done when* is amended below.** The Cd work is
+still worth shipping — a flyer cannot see or change the one input in the recovery chain, which is a
+real gap and `COMPETITION.md` row 35 — but it is now a **capability and honesty** increment rather
+than an accuracy one, and this file should stop implying it will move the census. What follows it is
+the RockSim split.
+
+**Amended *done when*:** a canopy's Cd is readable and editable on `/design` for imported and authored
+chutes alike, with its origin named (file value · catalogue part · Loft's default) and the default's
+basis cited — **and** the `.rkt` ground-hit disagreement is attributed to a named cause and either
+fixed or written down as a `knownIssue` with the measurement. The census figure is re-measured and
+published whatever it turns out to be, **including if it does not move** — a milestone that improves
+honesty and not accuracy is a real outcome and must not be dressed as the other one.
+
+**Remaining increments, re-ordered:** (4) put the coefficient on screen read-only with its provenance;
+(5) make it editable and let the edit flow through a re-fly and the `.ork` round trip R6 pinned;
+(6) attribute the RockSim 25.7% — one design contributes four of the five worst cases, so start by
+reading what `FullScaleModelTH.rkt` stores and what Loft flies for it; (7) re-measure and publish.
+
+Pinned by the corpus case *says where the ground-hit-velocity error actually lives*, which prints the
+split and asserts the measurement was actually taken — both groups have to be non-trivially populated
+or the split cannot discriminate and the test says so rather than printing three tidy `n=0` lines.
 
 **Outcome.** The descent half of every flight becomes a number Loft can stand behind and a flyer can
 steer. The parachute drag coefficient becomes visible, sourced and editable wherever it is flown; the
