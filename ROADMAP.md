@@ -1271,6 +1271,9 @@ instead of an inferred edge class.
 ## R8 — Component and material catalogues
 
 **Status: IN PROGRESS** — increments 1–7 of 8 shipped 2026-08-02/03, along with the decomposition.
+**Increment 8 is PART-WAY**: its model layer and the picker's own half are gated and tested on the
+working branch, and nothing renders them, so no flyer can reach it. See the increment-8 entry for
+exactly which two props remain to be threaded.
 The licence question the after-list named as possibly the whole first increment is **answered up
 front** so it is not re-litigated. **Three of the five kinds the *done when* names are pickable** —
 body tube, nose cone and parachute. The coupler and the centring ring can now be **authored** as of
@@ -1800,6 +1803,59 @@ the built part uses the resolved bore rather than only the helper reporting it, 
 rather than a slug's, a short host clamps at birth, a shrinking host clamps after, and a non-tube is
 refused — by a corpus sweep authoring both kinds on all 35 designs, and by an e2e that drives both
 buttons and reads the stations back.
+
+*Increment 8 — PART-WAY, and what is left is UI wiring only.* The model layer and the picker's own
+half are on the branch, gated and tested; nothing renders them yet, so **no flyer can reach this and
+it is not shipped**.
+
+**The structural difference from the three pickers that already exist, which is why this took a new
+shape rather than a fourth copy.** A body tube, a nose cone and a parachute all exist on the design
+before the flyer picks one, so each pick is an EDIT to a part an aim slot can name, keyed on
+`GeometryEdits`. A coupler and a centring ring do not exist until they are authored — there is
+nothing to aim at. So the pick rides on the `AddedPart` entry that creates the part
+(`AddedPart.pick`), which says the same thing with no new addressing and inherits everything the
+entry already has: one undo step takes the part and its pick together, removing the part cannot leave
+the pick behind, and **none of `hasGeometryEdits`, `INERT_EDIT_FIELDS`, `isEditedValue` or
+`AIM_SLOTS` needs a new case** — four hand-maintained enumerations avoided.
+
+**What the catalogue states, measured over all 733 rather than assumed.** Every coupler and every
+ring states an outer diameter, an inner diameter, a length and a material — 236 of 236 and 497 of
+497 — and **none of either states a mass or a thickness**. So unlike the nose cone and the parachute
+there is no published-versus-derived mass question here at all: the weight is computed from the
+geometry and the stock in every case, through the same `lib/sim/mass.ts` path a hand-typed ring uses.
+The one discriminating term is the stock's DENSITY, and it disables 14 of the 497 rings and 0 of the
+236 couplers. 7 couplers state a bore of exactly 0 — solid balsa plugs, a real product the mass model
+already flies as a solid cylinder, so `buildable` admits them deliberately.
+
+**A picked part too long for its host is REFUSED, not clamped**, and that is the opposite of what the
+derived path does. The derived length is Loft's own number and cutting it down is honest; a picked one
+carries a vendor's part number on the parts row, and silently flying a shortened version of a named
+product is a wrong number under a label naming a real part. Reachable rather than theoretical:
+catalogued couplers run to 1.2192 m.
+
+**Both recorded gotchas reproduce, and one is sharper than recorded.** The five `rowKey` collisions
+are all SEMROC rings — but only THREE are different products at identical dimensions, separated by
+their description alone (`CR-7-18` with and without an engine-hook slot, `CR-9-175P` with and without
+four fin locks). The other two are byte-identical rows listed twice upstream, which no field can
+separate. The key carries the description and, in the last resort, the index `DataTable` already
+passes for exactly this. Couplers collide 0 times.
+
+**And a placeholder trap the parachute increment had already been caught by, caught again.** The first
+draft's search examples were `38 mm` for couplers and `29 mm` for rings; both match **0** rows,
+because the filter reads part number and description and no ring or coupler description states a
+millimetre size — they read "Tube coupler, T5, 2 in. length, PN C5-2". Every term is counted now:
+`JT-` 21, `BT-` 45, `phenolic` 31; `CR-` 186, `fiber` 242, `plywood` 125.
+
+Pinned by four cases in `lib/model/edit.test.ts` — a pick replaces all four properties and is
+provably a different part from the derived one, a too-long pick is refused while the same pick at a
+fitting length builds, the mass is the pick's and dropping the pick returns the derived part exactly,
+and every way a stored record can fail is refused while a solid plug is admitted.
+
+**What remains, and it is the whole of what a flyer would see.** `GeometryInspector` owns the
+selection and would host the picker, but it receives neither the `added` list nor `imperial`, so two
+props have to be threaded from `LoftApp` before a `PartPicker` can render against the selected
+authored part. That is the increment's last slice and it is where the next run should start; the
+model beneath it is done and green.
 
 **Size.** 3–5 increments; 4–6 was the last estimate and **8 is now honest** — the catalogue pickers
 for these two kinds are still owed.

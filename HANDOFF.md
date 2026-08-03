@@ -24,7 +24,7 @@ at the peak). Both passed on a clean re-run. Clear strays with `fuser -k <port>/
 the repo unless told not to, which makes `npm test`'s file count wander mid-run; this run's fan-out
 prompt forbids writing inside the checkout and that held.
 
-## This run so far — three increments on the branch
+## This run — four merged to `main`, one part-way on the branch
 
 | # | SHA | what | verified by |
 |---|---|---|---|
@@ -32,6 +32,24 @@ prompt forbids writing inside the checkout and that held.
 | 2 | `999fbda` | P4 inc 6 — fin sets and mass objects get a 44 px tap column, and the columns stay a fallback | e2e pinning paint ORDER in the DOM and whole-diagram area per part, both with negative controls |
 | 3 | `1a336f8` | P4 inc 7 — the touch scan's two blind spots closed, and the three controls behind them fixed | each fix reverted alone; the scan names `label"Overlay a flight log" 148x30`, `select"Sweep variable" 137x34`, `select"Sweep metric" 152x34` |
 | 4 | `d4562bd` | **Sev-1** — a withheld stored-results comparison no longer returns through Loft's own export with a fabricated figure | corpus test over the 3 reduced designs, asking for results explicitly; negative control names all three |
+| — | `bc3b78a` | R8 inc 8 **part-way**: the model layer and the picker's half, gated and tested. **Nothing renders it, so no flyer can reach it and it is NOT shipped** | 4 cases in `edit.test.ts`; catalogue measured over all 733 rows |
+
+**Both merges reached production.** #120 merged as `4bb2e22` and #121 as `1eb6dd6`; the Cloudflare
+deploy workflow reports success for each of those exact SHAs. `loft.fusionspace.co` answers 200.
+
+**Where to start next run: thread two props and R8 is done.** `GeometryInspector` owns the part
+selection and would host the ring picker, but it receives neither the `added` list nor `imperial`.
+Thread those from `LoftApp`, render a `PartPicker` against the selected authored coupler or ring, and
+write the pick onto that `AddedPart` entry — the applier, the predicate, the `buildable` arm, the
+columns, the row key and the placeholders are all done and green. That closes R8's last *done when*
+clause.
+
+**Then the P-track's next milestone writes itself, and the fan-out's design-system audit is the
+brief.** Six primitives `DESIGN.md` §5 declares do not exist (`Panel`, `Readout`, `Figure`,
+`EmptyState`, `ErrorState`); three that do exist have ZERO call sites (`Section`, `Chip`, `Tabs`);
+`Readout` is hand-rolled six ways that disagree with each other; and 14 `<select>` elements hand-roll
+five distinct class strings with no `Select` primitive at all. P5 is the next unstarted P milestone as
+written, but this is the better one — decompose it into `ROADMAP.md` first.
 
 **The Sev-1 in 4 was opened by the previous run's own export fix**, which is worth reading as a pair:
 writing the `<simulations>` block closed a real Sev-1 and made a second one reachable, because

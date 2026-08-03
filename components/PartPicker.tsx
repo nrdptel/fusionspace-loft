@@ -63,7 +63,7 @@ function materialLabel(part: CatalogPart): string {
  *  the provenance line and the table are the same surface for every kind, and the repo has spent
  *  three milestones collapsing five partial implementations of a table into one. What differs is
  *  four strings and which columns a kind actually states — which is what `KIND` below holds. */
-export type PickerKind = "bodytube" | "nosecone" | "parachute";
+export type PickerKind = "bodytube" | "nosecone" | "parachute" | "tubecoupler" | "centeringring";
 
 /** Everything about a kind that is not shared, in one table, so adding the next kind is an entry
  *  rather than an edit spread through the body. */
@@ -113,6 +113,33 @@ const KIND: Record<
     // 151, because every description begins "Parachute".)
     placeholder: "18 in, nylon, PAR-…",
   },
+  // The two INTERNAL kinds, and the first whose part does not exist on the design until the flyer
+  // authors it — so `back` is worded as returning to Loft's derived size rather than to "the
+  // design's own", which for these two is nothing at all.
+  tubecoupler: {
+    noun: "coupler",
+    plural: "couplers",
+    open: "Pick a real coupler",
+    back: "Back to the sized-to-fit coupler",
+    fitsNoun: "couplers",
+    // **Every term measured against the shipped catalogue, and the first draft's were wrong.** It
+    // read "JT-60C, 38 mm, phenolic…" — and "38 mm" matches **0 of 236**, because the filter reads
+    // part number and description and no coupler's description states a millimetre size (they read
+    // "Tube coupler, T5, 2 in. length, PN C5-2"). A placeholder is the field TEACHING what the box
+    // accepts, so a term that returns nothing sends the flyer into the empty state one keystroke in.
+    // These three are counted: "JT-" → 21, "BT-" → 45, "phenolic" → 31.
+    placeholder: "JT-60, BT-, phenolic…",
+  },
+  centeringring: {
+    noun: "centering ring",
+    plural: "centering rings",
+    open: "Pick a real centering ring",
+    back: "Back to the sized-to-fit ring",
+    fitsNoun: "rings",
+    // Same rule, same measurement: "29 mm" matches 0 of 497 while a bare "29" matches 32, so the
+    // millimetre form is the trap here too. Counted: "CR-" → 186, "fiber" → 242, "plywood" → 125.
+    placeholder: "CR-7-18, fiber, plywood…",
+  },
 };
 
 /** Whether a catalogue row carries enough for the model to apply it — the picker's half of the same
@@ -152,6 +179,27 @@ function buildable(p: CatalogPart, kind: PickerKind): boolean {
   }
   if (p.outerDiameter === undefined || !(p.outerDiameter > 0)) return false;
   if (p.length === undefined || !(p.length > 0)) return false;
+  if (kind === "tubecoupler" || kind === "centeringring") {
+    // The SAME absolute bands `usableCatalogRing` enforces, mirrored rather than imported for the
+    // reason the header gives. A bore of exactly 0 is legal and deliberate: 7 of the 236 couplers are
+    // solid balsa plugs, a real product `lib/sim/mass.ts` already flies as a solid cylinder.
+    //
+    // **The material's DENSITY is the discriminating term here**, and it is the only one that
+    // disables any shipped row. Neither kind states a mass anywhere in the catalogue — 0 of 236 and
+    // 0 of 497 — so the weight is computed from the geometry and the stock in every case, and a ring
+    // whose stock has no density is a pick that names a real part and moves the balance by nothing.
+    // Measured: that is 14 of the 497 rings and 0 of the 236 couplers.
+    return (
+      p.outerDiameter < 1 &&
+      p.length < 2 &&
+      p.innerDiameter !== undefined &&
+      p.innerDiameter >= 0 &&
+      p.innerDiameter < p.outerDiameter &&
+      p.material !== undefined &&
+      p.material.density !== null &&
+      p.material.density > 0
+    );
+  }
   if (kind === "bodytube") {
     return p.innerDiameter !== undefined && p.innerDiameter > 0 && p.innerDiameter < p.outerDiameter;
   }
@@ -701,10 +749,20 @@ export default function PartPicker({
                   // 151, so the airframe form of this key would have been unique anyway. An earlier
                   // version justified it by claiming the collapsed form would "re-key every row on a
                   // re-sort", which is not a thing a constant-per-row key can do.
-                  rowKey={(p) =>
+                  // **The ring catalogue contains rows the dimensions cannot tell apart, so the key
+                  //   carries the description and, in the last resort, the index.** Measured over all
+                  //   497: five keys collide under `maker/part/OD/length`, every one of them SEMROC.
+                  //   Three are genuinely different products at identical dimensions and are
+                  //   separated only by their description — `CR-7-18` with and without an engine-hook
+                  //   slot, `CR-9-175P` with and without four fin locks. The other two
+                  //   (`RA-50/52H-101(BT-50)` and the fiber `CR-9-225X2`) are byte-identical rows,
+                  //   listed twice upstream, which no field can separate — hence the index, which is
+                  //   what `DataTable` passes for exactly this. Couplers collide 0 times; the extra
+                  //   terms cost them nothing.
+                  rowKey={(p, i) =>
                     kind === "parachute"
                       ? `${p.manufacturer}/${p.partNumber}/${p.diameter ?? ""}/${p.lineCount ?? ""}`
-                      : `${p.manufacturer}/${p.partNumber}/${p.outerDiameter ?? ""}/${p.length ?? ""}`
+                      : `${p.manufacturer}/${p.partNumber}/${p.outerDiameter ?? ""}/${p.length ?? ""}/${p.innerDiameter ?? ""}/${p.description ?? ""}/${i}`
                   }
                   initialSort={{ key: "od", dir: 1 }}
                   // A nose row states three more figures than a tube row — contour, shoulder and
