@@ -274,6 +274,36 @@ export default function Limitations() {
         the part in front and is deliberately left alone: moving it would un-fair a joint you did not
         touch.
       </p>
+      <h3>The parachute drag coefficient is the least-sourced number in the flight</h3>
+      <p>
+        <strong>
+          Ground-hit velocity is the figure Loft agrees with least, and the single input that drives
+          it is not on any surface.
+        </strong>{" "}
+        Measured across the real-design corpus on 2026-08-03, the median disagreement with each file&apos;s
+        own stored results is <strong>8.3% over 94 simulations</strong> for ground-hit velocity, against
+        3.1% for apogee — nearly three times the error, on the number an RSO and a waiver actually
+        check. A flyer cannot currently see the coefficient, change it, or find out where it came from.
+      </p>
+      <p>
+        Where each figure comes from is now written down rather than implied. When a design file states
+        a coefficient, Loft flies the file&apos;s. When it does not, five fallbacks apply, and only one
+        of them has a defensible source: an OpenRocket <code>auto</code> coefficient means &ldquo;use
+        OpenRocket&apos;s own default&rdquo;, so Loft resolves it to <strong>0.8</strong>, the figure
+        that tool would itself have flown — which is what 17 of the corpus&apos;s 24 OpenRocket canopies
+        do. The other four state plainly that they have <strong>no published basis</strong>: RockSim
+        exposes no parachute coefficient field at all, so there is nothing to resolve a missing one to,
+        and RASAero II documents its own default as <strong>1.33</strong> where Loft falls back to 0.8.
+      </p>
+      <p>
+        That RASAero discrepancy is deliberately <em>not</em> corrected yet, and the reason is a
+        measurement rather than a preference: every RASAero recovery device in the corpus states its
+        own coefficient, so the fallback is reached by <strong>zero</strong> real files and changing it
+        would move no flown number and could be validated against nothing. Attributing the 8.3% comes
+        first. The airframe&apos;s own descent drag — a factor of its frontal area, one to two orders of
+        magnitude smaller than an open canopy&apos;s — has no published source either and now says so
+        in one place instead of being typed into three.
+      </p>
       <p>
         <strong>A flight that never reaches the ground reports no landing figures.</strong> The
         simulation runs to a 1,200&nbsp;s cap, and a canopy large enough to descend slower than that

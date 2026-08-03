@@ -1946,7 +1946,57 @@ same internal Rocket model an imported one does, or the solver ends up with two 
 
 ## R9 — The descent Loft cannot defend, and the flyer cannot reach
 
-**Status:** NOT STARTED
+**Status: IN PROGRESS** — increments 1 and 2 shipped 2026-08-03, along with the decomposition.
+
+*Increments 1 and 2 — SHIPPED. Six figures the descent is computed from, in one place each, saying
+what backs them. No flown number moved, and that was the contract.*
+
+**The airframe's descent drag existed as three numbers, one of which claimed to be the source of the
+other two.** `lib/sim/recovery.ts` exported `DESCENT_BODY_CDA_FACTOR` with a comment saying it
+"matches the descent model in simulate.ts" — and `simulate.ts` typed the bare literal twice, at the
+drag term and at the descent step-size limiter. Nothing enforced the match, so changing the constant
+would have re-sized every canopy while leaving every flown descent alone and no test could have seen
+the disagreement. `simulate.ts` imports it now, and the constant says in a value
+(`DESCENT_BODY_CDA_SOURCE`) as well as in prose that it has no published source.
+
+**Five uncited literals across three adapters are now one documented set.** `lib/sim/recovery-defaults.ts`
+holds each fallback with its provenance, its basis in a sentence, and **how often it actually fires
+across the corpus** — because a default that fires on nothing is not a lever, and knowing which is
+which is what stops the next session "fixing" the wrong one.
+
+| fallback | value | source | corpus hits |
+|---|---|---|---|
+| `.ork` canopy | 0.8 | **OpenRocket's own `auto` default** (`Parachute.java`) | **17** of 24 |
+| `.ork` streamer | 0.75 | none verified | 0 |
+| `.rkt` canopy | 0.8 | none — RockSim exposes no Cd field at all | 0 |
+| `.rkt` streamer | 0.75 | none | 0 |
+| RASAero canopy | 0.8 | none — **their own documented default is 1.33** | 0 |
+
+**Two things this increment refused to do, and both refusals are the point.**
+
+- **It did not move the RASAero default to 1.33**, even though RASAero II documents that figure with a
+  stated basis and Loft falls back to 0.8. Every RASAero recovery device in the corpus states its own
+  `CD`, so the fallback is reached by **zero** real files: the change would move no flown number and
+  could be validated against nothing, which is exactly the speculative fix `MAINTAINING.md` forbids.
+  It is recorded in the constant's own comment so it is not rediscovered and re-shelved every session.
+- **It withdrew a citation it could not back.** The first draft gave the `.ork` streamer default a
+  source of "OpenRocket's own streamer default (`Streamer.java`)" — invented by symmetry with the
+  canopy line above it. The canopy's claim rests on an actual reading recorded in `COMPETITION.md`
+  row 35; nothing in this repository records reading `Streamer.java`. A source string is a claim, and
+  the test now asserts exactly one of the five is sourced.
+
+**Verified to have changed nothing that flies:** the corpus census is identical before and after —
+`groundHitVelocity n=94 8.3%`, `maxAltitude n=97 3.1%`, all ten metrics unmoved.
+
+Pinned by `lib/sim/recovery-defaults.test.ts` (four cases: both descent `cdA` expressions go through
+the constant, asserted on the SHAPE so the literal this forbids cannot come back; every fallback has a
+source or says "no published basis" in words; no adapter types a recovery Cd by hand; and each
+fallback carries its corpus hit count, with the RASAero discrepancy asserted to still be written
+down). Published on `/docs/limitations`.
+
+**Where increment 3 starts:** attribute the 8.3%. Print stored versus Loft descent rate for all 94,
+split by stated-Cd against auto-Cd designs and by wind above and below 4 m/s. **Do not move a number
+before that.**
 
 **Outcome.** The descent half of every flight becomes a number Loft can stand behind and a flyer can
 steer. The parachute drag coefficient becomes visible, sourced and editable wherever it is flown; the

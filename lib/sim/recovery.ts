@@ -16,9 +16,33 @@
 import { G0 } from "../units";
 
 /** The airframe's own drag during descent as a fraction of its reference (frontal) area — the body
- *  hanging beneath the canopy still drags a little. Matches the descent model in simulate.ts
- *  (`cdA = deployedCdA + refArea * 0.5`), so sizing stays consistent with the flown descent. */
+ *  hanging beneath the canopy still drags a little.
+ *
+ *  **This constant is the ONE place the figure lives, and that had to be made true rather than
+ *  stated.** Its previous comment said it "matches the descent model in simulate.ts", naming the
+ *  literal that file typed — twice, at the drag term and at the descent step-size limiter — so one
+ *  physical quantity existed as three numbers, one of which claimed to be the source of the other
+ *  two. Nothing enforced the match; changing this constant would have re-sized every canopy while
+ *  leaving every flown descent alone, and the two would have disagreed silently. `simulate.ts` now
+ *  imports it.
+ *
+ *  **It has NO published source, and saying so is the point.** It is not a measured or cited figure:
+ *  a bluff cylindrical body tumbling under a canopy has no single drag coefficient, and none of the
+ *  hobby simulators publishes one for this term either. 0.5 is a plausible engineering value for a
+ *  body in that regime and it is Loft's own choice. It is deliberately NOT presented as sourced —
+ *  `DESIGN.md` §6 requires a reference value to name its source, and the honest thing where there is
+ *  none is to say there is none, exactly as `lib/sim/flutter.ts` does for the six shear moduli no
+ *  datasheet publishes.
+ *
+ *  It matters less than it looks: it is a fraction of the AIRFRAME's frontal area, which is one to
+ *  two orders of magnitude smaller than an open canopy's — so on a real design it moves the descent
+ *  rate by a fraction of a percent. Attributing the corpus's ground-hit velocity error (R9) means
+ *  measuring rather than assuming this is the term to reach for. */
 export const DESCENT_BODY_CDA_FACTOR = 0.5;
+
+/** Whether `DESCENT_BODY_CDA_FACTOR` carries a published source. It does not, and this is exported so
+ *  a surface or a test can state that rather than each one deciding for itself. */
+export const DESCENT_BODY_CDA_SOURCE: string | null = null;
 
 export interface RecoverySizingInput {
   /** Descent mass (kg): the vehicle under canopy, propellant spent — i.e. the burnout mass. */
