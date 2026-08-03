@@ -3010,6 +3010,35 @@ to be '0.9.0'`.
 rebuild, push. The test fails in seconds where the build fails in three minutes, for the same reason
 and with the same message.
 
+*Increment 2 — SHIPPED. The landing surface makes the case `COMPETITION.md` has been asking it to
+make for four runs.*
+
+`COMPETITION.md`'s standing conclusion says of its own three claims: *"it is what the landing surface
+and the README should say, and right now they do not."* Measured before this: the page stated the
+formats and "never uploaded" — claim 2 and half of claim 1 — and said **nothing at all** about the
+multi-answer cross-check, which is the one no other hobby tool offers at all. A *Why Loft* block now
+carries all three, each with the substance under it rather than the slogan alone.
+
+**Placed after the bundled examples, deliberately, and the e2e asserts the placement.** The primary
+controls and the samples are what a flyer with a file and one without actually came for, and the
+first example already sits 89 px below the fold on a 390x664 phone. A claim strip above them would
+push the one control that needs no reading further out of sight, to make an argument to someone who
+has not yet decided to read one. The scroll now reads: **try it · why it is different · what it can
+do**.
+
+**Free, offline and no-account are ONE claim, not three.** They are one decision — everything runs on
+the flyer's device — and splitting them would have diluted the two that follow into a feature list.
+
+**The format claim names five, where the drop zone names three.** RocketPy and SpaceCAD import too,
+and a stranger comparing tools counts them; the drop zone lists only what its file input accepts. The
+e2e asserts all five are in that claim, so the two cannot drift as adapters are added.
+
+Pinned by `e2e/first-run.spec.ts`'s *says the three things it does that no other tool does* — three
+claims asserted as IDEAS rather than strings, so a rewrite that keeps the meaning passes and a
+deletion fails; the substance behind the two a sceptic would test; the five formats; and the
+placement, measured as a document offset against the examples. Proved able to fail: rewriting the
+third claim's heading alone reds it with `the landing surface never claims: more than one answer`.
+
 **Outcome.** Someone can find Loft, understand it, use it, trust it, and tell someone else about it.
 
 **Done when** the README shows what the tool does with images rather than describing it; the landing

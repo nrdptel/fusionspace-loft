@@ -283,8 +283,82 @@ export default function ImportPanel({
         </div>
       </Card>
 
+      <WhyLoft />
+
       <WhatItDoes />
     </section>
+  );
+}
+
+/** The three things Loft does that no competitor does, on the surface a stranger sees first.
+ *
+ *  **This is `COMPETITION.md`'s standing conclusion, verbatim in substance**, and that file says of
+ *  it: "it is what the landing surface and the README should say, and right now they do not." The
+ *  gap was measured rather than assumed — before this, the landing surface stated the formats and
+ *  "never uploaded", which is claim 2 and half of claim 1, and said nothing at all about the
+ *  multi-answer cross-check, which is the one no other hobby tool offers.
+ *
+ *  **Placed after the examples rather than under the headline, deliberately.** The primary controls
+ *  and the bundled samples are what a flyer with a file or without one actually came for, and the
+ *  first example already sits 89 px below the fold on a 390x664 phone — a claim strip above them
+ *  would push the one control that needs no reading further out of sight to make an argument to
+ *  someone who has not yet decided to read one. It sits immediately before `WhatItDoes`, so the
+ *  scroll reads: try it · why it is different · what it can do.
+ *
+ *  Three items, not a list of everything true about Loft. Free, offline and no-account are ONE claim
+ *  because they are one decision — everything runs on the flyer's device — and splitting them would
+ *  dilute the two that follow. */
+const DIFFERENTIATORS: { title: string; body: React.ReactNode }[] = [
+  {
+    title: "Nothing to install, nothing to pay, nothing to sign up for",
+    body: (
+      <>
+        It runs on your device, in a tab. No account, no upload, no tracking. Install it to your home
+        screen and it keeps working with no signal — at the pad, in a field, on a phone.
+      </>
+    ),
+  },
+  {
+    title: "It reads the file you already have",
+    body: (
+      <>
+        OpenRocket <code className="font-mono">.ork</code>, RockSim{" "}
+        <code className="font-mono">.rkt</code>, RASAero <code className="font-mono">.CDX1</code>,
+        RocketPy and SpaceCAD — each into the same model, so a design you imported and one you built
+        here are edited and flown by exactly the same tools.
+      </>
+    ),
+  },
+  {
+    title: "It shows you more than one answer",
+    body: (
+      <>
+        Loft&apos;s own solver, the numbers the file already stores from the tool that made it, and an
+        independent RocketPy run in your browser — side by side. Where they disagree it says so
+        instead of picking one and looking confident.
+      </>
+    ),
+  },
+];
+
+function WhyLoft() {
+  return (
+    <Card className="mx-auto mt-4 max-w-3xl">
+      <h2 className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+        Why Loft
+      </h2>
+      {/* A definition list, because that is the shape: three terms and what each one means. It also
+          gives the headings a structure a screen reader can move through, which a stack of styled
+          paragraphs does not. */}
+      <dl className="mt-2 grid gap-4 sm:grid-cols-3">
+        {DIFFERENTIATORS.map((d) => (
+          <div key={d.title}>
+            <dt className="text-sm font-medium text-zinc-800 dark:text-zinc-100">{d.title}</dt>
+            <dd className="mt-1 text-sm leading-relaxed text-zinc-500 dark:text-zinc-400">{d.body}</dd>
+          </div>
+        ))}
+      </dl>
+    </Card>
   );
 }
 
