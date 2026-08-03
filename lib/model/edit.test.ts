@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
-import { importOrk } from "../ork/import";
+import { importDesign, importOrk } from "../ork/import";
 import { flattenRocket } from "./geometry";
 import { findParts, materialOf, partsOfKind } from "../components/db";
 import type { CatalogPart } from "../components/db";
@@ -10,6 +10,7 @@ import {
   moveTarget,
   moveSlots,
   isEditedValue,
+  usableCatalogParachute,
   primaryFinSpan,
   primaryFinCount,
   primaryFinStation,
@@ -3377,6 +3378,242 @@ describe("a catalogued nose cone's published contour, shoulder and stock", () =>
       // one optional field rather than a wall plus a flag.
       expect(c.filled === true).not.toBe(c.thickness !== undefined);
     }
+  });
+
+  it("resolves a catalogue parachute, and every row it offers can be built", () => {
+    const chutes = partsOfKind("parachute");
+    console.log(`catalogued parachutes: ${chutes.length}`);
+    expect(chutes.length, "no parachute in the bundle").toBeGreaterThan(100);
+    let stated = 0;
+    let derivable = 0;
+    for (const c of chutes) {
+      // The two fields the model needs from a canopy, on every row: a flat diameter, and a mass
+      // path. Nothing states a `cd`, a packed size, a length or an outer diameter — which is why the
+      // picker's shared outer-diameter/length prelude had to move into the per-kind arms, and why a
+      // pick edits the chute already on the design rather than authoring a new one.
+      expect(c.diameter, `${c.manufacturer} ${c.partNumber} states no diameter`).toBeGreaterThan(0);
+      expect(c.length, "a canopy has no length in this catalogue").toBeUndefined();
+      expect(c.outerDiameter, "a canopy has no outer diameter in this catalogue").toBeUndefined();
+      if (c.mass !== undefined && c.mass > 0) stated++;
+      const d = materialOf(c)?.density;
+      if (d !== undefined && d > 0) derivable++;
+      expect(
+        (c.mass !== undefined && c.mass > 0) || (d !== undefined && d > 0),
+        `${c.manufacturer} ${c.partNumber} has neither a stated mass nor a usable stock`,
+      ).toBe(true);
+    }
+    console.log(`  ${stated} state a mass, ${derivable} carry a usable canopy stock`);
+    expect(stated, "no vendor publishes a canopy weight").toBeGreaterThan(0);
+  });
+
+  it("puts a real canopy on the design, keeps the cd it cannot know, and clears the old weighed mass", async () => {
+    const doc = await importOrk(readFileSync(resolve(process.cwd(), "fixtures/demo-single-deploy.ork")));
+    const chute = (r: Rocket) =>
+      flattenRocket(r)
+        .map((p) => p.component)
+        .find((c) => c.kind === "parachute") as Parachute;
+    const before = chute(doc.rocket);
+
+    // Resolved through the shipped data at run time rather than hand-typed. A previous increment
+    // asserted "the vendor's published figures" against numbers that appear in no row of the
+    // catalogue — arithmetically self-consistent and reproducible from nothing.
+    const part = partsOfKind("parachute").find((c) => c.mass !== undefined && c.mass > 0)!;
+    expect(part, "no catalogued canopy publishes a weight").toBeDefined();
+    const material = materialOf(part)!;
+    const picked = {
+      manufacturer: part.manufacturer,
+      partNumber: part.partNumber,
+      diameter: part.diameter!,
+      mass: part.mass!,
+      material: { name: material.name, density: material.density },
+      lineCount: part.lineCount,
+      lineLength: part.lineLength,
+    };
+    expect(usableCatalogParachute(picked)).toBe(true);
+
+    // **The design's canopy is given a weighed mass first**, which is the state 20 of the 37
+    // parachute nodes across the corpus are actually in (11 of the 27 `.ork` files). `overrideMass`
+    // wins outright in `lib/sim/mass.ts`, so a pick that set `mass` and left it would take the
+    // vendor's diameter while flying the OLD weight under a caption naming the new part — the exact
+    // Sev-1 the nose-cone increment shipped and had to fix.
+    const withOverride: Rocket = {
+      ...doc.rocket,
+      stages: doc.rocket.stages.map((st) => ({
+        ...st,
+        components: st.components.map(function tag(c): typeof c {
+          if (c.kind === "parachute") return { ...c, overrideMass: 0.0879, overrideCGx: 0.1 };
+          return c.children.length ? { ...c, children: c.children.map(tag) } : c;
+        }),
+      })),
+    };
+    const tagged = chute(withOverride);
+    expect(tagged.overrideMass, "the fixture state this test depends on").toBe(0.0879);
+
+    const built = applyGeometryEdits(withOverride, { catalogParachute: picked });
+    const after = chute(built);
+
+    expect(after.diameter).toBeCloseTo(picked.diameter, 9);
+    expect(after.area, "a stale reference area would fly the old canopy's drag").toBeUndefined();
+    expect(after.mass).toBeCloseTo(picked.mass, 9);
+    expect(after.overrideMass, "the replaced canopy's weighed mass must not survive").toBeUndefined();
+    expect(after.overrideCGx).toBeUndefined();
+    // The coefficient is the design's own, because no vendor in this catalogue publishes one.
+    expect(after.cd, "the pick must not invent a drag coefficient").toBe(before.cd);
+    expect(after.deployEvent, "a pick changes the canopy, not when it opens").toBe(before.deployEvent);
+    expect(after.deployAltitude).toBe(before.deployAltitude);
+    console.log(
+      `parachute pick: ${picked.manufacturer} ${picked.partNumber} — ` +
+        `Ø ${(before.diameter * 1000).toFixed(1)} → ${(after.diameter * 1000).toFixed(1)} mm, ` +
+        `mass ${(tagged.overrideMass! * 1000).toFixed(1)} g (overridden) → ${(after.mass * 1000).toFixed(1)} g, ` +
+        `cd ${after.cd} unchanged`,
+    );
+  });
+
+  it("keeps all three recovery edits on ONE canopy, even when the pick makes it the smaller one", async () => {
+    // **The defect this pins is the one the applier's own comment used to claim its ordering
+    // prevented.** All three recovery edits resolved `primaryParachute` independently, and with no
+    // explicit aim that falls back to "the largest canopy". A pick can make the aimed canopy
+    // SMALLER than another — 62 of the 151 catalogued canopies are under 460 mm — so the target
+    // moved out from under the two steps that follow it: on a dual-deploy design the "Main chute Ø"
+    // field, whose placeholder names the main, resized the DROGUE instead and quadrupled its mass.
+    const doc = await importOrk(readFileSync(resolve(process.cwd(), "fixtures/demo-dual-deploy.ork")));
+    const chutes = (r: Rocket) =>
+      flattenRocket(r)
+        .map((p) => p.component)
+        .filter((c): c is Parachute => c.kind === "parachute");
+    const before = chutes(doc.rocket);
+    expect(before.length, "the fixture this test needs has two canopies").toBeGreaterThan(1);
+
+    // The largest is the one the unaimed fields resolve to; pick something smaller than the other.
+    const main = [...before].sort((a, b) => b.diameter - a.diameter)[0];
+    const other = [...before].sort((a, b) => b.diameter - a.diameter)[1];
+    const small = partsOfKind("parachute")
+      .filter((c) => c.diameter !== undefined && c.diameter < other.diameter)
+      .find((c) => c.mass !== undefined && c.mass > 0)!;
+    expect(small, "no catalogued canopy is smaller than this design's second chute").toBeDefined();
+    const m = materialOf(small)!;
+    const picked = {
+      manufacturer: small.manufacturer,
+      partNumber: small.partNumber,
+      diameter: small.diameter!,
+      mass: small.mass!,
+      material: { name: m.name, density: m.density },
+    };
+
+    const typed = 0.9;
+    const built = applyGeometryEdits(doc.rocket, {
+      catalogParachute: picked,
+      mainParachuteDiameter: typed,
+    });
+    const after = chutes(built);
+    const movedMain = after.find((c) => c.id === main.id)!;
+    const untouched = after.find((c) => c.id === other.id)!;
+
+    // The typed diameter landed on the canopy the pick was made for — the one the panel names —
+    // and the other chute is exactly as the file had it.
+    expect(movedMain.diameter).toBeCloseTo(typed, 9);
+    expect(untouched.diameter).toBeCloseTo(other.diameter, 9);
+    expect(untouched.mass).toBeCloseTo(other.mass, 9);
+    // And its weight is the vendor's, scaled from the PICKED size rather than the file's.
+    expect(movedMain.mass).toBeCloseTo(picked.mass * (typed / picked.diameter) ** 2, 9);
+  });
+
+  it("leaves a massless canopy massless, so a RASAero design is not charged for it twice", async () => {
+    // `.CDX1` states no per-part masses at all — the whole design's weight rides in one point mass
+    // and `lib/rasaero/adapt.ts` gives every canopy `mass: 0` on purpose. `withMainParachuteDiameter`
+    // preserved that for free because it SCALES; an applier that assigns has to say so, or the
+    // canopy is counted twice. Driven over the real corpus rather than a constructed rocket, and
+    // skipped rather than faked when the corpus is absent.
+    const dir = process.env.LOFT_CORPUS_DIR ?? resolve(process.cwd(), "corpus");
+    const rasaero = resolve(dir, "rasaero");
+    if (!existsSync(rasaero)) return;
+    const files = readdirSync(rasaero).filter((f) => f.toLowerCase().endsWith(".cdx1"));
+    const part = partsOfKind("parachute").find((c) => c.mass !== undefined && c.mass > 0)!;
+    const m = materialOf(part)!;
+    const picked = {
+      manufacturer: part.manufacturer,
+      partNumber: part.partNumber,
+      diameter: part.diameter!,
+      mass: part.mass!,
+      material: { name: m.name, density: m.density },
+    };
+    let checked = 0;
+    for (const f of files) {
+      const doc = await importDesign(new Uint8Array(readFileSync(resolve(rasaero, f))));
+      const canopies = flattenRocket(doc.rocket)
+        .map((p) => p.component)
+        .filter((c): c is Parachute => c.kind === "parachute");
+      if (!canopies.length) continue;
+      const dryBefore = dryMassProperties(doc.rocket).mass;
+      const built = applyGeometryEdits(doc.rocket, { catalogParachute: picked });
+      const after = flattenRocket(built)
+        .map((p) => p.component)
+        .filter((c): c is Parachute => c.kind === "parachute");
+      const target = after.find((c) => Math.abs(c.diameter - picked.diameter) < 1e-9);
+      expect(target, `${f}: the pick did not land`).toBeDefined();
+      expect(target!.mass, `${f}: a massless canopy took on a weight the design already counts`).toBe(0);
+      expect(dryMassProperties(built).mass, `${f}: dry mass moved`).toBeCloseTo(dryBefore, 9);
+      checked++;
+    }
+    console.log(`massless-canopy check: ${checked} RASAero design(s) with a canopy`);
+    expect(checked, "no RASAero design carried a canopy — this test watched nothing").toBeGreaterThan(0);
+  });
+
+  it("drops a canopy pick when the canopy it was made for is removed", async () => {
+    // Unaimed, the fields resolve through "the largest canopy" — so removing the chute a pick was
+    // made for silently re-landed the vendor's diameter AND weight on the next-largest one, with the
+    // provenance line still reading "Flying <part>". Third incarnation of the `withCatalogTube`
+    // migration defect, and the worst of them, because a pick rewrites mass as well as size.
+    const doc = await importOrk(readFileSync(resolve(process.cwd(), "fixtures/demo-dual-deploy.ork")));
+    const all = flattenRocket(doc.rocket)
+      .map((p) => p.component)
+      .filter((c): c is Parachute => c.kind === "parachute");
+    const main = [...all].sort((a, b) => b.diameter - a.diameter)[0];
+    const part = partsOfKind("parachute").find((c) => c.mass !== undefined && c.mass > 0)!;
+    const m = materialOf(part)!;
+    const picked = {
+      manufacturer: part.manufacturer,
+      partNumber: part.partNumber,
+      diameter: part.diameter!,
+      mass: part.mass!,
+      material: { name: m.name, density: m.density },
+    };
+    const cleared = aimsClearedByRemoving(doc.rocket, { catalogParachute: picked }, main.id);
+    expect(
+      Object.keys(cleared),
+      "removing the picked canopy must take the pick with it",
+    ).toContain("catalogParachute");
+  });
+
+  it("lets a typed diameter beat the pick, scaling the vendor's own weight rather than the file's", async () => {
+    const doc = await importOrk(readFileSync(resolve(process.cwd(), "fixtures/demo-single-deploy.ork")));
+    const chute = (r: Rocket) =>
+      flattenRocket(r)
+        .map((p) => p.component)
+        .find((c) => c.kind === "parachute") as Parachute;
+    const part = partsOfKind("parachute").find((c) => c.mass !== undefined && c.mass > 0)!;
+    const material = materialOf(part)!;
+    const picked = {
+      manufacturer: part.manufacturer,
+      partNumber: part.partNumber,
+      diameter: part.diameter!,
+      mass: part.mass!,
+      material: { name: material.name, density: material.density },
+    };
+
+    // The order the applier runs them in is the whole of this test: pick, THEN resize. Applied the
+    // other way the pick would discard a figure the flyer had typed; applied this way "that part,
+    // but cut down" scales a plausible weight for that part instead of for whatever canopy the file
+    // happened to ship.
+    const cut = picked.diameter * 0.5;
+    const built = applyGeometryEdits(doc.rocket, {
+      catalogParachute: picked,
+      mainParachuteDiameter: cut,
+    });
+    const after = chute(built);
+    expect(after.diameter).toBeCloseTo(cut, 9);
+    // Area scales as diameter², so half the diameter is a quarter of the vendor's weight.
+    expect(after.mass).toBeCloseTo(picked.mass * 0.25, 9);
   });
 
   it("lands the vendor's whole part on the design's nose, and the mass moves with it", async () => {

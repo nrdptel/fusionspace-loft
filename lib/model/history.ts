@@ -155,6 +155,7 @@ export const EDIT_ACTIONS: Readonly<Record<string, string>> = {
   // the record and not what the flyer did. The gesture is choosing a real commercial part.
   catalogBodyTube: "the catalogue tube",
   catalogNoseCone: "the catalogue nose cone",
+  catalogParachute: "the catalogue parachute",
   noseLength: "the nose length",
   noseShape: "the nose shape",
   bodyLength: "the body length",

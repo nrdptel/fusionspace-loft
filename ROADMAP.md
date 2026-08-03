@@ -1270,11 +1270,12 @@ instead of an inferred edge class.
 
 ## R8 — Component and material catalogues
 
-**Status: IN PROGRESS** — increments 1–5 of 4–6 shipped 2026-08-02, along with the decomposition.
+**Status: IN PROGRESS** — increments 1–6 of 4–7 shipped 2026-08-02/03, along with the decomposition.
 The licence question the after-list named as possibly the whole first increment is **answered up
-front** so it is not re-litigated. **Two of the five kinds the *done when* names are pickable** —
-body tube and nose cone — and what remains is the other three: coupler, centring ring and parachute.
-Unlike the first two, none of them exists on a design to be edited, so each is a new build path.
+front** so it is not re-litigated. **Three of the five kinds the *done when* names are pickable** —
+body tube, nose cone and parachute — and what remains is the coupler and the centring ring. Those two
+are the ones that genuinely do not exist on a design to be edited, so they are a new build path; the
+parachute turned out NOT to be, which is why it went first.
 
 **Outcome.** Authoring becomes SELECTION rather than measurement: a flyer picks a real body tube by
 vendor and part number and gets its dimensions and mass, instead of typing eight numbers off a ruler.
@@ -1599,13 +1600,149 @@ off by default and the empty state says how to clear it, which is correct behavi
 but it is a gap, and widening the tolerance to hide it would be inventing a fit the vendor does not
 publish. Filed in `BACKLOG.md`.
 
-*Increment 6 — NEXT.* Coupler, centring ring, parachute. Still true from before: a vendor-alias table
-is owed (sixteen manufacturer strings for fourteen companies — "Quest" and "Quest Aerospace", "MPC"
-and "MRC"), and those three kinds cannot be authored by `AddedPart` at all, so they are three new
-build paths rather than three more entries in `KIND`. A parachute is the hardest: the model requires
-`cd`, the catalogue has no such field, and only 21 of 151 canopies state a mass. The nose needed none
-of that because a design already HAS a nose — the pick edits the part that is there, which is why it
-was the right second kind and why the remaining three are a bigger step than this one was.
+*Increment 6 — SHIPPED. The parachute, which is the third kind and the first that is not airframe.*
+
+**It was the right one of the three to take first, and the reason is structural rather than a
+preference.** A parachute is the only remaining kind the design ALREADY HAS — so, like the nose cone,
+a pick edits the part that is there instead of authoring a new one. That means no new `AddedPart`
+kind, no `buildAdded` arm, no placement rule and no inspector button: the aim slot (`parachuteId`),
+the applier's neighbourhood and the recovery fieldset all existed. A coupler or a centring ring is a
+full new build path for a median 34.4 g and 1.52 g respectively; a canopy moves the number a recovery
+setup is judged on.
+
+**What the catalogue states, measured over all 151 canopies rather than assumed.** Diameter, gore
+count, line count, line length and a SURFACE material on 151 of 151; a line material on 145; a stated
+mass on 21. Diameters run 203.2 mm to 3,657.6 mm, stated masses 4.0 g to 793.8 g, cloth densities
+0.00705 to 0.06685 kg/m². **And, on 0 of 151: a drag coefficient, a packed size, a length, an outer
+diameter.**
+
+**So the `cd` comes from the chute being replaced, and that is the honest answer rather than the
+convenient one.** A drag coefficient is a property of a canopy's cut and porosity that no vendor in
+this database publishes. Inventing one would put a number nobody stands behind directly underneath a
+landing speed. The design's own is real: 22 of the 37 parachute nodes across the corpus state one
+explicitly (1.5 ×10, 1.55 ×4, 0.75 ×4, 2.2 ×2, 1.34, 0.61), the rest saying `auto`, which the
+importer maps to 0.8. A pick therefore changes the canopy's SIZE and MASS and leaves the coefficient,
+the deploy event, the altitude and the delay exactly where the flyer's own file put them — and the
+panel says so in those words rather than leaving it to be inferred.
+
+**Measured on `demo-single-deploy.ork`** — a 610.0 mm canopy, 26.1 g, cd 0.8, arriving at 6.95 m/s
+after 152.7 s:
+
+| pick | canopy | mass | ground-hit | flight time |
+|---|---|---|---|---|
+| the design's own | 610.0 mm | 26.1 g | 6.95 m/s | 152.7 s |
+| LOC Precision LP-96-2022 | 2,438.4 mm | 411.6 g (derived) | **2.16 m/s** | 347.5 s |
+| Top Flight PAR-9 | 228.6 mm | 4.4 g (derived) | **18.15 m/s** | 68.2 s |
+
+A factor of **8.4** across the catalogue on one design, which is the difference between walking away
+and rebuilding.
+
+**Three things it had to get right, each a way to ship a wrong number:**
+
+- **The vendor's published weight beats the derived one, and they disagree wildly.** Over the 21 that
+  state both, Public Missiles' three agree within 4% (PAR-54 0.99×, PAR-48 1.04×, PAR-18 1.01×) while
+  Giant Leap's run 3.9–7.9× heavier than geometry implies (TAC-24 7.85×). Hem, spill hole, swivel and
+  shroud attachment are invisible to a diameter and a surface density. The derivation is the fallback
+  and it reuses the `.ork` importer's OWN arithmetic (`parachuteMass`) rather than a second copy, so
+  a catalogue canopy and a hand-typed one stay on one model.
+- **The replaced canopy's `overrideMass` is cleared, and on this kind it is the MAJORITY case.** 20
+  of the 37 corpus parachute nodes carry one (11 of the 27 `.ork` files). `overrideMass` wins outright
+  in `lib/sim/mass.ts`, so a pick that set `mass` and left it would take the vendor's diameter — moving
+  the descent rate — while flying the old weight under a caption naming the new part. That is the
+  identical Sev-1 the nose-cone increment shipped and had to fix, lying in wait on the one kind where
+  it is the common case. Asserted directly: the test gives the design an 87.9 g override first, and
+  the pick takes it to the vendor's 4.0 g.
+- **An explicit reference `area` is cleared too, and it is defensive rather than live.** The solver
+  prefers `Parachute.area` over the diameter where one is present, so a stale one would fly the old
+  canopy's drag under the new part's name. Measured: **no importer sets that field today** — all
+  three adapters supply a diameter — so no loadable design reaches the branch. Cleared anyway,
+  because the field exists for a format that states one and the solver already honours it; an
+  applier that left it would be a wrong number waiting on an adapter change.
+
+**The picker's shared prelude was the blocker, and it would have failed silently.** `buildable()`
+returned false unless `outerDiameter > 0 && length > 0` BEFORE the kind switch, and 0 of 151 canopies
+state either — so every row would have rendered disabled, which on a phone is indistinguishable from
+a missed tap. The prelude moved into the per-kind arms, and the e2e asserts more than twenty rows are
+present AND that the first is enabled.
+
+**Order matters between the pick and the diameter field, in both directions.** The pick applies
+BEFORE `withMainParachuteDiameter`, so a diameter typed afterwards scales the mass from the VENDOR's
+figures — "that part, but cut down" flies a plausible weight for a cut-down PAR-18 rather than for
+whatever canopy the file shipped. Applied the other way the pick would silently discard a number the
+flyer had typed. It also runs before the dual-deploy promotion, for the reason the resize already
+does: both resolve the same aim, so a pick that made a different canopy the largest could otherwise
+send the altitude deployment to a chute nobody named.
+
+**The pre-push review found a Sev-1 in this increment, and it is the one worth reading: the applier's
+own comment claimed its ordering PREVENTED the defect its ordering CREATED.** All three recovery
+edits resolved `primaryParachute` independently, and unaimed that falls back to "the largest canopy".
+A pick is the first edit in the pipeline that can make the aimed canopy SMALLER than another one — 62
+of the 151 catalogued canopies are under 460 mm — so the target moved out from under the two steps
+that follow it. Measured on `fixtures/demo-dual-deploy.ork` (Main 1220.0 mm, Drogue 460.0 mm, no
+aim): pick a 457.2 mm canopy, then type 900 into *Main chute Ø* — the field directly above the
+picker, whose placeholder reads 1220 — and the **drogue** goes to 900 mm at 4× its mass while the
+main never moves. The same construction on the promotion path produced **two** components named "Main
+parachute", both on altitude deploy. Independently reproduced by a second reviewer over the corpus:
+13 of the 14 multi-canopy OpenRocket designs. The canopy is now resolved ONCE from the pristine
+design and passed as an explicit aim to all three steps — which is what `nosePickId` and `massTarget`
+already do. Pinned, with a negative control: the pre-fix resolution leaves the main at 0.305 m where
+0.9 was typed.
+
+**And a second wrong number, on the one format that carries no per-part masses at all.**
+`lib/rasaero/adapt.ts` gives every `.CDX1` canopy `mass: 0` deliberately, because the stated launch
+weight already includes it. `withMainParachuteDiameter` preserved that for free — it SCALES, and
+0 × anything is 0 — but an applier that ASSIGNS counts the canopy twice. Measured on `Show-off.CDX1`:
+dry mass 0.4536 kg (its stated 1 lb) → 0.5358 kg, **+18%**, with the dry CG moving 25.4 → 96.9 mm.
+A massless canopy now stays massless; the vendor's SIZE still lands, so the descent rate moves exactly
+as it should. Pinned over the real corpus, and the check asserts it examined designs (2 carry a
+canopy) rather than passing on an empty walk.
+
+Nine more from the same three-lens review, each real. The pick cleared *Main chute Ø*, so the field
+fell back to a placeholder read off the PRISTINE design and advertised the pre-pick diameter while
+another canopy flew. The pick survived REMOVAL of the canopy it was made for and migrated onto the
+next-largest, provenance line and all — the `withCatalogTube` defect in its third incarnation. The
+narrowed wording fell through to the tube's, telling a flyer a canopy's "wall and stock" came from the
+vendor when a `Parachute` has neither, while omitting the mass, which is what actually survives. The
+empty state offered to "turn off the caliber filter", a control this kind never renders — §5 says an
+empty state names the one action that fills it, and the only concrete one it named was false. The
+search placeholder's own worked example, "Top Flight", returned **0 rows**: the filter reads part
+number and description, and the maker is the select beside it. `buildable` did not mirror
+`usableCatalogParachute`'s absolute bands, which is the one invariant its own header states. And the
+table was given 8rem LESS width than a tube while carrying the same compound-cell shape that made a
+cone need more.
+
+**Two findings were about this increment's own honesty, and those are the ones to read.** The e2e's
+headline assertion — *every row must be choosable* — was VACUOUS twice over: a disabled `<button>`
+still has `role=button`, so counting them proved nothing about enablement, and
+`getByRole("columnheader", {name: /^Length/})` matches nothing on ANY kind, because `DataTable`
+renders each header as a button carrying `aria-label="Sort by …"` and Playwright returns a
+descendant's `aria-label` before name-from-content. That check would have passed with the shared
+Length column reinstated. Both now discriminate, and the column check carries a POSITIVE assertion
+beside the negative one so it cannot pass on a broken read. **And the "measured" claim behind the
+whole published-beats-derived rule was cherry-picked**: it quoted "Public Missiles' three agree to
+within 4%" when Public Missiles publishes a weight on **twelve** canopies running 0.99x to 1.69x.
+Recomputed over all 21 — Public Missiles 0.99–1.69x, Rocketarium 1.46–1.73x, Giant Leap 2.91–7.85x —
+only three land within 4%, and the derivation runs low essentially everywhere, which supports the rule
+more strongly than the wrong number did. `MAINTAINING.md`'s bar is numbers rather than adjectives; a
+flattering subset presented as the whole set is the same failure wearing a number.
+
+Pinned by six cases in `lib/model/edit.test.ts` — every catalogued canopy resolves and has a mass
+path, a pick clears the weighed override and keeps the `cd`, a typed diameter scales the vendor's
+weight, all three edits stay on one canopy, a massless canopy stays massless, and a removal takes the
+pick with it — and by an e2e that drives the whole gesture in a browser, including the clear path back.
+
+*Increment 7 — NEXT.* Coupler and centring ring, TOGETHER: they are the same `RingComponent` shape in
+the model (`length`, `outerRadius`, `innerRadius`), the catalogue states all three on 236 of 236 and
+497 of 497, and each needs the same new build path — a union member on `AddedPart`, a `buildAdded`
+arm placing it INSIDE its host, an aim slot, an inspector button and a picker kind. Doing them apart
+would build that path twice. Fit is real for these two where it was not for a cone: **232 of 236
+couplers and 478 of 497 rings** have an outer diameter within 0.5 mm of some catalogued body tube's
+bore, because they are cut to the same imperial stock — so the caliber filter earns its place here.
+Two measured gotchas: `PartPicker`'s `rowKey` collides on **five** centring rings (SEMROC CR-7-18,
+RA-50/52H-101(BT-50), CR-9-225X2, CR-9-225X2P, CR-9-175P), and 7 of 236 couplers state an inner
+diameter of 0 — solid balsa plugs, which `lib/sim/mass.ts` already flies correctly. A vendor-alias
+table is still owed (sixteen manufacturer strings for fourteen companies — "Quest" and "Quest
+Aerospace", "MPC" and "MRC"). Both are in `BACKLOG.md`.
 
 **Size.** 3–5 increments, and 4–6 now looks honest.
 

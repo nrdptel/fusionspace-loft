@@ -4,6 +4,16 @@ Overwritten each session. What shipped, what is part-way, and what to pick up fi
 
 ## Read this first
 
+**THE WORK IS ON A BRANCH AND NOT ON `main`. Opening and merging one pull request is all that is
+needed.** This run pushed verified increments to `origin` on the session's pinned branch, each gated
+green (lint, unit + corpus, build, e2e in two shards) and each reviewed by a fresh agent before the
+push. **No pull request was opened**, and that is deliberate rather than an oversight: this session's
+harness instructs that a pull request must not be created unless the owner explicitly asks, and
+`MAINTAINING.md`'s own conflict rule says the harness wins and that the instruction not honoured must
+be named. So it is named here. Under the SHIPPED-MEANS-REACHABLE invariant this counts as **pending,
+never as shipped** — a flyer cannot reach any of it until that pull request is merged.
+
+
 **The environment gave us BOTH repos and NO Playwright browser, again — third session running.**
 `/home/user/loft-fixtures` was present (link its per-tool directories into `corpus/` and the suite
 names `35 present`), and `/opt/pw-browsers` again lacked `chromium_headless_shell-1228`.
@@ -59,7 +69,7 @@ nobody re-measured. Both records are corrected.
 | P1 — one design system, adopted | SHIPPED 2026-08-02 |
 | P2 — workspaces as routes | SHIPPED 2026-08-02 |
 | P3 — a stranger's first five minutes | SHIPPED 2026-08-02 |
-| **R8 — component and material catalogues** | **IN PROGRESS** — increments 1–5 of 4–6. Two of the five *done when* kinds are pickable (body tube, nose cone); coupler, centring ring and parachute remain, and each is a new build path |
+| **R8 — component and material catalogues** | **IN PROGRESS** — increments 1–6 of 4–7. THREE of the five *done when* kinds are pickable (body tube, nose cone, parachute); coupler and centring ring remain, and those two really are a new build path — the parachute was not, which is why it went first |
 | **P4 — a touch-native builder** | **IN PROGRESS** — increments 1–4 of 4–6. Both §8 counts are 0 AND the check can now see the selection-gated surface; *pick a motor* applies from the sweep in one tap. Increment 5 is the diagram's own touch targets |
 | P5 | NOT STARTED |
 
@@ -115,6 +125,35 @@ the controls render only for a body tube, and row 1 is the nose cone.
 `<Button>` — *Run*. The panel ranks fifteen motors and could not apply one; the flyer memorised a
 designation and scrolled **2.77 screens** on another route to re-find it in a select. A *Use* column
 now does it in one tap, through `applyEdit`, so it shares the edit bag, the undo and the select.
+
+### R8 increment 6 — a real parachute, and the coefficient it refuses to invent
+
+The third of the five kinds the *done when* names. **The catalogue already shipped 151 canopies** —
+the roadmap's "140" was pre-recount — so this was a picker and a model path, not data acquisition.
+
+**Take the parachute before the coupler and the ring, and the reason is structural.** It is the only
+remaining kind a design ALREADY HAS, so a pick edits the part that is there: no new `AddedPart` kind,
+no `buildAdded` arm, no placement rule, no inspector button. The other two are a full new build path
+for a median 34.4 g and 1.52 g.
+
+**Measured over all 151:** diameter, gores, line count, line length and a surface cloth on 151 of 151;
+line material on 145; a stated mass on 21. And on **0 of 151**: a drag coefficient, a packed size, a
+length, an outer diameter. That last pair was the blocker — `PartPicker`'s `buildable()` required
+both BEFORE the kind switch, so all 151 rows would have rendered disabled, which on a phone is
+indistinguishable from a missed tap.
+
+**The `cd` is taken from the canopy being replaced**, because no vendor here publishes one and a
+landing speed is not a number to compute from a guess. 22 of the 37 corpus parachute nodes state one
+explicitly; the rest say `auto` → 0.8.
+
+**Measured on `demo-single-deploy.ork`** (610.0 mm, 26.1 g, cd 0.8, 6.95 m/s over 152.7 s): LOC
+LP-96-2022 gives **2.16 m/s**, Top Flight PAR-9 gives **18.15 m/s** — a factor of 8.4.
+
+**The trap that was waiting: 20 of the 37 corpus parachute nodes carry `<overridemass>`** (11 of 27
+`.ork` files), which is the MAJORITY, and `overrideMass` wins outright in `lib/sim/mass.ts`. A pick
+that set `mass` without clearing it would fly the old weight under the vendor's name — the identical
+Sev-1 the nose-cone increment shipped and had to fix. Cleared, and asserted by giving the design an
+87.9 g override first and watching the pick take it to 4.0 g.
 
 ### What went wrong, and what it cost
 
@@ -984,45 +1023,44 @@ should not have, and an address disagreeing with what is on screen.
 
 ## Pick up first
 
-**This list was five runs stale — every numbered item in it was P2 work, and P2 shipped on
-2026-08-02.** Reading it would have sent a session to redo finished milestones. Replaced, and the
-lesson is the one at the top of this file: a measurement you did not take is not evidence.
+**This list was five runs stale when this session opened — every numbered item was P2 work, and P2
+shipped on 2026-08-02.** Reading it would have sent a session to redo finished milestones. Rewritten,
+and then rewritten again at the end of this run for the two items it shipped.
 
-1. **R8 increment 6 — the PARACHUTE picker, and it is the one to ship first of the three remaining
-   kinds.** Measured this run: the catalogue ALREADY ships **236 tube couplers, 497 centring rings
-   and 151 parachutes** in `lib/components/catalog.ts` (the roadmap's 199/343/140 are pre-recount),
-   so this is a picker and a model path, not data acquisition. The parachute is smallest and moves
-   the biggest number: its aim slot exists (`lib/model/edit.ts` `parachuteId` → `mainParachuteDiameter`),
-   its applier exists (`withMainParachuteDiameter`), its UI field exists, and `cd`/`deployEvent` come
-   from the chute being replaced exactly as a nose pick edits the nose already there — so no new
-   `AddedPart` kind, no new builder, no new placement rule. Mass has a formula already in the repo
-   (`lib/ork/adapt.ts` `parachuteMass` = area x surface density + lineCount x lineLength x line
-   density). Measured effect: on the starter (900 mm canopy, cd 0.8, 60 g) picking Public Missiles
-   PAR-48 takes CdA 0.5089 → 0.9340 m², descent speed x0.739 and mass 60 → 116.2 g.
-   **Two traps, both pre-identified:** (i) **20 of the 37 corpus parachute nodes carry
-   `<overridemass>`** (11 of 27 files), so a pick that sets mass without CLEARING it flies the old
-   weight under a caption naming the vendor — the identical Sev-1 the nose-cone increment shipped and
-   had to fix; (ii) `components/PartPicker.tsx`'s `buildable()` returns false unless
-   `outerDiameter > 0 && length > 0` **before** the kind switch, and **0 of 151 parachutes carry
-   either**, so all 151 rows would render disabled. That prelude has to move into the per-kind arms.
-   Coupler is rank 2 (median 34.4 g, ~5.7% of the demo's dry mass) and centring ring rank 3 (median
-   1.52 g — below what a flyer reads as a change), and both need a full new build path.
+1. **P4 increment 5 — the diagram's touch targets**, which is where direct manipulation on a phone
+   actually lives, and the next thing owed on the P-track. Measured this run on the built export at
+   390x664: only **2 of the sample's 8 parts** carry a tap overlay at all (`components/RocketDiagram.tsx`
+   builds them from `o.parts`, which is body silhouettes only — fins, the mass object, the parachute,
+   the inner tube and both centring rings get none), and the two that exist measure **78x12 and
+   218x12 px** against §8's 44. Worse, `hitR = coarse ? 22 : 0` gives each of the three centreline
+   drag grips a 44x44 transparent hit circle drawn ON the airframe, which steals the part beneath it:
+   **9 of 19 points sampled across the body tube** resolve to a handle, so tapping the middle of the
+   tube leaves the nose selected. `e2e/touch.spec.ts` checks handle-vs-handle overlap and never
+   handle-vs-part. Both in `BACKLOG.md` with their measurements.
 
-2. **P4 increment 5 — the diagram's touch targets**, which is where direct manipulation on a phone
-   actually lives. Only **2 of the sample's 8 parts** get a tap overlay at all and both are **12 px
-   tall**; each drag handle's `hitR = coarse ? 22 : 0` puts a 44x44 hit circle ON the airframe that
-   steals the part under it (9 of 19 points across the body tube resolve to a handle). Both in
-   `BACKLOG.md` with their measurements.
+2. **R8 increment 7 — coupler and centring ring, TOGETHER.** They are the same `RingComponent` shape
+   (`length`, `outerRadius`, `innerRadius`), the catalogue states all three fields on 236 of 236 and
+   497 of 497, and each needs the SAME new build path — an `AddedPart` union member, a `buildAdded`
+   arm placing it INSIDE its host, an aim slot, an inspector button, a picker kind. Doing them apart
+   builds that path twice. **Fit is real for these two where it was not for a cone**: 232 of 236
+   couplers and 478 of 497 rings sit within 0.5 mm of some catalogued tube's bore, because they are
+   cut to the same imperial stock — so the caliber filter earns its place. Two measured gotchas:
+   `PartPicker`'s `rowKey` collides on five centring rings, and 7 of 236 couplers state an inner
+   diameter of 0 (solid balsa plugs, which `lib/sim/mass.ts` already flies correctly).
 
-3. **A parachute Cd is not editable on ANY Loft surface**, and it is the number that sets landing
-   speed. Loft defaults 0.75 (`.ork`) / 0.8 (`.rkt`) with **no stated basis**. RASAero II defaults
-   **1.33** and cites a study of HPR descent rates; RocketPy defaults **1.4** cited to NASA SP-8066
-   and requires `cd_s` outright; OpenRocket defaults 0.8. Two of the three state where their default
-   came from and all three let it be set. This is the smallest, highest-value slice of the recovery
-   work and it is `COMPETITION.md` material as much as roadmap material.
+3. **A parachute Cd is not editable on ANY Loft surface** — `COMPETITION.md` row 35, added this run.
+   It is the one number in the recovery chain a flyer cannot reach, and it sets landing speed and
+   landing energy. Loft defaults 0.75 (`.ork`) / 0.8 (`.rkt`) with **no stated basis**. RASAero II
+   defaults **1.33** and cites a study of HPR descent rates; RocketPy requires `cd_s` outright and
+   cites **1.4** to NASA SP-8066; OpenRocket defaults 0.8 and its own source says
+   `// TODO: HIGH: Better parachute CD estimate?`. Two of the four say where their number came from
+   and all four let it be set. The smallest slice is a field plus a cited default, not a model.
 
 4. **`lib/design-system.test.ts` reports 11 green while ten classes of `DESIGN.md` drift cannot fail
-   it** — including `lib/ui-tokens.ts` sitting outside every walk, six §5 primitives that do not
-   exist, and 47 uses of `text-[11px]` against a rule scoping it to axis ticks. Filed in full in
-   `BACKLOG.md`. This is a P-track milestone's worth of work, not a defect entry, and §9 in
-   `DESIGN.md` is the file that has to change first — in BOTH repos.
+   it** — `lib/ui-tokens.ts` sits outside every walk (it holds `buttonClass`, `NAV_BAR`,
+   `navItemClass`), six §5 primitives do not exist (`Panel`, `Readout`, `Figure`, `EmptyState`,
+   `ErrorState`, `Extrapolated`), `text-[11px]` is allowed unconditionally against a rule scoping it
+   to axis ticks (47 uses), the radius grep names only one class (5 live off-system), and there is no
+   colour or font-weight assertion at all. Filed in full in `BACKLOG.md`. **This is a P-track
+   milestone's worth of work, not a defect entry**, and `DESIGN.md` §9 is the file that changes
+   first — in BOTH repos, since it is shared verbatim.

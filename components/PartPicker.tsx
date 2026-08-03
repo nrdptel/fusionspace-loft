@@ -63,7 +63,7 @@ function materialLabel(part: CatalogPart): string {
  *  the provenance line and the table are the same surface for every kind, and the repo has spent
  *  three milestones collapsing five partial implementations of a table into one. What differs is
  *  four strings and which columns a kind actually states — which is what `KIND` below holds. */
-export type PickerKind = "bodytube" | "nosecone";
+export type PickerKind = "bodytube" | "nosecone" | "parachute";
 
 /** Everything about a kind that is not shared, in one table, so adding the next kind is an entry
  *  rather than an edit spread through the body. */
@@ -99,6 +99,20 @@ const KIND: Record<
     fitsNoun: "cones",
     placeholder: "BT-60, ogive, balsa…",
   },
+  parachute: {
+    noun: "parachute",
+    plural: "parachutes",
+    open: "Pick a real parachute",
+    back: "Back to the design's own canopy",
+    fitsNoun: "canopies",
+    // Every term here is checked against the shipped catalogue, because the placeholder is the field
+    // TEACHING a flyer what the box accepts: "18 in" → 16 rows, "nylon" → 80, "PAR-" → 36. A vendor
+    // NAME is deliberately absent — the filter reads `partNumber` and `description` only, and the
+    // maker is the select beside it, so the "Top Flight…" this first said returned 0 and sent the
+    // flyer straight into the empty state one keystroke later. ("PAR" without the hyphen matches all
+    // 151, because every description begins "Parachute".)
+    placeholder: "18 in, nylon, PAR-…",
+  },
 };
 
 /** Whether a catalogue row carries enough for the model to apply it — the picker's half of the same
@@ -111,6 +125,31 @@ const KIND: Record<
  *  import — the model's predicates take the finished record, and this takes the catalogue row it
  *  would be built from, so they are the same rule at two different points on the wire. */
 function buildable(p: CatalogPart, kind: PickerKind): boolean {
+  // **The outer-diameter/length prelude belongs to the two AIRFRAME kinds, not to every kind**, and
+  // that had to be discovered rather than assumed: 0 of the 151 catalogued parachutes state either
+  // field — a canopy publishes a flat diameter, its sides, and its shroud lines — so leaving the
+  // check shared would have rendered all 151 rows disabled, which on a phone is indistinguishable
+  // from a missed tap.
+  if (kind === "parachute") {
+    return (
+      p.diameter !== undefined &&
+      // The SAME absolute band `usableCatalogParachute` enforces, not merely `> 0`. This function's
+      // own header states the invariant: a row this lets through and the model then refuses is a
+      // pick that appears to work and changes no number. The two airframe kinds have no absolute
+      // bands to mirror, so a canopy is the first place the mirror could be incomplete — and every
+      // shipped row is comfortably inside (203.2 mm to 3,657.6 mm), so this is defence against an
+      // upstream re-cut rather than a filter on today's data.
+      p.diameter > 0.05 &&
+      p.diameter < 10 &&
+      // The mass has to be obtainable, because the applier writes one unconditionally. Either the
+      // vendor states it (21 of 151) or it is derived from the canopy's own stock — and 145 of the
+      // 151 state a line material too, which is the second term. The six with neither a line
+      // material nor a stated mass are Giant Leap's TAC series, and all six state a mass.
+      (p.mass !== undefined
+        ? p.mass > 0 && p.mass < 50
+        : p.material !== undefined && p.material.density !== null && p.material.density > 0)
+    );
+  }
   if (p.outerDiameter === undefined || !(p.outerDiameter > 0)) return false;
   if (p.length === undefined || !(p.length > 0)) return false;
   if (kind === "bodytube") {
@@ -257,18 +296,58 @@ export default function PartPicker({
       key: "od",
       // A tube's outer diameter is the whole part; a cone's is only its BASE, and the shoulder
       // below it is a second diameter on the same row. Naming both "OD" would put two different
-      // measurements under one header on a surface whose entire job is published dimensions.
-      label: kind === "nosecone" ? `Base (${unit})` : `OD (${unit})`,
+      // measurements under one header on a surface whose entire job is published dimensions. A
+      // canopy states none of those — its size is the flat diameter, which is the field the whole
+      // choice turns on, so it takes this column rather than being a dash in it.
+      label:
+        kind === "parachute"
+          ? `Canopy Ø (${unit})`
+          : kind === "nosecone"
+            ? `Base (${unit})`
+            : `OD (${unit})`,
       align: "right",
-      sortValue: (p) => p.outerDiameter ?? Infinity,
-      cell: (p) => <span className="font-mono tabular-nums">{span(p.outerDiameter, imperial)}</span>,
-      csv: (p) => span(p.outerDiameter, imperial),
+      sortValue: (p) => (kind === "parachute" ? (p.diameter ?? Infinity) : (p.outerDiameter ?? Infinity)),
+      cell: (p) => (
+        <span className="font-mono tabular-nums">
+          {span(kind === "parachute" ? p.diameter : p.outerDiameter, imperial)}
+        </span>
+      ),
+      csv: (p) => span(kind === "parachute" ? p.diameter : p.outerDiameter, imperial),
     },
     // The bore, for the kind that states one. Every body tube publishes it and it is where the wall
     // comes from; only 37 of the 854 nose cones do, so the column would be a dash on 96% of the
     // rows it headed — and for a cone the wall is told by `filled` and `thickness` instead, which
     // is what the two columns after this one say.
-    ...(kind === "bodytube"
+    // A canopy's own two: how many gores it is cut from, and its shroud lines. Both are published on
+    // 151 of 151, both are what a flyer compares two same-diameter canopies on, and neither exists
+    // on either airframe kind.
+    ...(kind === "parachute"
+      ? [
+          {
+            key: "sides",
+            label: "Gores",
+            align: "right" as const,
+            sortValue: (p: CatalogPart) => p.sides ?? Infinity,
+            cell: (p: CatalogPart) => <span className="font-mono tabular-nums">{p.sides ?? "—"}</span>,
+            csv: (p: CatalogPart) => p.sides ?? "",
+          },
+          {
+            key: "lines",
+            label: `Lines (${unit})`,
+            align: "right" as const,
+            sortValue: (p: CatalogPart) => p.lineLength ?? Infinity,
+            // Count x length, because the pair is what a flyer checks against their harness and
+            // because it is the second term of the derived mass — the same formula the `.ork`
+            // importer uses (canopy area x surface density, plus lines x length x line density).
+            cell: (p: CatalogPart) => (
+              <span className="font-mono tabular-nums">
+                {p.lineCount ?? "—"} x {span(p.lineLength, imperial)}
+              </span>
+            ),
+            csv: (p: CatalogPart) => `${p.lineCount ?? ""} x ${span(p.lineLength, imperial)}`,
+          },
+        ]
+      : kind === "bodytube"
       ? [
           {
             key: "id",
@@ -335,14 +414,23 @@ export default function PartPicker({
               p.filled ? "solid" : p.thickness !== undefined ? span(p.thickness, imperial) : "",
           },
         ]),
-    {
-      key: "len",
-      label: `Length (${unit})`,
-      align: "right",
-      sortValue: (p) => p.length ?? Infinity,
-      cell: (p) => <span className="font-mono tabular-nums">{span(p.length, imperial)}</span>,
-      csv: (p) => span(p.length, imperial),
-    },
+    // Length is an airframe measurement. 0 of the 151 canopies state one — a parachute has a flat
+    // diameter and a packed size, and the catalogue publishes neither packed field — so the column
+    // is dropped for that kind rather than headed over 151 dashes.
+    ...(kind === "parachute"
+      ? []
+      : [
+          {
+            key: "len",
+            label: `Length (${unit})`,
+            align: "right" as const,
+            sortValue: (p: CatalogPart) => p.length ?? Infinity,
+            cell: (p: CatalogPart) => (
+              <span className="font-mono tabular-nums">{span(p.length, imperial)}</span>
+            ),
+            csv: (p: CatalogPart) => span(p.length, imperial),
+          },
+        ]),
     {
       key: "mass",
       label: `Mass (${imperial ? "oz" : "g"})`,
@@ -447,14 +535,22 @@ export default function PartPicker({
                 ? "Flying"
                 : kind === "nosecone"
                   ? "Base, shoulder, wall and stock from"
-                  : "Wall and stock from"}{" "}
+                  : // A canopy has neither a wall nor a stock the solver ever sees — the tube wording
+                    // fell through to it and named two properties the part does not have while
+                    // omitting the one it does. What survives a typed diameter is the vendor's MASS,
+                    // scaled with the area.
+                    kind === "parachute"
+                    ? "Weight scaled from"
+                    : "Wall and stock from"}{" "}
               <span className="font-medium text-zinc-900 dark:text-zinc-100">
                 {picked.manufacturer} {picked.partNumber}
               </span>
               {!dimensionsMatch &&
                 (kind === "nosecone"
                   ? ", with your own length or contour"
-                  : ", with your own dimensions")}
+                  : kind === "parachute"
+                    ? ", at your own diameter"
+                    : ", with your own dimensions")}
             </span>
             <Button variant="ghost" onClick={onClear}>
               {copy.back}
@@ -507,7 +603,13 @@ export default function PartPicker({
                     ))}
                   </select>
                 </label>
-                {currentOuterDiameter !== undefined && (
+                {/* The caliber filter compares a part's OUTER DIAMETER to the airframe's, which is
+                    a question about fit — and a canopy does not fit anything, it hangs below it. 0
+                    of the 151 state an outer diameter at all, so the control would filter every row
+                    away while reading as though it were narrowing sensibly. Suppressed rather than
+                    re-pointed at the canopy diameter, which would be a filter for "a chute the width
+                    of my rocket", a thing nobody wants. */}
+                {currentOuterDiameter !== undefined && kind !== "parachute" && (
                   <label className={cx("flex items-end gap-2 text-sm", TOUCH_TARGET)}>
                     <input
                       type="checkbox"
@@ -547,7 +649,21 @@ export default function PartPicker({
                     does not, because resizing a whole rocket to fit a part costing a few pounds is
                     the tail wagging the airframe — so a cone whose base disagrees with the tube
                     behind it makes a real mould-line step, and the flight already says so. */}
-                {kind === "bodytube" ? (
+                {kind === "parachute" ? (
+                  <>
+                    Choosing one sets this design&apos;s canopy diameter, and its mass — the
+                    vendor&apos;s published weight where they state one, otherwise the figure their own
+                    cloth and shroud lines imply — unless this design states its weight as a whole,
+                    in which case the size lands and the mass is left where the file already counts
+                    it.{" "}
+                    <span className="text-zinc-600 dark:text-zinc-300">
+                      The drag coefficient stays your design&apos;s own, because no vendor here
+                      publishes one and a landing speed is not a number to compute from a guess. The
+                      deploy event, altitude and delay are untouched too — this changes the canopy,
+                      not when it opens.
+                    </span>
+                  </>
+                ) : kind === "bodytube" ? (
                   <>
                     Choosing one sets this design&apos;s body diameter and length; the airframe is
                     scaled to the caliber you pick so the mould line stays faired.{" "}
@@ -580,18 +696,37 @@ export default function PartPicker({
                   // index-bearing key re-keys all 1,089 of them each time, remounting the row under
                   // the flyer's focus. The dimensions are in the key because identity alone is not
                   // unique — three body-tube (manufacturer, part number) pairs are duplicated.
+                  // A canopy's own dimensions go in for CONSISTENCY, not because they are needed:
+                  // measured, there are zero duplicate (manufacturer, part number) pairs among the
+                  // 151, so the airframe form of this key would have been unique anyway. An earlier
+                  // version justified it by claiming the collapsed form would "re-key every row on a
+                  // re-sort", which is not a thing a constant-per-row key can do.
                   rowKey={(p) =>
-                    `${p.manufacturer}/${p.partNumber}/${p.outerDiameter ?? ""}/${p.length ?? ""}`
+                    kind === "parachute"
+                      ? `${p.manufacturer}/${p.partNumber}/${p.diameter ?? ""}/${p.lineCount ?? ""}`
+                      : `${p.manufacturer}/${p.partNumber}/${p.outerDiameter ?? ""}/${p.length ?? ""}`
                   }
                   initialSort={{ key: "od", dir: 1 }}
                   // A nose row states three more figures than a tube row — contour, shoulder and
                   // wall — and squeezing them into the tube width collapses the shoulder pair onto
                   // two lines on every row. The table scrolls inside its own container either way.
-                  minWidth={kind === "nosecone" ? "46rem" : "34rem"}
+                  // A canopy row carries the same compound-cell shape that made a CONE need more
+                  // width, not less: `{lineCount} x {lineLength}` collapses onto two lines at a tube's
+                  // width exactly as the cone's shoulder pair did. It renders the same eight columns
+                  // a tube does and five numeric figures to the tube's four, and its material names
+                  // run to 39 characters. An earlier version gave it 30rem on a miscount.
+                  minWidth={kind === "nosecone" ? "46rem" : kind === "parachute" ? "38rem" : "34rem"}
                   empty={
+                    // §5: an empty state says what would fill it AND the one action that does — so
+                    // it must not name an action that is not on screen. The caliber filter is not
+                    // rendered for a canopy (it compares an OUTER diameter, which no parachute
+                    // states, and a chute does not fit anything — it hangs below it), so offering
+                    // to turn it off would have been the one concrete suggestion and the false one.
                     <p>
-                      No catalogued {copy.noun} matches that. Clear the search, or turn off the
-                      caliber filter to see {copy.fitsNoun} of every diameter.
+                      No catalogued {copy.noun} matches that.{" "}
+                      {kind === "parachute" || currentOuterDiameter === undefined
+                        ? "Clear the search, or try a size in inches — the descriptions are the vendors' own."
+                        : `Clear the search, or turn off the caliber filter to see ${copy.fitsNoun} of every diameter.`}
                     </p>
                   }
                 />

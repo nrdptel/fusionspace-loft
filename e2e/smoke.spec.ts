@@ -6097,6 +6097,87 @@ test.describe("choosing a real commercial part", () => {
     await expect.poll(apogee, { timeout: 15_000 }).toBe(before);
   });
 
+  test("a real commercial parachute can be chosen, and the descent changes", async ({ page }) => {
+    // R8's third kind, and the first that is not airframe. The catalogue ships 151 canopies and
+    // states a flat diameter, gore count, shroud lines and a cloth for every one — and a `cd` for
+    // none, which is why a pick edits the chute already on the design rather than authoring one: the
+    // model requires a drag coefficient and a deploy event, and the vendor supplies neither.
+    test.setTimeout(120_000);
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 30_000 });
+
+    // The number this gesture is FOR: how hard the rocket arrives. Measured across the catalogue on
+    // this design, it spans 2.16 m/s (a LOC 96 in) to 18.15 m/s (a Top Flight 9 in) against the
+    // design's own 6.95 — a factor of eight, which is the difference between a walk-away landing and
+    // a broken airframe.
+    const arrival = async () =>
+      (
+        await page
+          .getByLabel("Results")
+          .getByText("Ground-hit speed", { exact: true })
+          .locator("xpath=following-sibling::div[1]")
+          .innerText()
+      ).trim();
+    const before = await arrival();
+
+    await page.getByRole("link", { name: "Design", exact: true }).click();
+    await page.getByRole("button", { name: "Pick a real parachute" }).click();
+
+    // The lazy chunk resolves and the table names its own count and its provenance.
+    const panel = page.getByRole("button", { name: "Close the parts list" }).locator("xpath=../..");
+    await expect(panel.getByText(/catalogued parachutes/)).toBeVisible({ timeout: 30_000 });
+
+    // **Every row must be choosable.** The picker's shared `buildable` prelude required an outer
+    // diameter and a length before the kind switch, and 0 of the 151 canopies state either — so the
+    // whole list would have rendered disabled, which on a phone is indistinguishable from a missed
+    // tap. This is the assertion that would have caught it.
+    const useButtons = panel.getByRole("button", { name: "Use" });
+    await expect.poll(async () => useButtons.count(), { timeout: 30_000 }).toBeGreaterThan(20);
+    // **DISABLED buttons still have role=button**, so a count alone proves nothing about whether a
+    // row can be chosen — which is the entire behavioural change here. Counted directly, over every
+    // row rather than the first: a regression that disabled 150 of 151 would otherwise ship green,
+    // because `initialSort` puts the smallest canopy first and that is the row most likely to pass
+    // any predicate.
+    const disabled = await panel
+      .locator("tbody button")
+      .evaluateAll((ns) => ns.filter((n) => (n as HTMLButtonElement).disabled).length);
+    expect(disabled, "catalogued canopies that cannot be chosen").toBe(0);
+
+    // A canopy states no length, so that column is dropped rather than headed over 151 dashes; it
+    // states gores and shroud lines, which no airframe kind has.
+    //
+    // Read off `thead` innerText rather than by accessible name — the suite's own working idiom, at
+    // the motor-sweep test above. `DataTable` renders each sortable header as a button carrying
+    // `aria-label="Sort by <label>"`, and Playwright returns a descendant's `aria-label` before
+    // falling through to name-from-content, so a `columnheader` named `/^Length/` matches NOTHING on
+    // any kind — the assertion that was here passed whether the column existed or not, and would
+    // have passed with the shared Length column reinstated.
+    const heads = (await panel.locator("thead th").allInnerTexts()).map((t) =>
+      t.replace(/[▲▼]/g, "").replace(/\s+/g, " ").trim().toLowerCase(),
+    );
+    expect(heads.some((h) => h.startsWith("gores")), `headers: ${heads.join(" | ")}`).toBe(true);
+    expect(heads.some((h) => h.startsWith("lines")), `headers: ${heads.join(" | ")}`).toBe(true);
+    expect(heads.some((h) => h.startsWith("length")), `headers: ${heads.join(" | ")}`).toBe(false);
+    expect(heads.some((h) => h.startsWith("canopy")), `headers: ${heads.join(" | ")}`).toBe(true);
+
+    // Sort by canopy diameter descending and take the biggest, so the change is unambiguous.
+    await panel.getByRole("button", { name: /Canopy/ }).click();
+    await useButtons.first().click();
+
+    await expect(page.getByText(/Flying .+/).first()).toBeVisible();
+
+    await page.getByRole("link", { name: "Flight", exact: true }).click();
+    await expect.poll(arrival, { timeout: 30_000 }).not.toBe(before);
+
+    // And the way back — a pick that could not be undone would be the one-way door this milestone
+    // has already shipped and fixed once.
+    await page.getByRole("link", { name: "Design", exact: true }).click();
+    await page.getByRole("button", { name: /back to the design's own canopy/i }).click();
+    await page.getByRole("link", { name: "Flight", exact: true }).click();
+    await expect.poll(arrival, { timeout: 30_000 }).toBe(before);
+  });
+
   test("withholds every loaded figure when a motor did not resolve, and says why", async ({ page }) => {
     // **The Sev-1 this pins: a motor that cannot be matched is left OUT of the build entirely**
     // (`lib/sim/setup.ts` skips the instance), so it contributes neither mass nor CG — and every

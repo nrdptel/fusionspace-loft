@@ -12,6 +12,16 @@ this file, and deliberately does **not** cap craft or product work, because that
 track in `ROADMAP.md` with its own *done when*. Rough edges, missing affordances, and findings too
 big for one pass. Newest first.
 
+- **An UNAIMED absolute edit value survives removal of the part it was typed for, and re-lands on
+  whatever the fallback resolves to next.** Filed 2026-08-03. `aimsClearedByRemoving` only fires when
+  `bag[slot]` is a string — an explicit aim — so with the default (no aim) `mainParachuteDiameter`,
+  `bodyLength`, `bodyDiameter`, `transitionLength` and the rest all outlive the component they
+  described and silently re-target. The parachute PICK case was fixed this run because it is the
+  worst of them (it rewrites mass as well as size, and carries a vendor's name on the provenance
+  line), but the general hole stands and it wants a per-slot fallback resolver that
+  `aimsClearedByRemoving` does not currently have. Reproduce: on a design with two body tubes, aim at
+  nothing, type a body length, remove the primary tube — the length lands on the other one.
+
 - **Three e2e assertions addressed sweep columns by hard-coded `nth-child`, and inserting one column
   silently re-pointed them at the neighbour.** Filed and FIXED 2026-08-02.
   `e2e/smoke.spec.ts`'s "a design edit re-runs an open sweep" read `td` index 1 — the Class column —

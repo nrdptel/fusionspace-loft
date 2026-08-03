@@ -78,6 +78,7 @@ import {
   type MountAdd,
   type PickedBodyTube,
   type PickedNoseCone,
+  type PickedParachute,
 } from "@/lib/model/edit";
 import PartPicker from "./PartPicker";
 import {
@@ -209,6 +210,7 @@ interface Edits {
   bodyDiameter?: number; // builder edit: the picked tube's outer diameter (m); scales the airframe to it
   catalogBodyTube?: PickedBodyTube; // builder edit: which catalogued part the two above came from
   catalogNoseCone?: PickedNoseCone; // builder edit: the published cone the nose fields came from
+  catalogParachute?: PickedParachute; // builder edit: the published canopy the recovery fields came from
   transitionLength?: number; // builder edit: the picked transition's length (m)
   transitionAftDiameter?: number; // builder edit: the picked transition's exit diameter (m)
   massObjectMass?: number; // builder edit: the picked mass object's weight (kg)
@@ -2738,6 +2740,86 @@ function DesignEditor({
                   />
                 )}
               </div>
+              {/* The third kind the catalogue can offer, and the first that is not airframe. It edits
+                  the canopy that is already there — the same shape as a nose pick, and for the same
+                  reason: the model requires a drag coefficient and a deploy event, and the catalogue
+                  states neither, so the part being replaced is where both come from. */}
+              {designDims.mainParachuteDiameter !== undefined && (
+                <PartPicker
+                  kind="parachute"
+                  imperial={imperial}
+                  picked={edits.catalogParachute}
+                  // The one figure with a field of its own, so it is the only one that can drift.
+                  dimensionsMatch={
+                    !!edits.catalogParachute &&
+                    (edits.mainParachuteDiameter === undefined ||
+                      edits.mainParachuteDiameter === edits.catalogParachute.diameter)
+                  }
+                  onPick={(p, material) => {
+                    if (p.diameter === undefined || !(p.diameter > 0)) return;
+                    // **The mass, and where it comes from, in the order the evidence supports.**
+                    // The vendor's own weight wins where they publish one (21 of 151) — measured,
+                    // theirs and the derived figure disagree by up to 7.85x, because hem, spill
+                    // hole, swivel and shroud attachment are invisible to a diameter and a surface
+                    // density. Otherwise it is derived by the SAME formula the `.ork` importer uses
+                    // for a hand-built chute (`parachuteMass`): canopy area x surface density, plus
+                    // lines x length x line density. Using the importer's own arithmetic rather than
+                    // a second one keeps a catalogue part and a typed part on one model.
+                    const derived = (): number | undefined => {
+                      const d = material?.density;
+                      if (d === undefined || !(d > 0)) return undefined;
+                      const canopy = Math.PI * (p.diameter! / 2) ** 2 * d;
+                      const ld = p.lineMaterial?.density;
+                      const lines =
+                        p.lineCount && p.lineLength && ld && ld > 0 ? p.lineCount * p.lineLength * ld : 0;
+                      return canopy + lines;
+                    };
+                    const mass = p.mass !== undefined && p.mass > 0 ? p.mass : derived();
+                    if (mass === undefined || !(mass > 0)) return;
+                    onEdit(
+                      {
+                        catalogParachute: {
+                          manufacturer: p.manufacturer,
+                          partNumber: p.partNumber,
+                          diameter: p.diameter,
+                          mass,
+                          ...(p.lineCount !== undefined ? { lineCount: p.lineCount } : {}),
+                          ...(p.lineLength !== undefined ? { lineLength: p.lineLength } : {}),
+                          ...(material
+                            ? { material: { name: material.name, density: material.density } }
+                            : {}),
+                        },
+                        // **Written, not cleared**, and the difference is a number on screen that
+                        // is not the one being flown. Clearing it left the "Main chute Ø" field
+                        // empty, so it fell back to its placeholder — `designDims.mainParachuteDiameter`,
+                        // read off the PRISTINE design — and the panel then advertised the
+                        // pre-pick canopy as "the design's own" while a different one flew, with no
+                        // field anywhere showing the flown size. Both sibling pickers avoid this by
+                        // writing the vendor's figures into the fields the flyer can see.
+                        //
+                        // It is a no-op through the applier: the resize scales mass by (d/d)² = 1
+                        // against the diameter the pick just wrote. It also makes `dimensionsMatch`
+                        // true, which is what the caption's "Flying …" wording assumes.
+                        mainParachuteDiameter: p.diameter,
+                      },
+                      {
+                        label: `${p.manufacturer} ${p.partNumber}`,
+                        key: `catalog-chute-pick-${p.partNumber}`,
+                      },
+                    );
+                  }}
+                  // Both keys go back together, with an explicit action — a two-key patch falls
+                  // through `describeEdit`, which returns "the design" for anything with more than
+                  // one key, so the undo control read "Undo the design" for the way back from a
+                  // pick. Both sibling pickers pass one for the same reason.
+                  onClear={() =>
+                    onEdit(
+                      { catalogParachute: undefined, mainParachuteDiameter: undefined },
+                      { label: "the catalogue parachute", key: "catalog-chute-clear" },
+                    )
+                  }
+                />
+              )}
             </fieldset>
 
             <fieldset className="min-w-0 border-0 p-0">

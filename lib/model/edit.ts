@@ -409,6 +409,60 @@ export interface PickedNoseCone {
   material?: { name: string; density: number };
 }
 
+/** A real commercial parachute the flyer chose, carried BY VALUE like every other pick.
+ *
+ *  **What the catalogue does and does not state, measured over all 151 canopies.** Diameter, sides,
+ *  line count, line length and a surface material are on 151 of 151; a line material on 145; a
+ *  stated mass on 21. Nothing states a `cd`, a packed size, a length or an outer diameter — 0 of 151
+ *  on each. That shape is what this type is built around, and it is why a parachute pick edits the
+ *  canopy that is ALREADY THERE rather than authoring a new one: the model requires a `cd` and a
+ *  deploy event, and the catalogue supplies neither.
+ *
+ *  **The `cd` therefore comes from the chute being replaced, and that is the honest answer rather
+ *  than a convenient one.** A drag coefficient is a property of a canopy's cut and porosity that no
+ *  vendor in this database publishes; inventing one would be a number a flyer would then fly a
+ *  landing speed off. The design's own is a real figure — 22 of the 37 parachute nodes across the
+ *  corpus state one explicitly (1.5 ×10, 1.55 ×4, 0.75 ×4, 2.2 ×2, 1.34, 0.61), the rest saying
+ *  `auto`, which the importer maps to 0.8. So a pick changes the canopy's SIZE and MASS and leaves
+ *  the coefficient exactly where the flyer's own file put it. */
+export interface PickedParachute {
+  manufacturer: string;
+  partNumber: string;
+  /** Metres — the canopy diameter laid flat, which is the convention every catalogued figure uses
+   *  and the same one `Parachute.diameter` means. Written through with any explicit `area` cleared,
+   *  so the vendor's diameter is what drives the descent. */
+  diameter: number;
+  /** Kilograms. The vendor's own published weight where they publish one (21 of 151), else the
+   *  figure derived from the part's own stated geometry and stock.
+   *
+   *  **The two disagree, on every vendor and by a wide margin, and the published one wins.**
+   *  Recomputed over all 21 canopies that state both, with the same formula the derivation uses:
+   *  Public Missiles 12 canopies, published/derived **0.99x to 1.69x**; Rocketarium 3, **1.46x to
+   *  1.73x**; Giant Leap 6, **2.91x to 7.85x**. Only three of the 21 land within 4% — an earlier
+   *  version of this note quoted exactly those three and called them "Public Missiles' three",
+   *  which was a cherry-picked subset of a twelve-part set presented as the vendor's whole answer.
+   *  The honest reading is the opposite of what that implied: the derivation runs LOW essentially
+   *  everywhere, because a canopy's real weight is dominated by hem, spill hole, swivel and shroud
+   *  attachment, none of which a diameter and a surface density can see. So where the vendor has
+   *  weighed one, that is the number, and the derivation is the fallback rather than the rule.
+   *
+   *  Applied as the component's own `mass`, NOT as `overrideMass`: a parachute's mass field already
+   *  IS its mass in `lib/sim/mass.ts`, so an override would be a second mechanism saying the same
+   *  thing — and the replaced chute's own override is cleared for the reason the nose applier
+   *  records at length. */
+  mass: number;
+  /** The vendor's published canopy stock, by value with its SURFACE density (kg/m²) — never a key
+   *  into any of Loft's own tables. Carried for provenance and for the derivation above; the model
+   *  has no material field on a `Parachute`, so this never reaches the solver. */
+  material?: { name: string; density: number };
+  /** The shroud lines, as published: how many and how long (m). Kept because they are a real part of
+   *  the derived mass — `lineCount x lineLength x lineDensity` is the second term of the same
+   *  formula the `.ork` importer uses — and because a flyer comparing two canopies of one diameter
+   *  is often choosing on exactly this. */
+  lineCount?: number;
+  lineLength?: number;
+}
+
 export interface GeometryEdits {
   /** Which fin set the fin fields describe and edit. Undefined means the frontmost one, which is
    *  what the panel has always used and what every readback below still falls back to. This is a
@@ -591,6 +645,16 @@ export interface GeometryEdits {
    *  so this record is where they live, and it is a real edit rather than pure provenance from the
    *  first version. `usableCatalogNose` is the one test of whether it can be applied. */
   catalogNoseCone?: PickedNoseCone;
+  /** The real commercial PARACHUTE the flyer chose, when they chose one instead of measuring.
+   *
+   *  `mainParachuteDiameter` already resizes the aimed canopy, so a pick could in principle have
+   *  ridden on that one scalar — and it must not. That field scales the existing chute's mass by
+   *  (d/d₀)², which is the right model for "make my canopy bigger" and the wrong one for "I own this
+   *  part": the vendor states the canopy's own stock, its line count and its line length, and 21 of
+   *  the 151 publish a weight outright. A pick that only moved the diameter would fly a real part's
+   *  size at a scaled version of somebody else's mass. `usableCatalogParachute` is the one test of
+   *  whether it can be applied. */
+  catalogParachute?: PickedParachute;
   /** Absolute length (m) for the transition `transitionId` names — the frontmost when nothing is
    *  picked. Only that one transition resizes; everything aft of it restacks, exactly as a body
    *  tube's length does. This is the fairing-angle lever: a boattail's own pressure drag fades to
@@ -678,6 +742,32 @@ export function usableCatalogTube(p: PickedBodyTube | undefined): boolean {
   );
 }
 
+/** Whether a picked parachute record carries enough for the applier to use it.
+ *
+ *  Every pick is replayed from `localStorage` on load, so a record written by an older or newer
+ *  build reaches this — which is why the bound on `diameter` is a real physical band and not merely
+ *  `> 0`. The catalogue's own canopies run **203.2 mm to 3,657.6 mm**, and the band is deliberately
+ *  much wider than that (50 mm to 10 m) rather than snug: it exists to refuse a stored 0.0001 m that
+ *  would fly a landing speed off a canopy the size of a coin, not to police what a vendor may add.
+ *  A snug band would turn every upstream re-cut into a silently refused row. */
+export function usableCatalogParachute(p: PickedParachute | undefined): boolean {
+  return (
+    p !== undefined &&
+    typeof p.diameter === "number" &&
+    Number.isFinite(p.diameter) &&
+    p.diameter > 0.05 &&
+    p.diameter < 10 &&
+    // The mass is written straight onto the component, so a NaN or a negative would land in the
+    // dry-mass total unchallenged — and a parachute's mass is the one a flyer checks a descent rate
+    // against. Zero is refused rather than allowed: no canopy weighs nothing, and a stored 0 is a
+    // half-written record rather than a claim.
+    typeof p.mass === "number" &&
+    Number.isFinite(p.mass) &&
+    p.mass > 0 &&
+    p.mass < 50
+  );
+}
+
 /** The same ONE test for a nose pick, and it asks a different question because the catalogue answers
  *  a different one. A tube pick is refused without a bore; a cone has no bore to state — 728 of the
  *  854 are solid and say so — so what has to be present is the geometry the cone IS: a base, a
@@ -746,6 +836,7 @@ export function hasGeometryEdits(e: GeometryEdits): boolean {
     // expressed nowhere else. Omitting this disjunct makes `applyDimensionEdits` early-return and a
     // design whose only edit is a chosen cone flies pristine.
     usableCatalogNose(e.catalogNoseCone) ||
+    usableCatalogParachute(e.catalogParachute) ||
     (e.transitionLength !== undefined && e.transitionLength > 0) ||
     (e.transitionAftDiameter !== undefined && e.transitionAftDiameter > 0) ||
     (e.massObjectMass !== undefined && e.massObjectMass >= 0) ||
@@ -954,7 +1045,11 @@ export const AIM_SLOTS: Readonly<Record<string, AimSlot>> = {
   massObjectId: { kinds: ["masscomponent"], targets: ["massObjectMass", "massObjectStation"] },
   parachuteId: {
     kinds: ["parachute"],
-    targets: ["mainParachuteDiameter", "mainDeployAltitude", "drogueDiameter"],
+    // `catalogParachute` is a target, not merely provenance: the applier resolves its canopy through
+    // this same aim, so a pick that outlived its aim would migrate onto whatever the primary-chute
+    // fallback found next — which is the defect `withCatalogTube` shipped and had to fix. Listing it
+    // here makes the pick clear exactly when the diameter and deploy fields aimed at that part do.
+    targets: ["mainParachuteDiameter", "mainDeployAltitude", "drogueDiameter", "catalogParachute"],
   },
 };
 
@@ -1006,6 +1101,7 @@ export function isEditedValue(key: string, value: unknown): boolean {
   // build whose `PickedNoseCone` carried fewer fields — reads as an edit while the applier refuses
   // it, which withholds the imported file's stored-simulation comparison on an unchanged design.
   if (key === "catalogNoseCone") return usableCatalogNose(value as PickedNoseCone | undefined);
+  if (key === "catalogParachute") return usableCatalogParachute(value as PickedParachute | undefined);
   if (value === undefined || value === "") return false;
   if (Array.isArray(value) && value.length === 0) return false;
   return true;
@@ -1471,6 +1567,58 @@ function withCatalogTube(
       // designs carry one on the primary tube against 10 of 41 on the cone — but wrong in exactly
       // the same way, and a mass override is how a real file records a part somebody weighed.
       overrideMass: publishedMass !== undefined && publishedMass > 0 ? publishedMass : undefined,
+      overrideCGx: undefined,
+      children,
+    };
+  }
+  return children === c.children ? c : { ...c, children };
+}
+
+/** Put a picked commercial parachute onto the canopy `parachuteId` names.
+ *
+ *  The counterpart of `withCatalogNose`, and the same three rules apply — take the whole published
+ *  part, clear what the replaced one carried that would outlive it, and never invent a figure the
+ *  vendor does not state. What differs is which figures exist: a canopy publishes a diameter and a
+ *  stock and no drag coefficient at all, so the `cd` is left exactly as the design had it. */
+function withCatalogParachute(c: RocketComponent, id: string, p: PickedParachute): RocketComponent {
+  const children = c.children.length ? c.children.map((ch) => withCatalogParachute(ch, id, p)) : c.children;
+  if (c.kind === "parachute" && c.id === id) {
+    return {
+      ...(c as Parachute),
+      diameter: p.diameter,
+      // Cleared, exactly as `withMainParachuteDiameter` clears it. `Parachute.area` is an explicit
+      // reference area the solver PREFERS over the diameter (`lib/sim/simulate.ts`, `lib/sim/setup.ts`
+      // both read `c.area ?? pi(d/2)^2`), so a stale one would fly the OLD canopy's drag under the new
+      // part's name with the diameter beside it saying otherwise.
+      //
+      // **Defensive rather than live, and worth saying which:** measured 2026-08-03, NO importer sets
+      // this field — the `.ork`, `.rkt` and RASAero adapters all supply a diameter — so no design a
+      // flyer can currently load reaches the branch. It is cleared anyway because the field exists
+      // for a format that states one, the solver already honours it, and an applier that left it
+      // would be a wrong number waiting on an adapter change rather than a bug today.
+      area: undefined,
+      // **A canopy that was MASSLESS stays massless, and this is a wrong number rather than a
+      // nicety.** `lib/rasaero/adapt.ts` gives every `.CDX1` canopy `mass: 0` deliberately: the
+      // format states no per-part masses at all, so the whole design's weight rides in one point
+      // mass and the geometry is massless by construction. Writing the vendor's weight onto it
+      // COUNTS THE CANOPY TWICE. Measured on `Show-off.CDX1`: dry mass 0.4536 kg (its stated 1 lb)
+      // → 0.5358 kg, +18%, with the dry CG moving 25.4 → 96.9 mm; `Complex.Two-Stage.CDX1` goes
+      // 1.1777 → 1.2599 kg. Both are reachable — the picker renders on both, since each states a
+      // canopy diameter.
+      //
+      // `withMainParachuteDiameter` has always preserved this for free, because it SCALES
+      // (0 × anything is 0); an applier that assigns rather than scales has to say it out loud. The
+      // vendor's size still lands, so the descent rate moves exactly as it should — it is only the
+      // mass that the design has already accounted for elsewhere.
+      mass: (c as Parachute).mass > 0 ? p.mass : 0,
+      // **The replaced canopy's own weighed figures are CLEARED**, and on this kind it is the common
+      // case rather than an edge: 20 of the 37 parachute nodes across the corpus carry an
+      // `<overridemass>` (11 of the 27 `.ork` files). `lib/sim/mass.ts` lets `overrideMass` win
+      // outright, so a pick that set `mass` and left the override in place would take the vendor's
+      // diameter — changing the descent rate — while flying the old weight under a caption naming
+      // the new part. That is the identical Sev-1 the nose-cone increment shipped and had to fix,
+      // waiting on the one kind where it is the majority.
+      overrideMass: undefined,
       overrideCGx: undefined,
       children,
     };
@@ -2074,6 +2222,27 @@ export function aimsClearedByRemoving(rocket: Rocket, edits: GeometryEdits, id: 
       // is how the edit lands on a different component. Emptying the fields also keeps the panel honest:
       // it stops showing a number that is not the one being flown.
       for (const field of def.targets) patch[field] = undefined;
+    }
+  }
+  // **A catalogue PICK has to go when its canopy does, even with no explicit aim** — and the loop
+  // above cannot see that case, because it only fires when `bag[slot]` is a string.
+  //
+  // With the default (unaimed) the fields resolve through "the largest canopy", so removing the
+  // chute a pick was made for silently re-lands the vendor's diameter AND weight on the next-largest
+  // one, with the provenance line still reading "Flying <part>". That is the `withCatalogTube`
+  // migration defect in its third incarnation, and a pick is worse than a typed diameter here
+  // because it rewrites the mass as well as the size and carries a vendor's name while doing it.
+  //
+  // Resolved precisely rather than by clearing on any parachute removal: an over-eager clear would
+  // throw away a figure the flyer typed for a canopy that is still there. **The same hole remains
+  // for the unaimed VALUE fields on every slot** (`mainParachuteDiameter`, `bodyLength`, and the
+  // rest) — it is pre-existing and general, it needs a per-slot fallback resolver this function does
+  // not have, and it is filed in `BACKLOG.md` rather than widened here.
+  if (usableCatalogParachute((edits as GeometryEdits).catalogParachute)) {
+    const held = primaryParachute(rocket, typeof bag.parachuteId === "string" ? bag.parachuteId : undefined);
+    if (held && gone.has(held.id)) {
+      patch.catalogParachute = undefined;
+      patch.mainParachuteDiameter = undefined;
     }
   }
   return patch as GeometryEdits;
@@ -2983,16 +3152,52 @@ function applyDimensionEdits(rocket: Rocket, edits: GeometryEdits): Rocket {
   if (edits.boattailLength !== undefined && edits.boattailAftDiameter !== undefined) {
     out = addBoattail(out, edits.boattailLength, edits.boattailAftDiameter / 2);
   }
-  // Recovery resize: set the picked canopy (the largest when none is) to a target diameter. Applied
-  // before any dual-deploy promotion, so a resized canopy is the one promoted to the altitude
-  // deployment. Both resolve the same aim, so with one set the promotion cannot drift onto another
-  // canopy just because the resize made a different one the largest.
-  if (edits.mainParachuteDiameter !== undefined && edits.mainParachuteDiameter > 0) {
-    out = withMainParachuteDiameter(out, edits.mainParachuteDiameter, edits.parachuteId);
+  // **The canopy all three recovery edits act on is resolved ONCE, from the PRISTINE design, and
+  // that is a correctness fix rather than tidiness.**
+  //
+  // `primaryParachute(rocket, aim)` falls back to "the largest canopy" when the flyer has not aimed
+  // at one, which is the default. Each of the three steps below used to re-resolve it against the
+  // tree the previous step had just mutated — harmless while every step only RESIZED, because the
+  // three ran in an order where the target could not change underneath them. A pick breaks that: it
+  // can make the aimed canopy SMALLER than another one, so the fallback moves.
+  //
+  // Measured on `fixtures/demo-dual-deploy.ork` (Main 1220.0 mm, Drogue 460.0 mm, no aim): pick the
+  // catalogued Rocketarium 18 in (457.2 mm) and the Main becomes the SMALLER of the two, so typing
+  // 900 into "Main chute Ø" — the field directly above the picker, whose placeholder reads 1220 —
+  // resized the DROGUE to 900 mm at 4x its mass and left the Main untouched. The same construction
+  // on the promotion path produced TWO components named "Main parachute", both on altitude deploy.
+  // 62 of the 151 catalogued canopies are smaller than that design's drogue, and 17 of the 35 corpus
+  // designs carry more than one canopy, so this is the common shape rather than a corner.
+  //
+  // Resolving once against `rocket` is what `nosePickId` and `massTarget` already do above, for the
+  // same reason. The id is then passed as the explicit aim to all three, so none of them can fall
+  // back to a rule at all.
+  const chutePick = usableCatalogParachute(edits.catalogParachute) ? edits.catalogParachute : undefined;
+  const chuteTargetId =
+    chutePick || edits.mainParachuteDiameter !== undefined || edits.mainDeployAltitude !== undefined
+      ? primaryParachute(rocket, edits.parachuteId)?.id
+      : undefined;
+  // Recovery PICK: a real commercial canopy, applied BEFORE the resize below, because the two compose
+  // rather than compete — a pick writes the vendor's diameter and weight, and a diameter typed
+  // afterwards then scales the mass from THOSE, so "a PAR-18, but cut down to 400 mm" flies a
+  // plausible weight for a cut-down PAR-18 instead of for whatever canopy the file happened to ship.
+  // Applied the other way round the pick would silently discard a number the flyer had typed.
+  if (chutePick && chuteTargetId) {
+    out = {
+      ...out,
+      stages: out.stages.map((st) => ({
+        ...st,
+        components: st.components.map((c) => withCatalogParachute(c, chuteTargetId, chutePick)),
+      })),
+    };
   }
-  // Recovery add: convert to dual-deploy (main at altitude + a drogue at apogee).
+  // Recovery resize: set that same canopy to a target diameter.
+  if (edits.mainParachuteDiameter !== undefined && edits.mainParachuteDiameter > 0) {
+    out = withMainParachuteDiameter(out, edits.mainParachuteDiameter, chuteTargetId);
+  }
+  // Recovery add: convert to dual-deploy (main at altitude + a drogue at apogee), on that same canopy.
   if (edits.mainDeployAltitude !== undefined && edits.drogueDiameter !== undefined) {
-    out = applyDualDeploy(out, edits.mainDeployAltitude, edits.drogueDiameter, edits.parachuteId);
+    out = applyDualDeploy(out, edits.mainDeployAltitude, edits.drogueDiameter, chuteTargetId);
   }
   // Payload add: a point mass inside the (already-edited) body tube, so its station tracks whatever
   // the length/diameter edits left.
