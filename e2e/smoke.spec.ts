@@ -159,7 +159,11 @@ test.describe("Loft", () => {
     await page.getByRole("link", { name: "Sweep" }).click();
     const sweep = page.getByRole("region", { name: "Motor sweep" });
     await sweep.getByRole("button", { name: "Run motor sweep" }).click();
-    const firstRow = () => sweep.locator("tbody tr").first().locator("td").nth(1);
+    // The whole ROW, not a positional cell. This read `td` index 1 — the Class column — until a
+    // `Use` control was inserted second, at which point it was reading a button label that no design
+    // edit can change, and the assertion below could only ever time out. A row's text moves whenever
+    // any figure in it does, and it cannot be silently re-pointed by a column insertion.
+    const firstRow = () => sweep.locator("tbody tr").first();
     await expect(firstRow()).not.toBeEmpty();
     const sweptBefore = await firstRow().innerText();
     const flownBefore = await apogee();
@@ -375,6 +379,76 @@ test.describe("Loft", () => {
     await page.getByLabel(/^Choose an OpenRocket/).setInputFiles(saved!);
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
     await expect(apogee).toHaveText(before);
+  });
+
+  test("a downloaded design reopens on the same launch setup, not on Loft's defaults", async ({ page }) => {
+    // **The test above passes with the Sev-1 present, and that is why this one exists.** It reads
+    // APOGEE, which barely moves with the launch setup — so a round trip that silently reset rail
+    // length, wind, angle and altitude to Loft's defaults looked clean. `serializeRocketXml` wrote no
+    // `<simulations>` block at all, and that block is where the importer reads the whole setup FROM.
+    //
+    // Drift from pad is the figure that exposes it: it is computed almost entirely from the wind and
+    // the rod, so it collapses to 0 m the moment they are lost — and it is one of the two numbers a
+    // flyer sizes their recovery area with.
+    await page.goto("/");
+    await page.getByRole("button", { name: /54 mm dual-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+
+    const figure = (label: string) =>
+      page.getByLabel("Results").getByText(label, { exact: true }).locator("xpath=following-sibling::div[1]");
+    const drift = figure("Drift from pad");
+    const before = (await drift.textContent())!.trim();
+    // It has to be a real distance for the assertion below to mean anything — 0 m would pass either
+    // way, which is exactly the state the defect produced.
+    expect(parseFloat(before.replace(/[^\d.]/g, "")), `drift read "${before}"`).toBeGreaterThan(50);
+
+    const download = page.waitForEvent("download");
+    await page.getByRole("button", { name: /Download|Save this design/i }).first().click();
+    const saved = await (await download).path();
+    expect(saved).toBeTruthy();
+
+    await page.getByRole("button", { name: /Import another/ }).click();
+    await page.getByLabel(/^Choose an OpenRocket/).setInputFiles(saved!);
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    await expect(drift, "the launch setup was reset to Loft's defaults on re-import").toHaveText(before);
+  });
+
+  test("a canopy too small for the rocket gets a landing caution, and it escalates", async ({ page }) => {
+    // **This exists because a cold walk reported the opposite and the ledger nearly took it.** The
+    // claim was that fitting a small catalogue parachute produced an unflagged 18 m/s descent while
+    // the same page cautions on thrust-to-weight and rail exit. Re-measured, the solver DOES raise
+    // `hard-landing` — at 7.6 m/s firm and 10.7 m/s hard, the same thresholds the booster check uses.
+    //
+    // What was actually missing is this: nothing end-to-end asserted the caution reaches the page, so
+    // a regression that stopped rendering it would have been invisible to the gate, and a walker had
+    // no pinned behaviour to check against.
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    // `getByLabel("Results")` matches TWO regions on this route, so it is not a scope — the caution
+    // list lives in the main column and that is what is read.
+    const main = page.locator("main");
+    // As designed it lands at 6.96 m/s, under the firm threshold — so nothing is said, and that
+    // silence is asserted first. Without it the checks below could pass on a page that always warns.
+    await expect(main.getByText(/firm landing|hard landing/i)).toHaveCount(0);
+
+    await page.getByRole("link", { name: "Design" }).click();
+    // The field sits far down the editor, so it is off-screen at rest — `fill` scrolls to it, but a
+    // `toBeVisible` gate here would fail on a field that is perfectly reachable.
+    const chute = page.locator("label").filter({ hasText: /^Main chute/ }).first().locator("input");
+
+    // 457.2 mm lands at 9.20 m/s — over the firm threshold, under the hard one.
+    await chute.fill("457.2", { timeout: 15000 });
+    await page.getByRole("link", { name: "Flight" }).click();
+    await expect(main.getByText(/firm landing/i)).toBeVisible({ timeout: 20000 });
+    await expect(main.getByText(/hard landing/i)).toHaveCount(0);
+
+    // 228.6 mm lands at 18.14 m/s — the walk's own figure, and it escalates to a hard landing.
+    await page.getByRole("link", { name: "Design" }).click();
+    await chute.fill("228.6", { timeout: 15000 });
+    await page.getByRole("link", { name: "Flight" }).click();
+    await expect(main.getByText(/hard landing/i)).toBeVisible({ timeout: 20000 });
+    await expect(main.getByText(/18\.1 m\/s/)).toBeVisible();
   });
 
   test("clearing a what-if brings the stored-tool comparison back", async ({ page }) => {
@@ -1000,6 +1074,47 @@ test.describe("Loft", () => {
     await expect(page.getByRole("term").filter({ hasText: /^Apogee$/ })).toBeVisible();
   });
 
+  test("a motor that does not fit the mount is refused, and the page says WHY", async ({ page }) => {
+    // The flyer-visible half of the casing veto. `wrong-casing-motor.ork` is the unresolved fixture
+    // with ONE byte-level change — designation `H999ZZ` on the same 29 mm mount — because that name
+    // nearly reaches the bundled `H999N`, which is a 38 mm motor. Before the veto Loft flew it and
+    // reported apogee 1,471 m, Mach 1.04 and thrust-to-weight 162:1 off a motor that cannot be
+    // loaded, with a small "· approx" as the only cue.
+    await page.goto("/");
+    await page
+      .getByLabel(/^Choose an OpenRocket/)
+      .setInputFiles(resolve(process.cwd(), "e2e/fixtures/wrong-casing-motor.ork"));
+
+    const notice = page.getByRole("region", { name: "No flight simulated" });
+    await expect(notice).toBeVisible({ timeout: 15000 });
+    // **Withheld, not flown.** The strip has no apogee at all.
+    await expect(page.getByRole("term").filter({ hasText: /^Apogee$/ })).toBeHidden();
+
+    // **And the reason is the true one.** "not found" would send a flyer hunting for a curve that is
+    // already in the set; the sentence has to name the near-miss and both diameters.
+    const line = notice.locator("li").filter({ hasText: /H999ZZ/ });
+    await expect(line).toHaveCount(1);
+    await expect(line).toContainText(/H999N is the closest bundled name/);
+    await expect(line).toContainText(/38 mm motor/);
+    await expect(line).toContainText(/29 mm casing/);
+    // The bare "not found" must NOT be what this design gets.
+    await expect(line).not.toContainText(/not found/);
+    // And the substitute paragraph names the MOUNT's casing, not the first offered motor's — the
+    // list `swapOptions` returns merges the catalogue's 75 and 76 mm motors, so `options[0]` is not
+    // a safe label anywhere.
+    await expect(notice.getByText(/Fly it with a substitute/)).toBeVisible();
+    await expect(notice.locator("p").filter({ hasText: /Fly it with a substitute/ })).toContainText(/29 mm casing/);
+    // The headline sentence is qualified too — the curve exists, it is the wrong size.
+    await expect(notice.getByText(/that fits this mount/)).toBeVisible();
+
+    // The recovery path still works: a real 29 mm motor flies the design.
+    const swap = page.getByRole("combobox", { name: "Swap motor" });
+    await expect(swap).toBeVisible();
+    await swap.selectOption({ index: 1 });
+    await expect(page.getByRole("heading", { name: "No flight simulated" })).toBeHidden();
+    await expect(page.getByRole("term").filter({ hasText: /^Apogee$/ })).toBeVisible();
+  });
+
   test("a design that can't fly still gets the whole navigation spine", async ({ page }) => {
     await page.goto("/");
     // A design whose motor isn't bundled used to lose the workspace tabs entirely, and with them the
@@ -1027,9 +1142,20 @@ test.describe("Loft", () => {
     await expect(page.getByRole("region", { name: /unavailable$/ })).toBeVisible();
     await expect(page.getByRole("region", { name: "Motor sweep" })).toBeVisible();
 
-    // Advice points at the Design workspace, which now exists on every design.
+    // The Design workspace tells the flyer why the stability marks are missing, and how to get them
+    // back. **This assertion used to read `getByText("in the Design workspace")`**, which was
+    // satisfied by `StabilityTrimHint` — and on THIS design that hint was the Sev-1: it read the
+    // unloaded margin (5.92 cal against a flown 4.07), decided the rocket was over-stable, and told
+    // the flyer to move the fin set, all computed from a build with the motor left out. The hint is
+    // now suppressed when a motor did not resolve, so the old assertion was pinning the defect in
+    // place. What replaces it is the guarantee that actually holds: the workspace still says
+    // something actionable rather than going quiet.
     await page.getByRole("link", { name: "Design" }).click();
-    await expect(page.getByText("in the Design workspace").first()).toBeVisible();
+    await expect(page.getByText(/could not be matched to a thrust curve/i).first()).toBeVisible();
+    await expect(
+      page.getByText(/centre of gravity and the static margin are not marked/i),
+      "the diagram drops its CG mark and must say why",
+    ).toBeVisible();
     // Nothing may offer a configuration picker that only renders for a multi-config design.
     if ((await page.getByRole("combobox", { name: /configuration/i }).count()) === 0) {
       await expect(page.getByText("pick a configuration")).toHaveCount(0);
@@ -1367,8 +1493,27 @@ test.describe("Loft", () => {
     await expect.poll(async () => rows.count()).toBeGreaterThan(2);
     await expect(panel.getByText("Design", { exact: true })).toBeVisible();
 
+    // Columns are addressed by their HEADER's position rather than by a hard-coded `nth-child`, so
+    // inserting a column re-points them instead of silently reading the neighbour. Inserting the
+    // `Use` control second is exactly what broke the three literals that used to be here.
+    // Matched on a PREFIX, because `DataTable` renders each header as a sort button whose text
+    // carries the label plus its sort affordance — an exact compare found nothing and silently
+    // produced `nth-child(0)`, which matches no cell and fails as "expected 0 to be > 2".
+    // Normalised before comparing: `DataTable`'s headers render UPPERCASE (so `innerText` returns
+    // "APOGEE", not "Apogee") and carry a sort arrow glyph. An exact, case-sensitive compare found
+    // nothing and silently produced `nth-child(0)`, which matches no cell and failed as
+    // "expected 0 to be > 2" — a wrong-looking assertion for a selector problem.
+    const heads = (await panel.locator("thead th").allInnerTexts()).map((t) =>
+      t.replace(/[▲▼]/g, "").replace(/\s+/g, " ").trim().toLowerCase(),
+    );
+    const colIndex = (label: string) => {
+      const i = heads.findIndex((t) => t.startsWith(label.toLowerCase()));
+      expect(i, `no "${label}" column header among: ${heads.map((h) => h.trim()).join(" | ")}`).toBeGreaterThanOrEqual(0);
+      return i + 1;
+    };
+
     // Apogees are laid out highest-first: the top row out-flies the bottom row.
-    const apogeeCells = await panel.locator("tbody tr td:nth-child(3)").allInnerTexts();
+    const apogeeCells = await panel.locator(`tbody tr td:nth-child(${colIndex("Apogee")})`).allInnerTexts();
     const nums = apogeeCells.map((t) => parseFloat(t.replace(/[^\d.]/g, "")));
     expect(nums.length).toBeGreaterThan(2);
     expect(nums[0]).toBeGreaterThan(nums[nums.length - 1]);
@@ -1376,7 +1521,7 @@ test.describe("Loft", () => {
     // A fin-flutter margin column is present: the faster (top-apogee) motor has a thinner margin
     // than the slower (bottom) one — the motor-selection flutter cue.
     await expect(panel.getByRole("columnheader", { name: "Flutter" })).toBeVisible();
-    const flutterCells = await panel.locator("tbody tr td:nth-child(8)").allInnerTexts();
+    const flutterCells = await panel.locator(`tbody tr td:nth-child(${colIndex("Flutter")})`).allInnerTexts();
     const fl = flutterCells.map((t) => parseFloat(t.replace(/[^\d.]/g, "")));
     expect(fl[0]).toBeLessThan(fl[fl.length - 1]);
 
@@ -3651,6 +3796,95 @@ test.describe("Loft", () => {
     await expect(massField).toHaveAttribute("placeholder", /45/);
     await page.getByRole("button", { name: /^Undo adding a mass object/ }).click();
     await expect(rows).toHaveCount(1);
+  });
+
+  test("a coupler and a centring ring go inside the tube, and only the balance moves", async ({ page }) => {
+    // R8's two INTERNAL kinds, and the first authored parts that touch no outer mould line at all.
+    // That is what this drives: the airframe the solver sees must be untouched — same apogee-driving
+    // drag, same length — while dry mass and the balance move. A test that only counted rows would
+    // pass on a part built in the wrong place, which is exactly the defect the corpus sweep caught.
+    await page.goto("/");
+    await page.getByRole("button", { name: "Start a new design" }).click();
+    await page.getByRole("link", { name: "Flight" }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    const figure = async (label: string) => {
+      const t = await page.getByText(label, { exact: true }).locator("xpath=following-sibling::dd").innerText();
+      return parseFloat(t.replace(/[^\d.]/g, ""));
+    };
+    const asBuilt = {
+      margin: await figure("Static margin"),
+      mass: await figure("Liftoff mass"),
+    };
+    expect(asBuilt.mass).toBeGreaterThan(0);
+
+    await page.getByRole("link", { name: "Design" }).click();
+    await page.locator("summary", { hasText: /Parts ·/ }).click();
+    const partsTable = page.locator("table").filter({ hasText: "Dimensions" });
+    const before = await partsTable.locator("tr").count();
+
+    // **Where a part SITS is read from the Station column, not from the airframe's overall length.**
+    // The pre-push review proved the obvious check vacuous: `overallLength` maxes over body kinds
+    // only (nose cone, body tube, transition), so it is structurally blind to these two — the whole
+    // test passed with `inside: false`, both parts built as top-level siblings at a NEGATIVE station,
+    // entirely ahead of the nose tip. Station and the stated length are what can actually tell.
+    // Column addressed by its header rather than by index, because inserting a column silently
+    // re-points an `nth-child` and this suite has already been bitten by that.
+    const headers = (await partsTable.locator("thead").innerText()).split("\t").map((h) => h.trim());
+    const colOf = (label: string) => {
+      const i = headers.findIndex((h) => h.toUpperCase().startsWith(label.toUpperCase()));
+      expect(i, `no "${label}" column — headers were ${JSON.stringify(headers)}`).toBeGreaterThanOrEqual(0);
+      return i;
+    };
+    const stationCol = colOf("Station");
+    const dimsCol = colOf("Dimensions");
+    const spanOf = async (rowText: RegExp) => {
+      const cells = partsTable.locator("tr").filter({ hasText: rowText }).first().locator("th, td");
+      const at = parseFloat((await cells.nth(stationCol).innerText()).replace(/[^\d.-]/g, ""));
+      const dims = await cells.nth(dimsCol).innerText();
+      const len = parseFloat(/L\s*([\d.]+)/.exec(dims)?.[1] ?? "NaN");
+      expect(Number.isFinite(at) && Number.isFinite(len), `unreadable row ${rowText}: "${dims}"`).toBe(true);
+      return { at, len };
+    };
+
+    await partsTable.locator("tr").filter({ hasText: /Body tube/ }).first().click();
+    await page.getByRole("button", { name: /^Add a coupler inside this/ }).click();
+    await page.getByRole("button", { name: /^Add a centering ring inside this/ }).click();
+    await expect(partsTable.locator("tr")).toHaveCount(before + 2);
+    await expect(partsTable.locator("tr").filter({ hasText: /Coupler/ })).toHaveCount(1);
+    await expect(partsTable.locator("tr").filter({ hasText: /Centering ring/ })).toHaveCount(1);
+
+    // **Both sit within the host's own span**, which is what "inside" has to mean geometrically, and
+    // it is the assertion the whole gesture rests on.
+    const host = await spanOf(/Body tube/);
+    for (const [what, row] of [["coupler", /Coupler/] as const, ["ring", /Centering ring/] as const]) {
+      const p = await spanOf(row);
+      expect(p.at, `${what} starts ahead of its host`).toBeGreaterThanOrEqual(host.at - 0.05);
+      expect(p.at + p.len, `${what} runs past the aft end of its host`).toBeLessThanOrEqual(host.at + host.len + 0.05);
+    }
+    // A coupler is a TUBE and a ring is a PLATE, and the panel shows the difference rather than two
+    // parts of the same made-up size — the defect the corpus check caught before this shipped.
+    expect((await spanOf(/Coupler/)).len).toBeGreaterThan((await spanOf(/Centering ring/)).len * 5);
+
+    // The weight moved too, by an amount a flyer would recognise rather than a slug. Both parts
+    // inherit the HOST's stock, which on the starter is fibreglass rather than the cardboard and ply
+    // a coupler and a ring are usually cut from — so this bound is generous by design and the check
+    // that pins the sizes is the corpus sweep, over 35 real designs and their real materials. The
+    // 50 mm solid version this replaced put 134 g on the corpus median design.
+    await page.getByRole("link", { name: "Flight" }).click();
+    await expect.poll(() => figure("Liftoff mass"), { timeout: 20000 }).not.toBe(asBuilt.mass);
+    const added = (await figure("Liftoff mass")) - asBuilt.mass;
+    expect(added).toBeGreaterThan(0);
+    expect(added).toBeLessThan(0.2);
+    // And seated at the aft end, they pull the balance back — the reason to model them at all.
+    expect(await figure("Static margin")).not.toBe(asBuilt.margin);
+
+    // Each is its own undo step, named after the part it made.
+    await page.getByRole("link", { name: "Design" }).click();
+    await page.getByRole("button", { name: /^Undo adding a centering ring/ }).click();
+    await page.getByRole("button", { name: /^Undo adding a coupler/ }).click();
+    await expect(partsTable.locator("tr")).toHaveCount(before);
+    await page.getByRole("link", { name: "Flight" }).click();
+    await expect.poll(() => figure("Liftoff mass"), { timeout: 20000 }).toBe(asBuilt.mass);
   });
 
   test("the parts panel says where the airframe steps, and how far", async ({ page }) => {
@@ -6061,5 +6295,145 @@ test.describe("choosing a real commercial part", () => {
     await page.getByRole("button", { name: /back to the design/i }).click();
     await expect(page.getByText(/BNC-55D2/)).toHaveCount(0);
     await expect.poll(apogee, { timeout: 15_000 }).toBe(before);
+  });
+
+  test("a real commercial parachute can be chosen, and the descent changes", async ({ page }) => {
+    // R8's third kind, and the first that is not airframe. The catalogue ships 151 canopies and
+    // states a flat diameter, gore count, shroud lines and a cloth for every one — and a `cd` for
+    // none, which is why a pick edits the chute already on the design rather than authoring one: the
+    // model requires a drag coefficient and a deploy event, and the vendor supplies neither.
+    test.setTimeout(120_000);
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 30_000 });
+
+    // The number this gesture is FOR: how hard the rocket arrives. Measured across the catalogue on
+    // this design, it spans 2.16 m/s (a LOC 96 in) to 18.15 m/s (a Top Flight 9 in) against the
+    // design's own 6.95 — a factor of eight, which is the difference between a walk-away landing and
+    // a broken airframe.
+    const arrival = async () =>
+      (
+        await page
+          .getByLabel("Results")
+          .getByText("Ground-hit speed", { exact: true })
+          .locator("xpath=following-sibling::div[1]")
+          .innerText()
+      ).trim();
+    const before = await arrival();
+
+    await page.getByRole("link", { name: "Design", exact: true }).click();
+    await page.getByRole("button", { name: "Pick a real parachute" }).click();
+
+    // The lazy chunk resolves and the table names its own count and its provenance.
+    const panel = page.getByRole("button", { name: "Close the parts list" }).locator("xpath=../..");
+    await expect(panel.getByText(/catalogued parachutes/)).toBeVisible({ timeout: 30_000 });
+
+    // **Every row must be choosable.** The picker's shared `buildable` prelude required an outer
+    // diameter and a length before the kind switch, and 0 of the 151 canopies state either — so the
+    // whole list would have rendered disabled, which on a phone is indistinguishable from a missed
+    // tap. This is the assertion that would have caught it.
+    const useButtons = panel.getByRole("button", { name: "Use" });
+    await expect.poll(async () => useButtons.count(), { timeout: 30_000 }).toBeGreaterThan(20);
+    // **DISABLED buttons still have role=button**, so a count alone proves nothing about whether a
+    // row can be chosen — which is the entire behavioural change here. Counted directly, over every
+    // row rather than the first: a regression that disabled 150 of 151 would otherwise ship green,
+    // because `initialSort` puts the smallest canopy first and that is the row most likely to pass
+    // any predicate.
+    const disabled = await panel
+      .locator("tbody button")
+      .evaluateAll((ns) => ns.filter((n) => (n as HTMLButtonElement).disabled).length);
+    expect(disabled, "catalogued canopies that cannot be chosen").toBe(0);
+
+    // A canopy states no length, so that column is dropped rather than headed over 151 dashes; it
+    // states gores and shroud lines, which no airframe kind has.
+    //
+    // Read off `thead` innerText rather than by accessible name — the suite's own working idiom, at
+    // the motor-sweep test above. `DataTable` renders each sortable header as a button carrying
+    // `aria-label="Sort by <label>"`, and Playwright returns a descendant's `aria-label` before
+    // falling through to name-from-content, so a `columnheader` named `/^Length/` matches NOTHING on
+    // any kind — the assertion that was here passed whether the column existed or not, and would
+    // have passed with the shared Length column reinstated.
+    const heads = (await panel.locator("thead th").allInnerTexts()).map((t) =>
+      t.replace(/[▲▼]/g, "").replace(/\s+/g, " ").trim().toLowerCase(),
+    );
+    expect(heads.some((h) => h.startsWith("gores")), `headers: ${heads.join(" | ")}`).toBe(true);
+    expect(heads.some((h) => h.startsWith("lines")), `headers: ${heads.join(" | ")}`).toBe(true);
+    expect(heads.some((h) => h.startsWith("length")), `headers: ${heads.join(" | ")}`).toBe(false);
+    expect(heads.some((h) => h.startsWith("canopy")), `headers: ${heads.join(" | ")}`).toBe(true);
+
+    // Sort by canopy diameter descending and take the biggest, so the change is unambiguous.
+    await panel.getByRole("button", { name: /Canopy/ }).click();
+    await useButtons.first().click();
+
+    await expect(page.getByText(/Flying .+/).first()).toBeVisible();
+
+    await page.getByRole("link", { name: "Flight", exact: true }).click();
+    await expect.poll(arrival, { timeout: 30_000 }).not.toBe(before);
+
+    // And the way back — a pick that could not be undone would be the one-way door this milestone
+    // has already shipped and fixed once.
+    await page.getByRole("link", { name: "Design", exact: true }).click();
+    await page.getByRole("button", { name: /back to the design's own canopy/i }).click();
+    await page.getByRole("link", { name: "Flight", exact: true }).click();
+    await expect.poll(arrival, { timeout: 30_000 }).toBe(before);
+  });
+
+  test("withholds every loaded figure when a motor did not resolve, and says why", async ({ page }) => {
+    // **The Sev-1 this pins: a motor that cannot be matched is left OUT of the build entirely**
+    // (`lib/sim/setup.ts` skips the instance), so it contributes neither mass nor CG — and every
+    // figure that assumes it is aboard was published anyway, under its loaded label. Measured on
+    // `demo-single-deploy.ork` with the motor made unresolvable: liftoff mass 0.8018 -> 0.6002 kg
+    // (the dry mass), loaded CG 0.6430 -> 0.5725 m, static margin 4.065 -> 5.921 cal. That last one
+    // is +46% and reads MORE stable than the truth, which is the reassuring direction, and the
+    // notice directly above it said the stability "remains valid".
+    //
+    // Driven from the COMMITTED fixture rather than the corpus, for the reason the test above
+    // records: a corpus-driven test skips on CI and on any public clone, reporting green without
+    // executing an assertion.
+    await page.goto("/");
+    await page.setInputFiles('input[type="file"]', resolve(process.cwd(), "e2e/fixtures/unresolved-motor.ork"));
+    await expect(page.getByRole("region", { name: "No flight simulated" })).toBeVisible();
+
+    // Both loaded figures are withheld, each with its reason on the cell. A blank is a bug
+    // (`DESIGN.md` §6). The mass was RELABELLED to "Dry mass" in the first draft of this fix, and
+    // that was wrong in two of the three states it has to cover: on a partial cluster the figure is
+    // dry plus whichever motors resolved, and `liftoffMass` carries the flyer's what-if nose ballast
+    // either way — so the label disagreed with the two panels that publish the real dry mass.
+    const cell = (term: string) =>
+      page.locator("div", { has: page.getByText(term, { exact: true }) }).last();
+    await expect(cell("Liftoff mass")).toContainText("—");
+    await expect(cell("Liftoff mass")).toContainText(/needs a motor/i);
+    await expect(cell("Static margin")).toContainText("—");
+    await expect(cell("Static margin")).toContainText(/needs a motor/i);
+
+    // No surface anywhere on the page may still be quoting the unloaded margin. This is the
+    // assertion that would have caught the five surfaces the first pass at this fix missed —
+    // the folded detail row, the trim prescription, the warning cards and the diagram caption.
+    // Asserted as "no margin VALUE is quoted anywhere", not as "the words never appear": the
+    // corrected notice itself says the margin is withheld "rather than reported over-stable", and a
+    // word-level assertion would forbid the very sentence that fixes this. What must not survive is
+    // a NUMBER in calibers, which is the claim.
+    await expect(page.getByText(/\d\s*cal\b/)).toHaveCount(0);
+    await expect(page.getByText(/weathercock/i)).toHaveCount(0);
+    await expect(page.getByText(/moving the fin set/i)).toHaveCount(0);
+
+    // The notice above the strip has to say the stability is NOT valid — it used to say the
+    // opposite, in the same breath as the numbers it was wrong about.
+    const notice = page.getByRole("region", { name: "No flight simulated" });
+    await expect(notice).toContainText(/stability is not/i);
+    await expect(notice, "the sentence that made the wrong numbers look checked").not.toContainText(
+      "geometry and stability below are computed independently and remain valid",
+    );
+
+    // The Design workspace is the other half: the diagram drew a "CG" mark at the DRY station and
+    // asserted the margin in its own accessible name, which is what a screen reader speaks.
+    await page.getByRole("link", { name: "Design", exact: true }).click();
+    await expect(page.getByText(/could not be matched to a thrust curve/i).first()).toBeVisible();
+    const figure = page.locator("svg[aria-label*='Scale side-view']").first();
+    await expect(figure).toBeVisible();
+    const label = await figure.getAttribute("aria-label");
+    expect(label, "the SVG's accessible name still asserts a margin nobody is flying").not.toMatch(
+      /centre of gravity ahead of centre of pressure/,
+    );
   });
 });

@@ -18,6 +18,62 @@ async function load(name: string) {
   return importOrk(bytes);
 }
 
+describe("a motor that does not fit the mount", () => {
+  it("is refused, and the panel is told WHY rather than told it was not found", async () => {
+    // The Sev-1 a cold walk found: `H999ZZ` on a 29 mm casing matched `H999N` — a 38 mm motor — on a
+    // substring, and Loft reported a complete flight off it. This drives the whole path a flyer
+    // takes: the design, the refusal, and the sentence the panel gets to explain it.
+    const doc = await load("demo-single-deploy.ork");
+    const good = runFromDocument(doc);
+    expect(good.resolutions[0].match?.quality, "the fixture's own motor must still fly").toBe("exact");
+    expect(good.resolutions[0].vetoedFit, "nothing was vetoed on an untouched design").toBeUndefined();
+    expect(good.result.summary.apogee).toBeGreaterThan(300);
+
+    // Same design, same 29 mm casing, a designation that only NEARLY names a bundled motor.
+    const near: OrkDocument = {
+      ...doc,
+      rocket: {
+        ...doc.rocket,
+        configurations: doc.rocket.configurations.map((c) => ({
+          ...c,
+          instances: c.instances.map((i) => ({ ...i, motor: { ...i.motor, designation: "H999ZZ" } })),
+        })),
+      },
+    };
+    const run = runFromDocument(near);
+    const res = run.resolutions[0];
+    expect(res.match, "a 38 mm motor was placed in a 29 mm mount").toBeNull();
+    expect(run.hasPropulsion, "the flight must be withheld, not flown on a substitute").toBe(false);
+
+    // **And the reason has to be the true one.** "not found" is what the panel said before, about a
+    // motor it had found and turned down — the wrong explanation beside the right refusal, on the
+    // one surface whose whole job is explaining why there is no flight.
+    expect(res.vetoedFit).toBeDefined();
+    expect(res.vetoedFit!.statedMm).toBe(29);
+    expect(res.vetoedFit!.matchedMm).toBe(38);
+    expect(res.vetoedFit!.designation).toBe("H999N");
+  });
+
+  it("says nothing about fit when the designation reaches nothing at all", async () => {
+    // The negative control the sentence needs: a name with no bundled neighbour is a plain
+    // not-found, and must NOT be dressed up with a casing comparison there is nothing to compare.
+    const doc = await load("demo-single-deploy.ork");
+    const nonsense: OrkDocument = {
+      ...doc,
+      rocket: {
+        ...doc.rocket,
+        configurations: doc.rocket.configurations.map((c) => ({
+          ...c,
+          instances: c.instances.map((i) => ({ ...i, motor: { ...i.motor, designation: "MYMOTOR" } })),
+        })),
+      },
+    };
+    const res = runFromDocument(nonsense).resolutions[0];
+    expect(res.match).toBeNull();
+    expect(res.vetoedFit).toBeUndefined();
+  });
+});
+
 describe("single-deploy fixture flight", () => {
   it("flies plausibly and resolves the motor exactly", async () => {
     const doc = await load("demo-single-deploy.ork");

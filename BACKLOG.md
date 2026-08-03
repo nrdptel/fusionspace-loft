@@ -12,6 +12,375 @@ this file, and deliberately does **not** cap craft or product work, because that
 track in `ROADMAP.md` with its own *done when*. Rough edges, missing affordances, and findings too
 big for one pass. Newest first.
 
+- **Loft's own `.ork` export writes no `<simulations>` block, so every launch condition and the motor
+  configuration are silently dropped on a round trip. SEV-1 — FIXED 2026-08-03.** Filed and closed
+  the same run, from a cold walk of the built export. `lib/ork/export.ts`'s `serializeRocketXml` takes only the rocket and never emits
+  `<simulations>`, while `lib/ork/adapt.ts:788 parseSimulations` is where rod length, rod angle, wind,
+  launch altitude and the atmosphere all come FROM — so re-importing a file Loft just wrote gives
+  surface wind 3.0 m/s → 0.0, rail length 2.0 m → 1.0, and **drift from pad 630 m → 0 m**. Apogee is
+  unchanged, so nothing on screen flags the loss, and the disclosure still reads "Conditions · as
+  designed" over Loft's defaults. Drift and rail-exit are exactly the two figures used to decide
+  whether the field and the rail are big enough. The same omission takes the motor-configuration
+  picker with it (it is built from the stored sims): on `A simple model rocket.ork`, import → A8 →
+  apogee 53 m, download, re-import → C6 → apogee 317 m, and no control left in the app gets back to
+  the A8 that was exported. Reproduce: import `fixtures/demo-dual-deploy.ork`, note drift, Download
+  .ork, Import another, pick the file just saved. `exportOrk` already RECEIVES `doc.simulations` —
+  `components/LoftApp.tsx:860` passes `{...doc, rocket}` — so the conditions are in hand and simply
+  not written. Preserve them verbatim; do not synthesise `<flightdata>` from Loft's own solver, or
+  the Cross-check page ends up comparing Loft against itself at 0% error.
+
+  **Fixed:** `serializeRocketXml` now emits a `<simulations>` block carrying each stored run's name,
+  status, `configid` and full `<conditions>` (rod length, angle, direction, wind, launch altitude and
+  the atmosphere). Measured after: drift from pad round-trips 629.7 → 629.7 m on `demo-dual-deploy`,
+  291.5 on single-deploy and 253.8 on boattail, with rail length, wind and rail-exit velocity all
+  identical. `<flightdata>` is written ONLY when the caller states the stored results still describe
+  this rocket — the Download button passes `rocket === doc.rocket` — because carrying another tool's
+  results onto an edited airframe would make Cross-check report the flyer's own what-if as Loft's
+  error. A design with no stored run gets no block at all. Pinned by three cases in
+  `lib/ork/export.test.ts` and an e2e driving Download → Import that reads drift off the page; the
+  pre-existing round-trip e2e could not catch this because it asserts APOGEE, which barely moves with
+  the launch setup.
+
+- **A motor that does not resolve exactly is substituted with one that does not FIT the mount, and the
+  whole flight is reported off it. SEV-1 — FIXED 2026-08-03.** Filed and closed the same run, from a
+  cold walk. An `.ork` whose
+  designation is `H999ZZ` on a 29 mm mount is matched to `H999N`, a **38 mm** motor, and the app
+  reports apogee 1,471 m, Mach 1.04, 161 g, thrust-to-weight 162:1 with the only cue a small
+  "· approx" in the chip. Loft knows the mount is 29 mm — the motor sweep on the same airframe says
+  "15 bundled 29 mm motors" and does not list H999N. The unmatched-entirely case (`MYMOTOR`) is
+  handled well, with the flight withheld and an honest explanation; the dangerous case is the one
+  that looks fine. Knock-on: with the flying motor absent from the sweep's list, all 15 rows read
+  "Use", none says "flying now", and no row carries the DESIGN badge, so there is nothing to anchor
+  the comparison against.
+
+  **Fixed:** `resolveMotor` now takes the casing the design file itself states and vetoes any
+  NON-EXACT match whose casing disagrees; a design's own exact motor is never vetoed, because that is
+  not a substitution Loft chose. `swapOptions` filters on the same `sameCasing` predicate, so a motor
+  Loft substitutes is always one the sweep also offers. Measured: the veto is consulted on 6 of the
+  105 corpus motor instances that state a casing, and changes 0 of them; over the whole catalogue
+  perturbed three ways at eight casings it withheld 2,271 times and promoted a different motor 0
+  times. The refusal also had to be EXPLAINED rather than reported as "not found" — the motor was
+  found — so `MotorResolution.vetoedFit` carries the near-miss and both diameters onto the notice,
+  the chip ("· wrong casing") and the aria-label. **Two things still open, both filed below:** the
+  exact-match exemption, and the sweep's behaviour when the flying motor is a substitute.
+
+- **A design whose file states a casing that disagrees with its own motor's certification record
+  flies it with no cue at all.** Filed 2026-08-03 from the pre-push review of the casing veto. The
+  veto deliberately exempts an EXACT designation match: a design that names its motor exactly has not
+  asked Loft to choose anything, and withholding the flight over a file inconsistency would be a
+  regression. So the disagreement is simply not surfaced. Measured: **0 of the 97 corpus instances
+  that match exactly and state a casing** disagree, so this is theoretical rather than observed — but
+  it is also the one route by which the flown motor can sit outside the sweep's own list. The right
+  shape is probably a `doc.warnings` line naming both figures, not a refusal.
+
+- **`sameCasing`'s tolerance band is not transitive: a stated 19 mm matches both the 18 and the 20 mm
+  classes, which do not match each other.** Filed 2026-08-03 from the same review. Inherent to any
+  tolerance, and the alternative — snapping to nominal classes — has to break the 19 tie arbitrarily.
+  No corpus file states 19. Consequence if one did is a wider net, not a wrong flight.
+
+- **"A one-tap parachute pick produces an UNFLAGGED lawn dart" — NOT REPRODUCED, and the ledger is
+  corrected rather than left carrying a false Sev-1.** Filed 2026-08-03 from a cold walk against the
+  control shipped in R8 increment 6, and re-measured the same day before acting on it. Fitting PAR-9TM (228.6 mm) to the 0.78 kg H-powered sample takes descent rate
+  7 → 18 m/s and landing energy 17 → 113 J with zero cautions on `/flight` — no marker, no prose —
+  while the same page says "below the 5:1 minimum commonly taught for high-power rockets" for
+  thrust-to-weight and "below the ~50 ft/s (15 m/s) guideline for stable rail departure" for rail
+  exit.
+
+  **The measurement says otherwise.** Driving `demo-single-deploy.ork` through the solver at five
+  canopy sizes: 610.0 mm gives 6.96 m/s and no landing warning; 457.2 mm gives 9.20 m/s and
+  `hard-landing` at severity *caution*; 300.0 mm gives 13.90 m/s, 228.6 mm gives **18.14 m/s and
+  112.7 J** and 150.0 mm gives 27.33 m/s, all at severity *warning*. Those are the walk's own two
+  figures to the decimal, and the engine raises `hard-landing` on both — the rule is
+  `groundHitVelocity > 7.6 m/s`, firm, and `> 10.7`, hard, the same thresholds the booster check uses.
+  `components/ResultsView.tsx` renders `r.warnings` unconditionally whenever the list is non-empty.
+  So recovery IS policed, by a rule that predates the parachute picker.
+
+  **What survives is a test gap, and it is why the claim was believable:** grepping `e2e/` for
+  "hard landing" or "firm landing" returns nothing. No end-to-end case asserts that a hard-landing
+  caution reaches the page, so a regression that stopped rendering it would be invisible to the gate —
+  and a walker looking for it has no pinned behaviour to check against. That is worth closing.
+
+  The general lesson is filed in `HANDOFF.md`: a cold walk is a bug-FINDER, not an oracle. Every
+  finding it produces is a hypothesis to re-measure before it becomes work.
+
+- **The validation CSV exports carry no units, and the same filename and header hold metric or
+  imperial depending on a toggle elsewhere. SEV-1.** Filed 2026-08-03 from a cold walk. `/validate`'s
+  OpenRocket table exports `Metric,Stored,Loft,Δ` over rows mixing metres, m/s, m/s², seconds, Mach
+  and percent; apogee exports as `50.6` in Metric and `165.97769028871392` in Imperial, both as
+  `openrocket-validation.csv`, with nothing in the file to tell them apart. Values are raw 16-digit
+  floats including visible float noise (`74.09000000000054`, `2.789999999999969`) for figures the UI
+  shows as 74.1 s and 2.8 s, and the Δ column is a percentage with no `%`. The RocketPy table beside
+  it fails the opposite way — display strings with thousands separators and a U+2212 MINUS SIGN, so
+  every numeric cell lands in a spreadsheet as text. The dispersion CSV one workspace over does this
+  correctly (`Apogee (m),Max velocity (m/s)…`, rounded), so this is an outlier rather than a house
+  style. Filename is also `rocketpy-cross-check-cross-check.csv`.
+
+- **An ordinary one-thumb scroll that starts on a diagram drag handle both scrolls the page AND drags
+  the handle. SEV-1 — FIXED 2026-08-03.** Filed and closed the same run, from a phone cold walk. Flicking up from the body-diameter
+  handle at 390x844 took ⌀38 mm → 205 mm, apogee 993 m → 133 m, static margin 4.07 → 1.12 cal, while
+  scrolling the page 500 → 1274 px so the diagram was off screen before the numbers settled. Zoomed
+  3x — the only way to see the fins on a phone — a left pan started on the nose-length handle panned
+  the diagram AND shortened the nose 250 → 230 mm. Control cases prove it is the handle: the same
+  flick started 40 px away on plain airframe only scrolls. Undo restores it, but only if you noticed.
+  The handles are 44x44 on a coarse pointer by design (P4 increment 5 measured them), so the fix is a
+  gesture discipline, not a smaller target.
+
+  **Fixed, and the two obvious fixes both turned out not to work.** The `<g>` already carried
+  `touch-none` — `touch-action` is not honoured on an inner SVG element in Chromium — and
+  `preventDefault()` on the pointerdown does not stop a scroll either. Only a NON-PASSIVE `touchmove`
+  listener does, registered synchronously in the pointerdown so it is in place before the first move.
+  **An axis lock was tried and measured and does not work**: two of the three grips are horizontal,
+  so a vertical flick on one is unambiguously a scroll, but waiting 8 px to decide still let the page
+  go — ⌀38 mm to 139 mm AND 500 to 747 px — because Chromium commits to the scroll inside the slop
+  window and the `touchmove` stops being `cancelable`. The decision has to be made on the first move
+  or not at all, so the gesture belongs to the handle, as it does on a native range input. **Cost,
+  stated:** a flick starting exactly on one of the three 44 px grips no longer scrolls the page.
+  Pinned in `e2e/touch.spec.ts` with a control asserting plain airframe 60 px away still scrolls, and
+  with a negative control that fails reading 590 to 823 px.
+
+- **The diagram's tap columns went to the two parts that were already easiest to hit, and the fin set
+  still has no 44 px target.** Filed 2026-08-03 from a phone cold walk, against P4 increment 5. The
+  nose cone and body tube got full-height columns; the fin set is selectable only in a 17 px band at
+  the far right, because above the centreline the fin-position drag handle sits on top of it and
+  directly above and below the planform the body-tube column claims the tap. The mass object is a
+  7 px dot. Increment 5's claim that nothing reachable became unreachable holds — both were tappable
+  before and still are — but `DESIGN.md` §8's 44 px minimum is not met on either, and the increment
+  described itself as closing the diagram's touch gap. It closed two thirds of it.
+
+- **Tapping an already-selected part on the diagram un-selects it, with nothing on screen saying so,
+  and the caption is desktop copy.** Filed 2026-08-03 from a phone cold walk. On a coarse pointer
+  there is no hover to fall back on, so an accidental double-tap costs the identify readout entirely.
+  The caption reads "Point at a part of the airframe to identify it; click one to keep it picked out"
+  — a phone can do neither, and it never mentions un-picking.
+
+- **A what-if edit makes the entire OpenRocket comparison vanish from Cross-check with no message.**
+  Filed 2026-08-03 from a cold walk. The stored-vs-Loft table, the mean-abs-error headline and both
+  overlay charts disappear on any what-if; the tab still says "Cross-check" and nothing says a what-if
+  caused it or how to get it back. Loft knows how to write this state — for the bundled demo it
+  prints a full paragraph explaining exactly why the comparison is unavailable. `DESIGN.md`'s "a
+  withheld value says why, and what would restore it" is unmet here.
+
+- **What-if edits survive a reload but the undo history does not, so a flyer returns to a modified
+  design with a dead Undo.** Filed 2026-08-03 from a cold walk. The banner on that screen promises
+  "Picked up where you left off — …, with any what-ifs you had set", which is exactly the case where
+  knowing what changed matters most. Recoverable today only because the field placeholder happens to
+  show the as-designed value.
+
+- **The dispersion panel's Waiver ceiling is the only one of its seven controls not persisted, and it
+  is the one that produces the go/no-go readout.** Filed 2026-08-03 from a cold walk. Six ±1σ inputs
+  survive a reload; the ceiling box comes back empty and the CHANCE OVER CEILING tile is simply
+  absent, with nothing saying the value was dropped.
+
+- **No docs heading carries an id, so every contextual "how these are computed" link lands at the top
+  of a 47,600-character article.** Filed 2026-08-03 from a cold walk. `/docs/methods` has 14 h2s and
+  no in-page contents list; the explanation for the panel a flyer is standing in ("Monte-Carlo
+  dispersion") is the 13th. These pages are the app's whole answer to "is this number trustworthy".
+
+- **The landing-scatter chart has no axis, tick, scale bar, ring label or hover readout — 302 circles
+  and zero text.** Filed 2026-08-03 from a cold walk. The only scale reference anywhere is the caption
+  "circle = 95% within 1,203 m", on the chart that exists to tell a flyer how big a recovery area to
+  plan for. Downrange/crossrange numbers exist only in the CSV.
+
+- **The two `/validate` tables are rendered identically and sort differently.** Filed 2026-08-03 from
+  a cold walk. The OpenRocket table's four columns all sort; the RocketPy table below has exactly one
+  sort button, and the Δ column — the only one worth sorting a validation table by — is fixed.
+  Separately, sorting Δ ascending orders by MAGNITUDE while the column shows signed values, so −12%
+  appears after +5% with nothing saying the sign is ignored.
+
+- **Exports carry none of the assumptions that produced them.** Filed 2026-08-03 from a cold walk.
+  The dispersion CSV is 300 rows with no record of the six ±1σ values, the waiver ceiling, the
+  conditions, the motor or the date — and since the sigmas are re-typable, two files from one design
+  are indistinguishable. The cross-check CSV is `openrocket-validation.csv` regardless of design or
+  which stored simulation it compared, even though every row changes with the motor configuration.
+
+- **Authoring a coupler or a centring ring on a materials-less design is fully inert, yet the design
+  flips to "edited" and the file's stored-simulation cross-check is withheld.** Filed 2026-08-03 from
+  the pre-push review, where it was raised as a defect against R8 increment 7 and REFUTED as one: all
+  12 corpus body tubes that state no wall are RASAero's, which state no materials either, so the part
+  adds 0.000 g and the honest branch is the one that declines to invent a stock. What survives is
+  general and pre-existing: these are the first authoring acts that can change nothing at all, and the
+  stored-comparison panel vanishing on ANY edit is the same gap filed two entries above.
+
+- **An UNAIMED absolute edit value survives removal of the part it was typed for, and re-lands on
+  whatever the fallback resolves to next.** Filed 2026-08-03. `aimsClearedByRemoving` only fires when
+  `bag[slot]` is a string — an explicit aim — so with the default (no aim) `mainParachuteDiameter`,
+  `bodyLength`, `bodyDiameter`, `transitionLength` and the rest all outlive the component they
+  described and silently re-target. The parachute PICK case was fixed this run because it is the
+  worst of them (it rewrites mass as well as size, and carries a vendor's name on the provenance
+  line), but the general hole stands and it wants a per-slot fallback resolver that
+  `aimsClearedByRemoving` does not currently have. Reproduce: on a design with two body tubes, aim at
+  nothing, type a body length, remove the primary tube — the length lands on the other one.
+
+- **Three e2e assertions addressed sweep columns by hard-coded `nth-child`, and inserting one column
+  silently re-pointed them at the neighbour.** Filed and FIXED 2026-08-02.
+  `e2e/smoke.spec.ts`'s "a design edit re-runs an open sweep" read `td` index 1 — the Class column —
+  and after a `Use` control was inserted second it was reading a button label no design edit can
+  change, so it could only ever time out. "motor sweep flies every fitting motor" hard-coded
+  `nth-child(3)` for Apogee and `nth-child(8)` for Flutter. All three now resolve the column from its
+  header text. **Two traps in doing that**, both of which produced a wrong-looking failure for a
+  selector problem: `DataTable`'s headers render UPPERCASE (so `innerText` is "APOGEE") and carry a
+  sort-arrow glyph, and a `findIndex` miss returns −1, which becomes `nth-child(0)` — a selector that
+  matches nothing and fails as "expected 0 to be greater than 2". The helper now normalises and
+  asserts the column was found, naming the headers it saw.
+
+- **The motor sweep's ballistic-gap notice compares the DESIGN row against the FLOWN apogee, so a
+  motor swap makes it attribute a motor difference to the method.** Filed 2026-08-02 from the
+  pre-push review. `components/MotorSweep.tsx` computes `ballisticGap(sorted.find(r => r.isDesign)?.apogee,
+  designApogee)`, where `designApogee` is `run.result.summary.apogee` — the flight actually shown,
+  which after a swap is the SWAPPED motor's. The amber notice then states a cause it no longer has:
+  "the Design row flies ballistic … against the X this design actually flies, because its recovery
+  opens before apogee." The mechanism predates the *Use* column (the `Swap motor` select could always
+  reach it), but the column now puts the trigger one tap away inside the panel making the claim. The
+  comparison is only meaningful with no swap active, or against the swapped motor's own row.
+
+- **Shard 1 fails a DIFFERENT test almost every run, and the common factor is the four self-hosted
+  RocketPy/Pyodide tests it carries.** Filed 2026-08-03 with the evidence, because this is the entry
+  that stops a future session diagnosing its own change. `playwright.config.ts` sets
+  `workers: process.env.CI ? 1 : undefined`, so locally Playwright runs ~half the cores in parallel
+  while four tests each boot a Python runtime. Measured across three runs of the same build:
+  run 1 failed `depth.spec.ts` "phone: the workspace spine stays within 1060px" after **31.2 s**
+  (passes in **5.4 s** alone); run 2 failed `rocketpy-selfhosted.spec.ts` "names the connection when
+  the run fails with no signal" after **6.3 s** (passes in **1.3 s** alone). **Two different tests on
+  two runs is the signature of resource pressure rather than a defect** — a deterministic break fails
+  deterministically. `grep -c EMFILE` is 0 in both, so it is not the file-descriptor exhaustion this
+  file already documents. **Run shard 1 with `--workers=2` before believing it**, and say in the
+  report if you did. The real fix is either capping workers in the config for the Pyodide file or
+  giving it its own project.
+
+- **`e2e/docs.spec.ts:32` "every docs page is readable offline" is load-sensitive, and it failed once
+  in a full shard while passing everywhere else.** Filed 2026-08-02 with the evidence, because a
+  future session meeting it needs to know this before diagnosing its own change. The test waits up to
+  20 s for the service worker to become the controller AND for six URLs to be in the cache; under a
+  full shard on this sandbox that budget is occasionally not enough. Measured this run: it failed once
+  in `--shard=1/2`, then **passed in isolation** and **passed in a full re-run of the same shard
+  (106/106)** against the identical build, and the change in flight touched no docs page, no service
+  worker and no precache script. Not EMFILE — `grep -c EMFILE` was 0. The fix is a longer or
+  condition-based wait, not a retry.
+
+- **`lib/design-system.test.ts` reports 11 green while TEN classes of `DESIGN.md` drift cannot fail
+  it.** Filed 2026-08-02 from a design-system audit, every count re-measured and the claims
+  adversarially verified. The suite is honest about what it implements — §9's six shell greps — but
+  §9 itself does not reach these, and §9 is shared verbatim with the sibling app, so this is §9's gap
+  as much as the test's. Live, on surfaces a flyer reaches in under a minute:
+  - **`lib/ui-tokens.ts` is outside every walk.** `uiSources(["components","app"])` never reads `lib/`,
+    and that file holds `buttonClass`, `navItemClass` and `NAV_BAR` — the strings every converted
+    surface now inherits. A probe planting `rounded-lg` and `px-5` there leaves all counts at 0 and
+    the suite green. Latent today (it is clean), and it gets worse the more adoption succeeds.
+  - **Primitive EXISTENCE is never asserted**, only adoption counts — and `Section`, `Tabs` and `Chip`
+    are asserted at exactly 0 adopters, so deleting them from `ui.tsx` still passes.
+  - **Six primitives `DESIGN.md` §5 says "live in `components/ui.tsx` and are imported" do not
+    exist**: `Panel`, `Readout`, `Figure`, `EmptyState`, `ErrorState`, `Extrapolated`. Each is
+    hand-rolled per file instead — `ResultsView`'s `Stat` and `MonteCarlo`'s `StatCard` are two
+    Readouts; `ResultsView`'s `Plot` is a Figure; `FlightViz` and `LineChart` carry two legends. This
+    is the exact mechanism that produced the twelve card treatments.
+  - **`text-[11px]` is unconditionally allowed**, so §3's scoping of it to "axis ticks and diagram
+    annotations only" is unenforced: 47 occurrences, on `<legend>`, field labels, `<dt>` and
+    `DataTable`'s entire header row.
+  - **The radius grep names `rounded-lg` alone** — 5 live off-system radii pass (4x `rounded-sm`, 1x
+    `rounded-[2px]`), and `app/globals.css` declares `border-radius: 3px` on the global focus outline
+    and `4px` on docs inline code, which the stylesheet check does not read (it parses `font-size`
+    only — the blind spot its own comment says it closed for `.eqn`).
+  - **No colour assertion at all**, though §2 says indigo is the single accent: fuchsia on the mass
+    marker and its legend (`RocketDiagram.tsx:611,612,878`), plus 24 hard-coded hex occurrences over
+    10 distinct values used for chart series identity.
+  - **No font-weight assertion**, though §3 reserves `font-semibold` for "the one number a surface
+    exists to show": 23 uses, plus `globals.css` setting h2/h3/strong/th to 600.
+  - **The hand-rolled-control check matches `<button>` only**, so 12 hand-rolled `<select>` elements
+    across 4 distinct class strings ship under a budget asserting exactly 3 hand-rolled controls.
+    There is no `Select` primitive.
+  - **No assertion for §3's `font-mono tabular-nums` rule** on compared numerals, and none for §5's
+    five required states.
+  Correcting one claim from the audit while filing it: `grep -c fuchsia` counts LINES (3), not
+  occurrences (7); and the hex figure is 24 occurrences over 10 distinct, not 8 — reaching 8 requires
+  excusing `app/layout.tsx`'s two `<meta name="theme-color">` values, which cannot take a token.
+
+- **Two data surfaces implement none of `DESIGN.md` §5's five required states.**
+  `components/FlightViz.tsx:37` returns `null` when `traj.length < 2` — a flight that ends on the rail,
+  or a design flown before a motor is picked, leaves a blank hole where the trajectory chart should
+  say what would fill it, while `LineChart` two files away implements the state correctly.
+  `components/DragCrossCheck.tsx` has zero of the five (`grep -ciE 'loading|error|offline|extrapolat'`
+  returns 0) and renders two `LineChart`s unconditionally, so it cannot say "this stored log had no
+  usable drag column" — it just shows one line where a flyer expects two. §5: "a surface with no empty
+  state is not finished. It is the state a flyer sees first."
+
+- **The parts-table geometry that made the touch ratchet's blind spot unreachable is STALE, and the
+  entry below still repeats it.** Measured 2026-08-02 on the built export at 390x664: the parts table
+  is **418 px inside a 324 px `overflow-x-auto` container**, not 1,198 px inside 390; `getByRole("row")`
+  returns **9**, not nothing; and rows 0 and 7 both `.click()` clean on the 38 mm sample and on the
+  54 mm one. The `DataTable` conversion fixed all three and nothing re-measured, so the recorded
+  reason nobody reached the selection-gated surface had been false for several runs. Correcting the
+  record rather than deleting it, because the wrong measurement is what kept the blind spot open.
+
+- **A body part's diagram tap column is only as wide as the part is long, and 37% of real parts are
+  under 44 px wide.** Filed 2026-08-03, measured over all 39 corpus files at a 390 px fit width:
+  **56 of 150 body parts** fall short, the narrowest being a 0.8 px transition on
+  `github-issuiuc-silsim-rocket/rocket.ork`, with 3.3 px and 6.0 px close behind. The full-height
+  column shipped this run fixes the HEIGHT contract on every part; the width follows the geometry and
+  cannot be padded without stealing area from a neighbour (the later-drawn column wins an overlap, so
+  which part loses would be arbitrary). The diagram's zoom control is the real answer and is already a
+  44 px target — what is missing is any hint that zooming is what makes a short part tappable.
+
+- ~~**Only 2 of a design's 8 parts have a tap target on the diagram, and both are 12 px tall.**~~
+  **HALF FIXED 2026-08-03** — the two that HAVE a target now get a full-height tap column on a coarse
+  pointer, measured 78x84 and 218x84 px with 80% and 73% of each reaching the part. **What stays
+  filed is the other FOUR, and the count in the first version of this entry was wrong.** Fin sets and
+  mass objects were ALREADY tappable — `o.fins` and `o.masses` both carry `hoverProps` — so 4 of the
+  sample's 8 parts have a diagram target, not 2. That false count nearly shipped a regression: it is
+  what let the tap columns be described as pure gain while an earlier paint order buried the fins.
+  The four genuinely unreachable on the picture are the parachute, the inner tube and the two centring
+  rings, for which `rocketOutline` produces no silhouette at all — so for those the honest answer may
+  be that the table IS the surface and the diagram should say so rather than pretend.
+
+- ~~**A drag handle's 44 px touch circle sits ON the airframe and steals the part underneath it.**~~
+  **FIXED 2026-08-03**, by giving the part a target the handle cannot cover rather than by shrinking
+  the handle. The grips keep their 44x44 circles and still win where they overlap — a grip is a
+  smaller, more specific target the flyer aimed at — but they now account for only 20–27% of a part's
+  column instead of being the only thing hittable near the centreline. `e2e/touch.spec.ts` measures
+  the share and prints it rather than asserting a bare pass.
+
+- **The motor sweep ranks 15 candidate motors and cannot apply one.** Filed 2026-08-02.
+  `components/MotorSweep.tsx` contains exactly one `<Button>` in the whole file, and it is *Run*. A
+  flyer who sweeps motors must memorise the winning designation, navigate to `/design`, and scroll
+  **2.77 screens** to find it again in the *Swap motor* select (`components/LoftApp.tsx:2181`). That
+  is what "pick a motor" — one of P4's three named pad journeys — actually costs today.
+
+- **Two of P4's three pad journeys breach `DESIGN.md` §8's two-screen cap, and `e2e/depth.spec.ts`
+  anchors above both.** Filed 2026-08-02, measured at 390x664 on the built export. *Sanity-check a
+  delay*: the Optimum delay tile is 12th of 14 at **1,666 px = 2.51 screens** on `/flight`, while
+  `e2e/depth.spec.ts:63` anchors that route on the Apogee tile at 1,138 px = 1.71 and passes. *Pick a
+  motor*: the Swap motor select sits at **1,841 px = 2.77 screens** on `/design`. *Check stability* is
+  healthy at 1.03 screens. The depth spec measures the route's primary answer, not each journey's, so
+  neither breach fails anything today.
+
+- **`RocketpyCrossCheck` borrows its propulsion guard from its call site.** Filed 2026-08-02.
+  `components/RocketpyCrossCheck.tsx:122-137` runs its own `runFlight` and reads `staticMarginCal` off
+  it without checking that run's own `hasPropulsion`/`motorsComplete`; it is safe only because
+  `components/ResultsView.tsx:972` gates the panel. Contrast `lib/sim/sweep.ts:107`, which guards in
+  the library. One prop-move from publishing an unloaded margin.
+
+- **The Validation docs page flies committed reference designs without checking they still resolve.**
+  Filed 2026-08-02. `app/docs/validation/page.tsx:34` puts `run.result.staticMarginCal` into the
+  published RocketPy comparison at BUILD time and never checks `hasPropulsion`, so a reference design
+  whose motor stopped resolving after a database re-cut would silently publish an unloaded margin as
+  Loft's own accuracy record. Latent rather than live — today's references all resolve.
+
+- **`scripts/gen-components.mjs` drops four upstream fields it could read.** Filed 2026-08-02, from a
+  read of the `.orc` schema against the readers. `TubeCoupler` and `CenteringRing` read only
+  InsideDiameter / OutsideDiameter / Length and never `Thickness`; `Parachute` reads Diameter / Sides /
+  LineCount / LineLength and drops `DragCoefficient`, `PackedLength` and `PackedDiameter`. Harmless
+  against today's vendor set — 0 couplers and 0 rings state a thickness and 0 of 151 chutes state a Cd
+  or a packed size — but a re-vendor that fixed any of them upstream would be silently ignored.
+
+- **The catalogue needs a vendor-alias table: 16 manufacturer strings for 14 companies.** Filed
+  2026-08-02, measured over all 3,445 rows. "MPC" and "MRC" both appear in couplers (4 parts and 2);
+  "Quest" and "Quest Aerospace" both appear in centring rings. The vendor filter therefore splits one
+  company into two options.
+
+- **`PartPicker`'s `rowKey` collides on centring rings.** Filed 2026-08-02. The key is
+  `manufacturer/partNumber/outerDiameter/length`, and five ring rows duplicate it — SEMROC CR-7-18,
+  RA-50/52H-101(BT-50), CR-9-225X2, CR-9-225X2P and CR-9-175P. A React key collision the first time a
+  ring picker is opened; parachutes collapse the key to `mfr/part//` with 0 collisions.
+
 - ~~**`GeometryInspector`'s eleven gesture tooltips are still hover-only.**~~ **FIXED 2026-08-02**,
   on the second attempt, in the form the first attempt established. Each now carries an `aria-label`
   that BEGINS with the control's own visible text and then adds what the tooltip said, so the
@@ -21,9 +390,14 @@ big for one pass. Newest first.
   the same component or stage name the visible text does.
   **What is NOT fixed, and stays filed:** `e2e/touch.spec.ts` still never selects a part, so ten of
   these eleven render outside its reach and a regression on them would not fail it — the count reads
-  0 either way. Reaching them needs the diagram's selection path or a wider viewport;
+  0 either way. ~~Reaching them needs the diagram's selection path or a wider viewport;
   `getByRole("row")` matches nothing for that table and a direct row click times out, because it is
-  1,198 px wide inside a 390 px viewport in its own scrolling container.
+  1,198 px wide inside a 390 px viewport in its own scrolling container.~~ **That sentence was stale
+  and is corrected in the entry at the top of this file** — measured 2026-08-02, the table is 418 px
+  inside 324, `getByRole("row")` returns 9, and a row click works. Also measured: the roadmap's
+  "eleven … renders only once a part is SELECTED" is itself an overstatement — **eight** are strictly
+  selection-gated, two more need a mount or a stage to exist first, and *Add a booster stage* renders
+  ungated.
 
 - **A picked catalogue part silently overrides the whole-airframe material control, and neither
   surface says so.** Filed 2026-08-02, **REPRODUCED by the reviewer, not re-driven by me.**

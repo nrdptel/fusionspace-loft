@@ -28,13 +28,15 @@ import { describe, it, expect } from "vitest";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { importDesign } from "../ork/import";
-import { runFromDocument, overridesFromStored } from "../sim/run";
+import { resolveMotor, sameCasing } from "../motors/db";
+import { runFlight, runFromDocument, overridesFromStored } from "../sim/run";
 import { monteCarlo, summarizeSamples } from "../sim/montecarlo";
 import {
   flattenRocket,
   leadingFaceDiameter,
   mouldLineSteps,
   STEP_NOTICE_M,
+  overallLength,
 } from "../model/geometry";
 import type { Rocket, RocketComponent } from "../model/types";
 import {
@@ -663,6 +665,240 @@ suite("real-design corpus", () => {
     expect(disagreeing.length, "no real design carries mounts with different counts").toBeGreaterThan(0);
     expect(rewritten, "a mount the field never described was rewritten by it").toEqual([]);
   });
+
+  it("costs no real design its motor, and finds none that was already flying a misfit", async () => {
+    // **This is a NO-REGRESSION check and it is named as one**, because it cannot honestly be more
+    // than that. A first version was called "never substitutes a motor that could not fit" and
+    // asserted `lost`/`misfit` empty — which they are whether the veto exists or not, as the pre-push
+    // review proved by deleting it and watching this stay green.
+    //
+    // The bite cannot be driven from the corpus, and the measurement says why: **0 of the catalogue's
+    // 102 designation cores span more than one casing class**, so a loose match can only ever land on
+    // the size its own family is made in. The reported defect needed a FILE whose stated casing
+    // disagreed with the motor its designation nearly names — 29 mm stated, `H999ZZ` reaching the
+    // 38 mm `H999N` — and no corpus design does that. Manufacturing one here would be a test of a
+    // string I chose. `lib/motors/db.test.ts` pins the bite on the real reported case instead.
+    //
+    // What this DOES establish is the thing that check cannot: that arming the veto changes no real
+    // flight, over every motor instance in 35 in-the-wild files.
+    let stated = 0;
+    let silent = 0;
+    let loose = 0;
+    const lost: string[] = [];
+    const misfit: string[] = [];
+    for (const f of files) {
+      const doc = await importDesign(new Uint8Array(readFileSync(f.path)));
+      for (const cfg of doc.rocket.configurations) {
+        for (const inst of cfg.instances) {
+          const m = inst.motor;
+          if (!m.designation) continue;
+          const casing = Math.round((m.diameter ?? 0) * 1000);
+          if (casing > 0) stated++; else silent++;
+          const name = `${shortName(f.name)}/${m.designation}`;
+          const withFit = resolveMotor(m);
+          const ignoringFit = resolveMotor({ designation: m.designation, manufacturer: m.manufacturer });
+          // Where the veto is even CONSULTED: an exact match is exempt, so this is the honest reach
+          // figure rather than the count of files that state a casing at all.
+          if (ignoringFit && ignoringFit.quality !== "exact" && casing > 0) loose++;
+          // Nothing a real file describes may be lost.
+          if (ignoringFit && !withFit) {
+            lost.push(`${name}: ${casing} mm stated, ${Math.round(ignoringFit.entry.curve.diameterMm)} mm matched`);
+          }
+          // Computed from the PRE-veto resolution. Asking the post-veto one is a tautology — the veto
+          // is precisely what makes that answer impossible — which is what the first version did.
+          if (ignoringFit && casing > 0 && ignoringFit.quality !== "exact") {
+            const got = Math.round(ignoringFit.entry.curve.diameterMm);
+            if (got > 0 && !sameCasing(got, casing)) misfit.push(`${name}: would fly ${got} mm in ${casing} mm`);
+          }
+        }
+      }
+    }
+    console.log(
+      `motor instances across ${files.length} design files: ${stated} state a casing, ${silent} do not ` +
+        `(RockSim states the mount's bore, RASAero the nozzle); ${loose} resolve loosely enough for the ` +
+        `veto to be consulted at all, and ${misfit.length} of those disagree on casing`,
+    );
+    expect(stated, "no corpus file states a casing — nothing here would be exercised").toBeGreaterThan(10);
+    expect(lost, "the casing veto dropped a motor a real design was flying").toEqual([]);
+    expect(misfit, "a real design was already flying a motor that does not fit its own stated casing").toEqual([]);
+  }, 300_000);
+
+  it("says so on every real design that loses a motor, clustered or not", async () => {
+    // A motor that does not resolve is left OUT of the build (`lib/sim/setup.ts` skips it), so the
+    // flight runs on less thrust and less mass than the design calls for and reads low. One warning
+    // exists to say that — and for as long as it has existed it could not fire on a clustered
+    // design, because it compared the cluster-EXPANDED flown count against the UN-EXPANDED instance
+    // count. Any cluster made the left side the larger one.
+    //
+    // Driven by CONSTRUCTION rather than against a threshold: break exactly one instance of every
+    // configuration on every real design, and require the result to say a motor is missing. The
+    // clustered subset is counted and asserted non-empty, because it is the subset the defect lived
+    // in and an assertion that never reaches it is watching nothing.
+    const silent: string[] = [];
+    const clustered: string[] = [];
+    let broken = 0;
+    let wouldHaveBeenMissed = 0;
+    for (const f of files) {
+      const doc = await importDesign(new Uint8Array(readFileSync(f.path)));
+      for (const cfg of doc.rocket.configurations) {
+        if (cfg.instances.length === 0) continue;
+        // The expanded count the design calls for, read the way the solver reads it: a mount's
+        // `clusterCount`, not the length of the instance list.
+        const mountCount = new Map<string, number>();
+        for (const p of flattenRocket(doc.rocket)) {
+          const mm = (p.component as { motorMount?: { clusterCount?: number } }).motorMount;
+          if (mm) mountCount.set(p.component.id, Math.max(1, Math.round(mm.clusterCount ?? 1)));
+        }
+        const expanded = cfg.instances.reduce((s, i) => s + (mountCount.get(i.mountId) ?? 1), 0);
+        if (expanded > cfg.instances.length) clustered.push(`${shortName(f.name)}/${cfg.name ?? cfg.id}`);
+        for (let k = 0; k < cfg.instances.length; k++) {
+          const rocket = {
+            ...doc.rocket,
+            configurations: doc.rocket.configurations.map((c) =>
+              c.id !== cfg.id
+                ? c
+                : {
+                    ...c,
+                    instances: c.instances.map((inst, i) =>
+                      i === k ? { ...inst, motor: { ...inst.motor, designation: "ZZ-NOT-A-MOTOR" } } : inst,
+                    ),
+                  },
+            ),
+          };
+          let run;
+          try {
+            run = runFlight(rocket, { configId: cfg.id });
+          } catch {
+            continue; // a design with nothing left to fly is another test's business
+          }
+          broken++;
+          const codes = run.result.warnings.map((w) => w.code);
+          const said = codes.includes("partial-cluster") || codes.includes("no-motor");
+          if (!said) {
+            silent.push(
+              `${shortName(f.name)}/${cfg.name ?? cfg.id}: broke instance ${k + 1} of ` +
+                `${cfg.instances.length} (${expanded} expanded) and the flight said nothing — ${codes.join(", ") || "no warnings at all"}`,
+            );
+          }
+          // The negative control, computed rather than asserted: how many of these the OLD
+          // comparison (`placed < instances.length`) would have let through in silence. It is the
+          // clustered ones, and it is printed so a future reader can see the defect's real size.
+          const placed = run.resolutions.reduce((s, r) => s + (r.match ? (r.count ?? 1) : 0), 0);
+          if (placed > 0 && placed < expanded && !(placed < cfg.instances.length)) wouldHaveBeenMissed++;
+        }
+      }
+    }
+    console.log(
+      `lost-motor check across ${files.length} design files: ${broken} single-motor removals driven, ` +
+        `${new Set(clustered).size} clustered configuration(s), ` +
+        `${wouldHaveBeenMissed} that the pre-fix comparison would have passed over in silence`,
+    );
+    expect(broken, "no motor was ever broken — this test proves nothing").toBeGreaterThan(20);
+    expect(
+      new Set(clustered).size,
+      "no real design carries a cluster, so the branch the defect lived in is untested",
+    ).toBeGreaterThan(0);
+    expect(wouldHaveBeenMissed, "the negative control found nothing the old code missed").toBeGreaterThan(0);
+    expect(silent, "a design flew on a missing motor and said nothing").toEqual([]);
+  }, 300_000);
+
+  it("authors a coupler and a centring ring on every real design, inside the tube and massing something", async () => {
+    // The two INTERNAL kinds. Unlike every previously authorable part they touch no outer mould line
+    // at all — so the check is the mirror image of the authored-part sweep above: the airframe must
+    // NOT move, and the dry mass must.
+    const stepped: string[] = [];
+    const weightless: string[] = [];
+    const outside: string[] = [];
+    const solid: string[] = [];
+    const wrongShape: string[] = [];
+    const addedG: Record<string, number[]> = { tubecoupler: [], centeringring: [] };
+    let authored = 0;
+    let eligible = 0;
+    let exempt = 0;
+    let clamped = 0;
+    for (const f of files) {
+      const doc = await importDesign(new Uint8Array(readFileSync(f.path)));
+      const rocket = doc.rocket;
+      const tubes = flattenRocket(rocket).filter((p) => p.component.kind === "bodytube");
+      if (!tubes.length) continue;
+      eligible++;
+      const host = tubes[0];
+      const beforeLen = overallLength(rocket);
+      const beforeMass = dryMassProperties(rocket).mass;
+      for (const kind of ["tubecoupler", "centeringring"] as const) {
+        const id = newPartId(rocket, undefined, host.component.id);
+        // `length: 0` is what the button sends — the size is the corpus figure, resolved against the
+        // host by `internalPartDefaults`. Driving the default path is the point: a test that names its
+        // own length checks the clamp and nothing about the part a flyer would actually get.
+        const built = applyGeometryEdits(rocket, {
+          added: [{ id, kind, after: host.component.id, length: 0 }],
+        });
+        const made = flattenRocket(built).find((p) => p.component.id === id);
+        if (!made) continue;
+        authored++;
+        const name = `${shortName(f.name)}/${kind}`;
+        // 1. It goes INSIDE the host, not behind it — so the rocket is exactly as long as it was.
+        if (Math.abs(overallLength(built) - beforeLen) > 1e-9) stepped.push(`${name}: length moved`);
+        // 2. It sits within the host's own span, which is what "inside" has to mean geometrically.
+        if (made.xFore < host.xFore - 1e-9 || made.xFore + made.length > host.xFore + host.length + 1e-9) {
+          outside.push(`${name}: ${made.xFore.toFixed(4)}..${(made.xFore + made.length).toFixed(4)} outside host ${host.xFore.toFixed(4)}..${(host.xFore + host.length).toFixed(4)}`);
+        }
+        // 3. It weighs something wherever the host states a stock AND the design counts per-part
+        //    mass at all. A part that adds nothing is an edit that changes no number — the "controls
+        //    that forget" tell — but there is a legitimate exemption and it is the majority on some
+        //    files: a design whose enclosing ASSEMBLY states its own weight subsumes everything
+        //    inside it, so adding a part there moves the balance and not the total. That is exactly
+        //    what `statedMassHolder` reports, and what the parts panel already tells the flyer in
+        //    words. Counted rather than waved through, so the exemption is visible.
+        const c = made.component as { material?: unknown; innerRadius: number; outerRadius: number };
+        const subsumed = statedMassHolder(built, id);
+        if (subsumed) {
+          exempt++;
+        } else if (c.material !== undefined && dryMassProperties(built).mass <= beforeMass + 1e-12) {
+          weightless.push(`${name}: stock but no mass`);
+        }
+        addedG[kind].push((dryMassProperties(built).mass - beforeMass) * 1000);
+        // 4. **A ring is bored and a coupler is long, and neither is negotiable.** Both kinds are the
+        //    same `RingComponent`, so the one way to author them wrong is to size them alike — which
+        //    the first draft did, giving every ring a 50 mm SOLID slug at 134 g median and 1.74 kg at
+        //    worst. 0 of the 83 real centring rings in the corpus have a zero bore, and none of the 31
+        //    real couplers is shorter than 1.0537 calibers.
+        if (kind === "centeringring") {
+          if (!(c.innerRadius > 0)) solid.push(`${name}: bore 0 — that is a bulkhead, not a ring`);
+          if (made.length > 0.033) wrongShape.push(`${name}: ${(made.length * 1000).toFixed(1)} mm thick, past the corpus's thickest ring`);
+        } else if (made.length < 1.05 * 2 * c.outerRadius - 1e-9) {
+          // Below the corpus floor ONLY where the host is too short to hold one — the clamp, which
+          // has to win, since a coupler past the fore end is the defect that clamp exists for.
+          if (made.length >= host.length - 1e-9) clamped++;
+          else wrongShape.push(`${name}: ${(made.length / (2 * c.outerRadius)).toFixed(2)} calibers in a host with room for more`);
+        }
+      }
+    }
+    const med = (a: number[]) => { const s = [...a].sort((x, y) => x - y); return s[Math.floor(s.length / 2)]; };
+    console.log(
+      `internal parts authored across ${files.length} design files: ${authored} ` +
+        `(coupler + centring ring on every design with a body tube), ` +
+        `${exempt} inside an assembly whose stated weight already subsumes them, ` +
+        `${clamped} couplers cut down to a host too short to hold one; ` +
+        `median added mass ${med(addedG.tubecoupler).toFixed(2)} g coupler, ` +
+        `${med(addedG.centeringring).toFixed(2)} g ring`,
+    );
+    // **Both kinds on every eligible design, counted exactly.** This read `> 40` against an actual 70
+    // — 43% of slack, so half the corpus could stop building and every list below would still be
+    // empty for the wrong reason, since each one is filled behind `if (!made) continue`. Every corpus
+    // file has a body tube, so the number is 2 per file and there is no reason to leave it loose.
+    expect(eligible, "no design had a body tube — the corpus is not loaded").toBe(files.length);
+    expect(authored, "a design refused to build one of the two internal kinds").toBe(eligible * 2);
+    expect(stepped, "an internal part changed the airframe's length").toEqual([]);
+    expect(outside, "an internal part sits outside the tube that holds it").toEqual([]);
+    expect(weightless, "an internal part with a stock added no mass").toEqual([]);
+    expect(solid, "a centring ring was authored with no bore").toEqual([]);
+    expect(wrongShape, "an internal part was authored at a size no real one has").toEqual([]);
+    // The mass a ring adds is what the sizing is FOR, so it is asserted rather than only printed: a
+    // 1/8 inch bored plate is single-digit grams, and the solid 50 mm slug this replaced was 134.
+    expect(med(addedG.centeringring), "the median centring ring is heavier than a plate of ply").toBeLessThan(20);
+    expect(med(addedG.centeringring), "the median centring ring weighs nothing at all").toBeGreaterThan(0);
+  }, 300_000);
 
   it("finds no real design that leads with anything but a nose cone", async () => {
     // The denominator behind the blunt-face warning R4's drag made necessary. Loft takes forebody

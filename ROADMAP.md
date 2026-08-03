@@ -1270,11 +1270,12 @@ instead of an inferred edge class.
 
 ## R8 — Component and material catalogues
 
-**Status: IN PROGRESS** — increments 1–5 of 4–6 shipped 2026-08-02, along with the decomposition.
+**Status: IN PROGRESS** — increments 1–7 of 8 shipped 2026-08-02/03, along with the decomposition.
 The licence question the after-list named as possibly the whole first increment is **answered up
-front** so it is not re-litigated. **Two of the five kinds the *done when* names are pickable** —
-body tube and nose cone — and what remains is the other three: coupler, centring ring and parachute.
-Unlike the first two, none of them exists on a design to be edited, so each is a new build path.
+front** so it is not re-litigated. **Three of the five kinds the *done when* names are pickable** —
+body tube, nose cone and parachute. The coupler and the centring ring can now be **authored** as of
+increment 7, sized from the design and the corpus, but **not yet picked from the catalogue**: that
+last clause is increment 8 and is the only thing between this milestone and done.
 
 **Outcome.** Authoring becomes SELECTION rather than measurement: a flyer picks a real body tube by
 vendor and part number and gets its dimensions and mass, instead of typing eight numbers off a ruler.
@@ -1599,15 +1600,209 @@ off by default and the empty state says how to clear it, which is correct behavi
 but it is a gap, and widening the tolerance to hide it would be inventing a fit the vendor does not
 publish. Filed in `BACKLOG.md`.
 
-*Increment 6 — NEXT.* Coupler, centring ring, parachute. Still true from before: a vendor-alias table
-is owed (sixteen manufacturer strings for fourteen companies — "Quest" and "Quest Aerospace", "MPC"
-and "MRC"), and those three kinds cannot be authored by `AddedPart` at all, so they are three new
-build paths rather than three more entries in `KIND`. A parachute is the hardest: the model requires
-`cd`, the catalogue has no such field, and only 21 of 151 canopies state a mass. The nose needed none
-of that because a design already HAS a nose — the pick edits the part that is there, which is why it
-was the right second kind and why the remaining three are a bigger step than this one was.
+*Increment 6 — SHIPPED. The parachute, which is the third kind and the first that is not airframe.*
 
-**Size.** 3–5 increments, and 4–6 now looks honest.
+**It was the right one of the three to take first, and the reason is structural rather than a
+preference.** A parachute is the only remaining kind the design ALREADY HAS — so, like the nose cone,
+a pick edits the part that is there instead of authoring a new one. That means no new `AddedPart`
+kind, no `buildAdded` arm, no placement rule and no inspector button: the aim slot (`parachuteId`),
+the applier's neighbourhood and the recovery fieldset all existed. A coupler or a centring ring is a
+full new build path for a median 34.4 g and 1.52 g respectively; a canopy moves the number a recovery
+setup is judged on.
+
+**What the catalogue states, measured over all 151 canopies rather than assumed.** Diameter, gore
+count, line count, line length and a SURFACE material on 151 of 151; a line material on 145; a stated
+mass on 21. Diameters run 203.2 mm to 3,657.6 mm, stated masses 4.0 g to 793.8 g, cloth densities
+0.00705 to 0.06685 kg/m². **And, on 0 of 151: a drag coefficient, a packed size, a length, an outer
+diameter.**
+
+**So the `cd` comes from the chute being replaced, and that is the honest answer rather than the
+convenient one.** A drag coefficient is a property of a canopy's cut and porosity that no vendor in
+this database publishes. Inventing one would put a number nobody stands behind directly underneath a
+landing speed. The design's own is real: 22 of the 37 parachute nodes across the corpus state one
+explicitly (1.5 ×10, 1.55 ×4, 0.75 ×4, 2.2 ×2, 1.34, 0.61), the rest saying `auto`, which the
+importer maps to 0.8. A pick therefore changes the canopy's SIZE and MASS and leaves the coefficient,
+the deploy event, the altitude and the delay exactly where the flyer's own file put them — and the
+panel says so in those words rather than leaving it to be inferred.
+
+**Measured on `demo-single-deploy.ork`** — a 610.0 mm canopy, 26.1 g, cd 0.8, arriving at 6.95 m/s
+after 152.7 s:
+
+| pick | canopy | mass | ground-hit | flight time |
+|---|---|---|---|---|
+| the design's own | 610.0 mm | 26.1 g | 6.95 m/s | 152.7 s |
+| LOC Precision LP-96-2022 | 2,438.4 mm | 411.6 g (derived) | **2.16 m/s** | 347.5 s |
+| Top Flight PAR-9 | 228.6 mm | 4.4 g (derived) | **18.15 m/s** | 68.2 s |
+
+A factor of **8.4** across the catalogue on one design, which is the difference between walking away
+and rebuilding.
+
+**Three things it had to get right, each a way to ship a wrong number:**
+
+- **The vendor's published weight beats the derived one, and they disagree wildly.** Over the 21 that
+  state both, Public Missiles' three agree within 4% (PAR-54 0.99×, PAR-48 1.04×, PAR-18 1.01×) while
+  Giant Leap's run 3.9–7.9× heavier than geometry implies (TAC-24 7.85×). Hem, spill hole, swivel and
+  shroud attachment are invisible to a diameter and a surface density. The derivation is the fallback
+  and it reuses the `.ork` importer's OWN arithmetic (`parachuteMass`) rather than a second copy, so
+  a catalogue canopy and a hand-typed one stay on one model.
+- **The replaced canopy's `overrideMass` is cleared, and on this kind it is the MAJORITY case.** 20
+  of the 37 corpus parachute nodes carry one (11 of the 27 `.ork` files). `overrideMass` wins outright
+  in `lib/sim/mass.ts`, so a pick that set `mass` and left it would take the vendor's diameter — moving
+  the descent rate — while flying the old weight under a caption naming the new part. That is the
+  identical Sev-1 the nose-cone increment shipped and had to fix, lying in wait on the one kind where
+  it is the common case. Asserted directly: the test gives the design an 87.9 g override first, and
+  the pick takes it to the vendor's 4.0 g.
+- **An explicit reference `area` is cleared too, and it is defensive rather than live.** The solver
+  prefers `Parachute.area` over the diameter where one is present, so a stale one would fly the old
+  canopy's drag under the new part's name. Measured: **no importer sets that field today** — all
+  three adapters supply a diameter — so no loadable design reaches the branch. Cleared anyway,
+  because the field exists for a format that states one and the solver already honours it; an
+  applier that left it would be a wrong number waiting on an adapter change.
+
+**The picker's shared prelude was the blocker, and it would have failed silently.** `buildable()`
+returned false unless `outerDiameter > 0 && length > 0` BEFORE the kind switch, and 0 of 151 canopies
+state either — so every row would have rendered disabled, which on a phone is indistinguishable from
+a missed tap. The prelude moved into the per-kind arms, and the e2e asserts more than twenty rows are
+present AND that the first is enabled.
+
+**Order matters between the pick and the diameter field, in both directions.** The pick applies
+BEFORE `withMainParachuteDiameter`, so a diameter typed afterwards scales the mass from the VENDOR's
+figures — "that part, but cut down" flies a plausible weight for a cut-down PAR-18 rather than for
+whatever canopy the file shipped. Applied the other way the pick would silently discard a number the
+flyer had typed. It also runs before the dual-deploy promotion, for the reason the resize already
+does: both resolve the same aim, so a pick that made a different canopy the largest could otherwise
+send the altitude deployment to a chute nobody named.
+
+**The pre-push review found a Sev-1 in this increment, and it is the one worth reading: the applier's
+own comment claimed its ordering PREVENTED the defect its ordering CREATED.** All three recovery
+edits resolved `primaryParachute` independently, and unaimed that falls back to "the largest canopy".
+A pick is the first edit in the pipeline that can make the aimed canopy SMALLER than another one — 62
+of the 151 catalogued canopies are under 460 mm — so the target moved out from under the two steps
+that follow it. Measured on `fixtures/demo-dual-deploy.ork` (Main 1220.0 mm, Drogue 460.0 mm, no
+aim): pick a 457.2 mm canopy, then type 900 into *Main chute Ø* — the field directly above the
+picker, whose placeholder reads 1220 — and the **drogue** goes to 900 mm at 4× its mass while the
+main never moves. The same construction on the promotion path produced **two** components named "Main
+parachute", both on altitude deploy. Independently reproduced by a second reviewer over the corpus:
+13 of the 14 multi-canopy OpenRocket designs. The canopy is now resolved ONCE from the pristine
+design and passed as an explicit aim to all three steps — which is what `nosePickId` and `massTarget`
+already do. Pinned, with a negative control: the pre-fix resolution leaves the main at 0.305 m where
+0.9 was typed.
+
+**And a second wrong number, on the one format that carries no per-part masses at all.**
+`lib/rasaero/adapt.ts` gives every `.CDX1` canopy `mass: 0` deliberately, because the stated launch
+weight already includes it. `withMainParachuteDiameter` preserved that for free — it SCALES, and
+0 × anything is 0 — but an applier that ASSIGNS counts the canopy twice. Measured on `Show-off.CDX1`:
+dry mass 0.4536 kg (its stated 1 lb) → 0.5358 kg, **+18%**, with the dry CG moving 25.4 → 96.9 mm.
+A massless canopy now stays massless; the vendor's SIZE still lands, so the descent rate moves exactly
+as it should. Pinned over the real corpus, and the check asserts it examined designs (2 carry a
+canopy) rather than passing on an empty walk.
+
+Nine more from the same three-lens review, each real. The pick cleared *Main chute Ø*, so the field
+fell back to a placeholder read off the PRISTINE design and advertised the pre-pick diameter while
+another canopy flew. The pick survived REMOVAL of the canopy it was made for and migrated onto the
+next-largest, provenance line and all — the `withCatalogTube` defect in its third incarnation. The
+narrowed wording fell through to the tube's, telling a flyer a canopy's "wall and stock" came from the
+vendor when a `Parachute` has neither, while omitting the mass, which is what actually survives. The
+empty state offered to "turn off the caliber filter", a control this kind never renders — §5 says an
+empty state names the one action that fills it, and the only concrete one it named was false. The
+search placeholder's own worked example, "Top Flight", returned **0 rows**: the filter reads part
+number and description, and the maker is the select beside it. `buildable` did not mirror
+`usableCatalogParachute`'s absolute bands, which is the one invariant its own header states. And the
+table was given 8rem LESS width than a tube while carrying the same compound-cell shape that made a
+cone need more.
+
+**Two findings were about this increment's own honesty, and those are the ones to read.** The e2e's
+headline assertion — *every row must be choosable* — was VACUOUS twice over: a disabled `<button>`
+still has `role=button`, so counting them proved nothing about enablement, and
+`getByRole("columnheader", {name: /^Length/})` matches nothing on ANY kind, because `DataTable`
+renders each header as a button carrying `aria-label="Sort by …"` and Playwright returns a
+descendant's `aria-label` before name-from-content. That check would have passed with the shared
+Length column reinstated. Both now discriminate, and the column check carries a POSITIVE assertion
+beside the negative one so it cannot pass on a broken read. **And the "measured" claim behind the
+whole published-beats-derived rule was cherry-picked**: it quoted "Public Missiles' three agree to
+within 4%" when Public Missiles publishes a weight on **twelve** canopies running 0.99x to 1.69x.
+Recomputed over all 21 — Public Missiles 0.99–1.69x, Rocketarium 1.46–1.73x, Giant Leap 2.91–7.85x —
+only three land within 4%, and the derivation runs low essentially everywhere, which supports the rule
+more strongly than the wrong number did. `MAINTAINING.md`'s bar is numbers rather than adjectives; a
+flattering subset presented as the whole set is the same failure wearing a number.
+
+Pinned by six cases in `lib/model/edit.test.ts` — every catalogued canopy resolves and has a mass
+path, a pick clears the weighed override and keeps the `cd`, a typed diameter scales the vendor's
+weight, all three edits stay on one canopy, a massless canopy stays massless, and a removal takes the
+pick with it — and by an e2e that drives the whole gesture in a browser, including the clear path back.
+
+*Increment 7 — SHIPPED, but only the BUILD PATH. The coupler and the centring ring can be authored;
+they cannot yet be picked from the catalogue.*
+
+The two internal kinds, together, because they are the same `RingComponent` shape in the model
+(`length`, `outerRadius`, `innerRadius`) and needed the same new path: a union member on
+`AddedPart`, a `buildAdded` arm placing them INSIDE their host, an `ADD_LABEL`, an `addPartAfter`
+arm and an inspector button. Doing them apart would have built that path twice.
+
+**Scope taken deliberately, and the remainder is named rather than implied.** This ships the two
+kinds as AUTHORABLE parts sized from the design. It does NOT ship a `PartPicker` kind for them, so
+the *done when* clause "add a … coupler, centering ring … by choosing a real commercial part" is
+**still open** — that is increment 8, and the two gotchas already measured for it stand: `rowKey`
+collides on five centring rings (SEMROC CR-7-18, RA-50/52H-101(BT-50), CR-9-225X2, CR-9-225X2P,
+CR-9-175P), and 7 of 236 couplers state an inner diameter of 0 (solid balsa plugs, which
+`lib/sim/mass.ts` already flies correctly). Fit is real for these two where it was not for a cone —
+**232 of 236 couplers and 478 of 497 rings** sit within 0.5 mm of some catalogued tube's bore,
+because they are cut to the same imperial stock — so the caliber filter will earn its place there.
+
+**Both sizes come from the corpus, and the single most important thing here is that ONE default
+could not have served both.** They are the same shape in the model and could not be less alike in
+proportion. Measured over the real corpus: **31 couplers, median 1.859 calibers** (p25 1.287, p75
+2.323, never once below 1.0537); **83 centring rings, median 3.18 mm thick** — which is 1/8 inch, a
+stock plywood sheet. A first draft gave both a 50 mm slug and shipped a **134 g median ring, 1.74 kg
+at worst**, on a part that really weighs a gram and a half. Thickness generalises better than a ratio
+on its own numbers too: the rings' length/diameter spans 0.020–1.000, a 50x spread, against the
+thickness's 25x — and ring stock is sold in sheets, not in calibers.
+
+**A ring is always bored, and that is a measurement rather than a preference: 0 of the 83 real rings
+in the corpus is solid.** A disc with no hole is a bulkhead, a different part doing a different job.
+The bore is read off the `innertube` the host carries — that IS the motor mount a ring centres, since
+`MotorMount` is a marker with no diameter of its own — descending the tree rather than checking only
+direct children, because 41 corpus body tubes keep theirs deeper, and preferring a tube actually
+carrying a mount because `innertube` also models av-bay sleeves. Where the host has no mount at all
+the fallback is the corpus median ratio, 0.87.
+
+**Four defects the pre-push review found after the gate was green, all real, and two of them were in
+this increment's own honesty rather than its logic:**
+
+- **the coupler's wall was a FLOOR wearing a fallback's comment.** `Math.max(wall, ro * 0.05)` reads
+  as "5% where the host states none" and behaves as "at least 5%, always" — so it overrode the host's
+  own stated wall on **56 of the 78 corpus tubes that state one (72%)**, inflating the coupler's mass
+  by a median 1.93x and up to 12.85x (+416 g on `FullScaleModelTH.rkt` alone). A design that states
+  its wall has answered the question. Fixing it took the corpus median coupler from 12.97 g to
+  **3.54 g**;
+- **the birth clamp was measured against the wrong tree.** `applyAdds` runs before
+  `applyDimensionEdits`, so a coupler was clamped to the host's PRISTINE length and a `bodyLength`
+  edit afterwards resized the tube underneath it. Seated `bottom`-flush, the overhang goes out the
+  FRONT: on the starter, 74.8 mm of a 94.8 mm coupler ends up inside the nose cone still carrying its
+  un-shrunk mass. A tube that shrinks now takes its internal fittings with it — applied to the
+  fittings a design ARRIVED with too, since the geometry is equally impossible either way. This is
+  the class `withMassStation` already closed for point masses, reopened for a new kind;
+- **the e2e's headline assertion could not fail.** It read overall length to prove the parts went
+  inside — but `overallLength` maxes over body kinds only, so it is structurally blind to these two.
+  The whole test passed with `inside: false` and both parts built at a NEGATIVE station, ahead of the
+  nose tip. It now reads the Station column and the stated length and asserts containment directly;
+- **the corpus check's count had 43% of slack** (`> 40` against an actual 70) while every list it
+  fills sits behind an `if (!made) continue`, so half the corpus could have stopped building with
+  every assertion still green. It is `eligible * 2` exactly.
+
+Two smaller honesty corrections from the same review: "never below 1.054" was false as written (the
+corpus minimum is 1.05374), and the e2e's comment named cardboard and ply for parts that inherit the
+starter's fibreglass.
+
+Pinned by seven cases in `lib/model/edit.test.ts` — the two sizes diverge from one host and the gap
+widens with diameter, the bore comes from a nested mount with a negative control where there is none,
+the built part uses the resolved bore rather than only the helper reporting it, the mass is a plate's
+rather than a slug's, a short host clamps at birth, a shrinking host clamps after, and a non-tube is
+refused — by a corpus sweep authoring both kinds on all 35 designs, and by an e2e that drives both
+buttons and reads the stations back.
+
+**Size.** 3–5 increments; 4–6 was the last estimate and **8 is now honest** — the catalogue pickers
+for these two kinds are still owed.
 
 **Notes.** `COMPETITION.md` rows 2 and 3. Keep the corpus honest: a catalogue part must produce the
 same internal Rocket model an imported one does, or the solver ends up with two shapes of truth.
@@ -2245,10 +2440,12 @@ sibling app's 27 KB — the front door is thin in both senses.
 
 ## P4 — A touch-native builder
 
-**Status: IN PROGRESS** — increments 1–3 of 4–6 shipped 2026-08-02, along with the decomposition.
-The hover-only count is **0**, down from 96 when it was first taken — and `DESIGN.md` §8's other
-count, controls under 44 px, is 0 too. What increment 3 records about the narrowness of that zero
-still stands and is the whole of increment 4.
+**Status: IN PROGRESS** — increments 1–5 of 4–6 shipped 2026-08-02/03, along with the decomposition.
+Both of `DESIGN.md` §8's counts are **0**, down from 96 and from an unmeasured floor — and as of
+increment 4 that zero is no longer narrow: the selection-gated surface increment 3 could only assert
+in prose is now walked by the check. Two of the *done when*'s three pad journeys were already sound;
+the third, *pick a motor*, dead-ended in a table that could not apply its own recommendation, and
+does not any more. What remains is the diagram's own touch targets — see increment 5.
 
 *Increment 1 — SHIPPED. The other half of §8's contract, which nothing had ever measured.*
 
@@ -2338,10 +2535,175 @@ walk also failed and are recorded in the spec: `getByRole("row")` matches nothin
 a direct row click times out because it is 1,198 px wide inside a 390 px viewport in its own
 scrolling container.
 
-*Increment 4 — NEXT.* Reach the selection-gated surface, which is the remaining blind spot, and then
-walk the three pad journeys the *done when* actually names — pick a motor, check stability,
-sanity-check a delay — one-handed and offline. The hit-target and hover counts are the finish; those
-three journeys are the substance, and nothing has walked them yet.
+*Increment 4 — SHIPPED. The blind spot is reached, and the journey that could not be finished now is.*
+
+**Both halves of the increment, and they came out very differently.**
+
+**(a) The selection-gated surface — a PIN, not a repair, and saying which matters.** `e2e/touch.spec.ts`
+now opens the parts disclosure, selects the BODY TUBE row specifically (four of the gesture controls
+render only for a body tube, so picking row 1 — the nose cone — would have measured a strictly smaller
+bar), asserts two of the gated buttons rendered, and runs BOTH of §8's counts over it. **It found
+nothing: 0 hover-only states and 0 controls under 44 px.** That is the honest result rather than a
+disappointing one — increment 3 had already fixed those eight controls; what was missing was any check
+able to see them, so a regression would have read 0 either way. The number did not move because the
+work was done, and until this run nothing could have told that apart from a surface full of defects.
+
+**The recorded reason nobody had reached it was STALE, and that is the finding.** `ROADMAP.md` and
+`BACKLOG.md` both said the parts table is "1,198 px wide inside a 390 px viewport" and that
+"`getByRole("row")` matches nothing" and "a direct row click times out". Measured on the built export
+at 390x664: the table is **418 px inside a 324 px scroller**, `getByRole("row")` returns **9**, and
+rows click clean on both bundled samples. The `DataTable` conversion fixed all three and nothing
+re-measured, so a false measurement held the gate shut for several runs. Both records are corrected.
+The roadmap's "eleven controls" is also an overstatement: **eight** are strictly selection-gated, two
+more need a mount or a stage to exist first, and *Add a booster stage* renders ungated.
+
+**(b) The three pad journeys — and one of them could not be completed at all.** Walked at 390 px:
+*check stability* is healthy (the margin is in the shared chrome, on every route, inside the first
+screen); *sanity-check a delay* works; **and *pick a motor* dead-ended.** `components/MotorSweep.tsx`
+contained exactly one `<Button>` in the whole file — *Run*. The panel ranks every fitting bundled
+motor on apogee, max velocity, rail exit, thrust-to-weight, margin, flutter and delay, and then could
+not apply the one it recommends. A flyer had to memorise the designation, leave for the Design
+workspace, and scroll **1,841 px — 2.77 screens at this viewport** — to re-find it in a sixteen-option
+`<select>`. That is `MAINTAINING.md`'s rank-4 tell ("a task that works but costs steps a mature tool
+doesn't charge") sitting on a named *done when* clause; RockSim and OpenRocket both apply a motor from
+the list you chose it in.
+
+**A *Use* column now does it in one tap**, routed through `applyEdit` like every other what-if — so it
+lands in the same edit bag, is undoable by the same control, persists across a reload, re-flies every
+panel, and is read back by the *Swap motor* select rather than being a second mechanism beside it. The
+design's own row says "flying now" instead of offering a button that would change nothing. The record
+carries `diameter` looked up from `swapOptions`, so the two paths build an identical edit rather than
+an equivalent-by-argument one. The accessible name is label-first and names the motor, because fifteen
+bare "Use"s are fifteen anonymous stops.
+
+**Offline is asserted, and what the assertion establishes is stated narrowly.** The suite cuts the
+network and RELOADS the route in view — the pad case, where the app is already open when the signal
+goes. It is deliberately not a cross-route walk: `serve` answers `/flight` with a redirect to
+`/flight/` because the RSC segment directory sits beside the document, while `gen-sw-precache.mjs`
+precaches the un-slashed form, so an offline spine tap churns between the two **under `serve`** in a
+way Cloudflare Pages does not. `e2e/docs.spec.ts` already walks every docs route offline, which covers
+the cross-route case on paths with no such directory. Filed rather than papered over.
+
+**The pre-push review found EIGHT defects in this increment after the whole gate was green, and one
+of them undid the increment's own claim.** Worth reading, because six were in code the author was
+confident about:
+
+- **The *Use* control was the table's TENTH column, ~683 px into a horizontal scroller, so on a
+  390 px viewport every one of them sat off screen at rest.** The control added to remove a
+  scrolling trip required a ~350 px scroll of a nested scroller to reach. **And the new e2e could not
+  see it**: Playwright's `toBeVisible()` does not test viewport intersection and `click()`
+  auto-scrolls, so "the three pad journeys work one-handed" passed on a control a thumb could not
+  find. The column moved to SECOND, beside the motor's own name, and the spec now asserts the
+  button's right edge is inside the viewport.
+- **The cell was gated on `isDesign` — a fact about the FILE's motor, which a swap does not move.**
+  After one tap "flying now" sat on a motor that was not flying, the applied row still offered a
+  dead button, and the design's own motor became the one row with **no way back to it** except Undo
+  (which stops being one step back as soon as any other edit follows) or the select two routes away.
+  Now gated on what is actually flying, comparing manufacturer AND designation — which also settles
+  an ambiguity `isDesign` carries, where an Estes C6 and a Quest C6 could both read as the design's
+  and neither would have offered a control.
+- **Every tap re-ran the entire sweep.** `MotorSweep` was keyed on `dkey`, which carries `motorSwap`
+  — so applying a motor re-flew fifteen ballistic flights on a phone to produce byte-identical rows,
+  dimming the table the flyer was reading. No sweep row can depend on the swap (`lib/sim/sweep.ts`
+  overrides the motor per candidate), so the panel now takes a key without it.
+- **`SORT_CHOICES` is derived from the column list**, so the new column silently added `use:asc` and
+  `use:desc` to the set of persisted sorts the panel would ACCEPT — and `use` has no `sortValue`
+  behind a non-null assertion, so a stored value of that shape would throw during render and take
+  the workspace down. Built from sortable columns only.
+- **Re-tapping the motor already in force committed an undo step that undoes nothing visible**
+  (`movedWhatIf` compares by reference, and a fresh object counts as a change). The `<select>` could
+  never reach this — it fires no change event when the same option is re-chosen — but a button is
+  one tap. Guarded.
+- **The e2e asked for a 120 s tolerance inside a 60 s per-test budget** with no `test.setTimeout`, so
+  its headline assertion could only ever fail as an opaque timeout mid-step — the exact failure mode
+  `playwright.config.ts`'s own comment says it was written to prevent.
+- Two more recorded rather than fixed here: the `ballisticGap` notice compares the DESIGN row against
+  the FLOWN apogee, so after a swap it attributes a motor difference to the ballistic-vs-recovery
+  method; both are in `BACKLOG.md`.
+
+*Increment 5 — SHIPPED. The diagram gets a touch target the silhouette could never be.*
+
+**The problem is that the hit shape WAS the rocket, drawn to scale.** At a phone's fit width the
+airframe is about eleven pixels tall, so the two body parts that carried an overlay measured
+**78x12 and 218x12 px** against §8's 44 — and no amount of care on the shape fixes that, because the
+shape is the thing being drawn. Worse, each of the three centreline drag grips carries its own 44x44
+transparent hit circle sitting ON the airframe (`hitR = coarse ? 22 : 0`), so the grips were stealing
+the part underneath: measured, **9 of 19 points sampled across the body tube resolved to a handle**,
+and tapping the middle of the body tube left the NOSE selected.
+
+**Each body part now gets a full-height tap COLUMN on a coarse pointer**, spanning the diagram's
+vertical extent over that part's x-range. Measured on the built export at 390 px with the bundled
+sample: **78x84 and 218x84 px**, with **80% and 73%** of each column reaching the part when sampled
+on a 9x9 grid with `elementFromPoint`. Not a drawn pixel changed.
+
+**HEIGHT is what this fixes, and the width limit is stated rather than glossed.** A column is as wide
+as its part is LONG on screen, so measured across all 39 corpus files **56 of 150 body parts are
+under 44 px wide** at this fit width — the narrowest 0.8 px, a transition on `silsim/rocket.ork`. A
+part that short cannot get its own 44 px column without stealing area from its neighbours, and since
+the later-drawn column wins an overlap the theft would be arbitrary. The diagram's zoom control is
+the real answer there and is already a 44 px target. The check asserts height on every column and
+prints the widths rather than asserting them, because a width assertion would pass only on a
+generous sample.
+
+**The grips still win where they overlap, and that is deliberate rather than a compromise.** SVG
+hit-tests the topmost painted element, so drawing the columns BEFORE the handles leaves a grip as the
+winner on its own 44 px circle — which is right: a grip is a smaller, more specific target the flyer
+aimed at. What changed is that everywhere else in a part's area now selects the part, where before
+there was nothing at all outside an eleven-pixel silhouette. The remaining 20–27% IS the grips, and
+the check prints the figure rather than asserting a bare pass.
+
+Fine pointers are untouched: a mouse has the precision for the silhouette, and full-height columns
+there would swallow the hover previews the diagram is built around.
+
+Pinned by `e2e/touch.spec.ts` — every column clears 44 px in BOTH dimensions, each column's reach is
+above 40%, and two different columns select two different parts. That last one is the assertion that
+matters: a column selecting the same part whichever you tapped would be worse than no target, and is
+exactly what the handles used to produce.
+
+**The pre-push review caught a Sev-1 here, and the premise behind it was the real error.** The first
+version painted the columns AFTER the fin sets — and a fin's planform sits inside its host tube's
+x-range and inside the column's full height, so on a phone **tapping a fin selected "Body tube"**.
+That is a strict LOSS of a working target on the surface this increment exists to improve.
+
+It was hidden by a wrong count that this file itself recorded: "2 of 8 parts are reachable on the
+picture". **Four were.** `o.fins` carries `hoverProps(fin.id)` and `o.masses` carries
+`hoverProps(m.id)`, so fin sets and mass objects were already tappable — the measurement had looked
+only at `o.parts` and generalised. The columns are now painted FIRST, before the fins, the masses,
+the silhouette and every handle, which makes them a FALLBACK: they catch the area nothing more
+specific claims, and take nothing from anything. Pinned by an assertion that a fin set is still
+selectable from the diagram after the change.
+
+Three more from the same review. The rect hand-rolled its click instead of spreading `hoverProps`,
+which killed a live path rather than a theoretical one: a coarse pointer still fires compatibility
+mouse events, `hoveredId` is what they set, and `activeId = hoveredId ?? selectedId` drives both the
+diagram tint and the "what you just pointed at" readout — so with only a click the readout rode on
+`selectedId` alone, and `pick` TOGGLES, meaning a second tap anywhere in the now much larger column
+cleared the selection and blanked the readout. The render guard read `onHover || onSelect` while the
+rect wired neither hover handler, so a caller passing hover alone would get invisible rects that
+swallow taps and do nothing. And the CG/CP marks — guide lines, dots and the "CG"/"CP" text — are
+painted after the columns with no `pointer-events-none`, so they punched dead holes through the new
+target, where a tap did nothing at all because the mark is not a descendant of the rect; they are
+part of the unexplained 20–27% the check prints, which the first draft attributed wholly to the grips.
+
+**And the guard that pins the Sev-1 was itself broken in the way the defect predicts.** It clicked the
+fin group's top-left corner — which is the empty notch ahead of a 45° leading edge, and is exactly
+where the fin-station handle's transparent 44 px circle sits, so it failed as "intercepts pointer
+events" rather than as the thing under test. It now clicks the lower planform's aft-outer corner.
+Negative control run: with the columns painted back after the fins it fails with its own message,
+*tapping a fin selected nothing — the columns buried it*.
+
+**What this does NOT fix, corrected:** the four kinds with no diagram target of any sort remain the
+parachute, the inner tube and the two centring rings — `rocketOutline` produces no silhouette for
+them, so there is nothing to attach one to. 4 of the sample's 8 parts are reachable on the picture;
+the other four are table-only. Filed in `BACKLOG.md`.
+
+*Increment 6 — NEXT.* The diagram is still the touch gap for the four part kinds with no outline:
+only **2 of the sample's 8 parts** carry a tap overlay at all (`o.parts` is body silhouettes only), and
+both measure **12 px tall** against §8's 44 — while each drag handle's `hitR = coarse ? 22 : 0` puts a
+44x44 hit circle ON the airframe that steals the part beneath it (9 of 19 points sampled across the
+body tube resolve to a handle, so tapping the middle of the tube leaves the nose selected). Direct
+manipulation on a phone is the half of P4 that the table currently stands in for. Both are in
+`BACKLOG.md` with their measurements.
 
 *Superseded note — the problem increment 3 was expected to be:* The remaining 25 all sit on
 the app chrome ABOVE the workspace spine — `Undo`/`Redo`'s disabled reason, the design-name field,
@@ -2439,6 +2801,31 @@ Beyond these, decompose from the North Star in `MAINTAINING.md` and from `COMPET
 Unattended runs do not stop to ask (see *Unattended operation* in `MAINTAINING.md`). Every decision
 that would otherwise have been a question goes here, with the option rejected, so it can be reversed
 cheaply instead of re-derived. Newest first.
+
+- **2026-08-02 — the liftoff mass is WITHHELD when a motor is missing, not relabelled "Dry mass".**
+  The Sev-1 fix's first draft relabelled it, on the reasoning that the figure is a correct number
+  under a wrong name and a flyer building to a weight still wants it. **Rejected on measurement**,
+  in two states it would have been wrong in: on a partial cluster `liftoffMass` is the dry mass plus
+  whichever motors happened to resolve — a wrong number under a right label, which is worse than the
+  single-motor case the reasoning was built on — and `liftoffMass` is `massAt(0)`, which also carries
+  the flyer's what-if nose ballast, so with 50 g of ballast set the strip would have read "Dry mass
+  650 g" while `MassBreakdown` and the parts panel both published 600 g for the same design. Three
+  surfaces, one label, two numbers. **What this COSTS:** a flyer with an unmatched motor can no
+  longer read a mass off the summary strip; they get it from Mass & balance or the parts panel, both
+  of which publish the real dry figure and are unaffected. Reverse it by giving the strip a genuine
+  dry-mass source (`dryMassProperties`) rather than reusing the flight's loaded figure — which is the
+  right fix if the cell is wanted back, and is not a relabel.
+
+- **2026-08-02 — the OVER-stable caution is gated on a complete motor set; the LOW-stability warning
+  is deliberately not.** Both read the same figure, and the first draft of the fix gated both.
+  **Rejected once measured against the direction of the bias:** a missing motor is missing AFT mass,
+  so the CG sits forward and the margin reads high. That makes the over-stable caution a false alarm
+  about a vehicle nobody flew — gate it. It makes a LOW reading conservative: if an incomplete build
+  still computes under 1 cal, the complete one is lower still, so suppressing that warning adds a
+  false negative in the one direction where the number already errs safe. The low branch keeps firing
+  and appends the reason the figure is not final. `upper-stage-stability` is ungated for the same
+  reason, and additionally because an unresolved LOWER-stage motor has already detached by the time
+  that margin is taken. Reverse it by gating both, and accept losing a real warning.
 
 - **The Ko-fi link's destination went to its ACCESSIBLE NAME rather than its visible label
   (2026-08-02).** P4 increment 2 deletes hover-only `title`s, and this one carried the only mention

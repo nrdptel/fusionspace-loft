@@ -16,7 +16,7 @@ import type {
   DeploySetting,
   SeparationSetting,
 } from "../model/types";
-import type { OrkDocument } from "./import";
+import type { OrkDocument, StoredSimulation } from "./import";
 import { storeZip } from "./zipwrite";
 import { uniqueUuidFrom } from "../model/id";
 
@@ -524,7 +524,11 @@ function configsXml(rocket: Rocket): string {
 }
 
 /** Serialize a rocket to OpenRocket 1.10 XML. Stable output (deterministic ids, no wall-clock). */
-export function serializeRocketXml(rocket: Rocket): string {
+export function serializeRocketXml(
+  rocket: Rocket,
+  sims: readonly StoredSimulation[] = [],
+  withResults = false,
+): string {
   uid = 0;
   writtenIds = new Set();
   const motors = indexMotors(rocket);
@@ -560,12 +564,100 @@ export function serializeRocketXml(rocket: Rocket): string {
     stages +
     `    </subcomponents>\n` +
     `  </rocket>\n` +
+    // OpenRocket's schema puts <simulations> after <rocket>, as a sibling under <openrocket>.
+    simulationsXml(sims, withResults) +
     `</openrocket>\n`
   );
 }
 
-/** Export a design as a store-only ZIP `.ork` (the OpenRocket container: a `rocket.ork` XML). */
-export function exportOrk(doc: OrkDocument): Uint8Array {
-  const xml = serializeRocketXml(doc.rocket);
+/** The `<simulations>` block: the LAUNCH SETUP, and the link from each stored run to the motor
+ *  configuration it was flown on.
+ *
+ *  **This was missing entirely, and it was a Sev-1.** `serializeRocketXml` took only the rocket, so
+ *  every `.ork` Loft wrote carried the airframe and nothing else — and `parseSimulations` in
+ *  `adapt.ts` is where rod length, rod angle, wind, launch altitude and the atmosphere all come FROM.
+ *  Re-importing a file Loft had just written therefore silently reset the whole launch setup to
+ *  Loft's defaults: on `demo-dual-deploy.ork`, surface wind 3.0 m/s to 0.0, rail length 2.0 m to 1.0,
+ *  and **drift from pad 630 m to 0 m**. Apogee was unchanged, so nothing on screen flagged the loss,
+ *  and the disclosure still read "Conditions · as designed" over figures that were no longer the
+ *  design's. Drift and rail exit are the two numbers a flyer checks the field and the rail against.
+ *
+ *  It took the motor-configuration picker with it, because `configChoices` is built from these
+ *  entries: a five-config design came back on whichever config the file marks default. Measured on
+ *  `A simple model rocket.ork` — imported as A8 at 53 m, exported, re-imported as C6 at 317 m, with
+ *  no control left in the app to get back.
+ *
+ *  **`<flightdata>` is written only when the caller says the stored results still describe THIS
+ *  rocket.** Those results are another tool's simulation of the design as its author drew it. Carry
+ *  them onto a design edited here and the Cross-check page compares Loft's flight of the edited
+ *  rocket against OpenRocket's flight of the original, and reports the difference as Loft's error —
+ *  a wrong number produced by trying to be faithful. Conditions are unconditional by contrast: a
+ *  launch setup is not a result, and it stays true whatever the airframe does. */
+function simulationsXml(sims: readonly StoredSimulation[], withResults: boolean): string {
+  if (!sims.length) return "";
+  const opt = (tag: string, v: number | undefined, pad: string) =>
+    v === undefined || !Number.isFinite(v) ? "" : `${pad}<${tag}>${num(v)}</${tag}>\n`;
+  const body = sims
+    .map((s) => {
+      const c = s.conditions;
+      const atm =
+        c.baseTempK === undefined && c.basePressurePa === undefined
+          ? ""
+          : `        <atmosphere model="isa">\n` +
+            opt("basetemperature", c.baseTempK, "          ") +
+            opt("basepressure", c.basePressurePa, "          ") +
+            `        </atmosphere>\n`;
+      const conditions =
+        `      <conditions>\n` +
+        (c.configId ? `        <configid>${esc(c.configId)}</configid>\n` : "") +
+        opt("launchrodlength", c.rodLength, "        ") +
+        opt("launchrodangle", c.rodAngleDeg, "        ") +
+        opt("launchroddirection", c.rodDirectionDeg, "        ") +
+        opt("windaverage", c.windSpeed, "        ") +
+        opt("launchaltitude", c.launchAltitude, "        ") +
+        atm +
+        `      </conditions>\n`;
+      // The reader takes every result off ATTRIBUTES, so they are written as attributes — a
+      // `<flightdata>` with child elements round-trips as no results at all.
+      const attr = (name: string, v: number | undefined) =>
+        v === undefined || !Number.isFinite(v) ? "" : ` ${name}="${num(v)}"`;
+      const r = s.results;
+      const flightdata =
+        withResults && s.hasResults
+          ? `      <flightdata` +
+            attr("maxaltitude", r.maxAltitude) +
+            attr("maxvelocity", r.maxVelocity) +
+            attr("maxacceleration", r.maxAcceleration) +
+            attr("maxmach", r.maxMach) +
+            attr("timetoapogee", r.timeToApogee) +
+            attr("flighttime", r.flightTime) +
+            attr("groundhitvelocity", r.groundHitVelocity) +
+            attr("launchrodvelocity", r.launchRodVelocity) +
+            attr("deploymentvelocity", r.deploymentVelocity) +
+            attr("optimumdelay", r.optimumDelay) +
+            `/>\n`
+          : "";
+      return (
+        `    <simulation status="${esc(s.status ?? "loaded")}">\n` +
+        `      <name>${esc(s.name)}</name>\n` +
+        conditions +
+        flightdata +
+        `    </simulation>\n`
+      );
+    })
+    .join("");
+  return `  <simulations>\n` + body + `  </simulations>\n`;
+}
+
+/** Export a design as a store-only ZIP `.ork` (the OpenRocket container: a `rocket.ork` XML).
+ *
+ *  `storedResultsDescribeThisRocket` must be true ONLY when `doc.rocket` is the design exactly as it
+ *  was imported. See `simulationsXml` for what carrying another tool's results onto an edited
+ *  airframe does to the Cross-check page. The default is the safe one. */
+export function exportOrk(
+  doc: OrkDocument,
+  opts: { storedResultsDescribeThisRocket?: boolean } = {},
+): Uint8Array {
+  const xml = serializeRocketXml(doc.rocket, doc.simulations, opts.storedResultsDescribeThisRocket === true);
   return storeZip([{ name: "rocket.ork", data: new TextEncoder().encode(xml) }]);
 }

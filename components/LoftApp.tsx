@@ -78,6 +78,7 @@ import {
   type MountAdd,
   type PickedBodyTube,
   type PickedNoseCone,
+  type PickedParachute,
 } from "@/lib/model/edit";
 import PartPicker from "./PartPicker";
 import {
@@ -159,6 +160,8 @@ const ADD_LABEL: Readonly<Record<AddedPart["kind"], string>> = {
   trapezoidfinset: "adding a fin set",
   transition: "adding a transition",
   masscomponent: "adding a mass object",
+  tubecoupler: "adding a coupler",
+  centeringring: "adding a centering ring",
 };
 
 interface Edits {
@@ -209,6 +212,7 @@ interface Edits {
   bodyDiameter?: number; // builder edit: the picked tube's outer diameter (m); scales the airframe to it
   catalogBodyTube?: PickedBodyTube; // builder edit: which catalogued part the two above came from
   catalogNoseCone?: PickedNoseCone; // builder edit: the published cone the nose fields came from
+  catalogParachute?: PickedParachute; // builder edit: the published canopy the recovery fields came from
   transitionLength?: number; // builder edit: the picked transition's length (m)
   transitionAftDiameter?: number; // builder edit: the picked transition's exit diameter (m)
   massObjectMass?: number; // builder edit: the picked mass object's weight (kg)
@@ -343,7 +347,13 @@ function swapInfoFor(doc: OrkDocument, simIndex: number): SwapInfo | null {
   // write; see `designMotorIdentity` for what stands in and what deliberately does not.
   const { casingMm: diaMm, manufacturer: designManufacturer, resolves } = designMotorIdentity(motor);
   if (!(diaMm > 0)) return null;
-  return { designMotor: motor.designation, designManufacturer, designMotorFlies: resolves, options: swapOptions(diaMm) };
+  return {
+    designMotor: motor.designation,
+    designManufacturer,
+    designMotorFlies: resolves,
+    casingMm: diaMm,
+    options: swapOptions(diaMm),
+  };
 }
 
 /** Same-diameter bundled motors the design could fly, with the design's own motor as the default.
@@ -357,6 +367,11 @@ interface SwapInfo {
    *  all. The copy describing the offered list claims a casing "this design already flies", which is
    *  false on a design whose motor was never matched. */
   designMotorFlies: boolean;
+  /** The casing THIS DESIGN's mount takes, which is what the offered list must be labelled with.
+   *  Not `options[0]`: `swapOptions` merges the catalogue's 75 and 76 mm motors into one class (see
+   *  `sameCasing`), and the list is sorted by impulse, so the first row's own figure can name a
+   *  diameter the design does not have. */
+  casingMm: number;
   options: SwapOption[];
 }
 
@@ -522,7 +537,9 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
     const rocket = hasGeometryEdits(geometry) ? applyGeometryEdits(liveDoc.rocket, geometry) : liveDoc.rocket;
     let next: string;
     try {
-      next = toBase64(exportOrk({ ...liveDoc, rocket }));
+      // Same rule as `downloadOrk`, so the design a flyer reopens off the shelf and the design they
+      // download are byte-identical — this row is compared against that export.
+      next = toBase64(exportOrk({ ...liveDoc, rocket }, { storedResultsDescribeThisRocket: rocket === liveDoc.rocket }));
     } catch {
       // Serialising is best effort: a shelf row that cannot be refreshed must never take the design
       // that is open down with it.
@@ -853,7 +870,13 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
     // The format carries it perfectly once it is written: baked in and re-imported, an E16 flies
     // 67.6 m again.
     if (builtHere.current) rocket = bakeMotorSwap(rocket, edits.motorSwap);
-    const bytes = exportOrk({ ...doc, rocket });
+    // **The stored results ride along only when nothing here has changed the airframe.** They are the
+    // ORIGINATING tool's simulation of the design as its author drew it, and they are what the
+    // Cross-check page compares Loft against — so carrying them onto an edited rocket would have that
+    // page report the effect of the flyer's own what-if as Loft's error. The launch CONDITIONS are
+    // written either way: a rail length and a wind speed are not results, and dropping them is the
+    // Sev-1 this whole block exists to fix (drift from pad 630 m to 0 m on a re-import, silently).
+    const bytes = exportOrk({ ...doc, rocket }, { storedResultsDescribeThisRocket: rocket === doc.rocket });
     const base =
       (rocket.name || fileName || "design").replace(/\.[^.]+$/, "").replace(/[^\w.-]+/g, "-") || "design";
     const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: "application/zip" }));
@@ -1153,6 +1176,12 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
       // aim at the part immediately, so the next keystroke replaces the starting weight rather than
       // a modal asking for it before anything exists to see.
       part = { id, kind, after: afterId, length: 0, name: "Mass object" };
+    } else if (kind === "tubecoupler" || kind === "centeringring") {
+      // The two INTERNAL kinds. `length: 0` is deliberate and means "the corpus figure": both sizes
+      // are decided by `internalPartDefaults` against the host, so the button and any other caller
+      // build the identical part rather than two that agree by argument. A coupler is 1.86 calibers
+      // and a ring is 3.18 mm — see there for why one number could not have served both.
+      part = { id, kind, after: afterId, length: 0, name: kind === "tubecoupler" ? "Coupler" : "Centering ring" };
     } else {
       part = { id, kind: "bodytube", after: afterId, length: Math.max(anchor.length / 2, 2 * anchor.outerRadius) };
     }
@@ -1913,10 +1942,32 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
               motorSwap={edits.motorSwap}
               geometry={geometryOf(edits)}
               swapOptions={swapInfo?.options}
+              mountCasingMm={swapInfo?.casingMm}
               designMotor={swapInfo?.designMotor}
               designManufacturer={swapInfo?.designManufacturer}
               designMotorFlies={swapInfo?.designMotorFlies}
               onEditGeometry={applyEdit}
+              // Apply a motor straight from the sweep's ranking. Routed through `applyEdit` like
+              // every other what-if, so it lands in the same edit bag, is undoable by the same
+              // control, persists across a reload with the rest, and re-flies every panel — rather
+              // than being a second mechanism beside the Swap motor select, which reads it back.
+              // The record is built from the same three fields the select writes, `diameter`
+              // included, so the two paths are indistinguishable downstream and `swapStillOffered`
+              // re-validates either of them identically on a configuration change.
+              onUseMotor={(m) => {
+                // **A tap that changes nothing must not commit a history step.** `movedWhatIf`
+                // compares edit fields by REFERENCE and its own note says "a fresh object in a field
+                // (a motor swap) counts as a change", so re-applying the motor already in force
+                // pushed an undo step that undoes nothing visible and buried the previous real one.
+                // The `<select>` could never reach this — it fires no change event when the same
+                // option is re-chosen — but a button is one tap.
+                const cur = edits.motorSwap;
+                if (cur && cur.designation === m.designation && cur.manufacturer === m.manufacturer) return;
+                applyEdit(
+                  { motorSwap: { manufacturer: m.manufacturer, designation: m.designation, diameter: m.diameter } },
+                  { label: `Fly on ${m.designation}`, key: "motorSwap" },
+                );
+              }}
               // A pick re-aims the fields that describe THAT kind of part and leaves the rest alone.
               // The routing lives in the edit model rather than here, so the panel that reports the
               // pick does not also have to know which fields a body tube or a fin set drives.
@@ -2717,6 +2768,86 @@ function DesignEditor({
                   />
                 )}
               </div>
+              {/* The third kind the catalogue can offer, and the first that is not airframe. It edits
+                  the canopy that is already there — the same shape as a nose pick, and for the same
+                  reason: the model requires a drag coefficient and a deploy event, and the catalogue
+                  states neither, so the part being replaced is where both come from. */}
+              {designDims.mainParachuteDiameter !== undefined && (
+                <PartPicker
+                  kind="parachute"
+                  imperial={imperial}
+                  picked={edits.catalogParachute}
+                  // The one figure with a field of its own, so it is the only one that can drift.
+                  dimensionsMatch={
+                    !!edits.catalogParachute &&
+                    (edits.mainParachuteDiameter === undefined ||
+                      edits.mainParachuteDiameter === edits.catalogParachute.diameter)
+                  }
+                  onPick={(p, material) => {
+                    if (p.diameter === undefined || !(p.diameter > 0)) return;
+                    // **The mass, and where it comes from, in the order the evidence supports.**
+                    // The vendor's own weight wins where they publish one (21 of 151) — measured,
+                    // theirs and the derived figure disagree by up to 7.85x, because hem, spill
+                    // hole, swivel and shroud attachment are invisible to a diameter and a surface
+                    // density. Otherwise it is derived by the SAME formula the `.ork` importer uses
+                    // for a hand-built chute (`parachuteMass`): canopy area x surface density, plus
+                    // lines x length x line density. Using the importer's own arithmetic rather than
+                    // a second one keeps a catalogue part and a typed part on one model.
+                    const derived = (): number | undefined => {
+                      const d = material?.density;
+                      if (d === undefined || !(d > 0)) return undefined;
+                      const canopy = Math.PI * (p.diameter! / 2) ** 2 * d;
+                      const ld = p.lineMaterial?.density;
+                      const lines =
+                        p.lineCount && p.lineLength && ld && ld > 0 ? p.lineCount * p.lineLength * ld : 0;
+                      return canopy + lines;
+                    };
+                    const mass = p.mass !== undefined && p.mass > 0 ? p.mass : derived();
+                    if (mass === undefined || !(mass > 0)) return;
+                    onEdit(
+                      {
+                        catalogParachute: {
+                          manufacturer: p.manufacturer,
+                          partNumber: p.partNumber,
+                          diameter: p.diameter,
+                          mass,
+                          ...(p.lineCount !== undefined ? { lineCount: p.lineCount } : {}),
+                          ...(p.lineLength !== undefined ? { lineLength: p.lineLength } : {}),
+                          ...(material
+                            ? { material: { name: material.name, density: material.density } }
+                            : {}),
+                        },
+                        // **Written, not cleared**, and the difference is a number on screen that
+                        // is not the one being flown. Clearing it left the "Main chute Ø" field
+                        // empty, so it fell back to its placeholder — `designDims.mainParachuteDiameter`,
+                        // read off the PRISTINE design — and the panel then advertised the
+                        // pre-pick canopy as "the design's own" while a different one flew, with no
+                        // field anywhere showing the flown size. Both sibling pickers avoid this by
+                        // writing the vendor's figures into the fields the flyer can see.
+                        //
+                        // It is a no-op through the applier: the resize scales mass by (d/d)² = 1
+                        // against the diameter the pick just wrote. It also makes `dimensionsMatch`
+                        // true, which is what the caption's "Flying …" wording assumes.
+                        mainParachuteDiameter: p.diameter,
+                      },
+                      {
+                        label: `${p.manufacturer} ${p.partNumber}`,
+                        key: `catalog-chute-pick-${p.partNumber}`,
+                      },
+                    );
+                  }}
+                  // Both keys go back together, with an explicit action — a two-key patch falls
+                  // through `describeEdit`, which returns "the design" for anything with more than
+                  // one key, so the undo control read "Undo the design" for the way back from a
+                  // pick. Both sibling pickers pass one for the same reason.
+                  onClear={() =>
+                    onEdit(
+                      { catalogParachute: undefined, mainParachuteDiameter: undefined },
+                      { label: "the catalogue parachute", key: "catalog-chute-clear" },
+                    )
+                  }
+                />
+              )}
             </fieldset>
 
             <fieldset className="min-w-0 border-0 p-0">

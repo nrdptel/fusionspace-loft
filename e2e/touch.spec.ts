@@ -352,7 +352,317 @@ test.describe("phone layout", () => {
     await page.getByRole("link", { name: "Design" }).click();
     await page.locator("summary", { hasText: /Parts ·/ }).click();
     expect(await scan(), "Design workspace with the parts table open").toEqual([]);
+
+    // **The blind spot, reached at last.** Every reading this file has ever taken was with NO part
+    // selected, so `GeometryInspector`'s gesture bar — remove, reorder, and the four add controls —
+    // contributed nothing to any count while being exactly the kind of state these counts exist to
+    // find. The recorded reason nobody reached it was that the parts table is "1,198 px wide inside
+    // a 390 px viewport" and "a direct row click times out". **Both were stale.** Measured
+    // 2026-08-02 on the built export at 390x664: the table is 418 px inside a 324 px scroller,
+    // `getByRole("row")` returns 9, and a row click works. The `DataTable` conversion fixed it and
+    // nothing re-measured, so a false measurement kept the gate shut for several runs.
+    // The BODY TUBE row specifically, not `nth(1)`: four of the eleven gesture controls render only
+    // when the selected part is a body tube (`GeometryInspector` gates the add controls on
+    // `kind === "bodytube"`), and row 1 is the nose cone — selecting it renders a strictly smaller
+    // bar and the scan would silently cover less than it claims to.
+    await page.getByRole("row").filter({ hasText: "Body tube" }).first().click();
+    // Assert the surface is actually THERE before measuring it, or a selector that quietly stopped
+    // matching would report a clean scan of a bar that never rendered — which is the failure mode
+    // this whole test exists to end.
+    await expect(page.getByRole("button", { name: /^Add a tube behind this/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: /^Add fins to this tube/i })).toBeVisible();
+    expect(await scan(), "Design workspace with a part SELECTED").toEqual([]);
   });
+  test("a flick that starts on a diagram grip drags it and does NOT scroll the page away", async ({ page }) => {
+    // **The Sev-1 a phone cold walk found, on the surface P4 increment 5 had just worked on.** A
+    // one-thumb flick that happened to land on a drag grip did BOTH: it dragged the handle AND
+    // scrolled the page. Measured before the fix at this viewport, flicking up 220 px from the
+    // body-diameter grip: ⌀38 mm to 205 mm and the page 500 to 731 px, so the airframe was off screen
+    // before the numbers settled — a silent design edit with the evidence scrolled out of view.
+    //
+    // The `<g>` carried `touch-none` the whole time; `touch-action` is simply not honoured on an
+    // inner SVG element in Chromium, and `preventDefault()` on the pointerdown does not stop a scroll
+    // either. Only a non-passive `touchmove` does.
+    //
+    // Driven through CDP because this needs REAL touch events: `page.touchscreen` has only `tap`, and
+    // synthetic `PointerEvent`s dispatched from the page do not reach the handler at all — a first
+    // version of this probe reported "no drag, no scroll" for both, which reads as a pass.
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    await page.getByRole("link", { name: "Design" }).click();
+    await page.waitForTimeout(1000);
+
+    const cdp = await page.context().newCDPSession(page);
+    const flick = async (x: number, y: number, dy: number) => {
+      const send = (type: string, py: number) =>
+        cdp.send("Input.dispatchTouchEvent", {
+          type,
+          touchPoints: type === "touchEnd" ? [] : [{ x, y: py }],
+        } as never);
+      await send("touchStart", y);
+      for (let i = 1; i <= 14; i++) {
+        await send("touchMove", y + (dy * i) / 14);
+        await page.waitForTimeout(16);
+      }
+      await send("touchEnd", y + dy);
+      await page.waitForTimeout(700);
+    };
+
+    const grip = page.getByRole("slider", { name: /Body diameter/i });
+    const box = (await grip.boundingBox())!;
+    // The grip must actually be a 44 px target for this to be the gesture a thumb makes.
+    expect(Math.min(box.width, box.height)).toBeGreaterThanOrEqual(44);
+    const valueBefore = await grip.getAttribute("aria-valuenow");
+    const scrollBefore = await page.evaluate(() => window.scrollY);
+
+    await flick(box.x + box.width / 2, box.y + box.height / 2, -220);
+
+    // The handle did its job — it is a slider, and a flick along its axis is a drag.
+    expect(await grip.getAttribute("aria-valuenow"), "the grip stopped responding to a drag").not.toBe(valueBefore);
+    // And the page stayed exactly where it was, which is the whole of the fix.
+    expect(
+      await page.evaluate(() => window.scrollY),
+      "the page scrolled while the grip was being dragged — the flyer loses sight of the edit",
+    ).toBe(scrollBefore);
+
+    // **The control that makes the assertion above mean something**: the same flick 60 px away, on
+    // plain airframe, must still scroll normally. Without this, a page that had simply stopped
+    // scrolling anywhere would pass.
+    const stillBefore = await page.evaluate(() => window.scrollY);
+    await flick(box.x + box.width / 2 + 60, box.y + box.height / 2, -220);
+    expect(
+      await page.evaluate(() => window.scrollY),
+      "the diagram stopped scrolling everywhere, not just on the grip",
+    ).toBeGreaterThan(stillBefore);
+  });
+
+  test("every part on the diagram is tappable, and the handles do not steal it", async ({ page }) => {
+    // **The diagram was the last surface with no touch target worth the name.** Measured on the
+    // built export at this viewport before the fix: the body parts' hit shapes were the SILHOUETTE,
+    // which at fit width is about eleven pixels tall — 78x12 and 218x12 px against `DESIGN.md` §8's
+    // 44 — and each drag grip's own 44x44 circle sits ON the airframe, so 9 of 19 points sampled
+    // across the body tube resolved to a HANDLE rather than the part. Tapping the middle of the body
+    // tube left the nose selected.
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 30_000 });
+    await page.getByRole("link", { name: "Design", exact: true }).click();
+    await expect(page.getByLabel(/Scale side-view/)).toBeVisible();
+
+    // Every part's tap area clears the contract in BOTH dimensions. Measured from the rendered
+    // boxes, not from the class list — the whole point is what a thumb can actually hit.
+    const boxes = await page.locator("svg rect.fill-transparent").evaluateAll((ns) =>
+      ns.map((n) => {
+        const r = n.getBoundingClientRect();
+        return { w: Math.round(r.width), h: Math.round(r.height) };
+      }),
+    );
+    expect(boxes.length, "no part tap targets rendered at all").toBeGreaterThan(1);
+    // **HEIGHT is the contract this fixes, and it is asserted for every column.** Width is not, and
+    // that is a limit rather than an oversight: a column is as wide as the part is LONG on screen,
+    // and measured across the 39 corpus files **56 of 150 body parts are under 44 px wide** at this
+    // fit width — the narrowest is 0.8 px, a transition on `silsim/rocket.ork`. A part that short
+    // cannot be given its own 44 px column without stealing area from its neighbours, and since the
+    // later-drawn column wins an overlap the theft would be arbitrary. The diagram's zoom control is
+    // the real answer there, and it is already a 44 px target. Asserting width here would pass only
+    // because the bundled sample happens to be generous.
+    expect(
+      boxes.filter((b) => b.h < 44),
+      `part tap targets under 44 px tall: ${boxes.map((b) => `${b.w}x${b.h}`).join(", ")}`,
+    ).toEqual([]);
+
+    // **How much of each column actually reaches the PART**, measured rather than asserted in the
+    // abstract. The drag grips keep their own 44x44 hit circles and legitimately win where they
+    // overlap — a grip is a smaller, more specific target the flyer aimed at — so the honest
+    // question is what is left. Sampled on a grid over each column with `elementFromPoint`.
+    const reach = await page.locator("svg rect.fill-transparent").evaluateAll((ns) =>
+      ns.map((n) => {
+        const r = n.getBoundingClientRect();
+        let part = 0;
+        let total = 0;
+        for (let i = 1; i < 10; i++) {
+          for (let j = 1; j < 10; j++) {
+            const x = r.left + (r.width * i) / 10;
+            const y = r.top + (r.height * j) / 10;
+            const el = document.elementFromPoint(x, y);
+            if (!el) continue;
+            total++;
+            if (el === n) part++;
+          }
+        }
+        return total ? Math.round((100 * part) / total) : 0;
+      }),
+    );
+    // Before the column existed this was ZERO outside an eleven-pixel silhouette — every point in a
+    // part's area that was not on the drawn shape reached nothing at all.
+    expect(
+      reach.filter((pct) => pct < 40),
+      `share of each part's column that reaches the part: ${reach.map((p) => `${p}%`).join(", ")}`,
+    ).toEqual([]);
+
+    // And it drives the real gesture: tapping a part's column selects THAT part in the parts table,
+    // and two different columns select two different parts. Asserted as distinctness rather than
+    // against a name string, because that is the property — a column that selected the same part
+    // whichever one you tapped would be worse than no target at all, and is exactly what the drag
+    // handles used to produce (tapping the body tube left the NOSE selected).
+    await page.locator("summary", { hasText: /Parts ·/ }).click();
+    await expect(page.locator('tr[aria-selected="true"]')).toHaveCount(0);
+    const columns = page.locator("svg rect.fill-transparent");
+
+    await columns.nth(0).click({ position: { x: 8, y: 8 } });
+    const first = page.locator('tr[aria-selected="true"]');
+    await expect(first, "a tap on a part's column must select that part").toHaveCount(1);
+    const firstName = (await first.innerText()).trim();
+
+    await columns.nth(1).click({ position: { x: 8, y: 8 } });
+    const second = page.locator('tr[aria-selected="true"]');
+    await expect(second).toHaveCount(1);
+    const secondName = (await second.innerText()).trim();
+
+    expect(secondName, `both columns selected "${firstName}"`).not.toBe(firstName);
+
+    // **And the columns must not BURY what was already tappable.** Fin sets and mass objects carry
+    // their own `hoverProps` and were selectable from the diagram before this existed; a fin's
+    // planform sits inside its host tube's x-range and inside the column's full height, so an
+    // earlier paint order swallowed it whole and tapping a fin selected "Body tube". The columns are
+    // painted FIRST for exactly this reason — anything more specific still wins on top.
+    // Clicked on the fin PATH itself rather than its group's bounding box, and via
+    // `elementFromPoint` on the path's own centroid, so the point is provably inside the polygon
+    // rather than in the box's empty corner.
+    // `locator.click()` rather than a raw mouse click at a computed point: it scrolls the element
+    // into view first (the diagram sits above the fold once the parts disclosure is open — measured,
+    // the fin's box was at y = -178) and it dispatches at a point it has verified belongs to the
+    // element, which a trapezoid's bounding-box centre is not guaranteed to be.
+    const finGroup = page.locator("svg g[class*='fill-zinc-300'], svg g[class*='fill-indigo-300']").first();
+    await expect(finGroup, "no fin planform on the diagram to test").toHaveCount(1);
+    const gb = (await finGroup.boundingBox())!;
+    // The aft-OUTER corner of the lower fin, not the group's centre and not its top-left. The group's
+    // box is the union of the top and bottom planforms, so its middle is the airframe and its
+    // top-left is the empty notch ahead of a 45-degree leading edge — and that notch is exactly where
+    // the fin-station handle's transparent 44 px circle sits, which would intercept the click and
+    // fail as "intercepts pointer events" rather than as the thing being tested.
+    await page.mouse.click(gb.x + gb.width - 4, gb.y + gb.height - 6);
+    const afterFin = page.locator('tr[aria-selected="true"]');
+    await expect(afterFin, "tapping a fin selected nothing — the columns buried it").toHaveCount(1);
+    expect(
+      (await afterFin.innerText()).toLowerCase(),
+      "tapping a fin set selected something else — the columns buried it",
+    ).toContain("fin");
+  });
+
+  test("the three pad journeys work one-handed, and survive losing signal", async ({ page, context }) => {
+    // Three route walks, a fifteen-motor sweep, an undo and an offline reload do not fit the file's
+    // 60 s budget (`playwright.config.ts`), and asking for 120 s on a single `expect` inside a 60 s
+    // test is a tolerance that can never be reached — the run is killed first, so the failure reads
+    // as an opaque "Test timeout exceeded" mid-step rather than as the authored assertion. That is
+    // the exact failure mode the config's own comment says it was written to prevent.
+    // `test.setTimeout` is how the rest of this suite buys room (see `rocketpy-selfhosted.spec.ts`).
+    test.setTimeout(240_000);
+    // **P4's *done when*, driven rather than described.** "A flyer can, one-handed and offline on a
+    // 390 px viewport, complete the three things a range day actually needs — pick a motor, check
+    // stability, sanity-check a delay." The hit-target and hover counts elsewhere in this file are
+    // the finish; these three are the substance, and until this nothing had walked them.
+    await page.goto("/", { waitUntil: "networkidle" });
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 30_000 });
+
+    // ── CHECK STABILITY ── the healthy one: it sits in the shared chrome, so it is on every
+    // workspace route for zero taps and inside the first screen.
+    const margin = page.locator("div", { has: page.getByText("Static margin", { exact: true }) }).last();
+    await expect(margin, "static margin is on the landing workspace").toBeVisible();
+    await expect(margin).toContainText(/cal/);
+
+    // ── SANITY-CHECK A DELAY ──
+    await page.getByRole("link", { name: "Flight", exact: true }).click();
+    await expect(page.getByText("Optimum delay", { exact: true }).first()).toBeVisible();
+
+    // ── PICK A MOTOR ── from the sweep's own ranking, which is where the decision is made. Before
+    // the *Use* column this journey ENDED here: `components/MotorSweep.tsx` held exactly one
+    // `<Button>` in the whole file — *Run* — so a flyer who swept fifteen motors had to memorise the
+    // designation, walk to /design, and scroll 1,841 px (2.77 screens at this viewport) to re-find
+    // it in a sixteen-option select. The sweep itself runs entirely on-device.
+    await page.getByRole("link", { name: "Sweep", exact: true }).click();
+    await page.getByRole("button", { name: /Run motor sweep/ }).click();
+    const sweep = page.getByRole("region", { name: "Motor sweep" });
+    const use = sweep.getByRole("button", { name: /^Use / }).first();
+    await expect(use, "the sweep can apply a motor").toBeVisible({ timeout: 120_000 });
+
+    // **On screen WITHOUT scrolling, which is the whole claim.** `toBeVisible()` does not test
+    // viewport intersection and `click()` auto-scrolls, so as the table's tenth column every Use
+    // control sat off the right edge of this 390 px viewport and the journey still passed. The
+    // control moved to second — beside the motor's own name — and this is what holds it there.
+    const vw = page.viewportSize()!.width;
+
+    // A real target for a thumb, and an accessible name that says WHICH motor — fifteen bare "Use"s
+    // would be fifteen anonymous stops for a screen-reader or voice-control user.
+    const box = await use.boundingBox();
+    expect(Math.round(box!.height), "Use button height").toBeGreaterThanOrEqual(44);
+    expect(Math.round(box!.width), "Use button width").toBeGreaterThanOrEqual(44);
+    expect(
+      Math.round(box!.x + box!.width),
+      `Use sits at x=${Math.round(box!.x)} in a ${vw} px viewport — a control a thumb has to scroll a nested scroller to find is the step this column exists to remove`,
+    ).toBeLessThanOrEqual(vw);
+    const named = (await use.getAttribute("aria-label")) ?? "";
+    expect(named, "the Use control says which motor").toMatch(/^Use \S+ —/);
+    const chosen = named.replace(/^Use (\S+).*$/, "$1");
+
+    await use.click();
+
+    // It APPLIED, and the Design workspace's own swap control reads it back — one edit bag, not a
+    // second mechanism beside the select.
+    await page.getByRole("link", { name: "Design", exact: true }).click();
+    const swap = page.getByRole("combobox", { name: "Swap motor" });
+    await expect(swap, "the swap select reads back the motor chosen in the sweep").toHaveValue(
+      new RegExp(chosen.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
+    );
+
+    // **And there is a way back FROM THE TABLE ITSELF**, which is where one would hide. The first
+    // draft marked "flying now" from the FILE's motor rather than the flown one, so after a tap the
+    // label stayed on a motor that was not flying, the applied row still offered a dead button, and
+    // the design's own motor became the one row with no control to return to — reachable only by
+    // Undo (which stops being one step back the moment any other edit follows) or by the select two
+    // routes away, the exact trip this column was added to remove.
+    await page.getByRole("link", { name: "Sweep", exact: true }).click();
+    await expect(
+      sweep.getByRole("button", { name: /go back to this design's own motor/i }),
+      "the design's own motor is reachable again from the table",
+    ).toBeVisible();
+    await expect(
+      sweep.getByText("flying now"),
+      "exactly one row is marked as flying, and it is the applied one",
+    ).toHaveCount(1);
+
+    // Undo is still a way out too, and it lands on the design's own motor.
+    await page.getByRole("link", { name: "Design", exact: true }).click();
+    await page.getByRole("button", { name: /^Undo/ }).click();
+    await expect(swap).toHaveValue("");
+
+    // ── AND IT SURVIVES LOSING SIGNAL ── which is the pad case: the app is open, then the signal
+    // goes. Asserted by cutting the network and RELOADING the route in view, so the service worker
+    // is genuinely what answers.
+    //
+    // Deliberately a reload rather than a cross-route walk, and the reason is the local server
+    // rather than the app: `serve` answers `/flight` with a redirect to `/flight/` because the RSC
+    // segment directory exists beside the document, while `scripts/gen-sw-precache.mjs` precaches
+    // the un-slashed form — so an offline spine tap churns between the two under `serve` in a way
+    // Cloudflare Pages does not. `e2e/docs.spec.ts` already walks every docs route offline, which
+    // covers the cross-route case on paths with no such directory.
+    await page.waitForFunction(
+      async () => !!navigator.serviceWorker?.controller && !!(await caches.match("/design")),
+      null,
+      { timeout: 30_000 },
+    );
+    await context.setOffline(true);
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await expect(page.getByRole("navigation", { name: "Workspace" }), "the app renders offline").toBeVisible();
+    await expect(
+      page.locator("div", { has: page.getByText("Static margin", { exact: true }) }).last(),
+      "stability is still readable with no signal",
+    ).toBeVisible();
+    await context.setOffline(false);
+  });
+
   test("the docs section nav is a row of targets, on every docs route", async ({ page }) => {
     // Found by a phone cold walk of the built export, which is the check the suite did not have: the
     // hit-target passes all load a DESIGN first, so nothing had ever measured the docs routes. All
@@ -506,9 +816,15 @@ test.describe("phone layout", () => {
  *  improvement fails this test just as a regression does, so the figure in this file and the figure
  *  on the page can never drift apart silently.
  *
- *  **96 → 75 → 67 → 25 → 1 → 0**, and the zero is the one to read carefully. It is zero on the six routes this walk visits, with no part selected — see the
- *  blind spot recorded in the loop below. The honest claim is narrow: every hover-only state this check can SEE is
- *  gone. Closing the gap means reaching them, not lowering a number.
+ *  **96 → 75 → 67 → 25 → 1 → 0**, and the zero used to need reading carefully: it was zero on the six
+ *  routes this walk visits, with no part selected, while the gesture bar behind a selection went
+ *  unmeasured. **That gap is closed** — the loop now picks a part on `/design` and runs the identical
+ *  count over the selection-gated surface, having first asserted the bar rendered.
+ *
+ *  **It found nothing, and that is the honest result rather than a disappointment.** Increment 3 had
+ *  already fixed those controls; what was missing was any check able to see them, so a regression
+ *  would have read 0 either way. The number did not move because the work was done — but until this
+ *  run nothing could have told the difference between that and a surface full of them.
  *
  *  The 67 → 25 step took the whole SHARED CHROME, which is why it is the
  *  large one: every site there renders on all six routes, so five files paid for forty-two of them.
@@ -539,10 +855,11 @@ test("counts the states a flyer at the pad cannot reach, and holds the number do
   const found: string[] = [];
   for (const route of ROUTES) {
     await page.goto(route);
-    // **KNOWN BLIND SPOT, and it is recorded rather than left to be rediscovered.**
+    // **THE BLIND SPOT THIS USED TO CARRY IS CLOSED — see the `/design` block after the count.**
     // `GeometryInspector`'s gesture bar — remove, reorder, add a tube / fin set / mass object /
-    // transition / motor mount, eleven controls — renders only once a part is SELECTED, and this
-    // walk never selects one. So those eleven have contributed 0 to every reading this ratchet has
+    // transition / motor mount — renders only once a part is SELECTED, and this walk did not select
+    // one. **Eight** are strictly selection-gated (not eleven: two more need a mount or a stage to
+    // exist first, and *Add a booster stage* renders ungated). So those eight contributed 0 to every reading this ratchet had
     // ever taken, while being exactly the kind of state it exists to find.
     //
     // **They are FIXED — and this check did not verify that, which is the point of saying so here.**
@@ -553,13 +870,13 @@ test("counts the states a flyer at the pad cannot reach, and holds the number do
     // "Add a tube behind this" had become "Add a body tube immediately behind this one, faired to
     // it, and re-fly the design". That is WCAG 2.5.3, and it is why the form is label-first.
     //
-    // A regression on any of the TEN behind a selection would not fail this test — it reads zero
-    // either way. The eleventh, "Add a booster stage", renders unselected and IS covered.
-    //
-    // Two ways of reaching them from here also failed and are worth not repeating:
-    // `getByRole("row")` matches nothing for this table's rows, and a direct `tbody tr` click times
-    // out because the table is 1,198 px wide inside a 390 px viewport in its own horizontally
-    // scrolling container. Reaching it wants the diagram's selection path or a wider viewport.
+    // **The two "ways of reaching them that failed" recorded here were STALE, and correcting them is
+    // most of what closed this.** They said `getByRole("row")` matches nothing for this table and a
+    // row click times out because the table is 1,198 px wide inside a 390 px viewport. Measured
+    // 2026-08-02 on the built export at 390x664: the table is **418 px inside a 324 px scroller**,
+    // `getByRole("row")` returns **9**, and rows click clean on both bundled samples. The
+    // `DataTable` conversion fixed all three and nothing re-measured, so a false measurement held
+    // the gate shut for several runs.
     // Wait for the route to finish rendering before counting. Without this the count RACES
     // hydration and moves between runs — measured 60 and 71 on two runs of an identical build,
     // which would make an exact ratchet worse than no check at all: it would fail for timing and
@@ -598,6 +915,43 @@ test("counts the states a flyer at the pad cannot reach, and holds the number do
       return out;
     });
     for (const h of here) found.push(`${route} · ${h}`);
+
+    // **And once more on /design with a part SELECTED, which closes the blind spot above.**
+    // The walk visits six routes with nothing picked, so the gesture bar behind a selection has
+    // contributed 0 to every reading this ratchet has ever taken. It is reached here rather than
+    // described: pick a row, confirm the bar rendered, and run the identical count over it.
+    //
+    // **What it found is nothing, and that is banked as a measurement rather than claimed as a
+    // repair.** The eight strictly selection-gated controls were fixed in increment 3 — their
+    // tooltips moved onto label-first accessible names — and this is the first check able to SEE
+    // that. A regression on any of them now fails, where before it read 0 either way.
+    if (route === "/design") {
+      // The table is behind a closed disclosure — `partsOpen` defaults false — so the selection
+      // needs two taps, which is itself part of what this blind spot cost.
+      await page.locator("summary", { hasText: /Parts ·/ }).click();
+      await page.getByRole("row").filter({ hasText: "Body tube" }).first().click();
+      await expect(page.getByRole("button", { name: /^Add a tube behind this/i })).toBeVisible();
+      const gated = await page.evaluate(() => {
+        const out: string[] = [];
+        for (const el of Array.from(document.querySelectorAll<HTMLElement>("*"))) {
+          const r = el.getBoundingClientRect();
+          if (r.width === 0 && r.height === 0) continue;
+          const label = `<${el.tagName.toLowerCase()}> ${(el.textContent || "").trim().replace(/\s+/g, " ").slice(0, 24)}`;
+          const title = el.getAttribute("title");
+          if (title && title.trim()) {
+            const near = (el.closest("dd, li, p, div, section") as HTMLElement | null)?.innerText ?? "";
+            const norm = (s: string) => s.replace(/\s+/g, " ").trim().toLowerCase();
+            if (!norm(near).includes(norm(title))) out.push(`title · ${label} · ${title.slice(0, 50)}`);
+          }
+          const cls = typeof el.className === "string" ? el.className : "";
+          if (/(^|\s|:)(group-)?hover:(opacity-100|block|flex)/.test(cls)) {
+            out.push(`hover-class · ${label} · ${cls.slice(0, 60)}`);
+          }
+        }
+        return out;
+      });
+      for (const h of gated) found.push(`/design (part selected) · ${h}`);
+    }
   }
 
   // Printed, not just counted: the next session driving this number down needs to know WHICH, and a

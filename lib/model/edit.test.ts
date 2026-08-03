@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
-import { importOrk } from "../ork/import";
+import { importDesign, importOrk } from "../ork/import";
 import { flattenRocket } from "./geometry";
 import { findParts, materialOf, partsOfKind } from "../components/db";
 import type { CatalogPart } from "../components/db";
@@ -10,6 +10,7 @@ import {
   moveTarget,
   moveSlots,
   isEditedValue,
+  usableCatalogParachute,
   primaryFinSpan,
   primaryFinCount,
   primaryFinStation,
@@ -62,6 +63,7 @@ import {
   canAddStage,
   canAddMount,
   stageSeedBase,
+  internalPartDefaults,
   type GeometryEdits,
   addedStageIds,
 } from "./edit";
@@ -75,6 +77,8 @@ import type {
   Parachute,
   Rocket,
   RocketComponent,
+  RingComponent,
+  InnerTube,
   TrapezoidFinSet,
 } from "./types";
 import { overallLength } from "./geometry";
@@ -3379,6 +3383,242 @@ describe("a catalogued nose cone's published contour, shoulder and stock", () =>
     }
   });
 
+  it("resolves a catalogue parachute, and every row it offers can be built", () => {
+    const chutes = partsOfKind("parachute");
+    console.log(`catalogued parachutes: ${chutes.length}`);
+    expect(chutes.length, "no parachute in the bundle").toBeGreaterThan(100);
+    let stated = 0;
+    let derivable = 0;
+    for (const c of chutes) {
+      // The two fields the model needs from a canopy, on every row: a flat diameter, and a mass
+      // path. Nothing states a `cd`, a packed size, a length or an outer diameter — which is why the
+      // picker's shared outer-diameter/length prelude had to move into the per-kind arms, and why a
+      // pick edits the chute already on the design rather than authoring a new one.
+      expect(c.diameter, `${c.manufacturer} ${c.partNumber} states no diameter`).toBeGreaterThan(0);
+      expect(c.length, "a canopy has no length in this catalogue").toBeUndefined();
+      expect(c.outerDiameter, "a canopy has no outer diameter in this catalogue").toBeUndefined();
+      if (c.mass !== undefined && c.mass > 0) stated++;
+      const d = materialOf(c)?.density;
+      if (d !== undefined && d > 0) derivable++;
+      expect(
+        (c.mass !== undefined && c.mass > 0) || (d !== undefined && d > 0),
+        `${c.manufacturer} ${c.partNumber} has neither a stated mass nor a usable stock`,
+      ).toBe(true);
+    }
+    console.log(`  ${stated} state a mass, ${derivable} carry a usable canopy stock`);
+    expect(stated, "no vendor publishes a canopy weight").toBeGreaterThan(0);
+  });
+
+  it("puts a real canopy on the design, keeps the cd it cannot know, and clears the old weighed mass", async () => {
+    const doc = await importOrk(readFileSync(resolve(process.cwd(), "fixtures/demo-single-deploy.ork")));
+    const chute = (r: Rocket) =>
+      flattenRocket(r)
+        .map((p) => p.component)
+        .find((c) => c.kind === "parachute") as Parachute;
+    const before = chute(doc.rocket);
+
+    // Resolved through the shipped data at run time rather than hand-typed. A previous increment
+    // asserted "the vendor's published figures" against numbers that appear in no row of the
+    // catalogue — arithmetically self-consistent and reproducible from nothing.
+    const part = partsOfKind("parachute").find((c) => c.mass !== undefined && c.mass > 0)!;
+    expect(part, "no catalogued canopy publishes a weight").toBeDefined();
+    const material = materialOf(part)!;
+    const picked = {
+      manufacturer: part.manufacturer,
+      partNumber: part.partNumber,
+      diameter: part.diameter!,
+      mass: part.mass!,
+      material: { name: material.name, density: material.density },
+      lineCount: part.lineCount,
+      lineLength: part.lineLength,
+    };
+    expect(usableCatalogParachute(picked)).toBe(true);
+
+    // **The design's canopy is given a weighed mass first**, which is the state 20 of the 37
+    // parachute nodes across the corpus are actually in (11 of the 27 `.ork` files). `overrideMass`
+    // wins outright in `lib/sim/mass.ts`, so a pick that set `mass` and left it would take the
+    // vendor's diameter while flying the OLD weight under a caption naming the new part — the exact
+    // Sev-1 the nose-cone increment shipped and had to fix.
+    const withOverride: Rocket = {
+      ...doc.rocket,
+      stages: doc.rocket.stages.map((st) => ({
+        ...st,
+        components: st.components.map(function tag(c): typeof c {
+          if (c.kind === "parachute") return { ...c, overrideMass: 0.0879, overrideCGx: 0.1 };
+          return c.children.length ? { ...c, children: c.children.map(tag) } : c;
+        }),
+      })),
+    };
+    const tagged = chute(withOverride);
+    expect(tagged.overrideMass, "the fixture state this test depends on").toBe(0.0879);
+
+    const built = applyGeometryEdits(withOverride, { catalogParachute: picked });
+    const after = chute(built);
+
+    expect(after.diameter).toBeCloseTo(picked.diameter, 9);
+    expect(after.area, "a stale reference area would fly the old canopy's drag").toBeUndefined();
+    expect(after.mass).toBeCloseTo(picked.mass, 9);
+    expect(after.overrideMass, "the replaced canopy's weighed mass must not survive").toBeUndefined();
+    expect(after.overrideCGx).toBeUndefined();
+    // The coefficient is the design's own, because no vendor in this catalogue publishes one.
+    expect(after.cd, "the pick must not invent a drag coefficient").toBe(before.cd);
+    expect(after.deployEvent, "a pick changes the canopy, not when it opens").toBe(before.deployEvent);
+    expect(after.deployAltitude).toBe(before.deployAltitude);
+    console.log(
+      `parachute pick: ${picked.manufacturer} ${picked.partNumber} — ` +
+        `Ø ${(before.diameter * 1000).toFixed(1)} → ${(after.diameter * 1000).toFixed(1)} mm, ` +
+        `mass ${(tagged.overrideMass! * 1000).toFixed(1)} g (overridden) → ${(after.mass * 1000).toFixed(1)} g, ` +
+        `cd ${after.cd} unchanged`,
+    );
+  });
+
+  it("keeps all three recovery edits on ONE canopy, even when the pick makes it the smaller one", async () => {
+    // **The defect this pins is the one the applier's own comment used to claim its ordering
+    // prevented.** All three recovery edits resolved `primaryParachute` independently, and with no
+    // explicit aim that falls back to "the largest canopy". A pick can make the aimed canopy
+    // SMALLER than another — 62 of the 151 catalogued canopies are under 460 mm — so the target
+    // moved out from under the two steps that follow it: on a dual-deploy design the "Main chute Ø"
+    // field, whose placeholder names the main, resized the DROGUE instead and quadrupled its mass.
+    const doc = await importOrk(readFileSync(resolve(process.cwd(), "fixtures/demo-dual-deploy.ork")));
+    const chutes = (r: Rocket) =>
+      flattenRocket(r)
+        .map((p) => p.component)
+        .filter((c): c is Parachute => c.kind === "parachute");
+    const before = chutes(doc.rocket);
+    expect(before.length, "the fixture this test needs has two canopies").toBeGreaterThan(1);
+
+    // The largest is the one the unaimed fields resolve to; pick something smaller than the other.
+    const main = [...before].sort((a, b) => b.diameter - a.diameter)[0];
+    const other = [...before].sort((a, b) => b.diameter - a.diameter)[1];
+    const small = partsOfKind("parachute")
+      .filter((c) => c.diameter !== undefined && c.diameter < other.diameter)
+      .find((c) => c.mass !== undefined && c.mass > 0)!;
+    expect(small, "no catalogued canopy is smaller than this design's second chute").toBeDefined();
+    const m = materialOf(small)!;
+    const picked = {
+      manufacturer: small.manufacturer,
+      partNumber: small.partNumber,
+      diameter: small.diameter!,
+      mass: small.mass!,
+      material: { name: m.name, density: m.density },
+    };
+
+    const typed = 0.9;
+    const built = applyGeometryEdits(doc.rocket, {
+      catalogParachute: picked,
+      mainParachuteDiameter: typed,
+    });
+    const after = chutes(built);
+    const movedMain = after.find((c) => c.id === main.id)!;
+    const untouched = after.find((c) => c.id === other.id)!;
+
+    // The typed diameter landed on the canopy the pick was made for — the one the panel names —
+    // and the other chute is exactly as the file had it.
+    expect(movedMain.diameter).toBeCloseTo(typed, 9);
+    expect(untouched.diameter).toBeCloseTo(other.diameter, 9);
+    expect(untouched.mass).toBeCloseTo(other.mass, 9);
+    // And its weight is the vendor's, scaled from the PICKED size rather than the file's.
+    expect(movedMain.mass).toBeCloseTo(picked.mass * (typed / picked.diameter) ** 2, 9);
+  });
+
+  it("leaves a massless canopy massless, so a RASAero design is not charged for it twice", async () => {
+    // `.CDX1` states no per-part masses at all — the whole design's weight rides in one point mass
+    // and `lib/rasaero/adapt.ts` gives every canopy `mass: 0` on purpose. `withMainParachuteDiameter`
+    // preserved that for free because it SCALES; an applier that assigns has to say so, or the
+    // canopy is counted twice. Driven over the real corpus rather than a constructed rocket, and
+    // skipped rather than faked when the corpus is absent.
+    const dir = process.env.LOFT_CORPUS_DIR ?? resolve(process.cwd(), "corpus");
+    const rasaero = resolve(dir, "rasaero");
+    if (!existsSync(rasaero)) return;
+    const files = readdirSync(rasaero).filter((f) => f.toLowerCase().endsWith(".cdx1"));
+    const part = partsOfKind("parachute").find((c) => c.mass !== undefined && c.mass > 0)!;
+    const m = materialOf(part)!;
+    const picked = {
+      manufacturer: part.manufacturer,
+      partNumber: part.partNumber,
+      diameter: part.diameter!,
+      mass: part.mass!,
+      material: { name: m.name, density: m.density },
+    };
+    let checked = 0;
+    for (const f of files) {
+      const doc = await importDesign(new Uint8Array(readFileSync(resolve(rasaero, f))));
+      const canopies = flattenRocket(doc.rocket)
+        .map((p) => p.component)
+        .filter((c): c is Parachute => c.kind === "parachute");
+      if (!canopies.length) continue;
+      const dryBefore = dryMassProperties(doc.rocket).mass;
+      const built = applyGeometryEdits(doc.rocket, { catalogParachute: picked });
+      const after = flattenRocket(built)
+        .map((p) => p.component)
+        .filter((c): c is Parachute => c.kind === "parachute");
+      const target = after.find((c) => Math.abs(c.diameter - picked.diameter) < 1e-9);
+      expect(target, `${f}: the pick did not land`).toBeDefined();
+      expect(target!.mass, `${f}: a massless canopy took on a weight the design already counts`).toBe(0);
+      expect(dryMassProperties(built).mass, `${f}: dry mass moved`).toBeCloseTo(dryBefore, 9);
+      checked++;
+    }
+    console.log(`massless-canopy check: ${checked} RASAero design(s) with a canopy`);
+    expect(checked, "no RASAero design carried a canopy — this test watched nothing").toBeGreaterThan(0);
+  });
+
+  it("drops a canopy pick when the canopy it was made for is removed", async () => {
+    // Unaimed, the fields resolve through "the largest canopy" — so removing the chute a pick was
+    // made for silently re-landed the vendor's diameter AND weight on the next-largest one, with the
+    // provenance line still reading "Flying <part>". Third incarnation of the `withCatalogTube`
+    // migration defect, and the worst of them, because a pick rewrites mass as well as size.
+    const doc = await importOrk(readFileSync(resolve(process.cwd(), "fixtures/demo-dual-deploy.ork")));
+    const all = flattenRocket(doc.rocket)
+      .map((p) => p.component)
+      .filter((c): c is Parachute => c.kind === "parachute");
+    const main = [...all].sort((a, b) => b.diameter - a.diameter)[0];
+    const part = partsOfKind("parachute").find((c) => c.mass !== undefined && c.mass > 0)!;
+    const m = materialOf(part)!;
+    const picked = {
+      manufacturer: part.manufacturer,
+      partNumber: part.partNumber,
+      diameter: part.diameter!,
+      mass: part.mass!,
+      material: { name: m.name, density: m.density },
+    };
+    const cleared = aimsClearedByRemoving(doc.rocket, { catalogParachute: picked }, main.id);
+    expect(
+      Object.keys(cleared),
+      "removing the picked canopy must take the pick with it",
+    ).toContain("catalogParachute");
+  });
+
+  it("lets a typed diameter beat the pick, scaling the vendor's own weight rather than the file's", async () => {
+    const doc = await importOrk(readFileSync(resolve(process.cwd(), "fixtures/demo-single-deploy.ork")));
+    const chute = (r: Rocket) =>
+      flattenRocket(r)
+        .map((p) => p.component)
+        .find((c) => c.kind === "parachute") as Parachute;
+    const part = partsOfKind("parachute").find((c) => c.mass !== undefined && c.mass > 0)!;
+    const material = materialOf(part)!;
+    const picked = {
+      manufacturer: part.manufacturer,
+      partNumber: part.partNumber,
+      diameter: part.diameter!,
+      mass: part.mass!,
+      material: { name: material.name, density: material.density },
+    };
+
+    // The order the applier runs them in is the whole of this test: pick, THEN resize. Applied the
+    // other way the pick would discard a figure the flyer had typed; applied this way "that part,
+    // but cut down" scales a plausible weight for that part instead of for whatever canopy the file
+    // happened to ship.
+    const cut = picked.diameter * 0.5;
+    const built = applyGeometryEdits(doc.rocket, {
+      catalogParachute: picked,
+      mainParachuteDiameter: cut,
+    });
+    const after = chute(built);
+    expect(after.diameter).toBeCloseTo(cut, 9);
+    // Area scales as diameter², so half the diameter is a quarter of the vendor's weight.
+    expect(after.mass).toBeCloseTo(picked.mass * 0.25, 9);
+  });
+
   it("lands the vendor's whole part on the design's nose, and the mass moves with it", async () => {
     const doc = await importOrk(readFileSync(resolve(process.cwd(), "fixtures/demo-single-deploy.ork")));
     const before = nose(doc.rocket);
@@ -3607,5 +3847,224 @@ describe("a catalogued nose cone's published contour, shoulder and stock", () =>
       expect(hasGeometryEdits({ catalogNoseCone: rec }), why).toBe(false);
       expect(isEditedValue("catalogNoseCone", rec), why).toBe(false);
     }
+  });
+});
+
+describe("authoring a coupler and a centring ring", () => {
+  const SINGLE = "fixtures/demo-single-deploy.ork";
+  const load = async (f: string) => importOrk(readFileSync(resolve(process.cwd(), f)));
+  const author = (r: Rocket, after: string, kind: "tubecoupler" | "centeringring") => {
+    // `length: 0` is exactly what `addPartAfter` sends: the size is the corpus figure resolved
+    // against the host, so the button and this test build the same part rather than two that agree
+    // by argument.
+    const id = newPartId(r, undefined, after);
+    return { id, edits: { added: [{ id, kind, after, length: 0 }] } };
+  };
+  const firstTube = (r: Rocket) => flattenRocket(r).find((p) => p.component.kind === "bodytube")!.component as BodyTube;
+
+  it("makes a coupler a tube and a ring a plate, from the same shape and the same host", async () => {
+    // **The one way to author these wrong is to size them alike.** Both are `RingComponent` in the
+    // model, and a first draft did exactly that: a 50 mm slug for each. A coupler really is 1.86
+    // calibers (corpus median of 31, never below 1.0537) and a ring really is 3.18 mm — 1/8 inch ply,
+    // the corpus median of 83. So on one host they come out ~20x apart, and the gap WIDENS with
+    // diameter, because one figure scales with the tube and the other is a sheet thickness that does
+    // not. That divergence is the reason a single default could not have served both.
+    const doc = await load(SINGLE);
+    const host = firstTube(doc.rocket);
+    const co = author(doc.rocket, host.id, "tubecoupler");
+    const ri = author(doc.rocket, host.id, "centeringring");
+    const coupler = flattenRocket(applyGeometryEdits(doc.rocket, co.edits)).find((p) => p.component.id === co.id)!;
+    const ring = flattenRocket(applyGeometryEdits(doc.rocket, ri.edits)).find((p) => p.component.id === ri.id)!;
+    expect(coupler.component.kind).toBe("tubecoupler");
+    expect(ring.component.kind).toBe("centeringring");
+    // The coupler's length is a multiple of ITS OWN diameter, and it fits the host it was cut for.
+    const cr = (coupler.component as RingComponent).outerRadius;
+    expect(coupler.length / (2 * cr)).toBeCloseTo(1.859, 3);
+    expect(coupler.length).toBeLessThanOrEqual(host.length + 1e-9);
+    // The ring's thickness is ABSOLUTE — a sheet of ply, not a fraction of anything.
+    expect(ring.length).toBeCloseTo(0.003175, 9);
+    expect(coupler.length / ring.length).toBeGreaterThan(15);
+    // And the gap really does widen with the tube: on a host twice as wide the coupler grows and the
+    // plate does not move at all. Asserted rather than argued, because it is what makes a ratio wrong
+    // for a ring and an absolute wrong for a coupler. The coupler tracks the host's BORE rather than
+    // its outer radius — doubling the radius leaves the wall where it was, so the bore grows by more
+    // than double — and the constant it holds is the corpus figure on both.
+    const wide: BodyTube = { ...host, outerRadius: host.outerRadius * 2 };
+    const cw = internalPartDefaults("tubecoupler", wide);
+    const cn = internalPartDefaults("tubecoupler", host);
+    const bore = (t: BodyTube) => t.outerRadius - (t.thickness ?? 0);
+    expect(cw.length).toBeGreaterThan(cn.length * 1.9);
+    expect(cw.length / (2 * bore(wide))).toBeCloseTo(cn.length / (2 * bore(host)), 9);
+    expect(internalPartDefaults("centeringring", wide).length).toBeCloseTo(internalPartDefaults("centeringring", host).length, 12);
+  });
+
+  it("bores a ring to the mount it centres, and never leaves it solid", async () => {
+    // **0 of the 83 real centring rings in the corpus have a zero bore** — a disc with no hole is a
+    // bulkhead, a different part doing a different job. Where the host carries the `innertube` that
+    // IS the motor mount, the bore is read off it exactly; where it does not, the corpus median
+    // ratio stands in rather than a solid slug.
+    const doc = await load(SINGLE);
+    const host = firstTube(doc.rocket);
+    const bare: BodyTube = { ...host, children: host.children.filter((c) => c.kind !== "innertube") };
+    const mounted: BodyTube = {
+      ...bare,
+      children: [
+        ...bare.children,
+        { id: "mnt", name: "Motor tube", kind: "innertube", length: 0.2, outerRadius: 0.0145, innerRadius: 0.0135, children: [] },
+      ],
+    };
+    const withMount = internalPartDefaults("centeringring", mounted);
+    const without = internalPartDefaults("centeringring", bare);
+    expect(withMount.innerRadius).toBeCloseTo(0.0145, 9);
+    expect(without.innerRadius).toBeGreaterThan(0);
+    // Negative control on the rule this replaced: the fallback is not, and must not be, a solid disc.
+    expect(without.innerRadius / internalPartDefaults("tubecoupler", bare).innerRadius).toBeGreaterThan(0.5);
+    // A coupler ignores the mount entirely — it is bored by its own wall, not by what it surrounds.
+    expect(internalPartDefaults("tubecoupler", mounted).innerRadius)
+      .toBeCloseTo(internalPartDefaults("tubecoupler", bare).innerRadius, 12);
+  });
+
+  it("weighs what a coupler and a ring weigh, which is not what a slug weighs", async () => {
+    // The mass is the whole point: these two kinds change no outer mould line, so dry mass and CG are
+    // the ONLY numbers they move. A ring is single-digit grams. The solid 50 mm version this replaced
+    // was 134 g at the corpus median — heavier than most of the airframes it was being added to.
+    const doc = await load(SINGLE);
+    const host = firstTube(doc.rocket);
+    const before = dryMassProperties(doc.rocket);
+    const ri = author(doc.rocket, host.id, "centeringring");
+    const built = applyGeometryEdits(doc.rocket, ri.edits);
+    const added = (dryMassProperties(built).mass - before.mass) * 1000;
+    expect(added).toBeGreaterThan(0);
+    expect(added).toBeLessThan(20);
+    // And it goes INSIDE: the airframe is exactly as long as it was.
+    expect(overallLength(built)).toBeCloseTo(overallLength(doc.rocket), 12);
+  });
+
+  it("shrinks with the tube when the tube is shortened under it", async () => {
+    // **The order of the pipeline is what makes this reachable**: `applyAdds` runs before
+    // `applyDimensionEdits`, so the birth clamp measured the host at its PRISTINE length. Typing a
+    // shorter body length afterwards resizes the tube underneath a part already seated flush with its
+    // aft end — and a `bottom` placement grows FORWARD, so the overhang goes out of the fore end into
+    // the nose cone, carrying its full un-shrunk mass at a station it is not at.
+    const doc = await load(SINGLE);
+    const host = firstTube(doc.rocket);
+    const co = author(doc.rocket, host.id, "tubecoupler");
+    const full = flattenRocket(applyGeometryEdits(doc.rocket, co.edits)).find((p) => p.component.id === co.id)!;
+    expect(full.length).toBeGreaterThan(0.02);
+
+    // Shorter than the coupler it now contains.
+    const short = 0.02;
+    const built = applyGeometryEdits(doc.rocket, { ...co.edits, bodyLength: short });
+    const parts = flattenRocket(built);
+    const tube = parts.find((p) => p.component.id === host.id)!;
+    const made = parts.find((p) => p.component.id === co.id)!;
+    expect(tube.length).toBeCloseTo(short, 9);
+    expect(made.length).toBeLessThanOrEqual(tube.length + 1e-9);
+    expect(made.xFore).toBeGreaterThanOrEqual(tube.xFore - 1e-9);
+    expect(made.xFore + made.length).toBeLessThanOrEqual(tube.xFore + tube.length + 1e-9);
+    // The mass follows the geometry rather than staying at the un-shrunk figure.
+    const shrunkMass = dryMassProperties(built).mass;
+    const unshrunk = dryMassProperties(applyGeometryEdits(doc.rocket, co.edits)).mass;
+    expect(shrunkMass).toBeLessThan(unshrunk);
+    // Typing the length FIRST and authoring after must land in the same place — the bag is a set, not
+    // a sequence, and `structureOf` deliberately hides dimension edits from the add's anchor.
+    const other = applyGeometryEdits(doc.rocket, { bodyLength: short, ...co.edits });
+    expect(dryMassProperties(other).mass).toBeCloseTo(shrunkMass, 12);
+  });
+
+  it("refuses a host that is not a tube, and comes back when taken away", async () => {
+    const doc = await load(SINGLE);
+    const nose = flattenRocket(doc.rocket).find((p) => p.component.kind === "nosecone")!.component;
+    const bad = author(doc.rocket, nose.id, "tubecoupler");
+    // A coupler slides inside a tube's bore; a nose cone has no bore to state. Refused rather than
+    // built somewhere arbitrary.
+    expect(flattenRocket(applyGeometryEdits(doc.rocket, bad.edits)).find((p) => p.component.id === bad.id)).toBeUndefined();
+    // Paired with the positive case on the SAME design, so the refusal above cannot be passing
+    // because the whole build path is dead.
+    const host = firstTube(doc.rocket);
+    const co = author(doc.rocket, host.id, "tubecoupler");
+    const built = applyGeometryEdits(doc.rocket, co.edits);
+    expect(flattenRocket(built).find((p) => p.component.id === co.id)).toBeDefined();
+
+    // **Undo is a replay of the bag with the entry dropped, so the state it has to return to is the
+    // BUILT one minus the part** — not the pristine design compared with itself, which is what this
+    // asserted first time round and would have passed with the feature deleted. The built design has
+    // to differ before returning to pristine means anything.
+    const pristineMass = dryMassProperties(doc.rocket).mass;
+    expect(dryMassProperties(built).mass).toBeGreaterThan(pristineMass);
+    expect(flattenRocket(built).length).toBe(flattenRocket(doc.rocket).length + 1);
+    const back = applyGeometryEdits(doc.rocket, { ...co.edits, added: [] });
+    expect(dryMassProperties(back).mass).toBeCloseTo(pristineMass, 12);
+    expect(flattenRocket(back).length).toBe(flattenRocket(doc.rocket).length);
+  });
+
+  it("builds the ring at the bore the helper resolved, not just reports it", async () => {
+    // The bore rule is the ring's headline claim, and it was pinned only on `internalPartDefaults`.
+    // A wiring mistake between the helper and `buildAdded` — the arm reading `ro * 0.87` directly, or
+    // dropping `geom.innerRadius` — would leave every one of those assertions green while the part a
+    // flyer actually gets is bored somewhere else. So this asserts on the BUILT component.
+    const doc = await load(SINGLE);
+    const host = firstTube(doc.rocket);
+    // A radius the design does not already contain — this fixture ships its own 14.5 mm motor tube,
+    // so reusing that number would have made both halves of this pass on the pristine file.
+    const R = 0.0111;
+    const mount: InnerTube = {
+      id: "mnt", name: "Motor tube", kind: "innertube",
+      length: 0.2, outerRadius: R, innerRadius: R - 0.001,
+      placement: { method: "bottom", offset: 0 },
+      motorMount: { designation: "H128W" }, children: [],
+    };
+    // Nested one level down, which is where 41 corpus body tubes actually keep theirs.
+    const sleeve: RingComponent = {
+      id: "slv", name: "Sleeve", kind: "tubecoupler",
+      length: 0.05, outerRadius: 0.018, innerRadius: 0.017,
+      placement: { method: "bottom", offset: 0 },
+      children: [mount],
+    };
+    const rehost = (children: RocketComponent[]): Rocket => ({
+      ...doc.rocket,
+      stages: doc.rocket.stages.map((s) => ({
+        ...s,
+        components: s.components.map((c) => (c.id === host.id ? { ...c, children } : c)),
+      })),
+    });
+    const strip = (c: RocketComponent) => c.kind !== "innertube";
+    const withMount = rehost([...host.children.filter(strip), sleeve]);
+    const ri = author(withMount, host.id, "centeringring");
+    const made = flattenRocket(applyGeometryEdits(withMount, ri.edits)).find((p) => p.component.id === ri.id)!;
+    expect((made.component as RingComponent).innerRadius).toBeCloseTo(R, 9);
+
+    // Negative control on the SAME host with the sleeve gone: no mount anywhere, so the bore falls to
+    // the corpus ratio and lands somewhere else entirely. Without this the assertion above would pass
+    // on any implementation that happened to produce R.
+    const bareRocket = rehost(host.children.filter(strip));
+    const bare = author(bareRocket, host.id, "centeringring");
+    const plain = flattenRocket(applyGeometryEdits(bareRocket, bare.edits)).find((p) => p.component.id === bare.id)!;
+    expect((plain.component as RingComponent).innerRadius).not.toBeCloseTo(R, 4);
+    expect((plain.component as RingComponent).innerRadius).toBeGreaterThan(0);
+  });
+
+  it("cuts a coupler down to a host too short to hold one, rather than overhanging it", async () => {
+    // The birth clamp, which was inert on this fixture — its 620 mm tube swallows a 94.8 mm coupler
+    // whole, so deleting the clamp left every case green. 3 of the 35 corpus designs are genuinely
+    // this short; `02.Two-stage.ork`'s first tube is 7.5 mm.
+    const doc = await load(SINGLE);
+    const host = firstTube(doc.rocket);
+    const stub: Rocket = {
+      ...doc.rocket,
+      stages: doc.rocket.stages.map((s) => ({
+        ...s,
+        components: s.components.map((c) => (c.id === host.id ? { ...c, length: 0.0075 } : c)),
+      })),
+    };
+    const co = author(stub, host.id, "tubecoupler");
+    const parts = flattenRocket(applyGeometryEdits(stub, co.edits));
+    const tube = parts.find((p) => p.component.id === host.id)!;
+    const made = parts.find((p) => p.component.id === co.id)!;
+    expect(tube.length).toBeCloseTo(0.0075, 9);
+    // Without the clamp this is 94.8 mm in a 7.5 mm tube, 87.3 mm of it forward of the fore end.
+    expect(made.length).toBeLessThanOrEqual(tube.length + 1e-9);
+    expect(made.xFore).toBeGreaterThanOrEqual(tube.xFore - 1e-9);
+    expect(made.length).toBeGreaterThan(0);
   });
 });

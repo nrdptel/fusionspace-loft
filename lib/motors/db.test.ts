@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { allMotors, resolveMotor, coreDesignation, normalize } from "./db";
+import { allMotors, resolveMotor, sameCasing, coreDesignation, normalize } from "./db";
 
 describe("motor database", () => {
   it("parses the bundled catalog", () => {
@@ -416,5 +416,100 @@ describe("the catalogued envelope comes from the certification record", () => {
       expect(r?.quality, `manufacturer "${code}"`).toBe("exact");
       expect(r!.entry.designation, `manufacturer "${code}"`).toBe(quest[0].designation);
     }
+  });
+  it("refuses a substitute that could not go in the tube, and still flies the design's own motor", () => {
+    // **A substitution Loft chose has to FIT.** A cold walk of the built export found a design whose
+    // designation is `H999ZZ` on a 29 mm mount resolving to `H999N` — a 38 mm motor — on a bare
+    // two-way substring test, after which the app reported apogee 1,471 m, Mach 1.04 and
+    // thrust-to-weight 162:1 off a motor that cannot be loaded. The only cue was "· approx".
+    const loose = resolveMotor({ manufacturer: "AeroTech", designation: "H999ZZ" });
+    expect(loose?.quality, "the loose match this exists to veto no longer reproduces").toBe("designation");
+    expect(Math.round(loose!.entry.curve.diameterMm), "H999N is the 38 mm motor in question").toBe(38);
+
+    // Stating the casing the design actually has vetoes it, and there is no smaller lie to fall back
+    // on: withheld beats plausible, and the app's unmatched path already explains itself.
+    expect(
+      resolveMotor({ manufacturer: "AeroTech", designation: "H999ZZ", diameter: 0.029 }),
+      "a 38 mm motor was accepted for a 29 mm mount — the Sev-1 this exists to stop",
+    ).toBeNull();
+    // A 38 mm mount is entitled to that same motor.
+    const fits = resolveMotor({ manufacturer: "AeroTech", designation: "H999ZZ", diameter: 0.038 });
+    expect(fits?.entry.designation, "a 38 mm mount was refused its own 38 mm motor").toBe(loose!.entry.designation);
+
+    // **The design's OWN motor is never vetoed**, even against a disagreeing stated casing — an exact
+    // designation is not something Loft chose, and dropping it would withhold a flight Loft can fly.
+    const exact = resolveMotor({ manufacturer: "AeroTech", designation: "H128W", diameter: 0.075 });
+    expect(exact?.quality, "an exact match was vetoed — a design\u2019s own motor must never be").toBe("exact");
+    expect(exact!.entry.designation).toBe("H128W");
+    // And a file that states no casing is unaffected — RockSim's figure is the mount's bore and
+    // RASAero's is the nozzle, so there is nothing to check against and nothing is withheld.
+    expect(resolveMotor({ manufacturer: "AeroTech", designation: "H999ZZ", diameter: 0 })?.quality).toBe("designation");
+  });
+  it("treats the catalogue's 75 and 76 mm motors as one casing, and 18 and 20 as two", () => {
+    // The band `sameCasing` allows is not taste — it is read off the bundled catalogue, and getting
+    // it wrong breaks the veto in the OPPOSITE direction by withholding a legitimate flight. The
+    // casings present are 13, 18, 20, 24, 29, 38, 54, 75, 76 and 98 mm.
+    const casings = [...new Set(allMotors().map((m) => Math.round(m.curve.diameterMm)))].sort((a, b) => a - b);
+    expect(casings).toEqual([13, 18, 20, 24, 29, 38, 54, 75, 76, 98]);
+    // 3 inches is 76.2 mm, so the same physical class is certified at both figures — 7 motors at the
+    // nominal 75 and 2 at the measured 76. Rounded equality would have split them.
+    expect(sameCasing(75, 76)).toBe(true);
+    expect(sameCasing(76, 75)).toBe(true);
+    // 18 mm and 20 mm really are different mounts (Estes' and Quest's), 2 mm apart, and must not
+    // merge — which is why the band is a percentage rather than a flat millimetre or two.
+    expect(sameCasing(18, 20)).toBe(false);
+    // Every other neighbouring pair in the catalogue is 5 mm or more apart, so none of them is close.
+    for (let i = 1; i < casings.length; i++) {
+      const [a, b] = [casings[i - 1], casings[i]];
+      expect(sameCasing(a, b), `${a} vs ${b}`).toBe(b - a <= 1);
+    }
+    // A silence on either side is not a disagreement — a file that states no casing is unaffected.
+    expect(sameCasing(0, 38)).toBe(true);
+    expect(sameCasing(38, 0)).toBe(true);
+  });
+
+  it("has no designation core spanning two casings, which is why the veto needs the FILE's figure", () => {
+    // The measurement that says what the veto is actually for. A loose match lands via the
+    // class-and-thrust core, and no core in the catalogue is made in two sizes — so the veto can
+    // never be adjudicating between two bundled candidates. It is always adjudicating between the
+    // casing the DESIGN FILE states and the casing the near-miss motor really is, which is exactly
+    // the reported defect: a 29 mm design reaching the 38 mm H999N.
+    const byCore = new Map<string, Set<number>>();
+    for (const m of allMotors()) {
+      const d = Math.round(m.curve.diameterMm);
+      if (!byCore.has(m.core)) byCore.set(m.core, new Set());
+      byCore.get(m.core)!.add(d);
+    }
+    const spanning = [...byCore.entries()].filter(([, ds]) => ds.size > 1).map(([c]) => c);
+    expect(byCore.size, "cores to check").toBeGreaterThan(50);
+    expect(spanning, "a core in two casings would need the veto to choose between bundled motors").toEqual([]);
+  });
+  it("only ever withholds — it never quietly promotes a different motor into the slot", () => {
+    // The header claims "where the veto leaves nothing, the answer is null". The worry it has to
+    // answer is the opposite failure: with the best candidate filtered out, a LOWER-quality but
+    // fitting entry could win the ranking and be flown instead — a second silent substitution
+    // installed by the fix for the first.
+    //
+    // Driven over the whole catalogue rather than argued: every bundled designation, perturbed three
+    // ways so it can only match loosely, asked at each of the eight casing classes.
+    let same = 0;
+    let withheld = 0;
+    const promoted: string[] = [];
+    for (const m of allMotors()) {
+      for (const suffix of ["ZZ", "X", "-99"]) {
+        const near = `${m.designation}${suffix}`;
+        const blind = resolveMotor({ designation: near, manufacturer: m.manufacturer });
+        if (!blind) continue;
+        for (const casing of [13, 18, 24, 29, 38, 54, 75, 98]) {
+          const fitted = resolveMotor({ designation: near, manufacturer: m.manufacturer, diameter: casing / 1000 });
+          if (!fitted) withheld++;
+          else if (fitted.entry.designation === blind.entry.designation) same++;
+          else promoted.push(`${near} at ${casing} mm: ${blind.entry.designation} -> ${fitted.entry.designation}`);
+        }
+      }
+    }
+    expect(same + withheld, "the probe matched nothing — it proves nothing").toBeGreaterThan(1000);
+    expect(withheld, "no case was withheld, so the veto never fired in this probe").toBeGreaterThan(100);
+    expect(promoted, "the veto promoted a different motor instead of withholding").toEqual([]);
   });
 });

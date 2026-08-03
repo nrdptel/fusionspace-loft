@@ -20,6 +20,27 @@ export interface FlightRun {
    *  propulsion, so its numbers are meaningless and callers should withhold them rather than
    *  present a zero-altitude "flight". */
   hasPropulsion: boolean;
+  /** Every motor the configuration calls for resolved to a real thrust curve, so the vehicle that
+   *  was flown is the vehicle the design describes.
+   *
+   *  **This, not `hasPropulsion`, is the predicate the LOADED figures need.** `hasPropulsion` is
+   *  `some(match)` — one resolved motor out of three makes it true — but `lib/sim/setup.ts` skips an
+   *  unmatched instance entirely, so it contributes neither mass nor CG. Liftoff mass, burnout mass,
+   *  the loaded CG and the static margin are then all measuring a rocket with empty tubes, and the
+   *  margin errs in the REASSURING direction because the missing mass is aft: measured on
+   *  `demo-single-deploy.ork` with its one motor unresolvable, 4.065 cal → 5.921 cal, +46%.
+   *
+   *  The asymmetry is the dangerous half. A genuinely marginal design reading low will never trip
+   *  the under-1-caliber warning on this path, because the bias pushes it up and out of the branch —
+   *  so the figure is not merely wrong, the check on it is suppressed.
+   *
+   *  **A design with NO motor assigned is `false`, and that is not pedantry.** `every()` over an
+   *  empty resolution list is vacuously TRUE, so a bare `allMotorsResolved` would have re-published
+   *  every figure this predicate exists to withhold on exactly the emptiest case — the one
+   *  `NoPropulsionNotice` has a whole branch for ("This configuration has no motor assigned"). It
+   *  is conjoined with `hasPropulsion` so that "complete" means *the motors are all here AND there
+   *  are some*, which is what every surface reading it actually needs. */
+  motorsComplete: boolean;
   /** The staging timeline the flight actually flew: one entry per phase, in time order, each naming
    *  when it began and how many stages were still attached. `buildRocketDynamics` has always built
    *  this and `simulate` has always consumed it, but nothing carried it back out — so no surface
@@ -190,11 +211,16 @@ export function runFlight(rocket: Rocket, opts: RunOptions = {}): FlightRun {
   }
   const hasPropulsion = resolutions.some((r) => r.match !== null);
   // A motor the bundled database doesn't carry is a hole in LOFT, not a disagreement with the
-  // design tool. The flight still runs — on the motors that did resolve, with the rest riding as
-  // dead mass — and it is warned about loudly, but comparing it to results the file stored for the
-  // COMPLETE vehicle reports Loft's missing curve as an accuracy gap. On a two-stage RASAero design
-  // whose booster motor isn't bundled that reads as −36% on apogee, which is a statement about the
-  // motor database and nothing else. Withhold it, the same way a reduced vehicle's is withheld.
+  // design tool. The flight still runs — on the motors that did resolve, with the rest **left out of
+  // the build entirely** — and it is warned about loudly, but comparing it to results the file
+  // stored for the COMPLETE vehicle reports Loft's missing curve as an accuracy gap. On a two-stage
+  // RASAero design whose booster motor isn't bundled that reads as −36% on apogee, which is a
+  // statement about the motor database and nothing else. Withhold it, the same way a reduced
+  // vehicle's is withheld.
+  //
+  // ("riding as dead mass" is what this comment used to say, and it was wrong: `setup.ts` pushes the
+  // resolution and then `continue`s on no match, so an unmatched motor contributes neither thrust
+  // NOR mass. That mistaken belief is why the loaded figures were published on this path at all.)
   const allMotorsResolved = resolutions.every((r) => r.match !== null);
   // A no-thrust run "flies" to zero apogee; comparing that to stored results yields a
   // meaningless −100%, so skip validation entirely unless the flight actually had propulsion.
@@ -204,7 +230,15 @@ export function runFlight(rocket: Rocket, opts: RunOptions = {}): FlightRun {
     !opts.ballistic && hasPropulsion && allMotorsResolved && opts.validateAgainst && opts.validateAgainst.hasResults
       ? compareToStored(result.summary, opts.validateAgainst.results)
       : undefined;
-  return { result, config, resolutions, hasPropulsion, phases: built.input.phases ?? [], validation };
+  return {
+    result,
+    config,
+    resolutions,
+    hasPropulsion,
+    motorsComplete: hasPropulsion && allMotorsResolved,
+    phases: built.input.phases ?? [],
+    validation,
+  };
 }
 
 /** A stored simulation offered as a selectable flight configuration in the UI. */

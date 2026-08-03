@@ -319,6 +319,21 @@ export interface SimulateInput {
   motors: ResolvedMotor[];
   recovery: RecoveryDeviceSim[];
   conditions: LaunchConditions;
+  /** How many motors the configuration calls for, CLUSTER-EXPANDED — the number `motors` would
+   *  have if every one of them resolved to a thrust curve.
+   *
+   *  It has to be supplied rather than derived here, and that is the whole reason this field
+   *  exists. `config.instances` is the UN-expanded list: a mount flying a cluster of three is one
+   *  instance, and the three only appear once `buildRocketDynamics` has read `clusterCount` off the
+   *  mount. Comparing the expanded `motors.length` against the un-expanded `config.instances.length`
+   *  is how the partial-cluster warning came to be unfirable on exactly the designs it exists for —
+   *  see the note at that warning.
+   *
+   *  Absent means "nothing is known to be missing", not zero: a hand-built input (the unit tests
+   *  construct these directly) says nothing about a catalogue lookup that never happened, and
+   *  defaulting it to the flown count keeps such a flight quiet rather than accusing it of losing a
+   *  motor it never had. */
+  motorsCalledFor?: number;
   /** Staging timeline (from `buildRocketDynamics`). One phase ⇒ ordinary single-stage flight;
    *  more ⇒ spent stages drop away at each separation. Absent ⇒ single-stage. */
   phases?: StagePhase[];
@@ -398,7 +413,11 @@ const DESCENT_STEP_MIN = 0.0002;
 const DESCENT_STABILITY = 1.0;
 
 export function simulate(input: SimulateInput): FlightResult {
-  const { rocket, config, motors, recovery, conditions } = input;
+  // `config` is deliberately NOT destructured. The solver's one use of it was
+  // `config.instances.length` as the motor count, which is the un-expanded list and was the whole of
+  // the partial-cluster bug; the expanded count now arrives as `input.motorsCalledFor`. Leaving the
+  // binding out means a future reader reaching for the instance count has to go and find out why.
+  const { rocket, motors, recovery, conditions } = input;
   const dtBoost = input.timeStep ?? 0.01;
   const dtDescent = input.descentTimeStep ?? DESCENT_STEP;
   const thrustScale = input.thrustScale ?? 1;
@@ -974,7 +993,7 @@ export function simulate(input: SimulateInput): FlightResult {
     liftedOff,
     liftoffTWR,
     extrapolated,
-    motorInstances: config.instances.length,
+    motorsCalledFor: input.motorsCalledFor ?? motors.length,
     motorsPlaced: motors.length,
     apogee: apogeeAlt,
     landed,
@@ -1251,8 +1270,10 @@ function buildWarnings(
     /** Peak thrust-to-weight ratio while clearing the rail. */
     liftoffTWR: number;
     extrapolated: boolean;
-    /** How many motors the configuration calls for. */
-    motorInstances: number;
+    /** How many motors the configuration calls for, cluster-expanded (see
+     *  `SimulateInput.motorsCalledFor`). Comparable with `motorsPlaced`; the un-expanded instance
+     *  count is not. */
+    motorsCalledFor: number;
     /** How many of those resolved to a real curve and were flown. */
     motorsPlaced: number;
     apogee: number;
@@ -1350,14 +1371,24 @@ function buildWarnings(
       message: "No motor was resolved for this configuration — thrust could not be simulated.",
       severity: "warning",
     });
-  } else if (ctx.motorsPlaced < ctx.motorInstances) {
+  } else if (ctx.motorsPlaced < ctx.motorsCalledFor) {
     // A cluster where some motors resolved and others didn't: the flight runs, but on less
     // thrust and mass than the design calls for, so apogee and velocity read low. This must be
     // flagged loudly — the result otherwise looks like an ordinary, complete flight.
-    const missing = ctx.motorInstances - ctx.motorsPlaced;
+    //
+    // **Both sides of this comparison must be CLUSTER-EXPANDED, and for six months one was not.**
+    // It read `motorsPlaced < config.instances.length`, comparing the expanded flown count against
+    // the un-expanded instance count — so any clustered mount made the left side the larger one and
+    // the warning could never fire. Measured on `Airstart timing.ork`, whose two instances are a
+    // single K550W and a cluster of three I211W: breaking the K550W's designation drops apogee from
+    // 1296.5 m to 478.5 m (−63%) and the static margin from 1.697 cal to 2.486, while the warning
+    // list stays byte-identical (`low-rail-exit, fin-flutter`). The one warning written to say
+    // "apogee and velocity read low" was disarmed by exactly the geometry — a cluster — that makes
+    // the loss largest.
+    const missing = ctx.motorsCalledFor - ctx.motorsPlaced;
     out.push({
       code: "partial-cluster",
-      message: `Only ${ctx.motorsPlaced} of ${ctx.motorInstances} motors in this configuration resolved to a thrust curve — ${missing} could not be found. The flight was simulated on the resolved motor${ctx.motorsPlaced > 1 ? "s" : ""} alone, so its thrust is under-counted and apogee and velocity read low. See the motor tags for which weren't matched.`,
+      message: `Only ${ctx.motorsPlaced} of ${ctx.motorsCalledFor} motors in this configuration resolved to a thrust curve — ${missing} could not be found. The flight was simulated on the resolved motor${ctx.motorsPlaced > 1 ? "s" : ""} alone, so its thrust is under-counted and apogee and velocity read low. See the motor tags for which weren't matched.`,
       severity: "warning",
     });
   }
@@ -1412,16 +1443,43 @@ function buildWarnings(
         "amount the model cannot state. Fair the joint with a transition for a figure it can stand behind.",
     });
   }
+  // **Every margin judgement below needs the WHOLE motor set, not merely one resolved motor.**
+  // An unmatched instance is left out of the build entirely, so its mass is missing — and because a
+  // motor is aft mass, the CG sits forward and the margin reads HIGHER than it flies. That breaks
+  // these two branches in opposite directions and only one of them is visible: the over-stable
+  // caution fires on a margin nobody is flying, and the low-stability WARNING is suppressed, because
+  // the bias lifts a genuinely marginal design up out of the branch that would have caught it. A
+  // wrong caution is a nuisance; a warning that cannot fire on the design that needs it is the
+  // failure this file's whole warning list exists to prevent, so both are gated rather than only the
+  // noisy one. The surfaces that PRESENT the margin withhold it under the same condition.
+  //
+  // `> 0` as well as equal, and for the same reason `FlightRun.motorsComplete` is conjoined with
+  // `hasPropulsion`: a design with no motor assigned at all satisfies `0 === 0`, and would publish a
+  // margin verdict as a warning card while the summary strip beside it withholds the very same
+  // figure. The two predicates have to agree or the app argues with itself.
+  const marginIsFlown = ctx.motorsPlaced > 0 && ctx.motorsPlaced === ctx.motorsCalledFor;
+  // **Only the OVER-stable branch is gated, and the asymmetry is the whole point.** The bias runs one
+  // way: a motor is aft mass, so a missing one pulls the CG forward and the margin reads HIGH. That
+  // makes the over-stable caution a false alarm on a vehicle nobody flew — gate it. But it makes a
+  // LOW reading conservative: if an incomplete build still computes under 1 cal, the complete one is
+  // lower still, so suppressing that warning would add a false negative in the one direction where
+  // the number is already erring safe. An earlier draft of this fix gated both and deleted a warning
+  // that was guaranteed correct. The low branch keeps firing and says the vehicle is incomplete
+  // instead, which is the honest form: the flag is real, the figure behind it is not final.
+  const marginCaveat = marginIsFlown
+    ? ""
+    : " A motor in this configuration did not resolve, so it is missing from the build and the real margin is lower still.";
   if (ctx.staticMarginCal < 1.0) {
     out.push({
       code: "low-stability",
       message:
-        ctx.staticMarginCal < 0
+        (ctx.staticMarginCal < 0
           ? "The centre of pressure is ahead of the centre of gravity: the rocket is statically unstable as modelled."
-          : `Static margin is ${ctx.staticMarginCal.toFixed(2)} cal — below the 1 cal rule of thumb. Verify independently.`,
+          : `Static margin is ${ctx.staticMarginCal.toFixed(2)} cal — below the 1 cal rule of thumb. Verify independently.`) +
+        marginCaveat,
       severity: "warning",
     });
-  } else if (ctx.staticMarginCal > 3) {
+  } else if (marginIsFlown && ctx.staticMarginCal > 3) {
     out.push({
       code: "over-stable",
       message: `Static margin is ${ctx.staticMarginCal.toFixed(2)} cal — high, which can make the rocket weathercock strongly into wind.`,
@@ -1430,6 +1488,10 @@ function buildWarnings(
   }
   // A staged upper stage flies alone after separation, and can be unstable then even when the
   // full stack was stable on the pad (or vice-versa). Flag it separately from the liftoff margin.
+  //
+  // Ungated for the same reason the low branch is: it only fires BELOW 1 cal, which is the
+  // conservative side of the bias. It is additionally the case that an unresolved LOWER-stage motor
+  // has already detached by the time this margin is taken, so the figure is often exactly right.
   if (ctx.upperStageMarginCal !== undefined && ctx.upperStageMarginCal < 1.0) {
     const name = ctx.upperStageName || "upper stage";
     out.push({
