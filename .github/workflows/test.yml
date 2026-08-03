@@ -43,7 +43,20 @@ jobs:
 
   e2e:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # 15 minutes stopped being enough the moment the suite reached 220 tests, and the failure mode is
+    # the confusing one: GitHub reports a timeout as "cancelled", not as a failure, so the job reads
+    # as though somebody stopped it rather than as a gate that can no longer pass. Measured on run
+    # 30810888408: 11 min 09 s of checkout + `npm ci` + `playwright install` + `npm run build` before
+    # the first test, then ~1.38 s per test at `workers: 1` (the config pins one worker in CI), which
+    # is ~5 min for 220 — about 16.5 min in total, and more when `retries: 1` fires. It was cancelled
+    # 160 tests in with nothing red.
+    #
+    # 30 rather than 20: the ceiling costs nothing on a passing run, `retries: 1` can add several
+    # minutes on a flaky one, and a runner slower than this sample should not turn a green suite into
+    # an ambiguous "cancelled" again. Raising workers would be the other lever and is deliberately not
+    # taken here — this sandbox has already measured shard/worker concurrency producing unstable
+    # counts with no failure line, and a timeout is not worth buying flakiness to fix.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

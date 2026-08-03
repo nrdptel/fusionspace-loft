@@ -105,6 +105,15 @@ npm run build       # also type-checks (CI gate; tsconfig has noUnusedLocals/Par
 npm run test:e2e    # Playwright (incl. an axe accessibility audit) — run after a build
 ```
 
+**The e2e job's budget is measured, not guessed, and a timeout reads as "cancelled" rather than as a
+failure.** On a GitHub runner the job spends about 11 minutes on checkout, `npm ci`,
+`playwright install` and `npm run build` before the first test, and the suite itself runs at roughly
+1.4 s per test because `playwright.config.ts` pins `workers: 1` in CI — so 220 tests is about 16.5
+minutes end to end, and more whenever `retries: 1` fires. The job's `timeout-minutes` is 30 to leave
+real headroom. **If a run ever reports the e2e job as `cancelled` with no red test, look at the
+elapsed time first**: that is what a GitHub job timeout looks like, and it is indistinguishable from
+somebody pressing cancel until you read the log.
+
 **`npm run build` runs three postbuild checks, and each of them can fail the build.** They live in
 `scripts/` rather than in the test suite because they assert things about the built ARTIFACT, and
 `npm test` runs before the build — a test reading `out/` would skip itself on a clean checkout, which
