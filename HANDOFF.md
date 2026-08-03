@@ -9,8 +9,29 @@ first increment of the next run.** R8 closed this run (all five catalogue kinds 
 this run (all six increments, every *done when* clause pinned). P4 was already done and the roadmap
 did not say so — increment 7 shipped as `1a336f8` and that commit never updated the status line.
 
-**The next R-track milestone: the fan-out did the groundwork and the recommendation is a REORDERING,
-not an addition.** `ROADMAP.md`'s after-list names R9 as "the multi-solver cross-check as a
+**R9 IS WRITTEN AND THREE INCREMENTS IN — and its increment 3 disproved its own premise. Read that
+entry before building increment 4.** The milestone was scoped on the hypothesis that the parachute
+drag coefficient is the lever on the census's worst metric. Measured:
+
+```
+ground-hit velocity, attributed (R9 increment 3):
+all                    n= 92  |Δ|   8.3%  signed   -8.2%  86/92 descend SLOWER than stored
+Cd from the file       n= 52  |Δ|   8.3%  signed   -5.7%  46/52 descend SLOWER than stored
+Cd from a fallback     n= 40  |Δ|   8.3%  signed   -8.3%  40/40 descend SLOWER than stored
+openrocket             n= 76  |Δ|   7.8%  signed   -7.8%  74/76 descend SLOWER than stored
+rocksim                n= 16  |Δ|  25.7%  signed  -14.9%  12/16 descend SLOWER than stored
+```
+
+**The coefficient's provenance does not discriminate** — identical median error whether the designer
+chose the figure or Loft supplied it. **The error is one-directional** (86 of 92, and 40 of 40 on
+fallbacks), which a wrong coefficient would not be. **The tool discriminates where the coefficient
+does not** — RockSim 3.3x worse than OpenRocket, and the five worst cases in the corpus are all `.rkt`
+with four of them one design (`FullScaleModelTH.rkt`, ~65%). R9's *done when* is amended and its
+increments re-ordered accordingly: the Cd work is still owed as **capability and honesty**, and the
+accuracy work is the RockSim split. **Increment 6 — read what `FullScaleModelTH.rkt` stores for
+ground-hit velocity and what Loft flies for it — is the highest-value thing left in this milestone.**
+
+**How R9 came to exist, and it was a REORDERING rather than an addition.** `ROADMAP.md`'s after-list names R9 as "the multi-solver cross-check as a
 first-class view" — but P2's `/validate` route already delivered half of it, so charging a whole
 milestone overstates the work. Meanwhile the corpus points at a gap nobody has queued:
 
@@ -53,7 +74,7 @@ directory underneath it mid-build, at which point a shard reports a wildly low p
 failure line**. Measured at 13 of 112, then 112 of 112 on a clean re-run. `CONTRIBUTING.md` carries
 it now. **Check port 3000 is free before diagnosing anything else.**
 
-## This run — two milestones closed, seven increments
+## This run — two milestones closed, two written, ten commits
 
 | # | SHA | what | verified by |
 |---|---|---|---|
@@ -65,6 +86,10 @@ it now. **Check port 3000 is free before diagnosing anything else.**
 | 4 | `e158bb6` | `COMPETITION.md` row 2 resolved with a wrong figure in it corrected; row 36 added | read from OpenRocket's source, not memory |
 | 5 | `9932e1a` | **P5 inc 3 + 5** — the changelog as a route, and a bug reportable from every route | `lib/inline-markdown.test.tsx` + 2 e2e cases |
 | 6 | `96a31e7` | **P5 inc 4 + 6** — the README shows the tool, and every internal link is checked at build time | both halves of `check-links` proved able to fail by name |
+| 7 | `e90e202` | The handoff, refreshed mid-run rather than at the end | — |
+| 8 | `77c8349` | **R9 and P6 written into the roadmap**, both from measurements taken today | the census run and a re-measured design audit |
+| 9 | `9fcdf45` | **R9 inc 1–2** — six descent figures in one place each, saying what backs them; no flown number moved | 4 cases + an identical census before and after |
+| 10 | `8241c6e` | **R9 inc 3** — the error attributed, and the milestone's premise disproved | a corpus case that prints the split and asserts it could discriminate |
 
 **Reached production: 1 (`d8386ca`, merged as #123, both CI jobs green — the frontend log names
 `imports every design file (35 present)`).** The rest are on the branch behind PR #124.
@@ -84,6 +109,15 @@ it now. **Check port 3000 is free before diagnosing anything else.**
 - **Run a parser over the file it exists to render, not over invented examples.** The inline-markdown
   sweep over every shipped changelog bullet found a real nesting bug in one pass; four hand-written
   cases had all passed.
+- **NEVER pipe a gate step into `tail` — the pipeline's exit code is the pipe's.**
+  `npm run build 2>&1 | tail -3` reports success whatever the build did, so a `&&` chain built that
+  way ran a full green e2e suite on a build that had already failed. It cost a red CI run and a
+  commit pushed on a gate that was reported green and was not. `CONTRIBUTING.md` carries it. Redirect
+  each step to a file and read `$?`, or `set -o pipefail`.
+- **An increment whose job is to MEASURE can disprove the milestone that contains it, and that is a
+  success.** R9 increment 3 existed to attribute an error before four more increments were spent
+  assuming its cause. It found the assumed cause was wrong. Scoping a measurement increment *before*
+  the work it would justify is the transferable part.
 
 ## The run before this one — nine increments, all now on `main`
 
