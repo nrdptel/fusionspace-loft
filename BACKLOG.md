@@ -80,6 +80,12 @@ fixed in that increment rather than filed. The rest are below.
   filter across sessions (`ComponentPresetChooserDialog` + `Preferences`). This is the "controls that
   forget" tell, on the newest surface in the app.
 
+- **CORRECTED the same day it was filed — the fit filter's TARGET, not just its tolerance.** As
+  first written this entry described one filter comparing a part's outer diameter to the airframe's.
+  That is true of the three airframe kinds and was never true of the two internal ones once they
+  shipped: a coupler and a centring ring filter on the HOST TUBE'S BORE, because that is the
+  dimension they have to match, and the label says so. The tolerance point below stands for all five.
+
 - **The picker's fit filter is a 0.5 mm ABSOLUTE band where OpenRocket's is 5% with a 1 mm floor.**
   `components/PartPicker.tsx:309` (`const tol = 0.0005`) against
   `ComponentPresetRowFilter.java`'s `epsilon = MathUtil.max(value * 0.05, 0.001)`. At a 38 mm
