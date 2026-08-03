@@ -12,6 +12,28 @@ this file, and deliberately does **not** cap craft or product work, because that
 track in `ROADMAP.md` with its own *done when*. Rough edges, missing affordances, and findings too
 big for one pass. Newest first.
 
+- **Three e2e assertions addressed sweep columns by hard-coded `nth-child`, and inserting one column
+  silently re-pointed them at the neighbour.** Filed and FIXED 2026-08-02.
+  `e2e/smoke.spec.ts`'s "a design edit re-runs an open sweep" read `td` index 1 — the Class column —
+  and after a `Use` control was inserted second it was reading a button label no design edit can
+  change, so it could only ever time out. "motor sweep flies every fitting motor" hard-coded
+  `nth-child(3)` for Apogee and `nth-child(8)` for Flutter. All three now resolve the column from its
+  header text. **Two traps in doing that**, both of which produced a wrong-looking failure for a
+  selector problem: `DataTable`'s headers render UPPERCASE (so `innerText` is "APOGEE") and carry a
+  sort-arrow glyph, and a `findIndex` miss returns −1, which becomes `nth-child(0)` — a selector that
+  matches nothing and fails as "expected 0 to be greater than 2". The helper now normalises and
+  asserts the column was found, naming the headers it saw.
+
+- **The motor sweep's ballistic-gap notice compares the DESIGN row against the FLOWN apogee, so a
+  motor swap makes it attribute a motor difference to the method.** Filed 2026-08-02 from the
+  pre-push review. `components/MotorSweep.tsx` computes `ballisticGap(sorted.find(r => r.isDesign)?.apogee,
+  designApogee)`, where `designApogee` is `run.result.summary.apogee` — the flight actually shown,
+  which after a swap is the SWAPPED motor's. The amber notice then states a cause it no longer has:
+  "the Design row flies ballistic … against the X this design actually flies, because its recovery
+  opens before apogee." The mechanism predates the *Use* column (the `Swap motor` select could always
+  reach it), but the column now puts the trigger one tap away inside the panel making the claim. The
+  comparison is only meaningful with no swap active, or against the swapped motor's own row.
+
 - **`e2e/docs.spec.ts:32` "every docs page is readable offline" is load-sensitive, and it failed once
   in a full shard while passing everywhere else.** Filed 2026-08-02 with the evidence, because a
   future session meeting it needs to know this before diagnosing its own change. The test waits up to

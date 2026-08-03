@@ -4,47 +4,46 @@ Overwritten each session. What shipped, what is part-way, and what to pick up fi
 
 ## Read this first
 
-**The environment gave us BOTH repos and NO Playwright browser, again.** `/home/user/loft-fixtures`
-was present (link its per-tool directories into `corpus/` and the suite names `35 present`), and
-`/opt/pw-browsers` again lacked `chromium_headless_shell-1228`. **`./node_modules/.bin/playwright
-install chromium` is the command that works** — it exits 0 and lands 1228 in about ninety seconds.
-The previous handoff is right that bare `npx playwright install` is a silent no-op. **This still
-belongs in the environment's setup script and is the owner's fix**; it is paid for every session.
+**The environment gave us BOTH repos and NO Playwright browser, again — third session running.**
+`/home/user/loft-fixtures` was present (link its per-tool directories into `corpus/` and the suite
+names `35 present`), and `/opt/pw-browsers` again lacked `chromium_headless_shell-1228`.
+**`./node_modules/.bin/playwright install chromium` is the command that works** — about ninety
+seconds. `node_modules` was also absent, so `npm install` is paid for too. **All three belong in the
+environment's setup script and that is the owner's fix**; they are paid for every single session.
 
-**`pkill -f <pattern>` killed my own gate with exit 144, exactly as the previous handoff warned.**
-I read the warning and walked into it anyway. Use `fuser -k 3100/tcp`. Leaving this at the top
-because it has now cost two sessions.
+**`pkill -f vitest` killed the run I had JUST STARTED, exit 144 — the trap this file already warned
+about, walked into a third time.** The pattern matches the new process as readily as the old one. If
+a suite must be replaced, start the new one and let the old finish, or kill by PID. Leaving this at
+the top because it has now cost three sessions.
 
-**`pgrep -af` is worse than useless here** — it matches the harness launcher and dumps its entire
-multi-kilobyte argv into the session. Use `pgrep -f <pat> >/dev/null && echo yes`.
+**`| tail -n` on a backgrounded gate does TWO damaging things, and the second one nearly shipped a
+red gate as green.** It buffers the whole run, so the output file sits at 0 bytes for five minutes
+and looks hung (it is not) — and, worse, **a pipeline's exit code is the exit code of the LAST
+command**, so `npx playwright test … | tail -3` always exits 0. A chain of
+`shard1 | tail && shard2 | tail` therefore runs shard 2 and reports success even when shard 1 failed,
+and `tail -3` hides the "2 failed" heading while leaving the two test names visible above the
+"105 passed" line. **Redirect to a file and echo `$?` per step.** Cross-check the count too: this
+suite has 213 tests, so two shards summing to 211 is two tests that did not pass, however green the
+last line reads.
 
-**A case-sensitive Playwright name regex turned a pure refactor red, and only in the FULL run.**
-Converting the picker's clear control onto the `Button` primitive capitalised its label;
-`getByRole("button", {name: /back to the design/})` then matched nothing. It passed in isolation
-against the older build minutes earlier. Prefer `/…/i` for any control whose label a refactor could
-recase.
+**A full e2e shard occasionally fails `e2e/docs.spec.ts:32` "every docs page is readable offline"
+and it is NOT your change.** Measured this run: failed once in `--shard=1/2`, then passed in
+isolation AND passed in a full re-run of the same shard (106/106) against the identical build, with
+`grep -c EMFILE` at 0. It waits 20 s for the service worker to control the page and hold six URLs;
+under a full shard that budget is occasionally short. Re-run the shard before believing it.
 
-**`scripts/check-text-gaps.mjs` earned its keep this run, and detector 1 is a REAL lead, not noise.**
-It flagged one new hit in new copy; driving the rendered text in a browser found **two** genuine
-missing spaces (`1089catalogued`, `(16 vendor files)— see`). Both were green through lint, unit,
-build and e2e, because the defect exists only after the JSX transform. Verify a lead by reading the
-RENDERED text, then fix it with an explicit `{" "}`.
+**The pre-push agent review found FOUR more real defects in a fix that had already passed the whole
+gate, two of them Sev-1 — and one of those was in the fix itself.** `motorsComplete` was written as
+`resolutions.every(match)`, which is vacuously TRUE for a design with no motor assigned, so the
+entire withholding fix was bypassed on precisely the emptiest case. It is the third run in a row
+where this review caught something the gate could not. **Budget for it, and give it lenses that
+disagree** — correctness, safety-claims and test-quality found different things here.
 
-**The pre-push agent review found ELEVEN defects in code that had already passed the whole gate**,
-including a one-way door. It is not optional and it is the highest-yield fifteen minutes in the loop.
-Details below. **It then did it again on the last increment of the run** — a Sev-1 the whole gate was
-green over: a catalogue nose pick kept the replaced cone's `overrideMass`, so on 10 of 41 real
-designs the dry mass did not move by a single digit while the caption read "Flying SEMROC BNC-70HAC".
-Two runs, two Sev-1s found only here. Budget for it.
-
-**`EMFILE: too many open files` is what a broken e2e run looks like here, and it is not the
-product.** `ulimit -n` is 4096 and `npx playwright test` with default workers exhausts it — worse if
-anything else heavy is running. It kills the static server, so the report is dozens of
-`page.goto: net::ERR_CONNECTION_REFUSED` and one buried `EMFILE`. Twice this run: 150/60 once and
-91/120 once, both with an untouched product. **Run the two shards sequentially** (the recipe that
-gives 105 + 105) and run NOTHING else while they go — in particular not `npx vitest run lib/corpus/`,
-which is four and a half minutes of its own file handles. Grep the log for `EMFILE` before believing
-any mass failure.
+**Trust nothing in these files that is a MEASUREMENT you did not take.** Two load-bearing numbers in
+`ROADMAP.md`/`BACKLOG.md` were stale and had held work back for several runs: the parts table is
+418 px inside a 324 px scroller (not 1,198 inside 390), `getByRole("row")` returns 9 (not nothing),
+and a row click works (it did not "time out"). The `DataTable` conversion had fixed all three and
+nobody re-measured. Both records are corrected.
 
 ## The arc so far
 
@@ -61,8 +60,74 @@ any mass failure.
 | P2 — workspaces as routes | SHIPPED 2026-08-02 |
 | P3 — a stranger's first five minutes | SHIPPED 2026-08-02 |
 | **R8 — component and material catalogues** | **IN PROGRESS** — increments 1–5 of 4–6. Two of the five *done when* kinds are pickable (body tube, nose cone); coupler, centring ring and parachute remain, and each is a new build path |
-| **P4 — a touch-native builder** | **IN PROGRESS** — increments 1–3 of 4–6. Both of `DESIGN.md` §8's counts are 0; increment 4 is reaching the selection-gated surface and the three pad journeys |
+| **P4 — a touch-native builder** | **IN PROGRESS** — increments 1–4 of 4–6. Both §8 counts are 0 AND the check can now see the selection-gated surface; *pick a motor* applies from the sweep in one tap. Increment 5 is the diagram's own touch targets |
 | P5 | NOT STARTED |
+
+## This session — fifth run (2026-08-02)
+
+**Baseline inherited, measured before anything changed:** lint 0 errors / 1 standing warning, **1014
+unit** across 53 files, build green, corpus **35 design files / 21 tests / 0 findings** with the
+census medians unmoved, e2e **106 + 105 = 211 passed** once the browser was installed. **Zero open
+pull requests at session start** — `HEAD` was exactly `origin/main`.
+
+### Two Sev-1s, one root cause: an unmatched motor is ABSENT, not dead weight
+
+`lib/sim/setup.ts` pushes a resolution and then `continue`s on no match, so an unresolved motor
+contributes neither thrust nor mass. A comment in `lib/sim/run.ts` said it rode "as dead mass", and
+nine surfaces believed it.
+
+**The partial-cluster warning could never fire on a cluster.** It compared the cluster-EXPANDED flown
+count against the UN-EXPANDED instance count, so any clustered mount made the left side larger.
+Reproduced on `Airstart timing.ork` (one K550W + a cluster of three I211W): breaking the K550W drops
+apogee **1296.5 → 478.5 m (−63%)** and moves the margin 1.697 → 2.486 cal, with the warning list
+**byte-identical**. The expanded count now travels as `SimulateInput.motorsCalledFor`.
+
+**And every loaded figure was published as if the motor were aboard.** On `demo-single-deploy.ork`
+with its motor made unresolvable: liftoff mass 0.8018 → 0.6002 kg, loaded CG 0.6430 → 0.5725 m,
+static margin **4.065 → 5.921 cal (+46%, and MORE stable than the truth)** — under a notice that said
+the stability "remains valid". A surface audit enumerated the nine: the summary strip, the folded CG
+and burnout mass, a `StabilityTrimHint` that *prescribed moving the fin set*, the `over-stable`
+warning card, the diagram's CG mark, its caption, its SVG `aria-label`, the RocketPy cross-check, and
+two captions asserting a reconciliation that no longer held. **All of it prints onto a range card.**
+
+`FlightRun.motorsComplete` is the predicate they now share. **It is `hasPropulsion && every(match)`,
+and the conjunction is not pedantry** — `[].every()` is `true`, so a design with no motor assigned
+would have bypassed the entire fix.
+
+**The low-stability warning is deliberately NOT gated, and the asymmetry is the whole point.** A
+missing motor is missing AFT mass, so the margin reads high: that makes the over-stable caution a
+false alarm (gated) and a LOW reading conservative (kept, with the gap named in the message).
+Suppressing the low branch would have added a false negative where the number already errs safe.
+
+Pinned by `lib/corpus/sweep.test.ts` — **129 single-motor removals across 35 design files, 10
+clustered configurations**, and an in-test counter for the **5** the old comparison passed over in
+silence. With the old semantics restored the test fails, naming all five. Plus an e2e that asserts no
+margin VALUE survives anywhere on the page.
+
+### P4 increment 4 — the blind spot is a PIN, and the journey that dead-ended does not
+
+Reaching `GeometryInspector`'s selection-gated gesture bar found **nothing**: 0 hover-only, 0 under
+44 px. That is honest rather than disappointing — increment 3 fixed those eight controls and no check
+could see them, so a regression read 0 either way. **Select the BODY TUBE row, not row 1**: four of
+the controls render only for a body tube, and row 1 is the nose cone.
+
+**The real finding was that *pick a motor* could not be completed.** `MotorSweep.tsx` held exactly one
+`<Button>` — *Run*. The panel ranks fifteen motors and could not apply one; the flyer memorised a
+designation and scrolled **2.77 screens** on another route to re-find it in a select. A *Use* column
+now does it in one tap, through `applyEdit`, so it shares the edit bag, the undo and the select.
+
+### What went wrong, and what it cost
+
+- **`pkill -f vitest` killed my own newly-started run** (exit 144). ~5 min.
+- **Three e2e cycles were spent on a stale build** because a component change landed after the last
+  `npm run build`. The e2e gate reads `out/`, never the source — rebuild after every UI edit.
+- **My first negative control was invalid**: I emulated the old comparison with `input.config...`
+  inside a function that has no `input` in scope, so every flight threw and the test went red for the
+  wrong reason. It looked like a passing control. Emulate an old behaviour at a boundary where the
+  values are actually in scope — I moved it to `buildSimulateInput` and it named all five cases.
+- **An existing e2e was pinning the defect.** `"a design that can't fly still gets the whole
+  navigation spine"` asserted the text "in the Design workspace", which was satisfied only by the
+  wrong stability advice the Sev-1 fix removes. A green assertion can be holding a bug in place.
 
 ## This session — fourth run (2026-08-02)
 
@@ -919,48 +984,45 @@ should not have, and an address disagreeing with what is on screen.
 
 ## Pick up first
 
-1. **P2 increment 3 — the persistent design strip (`COMPETITION.md` row 31).** The one thing the
-   route split COSTS that the scrolling page did not: `RocketDiagram` is reachable only through
-   `GeometryInspector`, which renders only inside `#panel-design`, so a flyer sweeping a fin or
-   reading a dispersion loses sight of the airframe both are about. All three desktop competitors
-   keep a view of the rocket on screen across their tabs — verified from OpenRocket's own
-   documentation (its Rocket Views Pane is a separate section BELOW the task tabs), the RockSim
-   program guide and the RASAero II manual. `app/(app)/layout.tsx` is the right home because it does
-   not remount.
+**This list was five runs stale — every numbered item in it was P2 work, and P2 shipped on
+2026-08-02.** Reading it would have sent a session to redo finished milestones. Replaced, and the
+lesson is the one at the top of this file: a measurement you did not take is not evidence.
 
-2. **P2's remaining *done when* clause.** Both of the two named here are now done, and the note that
-   used to sit here was wrong twice over, so read this before trusting the table above.
+1. **R8 increment 6 — the PARACHUTE picker, and it is the one to ship first of the three remaining
+   kinds.** Measured this run: the catalogue ALREADY ships **236 tube couplers, 497 centring rings
+   and 151 parachutes** in `lib/components/catalog.ts` (the roadmap's 199/343/140 are pre-recount),
+   so this is a picker and a model path, not data acquisition. The parachute is smallest and moves
+   the biggest number: its aim slot exists (`lib/model/edit.ts` `parachuteId` → `mainParachuteDiameter`),
+   its applier exists (`withMainParachuteDiameter`), its UI field exists, and `cd`/`deployEvent` come
+   from the chute being replaced exactly as a nose pick edits the nose already there — so no new
+   `AddedPart` kind, no new builder, no new placement rule. Mass has a formula already in the repo
+   (`lib/ork/adapt.ts` `parachuteMass` = area x surface density + lineCount x lineLength x line
+   density). Measured effect: on the starter (900 mm canopy, cd 0.8, 60 g) picking Public Missiles
+   PAR-48 takes CdA 0.5089 → 0.9340 m², descent speed x0.739 and mass 60 → 116.2 g.
+   **Two traps, both pre-identified:** (i) **20 of the 37 corpus parachute nodes carry
+   `<overridemass>`** (11 of 27 files), so a pick that sets mass without CLEARING it flies the old
+   weight under a caption naming the vendor — the identical Sev-1 the nose-cone increment shipped and
+   had to fix; (ii) `components/PartPicker.tsx`'s `buildable()` returns false unless
+   `outerDiameter > 0 && length > 0` **before** the kind switch, and **0 of 151 parachutes carry
+   either**, so all 151 rows would render disabled. That prelude has to move into the per-kind arms.
+   Coupler is rank 2 (median 34.4 g, ~5.7% of the demo's dry mass) and centring ring rank 3 (median
+   1.52 g — below what a flyer reads as a change), and both need a full new build path.
 
-   The **static-export assertion** shipped as `scripts/check-routes.mjs`, wired into `postbuild`.
-   Note that the assertion this file used to suggest — "assert `out/flight/index.html` and friends
-   exist" — would have FAILED against the real export: a workspace's document is `out/flight.html`,
-   and `out/flight/` holds only the seven RSC segment files. `check-routes.mjs` accepts either shape
-   deliberately; do not "fix" it toward `index.html`.
+2. **P4 increment 5 — the diagram's touch targets**, which is where direct manipulation on a phone
+   actually lives. Only **2 of the sample's 8 parts** get a tap overlay at all and both are **12 px
+   tall**; each drag handle's `hitR = coarse ? 22 : 0` puts a 44x44 hit circle ON the airframe that
+   steals the part under it (9 of 19 points across the body tube resolve to a handle). Both in
+   `BACKLOG.md` with their measurements.
 
-   **"No route more than two screens deep to its primary answer"** is now pinned by
-   `e2e/depth.spec.ts`, and pinning it corrected the record. Depth to the ANSWER is not page height,
-   which is what the table above measures and what had been read as a failure. Measured at 390x664
-   with the bundled sample: `/flight` 1.53 screens, `/design` 1.55, `/validate` 1.70 — all pass.
-   `/sweep` is a real breach at **2.10** and is pinned as a `test.fail`, so it runs, measures, and
-   goes red the day it is fixed. The cause is not `/sweep`: it is the **1071 px of shared chrome
-   above the workspace spine** (identical on all four routes), which is 1.61 of the two screens
-   before any workspace renders. The design summary is 508 px of that. See `BACKLOG.md`.
+3. **A parachute Cd is not editable on ANY Loft surface**, and it is the number that sets landing
+   speed. Loft defaults 0.75 (`.ork`) / 0.8 (`.rkt`) with **no stated basis**. RASAero II defaults
+   **1.33** and cites a study of HPR descent rates; RocketPy defaults **1.4** cited to NASA SP-8066
+   and requires `cd_s` outright; OpenRocket defaults 0.8. Two of the three state where their default
+   came from and all three let it be set. This is the smallest, highest-value slice of the recovery
+   work and it is `COMPETITION.md` material as much as roadmap material.
 
-   What remains of P2 is the **persistent design strip** (`COMPETITION.md` row 31) — and it is not
-   free: it costs 130–160 px on a phone, which is more than `/sweep`'s remaining budget. The chrome
-   has to come down first or the strip pushes a second route over the line.
-
-3. **R7 increment 2 — the thickness-ratio collapse**, which is the one of the remaining two that has
-   no failed attempt behind it. `finThicknessRatio` is the largest thickness on the rocket over the
-   LAST set walked's mean chord: on a two-set design whose sets are both 0.50 it reads 1.00. Per-set
-   SWEEP is the other one and it has already been tried and reverted twice by two different routes —
-   read `ROADMAP.md` before touching it.
-
-4. **`runFromDocument` drops nine of `runFlight`'s options** (`lib/sim/run.ts:242`), so the corpus
-   suite cannot measure drag sensitivity at all: `dragScale` 0.1 and 3.0 both leave
-   `03.Three-stage.ork` at exactly −7.57%. Nothing user-facing depends on it, but it is R7's own
-   instrument and it is broken. Small, and it unblocks measuring the two remaining collapses.
-
-5. **`Section` still has ZERO adopters** while twelve surfaces hand-roll its exact shape. The largest
-   un-taken conversion left, and P2's remaining slices move those surfaces rather than rewriting
-   them — cheaper before the remaining splits than after.
+4. **`lib/design-system.test.ts` reports 11 green while ten classes of `DESIGN.md` drift cannot fail
+   it** — including `lib/ui-tokens.ts` sitting outside every walk, six §5 primitives that do not
+   exist, and 47 uses of `text-[11px]` against a rule scoping it to axis ticks. Filed in full in
+   `BACKLOG.md`. This is a P-track milestone's worth of work, not a defect entry, and §9 in
+   `DESIGN.md` is the file that has to change first — in BOTH repos.

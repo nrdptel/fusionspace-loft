@@ -182,6 +182,7 @@ export default function ResultsView({
   designManufacturer,
   designMotorFlies,
   onEditGeometry,
+  onUseMotor,
   onSelectPart,
   onRemovePart,
   onAddAfter,
@@ -242,6 +243,11 @@ export default function ResultsView({
   /** Apply a geometry edit from the diagram's drag handle (e.g. fin station) — the same path a
    *  numeric what-if field uses, so dragging and typing converge on one edit flow. */
   onEditGeometry?: (patch: GeometryEdits) => void;
+  /** Fly the design on a motor chosen from the sweep's own table. The sweep ranks every fitting
+   *  bundled motor and, until this existed, could not apply one — so "pick a motor", which is one of
+   *  the three pad journeys `ROADMAP.md`'s P4 *done when* names, meant memorising a designation and
+   *  re-finding it in a sixteen-option select 2.77 screens down another route. */
+  onUseMotor?: (m: { manufacturer: string; designation: string; diameter?: number }) => void;
   /** Told which part the flyer picked in the parts table or on the diagram, so the editor's fields
    *  describe and edit that part. Which fields a pick re-aims is the edit model's call. */
   onSelectPart?: (id: string) => void;
@@ -384,6 +390,14 @@ export default function ResultsView({
   // What the heavy analysis panels are keyed on: change any of it and a completed run no longer describes
   // the design on screen, so the panel resets rather than showing a stale answer as a current one.
   const dkey = designKey({ loadId, simIndex, configId: run.config.id, ballastKg, recoveryCdScale, motorSwap, geometry });
+  // **The motor sweep is keyed WITHOUT the swap, and that is a correctness point rather than a
+  // micro-optimisation.** No sweep row can depend on `motorSwap`: `lib/sim/sweep.ts` overrides the
+  // motor per candidate, and every other input (`options`, `designMotor`, `ballastKg`, `geometry`,
+  // the condition overrides) is unchanged by one. Keying it on `dkey` meant the new *Use* control
+  // re-ran the whole sweep on every tap — fifteen full ballistic flights, on a phone, to produce
+  // byte-identical rows, with the table the flyer is reading dimmed to `opacity-50` and announcing
+  // itself as stale while they waited. Comparing two candidates cost two complete re-sweeps.
+  const sweepKey = designKey({ loadId, simIndex, configId: run.config.id, ballastKg, recoveryCdScale, geometry });
   const shownRocket = editing ? applyGeometryEdits(doc.rocket, geometry) : doc.rocket;
   /** Asked of the EDITED rocket, not the pristine one. R5 made a stage something a flyer can author, so
    *  `doc.rocket.stages.length` is the count of the stages the FILE came with and a booster added in the
@@ -832,7 +846,7 @@ export default function ResultsView({
           the sweep is over changes. */}
       {canSweepMotors && (
         <MotorSweep
-          designKey={dkey}
+          designKey={sweepKey}
           flownOverrides={flownOverrides}
           weatherSerial={weatherSerial}
           conditions={conditions}
@@ -846,6 +860,25 @@ export default function ResultsView({
           designMotorFlies={designMotorFlies}
           ballastKg={ballastKg}
           geometry={geometry}
+          motorSwap={motorSwap}
+          onUse={
+            onUseMotor
+              ? (r) =>
+                  onUseMotor({
+                    manufacturer: r.manufacturer,
+                    designation: r.designation,
+                    // Carried so this path and the `Swap motor` select build the IDENTICAL record.
+                    // `swapMotor` falls back to the design's own motor diameter when this is absent,
+                    // and the sweep only ever offers motors of the design's own casing, so the two
+                    // agree today — but "agree today by an argument" is exactly the kind of
+                    // equivalence that stops holding when the sweep's list widens. Looked up rather
+                    // than assumed: `MotorSweepRow` carries no diameter, `swapOptions` does.
+                    diameter: swapOptions?.find(
+                      (o) => o.manufacturer === r.manufacturer && o.designation === r.designation,
+                    )?.diameter,
+                  })
+              : undefined
+          }
         />
       )}
 

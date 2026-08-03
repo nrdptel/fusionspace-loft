@@ -79,6 +79,8 @@ export default function MotorSweep({
   flownOverrides,
   weatherSerial,
   conditions,
+  onUse,
+  motorSwap,
 }: {
   doc: OrkDocument;
   simIndex: number;
@@ -115,6 +117,16 @@ export default function MotorSweep({
    *  drops rail-exit velocity 28.2 -> 19.6 m/s, straight through the ~15 m/s rule of thumb this
    *  panel's own caption cites. */
   flownOverrides?: ConditionOverrides;
+  /** Fly the design on a swept motor. The panel ranks fifteen candidates on apogee, rail exit,
+   *  margin, flutter and delay; without this it could not apply the one it recommends, so the flyer
+   *  carried the designation to another route by memory. Optional so a read-only embedding stays
+   *  possible. */
+  onUse?: (row: MotorSweepRow) => void;
+  /** The motor-swap what-if in force. Read ONLY to mark which row is flying — deliberately not part
+   *  of `designKey`, because no sweep row depends on it: `motorSweep()` overrides the swap per
+   *  candidate, so re-running on a swap change re-flies fifteen ballistic flights to produce
+   *  byte-identical rows while dimming the table the flyer is reading. */
+  motorSwap?: { manufacturer?: string; designation: string };
   /** Bumped once per forecast fetched — the only thing that can tell one forecast's air from the
    *  next, since an atmosphere and a wind profile are functions with no value to compare. */
   weatherSerial?: number;
@@ -241,7 +253,15 @@ export default function MotorSweep({
           spinner. It is never left unlabelled: the status line says which it is. */}
       {open && rows !== null && rows.length > 0 && (
         <div aria-busy={running} className={running ? "opacity-50 transition-opacity" : undefined}>
-          <SweepTable rows={rows} units={units} name={doc.rocket.name} conditions={conditions} designApogee={designApogee} />
+          <SweepTable
+            rows={rows}
+            units={units}
+            name={doc.rocket.name}
+            conditions={conditions}
+            designApogee={designApogee}
+            onUse={onUse}
+            motorSwap={motorSwap}
+          />
         </div>
       )}
     </Card>
@@ -282,7 +302,9 @@ function sweepCsv(rows: MotorSweepRow[], units: UnitSystem): CsvCell[][] {
  *  second click to ask the question they meant.
  *
  *  `csv` is deliberately absent from every column, and `exportName` is not passed. The panel keeps its
- *  OWN export (`sweepCsv`) because that one carries eleven columns to the screen's nine — it splits
+ *  OWN export (`sweepCsv`) because that one carries eleven columns to the screen's nine data ones —
+ *  the tenth on screen is the *Use* control, which is an action rather than a value and has nothing
+ *  to export. It splits
  *  Motor and Manufacturer, adds the Design flag, and puts the unit in each header — and a second pair
  *  of controls beside it would be two exports of the same table that disagree. */
 const COLUMNS: Column<MotorSweepRow>[] = [
@@ -304,6 +326,29 @@ const COLUMNS: Column<MotorSweepRow>[] = [
     ),
   },
   {
+    // **The column that turns a ranking into a decision — and it sits SECOND, deliberately.** Before
+    // this the whole file contained exactly one `<Button>` — *Run* — so a flyer who swept fifteen
+    // motors and found their answer had to memorise the designation, leave for the Design workspace,
+    // and scroll 1,841 px (2.77 screens at 390x664) to re-find it in a sixteen-option `<select>`.
+    // That is the "task that works but costs steps a mature tool doesn't charge" tell, on one of the
+    // three pad journeys P4's *done when* names.
+    //
+    // **Last would have re-created the defect it exists to remove.** This table is ~683 px wide
+    // inside the phone's horizontal scroller; as the tenth column every control sat off the right
+    // edge of a 390 px viewport at rest, so reaching it meant scrolling a nested scroller ~350 px.
+    // Beside the motor's own name it is on screen without scrolling, which is the whole point. The
+    // pre-push review caught this, and noted the trap in the test that missed it: Playwright's
+    // `toBeVisible()` does not test viewport intersection and `click()` auto-scrolls, so the journey
+    // passed on a control a thumb could not see. The spec now asserts the button's `x`.
+    //
+    // Named "Use" rather than empty: `DataTable` writes the label into a `<th scope="col">`, and a
+    // column of unnamed buttons leaves fifteen controls all reading the same thing with nothing to
+    // place them (WCAG 1.3.1) — the same reason `PartPicker`'s Choose column is named.
+    key: "use",
+    label: "Use",
+    cell: () => null,
+  },
+  {
     key: "motorClass",
     label: "Class",
     sortValue: (r) => r.motorClass,
@@ -320,7 +365,14 @@ const COLUMNS: Column<MotorSweepRow>[] = [
 
 /** Every "<column>:<direction>" the sort can be in, so a remembered value from a build with a
  *  different column set is discarded rather than leaving the table sorted on nothing. */
-const SORT_CHOICES: readonly string[] = COLUMNS.flatMap((c) => [`${c.key}:asc`, `${c.key}:desc`]);
+// Only columns that can ACTUALLY sort. The guard's job is to discard a remembered value from a build
+// with a different column set; derived from every column it also admitted `use:asc`/`use:desc`, and
+// `use` has no `sortValue` — so a stored value of that shape reached `col.sortValue!(a)` behind a
+// non-null assertion and took the workspace down on render rather than falling back.
+const SORT_CHOICES: readonly string[] = COLUMNS.filter((c) => c.sortValue).flatMap((c) => [
+  `${c.key}:asc`,
+  `${c.key}:desc`,
+]);
 
 function SweepTable({
   rows,
@@ -328,6 +380,8 @@ function SweepTable({
   name,
   conditions,
   designApogee,
+  onUse,
+  motorSwap,
 }: {
   rows: MotorSweepRow[];
   units: UnitSystem;
@@ -337,6 +391,11 @@ function SweepTable({
   /** Whether the conditions these flights used came from the flyer or from the design file — the
    *  caption below names which, because it invites a comparison against "your rail". */
   conditions?: ConditionsSource;
+  /** Fly the design on this motor instead. Absent leaves the table read-only, which is what it was. */
+  onUse?: (row: MotorSweepRow) => void;
+  /** The motor-swap what-if in force, so the table can mark what is actually FLYING rather than what
+   *  the file was designed around. Absent means the design's own motor is on the rail. */
+  motorSwap?: { manufacturer?: string; designation: string };
 }) {
   // Which column the table is sorted on is a view the flyer chose deliberately — someone picking a
   // motor on flutter margin is doing that across every design they open, not once. Direction rides
@@ -389,11 +448,62 @@ function SweepTable({
     },
     optimumDelay: (r) => (Number.isFinite(r.optimumDelay) ? d.q(d.seconds(r.optimumDelay)) : "—"),
   };
-  const columns = COLUMNS.map((c) => (cells[c.key] ? { ...c, cell: cells[c.key] } : c));
+  // **What is FLYING, which is not the same question as which row is the design's.** The first draft
+  // gated this cell on `r.isDesign` — a fact about the FILE's motor, read from the pristine document
+  // and unmoved by a swap. One tap then made the panel contradict itself: "flying now" stayed on the
+  // motor that was no longer flying, the row that WAS flying still offered a button that did
+  // nothing, and the design's own motor became the one row with no way back to it — inside the panel
+  // added to remove exactly that trip. Found by the pre-push review, not by the gate.
+  //
+  // Comparing manufacturer AND designation also settles an ambiguity `isDesign` carries: it falls
+  // back to a designation-only match when the design's motor resolved loosely, so on an 18 mm design
+  // an Estes C6 and a Quest C6 could BOTH read as the design's and neither would offer a control.
+  const flying = (r: MotorSweepRow) =>
+    motorSwap
+      ? r.designation === motorSwap.designation &&
+        (!motorSwap.manufacturer || r.manufacturer === motorSwap.manufacturer)
+      : r.isDesign;
+
+  const columns = COLUMNS.map((c) =>
+    c.key === "use"
+      ? {
+          ...c,
+          cell: (r: MotorSweepRow) =>
+            flying(r) ? (
+              // Muted, but at the table's own size: every other cell inherits it, and a caption-size
+              // class here tipped this file into `DESIGN.md` §3's inversion (5 against 4), which
+              // `lib/design-system.test.ts` caught before it shipped. The class name is deliberately
+              // NOT written out even in this comment — the check greps the file's raw text and cannot
+              // tell a mention from a use, so naming it here re-created the count that had just been
+              // fixed. `MAINTAINING.md` records the same trap for Tailwind's own scanner.
+              <span className="text-zinc-500 dark:text-zinc-400">flying now</span>
+            ) : (
+              <Button
+                variant="secondary"
+                onClick={() => onUse?.(r)}
+                // The visible label is one word because the column is narrow on a phone; the
+                // accessible name carries which motor, label-first, so a voice-control user can say
+                // the word they can see and a screen-reader user is not given fifteen bare "Use"s.
+                // The design's own row says so: returning to it is a different act from choosing a
+                // candidate, and the flyer should be able to tell which they are about to do.
+                aria-label={
+                  r.isDesign
+                    ? `Use ${r.designation} — go back to this design's own motor, and re-fly`
+                    : `Use ${r.designation} — fly this design on it instead, and re-fly`
+                }
+              >
+                Use
+              </Button>
+            ),
+        }
+      : cells[c.key]
+        ? { ...c, cell: cells[c.key] }
+        : c,
+  );
 
   // Sorted here as well as inside the table, because the CSV must come out in the order on SCREEN —
   // a table you sorted and then exported unsorted is a different table from the one you were reading.
-  const col = COLUMNS.find((c) => c.key === sort.key) ?? COLUMNS[0];
+  const col = COLUMNS.find((c) => c.key === sort.key && c.sortValue) ?? COLUMNS[0];
   const sorted = [...rows].sort((a, b) => compareCells(col.sortValue!(a), col.sortValue!(b), sort.dir));
 
   // The design's own row against the flight the flyer actually read — see `ballisticGap` for why a

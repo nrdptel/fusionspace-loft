@@ -1917,6 +1917,27 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
               designManufacturer={swapInfo?.designManufacturer}
               designMotorFlies={swapInfo?.designMotorFlies}
               onEditGeometry={applyEdit}
+              // Apply a motor straight from the sweep's ranking. Routed through `applyEdit` like
+              // every other what-if, so it lands in the same edit bag, is undoable by the same
+              // control, persists across a reload with the rest, and re-flies every panel — rather
+              // than being a second mechanism beside the Swap motor select, which reads it back.
+              // The record is built from the same three fields the select writes, `diameter`
+              // included, so the two paths are indistinguishable downstream and `swapStillOffered`
+              // re-validates either of them identically on a configuration change.
+              onUseMotor={(m) => {
+                // **A tap that changes nothing must not commit a history step.** `movedWhatIf`
+                // compares edit fields by REFERENCE and its own note says "a fresh object in a field
+                // (a motor swap) counts as a change", so re-applying the motor already in force
+                // pushed an undo step that undoes nothing visible and buried the previous real one.
+                // The `<select>` could never reach this — it fires no change event when the same
+                // option is re-chosen — but a button is one tap.
+                const cur = edits.motorSwap;
+                if (cur && cur.designation === m.designation && cur.manufacturer === m.manufacturer) return;
+                applyEdit(
+                  { motorSwap: { manufacturer: m.manufacturer, designation: m.designation, diameter: m.diameter } },
+                  { label: `Fly on ${m.designation}`, key: "motorSwap" },
+                );
+              }}
               // A pick re-aims the fields that describe THAT kind of part and leaves the rest alone.
               // The routing lives in the edit model rather than here, so the panel that reports the
               // pick does not also have to know which fields a body tube or a fin set drives.

@@ -352,7 +352,139 @@ test.describe("phone layout", () => {
     await page.getByRole("link", { name: "Design" }).click();
     await page.locator("summary", { hasText: /Parts ·/ }).click();
     expect(await scan(), "Design workspace with the parts table open").toEqual([]);
+
+    // **The blind spot, reached at last.** Every reading this file has ever taken was with NO part
+    // selected, so `GeometryInspector`'s gesture bar — remove, reorder, and the four add controls —
+    // contributed nothing to any count while being exactly the kind of state these counts exist to
+    // find. The recorded reason nobody reached it was that the parts table is "1,198 px wide inside
+    // a 390 px viewport" and "a direct row click times out". **Both were stale.** Measured
+    // 2026-08-02 on the built export at 390x664: the table is 418 px inside a 324 px scroller,
+    // `getByRole("row")` returns 9, and a row click works. The `DataTable` conversion fixed it and
+    // nothing re-measured, so a false measurement kept the gate shut for several runs.
+    // The BODY TUBE row specifically, not `nth(1)`: four of the eleven gesture controls render only
+    // when the selected part is a body tube (`GeometryInspector` gates the add controls on
+    // `kind === "bodytube"`), and row 1 is the nose cone — selecting it renders a strictly smaller
+    // bar and the scan would silently cover less than it claims to.
+    await page.getByRole("row").filter({ hasText: "Body tube" }).first().click();
+    // Assert the surface is actually THERE before measuring it, or a selector that quietly stopped
+    // matching would report a clean scan of a bar that never rendered — which is the failure mode
+    // this whole test exists to end.
+    await expect(page.getByRole("button", { name: /^Add a tube behind this/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: /^Add fins to this tube/i })).toBeVisible();
+    expect(await scan(), "Design workspace with a part SELECTED").toEqual([]);
   });
+  test("the three pad journeys work one-handed, and survive losing signal", async ({ page, context }) => {
+    // Three route walks, a fifteen-motor sweep, an undo and an offline reload do not fit the file's
+    // 60 s budget (`playwright.config.ts`), and asking for 120 s on a single `expect` inside a 60 s
+    // test is a tolerance that can never be reached — the run is killed first, so the failure reads
+    // as an opaque "Test timeout exceeded" mid-step rather than as the authored assertion. That is
+    // the exact failure mode the config's own comment says it was written to prevent.
+    // `test.setTimeout` is how the rest of this suite buys room (see `rocketpy-selfhosted.spec.ts`).
+    test.setTimeout(240_000);
+    // **P4's *done when*, driven rather than described.** "A flyer can, one-handed and offline on a
+    // 390 px viewport, complete the three things a range day actually needs — pick a motor, check
+    // stability, sanity-check a delay." The hit-target and hover counts elsewhere in this file are
+    // the finish; these three are the substance, and until this nothing had walked them.
+    await page.goto("/", { waitUntil: "networkidle" });
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 30_000 });
+
+    // ── CHECK STABILITY ── the healthy one: it sits in the shared chrome, so it is on every
+    // workspace route for zero taps and inside the first screen.
+    const margin = page.locator("div", { has: page.getByText("Static margin", { exact: true }) }).last();
+    await expect(margin, "static margin is on the landing workspace").toBeVisible();
+    await expect(margin).toContainText(/cal/);
+
+    // ── SANITY-CHECK A DELAY ──
+    await page.getByRole("link", { name: "Flight", exact: true }).click();
+    await expect(page.getByText("Optimum delay", { exact: true }).first()).toBeVisible();
+
+    // ── PICK A MOTOR ── from the sweep's own ranking, which is where the decision is made. Before
+    // the *Use* column this journey ENDED here: `components/MotorSweep.tsx` held exactly one
+    // `<Button>` in the whole file — *Run* — so a flyer who swept fifteen motors had to memorise the
+    // designation, walk to /design, and scroll 1,841 px (2.77 screens at this viewport) to re-find
+    // it in a sixteen-option select. The sweep itself runs entirely on-device.
+    await page.getByRole("link", { name: "Sweep", exact: true }).click();
+    await page.getByRole("button", { name: /Run motor sweep/ }).click();
+    const sweep = page.getByRole("region", { name: "Motor sweep" });
+    const use = sweep.getByRole("button", { name: /^Use / }).first();
+    await expect(use, "the sweep can apply a motor").toBeVisible({ timeout: 120_000 });
+
+    // **On screen WITHOUT scrolling, which is the whole claim.** `toBeVisible()` does not test
+    // viewport intersection and `click()` auto-scrolls, so as the table's tenth column every Use
+    // control sat off the right edge of this 390 px viewport and the journey still passed. The
+    // control moved to second — beside the motor's own name — and this is what holds it there.
+    const vw = page.viewportSize()!.width;
+
+    // A real target for a thumb, and an accessible name that says WHICH motor — fifteen bare "Use"s
+    // would be fifteen anonymous stops for a screen-reader or voice-control user.
+    const box = await use.boundingBox();
+    expect(Math.round(box!.height), "Use button height").toBeGreaterThanOrEqual(44);
+    expect(Math.round(box!.width), "Use button width").toBeGreaterThanOrEqual(44);
+    expect(
+      Math.round(box!.x + box!.width),
+      `Use sits at x=${Math.round(box!.x)} in a ${vw} px viewport — a control a thumb has to scroll a nested scroller to find is the step this column exists to remove`,
+    ).toBeLessThanOrEqual(vw);
+    const named = (await use.getAttribute("aria-label")) ?? "";
+    expect(named, "the Use control says which motor").toMatch(/^Use \S+ —/);
+    const chosen = named.replace(/^Use (\S+).*$/, "$1");
+
+    await use.click();
+
+    // It APPLIED, and the Design workspace's own swap control reads it back — one edit bag, not a
+    // second mechanism beside the select.
+    await page.getByRole("link", { name: "Design", exact: true }).click();
+    const swap = page.getByRole("combobox", { name: "Swap motor" });
+    await expect(swap, "the swap select reads back the motor chosen in the sweep").toHaveValue(
+      new RegExp(chosen.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
+    );
+
+    // **And there is a way back FROM THE TABLE ITSELF**, which is where one would hide. The first
+    // draft marked "flying now" from the FILE's motor rather than the flown one, so after a tap the
+    // label stayed on a motor that was not flying, the applied row still offered a dead button, and
+    // the design's own motor became the one row with no control to return to — reachable only by
+    // Undo (which stops being one step back the moment any other edit follows) or by the select two
+    // routes away, the exact trip this column was added to remove.
+    await page.getByRole("link", { name: "Sweep", exact: true }).click();
+    await expect(
+      sweep.getByRole("button", { name: /go back to this design's own motor/i }),
+      "the design's own motor is reachable again from the table",
+    ).toBeVisible();
+    await expect(
+      sweep.getByText("flying now"),
+      "exactly one row is marked as flying, and it is the applied one",
+    ).toHaveCount(1);
+
+    // Undo is still a way out too, and it lands on the design's own motor.
+    await page.getByRole("link", { name: "Design", exact: true }).click();
+    await page.getByRole("button", { name: /^Undo/ }).click();
+    await expect(swap).toHaveValue("");
+
+    // ── AND IT SURVIVES LOSING SIGNAL ── which is the pad case: the app is open, then the signal
+    // goes. Asserted by cutting the network and RELOADING the route in view, so the service worker
+    // is genuinely what answers.
+    //
+    // Deliberately a reload rather than a cross-route walk, and the reason is the local server
+    // rather than the app: `serve` answers `/flight` with a redirect to `/flight/` because the RSC
+    // segment directory exists beside the document, while `scripts/gen-sw-precache.mjs` precaches
+    // the un-slashed form — so an offline spine tap churns between the two under `serve` in a way
+    // Cloudflare Pages does not. `e2e/docs.spec.ts` already walks every docs route offline, which
+    // covers the cross-route case on paths with no such directory.
+    await page.waitForFunction(
+      async () => !!navigator.serviceWorker?.controller && !!(await caches.match("/design")),
+      null,
+      { timeout: 30_000 },
+    );
+    await context.setOffline(true);
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await expect(page.getByRole("navigation", { name: "Workspace" }), "the app renders offline").toBeVisible();
+    await expect(
+      page.locator("div", { has: page.getByText("Static margin", { exact: true }) }).last(),
+      "stability is still readable with no signal",
+    ).toBeVisible();
+    await context.setOffline(false);
+  });
+
   test("the docs section nav is a row of targets, on every docs route", async ({ page }) => {
     // Found by a phone cold walk of the built export, which is the check the suite did not have: the
     // hit-target passes all load a DESIGN first, so nothing had ever measured the docs routes. All
@@ -506,9 +638,15 @@ test.describe("phone layout", () => {
  *  improvement fails this test just as a regression does, so the figure in this file and the figure
  *  on the page can never drift apart silently.
  *
- *  **96 → 75 → 67 → 25 → 1 → 0**, and the zero is the one to read carefully. It is zero on the six routes this walk visits, with no part selected — see the
- *  blind spot recorded in the loop below. The honest claim is narrow: every hover-only state this check can SEE is
- *  gone. Closing the gap means reaching them, not lowering a number.
+ *  **96 → 75 → 67 → 25 → 1 → 0**, and the zero used to need reading carefully: it was zero on the six
+ *  routes this walk visits, with no part selected, while the gesture bar behind a selection went
+ *  unmeasured. **That gap is closed** — the loop now picks a part on `/design` and runs the identical
+ *  count over the selection-gated surface, having first asserted the bar rendered.
+ *
+ *  **It found nothing, and that is the honest result rather than a disappointment.** Increment 3 had
+ *  already fixed those controls; what was missing was any check able to see them, so a regression
+ *  would have read 0 either way. The number did not move because the work was done — but until this
+ *  run nothing could have told the difference between that and a surface full of them.
  *
  *  The 67 → 25 step took the whole SHARED CHROME, which is why it is the
  *  large one: every site there renders on all six routes, so five files paid for forty-two of them.
@@ -539,10 +677,11 @@ test("counts the states a flyer at the pad cannot reach, and holds the number do
   const found: string[] = [];
   for (const route of ROUTES) {
     await page.goto(route);
-    // **KNOWN BLIND SPOT, and it is recorded rather than left to be rediscovered.**
+    // **THE BLIND SPOT THIS USED TO CARRY IS CLOSED — see the `/design` block after the count.**
     // `GeometryInspector`'s gesture bar — remove, reorder, add a tube / fin set / mass object /
-    // transition / motor mount, eleven controls — renders only once a part is SELECTED, and this
-    // walk never selects one. So those eleven have contributed 0 to every reading this ratchet has
+    // transition / motor mount — renders only once a part is SELECTED, and this walk did not select
+    // one. **Eight** are strictly selection-gated (not eleven: two more need a mount or a stage to
+    // exist first, and *Add a booster stage* renders ungated). So those eight contributed 0 to every reading this ratchet had
     // ever taken, while being exactly the kind of state it exists to find.
     //
     // **They are FIXED — and this check did not verify that, which is the point of saying so here.**
@@ -553,13 +692,13 @@ test("counts the states a flyer at the pad cannot reach, and holds the number do
     // "Add a tube behind this" had become "Add a body tube immediately behind this one, faired to
     // it, and re-fly the design". That is WCAG 2.5.3, and it is why the form is label-first.
     //
-    // A regression on any of the TEN behind a selection would not fail this test — it reads zero
-    // either way. The eleventh, "Add a booster stage", renders unselected and IS covered.
-    //
-    // Two ways of reaching them from here also failed and are worth not repeating:
-    // `getByRole("row")` matches nothing for this table's rows, and a direct `tbody tr` click times
-    // out because the table is 1,198 px wide inside a 390 px viewport in its own horizontally
-    // scrolling container. Reaching it wants the diagram's selection path or a wider viewport.
+    // **The two "ways of reaching them that failed" recorded here were STALE, and correcting them is
+    // most of what closed this.** They said `getByRole("row")` matches nothing for this table and a
+    // row click times out because the table is 1,198 px wide inside a 390 px viewport. Measured
+    // 2026-08-02 on the built export at 390x664: the table is **418 px inside a 324 px scroller**,
+    // `getByRole("row")` returns **9**, and rows click clean on both bundled samples. The
+    // `DataTable` conversion fixed all three and nothing re-measured, so a false measurement held
+    // the gate shut for several runs.
     // Wait for the route to finish rendering before counting. Without this the count RACES
     // hydration and moves between runs — measured 60 and 71 on two runs of an identical build,
     // which would make an exact ratchet worse than no check at all: it would fail for timing and
@@ -598,6 +737,43 @@ test("counts the states a flyer at the pad cannot reach, and holds the number do
       return out;
     });
     for (const h of here) found.push(`${route} · ${h}`);
+
+    // **And once more on /design with a part SELECTED, which closes the blind spot above.**
+    // The walk visits six routes with nothing picked, so the gesture bar behind a selection has
+    // contributed 0 to every reading this ratchet has ever taken. It is reached here rather than
+    // described: pick a row, confirm the bar rendered, and run the identical count over it.
+    //
+    // **What it found is nothing, and that is banked as a measurement rather than claimed as a
+    // repair.** The eight strictly selection-gated controls were fixed in increment 3 — their
+    // tooltips moved onto label-first accessible names — and this is the first check able to SEE
+    // that. A regression on any of them now fails, where before it read 0 either way.
+    if (route === "/design") {
+      // The table is behind a closed disclosure — `partsOpen` defaults false — so the selection
+      // needs two taps, which is itself part of what this blind spot cost.
+      await page.locator("summary", { hasText: /Parts ·/ }).click();
+      await page.getByRole("row").filter({ hasText: "Body tube" }).first().click();
+      await expect(page.getByRole("button", { name: /^Add a tube behind this/i })).toBeVisible();
+      const gated = await page.evaluate(() => {
+        const out: string[] = [];
+        for (const el of Array.from(document.querySelectorAll<HTMLElement>("*"))) {
+          const r = el.getBoundingClientRect();
+          if (r.width === 0 && r.height === 0) continue;
+          const label = `<${el.tagName.toLowerCase()}> ${(el.textContent || "").trim().replace(/\s+/g, " ").slice(0, 24)}`;
+          const title = el.getAttribute("title");
+          if (title && title.trim()) {
+            const near = (el.closest("dd, li, p, div, section") as HTMLElement | null)?.innerText ?? "";
+            const norm = (s: string) => s.replace(/\s+/g, " ").trim().toLowerCase();
+            if (!norm(near).includes(norm(title))) out.push(`title · ${label} · ${title.slice(0, 50)}`);
+          }
+          const cls = typeof el.className === "string" ? el.className : "";
+          if (/(^|\s|:)(group-)?hover:(opacity-100|block|flex)/.test(cls)) {
+            out.push(`hover-class · ${label} · ${cls.slice(0, 60)}`);
+          }
+        }
+        return out;
+      });
+      for (const h of gated) found.push(`/design (part selected) · ${h}`);
+    }
   }
 
   // Printed, not just counted: the next session driving this number down needs to know WHICH, and a

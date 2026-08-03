@@ -2245,10 +2245,12 @@ sibling app's 27 KB — the front door is thin in both senses.
 
 ## P4 — A touch-native builder
 
-**Status: IN PROGRESS** — increments 1–3 of 4–6 shipped 2026-08-02, along with the decomposition.
-The hover-only count is **0**, down from 96 when it was first taken — and `DESIGN.md` §8's other
-count, controls under 44 px, is 0 too. What increment 3 records about the narrowness of that zero
-still stands and is the whole of increment 4.
+**Status: IN PROGRESS** — increments 1–4 of 4–6 shipped 2026-08-02, along with the decomposition.
+Both of `DESIGN.md` §8's counts are **0**, down from 96 and from an unmeasured floor — and as of
+increment 4 that zero is no longer narrow: the selection-gated surface increment 3 could only assert
+in prose is now walked by the check. Two of the *done when*'s three pad journeys were already sound;
+the third, *pick a motor*, dead-ended in a table that could not apply its own recommendation, and
+does not any more. What remains is the diagram's own touch targets — see increment 5.
 
 *Increment 1 — SHIPPED. The other half of §8's contract, which nothing had ever measured.*
 
@@ -2338,10 +2340,99 @@ walk also failed and are recorded in the spec: `getByRole("row")` matches nothin
 a direct row click times out because it is 1,198 px wide inside a 390 px viewport in its own
 scrolling container.
 
-*Increment 4 — NEXT.* Reach the selection-gated surface, which is the remaining blind spot, and then
-walk the three pad journeys the *done when* actually names — pick a motor, check stability,
-sanity-check a delay — one-handed and offline. The hit-target and hover counts are the finish; those
-three journeys are the substance, and nothing has walked them yet.
+*Increment 4 — SHIPPED. The blind spot is reached, and the journey that could not be finished now is.*
+
+**Both halves of the increment, and they came out very differently.**
+
+**(a) The selection-gated surface — a PIN, not a repair, and saying which matters.** `e2e/touch.spec.ts`
+now opens the parts disclosure, selects the BODY TUBE row specifically (four of the gesture controls
+render only for a body tube, so picking row 1 — the nose cone — would have measured a strictly smaller
+bar), asserts two of the gated buttons rendered, and runs BOTH of §8's counts over it. **It found
+nothing: 0 hover-only states and 0 controls under 44 px.** That is the honest result rather than a
+disappointing one — increment 3 had already fixed those eight controls; what was missing was any check
+able to see them, so a regression would have read 0 either way. The number did not move because the
+work was done, and until this run nothing could have told that apart from a surface full of defects.
+
+**The recorded reason nobody had reached it was STALE, and that is the finding.** `ROADMAP.md` and
+`BACKLOG.md` both said the parts table is "1,198 px wide inside a 390 px viewport" and that
+"`getByRole("row")` matches nothing" and "a direct row click times out". Measured on the built export
+at 390x664: the table is **418 px inside a 324 px scroller**, `getByRole("row")` returns **9**, and
+rows click clean on both bundled samples. The `DataTable` conversion fixed all three and nothing
+re-measured, so a false measurement held the gate shut for several runs. Both records are corrected.
+The roadmap's "eleven controls" is also an overstatement: **eight** are strictly selection-gated, two
+more need a mount or a stage to exist first, and *Add a booster stage* renders ungated.
+
+**(b) The three pad journeys — and one of them could not be completed at all.** Walked at 390 px:
+*check stability* is healthy (the margin is in the shared chrome, on every route, inside the first
+screen); *sanity-check a delay* works; **and *pick a motor* dead-ended.** `components/MotorSweep.tsx`
+contained exactly one `<Button>` in the whole file — *Run*. The panel ranks every fitting bundled
+motor on apogee, max velocity, rail exit, thrust-to-weight, margin, flutter and delay, and then could
+not apply the one it recommends. A flyer had to memorise the designation, leave for the Design
+workspace, and scroll **1,841 px — 2.77 screens at this viewport** — to re-find it in a sixteen-option
+`<select>`. That is `MAINTAINING.md`'s rank-4 tell ("a task that works but costs steps a mature tool
+doesn't charge") sitting on a named *done when* clause; RockSim and OpenRocket both apply a motor from
+the list you chose it in.
+
+**A *Use* column now does it in one tap**, routed through `applyEdit` like every other what-if — so it
+lands in the same edit bag, is undoable by the same control, persists across a reload, re-flies every
+panel, and is read back by the *Swap motor* select rather than being a second mechanism beside it. The
+design's own row says "flying now" instead of offering a button that would change nothing. The record
+carries `diameter` looked up from `swapOptions`, so the two paths build an identical edit rather than
+an equivalent-by-argument one. The accessible name is label-first and names the motor, because fifteen
+bare "Use"s are fifteen anonymous stops.
+
+**Offline is asserted, and what the assertion establishes is stated narrowly.** The suite cuts the
+network and RELOADS the route in view — the pad case, where the app is already open when the signal
+goes. It is deliberately not a cross-route walk: `serve` answers `/flight` with a redirect to
+`/flight/` because the RSC segment directory sits beside the document, while `gen-sw-precache.mjs`
+precaches the un-slashed form, so an offline spine tap churns between the two **under `serve`** in a
+way Cloudflare Pages does not. `e2e/docs.spec.ts` already walks every docs route offline, which covers
+the cross-route case on paths with no such directory. Filed rather than papered over.
+
+**The pre-push review found EIGHT defects in this increment after the whole gate was green, and one
+of them undid the increment's own claim.** Worth reading, because six were in code the author was
+confident about:
+
+- **The *Use* control was the table's TENTH column, ~683 px into a horizontal scroller, so on a
+  390 px viewport every one of them sat off screen at rest.** The control added to remove a
+  scrolling trip required a ~350 px scroll of a nested scroller to reach. **And the new e2e could not
+  see it**: Playwright's `toBeVisible()` does not test viewport intersection and `click()`
+  auto-scrolls, so "the three pad journeys work one-handed" passed on a control a thumb could not
+  find. The column moved to SECOND, beside the motor's own name, and the spec now asserts the
+  button's right edge is inside the viewport.
+- **The cell was gated on `isDesign` — a fact about the FILE's motor, which a swap does not move.**
+  After one tap "flying now" sat on a motor that was not flying, the applied row still offered a
+  dead button, and the design's own motor became the one row with **no way back to it** except Undo
+  (which stops being one step back as soon as any other edit follows) or the select two routes away.
+  Now gated on what is actually flying, comparing manufacturer AND designation — which also settles
+  an ambiguity `isDesign` carries, where an Estes C6 and a Quest C6 could both read as the design's
+  and neither would have offered a control.
+- **Every tap re-ran the entire sweep.** `MotorSweep` was keyed on `dkey`, which carries `motorSwap`
+  — so applying a motor re-flew fifteen ballistic flights on a phone to produce byte-identical rows,
+  dimming the table the flyer was reading. No sweep row can depend on the swap (`lib/sim/sweep.ts`
+  overrides the motor per candidate), so the panel now takes a key without it.
+- **`SORT_CHOICES` is derived from the column list**, so the new column silently added `use:asc` and
+  `use:desc` to the set of persisted sorts the panel would ACCEPT — and `use` has no `sortValue`
+  behind a non-null assertion, so a stored value of that shape would throw during render and take
+  the workspace down. Built from sortable columns only.
+- **Re-tapping the motor already in force committed an undo step that undoes nothing visible**
+  (`movedWhatIf` compares by reference, and a fresh object counts as a change). The `<select>` could
+  never reach this — it fires no change event when the same option is re-chosen — but a button is
+  one tap. Guarded.
+- **The e2e asked for a 120 s tolerance inside a 60 s per-test budget** with no `test.setTimeout`, so
+  its headline assertion could only ever fail as an opaque timeout mid-step — the exact failure mode
+  `playwright.config.ts`'s own comment says it was written to prevent.
+- Two more recorded rather than fixed here: the `ballisticGap` notice compares the DESIGN row against
+  the FLOWN apogee, so after a swap it attributes a motor difference to the ballistic-vs-recovery
+  method; both are in `BACKLOG.md`.
+
+*Increment 5 — NEXT.* The diagram is the remaining touch gap and it is a real one, measured this run:
+only **2 of the sample's 8 parts** carry a tap overlay at all (`o.parts` is body silhouettes only), and
+both measure **12 px tall** against §8's 44 — while each drag handle's `hitR = coarse ? 22 : 0` puts a
+44x44 hit circle ON the airframe that steals the part beneath it (9 of 19 points sampled across the
+body tube resolve to a handle, so tapping the middle of the tube leaves the nose selected). Direct
+manipulation on a phone is the half of P4 that the table currently stands in for. Both are in
+`BACKLOG.md` with their measurements.
 
 *Superseded note — the problem increment 3 was expected to be:* The remaining 25 all sit on
 the app chrome ABOVE the workspace spine — `Undo`/`Redo`'s disabled reason, the design-name field,

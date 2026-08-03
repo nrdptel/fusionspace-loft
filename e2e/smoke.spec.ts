@@ -159,7 +159,11 @@ test.describe("Loft", () => {
     await page.getByRole("link", { name: "Sweep" }).click();
     const sweep = page.getByRole("region", { name: "Motor sweep" });
     await sweep.getByRole("button", { name: "Run motor sweep" }).click();
-    const firstRow = () => sweep.locator("tbody tr").first().locator("td").nth(1);
+    // The whole ROW, not a positional cell. This read `td` index 1 — the Class column — until a
+    // `Use` control was inserted second, at which point it was reading a button label that no design
+    // edit can change, and the assertion below could only ever time out. A row's text moves whenever
+    // any figure in it does, and it cannot be silently re-pointed by a column insertion.
+    const firstRow = () => sweep.locator("tbody tr").first();
     await expect(firstRow()).not.toBeEmpty();
     const sweptBefore = await firstRow().innerText();
     const flownBefore = await apogee();
@@ -1378,8 +1382,27 @@ test.describe("Loft", () => {
     await expect.poll(async () => rows.count()).toBeGreaterThan(2);
     await expect(panel.getByText("Design", { exact: true })).toBeVisible();
 
+    // Columns are addressed by their HEADER's position rather than by a hard-coded `nth-child`, so
+    // inserting a column re-points them instead of silently reading the neighbour. Inserting the
+    // `Use` control second is exactly what broke the three literals that used to be here.
+    // Matched on a PREFIX, because `DataTable` renders each header as a sort button whose text
+    // carries the label plus its sort affordance — an exact compare found nothing and silently
+    // produced `nth-child(0)`, which matches no cell and fails as "expected 0 to be > 2".
+    // Normalised before comparing: `DataTable`'s headers render UPPERCASE (so `innerText` returns
+    // "APOGEE", not "Apogee") and carry a sort arrow glyph. An exact, case-sensitive compare found
+    // nothing and silently produced `nth-child(0)`, which matches no cell and failed as
+    // "expected 0 to be > 2" — a wrong-looking assertion for a selector problem.
+    const heads = (await panel.locator("thead th").allInnerTexts()).map((t) =>
+      t.replace(/[▲▼]/g, "").replace(/\s+/g, " ").trim().toLowerCase(),
+    );
+    const colIndex = (label: string) => {
+      const i = heads.findIndex((t) => t.startsWith(label.toLowerCase()));
+      expect(i, `no "${label}" column header among: ${heads.map((h) => h.trim()).join(" | ")}`).toBeGreaterThanOrEqual(0);
+      return i + 1;
+    };
+
     // Apogees are laid out highest-first: the top row out-flies the bottom row.
-    const apogeeCells = await panel.locator("tbody tr td:nth-child(3)").allInnerTexts();
+    const apogeeCells = await panel.locator(`tbody tr td:nth-child(${colIndex("Apogee")})`).allInnerTexts();
     const nums = apogeeCells.map((t) => parseFloat(t.replace(/[^\d.]/g, "")));
     expect(nums.length).toBeGreaterThan(2);
     expect(nums[0]).toBeGreaterThan(nums[nums.length - 1]);
@@ -1387,7 +1410,7 @@ test.describe("Loft", () => {
     // A fin-flutter margin column is present: the faster (top-apogee) motor has a thinner margin
     // than the slower (bottom) one — the motor-selection flutter cue.
     await expect(panel.getByRole("columnheader", { name: "Flutter" })).toBeVisible();
-    const flutterCells = await panel.locator("tbody tr td:nth-child(8)").allInnerTexts();
+    const flutterCells = await panel.locator(`tbody tr td:nth-child(${colIndex("Flutter")})`).allInnerTexts();
     const fl = flutterCells.map((t) => parseFloat(t.replace(/[^\d.]/g, "")));
     expect(fl[0]).toBeLessThan(fl[fl.length - 1]);
 
