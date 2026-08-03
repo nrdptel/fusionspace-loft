@@ -69,6 +69,7 @@ export default function MotorSweep({
   simIndex,
   units,
   options,
+  mountCasingMm = 0,
   designMotor,
   designManufacturer,
   designApogee,
@@ -87,6 +88,8 @@ export default function MotorSweep({
   units: UnitSystem;
   /** Bundled motors of the design's mount diameter — the same list the swap picker offers. */
   options: SweepMotor[];
+  /** The casing the design's own mount takes, in mm. See where it is used. */
+  mountCasingMm?: number;
   /** The design's own motor designation, to mark its row. */
   designMotor: string;
   /** That motor's manufacturer as the catalog spells it, when it matched exactly. Without it a
@@ -151,8 +154,11 @@ export default function MotorSweep({
   const [runRef, returnFocusToRun] = useReturnFocus();
   const [rows, setRows] = useState<MotorSweepRow[] | null>(null);
   const [running, setRunning] = useState(false);
-  // Every option was filtered to one casing, so any of them states it.
-  const casingMm = Math.round((options[0]?.diameter ?? 0) * 1000);
+  // **The MOUNT's casing, not the first row's.** `swapOptions` merges the catalogue's 75 and 76 mm
+  // motors into one physical class (3 inches is 76.2 mm — see `sameCasing`), and the list is sorted
+  // by impulse, so `options[0]` can state a diameter this design does not have. The design's own
+  // figure is passed down for exactly this reason.
+  const casingMm = mountCasingMm > 0 ? mountCasingMm : Math.round((options[0]?.diameter ?? 0) * 1000);
 
   // Run the sweep off the main thread (falls back to synchronous if no worker), so a design's
   // dozens of flights don't freeze the UI. A stale run (inputs changed mid-flight) is ignored.

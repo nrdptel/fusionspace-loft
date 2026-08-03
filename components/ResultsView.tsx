@@ -178,6 +178,7 @@ export default function ResultsView({
   motorSwap,
   geometry,
   swapOptions,
+  mountCasingMm,
   designMotor,
   designManufacturer,
   designMotorFlies,
@@ -232,6 +233,8 @@ export default function ResultsView({
   geometry?: GeometryEdits;
   /** Bundled motors that fit this airframe's mount, for the motor-sweep comparison. */
   swapOptions?: { designation: string; manufacturer: string; diameter: number; motorClass: string }[];
+  /** The casing the design's own mount takes, in mm — what the offered list is LABELLED with. */
+  mountCasingMm?: number;
   /** The design's own motor designation, to mark its row in the sweep. */
   designMotor?: string;
   /** That motor's manufacturer as the catalog spells it, when it matched exactly — a designation
@@ -452,7 +455,7 @@ export default function ResultsView({
           because it is the context every workspace shares — the geometry below is still real, the
           numbers that depend on thrust are not. */}
       {!run.hasPropulsion && (
-        <NoPropulsionNotice run={run} tool={toolName} swapOptions={swapOptions} doc={doc} />
+        <NoPropulsionNotice run={run} tool={toolName} swapOptions={swapOptions} mountCasingMm={mountCasingMm} doc={doc} />
       )}
 
       <RocketSummary run={run} doc={doc} rocket={shownRocket} units={units} geometry={geometry} />
@@ -854,6 +857,7 @@ export default function ResultsView({
           simIndex={simIndex}
           units={units}
           options={swapOptions}
+          mountCasingMm={mountCasingMm}
           designMotor={designMotor ?? ""}
           designManufacturer={designManufacturer}
           designApogee={run.result.summary.apogee}
@@ -1043,6 +1047,7 @@ function NoPropulsionNotice({
   run,
   tool,
   swapOptions,
+  mountCasingMm,
   doc,
 }: {
   run: FlightRun;
@@ -1050,6 +1055,9 @@ function NoPropulsionNotice({
   /** Bundled motors of the design's own casing diameter — the substitutes the design tools below
    *  offer. When present, the notice points the flyer at that recovery path rather than dead-ending. */
   swapOptions?: { designation: string; manufacturer: string; diameter: number; motorClass: string }[];
+  /** The casing the design's own mount takes. See `casingMm` below for why `swapOptions[0]` will not
+   *  do. */
+  mountCasingMm?: number;
   doc: OrkDocument;
 }) {
   const unresolved = run.resolutions.filter((res) => !res.match);
@@ -1062,7 +1070,16 @@ function NoPropulsionNotice({
   // single stored configuration has nothing to pick — offering that as the way out sends the flyer
   // hunting for a control that was never drawn. Gated the same way the picker itself is.
   const canPickConfig = configChoices(doc).length > 1;
-  const casingMm = canSubstitute ? Math.round(swapOptions![0].diameter * 1000) : 0;
+  // **The MOUNT's figure, not the first offered motor's.** `swapOptions` merges the catalogue's 75
+  // and 76 mm motors into one physical class (3 inches is 76.2 mm — `sameCasing`), and it is sorted
+  // by impulse, so the first row can state a diameter this design has never had. The sentence below
+  // makes a fit claim, so it has to name the mount.
+  const casingMm =
+    mountCasingMm && mountCasingMm > 0
+      ? mountCasingMm
+      : canSubstitute
+        ? Math.round(swapOptions![0].diameter * 1000)
+        : 0;
   return (
     <Card as="section" tone="danger" aria-label="No flight simulated">
       <h2 className="text-xl font-medium tracking-tight">No flight simulated</h2>
@@ -1077,15 +1094,27 @@ function NoPropulsionNotice({
             {unresolved.length > 1
               ? "None of this configuration's motors could be matched"
               : "This configuration's motor could not be matched"}{" "}
-            to a thrust curve in the bundled database, so there is no thrust to fly. Rather than show
-            a misleading zero-altitude &ldquo;flight,&rdquo; the flight results, plots, and {tool}{" "}
-            comparison are withheld.
+            to a thrust curve
+            {/* "in the bundled database" alone is FALSE where the casing veto fired: the designation
+                does reach a bundled curve, and Loft turned it down because the motor is the wrong
+                diameter for the mount. Flying it anyway is the Sev-1 this replaced. */}
+            {unresolved.some((res) => res.vetoedFit) ? " that fits this mount" : ""} in the bundled
+            database, so there is no thrust to fly. Rather than show a misleading zero-altitude
+            &ldquo;flight,&rdquo; the flight results, plots, and {tool} comparison are withheld.
           </p>
           <ul className="mt-3 space-y-1 text-sm">
             {unresolved.map((res, i) => (
               <li key={i} className="font-mono">
                 {res.manufacturer ? `${res.manufacturer} ` : ""}
-                {res.designation} — not found
+                {res.designation}
+                {/* "not found" is the wrong sentence for a motor that WAS found and turned down for
+                    its casing — and that refusal is the one a flyer most needs explained, because
+                    the designation looks almost right. Naming the near-miss and both diameters
+                    points at the two things it can actually be: a mistyped designation, or a stated
+                    casing that disagrees with the motor the file means. */}
+                {res.vetoedFit
+                  ? ` — ${res.vetoedFit.designation} is the closest bundled name, and it is a ${res.vetoedFit.matchedMm} mm motor; this one is on a ${res.vetoedFit.statedMm} mm casing`
+                  : " — not found"}
               </li>
             ))}
           </ul>
@@ -1202,13 +1231,24 @@ function RocketSummary({
             aria-label={
               res.match
                 ? `Matched ${res.match.entry.designation} (${res.match.quality})${res.count > 1 ? ` — cluster of ${res.count}` : ""}`
-                : "No thrust curve found"
+                : res.vetoedFit
+                  ? `No thrust curve of this mount's ${res.vetoedFit.statedMm} mm casing — the closest name, ${res.vetoedFit.designation}, is a ${res.vetoedFit.matchedMm} mm motor`
+                  : "No thrust curve found"
             }
           >
             {res.count > 1 ? `${res.count}× ` : ""}
             {res.designation}
             {res.match && res.match.quality !== "exact" ? ` → ${res.match.entry.designation}` : ""}
-            {!res.match ? " · not found" : res.match.quality !== "exact" ? " · approx" : ""}
+            {/* The chip is the ONLY motor state visible from every workspace, so it carries the
+                distinction too. "not found" on a motor that was found and turned down for its casing
+                sends a flyer hunting for a thrust curve that is already in the set. */}
+            {!res.match
+              ? res.vetoedFit
+                ? " · wrong casing"
+                : " · not found"
+              : res.match.quality !== "exact"
+                ? " · approx"
+                : ""}
           </span>
         ))}
       </div>

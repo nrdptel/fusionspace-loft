@@ -32,6 +32,11 @@ export interface MotorResolution {
   match: MotorMatch | null;
   /** How many identical motors this mount flies (a cluster is >1); 1 for a single motor. */
   count: number;
+  /** Set only when the name DID reach a bundled motor and the casing veto turned it down — see
+   *  `resolveMotor`. Without this the panel says "not found" about a motor it found and rejected,
+   *  which is the wrong explanation for the right refusal: the flyer needs to know their designation
+   *  is close to something real and that the something real is the wrong diameter. */
+  vetoedFit?: { designation: string; statedMm: number; matchedMm: number };
 }
 
 export interface Buildup {
@@ -42,6 +47,25 @@ export interface Buildup {
   phases: StagePhase[];
   /** Lower stages whose motors never light. Fed to the simulator so the flight can say so. */
   deadStages: DeadStage[];
+}
+
+/** Why a motor that resolved to nothing resolved to nothing, when the reason is the casing veto.
+ *
+ *  Re-runs the lookup WITHOUT the stated casing. A hit there means the designation does name a
+ *  bundled motor and the veto turned it down for diameter — which is a different thing to tell a
+ *  flyer than "not found", and the one that points at the actual problem: either the designation is
+ *  a near-miss for a motor of another size, or the file's stated casing is wrong. */
+function vetoedForFit(motor: {
+  designation?: string;
+  manufacturer?: string;
+  diameter?: number;
+}): { designation: string; statedMm: number; matchedMm: number } | undefined {
+  const statedMm = Math.round((motor.diameter ?? 0) * 1000);
+  if (!motor.designation || statedMm <= 0) return undefined;
+  const loose = resolveMotor({ designation: motor.designation, manufacturer: motor.manufacturer });
+  const matchedMm = Math.round(loose?.entry.curve.diameterMm ?? 0);
+  if (!loose || matchedMm <= 0 || matchedMm === statedMm) return undefined;
+  return { designation: loose.entry.designation, statedMm, matchedMm };
 }
 
 /** Map each component id to the index of the stage that contains it (list order, nose→tail). */
@@ -130,12 +154,17 @@ export function buildRocketDynamics(rocket: Rocket, config: MotorConfiguration):
     // it doesn't affect the vertical-plane apogee/velocity solve). The clustered tube's own
     // structural mass is scaled by N in lib/sim/mass.ts.
     const count = Math.max(1, Math.round(mm?.clusterCount ?? 1));
+    // Only asked when there is nothing to fly, and only to say WHY. `resolveMotor` deliberately
+    // returns a plain null rather than a rejection object — the veto's whole point is that the motor
+    // is not available — so the second call is what turns "not found" into the true sentence.
+    const vetoed = match ? undefined : vetoedForFit(inst.motor);
     resolutions.push({
       mountId: inst.mountId,
       designation: inst.motor.designation,
       manufacturer: inst.motor.manufacturer,
       match,
       count,
+      ...(vetoed ? { vetoedFit: vetoed } : {}),
     });
     if (!match) continue;
     const stageIndex = stageOf.get(inst.mountId) ?? 0;

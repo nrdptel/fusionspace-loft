@@ -5,7 +5,7 @@ import type { MotorConfiguration } from "../model/types";
  *  Split out of the workspace so the policy can be tested directly: the swap picker and the motor
  *  sweep are both gated on it, and getting it wrong either hides them or makes a claim about
  *  physical fit that the design file does not support. */
-import { allMotors, resolveMotor, type MotorDbEntry } from "./db";
+import { allMotors, resolveMotor, sameCasing, type MotorDbEntry } from "./db";
 
 /** A bundled motor offered as a substitute, as the picker and the sweep both describe it. */
 export interface SwapOption {
@@ -54,11 +54,17 @@ export function swapStillOffered(
   return options.some((o) => o.designation === swap.designation && o.manufacturer === swap.manufacturer);
 }
 
-/** Every bundled motor of the given casing, weakest total impulse first. */
+/** Every bundled motor of the given casing, weakest total impulse first.
+ *
+ *  `sameCasing` rather than rounded equality, and it must stay the SAME predicate the flight's own
+ *  casing veto uses (`lib/motors/db.ts`) — two different notions of "fits" would let the sweep offer
+ *  a motor the flight refuses to place, or refuse one it flies. It also fixes a list that was already
+ *  short: the catalogue certifies 3-inch motors at both 75 and 76 mm, so a 76 mm design saw 2 of the
+ *  9 bundled motors that fit it and a 75 mm design saw 7. */
 export function swapOptions(casingMm: number): SwapOption[] {
   if (!(casingMm > 0)) return [];
   return allMotors()
-    .filter((m) => Math.round(m.curve.diameterMm) === casingMm)
+    .filter((m) => sameCasing(casingMm, Math.round(m.curve.diameterMm)))
     .sort((a, b) => a.curve.totalImpulse - b.curve.totalImpulse)
     .map((m) => ({
       designation: m.designation,
@@ -111,7 +117,15 @@ export function designMotorIdentity(motor: {
 }): DesignMotorIdentity {
   const statedMm = Math.round((motor.diameter ?? 0) * 1000);
   if (!motor.designation) return { casingMm: statedMm > 0 ? statedMm : 0, resolves: false };
-  const hit = resolveMotor({ designation: motor.designation, manufacturer: motor.manufacturer });
+  // The stated casing rides along, so this asks the SAME question the simulator does. Without it the
+  // two surfaces could disagree: `resolveMotor` would veto a non-fitting substitute for the flight
+  // while this reported `resolves: true`, leaving the sweep claiming a design flies a motor the
+  // flight refused to place.
+  const hit = resolveMotor({
+    designation: motor.designation,
+    manufacturer: motor.manufacturer,
+    diameter: motor.diameter,
+  });
   const matched: MotorDbEntry | null = hit?.quality === "exact" ? hit.entry : null;
   return {
     // The file's own figure wins where it has one; the catalog only fills a silence.

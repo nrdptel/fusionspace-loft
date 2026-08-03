@@ -57,7 +57,7 @@ disagree** — correctness, safety-claims and test-quality found different thing
 and a row click works (it did not "time out"). The `DataTable` conversion had fixed all three and
 nobody re-measured. Both records are corrected.
 
-## This run's five increments, and how each was verified
+## This run's six increments, and how each was verified
 
 | # | SHA | what | verified by |
 |---|---|---|---|
@@ -65,23 +65,34 @@ nobody re-measured. Both records are corrected.
 | 2 | `b295895` | P4 inc 4 — the touch ratchet reaches the selection-gated surface, and the motor sweep can apply the motor it recommends | both §8 counts over the gated surface; an e2e walking all three pad journeys, asserting the Use control is on screen at 390 px and that the swap is undoable |
 | 3 | `f55516c` | R8 inc 6 — a real commercial parachute can be chosen; landing speed spans 2.16–18.15 m/s across the catalogue | six cases in `edit.test.ts` incl. a negative control; an e2e driving the whole gesture and the clear path back |
 | 4 | `79a72a6` | P4 inc 5 — the diagram gets a full-height tap column per body part | e2e asserting 44 px height on every column, ≥40% reach, distinct selection, and that a fin set is still selectable — with a negative control |
-| 5 | `PENDING` | R8 inc 7 — a coupler and a centring ring can be authored, sized from the corpus rather than alike | 7 cases in `edit.test.ts` incl. two negative controls; corpus sweep over all 35 designs; e2e reading the Station column back |
+| 5 | `6cbaa5d` | R8 inc 7 — a coupler and a centring ring can be authored, sized from the corpus rather than alike | 7 cases in `edit.test.ts` incl. two negative controls; corpus sweep over all 35 designs; e2e reading the Station column back |
+| 6 | `PENDING` | **Sev-1** — a motor that does not fit the mount is refused instead of flown, and the refusal explains itself | catalogue-wide probe (2,271 withheld, 0 promoted); corpus no-regression over 105 stated casings; e2e on a new fixture asserting the copy |
 
-**Gate at the end:** lint 0 errors / 1 standing warning · **1029 unit across 53 files** · build ·
-corpus **35 design files / 23 tests / 0 findings**, census medians unmoved · e2e **108 + 108 = 216**,
+**Gate at the end:** lint 0 errors / 1 standing warning · **1040 unit across 55 files** · build ·
+corpus **35 design files / 24 tests / 0 findings**, census medians unmoved · e2e **109 + 108 = 217**,
 which is the suite's full count. `DESIGN.md` §9 unmoved: rounded-lg 0, card treatments 3 (recorded
 floor), off-scale spacing 0, off-scale type 0, inverted files 0, adoption 17/27.
 
-**Sev-1 count in `BACKLOG.md` at the end of the run: FIVE, all filed this run and none of them yet
-fixed.** Two cold walks of the built export found them and they are the top five entries in that
+**Sev-1 count in `BACKLOG.md` at the end of the run: FOUR open, one fixed.** Two cold walks of the built export found them and they are the top five entries in that
 file: the `.ork` export drops every launch condition and the motor configuration on a round trip
 (drift from pad 630 m → 0 m); an unmatched motor is substituted with one that does not FIT the mount
 and the whole flight is reported off it; a one-tap parachute pick can produce an unflagged 18 m/s
 descent on a page that DOES police thrust-to-weight and rail exit; the validation CSVs carry no units
 and the same filename holds metric or imperial; and an ordinary one-thumb scroll that starts on a
-diagram drag handle both scrolls AND drags. **Take these before the roadmap queue** — that is what
-`MAINTAINING.md` says a Sev-1 does, and the first of them is the cheapest: `exportOrk` already
-receives `doc.simulations` and simply never writes them.
+diagram drag handle both scrolls AND drags. The motor-fit one was taken this run and is closed.
+**Take the rest before the roadmap queue** — that is what `MAINTAINING.md` says a Sev-1 does, and the
+export one is the cheapest: `exportOrk` already receives `doc.simulations` and simply never writes
+them.
+
+**Two process lessons from this run, both of which cost real time:**
+
+- **A pre-push review agent left a mutation in the working tree.** One verifier patched
+  `lib/motors/db.ts` to `if (false && …)` for mutation testing and never restored it; it was caught
+  only because the next edit to that block failed to match. **Diff the tree after any review that is
+  told it may mutate**, or forbid in-tree mutation outright and require a scratch copy.
+- **Do not run the gate while review agents are running.** They create and delete probe test files
+  inside the repo, so `npm test` reported 55 files, then 54, then 53 across three runs of the same
+  commit. Every count taken during a review is unreliable. Run the gate after they finish.
 
 ## The one lesson this run would send back
 

@@ -153,15 +153,70 @@ function sameMaker(a: string, b: string): boolean {
   return a.startsWith(b) || b.startsWith(a);
 }
 
+/** Whether two casing diameters (mm) name the same physical motor class.
+ *
+ *  **Not equality, and the reason is in the bundled catalogue itself.** Its casings are 13, 18, 20,
+ *  24, 29, 38, 54, 75, 76 and 98 mm — and the 75 and the 76 are ONE class: 3 inches is 76.2 mm, so
+ *  seven motors are certified at the nominal 75 and two (M1882-LW, M2550-LB) at the measured 76. A
+ *  design stating either would have had the other withheld under rounded equality, which is a
+ *  legitimate flight refused — the exact failure a fit check must not introduce while fixing the
+ *  opposite one.
+ *
+ *  2% of the larger, floored at 1 mm, is the band that separates the real classes: it merges 75/76
+ *  (1 mm apart, 1.3%) and keeps 18 and 20 apart (2 mm, 11%) — those two really are different mounts,
+ *  Estes' and Quest's. Every other neighbouring pair in the catalogue is 5 mm or more apart.
+ *
+ *  **A band is not an equivalence relation and this one is not transitive**: a file stating 19 mm
+ *  matches both the 18 and the 20, which are not each other's. That is a property of any tolerance,
+ *  and it is left rather than engineered away because the alternative — snapping to nominal classes —
+ *  has to break the same tie arbitrarily, 19 being equidistant. No corpus file states 19; the
+ *  consequence if one did is that a loose match could reach either small class, which is a wider net
+ *  rather than a wrong flight. */
+export function sameCasing(aMm: number, bMm: number): boolean {
+  if (!(aMm > 0) || !(bMm > 0)) return true; // nothing stated on one side is nothing to disagree with
+  return Math.abs(aMm - bMm) <= Math.max(1, 0.02 * Math.max(aMm, bMm));
+}
+
 /** Resolve a design's motor reference to a database entry. Returns the best match and its
- *  quality; `quality === "none"` (with a null entry) means nothing matched. */
-export function resolveMotor(spec: Pick<MotorSpec, "manufacturer" | "designation">): MotorMatch | null {
+ *  quality; `quality === "none"` (with a null entry) means nothing matched.
+ *
+ *  **A SUBSTITUTE THAT DOES NOT FIT THE CASING IS NOT A SUBSTITUTE.** `spec.diameter` is the casing
+ *  the design file itself states, in metres, and where the file states one it VETOES any match Loft
+ *  had to reach for. `swapOptions` filters its list on the SAME `sameCasing` predicate, so a motor
+ *  Loft SUBSTITUTED is always one the sweep also offers. (A design's own EXACT motor is exempt from
+ *  the veto — see below — so in principle that one can sit outside the sweep's list, on a file whose
+ *  stated casing disagrees with the certification record. Measured: 0 of the 97 corpus instances that
+ *  match exactly and state a casing. Filed in `BACKLOG.md`.)
+ *
+ *  This was a wrong number on the surface a flyer reads for a go/no-go, found by a cold walk of the
+ *  built export. A design whose designation is `H999ZZ` on a 29 mm mount matched `H999N` — a **38 mm**
+ *  motor — at "designation" quality on a bare substring test, and the app then reported apogee
+ *  1,471 m, Mach 1.04, 161 g and thrust-to-weight 162:1 off a motor that cannot go in the tube. The
+ *  only cue was a small "· approx" in a chip. Loft already knew the mount was 29 mm: the sweep on the
+ *  same airframe says "15 bundled 29 mm motors" and does not list H999N.
+ *
+ *  **Exact matches are deliberately exempt.** A design that names its motor exactly has not asked
+ *  Loft to choose anything; if the file's stated casing then disagrees with the certification record
+ *  that is the file's own inconsistency, and dropping the design's own motor over it would withhold a
+ *  flight Loft can legitimately fly. The veto is only ever on a motor Loft picked.
+ *
+ *  Where the veto leaves nothing, the answer is null — and that path is already good: the app
+ *  withholds the flight and explains, rather than flying something plausible. A file that states no
+ *  casing at all (RockSim's `MotorDia` is the mount's bore, RASAero records the nozzle) is unchanged,
+ *  because there is nothing to check against. */
+export function resolveMotor(
+  // `diameter` is widened to optional rather than Pick'd: on `MotorSpec` it is required, but every
+  // caller that has no casing to offer — the RASAero adapter, and any test naming a motor by name —
+  // must be able to leave it out and get the pre-veto behaviour.
+  spec: Pick<MotorSpec, "manufacturer" | "designation"> & { diameter?: number },
+): MotorMatch | null {
   const motors = allMotors();
   if (motors.length === 0) return null;
 
   const qDesig = normalize(spec.designation);
   const qCore = coreDesignation(spec.designation);
   const qMfr = mfrKey(spec.manufacturer);
+  const qCasingMm = Math.round((spec.diameter ?? 0) * 1000);
 
   // A KNOWN, DISAGREEING manufacturer vetoes the match outright, at every quality. Bare
   // class-and-thrust names are not unique across makers once more than one maker is bundled —
@@ -190,6 +245,11 @@ export function resolveMotor(spec: Pick<MotorSpec, "manufacturer" | "designation
       if (entry.core === qCore) quality = "core";
       else continue;
     }
+
+    // The casing veto — see the header. Only ever applied to a motor Loft reached for; `sameCasing`
+    // returns true whenever either side is silent, so an uncatalogued casing and a file that states
+    // none both fall through unchanged.
+    if (quality !== "exact" && !sameCasing(qCasingMm, Math.round(entry.curve.diameterMm ?? 0))) continue;
 
     // Rank by designation quality first, then prefer an agreeing manufacturer.
     const score = rank(quality) * 10 + (mfrAgree ? 1 : 0);

@@ -347,7 +347,13 @@ function swapInfoFor(doc: OrkDocument, simIndex: number): SwapInfo | null {
   // write; see `designMotorIdentity` for what stands in and what deliberately does not.
   const { casingMm: diaMm, manufacturer: designManufacturer, resolves } = designMotorIdentity(motor);
   if (!(diaMm > 0)) return null;
-  return { designMotor: motor.designation, designManufacturer, designMotorFlies: resolves, options: swapOptions(diaMm) };
+  return {
+    designMotor: motor.designation,
+    designManufacturer,
+    designMotorFlies: resolves,
+    casingMm: diaMm,
+    options: swapOptions(diaMm),
+  };
 }
 
 /** Same-diameter bundled motors the design could fly, with the design's own motor as the default.
@@ -361,6 +367,11 @@ interface SwapInfo {
    *  all. The copy describing the offered list claims a casing "this design already flies", which is
    *  false on a design whose motor was never matched. */
   designMotorFlies: boolean;
+  /** The casing THIS DESIGN's mount takes, which is what the offered list must be labelled with.
+   *  Not `options[0]`: `swapOptions` merges the catalogue's 75 and 76 mm motors into one class (see
+   *  `sameCasing`), and the list is sorted by impulse, so the first row's own figure can name a
+   *  diameter the design does not have. */
+  casingMm: number;
   options: SwapOption[];
 }
 
@@ -1923,6 +1934,7 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
               motorSwap={edits.motorSwap}
               geometry={geometryOf(edits)}
               swapOptions={swapInfo?.options}
+              mountCasingMm={swapInfo?.casingMm}
               designMotor={swapInfo?.designMotor}
               designManufacturer={swapInfo?.designManufacturer}
               designMotorFlies={swapInfo?.designMotorFlies}

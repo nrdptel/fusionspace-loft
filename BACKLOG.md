@@ -30,7 +30,8 @@ big for one pass. Newest first.
   the Cross-check page ends up comparing Loft against itself at 0% error.
 
 - **A motor that does not resolve exactly is substituted with one that does not FIT the mount, and the
-  whole flight is reported off it. SEV-1.** Filed 2026-08-03 from a cold walk. An `.ork` whose
+  whole flight is reported off it. SEV-1 — FIXED 2026-08-03.** Filed and closed the same run, from a
+  cold walk. An `.ork` whose
   designation is `H999ZZ` on a 29 mm mount is matched to `H999N`, a **38 mm** motor, and the app
   reports apogee 1,471 m, Mach 1.04, 161 g, thrust-to-weight 162:1 with the only cue a small
   "· approx" in the chip. Loft knows the mount is 29 mm — the motor sweep on the same airframe says
@@ -39,6 +40,31 @@ big for one pass. Newest first.
   that looks fine. Knock-on: with the flying motor absent from the sweep's list, all 15 rows read
   "Use", none says "flying now", and no row carries the DESIGN badge, so there is nothing to anchor
   the comparison against.
+
+  **Fixed:** `resolveMotor` now takes the casing the design file itself states and vetoes any
+  NON-EXACT match whose casing disagrees; a design's own exact motor is never vetoed, because that is
+  not a substitution Loft chose. `swapOptions` filters on the same `sameCasing` predicate, so a motor
+  Loft substitutes is always one the sweep also offers. Measured: the veto is consulted on 6 of the
+  105 corpus motor instances that state a casing, and changes 0 of them; over the whole catalogue
+  perturbed three ways at eight casings it withheld 2,271 times and promoted a different motor 0
+  times. The refusal also had to be EXPLAINED rather than reported as "not found" — the motor was
+  found — so `MotorResolution.vetoedFit` carries the near-miss and both diameters onto the notice,
+  the chip ("· wrong casing") and the aria-label. **Two things still open, both filed below:** the
+  exact-match exemption, and the sweep's behaviour when the flying motor is a substitute.
+
+- **A design whose file states a casing that disagrees with its own motor's certification record
+  flies it with no cue at all.** Filed 2026-08-03 from the pre-push review of the casing veto. The
+  veto deliberately exempts an EXACT designation match: a design that names its motor exactly has not
+  asked Loft to choose anything, and withholding the flight over a file inconsistency would be a
+  regression. So the disagreement is simply not surfaced. Measured: **0 of the 97 corpus instances
+  that match exactly and state a casing** disagree, so this is theoretical rather than observed — but
+  it is also the one route by which the flown motor can sit outside the sweep's own list. The right
+  shape is probably a `doc.warnings` line naming both figures, not a refusal.
+
+- **`sameCasing`'s tolerance band is not transitive: a stated 19 mm matches both the 18 and the 20 mm
+  classes, which do not match each other.** Filed 2026-08-03 from the same review. Inherent to any
+  tolerance, and the alternative — snapping to nominal classes — has to break the 19 tie arbitrarily.
+  No corpus file states 19. Consequence if one did is a wider net, not a wrong flight.
 
 - **A one-tap parachute pick can produce an unflagged lawn dart, on a page that DOES police the other
   launch-safety numbers. SEV-1.** Filed 2026-08-03 from a cold walk, against the control shipped in

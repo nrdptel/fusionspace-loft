@@ -28,6 +28,7 @@ import { describe, it, expect } from "vitest";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { importDesign } from "../ork/import";
+import { resolveMotor, sameCasing } from "../motors/db";
 import { runFlight, runFromDocument, overridesFromStored } from "../sim/run";
 import { monteCarlo, summarizeSamples } from "../sim/montecarlo";
 import {
@@ -664,6 +665,63 @@ suite("real-design corpus", () => {
     expect(disagreeing.length, "no real design carries mounts with different counts").toBeGreaterThan(0);
     expect(rewritten, "a mount the field never described was rewritten by it").toEqual([]);
   });
+
+  it("costs no real design its motor, and finds none that was already flying a misfit", async () => {
+    // **This is a NO-REGRESSION check and it is named as one**, because it cannot honestly be more
+    // than that. A first version was called "never substitutes a motor that could not fit" and
+    // asserted `lost`/`misfit` empty — which they are whether the veto exists or not, as the pre-push
+    // review proved by deleting it and watching this stay green.
+    //
+    // The bite cannot be driven from the corpus, and the measurement says why: **0 of the catalogue's
+    // 102 designation cores span more than one casing class**, so a loose match can only ever land on
+    // the size its own family is made in. The reported defect needed a FILE whose stated casing
+    // disagreed with the motor its designation nearly names — 29 mm stated, `H999ZZ` reaching the
+    // 38 mm `H999N` — and no corpus design does that. Manufacturing one here would be a test of a
+    // string I chose. `lib/motors/db.test.ts` pins the bite on the real reported case instead.
+    //
+    // What this DOES establish is the thing that check cannot: that arming the veto changes no real
+    // flight, over every motor instance in 35 in-the-wild files.
+    let stated = 0;
+    let silent = 0;
+    let loose = 0;
+    const lost: string[] = [];
+    const misfit: string[] = [];
+    for (const f of files) {
+      const doc = await importDesign(new Uint8Array(readFileSync(f.path)));
+      for (const cfg of doc.rocket.configurations) {
+        for (const inst of cfg.instances) {
+          const m = inst.motor;
+          if (!m.designation) continue;
+          const casing = Math.round((m.diameter ?? 0) * 1000);
+          if (casing > 0) stated++; else silent++;
+          const name = `${shortName(f.name)}/${m.designation}`;
+          const withFit = resolveMotor(m);
+          const ignoringFit = resolveMotor({ designation: m.designation, manufacturer: m.manufacturer });
+          // Where the veto is even CONSULTED: an exact match is exempt, so this is the honest reach
+          // figure rather than the count of files that state a casing at all.
+          if (ignoringFit && ignoringFit.quality !== "exact" && casing > 0) loose++;
+          // Nothing a real file describes may be lost.
+          if (ignoringFit && !withFit) {
+            lost.push(`${name}: ${casing} mm stated, ${Math.round(ignoringFit.entry.curve.diameterMm)} mm matched`);
+          }
+          // Computed from the PRE-veto resolution. Asking the post-veto one is a tautology — the veto
+          // is precisely what makes that answer impossible — which is what the first version did.
+          if (ignoringFit && casing > 0 && ignoringFit.quality !== "exact") {
+            const got = Math.round(ignoringFit.entry.curve.diameterMm);
+            if (got > 0 && !sameCasing(got, casing)) misfit.push(`${name}: would fly ${got} mm in ${casing} mm`);
+          }
+        }
+      }
+    }
+    console.log(
+      `motor instances across ${files.length} design files: ${stated} state a casing, ${silent} do not ` +
+        `(RockSim states the mount's bore, RASAero the nozzle); ${loose} resolve loosely enough for the ` +
+        `veto to be consulted at all, and ${misfit.length} of those disagree on casing`,
+    );
+    expect(stated, "no corpus file states a casing — nothing here would be exercised").toBeGreaterThan(10);
+    expect(lost, "the casing veto dropped a motor a real design was flying").toEqual([]);
+    expect(misfit, "a real design was already flying a motor that does not fit its own stated casing").toEqual([]);
+  }, 300_000);
 
   it("says so on every real design that loses a motor, clustered or not", async () => {
     // A motor that does not resolve is left OUT of the build (`lib/sim/setup.ts` skips it), so the

@@ -1004,6 +1004,47 @@ test.describe("Loft", () => {
     await expect(page.getByRole("term").filter({ hasText: /^Apogee$/ })).toBeVisible();
   });
 
+  test("a motor that does not fit the mount is refused, and the page says WHY", async ({ page }) => {
+    // The flyer-visible half of the casing veto. `wrong-casing-motor.ork` is the unresolved fixture
+    // with ONE byte-level change — designation `H999ZZ` on the same 29 mm mount — because that name
+    // nearly reaches the bundled `H999N`, which is a 38 mm motor. Before the veto Loft flew it and
+    // reported apogee 1,471 m, Mach 1.04 and thrust-to-weight 162:1 off a motor that cannot be
+    // loaded, with a small "· approx" as the only cue.
+    await page.goto("/");
+    await page
+      .getByLabel(/^Choose an OpenRocket/)
+      .setInputFiles(resolve(process.cwd(), "e2e/fixtures/wrong-casing-motor.ork"));
+
+    const notice = page.getByRole("region", { name: "No flight simulated" });
+    await expect(notice).toBeVisible({ timeout: 15000 });
+    // **Withheld, not flown.** The strip has no apogee at all.
+    await expect(page.getByRole("term").filter({ hasText: /^Apogee$/ })).toBeHidden();
+
+    // **And the reason is the true one.** "not found" would send a flyer hunting for a curve that is
+    // already in the set; the sentence has to name the near-miss and both diameters.
+    const line = notice.locator("li").filter({ hasText: /H999ZZ/ });
+    await expect(line).toHaveCount(1);
+    await expect(line).toContainText(/H999N is the closest bundled name/);
+    await expect(line).toContainText(/38 mm motor/);
+    await expect(line).toContainText(/29 mm casing/);
+    // The bare "not found" must NOT be what this design gets.
+    await expect(line).not.toContainText(/not found/);
+    // And the substitute paragraph names the MOUNT's casing, not the first offered motor's — the
+    // list `swapOptions` returns merges the catalogue's 75 and 76 mm motors, so `options[0]` is not
+    // a safe label anywhere.
+    await expect(notice.getByText(/Fly it with a substitute/)).toBeVisible();
+    await expect(notice.locator("p").filter({ hasText: /Fly it with a substitute/ })).toContainText(/29 mm casing/);
+    // The headline sentence is qualified too — the curve exists, it is the wrong size.
+    await expect(notice.getByText(/that fits this mount/)).toBeVisible();
+
+    // The recovery path still works: a real 29 mm motor flies the design.
+    const swap = page.getByRole("combobox", { name: "Swap motor" });
+    await expect(swap).toBeVisible();
+    await swap.selectOption({ index: 1 });
+    await expect(page.getByRole("heading", { name: "No flight simulated" })).toBeHidden();
+    await expect(page.getByRole("term").filter({ hasText: /^Apogee$/ })).toBeVisible();
+  });
+
   test("a design that can't fly still gets the whole navigation spine", async ({ page }) => {
     await page.goto("/");
     // A design whose motor isn't bundled used to lose the workspace tabs entirely, and with them the
