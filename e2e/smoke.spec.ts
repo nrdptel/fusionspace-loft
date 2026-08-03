@@ -413,6 +413,44 @@ test.describe("Loft", () => {
     await expect(drift, "the launch setup was reset to Loft's defaults on re-import").toHaveText(before);
   });
 
+  test("a canopy too small for the rocket gets a landing caution, and it escalates", async ({ page }) => {
+    // **This exists because a cold walk reported the opposite and the ledger nearly took it.** The
+    // claim was that fitting a small catalogue parachute produced an unflagged 18 m/s descent while
+    // the same page cautions on thrust-to-weight and rail exit. Re-measured, the solver DOES raise
+    // `hard-landing` — at 7.6 m/s firm and 10.7 m/s hard, the same thresholds the booster check uses.
+    //
+    // What was actually missing is this: nothing end-to-end asserted the caution reaches the page, so
+    // a regression that stopped rendering it would have been invisible to the gate, and a walker had
+    // no pinned behaviour to check against.
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    // `getByLabel("Results")` matches TWO regions on this route, so it is not a scope — the caution
+    // list lives in the main column and that is what is read.
+    const main = page.locator("main");
+    // As designed it lands at 6.96 m/s, under the firm threshold — so nothing is said, and that
+    // silence is asserted first. Without it the checks below could pass on a page that always warns.
+    await expect(main.getByText(/firm landing|hard landing/i)).toHaveCount(0);
+
+    await page.getByRole("link", { name: "Design" }).click();
+    // The field sits far down the editor, so it is off-screen at rest — `fill` scrolls to it, but a
+    // `toBeVisible` gate here would fail on a field that is perfectly reachable.
+    const chute = page.locator("label").filter({ hasText: /^Main chute/ }).first().locator("input");
+
+    // 457.2 mm lands at 9.20 m/s — over the firm threshold, under the hard one.
+    await chute.fill("457.2", { timeout: 15000 });
+    await page.getByRole("link", { name: "Flight" }).click();
+    await expect(main.getByText(/firm landing/i)).toBeVisible({ timeout: 20000 });
+    await expect(main.getByText(/hard landing/i)).toHaveCount(0);
+
+    // 228.6 mm lands at 18.14 m/s — the walk's own figure, and it escalates to a hard landing.
+    await page.getByRole("link", { name: "Design" }).click();
+    await chute.fill("228.6", { timeout: 15000 });
+    await page.getByRole("link", { name: "Flight" }).click();
+    await expect(main.getByText(/hard landing/i)).toBeVisible({ timeout: 20000 });
+    await expect(main.getByText(/18\.1 m\/s/)).toBeVisible();
+  });
+
   test("clearing a what-if brings the stored-tool comparison back", async ({ page }) => {
     // A what-if means Loft is no longer flying the design the file describes, so the stored-results
     // comparison is withheld. Clearing it again must restore it — the edit fields are the surface

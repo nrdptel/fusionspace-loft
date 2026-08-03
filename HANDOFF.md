@@ -57,7 +57,7 @@ disagree** — correctness, safety-claims and test-quality found different thing
 and a row click works (it did not "time out"). The `DataTable` conversion had fixed all three and
 nobody re-measured. Both records are corrected.
 
-## This run's seven increments, and how each was verified
+## This run's eight increments, and how each was verified
 
 | # | SHA | what | verified by |
 |---|---|---|---|
@@ -67,14 +67,15 @@ nobody re-measured. Both records are corrected.
 | 4 | `79a72a6` | P4 inc 5 — the diagram gets a full-height tap column per body part | e2e asserting 44 px height on every column, ≥40% reach, distinct selection, and that a fin set is still selectable — with a negative control |
 | 5 | `6cbaa5d` | R8 inc 7 — a coupler and a centring ring can be authored, sized from the corpus rather than alike | 7 cases in `edit.test.ts` incl. two negative controls; corpus sweep over all 35 designs; e2e reading the Station column back |
 | 6 | `36d811d` | **Sev-1** — a motor that does not fit the mount is refused instead of flown, and the refusal explains itself | catalogue-wide probe (2,271 withheld, 0 promoted); corpus no-regression over 105 stated casings; e2e on a new fixture asserting the copy |
-| 7 | `PENDING` | **Sev-1** — the `.ork` export carries the launch setup, so a downloaded design reopens on its own conditions | 3 cases in `export.test.ts`; e2e reading drift off the page, with a negative control that reads `0m` |
+| 7 | `0bc50ea` | **Sev-1** — the `.ork` export carries the launch setup, so a downloaded design reopens on its own conditions | 3 cases in `export.test.ts`; e2e reading drift off the page, with a negative control that reads `0m` |
+| 8 | `PENDING` | A reported Sev-1 re-measured and REFUTED, and the test gap under it closed | e2e pinning the landing caution at both thresholds and the silence below them |
 
 **Gate at the end:** lint 0 errors / 1 standing warning · **1043 unit across 55 files** · build ·
-corpus **35 design files / 24 tests / 0 findings**, census medians unmoved · e2e **109 + 109 = 218**,
+corpus **35 design files / 24 tests / 0 findings**, census medians unmoved · e2e **110 + 109 = 219**,
 which is the suite's full count. `DESIGN.md` §9 unmoved: rounded-lg 0, card treatments 3 (recorded
 floor), off-scale spacing 0, off-scale type 0, inverted files 0, adoption 17/27.
 
-**Sev-1 count in `BACKLOG.md` at the end of the run: THREE open, two fixed.** Two cold walks of the built export found them and they are the top five entries in that
+**Sev-1 count in `BACKLOG.md` at the end of the run: TWO open, two fixed, one refuted.** Two cold walks of the built export found them and they are the top five entries in that
 file: the `.ork` export drops every launch condition and the motor configuration on a round trip
 (drift from pad 630 m → 0 m); an unmatched motor is substituted with one that does not FIT the mount
 and the whole flight is reported off it; a one-tap parachute pick can produce an unflagged 18 m/s
@@ -85,7 +86,19 @@ and are closed. **Take the rest before the roadmap queue** — that is what `MAI
 Sev-1 does. The parachute one is the cheapest of the three left: `/flight` already writes a caution
 for thrust-to-weight and for rail exit, so recovery is the one side of the same panel with no rule.
 
-**Two process lessons from this run, both of which cost real time:**
+**Three process lessons from this run, all of which cost real time:**
+
+- **A cold walk is a bug-FINDER, not an oracle — re-measure every finding before it becomes work.**
+  Of the eleven this run's two walks produced, one was flatly wrong and it was filed as a Sev-1: "a
+  one-tap parachute pick produces an UNFLAGGED lawn dart … the Flight page carries zero cautions".
+  The solver has raised `hard-landing` above 7.6 m/s since long before the parachute picker, and the
+  page renders it — driven in a browser it reads "descends at about 18.1 m/s … a hard landing that
+  can damage the airframe", at the walk's own figure. Re-measuring took twenty minutes; taking it at
+  face value would have been an increment spent "fixing" working behaviour. The entry in
+  `BACKLOG.md` is corrected in place rather than deleted, with the five-size measurement, because a
+  ledger that quietly loses a false Sev-1 teaches nothing. **What was real underneath it: no e2e
+  asserted the caution reaches the page at all** — that is now pinned, including the silence below
+  the threshold.
 
 - **A pre-push review agent left a mutation in the working tree.** One verifier patched
   `lib/motors/db.ts` to `if (false && …)` for mutation testing and never restored it; it was caught

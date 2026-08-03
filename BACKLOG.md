@@ -78,13 +78,30 @@ big for one pass. Newest first.
   tolerance, and the alternative — snapping to nominal classes — has to break the 19 tie arbitrarily.
   No corpus file states 19. Consequence if one did is a wider net, not a wrong flight.
 
-- **A one-tap parachute pick can produce an unflagged lawn dart, on a page that DOES police the other
-  launch-safety numbers. SEV-1.** Filed 2026-08-03 from a cold walk, against the control shipped in
-  R8 increment 6. Fitting PAR-9TM (228.6 mm) to the 0.78 kg H-powered sample takes descent rate
+- **"A one-tap parachute pick produces an UNFLAGGED lawn dart" — NOT REPRODUCED, and the ledger is
+  corrected rather than left carrying a false Sev-1.** Filed 2026-08-03 from a cold walk against the
+  control shipped in R8 increment 6, and re-measured the same day before acting on it. Fitting PAR-9TM (228.6 mm) to the 0.78 kg H-powered sample takes descent rate
   7 → 18 m/s and landing energy 17 → 113 J with zero cautions on `/flight` — no marker, no prose —
   while the same page says "below the 5:1 minimum commonly taught for high-power rockets" for
   thrust-to-weight and "below the ~50 ft/s (15 m/s) guideline for stable rail departure" for rail
-  exit. Recovery is the one side not policed, on the very control that makes it one tap to get wrong.
+  exit.
+
+  **The measurement says otherwise.** Driving `demo-single-deploy.ork` through the solver at five
+  canopy sizes: 610.0 mm gives 6.96 m/s and no landing warning; 457.2 mm gives 9.20 m/s and
+  `hard-landing` at severity *caution*; 300.0 mm gives 13.90 m/s, 228.6 mm gives **18.14 m/s and
+  112.7 J** and 150.0 mm gives 27.33 m/s, all at severity *warning*. Those are the walk's own two
+  figures to the decimal, and the engine raises `hard-landing` on both — the rule is
+  `groundHitVelocity > 7.6 m/s`, firm, and `> 10.7`, hard, the same thresholds the booster check uses.
+  `components/ResultsView.tsx` renders `r.warnings` unconditionally whenever the list is non-empty.
+  So recovery IS policed, by a rule that predates the parachute picker.
+
+  **What survives is a test gap, and it is why the claim was believable:** grepping `e2e/` for
+  "hard landing" or "firm landing" returns nothing. No end-to-end case asserts that a hard-landing
+  caution reaches the page, so a regression that stopped rendering it would be invisible to the gate —
+  and a walker looking for it has no pinned behaviour to check against. That is worth closing.
+
+  The general lesson is filed in `HANDOFF.md`: a cold walk is a bug-FINDER, not an oracle. Every
+  finding it produces is a hypothesis to re-measure before it becomes work.
 
 - **The validation CSV exports carry no units, and the same filename and header hold metric or
   imperial depending on a toggle elsewhere. SEV-1.** Filed 2026-08-03 from a cold walk. `/validate`'s
