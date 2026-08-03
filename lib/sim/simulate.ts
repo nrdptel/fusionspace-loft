@@ -34,6 +34,7 @@ import {
 } from "./mass";
 import { thrustAt, motorMassAt, type MotorCurve } from "../motors/eng";
 import { G0 } from "../units";
+import { DESCENT_BODY_CDA_FACTOR } from "./recovery";
 import { vec, type Vec3, add, scale, mag } from "./vector";
 
 /** A motor loaded into the design, resolved to a real curve and placed on the axis. */
@@ -609,7 +610,11 @@ export function simulate(input: SimulateInput): FlightResult {
       let cdA: number;
       if (anyDeployed(recovery, s.t)) {
         // An open canopy drags whenever it is open — including a too-early (pre-apogee) deploy.
-        cdA = deployedCdA(recovery, s.t) + g.refArea * 0.5; // chutes + a little body
+        // The canopy plus the airframe's own descent drag. The body term is imported rather than
+        // typed: it is the SAME physical quantity `recoverySizing` solves against, so a literal here
+        // meant a canopy could be sized to hit a target descent rate that the flight it was sized
+        // for would then not reproduce.
+        cdA = deployedCdA(recovery, s.t) + g.refArea * DESCENT_BODY_CDA_FACTOR; // chutes + a little body
       } else {
         const dr = dragCoefficient(g, atm, airSpeed);
         if (dr.extrapolated) extrapolated = true;
@@ -651,7 +656,7 @@ export function simulate(input: SimulateInput): FlightResult {
     const rho = conditions.atmosphere.sample(conditions.launchAltitude + s.pos.z).density;
     const wind = windAt(s.pos.z);
     const airSpeed = Math.hypot(s.vel.x - wind.x, s.vel.y - wind.y, s.vel.z - wind.z);
-    const cdA = deployedCdA(recovery, s.t) + geomAt(s.t).refArea * 0.5;
+    const cdA = deployedCdA(recovery, s.t) + geomAt(s.t).refArea * DESCENT_BODY_CDA_FACTOR;
     const rate = (rho * cdA * airSpeed) / mass; // linearised drag response rate λ (1/s)
     if (!(rate > 0)) return nominal;
     return Math.min(nominal, Math.max(DESCENT_STEP_MIN, DESCENT_STABILITY / rate));

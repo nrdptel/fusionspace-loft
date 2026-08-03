@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { TOUCH_TARGET } from "@/lib/ui-tokens";
-import { REPO_URL, SIBLING_TOOLS, THRUSTCURVE_URL, OPENROCKET_URL } from "@/lib/links";
+import { REPO_URL, SIBLING_TOOLS, THRUSTCURVE_URL, OPENROCKET_URL, NEW_ISSUE_URL } from "@/lib/links";
+import { VERSION, RELEASED } from "@/lib/version";
 import { observancesForDate } from "@/lib/observances";
 
 function Dot() {
@@ -50,6 +51,57 @@ export default function Footer() {
           <Link href="/docs" className={`inline-flex items-center hover:text-zinc-800 dark:hover:text-zinc-200 ${TOUCH_TARGET}`}>
             Docs
           </Link>
+          <Dot />
+          {/* **The version a flyer is actually running, on every route.** P5's *done when* asks for a
+              versioned release they can see, and a tool that shows no version cannot be told apart
+              from a stale cached copy of itself — which matters more here than in most apps, because
+              this one is installable and serves from a service worker. It sits in the nav row rather
+              than in the disclaimer paragraph because it is a control: it goes to the changelog.
+
+              `VERSION` is generated from `CHANGELOG.md` and checked against `package.json` at build
+              time (`scripts/gen-version.mjs`), so this string cannot disagree with the release that
+              describes it. The date is the accessible name rather than more visible text — the
+              chrome height ratchet is 49 px from its cap and a second visible token here spends it
+              on all six routes at once.
+
+              An in-app route rather than the file on GitHub: the changelog is something a flyer
+              reads about the tool they are holding, and sending them off-site to read it is the same
+              shape as the bug-report link that only existed on the docs pages. `/docs/changelog`
+              renders from the same generated module this version string comes from. */}
+          <Link
+            href="/docs/changelog"
+            aria-label={`Version ${VERSION}, released ${RELEASED} — see what changed`}
+            className={`inline-flex items-center font-medium tabular-nums hover:text-zinc-800 dark:hover:text-zinc-200 ${TOUCH_TARGET}`}
+          >
+            v{VERSION}
+          </Link>
+          <Dot />
+          {/* **P5: a way to report a bug or ask for a format, from inside the app.** It existed only
+              on three docs pages and the docs hub, so a flyer whose import went wrong on `/flight`
+              had to find the documentation before they could say so — and the GitHub link beside
+              this one goes to the repository root, where "open an issue" is three clicks and a
+              scroll. This is the same row, on every route, aimed at the form itself.
+
+              The accessible name says both jobs, because "Report a bug" would hide the one a flyer
+              is most likely to want and least likely to guess is welcome: asking for a format Loft
+              cannot read yet. Ingestion breadth is a North Star, and requests are how the queue
+              gets its evidence.
+
+              **The wording avoids every word on the navigation spine, and that is a constraint
+              rather than a style choice.** The first version said "request a DESIGN format", and
+              `getByRole("link", { name: "Design" })` matches accessible names by substring — so one
+              footer link made the Design tab ambiguous on all six routes and took 100+ e2e cases
+              down with a strict-mode violation. An accessible name is a selector as much as a
+              sentence; a new one in shared chrome has to be checked against the nav's own. */}
+          <a
+            href={NEW_ISSUE_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Report a bug, or ask for a rocket file format Loft cannot read yet (opens in a new tab)"
+            className={`inline-flex items-center hover:text-zinc-800 dark:hover:text-zinc-200 ${TOUCH_TARGET}`}
+          >
+            Report a bug
+          </a>
           {SIBLING_TOOLS.map((t) => (
             <span key={t.href} className="inline-flex items-center gap-4">
               <Dot />

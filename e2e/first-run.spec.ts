@@ -168,4 +168,49 @@ test.describe("a stranger's first five minutes", () => {
       "the import said nothing about how the file was read",
     ).toBeVisible();
   });
+
+  test("says the three things it does that no other tool does, before a stranger has to find them", async ({
+    page,
+  }) => {
+    // **P5: the landing surface states `COMPETITION.md`'s standing conclusion.** That file has said
+    // for several runs that the three differentiators are "what the landing surface and the README
+    // should say, and right now they do not". Measured before this shipped: the page stated the
+    // formats and "never uploaded" — claim 2 and half of claim 1 — and said nothing at all about the
+    // multi-answer cross-check, which is the one no other hobby tool offers at all.
+    //
+    // Asserted as three CLAIMS rather than three strings, so a rewrite that keeps the meaning passes
+    // and a deletion fails. Each regex names the load-bearing idea, not the sentence.
+    await coldLoad(page);
+    const why = page.getByRole("heading", { name: "Why Loft" });
+    await expect(why, "the landing surface makes no case for itself").toBeVisible();
+
+    const claims: [string, RegExp][] = [
+      ["free / no install / offline", /Nothing to install, nothing to pay, nothing to sign up for/],
+      ["reads the file you already have", /reads the file you already have/i],
+      ["more than one answer", /shows you more than one answer/i],
+    ];
+    for (const [what, mark] of claims) {
+      await expect(page.getByText(mark).first(), `the landing surface never claims: ${what}`).toBeVisible();
+    }
+
+    // The substance behind each headline, because a heading with nothing under it is a slogan. The
+    // offline claim and the disagreement claim are the two a sceptic would test.
+    await expect(page.getByText(/keeps working with no signal/i).first()).toBeVisible();
+    await expect(page.getByText(/Where they disagree it says so/i).first()).toBeVisible();
+    // And the format list has to be the one Loft actually reads — five, not the three the drop zone
+    // names, because RocketPy and SpaceCAD import too and a stranger comparing tools counts them.
+    for (const fmt of [".ork", ".rkt", ".CDX1", "RocketPy", "SpaceCAD"]) {
+      await expect(
+        page.getByRole("definition").filter({ hasText: /OpenRocket/ }).first(),
+        `the format claim omits ${fmt}`,
+      ).toContainText(fmt);
+    }
+
+    // It must not cost the fold. The primary control a flyer with no file needs stays reachable
+    // without hunting: this block sits after the examples deliberately, so the examples must still
+    // come first in the document.
+    const exampleY = await page.getByRole("button", { name: /38 mm single-deploy/ }).first().evaluate((e) => e.getBoundingClientRect().top + window.scrollY);
+    const whyY = await why.evaluate((e) => e.getBoundingClientRect().top + window.scrollY);
+    expect(whyY, "the Why Loft block was pushed above the bundled examples").toBeGreaterThan(exampleY);
+  });
 });

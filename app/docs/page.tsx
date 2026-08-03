@@ -42,7 +42,9 @@ export default function DocsOverview() {
         </li>
       </ul>
       <p>
-        There is also a plain <Link href="/docs/faq">FAQ</Link> for the common questions.
+        There is also a plain <Link href="/docs/faq">FAQ</Link> for the common questions, and a{" "}
+        <Link href="/docs/changelog">changelog</Link> — what changed, release by release, matching the
+        version in the footer of every page.
       </p>
 
       <h2>Safety posture</h2>

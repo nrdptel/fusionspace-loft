@@ -1944,6 +1944,185 @@ same internal Rocket model an imported one does, or the solver ends up with two 
 
 ---
 
+## R9 — The descent Loft cannot defend, and the flyer cannot reach
+
+**Status: IN PROGRESS** — increments 1, 2 and 3 shipped 2026-08-03, along with the decomposition.
+**Increment 3 disproved the milestone's own premise and the remaining increments are re-aimed** —
+read its entry before building 4 onward, and note the *done when* is amended there.
+
+*Increments 1 and 2 — SHIPPED. Six figures the descent is computed from, in one place each, saying
+what backs them. No flown number moved, and that was the contract.*
+
+**The airframe's descent drag existed as three numbers, one of which claimed to be the source of the
+other two.** `lib/sim/recovery.ts` exported `DESCENT_BODY_CDA_FACTOR` with a comment saying it
+"matches the descent model in simulate.ts" — and `simulate.ts` typed the bare literal twice, at the
+drag term and at the descent step-size limiter. Nothing enforced the match, so changing the constant
+would have re-sized every canopy while leaving every flown descent alone and no test could have seen
+the disagreement. `simulate.ts` imports it now, and the constant says in a value
+(`DESCENT_BODY_CDA_SOURCE`) as well as in prose that it has no published source.
+
+**Five uncited literals across three adapters are now one documented set.** `lib/sim/recovery-defaults.ts`
+holds each fallback with its provenance, its basis in a sentence, and **how often it actually fires
+across the corpus** — because a default that fires on nothing is not a lever, and knowing which is
+which is what stops the next session "fixing" the wrong one.
+
+| fallback | value | source | corpus hits |
+|---|---|---|---|
+| `.ork` canopy | 0.8 | **OpenRocket's own `auto` default** (`Parachute.java`) | **17** of 24 |
+| `.ork` streamer | 0.75 | none verified | 0 |
+| `.rkt` canopy | 0.8 | none — RockSim exposes no Cd field at all | 0 |
+| `.rkt` streamer | 0.75 | none | 0 |
+| RASAero canopy | 0.8 | none — **their own documented default is 1.33** | 0 |
+
+**Two things this increment refused to do, and both refusals are the point.**
+
+- **It did not move the RASAero default to 1.33**, even though RASAero II documents that figure with a
+  stated basis and Loft falls back to 0.8. Every RASAero recovery device in the corpus states its own
+  `CD`, so the fallback is reached by **zero** real files: the change would move no flown number and
+  could be validated against nothing, which is exactly the speculative fix `MAINTAINING.md` forbids.
+  It is recorded in the constant's own comment so it is not rediscovered and re-shelved every session.
+- **It withdrew a citation it could not back.** The first draft gave the `.ork` streamer default a
+  source of "OpenRocket's own streamer default (`Streamer.java`)" — invented by symmetry with the
+  canopy line above it. The canopy's claim rests on an actual reading recorded in `COMPETITION.md`
+  row 35; nothing in this repository records reading `Streamer.java`. A source string is a claim, and
+  the test now asserts exactly one of the five is sourced.
+
+**Verified to have changed nothing that flies:** the corpus census is identical before and after —
+`groundHitVelocity n=94 8.3%`, `maxAltitude n=97 3.1%`, all ten metrics unmoved.
+
+Pinned by `lib/sim/recovery-defaults.test.ts` (four cases: both descent `cdA` expressions go through
+the constant, asserted on the SHAPE so the literal this forbids cannot come back; every fallback has a
+source or says "no published basis" in words; no adapter types a recovery Cd by hand; and each
+fallback carries its corpus hit count, with the RASAero discrepancy asserted to still be written
+down). Published on `/docs/limitations`.
+
+*Increment 3 — SHIPPED, and it does NOT support this milestone's own premise. Read this before
+building increments 4–6 as written.*
+
+The milestone was scoped on the hypothesis that the parachute drag coefficient is the lever on the
+8.3%. **The measurement says it is not.** Every recovery device now records whether its coefficient
+came from the file or from a Loft fallback (`Parachute.cdFrom`), which is what makes the split
+possible at all — a canopy imported at 0.8 and one that fell back to 0.8 are indistinguishable by
+value:
+
+```
+ground-hit velocity, attributed (R9 increment 3):
+all                    n= 92  |Δ|   8.3%  signed   -8.2%  86/92 descend SLOWER than stored
+Cd from the file       n= 52  |Δ|   8.3%  signed   -5.7%  46/52 descend SLOWER than stored
+Cd from a fallback     n= 40  |Δ|   8.3%  signed   -8.3%  40/40 descend SLOWER than stored
+openrocket             n= 76  |Δ|   7.8%  signed   -7.8%  74/76 descend SLOWER than stored
+rocksim                n= 16  |Δ|  25.7%  signed  -14.9%  12/16 descend SLOWER than stored
+```
+
+**Three things fall out of that, and the first two kill the original plan.**
+
+1. **The coefficient's provenance does not discriminate at all.** Designs flown on their own designer's
+   figure and designs flown on a Loft fallback have the *same* median absolute error, to a tenth of a
+   percent. Whatever is wrong is wrong for both, so changing a fallback cannot fix it. Increments 4–6
+   as written — put the Cd on screen, make it editable, re-measure the census — would have shipped a
+   real capability and moved the census by approximately nothing, and the re-measure at the end is
+   where anyone would have found that out.
+2. **The error is one-directional, which a wrong coefficient would not be.** 86 of 92 flights descend
+   SLOWER than the file's stored figure, and **40 of 40** in the fallback group. A coefficient that is
+   merely wrong scatters; a systematic one-sided offset points at the descent MODEL, at a definitional
+   difference in what "ground-hit velocity" means between the tools, or at both.
+3. **The tool discriminates where the coefficient does not.** RockSim files are **3.3x worse** than
+   OpenRocket files — 25.7% against 7.8% — and the five worst cases in the corpus are all `.rkt`, four
+   of them the same design at ~65%. That is the lever, and it is an adapter or a definitional question
+   rather than a physics one.
+
+**So R9's remaining increments are re-aimed, and the *done when* is amended below.** The Cd work is
+still worth shipping — a flyer cannot see or change the one input in the recovery chain, which is a
+real gap and `COMPETITION.md` row 35 — but it is now a **capability and honesty** increment rather
+than an accuracy one, and this file should stop implying it will move the census. What follows it is
+the RockSim split.
+
+**Amended *done when*:** a canopy's Cd is readable and editable on `/design` for imported and authored
+chutes alike, with its origin named (file value · catalogue part · Loft's default) and the default's
+basis cited — **and** the `.rkt` ground-hit disagreement is attributed to a named cause and either
+fixed or written down as a `knownIssue` with the measurement. The census figure is re-measured and
+published whatever it turns out to be, **including if it does not move** — a milestone that improves
+honesty and not accuracy is a real outcome and must not be dressed as the other one.
+
+**Remaining increments, re-ordered:** (4) put the coefficient on screen read-only with its provenance;
+(5) make it editable and let the edit flow through a re-fly and the `.ork` round trip R6 pinned;
+(6) attribute the RockSim 25.7% — one design contributes four of the five worst cases, so start by
+reading what `FullScaleModelTH.rkt` stores and what Loft flies for it; (7) re-measure and publish.
+
+Pinned by the corpus case *says where the ground-hit-velocity error actually lives*, which prints the
+split and asserts the measurement was actually taken — both groups have to be non-trivially populated
+or the split cannot discriminate and the test says so rather than printing three tidy `n=0` lines.
+
+**Outcome.** The descent half of every flight becomes a number Loft can stand behind and a flyer can
+steer. The parachute drag coefficient becomes visible, sourced and editable wherever it is flown; the
+airframe's own descent drag stops being an undocumented `0.5` typed into two files; and the worst
+figure in the accuracy census stops being the one nobody can reach.
+
+**Why this and not the after-list's R9.** The after-list names "the multi-solver cross-check as a
+first-class view" next — but P2 already shipped `/validate` as a real route rendering
+`ValidationPanel`, `DragCrossCheck` and `RocketpyCrossCheck`, so a whole milestone for it overstates
+what is left. Meanwhile the corpus points at a gap nobody has queued, and the numbers are this run's
+own measurement rather than a recollection:
+
+```
+corpus census (median |Δ| vs each file's stored results, known issues included):
+  groundHitVelocity    n= 94  8.3%      ← worst of ten, 2.7× apogee's
+  deploymentVelocity   n= 76  6.0%
+  flightTime           n= 94  3.3%
+  maxAltitude          n= 97  3.1%
+  …
+  timeToApogee         n= 97  1.5%
+```
+
+**Ground-hit velocity is carried by 94 of the corpus's stored simulations and is the metric Loft
+agrees with least** — nearly three times apogee's error. And the single input that drives it is on no
+surface in the app: a flyer cannot see the parachute drag coefficient, cannot change it, and is not
+told where it came from. Landing speed and landing energy are what an RSO and a waiver actually check.
+
+**The state of it today, measured 2026-08-03 rather than assumed:**
+
+- `lib/sim/recovery.ts:21` exports `DESCENT_BODY_CDA_FACTOR = 0.5` with a comment saying it "matches
+  the descent model in `simulate.ts`" — and `simulate.ts:612` and `:654` each type a bare `* 0.5`
+  instead of importing it. One physical quantity, three literals, one of them claiming to be the
+  source of the other two.
+- Three adapters carry uncited defaults for the same coefficient: `lib/ork/adapt.ts:555` 0.8 (and
+  `:576` 0.75 for a streamer), `lib/rkt/adapt.ts:465` 0.8 and `:486` 0.75, `lib/rasaero/adapt.ts:400`
+  0.8. None names a source.
+- `COMPETITION.md` row 35 is the same gap from the competitive side, and two of the four competitors
+  DO state a basis: RASAero II's 1.33 with its stated derivation, RocketPy's 1.4 cited to NASA
+  SP-8066. Loft states nothing.
+
+**Done when** a canopy's Cd is readable and editable on `/design` for imported and authored chutes
+alike, with its origin named (file value · catalogue part · Loft's default) and the default's basis
+cited on the methods page; the descent body-drag factor is ONE exported, cited constant that
+`simulate.ts` imports rather than re-types; every adapter's recovery-Cd default carries a source
+string or an explicit "no published basis"; the derived readouts a defaulted Cd feeds — descent rate,
+arrival speed, landing energy — carry the `extrapolated` marker the rest of the app already uses; and
+the census figure for `groundHitVelocity` is re-measured and published, whatever it turns out to be.
+
+**Pinned by** a unit test asserting the three descent-drag literals are one imported constant and that
+every adapter default has a non-empty source; an e2e that reads the Cd off `/design`, changes it, and
+watches ground-hit speed move; and the corpus census itself, whose `PUBLISHED_MEDIAN_PCT` gate already
+fails CI on a regression.
+
+**Size.** 4–6 increments. The first three, in order, because each is cheap and none depends on the
+next: (1) import `DESCENT_BODY_CDA_FACTOR` in both places in `simulate.ts` and state whether it has a
+source or explicitly has none; (2) give every adapter default a source string or an honest "no
+published basis"; (3) **measure where the 8.3% actually comes from before moving any number** — print
+stored versus Loft descent rate for all 94, split by stated-Cd against auto-Cd designs and by wind
+above and below 4 m/s. Only then (4) put the coefficient on screen read-only with its provenance,
+(5) make it editable and let the edit flow through a re-fly and the `.ork` round trip R6 pinned, and
+(6) re-measure the census and update `PUBLISHED_MEDIAN_PCT`, `/docs/validation` and the methods page
+in ONE commit.
+
+**Notes.** `COMPETITION.md` rows 35 and 33. **Do not move a number before increment 3.** The 8.3% has
+not been attributed, and "improve the descent" without knowing whether the error lives in the
+coefficient, the body drag, the wind model or the stored figures themselves is how a tolerance gets
+widened to fit. This milestone is allowed to end with the coefficient unchanged and honestly labelled;
+that would still meet the *done when*.
+
+---
+
 ## P1 — One design system, adopted
 
 **Status: DONE — 2026-08-02.** Every §9 count is at its target or its recorded honest floor, all six
@@ -2935,7 +3114,219 @@ layout at a narrow width — capability first, hit targets are the finish rather
 
 ## P5 — Ready for the public
 
-**Status:** NOT STARTED
+**Status: SHIPPED 2026-08-03** — all six increments, every *done when* clause met and pinned.
+Decomposed the same day with every clause measured first, so no increment was spent discovering that
+its work was already done.
+
+**Pinned by:** `lib/version.test.ts` and `scripts/gen-version.mjs`'s build-time refusal (the version
+shown is the release described); `lib/inline-markdown.test.tsx`; `e2e/first-run.spec.ts`'s *says the
+three things it does that no other tool does*; `e2e/docs.spec.ts`'s three cases for the version, the
+changelog page and the report link; and `scripts/check-links.mjs` in `postbuild`, which is the
+*done when*'s own "link-checking" clause. Every one was proved able to fail by reverting one thing.
+
+**Where each *done when* clause stands, measured 2026-08-03 rather than assumed:**
+
+| clause | today | what it needs |
+|---|---|---|
+| README shows the tool with images | **NOT** — two `shields.io` badges, zero screenshots, no image asset anywhere in the repo | increment 4 |
+| landing states the three differentiators | **PARTLY** — `components/ImportPanel.tsx` says the formats and "never uploaded"; never free / no-install / offline, never the multi-answer cross-check | increment 2 |
+| a visible changelog and a versioned release the flyer can see | **NOT, on all three counts** — no `CHANGELOG.md`, `git tag` is empty, version is `0.1.0` and no component renders it | increments 1 and 3 |
+| a limitations page a sceptic can read | **DONE** — `app/docs/limitations/page.tsx`, dated, linked from four places | nothing |
+| a way to report a bug or request a format from inside the app | **PARTLY** — `components/Footer.tsx` links the repo ROOT on every route; issue links exist only on docs pages | increment 5 |
+| *pinned by* link-checking and a build-time assertion that the shown version matches the release | **does not exist** — `scripts/check-routes.mjs` asserts routes, sitemap and noindex, nothing about links or versions | increments 1 and 6 |
+
+**The decomposition, and the ordering rule behind it.** The version work comes first because it is the
+half of the milestone's own pinning check that everything else is then measured against, and because
+a changelog is the one artifact that gets harder to write the longer the history gets. The reachability
+work (2, 5) comes before the presentation work (4), because a screenshot of a landing surface that
+still does not say what the tool is would have to be retaken.
+
+1. **A version a flyer can see, and a changelog that is one source.** `CHANGELOG.md` as the only
+   place a release is described; a prebuild generator turning it into the module the UI reads, which
+   FAILS THE BUILD when it disagrees with `package.json`; the version in the footer on every route.
+2. **The landing surface says the three things.** `COMPETITION.md`'s standing conclusion, in the
+   flyer's words, where a stranger sees it first.
+3. **The changelog as a route** — `/docs/changelog`, rendered from the same generated module, so the
+   file and the page cannot drift.
+4. **The README shows the tool.** Screenshots taken from the built export by a committed script, so
+   they can be regenerated rather than going stale by hand.
+5. **Report a bug or request a format from inside the app**, from every route rather than from the
+   docs only.
+6. **Link-checking as a build-time gate**, which is the other half of the *done when*'s pinning.
+
+**A decision taken without the owner: "the release" means `CHANGELOG.md`'s newest released version,
+not a git tag.** `git tag` is empty and cutting the project's first tag is a publishing act that is
+the owner's to make, not a side effect of a maintenance run. A static export cannot ask GitHub what
+the latest release is at request time either, so the assertion a build can actually make is that the
+version the UI renders, the version `package.json` declares, and the newest entry in `CHANGELOG.md`
+are the same string. That is the check that ships. If the owner starts tagging, the same script gains
+one more comparison and nothing else changes.
+
+*Increment 1 — SHIPPED. One version string, three files that must agree, and a build that fails when
+they do not.*
+
+`CHANGELOG.md` is the single source. `scripts/gen-version.mjs` parses its newest released heading,
+refuses to emit anything when that disagrees with `package.json`, and writes `lib/version.ts` — the
+one module the UI imports. It runs in `prebuild`, so the failure is a red build with a sentence
+naming both numbers rather than a version string nobody backs. The footer renders `v0.9.0` on every
+route, linking to the changelog, with the release date on the accessible name.
+
+**The version moved 0.1.0 → 0.9.0, and that is a claim rather than a formality.** `0.1.0` was the
+`create-next-app` default and had never been touched across eight R milestones and four P ones. Loft
+is pre-1.0 because the editor is younger than OpenRocket's and the physics is not 6-DOF; it is not at
+0.1, because a flyer can import five formats, build and edit a staged rocket from scratch, pick real
+commercial parts from a 2,990-part catalogue, sweep, run a Monte-Carlo and cross-check against two
+other solvers. The changelog's first entry describes what the tool DOES rather than reconstructing
+every step that got here — the per-change record starts from it.
+
+**The date rides on the accessible name rather than beside the number**, because the phone chrome
+ratchet has 49 px of headroom and this renders on all six routes at once. It is asserted there, so it
+is not lost.
+
+Pinned by `lib/version.test.ts` (four cases: the three files agree; the committed module is byte for
+byte what the generator produces, so a hand-edit reds `npm test` rather than shipping; every release
+is semantic, dated, non-empty and newest-first; and the disagreement path is driven rather than
+assumed) and by `e2e/docs.spec.ts`'s *the version a flyer is running is on every route*, which walks
+all six and reads the text, the accessible name and the destination. The unit case was proved able to
+fail by editing `lib/version.ts` alone: `lib/version.ts disagrees with CHANGELOG.md: expected '0.8.0'
+to be '0.9.0'`.
+
+**Why both a test and a build step, when the build already checks.** The gate runs `npm test` before
+`npm run build`, and a stale committed `lib/version.ts` is a real state — edit the changelog, do not
+rebuild, push. The test fails in seconds where the build fails in three minutes, for the same reason
+and with the same message.
+
+*Increment 2 — SHIPPED. The landing surface makes the case `COMPETITION.md` has been asking it to
+make for four runs.*
+
+`COMPETITION.md`'s standing conclusion says of its own three claims: *"it is what the landing surface
+and the README should say, and right now they do not."* Measured before this: the page stated the
+formats and "never uploaded" — claim 2 and half of claim 1 — and said **nothing at all** about the
+multi-answer cross-check, which is the one no other hobby tool offers at all. A *Why Loft* block now
+carries all three, each with the substance under it rather than the slogan alone.
+
+**Placed after the bundled examples, deliberately, and the e2e asserts the placement.** The primary
+controls and the samples are what a flyer with a file and one without actually came for, and the
+first example already sits 89 px below the fold on a 390x664 phone. A claim strip above them would
+push the one control that needs no reading further out of sight, to make an argument to someone who
+has not yet decided to read one. The scroll now reads: **try it · why it is different · what it can
+do**.
+
+**Free, offline and no-account are ONE claim, not three.** They are one decision — everything runs on
+the flyer's device — and splitting them would have diluted the two that follow into a feature list.
+
+**The format claim names five, where the drop zone names three.** RocketPy and SpaceCAD import too,
+and a stranger comparing tools counts them; the drop zone lists only what its file input accepts. The
+e2e asserts all five are in that claim, so the two cannot drift as adapters are added.
+
+Pinned by `e2e/first-run.spec.ts`'s *says the three things it does that no other tool does* — three
+claims asserted as IDEAS rather than strings, so a rewrite that keeps the meaning passes and a
+deletion fails; the substance behind the two a sceptic would test; the five formats; and the
+placement, measured as a document offset against the examples. Proved able to fail: rewriting the
+third claim's heading alone reds it with `the landing surface never claims: more than one answer`.
+
+*Increment 3 — SHIPPED. The changelog is a page in the app, generated from the file rather than
+written twice.*
+
+`/docs/changelog` renders `RELEASES` from `lib/version.ts`, which increment 1 already generates from
+`CHANGELOG.md` and refuses to build when `package.json` disagrees. So the page, the version in the
+chrome and the file in the repository are **one source with two readers**, not three artifacts
+somebody keeps in step. The footer's version now goes there rather than off-site, and the docs hub
+links it.
+
+**The block structure is resolved at BUILD time and the inline markdown at render time**, which is
+the split that keeps a markdown library out of a bundle budgeted to 335 KB gzipped.
+`scripts/gen-version.mjs` turns each entry into `{ heading, lead, items }`, and
+`lib/inline-markdown.tsx` — thirty lines — turns `**bold**`, `` `code` `` and `[text](url)` into
+ELEMENTS. Never `dangerouslySetInnerHTML`: the input is a file in this repository, so that is not a
+live injection path today, but it would make the changelog the one surface in the app where writing
+a file is writing markup, and that property is only ever discovered later.
+
+**Two real defects, both found by running the parser over the file it exists to render rather than
+over invented examples.**
+
+- **A link inside a bold run came out as literal `[text](url)`.** The changelog's own honesty section
+  opens `**A candid, dated [limitations log](…)**`, so the very first release entry would have
+  printed the parser's syntax at a flyer. The bold arm recurses now; a bold run cannot contain
+  another `*` by construction, so it terminates in one step.
+- **`vitest.config.ts` had no `lib/**/*.test.tsx` include at all.** `app` carried both extensions and
+  `lib` only `.ts`, so the first test file under `lib` that renders anything reported *No test files
+  found* — a red exit for a filtered run, and for the whole suite simply a file that never runs and
+  never says so. That is the false all-clear shape `MAINTAINING.md` warns about for the corpus suite,
+  one directory over, and it would have swallowed any future `.tsx` test silently.
+
+Pinned by `lib/inline-markdown.test.tsx` (the four forms; that it escapes rather than emitting markup,
+inside each construct as well as around it; that unparsable syntax stays literal rather than being
+swallowed; and a sweep over **every bullet the shipped changelog contains**, asserting no bullet loses
+a word — which is the case that found the nesting bug) and by `e2e/docs.spec.ts`'s *the changelog is a
+page in the app*, which asserts every release and date from the module appears, every section heading,
+that no unrendered link or bold syntax reaches the page, and that it is reachable from the docs hub as
+well as the footer. It also joins the offline docs walk.
+
+*Increment 5 — SHIPPED, out of order and deliberately: it lands on the same component as 1 and 3 and
+shares their gate run.*
+
+**A flyer can report a bug or ask for an unsupported format from every route.** It existed on three
+docs pages and the docs hub only, each hard-coding the same URL, and the footer's GitHub link went to
+the repository ROOT — so a flyer whose import went wrong on `/flight` had to find the documentation
+before they could say so. One `NEW_ISSUE_URL` constant, pointed at the form rather than the issue
+list, in the footer that renders on all six routes.
+
+**The accessible name names BOTH jobs**, because asking for a format Loft does not read yet is the
+request a flyer is least likely to guess is welcome — and ingestion breadth is a North Star, so those
+requests are how that queue gets its evidence.
+
+Pinned by `e2e/docs.spec.ts`'s *a flyer can report a bug or ask for a format from any route*, walking
+all six and asserting the destination, both jobs in the accessible name, and the new-tab contract.
+
+*Increment 4 — SHIPPED. The README shows the tool, from pictures a script takes rather than a human
+remembers to retake.*
+
+**The trap in this clause is not taking the screenshots — it is that hand-captured ones are wrong
+within a fortnight and nobody notices, because a README image has no test and no 404.** It renders as
+a broken-image icon on the project's front page for as long as it takes somebody to look.
+`scripts/gen-screenshots.mjs` makes them the output of a committed script, so "are these current?" is
+a command anybody can run: four shots — the landing surface, a flown design, the builder, and the
+same flight on a 390 px phone.
+
+**Every shot is DRIVEN, not posed.** Each loads a real bundled sample and waits for the numbers to be
+on screen before capturing, so a picture can never show a loading state or an empty panel — and if
+the app stops being able to reach that state, the script fails loudly instead of writing a screenshot
+of the failure. Dev-only and deliberately not in `prebuild`: it needs a browser and a running server,
+which the deploy job has neither of, and a build that failed for a missing Chromium would gate the
+deploy on something the deploy does not need.
+
+**One thing worth carrying: a structural locator that happens to resolve is not one that resolves to
+the thing you meant.** The builder shot first waited on `page.locator("svg").first()`, which on
+`/design` is an icon inside the HIDDEN flight panel — so it timed out while the page was perfectly
+ready. It anchors on the workspace region and the parts table now, and scrolls to the region's own
+top, because opening the disclosure scrolled the airframe half out of frame in the first take.
+
+*Increment 6 — SHIPPED. Link-checking as a build gate, which is the other half of this milestone's
+own pinning.*
+
+`scripts/check-links.mjs` runs in `postbuild` beside `check-routes` and makes two claims, because
+there are two ways an internal link dies and only one is visible from inside the app:
+
+- **Every in-app link points at a document the export actually contains** — 425 of them across 14
+  exported documents. A route renamed or retired leaves anchors behind on pages nobody edited: the
+  docs hub links five pages, the footer links three more, and every one is a literal in a file that
+  is not touched when a route moves.
+- **Every relative link and image in the repository's markdown points at a file that exists** and is
+  not empty. This is what stops increment 4's four screenshots from becoming four broken-image icons
+  the day someone renames a directory.
+
+**External links are NOT fetched, deliberately.** A build that fails because somebody else's site is
+down is a build that teaches a session to ignore it, and a red gate meaning something is this repo's
+whole safety net under unreviewed merges. Off-site rot wants a scheduled check, not this one.
+
+**And it refuses to pass on an empty scan.** Both halves assert they had something to look at, because
+a link checker that found no links prints exactly like one that found no problems — the false
+all-clear this repo has been caught by twice.
+
+Both halves proved able to fail: renaming one README image reds it with
+`README.md links docs/screenshots/flght.png, which does not exist`, and pointing one docs anchor at a
+missing route reds it with `docs.html links /docs/limitationz, which the export does not serve`.
 
 **Outcome.** Someone can find Loft, understand it, use it, trust it, and tell someone else about it.
 
@@ -2951,6 +3342,69 @@ from outside. This is the milestone that converts the work into users. Keep the 
 invariant: whatever ships here ships in both apps.
 
 **Size.** 3–5 increments.
+
+---
+
+## P6 — The primitives the design system already declares
+
+**Status:** NOT STARTED
+
+**Outcome.** `DESIGN.md` §5's component vocabulary stops being a description of what the app should
+have and becomes what it is built from — so a surface added next run inherits the system instead of
+re-deciding it.
+
+**Why now, and why not before P5.** This gap has been visible since P1 and was deliberately not taken
+first, for a measured reason: it is **held stationary by an exact ratchet**.
+`lib/design-system.test.ts` asserts adoption per primitive as an equality, and all six `DESIGN.md` §9
+counts are at their target or their recorded honest floor, so the divergence cannot decay while it
+waits. P5's gap could not wait the same way — it was costing every stranger who arrived, and P6 was
+gated behind it. With P5 shipped, this is the obvious next P milestone.
+
+**The audit, re-measured 2026-08-03** (the previous count was five absent primitives and missed one):
+
+- **Six primitives §5 declares do not exist**: `Panel`, `Readout`, `Figure`, `EmptyState`,
+  `ErrorState`, `Extrapolated`.
+- **Two exist with ZERO call sites**: `Section` (while 12 sites hand-roll its exact heading across 6
+  files) and `Chip`. (`Tabs` is also 0 and is NOT drift — it is the documented consequence of the
+  route split.)
+- **`Readout` — the labelled-value-with-unit treatment — is hand-rolled ~27 times in 7 disagreeing
+  class strings** across `ResultsView`, `MonteCarlo`, `LoftApp`, `ImportPanel`, `ParameterSweep` and
+  `ui`. A cheap proxy to re-measure it: `grep -roh 'uppercase tracking-wide' components app | wc -l`
+  returns **31**, which counts the label half of the treatment plus a few section eyebrows. It is the
+  single most-repeated treatment in the app and the one a flyer reads every number through — start
+  here, and take the exact count as the first thing the increment does.
+- **There is no `Select` primitive and 12 real `<select>` elements hand-roll their own class
+  strings** — LoftApp 7, ParameterSweep 2, ResultsView 2, PartPicker 1. (`grep '<select'` returns 14;
+  two of those are inside comments, which is worth stating because the next session will run the same
+  grep and get the larger number.)
+- **`EmptyState` / `ErrorState` are hand-rolled 10 ways**, and two surfaces have neither:
+  `ParameterSweep.tsx:328` and `FlightViz.tsx:37` both `return null`, so the panel VANISHES rather
+  than saying why — the one state that teaches nothing.
+- **A second `warn` card tone** is spelled inline at `ResultsView.tsx:1234`, disagreeing with
+  `CARD_TONES.warn` by one shade in each theme.
+- **`text-[11px]` is used 47 times across 10 files**, ~21 of them on field labels, legends and readout
+  labels — §3 scopes that size to axis ticks and diagram annotations only.
+
+**Done when** every primitive `DESIGN.md` §5 declares exists in `components/ui.tsx` and is used at
+every site that hand-rolls it today; `Readout` is the only labelled-value treatment; a `Select`
+primitive is the only `<select>` treatment; no data surface returns `null` where an empty or error
+state belongs; and `lib/design-system.test.ts` gains a per-primitive adoption ratchet for each new
+one, so the next hand-rolled copy fails the suite rather than being found by a later audit.
+
+**Pinned by** that ratchet — which is the point of the milestone as much as the components are. A
+design system that is enforced only by somebody re-running an audit is a description, not a system.
+
+**Size.** 4–6 increments. Take `Readout` first: 27 sites, one treatment, and it is the one a flyer
+reads every number through — so it is both the biggest single win and the clearest test of whether the
+primitive's API is right before four more are built on the same pattern. Then `Select` (12 sites),
+then `EmptyState`/`ErrorState` (10, plus the two surfaces that have none), then `Panel`, `Figure` and
+`Extrapolated`.
+
+**Notes.** Convert, do not repaint. Where a hand-rolled site differs from the primitive, the primitive
+wins and the difference is a defect — that is what `DESIGN.md` being binding means. Where a site
+differs for a REASON, change `DESIGN.md` first, with the reason, and then the primitive. The two
+zero-call-site primitives (`Section`, `Chip`) are a live question this milestone must answer rather
+than inherit: either they gain their call sites or they are deleted from the file and from §5.
 
 ---
 
@@ -3005,6 +3459,43 @@ Beyond these, decompose from the North Star in `MAINTAINING.md` and from `COMPET
 Unattended runs do not stop to ask (see *Unattended operation* in `MAINTAINING.md`). Every decision
 that would otherwise have been a question goes here, with the option rejected, so it can be reversed
 cheaply instead of re-derived. Newest first.
+
+- **2026-08-03 — the next R milestone is R9 *the descent Loft cannot defend*, not the after-list's
+  "multi-solver cross-check as a first-class view".** The after-list names the cross-check next, and
+  reordering a queue the owner set is a call I took rather than asked about. The reason is measured:
+  P2 already shipped `/validate` as a real route rendering `ValidationPanel`, `DragCrossCheck` and
+  `RocketpyCrossCheck`, so a whole milestone for it overstates what is left — while this run's own
+  census run puts `groundHitVelocity` at **8.3% median across 94 stored simulations, the worst of ten
+  metrics and 2.7x apogee's**, with the coefficient that drives it reachable on no surface in the app.
+  **Rejected alternative:** take the after-list in order and file the descent gap as a defect. That
+  loses, because it is not a defect — nothing is wrong, a whole input is missing — and the defect
+  ledger is exactly where such things go to wait forever. The cross-check remains on the after-list
+  and is unharmed by being second.
+
+- **2026-08-03 — "the release" means `CHANGELOG.md`'s newest released version, not a git tag.**
+  `git tag` is empty, and cutting this project's first tag is a publishing act that belongs to the
+  owner rather than being a side effect of a maintenance run. A static export also cannot ask GitHub
+  what the latest release is at request time. So the build-time assertion P5's *done when* asks for is
+  that the version the UI renders, the version `package.json` declares and the newest changelog entry
+  are one string. **Rejected alternative:** cut a `v0.9.0` tag and assert against it. That publishes
+  something on the owner's behalf and would need re-cutting every release by a session, which is worse
+  than the check being one comparison narrower. If tagging starts, `scripts/gen-version.mjs` gains one
+  more comparison and nothing else changes.
+
+- **2026-08-03 — the version moved 0.1.0 to 0.9.0 rather than 0.2.0 or 1.0.0.** `0.1.0` was the
+  scaffold default and had never been touched. 1.0.0 would claim the editor and the physics are done,
+  which they are not; anything near 0.1 misrepresents five import formats, a from-scratch staged
+  builder, a 2,990-part catalogue, sweeps, Monte-Carlo and two cross-check solvers. **Rejected
+  alternative:** leave it at 0.1.0 and let the changelog carry the meaning. That ships a version
+  string that is visibly false on the one surface the milestone added it to.
+
+- **2026-08-03 — a picked coupler or centring ring WIDER than its host's bore is accepted, not
+  refused.** The length rule refuses, because a shortened part under a vendor's part number is a wrong
+  number under a real label; a too-wide one is not mislabelled, it is the flyer's own choice of a part
+  that does not fit, and its mass is honestly computed for the part they chose. OpenRocket does not
+  refuse it either. **Rejected alternative:** refuse or clamp it. Refusing removes a choice a flyer may
+  have a reason for; clamping would invent a size no vendor published. Filed in `BACKLOG.md` with the
+  measurement, because it is squarely "an input that accepts a value it cannot physically mean".
 
 - **2026-08-02 — the liftoff mass is WITHHELD when a motor is missing, not relabelled "Dry mass".**
   The Sev-1 fix's first draft relabelled it, on the reasoning that the figure is a correct number

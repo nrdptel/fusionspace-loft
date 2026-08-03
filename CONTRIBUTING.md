@@ -105,6 +105,29 @@ npm run build       # also type-checks (CI gate; tsconfig has noUnusedLocals/Par
 npm run test:e2e    # Playwright (incl. an axe accessibility audit) — run after a build
 ```
 
+**A dynamic `await import(...)` of a `.ts` module inside an e2e spec passes locally and fails in CI.**
+It is resolved at RUNTIME, so Playwright's TypeScript transform never sees the file and Node is handed
+`export interface` to parse: `SyntaxError: Unexpected token 'export'`. Local runs happen to get away
+with it; the CI runner does not. Use a static `import` at the top of the spec, like every other import
+in the suite. Measured 2026-08-03, on two cases that were green locally and red in CI.
+
+**Never pipe a gate step into `tail`, `head` or `grep` — the pipeline's exit code is the pipe's, not
+the command's.** `npm run build | tail -3` reports success whatever the build did, so a `&&` chain
+built that way runs the e2e suite on a build that failed and the gate reads green. It happened on
+2026-08-03: `scripts/check-text-gaps.mjs` found two lost spaces in a docs page, `postbuild` exited 1,
+and the chain carried on to a full green e2e run — the failure only surfaced in CI, where nothing
+swallows it. If you want a short transcript, redirect each step to a file and read its `$?`, or set
+`set -o pipefail` first.
+
+**Kill any `serve` you started by hand before running the gate, and it will not look like a server
+problem when you do not.** `playwright.config.ts` sets `reuseExistingServer` outside CI, so a
+`serve` left over from `npm run screenshots` — or from a previous interrupted run — is silently
+adopted by the suite. That is harmless until the gate's `rm -rf out` deletes the directory underneath
+it mid-build, at which point the shard reports a wildly low pass count with **no failure line at
+all**: measured 2026-08-03 at 13 of 112, and 112 of 112 on a clean re-run one minute later. It reads
+exactly like the descriptor exhaustion and the concurrent-shard symptom this file already describes,
+and it is neither. Check port 3000 is free before believing a low count.
+
 **The e2e job's budget is measured, not guessed, and a timeout reads as "cancelled" rather than as a
 failure.** On a GitHub runner the job spends about 11 minutes on checkout, `npm ci`,
 `playwright install` and `npm run build` before the first test, and the suite itself runs at roughly

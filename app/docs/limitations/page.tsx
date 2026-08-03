@@ -274,6 +274,64 @@ export default function Limitations() {
         the part in front and is deliberately left alone: moving it would un-fair a joint you did not
         touch.
       </p>
+      <h3>The parachute drag coefficient is the least-sourced number in the flight</h3>
+      <p>
+        <strong>
+          Ground-hit velocity is the figure Loft agrees with least, and the single input that drives
+          it is not on any surface.
+        </strong>{" "}
+        Measured across the real-design corpus on 2026-08-03, the median disagreement with each file&apos;s
+        own stored results is <strong>8.3% over 94 simulations</strong> for ground-hit velocity, against
+        3.1% for apogee — nearly three times the error, on the number an RSO and a waiver actually
+        check. A flyer cannot currently see the coefficient, change it, or find out where it came from.
+      </p>
+      <p>
+        Where each figure comes from is now written down rather than implied. When a design file states
+        a coefficient, Loft flies the file&apos;s. When it does not, five fallbacks apply, and only one
+        of them has a defensible source: an OpenRocket <code>auto</code>{" "}
+        coefficient means &ldquo;use
+        OpenRocket&apos;s own default&rdquo;, so Loft resolves it to <strong>0.8</strong>, the figure
+        that tool would itself have flown — which is what 17 of the corpus&apos;s 24 OpenRocket canopies
+        do. The other four state plainly that they have <strong>no published basis</strong>: RockSim
+        exposes no parachute coefficient field at all, so there is nothing to resolve a missing one to,
+        and RASAero II documents its own default as <strong>1.33</strong> where Loft falls back to 0.8.
+      </p>
+      <p>
+        That RASAero discrepancy is deliberately <em>not</em> corrected yet, and the reason is a
+        measurement rather than a preference: every RASAero recovery device in the corpus states its
+        own coefficient, so the fallback is reached by <strong>zero</strong>{" "}
+        real files and changing it
+        would move no flown number and could be validated against nothing. The airframe&apos;s own
+        descent drag — a factor of its frontal area, one to two orders of magnitude smaller than an
+        open canopy&apos;s — has no published source either and now says so in one place instead of
+        being typed into three.
+      </p>
+      <p>
+        <strong>And the coefficient turns out not to be where the error lives.</strong> Splitting the
+        corpus by whether each design&apos;s coefficient came from its own file or from a Loft
+        fallback gives the <em>same</em> median disagreement to a tenth of a percent — 8.3% either
+        way, across 52 file-stated and 40 fallback flights. Two things follow, and both are worth
+        stating plainly rather than leaving as an implied promise to improve:
+      </p>
+      <ul>
+        <li>
+          <strong>The error is one-directional.</strong> 86 of 92 flights descend slower than the
+          file&apos;s stored figure — and 40 of 40 among those flown on a fallback. A coefficient that
+          is simply wrong scatters; a systematic one-sided offset points at the descent model, or at a
+          definitional difference in what each tool means by &ldquo;ground-hit velocity&rdquo;.
+        </li>
+        <li>
+          <strong>The writing tool discriminates where the coefficient does not.</strong> RockSim
+          files disagree by a median <strong>25.7%</strong> against OpenRocket files&apos;{" "}
+          <strong>7.8%</strong>, and the five worst cases in the corpus are all RockSim designs.
+        </li>
+      </ul>
+      <p>
+        So making the coefficient visible and editable — which is still owed, and is the one input in
+        the recovery chain a flyer cannot reach — should be expected to improve <em>honesty</em> rather
+        than accuracy. Where the accuracy actually goes is the RockSim question, and it is being worked
+        as that rather than as this.
+      </p>
       <p>
         <strong>A flight that never reaches the ground reports no landing figures.</strong> The
         simulation runs to a 1,200&nbsp;s cap, and a canopy large enough to descend slower than that

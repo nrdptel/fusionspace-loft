@@ -40,6 +40,7 @@ import type {
 import { parseXml, child, children, childText, childNum, type XmlNode } from "../ork/xml";
 import type { OrkDocument, StoredSimulation, StoredResults, StoredConditions } from "../ork/adapt";
 import { resolveMotor } from "../motors/db";
+import { RASAERO_PARACHUTE_CD } from "../sim/recovery-defaults";
 
 // --- unit conversions ------------------------------------------------------------------
 const IN = 0.0254; // inch → metre
@@ -397,7 +398,12 @@ function recovery(rec: XmlNode | undefined, notes: string[]): Parachute[] {
     const type = (childText(rec, `DeviceType${i}`) ?? "None").trim();
     if (!type || type.toLowerCase() === "none") continue;
     const size = n(rec, `Size${i}`, 0) * FT; // canopy diameter, feet
-    const cd = n(rec, `CD${i}`, 0.8) || 0.8;
+    // RASAero II documents its OWN default as 1.33 with a stated basis, and this is not it —
+    // deliberately, because the fallback is reached by 0 of the corpus's RASAero designs, so
+    // moving it would change no flown number. `RASAERO_PARACHUTE_CD` carries the discrepancy and
+    // the reason, so it is not rediscovered and re-shelved every session.
+    const cd = n(rec, `CD${i}`, RASAERO_PARACHUTE_CD.cd) || RASAERO_PARACHUTE_CD.cd;
+    const cdFrom: "file" | "default" = n(rec, `CD${i}`, 0) > 0 ? "file" : "default";
     if (!(size > 0)) continue;
     if (!/chute|parachute/i.test(type)) {
       notes.push(`Recovery device ${i} is a ${type}; it was flown as a canopy of the stated size and Cd.`);
@@ -410,6 +416,7 @@ function recovery(rec: XmlNode | undefined, notes: string[]): Parachute[] {
       kind: "parachute",
       placement: { method: "top", offset: 0 },
       cd,
+      cdFrom,
       diameter: size,
       mass: 0, // the stated launch weight already includes it; see the mass note at the top
       deployEvent: i === 1 ? "apogee" : "altitude",
