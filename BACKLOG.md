@@ -13,8 +13,8 @@ track in `ROADMAP.md` with its own *done when*. Rough edges, missing affordances
 big for one pass. Newest first.
 
 - **Loft's own `.ork` export writes no `<simulations>` block, so every launch condition and the motor
-  configuration are silently dropped on a round trip. SEV-1.** Filed 2026-08-03 from a cold walk of
-  the built export. `lib/ork/export.ts`'s `serializeRocketXml` takes only the rocket and never emits
+  configuration are silently dropped on a round trip. SEV-1 — FIXED 2026-08-03.** Filed and closed
+  the same run, from a cold walk of the built export. `lib/ork/export.ts`'s `serializeRocketXml` takes only the rocket and never emits
   `<simulations>`, while `lib/ork/adapt.ts:788 parseSimulations` is where rod length, rod angle, wind,
   launch altitude and the atmosphere all come FROM — so re-importing a file Loft just wrote gives
   surface wind 3.0 m/s → 0.0, rail length 2.0 m → 1.0, and **drift from pad 630 m → 0 m**. Apogee is
@@ -28,6 +28,18 @@ big for one pass. Newest first.
   `components/LoftApp.tsx:860` passes `{...doc, rocket}` — so the conditions are in hand and simply
   not written. Preserve them verbatim; do not synthesise `<flightdata>` from Loft's own solver, or
   the Cross-check page ends up comparing Loft against itself at 0% error.
+
+  **Fixed:** `serializeRocketXml` now emits a `<simulations>` block carrying each stored run's name,
+  status, `configid` and full `<conditions>` (rod length, angle, direction, wind, launch altitude and
+  the atmosphere). Measured after: drift from pad round-trips 629.7 → 629.7 m on `demo-dual-deploy`,
+  291.5 on single-deploy and 253.8 on boattail, with rail length, wind and rail-exit velocity all
+  identical. `<flightdata>` is written ONLY when the caller states the stored results still describe
+  this rocket — the Download button passes `rocket === doc.rocket` — because carrying another tool's
+  results onto an edited airframe would make Cross-check report the flyer's own what-if as Loft's
+  error. A design with no stored run gets no block at all. Pinned by three cases in
+  `lib/ork/export.test.ts` and an e2e driving Download → Import that reads drift off the page; the
+  pre-existing round-trip e2e could not catch this because it asserts APOGEE, which barely moves with
+  the launch setup.
 
 - **A motor that does not resolve exactly is substituted with one that does not FIT the mount, and the
   whole flight is reported off it. SEV-1 — FIXED 2026-08-03.** Filed and closed the same run, from a

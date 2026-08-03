@@ -684,3 +684,67 @@ describe("exportOrk — real-design features round-trip (regression)", () => {
     expect(structurePointMasses(back.rocket).reduce((a, m) => a + m.mass, 0)).toBeCloseTo(before, 4);
   });
 });
+
+describe("exportOrk — the launch setup survives the round trip", () => {
+  it("carries the conditions and the configuration link that used to be dropped", async () => {
+    // **The Sev-1 a cold walk found.** `serializeRocketXml` took only the rocket, so a file Loft
+    // wrote carried the airframe and nothing else — and `parseSimulations` is where rod length,
+    // angle, wind, altitude and the atmosphere all come FROM. Re-importing Loft's own export reset
+    // the whole launch setup to Loft's defaults with nothing on screen saying so, while the
+    // disclosure still read "Conditions · as designed".
+    const doc = await load("demo-dual-deploy.ork");
+    expect(doc.simulations.length, "the fixture must carry a stored simulation").toBeGreaterThan(0);
+    const before = doc.simulations[0].conditions;
+    // The two figures a flyer checks the field and the rail against are computed from these.
+    expect(before.rodLength).toBeGreaterThan(0);
+    expect(before.windSpeed).toBeGreaterThan(0);
+
+    const back = await importOrk(exportOrk(doc));
+    expect(back.simulations.length, "the whole simulations block was dropped").toBe(doc.simulations.length);
+    const after = back.simulations[0].conditions;
+    for (const k of ["rodLength", "rodAngleDeg", "rodDirectionDeg", "windSpeed", "launchAltitude"] as const) {
+      if (before[k] === undefined) continue;
+      expect(after[k], `conditions.${k} did not survive the round trip`).toBeCloseTo(before[k]!, 6);
+    }
+    // **And the configuration link**, which is what `configChoices` builds the motor-configuration
+    // picker from. Without it a multi-config design came back on whichever config the file marks
+    // default — measured on the corpus's five-config sample as A8 at 53 m becoming C6 at 317 m, with
+    // no control left in the app to get back.
+    expect(after.configId, "the stored run no longer names a configuration").toBe(before.configId);
+    expect(
+      doc.rocket.configurations.some((c) => c.id === after.configId),
+      "the configid survived but names no configuration in the exported rocket",
+    ).toBe(true);
+  });
+
+  it("does not carry another tool's flight results onto a rocket that has been edited", async () => {
+    // Stored results are OpenRocket's simulation of the design AS ITS AUTHOR DREW IT. Carry them onto
+    // an airframe edited here and the Cross-check page compares Loft's flight of the edited rocket
+    // against OpenRocket's flight of the original, and reports the difference as Loft's error — a
+    // wrong number produced by trying to be faithful. So results are opt-in and the default is off.
+    // `demo-boattail.ork` is one of the three committed fixtures that stores results — dual-deploy
+    // stores conditions only, which is why this case uses a different file from the one above.
+    const doc = await load("demo-boattail.ork");
+    expect(doc.simulations[0].hasResults, "the fixture must store results for this to mean anything").toBe(true);
+
+    // Unedited and asked for: the oracle survives, which is what keeps the comparison possible.
+    const kept = await importOrk(exportOrk(doc, { storedResultsDescribeThisRocket: true }));
+    expect(kept.simulations[0].hasResults).toBe(true);
+    expect(kept.simulations[0].results.maxAltitude).toBeCloseTo(doc.simulations[0].results.maxAltitude!, 3);
+
+    // The default withholds them — and still keeps the conditions, which are not a result and stay
+    // true whatever the airframe does.
+    const dropped = await importOrk(exportOrk(doc));
+    expect(dropped.simulations[0].hasResults).toBe(false);
+    expect(dropped.simulations[0].conditions.rodLength).toBeCloseTo(doc.simulations[0].conditions.rodLength!, 6);
+  });
+
+  it("writes no simulations block at all for a design that has none", async () => {
+    // A from-scratch design carries no stored run, and inventing an empty one would put a
+    // configuration and a set of conditions into the file that nobody chose.
+    const bytes = exportOrk(newDesign());
+    const xml = new TextDecoder().decode(bytes);
+    expect(xml.includes("<simulations>")).toBe(false);
+    expect((await importOrk(bytes)).simulations).toEqual([]);
+  });
+});

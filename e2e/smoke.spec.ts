@@ -381,6 +381,38 @@ test.describe("Loft", () => {
     await expect(apogee).toHaveText(before);
   });
 
+  test("a downloaded design reopens on the same launch setup, not on Loft's defaults", async ({ page }) => {
+    // **The test above passes with the Sev-1 present, and that is why this one exists.** It reads
+    // APOGEE, which barely moves with the launch setup — so a round trip that silently reset rail
+    // length, wind, angle and altitude to Loft's defaults looked clean. `serializeRocketXml` wrote no
+    // `<simulations>` block at all, and that block is where the importer reads the whole setup FROM.
+    //
+    // Drift from pad is the figure that exposes it: it is computed almost entirely from the wind and
+    // the rod, so it collapses to 0 m the moment they are lost — and it is one of the two numbers a
+    // flyer sizes their recovery area with.
+    await page.goto("/");
+    await page.getByRole("button", { name: /54 mm dual-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+
+    const figure = (label: string) =>
+      page.getByLabel("Results").getByText(label, { exact: true }).locator("xpath=following-sibling::div[1]");
+    const drift = figure("Drift from pad");
+    const before = (await drift.textContent())!.trim();
+    // It has to be a real distance for the assertion below to mean anything — 0 m would pass either
+    // way, which is exactly the state the defect produced.
+    expect(parseFloat(before.replace(/[^\d.]/g, "")), `drift read "${before}"`).toBeGreaterThan(50);
+
+    const download = page.waitForEvent("download");
+    await page.getByRole("button", { name: /Download|Save this design/i }).first().click();
+    const saved = await (await download).path();
+    expect(saved).toBeTruthy();
+
+    await page.getByRole("button", { name: /Import another/ }).click();
+    await page.getByLabel(/^Choose an OpenRocket/).setInputFiles(saved!);
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    await expect(drift, "the launch setup was reset to Loft's defaults on re-import").toHaveText(before);
+  });
+
   test("clearing a what-if brings the stored-tool comparison back", async ({ page }) => {
     // A what-if means Loft is no longer flying the design the file describes, so the stored-results
     // comparison is withheld. Clearing it again must restore it — the edit fields are the surface

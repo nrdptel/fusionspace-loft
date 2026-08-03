@@ -537,7 +537,9 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
     const rocket = hasGeometryEdits(geometry) ? applyGeometryEdits(liveDoc.rocket, geometry) : liveDoc.rocket;
     let next: string;
     try {
-      next = toBase64(exportOrk({ ...liveDoc, rocket }));
+      // Same rule as `downloadOrk`, so the design a flyer reopens off the shelf and the design they
+      // download are byte-identical — this row is compared against that export.
+      next = toBase64(exportOrk({ ...liveDoc, rocket }, { storedResultsDescribeThisRocket: rocket === liveDoc.rocket }));
     } catch {
       // Serialising is best effort: a shelf row that cannot be refreshed must never take the design
       // that is open down with it.
@@ -868,7 +870,13 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
     // The format carries it perfectly once it is written: baked in and re-imported, an E16 flies
     // 67.6 m again.
     if (builtHere.current) rocket = bakeMotorSwap(rocket, edits.motorSwap);
-    const bytes = exportOrk({ ...doc, rocket });
+    // **The stored results ride along only when nothing here has changed the airframe.** They are the
+    // ORIGINATING tool's simulation of the design as its author drew it, and they are what the
+    // Cross-check page compares Loft against — so carrying them onto an edited rocket would have that
+    // page report the effect of the flyer's own what-if as Loft's error. The launch CONDITIONS are
+    // written either way: a rail length and a wind speed are not results, and dropping them is the
+    // Sev-1 this whole block exists to fix (drift from pad 630 m to 0 m on a re-import, silently).
+    const bytes = exportOrk({ ...doc, rocket }, { storedResultsDescribeThisRocket: rocket === doc.rocket });
     const base =
       (rocket.name || fileName || "design").replace(/\.[^.]+$/, "").replace(/[^\w.-]+/g, "-") || "design";
     const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: "application/zip" }));
