@@ -2,7 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
-import { Button, Card, Readout, type CardTone } from "./ui";
+import { Button, Card, Readout, Select, type CardTone } from "./ui";
 import { transonicReason } from "@/lib/sim/envelope";
 import { cx } from "@/lib/ui-tokens";
 import WorkspaceNav from "./WorkspaceNav";
@@ -656,15 +656,14 @@ export default function ResultsView({
                 <>
                   <label className="inline-flex items-center gap-1.5">
                     Log altitude in
-                    <select
+                    <Select
                       aria-label="Flight log altitude unit"
                       value={log.unit}
                       onChange={(e) => setLog({ ...log, unit: e.target.value as LogUnit })}
-                      className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-sm text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
                     >
                       <option value="m">metres</option>
                       <option value="ft">feet</option>
-                    </select>
+                    </Select>
                   </label>
                   <span>· {log.points.length} points</span>
                   <Button
@@ -714,19 +713,18 @@ export default function ResultsView({
                   unit picker (speeds are exported in more units than altitudes). */}
               <label className="inline-flex items-center gap-1.5">
                 Log speed in
-                <select
+                <Select
                   aria-label="Flight log speed unit"
                   value={log.speed.unit}
                   onChange={(e) =>
                     setLog(log ? { ...log, speed: log.speed ? { ...log.speed, unit: e.target.value as LogSpeedUnit } : null } : null)
                   }
-                  className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-sm text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
                 >
                   <option value="m/s">m/s</option>
                   <option value="ft/s">ft/s</option>
                   <option value="mph">mph</option>
                   <option value="km/h">km/h</option>
-                </select>
+                </Select>
               </label>
               {logMaxV !== null && (
                 <span className="text-zinc-600 dark:text-zinc-300">
