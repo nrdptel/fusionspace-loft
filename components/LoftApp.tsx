@@ -893,19 +893,51 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
    *  because an undo can move it: restoring the edits of a step taken under another configuration while
    *  flying the current one is a flight neither the flyer nor the file ever asked for. */
   const fly = useCallback(
-    (w: WhatIf) => {
-      if (!doc) return;
+    (w: WhatIf): boolean => {
+      if (!doc) return false;
       try {
         const { run: r, baseline: b } = compute(doc, w.edits, w.weather, w.scenario, w.simIndex);
         setRun(r);
         setBaseline(b);
         setError(null);
+        return true;
       } catch (err) {
         setError(err instanceof Error ? err.message : "Could not simulate.");
+        return false;
       }
     },
     [doc, compute],
   );
+
+  /** Move to a what-if state, but ONLY if it can actually be flown — and answer whether it happened.
+   *
+   *  **A refused change must leave nothing behind, and this is the reason the whole path is shaped
+   *  this way.** The state used to be committed and the flight attempted afterwards, so a solver
+   *  throw set `error` and returned — while `setEdits` had already landed. The design panel then
+   *  redrew the new airframe with every flight number still the PREVIOUS run's, under an error
+   *  message that said nothing about the numbers being stale. Reproduced on the 38 mm sample: typing
+   *  2001 into Body diameter (mm) trips `MAX_REF_RADIUS` in `lib/sim/simulate.ts`, and the grid went
+   *  on reading 992.8 m and 4.07 cal for a rocket two metres across. A confident apogee, static
+   *  margin and landing energy for a rocket that is not the one on screen.
+   *
+   *  **Clearing the run instead would have been worse, and that is not obvious until you look.**
+   *  The load path does exactly that (`setRun(null)` beside its own `setError`), so matching it looks
+   *  like the consistent fix — but `DesignEditor` renders INSIDE `{run && …}`, so blanking the run
+   *  deletes the very field the flyer would use to correct the value. That trades a wrong number for
+   *  a state with no way out of it, which `MAINTAINING.md` ranks as the worse of the two.
+   *
+   *  So the change is simply refused, which is the idiom `NumberField` already uses for a value that
+   *  cannot fly: the design on screen and the numbers beside it stay the last pair that agreed. It
+   *  also makes the invariant self-reinforcing — an unflyable state can never enter the history, so
+   *  undo and redo can only ever restore states that flew once already. */
+  const applyWhatIfState = (w: WhatIf): boolean => {
+    if (!fly(w)) return false;
+    setEdits(w.edits);
+    setWeather(w.weather);
+    setScenario(w.scenario);
+    setSimIndex(w.simIndex);
+    return true;
+  };
 
   /** The launch conditions the flight is actually using when the Conditions fields are blank —
    *  resolved exactly as `makeConditions` resolves them, so what the greyed placeholders advertise is
@@ -962,6 +994,10 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
    *  undoable act in any editor a flyer has used, and recording it would bury the edits under it. */
   const commitWhatIf = (next: WhatIf, action: { label: string; key: string } | null) => {
     const before: WhatIf = { edits, weather, scenario, simIndex };
+    // The flight comes FIRST, and nothing below runs if it throws — see `applyWhatIfState`. A change
+    // that cannot be flown must not reach the history either: an undo step that restores a state the
+    // solver refuses is a step the flyer can never come back through.
+    if (!applyWhatIfState(next)) return;
     if (action && movedWhatIf(before, next)) {
       setHistory((h) => commitHistory(h, before, action.label, action.key, Date.now()));
     } else {
@@ -971,11 +1007,6 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
       // step — one undo took back both gestures and re-aimed the fields at the first part.
       setHistory(endRun);
     }
-    setEdits(next.edits);
-    setWeather(next.weather);
-    setScenario(next.scenario);
-    setSimIndex(next.simIndex);
-    fly(next);
   };
 
   const applyEdit = (patch: Edits, action?: { label?: string; key?: string } | null) => {
@@ -1351,23 +1382,17 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
   const undoStep = () => {
     const back = undoHistory(history, { edits, weather, scenario, simIndex });
     if (!back) return;
+    // The history only ever holds states that flew, so this cannot normally refuse — but if it does,
+    // the step is not consumed, so the flyer keeps the undo rather than losing it to a failed replay.
+    if (!applyWhatIfState(back.state)) return;
     setHistory(back.history);
-    setEdits(back.state.edits);
-    setWeather(back.state.weather);
-    setScenario(back.state.scenario);
-    setSimIndex(back.state.simIndex);
-    fly(back.state);
   };
 
   const redoStep = () => {
     const forward = redoHistory(history, { edits, weather, scenario, simIndex });
     if (!forward) return;
+    if (!applyWhatIfState(forward.state)) return;
     setHistory(forward.history);
-    setEdits(forward.state.edits);
-    setWeather(forward.state.weather);
-    setScenario(forward.state.scenario);
-    setSimIndex(forward.state.simIndex);
-    fly(forward.state);
   };
 
   const canUndo = undoLabel(history);
@@ -1755,9 +1780,20 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
         </>
       )}
 
+      {/* The fault, and then what became of the change — because those are two different questions
+          and only the first was ever answered. The change is refused rather than applied (see
+          `applyWhatIfState`), so the design and the numbers below are still the last pair that
+          agreed; saying so is what stops a flyer reading the grid as the result of what they just
+          typed. Only said when there is a design on screen to be unchanged: the same card carries
+          import failures on the root route, where there is no flight to speak of. */}
       {error && (
         <Card tone="danger" className="mt-4 text-sm">
           {error}
+          {doc && (
+            <span className="block pt-1 text-zinc-700 dark:text-zinc-300">
+              The change was not applied — the design and the flight below are unchanged.
+            </span>
+          )}
         </Card>
       )}
 

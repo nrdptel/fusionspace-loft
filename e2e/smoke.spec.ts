@@ -3321,6 +3321,77 @@ test.describe("Loft", () => {
     await expect.poll(apogee).toBeLessThan(before);
   });
 
+  test("an edit the solver refuses leaves the design and its numbers agreeing", async ({ page }) => {
+    // SEV-1. The what-if state was committed BEFORE the flight was attempted, so a solver throw set
+    // the error and returned with `setEdits` already landed: the design panel redrew the new
+    // airframe while every flight number stayed the previous run's, under a message that said
+    // nothing about them being stale. A confident apogee and static margin for a rocket that is not
+    // the one on screen.
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+
+    // The same locator the neighbouring diameter test uses — the readout is found by walking from
+    // its own label, which is what keeps it pointing at the value rather than at a sibling tile.
+    const apogee = async () => {
+      const txt = await page
+        .getByLabel("Results")
+        .getByText("Apogee", { exact: true })
+        .locator("xpath=following-sibling::div[1]")
+        .innerText();
+      return parseFloat(txt.replace(/[^\d.]/g, ""));
+    };
+    const before = await apogee();
+    expect(before).toBeGreaterThan(0);
+
+    await page.getByRole("link", { name: "Design" }).click();
+    const bodyDia = page.getByRole("spinbutton", { name: /Body diameter/ });
+    await expect(bodyDia).toBeVisible();
+    const designDia = parseFloat((await bodyDia.getAttribute("placeholder")) ?? "0");
+    expect(designDia).toBeGreaterThan(0);
+
+    // Past `MAX_REF_RADIUS` in lib/sim/simulate.ts, which throws rather than returning a flight.
+    await bodyDia.fill("2001");
+    await bodyDia.blur();
+
+    // The refusal is stated, AND it says what became of the change — the fault alone left the flyer
+    // to guess whether the grid below was the old design or the new one.
+    const err = page.getByText(/implausibly large/);
+    await expect(err, "the solver refused the value and the app said nothing").toBeVisible();
+    await expect(
+      page.getByText(/The change was not applied/),
+      "a refusal has to say what happened to the change, not just what was wrong with it",
+    ).toBeVisible();
+
+    // The editor is still there to correct the value in. Clearing the run would have removed it —
+    // `DesignEditor` renders inside the run gate — which is a state with no way out.
+    await expect(bodyDia, "the field that caused the refusal must still be reachable").toBeVisible();
+
+    // THE assertion, and it is about the design rather than the numbers. On a throw the run is not
+    // replaced either way, so the apogee reads the same whether the edit committed or not — which is
+    // exactly what made this defect invisible. What actually differed is that the refused edit
+    // LANDED IN THE WHAT-IF STATE: the design went on reading as edited, the stored-tool comparison
+    // stayed withheld, and the panel described a 2 m airframe that was never flown. A design nobody
+    // successfully changed must not report itself as changed.
+    await expect(
+      page.getByRole("button", { name: /Reset to as-designed/ }),
+      "a refused edit was committed to the what-if state, so the design reads as edited",
+    ).toBeHidden();
+
+    // And the numbers still describe the design that is actually loaded.
+    await page.getByRole("link", { name: "Flight" }).click();
+    expect(await apogee(), "the flight numbers moved for a design that was never flown").toBeCloseTo(
+      before,
+      1,
+    );
+
+    // The way back out: a value that CAN fly is accepted, so the refusal is not a dead end.
+    await page.getByRole("link", { name: "Design" }).click();
+    await bodyDia.fill(String(Math.round(designDia * 1.5)));
+    await page.getByRole("link", { name: "Flight" }).click();
+    await expect.poll(apogee, { timeout: 15_000 }).toBeLessThan(before);
+  });
+
   test("unit toggle switches to imperial", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
