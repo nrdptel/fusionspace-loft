@@ -15,7 +15,7 @@ import type { CsvCell } from "@/lib/csv";
 import LineChart from "./LineChart";
 import DownloadCsv, { CopyTable } from "./DownloadCsv";
 import type { UnitSystem } from "@/lib/display";
-import { Extrapolated, Panel, Select } from "./ui";
+import { Figure, Panel, Select } from "./ui";
 
 const round = (n: number, dp: number) => (Number.isFinite(n) ? Math.round(n * 10 ** dp) / 10 ** dp : "");
 
@@ -479,28 +479,31 @@ function SweepChart({
   })();
   return (
     <div className="mt-3">
-      {extrapolatedWhy && (
-        <div className="mb-3">
-          <Extrapolated reason={extrapolatedWhy} />
-        </div>
-      )}
-      <LineChart
-        series={series}
-        markers={[{ x: designX, label: "design" }]}
-        xLabel={`${axis.label} (${xUnit})`}
-        yLabel={`${metric.label}${yUnit ? ` (${yUnit})` : ""}`}
-        yZeroFloor={metric.key !== "staticMarginCal"}
-      />
-      <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
-        Ballistic ascent to apogee under{" "}
-        {/* `{" "}` and not a plain space: a JSX text run that spans a line break loses its LEADING
-            whitespace, so `{STEPS} flights` on one line and `the range` on the next shipped as
-            "25flights across the range". The space has to survive the transform, not the source. */}
-        {conditionsPhrase(conditions, { wind: false })}, {STEPS}{" "}
-        flights across the range; the marker is the design&apos;s own value (no added ballast for
-        that axis). Each variable shifts the centre of pressure and the mass its own way — read
-        these as estimates to verify, not a go/no-go.
-      </p>
+      {/* No `title`: this chart sits directly under the panel heading that names it, and a second
+          heading here would be a heading about a heading. */}
+      <Figure
+        extrapolated={extrapolatedWhy ?? undefined}
+        caption={
+          <>
+            Ballistic ascent to apogee under{" "}
+            {/* `{" "}` and not a plain space: a JSX text run that spans a line break loses its LEADING
+                whitespace, so `{STEPS} flights` on one line and `the range` on the next shipped as
+                "25flights across the range". The space has to survive the transform, not the source. */}
+            {conditionsPhrase(conditions, { wind: false })}, {STEPS}{" "}
+            flights across the range; the marker is the design&apos;s own value (no added ballast for
+            that axis). Each variable shifts the centre of pressure and the mass its own way — read
+            these as estimates to verify, not a go/no-go.
+          </>
+        }
+      >
+        <LineChart
+          series={series}
+          markers={[{ x: designX, label: "design" }]}
+          xLabel={`${axis.label} (${xUnit})`}
+          yLabel={`${metric.label}${yUnit ? ` (${yUnit})` : ""}`}
+          yZeroFloor={metric.key !== "staticMarginCal"}
+        />
+      </Figure>
       <div className="mt-2">
         <DownloadCsv rows={csv} name={name} suffix={`sweep-${axis.axis}`} />
         <CopyTable rows={csv} />

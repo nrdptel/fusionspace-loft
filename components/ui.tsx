@@ -645,6 +645,82 @@ export function ErrorState({
   );
 }
 
+/** `DESIGN.md` §5's `Figure` — "a chart with its title, legend, axis units, and its own empty and
+ *  extrapolated states."
+ *
+ *  Nine call sites in four files spelled this four ways. `ResultsView` had a local `Plot` (a `Card`,
+ *  an `h3`, an `overflow-x-auto` wrapper); `MonteCarlo` repeated that exact heading string without
+ *  the wrapper; `DragCrossCheck` used a `<p>` where a heading belongs, one shade off at
+ *  `text-zinc-600`, with an aside beside it; and `ParameterSweep` had the caveat above the chart and
+ *  the caption below it and no heading at all. The heading is the primitive's, so the `<p>` becomes a
+ *  real `h3` and the shade converges — `DESIGN.md`'s *Notes* say the primitive wins and the
+ *  difference is the defect.
+ *
+ *  Legend and axis units are NOT here on purpose: `LineChart` already owns both, draws the legend
+ *  from each series' own label, and takes `xLabel`/`yLabel`. §5 lists them as things a figure must
+ *  HAVE, not as things this wrapper must render, and moving them up would mean every chart declaring
+ *  its axes twice.
+ *
+ *  `title` is optional because one real site has none — the parameter sweep's chart sits directly
+ *  under the panel heading that names it, and a second heading would be a heading about a heading.
+ *  What is not optional is that the caveat and the caption have ONE place to go, which is what makes
+ *  the extrapolated state a state rather than a paragraph somebody remembered.
+ *
+ *  `empty` renders when `children` is null or undefined. A chart with nothing to draw is the state
+ *  §5 says a surface without is not finished, and `return null` — a hole where a figure was — is the
+ *  version of it that teaches nothing. */
+export function Figure({
+  title,
+  aside,
+  extrapolated,
+  caption,
+  empty,
+  className,
+  children,
+  ...rest
+}: {
+  title?: React.ReactNode;
+  /** A note in the title row: what the figure agrees to, what it covers. */
+  aside?: React.ReactNode;
+  /** The reason this figure leaves the envelope its method was validated over. Rendered above the
+   *  chart, because a caveat under a chart is read after the number it is about. */
+  extrapolated?: string;
+  /** The small print: what was flown, over what, and how to read it. */
+  caption?: React.ReactNode;
+  /** What would fill this figure, for when nothing does. */
+  empty?: React.ReactNode;
+} & Omit<React.HTMLAttributes<HTMLElement>, "title">) {
+  return (
+    <figure className={className} {...rest}>
+      {/* The title row is a flex row only when there is something to sit BESIDE the heading. A
+       *  wrapper around a lone `<h3>` is markup nobody asked for, and it is not free: two e2e cases
+       *  reach this figure's caption by `heading → xpath=..`, which is the whole figure when the
+       *  heading's parent is the `<figure>` and is the empty title row when it is not. Both went red
+       *  on the first draft of this component, which is the useful kind of red — an extra div is
+       *  invisible to a screenshot and not to a traversal. */}
+      {aside ? (
+        <div className="flex flex-wrap items-baseline justify-between gap-x-3">
+          {title && <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">{title}</h3>}
+          {aside}
+        </div>
+      ) : (
+        title && <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">{title}</h3>
+      )}
+      {extrapolated && (
+        <div className="mt-2">
+          <Extrapolated reason={extrapolated} />
+        </div>
+      )}
+      <div className="mt-2 overflow-x-auto">
+        {children ?? <EmptyState what={empty ?? "Nothing to plot yet."} />}
+      </div>
+      {caption && (
+        <figcaption className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">{caption}</figcaption>
+      )}
+    </figure>
+  );
+}
+
 /** Hand focus to the control that REPLACES the one that just vanished.
  *
  *  Closing a panel unmounts the Close button while it is the focused element, and a removed element

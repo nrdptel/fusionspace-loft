@@ -85,8 +85,14 @@ const BUDGET = {
   cardTreatments: 3,
   /** Spacing values off the `1 2 3 4 6 8 12` scale. Target 0. */
   offScaleSpacing: 0,
-  /** Components importing the shared primitives. Target: most of the 23. This one only goes UP. */
-  uiAdopters: 17,
+  /** Components importing the shared primitives. Target: most of the 27. This one only goes UP.
+   *
+   *  **18, raised from 17 on 2026-08-04, and it had been a floor below the real number for at least
+   *  a run.** It is a `toBeGreaterThanOrEqual`, so a stale floor cannot fail — it just quietly stops
+   *  ratcheting, which is the one failure mode a one-directional check has. Found by running §9's own
+   *  grep beside it and getting a different answer. Worth re-running that grep whenever this file is
+   *  touched: `grep -rlE "from ['\"](\./ui|@/components/ui)['\"]" components | wc -l`. */
+  uiAdopters: 18,
   /** Component files where caption size OUTNUMBERS the body default. **At the target**, so this is a
    *  guard rather than a ratchet from here on: a file that inverts again is a decision-grade value
    *  that has been put back at caption size. */
@@ -220,11 +226,13 @@ const PRIMITIVE_ADOPTERS: Record<string, number> = {
    *  invisible to a check that counts imports. A seventh surface must import it rather than
    *  re-spell it.
    *
-   *  Five, not six, and the missing one is the reason `Readout` exists: `ResultsView` was the file
-   *  the treatment was born in, and it no longer imports `Extrapolated` directly because its sixteen
-   *  readouts now go through the primitive that owns it. A treatment reaching a surface THROUGH
-   *  another primitive is adoption working, not adoption lost. */
-  Extrapolated: 5,
+   *  Four now, down from six, and both losses are the same thing rather than a retreat. `ResultsView`
+   *  was the file the treatment was born in and stopped importing it directly when `Readout` took it
+   *  over; `ParameterSweep` stopped when `Figure` did. **A treatment reaching a surface THROUGH
+   *  another primitive is adoption working, not adoption lost** — the same rule §9 records for the
+   *  caption-vs-body count, arriving here by a different route. A FIFTH surface that needs the
+   *  caveat and reaches neither of those two must still import this. */
+  Extrapolated: 4,
   /** §5's `Readout` — the labelled-value-with-unit treatment, and the one a flyer reads every number
    *  through.
    *
@@ -272,6 +280,21 @@ const PRIMITIVE_ADOPTERS: Record<string, number> = {
    *  each call site re-derived, and a panel that closes and drops focus onto `<body>` is invisible to
    *  every check in this repo. A fourth heavy panel must import this. */
   Panel: 3,
+  /** §5's `Figure` — "a chart with its title, legend, axis units, and its own empty and extrapolated
+   *  states."
+   *
+   *  Four adopters, nine call sites, and four disagreeing treatments before it: `ResultsView`'s local
+   *  `Plot` (a `Card`, an `h3`, an `overflow-x-auto` wrapper), `MonteCarlo` repeating that exact
+   *  heading string without the wrapper, `DragCrossCheck` using a `<p>` where a heading belongs and
+   *  one shade off at `text-zinc-600`, and `ParameterSweep` with the caveat above and the caption
+   *  below and no heading at all. The last of those is why the primitive takes `extrapolated` and
+   *  `caption` as slots: the caveat had exactly one home, and a home is what makes it a STATE rather
+   *  than a paragraph somebody remembered.
+   *
+   *  Legend and axis units are deliberately NOT this primitive's: `LineChart` owns both already, and
+   *  hoisting them would make every chart declare its axes twice. §5 lists them as things a figure
+   *  must HAVE, not as things this wrapper must render. */
+  Figure: 4,
 };
 
 describe("DESIGN.md §9 — the design system is binding, and this is what checks it", () => {
@@ -447,6 +470,32 @@ describe("DESIGN.md §9 — the design system is binding, and this is what check
         return [...stripped.matchAll(/<select[\s>]/g)].map(() => f.path);
       });
     expect(raw, `hand-rolled <select> elements:\n  ${raw.join("\n  ")}`).toEqual([]);
+  });
+
+  it("renders no chart outside a `Figure`", () => {
+    // `DESIGN.md` §5: a figure is "a chart with its title, legend, axis units, and its own empty and
+    // extrapolated states". Nine call sites in four files spelled the frame four ways before
+    // 2026-08-04, and the differences were not cosmetic: one used a `<p>` where a heading belongs,
+    // and one put the out-of-envelope caveat somewhere the others had no place for at all.
+    //
+    // **This is a FILE-level check and it says so.** It catches the next component that adds a chart
+    // and frames it by hand — the way all four of these started. It cannot see a second chart added
+    // inside a file that already adopts `Figure`, and that limit is why the per-primitive ratchet
+    // above is kept as well: this one goes red on a new file, that one goes red on a file that stops.
+    const CHARTS = ["<LineChart", "<Histogram", "<Scatter", "<FlightViz"];
+    const offenders = components
+      .filter((f) => f.path !== "components/ui.tsx")
+      .filter((f) => {
+        const stripped = f.text
+          .replace(/\/\*[\s\S]*?\*\//g, "")
+          .split("\n")
+          .filter((l) => !/^\s*(\/\/|\*)/.test(l))
+          .join("\n");
+        if (!CHARTS.some((c) => stripped.includes(c))) return false;
+        return !/import \{[^}]*\bFigure\b[^}]*\} from "(?:\.\/ui|@\/components\/ui)"/.test(stripped);
+      })
+      .map((f) => f.path);
+    expect(offenders, `components rendering a chart without \`Figure\`:\n  ${offenders.join("\n  ")}`).toEqual([]);
   });
 
   it("wires focus return in exactly 0 places — `Panel` owns it", () => {

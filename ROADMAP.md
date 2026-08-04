@@ -3554,10 +3554,11 @@ invariant: whatever ships here ships in both apps.
 
 ## P6 — The primitives the design system already declares
 
-**Status: IN PROGRESS** — increments 1–4 shipped 2026-08-04 (`Readout`, `Select`,
-`EmptyState`/`ErrorState`, `Panel`), plus `Extrapolated`, which arrived early as a Sev-1 fix rather
-than as planned P6 work. Each carries a per-primitive adoption ratchet in `lib/design-system.test.ts`.
-**Remaining: `Figure`**, and the live question on `Section` and `Chip` — see *Notes*.
+**Status: IN PROGRESS** — increments 1–5 shipped 2026-08-04 (`Readout`, `Select`,
+`EmptyState`/`ErrorState`, `Panel`, `Figure`), plus `Extrapolated`, which arrived early as a Sev-1 fix
+rather than as planned P6 work. **All six primitives §5 declares now exist and are adopted**, each
+with a per-primitive ratchet in `lib/design-system.test.ts`. **Remaining: the live question on
+`Section` and `Chip`** — see *Notes*. That is the last *done when* clause open.
 
 *Increment 1 — SHIPPED. `Readout` exists and `ResultsView`'s sixteen readouts go through it.*
 
@@ -3632,7 +3633,31 @@ It also moved three counts DOWN — `Card` 12→11, `Button` 14→12, `ClosePane
 pixel changing, which is the distortion §9 already records under *count what a file RENDERS*. Noted
 beside each number so the next audit reads it as absorption rather than regression.
 
-**Next: `Figure`.** (The `GeometryInspector` empty-state case was investigated and
+*Increment 5 — SHIPPED 2026-08-04. `Figure`, and every chart in the app is framed by it.*
+
+Nine call sites in four files, in four disagreeing treatments: `ResultsView`'s local `Plot` (a `Card`,
+an `h3`, an `overflow-x-auto` wrapper), `MonteCarlo` repeating that exact heading string without the
+wrapper, `DragCrossCheck` using a `<p>` where a heading belongs and one shade off at `text-zinc-600`,
+and `ParameterSweep` with the out-of-envelope caveat above the chart and the caption below it and no
+heading at all. **That last one is the argument for the primitive**: the caveat had exactly one home
+in the app, and a home is what makes it a STATE rather than a paragraph somebody remembered.
+
+Legend and axis units are deliberately not the wrapper's — `LineChart` owns both, draws the legend
+from each series' own label, and takes `xLabel`/`yLabel`. §5 lists them as things a figure must HAVE,
+not as things this component must render, and hoisting them would make every chart declare its axes
+twice.
+
+Pinned three ways: the per-primitive ratchet at four adopters; a file-level source check that a
+component rendering a chart imports `Figure` (which catches the next file that frames one by hand —
+the way all four of these started, and which the import ratchet cannot see); and `Extrapolated`
+dropping 6 → 4 adopters as `Readout` and now `Figure` took it over, recorded as absorption with the
+reason. Both new checks proved able to fail.
+
+**It also caught a stale ratchet.** `uiAdopters` sat at 17 while §9's own grep answered 18 — and
+because it is a `toBeGreaterThanOrEqual`, a stale floor cannot fail, it just quietly stops
+ratcheting. Raised, with the grep written beside it.
+
+(The `GeometryInspector` empty-state case was investigated and
 REFUTED — `ResultsView` never mounts without a successful flight, so that branch is genuinely
 unreachable.) The `Readout` queue behind increment 1 is
 measured and waiting: `Field` (14 sites in the same file, a pre-formatted-string value),

@@ -2,7 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
-import { Button, Card, Readout, Select, type CardTone } from "./ui";
+import { Button, Card, Figure, Readout, Select, type CardTone } from "./ui";
 import { transonicReason } from "@/lib/sim/envelope";
 import { cx } from "@/lib/ui-tokens";
 import WorkspaceNav from "./WorkspaceNav";
@@ -649,7 +649,8 @@ export default function ResultsView({
             Flight workspace 4.7 screens tall, and reading altitude against velocity meant
             scrolling between them. */}
         <div className="grid gap-6 xl:grid-cols-2">
-        <Plot title={`Altitude (${units === "imperial" ? "ft" : "m"}) vs time`}>
+        <Card>
+          <Figure title={`Altitude (${units === "imperial" ? "ft" : "m"}) vs time`}>
           <LineChart
             series={logSeries ? [altSeries(r, units), logSeries] : [altSeries(r, units)]}
             markers={markers}
@@ -727,8 +728,10 @@ export default function ResultsView({
               . Your measurement beside the estimate — not a model-accuracy figure.
             </p>
           )}
-        </Plot>
-        <Plot title={`Velocity (${units === "imperial" ? "ft/s" : "m/s"}) vs time`}>
+        </Figure>
+        </Card>
+        <Card>
+          <Figure title={`Velocity (${units === "imperial" ? "ft/s" : "m/s"}) vs time`}>
           <LineChart
             series={logSpeedSeries ? [...velSeries(r, units), logSpeedSeries] : velSeries(r, units)}
             markers={markers}
@@ -768,20 +771,25 @@ export default function ResultsView({
               )}
             </div>
           )}
-        </Plot>
-        <Plot title="Acceleration (g) vs time">
+        </Figure>
+        </Card>
+        <Card>
+          <Figure title="Acceleration (g) vs time">
           <LineChart series={[accelSeries(r)]} markers={markers} xLabel="time (s)" yLabel="g" />
-        </Plot>
+        </Figure>
+        </Card>
         {/* "Total thrust", not "Motor thrust" — the curve is the vehicle's, summed across every
             motor burning at that instant, so on a staged or airstarted design it is not any single
             motor's published curve. The old singular heading was half of what made the first-motor
             plot a defect rather than a partial view: nothing on the surface said it was one of
             several. The caption below names them. */}
         {thrustSeries(run) && (
-          <Plot title="Total thrust (N) vs time">
-            <LineChart series={[thrustSeries(run)!]} xLabel="time (s)" yLabel="N" yZeroFloor />
-            <MotorStatsCaption run={run} units={units} />
-          </Plot>
+          <Card>
+            <Figure title="Total thrust (N) vs time">
+              <LineChart series={[thrustSeries(run)!]} xLabel="time (s)" yLabel="N" yZeroFloor />
+              <MotorStatsCaption run={run} units={units} />
+            </Figure>
+          </Card>
         )}
         </div>
       </section>
@@ -1828,15 +1836,6 @@ function WhatIfDelta({ run, baseline, units }: { run: FlightRun; baseline: Fligh
           </div>
         ))}
       </dl>
-    </Card>
-  );
-}
-
-function Plot({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <Card>
-      <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">{title}</h3>
-      <div className="mt-2 overflow-x-auto">{children}</div>
     </Card>
   );
 }
