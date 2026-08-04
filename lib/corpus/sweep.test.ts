@@ -120,7 +120,12 @@ const PUBLISHED_MEDIAN_PCT: Record<string, number> = {
   // groundHitVelocity 3.0 -> 8.3, and it is the one figure here that got WORSE without the engine
   // getting worse. It used to be measured on the total ground-frame speed, which folds in the
   // horizontal drift the canopy is carrying; every stored figure it is compared against is the
-  // vertical descent rate. On the openrocket files that error ran OPPOSITE to Loft's own
+  // vertical descent rate — TRUE of the `.ork` files this note was written from, and it was NOT true
+  // of the `.rkt` ones until 2026-08-04. RockSim stores `<VelocityAtLanding>` as the TOTAL
+  // (hypot(X, Y, Z) to four decimals on 17 of 17 corpus simulations), so the RockSim half of this
+  // metric was vertical-against-total and could only ever read low. Reading `<YVelocityAtLanding>`
+  // instead moved the RockSim median 25.7% -> 21.9% with no engine change. On the openrocket files
+  // that error ran OPPOSITE to Loft's own
   // descent-rate error and partly cancelled it — `pods--airframes and winglets` reads -14.5%
   // vertical but -3.0% total — so 3.0% was two errors meeting in the middle. Measured on the nine
   // stored sims where wind exceeds 4 m/s, where the two cannot cancel, the vertical figure agrees
