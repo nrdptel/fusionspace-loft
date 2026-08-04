@@ -266,14 +266,25 @@ export interface DeploySetting {
  *  apogee's 3.1%), so telling the two apart is what makes the error attributable at all — and
  *  `DESIGN.md` §6 requires a reference value to name its source, which a surface cannot do from the
  *  number alone. `lib/sim/recovery-defaults.ts` holds each fallback and what backs it. */
-export type CdProvenance = "file" | "default";
+export type CdProvenance = "file" | "default" | "loft";
 
 export interface Parachute extends ComponentBase {
   kind: "parachute";
   /** Drag coefficient of the canopy. */
   cd: number;
-  /** Whether `cd` is the file's own figure or a fallback Loft supplied. Absent on a design authored
-   *  in Loft, which has no file to have stated one. */
+  /** Where `cd` came from: `"file"` is the design file's own figure, `"default"` is a fallback Loft
+   *  supplied because the file stated none, and `"loft"` is a canopy Loft itself authored — the
+   *  starter design's, or the drogue the dual-deploy editor adds.
+   *
+   *  **`"loft"` exists because absence could not say it.** This was optional and undefined on an
+   *  authored chute, which is indistinguishable from a chute whose provenance was simply never
+   *  recorded — and two places did author one with a bare `cd: 0.8` and no provenance at all, which
+   *  the R9 increment that consolidated the five adapter fallbacks missed for exactly that reason.
+   *  A surface naming the origin cannot report "Loft chose this" from a missing field.
+   *
+   *  Note the catalogue is NOT a fourth value, and that is a measurement rather than an omission:
+   *  0 of the 151 catalogued canopies publish a drag coefficient, so a catalogue pick leaves this
+   *  field exactly as it found it. `components/PartPicker.tsx` already says so in words. */
   cdFrom?: CdProvenance;
   /** Canopy diameter (m). Area is derived as a flat circle unless `area` is given. */
   diameter: number;

@@ -13,6 +13,7 @@ import type { Rocket, RocketComponent, ComponentKind, NoseCone, BodyTube, Transi
 import { flattenRocket, aftOuterRadius, foreOuterRadius, nextTopLevel } from "./geometry";
 import { uniqueUuidFrom, uuidFrom } from "./id";
 import type { Positioned } from "./geometry";
+import { LOFT_AUTHORED_PARACHUTE_CD } from "../sim/recovery-defaults";
 
 /** Selectable nose-cone shapes, for the builder's nose picker. Ordered by how a flyer thinks of
  *  them (sharp → blunt, then the parametrised low-drag families). */
@@ -2292,7 +2293,8 @@ function applyDualDeploy(
     name: "Drogue",
     kind: "parachute",
     placement: { ...main.placement },
-    cd: 0.8,
+    cd: LOFT_AUTHORED_PARACHUTE_CD.cd,
+    cdFrom: "loft",
     diameter: drogueDiameter,
     mass: drogueMass,
     deployEvent: "apogee",

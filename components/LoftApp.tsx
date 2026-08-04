@@ -93,7 +93,7 @@ import {
   EMPTY_HISTORY,
   type History,
 } from "@/lib/model/history";
-import type { Material, SurfaceFinish, NoseShape, FinCrossSection } from "@/lib/model/types";
+import type { Material, SurfaceFinish, NoseShape, FinCrossSection, CdProvenance } from "@/lib/model/types";
 import type { CatalogPart } from "@/lib/components/db";
 import { designMotorIdentity, swapOptions, swapStillOffered, type SwapOption,
   bakeMotorSwap,
@@ -1690,6 +1690,11 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
             // FROM is the canopy the resize is written TO. 17 of the 35 corpus designs carry more
             // than one — every dual-deploy design does — and the drogue was unreachable on all.
             mainParachuteDiameter: primaryParachute(designBase, edits.parachuteId)?.diameter,
+            // The coefficient and its origin, read off the SAME canopy the diameter is — R9's gap:
+            // it is the one input in the recovery chain that sets landing speed and landing energy,
+            // and it was on no surface in the app at all.
+            mainParachuteCd: primaryParachute(designBase, edits.parachuteId)?.cd,
+            mainParachuteCdFrom: primaryParachute(designBase, edits.parachuteId)?.cdFrom,
             parachutePart: primaryParachutePart(designBase, edits.parachuteId),
             unreachableParachutes: unreachableParachuteCount(designBase),
             motorClusterCount: primaryMotorClusterCount(designBase),
@@ -1729,6 +1734,8 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
             finish: undefined,
             airframeMaterial: undefined,
             mainParachuteDiameter: undefined,
+            mainParachuteCd: undefined,
+            mainParachuteCdFrom: undefined,
             parachutePart: undefined,
             unreachableParachutes: 0,
             motorClusterCount: undefined,
@@ -2211,6 +2218,29 @@ function ConfigPicker({
  *  airframe. It lives in the Design workspace next to the to-scale diagram it edits, so building
  *  and editing are the same surface. Every change is a hypothetical on the loaded design, so the
  *  stored-tool comparison is hidden while any is set. */
+/** How to say where a canopy's drag coefficient came from, in the flyer's terms rather than the
+ *  model's.
+ *
+ *  Three values, and the third is why `CdProvenance` gained a member: a chute Loft itself authored —
+ *  the starter design's, or the drogue the dual-deploy editor adds — used to carry no provenance at
+ *  all, and absence cannot be told apart from "nobody recorded it". `undefined` therefore still
+ *  means exactly that, and says so rather than guessing.
+ *
+ *  There is deliberately no "from the catalogue" case: 0 of the 151 catalogued canopies publish a
+ *  coefficient, so a pick leaves the field as it found it. */
+function cdOriginPhrase(from: CdProvenance | undefined): string {
+  switch (from) {
+    case "file":
+      return "the design file's own figure";
+    case "default":
+      return "Loft's fallback, because the file states none";
+    case "loft":
+      return "Loft's own, for a canopy authored here";
+    default:
+      return "origin not recorded";
+  }
+}
+
 function DesignEditor({
   units,
   edits,
@@ -2261,6 +2291,8 @@ function DesignEditor({
     finish?: SurfaceFinish;
     airframeMaterial?: string;
     mainParachuteDiameter?: number;
+    mainParachuteCd?: number;
+    mainParachuteCdFrom?: CdProvenance;
     parachutePart?: AimedPart;
     unreachableParachutes: number;
     motorClusterCount?: number;
@@ -2883,6 +2915,42 @@ function DesignEditor({
                   />
                 )}
               </div>
+              {/* **The coefficient the whole descent is computed from, and where it came from.**
+                  R9's gap: landing speed and landing energy are what an RSO and a waiver check, this
+                  is the single input that sets them, and it was on no surface in the app — a flyer
+                  could not see it, could not tell whose number it was, and (still, until increment
+                  5) cannot change it.
+
+                  Rendered as a note rather than as a `Readout` card or a disabled `NumberField`,
+                  which is a `DESIGN.md` §5 judgement rather than a shortcut: the fieldset already
+                  states its unreachable-canopy note in exactly this treatment, a `Readout` card
+                  among four `NumberField`s would read as a different KIND of thing, and a disabled
+                  number box advertises an edit that does not exist yet. `DESIGN.md` §6 requires a
+                  reference value to name its source, which is the sentence rather than the number.
+
+                  The origin has three real values and not the four R9's *done when* names. A
+                  catalogue pick cannot be one: 0 of the 151 catalogued canopies publish a
+                  coefficient, so a pick leaves this field exactly as it found it — which
+                  `PartPicker` already tells the flyer in words. Saying "catalogue part" here would
+                  be inventing a provenance the data cannot support. */}
+              {designDims.mainParachuteCd !== undefined && (
+                <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
+                  Drag coefficient{" "}
+                  <span className="font-mono tabular-nums text-zinc-700 dark:text-zinc-300">
+                    {d.fmt(designDims.mainParachuteCd, 2)}
+                  </span>{" "}
+                  — {cdOriginPhrase(designDims.mainParachuteCdFrom)}. It sets the descent rate,
+                  arrival speed and landing energy above.{" "}
+                  <Link
+                    href="/docs/limitations"
+                    className="text-indigo-600 underline underline-offset-2 dark:text-indigo-400"
+                  >
+                    What backs each figure
+                  </Link>
+                  .
+                </p>
+              )}
+
               {/* The third kind the catalogue can offer, and the first that is not airframe. It edits
                   the canopy that is already there — the same shape as a nose pick, and for the same
                   reason: the model requires a drag coefficient and a deploy event, and the catalogue

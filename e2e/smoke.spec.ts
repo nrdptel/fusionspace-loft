@@ -3409,6 +3409,30 @@ test.describe("Loft", () => {
     await expect.poll(apogee, { timeout: 15_000 }).toBeLessThan(before);
   });
 
+  test("the design says what its canopy's drag coefficient is, and whose number it is", async ({ page }) => {
+    // R9's gap. Landing speed and landing energy are what a field and a waiver are checked against,
+    // the parachute drag coefficient is the single input that sets them, and it was on no surface in
+    // the app at all — a flyer could not see it and could not tell whose figure it was.
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+    await page.getByRole("link", { name: "Design" }).click();
+
+    const cd = page.getByText(/Drag coefficient/);
+    await expect(cd, "the canopy's drag coefficient is on no surface").toBeVisible();
+    // The number itself, and it is the one being flown rather than a placeholder.
+    await expect(cd).toContainText(/0\.\d/);
+    // And whose it is. This fixture's canopy states `<cd>0.8</cd>` outright — verified in the file,
+    // not assumed — so the honest attribution here is the file's, and a design whose canopy said
+    // nothing would read as Loft's fallback instead. Asserted as the IDEA rather than the exact
+    // sentence, so rewording does not red the check while removing the attribution does.
+    // DESIGN.md section 6 requires a reference value to name its source; the number alone cannot.
+    await expect(
+      cd,
+      "the coefficient is shown without saying whether it is the file's figure or Loft's",
+    ).toContainText(/design file's own figure/);
+  });
+
   test("unit toggle switches to imperial", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();

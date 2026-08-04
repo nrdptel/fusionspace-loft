@@ -117,6 +117,28 @@ export const RASAERO_PARACHUTE_CD: RecoveryCdDefault = {
   corpusHits: 0,
 };
 
+/** The canopy Loft itself authors — the starter design's main, and the drogue the dual-deploy
+ *  editor adds when a flyer types a drogue diameter.
+ *
+ *  **Not a fallback, which is why it is named separately.** The five above resolve a value a FILE
+ *  declined to state; this one has no file behind it at all. Both were bare `cd: 0.8` literals with
+ *  no provenance — `lib/model/starter.ts` and the drogue applier in `lib/model/edit.ts` — and the
+ *  increment that consolidated the adapter fallbacks missed them precisely because they are not
+ *  adapter code. A flyer building from scratch in Loft was flying an unattributed coefficient with
+ *  nothing on any surface able to say whose it was.
+ *
+ *  The value matches `ORK_PARACHUTE_CD` deliberately: a rocket authored in Loft and the same rocket
+ *  round-tripped through an `.ork` that states no `cd` should not descend differently. Its basis is
+ *  the weaker one, though, and says so — OpenRocket's figure is defensible as *what a file meant*
+ *  when it delegated the choice, and nothing delegates anything here. */
+export const LOFT_AUTHORED_PARACHUTE_CD: RecoveryCdDefault = {
+  cd: 0.8,
+  source: null,
+  basis:
+    "No published basis. Matched to the figure OpenRocket resolves an unstated coefficient to, so a design authored in Loft and the same design saved and reopened as an .ork descend the same way.",
+  corpusHits: 0,
+};
+
 /** Every fallback, for the checks that assert the whole set at once. */
 export const RECOVERY_CD_DEFAULTS: readonly RecoveryCdDefault[] = [
   ORK_PARACHUTE_CD,
