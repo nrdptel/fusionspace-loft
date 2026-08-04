@@ -3418,7 +3418,9 @@ test.describe("Loft", () => {
     await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
     await page.getByRole("link", { name: "Design" }).click();
 
-    const cd = page.getByText(/Drag coefficient/);
+    // The provenance LINE specifically, not the field's hint — both mention the coefficient, and a
+    // looser locator matched the hint and then asserted the attribution against it.
+    const cd = page.getByText(/^Flying /);
     await expect(cd, "the canopy's drag coefficient is on no surface").toBeVisible();
     // The number itself, and it is the one being flown rather than a placeholder.
     await expect(cd).toContainText(/0\.\d/);
@@ -3431,6 +3433,46 @@ test.describe("Loft", () => {
       cd,
       "the coefficient is shown without saying whether it is the file's figure or Loft's",
     ).toContainText(/design file's own figure/);
+  });
+
+  test("changing the canopy's drag coefficient re-flies a slower arrival", async ({ page }) => {
+    // R9's *done when*: the coefficient is editable on /design and the edit flows through a re-fly.
+    // It is the one input in the recovery chain a flyer could not reach, and it sets the two figures
+    // — arrival speed and landing energy — that a field and a waiver are checked against.
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+
+    const arrival = async () => {
+      const txt = await page
+        .getByLabel("Results")
+        .getByText("Ground-hit speed", { exact: true })
+        .locator("xpath=following-sibling::div[1]")
+        .innerText();
+      return parseFloat(txt.replace(/[^\d.]/g, ""));
+    };
+    const before = await arrival();
+    expect(before).toBeGreaterThan(0);
+
+    await page.getByRole("link", { name: "Design" }).click();
+    const cd = page.getByRole("spinbutton", { name: /Canopy Cd/ });
+    await expect(cd, "the canopy's drag coefficient is not editable").toBeVisible();
+    // The field starts from the design's own figure, shown as its placeholder — so a flyer sees what
+    // they are editing FROM rather than an empty box.
+    const design = parseFloat((await cd.getAttribute("placeholder")) ?? "0");
+    expect(design).toBeGreaterThan(0);
+
+    // A draggier canopy arrives slower. Asserted as a direction rather than a figure.
+    await cd.fill(String(design * 2));
+    await page.getByRole("link", { name: "Flight" }).click();
+    await expect.poll(arrival, { timeout: 15_000 }).toBeLessThan(before);
+
+    // And the surface says whose number is now being flown — not still the file's.
+    await page.getByRole("link", { name: "Design" }).click();
+    await expect(
+      page.getByText(/your own figure/),
+      "the flown coefficient is the flyer's and the panel still attributes it elsewhere",
+    ).toBeVisible();
   });
 
   test("unit toggle switches to imperial", async ({ page }) => {

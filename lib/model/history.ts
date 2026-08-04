@@ -176,6 +176,7 @@ export const EDIT_ACTIONS: Readonly<Record<string, string>> = {
   ballastKg: "the nose ballast",
   // Recovery
   mainParachuteDiameter: "the parachute size",
+  parachuteCd: "the canopy drag coefficient",
   mainDeployAltitude: "the main deployment altitude",
   drogueDiameter: "the drogue size",
   recoveryCdScale: "the recovery drag",

@@ -235,6 +235,7 @@ interface Edits {
   mainDeployAltitude?: number; // builder edit: dual-deploy — main deploys at this altitude AGL (m)
   drogueDiameter?: number; // builder edit: dual-deploy — drogue diameter (m) added at apogee
   mainParachuteDiameter?: number; // builder edit: resize the main (largest) parachute (m)
+  parachuteCd?: number; // builder edit: the aimed canopy's drag coefficient
   motorClusterCount?: number; // builder edit: how many motors the mount holds (cluster)
   payloadMassKg?: number; // builder edit: add a payload/av-bay point mass (kg)
   payloadStation?: number; // builder edit: where the added payload sits (m from nose; blank = mid-body)
@@ -2245,6 +2246,10 @@ function cdOriginPhrase(from: CdProvenance | undefined): string {
       return "Loft's fallback, because the file states none";
     case "loft":
       return "Loft's own, for a canopy authored here";
+    case "flyer":
+      return "your own figure";
+    case "flyer":
+      return "your own figure, typed here";
     default:
       return "origin not recorded";
   }
@@ -2930,34 +2935,55 @@ function DesignEditor({
                   could not see it, could not tell whose number it was, and (still, until increment
                   5) cannot change it.
 
-                  Rendered as a note rather than as a `Readout` card or a disabled `NumberField`,
-                  which is a `DESIGN.md` §5 judgement rather than a shortcut: the fieldset already
-                  states its unreachable-canopy note in exactly this treatment, a `Readout` card
-                  among four `NumberField`s would read as a different KIND of thing, and a disabled
-                  number box advertises an edit that does not exist yet. `DESIGN.md` §6 requires a
-                  reference value to name its source, which is the sentence rather than the number.
+                  A `NumberField` like its four neighbours, because it is now an edit like theirs —
+                  it shipped one increment earlier as a read-only note, which was the honest shape
+                  while a disabled box would have advertised an edit that did not exist. The
+                  provenance stays a sentence beneath it: `DESIGN.md` §6 requires a reference value
+                  to name its source, and a source is not a number a field can hold.
 
-                  The origin has three real values and not the four R9's *done when* names. A
+                  The origin has four values and not the four R9's *done when* names — a different
+                  four. Typing one is an origin (`"your own figure"`); a catalogue pick is not. A
                   catalogue pick cannot be one: 0 of the 151 catalogued canopies publish a
                   coefficient, so a pick leaves this field exactly as it found it — which
                   `PartPicker` already tells the flyer in words. Saying "catalogue part" here would
                   be inventing a provenance the data cannot support. */}
               {designDims.mainParachuteCd !== undefined && (
-                <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
-                  Drag coefficient{" "}
-                  <span className="font-mono tabular-nums text-zinc-700 dark:text-zinc-300">
-                    {d.fmt(designDims.mainParachuteCd, 2)}
-                  </span>{" "}
-                  — {cdOriginPhrase(designDims.mainParachuteCdFrom)}. It sets the descent rate,
-                  arrival speed and landing energy above.{" "}
-                  <Link
-                    href="/docs/limitations"
-                    className="text-indigo-600 underline underline-offset-2 dark:text-indigo-400"
-                  >
-                    What backs each figure
-                  </Link>
-                  .
-                </p>
+                <>
+                  <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    <NumberField
+                      label="Canopy Cd"
+                      value={edits.parachuteCd ?? ""}
+                      placeholder={d.fmtEditable(designDims.mainParachuteCd, 2)}
+                      min={0.1}
+                      max={3}
+                      step={0.05}
+                      hint="Drag coefficient of the canopy — it sets descent rate, arrival speed and landing energy."
+                      onChange={(v) => {
+                        const n = v === "" ? undefined : Number(v);
+                        onEdit({ parachuteCd: n !== undefined && n > 0 ? n : undefined });
+                      }}
+                    />
+                  </div>
+                  <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
+                    Flying{" "}
+                    <span className="font-mono tabular-nums text-zinc-700 dark:text-zinc-300">
+                      {d.fmt(edits.parachuteCd ?? designDims.mainParachuteCd, 2)}
+                    </span>{" "}
+                    —{" "}
+                    {cdOriginPhrase(
+                      edits.parachuteCd !== undefined ? "flyer" : designDims.mainParachuteCdFrom,
+                    )}
+                    . A real canopy&apos;s coefficient is only known to about &plusmn;10&ndash;20%, so
+                    trying the range says more than any single figure.{" "}
+                    <Link
+                      href="/docs/limitations"
+                      className="text-indigo-600 underline underline-offset-2 dark:text-indigo-400"
+                    >
+                      What backs each figure
+                    </Link>
+                    .
+                  </p>
+                </>
               )}
 
               {/* The third kind the catalogue can offer, and the first that is not airframe. It edits

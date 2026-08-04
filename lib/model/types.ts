@@ -266,7 +266,7 @@ export interface DeploySetting {
  *  apogee's 3.1%), so telling the two apart is what makes the error attributable at all — and
  *  `DESIGN.md` §6 requires a reference value to name its source, which a surface cannot do from the
  *  number alone. `lib/sim/recovery-defaults.ts` holds each fallback and what backs it. */
-export type CdProvenance = "file" | "default" | "loft";
+export type CdProvenance = "file" | "default" | "loft" | "flyer";
 
 export interface Parachute extends ComponentBase {
   kind: "parachute";
@@ -282,7 +282,11 @@ export interface Parachute extends ComponentBase {
    *  the R9 increment that consolidated the five adapter fallbacks missed for exactly that reason.
    *  A surface naming the origin cannot report "Loft chose this" from a missing field.
    *
-   *  Note the catalogue is NOT a fourth value, and that is a measurement rather than an omission:
+   *  `"flyer"` is a coefficient typed on `/design`. It matters for the same reason the other three
+   *  do: without it, a flyer who changed the number went on being told it was "the design file's own
+   *  figure" — the exact wrongness this field exists to prevent, arriving from the other direction.
+   *
+   *  Note the catalogue is NOT a further value, and that is a measurement rather than an omission:
    *  0 of the 151 catalogued canopies publish a drag coefficient, so a catalogue pick leaves this
    *  field exactly as it found it. `components/PartPicker.tsx` already says so in words. */
   cdFrom?: CdProvenance;

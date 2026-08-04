@@ -4248,3 +4248,57 @@ describe("picking a real coupler or centring ring", () => {
     expect(usableCatalogRing({ ...PICK, innerDiameter: 0 }), "a solid balsa plug was refused").toBe(true);
   });
 });
+
+describe("applyGeometryEdits — the canopy's drag coefficient", () => {
+  /** R9 increment 5. The one input in the recovery chain a flyer could not reach, and the one that
+   *  sets descent rate, arrival speed and landing energy — the pair an RSO and a waiver check. */
+  it("sets the aimed canopy's Cd, records that the figure is the flyer's, and leaves its mass alone", () => {
+    const rocket = newDesign().rocket;
+    const before = primaryParachute(rocket)!;
+    expect(before.cd).toBeGreaterThan(0);
+
+    const edited = applyGeometryEdits(rocket, { parachuteCd: 1.4 });
+    const after = primaryParachute(edited)!;
+    expect(after.cd).toBeCloseTo(1.4, 6);
+    // **The provenance moves with the number.** Leaving `cdFrom` alone would have left the surface
+    // reporting the file's figure — or Loft's — beside a coefficient neither of them chose, which
+    // is the exact class of wrongness the field was added to prevent, arriving from the other side.
+    expect(after.cdFrom).toBe("flyer");
+    // Mass is a property of how much fabric is in the canopy, not of its shape and porosity: two
+    // canopies of the same diameter and different Cd weigh the same. Unlike the resize beside it.
+    expect(after.mass).toBeCloseTo(before.mass, 9);
+    expect(after.diameter).toBeCloseTo(before.diameter, 9);
+    // The original design is untouched.
+    expect(primaryParachute(rocket)!.cd).toBeCloseTo(before.cd, 9);
+  });
+
+  it("refuses a coefficient that cannot mean anything, rather than flying it", () => {
+    const rocket = newDesign().rocket;
+    const before = primaryParachute(rocket)!;
+    // Zero is a canopy that is not there; a negative one is thrust. Both leave the design alone
+    // rather than producing a confident descent from an impossible input.
+    for (const cd of [0, -1]) {
+      const after = primaryParachute(applyGeometryEdits(rocket, { parachuteCd: cd }))!;
+      expect(after.cd).toBeCloseTo(before.cd, 9);
+      expect(after.cdFrom).toBe(before.cdFrom);
+    }
+  });
+
+  it("changes the flight it is supposed to change, and in the right direction", () => {
+    const rocket = newDesign().rocket;
+    const base = primaryParachute(rocket)!.cd;
+    const fly = (cd: number) =>
+      runFlight(applyGeometryEdits(rocket, { parachuteCd: cd }), {}).result.summary.groundHitVelocity;
+
+    const draggier = fly(base * 2);
+    const slippier = fly(base * 0.5);
+    // More drag under the canopy is a slower arrival. Asserted as an ordering rather than a number,
+    // so it holds if the starter design changes — and both against a real flight, because an edit
+    // that reaches the model and not the solver is the failure this catches.
+    expect(draggier).toBeGreaterThan(0);
+    expect(slippier).toBeGreaterThan(draggier);
+    // A coefficient IS the lever it is advertised as: doubling it must move the arrival speed
+    // materially, not by a rounding.
+    expect(slippier / draggier).toBeGreaterThan(1.2);
+  });
+});
