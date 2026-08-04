@@ -118,22 +118,63 @@ export function Card({
   );
 }
 
-/** A dismissible analysis panel — `DESIGN.md` §5: "a `Card` with a header row and a close
- *  affordance, for anything dismissible. Owns focus return."
+interface PanelBase {
+  title: React.ReactNode;
+  /** The landmark's accessible name. This is a `<section>`, and much of the e2e suite reaches these
+   *  by `getByRole("region", …)`. Optional because one real card is a landmark with no name of its
+   *  own — the design-name strip, whose heading IS the name. */
+  label?: string;
+  /** Whatever sits at the right of the header row: what a run costs, a format label, an agreement
+   *  figure.
+   *
+   *  **Taken as a raw node, with no size imposed, and that is a correction rather than laziness.**
+   *  The first version wrapped it in `text-xs`, which is right for "300 flights on your device" and
+   *  WRONG for `ValidationPanel`'s mean absolute error — §3 makes `text-sm` the floor for a
+   *  decision-grade value and reserves caption size for the text around one. A primitive that
+   *  imposes caption size on this slot puts a value there the moment a call site has one. `Figure`
+   *  takes its `aside` the same way, for the same reason. */
+  aside?: React.ReactNode;
+  tone?: CardTone;
+}
+
+/** The dismissible form: all four move together, so the type says so. */
+interface PanelDismissible extends PanelBase {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  /** The primary button that opens it. `DESIGN.md` §5 allows one primary per surface, and this is
+   *  the action the panel exists to perform. */
+  run: React.ReactNode;
+  /** Named in the close button's accessible name: `Close ${what}`. */
+  what: string;
+}
+
+interface PanelStatic extends PanelBase {
+  open?: never;
+  onOpenChange?: never;
+  run?: never;
+  what?: never;
+}
+
+/** A titled card — `DESIGN.md` §5's `Panel`: "a `Card` with a section header row, and optionally a
+ *  close affordance for anything dismissible. Owns focus return."
  *
- *  The three heavy panels — the parameter sweep, the motor sweep and the dispersion run — hand-rolled
- *  this identically: the same `Card as="section"` landmark, the same `flex flex-wrap items-baseline
- *  justify-between gap-2` header, the same `text-xl` heading, the same `text-xs` caption beside it,
- *  the same `ClosePanel` gated on `open`, and the same `!open` block holding a primary Run button.
+ *  **Ten call sites, and only three of them are dismissible.** That is the discovery this component
+ *  went through: it was built for the three heavy analysis panels, and the shape it extracted —
+ *  `Card as="section"` + `aria-label` + an `h2 text-xl font-medium tracking-tight` in a baseline flex
+ *  row with an optional aside — turned out to be **byte-identical** at seven more sites that have
+ *  nothing to dismiss (the two cross-checks, the validation report, the flight-path card, the phase
+ *  table, the no-flight refusal and the design-name strip). §5's container vocabulary was missing
+ *  the shape the app uses most, and `Card`'s own `title` is a level below it: an `h3 text-base`,
+ *  which is a heading inside a card rather than the card's own.
  *
- *  **Owning focus return is the point, not the styling.** Each call site paired `useReturnFocus()`
- *  with a `returnFocusToRun()` inside its own `onClose`, which is a four-part contract — declare the
- *  hook, put the ref on the Run button, call the returner, and do it in the close handler rather than
- *  anywhere else — repeated by hand at every panel. `ClosePanel`'s own doc comment records what it
- *  cost when a panel had no way out at all; a panel that closes and drops focus onto `<body>` is the
- *  keyboard version of the same defect, and it is invisible to every check in this repo. Here the
- *  ref goes on the Run button this component renders and the returner fires from the close handler it
- *  owns, so a fourth panel added next run inherits both instead of re-deriving them.
+ *  The dismissible half is a union rather than four loose optionals, so a call site cannot ask for a
+ *  Close button and forget the Run button that focus returns to.
+ *
+ *  **Owning focus return is the point of the dismissible half, not the styling.** Each of the three
+ *  paired `useReturnFocus()` with a `returnFocusToRun()` inside its own `onClose` — a four-part
+ *  contract repeated by hand. `ClosePanel`'s own doc comment records what it cost when a panel had no
+ *  way out at all; a panel that closes and drops focus onto the document body is the keyboard version
+ *  of the same defect, and it is invisible to every check in this repo.
  *
  *  `children` renders BEFORE the Run button, which sounds wrong and is exactly what the call sites
  *  do: the button follows the panel's pitch paragraph, and the analysis it opens is gated on `open`,
@@ -142,6 +183,7 @@ export function Panel({
   title,
   label,
   aside,
+  tone,
   open,
   onOpenChange,
   run,
@@ -149,41 +191,32 @@ export function Panel({
   className,
   children,
   ...rest
-}: {
-  title: React.ReactNode;
-  /** The landmark's accessible name — this is a `<section>`, and the e2e suite reaches all three by
-   *  `getByRole("region", …)`. */
-  label: string;
-  /** The caption on the right of the header row: what the run costs, or what it covers. */
-  aside?: React.ReactNode;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  /** The primary button that opens it. `DESIGN.md` §5 allows one primary per surface, and this is
-   *  the action the panel exists to perform. */
-  run: React.ReactNode;
-  /** Named in the close button's accessible name: `Close ${what}`. */
-  what: string;
-} & Omit<React.HTMLAttributes<HTMLElement>, "title">) {
+}: (PanelDismissible | PanelStatic) & Omit<React.HTMLAttributes<HTMLElement>, "title">) {
   const [runRef, returnFocusToRun] = useReturnFocus();
+  const dismissible = onOpenChange !== undefined;
   return (
-    <Card as="section" aria-label={label} className={className} {...rest}>
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="text-xl font-medium tracking-tight">{title}</h2>
-        <div className="flex items-center gap-3">
-          {aside && <span className="text-xs text-zinc-500 dark:text-zinc-400">{aside}</span>}
-          {open && (
-            <ClosePanel
-              onClose={() => {
-                onOpenChange(false);
-                returnFocusToRun();
-              }}
-              what={what}
-            />
-          )}
-        </div>
-      </div>
+    <Card as="section" tone={tone} aria-label={label} className={className} {...rest}>
+      <SectionHeader
+        title={title}
+        aside={
+          (aside || (dismissible && open)) && (
+            <div className="flex items-center gap-3">
+              {aside}
+              {dismissible && open && (
+                <ClosePanel
+                  onClose={() => {
+                    onOpenChange(false);
+                    returnFocusToRun();
+                  }}
+                  what={what}
+                />
+              )}
+            </div>
+          )
+        }
+      />
       {children}
-      {!open && (
+      {dismissible && !open && (
         <div className="mt-3">
           <Button variant="primary" ref={runRef} onClick={() => onOpenChange(true)}>
             {run}
@@ -194,37 +227,53 @@ export function Panel({
   );
 }
 
-/** A titled region within a route — `DESIGN.md` §5. What a route is built from. */
+/** The header row a titled region and a titled card share — `Panel` renders it inside a `Card`,
+ *  `Section` renders it bare. Extracted so the two cannot drift, which they had already done before
+ *  either had a call site: `Section` spelled the heading
+ *  `text-xl font-medium text-zinc-900 dark:text-zinc-100` while all ten real headings in the app
+ *  spelled it `text-xl font-medium tracking-tight`. The app's spelling won — a primitive with zero
+ *  call sites is a proposal, and ten rendered sites are the evidence. */
+function SectionHeader({ title, aside }: { title: React.ReactNode; aside?: React.ReactNode }) {
+  return (
+    <div className="flex flex-wrap items-baseline justify-between gap-2">
+      <h2 className="text-xl font-medium tracking-tight">{title}</h2>
+      {aside}
+    </div>
+  );
+}
+
+/** A titled region within a route — `DESIGN.md` §5. What a route is built from, when it is NOT a
+ *  raised card; where it is, that is `Panel`.
+ *
+ *  **It had zero call sites for five runs, and the reason was in its own implementation.** It imposed
+ *  `mt-8 first:mt-0` on the region and `mt-4` on the children — rhythm the routes already own through
+ *  `space-y-8` on the workspace, so adopting it would have doubled every gap. A primitive that
+ *  cannot be adopted without a repaint does not get adopted; it gets copied. Both margins are gone
+ *  and the call site keeps its own spacing class, which is what the two real regions were already
+ *  doing.
+ *
+ *  `aside` rather than `actions`, and raw rather than wrapped, to match `Panel` and `Figure`: one of
+ *  the two real sites puts a Download button there and the other a documentation link, and a
+ *  primitive that decides their size decides it wrong for one of them. */
 export function Section({
   title,
   description,
-  actions,
+  aside,
   className,
   children,
   ...rest
 }: {
   title: React.ReactNode;
   description?: React.ReactNode;
-  actions?: React.ReactNode;
+  aside?: React.ReactNode;
 } & React.HTMLAttributes<HTMLElement>) {
   return (
-    <section className={cx("mt-8 first:mt-0", className)} {...rest}>
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h2 className="text-xl font-medium text-zinc-900 dark:text-zinc-100">
-            {title}
-          </h2>
-          {description && (
-            <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-              {description}
-            </p>
-          )}
-        </div>
-        {actions && (
-          <div className="flex shrink-0 items-center gap-2">{actions}</div>
-        )}
-      </div>
-      <div className="mt-4">{children}</div>
+    <section className={className} {...rest}>
+      <SectionHeader title={title} aside={aside} />
+      {description && (
+        <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{description}</p>
+      )}
+      {children}
     </section>
   );
 }
@@ -381,26 +430,6 @@ export function Tabs({
   );
 }
 
-/** A small labelled value, used for the result read-outs (volume, pressure, …). */
-export function Chip({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-md border border-zinc-200 bg-zinc-50 px-2.5 py-1 dark:border-zinc-800 dark:bg-zinc-900">
-      <div className="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-500">
-        {label}
-      </div>
-      {/* `text-sm`, not `text-xs`. §3 is explicit that caption size is for the text AROUND a value —
-          "its unit, its provenance, its caveat — never the value" — and this is the value.
-          Surfaced by the inversion check in `lib/design-system.test.ts` when a legitimate caveat
-          caption tipped this file's ratio; correcting the real violation was the honest way past it
-          rather than another point of budget. Worth being plain that it changes no rendered pixel:
-          `Chip` has zero call sites, which the same file records as `Chip: 0`. It is the spec being
-          made true before P6 decides whether this primitive gains adopters or is deleted. */}
-      <div className="font-mono text-sm tabular-nums text-zinc-700 dark:text-zinc-300">
-        {value}
-      </div>
-    </div>
-  );
-}
 
 /** `DESIGN.md` §5's `Extrapolated` — "the warn treatment plus the reason and the range it left",
  *  required wherever a number leaves the envelope its method was validated over.
@@ -509,9 +538,23 @@ export function Readout({
    *  the page. A flyer reading the number does not necessarily read the card. */
   extrapolated?: string;
 }) {
+  // **`text-xs`, not `text-[11px]`, on both the label and the sub-line.** §3 scopes that token to
+  // "axis ticks and diagram annotations only" and this is neither: it is the eyebrow naming a value
+  // and the line carrying that value's provenance or its withheld REASON, which §3 puts squarely in
+  // "captions, units, footnotes". The violation arrived WITH the primitive on 2026-08-04 — lifted
+  // verbatim from `ResultsView`'s local `Stat`, which is exactly how a divergence survives an
+  // extraction — so it was the design system's own primitive breaking the design system, on the
+  // treatment a flyer reads every number through. Filed, confirmed by a refuter, then fixed here.
+  //
+  // `text-xs` and not `text-sm`, deliberately: §3 makes `text-sm` the floor for anything a flyer
+  // reads to make a DECISION and `text-xs` the size for the text around such a value. The label
+  // names the value; the sub-line qualifies it. **The one case that argues otherwise is filed rather
+  // than guessed at**: `MonteCarlo`'s three card variants put a 5-95% band in this slot at `text-sm`,
+  // and a recovery band IS a decision-grade figure. One `sub` slot cannot be both sizes, so the
+  // conversion of those six sites needs an API decision — see `ROADMAP.md` under P6.
   return (
     <Card>
-      <div className="text-[11px] uppercase tracking-wide text-zinc-500 dark:text-zinc-400">{label}</div>
+      <div className="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">{label}</div>
       {withheld ? (
         <div className="mt-1 font-mono text-xl tabular-nums text-zinc-400 dark:text-zinc-500" aria-label={`${label} withheld: ${withheld}`}>
           —
@@ -530,7 +573,7 @@ export function Readout({
         </div>
       )}
       {(withheld ?? sub) && (
-        <div className="mt-0.5 text-[11px] text-zinc-500 dark:text-zinc-400">{withheld ?? sub}</div>
+        <div className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">{withheld ?? sub}</div>
       )}
     </Card>
   );
@@ -642,6 +685,82 @@ export function ErrorState({
       {expected && <div className="mt-1">{expected}</div>}
       {next && <div className="mt-1">{next}</div>}
     </Card>
+  );
+}
+
+/** `DESIGN.md` §5's `Figure` — "a chart with its title, legend, axis units, and its own empty and
+ *  extrapolated states."
+ *
+ *  Nine call sites in four files spelled this four ways. `ResultsView` had a local `Plot` (a `Card`,
+ *  an `h3`, an `overflow-x-auto` wrapper); `MonteCarlo` repeated that exact heading string without
+ *  the wrapper; `DragCrossCheck` used a `<p>` where a heading belongs, one shade off at
+ *  `text-zinc-600`, with an aside beside it; and `ParameterSweep` had the caveat above the chart and
+ *  the caption below it and no heading at all. The heading is the primitive's, so the `<p>` becomes a
+ *  real `h3` and the shade converges — `DESIGN.md`'s *Notes* say the primitive wins and the
+ *  difference is the defect.
+ *
+ *  Legend and axis units are NOT here on purpose: `LineChart` already owns both, draws the legend
+ *  from each series' own label, and takes `xLabel`/`yLabel`. §5 lists them as things a figure must
+ *  HAVE, not as things this wrapper must render, and moving them up would mean every chart declaring
+ *  its axes twice.
+ *
+ *  `title` is optional because one real site has none — the parameter sweep's chart sits directly
+ *  under the panel heading that names it, and a second heading would be a heading about a heading.
+ *  What is not optional is that the caveat and the caption have ONE place to go, which is what makes
+ *  the extrapolated state a state rather than a paragraph somebody remembered.
+ *
+ *  `empty` renders when `children` is null or undefined. A chart with nothing to draw is the state
+ *  §5 says a surface without is not finished, and `return null` — a hole where a figure was — is the
+ *  version of it that teaches nothing. */
+export function Figure({
+  title,
+  aside,
+  extrapolated,
+  caption,
+  empty,
+  className,
+  children,
+  ...rest
+}: {
+  title?: React.ReactNode;
+  /** A note in the title row: what the figure agrees to, what it covers. */
+  aside?: React.ReactNode;
+  /** The reason this figure leaves the envelope its method was validated over. Rendered above the
+   *  chart, because a caveat under a chart is read after the number it is about. */
+  extrapolated?: string;
+  /** The small print: what was flown, over what, and how to read it. */
+  caption?: React.ReactNode;
+  /** What would fill this figure, for when nothing does. */
+  empty?: React.ReactNode;
+} & Omit<React.HTMLAttributes<HTMLElement>, "title">) {
+  return (
+    <figure className={className} {...rest}>
+      {/* The title row is a flex row only when there is something to sit BESIDE the heading. A
+       *  wrapper around a lone `<h3>` is markup nobody asked for, and it is not free: two e2e cases
+       *  reach this figure's caption by `heading → xpath=..`, which is the whole figure when the
+       *  heading's parent is the `<figure>` and is the empty title row when it is not. Both went red
+       *  on the first draft of this component, which is the useful kind of red — an extra div is
+       *  invisible to a screenshot and not to a traversal. */}
+      {aside ? (
+        <div className="flex flex-wrap items-baseline justify-between gap-x-3">
+          {title && <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">{title}</h3>}
+          {aside}
+        </div>
+      ) : (
+        title && <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">{title}</h3>
+      )}
+      {extrapolated && (
+        <div className="mt-2">
+          <Extrapolated reason={extrapolated} />
+        </div>
+      )}
+      <div className="mt-2 overflow-x-auto">
+        {children ?? <EmptyState what={empty ?? "Nothing to plot yet."} />}
+      </div>
+      {caption && (
+        <figcaption className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">{caption}</figcaption>
+      )}
+    </figure>
   );
 }
 

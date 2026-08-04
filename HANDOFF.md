@@ -4,18 +4,17 @@ Overwritten each session. What shipped, what is part-way, and what to pick up fi
 
 ## Read this first
 
-**Seven increments this run. Six reached production as PR #127 (merged, `38a7d40`); the seventh is on
-the run's working branch.** (The branch name is the harness's, not this project's, so it is
-deliberately not written here — the zero-trace invariant forbids repeating it in a committed file.
-`git branch -r` names it.) One Sev-1 was found and fixed; **R10 is four of its five Size items in**;
-**P6 is four increments in with one primitive left**; `COMPETITION.md` row 37 added and rows 34 and
-35 resolved. Neither track is dry.
+**Ten increments this run, in three merged pull requests.** #127 (`38a7d40`) and #128 (`f43f0c7`)
+are on `main` and serving; #129 is the last three and is the only thing not yet in production.
+(The branch name is the harness's, not this project's, so it is deliberately not written here — the
+zero-trace invariant forbids repeating it in a committed file. `git branch -r` names it.) One Sev-1
+found and fixed. **R10 is four of its five Size items in; P6 is six increments in with one clause
+left.** `COMPETITION.md` row 37 added, rows 34 and 35 resolved. Neither track is dry.
 
-**THE TRANSFERABLE LESSON, and this run hit it THREE times on one metric: a stored number is not a
-measurement until you know what flight it describes.** Ground-hit velocity has now moved
-3.0% → 8.3% → 2.0% → 1.3%, and **not one of those moves was the engine**. Every one was Loft
-comparing its number against a stored number that was a different physical quantity, with nothing
-recording which was which:
+**THE TRANSFERABLE LESSON, and this run hit it three times on one metric: a stored number is not a
+measurement until you know what flight it describes.** Ground-hit velocity moved
+3.0% → 8.3% → 2.0% → 1.3%, and **not one of those moves was the engine.** Every one was Loft
+comparing its number against a stored number that was a different physical quantity:
 
 - **3.0% was two errors cancelling** — Loft measured the total ground speed under a name meaning the
   vertical rate, and its own descent ran low. Reporting honestly made it *worse*, and that was right.
@@ -23,94 +22,113 @@ recording which was which:
   the air-relative speed up to 23.09 and the ground-frame total from 24.12 — **the same tool changed
   its own convention and the file does not say.** Read from OpenRocket's source, not inferred.
 - **2.0% was two different flights in one median.** One RockSim design stores 15 runs: four under
-  canopy at ~9 m/s and eleven plugged at 83–162 m/s. Both formats record which is which — RockSim per
-  device, OpenRocket as an event in the flight log — and Loft read neither.
+  canopy at ~9 m/s and eleven plugged at 83–162 m/s. Both formats record which is which, and Loft
+  read neither.
 
-**The corollary, which cost real time twice this run: what a format "does not store" is a claim about
-the file, and it belongs in a probe, not in a comment.** "Only `.rkt` files state deployment" was
-written into a type comment, a census comment and a docs paragraph before anything checked. It was
-wrong: 77 of the corpus's 91 `.ork` flights record a `recoverydevicedeployment` event. The importer
-had simply never opened `<databranch>`.
+**The corollary, which cost real time twice: what a format "does not store" is a claim about the
+file, and it belongs in a probe, not in a comment.** *"Only `.rkt` files state deployment"* went into
+a type comment, a census comment and a docs paragraph before anything checked. It was wrong — 77 of
+the corpus's 91 `.ork` flights record a `recoverydevicedeployment` event. The importer had simply
+never opened `<databranch>`.
 
-**A primitive can own BEHAVIOUR, and that is where the real defects are.** `Panel` (P6 increment 4)
-matters less for the header row it de-duplicates than for the four-part `useReturnFocus` contract
-three call sites each wired by hand. A panel that closes and drops focus onto the document body is
-invisible to every check in this repo. When extracting, ask what the call sites were *doing*, not
-only what they were spelling.
+**A primitive with zero call sites is a proposal, not a spec, and it drifts.** `Section` had sat
+unadopted for five runs and its own implementation was why: it imposed `mt-8` on itself and `mt-4` on
+its children, rhythm the routes already own, so adopting it would have doubled every gap. **A
+primitive that cannot be adopted without a repaint does not get adopted; it gets copied.** It had also
+already drifted — it spelled its heading with explicit zinc colours where all ten rendered headings
+in the app used `tracking-tight`. The app's spelling won.
 
-**Ratchet counts moving DOWN is adoption working.** `Panel` took `Card` 12→11, `Button` 14→12 and
-`ClosePanel` 3→0 with no rendered pixel changing. `DESIGN.md` §9 already records this under *count
-what a file RENDERS, not what it spells*; each number now carries the reason beside it. Expect the
-same on `Figure`.
+**Extraction is about behaviour as much as treatment.** `Panel` matters less for the header row it
+de-duplicates than for the four-part `useReturnFocus` contract three call sites each wired by hand. A
+panel that closes and drops focus onto the document body is invisible to every check in this repo —
+and the cold walk over the built export is what confirmed it now works. Ask what the call sites were
+*doing*, not only what they were spelling.
 
-## This run — seven increments, one Sev-1, two milestones nearly closed
+**Ratchet counts moving DOWN is adoption working.** `Card` 12→10, `Button` 14→12, `ClosePanel` 3→0,
+`Extrapolated` 6→4 — all absorbed by primitives, with no rendered pixel changing. §9 records the rule
+under *count what a file RENDERS, not what it spells*; each number now carries its reason.
+
+**And walk the built export, not the diff.** Two defects this run were invisible to a green gate and
+obvious to a walk: the `Figure` wrapper's extra div (which two e2e traversals then caught), and ten
+`<figure>` elements rendering for four plots because `LineChart` was already one.
+
+## This run — ten increments, one Sev-1
 
 | # | SHA | what | verified by |
 |---|---|---|---|
-| 1 | `f95c786` | **P6 inc 3** — `EmptyState`/`ErrorState`; `DataTable` adopts one, so it is the empty state of all seven tables | driving the built export (a truncated `.ork` renders a real error card); a check that no named data surface returns `null` |
-| 2 | `3131662` | **SEV-1** — the thrust plot and its caption described the FIRST resolved motor, not the vehicle | e2e on a two-motor fixture asserting 246.5 N·s and class H, proved able to fail by reinstating the first-resolution read |
-| 3 | `cd2a06b` | **R10 (1)** — each `.ork` compared against the quantity its own version stored | census **8.3% → 2.0%**, openrocket 7.8% → 1.2%, no engine change; 2 cases over the 24.12 boundary |
-| 4 | `111dc6a` | The run's fan-out harvest filed into `BACKLOG.md` — 9 findings, each with its measurement and whether a refuter confirmed it | — |
+| 1 | `f95c786` | **P6 inc 3** — `EmptyState`/`ErrorState`; `DataTable` adopts one, so it is the empty state of all seven tables | driving the built export; a check that no named data surface returns `null` |
+| 2 | `3131662` | **SEV-1** — the thrust plot and its caption described the FIRST resolved motor, not the vehicle | e2e on a two-motor fixture asserting 246.5 N·s and class H, proved able to fail |
+| 3 | `cd2a06b` | **R10 (1)** — each `.ork` compared against the quantity its own version stored | census **8.3% → 2.0%**, openrocket 7.8% → 1.2%, no engine change |
+| 4 | `111dc6a` | The run's fan-out harvest filed into `BACKLOG.md` — 9 findings with their measurements | — |
 | 5 | `10853b4` | The roadmap's baton, which three earlier commits had left behind | — |
-| 6 | `6823c8c` | **P6 inc 4** — `Panel`, the first primitive here that owns behaviour rather than a treatment | adoption ratchet at 3 + a source count of zero hand-wired `useReturnFocus`, proved able to fail |
-| — | `38a7d40` | **merged to `main` as #127** — the six above reached production | both CI jobs green; frontend log names `imports every design file (35 present)` |
-| 7 | `PENDING` | **R10 (2)(3)(4)** — the census stops pooling a lawn dart with a parachute, on both formats | 4 + 3 adapter cases; a census case asserting both populations are real and add up; a detector that NAMES the self-disagreeing file, both proved able to fail |
+| 6 | `6823c8c` | **P6 inc 4** — `Panel`, the first primitive here that owns behaviour | adoption ratchet + a source count of zero hand-wired `useReturnFocus`, proved able to fail |
+| — | `38a7d40` | **merged as #127** | both CI jobs green |
+| 7 | `51d4469` | **R10 (2)(3)(4)** — the census stops pooling a lawn dart with a parachute, on both formats | 7 adapter cases; a population-split case; a detector naming the self-disagreeing file; all proved able to fail |
+| — | `f43f0c7` | **merged as #128** — production now serves 1.3% and 14.9% on `/docs/validation` | both CI jobs green |
+| 8 | `a1738fe` | **P6 inc 5** — `Figure`; every chart in the app is framed by it | ratchet + a file-level chart-frame check, both proved able to fail |
+| 9 | `66d5a41` | **P6 inc 6** — `Section` gains its call sites, `Panel` 3 → 7 adopters, `Chip` deleted | ratchets; §5 rewritten with the reasoning |
+| 10 | `0da45c6` | A chart is a `<figure>` exactly once — ten were rendering for four plots | a cold walk over the built export that counts them |
 
-**Reached production: 6 of 7.**
+**Reached production: 7 of 10.** The last three are #129.
 
 ## The one lesson this run would send back
 
-**Write the negative control before you believe the check.** Every new assertion this run was proved
-able to fail by reinstating the defect: the thrust e2e (restore the first-resolution read), the
-focus-return count (put `useReturnFocus` back into `MonteCarlo`), the population split (make
-`recoveryDeployed` return undefined), the unmeasured-claim guard (add a published key nothing
-measures). That last one exists *because* of this habit: the census skipped a metric it found no rows
-for, so **a published claim could stop being measured entirely and the gate would stay green**. Two
-new `/ballistic` keys are exactly the kind that can quietly stop existing.
+**Write the negative control before you believe the check.** Every new assertion was proved able to
+fail by reinstating the defect: the thrust e2e, the focus-return count, the population split, the
+`Figure` ratchet, the chart-frame check. One of them exists *because* of that habit — the census
+skipped any metric it found no rows for, so **a published claim could stop being measured entirely
+and the gate would stay green**. The two new `/ballistic` keys are exactly the kind that can quietly
+stop existing, so a guard now fails on a published claim nothing measures.
+
+The same reasoning caught a second class of dead check: `uiAdopters` sat at 17 against a real 18, and
+because it is a `toBeGreaterThanOrEqual` a **stale floor cannot fail** — it just stops ratcheting.
+Every one-directional number in `lib/design-system.test.ts` deserves its generating command written
+beside it. One now has it; the rest do not.
 
 ## The done-check, answered out loud
 
 **What can a flyer DO that they could not do before this run?**
 
 1. **Read a thrust curve for the vehicle they are flying**, not for whichever motor resolved first —
-   on a staged or airstarted design the plot was showing as little as 56% of the impulse under a
-   heading that named nothing, and the caption's certification class read a letter low.
+   on a staged or airstarted design the plot showed as little as 56% of the impulse under a heading
+   that named nothing, and the caption's certification class read a letter low. A class letter is
+   what a flyer takes to an RSO.
 2. **Take the published accuracy figures at face value**, because each now says which convention it
-   is in and which population it is over. Ground-hit velocity is 1.3% over 82 non-ballistic runs and
-   14.9% over the 12 ballistic ones, both on the page.
+   is in and which population it is over: 1.3% over 82 non-ballistic runs, 14.9% over the 12
+   ballistic ones, both on the page, with the file whose own tool disagrees with itself named.
 3. **See an empty table say what would fill it** rather than a panel that is simply not there.
 
 **What is measurably better?**
 
-- Unit suite **1,076 → 1,086**; e2e **229 → 230**; corpus cases **24 → 27**.
+- Unit suite **1,076 → 1,089**; e2e **229 → 230**; corpus cases **24 → 27**, still 0 findings across
+  35 real design files.
 - Ground-hit velocity **8.3% → 1.3%** and flight time **3.3% → 3.1%**, with **no engine change** and
   no tolerance widened; the one-directional bias nobody could explain went with it (−8.2% median
   signed error over 86-of-92 "slower than stored" → −1.0% over 66 of 92).
-- Four §5 primitives that did not exist now do and are adopted: `Extrapolated` (5), `Select` (4),
-  `EmptyState` (1, reaching all 7 tables), `ErrorState` (1), `Panel` (3). Each carries its own
-  ratchet, so the next hand-rolled copy fails the suite instead of waiting for an audit.
-- `DESIGN.md` §9 counts unmoved except where adoption moved them: rounded-lg 0, off-scale spacing 0,
-  off-scale type 0, inverted files 0.
+- **Every primitive `DESIGN.md` §5 declares now exists and is adopted**, and the two that had sat at
+  zero for five runs are answered: `Extrapolated` 5, `Select` 4, `EmptyState` 1 (reaching all 7
+  tables), `ErrorState` 1, `Panel` 7, `Figure` 4, `Section` 1 — and `Chip` deleted with its reasoning
+  written into §5 so it is not re-added from memory. Each carries a ratchet.
+- §9 counts: rounded-lg **0**, card treatments **3** (the recorded floor), off-scale spacing **0**,
+  off-scale type **0**, inverted files **0**, ui adopters **18 of 27**, hand-rolled `<select>` **0**.
 
 **What is NOT better, stated rather than implied.** The ballistic descent figure is **14.9%** — the
-worst number Loft publishes — and this run only made it visible, not smaller. `Figure` is still
-hand-rolled at nine call sites in four treatments. The 44 px touch contract is still keyed on
-`pointer-coarse:` alone with no fallback, and the repo has already measured a phone reporting
-`pointer: fine` rendering those controls at 26 px.
+worst number Loft publishes — and this run made it visible, not smaller. **P6 is not shipped**: its
+own first clause, "`Readout` is the only labelled-value treatment", is untrue at 25 sites. The 44 px
+touch contract is still keyed on `pointer-coarse:` alone, and the repo has already measured a phone
+reporting `pointer: fine` rendering those controls at 26 px.
 
 ## Pick up first
 
-1. **P6 increment 5 — `Figure`, and it closes the milestone.** Nine call sites, four disagreeing
-   treatments: `ResultsView`'s local `Plot` (4, `Card` + `h3 text-sm … text-zinc-700`),
-   `MonteCarlo` (2, the same `h3` string), `DragCrossCheck` (2, a `<p>` where a heading belongs, one
-   shade off at `text-zinc-600`, with an aside), and `ParameterSweep` (1, with an `Extrapolated`
-   above and a caption below). §5 wants title, legend, axis units, empty and extrapolated states.
-   Then answer P6's own live question: `Section` and `Chip` are at 0 call sites and the milestone's
-   notes say they either gain them or are deleted from `ui.tsx` and from §5.
+1. **P6's last clause — the `Readout` queue, 25 sites in three shapes.** `LoftApp`'s `Field` (14, a
+   pre-formatted-string value), `MonteCarlo`'s `StatCard`/`WithheldCard`/`RadiusCard` (6, differing
+   only in what fills `sub`), and the what-if delta rows (5, a before → after → change shape the API
+   does not yet express — that third one needs an API decision rather than a conversion). Do not mark
+   P6 SHIPPED until that count is 0 or the remainder is refused with a measured reason.
 2. **R10 Size item (5)** — re-measure and publish across the remaining eight metrics. Ground-hit
    velocity and flight time are done. `deploymentVelocity` at 6.0% is the obvious next: the page
    already argues it is ill-conditioned rather than wrong, which is a claim of exactly the kind this
-   milestone has now twice found to be half the story.
+   milestone has now three times found to be half the story.
 3. **The `TOUCH_TARGET` fallback**, filed in `BACKLOG.md` and CONFIRMED by a refuter.
    `lib/ui-tokens.ts:28` is `pointer-coarse:min-h-11` with no `any-pointer: coarse`, no `hover: none`
    and no `maxTouchPoints` fallback, across 35 call sites in 10 components plus the diagram's JS hit
@@ -118,10 +136,9 @@ hand-rolled at nine call sites in four treatments. The 44 px touch contract is s
    **Changing the media query is a `DESIGN.md` §8 change and must be made there first, with the
    reason**, because `any-pointer: coarse` would also apply the floor to a touchscreen laptop, which
    §8 currently declines.
-4. **`Readout`'s own `text-[11px]`** (`components/ui.tsx`, the label and sub-line) — §3 scopes that
+4. **`Readout`'s own `text-[11px]`** (`components/ui.tsx`, its label and sub-line) — §3 scopes that
    token to axis ticks and diagram annotations, and this is the design system's own primitive
-   breaking it, on the treatment a flyer reads every number through. Plus 11 more call sites in
-   `LoftApp`.
+   breaking it, on the treatment a flyer reads every number through. Plus 11 more sites in `LoftApp`.
 
 ## The arc so far
 
@@ -142,7 +159,7 @@ hand-rolled at nine call sites in four treatments. The 44 px touch contract is s
 | P3 — a stranger's first five minutes | SHIPPED 2026-08-02 |
 | P4 — a touch-native builder | SHIPPED 2026-08-03 |
 | P5 — ready for the public | SHIPPED 2026-08-03 |
-| **P6 — the primitives the design system declares** | **IN PROGRESS** — increments 1–4 shipped 2026-08-04 (`Readout`, `Select`, `EmptyState`/`ErrorState`, `Panel`) plus `Extrapolated`. `Figure` remains, and the `Section`/`Chip` question |
+| **P6 — the primitives the design system declares** | **IN PROGRESS** — increments 1–6 shipped 2026-08-04. Every §5 primitive exists and is adopted; ONE clause open, the `Readout` queue at 25 sites |
 
 ## The run before this one — ten increments, four Sev-1s, R9 closed (2026-08-04)
 

@@ -19,7 +19,7 @@ import type { GeometryEdits } from "@/lib/model/edit";
 import { usePersistedNumber, useSettled } from "@/lib/session";
 import { mToFt, ftToM, mpsToFtps, mpsToMph, mphToMps } from "@/lib/units";
 import type { CsvCell } from "@/lib/csv";
-import { Card, Extrapolated, NumberField, Panel } from "./ui";
+import { Card, Extrapolated, Figure, NumberField, Panel } from "./ui";
 import DownloadCsv, { CopyTable } from "./DownloadCsv";
 import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
@@ -228,7 +228,7 @@ export default function MonteCarlo({
     <Panel
       label="Monte-Carlo dispersion"
       title="Flight dispersion (Monte-Carlo)"
-      aside={`${SAMPLES} flights on your device`}
+      aside={<span className="text-xs text-zinc-500 dark:text-zinc-400">{SAMPLES} flights on your device</span>}
       open={open}
       onOpenChange={setOpen}
       run="Run dispersion"
@@ -532,10 +532,7 @@ function Report({
       </Card>
 
       <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
-        <div>
-          <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-            Apogee distribution
-          </h3>
+        <Figure title="Apogee distribution">
           <Histogram
             values={result.samples.map((s) => s.apogee)}
             toNumber={(v) => (units === "imperial" ? mToFt(v) : v)}
@@ -545,11 +542,8 @@ function Report({
             median={result.apogee.p50}
             ceiling={ceilingM > 0 ? ceilingM : undefined}
           />
-        </div>
-        <div>
-          <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-            Landing scatter (from the pad)
-          </h3>
+        </Figure>
+        <Figure title="Landing scatter (from the pad)">
           <Scatter
             // Landed samples only. `landingX`/`landingY` are the solver's exit position, so an
             // un-landed flight plotted as a landing point is a rocket drawn on the ground where it
@@ -560,7 +554,7 @@ function Report({
             toNumber={(v) => (units === "imperial" ? mToFt(v) : v)}
             unit={units === "imperial" ? "ft" : "m"}
           />
-        </div>
+        </Figure>
       </div>
 
       <p className="mt-3 text-xs text-zinc-500 dark:text-zinc-400">
@@ -676,7 +670,7 @@ function Histogram({
   const xAt = (v: number) => padL + ((toNumber(v) - lo) / span) * plotW;
   const barW = plotW / BINS;
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="mt-1.5 w-full" role="img" aria-label="Apogee distribution histogram">
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label="Apogee distribution histogram">
       {/* 5–95% band */}
       <rect
         x={xAt(p5)}

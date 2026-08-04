@@ -85,8 +85,14 @@ const BUDGET = {
   cardTreatments: 3,
   /** Spacing values off the `1 2 3 4 6 8 12` scale. Target 0. */
   offScaleSpacing: 0,
-  /** Components importing the shared primitives. Target: most of the 23. This one only goes UP. */
-  uiAdopters: 17,
+  /** Components importing the shared primitives. Target: most of the 27. This one only goes UP.
+   *
+   *  **18, raised from 17 on 2026-08-04, and it had been a floor below the real number for at least
+   *  a run.** It is a `toBeGreaterThanOrEqual`, so a stale floor cannot fail — it just quietly stops
+   *  ratcheting, which is the one failure mode a one-directional check has. Found by running §9's own
+   *  grep beside it and getting a different answer. Worth re-running that grep whenever this file is
+   *  touched: `grep -rlE "from ['\"](\./ui|@/components/ui)['\"]" components | wc -l`. */
+  uiAdopters: 18,
   /** Component files where caption size OUTNUMBERS the body default. **At the target**, so this is a
    *  guard rather than a ratchet from here on: a file that inverts again is a decision-grade value
    *  that has been put back at caption size. */
@@ -95,6 +101,22 @@ const BUDGET = {
    *  is a guard rather than a ratchet. `text-lg` sat between `text-base` and `text-xl`, invented once
    *  and copied fourteen times: eleven panel headings and three prominent values. */
   offScaleType: 0,
+  /** Uses of `text-[11px]`, which §3 scopes to **"axis ticks and diagram annotations only"**.
+   *
+   *  On the scale, so `offScaleType` above cannot see it — and that is exactly how it reached 46 uses
+   *  across ten files while §3 named two contexts for it. Most are legitimate (`RocketDiagram` 8,
+   *  `LineChart` 6, `FlightViz` 5 are all diagram and axis annotation, which is the token's own job);
+   *  the rest are field labels, legends and readout sub-lines, which §3 puts at `text-xs`.
+   *
+   *  **A ratchet, not a target, and it starts at the honest number rather than at zero**: this is
+   *  a size with a real use, so it will never be 0, and the point is that it may not GROW while the
+   *  known offenders are converted. Measured 2026-08-04, by file:
+   *  `LoftApp` 11 (5 legends + 6 field labels), `RocketDiagram` 8, `MonteCarlo` 6, `LineChart` 6,
+   *  `FlightViz` 5, `ui` 3, `ResultsView` 3, `ParameterSweep` 2, `RocketpyCrossCheck` 1,
+   *  `DataTable` 1. It went 48 → 46 in the commit that added it, when `Readout`'s own label and
+   *  sub-line moved to `text-xs` — the design system's primitive had been breaking the design
+   *  system, on the treatment a flyer reads every number through. */
+  axisTickSize: 46,
   /** `<button>` elements that hand-roll their own geometry instead of taking it from `buttonClass`.
    *
    *  **This is the count P1's *done when* is about, and until 2026-08-01 nothing asserted it.** The
@@ -160,7 +182,12 @@ const BUDGET = {
  *
  *  A zero here is not a failure; it is a primitive that exists and is not yet adopted, which is the
  *  state `DESIGN.md` recorded for `Chip` and `Disclosure` on 2026-07-30 and the state this milestone
- *  is closing. What must not happen is a zero silently BECOMING the finished condition. */
+ *  is closing. What must not happen is a zero silently BECOMING the finished condition — and on
+ *  2026-08-04 P6 answered both of those zeros rather than carrying them a sixth run. `Section` gained
+ *  its call sites once its own imposed margins were removed; `Chip` was DELETED, from this list, from
+ *  `components/ui.tsx` and from §5, because the app has exactly one token-shaped element and it is
+ *  neither the key/value pair `Chip` declared nor the geometry §5 stated. The reasoning is in
+ *  `ROADMAP.md` under P6. */
 const PRIMITIVE_ADOPTERS: Record<string, number> = {
   /** 11, down from 12, and the same for `Button` at 12 from 14 and `ClosePanel` at 0 from 3 — all
    *  three fell on 2026-08-04 for the reason §9 records under *count what a file RENDERS*: `Panel`
@@ -168,7 +195,7 @@ const PRIMITIVE_ADOPTERS: Record<string, number> = {
    *  panels, so two files stopped importing what they still render. Adoption moving a count DOWN is
    *  the system working. What would be a regression is a file rendering one of these and importing
    *  neither it nor a primitive that owns it. */
-  Card: 11,
+  Card: 10,
   Button: 12,
   /** The button geometry as a class, for the two things that must look like a button and cannot BE
    *  one — a `next/link` and an external `<a>`. It is exported from `lib/ui-tokens.ts` rather than
@@ -187,7 +214,16 @@ const PRIMITIVE_ADOPTERS: Record<string, number> = {
    *  admitting the two exceptions, and that is a change to a file shared verbatim with the sibling
    *  app, so it is FILED rather than made here. The regex below reads this module for that reason. */
   DataTable: 7,
-  Section: 0,
+  /** One adopter, and the zero it replaced had stood for five runs. §5 declares `Section` as "what a
+   *  route is built from" and it had never been rendered — because it imposed `mt-8` on itself and
+   *  `mt-4` on its children, rhythm the two real bare regions already own through the workspace's own
+   *  `space-y-8`, so adopting it would have doubled every gap. **A primitive that cannot be adopted
+   *  without a repaint does not get adopted; it gets copied**, and that is what both sites did. Both
+   *  margins are gone and it shares one header component with `Panel`, which is the other half of the
+   *  same fix: the two had already drifted — `Section` spelled the heading with explicit zinc colours
+   *  where all ten rendered headings in the app used `tracking-tight` — before either had a call
+   *  site to keep them honest. */
+  Section: 1,
   Segmented: 2,
   /** Zero, and that is the milestone rather than a regression.
    *
@@ -209,7 +245,6 @@ const PRIMITIVE_ADOPTERS: Record<string, number> = {
    *  fourth dismissible surface that reaches for `ClosePanel` directly is not wrong, and this
    *  leaving zero is what would tell the next audit it went that way rather than through `Panel`. */
   ClosePanel: 0,
-  Chip: 0,
   Disclosure: 1,
   /** §5's `Extrapolated` — "the warn treatment plus the reason and the range it left".
    *
@@ -220,11 +255,13 @@ const PRIMITIVE_ADOPTERS: Record<string, number> = {
    *  invisible to a check that counts imports. A seventh surface must import it rather than
    *  re-spell it.
    *
-   *  Five, not six, and the missing one is the reason `Readout` exists: `ResultsView` was the file
-   *  the treatment was born in, and it no longer imports `Extrapolated` directly because its sixteen
-   *  readouts now go through the primitive that owns it. A treatment reaching a surface THROUGH
-   *  another primitive is adoption working, not adoption lost. */
-  Extrapolated: 5,
+   *  Four now, down from six, and both losses are the same thing rather than a retreat. `ResultsView`
+   *  was the file the treatment was born in and stopped importing it directly when `Readout` took it
+   *  over; `ParameterSweep` stopped when `Figure` did. **A treatment reaching a surface THROUGH
+   *  another primitive is adoption working, not adoption lost** — the same rule §9 records for the
+   *  caption-vs-body count, arriving here by a different route. A FIFTH surface that needs the
+   *  caveat and reaches neither of those two must still import this. */
+  Extrapolated: 4,
   /** §5's `Readout` — the labelled-value-with-unit treatment, and the one a flyer reads every number
    *  through.
    *
@@ -270,8 +307,33 @@ const PRIMITIVE_ADOPTERS: Record<string, number> = {
    *  `open`-gated close button and `!open` Run block. Unlike the other primitives on this list it
    *  carries BEHAVIOUR, not just a treatment — the `useReturnFocus()` pairing was a four-part contract
    *  each call site re-derived, and a panel that closes and drops focus onto `<body>` is invisible to
-   *  every check in this repo. A fourth heavy panel must import this. */
-  Panel: 3,
+   *  every check in this repo. A fourth heavy panel must import this.
+   *
+   *  **Seven, up from three, and the four new ones have nothing to dismiss.** The shape extracted for
+   *  the three analysis panels — `Card as="section"` + `aria-label` + an `h2 text-xl font-medium
+   *  tracking-tight` in a baseline row with an optional aside — turned out to be byte-identical at
+   *  seven more sites: both cross-checks, the validation report, the flight-path card, the phase
+   *  table, the no-flight refusal and the design-name strip. §5's container vocabulary was missing the
+   *  shape the app uses MOST, and `Card`'s own `title` is a level below it (an `h3 text-base`, a
+   *  heading inside a card rather than the card's own). The dismissible half is a type union rather
+   *  than four loose optionals, so a call site cannot ask for a Close button and forget the Run button
+   *  focus returns to. */
+  Panel: 7,
+  /** §5's `Figure` — "a chart with its title, legend, axis units, and its own empty and extrapolated
+   *  states."
+   *
+   *  Four adopters, nine call sites, and four disagreeing treatments before it: `ResultsView`'s local
+   *  `Plot` (a `Card`, an `h3`, an `overflow-x-auto` wrapper), `MonteCarlo` repeating that exact
+   *  heading string without the wrapper, `DragCrossCheck` using a `<p>` where a heading belongs and
+   *  one shade off at `text-zinc-600`, and `ParameterSweep` with the caveat above and the caption
+   *  below and no heading at all. The last of those is why the primitive takes `extrapolated` and
+   *  `caption` as slots: the caveat had exactly one home, and a home is what makes it a STATE rather
+   *  than a paragraph somebody remembered.
+   *
+   *  Legend and axis units are deliberately NOT this primitive's: `LineChart` owns both already, and
+   *  hoisting them would make every chart declare its axes twice. §5 lists them as things a figure
+   *  must HAVE, not as things this wrapper must render. */
+  Figure: 4,
 };
 
 describe("DESIGN.md §9 — the design system is binding, and this is what checks it", () => {
@@ -449,6 +511,32 @@ describe("DESIGN.md §9 — the design system is binding, and this is what check
     expect(raw, `hand-rolled <select> elements:\n  ${raw.join("\n  ")}`).toEqual([]);
   });
 
+  it("renders no chart outside a `Figure`", () => {
+    // `DESIGN.md` §5: a figure is "a chart with its title, legend, axis units, and its own empty and
+    // extrapolated states". Nine call sites in four files spelled the frame four ways before
+    // 2026-08-04, and the differences were not cosmetic: one used a `<p>` where a heading belongs,
+    // and one put the out-of-envelope caveat somewhere the others had no place for at all.
+    //
+    // **This is a FILE-level check and it says so.** It catches the next component that adds a chart
+    // and frames it by hand — the way all four of these started. It cannot see a second chart added
+    // inside a file that already adopts `Figure`, and that limit is why the per-primitive ratchet
+    // above is kept as well: this one goes red on a new file, that one goes red on a file that stops.
+    const CHARTS = ["<LineChart", "<Histogram", "<Scatter", "<FlightViz"];
+    const offenders = components
+      .filter((f) => f.path !== "components/ui.tsx")
+      .filter((f) => {
+        const stripped = f.text
+          .replace(/\/\*[\s\S]*?\*\//g, "")
+          .split("\n")
+          .filter((l) => !/^\s*(\/\/|\*)/.test(l))
+          .join("\n");
+        if (!CHARTS.some((c) => stripped.includes(c))) return false;
+        return !/import \{[^}]*\bFigure\b[^}]*\} from "(?:\.\/ui|@\/components\/ui)"/.test(stripped);
+      })
+      .map((f) => f.path);
+    expect(offenders, `components rendering a chart without \`Figure\`:\n  ${offenders.join("\n  ")}`).toEqual([]);
+  });
+
   it("wires focus return in exactly 0 places — `Panel` owns it", () => {
     // `DESIGN.md` §5 says `Panel` "owns focus return", and until 2026-08-04 nothing did: the three
     // heavy panels each declared `useReturnFocus()`, put the ref on their own Run button, and called
@@ -535,6 +623,21 @@ describe("DESIGN.md §9 — the design system is binding, and this is what check
     const SIZES = /\btext-(?:\[[\d.]+(?:px|rem|em)\]|(?:xs|sm|base|lg|[2-9]?xl)\b)/g;
     const { total, byFile } = countMatches(ui, SIZES, (m) => !ALLOWED.has(m));
     expect(total, `off-scale type sizes, by file:\n${byFile.join("\n")}`).toBe(BUDGET.offScaleType);
+  });
+
+  it(`holds \`text-[11px]\` at ${BUDGET.axisTickSize} uses and does not let it grow`, () => {
+    // §3 scopes this token to "axis ticks and diagram annotations only". It is ON the six-size
+    // scale, so the off-scale check above is blind to it by design — and that is how it reached 46
+    // uses across ten files while the spec named two contexts for it.
+    //
+    // **A ratchet from the honest number, not a target of zero.** The token has a real job:
+    // `RocketDiagram` (8), `LineChart` (6) and `FlightViz` (5) are all genuine axis and diagram
+    // annotation. The offenders are field labels, legends and readout sub-lines — `LoftApp`'s 11 are
+    // 5 `<legend>` and 6 field labels — which §3 puts at `text-xs`. Lower this as they convert; the
+    // failure it exists to catch is the number going UP while nobody is looking, which is exactly how
+    // it got here.
+    const { total, byFile } = countMatches(ui, /\btext-\[11px\]/g);
+    expect(total, `text-[11px] uses, by file:\n${byFile.join("\n")}`).toBe(BUDGET.axisTickSize);
   });
 
   it(`hand-rolls exactly ${BUDGET.handRolledButtons} <button> elements — the three primitives, and nothing else`, () => {

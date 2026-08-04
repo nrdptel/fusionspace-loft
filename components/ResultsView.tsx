@@ -2,7 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
-import { Button, Card, Readout, Select, type CardTone } from "./ui";
+import { Button, Card, Figure, Panel, Readout, Section, Select, type CardTone } from "./ui";
 import { transonicReason } from "@/lib/sim/envelope";
 import { cx } from "@/lib/ui-tokens";
 import WorkspaceNav from "./WorkspaceNav";
@@ -530,9 +530,10 @@ export default function ResultsView({
       )}
       {run.hasPropulsion && (<>
       {/* Key results */}
-      <section aria-label="Results">
-        <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-          <h2 className="text-xl font-medium tracking-tight">Flight</h2>
+      <Section
+        aria-label="Results"
+        title="Flight"
+        aside={<>
           {/* Where these numbers are weak, beside the numbers. This link only ever appeared inside
               the NO-MOTOR notice, so a flyer looking at a perfectly ordinary flight had no route to
               the limitations log at all — the milestone's clause is that these pages are found
@@ -547,7 +548,8 @@ export default function ResultsView({
           >
             where it&apos;s weak
           </Link>
-        </div>
+        </>}
+      >
         {baseline && baseline.hasPropulsion && <WhatIfDelta run={run} baseline={baseline} units={units} />}
         <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
           {/* Marked on the numbers the transonic drag extrapolation actually drives — the ascent.
@@ -620,7 +622,7 @@ export default function ResultsView({
         </div>
         <RecoverySizingHint run={run} units={units} />
         <BoosterDescentNote run={run} units={units} />
-      </section>
+      </Section>
 
       {/* Flight phases — a staged flight's own timeline. Gated on the EDITED rocket, like every other
           staged surface: reading `doc.rocket.stages.length` is the bug R5 has already hit twice, and a
@@ -628,28 +630,31 @@ export default function ResultsView({
       {staged && <PhaseTable run={run} rocket={shownRocket} units={units} />}
 
       {/* Flight path */}
-      <Card as="section" aria-label="Flight path">
-        <h2 className="text-xl font-medium tracking-tight">Flight path</h2>
+      <Panel label="Flight path" title="Flight path">
         <div className="mt-3">
           <FlightViz result={r} units={units} />
         </div>
-      </Card>
+      </Panel>
 
       {/* Plots */}
-      <section aria-label="Plots" className="space-y-6">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-xl font-medium tracking-tight">Plots</h2>
+      <Section
+        aria-label="Plots"
+        className="space-y-6"
+        title="Plots"
+        aside={<>
           {/* The raw trajectory, sample by sample, for a spreadsheet or a plot against an altimeter
               log — offered only for a real flight (a design with no resolved motor has none). */}
           {run.hasPropulsion && r.trajectory.length > 0 && (
             <DownloadCsv rows={flightDataCsv(r, units)} name={doc.rocket.name} suffix="flight-data" label="Download flight data" />
           )}
-        </div>
+        </>}
+      >
         {/* Two-up once the column is wide enough for it: four full-width plots stacked made the
             Flight workspace 4.7 screens tall, and reading altitude against velocity meant
             scrolling between them. */}
         <div className="grid gap-6 xl:grid-cols-2">
-        <Plot title={`Altitude (${units === "imperial" ? "ft" : "m"}) vs time`}>
+        <Card>
+          <Figure title={`Altitude (${units === "imperial" ? "ft" : "m"}) vs time`}>
           <LineChart
             series={logSeries ? [altSeries(r, units), logSeries] : [altSeries(r, units)]}
             markers={markers}
@@ -727,8 +732,10 @@ export default function ResultsView({
               . Your measurement beside the estimate — not a model-accuracy figure.
             </p>
           )}
-        </Plot>
-        <Plot title={`Velocity (${units === "imperial" ? "ft/s" : "m/s"}) vs time`}>
+        </Figure>
+        </Card>
+        <Card>
+          <Figure title={`Velocity (${units === "imperial" ? "ft/s" : "m/s"}) vs time`}>
           <LineChart
             series={logSpeedSeries ? [...velSeries(r, units), logSpeedSeries] : velSeries(r, units)}
             markers={markers}
@@ -768,23 +775,28 @@ export default function ResultsView({
               )}
             </div>
           )}
-        </Plot>
-        <Plot title="Acceleration (g) vs time">
+        </Figure>
+        </Card>
+        <Card>
+          <Figure title="Acceleration (g) vs time">
           <LineChart series={[accelSeries(r)]} markers={markers} xLabel="time (s)" yLabel="g" />
-        </Plot>
+        </Figure>
+        </Card>
         {/* "Total thrust", not "Motor thrust" — the curve is the vehicle's, summed across every
             motor burning at that instant, so on a staged or airstarted design it is not any single
             motor's published curve. The old singular heading was half of what made the first-motor
             plot a defect rather than a partial view: nothing on the surface said it was one of
             several. The caption below names them. */}
         {thrustSeries(run) && (
-          <Plot title="Total thrust (N) vs time">
-            <LineChart series={[thrustSeries(run)!]} xLabel="time (s)" yLabel="N" yZeroFloor />
-            <MotorStatsCaption run={run} units={units} />
-          </Plot>
+          <Card>
+            <Figure title="Total thrust (N) vs time">
+              <LineChart series={[thrustSeries(run)!]} xLabel="time (s)" yLabel="N" yZeroFloor />
+              <MotorStatsCaption run={run} units={units} />
+            </Figure>
+          </Card>
         )}
         </div>
-      </section>
+      </Section>
       </>)}
       </div>
 
@@ -1135,8 +1147,7 @@ function NoPropulsionNotice({
         ? Math.round(swapOptions![0].diameter * 1000)
         : 0;
   return (
-    <Card as="section" tone="danger" aria-label="No flight simulated">
-      <h2 className="text-xl font-medium tracking-tight">No flight simulated</h2>
+    <Panel label="No flight simulated" title="No flight simulated" tone="danger">
       {hasInstances ? (
         <>
           {/* Each branch carries its own negation. Sharing the clause "could be matched" only reads
@@ -1204,7 +1215,7 @@ function NoPropulsionNotice({
         entirely rather than carried as dead weight, so the centre of gravity sits forward of where
         it would fly and the static margin is withheld rather than reported over-stable.
       </p>
-    </Card>
+    </Panel>
   );
 }
 
@@ -1255,9 +1266,9 @@ function RocketSummary({
   const extrapolatedWhy = transonicReason(r.extrapolatedTransonic, r.summary.maxMach);
   const [detailOpen, setDetailOpen] = useState(false);
   return (
-    <Card as="section">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="text-xl font-medium tracking-tight">{doc.rocket.name}</h2>
+    <Panel
+      title={doc.rocket.name}
+      aside={
         <span className="text-xs text-zinc-500 dark:text-zinc-400">
           {formatLabel(doc)}
           {" · "}
@@ -1269,10 +1280,9 @@ function RocketSummary({
           <Link href="/docs/methods" className="underline underline-offset-2 hover:text-zinc-700 dark:hover:text-zinc-300">
             how these are computed
           </Link>
-
         </span>
-      </div>
-
+      }
+    >
       <div className="mt-3 flex flex-wrap gap-2">
         {run.resolutions.map((res, i) => (
           <span
@@ -1476,7 +1486,7 @@ function RocketSummary({
           would save nothing on the healthy designs the depth measurement is taken on anyway. */}
       <StabilityTrimHint run={run} rocket={rocket} units={units} />
       <FlutterFixHint run={run} doc={doc} units={units} geometry={geometry} />
-    </Card>
+    </Panel>
   );
 }
 
@@ -1832,15 +1842,6 @@ function WhatIfDelta({ run, baseline, units }: { run: FlightRun; baseline: Fligh
   );
 }
 
-function Plot({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <Card>
-      <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">{title}</h3>
-      <div className="mt-2 overflow-x-auto">{children}</div>
-    </Card>
-  );
-}
-
 // --- series builders ---
 
 function altSeries(r: FlightResult, units: UnitSystem): Series {
@@ -2030,8 +2031,7 @@ function PhaseTable({ run, rocket, units }: { run: FlightRun; rocket: Rocket; un
   if (rows.length === 0) return null;
 
   return (
-    <Card as="section" aria-label="Flight phases">
-      <h2 className="text-xl font-medium tracking-tight">Flight phases</h2>
+    <Panel label="Flight phases" title="Flight phases">
       {/* `COMPETITION.md` row 25 calls this table a lead no competitor offers — and until it took the
           primitive, its numbers could not leave the page at all. Phases are in flight order and that
           IS the meaning of the table, so the Phase column is deliberately the only sortable one: it
@@ -2136,7 +2136,7 @@ function PhaseTable({ run, rocket, units }: { run: FlightRun; rocket: Rocket; un
           stage&apos;s own descent is not simulated.
         </p>
       )}
-    </Card>
+    </Panel>
   );
 }
 

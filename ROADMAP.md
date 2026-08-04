@@ -3554,10 +3554,31 @@ invariant: whatever ships here ships in both apps.
 
 ## P6 — The primitives the design system already declares
 
-**Status: IN PROGRESS** — increments 1–4 shipped 2026-08-04 (`Readout`, `Select`,
-`EmptyState`/`ErrorState`, `Panel`), plus `Extrapolated`, which arrived early as a Sev-1 fix rather
-than as planned P6 work. Each carries a per-primitive adoption ratchet in `lib/design-system.test.ts`.
-**Remaining: `Figure`**, and the live question on `Section` and `Chip` — see *Notes*.
+**Status: IN PROGRESS** — increments 1–6 shipped 2026-08-04 (`Readout`, `Select`,
+`EmptyState`/`ErrorState`, `Panel`, `Figure`, and the `Section`/`Chip` decision), plus `Extrapolated`,
+which arrived early as a Sev-1 fix rather than as planned P6 work. Every primitive §5 declares now
+exists and is adopted, each with a per-primitive ratchet in `lib/design-system.test.ts`, and the two
+zero-adopter primitives are answered rather than inherited.
+
+**ONE *done when* clause is still open, and it is the milestone's own first increment.** "`Readout` is
+the only labelled-value treatment" is not true yet: increment 1 converted `ResultsView`'s sixteen and
+the measured queue behind it is untouched — `LoftApp`'s `Field` (14 sites, a pre-formatted-string
+value), `MonteCarlo`'s `StatCard`/`WithheldCard`/`RadiusCard` (6, differing only in what fills `sub`),
+and the what-if delta rows (5, a before → after → change shape the API does not yet express). That is
+25 sites in three shapes. **Do not mark this milestone SHIPPED until that count is 0 or the remainder
+is refused with a measured reason.**
+
+**Increment 7 took the prerequisite and found the blocker.** `Readout`'s own label and sub-line were
+at `text-[11px]`, a size §3 scopes to "axis ticks and diagram annotations only" — the design system's
+primitive breaking the design system, on the treatment a flyer reads every number through. Both moved
+to `text-xs`, and a new `axisTickSize` ratchet holds the app-wide count of that token at its measured
+**46** with the per-file breakdown beside it, so the remaining offenders cannot be joined by another
+while they wait. **But converting `MonteCarlo`'s six cards would now make them worse**: they put a
+5–95% band in the `sub` slot at `text-sm`, and a recovery band IS a decision-grade figure, which §3
+puts at `text-sm` and the text AROUND a value one size down. **One `sub` slot cannot be both sizes.**
+That is the API decision the next run owes — probably a second slot, or a `sub` that takes a node
+rather than a string, and either way it should be decided from the six real call sites rather than
+invented.
 
 *Increment 1 — SHIPPED. `Readout` exists and `ResultsView`'s sixteen readouts go through it.*
 
@@ -3632,9 +3653,68 @@ It also moved three counts DOWN — `Card` 12→11, `Button` 14→12, `ClosePane
 pixel changing, which is the distortion §9 already records under *count what a file RENDERS*. Noted
 beside each number so the next audit reads it as absorption rather than regression.
 
-**Next: `Figure`.** (The `GeometryInspector` empty-state case was investigated and
+*Increment 5 — SHIPPED 2026-08-04. `Figure`, and every chart in the app is framed by it.*
+
+Nine call sites in four files, in four disagreeing treatments: `ResultsView`'s local `Plot` (a `Card`,
+an `h3`, an `overflow-x-auto` wrapper), `MonteCarlo` repeating that exact heading string without the
+wrapper, `DragCrossCheck` using a `<p>` where a heading belongs and one shade off at `text-zinc-600`,
+and `ParameterSweep` with the out-of-envelope caveat above the chart and the caption below it and no
+heading at all. **That last one is the argument for the primitive**: the caveat had exactly one home
+in the app, and a home is what makes it a STATE rather than a paragraph somebody remembered.
+
+Legend and axis units are deliberately not the wrapper's — `LineChart` owns both, draws the legend
+from each series' own label, and takes `xLabel`/`yLabel`. §5 lists them as things a figure must HAVE,
+not as things this component must render, and hoisting them would make every chart declare its axes
+twice.
+
+Pinned three ways: the per-primitive ratchet at four adopters; a file-level source check that a
+component rendering a chart imports `Figure` (which catches the next file that frames one by hand —
+the way all four of these started, and which the import ratchet cannot see); and `Extrapolated`
+dropping 6 → 4 adopters as `Readout` and now `Figure` took it over, recorded as absorption with the
+reason. Both new checks proved able to fail.
+
+**It also caught a stale ratchet.** `uiAdopters` sat at 17 while §9's own grep answered 18 — and
+because it is a `toBeGreaterThanOrEqual`, a stale floor cannot fail, it just quietly stops
+ratcheting. Raised, with the grep written beside it.
+
+*Increment 6 — SHIPPED 2026-08-04. The two zero-adopter primitives, answered.*
+
+`Section` and `Chip` had sat at 0 call sites for five runs, and this milestone's own notes said they
+either gain them or are deleted. Both got a decision, and they went opposite ways.
+
+**`Section` gains its call sites, and its own implementation was why it had none.** It imposed
+`mt-8 first:mt-0` on the region and `mt-4` on its children — rhythm the two real bare regions already
+own through the workspace's `space-y-8` — so adopting it would have doubled every gap. **A primitive
+that cannot be adopted without a repaint does not get adopted; it gets copied**, which is exactly what
+both sites did. Both margins are gone.
+
+**And it had already drifted from the app before it ever rendered**: `Section` spelled its heading
+`text-xl font-medium text-zinc-900 dark:text-zinc-100` while all ten real headings spelled it
+`text-xl font-medium tracking-tight`. The app's spelling won — a primitive with zero call sites is a
+proposal, and ten rendered sites are the evidence. `Panel` and `Section` now render one shared header
+component, so the two cannot drift again.
+
+**`Panel` turned out to be the shape the app uses most.** Extracted last increment for the three
+dismissible analysis panels, its header was byte-identical at **seven** more cards with nothing to
+dismiss: both cross-checks, the validation report, the flight-path card, the phase table, the
+no-flight refusal and the design-name strip. §5's container vocabulary was missing that shape
+entirely — `Card`'s own `title` is a level below it, an `h3` inside a card rather than the card's own
+heading. The dismissible half is now a type union rather than four loose optionals, so a call site
+cannot ask for a Close button and forget the Run button focus returns to. 3 → 7 adopters.
+
+**`Chip` is DELETED**, from `ui.tsx`, from the ratchet and from §5. It declared "a compact key/value
+or filter token" and had zero call sites for its whole life, where every other §5 primitive found
+between one and seven on the day it was built. The key/value half is `Readout`'s, which has adopters.
+And the app contains **exactly one** token-shaped element — the motor-resolution pills in
+`ResultsView` — a single-label STATE pill, not a key/value, in a geometry
+(`rounded-full px-2.5 py-0.5`) that is not the one §5 stated. Adopting it there would have meant
+rewriting both the API and the spec to fit the only possible user. §5 now carries that reasoning so it
+is not re-added from memory; if a second token surface arrives, that pill strip is the shape to
+extract, and the entry should be written from it rather than before it.
+
+(The `GeometryInspector` empty-state case was investigated and
 REFUTED — `ResultsView` never mounts without a successful flight, so that branch is genuinely
-unreachable.) The `Readout` queue behind increment 1 is
+unreachable.) **The `Readout` queue behind increment 1 is the milestone's last open clause** and is
 measured and waiting: `Field` (14 sites in the same file, a pre-formatted-string value),
 `MonteCarlo`'s `StatCard`/`WithheldCard`/`RadiusCard` (6, differing only in what fills `sub`), and
 the what-if delta rows (5, a before → after → change shape the API does not yet express).

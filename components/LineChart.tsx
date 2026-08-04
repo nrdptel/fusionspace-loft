@@ -106,7 +106,7 @@ export default function LineChart({
   emptyNote?: React.ReactNode;
 }) {
   const uid = useId();
-  const box = useRef<HTMLElement>(null);
+  const box = useRef<HTMLDivElement>(null);
   const W = useMeasuredWidth(box);
   const H = height;
   const padL = padLeft(W);
@@ -164,8 +164,15 @@ export default function LineChart({
   const path = (pts: { x: number; y: number }[]) =>
     pts.map((p, i) => `${i === 0 ? "M" : "L"}${px(p.x).toFixed(1)},${py(p.y).toFixed(1)}`).join(" ");
 
+  // A `<div>`, not a `<figure>`, and the legend below is a `<div>` rather than a `<figcaption>`.
+  // **`DESIGN.md` §5 puts the figure semantics on the wrapper**: a `Figure` is "a chart with its
+  // title, legend, axis units, and its own empty and extrapolated states", and this component is the
+  // chart — one part of that. Both elements rendering `<figure>` nested them, which HTML permits but
+  // which means "a sub-illustration inside an illustration", announces two figure roles to a screen
+  // reader, and gave one figure two captions at different levels. Caught by walking the built export
+  // and counting: ten `<figure>` elements on the Flight workspace for four plots.
   return (
-    <figure className="m-0" ref={box}>
+    <div className="m-0" ref={box}>
       <svg
         viewBox={`0 0 ${W} ${H}`}
         className="h-auto w-full"
@@ -256,16 +263,16 @@ export default function LineChart({
         </text>
       </svg>
       {series.length > 1 && (
-        <figcaption className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-zinc-500 dark:text-zinc-400">
+        <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-zinc-500 dark:text-zinc-400">
           {series.map((s, i) => (
             <span key={`l${uid}${i}`} className="inline-flex items-center gap-1.5">
               <span className="inline-block h-2 w-3 rounded-sm" style={{ background: s.color }} />
               {s.label}
             </span>
           ))}
-        </figcaption>
+        </div>
       )}
-    </figure>
+    </div>
   );
 }
 

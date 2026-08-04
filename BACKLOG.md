@@ -34,18 +34,26 @@ pass.** Two of the run's three increments came out of it — the thrust-plot Sev
   covers it: all five phone specs force `hasTouch: true`, so the fine-pointer phone is untested.
   A hybrid device, a stylus, and several Android browsers are the reachable cases.
 
-- **`Readout`'s label and sub-line render at `text-[11px]`.** Filed 2026-08-04, CONFIRMED.
-  `components/ui.tsx:438` and `:457`. §3 scopes that token to "axis ticks and diagram annotations
-  only" and makes `text-sm` the body default for "every label, value, control and table cell"; the
-  sub-line also carries the withheld REASON, which §6 requires and §3 puts at `text-xs`. This came in
-  with the primitive on 2026-08-04 — lifted verbatim from `ResultsView`'s local `Stat`, which is
-  exactly how a divergence survives an extraction — so it is the design system's own primitive
-  breaking the design system, on the treatment a flyer reads every number through.
+- ~~**`Readout`'s label and sub-line render at `text-[11px]`.**~~ **RESOLVED 2026-08-04.** Both moved
+  to `text-xs`: §3 scopes `text-[11px]` to "axis ticks and diagram annotations only", and a label
+  naming a value and a line carrying its provenance or its withheld REASON are captions, which §3
+  puts at `text-xs`. Not `text-sm`, because §3 reserves that as the floor for the value a flyer reads
+  to make a decision and puts the text AROUND such a value one size down. **The one case that argues
+  the other way is now the blocker on P6's last clause**: `MonteCarlo`'s three card variants put a
+  5–95% band in that same slot at `text-sm`, and a recovery band IS decision-grade. One `sub` slot
+  cannot be both sizes, so converting those six sites needs an API decision rather than a conversion.
+  A ratchet now holds `text-[11px]` at its measured 46 uses so the count cannot grow while the rest
+  are converted.
 
 - **11 more `text-[11px]` on the design editor's own legends and field labels.**
   `components/LoftApp.tsx` — 5 `<legend>` and 6 field-label spans. Same §3 rule. Counted separately
   from the `Readout` pair because they are call sites rather than a primitive, so they close by
-  conversion rather than by one edit.
+  conversion rather than by one edit. **Still open, and now ratcheted**: `axisTickSize` in
+  `lib/design-system.test.ts` holds the app-wide count at 46 with the per-file breakdown beside it,
+  so these cannot be joined by a twelfth while nobody is looking. The legitimate uses are
+  `RocketDiagram` 8, `LineChart` 6 and `FlightViz` 5 — all genuine axis and diagram annotation, which
+  is the token's own job. `DataTable`'s single use is a table header, which §3 puts at `text-xs` as
+  "dense table metadata".
 
 - **`components/PartPicker.tsx:690` — the catalogue's Search box has no padding, no height and no
   `TOUCH_TARGET`.** CONFIRMED. `<input type="search" className="mt-1 w-full">`: it does not even take
@@ -62,16 +70,32 @@ pass.** Two of the run's three increments came out of it — the thrust-plot Sev
   in no saved session at all, and switching to Today deliberately DELETES the flyer's typed wind
   speed and field elevation. "Controls that forget" is a named tell in `MAINTAINING.md`.
 
-- **`uiAdopters: 17` in `lib/design-system.test.ts` may be one behind its own §9 grep, which answers
-  18.** Filed 2026-08-04 from a refuter that was checking something else. UNVERIFIED by hand — the
-  ratchet is a `toBeGreaterThanOrEqual`, so it cannot fail on being stale, only on regressing; if the
-  real count is 18 the floor should move up to match. One command settles it.
+- ~~**`uiAdopters: 17` in `lib/design-system.test.ts` may be one behind its own §9 grep, which
+  answers 18.**~~ **RESOLVED 2026-08-04, and it was right.** The grep answered 18 against a floor of
+  17. Raised in the `Figure` increment, with the grep written into the comment beside the number so
+  the next session re-runs it rather than trusting it. The general shape is worth carrying: **a
+  `toBeGreaterThanOrEqual` ratchet cannot fail on being stale, only on regressing** — a stale floor
+  just quietly stops ratcheting, which is the one failure mode a one-directional check has. Every
+  other one-directional number in that file deserves the same treatment: its own generating command,
+  beside it.
 
 - **A drag e2e flaked once and is worth watching rather than fixing blind.** `e2e/smoke.spec.ts`'s
   "a part can be dragged and dropped between two others" failed once in a full shard-2 run waiting
   for the `drop here` indicator, then passed twice in isolation and once on a clean shard re-run, on
   a diff touching no diagram code. Recorded with the counts so the next occurrence is the second data
   point rather than the first.
+
+- **Two charts are still their own `<figure>` while every other chart is framed by one.** Filed
+  2026-08-04, MEASURED on the built export. `Figure` (P6 increment 5) owns the `<figure>` element,
+  and `LineChart` was changed to a `<div>` in the same run because the two nested — ten `<figure>`
+  elements rendered on the Flight workspace for four plots, which HTML permits but which means "a
+  sub-illustration inside an illustration" and gave one figure two captions at different levels.
+  `components/FlightViz.tsx:77` and `components/RocketDiagram.tsx:547` still render their own
+  `<figure className="m-0">`, and neither is wrapped by `Figure`, so nothing nests today and nothing
+  is broken. The open question is whether "a chart is a `<figure>` exactly once, either by `Figure`
+  or by itself" is the rule, or whether those two should go through the primitive like the rest —
+  the flight-path chart already sits inside a `Panel` that titles it, so wrapping it adds an element
+  and no heading. Decide it before a third chart arrives rather than after.
 
 - **A second smoke e2e flaked, and this one has an attributable cause: do not run anything else
   while a shard is running.** `e2e/smoke.spec.ts`'s "leaving a design is undoable, and the undo
