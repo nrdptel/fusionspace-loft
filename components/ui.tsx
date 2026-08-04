@@ -118,6 +118,82 @@ export function Card({
   );
 }
 
+/** A dismissible analysis panel — `DESIGN.md` §5: "a `Card` with a header row and a close
+ *  affordance, for anything dismissible. Owns focus return."
+ *
+ *  The three heavy panels — the parameter sweep, the motor sweep and the dispersion run — hand-rolled
+ *  this identically: the same `Card as="section"` landmark, the same `flex flex-wrap items-baseline
+ *  justify-between gap-2` header, the same `text-xl` heading, the same `text-xs` caption beside it,
+ *  the same `ClosePanel` gated on `open`, and the same `!open` block holding a primary Run button.
+ *
+ *  **Owning focus return is the point, not the styling.** Each call site paired `useReturnFocus()`
+ *  with a `returnFocusToRun()` inside its own `onClose`, which is a four-part contract — declare the
+ *  hook, put the ref on the Run button, call the returner, and do it in the close handler rather than
+ *  anywhere else — repeated by hand at every panel. `ClosePanel`'s own doc comment records what it
+ *  cost when a panel had no way out at all; a panel that closes and drops focus onto `<body>` is the
+ *  keyboard version of the same defect, and it is invisible to every check in this repo. Here the
+ *  ref goes on the Run button this component renders and the returner fires from the close handler it
+ *  owns, so a fourth panel added next run inherits both instead of re-deriving them.
+ *
+ *  `children` renders BEFORE the Run button, which sounds wrong and is exactly what the call sites
+ *  do: the button follows the panel's pitch paragraph, and the analysis it opens is gated on `open`,
+ *  so the two are never on screen together. The rendered order is unchanged in both states. */
+export function Panel({
+  title,
+  label,
+  aside,
+  open,
+  onOpenChange,
+  run,
+  what,
+  className,
+  children,
+  ...rest
+}: {
+  title: React.ReactNode;
+  /** The landmark's accessible name — this is a `<section>`, and the e2e suite reaches all three by
+   *  `getByRole("region", …)`. */
+  label: string;
+  /** The caption on the right of the header row: what the run costs, or what it covers. */
+  aside?: React.ReactNode;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  /** The primary button that opens it. `DESIGN.md` §5 allows one primary per surface, and this is
+   *  the action the panel exists to perform. */
+  run: React.ReactNode;
+  /** Named in the close button's accessible name: `Close ${what}`. */
+  what: string;
+} & Omit<React.HTMLAttributes<HTMLElement>, "title">) {
+  const [runRef, returnFocusToRun] = useReturnFocus();
+  return (
+    <Card as="section" aria-label={label} className={className} {...rest}>
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 className="text-xl font-medium tracking-tight">{title}</h2>
+        <div className="flex items-center gap-3">
+          {aside && <span className="text-xs text-zinc-500 dark:text-zinc-400">{aside}</span>}
+          {open && (
+            <ClosePanel
+              onClose={() => {
+                onOpenChange(false);
+                returnFocusToRun();
+              }}
+              what={what}
+            />
+          )}
+        </div>
+      </div>
+      {children}
+      {!open && (
+        <div className="mt-3">
+          <Button variant="primary" ref={runRef} onClick={() => onOpenChange(true)}>
+            {run}
+          </Button>
+        </div>
+      )}
+    </Card>
+  );
+}
+
 /** A titled region within a route — `DESIGN.md` §5. What a route is built from. */
 export function Section({
   title,

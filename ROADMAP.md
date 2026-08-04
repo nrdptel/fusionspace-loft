@@ -3507,10 +3507,10 @@ invariant: whatever ships here ships in both apps.
 
 ## P6 — The primitives the design system already declares
 
-**Status: IN PROGRESS** — increments 1, 2 and 3 shipped 2026-08-04 (`Readout`, `Select`,
-`EmptyState`/`ErrorState`), plus `Extrapolated`, which arrived early as a Sev-1 fix rather than as
-planned P6 work. Each carries a per-primitive adoption ratchet in `lib/design-system.test.ts`.
-**Remaining: `Panel` and `Figure`**, and the live question on `Section` and `Chip` — see *Notes*.
+**Status: IN PROGRESS** — increments 1–4 shipped 2026-08-04 (`Readout`, `Select`,
+`EmptyState`/`ErrorState`, `Panel`), plus `Extrapolated`, which arrived early as a Sev-1 fix rather
+than as planned P6 work. Each carries a per-primitive adoption ratchet in `lib/design-system.test.ts`.
+**Remaining: `Figure`**, and the live question on `Section` and `Chip` — see *Notes*.
 
 *Increment 1 — SHIPPED. `Readout` exists and `ResultsView`'s sixteen readouts go through it.*
 
@@ -3565,7 +3565,27 @@ hole was patched. Pinned by `lets no data surface vanish instead of saying why`,
 data-rendering components — a blanket rule would fire on the app's conditional ADVICE, and a hint
 that does not apply must not render an empty box saying so.
 
-**Next: `Panel`, then `Figure`.** (The `GeometryInspector` empty-state case was investigated and
+*Increment 4 — SHIPPED 2026-08-04. `Panel`, and it is the first primitive here that carries
+BEHAVIOUR rather than a treatment.*
+
+Three adopters from the first commit: the parameter sweep, the motor sweep and the dispersion run
+had hand-rolled the identical landmark, header row, `text-xl` heading, `text-xs` caption,
+`open`-gated close button and `!open` Run block. The styling was the cheap half. §5 also says `Panel`
+"owns focus return", and until now nothing did — each call site declared `useReturnFocus()`, put the
+ref on its own Run button, and called the returner from inside its own close handler. Four steps, by
+hand, three times, and **a panel that closes and drops focus onto `<body>` is invisible to every
+check in this repo**.
+
+Pinned two ways, the pattern `Select` established: a per-primitive ratchet at three files, and a
+source count asserting zero components outside `ui.tsx` call `useReturnFocus` — because adoption sees
+a fourth panel that imports `Panel` and cannot see a fourth panel that re-derives the wiring beside
+it. Proved able to fail by putting the hook back into `MonteCarlo`.
+
+It also moved three counts DOWN — `Card` 12→11, `Button` 14→12, `ClosePanel` 3→0 — with no rendered
+pixel changing, which is the distortion §9 already records under *count what a file RENDERS*. Noted
+beside each number so the next audit reads it as absorption rather than regression.
+
+**Next: `Figure`.** (The `GeometryInspector` empty-state case was investigated and
 REFUTED — `ResultsView` never mounts without a successful flight, so that branch is genuinely
 unreachable.) The `Readout` queue behind increment 1 is
 measured and waiting: `Field` (14 sites in the same file, a pre-formatted-string value),

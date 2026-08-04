@@ -162,8 +162,14 @@ const BUDGET = {
  *  state `DESIGN.md` recorded for `Chip` and `Disclosure` on 2026-07-30 and the state this milestone
  *  is closing. What must not happen is a zero silently BECOMING the finished condition. */
 const PRIMITIVE_ADOPTERS: Record<string, number> = {
-  Card: 12,
-  Button: 14,
+  /** 11, down from 12, and the same for `Button` at 12 from 14 and `ClosePanel` at 0 from 3 — all
+   *  three fell on 2026-08-04 for the reason §9 records under *count what a file RENDERS*: `Panel`
+   *  absorbed the container, the Run button and the close affordance of the three heavy analysis
+   *  panels, so two files stopped importing what they still render. Adoption moving a count DOWN is
+   *  the system working. What would be a regression is a file rendering one of these and importing
+   *  neither it nor a primitive that owns it. */
+  Card: 11,
+  Button: 12,
   /** The button geometry as a class, for the two things that must look like a button and cannot BE
    *  one — a `next/link` and an external `<a>`. It is exported from `lib/ui-tokens.ts` rather than
    *  from `components/ui.tsx` because the site header is a SERVER component and cannot call into a
@@ -197,7 +203,12 @@ const PRIMITIVE_ADOPTERS: Record<string, number> = {
    *  measured card variants happened, so it is counted like any other adoption. */
   navItemClass: 1,
   NumberField: 2,
-  ClosePanel: 3,
+  /** Zero, and it is `Panel` below that holds the line now. The close affordance was never the
+   *  problem — every panel that had one used this — but it was gated on `open` by hand at each site
+   *  and paired with a `useReturnFocus()` the call site also had to wire. `Panel` owns both. A
+   *  fourth dismissible surface that reaches for `ClosePanel` directly is not wrong, and this
+   *  leaving zero is what would tell the next audit it went that way rather than through `Panel`. */
+  ClosePanel: 0,
   Chip: 0,
   Disclosure: 1,
   /** §5's `Extrapolated` — "the warn treatment plus the reason and the range it left".
@@ -251,6 +262,16 @@ const PRIMITIVE_ADOPTERS: Record<string, number> = {
    *  named slots would either reorder it or add a `children` escape hatch that makes the primitive
    *  mean nothing. It is filed rather than rushed. */
   ErrorState: 1,
+  /** §5's `Panel` — "a `Card` with a header row and a close affordance, for anything dismissible.
+   *  Owns focus return."
+   *
+   *  Three adopters, and it started at three: the parameter sweep, the motor sweep and the dispersion
+   *  run had hand-rolled the identical landmark, header row, `text-xl` heading, `text-xs` caption,
+   *  `open`-gated close button and `!open` Run block. Unlike the other primitives on this list it
+   *  carries BEHAVIOUR, not just a treatment — the `useReturnFocus()` pairing was a four-part contract
+   *  each call site re-derived, and a panel that closes and drops focus onto `<body>` is invisible to
+   *  every check in this repo. A fourth heavy panel must import this. */
+  Panel: 3,
 };
 
 describe("DESIGN.md §9 — the design system is binding, and this is what checks it", () => {
@@ -426,6 +447,33 @@ describe("DESIGN.md §9 — the design system is binding, and this is what check
         return [...stripped.matchAll(/<select[\s>]/g)].map(() => f.path);
       });
     expect(raw, `hand-rolled <select> elements:\n  ${raw.join("\n  ")}`).toEqual([]);
+  });
+
+  it("wires focus return in exactly 0 places — `Panel` owns it", () => {
+    // `DESIGN.md` §5 says `Panel` "owns focus return", and until 2026-08-04 nothing did: the three
+    // heavy panels each declared `useReturnFocus()`, put the ref on their own Run button, and called
+    // the returner from inside their own close handler. Four steps, by hand, three times.
+    //
+    // The same source-count reasoning as the `<select>` check above: adoption counts imports, so it
+    // can see a fourth panel that imports `Panel` but not a fourth panel that re-derives the wiring
+    // beside it. This is the assertion that goes red for the second kind.
+    //
+    // Scoped to the HOOK rather than to the whole pattern deliberately. A future surface with a real
+    // reason to return focus somewhere `Panel` does not render — a modal, a drawer — is not a defect,
+    // and this check is where that argument gets made: the hook stays exported, and taking it means
+    // changing this number with the reason beside it, not quietly copying four lines.
+    const callers = components
+      .filter((f) => f.path !== "components/ui.tsx")
+      .filter((f) =>
+        f.text
+          .replace(/\/\*[\s\S]*?\*\//g, "")
+          .split("\n")
+          .filter((l) => !/^\s*(\/\/|\*)/.test(l))
+          .join("\n")
+          .includes("useReturnFocus("),
+      )
+      .map((f) => f.path);
+    expect(callers, `hand-wired focus return:\n  ${callers.join("\n  ")}`).toEqual([]);
   });
 
   it("lets no data surface vanish instead of saying why", () => {
