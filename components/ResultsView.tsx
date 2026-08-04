@@ -772,8 +772,13 @@ export default function ResultsView({
         <Plot title="Acceleration (g) vs time">
           <LineChart series={[accelSeries(r)]} markers={markers} xLabel="time (s)" yLabel="g" />
         </Plot>
+        {/* "Total thrust", not "Motor thrust" — the curve is the vehicle's, summed across every
+            motor burning at that instant, so on a staged or airstarted design it is not any single
+            motor's published curve. The old singular heading was half of what made the first-motor
+            plot a defect rather than a partial view: nothing on the surface said it was one of
+            several. The caption below names them. */}
         {thrustSeries(run) && (
-          <Plot title="Motor thrust (N) vs time">
+          <Plot title="Total thrust (N) vs time">
             <LineChart series={[thrustSeries(run)!]} xLabel="time (s)" yLabel="N" yZeroFloor />
             <MotorStatsCaption run={run} units={units} />
           </Plot>
@@ -1852,13 +1857,33 @@ function velSeries(r: FlightResult, units: UnitSystem): Series[] {
 function accelSeries(r: FlightResult): Series {
   return { color: COLORS.accel, label: "acceleration", points: r.trajectory.map((p) => ({ x: p.t, y: p.acceleration / 9.80665 })) };
 }
+/** The thrust the VEHICLE delivers, over flight time — not one motor's published curve.
+ *
+ *  **It used to plot `resolutions.find(x => x.match)`, which is the first motor that resolved and
+ *  nothing else.** On a design whose configuration resolves more than one motor instance — a staged
+ *  stack, or a single-stage vehicle with an airstarted second mount — that is a fraction of the
+ *  flight, drawn under a heading that says "Motor thrust" and names nothing. Measured across the
+ *  corpus: 14 configurations on 5 designs are affected, and `Airstart timing.ork` is the case that
+ *  admits no defence — single stage, one phase, both motors burning in the same flight, plotting
+ *  **1,624.9 N·s of a 2,917.3 N·s vehicle**, 56%, presented as the whole.
+ *
+ *  The solver has always computed the right thing: `simulate.ts` sums `thrustAt(curve, t -
+ *  ignitionTime)` over every motor and stores the result on each trajectory sample. So this is a
+ *  READ of the flight rather than a reconstruction, which is what makes it correct for a cluster, a
+ *  staged stack and an airstart alike without knowing which it is. Measured on `Airstart timing.ork`:
+ *  integrating these samples gives 2,915.0 N·s against the configuration's declared 2,917.3 — 0.08%
+ *  — and the trajectory carries 142 points across the burn where the single motor's own curve had 27,
+ *  so the plot gained resolution rather than losing it.
+ *
+ *  Clipped to the burn, with one sample past it so the curve visibly returns to zero: the trajectory
+ *  runs to landing, and a thrust plot with a 40-second zero tail is a plot of nothing. */
 function thrustSeries(run: FlightRun): Series | null {
-  const res = run.resolutions.find((x) => x.match);
-  const m = res?.match?.entry.curve;
-  if (!m) return null;
-  // A cluster fires N identical motors, so the delivered thrust is N× the single-motor curve.
-  const n = Math.max(1, res?.count ?? 1);
-  return { color: COLORS.thrust, label: "thrust", points: m.samples.map((p) => ({ x: p.t, y: p.thrust * n })) };
+  const traj = run.result.trajectory;
+  let last = -1;
+  for (let i = 0; i < traj.length; i++) if (traj[i].thrust > 0) last = i;
+  if (last < 0) return null;
+  const points = traj.slice(0, Math.min(last + 2, traj.length)).map((p) => ({ x: p.t, y: p.thrust }));
+  return { color: COLORS.thrust, label: "thrust", points };
 }
 
 /** The key numbers a flyer reads a thrust curve for, under the plot: the delivered total impulse and
@@ -1867,15 +1892,38 @@ function thrustSeries(run: FlightRun): Series | null {
  *  impulse and its class are what the vehicle actually flies (a cluster of three G's reads as an I).
  *  Reads the same primary resolved motor `thrustSeries` plots; renders nothing when none resolved. */
 function MotorStatsCaption({ run, units }: { run: FlightRun; units: UnitSystem }) {
-  const res = run.resolutions.find((x) => x.match);
-  const m = res?.match?.entry.curve;
-  if (!m) return null;
-  const n = Math.max(1, res?.count ?? 1);
-  const totalImpulse = m.totalImpulse * n;
-  const propMass = m.propMass * n; // kg
+  // **Every motor the configuration flies, not the first one that resolved.** The impulse and its
+  // class letter are what a flyer takes to a waiver and an RSO, and reading them off one instance of
+  // several is a wrong number on the surface where being wrong costs most: `Airstart timing.ork`
+  // read "1624.9 N·s (K)" for a vehicle that delivers 2917.3 N·s and certifies as an L.
+  const matched = run.resolutions.filter((x) => x.match);
+  if (!matched.length) return null;
+  const each = matched.map((r) => ({ curve: r.match!.entry.curve, n: Math.max(1, r.count ?? 1) }));
+  const totalImpulse = each.reduce((a, e) => a + e.curve.totalImpulse * e.n, 0);
+  const propMass = each.reduce((a, e) => a + e.curve.propMass * e.n, 0); // kg
+  // Peak and burn come from the FLIGHT, not from summing published figures: two motors that never
+  // overlap do not stack their peaks, and one that airstarts late extends the burn past its own
+  // duration. The trajectory already answers both, correctly, for every arrangement.
+  const traj = run.result.trajectory;
+  const peak = traj.reduce((a, p) => Math.max(a, p.thrust), 0);
+  const burnEnd = traj.reduce((a, p) => (p.thrust > 0 ? p.t : a), 0);
+  // Averaged over the interval thrust is actually delivered over — impulse ÷ burn — which is the
+  // definition, and which stays right when a second motor lights halfway through.
+  const avg = burnEnd > 0 ? totalImpulse / burnEnd : 0;
+  // How the motors read as a set. One entry is its designation; several are listed in the order the
+  // configuration holds them, so an airstarted pair reads "K550W + 3× I211W" rather than silently
+  // becoming its first half.
+  const motorText = each
+    .map((e) => (e.n > 1 ? `${e.n}× ${e.curve.designation}` : e.curve.designation))
+    .join(" + ");
   const propText =
     units === "imperial" ? `${(propMass * 35.274).toFixed(2)} oz` : `${Math.round(propMass * 1000)} g`;
-  const delays = m.delaysRaw && m.delaysRaw !== "0" ? m.delaysRaw : null;
+  // Only meaningful for a single motor: two motors with different delays cannot share one figure,
+  // and printing the first one's would be the same defect this whole caption just stopped making.
+  const delays =
+    each.length === 1 && each[0].curve.delaysRaw && each[0].curve.delaysRaw !== "0"
+      ? each[0].curve.delaysRaw
+      : null;
   const stat = (label: string, value: string) => (
     <span>
       <span className="text-zinc-500 dark:text-zinc-400">{label}</span>{" "}
@@ -1884,11 +1932,11 @@ function MotorStatsCaption({ run, units }: { run: FlightRun; units: UnitSystem }
   );
   return (
     <figcaption className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px]">
-      {n > 1 && stat("cluster", `${n}× ${m.designation}`)}
+      {stat(each.length > 1 ? "motors" : "motor", motorText)}
       {stat("total impulse", `${totalImpulse.toFixed(1)} N·s (${impulseClass(totalImpulse)})`)}
-      {stat("peak", `${Math.round(m.maxThrust * n)} N`)}
-      {stat("avg", `${Math.round(m.avgThrust * n)} N`)}
-      {stat("burn", `${m.burnTime.toFixed(1)} s`)}
+      {stat("peak", `${Math.round(peak)} N`)}
+      {stat("avg", `${Math.round(avg)} N`)}
+      {stat("burn", `${burnEnd.toFixed(1)} s`)}
       {stat("propellant", propText)}
       {delays && stat("delays", delays)}
     </figcaption>

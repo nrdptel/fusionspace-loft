@@ -1183,13 +1183,49 @@ test.describe("Loft", () => {
 
     // Below the thrust curve, the numbers a flyer reads it for: delivered total impulse and class,
     // peak and average thrust, burn time, and propellant mass — here the demo's AeroTech H128W.
-    const thrust = page.getByRole("heading", { name: "Motor thrust (N) vs time" }).locator("xpath=..");
+    const thrust = page.getByRole("heading", { name: "Total thrust (N) vs time" }).locator("xpath=..");
     await expect(thrust).toBeVisible();
     await expect(thrust.getByText("total impulse")).toBeVisible();
     await expect(thrust.getByText("177.8 N·s (H)")).toBeVisible();
     await expect(thrust.getByText("190 N")).toBeVisible();
     await expect(thrust.getByText("1.3 s")).toBeVisible();
     await expect(thrust.getByText("94 g")).toBeVisible();
+    // One motor, so it is named rather than counted.
+    await expect(thrust.getByText("H128W")).toBeVisible();
+  });
+
+  test("the thrust curve describes the whole vehicle, not its first motor", async ({ page }) => {
+    // SEV-1. `thrustSeries` and `MotorStatsCaption` both read
+    // `run.resolutions.find(x => x.match)` — the FIRST motor that resolved — so a staged or
+    // airstarted design was plotted and captioned as one motor of several, under a heading that said
+    // "Motor thrust" and named nothing.
+    //
+    // This fixture flies an F50T booster and an H128W sustainer. The first resolution alone is
+    // 68.7 N·s, which certifies as an **F**; the vehicle delivers 246.5 N·s and certifies as an
+    // **H**. A certification class is the number a flyer takes to an RSO and a waiver, so the wrong
+    // letter is the whole reason this ranks as a Sev-1 rather than a partial view.
+    await page.goto("/");
+    await page
+      .getByLabel(/^Choose an OpenRocket/)
+      .setInputFiles(resolve(process.cwd(), "e2e/fixtures/two-stage-firm-booster.ork"));
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 30_000 });
+
+    const thrust = page.getByRole("heading", { name: "Total thrust (N) vs time" }).locator("xpath=..");
+    await expect(thrust, "the thrust plot is still titled as one motor's").toBeVisible();
+
+    // The configuration's impulse and class, not the first motor's.
+    await expect(
+      thrust.getByText("246.5 N·s (H)"),
+      "the caption reports one motor's impulse and class for a two-motor vehicle",
+    ).toBeVisible();
+    await expect(
+      thrust.getByText(/68\.7 N·s|\(F\)/),
+      "the first motor's own impulse or class is still being presented as the vehicle's",
+    ).toHaveCount(0);
+
+    // And both motors are named, in the order the configuration holds them.
+    await expect(thrust.getByText(/F50T/), "the booster motor is not named").toBeVisible();
+    await expect(thrust.getByText(/H128W/), "the sustainer motor is not named").toBeVisible();
   });
 
   test("a RASAero .CDX1 imports and flies through the same solver", async ({ page }) => {
