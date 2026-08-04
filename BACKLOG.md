@@ -69,6 +69,24 @@ says CONFIRMED carries the command and the numbers the refuter could not talk it
   fins → 3.506 cal with only the over-stable note. Every other count carries at least that note, so
   the one-finned case is the *only* configuration that reports perfectly clean.
 
+- **The `/design` editor is a 4.79-screen scroll on a phone before you reach the recovery controls.**
+  Measured 2026-08-04 on the built export at 390x664, on a coarse pointer: the canopy-Cd field sits
+  at **3,180 px = 4.79 screens**, against the two `DESIGN.md` §8 allows to a route's primary answer.
+  The depth e2e passes because it measures each route's PRIMARY anchor and this is not one — so the
+  contract is met as written while the editor is still a very long page. This is the PRODUCT SHAPE
+  invariant's own argument arriving from the touch side: `/design` is several jobs (airframe, fins,
+  recovery, mass & finish) stacked on one scroll, and splitting them is what §8 would actually be
+  asking for if it measured more than one anchor per route. Not a regression — the field itself
+  measures 154x44 px and meets the hit-target minimum exactly.
+
+- **`DESIGN.md` §9's inversion check changed here and NOT in the sibling repo.** Filed 2026-08-04.
+  The design-system invariant says both repos carry an identical copy and a change to one is a change
+  to both in the same run. This session's GitHub scope is `nrdptel/fusionspace-loft` and
+  `nrdptel/loft-fixtures` only, so the sibling could not be reached. The change is the per-file
+  caption-vs-body count crediting the body-default primitives a file uses — it matters to any repo
+  running a design-system milestone, and Debrief's own 212-to-82 inversion is the case §9 cites. An
+  owner action: attach the sibling, or port the two edited blocks by hand.
+
 - **The corpus census pools RockSim's BALLISTIC stored runs with its canopy descents, and 11 of 17
   rows are the ballistic ones.** Filed 2026-08-04, measured. `lib/corpus/sweep.test.ts` filters only
   on `hasPropulsion && validation`, so nothing excludes a stored simulation whose recovery never
