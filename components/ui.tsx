@@ -13,6 +13,7 @@ import {
   type ButtonVariant,
 } from "@/lib/ui-tokens";
 import { rangeWords, refusedMessage } from "@/lib/what-if";
+import type { Quantity } from "@/lib/display";
 
 export interface Option<T extends string> {
   value: T;
@@ -393,6 +394,69 @@ export function Extrapolated({
         {reason}
       </div>
     </>
+  );
+}
+
+/** `DESIGN.md` §5's `Readout` — "a labelled value with its unit, provenance and optional caveat; the
+ *  unit is never baked into the label string".
+ *
+ *  **Lifted rather than designed.** This is `ResultsView`'s own local `Stat`, moved verbatim: it had
+ *  already grown every axis §5 asks for — the unit in its own span, the accent for the one number a
+ *  surface exists to show, the withheld state that replaces a value with an em dash and says why,
+ *  and the extrapolated caveat. Re-deciding the API here would have thrown away the four separate
+ *  occasions that shaped it. What was wrong was only that sixteen readouts on one page could reach
+ *  it and the rest of the app could not, so every other surface hand-rolled the same treatment.
+ *
+ *  The DOM is unchanged, class for class, because the e2e suite locates several of these readouts by
+ *  walking a label's following sibling — this is an extraction, not a repaint. */
+export function Readout({
+  label,
+  q,
+  sub,
+  accent,
+  withheld,
+  extrapolated,
+}: {
+  label: string;
+  q: Quantity;
+  sub?: string;
+  accent?: boolean;
+  /** Why this figure is not being shown. When set, the value is replaced by an em dash and this
+   *  reason takes the place of `sub` — the house rule is "withheld rather than shown as zeros", and
+   *  a withheld estimate has to say why (see the no-propulsion notice, which does the same thing for
+   *  the whole panel). Used where the solver carries a sentinel that is not a measurement. */
+  withheld?: string;
+  /** The envelope this number left, when it left one. `DESIGN.md` §5 requires the `Extrapolated`
+   *  treatment — "the warn treatment plus the reason and the range it left" — WHEREVER a number
+   *  leaves the envelope its method was validated over, and until now a transonic apogee rendered
+   *  byte-identical to a subsonic one, with the caveat surfacing only as a separate card further up
+   *  the page. A flyer reading the number does not necessarily read the card. */
+  extrapolated?: string;
+}) {
+  return (
+    <Card>
+      <div className="text-[11px] uppercase tracking-wide text-zinc-500 dark:text-zinc-400">{label}</div>
+      {withheld ? (
+        <div className="mt-1 font-mono text-xl tabular-nums text-zinc-400 dark:text-zinc-500" aria-label={`${label} withheld: ${withheld}`}>
+          —
+        </div>
+      ) : (
+        <div className={"mt-1 font-mono tabular-nums " + (accent ? "text-xl font-semibold text-indigo-600 dark:text-indigo-400" : "text-xl text-zinc-900 dark:text-zinc-100")}>
+          {q.value}
+          <span className="ml-1 text-xs font-normal text-zinc-500 dark:text-zinc-400">{q.unit}</span>
+          {/* Inside the value's own line, not a sibling of it — hence `inline`. The readouts are
+              located by walking the label's following siblings, and a new sibling div silently broke
+              two of those locators; block rather than inline-flow, because beside the value it
+              pushed a 320 px metric tile into clipping its own number. The treatment itself is
+              `components/ui.tsx`'s, not this file's: it was written here first and four other
+              surfaces then flew the same extrapolated solver with no marker at all. */}
+          {extrapolated && <Extrapolated reason={extrapolated} inline />}
+        </div>
+      )}
+      {(withheld ?? sub) && (
+        <div className="mt-0.5 text-[11px] text-zinc-500 dark:text-zinc-400">{withheld ?? sub}</div>
+      )}
+    </Card>
   );
 }
 

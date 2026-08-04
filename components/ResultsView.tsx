@@ -2,7 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
-import { Button, Card, Extrapolated, type CardTone } from "./ui";
+import { Button, Card, Readout, type CardTone } from "./ui";
 import { transonicReason } from "@/lib/sim/envelope";
 import { cx } from "@/lib/ui-tokens";
 import WorkspaceNav from "./WorkspaceNav";
@@ -535,26 +535,26 @@ export default function ResultsView({
               Rail-exit velocity (~20 m/s off the rail) and thrust-to-weight (static) are inside the
               validated envelope whatever the flight does later, so marking them would be the flag
               crying wolf that the brief warns teaches flyers to ignore every flag. */}
-          <Stat label="Apogee" q={d.altitude(s.apogee, units)} accent extrapolated={extrapolatedWhy} />
-          <Stat label="Max velocity" q={d.speed(s.maxVelocity, units)} sub={d.q(d.mach(s.maxMach))} extrapolated={extrapolatedWhy} />
-          <Stat label="Max acceleration" q={d.accel(s.maxAcceleration)} extrapolated={extrapolatedWhy} />
-          <Stat label="Rail-exit velocity" q={d.speed(s.railExitVelocity, units)} />
-          <Stat label="Thrust-to-weight" q={d.ratio(s.thrustToWeight)} sub="liftoff" />
-          <Stat label="Time to apogee" q={d.seconds(s.timeToApogee)} extrapolated={extrapolatedWhy} />
-          <Stat label="Burnout velocity" q={d.speed(s.burnoutVelocity, units)} extrapolated={extrapolatedWhy} />
-          <Stat
+          <Readout label="Apogee" q={d.altitude(s.apogee, units)} accent extrapolated={extrapolatedWhy} />
+          <Readout label="Max velocity" q={d.speed(s.maxVelocity, units)} sub={d.q(d.mach(s.maxMach))} extrapolated={extrapolatedWhy} />
+          <Readout label="Max acceleration" q={d.accel(s.maxAcceleration)} extrapolated={extrapolatedWhy} />
+          <Readout label="Rail-exit velocity" q={d.speed(s.railExitVelocity, units)} />
+          <Readout label="Thrust-to-weight" q={d.ratio(s.thrustToWeight)} sub="liftoff" />
+          <Readout label="Time to apogee" q={d.seconds(s.timeToApogee)} extrapolated={extrapolatedWhy} />
+          <Readout label="Burnout velocity" q={d.speed(s.burnoutVelocity, units)} extrapolated={extrapolatedWhy} />
+          <Readout
             label="Descent rate"
             q={d.speed(s.descentRate, units)}
             sub={s.drogueDescentRate !== undefined ? "under main" : undefined}
           />
           {s.drogueDescentRate !== undefined && (
-            <Stat label="Drogue descent" q={d.speed(s.drogueDescentRate, units)} sub="under drogue" />
+            <Readout label="Drogue descent" q={d.speed(s.drogueDescentRate, units)} sub="under drogue" />
           )}
           {/* Withheld on the same test as the two below, and it was not until 2026-08-02. Drift is
               `simulate`'s exit position taken unconditionally, so a flight still descending at the
               cap reports how far downwind it had got — a plausible smaller number rather than an
               obvious zero, sitting between two figures that correctly say they do not exist. */}
-          <Stat
+          <Readout
             label="Drift from pad"
             q={d.distance(s.driftDistance, units)}
             withheld={s.landed ? undefined : "no landing inside the time cap"}
@@ -563,7 +563,7 @@ export default function ResultsView({
               not a measurement, and these are the two numbers a recovery setup is judged on. Shown
               as zeros, a flyer enlarging a canopy watched the landing energy fall to 0 J and read
               it as success. */}
-          <Stat
+          <Readout
             label="Ground-hit speed"
             q={d.speed(s.groundHitVelocity, units)}
             sub="descent rate at impact"
@@ -574,21 +574,21 @@ export default function ResultsView({
               shown beside rather than folded in, and only when the two actually diverge, because a
               second stat repeating the first to three significant figures is noise. */}
           {s.landed && s.groundHitTotalVelocity > s.groundHitVelocity * 1.05 && (
-            <Stat
+            <Readout
               label="Arrival speed"
               q={d.speed(s.groundHitTotalVelocity, units)}
               sub="over the ground, drift included"
             />
           )}
-          <Stat
+          <Readout
             label="Landing energy"
             q={d.energy(s.landingEnergy, units)}
             sub="whole vehicle, from descent rate"
             withheld={s.landed ? undefined : "no landing inside the time cap"}
           />
-          <Stat label="Optimum delay" q={d.seconds(s.optimumDelay)} sub="burnout → apogee" extrapolated={extrapolatedWhy} />
-          <Stat label="Flight time" q={d.seconds(s.flightTime)} />
-          <Stat label="Max dynamic pressure" q={d.dynamicPressure(s.maxDynamicPressure, units)} extrapolated={extrapolatedWhy} />
+          <Readout label="Optimum delay" q={d.seconds(s.optimumDelay)} sub="burnout → apogee" extrapolated={extrapolatedWhy} />
+          <Readout label="Flight time" q={d.seconds(s.flightTime)} />
+          <Readout label="Max dynamic pressure" q={d.dynamicPressure(s.maxDynamicPressure, units)} extrapolated={extrapolatedWhy} />
         </div>
         <RecoverySizingHint run={run} units={units} />
         <BoosterDescentNote run={run} units={units} />
@@ -1699,56 +1699,6 @@ function Field({
   );
 }
 
-function Stat({
-  label,
-  q,
-  sub,
-  accent,
-  withheld,
-  extrapolated,
-}: {
-  label: string;
-  q: d.Quantity;
-  sub?: string;
-  accent?: boolean;
-  /** Why this figure is not being shown. When set, the value is replaced by an em dash and this
-   *  reason takes the place of `sub` — the house rule is "withheld rather than shown as zeros", and
-   *  a withheld estimate has to say why (see the no-propulsion notice, which does the same thing for
-   *  the whole panel). Used where the solver carries a sentinel that is not a measurement. */
-  withheld?: string;
-  /** The envelope this number left, when it left one. `DESIGN.md` §5 requires the `Extrapolated`
-   *  treatment — "the warn treatment plus the reason and the range it left" — WHEREVER a number
-   *  leaves the envelope its method was validated over, and until now a transonic apogee rendered
-   *  byte-identical to a subsonic one, with the caveat surfacing only as a separate card further up
-   *  the page. A flyer reading the number does not necessarily read the card. */
-  extrapolated?: string;
-}) {
-  return (
-    <Card>
-      <div className="text-[11px] uppercase tracking-wide text-zinc-500 dark:text-zinc-400">{label}</div>
-      {withheld ? (
-        <div className="mt-1 font-mono text-xl tabular-nums text-zinc-400 dark:text-zinc-500" aria-label={`${label} withheld: ${withheld}`}>
-          —
-        </div>
-      ) : (
-        <div className={"mt-1 font-mono tabular-nums " + (accent ? "text-xl font-semibold text-indigo-600 dark:text-indigo-400" : "text-xl text-zinc-900 dark:text-zinc-100")}>
-          {q.value}
-          <span className="ml-1 text-xs font-normal text-zinc-500 dark:text-zinc-400">{q.unit}</span>
-          {/* Inside the value's own line, not a sibling of it — hence `inline`. The readouts are
-              located by walking the label's following siblings, and a new sibling div silently broke
-              two of those locators; block rather than inline-flow, because beside the value it
-              pushed a 320 px metric tile into clipping its own number. The treatment itself is
-              `components/ui.tsx`'s, not this file's: it was written here first and four other
-              surfaces then flew the same extrapolated solver with no marker at all. */}
-          {extrapolated && <Extrapolated reason={extrapolated} inline />}
-        </div>
-      )}
-      {(withheld ?? sub) && (
-        <div className="mt-0.5 text-[11px] text-zinc-500 dark:text-zinc-400">{withheld ?? sub}</div>
-      )}
-    </Card>
-  );
-}
 
 /** A compact "what-if vs design" readout: after the flyer applies a design what-if (nose ballast
  *  or a motor swap), the results change but the original numbers are gone. This shows, for the key

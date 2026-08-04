@@ -200,6 +200,31 @@ const PRIMITIVE_ADOPTERS: Record<string, number> = {
   ClosePanel: 3,
   Chip: 0,
   Disclosure: 1,
+  /** §5's `Extrapolated` — "the warn treatment plus the reason and the range it left".
+   *
+   *  Six adopters on the run that created it, which is the whole point of the count: the treatment
+   *  had existed for weeks inside `ResultsView`'s local `Stat`, so exactly ONE surface marked a
+   *  number that left the drag model's envelope while five others flying the same solver rendered
+   *  theirs as validated. Nothing here could see that, because a treatment written inline is
+   *  invisible to a check that counts imports. A seventh surface must import it rather than
+   *  re-spell it.
+   *
+   *  Five, not six, and the missing one is the reason `Readout` exists: `ResultsView` was the file
+   *  the treatment was born in, and it no longer imports `Extrapolated` directly because its sixteen
+   *  readouts now go through the primitive that owns it. A treatment reaching a surface THROUGH
+   *  another primitive is adoption working, not adoption lost. */
+  Extrapolated: 5,
+  /** §5's `Readout` — the labelled-value-with-unit treatment, and the one a flyer reads every number
+   *  through.
+   *
+   *  One adopter is not the finished condition, it is the first: this is `ResultsView`'s own `Stat`
+   *  lifted into the vocabulary, so the sixteen readouts on that page now share a primitive with
+   *  whatever adopts it next. The measured queue behind it, from the audit that opened this
+   *  milestone: `Field` (14 sites in the same file, a pre-formatted-string value), `MonteCarlo`'s
+   *  `StatCard`/`WithheldCard`/`RadiusCard` (6, differing only in what fills `sub`), and the what-if
+   *  delta rows (5, a before -> after -> change shape the API does not yet express). Raising this
+   *  number is the milestone; lowering it is a regression. */
+  Readout: 1,
 };
 
 describe("DESIGN.md §9 — the design system is binding, and this is what checks it", () => {
