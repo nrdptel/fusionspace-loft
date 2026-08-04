@@ -498,6 +498,77 @@ export function Select({
   );
 }
 
+/** `DESIGN.md` §5's `EmptyState` — "says what would fill it *and* the one action that does. Never
+ *  'No data'."
+ *
+ *  **A surface with no empty state is not finished; it is the state a flyer sees first.** Measured on
+ *  the real-design corpus: `structurePointMasses` returns nothing for
+ *  `Three-stage rocket.CDX1`, so `MassBreakdown` hit `return null` and the whole Mass & balance panel
+ *  VANISHED — a hole where a panel was, on 1 of the 35 corpus designs, with no way to tell a surface
+ *  that has nothing to show from one that failed to render.
+ *
+ *  `what` is the sentence, `action` the control that fills it. The action is optional because it is
+ *  sometimes genuinely absent — a design that states no structural mass needs a different FILE, not a
+ *  button — and inventing one would be worse than omitting it. What is never optional is saying what
+ *  would fill the surface, which is why `what` is required and "No data" is not an acceptable value
+ *  for it.
+ *
+ *  `muted` is the tone `DESIGN.md` §2 already names for this: "sunken and dashed: a slot with nothing
+ *  in it yet. The empty state's container." */
+export function EmptyState({
+  what,
+  action,
+  className,
+}: {
+  /** What would fill this surface, in a sentence a flyer can act on. Never "No data". */
+  what: React.ReactNode;
+  /** The one action that fills it, where one exists. */
+  action?: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <Card tone="muted" className={cx("text-sm", className)}>
+      <div>{what}</div>
+      {action && <div className="mt-3">{action}</div>}
+    </Card>
+  );
+}
+
+/** `DESIGN.md` §5's `ErrorState` — "names the file or field that failed, what was expected, and the
+ *  way forward. An error that names something not on the page is a named tell."
+ *
+ *  Three required parts, and they are separate props rather than one string on purpose: a message
+ *  assembled at the call site drops one of the three about as often as not, and the three are what
+ *  make an error actionable rather than an apology. `what` names the thing — a file, a field, a
+ *  parse — `expected` says what should have been there, and `next` is what the flyer can do.
+ *
+ *  It renders `danger`, which §2 reserves for "a refusal, or a value that could not be computed".
+ *  That is deliberately NOT the same tone as `EmptyState`: a surface with nothing to show and a
+ *  surface that broke are different facts, and rendering them alike is how a flyer learns to ignore
+ *  both. */
+export function ErrorState({
+  what,
+  expected,
+  next,
+  className,
+}: {
+  /** The file, field or step that failed — named, so it is findable on the page. */
+  what: React.ReactNode;
+  /** What was expected instead. */
+  expected?: React.ReactNode;
+  /** The way forward. */
+  next?: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <Card tone="danger" className={cx("text-sm", className)}>
+      <div>{what}</div>
+      {expected && <div className="mt-1">{expected}</div>}
+      {next && <div className="mt-1">{next}</div>}
+    </Card>
+  );
+}
+
 /** Hand focus to the control that REPLACES the one that just vanished.
  *
  *  Closing a panel unmounts the Close button while it is the focused element, and a removed element

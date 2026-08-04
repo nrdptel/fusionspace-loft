@@ -44,7 +44,6 @@ export default function MassBreakdown({
   massHeldBy?: string;
 }) {
   const points = structurePointMasses(rocket);
-  if (points.length === 0) return null;
   const total = combine(points);
   // Heaviest first — the parts that dominate the dry mass lead.
   const rows = [...points].sort((a, b) => b.mass - a.mass);

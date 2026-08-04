@@ -232,6 +232,25 @@ const PRIMITIVE_ADOPTERS: Record<string, number> = {
    *  all, so they rendered under §8's 44 px minimum on a phone. That is what a copied treatment
    *  costs — the copy drifts, and it drifts where nobody re-measures. */
   Select: 4,
+  /** §5's `EmptyState`. One adopter, and it is the one that matters most: `DataTable` is "every table
+   *  in the app" (7 files), so this single branch is the empty state of all of them.
+   *
+   *  `MassBreakdown` also stopped returning null. Stated precisely, because driving the app corrected
+   *  the first version of this note: one corpus design (`Three-stage rocket.CDX1`, 1 of 35) produces
+   *  an empty structural-mass set, but loaded through the UI it has no motor, so `ResultsView`
+   *  withholds everything below its "No flight simulated" card and the panel is never reached. That
+   *  change is defensive — a data surface with no branch that silently disappears — not a hole a
+   *  flyer was falling into. */
+  EmptyState: 1,
+  /** §5's `ErrorState`. One adopter today — the app's own error card, which carries both an import
+   *  failure and a refused edit.
+   *
+   *  `components/RocketpyCrossCheck.tsx`'s `Failure` is the known next site and is deliberately not
+   *  converted yet: it composes an offline note, the engine's own headline and a collapsible full
+   *  report, in a documented order (the browser's fact before the engine's). Forcing it through three
+   *  named slots would either reorder it or add a `children` escape hatch that makes the primitive
+   *  mean nothing. It is filed rather than rushed. */
+  ErrorState: 1,
 };
 
 describe("DESIGN.md §9 — the design system is binding, and this is what checks it", () => {
@@ -407,6 +426,38 @@ describe("DESIGN.md §9 — the design system is binding, and this is what check
         return [...stripped.matchAll(/<select[\s>]/g)].map(() => f.path);
       });
     expect(raw, `hand-rolled <select> elements:\n  ${raw.join("\n  ")}`).toEqual([]);
+  });
+
+  it("lets no data surface vanish instead of saying why", () => {
+    // `DESIGN.md` §5: "A surface with no empty state is not finished. It is the state a flyer sees
+    // first." A `return null` on a DATA surface is the worst version of that — not a bad empty
+    // state, but a hole where a panel was, indistinguishable from a render that failed.
+    //
+    // Measured: `MassBreakdown` did exactly this on 1 of the 35 corpus designs
+    // (`Three-stage rocket.CDX1` states no structural point masses), and its `empty` copy was
+    // already written and provably unreachable behind the guard.
+    //
+    // Scoped to the components that RENDER A DATASET, by name. A blanket "no `return null`" would be
+    // wrong and would fire constantly: most of the app's `return null`s are conditional ADVICE — a
+    // flutter hint, a stability-trim note, a booster-descent line — and a hint that does not apply
+    // must not render an empty box saying so. The distinction is whether the surface exists to show
+    // data a flyer came looking for.
+    const DATA_SURFACES = ["components/MassBreakdown.tsx", "components/DataTable.tsx"];
+    const offenders: string[] = [];
+    for (const path of DATA_SURFACES) {
+      const f = components.find((x) => x.path === path);
+      expect(f, `${path} is not in the component set — the list above has gone stale`).toBeDefined();
+      const stripped = f!.text
+        .replace(/\/\*[\s\S]*?\*\//g, "")
+        .split("\n")
+        .filter((l) => !/^\s*(\/\/|\*)/.test(l))
+        .join("\n");
+      if (/\breturn null\b/.test(stripped)) offenders.push(path);
+    }
+    expect(
+      offenders,
+      `a data surface returns null instead of an empty state:\n  ${offenders.join("\n  ")}`,
+    ).toEqual([]);
   });
 
   it("uses no type size that is off the six-size scale", () => {
