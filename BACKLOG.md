@@ -19,6 +19,60 @@ Loft can only fly reduced. The rest are below, newest first, each with the measu
 actionable. **Nothing here has been reproduced by hand unless it says so**; treat each as a hypothesis
 to re-measure before it becomes work, which is the lesson the last run filed one line down.
 
+**Filed 2026-08-04 (second run of the day) from a seven-lens fan-out plus an adversarial refuter
+pass.** Two of the run's three increments came out of it — the thrust-plot Sev-1 and R10's era split
+— and the entries below are what it found and the run did not take.
+
+- **The whole 44 px touch contract is keyed on `pointer-coarse:` alone, with no fallback.** Filed
+  2026-08-04, CONFIRMED by a refuter. `lib/ui-tokens.ts:28` is
+  `TOUCH_TARGET = "pointer-coarse:min-h-11"`, and 35 call sites across 10 components plus the
+  diagram's JS hit-radius all hang off that one media query. **This repo has already measured what
+  happens when it does not match**: `e2e/depth.spec.ts` records a phone-sized viewport reporting
+  `pointer: fine` rendering every `TOUCH_TARGET` control at **26 px instead of 44**, which
+  understated the shared chrome by 97 px and made a real §8 breach read as closed. There is no
+  `any-pointer: coarse`, no `hover: none`, and no `maxTouchPoints` fallback anywhere. And no e2e
+  covers it: all five phone specs force `hasTouch: true`, so the fine-pointer phone is untested.
+  A hybrid device, a stylus, and several Android browsers are the reachable cases.
+
+- **`Readout`'s label and sub-line render at `text-[11px]`.** Filed 2026-08-04, CONFIRMED.
+  `components/ui.tsx:438` and `:457`. §3 scopes that token to "axis ticks and diagram annotations
+  only" and makes `text-sm` the body default for "every label, value, control and table cell"; the
+  sub-line also carries the withheld REASON, which §6 requires and §3 puts at `text-xs`. This came in
+  with the primitive on 2026-08-04 — lifted verbatim from `ResultsView`'s local `Stat`, which is
+  exactly how a divergence survives an extraction — so it is the design system's own primitive
+  breaking the design system, on the treatment a flyer reads every number through.
+
+- **11 more `text-[11px]` on the design editor's own legends and field labels.**
+  `components/LoftApp.tsx` — 5 `<legend>` and 6 field-label spans. Same §3 rule. Counted separately
+  from the `Readout` pair because they are call sites rather than a primitive, so they close by
+  conversion rather than by one edit.
+
+- **`components/PartPicker.tsx:690` — the catalogue's Search box has no padding, no height and no
+  `TOUCH_TARGET`.** CONFIRMED. `<input type="search" className="mt-1 w-full">`: it does not even take
+  the local `control` class string defined at `:602`, while its sibling `Select` at `:707` does. It
+  is the first control a flyer touches when picking a real part, and on a phone it is under the
+  minimum.
+
+- **Three things the app forgets between visits, each measured.** CONFIRMED, all three:
+  `components/LoftApp.tsx:398` — the UNIT choice lives only inside `SavedSession`, so it is scoped to
+  the design rather than to the flyer, and `reset()` at `:1520` clears it; `:3230` — the "Launch
+  site" field is a bare `useState("")` with no `autoComplete`, no `name`, no `<datalist>`, no recents
+  and no persistence, so a flyer who flies one field types it out every visit; `:424`/`:432` with
+  `lib/session.ts:26-50` — today's-weather and the design/today scenario are plain `useState` and are
+  in no saved session at all, and switching to Today deliberately DELETES the flyer's typed wind
+  speed and field elevation. "Controls that forget" is a named tell in `MAINTAINING.md`.
+
+- **`uiAdopters: 17` in `lib/design-system.test.ts` may be one behind its own §9 grep, which answers
+  18.** Filed 2026-08-04 from a refuter that was checking something else. UNVERIFIED by hand — the
+  ratchet is a `toBeGreaterThanOrEqual`, so it cannot fail on being stale, only on regressing; if the
+  real count is 18 the floor should move up to match. One command settles it.
+
+- **A drag e2e flaked once and is worth watching rather than fixing blind.** `e2e/smoke.spec.ts`'s
+  "a part can be dragged and dropped between two others" failed once in a full shard-2 run waiting
+  for the `drop here` indicator, then passed twice in isolation and once on a clean shard re-run, on
+  a diff touching no diagram code. Recorded with the counts so the next occurrence is the second data
+  point rather than the first.
+
 **Filed 2026-08-04 from a six-lens opening fan-out whose findings were each then handed to an
 adversarial refuter.** That second pass earned its place: of the claims put to it, **three were
 refuted outright** and are recorded as such below rather than becoming work — a negative-sigma
