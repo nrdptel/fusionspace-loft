@@ -101,6 +101,22 @@ const BUDGET = {
    *  is a guard rather than a ratchet. `text-lg` sat between `text-base` and `text-xl`, invented once
    *  and copied fourteen times: eleven panel headings and three prominent values. */
   offScaleType: 0,
+  /** Uses of `text-[11px]`, which §3 scopes to **"axis ticks and diagram annotations only"**.
+   *
+   *  On the scale, so `offScaleType` above cannot see it — and that is exactly how it reached 46 uses
+   *  across ten files while §3 named two contexts for it. Most are legitimate (`RocketDiagram` 8,
+   *  `LineChart` 6, `FlightViz` 5 are all diagram and axis annotation, which is the token's own job);
+   *  the rest are field labels, legends and readout sub-lines, which §3 puts at `text-xs`.
+   *
+   *  **A ratchet, not a target, and it starts at the honest number rather than at zero**: this is
+   *  a size with a real use, so it will never be 0, and the point is that it may not GROW while the
+   *  known offenders are converted. Measured 2026-08-04, by file:
+   *  `LoftApp` 11 (5 legends + 6 field labels), `RocketDiagram` 8, `MonteCarlo` 6, `LineChart` 6,
+   *  `FlightViz` 5, `ui` 3, `ResultsView` 3, `ParameterSweep` 2, `RocketpyCrossCheck` 1,
+   *  `DataTable` 1. It went 48 → 46 in the commit that added it, when `Readout`'s own label and
+   *  sub-line moved to `text-xs` — the design system's primitive had been breaking the design
+   *  system, on the treatment a flyer reads every number through. */
+  axisTickSize: 46,
   /** `<button>` elements that hand-roll their own geometry instead of taking it from `buttonClass`.
    *
    *  **This is the count P1's *done when* is about, and until 2026-08-01 nothing asserted it.** The
@@ -607,6 +623,21 @@ describe("DESIGN.md §9 — the design system is binding, and this is what check
     const SIZES = /\btext-(?:\[[\d.]+(?:px|rem|em)\]|(?:xs|sm|base|lg|[2-9]?xl)\b)/g;
     const { total, byFile } = countMatches(ui, SIZES, (m) => !ALLOWED.has(m));
     expect(total, `off-scale type sizes, by file:\n${byFile.join("\n")}`).toBe(BUDGET.offScaleType);
+  });
+
+  it(`holds \`text-[11px]\` at ${BUDGET.axisTickSize} uses and does not let it grow`, () => {
+    // §3 scopes this token to "axis ticks and diagram annotations only". It is ON the six-size
+    // scale, so the off-scale check above is blind to it by design — and that is how it reached 46
+    // uses across ten files while the spec named two contexts for it.
+    //
+    // **A ratchet from the honest number, not a target of zero.** The token has a real job:
+    // `RocketDiagram` (8), `LineChart` (6) and `FlightViz` (5) are all genuine axis and diagram
+    // annotation. The offenders are field labels, legends and readout sub-lines — `LoftApp`'s 11 are
+    // 5 `<legend>` and 6 field labels — which §3 puts at `text-xs`. Lower this as they convert; the
+    // failure it exists to catch is the number going UP while nobody is looking, which is exactly how
+    // it got here.
+    const { total, byFile } = countMatches(ui, /\btext-\[11px\]/g);
+    expect(total, `text-[11px] uses, by file:\n${byFile.join("\n")}`).toBe(BUDGET.axisTickSize);
   });
 
   it(`hand-rolls exactly ${BUDGET.handRolledButtons} <button> elements — the three primitives, and nothing else`, () => {

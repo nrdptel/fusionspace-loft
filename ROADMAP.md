@@ -3565,9 +3565,20 @@ the only labelled-value treatment" is not true yet: increment 1 converted `Resul
 the measured queue behind it is untouched — `LoftApp`'s `Field` (14 sites, a pre-formatted-string
 value), `MonteCarlo`'s `StatCard`/`WithheldCard`/`RadiusCard` (6, differing only in what fills `sub`),
 and the what-if delta rows (5, a before → after → change shape the API does not yet express). That is
-25 sites in three shapes, and the third genuinely needs an API decision rather than a conversion.
-**Do not mark this milestone SHIPPED until that count is 0 or the remainder is refused with a
-measured reason.**
+25 sites in three shapes. **Do not mark this milestone SHIPPED until that count is 0 or the remainder
+is refused with a measured reason.**
+
+**Increment 7 took the prerequisite and found the blocker.** `Readout`'s own label and sub-line were
+at `text-[11px]`, a size §3 scopes to "axis ticks and diagram annotations only" — the design system's
+primitive breaking the design system, on the treatment a flyer reads every number through. Both moved
+to `text-xs`, and a new `axisTickSize` ratchet holds the app-wide count of that token at its measured
+**46** with the per-file breakdown beside it, so the remaining offenders cannot be joined by another
+while they wait. **But converting `MonteCarlo`'s six cards would now make them worse**: they put a
+5–95% band in the `sub` slot at `text-sm`, and a recovery band IS a decision-grade figure, which §3
+puts at `text-sm` and the text AROUND a value one size down. **One `sub` slot cannot be both sizes.**
+That is the API decision the next run owes — probably a second slot, or a `sub` that takes a node
+rather than a string, and either way it should be decided from the six real call sites rather than
+invented.
 
 *Increment 1 — SHIPPED. `Readout` exists and `ResultsView`'s sixteen readouts go through it.*
 

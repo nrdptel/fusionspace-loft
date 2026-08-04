@@ -538,9 +538,23 @@ export function Readout({
    *  the page. A flyer reading the number does not necessarily read the card. */
   extrapolated?: string;
 }) {
+  // **`text-xs`, not `text-[11px]`, on both the label and the sub-line.** §3 scopes that token to
+  // "axis ticks and diagram annotations only" and this is neither: it is the eyebrow naming a value
+  // and the line carrying that value's provenance or its withheld REASON, which §3 puts squarely in
+  // "captions, units, footnotes". The violation arrived WITH the primitive on 2026-08-04 — lifted
+  // verbatim from `ResultsView`'s local `Stat`, which is exactly how a divergence survives an
+  // extraction — so it was the design system's own primitive breaking the design system, on the
+  // treatment a flyer reads every number through. Filed, confirmed by a refuter, then fixed here.
+  //
+  // `text-xs` and not `text-sm`, deliberately: §3 makes `text-sm` the floor for anything a flyer
+  // reads to make a DECISION and `text-xs` the size for the text around such a value. The label
+  // names the value; the sub-line qualifies it. **The one case that argues otherwise is filed rather
+  // than guessed at**: `MonteCarlo`'s three card variants put a 5-95% band in this slot at `text-sm`,
+  // and a recovery band IS a decision-grade figure. One `sub` slot cannot be both sizes, so the
+  // conversion of those six sites needs an API decision — see `ROADMAP.md` under P6.
   return (
     <Card>
-      <div className="text-[11px] uppercase tracking-wide text-zinc-500 dark:text-zinc-400">{label}</div>
+      <div className="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">{label}</div>
       {withheld ? (
         <div className="mt-1 font-mono text-xl tabular-nums text-zinc-400 dark:text-zinc-500" aria-label={`${label} withheld: ${withheld}`}>
           —
@@ -559,7 +573,7 @@ export function Readout({
         </div>
       )}
       {(withheld ?? sub) && (
-        <div className="mt-0.5 text-[11px] text-zinc-500 dark:text-zinc-400">{withheld ?? sub}</div>
+        <div className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">{withheld ?? sub}</div>
       )}
     </Card>
   );
