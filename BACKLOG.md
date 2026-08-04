@@ -62,10 +62,14 @@ pass.** Two of the run's three increments came out of it — the thrust-plot Sev
   in no saved session at all, and switching to Today deliberately DELETES the flyer's typed wind
   speed and field elevation. "Controls that forget" is a named tell in `MAINTAINING.md`.
 
-- **`uiAdopters: 17` in `lib/design-system.test.ts` may be one behind its own §9 grep, which answers
-  18.** Filed 2026-08-04 from a refuter that was checking something else. UNVERIFIED by hand — the
-  ratchet is a `toBeGreaterThanOrEqual`, so it cannot fail on being stale, only on regressing; if the
-  real count is 18 the floor should move up to match. One command settles it.
+- ~~**`uiAdopters: 17` in `lib/design-system.test.ts` may be one behind its own §9 grep, which
+  answers 18.**~~ **RESOLVED 2026-08-04, and it was right.** The grep answered 18 against a floor of
+  17. Raised in the `Figure` increment, with the grep written into the comment beside the number so
+  the next session re-runs it rather than trusting it. The general shape is worth carrying: **a
+  `toBeGreaterThanOrEqual` ratchet cannot fail on being stale, only on regressing** — a stale floor
+  just quietly stops ratcheting, which is the one failure mode a one-directional check has. Every
+  other one-directional number in that file deserves the same treatment: its own generating command,
+  beside it.
 
 - **A drag e2e flaked once and is worth watching rather than fixing blind.** `e2e/smoke.spec.ts`'s
   "a part can be dragged and dropped between two others" failed once in a full shard-2 run waiting
