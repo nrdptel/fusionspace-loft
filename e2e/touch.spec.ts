@@ -897,6 +897,31 @@ test.describe("phone layout", () => {
       await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth),
     ).toBeLessThanOrEqual(0);
   });
+  test("the catalogue's own Search box is a target, not a 24 px line", async ({ page }) => {
+    // The first control a flyer touches when picking a real part, and it was the one control in the
+    // picker that took none of the panel's own class string: `className="mt-1 w-full"` and nothing
+    // else, while its sibling `Select` three lines below took `cx(control, TOUCH_TARGET)`. No border,
+    // no padding, no height floor.
+    //
+    // **Measured both ways on the built export at 390 px: 290x24 before, 290x44 after.** A control
+    // that skips the local class string its neighbours share is how a treatment goes missing without
+    // anybody spelling a different one — which is why this is asserted on the RENDERED box rather
+    // than on the class attribute.
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await page.getByRole("link", { name: "Design", exact: true }).click();
+    await page.getByRole("button", { name: /^Pick a real/ }).first().click();
+
+    const search = page.getByRole("searchbox").first();
+    await expect(search).toBeVisible();
+    const box = (await search.boundingBox())!;
+    expect(Math.round(box.height), "the catalogue Search box is under the 44 px minimum").toBeGreaterThanOrEqual(44);
+    // And it did not gain its height by pushing the page sideways.
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth),
+    ).toBeLessThanOrEqual(0);
+  });
+
   test("every heavy analysis panel can be closed again, at a real touch size", async ({ page }) => {
     // The dispersion run and the two sweeps opened on a Run button and offered nothing that closed
     // them: `setOpen(true)` with no `setOpen(false)` anywhere. Once opened they stayed open for the

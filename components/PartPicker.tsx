@@ -687,13 +687,20 @@ export default function PartPicker({
                   <span className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
                     Search
                   </span>
+                  {/* The same `control` string and touch minimum its sibling `Select` takes, three
+                      lines below. It had neither: `mt-1 w-full` and nothing else, so the first
+                      control a flyer touches when picking a real part rendered with no border, no
+                      padding and no height floor — under §8's 44 px minimum on a phone, on the
+                      surface whose whole point is being usable at the pad. A control that skips the
+                      local class string its neighbours share is how a treatment goes missing without
+                      anybody spelling a different one. */}
                   <input
                     id={searchId}
                     type="search"
                     value={text}
                     onChange={(e) => setText(e.target.value)}
                     placeholder={copy.placeholder}
-                    className="mt-1 w-full"
+                    className={cx(control, TOUCH_TARGET)}
                   />
                 </label>
                 <label className="block" htmlFor={makerId}>

@@ -55,11 +55,14 @@ pass.** Two of the run's three increments came out of it — the thrust-plot Sev
   is the token's own job. `DataTable`'s single use is a table header, which §3 puts at `text-xs` as
   "dense table metadata".
 
-- **`components/PartPicker.tsx:690` — the catalogue's Search box has no padding, no height and no
-  `TOUCH_TARGET`.** CONFIRMED. `<input type="search" className="mt-1 w-full">`: it does not even take
-  the local `control` class string defined at `:602`, while its sibling `Select` at `:707` does. It
-  is the first control a flyer touches when picking a real part, and on a phone it is under the
-  minimum.
+- ~~**`components/PartPicker.tsx:690` — the catalogue's Search box has no padding, no height and no
+  `TOUCH_TARGET`.**~~ **RESOLVED 2026-08-04, and measured both ways on the built export: 290x24 px
+  before, 290x44 px after**, at a 390 px phone viewport. It took `cx(control, TOUCH_TARGET)` — the
+  same string its sibling `Select` takes three lines below. Pinned by
+  `the catalogue's own Search box is a target, not a 24 px line` in `e2e/touch.spec.ts`, asserted on
+  the RENDERED box rather than on the class attribute, because **a control that skips the local class
+  string its neighbours share is how a treatment goes missing without anybody spelling a different
+  one** — no grep for a wrong class would have found this.
 
 - **Three things the app forgets between visits, each measured.** CONFIRMED, all three:
   `components/LoftApp.tsx:398` — the UNIT choice lives only inside `SavedSession`, so it is scoped to
