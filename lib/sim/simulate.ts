@@ -1326,6 +1326,37 @@ function buildWarnings(
             "is modelled for the motor. Verify the recovery timing."),
       severity: "warning",
     });
+  } else if (!ctx.recoveryExpected && ctx.landed) {
+    // **The design carries no recovery device AT ALL, and until 2026-08-04 nothing said so.**
+    //
+    // Both neighbouring gates need a device to exist before they can fire: `ballistic-descent` above
+    // is `recoveryExpected && landed && !anyRecoveryOpened`, and `hard-landing` below is
+    // `anyRecoveryOpened && …`. A design with an empty recovery list satisfies neither, so the one
+    // arrival Loft can be most certain about was the one it said least about — while `ResultsView`
+    // published the ground-hit speed and the landing energy as ordinary confident stats, and
+    // `RecoverySizingHint` stayed silent too because it is itself gated on `hard-landing`.
+    //
+    // Measured on the 38 mm sample: with its chute, 6.95 m/s and 17.1 J; with the chute removed,
+    // 93.35 m/s and 2,969.7 J — and an IDENTICAL warning list. Those are the two figures a flyer
+    // clears a field and a waiver on. On the real corpus it is not a corner case either: 4 of the 35
+    // designs carry no recovery device, three of which arrive at 43, 209 and 217 m/s.
+    //
+    // **Deliberately not phrased as a fault**, because often it is not one: an altitude-optimisation
+    // file, a booster, or a dart legitimately models no recovery, and three of those four corpus
+    // designs are exactly that kind of file. It states what the design contains and what that makes
+    // the numbers mean, which is the honest half; deciding whether it is wrong is the flyer's. It is
+    // a `warning` rather than a `caution` all the same — the figures it qualifies are the
+    // recovery-adequacy pair, and reading those as a landing is the specific mistake it prevents.
+    out.push({
+      code: "no-recovery",
+      message:
+        `This design carries no recovery device, so the whole descent is ballistic and it arrives at ` +
+        `about ${ctx.groundHitTotalVelocity.toFixed(0)} m/s. The ground-hit speed and landing energy ` +
+        `describe an unrecovered arrival rather than a landing under a canopy. If the rocket really ` +
+        `does fly without recovery — a booster, a dart, an altitude study — that is the number; ` +
+        `otherwise add the parachute or streamer to the design and re-fly it.`,
+      severity: "warning",
+    });
   } else if (ctx.deployedBeforeApogee) {
     // Deployed before apogee — while still ascending. Severity scales with speed: a fast early
     // deployment risks a zipper or shredded canopy; barely early and slow is only marginal.
