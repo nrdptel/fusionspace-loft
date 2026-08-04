@@ -16,8 +16,9 @@
  *     uses the summed deployed drag areas. Descent drift is the canopy drifting with wind.
  */
 
-import type { Rocket, MotorConfiguration, RocketComponent } from "../model/types";
+import type { Rocket, MotorConfiguration, RocketComponent, TrapezoidFinSet } from "../model/types";
 import {
+  flattenRocket,
   leadingFaceDiameter,
   mouldLineSteps,
   STEP_NOTICE_M,
@@ -990,7 +991,24 @@ export function simulate(input: SimulateInput): FlightResult {
     }
   }
 
+  // Fin sets carrying fewer than three fins, by name. Barrowman's centre-of-pressure method — the
+  // one every static margin on every Loft surface comes from — assumes three or more fins in a
+  // symmetric ring; below that the vehicle is not axisymmetric and the method has no term for what
+  // it becomes. Collected here because `buildWarnings` is handed a flat context rather than the
+  // rocket, and because a NAME is what makes the caveat actionable on a design with several sets.
+  const underSymmetricFinSets = flattenRocket(rocket)
+    .map((p) => p.component)
+    .filter(
+      (c): c is TrapezoidFinSet =>
+        (c.kind === "trapezoidfinset" || c.kind === "ellipticalfinset" || c.kind === "freeformfinset") &&
+        typeof (c as TrapezoidFinSet).finCount === "number" &&
+        (c as TrapezoidFinSet).finCount > 0 &&
+        (c as TrapezoidFinSet).finCount < 3,
+    )
+    .map((c) => ({ name: c.name, finCount: c.finCount }));
+
   buildWarnings(warnings, {
+    underSymmetricFinSets,
     staticMarginCal,
     upperStageMarginCal,
     upperStageName: worstUpperStageName,
@@ -1264,6 +1282,10 @@ function subtreeMaxRecoveryCdA(components: RocketComponent[]): number {
 function buildWarnings(
   out: FlightWarning[],
   ctx: {
+    /** Fin sets carrying fewer than three fins, by name — the designs whose static margin is
+     *  produced by a method that does not describe them. Optional so a caller that predates it
+     *  (and every test that builds this context by hand) is not forced to answer. */
+    underSymmetricFinSets?: { name: string; finCount: number }[];
     staticMarginCal: number;
     /** Lowest upper-stage margin (cal) after a separation; undefined if single-stage. */
     upperStageMarginCal?: number;
@@ -1324,6 +1346,37 @@ function buildWarnings(
             "an altitude in the design; Loft does not assume one."
           : "The ejection charge fires after the rocket is already down (delay too long), or no ejection " +
             "is modelled for the motor. Verify the recovery timing."),
+      severity: "warning",
+    });
+  } else if (!ctx.recoveryExpected && ctx.landed) {
+    // **The design carries no recovery device AT ALL, and until 2026-08-04 nothing said so.**
+    //
+    // Both neighbouring gates need a device to exist before they can fire: `ballistic-descent` above
+    // is `recoveryExpected && landed && !anyRecoveryOpened`, and `hard-landing` below is
+    // `anyRecoveryOpened && …`. A design with an empty recovery list satisfies neither, so the one
+    // arrival Loft can be most certain about was the one it said least about — while `ResultsView`
+    // published the ground-hit speed and the landing energy as ordinary confident stats, and
+    // `RecoverySizingHint` stayed silent too because it is itself gated on `hard-landing`.
+    //
+    // Measured on the 38 mm sample: with its chute, 6.95 m/s and 17.1 J; with the chute removed,
+    // 93.35 m/s and 2,969.7 J — and an IDENTICAL warning list. Those are the two figures a flyer
+    // clears a field and a waiver on. On the real corpus it is not a corner case either: 4 of the 35
+    // designs carry no recovery device, three of which arrive at 43, 209 and 217 m/s.
+    //
+    // **Deliberately not phrased as a fault**, because often it is not one: an altitude-optimisation
+    // file, a booster, or a dart legitimately models no recovery, and three of those four corpus
+    // designs are exactly that kind of file. It states what the design contains and what that makes
+    // the numbers mean, which is the honest half; deciding whether it is wrong is the flyer's. It is
+    // a `warning` rather than a `caution` all the same — the figures it qualifies are the
+    // recovery-adequacy pair, and reading those as a landing is the specific mistake it prevents.
+    out.push({
+      code: "no-recovery",
+      message:
+        `This design carries no recovery device, so the whole descent is ballistic and it arrives at ` +
+        `about ${ctx.groundHitTotalVelocity.toFixed(0)} m/s. The ground-hit speed and landing energy ` +
+        `describe an unrecovered arrival rather than a landing under a canopy. If the rocket really ` +
+        `does fly without recovery — a booster, a dart, an altitude study — that is the number; ` +
+        `otherwise add the parachute or streamer to the design and re-fly it.`,
       severity: "warning",
     });
   } else if (ctx.deployedBeforeApogee) {
@@ -1474,6 +1527,34 @@ function buildWarnings(
   const marginCaveat = marginIsFlown
     ? ""
     : " A motor in this configuration did not resolve, so it is missing from the build and the real margin is lower still.";
+  // **A margin computed by a method the design does not satisfy, and until 2026-08-04 nothing said
+  // so.** Barrowman's centre-of-pressure method assumes three or more fins in a symmetric ring —
+  // it is a slender-body, axisymmetric result — and every static margin Loft publishes comes from
+  // it. With one or two fins the vehicle is not axisymmetric and the method has no term for the
+  // side force and roll it actually develops, so the number is not merely uncertain, it is outside
+  // the assumptions that produce it.
+  //
+  // Measured on the 38 mm sample, and this is why it ranks as a Sev-1 rather than a nicety: one fin
+  // returns a static margin of 1.639 cal and an **empty warning list** — every other fin count,
+  // including the design's own, raises at least the over-stable caution. So the single
+  // configuration whose stability figure is least trustworthy was the only one Loft reported
+  // perfectly clean, on the readout a flyer uses for a go/no-go.
+  //
+  // Stated as a bound on the METHOD rather than as a verdict on the design. One- and two-fin
+  // rockets are flown deliberately, and Loft does not tell anyone whether to fly; what it owes is
+  // that the number it is showing them was produced by a method that does not describe their
+  // rocket.
+  for (const f of ctx.underSymmetricFinSets ?? []) {
+    out.push({
+      code: "fin-count-assumption",
+      message:
+        `${f.name} has ${f.finCount === 1 ? "a single fin" : "two fins"}. Loft's centre-of-pressure ` +
+        `method assumes three or more fins in a symmetric ring, so the static margin above is ` +
+        `outside the assumptions it is computed from and should not be read as this rocket's real ` +
+        `stability. Verify it independently before flying.`,
+      severity: "warning",
+    });
+  }
   if (ctx.staticMarginCal < 1.0) {
     out.push({
       code: "low-stability",

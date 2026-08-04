@@ -7,7 +7,8 @@ import { fmt } from "@/lib/display";
 import type { FlightResult } from "@/lib/sim/simulate";
 import type { StoredFlightData } from "@/lib/ork/import";
 import type { UnitSystem } from "@/lib/display";
-import { Card } from "./ui";
+import { Card, Extrapolated } from "./ui";
+import { transonicReason } from "@/lib/sim/envelope";
 
 const LOFT_COLOR = "#6366f1"; // indigo — Loft's own solver
 const STORED_COLOR = "#f59e0b"; // amber — the design tool's stored run
@@ -70,6 +71,28 @@ export default function DragCrossCheck({
         </Link>
         .
       </p>
+
+      {/* Loft's own curve is the extrapolated half of this comparison, so the agreement figure below
+          is measured partly outside the envelope Loft's drag model was validated over. The stored
+          tool's curve carries whatever caveat that tool attached to it and is not Loft's to qualify —
+          which is exactly why the marker belongs on the panel that presents the GAP between them
+          rather than on either series. */}
+      {result.extrapolatedTransonic && (
+        <div className="mt-3">
+          {/* Worded against what is actually rendered. The drag plot and the mean-gap figure are
+              gated on `cc.haveDrag`, so on a file carrying an altitude log and no per-step Cd the
+              longer sentence named a curve and a gap the flyer could not see — which reads as a
+              missing panel rather than a caveat. */}
+          <Extrapolated
+            reason={
+              transonicReason(result.extrapolatedTransonic, result.summary.maxMach)! +
+              (cc.haveDrag
+                ? ". Loft's curve, and the mean gap measured against it, are rough above that"
+                : ". Loft's half of the altitude comparison is rough above that")
+            }
+          />
+        </div>
+      )}
 
       <div className="mt-2 flex flex-wrap gap-4 text-xs text-zinc-600 dark:text-zinc-300">
         <span className="inline-flex items-center gap-1.5">

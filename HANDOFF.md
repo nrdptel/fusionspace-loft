@@ -4,120 +4,81 @@ Overwritten each session. What shipped, what is part-way, and what to pick up fi
 
 ## Read this first
 
-**Both tracks are now on a milestone that does not exist yet, and writing the next R milestone is the
-first increment of the next run.** R8 closed this run (all five catalogue kinds pickable); P5 closed
-this run (all six increments, every *done when* clause pinned). P4 was already done and the roadmap
-did not say so — increment 7 shipped as `1a336f8` and that commit never updated the status line.
+**Five increments shipped this run, all on `claude/ultracode-maintenance-em0rud` behind PR #125.
+Three were Sev-1s and one of them was already in `BACKLOG.md` marked SEV-1 UNREPRODUCED — it
+reproduces, on nine of the corpus's flights.** Nothing has reached production yet; merging #125 on
+green is what makes any of it reachable.
 
-**R9 IS WRITTEN AND THREE INCREMENTS IN — and its increment 3 disproved its own premise. Read that
-entry before building increment 4.** The milestone was scoped on the hypothesis that the parachute
-drag coefficient is the lever on the census's worst metric. Measured:
+**The run's shape is worth knowing before you plan the next one: the Sev-1s were real and they ate
+the first half.** The opening fan-out plus an adversarial refuter pass produced four confirmed
+Sev-1-class defects with reproductions and numbers. Two more remain unfixed and are the obvious
+first work of the next run — see *Pick up first*.
 
-```
-ground-hit velocity, attributed (R9 increment 3):
-all                    n= 92  |Δ|   8.3%  signed   -8.2%  86/92 descend SLOWER than stored
-Cd from the file       n= 52  |Δ|   8.3%  signed   -5.7%  46/52 descend SLOWER than stored
-Cd from a fallback     n= 40  |Δ|   8.3%  signed   -8.3%  40/40 descend SLOWER than stored
-openrocket             n= 76  |Δ|   7.8%  signed   -7.8%  74/76 descend SLOWER than stored
-rocksim                n= 16  |Δ|  25.7%  signed  -14.9%  12/16 descend SLOWER than stored
-```
+**THE TRANSFERABLE LESSON OF THIS RUN: two of my own checks were green and pinned nothing.** Both
+were caught only by deliberately reinstating the defect and re-running. Do this every time.
 
-**The coefficient's provenance does not discriminate** — identical median error whether the designer
-chose the figure or Loft supplied it. **The error is one-directional** (86 of 92, and 40 of 40 on
-fallbacks), which a wrong coefficient would not be. **The tool discriminates where the coefficient
-does not** — RockSim 3.3x worse than OpenRocket, and the five worst cases in the corpus are all `.rkt`
-with four of them one design (`FullScaleModelTH.rkt`, ~65%). R9's *done when* is amended and its
-increments re-ordered accordingly: the Cd work is still owed as **capability and honesty**, and the
-accuracy work is the RockSim split. **Increment 6 — read what `FullScaleModelTH.rkt` stores for
-ground-hit velocity and what Loft flies for it — is the highest-value thing left in this milestone.**
+- The first e2e for the stale-numbers Sev-1 asserted the apogee had not moved. On a solver throw the
+  run is not replaced *either* way, so it passed against the defect too — the numbers are stale, not
+  wrong, which is exactly what made the bug invisible in the first place. What actually differs is
+  that the refused edit reached the what-if state.
+- The parameter-sweep unit case swept a range where **7 of 7** points were extrapolated, so it passed
+  identically against a flag hard-coded `true`. A case with no negative control does not
+  discriminate, however green it is.
 
-**How R9 came to exist, and it was a REORDERING rather than an addition.** `ROADMAP.md`'s after-list names R9 as "the multi-solver cross-check as a
-first-class view" — but P2's `/validate` route already delivered half of it, so charging a whole
-milestone overstates the work. Meanwhile the corpus points at a gap nobody has queued:
+**A pre-push review agent given only the diff found six real defects in work that was already fully
+green**, including two surfaces the Sev-1 fix had missed by its own standard. It is worth its cost
+every single time. Do not skip it because the gate is green — the gate being green is when it earns
+its keep.
 
-> **Ground-hit velocity is the most-oracled figure in the corpus — 91 of 91 stored sims carry one —
-> and the one Loft agrees with least: 8.3% median against apogee's 3.1%. The single input that drives
-> it, the parachute drag coefficient, is on no surface in the app.**
-
-Three adapters carry three uncited defaults for the same physical quantity (ork 0.8, rkt 0.8/0.75,
-rasaero 0.8), and the descent body-drag factor is typed as a bare `0.5` in two places in
-`lib/sim/simulate.ts` beside a `DESCENT_BODY_CDA_FACTOR` export claiming to be the one they use.
-`COMPETITION.md` row 35 is the same gap from the competitive side, with RASAero II's 1.33 and
-RocketPy's NASA SP-8066 1.4 both citable. **Write it as R9 and start increment 1 — that is one
-increment's work and it IS the work.** A six-increment decomposition is in the fan-out's notes; the
-first three are: import `DESCENT_BODY_CDA_FACTOR` in both places and say whether it has a source;
-give every adapter's recovery-Cd default a source string or an explicit "no published basis"; then
-MEASURE where the 8.3% comes from before moving any number.
-
-**The next P-track milestone has to be written too, and the design-system audit is the brief.** With
-P5 shipped the P-track is dry. The audit, re-measured this run: six primitives `DESIGN.md` §5 declares
-that do not exist (`Panel`, `Readout`, `Figure`, `EmptyState`, `ErrorState`, `Extrapolated`); two that
-exist with zero call sites (`Section`, `Chip`); the labelled-value treatment `Readout` would own is
-hand-rolled **27 times in 7 disagreeing class strings**; and **12** `<select>` elements hand-roll
-**5** class strings with no `Select` primitive. All of it is held stationary by the exact ratchet in
-`lib/design-system.test.ts`, so it cannot decay while it waits — which is why P5 went first — but it
-is now the obvious next P milestone.
-
-**Environment facts this run measured, each of which cost time until it was.** The managed Playwright
-browser (**chromium-1228**) was ABSENT — `/opt/pw-browsers` carried 1194 — and `npx playwright install
-chromium` fixed it in about a minute. `node_modules` was also absent; `npm install` is ~90 s. Both are
-paid for every session until they are in the environment's setup script, which is the owner's fix to
-make. The fixtures repo WAS attached, so the corpus is real: the suite names `imports every design
-file (35 present)`, confirmed in CI's own log as well as locally. `tsc --noEmit` is **red on `main`** —
-3 errors, all in `lib/model/edit.test.ts`, invisible to `npm run build` because Next type-checks the
-app graph and not the test files; filed in `BACKLOG.md`.
-
-**A third low-e2e-count symptom, and it is neither of the two already documented.** A `serve` left
-running by hand (from `npm run screenshots`, or an interrupted run) is silently adopted by the suite
-because `reuseExistingServer` is on outside CI — harmless until the gate's `rm -rf out` deletes the
-directory underneath it mid-build, at which point a shard reports a wildly low pass count with **no
-failure line**. Measured at 13 of 112, then 112 of 112 on a clean re-run. `CONTRIBUTING.md` carries
-it now. **Check port 3000 is free before diagnosing anything else.**
-
-## This run — two milestones closed, two written, ten commits
+## This run — five increments, three Sev-1s
 
 | # | SHA | what | verified by |
 |---|---|---|---|
-| 1 | `d8386ca` | **R8 inc 8** — a real coupler or centring ring can be picked from the catalogue, closing R8 | 6 cases in `edit.test.ts` + an e2e walking the gesture; both proved able to fail by reverting one thing each |
-| — | (in 1) | **Sev-1** — a picked part was silently cut down when its host shrank, under the vendor's own part number (203.2 mm flown at 200.0 mm, captioned *Flying …*) | the unit case reds when the fit rule is reverted alone |
-| — | (in 1) | P4 marked SHIPPED and its stale "6 of 7" line corrected | `git show --stat 1a336f8` |
-| 2 | `785b46a` | **P5 inc 1** — a version a flyer can see, and a changelog that is the only place it is written | `lib/version.test.ts` (4 cases) + an e2e over all six routes |
-| 3 | `1495783` | **P5 inc 2** — the landing surface says the three things no other tool does | `e2e/first-run.spec.ts`, claims asserted as ideas rather than strings |
-| 4 | `e158bb6` | `COMPETITION.md` row 2 resolved with a wrong figure in it corrected; row 36 added | read from OpenRocket's source, not memory |
-| 5 | `9932e1a` | **P5 inc 3 + 5** — the changelog as a route, and a bug reportable from every route | `lib/inline-markdown.test.tsx` + 2 e2e cases |
-| 6 | `96a31e7` | **P5 inc 4 + 6** — the README shows the tool, and every internal link is checked at build time | both halves of `check-links` proved able to fail by name |
-| 7 | `e90e202` | The handoff, refreshed mid-run rather than at the end | — |
-| 8 | `77c8349` | **R9 and P6 written into the roadmap**, both from measurements taken today | the census run and a re-measured design audit |
-| 9 | `9fcdf45` | **R9 inc 1–2** — six descent figures in one place each, saying what backs them; no flown number moved | 4 cases + an identical census before and after |
-| 10 | `8241c6e` | **R9 inc 3** — the error attributed, and the milestone's premise disproved | a corpus case that prints the split and asserts it could discriminate |
+| 1 | `b7dd9f9` | **SEV-1** — a flight outside the drag model's envelope said so on ONE surface of six | 4 unit cases, each proved able to fail by reverting its own carrier, + an e2e proved to red pre-fix |
+| 2 | `77d0882` | **SEV-1** — an edit the solver refuses was half-applied: new airframe on screen, previous run's numbers beside it | an e2e asserting the refused edit did not reach the what-if state; reds on the old ordering |
+| 3 | `71bbba0` | The same caveat finished — the two surfaces #1 missed, and one module that owns the wording | 227 e2e; the six defects a pre-push review found, each verified before acting |
+| 4 | `a163034` | **R9 inc 6** — RockSim's landing-speed gap attributed and mostly closed, with no engine change | corpus census: rocksim 25.7% → **21.9%**; 2 adapter cases |
+| 5 | `08623e5` | **P6 inc 1** — `Readout`, the primitive §5 declares, lifted from `ResultsView`'s local `Stat` | 227 e2e unmodified (proves the DOM is unchanged), 11 §9 checks green |
 
-**Reached production: 1 (`d8386ca`, merged as #123, both CI jobs green — the frontend log names
-`imports every design file (35 present)`).** The rest are on the branch behind PR #124.
+**Reached production: 0.** All five are on the branch behind PR #125.
 
-**Three process lessons from this run.**
+**The two Sev-1s, in one line each, because the mechanism is the interesting part.**
 
-- **The pre-push review agent earned its place twice, and once against a fix that was already green.**
-  The first Sev-1 fix was wrong in the opposite direction and only a fresh reader of the diff caught
-  it: fitting a picked coupler was decided in TWO places against TWO different rockets, so shortening
-  the tube was caught and lengthening it deleted the part. **Two gates over two rockets is the shape
-  to look for.** The same review found three more, all in what the surface SAYS rather than what it
-  computes.
-- **An accessible name in shared chrome is a selector as much as a sentence.** A footer link reading
-  "request a DESIGN format" made the Design tab ambiguous on all six routes and took 100+ e2e cases
-  down with a strict-mode violation and no failure naming the cause. Check new chrome copy against
-  the nav's own words.
-- **Run a parser over the file it exists to render, not over invented examples.** The inline-markdown
-  sweep over every shipped changelog bullet found a real nesting bug in one pass; four hand-written
-  cases had all passed.
-- **NEVER pipe a gate step into `tail` — the pipeline's exit code is the pipe's.**
-  `npm run build 2>&1 | tail -3` reports success whatever the build did, so a `&&` chain built that
-  way ran a full green e2e suite on a build that had already failed. It cost a red CI run and a
-  commit pushed on a gate that was reported green and was not. `CONTRIBUTING.md` carries it. Redirect
-  each step to a file and read `$?`, or `set -o pipefail`.
-- **An increment whose job is to MEASURE can disprove the milestone that contains it, and that is a
-  success.** R9 increment 3 existed to attribute an error before four more increments were spent
-  assuming its cause. It found the assumed cause was wrong. Scoping a measurement increment *before*
-  the work it would justify is the transferable part.
+- **The transonic caveat.** `FlightResult.extrapolatedTransonic` had been set for weeks and the
+  flight card rendered it. It was never four components forgetting a marker — **the fact never left
+  the solver**: `MotorSweepRow`, `ParamSweepPoint` and `MonteCarloSample` each summarise a run and
+  none carried the flag. Measured: **9 of 109 flown corpus simulations leave the M ≤ 0.8 envelope**,
+  up to M1.67. A treatment written inline inside one component is invisible to a check that counts
+  imports, which is why `lib/design-system.test.ts` could not see it and why both new primitives now
+  carry a ratchet.
+- **The half-applied edit.** State was committed *before* the flight was attempted. Typing 2001 into
+  Body diameter (mm) trips `MAX_REF_RADIUS`, and the grid went on reading 992.8 m / 4.07 cal for a
+  rocket two metres across. **Clearing the run — which is what the load path does, so it looks like
+  the consistent fix — would have been worse**: `DesignEditor` renders inside `{run && …}`, so it
+  deletes the field the flyer needs to correct the value. Check what a gate contains before you
+  match a neighbouring path.
+
+**R9's premise has now been wrong twice, and both corrections were measurements.** Increment 3
+disproved the parachute-Cd hypothesis last run. Increment 6 this run found the RockSim half was not
+physics at all: RockSim stores the TOTAL ground-frame landing speed (verified as hypot of its own
+three component tags on 17 of 17 stored sims) while Loft reports the VERTICAL descent rate, so the
+comparison was wrong in one direction by construction. That is the "86 of 92 descend slower"
+signature nobody could explain. Reading the vertical component moved rocksim 25.7% → 21.9% with
+nothing Loft flies having changed.
+
+**What is left of that 21.9% is partly not Loft's**, and the next session should not assume
+otherwise: 11 of the 17 `.rkt` rows are one design's plugged-motor BALLISTIC runs (RockSim's own
+`HasDeployed=0`, `FinalState=4`) pooled with canopy descents, and that design stores **83.6 m/s and
+162.0 m/s for eleven runs of the same configuration** — a 1.94x self-disagreement no model can
+satisfy. Splitting deployed from ballistic rows before comparing is the next measurement.
+
+**Environment, re-measured today.** `node_modules` absent (~90 s). The managed Playwright browser
+**chromium-1228 was absent again** — `/opt/pw-browsers` had 1194 — and `npx playwright install
+chromium` fixed it in about a minute. Both are paid for every session until they are in the
+environment's setup script, which is the owner's fix. The fixtures repo WAS attached: the suite names
+`imports every design file (35 present)`. `tsc --noEmit` is red on `main` with **9** errors (not the
+3 the last handoff recorded — re-measured), all in `lib/model/edit.test.ts`, invisible to
+`npm run build`.
 
 ## The run before this one — nine increments, all now on `main`
 
@@ -1200,9 +1161,44 @@ should not have, and an address disagreeing with what is on screen.
 
 ## Pick up first
 
-**This list was five runs stale when this session opened — every numbered item was P2 work, and P2
-shipped on 2026-08-02.** Reading it would have sent a session to redo finished milestones. Rewritten,
-and then rewritten again at the end of this run for the two items it shipped.
+**Rewritten at the end of the 2026-08-04 run. Items 1 and 2 are confirmed Sev-1s with reproductions
+and numbers — they preempt both milestones.**
+
+1. **SEV-1 — a design with NO recovery device raises no warning at all, and publishes 93 m/s and
+   2,970 J as ordinary confident stats.** `lib/sim/simulate.ts:1007-1008`:
+   `recoveryExpected: recovery.length > 0` gates the ballistic-descent caution at `:1315`, and
+   `anyRecoveryOpened` gates hard-landing at `:1353`. With zero devices **both gates are false**, so
+   a lawn dart trips neither, and `RecoverySizingHint` is itself gated on `hard-landing` so it stays
+   silent too. Measured on the 38 mm sample: with its chute, 6.95 m/s / 17.1 J; chute removed
+   (nothing refuses the removal), **93.35 m/s / 2,969.7 J** — and an *identical* warning list.
+   `grep -rn 'no-recovery|noRecovery'` returns nothing: there is no such code among the solver's 20.
+   These are the two numbers a flyer clears a field and a waiver on.
+
+2. **SEV-1 — one fin, and the warning list comes back EMPTY.** `components/LoftApp.tsx:2411` accepts
+   `min={1}` while the Barrowman CP method assumes three or more symmetric fins. Measured:
+   `finCount: 1` → apogee 1,272.1 m, static margin **1.639 cal**, `warnings: []`. Every other fin
+   count carries at least the over-stable note, so the one-finned case is the ONLY configuration that
+   reports perfectly clean — on the readout a flyer uses for a go/no-go.
+
+3. **A body diameter smaller than the motor inside it flies to a confident 11.6 km.** Measured this
+   run, which is what the long-standing `BACKLOG.md` entry lacked: 10 mm → 1,437.5 m / 14.86 cal;
+   1 mm → 10,326.5 m / 115.77 cal; 0.1 mm → **11,588.6 m / 1,151.77 cal**, against a 992.8 m
+   baseline, with `motorsComplete` true throughout and no warning naming the diameter.
+
+4. **R9 increments 4, 5 and 7 — the parachute Cd on screen, editable, and the census re-published.**
+   The brief is measured and ready: the model already carries `Parachute.cdFrom`, and
+   `lib/sim/recovery-defaults.ts` already holds each fallback with its source, basis and corpus-hit
+   count — but **no file under `components/` or `app/` imports either**. `designDims` in
+   `components/LoftApp.tsx:1667` needs one new line; the Recovery fieldset at `:2810` is the surface.
+   **R9's *done when* names a provenance value that cannot exist**: 0 of the 151 catalogued canopies
+   state a Cd, so "catalogue part" is never the origin of one — say so rather than inventing it.
+   Two Loft-authored chutes still hard-code `cd: 0.8` with no provenance (`lib/model/starter.ts:70`
+   and the dual-deploy drogue applier at `lib/model/edit.ts:2295`), which the increment-1
+   consolidation missed.
+
+5. **P6 increment 2 — `Select`.** 12 real `<select>` elements hand-roll 5 class strings (LoftApp 7,
+   ParameterSweep 2, ResultsView 2, PartPicker 1). `grep '<select'` returns 14; two are inside
+   comments, which is worth knowing because the next session will run the same grep.
 
 1. **P4 increment 5 — the diagram's touch targets**, which is where direct manipulation on a phone
    actually lives, and the next thing owed on the P-track. Measured this run on the built export at

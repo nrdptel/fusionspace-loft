@@ -2,7 +2,8 @@
 
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
-import { Button, Card, type CardTone } from "./ui";
+import { Button, Card, Readout, type CardTone } from "./ui";
+import { transonicReason } from "@/lib/sim/envelope";
 import { cx } from "@/lib/ui-tokens";
 import WorkspaceNav from "./WorkspaceNav";
 import { WORKSPACES, type Workspace } from "@/lib/workspaces";
@@ -302,9 +303,7 @@ export default function ResultsView({
    *  validated over; the drag model's is subsonic, and above about M0.8 it is a bounded parametric
    *  estimate rather than a solution. Worded to match the `transonic` caution the solver already
    *  raises, so the marker and the card cannot drift apart. */
-  const extrapolatedWhy = r.extrapolatedTransonic
-    ? `this flight reaches M${d.fmt(s.maxMach, 2)}, outside the drag model's validated subsonic envelope (M ≤ 0.8) — treat it as rough`
-    : undefined;
+  const extrapolatedWhy = transonicReason(r.extrapolatedTransonic, s.maxMach);
   const markers = eventMarkers(r);
   // Which workspace is open — the route, handed down. The panels below all stay mounted and the
   // route only decides which one is visible, which is deliberate rather than incidental: a
@@ -536,26 +535,26 @@ export default function ResultsView({
               Rail-exit velocity (~20 m/s off the rail) and thrust-to-weight (static) are inside the
               validated envelope whatever the flight does later, so marking them would be the flag
               crying wolf that the brief warns teaches flyers to ignore every flag. */}
-          <Stat label="Apogee" q={d.altitude(s.apogee, units)} accent extrapolated={extrapolatedWhy} />
-          <Stat label="Max velocity" q={d.speed(s.maxVelocity, units)} sub={d.q(d.mach(s.maxMach))} extrapolated={extrapolatedWhy} />
-          <Stat label="Max acceleration" q={d.accel(s.maxAcceleration)} extrapolated={extrapolatedWhy} />
-          <Stat label="Rail-exit velocity" q={d.speed(s.railExitVelocity, units)} />
-          <Stat label="Thrust-to-weight" q={d.ratio(s.thrustToWeight)} sub="liftoff" />
-          <Stat label="Time to apogee" q={d.seconds(s.timeToApogee)} extrapolated={extrapolatedWhy} />
-          <Stat label="Burnout velocity" q={d.speed(s.burnoutVelocity, units)} extrapolated={extrapolatedWhy} />
-          <Stat
+          <Readout label="Apogee" q={d.altitude(s.apogee, units)} accent extrapolated={extrapolatedWhy} />
+          <Readout label="Max velocity" q={d.speed(s.maxVelocity, units)} sub={d.q(d.mach(s.maxMach))} extrapolated={extrapolatedWhy} />
+          <Readout label="Max acceleration" q={d.accel(s.maxAcceleration)} extrapolated={extrapolatedWhy} />
+          <Readout label="Rail-exit velocity" q={d.speed(s.railExitVelocity, units)} />
+          <Readout label="Thrust-to-weight" q={d.ratio(s.thrustToWeight)} sub="liftoff" />
+          <Readout label="Time to apogee" q={d.seconds(s.timeToApogee)} extrapolated={extrapolatedWhy} />
+          <Readout label="Burnout velocity" q={d.speed(s.burnoutVelocity, units)} extrapolated={extrapolatedWhy} />
+          <Readout
             label="Descent rate"
             q={d.speed(s.descentRate, units)}
             sub={s.drogueDescentRate !== undefined ? "under main" : undefined}
           />
           {s.drogueDescentRate !== undefined && (
-            <Stat label="Drogue descent" q={d.speed(s.drogueDescentRate, units)} sub="under drogue" />
+            <Readout label="Drogue descent" q={d.speed(s.drogueDescentRate, units)} sub="under drogue" />
           )}
           {/* Withheld on the same test as the two below, and it was not until 2026-08-02. Drift is
               `simulate`'s exit position taken unconditionally, so a flight still descending at the
               cap reports how far downwind it had got — a plausible smaller number rather than an
               obvious zero, sitting between two figures that correctly say they do not exist. */}
-          <Stat
+          <Readout
             label="Drift from pad"
             q={d.distance(s.driftDistance, units)}
             withheld={s.landed ? undefined : "no landing inside the time cap"}
@@ -564,7 +563,7 @@ export default function ResultsView({
               not a measurement, and these are the two numbers a recovery setup is judged on. Shown
               as zeros, a flyer enlarging a canopy watched the landing energy fall to 0 J and read
               it as success. */}
-          <Stat
+          <Readout
             label="Ground-hit speed"
             q={d.speed(s.groundHitVelocity, units)}
             sub="descent rate at impact"
@@ -575,21 +574,21 @@ export default function ResultsView({
               shown beside rather than folded in, and only when the two actually diverge, because a
               second stat repeating the first to three significant figures is noise. */}
           {s.landed && s.groundHitTotalVelocity > s.groundHitVelocity * 1.05 && (
-            <Stat
+            <Readout
               label="Arrival speed"
               q={d.speed(s.groundHitTotalVelocity, units)}
               sub="over the ground, drift included"
             />
           )}
-          <Stat
+          <Readout
             label="Landing energy"
             q={d.energy(s.landingEnergy, units)}
             sub="whole vehicle, from descent rate"
             withheld={s.landed ? undefined : "no landing inside the time cap"}
           />
-          <Stat label="Optimum delay" q={d.seconds(s.optimumDelay)} sub="burnout → apogee" extrapolated={extrapolatedWhy} />
-          <Stat label="Flight time" q={d.seconds(s.flightTime)} />
-          <Stat label="Max dynamic pressure" q={d.dynamicPressure(s.maxDynamicPressure, units)} extrapolated={extrapolatedWhy} />
+          <Readout label="Optimum delay" q={d.seconds(s.optimumDelay)} sub="burnout → apogee" extrapolated={extrapolatedWhy} />
+          <Readout label="Flight time" q={d.seconds(s.flightTime)} />
+          <Readout label="Max dynamic pressure" q={d.dynamicPressure(s.maxDynamicPressure, units)} extrapolated={extrapolatedWhy} />
         </div>
         <RecoverySizingHint run={run} units={units} />
         <BoosterDescentNote run={run} units={units} />
@@ -1220,6 +1219,9 @@ function RocketSummary({
   const r = run.result;
   const length = overallLength(rocket);
   const dia = r.stability.refRadius * 2;
+  // Same sentence the flight card uses, from the same module, so the strip and the card one screen
+  // apart cannot come to disagree about the same flight.
+  const extrapolatedWhy = transonicReason(r.extrapolatedTransonic, r.summary.maxMach);
   const [detailOpen, setDetailOpen] = useState(false);
   return (
     <Card as="section">
@@ -1305,7 +1307,21 @@ function RocketSummary({
         {/* Apogee leads the strip so a design edit's headline flight effect is visible from any
             workspace — the editors live on Design, but this summary sits above the tabs. Only with
             propulsion: a design whose motor didn't resolve has no meaningful apogee. */}
-        {run.hasPropulsion && <Field term="Apogee" value={d.q(d.altitude(r.summary.apogee, units))} />}
+        {/* Marked when the flight left the drag model's envelope, through `Field`'s own hint slot
+            rather than the `Extrapolated` block used elsewhere. This strip is the shared chrome all
+            four routes sit under, and a permanent reason line here is paid for on every one of them
+            — it is what took `/sweep` back past the two screens §8 allows once before. The badge
+            carries the reason to a pointer, a keyboard and a screen reader; the block treatment
+            stands where the number is the surface's whole subject. Without this the same apogee read
+            plain up here and "extrapolated" on the card below, one screen apart. */}
+        {run.hasPropulsion && (
+          <Field
+            term="Apogee"
+            value={d.q(d.altitude(r.summary.apogee, units))}
+            hint={extrapolatedWhy ? "extrapolated" : undefined}
+            hintWhy={extrapolatedWhy}
+          />
+        )}
         {/* **The motor is not "dead mass" when it fails to resolve — it is ABSENT.** `lib/sim/setup.ts`
             skips an unmatched instance entirely, so it contributes neither mass nor CG, and the two
             figures below are then measuring a rocket with nothing in the tube. Apogee has always been
@@ -1656,6 +1672,12 @@ function Field({
         {value}
         {hint && (
           <span
+            // Deliberately NO `title`. Adding one to reach parity with the `Extrapolated` badge's
+            // hover affordance took the phone suite's hover-only-state count from 0 to 5 — a `title`
+            // is unreachable on a coarse pointer, and this badge renders in the shared chrome on all
+            // four routes, so it is five states a flyer at the pad cannot get at. The reason travels
+            // by accessible name here; the written-out sentence lives on the flight card's own
+            // marker, which is on the same route and is where a phone actually reads it.
             aria-label={hintWhy ? `${hint} — ${hintWhy}` : hint}
             className="ml-1 text-xs uppercase text-amber-700 no-underline dark:text-amber-400"
           >
@@ -1677,73 +1699,6 @@ function Field({
   );
 }
 
-function Stat({
-  label,
-  q,
-  sub,
-  accent,
-  withheld,
-  extrapolated,
-}: {
-  label: string;
-  q: d.Quantity;
-  sub?: string;
-  accent?: boolean;
-  /** Why this figure is not being shown. When set, the value is replaced by an em dash and this
-   *  reason takes the place of `sub` — the house rule is "withheld rather than shown as zeros", and
-   *  a withheld estimate has to say why (see the no-propulsion notice, which does the same thing for
-   *  the whole panel). Used where the solver carries a sentinel that is not a measurement. */
-  withheld?: string;
-  /** The envelope this number left, when it left one. `DESIGN.md` §5 requires the `Extrapolated`
-   *  treatment — "the warn treatment plus the reason and the range it left" — WHEREVER a number
-   *  leaves the envelope its method was validated over, and until now a transonic apogee rendered
-   *  byte-identical to a subsonic one, with the caveat surfacing only as a separate card further up
-   *  the page. A flyer reading the number does not necessarily read the card. */
-  extrapolated?: string;
-}) {
-  return (
-    <Card>
-      <div className="text-[11px] uppercase tracking-wide text-zinc-500 dark:text-zinc-400">{label}</div>
-      {withheld ? (
-        <div className="mt-1 font-mono text-xl tabular-nums text-zinc-400 dark:text-zinc-500" aria-label={`${label} withheld: ${withheld}`}>
-          —
-        </div>
-      ) : (
-        <div className={"mt-1 font-mono tabular-nums " + (accent ? "text-xl font-semibold text-indigo-600 dark:text-indigo-400" : "text-xl text-zinc-900 dark:text-zinc-100")}>
-          {q.value}
-          <span className="ml-1 text-xs font-normal text-zinc-500 dark:text-zinc-400">{q.unit}</span>
-          {/* Inside the value's own line, not a sibling of it. `abbr` is the same affordance
-              `Field`'s hint already uses, so a pointer, a keyboard and a screen reader all reach the
-              reason from the number itself rather than from the caution card further up the page —
-              which a flyer reading the number does not necessarily read. Kept in this element
-              because the readouts are located by walking the label's following siblings, and a new
-              sibling div silently broke two of those locators. Block rather than inline: beside the
-              value it pushed a 320 px metric tile into clipping its own number. */}
-          {extrapolated && (
-            <abbr
-              title={extrapolated}
-              aria-label={`Extrapolated — ${extrapolated}`}
-              className="mt-1 block w-fit cursor-help rounded-md bg-amber-500/10 px-2 py-1 font-sans text-[11px] font-medium uppercase tracking-wide text-amber-700 no-underline dark:text-amber-400"
-            >
-              extrapolated
-            </abbr>
-          )}
-          {/* The reason and the range it left, written out where there is no hover to reveal them.
-              `DESIGN.md` §5 defines the `Extrapolated` treatment as "the warn treatment plus the
-              reason and the range it left" — on a phone the marker was arriving without either. */}
-          {extrapolated && (
-            <div className="hidden text-xs font-sans font-normal text-zinc-600 pointer-coarse:block dark:text-zinc-400">
-              {extrapolated}
-            </div>
-          )}
-        </div>
-      )}
-      {(withheld ?? sub) && (
-        <div className="mt-0.5 text-[11px] text-zinc-500 dark:text-zinc-400">{withheld ?? sub}</div>
-      )}
-    </Card>
-  );
-}
 
 /** A compact "what-if vs design" readout: after the flyer applies a design what-if (nose ballast
  *  or a motor swap), the results change but the original numbers are gone. This shows, for the key

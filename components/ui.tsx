@@ -13,6 +13,7 @@ import {
   type ButtonVariant,
 } from "@/lib/ui-tokens";
 import { rangeWords, refusedMessage } from "@/lib/what-if";
+import type { Quantity } from "@/lib/display";
 
 export interface Option<T extends string> {
   value: T;
@@ -311,10 +312,151 @@ export function Chip({ label, value }: { label: string; value: string }) {
       <div className="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-500">
         {label}
       </div>
-      <div className="font-mono text-xs tabular-nums text-zinc-700 dark:text-zinc-300">
+      {/* `text-sm`, not `text-xs`. §3 is explicit that caption size is for the text AROUND a value —
+          "its unit, its provenance, its caveat — never the value" — and this is the value.
+          Surfaced by the inversion check in `lib/design-system.test.ts` when a legitimate caveat
+          caption tipped this file's ratio; correcting the real violation was the honest way past it
+          rather than another point of budget. Worth being plain that it changes no rendered pixel:
+          `Chip` has zero call sites, which the same file records as `Chip: 0`. It is the spec being
+          made true before P6 decides whether this primitive gains adopters or is deleted. */}
+      <div className="font-mono text-sm tabular-nums text-zinc-700 dark:text-zinc-300">
         {value}
       </div>
     </div>
+  );
+}
+
+/** `DESIGN.md` §5's `Extrapolated` — "the warn treatment plus the reason and the range it left",
+ *  required wherever a number leaves the envelope its method was validated over.
+ *
+ *  **It existed on exactly one surface, and that is what made it a defect rather than a gap.** The
+ *  treatment was written inline inside `ResultsView`'s local `Stat`, so the flight card marked a
+ *  transonic apogee and the Monte-Carlo, both sweeps and the drag cross-check — every one of which
+ *  flies the SAME solver over the SAME design — rendered their numbers byte-identically to a
+ *  validated flight. Measured across the corpus: 9 of 109 flown stored simulations leave the drag
+ *  model's subsonic envelope, reaching M1.67 on one, so a flyer choosing a motor or sizing recovery
+ *  on those designs read an unqualified figure on four surfaces and a qualified one on a fifth. A
+ *  caveat in one place and a confident claim in another is worse than either alone.
+ *
+ *  Two renderings of one fact, because the affordance a pointer has is not the one a phone has. The
+ *  `abbr` carries the reason on hover, on focus and to a screen reader; the block beneath it writes
+ *  the same sentence out where there is no hover to reveal it. Both are the primitive's, so a new
+ *  surface cannot adopt half the treatment.
+ *
+ *  `inline` is for use INSIDE a value's own element — the flight card's metric tiles locate their
+ *  readouts by walking the label's following siblings, so the marker has to live within the value
+ *  rather than beside it. Everywhere else it stands on its own line above the numbers it qualifies. */
+export function Extrapolated({
+  reason,
+  inline,
+  className,
+}: {
+  /** Why this number left its envelope, and the range it left — one sentence, shown as written. */
+  reason: string;
+  inline?: boolean;
+  className?: string;
+}) {
+  return (
+    <>
+      {/* The reason is named ONCE, and which mechanism names it depends on whether it is visible.
+          Standing on its own line the sentence below is real text, so an `aria-label` here made a
+          screen reader read the whole thing twice — once as the badge's name and again as the
+          paragraph. Inline inside a metric tile the sentence is `display: none` to a fine pointer,
+          so there the label is the only thing carrying it and it stays.
+
+          (`abbr` has no implicit role, which makes `aria-label` discouraged on it; axe returns
+          *incomplete* rather than a violation because the element has text, so the suite's own audit
+          cannot see it either way. Kept for the inline case because dropping it there would leave a
+          desktop screen-reader user the bare word "extrapolated" with no reason at all, and a
+          visually-hidden sibling is not an option: the flight card's readouts are read with
+          `innerText`, which returns `sr-only` text and would fold this sentence's digits into the
+          number being parsed.) */}
+      <abbr
+        title={reason}
+        aria-label={inline ? `Extrapolated — ${reason}` : undefined}
+        className={cx(
+          "block w-fit cursor-help rounded-md bg-amber-500/10 px-2 py-1 font-sans text-[11px] font-medium uppercase tracking-wide text-amber-700 no-underline dark:text-amber-400",
+          inline ? "mt-1" : "",
+          className,
+        )}
+      >
+        extrapolated
+      </abbr>
+      <div
+        className={cx(
+          "text-xs font-sans font-normal text-zinc-600 dark:text-zinc-400",
+          // Written out where there is no hover to reveal the `title`. Kept `hidden` rather than
+          // `sr-only` on a fine pointer for the `innerText` reason above — the inline marker renders
+          // inside the value element the flight card's tests read the number out of.
+          inline ? "hidden pointer-coarse:block" : "mt-1",
+        )}
+      >
+        {reason}
+      </div>
+    </>
+  );
+}
+
+/** `DESIGN.md` §5's `Readout` — "a labelled value with its unit, provenance and optional caveat; the
+ *  unit is never baked into the label string".
+ *
+ *  **Lifted rather than designed.** This is `ResultsView`'s own local `Stat`, moved verbatim: it had
+ *  already grown every axis §5 asks for — the unit in its own span, the accent for the one number a
+ *  surface exists to show, the withheld state that replaces a value with an em dash and says why,
+ *  and the extrapolated caveat. Re-deciding the API here would have thrown away the four separate
+ *  occasions that shaped it. What was wrong was only that sixteen readouts on one page could reach
+ *  it and the rest of the app could not, so every other surface hand-rolled the same treatment.
+ *
+ *  The DOM is unchanged, class for class, because the e2e suite locates several of these readouts by
+ *  walking a label's following sibling — this is an extraction, not a repaint. */
+export function Readout({
+  label,
+  q,
+  sub,
+  accent,
+  withheld,
+  extrapolated,
+}: {
+  label: string;
+  q: Quantity;
+  sub?: string;
+  accent?: boolean;
+  /** Why this figure is not being shown. When set, the value is replaced by an em dash and this
+   *  reason takes the place of `sub` — the house rule is "withheld rather than shown as zeros", and
+   *  a withheld estimate has to say why (see the no-propulsion notice, which does the same thing for
+   *  the whole panel). Used where the solver carries a sentinel that is not a measurement. */
+  withheld?: string;
+  /** The envelope this number left, when it left one. `DESIGN.md` §5 requires the `Extrapolated`
+   *  treatment — "the warn treatment plus the reason and the range it left" — WHEREVER a number
+   *  leaves the envelope its method was validated over, and until now a transonic apogee rendered
+   *  byte-identical to a subsonic one, with the caveat surfacing only as a separate card further up
+   *  the page. A flyer reading the number does not necessarily read the card. */
+  extrapolated?: string;
+}) {
+  return (
+    <Card>
+      <div className="text-[11px] uppercase tracking-wide text-zinc-500 dark:text-zinc-400">{label}</div>
+      {withheld ? (
+        <div className="mt-1 font-mono text-xl tabular-nums text-zinc-400 dark:text-zinc-500" aria-label={`${label} withheld: ${withheld}`}>
+          —
+        </div>
+      ) : (
+        <div className={"mt-1 font-mono tabular-nums " + (accent ? "text-xl font-semibold text-indigo-600 dark:text-indigo-400" : "text-xl text-zinc-900 dark:text-zinc-100")}>
+          {q.value}
+          <span className="ml-1 text-xs font-normal text-zinc-500 dark:text-zinc-400">{q.unit}</span>
+          {/* Inside the value's own line, not a sibling of it — hence `inline`. The readouts are
+              located by walking the label's following siblings, and a new sibling div silently broke
+              two of those locators; block rather than inline-flow, because beside the value it
+              pushed a 320 px metric tile into clipping its own number. The treatment itself is
+              `components/ui.tsx`'s, not this file's: it was written here first and four other
+              surfaces then flew the same extrapolated solver with no marker at all. */}
+          {extrapolated && <Extrapolated reason={extrapolated} inline />}
+        </div>
+      )}
+      {(withheld ?? sub) && (
+        <div className="mt-0.5 text-[11px] text-zinc-500 dark:text-zinc-400">{withheld ?? sub}</div>
+      )}
+    </Card>
   );
 }
 

@@ -15,7 +15,7 @@ import type { CsvCell } from "@/lib/csv";
 import LineChart from "./LineChart";
 import DownloadCsv, { CopyTable } from "./DownloadCsv";
 import type { UnitSystem } from "@/lib/display";
-import { Button, Card, ClosePanel, useReturnFocus } from "./ui";
+import { Button, Card, ClosePanel, Extrapolated, useReturnFocus } from "./ui";
 import { cx, TOUCH_TARGET } from "@/lib/ui-tokens";
 
 const round = (n: number, dp: number) => (Number.isFinite(n) ? Math.round(n * 10 ** dp) / 10 ** dp : "");
@@ -446,9 +446,16 @@ function SweepChart({
   const xUnit = axis.xUnit(units);
   const yUnit = metric.unit(units);
   // The CSV carries every available metric across the swept range, not just the one currently plotted.
+  // The caveat travels with the curve. An exported sweep is what gets pasted into a build thread, and
+  // without the last column the extrapolated end of the range leaves here indistinguishable from the
+  // validated end — the same "confident claim in one place" this marker exists to prevent.
   const csv: CsvCell[][] = [
-    [`${axis.label} (${xUnit})`, ...metrics.map((m) => `${m.label} (${m.unit(units)})`)],
-    ...points.map((p) => [round(axis.xToNumber(p.x, units), 3), ...metrics.map((m) => round(m.toNumber(p[m.key], units), 3))]),
+    [`${axis.label} (${xUnit})`, ...metrics.map((m) => `${m.label} (${m.unit(units)})`), "Extrapolated"],
+    ...points.map((p) => [
+      round(axis.xToNumber(p.x, units), 3),
+      ...metrics.map((m) => round(m.toNumber(p[m.key], units), 3)),
+      p.extrapolatedTransonic ? "past M0.8 — outside the validated drag envelope" : "",
+    ]),
   ];
   const series = [
     {
@@ -461,8 +468,38 @@ function SweepChart({
     },
   ];
   const designX = axis.xToNumber(axis.base, units);
+  // Which part of the curve left the drag model's validated subsonic envelope, named by the swept
+  // axis's own value rather than as a bare warning — a sweep exists to show a metric changing ALONG
+  // an axis, so "which end of it is rough" is the only form of this caveat that is actionable. Until
+  // now the panel said nothing at all, while the flight card marked the very same flight.
+  const hot = points.map((p) => p.extrapolatedTransonic);
+  const exCount = hot.filter(Boolean).length;
+  const extrapolatedWhy = (() => {
+    if (!exCount) return undefined;
+    if (exCount === points.length) {
+      return `every point on this curve reaches past M0.8, outside the drag model's validated subsonic envelope — treat the whole curve as rough`;
+    }
+    // A RANGE is only honest when the crossing is actually contiguous. Taking min and max of the
+    // extrapolated points and printing them as "a–b" describes a span that may contain validated
+    // points too: not every axis is monotonic in peak Mach — `finStation` barely moves it, so the
+    // crossing can flicker point to point — and a single crossing point would have printed the
+    // absurd "12.5–12.5 mm". Where the set is not one run, say how many rather than inventing an
+    // interval, and let the marked axis do the pointing.
+    const first = hot.indexOf(true);
+    const last = hot.lastIndexOf(true);
+    const contiguous = last - first + 1 === exCount;
+    const where = contiguous
+      ? `${round(axis.xToNumber(points[first].x, units), 3)}–${round(axis.xToNumber(points[last].x, units), 3)} ${xUnit} of this curve reaches`
+      : `${exCount} of this curve's ${points.length} points reach`;
+    return `${where} past M0.8, outside the drag model's validated subsonic envelope — treat that part of it as rough`;
+  })();
   return (
     <div className="mt-3">
+      {extrapolatedWhy && (
+        <div className="mb-3">
+          <Extrapolated reason={extrapolatedWhy} />
+        </div>
+      )}
       <LineChart
         series={series}
         markers={[{ x: designX, label: "design" }]}

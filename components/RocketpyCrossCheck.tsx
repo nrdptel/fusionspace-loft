@@ -9,7 +9,8 @@ import type { UnitSystem } from "@/lib/display";
 import type { RocketpyFlightResult } from "@/lib/validation/rocketpy-engine";
 import { engineFailure } from "@/lib/validation/engine-error";
 import type { GeometryEdits } from "@/lib/model/edit";
-import { Button, Card } from "./ui";
+import { Button, Card, Extrapolated } from "./ui";
+import { transonicReason } from "@/lib/sim/envelope";
 import DataTable from "./DataTable";
 
 /** Loft's own ballistic ascent, for a like-for-like comparison against RocketPy. */
@@ -20,6 +21,13 @@ interface LoftBallistic {
   timeToApogee: number;
   railExitVelocity: number;
   staticMarginCal: number;
+  /** Loft's ascent left the drag model's validated subsonic envelope.
+   *
+   *  **The panel that most needs this is the one whose own Δ column cannot show it.** The footnote
+   *  below states that RocketPy is fed Loft's Cd(Mach), so above M0.8 both columns ride the same
+   *  extrapolated curve: they agree closely BECAUSE they share the assumption, and close agreement
+   *  is exactly what this table invites a flyer to read as confidence. */
+  extrapolatedTransonic: boolean;
 }
 
 type State =
@@ -135,6 +143,7 @@ export default function RocketpyCrossCheck({
         timeToApogee: s.timeToApogee,
         railExitVelocity: s.railExitVelocity,
         staticMarginCal: loftRun.result.staticMarginCal,
+        extrapolatedTransonic: loftRun.result.extrapolatedTransonic,
       };
       // `config` is already the swapped configuration (runFlight returns it), so the motor is right;
       // apply the geometry edits to the rocket the spec is built from, and add nose ballast as an
@@ -341,8 +350,20 @@ function Comparison({ loft, rp, units }: { loft: LoftBallistic; rp: RocketpyFlig
     { label: "Time to apogee", loft: d.seconds(loft.timeToApogee), rp: d.seconds(rp.timeToApogee), delta: d.changePercent(rp.timeToApogee, loft.timeToApogee) },
     { label: "Static margin", loft: d.calibers(loft.staticMarginCal), rp: d.calibers(rp.staticMarginLiftoff), delta: d.changeAbsolute(rp.staticMarginLiftoff, loft.staticMarginCal, "cal") },
   ];
+  // Loft's half of this comparison is the extrapolated half, and the agreement is not evidence
+  // against that — RocketPy is fed Loft's own Cd(Mach) (see the footnote), so above M0.8 the two
+  // columns share the assumption rather than testing it. Stated above the table, because a flyer
+  // reading close agreement here is reading it as confirmation.
+  const extrapolatedWhy = transonicReason(loft.extrapolatedTransonic, loft.maxMach);
   return (
     <div className="mt-3">
+      {extrapolatedWhy && (
+        <div className="mb-3">
+          <Extrapolated
+            reason={`${extrapolatedWhy}. RocketPy is fed Loft's own drag curve, so both columns share that estimate and the difference between them cannot show it`}
+          />
+        </div>
+      )}
       {/* The disagreement between two independent solvers is exactly the number a flyer takes
           elsewhere to argue with, and until now it was trapped in the DOM — no sort, no copy, no
           export. Column order is deliberate and unchanged: the outside number first, Loft second,

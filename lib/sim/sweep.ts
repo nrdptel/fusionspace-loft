@@ -39,6 +39,16 @@ export interface MotorSweepRow {
   optimumDelay: number;
   /** True for the design's own motor, so the UI can mark its row. */
   isDesign: boolean;
+  /** This candidate's flight left the drag model's validated subsonic envelope, so every figure in
+   *  the row is a bounded parametric estimate rather than a solution.
+   *
+   *  **Carried per row because a motor sweep is exactly where it changes the answer.** The whole
+   *  point of the table is to rank candidates against each other, and a bigger motor is the thing
+   *  most likely to push a design through M0.8 — so the top of the ranking is the part of it most
+   *  likely to be extrapolated, while the rows it beat are not. The flight card has marked this
+   *  since the treatment existed; the four surfaces flying the same solver did not, and read as
+   *  validated. */
+  extrapolatedTransonic: boolean;
 }
 
 export interface MotorSweepOptions {
@@ -121,6 +131,7 @@ export function motorSweep(rocket: Rocket, motors: SweepMotor[], opts: MotorSwee
         isDesign:
           m.designation === opts.designMotor &&
           (!opts.designManufacturer || m.manufacturer === opts.designManufacturer),
+        extrapolatedTransonic: run.result.extrapolatedTransonic,
       });
     } catch {
       // A motor that can't be flown on this airframe is simply left out of the comparison.
@@ -179,6 +190,12 @@ export interface ParamSweepPoint {
   /** Worst-case fin-flutter margin over the ascent (flutter speed ÷ peak airspeed). NaN when the
    *  design has no fins to estimate. */
   flutterMargin: number;
+  /** This point left the drag model's validated subsonic envelope — see `MotorSweepRow`. Per point
+   *  rather than per curve because a sweep's whole job is to show a metric changing along an axis,
+   *  and the end of the axis is where a design crosses M0.8: a curve marked only in aggregate would
+   *  caveat the validated half along with the extrapolated half, and one marked not at all reads as
+   *  validated throughout. */
+  extrapolatedTransonic: boolean;
 }
 
 export interface ParamSweepOptions {
@@ -239,6 +256,7 @@ export function parameterSweep(
         railExitVelocity: s.railExitVelocity,
         staticMarginCal: run.result.staticMarginCal,
         flutterMargin: run.result.flutter ? run.result.flutter.worst.margin : Number.NaN,
+        extrapolatedTransonic: run.result.extrapolatedTransonic,
       });
     } catch {
       // A value that can't be flown is simply left out of the curve.

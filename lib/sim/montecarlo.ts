@@ -94,6 +94,16 @@ export interface MonteCarloSample {
   /** Kinetic energy at ground impact (J), ½·m·v² for the whole vehicle — the recovery-adequacy figure
    *  many fields and waivers set a per-section limit on, so its worst-case matters as much as speed. */
   landingEnergy: number;
+  /** This flight left the drag model's validated subsonic envelope (M > 0.8), so its numbers are a
+   *  bounded parametric estimate rather than a solution.
+   *
+   *  **Per sample, not per run, because a dispersion is precisely where the two mix.** The sweep
+   *  varies impulse, mass and drag, so a design sitting near M0.8 nominally puts part of its
+   *  distribution outside the envelope and part inside — and the tail that crosses is the fast tail,
+   *  which is the one that sets the 95th-percentile figures a flyer sizes recovery against. A single
+   *  per-run flag could only say "some of this is extrapolated" or, worse, take the nominal flight's
+   *  answer for all 300. */
+  extrapolated: boolean;
 }
 
 /** A metric's spread: median with a 5th–95th-percentile band, plus mean and standard deviation. */
@@ -135,6 +145,12 @@ export interface MonteCarloResult {
    *  success. Drift and the radius joined that list on 2026-08-02; they had been summarised over
    *  every sample, which understated the recovery area in the unsafe direction. */
   landedN: number;
+  /** How many of the `n` flown samples left the drag model's validated subsonic envelope.
+   *
+   *  A COUNT rather than a boolean, because "3 of 300" and "300 of 300" are different claims about
+   *  the same distribution and a surface that flattened them would say the same thing about both.
+   *  Zero means every dispersed flight stayed inside the envelope, and the surface marks nothing. */
+  extrapolatedN: number;
 }
 
 /** mulberry32 — a small, fast, well-distributed 32-bit PRNG. Seeded and deterministic. */
@@ -292,6 +308,7 @@ export function* monteCarloSamples(rocket: Rocket, opts: MonteCarloOptions): Gen
         landingSpeed: s.groundHitVelocity,
         landingEnergy: s.landingEnergy,
         landed: s.landed,
+        extrapolated: run.result.extrapolatedTransonic,
       };
     } catch {
       // A sample that can't be flown is dropped from the distribution.
@@ -334,6 +351,9 @@ export function summarizeSamples(samples: MonteCarloSample[]): MonteCarloResult 
     landingEnergy: summarize(landed.map((s) => s.landingEnergy)),
     n: samples.length,
     landedN: landed.length,
+    // Over EVERY flown sample, not just the landed ones: apogee and max speed are summarised over
+    // all of them, and those are the two figures the transonic envelope actually bounds.
+    extrapolatedN: samples.filter((s) => s.extrapolated).length,
   };
 }
 

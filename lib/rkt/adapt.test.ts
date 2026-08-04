@@ -583,3 +583,52 @@ describe("adaptRktXml — the design's own launch setup", () => {
     expect(silly.simulations).toHaveLength(0);
   });
 });
+
+describe("adaptRktXml — the landing speed a RockSim file actually stores", () => {
+  /** A minimal design carrying one simulation's landing-velocity tags. */
+  const design = (tags: string) =>
+    `<RockSimDocument><DesignInformation><RocketDesign><Name>land</Name>
+      <Stage3Parts>
+        <NoseCone><Name>Nose</Name><Len>150</Len><BaseDia>54</BaseDia><ShapeCode>1</ShapeCode><CalcMass>120</CalcMass></NoseCone>
+        <BodyTube><Name>Body</Name><Len>600</Len><OD>54</OD><ID>52</ID><CalcMass>200</CalcMass><SerialNo>7</SerialNo></BodyTube>
+      </Stage3Parts>
+    </RocketDesign></DesignInformation>
+    <SimulationResultsList><SimulationResults><MaxAltitude>500</MaxAltitude>${tags}</SimulationResults></SimulationResultsList>
+    </RockSimDocument>`;
+
+  it("takes the VERTICAL component, not the total ground-frame speed", () => {
+    // RockSim's `<VelocityAtLanding>` is the total: measured across the corpus's RockSim designs it
+    // equals hypot(X, Y, Z) to four decimal places on 17 of 17 stored simulations. Loft's
+    // `groundHitVelocity` is deliberately vertical-only, so comparing the two was wrong in one
+    // direction by construction — a total is never smaller than its own vertical component, so Loft
+    // could only ever read low. That is the signature the census showed and nobody had attributed:
+    // 86 of 92 flights "descending slower than stored", which a wrong coefficient would scatter.
+    //
+    // The numbers here are `FullScaleModelTH.rkt`'s first stored simulation, unrounded.
+    const doc = adaptRktXml(
+      design(
+        "<VelocityAtLanding>8.97728</VelocityAtLanding>" +
+          "<XVelcoityAtLanding>2.86657</XVelcoityAtLanding>" +
+          "<YVelocityAtLanding>-8.50141</YVelocityAtLanding>" +
+          "<ZVelocityAtLanding>0.0</ZVelocityAtLanding>",
+      ),
+    );
+    // The vertical component, as a magnitude — the file stores it signed and negative on a descent,
+    // and reading it through the generic setter would have stored a negative speed to compare an
+    // absolute one against.
+    expect(doc.simulations[0].results.groundHitVelocity).toBeCloseTo(8.50141, 5);
+    // Explicitly NOT the total, so this cannot pass by accident on a design whose drift is small.
+    expect(doc.simulations[0].results.groundHitVelocity).not.toBeCloseTo(8.97728, 3);
+  });
+
+  it("falls back to the total only when the component is genuinely absent", () => {
+    // A file that stores the summary without the components is still better compared against
+    // approximately than not at all — but the fallback must not fire while the component is there,
+    // which is what a second plain `set` call would have done by overwriting.
+    const only = adaptRktXml(design("<VelocityAtLanding>8.97728</VelocityAtLanding>"));
+    expect(only.simulations[0].results.groundHitVelocity).toBeCloseTo(8.97728, 5);
+
+    const neither = adaptRktXml(design(""));
+    expect(neither.simulations[0].results.groundHitVelocity).toBeUndefined();
+  });
+});

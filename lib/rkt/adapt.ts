@@ -611,7 +611,40 @@ function storedSim(res: XmlNode, index: number, designRailM?: number): StoredSim
   set("maxAcceleration", "MaxAcceleration");
   set("timeToApogee", "TimeToApogee");
   set("flightTime", "TimeToLanding");
-  set("groundHitVelocity", "VelocityAtLanding");
+  // **The VERTICAL component, not `VelocityAtLanding`, and this is a like-for-like correction rather
+  // than a physics change.** RockSim's `<VelocityAtLanding>` is the TOTAL ground-frame speed:
+  // measured across every stored simulation in the corpus's RockSim designs, it equals
+  // hypot(X, Y, Z) to four decimal places on 17 of 17. Loft's `groundHitVelocity` is deliberately
+  // vertical-only (`Math.abs(state.vel.z)` in `lib/sim/simulate.ts`) — wind drift moves the total
+  // without making the canopy any smaller, so a figure including it would report the weather's
+  // spread rather than the design's, which is the same reasoning the dispersion's landing speed
+  // records.
+  //
+  // Comparing one against the other is wrong in ONE DIRECTION by construction: a total is never
+  // smaller than its own vertical component, so Loft could only ever read low against it. That is
+  // exactly the signature the census has been showing and nobody had attributed — 86 of 92 flights
+  // "descending slower than stored", which a wrong coefficient would have scattered instead.
+  // `<YVelocityAtLanding>` is the vertical axis (on the ballistic runs it is within 0.1% of the
+  // total, as a near-vertical lawn dart should be; under a canopy the two part company by ~5%).
+  //
+  // `VelocityAtLanding` stays as the fallback, because a file that stores the summary without the
+  // components is still better compared against approximately than not at all — and `set` already
+  // ignores an absent or zero tag, so the fallback fires only when the component is genuinely
+  // missing. Note RockSim misspells the X tag as `XVelcoityAtLanding`; the Y tag is spelled
+  // correctly and is the only one needed here.
+  //
+  // Taken as a MAGNITUDE: the file stores the vertical component signed, and it is negative on a
+  // descent (`-8.50141`, `-161.869`). `set` accepts a negative unchanged, so reading it through the
+  // generic helper would have stored a negative speed and compared it against Loft's absolute one.
+  (() => {
+    const vy = childNum(res, "YVelocityAtLanding", NaN);
+    if (Number.isFinite(vy) && vy !== 0) {
+      results.groundHitVelocity = Math.abs(vy);
+      hasResults = true;
+      return;
+    }
+    set("groundHitVelocity", "VelocityAtLanding");
+  })();
   set("launchRodVelocity", "VelocityAtLaunchGuideEnd");
   set("optimumDelay", "OptimalDelay");
 

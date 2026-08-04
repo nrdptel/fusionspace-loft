@@ -105,7 +105,11 @@ export default function Limitations() {
         drag is only part of the story — its wetted area and mass matter as much — so the fastest,
         highest flight isn&apos;t always the lowest-wave-drag nose. Any flight above Mach 0.8 is
         flagged <em>extrapolated</em>; treat apogee and max velocity for fast flights as rough, and
-        expect the largest differences here.
+        expect the largest differences here. The flag follows the number rather than the page: the
+        flight card, the dispersion, both sweeps and the stored-flight cross-check each mark it, and
+        the sweeps mark it <em>per candidate</em> and <em>per point</em>, because a bigger motor or
+        the far end of a swept range is usually what crosses the envelope while the rest of the table
+        stays inside it.
       </p>
 
       <h3>Mass of curved shells is approximated</h3>
@@ -322,8 +326,22 @@ export default function Limitations() {
         </li>
         <li>
           <strong>The writing tool discriminates where the coefficient does not.</strong> RockSim
-          files disagree by a median <strong>25.7%</strong> against OpenRocket files&apos;{" "}
+          files disagree by a median <strong>21.9%</strong> against OpenRocket files&apos;{" "}
           <strong>7.8%</strong>, and the five worst cases in the corpus are all RockSim designs.
+        </li>
+        <li>
+          <strong>Part of that gap was a definitional difference, and it has been closed.</strong>{" "}
+          RockSim stores its landing velocity as the <em>total</em> ground-frame speed — verified as
+          the magnitude of its own three components on every stored simulation in the corpus — while
+          Loft reports the <em>vertical</em>{" "}
+          descent rate, because horizontal drift moves the total
+          without making the canopy any smaller. Comparing one against the other was wrong in a
+          single direction by construction: a total is never smaller than its vertical component, so
+          Loft could only ever read low. Reading RockSim&apos;s vertical component instead moved the
+          RockSim median from <strong>25.7%</strong> to <strong>21.9%</strong>{" "}
+          with no change to the solver. What is left is a real disagreement, and part of it is RockSim&apos;s own: one
+          design stores two different landing speeds — 83.6&nbsp;m/s and 162.0&nbsp;m/s — for eleven
+          runs of the same ballistic configuration.
         </li>
       </ul>
       <p>

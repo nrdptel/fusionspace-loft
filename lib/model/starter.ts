@@ -20,6 +20,7 @@ import type {
   Material,
 } from "./types";
 import type { OrkDocument } from "../ork/import";
+import { LOFT_AUTHORED_PARACHUTE_CD } from "../sim/recovery-defaults";
 
 const FIBREGLASS: Material = { name: "fibreglass", density: 1850, type: "bulk" };
 const G10: Material = { name: "G10 fibreglass", density: 1850, type: "bulk" };
@@ -67,7 +68,8 @@ export function newDesign(): OrkDocument {
     name: "Main parachute",
     kind: "parachute",
     placement: { method: "top", offset: 0.14 },
-    cd: 0.8,
+    cd: LOFT_AUTHORED_PARACHUTE_CD.cd,
+    cdFrom: "loft",
     diameter: 0.9,
     mass: 0.06,
     deployEvent: "apogee",

@@ -2,7 +2,15 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-import { RECOVERY_CD_DEFAULTS, ORK_PARACHUTE_CD, RASAERO_PARACHUTE_CD } from "./recovery-defaults";
+import {
+  RECOVERY_CD_DEFAULTS,
+  ORK_PARACHUTE_CD,
+  RASAERO_PARACHUTE_CD,
+  LOFT_AUTHORED_PARACHUTE_CD,
+} from "./recovery-defaults";
+import { newDesign } from "../model/starter";
+import { flattenRocket } from "../model/geometry";
+import type { Parachute } from "../model/types";
 import { DESCENT_BODY_CDA_FACTOR, DESCENT_BODY_CDA_SOURCE } from "./recovery";
 
 const read = (f: string) => readFileSync(resolve(process.cwd(), f), "utf8");
@@ -90,5 +98,43 @@ describe("the figures the descent is computed from", () => {
     expect(RECOVERY_CD_DEFAULTS.filter((d) => d.corpusHits === 0).length).toBe(4);
     // The discrepancy is written down rather than shelved, so it is not rediscovered and re-parked.
     expect(RASAERO_PARACHUTE_CD.basis).toMatch(/1\.33/);
+  });
+});
+
+describe("the coefficient a canopy Loft authored", () => {
+  /** R9 increment 4. Two places authored a canopy with a bare `cd: 0.8` and no provenance at all —
+   *  `lib/model/starter.ts` and the dual-deploy drogue applier — which the increment that
+   *  consolidated the five ADAPTER fallbacks missed, precisely because neither is adapter code. A
+   *  flyer building from scratch in Loft was flying an unattributed coefficient that no surface
+   *  could describe, because absence cannot be told apart from "nobody recorded it". */
+  it("is named, sourced honestly, and carried on the part", () => {
+    expect(LOFT_AUTHORED_PARACHUTE_CD.cd).toBeCloseTo(ORK_PARACHUTE_CD.cd, 6);
+    // Matched to OpenRocket's figure ON PURPOSE — a design authored in Loft and the same design
+    // saved and reopened as an .ork that states no `cd` must not descend differently — but with the
+    // weaker basis of the two, and it says so rather than borrowing the delegation argument.
+    expect(LOFT_AUTHORED_PARACHUTE_CD.source).toBeNull();
+    expect(LOFT_AUTHORED_PARACHUTE_CD.basis).toMatch(/no published basis/i);
+
+    // The starter design's canopy is the coefficient, and says it is Loft's.
+    const chute = flattenRocket(newDesign().rocket)
+      .map((p) => p.component)
+      .find((c): c is Parachute => c.kind === "parachute");
+    expect(chute, "the starter design has no canopy to attribute").toBeDefined();
+    expect(chute!.cd).toBeCloseTo(LOFT_AUTHORED_PARACHUTE_CD.cd, 6);
+    expect(chute!.cdFrom).toBe("loft");
+  });
+
+  it("is not typed by hand at either authoring site", () => {
+    // The same shape as the assertion guarding the five adapter fallbacks: asserted on the SOURCE,
+    // so the literal this replaced cannot quietly come back beside the constant.
+    for (const f of ["lib/model/starter.ts", "lib/model/edit.ts"]) {
+      const src = readFileSync(resolve(process.cwd(), f), "utf-8");
+      const authored = src.match(/\n\s*cd: [^,\n]+,/g) ?? [];
+      for (const line of authored) {
+        expect(line, `${f} types a recovery Cd by hand: ${line.trim()}`).toMatch(
+          /LOFT_AUTHORED_PARACHUTE_CD/,
+        );
+      }
+    }
   });
 });

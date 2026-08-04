@@ -93,7 +93,7 @@ import {
   EMPTY_HISTORY,
   type History,
 } from "@/lib/model/history";
-import type { Material, SurfaceFinish, NoseShape, FinCrossSection } from "@/lib/model/types";
+import type { Material, SurfaceFinish, NoseShape, FinCrossSection, CdProvenance } from "@/lib/model/types";
 import type { CatalogPart } from "@/lib/components/db";
 import { designMotorIdentity, swapOptions, swapStillOffered, type SwapOption,
   bakeMotorSwap,
@@ -893,19 +893,51 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
    *  because an undo can move it: restoring the edits of a step taken under another configuration while
    *  flying the current one is a flight neither the flyer nor the file ever asked for. */
   const fly = useCallback(
-    (w: WhatIf) => {
-      if (!doc) return;
+    (w: WhatIf): boolean => {
+      if (!doc) return false;
       try {
         const { run: r, baseline: b } = compute(doc, w.edits, w.weather, w.scenario, w.simIndex);
         setRun(r);
         setBaseline(b);
         setError(null);
+        return true;
       } catch (err) {
         setError(err instanceof Error ? err.message : "Could not simulate.");
+        return false;
       }
     },
     [doc, compute],
   );
+
+  /** Move to a what-if state, but ONLY if it can actually be flown — and answer whether it happened.
+   *
+   *  **A refused change must leave nothing behind, and this is the reason the whole path is shaped
+   *  this way.** The state used to be committed and the flight attempted afterwards, so a solver
+   *  throw set `error` and returned — while `setEdits` had already landed. The design panel then
+   *  redrew the new airframe with every flight number still the PREVIOUS run's, under an error
+   *  message that said nothing about the numbers being stale. Reproduced on the 38 mm sample: typing
+   *  2001 into Body diameter (mm) trips `MAX_REF_RADIUS` in `lib/sim/simulate.ts`, and the grid went
+   *  on reading 992.8 m and 4.07 cal for a rocket two metres across. A confident apogee, static
+   *  margin and landing energy for a rocket that is not the one on screen.
+   *
+   *  **Clearing the run instead would have been worse, and that is not obvious until you look.**
+   *  The load path does exactly that (`setRun(null)` beside its own `setError`), so matching it looks
+   *  like the consistent fix — but `DesignEditor` renders INSIDE `{run && …}`, so blanking the run
+   *  deletes the very field the flyer would use to correct the value. That trades a wrong number for
+   *  a state with no way out of it, which `MAINTAINING.md` ranks as the worse of the two.
+   *
+   *  So the change is simply refused, which is the idiom `NumberField` already uses for a value that
+   *  cannot fly: the design on screen and the numbers beside it stay the last pair that agreed. It
+   *  also makes the invariant self-reinforcing — an unflyable state can never enter the history, so
+   *  undo and redo can only ever restore states that flew once already. */
+  const applyWhatIfState = (w: WhatIf): boolean => {
+    if (!fly(w)) return false;
+    setEdits(w.edits);
+    setWeather(w.weather);
+    setScenario(w.scenario);
+    setSimIndex(w.simIndex);
+    return true;
+  };
 
   /** The launch conditions the flight is actually using when the Conditions fields are blank —
    *  resolved exactly as `makeConditions` resolves them, so what the greyed placeholders advertise is
@@ -962,6 +994,10 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
    *  undoable act in any editor a flyer has used, and recording it would bury the edits under it. */
   const commitWhatIf = (next: WhatIf, action: { label: string; key: string } | null) => {
     const before: WhatIf = { edits, weather, scenario, simIndex };
+    // The flight comes FIRST, and nothing below runs if it throws — see `applyWhatIfState`. A change
+    // that cannot be flown must not reach the history either: an undo step that restores a state the
+    // solver refuses is a step the flyer can never come back through.
+    if (!applyWhatIfState(next)) return;
     if (action && movedWhatIf(before, next)) {
       setHistory((h) => commitHistory(h, before, action.label, action.key, Date.now()));
     } else {
@@ -971,11 +1007,6 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
       // step — one undo took back both gestures and re-aimed the fields at the first part.
       setHistory(endRun);
     }
-    setEdits(next.edits);
-    setWeather(next.weather);
-    setScenario(next.scenario);
-    setSimIndex(next.simIndex);
-    fly(next);
   };
 
   const applyEdit = (patch: Edits, action?: { label?: string; key?: string } | null) => {
@@ -1351,23 +1382,17 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
   const undoStep = () => {
     const back = undoHistory(history, { edits, weather, scenario, simIndex });
     if (!back) return;
+    // The history only ever holds states that flew, so this cannot normally refuse — but if it does,
+    // the step is not consumed, so the flyer keeps the undo rather than losing it to a failed replay.
+    if (!applyWhatIfState(back.state)) return;
     setHistory(back.history);
-    setEdits(back.state.edits);
-    setWeather(back.state.weather);
-    setScenario(back.state.scenario);
-    setSimIndex(back.state.simIndex);
-    fly(back.state);
   };
 
   const redoStep = () => {
     const forward = redoHistory(history, { edits, weather, scenario, simIndex });
     if (!forward) return;
+    if (!applyWhatIfState(forward.state)) return;
     setHistory(forward.history);
-    setEdits(forward.state.edits);
-    setWeather(forward.state.weather);
-    setScenario(forward.state.scenario);
-    setSimIndex(forward.state.simIndex);
-    fly(forward.state);
   };
 
   const canUndo = undoLabel(history);
@@ -1665,6 +1690,11 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
             // FROM is the canopy the resize is written TO. 17 of the 35 corpus designs carry more
             // than one — every dual-deploy design does — and the drogue was unreachable on all.
             mainParachuteDiameter: primaryParachute(designBase, edits.parachuteId)?.diameter,
+            // The coefficient and its origin, read off the SAME canopy the diameter is — R9's gap:
+            // it is the one input in the recovery chain that sets landing speed and landing energy,
+            // and it was on no surface in the app at all.
+            mainParachuteCd: primaryParachute(designBase, edits.parachuteId)?.cd,
+            mainParachuteCdFrom: primaryParachute(designBase, edits.parachuteId)?.cdFrom,
             parachutePart: primaryParachutePart(designBase, edits.parachuteId),
             unreachableParachutes: unreachableParachuteCount(designBase),
             motorClusterCount: primaryMotorClusterCount(designBase),
@@ -1704,6 +1734,8 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
             finish: undefined,
             airframeMaterial: undefined,
             mainParachuteDiameter: undefined,
+            mainParachuteCd: undefined,
+            mainParachuteCdFrom: undefined,
             parachutePart: undefined,
             unreachableParachutes: 0,
             motorClusterCount: undefined,
@@ -1755,9 +1787,20 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
         </>
       )}
 
+      {/* The fault, and then what became of the change — because those are two different questions
+          and only the first was ever answered. The change is refused rather than applied (see
+          `applyWhatIfState`), so the design and the numbers below are still the last pair that
+          agreed; saying so is what stops a flyer reading the grid as the result of what they just
+          typed. Only said when there is a design on screen to be unchanged: the same card carries
+          import failures on the root route, where there is no flight to speak of. */}
       {error && (
         <Card tone="danger" className="mt-4 text-sm">
           {error}
+          {doc && (
+            <span className="block pt-1 text-zinc-700 dark:text-zinc-300">
+              The change was not applied — the design and the flight below are unchanged.
+            </span>
+          )}
         </Card>
       )}
 
@@ -2175,6 +2218,29 @@ function ConfigPicker({
  *  airframe. It lives in the Design workspace next to the to-scale diagram it edits, so building
  *  and editing are the same surface. Every change is a hypothetical on the loaded design, so the
  *  stored-tool comparison is hidden while any is set. */
+/** How to say where a canopy's drag coefficient came from, in the flyer's terms rather than the
+ *  model's.
+ *
+ *  Three values, and the third is why `CdProvenance` gained a member: a chute Loft itself authored —
+ *  the starter design's, or the drogue the dual-deploy editor adds — used to carry no provenance at
+ *  all, and absence cannot be told apart from "nobody recorded it". `undefined` therefore still
+ *  means exactly that, and says so rather than guessing.
+ *
+ *  There is deliberately no "from the catalogue" case: 0 of the 151 catalogued canopies publish a
+ *  coefficient, so a pick leaves the field as it found it. */
+function cdOriginPhrase(from: CdProvenance | undefined): string {
+  switch (from) {
+    case "file":
+      return "the design file's own figure";
+    case "default":
+      return "Loft's fallback, because the file states none";
+    case "loft":
+      return "Loft's own, for a canopy authored here";
+    default:
+      return "origin not recorded";
+  }
+}
+
 function DesignEditor({
   units,
   edits,
@@ -2225,6 +2291,8 @@ function DesignEditor({
     finish?: SurfaceFinish;
     airframeMaterial?: string;
     mainParachuteDiameter?: number;
+    mainParachuteCd?: number;
+    mainParachuteCdFrom?: CdProvenance;
     parachutePart?: AimedPart;
     unreachableParachutes: number;
     motorClusterCount?: number;
@@ -2847,6 +2915,42 @@ function DesignEditor({
                   />
                 )}
               </div>
+              {/* **The coefficient the whole descent is computed from, and where it came from.**
+                  R9's gap: landing speed and landing energy are what an RSO and a waiver check, this
+                  is the single input that sets them, and it was on no surface in the app — a flyer
+                  could not see it, could not tell whose number it was, and (still, until increment
+                  5) cannot change it.
+
+                  Rendered as a note rather than as a `Readout` card or a disabled `NumberField`,
+                  which is a `DESIGN.md` §5 judgement rather than a shortcut: the fieldset already
+                  states its unreachable-canopy note in exactly this treatment, a `Readout` card
+                  among four `NumberField`s would read as a different KIND of thing, and a disabled
+                  number box advertises an edit that does not exist yet. `DESIGN.md` §6 requires a
+                  reference value to name its source, which is the sentence rather than the number.
+
+                  The origin has three real values and not the four R9's *done when* names. A
+                  catalogue pick cannot be one: 0 of the 151 catalogued canopies publish a
+                  coefficient, so a pick leaves this field exactly as it found it — which
+                  `PartPicker` already tells the flyer in words. Saying "catalogue part" here would
+                  be inventing a provenance the data cannot support. */}
+              {designDims.mainParachuteCd !== undefined && (
+                <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
+                  Drag coefficient{" "}
+                  <span className="font-mono tabular-nums text-zinc-700 dark:text-zinc-300">
+                    {d.fmt(designDims.mainParachuteCd, 2)}
+                  </span>{" "}
+                  — {cdOriginPhrase(designDims.mainParachuteCdFrom)}. It sets the descent rate,
+                  arrival speed and landing energy above.{" "}
+                  <Link
+                    href="/docs/limitations"
+                    className="text-indigo-600 underline underline-offset-2 dark:text-indigo-400"
+                  >
+                    What backs each figure
+                  </Link>
+                  .
+                </p>
+              )}
+
               {/* The third kind the catalogue can offer, and the first that is not airframe. It edits
                   the canopy that is already there — the same shape as a nose pick, and for the same
                   reason: the model requires a drag coefficient and a deploy event, and the catalogue

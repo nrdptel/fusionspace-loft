@@ -18,7 +18,7 @@ import DataTable, { type Column } from "./DataTable";
 import { compareCells } from "@/lib/table-sort";
 import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
-import { Button, Card, ClosePanel, useReturnFocus } from "./ui";
+import { Button, Card, ClosePanel, Extrapolated, useReturnFocus } from "./ui";
 
 const round = (n: number, dp: number) => (Number.isFinite(n) ? Math.round(n * 10 ** dp) / 10 ** dp : "");
 
@@ -279,7 +279,7 @@ function sweepCsv(rows: MotorSweepRow[], units: UnitSystem): CsvCell[][] {
   const alt = units === "imperial" ? "ft" : "m";
   const toAlt = (m: number) => (units === "imperial" ? mToFt(m) : m);
   const toSpd = (mps: number) => (units === "imperial" ? mpsToFtps(mps) : mps);
-  const header: CsvCell[] = ["Motor", "Manufacturer", "Class", `Apogee (${alt})`, `Max velocity (${spd})`, `Rail-exit (${spd})`, "Thrust-to-weight", "Static margin (cal)", "Fin flutter margin (x)", "Optimum delay (s)", "Design"];
+  const header: CsvCell[] = ["Motor", "Manufacturer", "Class", `Apogee (${alt})`, `Max velocity (${spd})`, `Rail-exit (${spd})`, "Thrust-to-weight", "Static margin (cal)", "Fin flutter margin (x)", "Optimum delay (s)", "Design", "Extrapolated"];
   const body: CsvCell[][] = rows.map((r) => [
     r.designation,
     r.manufacturer,
@@ -294,6 +294,10 @@ function sweepCsv(rows: MotorSweepRow[], units: UnitSystem): CsvCell[][] {
     round(r.flutterMargin, 3),
     round(r.optimumDelay, 1),
     r.isDesign ? "yes" : "",
+    // The export carries the caveat too. A ranking pasted into a build thread is the artifact that
+    // outlives the session, and without this column it left here byte-identical to a validated one —
+    // the same "confident claim in one place" this whole change exists to stop, one step further out.
+    r.extrapolatedTransonic ? "past M0.8 — outside the validated drag envelope" : "",
   ]);
   return [header, ...body];
 }
@@ -418,7 +422,19 @@ function SweepTable({
   // to the `<td>`-level class it replaces, and the primitive keeps ownership of the cell's own layout.
   const amber = (on: boolean) => (on ? "text-amber-700 dark:text-amber-300" : undefined);
   const cells: Record<string, (r: MotorSweepRow) => React.ReactNode> = {
-    apogee: (r) => d.q(d.altitude(r.apogee, units)),
+    // A row whose flight left the validated subsonic envelope is marked on the apogee cell, in the
+    // table's own `Flag` idiom rather than a second vocabulary. It is per ROW because a motor sweep
+    // exists to rank candidates against each other and a bigger motor is what pushes a design
+    // through M0.8 — so the top of the ranking is the part most likely to be extrapolated while the
+    // rows it beat are not, and a caveat over the whole table could not say which.
+    apogee: (r) => (
+      <span className={amber(r.extrapolatedTransonic)}>
+        {d.q(d.altitude(r.apogee, units))}
+        {r.extrapolatedTransonic && (
+          <Flag note="extrapolated: this flight reaches past M0.8, outside the drag model's validated subsonic envelope" />
+        )}
+      </span>
+    ),
     maxVelocity: (r) => d.q(d.speed(r.maxVelocity, units)),
     railExitVelocity: (r) => {
       const slow = r.railExitVelocity > 0 && r.railExitVelocity < RAIL_EXIT_GUIDELINE_MPS;
@@ -516,6 +532,14 @@ function SweepTable({
   // small difference is the method rather than a discrepancy.
   const gap = ballisticGap(sorted.find((r) => r.isDesign)?.apogee, designApogee);
 
+  // How much of the ranking is outside the drag model's validated envelope. The per-row flag above
+  // says WHICH candidates; this says how much of the table to read that way, and carries the reason
+  // in words for the flyer who never hovers a cell.
+  const exN = rows.filter((r) => r.extrapolatedTransonic).length;
+  const extrapolatedWhy = exN
+    ? `${exN} of ${rows.length} candidates reach past M0.8, outside the drag model's validated subsonic envelope — those rows are marked, and are rough`
+    : undefined;
+
   return (
     <div className="mt-3">
       <DataTable
@@ -544,6 +568,18 @@ function SweepTable({
           each other, not with the flight above.
         </p>
       )}
+      {/* BELOW the table, with the other flag explanations, and that placement is measured rather
+          than aesthetic. Above it, this marker pushed the first swept row from 1,260 px to 1,348 px
+          on a 390x664 phone — past the 1,328 px `DESIGN.md` §8 allows to the primary answer, a
+          contract this very panel already broke once and closed by moving its own preamble out of
+          the way. The per-row ▲ is inside the table and costs the answer no height at all, so the
+          flyer meets the marking on the row they are reading and the reason where every other flag
+          on this table explains itself. */}
+      {extrapolatedWhy && (
+        <div className="mt-3">
+          <Extrapolated reason={extrapolatedWhy} />
+        </div>
+      )}
       <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
         Each motor flies a ballistic ascent to apogee under{" "}
         {conditionsPhrase(conditions, { wind: false })}
@@ -554,7 +590,10 @@ function SweepTable({
         </span>{" "}
         marks any that falls under its rule of thumb — the same ~{LIFTOFF_TWR_GUIDELINE}:1,
         ~15&nbsp;m/s (≈50&nbsp;ft/s) and {RECOMMENDED_FLUTTER_MARGIN}× thresholds the flight itself
-        cautions on, so a motor cannot pass unmarked here and raise a caution once you pick it. The
+        cautions on, so a motor cannot pass unmarked here and raise a caution once you pick it. On{" "}
+        <em>Apogee</em> the same mark means something different and is worth reading as such: not a
+        safety threshold, but that this candidate flies past M0.8 and out of the drag model&apos;s
+        validated envelope, so its altitude is a rougher estimate than the rows below it. The
         rail is the one being flown, so shortening it under <em>Conditions</em> moves that column.
         Surface wind is not read at all —
         a ballistic ascent has no recovery to drift. <em>Delay</em>{" "}

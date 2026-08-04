@@ -53,7 +53,8 @@ export default function DocsOverview() {
         let the flyer and the RSO decide. It shows stability margin, rail-exit velocity, apogee,
         and descent and drift, and it <strong>warns when a flight leaves the validated envelope</strong>{" "}
         (transonic/supersonic, marginal stability, low rail exit, too little thrust to leave the
-        pad) — but it never tells you whether
+        pad, a recovery device that never opens, and a design that carries none at all) — but it
+        never tells you whether
         to fly. The motor&apos;s printed data and the range safety officer are always authoritative.
       </p>
 

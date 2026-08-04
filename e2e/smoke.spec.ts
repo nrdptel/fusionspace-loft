@@ -997,8 +997,16 @@ test.describe("Loft", () => {
     // flight went transonic or not. The marker rides the numbers the extrapolation actually drives.
     const marks = page.getByText("extrapolated", { exact: true });
     expect(await marks.count(), "no number is marked as extrapolated on a transonic flight").toBeGreaterThan(0);
-    // It carries the reason and the range, not just a label — §5 asks for both.
-    await expect(marks.first()).toHaveAttribute("title", /M\d|envelope|subsonic/i);
+    // It carries the reason and the range, not just a label — §5 asks for both. Scoped to the
+    // `Extrapolated` badge rather than to whichever mark happens to be first in the document: the
+    // design-summary strip above now carries one too, and that one deliberately has no `title`,
+    // because a `title` is unreachable on a coarse pointer and the strip renders on all four routes
+    // (the phone suite's hover-only ratchet counts exactly that). Its reason travels by accessible
+    // name; the `abbr` is the mark whose contract is the hover.
+    await expect(page.locator("abbr", { hasText: /^extrapolated$/ }).first()).toHaveAttribute(
+      "title",
+      /M\d|envelope|subsonic/i,
+    );
     // A dual-deploy flight reports two descent rates: the fast phase under the drogue and the slower
     // final descent under the main — a single-deploy flight shows only the one.
     const results = page.getByLabel("Results");
@@ -1564,6 +1572,54 @@ test.describe("Loft", () => {
     await expect(table.getByRole("row").filter({ hasText: /g|kg/ })).not.toHaveCount(0);
     // The heaviest structural part of this sample is the body tube.
     await expect(table.getByText("Body tube", { exact: true })).toBeVisible();
+  });
+
+  test("motor sweep marks the candidates that leave the drag model's envelope", async ({ page }) => {
+    // The RENDER half of a Sev-1 whose data half is pinned in `lib/sim/extrapolated-reach.test.ts`.
+    // `extrapolatedTransonic` reached exactly one surface — the flight card — so a flyer picking a
+    // motor here saw the fast candidates presented identically to the validated ones, while the same
+    // flight one route away said "treat it as rough". A unit test can prove the flag arrives on the
+    // row; only this can prove a flyer is told.
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+
+    await page.getByRole("link", { name: "Sweep" }).click();
+    const panel = page.getByRole("region", { name: "Motor sweep" });
+    await panel.getByRole("button", { name: /Run motor sweep/ }).click();
+    const rows = panel.locator("tbody tr");
+    await expect.poll(async () => rows.count(), { timeout: 60_000 }).toBeGreaterThan(2);
+
+    // The panel-level marker names how much of the ranking is outside the envelope. Asserted as the
+    // IDEA rather than as a literal sentence, so rewording the caveat does not red the check while
+    // deleting it does.
+    const marker = panel.getByText(/candidates reach past M0\.8/);
+    await expect(
+      marker,
+      "the sweep flew a candidate past M0.8 and said nothing about the envelope",
+    ).toBeVisible();
+
+    // And the marking is per row, on the row that EARNS it. Asserting only "some row is flagged"
+    // would stay green if the flag attached to the wrong candidate, which is the failure that
+    // matters here: a flyer picks one row out of this table. The sweep is sorted apogee-descending
+    // and the fastest candidates are the ones that cross M0.8, so the flag has to be on the top row
+    // and off the bottom one — that pair is the assertion.
+    const flaggedRows = panel.locator("tbody tr").filter({
+      has: page.getByText(/outside the drag model's validated subsonic envelope/),
+    });
+    await expect.poll(async () => flaggedRows.count(), { timeout: 15_000 }).toBeGreaterThan(0);
+    const n = await rows.count();
+    // Not every row — a caveat that applied to all of them would say nothing about which motor to
+    // pick, which is the whole job of this table.
+    expect(await flaggedRows.count()).toBeLessThan(n);
+    await expect(
+      rows.first().getByText(/outside the drag model's validated subsonic envelope/),
+      "the highest-flying candidate is the one that crosses M0.8, and it is not the row marked",
+    ).toHaveCount(1);
+    await expect(
+      rows.nth(n - 1).getByText(/outside the drag model's validated subsonic envelope/),
+      "the slowest candidate stays inside the envelope and must not be marked",
+    ).toHaveCount(0);
   });
 
   test("motor sweep exports the comparison as a CSV", async ({ page }) => {
@@ -3280,6 +3336,101 @@ test.describe("Loft", () => {
 
     // A fatter airframe has a bigger frontal area (more drag) and more tube material, so it flies lower.
     await expect.poll(apogee).toBeLessThan(before);
+  });
+
+  test("an edit the solver refuses leaves the design and its numbers agreeing", async ({ page }) => {
+    // SEV-1. The what-if state was committed BEFORE the flight was attempted, so a solver throw set
+    // the error and returned with `setEdits` already landed: the design panel redrew the new
+    // airframe while every flight number stayed the previous run's, under a message that said
+    // nothing about them being stale. A confident apogee and static margin for a rocket that is not
+    // the one on screen.
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+
+    // The same locator the neighbouring diameter test uses — the readout is found by walking from
+    // its own label, which is what keeps it pointing at the value rather than at a sibling tile.
+    const apogee = async () => {
+      const txt = await page
+        .getByLabel("Results")
+        .getByText("Apogee", { exact: true })
+        .locator("xpath=following-sibling::div[1]")
+        .innerText();
+      return parseFloat(txt.replace(/[^\d.]/g, ""));
+    };
+    const before = await apogee();
+    expect(before).toBeGreaterThan(0);
+
+    await page.getByRole("link", { name: "Design" }).click();
+    const bodyDia = page.getByRole("spinbutton", { name: /Body diameter/ });
+    await expect(bodyDia).toBeVisible();
+    const designDia = parseFloat((await bodyDia.getAttribute("placeholder")) ?? "0");
+    expect(designDia).toBeGreaterThan(0);
+
+    // Past `MAX_REF_RADIUS` in lib/sim/simulate.ts, which throws rather than returning a flight.
+    await bodyDia.fill("2001");
+    await bodyDia.blur();
+
+    // The refusal is stated, AND it says what became of the change — the fault alone left the flyer
+    // to guess whether the grid below was the old design or the new one.
+    const err = page.getByText(/implausibly large/);
+    await expect(err, "the solver refused the value and the app said nothing").toBeVisible();
+    await expect(
+      page.getByText(/The change was not applied/),
+      "a refusal has to say what happened to the change, not just what was wrong with it",
+    ).toBeVisible();
+
+    // The editor is still there to correct the value in. Clearing the run would have removed it —
+    // `DesignEditor` renders inside the run gate — which is a state with no way out.
+    await expect(bodyDia, "the field that caused the refusal must still be reachable").toBeVisible();
+
+    // THE assertion, and it is about the design rather than the numbers. On a throw the run is not
+    // replaced either way, so the apogee reads the same whether the edit committed or not — which is
+    // exactly what made this defect invisible. What actually differed is that the refused edit
+    // LANDED IN THE WHAT-IF STATE: the design went on reading as edited, the stored-tool comparison
+    // stayed withheld, and the panel described a 2 m airframe that was never flown. A design nobody
+    // successfully changed must not report itself as changed.
+    await expect(
+      page.getByRole("button", { name: /Reset to as-designed/ }),
+      "a refused edit was committed to the what-if state, so the design reads as edited",
+    ).toBeHidden();
+
+    // And the numbers still describe the design that is actually loaded.
+    await page.getByRole("link", { name: "Flight" }).click();
+    expect(await apogee(), "the flight numbers moved for a design that was never flown").toBeCloseTo(
+      before,
+      1,
+    );
+
+    // The way back out: a value that CAN fly is accepted, so the refusal is not a dead end.
+    await page.getByRole("link", { name: "Design" }).click();
+    await bodyDia.fill(String(Math.round(designDia * 1.5)));
+    await page.getByRole("link", { name: "Flight" }).click();
+    await expect.poll(apogee, { timeout: 15_000 }).toBeLessThan(before);
+  });
+
+  test("the design says what its canopy's drag coefficient is, and whose number it is", async ({ page }) => {
+    // R9's gap. Landing speed and landing energy are what a field and a waiver are checked against,
+    // the parachute drag coefficient is the single input that sets them, and it was on no surface in
+    // the app at all — a flyer could not see it and could not tell whose figure it was.
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+    await page.getByRole("link", { name: "Design" }).click();
+
+    const cd = page.getByText(/Drag coefficient/);
+    await expect(cd, "the canopy's drag coefficient is on no surface").toBeVisible();
+    // The number itself, and it is the one being flown rather than a placeholder.
+    await expect(cd).toContainText(/0\.\d/);
+    // And whose it is. This fixture's canopy states `<cd>0.8</cd>` outright — verified in the file,
+    // not assumed — so the honest attribution here is the file's, and a design whose canopy said
+    // nothing would read as Loft's fallback instead. Asserted as the IDEA rather than the exact
+    // sentence, so rewording does not red the check while removing the attribution does.
+    // DESIGN.md section 6 requires a reference value to name its source; the number alone cannot.
+    await expect(
+      cd,
+      "the coefficient is shown without saying whether it is the file's figure or Loft's",
+    ).toContainText(/design file's own figure/);
   });
 
   test("unit toggle switches to imperial", async ({ page }) => {

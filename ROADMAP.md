@@ -1946,9 +1946,46 @@ same internal Rocket model an imported one does, or the solver ends up with two 
 
 ## R9 — The descent Loft cannot defend, and the flyer cannot reach
 
-**Status: IN PROGRESS** — increments 1, 2 and 3 shipped 2026-08-03, along with the decomposition.
+**Status: IN PROGRESS** — increments 1, 2 and 3 shipped 2026-08-03, increment 6 on 2026-08-04.
 **Increment 3 disproved the milestone's own premise and the remaining increments are re-aimed** —
-read its entry before building 4 onward, and note the *done when* is amended there.
+read its entry before building 4 onward, and note the *done when* is amended there. **Increment 6
+then found the RockSim half of the error was not physics at all** — read its entry before assuming
+the remaining 21.9% is Loft's to fix. Increments 4, 5 and 7 remain: the coefficient on screen,
+editable, and the census re-published.
+
+*Increment 6 — SHIPPED 2026-08-04. The RockSim gap attributed to a named cause, and most of what
+was attributable fixed. No engine change.*
+
+**RockSim stores the TOTAL ground-frame landing speed; Loft reports the VERTICAL descent rate.** The
+census had been comparing one against the other. Verified rather than inferred: `<VelocityAtLanding>`
+equals hypot(X, Y, Z) of its own three component tags to four decimal places on **17 of 17** stored
+simulations across the corpus's RockSim designs. A total is never smaller than its own vertical
+component, so Loft could only ever read low against it — which is exactly the one-directional
+signature increment 3 measured and could not explain ("86 of 92 descend SLOWER than stored", where a
+merely wrong coefficient would scatter).
+
+Reading `<YVelocityAtLanding>` instead, as a magnitude (the file stores it signed and negative on a
+descent):
+
+```
+rocksim ground-hit velocity, median |Δ|:   25.7%  ->  21.9%
+```
+
+with nothing Loft flies having moved. The overall `groundHitVelocity` median is unchanged at 8.3%
+(n=94) because RockSim is 16 of the 92 attributed rows and OpenRocket dominates the median.
+
+**What is left is not all Loft's, and the next session should not assume it is.** Of the 17 `.rkt`
+comparison rows, 11 are one design's plugged-motor BALLISTIC runs — RockSim's own
+`<HasDeployed>0</HasDeployed>` and `<FinalState>4</FinalState>` — pooled with canopy descents by a
+census that filters only on `hasPropulsion && validation`. And that design stores **83.6 m/s and
+162.0 m/s for eleven runs of the same ballistic configuration**, a 1.94x self-disagreement no
+coefficient or drag model can satisfy. Splitting deployed from ballistic rows before comparing is the
+obvious next measurement; it is filed rather than queued, because R9's remaining increments are the
+Cd surface and this is now a corpus-methodology question.
+
+Pinned by two cases in `lib/rkt/adapt.test.ts` — the vertical component is read as a magnitude and is
+explicitly asserted NOT to be the total, and the fallback to the total fires only when the component
+is absent.
 
 *Increments 1 and 2 — SHIPPED. Six figures the descent is computed from, in one place each, saying
 what backs them. No flown number moved, and that was the contract.*
@@ -3347,7 +3384,31 @@ invariant: whatever ships here ships in both apps.
 
 ## P6 — The primitives the design system already declares
 
-**Status:** NOT STARTED
+**Status: IN PROGRESS** — increment 1 shipped 2026-08-04 (`Readout`), plus `Extrapolated`, which
+arrived early as a Sev-1 fix rather than as planned P6 work.
+
+*Increment 1 — SHIPPED. `Readout` exists and `ResultsView`'s sixteen readouts go through it.*
+
+Lifted from that file's own local `Stat` rather than designed fresh: it had already grown every axis
+§5 asks for — unit in its own span, accent, the withheld em-dash-with-a-reason, the extrapolated
+caveat — each added on a separate occasion for a recorded reason. The defect was never the API; it
+was that sixteen readouts on one page could reach it and no other surface could. DOM unchanged class
+for class, proved by 227 e2e cases passing unmodified (several locate these readouts by walking a
+label's following sibling).
+
+*`Extrapolated` — SHIPPED 2026-08-04, out of order and for a different reason.* It was needed to fix
+a Sev-1: the transonic caveat existed only inside that same local `Stat`, so ONE surface marked a
+number outside the drag model's envelope while five others flying the same solver rendered theirs as
+validated. **That is the strongest argument this milestone has**, and it was found by measurement
+rather than by the audit: a treatment written inline is invisible to a check that counts imports, so
+nothing in `lib/design-system.test.ts` could see it. Both primitives now carry a per-primitive
+ratchet, which is what stops the next one being found the same way.
+
+**Next: `Select` (12 hand-rolled `<select>` elements in 5 class strings), then
+`EmptyState`/`ErrorState`, then `Panel` and `Figure`.** The `Readout` queue behind increment 1 is
+measured and waiting: `Field` (14 sites in the same file, a pre-formatted-string value),
+`MonteCarlo`'s `StatCard`/`WithheldCard`/`RadiusCard` (6, differing only in what fills `sub`), and
+the what-if delta rows (5, a before → after → change shape the API does not yet express).
 
 **Outcome.** `DESIGN.md` §5's component vocabulary stops being a description of what the app should
 have and becomes what it is built from — so a surface added next run inherits the system instead of
@@ -3488,6 +3549,30 @@ cheaply instead of re-derived. Newest first.
   builder, a 2,990-part catalogue, sweeps, Monte-Carlo and two cross-check solvers. **Rejected
   alternative:** leave it at 0.1.0 and let the changelog carry the meaning. That ships a version
   string that is visibly false on the one surface the milestone added it to.
+
+- **2026-08-04 — an edit the solver refuses is DISCARDED, rather than shown with the previous
+  flight's numbers or with no numbers at all.** Three options, and the middle one is the one that
+  looks right and is not. Keeping the edit and marking the numbers stale means a staleness state on
+  every readout on every surface, and `MAINTAINING.md` is explicit that a presentation change has to
+  reach all of them. Clearing the run matches what the load path already does beside its own
+  `setError` — and would have deleted the design editor, which renders inside the run gate, leaving
+  a flyer with a red card and no field to correct the value in: a one-way door, which outranks a
+  wrong number. So the change is refused and nothing on screen moves. **What this COSTS:** a flyer
+  who types an impossible value sees it revert rather than persist while they think about it. That is
+  the idiom `NumberField` already uses for a value that cannot fly, so it is at least consistent.
+  Reverse it by giving `ResultsView` a stale flag and threading it through every readout — a real
+  improvement, and a much larger change than this was.
+
+- **2026-08-04 — the RockSim landing-speed comparison was changed rather than filed as a
+  `knownIssue`.** Moving what a fixture is compared against is close to loosening a tolerance, and
+  `MAINTAINING.md` forbids the latter outright, so the distinction matters: this does not widen any
+  bound, it stops comparing a vertical speed against a total one. The evidence is that RockSim's
+  `<VelocityAtLanding>` is exactly hypot of its own three component tags on 17 of 17 stored
+  simulations, so the two numbers were never the same physical quantity. **Rejected alternative:**
+  record a `knownIssue` and leave the 25.7% standing. That would have published a Loft accuracy
+  figure that is partly an artefact of reading the wrong tag, on the page that claims Loft's
+  accuracy. Reverse it by restoring the single `set("groundHitVelocity", "VelocityAtLanding")` line;
+  the two cases in `lib/rkt/adapt.test.ts` say what that would mean.
 
 - **2026-08-03 — a picked coupler or centring ring WIDER than its host's bore is accepted, not
   refused.** The length rule refuses, because a shortened part under a vendor's part number is a wrong
