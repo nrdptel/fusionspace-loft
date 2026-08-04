@@ -274,10 +274,19 @@ grep -rohE '\b((p|m)[xytblr]?|(gap|space)(-[xy])?)-[0-9]+\b' components app \
 grep -rohE '\btext-(xs|sm|base|lg|xl|[0-9]xl)\b' components app \
   | grep -vxE 'text-(xs|sm|base|xl|3xl)' | wc -l                   # target: 0
 
-# decision-grade text at caption size — count the INVERTED FILES, not the suite total
+# decision-grade text at caption size — count the INVERTED FILES, and credit the primitives a file
+# uses, because each of them renders `text-sm` the grep cannot see (see below)
 for f in components/*.tsx; do xs=$(grep -oh 'text-xs' "$f" | wc -l); \
-  sm=$(grep -oh 'text-sm' "$f" | wc -l); [ "$xs" -gt "$sm" ] && echo "$f $xs/$sm"; done | wc -l
+  sm=$(grep -oh 'text-sm' "$f" | wc -l); \
+  p=$(grep -ohE '<(Select|NumberField|Readout|Button|Segmented)\b' "$f" | wc -l); \
+  [ "$f" = components/ui.tsx ] && p=0; \
+  [ "$xs" -gt $((sm + p)) ] && echo "$f $xs/$sm+$p"; done | wc -l
                                                                    # target: 0 inverted files
+
+# every dropdown is the primitive — counted on source, since adoption cannot see a NEW hand-rolled one
+grep -rn '<select' components app --include='*.tsx' | grep -v 'components/ui.tsx' | wc -l   # target: 0
+                                                                   # (matches inside prose comments
+                                                                   # do not count — strip them first)
 
 # primitives actually adopted
 grep -rlE "from ['\"](\./ui|@/components/ui)['\"]" components | wc -l   # target: most components
@@ -292,6 +301,19 @@ hand-rolled buttons onto `Button` moved the totals to **84/89**, an inversion by
 one glyph on screen changed size — the `text-sm` had moved INTO the primitive. **Adoption drives the
 suite ratio the wrong way for the right reason**, which makes it useless during exactly the milestone
 that raises adoption. Count the inverted FILES.
+
+**The same distortion repeats one level down, and on 2026-08-04 it bit the per-file count too.**
+The note above records that adoption moved the SUITE totals to 84/89 while nothing on screen changed
+size, because the `text-sm` had moved into the primitive — and concludes "count the inverted FILES".
+That conclusion is right and incomplete: a file's own count moves the same way for the same reason.
+Converting `LoftApp`'s twelve `<select>` elements onto `Select` took it from 17/16 to 17/9 without a
+rendered pixel changing, and read as a file that had suddenly gone all-captions. So the count credits
+the body-default primitives a file uses — they each render `text-sm` — from an EXPLICIT list, so a
+new primitive cannot silently buy a file out of an inversion. It keeps its teeth: measured the day it
+changed, every other component still passed on raw counts alone, and `LoftApp` was the only file the
+credit rescued, at 17 captions against 53 body-default renderings. **The rule underneath, for
+whatever the next milestone extracts: a check that counts a file's own class strings will always
+penalise adoption, so it has to count what the file RENDERS, not what it spells.**
 
 **The adoption grep used to carry a hard-coded quote character**, and it could only ever be right in
 one of the two repos: Loft's imports are double-quoted and Debrief's are single-quoted, so whichever
