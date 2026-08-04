@@ -182,13 +182,31 @@ export default async function Validation() {
       <ul>
         <li>time to apogee <strong>1.5%</strong>, rail-exit velocity <strong>1.9%</strong></li>
         <li>max Mach <strong>2.0%</strong>, max velocity <strong>2.2%</strong>, optimum delay <strong>2.5%</strong></li>
-        <li>apogee <strong>3.1%</strong>, max acceleration <strong>3.2%</strong>, flight time <strong>3.3%</strong></li>
-        <li>ground-hit velocity <strong>2.0%</strong>, deployment velocity <strong>6.0%</strong></li>
+        <li>apogee <strong>3.1%</strong>, max acceleration <strong>3.2%</strong>, flight time <strong>3.1%</strong></li>
+        <li>ground-hit velocity <strong>1.3%</strong>, deployment velocity <strong>6.0%</strong></li>
       </ul>
       <p>
+        <strong>Two of those are over flights that came down under a canopy.</strong>{" "}
+        Ground-hit velocity and flight time are reported over the <strong>82</strong>{" "}
+        stored runs that are not ballistic &mdash; <strong>70</strong>{" "}
+        where the file states a recovery device came out, and 12 where it states nothing either way.
+        Both formats record it: OpenRocket writes a{" "}
+        <code>recoverydevicedeployment</code>{" "}event into the flight log it saves with each run, and
+        RockSim records it per device. The other <strong>12</strong>{" "}
+        came down with nothing out &mdash; one design in the corpus stores eleven plugged runs
+        against four canopy ones &mdash; and they are worse, on their own line rather than averaged
+        in: ground-hit velocity <strong>14.9%</strong>, flight time <strong>4.8%</strong>. A descent
+        at 160 m/s and a descent at 9 m/s are different flights, and a median over both is a number
+        about neither. <strong>
+          The ballistic figure is the weakest number on this page
+        </strong>, which is the point of separating it: Loft&apos;s no-recovery descent is where its
+        drag model is furthest from a tool that has one, and pooling it with canopy descents hid
+        that in both directions.
+      </p>
+      <p>
         <strong>
-          Ground-hit velocity went 3.0% &rarr; 8.3% &rarr; 2.0%, and not one of those moves was the
-          engine.
+          Ground-hit velocity went 3.0% &rarr; 8.3% &rarr; 2.0% &rarr; 1.3%, and not one of those
+          moves was the engine.
         </strong>{" "}
         All three were the same mistake found in three places: Loft&apos;s figure and the stored
         figure it was scored against were not always the same physical quantity, and nothing recorded
@@ -218,13 +236,23 @@ export default async function Validation() {
           simulations are on the newer side. Comparing each file against the quantity its own version
           actually stored took the OpenRocket median from 7.8% to <strong>1.2%</strong>.
         </li>
+        <li>
+          <strong>And eleven of the comparisons were lawn darts.</strong> One RockSim design stores
+          fifteen runs of the same rocket: four with its parachutes out, and eleven plugged, coming
+          down ballistically at 83&ndash;162 m/s. The file marks which is which, per recovery device,
+          and Loft was reading neither mark &mdash; so eleven no-recovery descents were being
+          averaged into a figure describing canopy ones. Counting them separately took the canopy
+          figure from 2.0% to <strong>1.3%</strong> and put the ballistic runs on the line above at
+          14.9%.
+        </li>
       </ul>
       <p>
-        So <strong>2.0%</strong>{" "}
+        So <strong>1.3%</strong>{" "}
         is the first figure here that measures what it always claimed to:
-        how far Loft&apos;s descent is from the tool&apos;s, rather than how far a vertical speed is
-        from a total one. The remaining gap is Loft&apos;s own, and it is now the same order as the
-        rest of the census rather than three times its worst.
+        how far Loft&apos;s descent under a canopy is from the tool&apos;s, rather than how far a
+        vertical speed is from a total one, or a lawn dart from a parachute. The remaining gap is
+        Loft&apos;s own, and it is now the smallest number in the census rather than three times its
+        worst.
       </p>
       <p>
         Deployment velocity looks like the outlier and mostly isn&apos;t: it is an{" "}

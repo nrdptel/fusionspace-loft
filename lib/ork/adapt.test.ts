@@ -807,3 +807,47 @@ describe("which quantity a stored landing velocity actually is", () => {
     );
   });
 });
+
+describe("whether an .ork says a recovery device came out", () => {
+  /** A minimal design with one simulation whose `<flightdata>` carries the given event log. */
+  const design = (branch: string) =>
+    `<openrocket version="1.9" creator="OpenRocket 24.12"><rocket><name>d</name><subcomponents><stage><name>S</name><subcomponents>
+        <nosecone><length>0.15</length><aftradius>0.027</aftradius><shape>ogive</shape><thickness>0.002</thickness></nosecone>
+        <bodytube><length>0.6</length><radius>0.027</radius><thickness>0.001</thickness></bodytube>
+      </subcomponents></stage></subcomponents></rocket>
+      <simulations><simulation status="uptodate"><name>S1</name><conditions><launchrodlength>1</launchrodlength></conditions>
+      <flightdata maxaltitude="300" groundhitvelocity="6.2">${branch}</flightdata></simulation></simulations></openrocket>`;
+
+  const branch = (...types: string[]) =>
+    `<databranch name="Sustainer" types="Time,Altitude">${types
+      .map((t, i) => `<event time="${i}" type="${t}"/>`)
+      .join("")}</databranch>`;
+
+  it("reads the deployment out of the event log the format has always written", () => {
+    // The `.ork` importer read `<flightdata>`'s summary ATTRIBUTES and never opened its
+    // `<databranch>`, so this was filed as "OpenRocket does not state it". It does: 77 of the
+    // corpus's 91 stored flights carry this event.
+    const doc = adaptOrkXml(design(branch("launch", "burnout", "apogee", "recoverydevicedeployment", "groundhit")));
+    expect(doc.simulations[0].recoveryDeployed).toBe(true);
+  });
+
+  it("reads an event log with no deployment in it as exactly that", () => {
+    // No file in the corpus is this today — every `.ork` that logs events logs a deployment — so it
+    // is asserted here rather than measured there. A tumbling descent with nothing out is a normal
+    // thing for OpenRocket to record, and it must not read as a canopy.
+    const doc = adaptOrkXml(design(branch("launch", "burnout", "apogee", "tumble", "groundhit")));
+    expect(doc.simulations[0].recoveryDeployed).toBe(false);
+  });
+
+  it("leaves a summary-only save undefined, rather than calling it ballistic", () => {
+    // 14 of the corpus's stored `.ork` flights are saved with results and no event log at all.
+    // Reading those as "nothing deployed" would move fourteen canopy descents into the ballistic
+    // population and take its published median with them.
+    expect(adaptOrkXml(design("")).simulations[0].recoveryDeployed).toBeUndefined();
+    // A databranch with data points but no events is the same case, not a different one.
+    expect(
+      adaptOrkXml(design(`<databranch name="Sustainer" types="Time,Altitude"><datapoint>0,0</datapoint></databranch>`))
+        .simulations[0].recoveryDeployed,
+    ).toBeUndefined();
+  });
+});

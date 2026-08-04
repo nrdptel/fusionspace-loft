@@ -632,3 +632,53 @@ describe("adaptRktXml — the landing speed a RockSim file actually stores", () 
     expect(neither.simulations[0].results.groundHitVelocity).toBeUndefined();
   });
 });
+
+describe("adaptRktXml — whether the file says a recovery device actually came out", () => {
+  /** A minimal design with one simulation carrying whatever event blocks the case needs. */
+  const design = (tags: string) =>
+    `<RockSimDocument><DesignInformation><RocketDesign><Name>deploy</Name>
+      <Stage3Parts>
+        <NoseCone><Name>Nose</Name><Len>150</Len><BaseDia>54</BaseDia><ShapeCode>1</ShapeCode><CalcMass>120</CalcMass></NoseCone>
+        <BodyTube><Name>Body</Name><Len>600</Len><OD>54</OD><ID>52</ID><CalcMass>200</CalcMass><SerialNo>7</SerialNo></BodyTube>
+      </Stage3Parts>
+    </RocketDesign></DesignInformation>
+    <SimulationResultsList><SimulationResults><MaxAltitude>500</MaxAltitude>${tags}</SimulationResults></SimulationResultsList>
+    </RockSimDocument>`;
+
+  const events = (...flags: number[]) =>
+    `<SimulationEvents>${flags
+      .map((f) => `<SimulationEvent><Type>1</Type><HasDeployed>${f}</HasDeployed></SimulationEvent>`)
+      .join("")}</SimulationEvents>`;
+
+  it("reads a canopy descent and a plugged run as different flights", () => {
+    // The two populations `FullScaleModelTH.rkt` stores for ONE design: `[L1940X-0]` with three
+    // devices out, landing at 8.8-9.2 m/s, and `[L1940X-P]` plugged, landing at 83-162 m/s. Pooling
+    // them makes a median of "how close is Loft's landing speed" a number about neither.
+    expect(adaptRktXml(design(events(0, 0, 1, 1, 1))).simulations[0].recoveryDeployed).toBe(true);
+    expect(adaptRktXml(design(events(0, 0, 0, 0, 0))).simulations[0].recoveryDeployed).toBe(false);
+  });
+
+  it("ignores the identically-named STAGING flags, which are a different event", () => {
+    // `<HasDeployed>` also appears inside `<Booster1Staging>`/`<Booster2Staging>`. A file-wide read
+    // would report this run — a booster separating with nothing else out — as a canopy descent, and
+    // then compare Loft's 3 m/s against the file's 80.
+    const staged = design(
+      "<Booster1Staging><SimulationEvent><Type>0</Type><HasDeployed>1</HasDeployed></SimulationEvent></Booster1Staging>" +
+        events(0, 0),
+    );
+    expect(adaptRktXml(staged).simulations[0].recoveryDeployed).toBe(false);
+  });
+
+  it("treats a run with no events but a stated FinalState as flown, and nothing deployed", () => {
+    // `rocksimTestRocket1.rkt`: no recovery events at all, `<FinalState>4</FinalState>` — the value
+    // the eleven plugged runs carry — and 56.5 m/s from a 445 m apogee. A lawn dart. An empty event
+    // list ALONE would be "the file records nothing", which is why the state is read too.
+    expect(adaptRktXml(design("<FinalState>4</FinalState>")).simulations[0].recoveryDeployed).toBe(false);
+  });
+
+  it("leaves it undefined when the file states neither, rather than guessing", () => {
+    // Undefined is a third answer, not a falsy `false`: the census counts these as their own
+    // population. Every `.ork` lands here, because the format does not state it.
+    expect(adaptRktXml(design("")).simulations[0].recoveryDeployed).toBeUndefined();
+  });
+});

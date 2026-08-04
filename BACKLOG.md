@@ -73,6 +73,18 @@ pass.** Two of the run's three increments came out of it — the thrust-plot Sev
   a diff touching no diagram code. Recorded with the counts so the next occurrence is the second data
   point rather than the first.
 
+- **A second smoke e2e flaked, and this one has an attributable cause: do not run anything else
+  while a shard is running.** `e2e/smoke.spec.ts`'s "leaving a design is undoable, and the undo
+  brings the what-ifs with it" failed once in shard 1 on 2026-08-04 — and the session was running a
+  `vitest` invocation and several `grep -r` sweeps over the repo at the same moment, on a four-core
+  box where Playwright already takes 2 workers. It then passed **5 of 5** with `--repeat-each=5` and
+  **115 of 115** on a clean shard re-run, on a diff touching only the corpus adapters and the docs.
+  Two different smoke tests have now flaked in one run and the common factor is load, not the DOM.
+  `playwright.config.ts` already carries a note about a slow-reload timeout seen "once in six full
+  runs on this four-core box". **The cheap fix is procedural and costs nothing: treat a running shard
+  as exclusive.** A real one would be a CPU-contention guard or a per-test retry budget, and neither
+  should be added before a third data point says which.
+
 **Filed 2026-08-04 from a six-lens opening fan-out whose findings were each then handed to an
 adversarial refuter.** That second pass earned its place: of the claims put to it, **three were
 refuted outright** and are recorded as such below rather than becoming work — a negative-sigma
