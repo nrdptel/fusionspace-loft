@@ -4,8 +4,10 @@ Overwritten each session. What shipped, what is part-way, and what to pick up fi
 
 ## Read this first
 
-**Ten increments this run. Five reached production as PR #125 (merged, `b8a6c40`); five more are on
-`claude/ultracode-maintenance-em0rud` and need one pull request to follow them.** Four Sev-1s were
+**Ten increments this run. Five reached production as PR #125 (merged, `b8a6c40`); six more are on
+the run's working branch behind PR #126.** (The branch name is the harness's, not this project's, so
+it is deliberately not written here — the zero-trace invariant forbids repeating it in a committed
+file. `git branch -r` names it, and PR #126 is the reachable handle.) Four Sev-1s were
 found, reproduced and fixed; **R9 SHIPPED**; **P6 is two increments in**; **R10 is written**, so
 neither track is dry.
 
