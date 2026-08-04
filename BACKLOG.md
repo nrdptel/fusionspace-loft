@@ -73,6 +73,18 @@ pass.** Two of the run's three increments came out of it — the thrust-plot Sev
   a diff touching no diagram code. Recorded with the counts so the next occurrence is the second data
   point rather than the first.
 
+- **Two charts are still their own `<figure>` while every other chart is framed by one.** Filed
+  2026-08-04, MEASURED on the built export. `Figure` (P6 increment 5) owns the `<figure>` element,
+  and `LineChart` was changed to a `<div>` in the same run because the two nested — ten `<figure>`
+  elements rendered on the Flight workspace for four plots, which HTML permits but which means "a
+  sub-illustration inside an illustration" and gave one figure two captions at different levels.
+  `components/FlightViz.tsx:77` and `components/RocketDiagram.tsx:547` still render their own
+  `<figure className="m-0">`, and neither is wrapped by `Figure`, so nothing nests today and nothing
+  is broken. The open question is whether "a chart is a `<figure>` exactly once, either by `Figure`
+  or by itself" is the rule, or whether those two should go through the primitive like the rest —
+  the flight-path chart already sits inside a `Panel` that titles it, so wrapping it adds an element
+  and no heading. Decide it before a third chart arrives rather than after.
+
 - **A second smoke e2e flaked, and this one has an attributable cause: do not run anything else
   while a shard is running.** `e2e/smoke.spec.ts`'s "leaving a design is undoable, and the undo
   brings the what-ifs with it" failed once in shard 1 on 2026-08-04 — and the session was running a
