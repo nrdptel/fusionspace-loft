@@ -4,8 +4,8 @@ Overwritten each session. What shipped, what is part-way, and what to pick up fi
 
 ## Read this first
 
-**Ten increments this run, in three merged pull requests.** #127 (`38a7d40`) and #128 (`f43f0c7`)
-are on `main` and serving; #129 is the last three and is the only thing not yet in production.
+**Twelve increments this run, in three merged pull requests — #127 (`38a7d40`), #128 (`f43f0c7`)
+and #129 (`947ba2d`) — plus one on the branch behind them.** Everything through #129 is on `main`.
 (The branch name is the harness's, not this project's, so it is deliberately not written here — the
 zero-trace invariant forbids repeating it in a committed file. `git branch -r` names it.) One Sev-1
 found and fixed. **R10 is four of its five Size items in; P6 is six increments in with one clause
@@ -52,7 +52,7 @@ under *count what a file RENDERS, not what it spells*; each number now carries i
 obvious to a walk: the `Figure` wrapper's extra div (which two e2e traversals then caught), and ten
 `<figure>` elements rendering for four plots because `LineChart` was already one.
 
-## This run — ten increments, one Sev-1
+## This run — twelve increments, one Sev-1
 
 | # | SHA | what | verified by |
 |---|---|---|---|
@@ -68,8 +68,11 @@ obvious to a walk: the `Figure` wrapper's extra div (which two e2e traversals th
 | 8 | `a1738fe` | **P6 inc 5** — `Figure`; every chart in the app is framed by it | ratchet + a file-level chart-frame check, both proved able to fail |
 | 9 | `66d5a41` | **P6 inc 6** — `Section` gains its call sites, `Panel` 3 → 7 adopters, `Chip` deleted | ratchets; §5 rewritten with the reasoning |
 | 10 | `0da45c6` | A chart is a `<figure>` exactly once — ten were rendering for four plots | a cold walk over the built export that counts them |
+| 11 | `3504db1` | **P6 inc 7** — `Readout` stops rendering its own label and sub at a size §3 scopes to axis ticks, and a new ratchet holds that token at 46 | the phone depth ratchet, which a label going 11 px to 12 px was the one check at risk from |
+| — | `947ba2d` | **merged as #129** — increments 8-11 reached production | both CI jobs green |
+| 12 | `PENDING` | The catalogue's Search box takes the class string its neighbours share | **290x24 px before, 290x44 px after**, measured both ways on the built export; pinned by a phone e2e on the rendered box |
 
-**Reached production: 7 of 10.** The last three are #129.
+**Reached production: 11 of 12.**
 
 ## The one lesson this run would send back
 
@@ -136,9 +139,17 @@ reporting `pointer: fine` rendering those controls at 26 px.
    **Changing the media query is a `DESIGN.md` §8 change and must be made there first, with the
    reason**, because `any-pointer: coarse` would also apply the floor to a touchscreen laptop, which
    §8 currently declines.
-4. **`Readout`'s own `text-[11px]`** (`components/ui.tsx`, its label and sub-line) — §3 scopes that
-   token to axis ticks and diagram annotations, and this is the design system's own primitive
-   breaking it, on the treatment a flyer reads every number through. Plus 11 more sites in `LoftApp`.
+4. **The remaining `text-[11px]`, now ratcheted at 46 with a per-file breakdown.** `Readout`'s own
+   pair is fixed; `LoftApp`'s 11 (five `<legend>`, six field labels) and `DataTable`'s table header
+   are the offenders left. `RocketDiagram` 8, `LineChart` 6 and `FlightViz` 5 are the token's real
+   job and should stay. **This size was invisible to every check** until `axisTickSize` existed,
+   because it is ON the six-size scale — worth remembering when adding a compliance count: the
+   dangerous violations are the ones the existing checks pass by design.
+5. **Three controls that forget between visits**, all measured and filed: the unit choice is scoped
+   to the design rather than the flyer and `reset()` clears it; the launch-site field is a bare
+   `useState("")` with no `autoComplete`, `name`, `datalist`, recents or persistence; and today's
+   weather and the design/today scenario are in no saved session at all. "Controls that forget" is a
+   named tell in `MAINTAINING.md`.
 
 ## The arc so far
 
