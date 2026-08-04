@@ -4,8 +4,9 @@ Overwritten each session. What shipped, what is part-way, and what to pick up fi
 
 ## Read this first
 
-**Twelve increments this run, in three merged pull requests — #127 (`38a7d40`), #128 (`f43f0c7`)
-and #129 (`947ba2d`) — plus one on the branch behind them.** Everything through #129 is on `main`.
+**Twelve increments this run, in four merged pull requests — #127 (`38a7d40`), #128 (`f43f0c7`),
+#129 (`947ba2d`) and #130 (`a949c79`). All twelve are on `main`**, and the working branch is back at
+`main` with a clean tree.
 (The branch name is the harness's, not this project's, so it is deliberately not written here — the
 zero-trace invariant forbids repeating it in a committed file. `git branch -r` names it.) One Sev-1
 found and fixed. **R10 is four of its five Size items in; P6 is six increments in with one clause
@@ -70,9 +71,10 @@ obvious to a walk: the `Figure` wrapper's extra div (which two e2e traversals th
 | 10 | `0da45c6` | A chart is a `<figure>` exactly once — ten were rendering for four plots | a cold walk over the built export that counts them |
 | 11 | `3504db1` | **P6 inc 7** — `Readout` stops rendering its own label and sub at a size §3 scopes to axis ticks, and a new ratchet holds that token at 46 | the phone depth ratchet, which a label going 11 px to 12 px was the one check at risk from |
 | — | `947ba2d` | **merged as #129** — increments 8-11 reached production | both CI jobs green |
-| 12 | `PENDING` | The catalogue's Search box takes the class string its neighbours share | **290x24 px before, 290x44 px after**, measured both ways on the built export; pinned by a phone e2e on the rendered box |
+| 12 | `b460c70` | The catalogue's Search box takes the class string its neighbours share | **290x24 px before, 290x44 px after**, measured both ways on the built export; pinned by a phone e2e on the rendered box |
+| — | `a949c79` | **merged as #130** | both CI jobs green |
 
-**Reached production: 11 of 12.**
+**Reached production: 12 of 12.** Nothing is left on a branch.
 
 ## The one lesson this run would send back
 
