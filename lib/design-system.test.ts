@@ -166,7 +166,12 @@ const BUDGET = {
  *
  *  A zero here is not a failure; it is a primitive that exists and is not yet adopted, which is the
  *  state `DESIGN.md` recorded for `Chip` and `Disclosure` on 2026-07-30 and the state this milestone
- *  is closing. What must not happen is a zero silently BECOMING the finished condition. */
+ *  is closing. What must not happen is a zero silently BECOMING the finished condition — and on
+ *  2026-08-04 P6 answered both of those zeros rather than carrying them a sixth run. `Section` gained
+ *  its call sites once its own imposed margins were removed; `Chip` was DELETED, from this list, from
+ *  `components/ui.tsx` and from §5, because the app has exactly one token-shaped element and it is
+ *  neither the key/value pair `Chip` declared nor the geometry §5 stated. The reasoning is in
+ *  `ROADMAP.md` under P6. */
 const PRIMITIVE_ADOPTERS: Record<string, number> = {
   /** 11, down from 12, and the same for `Button` at 12 from 14 and `ClosePanel` at 0 from 3 — all
    *  three fell on 2026-08-04 for the reason §9 records under *count what a file RENDERS*: `Panel`
@@ -174,7 +179,7 @@ const PRIMITIVE_ADOPTERS: Record<string, number> = {
    *  panels, so two files stopped importing what they still render. Adoption moving a count DOWN is
    *  the system working. What would be a regression is a file rendering one of these and importing
    *  neither it nor a primitive that owns it. */
-  Card: 11,
+  Card: 10,
   Button: 12,
   /** The button geometry as a class, for the two things that must look like a button and cannot BE
    *  one — a `next/link` and an external `<a>`. It is exported from `lib/ui-tokens.ts` rather than
@@ -193,7 +198,16 @@ const PRIMITIVE_ADOPTERS: Record<string, number> = {
    *  admitting the two exceptions, and that is a change to a file shared verbatim with the sibling
    *  app, so it is FILED rather than made here. The regex below reads this module for that reason. */
   DataTable: 7,
-  Section: 0,
+  /** One adopter, and the zero it replaced had stood for five runs. §5 declares `Section` as "what a
+   *  route is built from" and it had never been rendered — because it imposed `mt-8` on itself and
+   *  `mt-4` on its children, rhythm the two real bare regions already own through the workspace's own
+   *  `space-y-8`, so adopting it would have doubled every gap. **A primitive that cannot be adopted
+   *  without a repaint does not get adopted; it gets copied**, and that is what both sites did. Both
+   *  margins are gone and it shares one header component with `Panel`, which is the other half of the
+   *  same fix: the two had already drifted — `Section` spelled the heading with explicit zinc colours
+   *  where all ten rendered headings in the app used `tracking-tight` — before either had a call
+   *  site to keep them honest. */
+  Section: 1,
   Segmented: 2,
   /** Zero, and that is the milestone rather than a regression.
    *
@@ -215,7 +229,6 @@ const PRIMITIVE_ADOPTERS: Record<string, number> = {
    *  fourth dismissible surface that reaches for `ClosePanel` directly is not wrong, and this
    *  leaving zero is what would tell the next audit it went that way rather than through `Panel`. */
   ClosePanel: 0,
-  Chip: 0,
   Disclosure: 1,
   /** §5's `Extrapolated` — "the warn treatment plus the reason and the range it left".
    *
@@ -278,8 +291,18 @@ const PRIMITIVE_ADOPTERS: Record<string, number> = {
    *  `open`-gated close button and `!open` Run block. Unlike the other primitives on this list it
    *  carries BEHAVIOUR, not just a treatment — the `useReturnFocus()` pairing was a four-part contract
    *  each call site re-derived, and a panel that closes and drops focus onto `<body>` is invisible to
-   *  every check in this repo. A fourth heavy panel must import this. */
-  Panel: 3,
+   *  every check in this repo. A fourth heavy panel must import this.
+   *
+   *  **Seven, up from three, and the four new ones have nothing to dismiss.** The shape extracted for
+   *  the three analysis panels — `Card as="section"` + `aria-label` + an `h2 text-xl font-medium
+   *  tracking-tight` in a baseline row with an optional aside — turned out to be byte-identical at
+   *  seven more sites: both cross-checks, the validation report, the flight-path card, the phase
+   *  table, the no-flight refusal and the design-name strip. §5's container vocabulary was missing the
+   *  shape the app uses MOST, and `Card`'s own `title` is a level below it (an `h3 text-base`, a
+   *  heading inside a card rather than the card's own). The dismissible half is a type union rather
+   *  than four loose optionals, so a call site cannot ask for a Close button and forget the Run button
+   *  focus returns to. */
+  Panel: 7,
   /** §5's `Figure` — "a chart with its title, legend, axis units, and its own empty and extrapolated
    *  states."
    *

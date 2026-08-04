@@ -204,7 +204,11 @@ export default function MotorSweep({
          are not the same number: a 54 mm mount can fly a 38 mm motor in an adapter, and it is the
          38 mm ones that are offered. Saying "fits this mount" claimed the wider set and was
          checkably false against the design file, which states the bore outright. */
-      aside={`${options.length} bundled ${casingMm} mm motors`}
+      aside={
+        <span className="text-xs text-zinc-500 dark:text-zinc-400">
+          {options.length} bundled {casingMm} mm motors
+        </span>
+      }
       open={open}
       onOpenChange={setOpen}
       run="Run motor sweep"

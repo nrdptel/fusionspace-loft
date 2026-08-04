@@ -6,7 +6,7 @@ import { storedCaveat } from "@/lib/validation/stored-status";
 import type { UnitSystem } from "@/lib/display";
 import { fmt } from "@/lib/display";
 import { mToFt, mpsToFtps } from "@/lib/units";
-import { Card } from "./ui";
+import { Card, Panel } from "./ui";
 import DataTable from "./DataTable";
 
 /** Shows Loft's engine against the results the design tool (OpenRocket or RockSim) stored in
@@ -70,16 +70,16 @@ export default function ValidationPanel({
   storedStatus?: string;
 }) {
   return (
-    <Card as="section" aria-label="Validation">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="text-xl font-medium tracking-tight">
-          {external ? "Stated figures vs Loft" : `${toolName} vs Loft`}
-        </h2>
+    <Panel
+      label="Validation"
+      title={external ? "Stated figures vs Loft" : `${toolName} vs Loft`}
+      aside={
         <span className="text-sm text-zinc-500 dark:text-zinc-400">
           mean abs. error{" "}
           <span className="font-mono text-zinc-700 dark:text-zinc-300">{fmt(report.mape, 1)}%</span>
         </span>
-      </div>
+      }
+    >
       <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
         Loft&apos;s engine against the results stored in{" "}
         {storedName ? <span className="italic">{storedName}</span> : "this design"}
@@ -172,6 +172,6 @@ export default function ValidationPanel({
           },
         ]}
       />
-    </Card>
+    </Panel>
   );
 }

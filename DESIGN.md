@@ -163,10 +163,19 @@ hand-rolls it instead is not done.
 ### Containers
 - **`Card`** — the raised container. `rounded-xl border-hairline bg-raised p-4`. Optional `title` and
   `actions` slot. This replaces all 12 measured variants.
-- **`Panel`** — a `Card` with a header row and a close affordance, for anything dismissible. Owns
-  focus return (see `useReturnFocus`).
-- **`Section`** — a titled region within a route: heading, optional description, children. This is
-  what a route is built from.
+- **`Panel`** — a `Card` with a section header row — an `h2`, and an optional `aside` beside it —
+  and, for anything dismissible, a close affordance. Owns focus return (see `useReturnFocus`).
+  **Ten call sites and only three are dismissible**: it was extracted for the three heavy analysis
+  panels and the shape turned out to be byte-identical at seven cards that have nothing to dismiss.
+  `Card`'s own `title` is a level below this — an `h3` *inside* a card rather than the card's own
+  heading.
+- **`Section`** — the same header row, bare: a titled region within a route that is not a raised
+  card. Heading, optional `aside`, optional description, children. **It imposes no margins**, which is
+  why it sat at zero adopters for five runs: it used to add `mt-8` to itself and `mt-4` to its
+  children, rhythm the routes already own through `space-y-8`, so adopting it would have doubled
+  every gap. A primitive that cannot be adopted without a repaint gets copied instead. Both it and
+  `Panel` render one shared header, so the two cannot drift — they already had, before either had a
+  call site.
 - **`Disclosure`** — progressive detail. The label says what is inside, never "More".
 
 ### Controls — three button weights, and only three
@@ -183,7 +192,6 @@ hand-rolls it instead is not done.
   either app is this.** It owns the refusal behaviour the SAFETY invariant requires: a value that
   cannot mean anything physically is bounded or refused at the field, not flown into a confident
   number downstream.
-- **`Chip`** — a compact key/value or filter token. `text-xs`, `rounded-md`, `px-2 py-1`.
 
 ### Data
 - **`DataTable`** — sortable by any column, keyboard-navigable, copyable, with a sticky header. Every
@@ -193,6 +201,17 @@ hand-rolls it instead is not done.
   baked into the label string; it comes from the units context so a unit switch reaches every value.
 - **`Figure`** — a chart with its title, legend, axis units, and its own empty and extrapolated
   states.
+
+**`Chip` was deleted on 2026-08-04, and the reason is worth keeping so it is not re-added by
+memory.** It declared "a compact key/value or filter token" and had zero call sites for its whole
+life, in a codebase where every other primitive here found between one and seven on the day it was
+built. The key/value half is `Readout`'s, which has adopters. And the app contains **exactly one**
+token-shaped element — the motor-resolution pills in `ResultsView` — which is a single-label STATE
+pill, not a key/value, in a geometry (`rounded-full px-2.5 py-0.5`) that is not the one this file
+stated. Adopting it there would have meant rewriting both the API and the spec to fit the only
+possible user, which is designing a vocabulary item around its own sole adopter. If a second token
+surface ever arrives, that pill strip is the shape to extract, and this entry should be written from
+it rather than before it.
 
 ### States — every data surface implements all five
 `empty` · `loading` · `error` · `offline` · `extrapolated / out-of-envelope`

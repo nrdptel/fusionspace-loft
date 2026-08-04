@@ -9,7 +9,7 @@ import type { UnitSystem } from "@/lib/display";
 import type { RocketpyFlightResult } from "@/lib/validation/rocketpy-engine";
 import { engineFailure } from "@/lib/validation/engine-error";
 import type { GeometryEdits } from "@/lib/model/edit";
-import { Button, Card, Extrapolated } from "./ui";
+import { Button, Card, Extrapolated, Panel } from "./ui";
 import { transonicReason } from "@/lib/sim/envelope";
 import DataTable from "./DataTable";
 
@@ -192,11 +192,11 @@ export default function RocketpyCrossCheck({
   useEffect(() => () => abortRef.current?.abort(), []);
 
   return (
-    <Card as="section" aria-label="RocketPy cross-check">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="text-xl font-medium tracking-tight">Second opinion: RocketPy</h2>
-        <span className="text-xs text-zinc-500 dark:text-zinc-400">independent 6-DOF engine, in your browser</span>
-      </div>
+    <Panel
+      label="RocketPy cross-check"
+      title="Second opinion: RocketPy"
+      aside={<span className="text-xs text-zinc-500 dark:text-zinc-400">independent 6-DOF engine, in your browser</span>}
+    >
       <p className="mt-1.5 text-sm text-zinc-600 dark:text-zinc-300">
         Fly this design in{" "}
         <a
@@ -295,7 +295,7 @@ export default function RocketpyCrossCheck({
         </Card>
       )}
       {showing && <Comparison loft={showing.loft} rp={showing.rp} units={units} />}
-    </Card>
+    </Panel>
   );
 }
 

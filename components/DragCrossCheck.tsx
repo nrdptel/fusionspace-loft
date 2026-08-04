@@ -7,7 +7,7 @@ import { fmt } from "@/lib/display";
 import type { FlightResult } from "@/lib/sim/simulate";
 import type { StoredFlightData } from "@/lib/ork/import";
 import type { UnitSystem } from "@/lib/display";
-import { Card, Extrapolated, Figure } from "./ui";
+import { Extrapolated, Figure, Panel } from "./ui";
 import { transonicReason } from "@/lib/sim/envelope";
 
 const LOFT_COLOR = "#6366f1"; // indigo — Loft's own solver
@@ -43,8 +43,7 @@ export default function DragCrossCheck({
   const scale = (pts: { x: number; y: number }[]) => pts.map((p) => ({ x: p.x, y: p.y * c }));
 
   return (
-    <Card as="section" aria-label="Stored-flight cross-check">
-      <h2 className="text-xl font-medium tracking-tight">Loft vs {toolName}&apos;s stored flight</h2>
+    <Panel label="Stored-flight cross-check" title={<>Loft vs {toolName}&apos;s stored flight</>}>
       <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
         This file carries {toolName}&apos;s own per-step flight
         {storedName ? (
@@ -141,6 +140,6 @@ export default function DragCrossCheck({
           yZeroFloor
         />
       </Figure>
-    </Card>
+    </Panel>
   );
 }

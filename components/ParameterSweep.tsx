@@ -328,7 +328,7 @@ export default function ParameterSweep({
     <Panel
       label="Parameter sweep"
       title="Sweep a parameter"
-      aside="how one dimension changes the flight"
+      aside={<span className="text-xs text-zinc-500 dark:text-zinc-400">how one dimension changes the flight</span>}
       open={open}
       onOpenChange={setOpen}
       run="Run parameter sweep"

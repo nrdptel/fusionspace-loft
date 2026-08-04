@@ -228,7 +228,7 @@ export default function MonteCarlo({
     <Panel
       label="Monte-Carlo dispersion"
       title="Flight dispersion (Monte-Carlo)"
-      aside={`${SAMPLES} flights on your device`}
+      aside={<span className="text-xs text-zinc-500 dark:text-zinc-400">{SAMPLES} flights on your device</span>}
       open={open}
       onOpenChange={setOpen}
       run="Run dispersion"
