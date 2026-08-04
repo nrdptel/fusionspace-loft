@@ -19,6 +19,52 @@ Loft can only fly reduced. The rest are below, newest first, each with the measu
 actionable. **Nothing here has been reproduced by hand unless it says so**; treat each as a hypothesis
 to re-measure before it becomes work, which is the lesson the last run filed one line down.
 
+**Filed 2026-08-04 from a six-lens opening fan-out whose findings were each then handed to an
+adversarial refuter.** That second pass earned its place: of the claims put to it, **three were
+refuted outright** and are recorded as such below rather than becoming work — a negative-sigma
+Monte-Carlo input that `NumberField`'s `min = 0` **default parameter** already bounds (the claim
+assumed `min` was undefined when omitted; it is not), a `GeometryInspector` empty state that is
+genuinely unreachable because `ResultsView` never mounts without a successful flight, and a
+`text-xl font-medium` divergence living in a primitive with zero call sites. Every entry below that
+says CONFIRMED carries the command and the numbers the refuter could not talk it out of.
+
+- **A design with NO recovery device at all trips neither the ballistic-descent warning nor the
+  hard-landing one. SEV-1, CONFIRMED 2026-08-04.** `lib/sim/simulate.ts:1007-1008`:
+  `recoveryExpected: recovery.length > 0` gates the ballistic-descent caution at `:1315`, and
+  `anyRecoveryOpened` gates hard-landing at `:1353`. With zero devices **both gates are false**, so a
+  lawn dart raises nothing. `ResultsView.tsx:584/:567` then publish Landing energy and Ground-hit
+  speed as ordinary confident stats, and `RecoverySizingHint` (`:1596`) is itself gated on
+  `hard-landing`, so it stays silent too. Measured on the 38 mm sample: with its chute, ground-hit
+  **6.95 m/s / 17.1 J**; with the chute removed (nothing refuses the removal),
+  **93.35 m/s / 2,969.7 J** — and an *identical* warning list. `grep -rn 'no-recovery|noRecovery'`
+  returns nothing: there is no such code among the solver's 20. The two numbers a flyer clears a
+  field and a waiver on, published with full confidence, while the same engine calls 7.7 m/s "firm".
+
+- **A solver throw leaves the previous flight's numbers on screen beside the new design. SEV-1,
+  CONFIRMED 2026-08-04.** `components/LoftApp.tsx:903-905`: the catch sets `error` but **not**
+  `setRun(null)` — contrast the load path at `:646-647`, which does both. `setEdits(next.edits)` at
+  `:974` has already committed, and `ResultsView` renders behind `{run && …}` at `:1984` with
+  `geometry={geometryOf(edits)}` live. Reproduced: type 2001 into Body diameter (mm) on the 38 mm
+  sample — `lib/sim/simulate.ts:442`'s `MAX_REF_RADIUS` throws above 2000 mm — and the red card
+  appears while the Flight grid still reads the pre-edit **992.8 m / 4.07 cal**. The design panel
+  redraws the new airframe; nothing marks the numbers stale. A confident apogee, margin and landing
+  energy for a rocket that is not the one on screen.
+
+- **A body diameter smaller than the motor inside it flies to a confident 11.6 km. CONFIRMED
+  2026-08-04**, and this is the reproduction the entry below it (filed as SEV-1 and never measured)
+  was missing. `components/LoftApp.tsx:2597`. On the 38 mm sample, via the exact `runFlight` call
+  `compute()` makes: 10 mm → **1,437.5 m / 14.86 cal**; 5 mm → **3,297.2 m / 25.73 cal**; 1 mm →
+  **10,326.5 m / 115.77 cal**; 0.1 mm → **11,588.6 m / 470.2 m/s / 1,151.77 cal**, against a baseline
+  of 992.8 m / 4.07 cal. `motorsComplete` stays true throughout and no warning mentions the diameter:
+  the tube shrinks around an 18 mm motor that keeps its size.
+
+- **One fin, and the warning list comes back EMPTY. CONFIRMED 2026-08-04.**
+  `components/LoftApp.tsx:2411` accepts `min={1}` while the Barrowman CP method assumes three or more
+  symmetric fins. Measured on the same sample: `finCount: 1` → apogee **1,272.1 m**, static margin
+  **1.639 cal**, `warnings: []` — not one caution, on the readout a flyer uses for a go/no-go. Two
+  fins → 3.506 cal with only the over-stable note. Every other count carries at least that note, so
+  the one-finned case is the *only* configuration that reports perfectly clean.
+
 **Filed 2026-08-03 (second run of the day) from a six-lens opening fan-out and a three-lens pre-push
 review.** One of its findings — a picked coupler silently cut down when its host shrank, under the
 vendor's own part number — was a Sev-1 that the same run's own increment made reachable, and it was
@@ -151,10 +197,21 @@ fixed in that increment rather than filed. The rest are below.
   the highest-severity cold-walk finding was the wrong one.
 
 - **A transonic result is published with no out-of-envelope marker on the three surfaces where the
-  motor is actually chosen. SEV-1, UNREPRODUCED.** Filed 2026-08-03. `lib/sim/sweep.ts:22-42` and
-  `:171-182`: neither `MotorSweepRow` nor the parameter-sweep or dispersion row types carries `maxMach`
-  or `extrapolated`, so the caveat exists only on the Flight card's stat grid. The motor sweep is
-  precisely where a flyer picks the motor that takes the design supersonic.
+  motor is actually chosen. SEV-1 — REPRODUCED AND FIXED 2026-08-04.** Filed 2026-08-03 as
+  UNREPRODUCED. `lib/sim/sweep.ts:22-42` and `:171-182`: neither `MotorSweepRow` nor the
+  parameter-sweep or dispersion row types carries `maxMach` or `extrapolated`, so the caveat existed
+  only on the Flight card's stat grid.
+  **Reproduced by measurement, and it was worse than filed — FOUR surfaces, not three** (the stored-
+  flight drag cross-check publishes a mean-gap agreement figure measured against the extrapolated
+  curve, and was also bare). Across the real-design corpus, **9 of 109 flown stored simulations leave
+  the M ≤ 0.8 envelope**, reaching **M1.67** on `OR vs RAS Test 1.ork` — so it fires on real files, not
+  in theory. The mechanism was not four components forgetting a marker: the fact never left the
+  solver, because none of the three summary types carried it.
+  Fixed by lifting the treatment into `Extrapolated` in `components/ui.tsx` (the primitive
+  `DESIGN.md` §5 already declared and nothing implemented), carrying the flag onto `MotorSweepRow`,
+  `ParamSweepPoint` and `MonteCarloSample`, and rendering it per candidate, per point and per
+  dispersed flight. Pinned by `lib/sim/extrapolated-reach.test.ts` (4 cases, each proved able to fail
+  by reverting its own carrier) and an e2e that fails if a flyer is not told.
 
 - **On a multi-motor design the thrust plot describes only the first resolved motor. SEV-1,
   UNREPRODUCED.** Filed 2026-08-03. `components/ResultsView.tsx:1850`: `resolutions.find(x => x.match)`

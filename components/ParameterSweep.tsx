@@ -15,7 +15,7 @@ import type { CsvCell } from "@/lib/csv";
 import LineChart from "./LineChart";
 import DownloadCsv, { CopyTable } from "./DownloadCsv";
 import type { UnitSystem } from "@/lib/display";
-import { Button, Card, ClosePanel, useReturnFocus } from "./ui";
+import { Button, Card, ClosePanel, Extrapolated, useReturnFocus } from "./ui";
 import { cx, TOUCH_TARGET } from "@/lib/ui-tokens";
 
 const round = (n: number, dp: number) => (Number.isFinite(n) ? Math.round(n * 10 ** dp) / 10 ** dp : "");
@@ -461,8 +461,30 @@ function SweepChart({
     },
   ];
   const designX = axis.xToNumber(axis.base, units);
+  // Which part of the curve left the drag model's validated subsonic envelope, named by the swept
+  // axis's own value rather than as a bare warning — a sweep exists to show a metric changing ALONG
+  // an axis, so "which end of it is rough" is the only form of this caveat that is actionable. Until
+  // now the panel said nothing at all, while the flight card marked the very same flight.
+  const ex = points.filter((p) => p.extrapolatedTransonic);
+  const extrapolatedWhy = ex.length
+    ? (() => {
+        const xs = ex.map((p) => axis.xToNumber(p.x, units));
+        const lo = Math.min(...xs);
+        const hi = Math.max(...xs);
+        const span =
+          ex.length === points.length
+            ? "every point on this curve reaches"
+            : `${round(lo, 3)}–${round(hi, 3)} ${xUnit} of this curve reaches`;
+        return `${span} past M0.8, outside the drag model's validated subsonic envelope — treat that part of it as rough`;
+      })()
+    : undefined;
   return (
     <div className="mt-3">
+      {extrapolatedWhy && (
+        <div className="mb-3">
+          <Extrapolated reason={extrapolatedWhy} />
+        </div>
+      )}
       <LineChart
         series={series}
         markers={[{ x: designX, label: "design" }]}

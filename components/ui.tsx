@@ -311,10 +311,71 @@ export function Chip({ label, value }: { label: string; value: string }) {
       <div className="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-500">
         {label}
       </div>
-      <div className="font-mono text-xs tabular-nums text-zinc-700 dark:text-zinc-300">
+      {/* `text-sm`, not `text-xs`. §3 is explicit that caption size is for the text AROUND a value —
+          "its unit, its provenance, its caveat — never the value" — and this is the value. The
+          inversion check in `lib/design-system.test.ts` is the count that surfaced it: adding one
+          legitimate caveat caption to this file tipped it, and the honest fix was the pre-existing
+          violation underneath rather than another point of budget. */}
+      <div className="font-mono text-sm tabular-nums text-zinc-700 dark:text-zinc-300">
         {value}
       </div>
     </div>
+  );
+}
+
+/** `DESIGN.md` §5's `Extrapolated` — "the warn treatment plus the reason and the range it left",
+ *  required wherever a number leaves the envelope its method was validated over.
+ *
+ *  **It existed on exactly one surface, and that is what made it a defect rather than a gap.** The
+ *  treatment was written inline inside `ResultsView`'s local `Stat`, so the flight card marked a
+ *  transonic apogee and the Monte-Carlo, both sweeps and the drag cross-check — every one of which
+ *  flies the SAME solver over the SAME design — rendered their numbers byte-identically to a
+ *  validated flight. Measured across the corpus: 9 of 109 flown stored simulations leave the drag
+ *  model's subsonic envelope, reaching M1.67 on one, so a flyer choosing a motor or sizing recovery
+ *  on those designs read an unqualified figure on four surfaces and a qualified one on a fifth. A
+ *  caveat in one place and a confident claim in another is worse than either alone.
+ *
+ *  Two renderings of one fact, because the affordance a pointer has is not the one a phone has. The
+ *  `abbr` carries the reason on hover, on focus and to a screen reader; the block beneath it writes
+ *  the same sentence out where there is no hover to reveal it. Both are the primitive's, so a new
+ *  surface cannot adopt half the treatment.
+ *
+ *  `inline` is for use INSIDE a value's own element — the flight card's metric tiles locate their
+ *  readouts by walking the label's following siblings, so the marker has to live within the value
+ *  rather than beside it. Everywhere else it stands on its own line above the numbers it qualifies. */
+export function Extrapolated({
+  reason,
+  inline,
+  className,
+}: {
+  /** Why this number left its envelope, and the range it left — one sentence, shown as written. */
+  reason: string;
+  inline?: boolean;
+  className?: string;
+}) {
+  return (
+    <>
+      <abbr
+        title={reason}
+        aria-label={`Extrapolated — ${reason}`}
+        className={cx(
+          "block w-fit cursor-help rounded-md bg-amber-500/10 px-2 py-1 font-sans text-[11px] font-medium uppercase tracking-wide text-amber-700 no-underline dark:text-amber-400",
+          inline ? "mt-1" : "",
+          className,
+        )}
+      >
+        extrapolated
+      </abbr>
+      <div
+        className={cx(
+          "text-xs font-sans font-normal text-zinc-600 dark:text-zinc-400",
+          // On a pointer device the `abbr` already carries it; writing it out twice would be noise.
+          inline ? "hidden pointer-coarse:block" : "mt-1",
+        )}
+      >
+        {reason}
+      </div>
+    </>
   );
 }
 

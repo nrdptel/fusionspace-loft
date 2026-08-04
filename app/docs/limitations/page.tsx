@@ -105,7 +105,11 @@ export default function Limitations() {
         drag is only part of the story — its wetted area and mass matter as much — so the fastest,
         highest flight isn&apos;t always the lowest-wave-drag nose. Any flight above Mach 0.8 is
         flagged <em>extrapolated</em>; treat apogee and max velocity for fast flights as rough, and
-        expect the largest differences here.
+        expect the largest differences here. The flag follows the number rather than the page: the
+        flight card, the dispersion, both sweeps and the stored-flight cross-check each mark it, and
+        the sweeps mark it <em>per candidate</em> and <em>per point</em>, because a bigger motor or
+        the far end of a swept range is usually what crosses the envelope while the rest of the table
+        stays inside it.
       </p>
 
       <h3>Mass of curved shells is approximated</h3>

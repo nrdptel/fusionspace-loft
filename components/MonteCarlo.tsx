@@ -19,7 +19,7 @@ import type { GeometryEdits } from "@/lib/model/edit";
 import { usePersistedNumber, useSettled } from "@/lib/session";
 import { mToFt, ftToM, mpsToFtps, mpsToMph, mphToMps } from "@/lib/units";
 import type { CsvCell } from "@/lib/csv";
-import { Button, Card, ClosePanel, NumberField, useReturnFocus } from "./ui";
+import { Button, Card, ClosePanel, Extrapolated, NumberField, useReturnFocus } from "./ui";
 import DownloadCsv, { CopyTable } from "./DownloadCsv";
 import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
@@ -414,8 +414,22 @@ function Report({
   // Only surfaced when some flights actually land firm, so a comfortably-soft design stays uncluttered.
   const firmChance = landingSpeedExceedance(result, FIRM_LANDING_MPS);
   const hardChance = landingSpeedExceedance(result, HARD_LANDING_MPS);
+  // The envelope the dispersion left, when any of it did. The flight card has marked a transonic
+  // flight since the treatment existed, and this panel — flying the SAME solver over the SAME design,
+  // 300 times — marked nothing, so the identical caveat applied to one number and not to the band
+  // around it. Counted rather than flagged: a dispersion straddles M0.8 whenever the design sits
+  // near it, and "12 of 300" is a different claim from "300 of 300".
+  const extrapolatedWhy =
+    result.extrapolatedN > 0
+      ? `${result.extrapolatedN} of ${result.n} dispersed flights reach past M0.8, outside the drag model's validated subsonic envelope — treat the bands below as rough`
+      : undefined;
   return (
     <div className="mt-4">
+      {extrapolatedWhy && (
+        <div className="mb-3">
+          <Extrapolated reason={extrapolatedWhy} />
+        </div>
+      )}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           title="Apogee"

@@ -2,7 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
-import { Button, Card, type CardTone } from "./ui";
+import { Button, Card, Extrapolated, type CardTone } from "./ui";
 import { cx } from "@/lib/ui-tokens";
 import WorkspaceNav from "./WorkspaceNav";
 import { WORKSPACES, type Workspace } from "@/lib/workspaces";
@@ -1712,30 +1712,13 @@ function Stat({
         <div className={"mt-1 font-mono tabular-nums " + (accent ? "text-xl font-semibold text-indigo-600 dark:text-indigo-400" : "text-xl text-zinc-900 dark:text-zinc-100")}>
           {q.value}
           <span className="ml-1 text-xs font-normal text-zinc-500 dark:text-zinc-400">{q.unit}</span>
-          {/* Inside the value's own line, not a sibling of it. `abbr` is the same affordance
-              `Field`'s hint already uses, so a pointer, a keyboard and a screen reader all reach the
-              reason from the number itself rather than from the caution card further up the page —
-              which a flyer reading the number does not necessarily read. Kept in this element
-              because the readouts are located by walking the label's following siblings, and a new
-              sibling div silently broke two of those locators. Block rather than inline: beside the
-              value it pushed a 320 px metric tile into clipping its own number. */}
-          {extrapolated && (
-            <abbr
-              title={extrapolated}
-              aria-label={`Extrapolated — ${extrapolated}`}
-              className="mt-1 block w-fit cursor-help rounded-md bg-amber-500/10 px-2 py-1 font-sans text-[11px] font-medium uppercase tracking-wide text-amber-700 no-underline dark:text-amber-400"
-            >
-              extrapolated
-            </abbr>
-          )}
-          {/* The reason and the range it left, written out where there is no hover to reveal them.
-              `DESIGN.md` §5 defines the `Extrapolated` treatment as "the warn treatment plus the
-              reason and the range it left" — on a phone the marker was arriving without either. */}
-          {extrapolated && (
-            <div className="hidden text-xs font-sans font-normal text-zinc-600 pointer-coarse:block dark:text-zinc-400">
-              {extrapolated}
-            </div>
-          )}
+          {/* Inside the value's own line, not a sibling of it — hence `inline`. The readouts are
+              located by walking the label's following siblings, and a new sibling div silently broke
+              two of those locators; block rather than inline-flow, because beside the value it
+              pushed a 320 px metric tile into clipping its own number. The treatment itself is
+              `components/ui.tsx`'s, not this file's: it was written here first and four other
+              surfaces then flew the same extrapolated solver with no marker at all. */}
+          {extrapolated && <Extrapolated reason={extrapolated} inline />}
         </div>
       )}
       {(withheld ?? sub) && (

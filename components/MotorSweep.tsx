@@ -18,7 +18,7 @@ import DataTable, { type Column } from "./DataTable";
 import { compareCells } from "@/lib/table-sort";
 import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
-import { Button, Card, ClosePanel, useReturnFocus } from "./ui";
+import { Button, Card, ClosePanel, Extrapolated, useReturnFocus } from "./ui";
 
 const round = (n: number, dp: number) => (Number.isFinite(n) ? Math.round(n * 10 ** dp) / 10 ** dp : "");
 
@@ -418,7 +418,19 @@ function SweepTable({
   // to the `<td>`-level class it replaces, and the primitive keeps ownership of the cell's own layout.
   const amber = (on: boolean) => (on ? "text-amber-700 dark:text-amber-300" : undefined);
   const cells: Record<string, (r: MotorSweepRow) => React.ReactNode> = {
-    apogee: (r) => d.q(d.altitude(r.apogee, units)),
+    // A row whose flight left the validated subsonic envelope is marked on the apogee cell, in the
+    // table's own `Flag` idiom rather than a second vocabulary. It is per ROW because a motor sweep
+    // exists to rank candidates against each other and a bigger motor is what pushes a design
+    // through M0.8 — so the top of the ranking is the part most likely to be extrapolated while the
+    // rows it beat are not, and a caveat over the whole table could not say which.
+    apogee: (r) => (
+      <span className={amber(r.extrapolatedTransonic)}>
+        {d.q(d.altitude(r.apogee, units))}
+        {r.extrapolatedTransonic && (
+          <Flag note="extrapolated: this flight reaches past M0.8, outside the drag model's validated subsonic envelope" />
+        )}
+      </span>
+    ),
     maxVelocity: (r) => d.q(d.speed(r.maxVelocity, units)),
     railExitVelocity: (r) => {
       const slow = r.railExitVelocity > 0 && r.railExitVelocity < RAIL_EXIT_GUIDELINE_MPS;
@@ -516,6 +528,14 @@ function SweepTable({
   // small difference is the method rather than a discrepancy.
   const gap = ballisticGap(sorted.find((r) => r.isDesign)?.apogee, designApogee);
 
+  // How much of the ranking is outside the drag model's validated envelope. The per-row flag above
+  // says WHICH candidates; this says how much of the table to read that way, and carries the reason
+  // in words for the flyer who never hovers a cell.
+  const exN = rows.filter((r) => r.extrapolatedTransonic).length;
+  const extrapolatedWhy = exN
+    ? `${exN} of ${rows.length} candidates reach past M0.8, outside the drag model's validated subsonic envelope — those rows are marked, and are rough`
+    : undefined;
+
   return (
     <div className="mt-3">
       <DataTable
@@ -543,6 +563,18 @@ function SweepTable({
           this design actually flies, because its recovery opens before apogee. Compare the rows with
           each other, not with the flight above.
         </p>
+      )}
+      {/* BELOW the table, with the other flag explanations, and that placement is measured rather
+          than aesthetic. Above it, this marker pushed the first swept row from 1,260 px to 1,348 px
+          on a 390x664 phone — past the 1,328 px `DESIGN.md` §8 allows to the primary answer, a
+          contract this very panel already broke once and closed by moving its own preamble out of
+          the way. The per-row ▲ is inside the table and costs the answer no height at all, so the
+          flyer meets the marking on the row they are reading and the reason where every other flag
+          on this table explains itself. */}
+      {extrapolatedWhy && (
+        <div className="mt-3">
+          <Extrapolated reason={extrapolatedWhy} />
+        </div>
       )}
       <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
         Each motor flies a ballistic ascent to apogee under{" "}

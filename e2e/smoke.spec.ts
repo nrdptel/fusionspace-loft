@@ -1566,6 +1566,45 @@ test.describe("Loft", () => {
     await expect(table.getByText("Body tube", { exact: true })).toBeVisible();
   });
 
+  test("motor sweep marks the candidates that leave the drag model's envelope", async ({ page }) => {
+    // The RENDER half of a Sev-1 whose data half is pinned in `lib/sim/extrapolated-reach.test.ts`.
+    // `extrapolatedTransonic` reached exactly one surface — the flight card — so a flyer picking a
+    // motor here saw the fast candidates presented identically to the validated ones, while the same
+    // flight one route away said "treat it as rough". A unit test can prove the flag arrives on the
+    // row; only this can prove a flyer is told.
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+
+    await page.getByRole("link", { name: "Sweep" }).click();
+    const panel = page.getByRole("region", { name: "Motor sweep" });
+    await panel.getByRole("button", { name: /Run motor sweep/ }).click();
+    const rows = panel.locator("tbody tr");
+    await expect.poll(async () => rows.count(), { timeout: 60_000 }).toBeGreaterThan(2);
+
+    // The panel-level marker names how much of the ranking is outside the envelope. Asserted as the
+    // IDEA rather than as a literal sentence, so rewording the caveat does not red the check while
+    // deleting it does.
+    const marker = panel.getByText(/candidates reach past M0\.8/);
+    await expect(
+      marker,
+      "the sweep flew a candidate past M0.8 and said nothing about the envelope",
+    ).toBeVisible();
+
+    // And the marking is per row: the accessible name of an extrapolated row carries the reason, so
+    // a screen reader meets it on the row rather than only in the summary above. The fastest row is
+    // the one that earns it — this sample's top candidates are what cross the envelope.
+    const flagged = panel.locator("tbody tr", { hasText: /./ }).filter({
+      has: page.getByText(/outside the drag model's validated subsonic envelope/),
+    });
+    await expect
+      .poll(async () => flagged.count(), { timeout: 15_000 })
+      .toBeGreaterThan(0);
+    // Not every row — a caveat that applied to all of them would be telling the flyer nothing about
+    // which motor to pick, which is the whole job of this table.
+    expect(await flagged.count()).toBeLessThan(await rows.count());
+  });
+
   test("motor sweep exports the comparison as a CSV", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
