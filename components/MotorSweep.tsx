@@ -18,7 +18,7 @@ import DataTable, { type Column } from "./DataTable";
 import { compareCells } from "@/lib/table-sort";
 import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
-import { Button, Card, ClosePanel, Extrapolated, useReturnFocus } from "./ui";
+import { Button, Card, Extrapolated, Panel } from "./ui";
 
 const round = (n: number, dp: number) => (Number.isFinite(n) ? Math.round(n * 10 ** dp) / 10 ** dp : "");
 
@@ -150,8 +150,6 @@ export default function MotorSweep({
   const ballisticConditionsKey = useSettled(ballisticConditionsKeyLive, ballisticConditionsKeyLive);
 
   const [open, setOpen] = useState(false);
-  // Closing unmounts the Close button; focus has to land on the Run button that replaces it.
-  const [runRef, returnFocusToRun] = useReturnFocus();
   const [rows, setRows] = useState<MotorSweepRow[] | null>(null);
   const [running, setRunning] = useState(false);
   // **The MOUNT's casing, not the first row's.** `swapOptions` merges the catalogue's 75 and 76 mm
@@ -199,20 +197,19 @@ export default function MotorSweep({
   }, [open, designKey, ballisticConditionsKey]);
 
   return (
-    <Card as="section" aria-label="Motor sweep">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="text-xl font-medium tracking-tight">Compare fitting motors</h2>
-        {/* The list is filtered by the CASING the design flies, not by the mount's bore, and the two
-            are not the same number: a 54 mm mount can fly a 38 mm motor in an adapter, and it is the
-            38 mm ones that are offered. Saying "fits this mount" claimed the wider set and was
-            checkably false against the design file, which states the bore outright. */}
-        <div className="flex items-center gap-3">
-          <span className="text-xs text-zinc-500 dark:text-zinc-400">
-            {options.length} bundled {casingMm} mm motors
-          </span>
-          {open && <ClosePanel onClose={() => { setOpen(false); returnFocusToRun(); }} what="the motor sweep" />}
-        </div>
-      </div>
+    <Panel
+      label="Motor sweep"
+      title="Compare fitting motors"
+      /* The list is filtered by the CASING the design flies, not by the mount's bore, and the two
+         are not the same number: a 54 mm mount can fly a 38 mm motor in an adapter, and it is the
+         38 mm ones that are offered. Saying "fits this mount" claimed the wider set and was
+         checkably false against the design file, which states the bore outright. */
+      aside={`${options.length} bundled ${casingMm} mm motors`}
+      open={open}
+      onOpenChange={setOpen}
+      run="Run motor sweep"
+      what="the motor sweep"
+    >
       {/* The pitch, and only until it has been taken up. This paragraph answers "what is this and
           why would I run it" — a question the TABLE answers once the sweep has actually run, at
           which point the prose is 140 px of preamble sitting between the flyer and their answer.
@@ -228,14 +225,6 @@ export default function MotorSweep({
           the classic &ldquo;which motor gets me to my target?&rdquo; sweep (and whether a punchier one
           pushes the fins toward flutter), run entirely on your device.
         </p>
-      )}
-
-      {!open && (
-        <div className="mt-3">
-          <Button variant="primary" ref={runRef} onClick={() => setOpen(true)}>
-            Run motor sweep
-          </Button>
-        </div>
       )}
 
       {open && running && (
@@ -270,7 +259,7 @@ export default function MotorSweep({
           />
         </div>
       )}
-    </Card>
+    </Panel>
   );
 }
 

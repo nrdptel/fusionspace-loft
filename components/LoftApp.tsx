@@ -6,7 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import ImportPanel from "./ImportPanel";
 import ResultsView from "./ResultsView";
 import { workspaceFromPath, workspacePath, type Workspace } from "@/lib/workspaces";
-import { Button, Card, NumberField, Segmented, Select } from "./ui";
+import { Button, Card, ErrorState, NumberField, Segmented, Select } from "./ui";
 import { importDesign, sourceTool, type OrkDocument } from "@/lib/ork/import";
 import { newDesign } from "@/lib/model/starter";
 import { exportOrk } from "@/lib/ork/export";
@@ -1804,14 +1804,15 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
           typed. Only said when there is a design on screen to be unchanged: the same card carries
           import failures on the root route, where there is no flight to speak of. */}
       {error && (
-        <Card tone="danger" className="mt-4 text-sm">
-          {error}
-          {doc && (
-            <span className="block pt-1 text-zinc-700 dark:text-zinc-300">
-              The change was not applied — the design and the flight below are unchanged.
-            </span>
-          )}
-        </Card>
+        <ErrorState
+          className="mt-4"
+          what={error}
+          next={
+            doc
+              ? "The change was not applied — the design and the flight below are unchanged."
+              : undefined
+          }
+        />
       )}
 
       {doc && (

@@ -15,7 +15,7 @@ import type { CsvCell } from "@/lib/csv";
 import LineChart from "./LineChart";
 import DownloadCsv, { CopyTable } from "./DownloadCsv";
 import type { UnitSystem } from "@/lib/display";
-import { Button, Card, ClosePanel, Extrapolated, Select, useReturnFocus } from "./ui";
+import { Extrapolated, Panel, Select } from "./ui";
 
 const round = (n: number, dp: number) => (Number.isFinite(n) ? Math.round(n * 10 ** dp) / 10 ** dp : "");
 
@@ -242,8 +242,6 @@ export default function ParameterSweep({
   );
 
   const [open, setOpen] = useState(false);
-  // Closing unmounts the Close button; focus has to land on the Run button that replaces it.
-  const [runRef, returnFocusToRun] = useReturnFocus();
   // Which dimension to sweep and what to plot are a view the flyer set up, not a result — so they
   // are remembered. A stored choice this design can't offer (no fins, so no flutter margin; an axis
   // its geometry doesn't have) falls back to the default rather than selecting nothing.
@@ -327,27 +325,20 @@ export default function ParameterSweep({
   if (axes.length === 0) return null;
 
   return (
-    <Card as="section" aria-label="Parameter sweep">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="text-xl font-medium tracking-tight">Sweep a parameter</h2>
-        <div className="flex items-center gap-3">
-          <span className="text-xs text-zinc-500 dark:text-zinc-400">how one dimension changes the flight</span>
-          {open && <ClosePanel onClose={() => { setOpen(false); returnFocusToRun(); }} what="the parameter sweep" />}
-        </div>
-      </div>
+    <Panel
+      label="Parameter sweep"
+      title="Sweep a parameter"
+      aside="how one dimension changes the flight"
+      open={open}
+      onOpenChange={setOpen}
+      run="Run parameter sweep"
+      what="the parameter sweep"
+    >
       <p className="mt-1.5 text-sm text-zinc-600 dark:text-zinc-300">
         Vary one of the design&apos;s dimensions across a range and see how apogee, speed, stability,
         or fin-flutter margin responds — the response curve behind a single edit, run entirely on your
         device. Every other active what-if is held fixed, so the curve isolates the one variable.
       </p>
-
-      {!open && (
-        <div className="mt-3">
-          <Button variant="primary" ref={runRef} onClick={() => setOpen(true)}>
-            Run parameter sweep
-          </Button>
-        </div>
-      )}
 
       {open && axisDef && (
         <>
@@ -413,7 +404,7 @@ export default function ParameterSweep({
           )}
         </>
       )}
-    </Card>
+    </Panel>
   );
 }
 

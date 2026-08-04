@@ -2189,7 +2189,42 @@ that would still meet the *done when*.
 
 ## R10 — The corpus comparison Loft can actually defend
 
-**Status:** NOT STARTED
+**Status: IN PROGRESS** — **Size item (1) shipped 2026-08-04**, and the publish step of (5) was taken
+with it for this one metric. Pinned by `lib/ork/adapt.test.ts` (`the OpenRocket ground-hit frame`,
+both sides of the 24.12 boundary plus every version string the corpus actually carries) and by the
+census's own `PUBLISHED_MEDIAN_PCT` gate, moved to 2.0 in the same commit. **The commit message
+calls this "increments 1 and 2" — read it as Size item (1); the numbering there is wrong and this
+line is the one to trust.**
+
+*Size item (1) — SHIPPED 2026-08-04. The `.ork` convention, settled from source, and every file
+compared against the quantity its own version stored.*
+
+The inference in `COMPETITION.md` row 34 was half right, and the half it missed is why this metric
+had three different "gaps". OpenRocket interpolates `groundhitvelocity` out of `TYPE_VELOCITY_TOTAL`
+at the GROUND_HIT event — logic byte-identical across every release — but what that series holds
+during descent flipped at **24.12**: `AbstractEulerStepper.java:168` set it from `airSpeed.length()`
+(air-relative, and under an open canopy effectively the vertical rate) up to 23.09, while from 24.12
+that stepper has zero references to the type and `SimulationStatus.java:643` sets it from
+`getRocketVelocity().length()` — the ground-frame total, drift included, the same quantity RockSim
+stores. On this corpus 27 stored simulations are pre-24.12 and 64 are 24.12 or later, so most of the
+OpenRocket census was on the wrong side of it, in one direction, because a total is never smaller
+than its own vertical component.
+
+`orkGroundHitFrame()` records the ERA rather than converting the value — the creator string is a
+fact about the file, and by the time a comparison runs the document is a `Rocket` and the string is
+gone — and `compareToStored` picks which of Loft's two figures to score. An unparseable creator falls
+back to the vertical reading, because a wrong era is worse than no era.
+
+Worth 8.3% → **2.0%** on ground-hit velocity over the same 94 simulations with no change to the
+solver (openrocket alone 7.8% → 1.2%), and it took the one-sided bias with it: "86 of 92 descend
+slower than stored" at a signed −8.2% median became 66 of 92 at −1.0%. Worst of the ten metrics to
+third-best. `/docs/validation`, `/docs/limitations` and row 34 all moved in the same commit — row 34
+from inference to citation.
+
+**What remains**, in the Size order below: (2) read `HasDeployed`/`FinalState` in the `.rkt` adapter
+and carry them onto the stored simulation; (3) split the census's deployed and ballistic populations
+and print both; (4) name the self-disagreeing file rather than averaging it; (5) re-measure and
+publish across all ten metrics.
 
 **Why this and not the after-list's R10.** The after-list names "Toward 6-DOF" next, and explicitly
 says to decompose it "only when the fundamentals justify it, and only against published, citable
@@ -3472,8 +3507,10 @@ invariant: whatever ships here ships in both apps.
 
 ## P6 — The primitives the design system already declares
 
-**Status: IN PROGRESS** — increment 1 shipped 2026-08-04 (`Readout`), plus `Extrapolated`, which
-arrived early as a Sev-1 fix rather than as planned P6 work.
+**Status: IN PROGRESS** — increments 1–4 shipped 2026-08-04 (`Readout`, `Select`,
+`EmptyState`/`ErrorState`, `Panel`), plus `Extrapolated`, which arrived early as a Sev-1 fix rather
+than as planned P6 work. Each carries a per-primitive adoption ratchet in `lib/design-system.test.ts`.
+**Remaining: `Figure`**, and the live question on `Section` and `Chip` — see *Notes*.
 
 *Increment 1 — SHIPPED. `Readout` exists and `ResultsView`'s sixteen readouts go through it.*
 
@@ -3510,11 +3547,47 @@ and §9 carries the rule underneath: **a check that counts a file's own class st
 penalise adoption, so it has to count what the file RENDERS.** Verified it keeps its teeth — every
 other component still passes on raw counts alone.
 
-**Next: `EmptyState`/`ErrorState`, then `Panel` and `Figure`.** `MassBreakdown.tsx:47` is the
-confirmed live case: `if (points.length === 0) return null` short-circuits before a `DataTable` whose
-`empty` copy is written and unreachable, so the panel vanishes rather than saying why. (The
-`GeometryInspector` sibling of it was investigated and REFUTED — `ResultsView` never mounts without a
-successful flight, so that branch is genuinely unreachable.) The `Readout` queue behind increment 1 is
+*Increment 3 — SHIPPED 2026-08-04. `EmptyState` and `ErrorState`.*
+
+`EmptyState` is adopted by `DataTable`, which is "every table in the app", so one branch is now the
+empty state of all seven. `ErrorState` takes three named slots — what failed, what was expected, the
+way forward — because a message assembled at the call site drops one of the three about as often as
+not, and it renders `danger` where `EmptyState` renders `muted`: a surface with nothing to show and a
+surface that broke are different facts.
+
+**One claim in that increment was wrong, and driving the app is what caught it.** `MassBreakdown`
+guarded on an empty structural-mass set and returned null, and one corpus design does produce that
+set — but loaded through the UI that design has no motor, so `ResultsView` withholds everything below
+its "No flight simulated" card and the guard is never reached. Nothing in the corpus both flies and
+states no structural mass. The guard is still gone and the dead `empty` copy is now live; the honest
+claim is that a data surface no longer has a branch where it silently disappears, not that a visible
+hole was patched. Pinned by `lets no data surface vanish instead of saying why`, scoped to the named
+data-rendering components — a blanket rule would fire on the app's conditional ADVICE, and a hint
+that does not apply must not render an empty box saying so.
+
+*Increment 4 — SHIPPED 2026-08-04. `Panel`, and it is the first primitive here that carries
+BEHAVIOUR rather than a treatment.*
+
+Three adopters from the first commit: the parameter sweep, the motor sweep and the dispersion run
+had hand-rolled the identical landmark, header row, `text-xl` heading, `text-xs` caption,
+`open`-gated close button and `!open` Run block. The styling was the cheap half. §5 also says `Panel`
+"owns focus return", and until now nothing did — each call site declared `useReturnFocus()`, put the
+ref on its own Run button, and called the returner from inside its own close handler. Four steps, by
+hand, three times, and **a panel that closes and drops focus onto `<body>` is invisible to every
+check in this repo**.
+
+Pinned two ways, the pattern `Select` established: a per-primitive ratchet at three files, and a
+source count asserting zero components outside `ui.tsx` call `useReturnFocus` — because adoption sees
+a fourth panel that imports `Panel` and cannot see a fourth panel that re-derives the wiring beside
+it. Proved able to fail by putting the hook back into `MonteCarlo`.
+
+It also moved three counts DOWN — `Card` 12→11, `Button` 14→12, `ClosePanel` 3→0 — with no rendered
+pixel changing, which is the distortion §9 already records under *count what a file RENDERS*. Noted
+beside each number so the next audit reads it as absorption rather than regression.
+
+**Next: `Figure`.** (The `GeometryInspector` empty-state case was investigated and
+REFUTED — `ResultsView` never mounts without a successful flight, so that branch is genuinely
+unreachable.) The `Readout` queue behind increment 1 is
 measured and waiting: `Field` (14 sites in the same file, a pre-formatted-string value),
 `MonteCarlo`'s `StatCard`/`WithheldCard`/`RadiusCard` (6, differing only in what fills `sub`), and
 the what-if delta rows (5, a before → after → change shape the API does not yet express).

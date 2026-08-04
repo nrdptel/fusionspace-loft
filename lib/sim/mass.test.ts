@@ -1,8 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { join, resolve } from "node:path";
 import { combine, dryMassProperties, finChordCentroid, massByComponent, structurePointMasses } from "./mass";
 import { flattenRocket } from "../model/geometry";
-import { importOrk } from "../ork/import";
+import { importOrk, importDesign } from "../ork/import";
 import type { Rocket, BodyTube, InnerTube, MassComponent, GenericFinSet, NoseCone } from "../model/types";
 
 const MAT = { name: "x", density: 1000, type: "bulk" as const };
@@ -392,4 +393,54 @@ describe("a clustered motor mount scales the motor tubes, never the airframe", (
     );
     expect(stated.mass).toBeCloseTo(0.12, 9);
   });
+});
+
+describe("a design that states no structural mass", () => {
+  /** Why `MassBreakdown` stopped returning null — and, stated precisely, what this does and does NOT
+   *  establish.
+   *
+   *  It establishes that the INPUT is real: one corpus design states no structural point mass at all,
+   *  so the branch is not hypothetical arithmetic.
+   *
+   *  **It does not establish that a flyer sees it, and driving the app proved they do not.** Loaded
+   *  through the UI, that design has no motor assigned, so `ResultsView` renders its "No flight
+   *  simulated" card and withholds everything below — `MassBreakdown` included. Reaching the empty
+   *  panel needs a design that BOTH flies and states no structural mass, and nothing in the corpus is
+   *  both. So removing the `return null` is defensive rather than a visible fix, and the claim to
+   *  make about it is that a data surface no longer has a branch where it silently disappears —
+   *  not that a hole was patched. Written down because the first version of this comment said the
+   *  latter, and a commit message nearly shipped saying it too. */
+  it("exists in the real corpus, so the empty branch is not hypothetical", async () => {
+    const dir = process.env.LOFT_CORPUS_DIR ?? resolve(process.cwd(), "corpus");
+    if (!existsSync(dir)) {
+      // The corpus is gitignored and absent on a public clone; skipping is correct there, and the
+      // suite says so rather than reporting a pass it did not earn.
+      console.log("no corpus present — skipping the reachability check");
+      return;
+    }
+    const found: string[] = [];
+    let flown = 0;
+    for (const tool of ["openrocket", "rocksim", "rasaero", "rocketpy", "spacecad"]) {
+      const p = join(dir, tool);
+      if (!existsSync(p)) continue;
+      for (const name of readdirSync(p)) {
+        if (!/\.(ork|rkt|CDX1)$/i.test(name)) continue;
+        let doc;
+        try {
+          doc = await importDesign(new Uint8Array(readFileSync(join(p, name))));
+        } catch {
+          continue;
+        }
+        flown++;
+        if (structurePointMasses(doc.rocket).length === 0) found.push(name);
+      }
+    }
+    // The denominator matters: a check that examined nothing would report the same "found 0".
+    expect(flown, "no corpus design was read, so this proves nothing").toBeGreaterThan(20);
+    console.log(`structural-mass-free designs: ${found.length} of ${flown} — ${found.join(", ") || "none"}`);
+    expect(
+      found.length,
+      "no corpus design produces an empty structural-mass set any more; if that is a real improvement, this check has served its purpose and the empty state is now speculative — say so rather than deleting it silently",
+    ).toBeGreaterThan(0);
+  }, 300_000);
 });

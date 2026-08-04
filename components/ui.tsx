@@ -118,6 +118,82 @@ export function Card({
   );
 }
 
+/** A dismissible analysis panel — `DESIGN.md` §5: "a `Card` with a header row and a close
+ *  affordance, for anything dismissible. Owns focus return."
+ *
+ *  The three heavy panels — the parameter sweep, the motor sweep and the dispersion run — hand-rolled
+ *  this identically: the same `Card as="section"` landmark, the same `flex flex-wrap items-baseline
+ *  justify-between gap-2` header, the same `text-xl` heading, the same `text-xs` caption beside it,
+ *  the same `ClosePanel` gated on `open`, and the same `!open` block holding a primary Run button.
+ *
+ *  **Owning focus return is the point, not the styling.** Each call site paired `useReturnFocus()`
+ *  with a `returnFocusToRun()` inside its own `onClose`, which is a four-part contract — declare the
+ *  hook, put the ref on the Run button, call the returner, and do it in the close handler rather than
+ *  anywhere else — repeated by hand at every panel. `ClosePanel`'s own doc comment records what it
+ *  cost when a panel had no way out at all; a panel that closes and drops focus onto `<body>` is the
+ *  keyboard version of the same defect, and it is invisible to every check in this repo. Here the
+ *  ref goes on the Run button this component renders and the returner fires from the close handler it
+ *  owns, so a fourth panel added next run inherits both instead of re-deriving them.
+ *
+ *  `children` renders BEFORE the Run button, which sounds wrong and is exactly what the call sites
+ *  do: the button follows the panel's pitch paragraph, and the analysis it opens is gated on `open`,
+ *  so the two are never on screen together. The rendered order is unchanged in both states. */
+export function Panel({
+  title,
+  label,
+  aside,
+  open,
+  onOpenChange,
+  run,
+  what,
+  className,
+  children,
+  ...rest
+}: {
+  title: React.ReactNode;
+  /** The landmark's accessible name — this is a `<section>`, and the e2e suite reaches all three by
+   *  `getByRole("region", …)`. */
+  label: string;
+  /** The caption on the right of the header row: what the run costs, or what it covers. */
+  aside?: React.ReactNode;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  /** The primary button that opens it. `DESIGN.md` §5 allows one primary per surface, and this is
+   *  the action the panel exists to perform. */
+  run: React.ReactNode;
+  /** Named in the close button's accessible name: `Close ${what}`. */
+  what: string;
+} & Omit<React.HTMLAttributes<HTMLElement>, "title">) {
+  const [runRef, returnFocusToRun] = useReturnFocus();
+  return (
+    <Card as="section" aria-label={label} className={className} {...rest}>
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 className="text-xl font-medium tracking-tight">{title}</h2>
+        <div className="flex items-center gap-3">
+          {aside && <span className="text-xs text-zinc-500 dark:text-zinc-400">{aside}</span>}
+          {open && (
+            <ClosePanel
+              onClose={() => {
+                onOpenChange(false);
+                returnFocusToRun();
+              }}
+              what={what}
+            />
+          )}
+        </div>
+      </div>
+      {children}
+      {!open && (
+        <div className="mt-3">
+          <Button variant="primary" ref={runRef} onClick={() => onOpenChange(true)}>
+            {run}
+          </Button>
+        </div>
+      )}
+    </Card>
+  );
+}
+
 /** A titled region within a route — `DESIGN.md` §5. What a route is built from. */
 export function Section({
   title,
@@ -495,6 +571,77 @@ export function Select({
     >
       {children}
     </select>
+  );
+}
+
+/** `DESIGN.md` §5's `EmptyState` — "says what would fill it *and* the one action that does. Never
+ *  'No data'."
+ *
+ *  **A surface with no empty state is not finished; it is the state a flyer sees first.** Measured on
+ *  the real-design corpus: `structurePointMasses` returns nothing for
+ *  `Three-stage rocket.CDX1`, so `MassBreakdown` hit `return null` and the whole Mass & balance panel
+ *  VANISHED — a hole where a panel was, on 1 of the 35 corpus designs, with no way to tell a surface
+ *  that has nothing to show from one that failed to render.
+ *
+ *  `what` is the sentence, `action` the control that fills it. The action is optional because it is
+ *  sometimes genuinely absent — a design that states no structural mass needs a different FILE, not a
+ *  button — and inventing one would be worse than omitting it. What is never optional is saying what
+ *  would fill the surface, which is why `what` is required and "No data" is not an acceptable value
+ *  for it.
+ *
+ *  `muted` is the tone `DESIGN.md` §2 already names for this: "sunken and dashed: a slot with nothing
+ *  in it yet. The empty state's container." */
+export function EmptyState({
+  what,
+  action,
+  className,
+}: {
+  /** What would fill this surface, in a sentence a flyer can act on. Never "No data". */
+  what: React.ReactNode;
+  /** The one action that fills it, where one exists. */
+  action?: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <Card tone="muted" className={cx("text-sm", className)}>
+      <div>{what}</div>
+      {action && <div className="mt-3">{action}</div>}
+    </Card>
+  );
+}
+
+/** `DESIGN.md` §5's `ErrorState` — "names the file or field that failed, what was expected, and the
+ *  way forward. An error that names something not on the page is a named tell."
+ *
+ *  Three required parts, and they are separate props rather than one string on purpose: a message
+ *  assembled at the call site drops one of the three about as often as not, and the three are what
+ *  make an error actionable rather than an apology. `what` names the thing — a file, a field, a
+ *  parse — `expected` says what should have been there, and `next` is what the flyer can do.
+ *
+ *  It renders `danger`, which §2 reserves for "a refusal, or a value that could not be computed".
+ *  That is deliberately NOT the same tone as `EmptyState`: a surface with nothing to show and a
+ *  surface that broke are different facts, and rendering them alike is how a flyer learns to ignore
+ *  both. */
+export function ErrorState({
+  what,
+  expected,
+  next,
+  className,
+}: {
+  /** The file, field or step that failed — named, so it is findable on the page. */
+  what: React.ReactNode;
+  /** What was expected instead. */
+  expected?: React.ReactNode;
+  /** The way forward. */
+  next?: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <Card tone="danger" className={cx("text-sm", className)}>
+      <div>{what}</div>
+      {expected && <div className="mt-1">{expected}</div>}
+      {next && <div className="mt-1">{next}</div>}
+    </Card>
   );
 }
 

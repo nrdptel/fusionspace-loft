@@ -162,8 +162,14 @@ const BUDGET = {
  *  state `DESIGN.md` recorded for `Chip` and `Disclosure` on 2026-07-30 and the state this milestone
  *  is closing. What must not happen is a zero silently BECOMING the finished condition. */
 const PRIMITIVE_ADOPTERS: Record<string, number> = {
-  Card: 12,
-  Button: 14,
+  /** 11, down from 12, and the same for `Button` at 12 from 14 and `ClosePanel` at 0 from 3 — all
+   *  three fell on 2026-08-04 for the reason §9 records under *count what a file RENDERS*: `Panel`
+   *  absorbed the container, the Run button and the close affordance of the three heavy analysis
+   *  panels, so two files stopped importing what they still render. Adoption moving a count DOWN is
+   *  the system working. What would be a regression is a file rendering one of these and importing
+   *  neither it nor a primitive that owns it. */
+  Card: 11,
+  Button: 12,
   /** The button geometry as a class, for the two things that must look like a button and cannot BE
    *  one — a `next/link` and an external `<a>`. It is exported from `lib/ui-tokens.ts` rather than
    *  from `components/ui.tsx` because the site header is a SERVER component and cannot call into a
@@ -197,7 +203,12 @@ const PRIMITIVE_ADOPTERS: Record<string, number> = {
    *  measured card variants happened, so it is counted like any other adoption. */
   navItemClass: 1,
   NumberField: 2,
-  ClosePanel: 3,
+  /** Zero, and it is `Panel` below that holds the line now. The close affordance was never the
+   *  problem — every panel that had one used this — but it was gated on `open` by hand at each site
+   *  and paired with a `useReturnFocus()` the call site also had to wire. `Panel` owns both. A
+   *  fourth dismissible surface that reaches for `ClosePanel` directly is not wrong, and this
+   *  leaving zero is what would tell the next audit it went that way rather than through `Panel`. */
+  ClosePanel: 0,
   Chip: 0,
   Disclosure: 1,
   /** §5's `Extrapolated` — "the warn treatment plus the reason and the range it left".
@@ -232,6 +243,35 @@ const PRIMITIVE_ADOPTERS: Record<string, number> = {
    *  all, so they rendered under §8's 44 px minimum on a phone. That is what a copied treatment
    *  costs — the copy drifts, and it drifts where nobody re-measures. */
   Select: 4,
+  /** §5's `EmptyState`. One adopter, and it is the one that matters most: `DataTable` is "every table
+   *  in the app" (7 files), so this single branch is the empty state of all of them.
+   *
+   *  `MassBreakdown` also stopped returning null. Stated precisely, because driving the app corrected
+   *  the first version of this note: one corpus design (`Three-stage rocket.CDX1`, 1 of 35) produces
+   *  an empty structural-mass set, but loaded through the UI it has no motor, so `ResultsView`
+   *  withholds everything below its "No flight simulated" card and the panel is never reached. That
+   *  change is defensive — a data surface with no branch that silently disappears — not a hole a
+   *  flyer was falling into. */
+  EmptyState: 1,
+  /** §5's `ErrorState`. One adopter today — the app's own error card, which carries both an import
+   *  failure and a refused edit.
+   *
+   *  `components/RocketpyCrossCheck.tsx`'s `Failure` is the known next site and is deliberately not
+   *  converted yet: it composes an offline note, the engine's own headline and a collapsible full
+   *  report, in a documented order (the browser's fact before the engine's). Forcing it through three
+   *  named slots would either reorder it or add a `children` escape hatch that makes the primitive
+   *  mean nothing. It is filed rather than rushed. */
+  ErrorState: 1,
+  /** §5's `Panel` — "a `Card` with a header row and a close affordance, for anything dismissible.
+   *  Owns focus return."
+   *
+   *  Three adopters, and it started at three: the parameter sweep, the motor sweep and the dispersion
+   *  run had hand-rolled the identical landmark, header row, `text-xl` heading, `text-xs` caption,
+   *  `open`-gated close button and `!open` Run block. Unlike the other primitives on this list it
+   *  carries BEHAVIOUR, not just a treatment — the `useReturnFocus()` pairing was a four-part contract
+   *  each call site re-derived, and a panel that closes and drops focus onto `<body>` is invisible to
+   *  every check in this repo. A fourth heavy panel must import this. */
+  Panel: 3,
 };
 
 describe("DESIGN.md §9 — the design system is binding, and this is what checks it", () => {
@@ -407,6 +447,65 @@ describe("DESIGN.md §9 — the design system is binding, and this is what check
         return [...stripped.matchAll(/<select[\s>]/g)].map(() => f.path);
       });
     expect(raw, `hand-rolled <select> elements:\n  ${raw.join("\n  ")}`).toEqual([]);
+  });
+
+  it("wires focus return in exactly 0 places — `Panel` owns it", () => {
+    // `DESIGN.md` §5 says `Panel` "owns focus return", and until 2026-08-04 nothing did: the three
+    // heavy panels each declared `useReturnFocus()`, put the ref on their own Run button, and called
+    // the returner from inside their own close handler. Four steps, by hand, three times.
+    //
+    // The same source-count reasoning as the `<select>` check above: adoption counts imports, so it
+    // can see a fourth panel that imports `Panel` but not a fourth panel that re-derives the wiring
+    // beside it. This is the assertion that goes red for the second kind.
+    //
+    // Scoped to the HOOK rather than to the whole pattern deliberately. A future surface with a real
+    // reason to return focus somewhere `Panel` does not render — a modal, a drawer — is not a defect,
+    // and this check is where that argument gets made: the hook stays exported, and taking it means
+    // changing this number with the reason beside it, not quietly copying four lines.
+    const callers = components
+      .filter((f) => f.path !== "components/ui.tsx")
+      .filter((f) =>
+        f.text
+          .replace(/\/\*[\s\S]*?\*\//g, "")
+          .split("\n")
+          .filter((l) => !/^\s*(\/\/|\*)/.test(l))
+          .join("\n")
+          .includes("useReturnFocus("),
+      )
+      .map((f) => f.path);
+    expect(callers, `hand-wired focus return:\n  ${callers.join("\n  ")}`).toEqual([]);
+  });
+
+  it("lets no data surface vanish instead of saying why", () => {
+    // `DESIGN.md` §5: "A surface with no empty state is not finished. It is the state a flyer sees
+    // first." A `return null` on a DATA surface is the worst version of that — not a bad empty
+    // state, but a hole where a panel was, indistinguishable from a render that failed.
+    //
+    // Measured: `MassBreakdown` did exactly this on 1 of the 35 corpus designs
+    // (`Three-stage rocket.CDX1` states no structural point masses), and its `empty` copy was
+    // already written and provably unreachable behind the guard.
+    //
+    // Scoped to the components that RENDER A DATASET, by name. A blanket "no `return null`" would be
+    // wrong and would fire constantly: most of the app's `return null`s are conditional ADVICE — a
+    // flutter hint, a stability-trim note, a booster-descent line — and a hint that does not apply
+    // must not render an empty box saying so. The distinction is whether the surface exists to show
+    // data a flyer came looking for.
+    const DATA_SURFACES = ["components/MassBreakdown.tsx", "components/DataTable.tsx"];
+    const offenders: string[] = [];
+    for (const path of DATA_SURFACES) {
+      const f = components.find((x) => x.path === path);
+      expect(f, `${path} is not in the component set — the list above has gone stale`).toBeDefined();
+      const stripped = f!.text
+        .replace(/\/\*[\s\S]*?\*\//g, "")
+        .split("\n")
+        .filter((l) => !/^\s*(\/\/|\*)/.test(l))
+        .join("\n");
+      if (/\breturn null\b/.test(stripped)) offenders.push(path);
+    }
+    expect(
+      offenders,
+      `a data surface returns null instead of an empty state:\n  ${offenders.join("\n  ")}`,
+    ).toEqual([]);
   });
 
   it("uses no type size that is off the six-size scale", () => {

@@ -6,6 +6,7 @@ import { TOUCH_TARGET_SQUARE, cx } from "@/lib/ui-tokens";
 import { compareCells } from "@/lib/table-sort";
 import type { CsvCell } from "@/lib/csv";
 import DownloadCsv, { CopyTable } from "./DownloadCsv";
+import { EmptyState } from "./ui";
 
 /** One column of a `DataTable` — `DESIGN.md` §5, which names this primitive and says "every table is
  *  this one".
@@ -147,7 +148,12 @@ export default function DataTable<R>({
   );
 
   if (rows.length === 0) {
-    return <div className={cx("text-sm text-zinc-600 dark:text-zinc-400", className)}>{empty}</div>;
+    // `DESIGN.md` §5's `EmptyState`, not a bare div. Every table in the app is this component, so
+    // this one branch is the empty state of all seven of them — which is exactly why it should not
+    // be a treatment spelled here. The `empty` prop is already required, and its copy already has to
+    // say what would fill the table; the primitive is what makes it LOOK like the state it is,
+    // rather than like a paragraph where a table was.
+    return <EmptyState what={empty} className={className} />;
   }
 
   const click = (key: string) => {
