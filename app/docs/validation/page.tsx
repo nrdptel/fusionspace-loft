@@ -183,21 +183,48 @@ export default async function Validation() {
         <li>time to apogee <strong>1.5%</strong>, rail-exit velocity <strong>1.9%</strong></li>
         <li>max Mach <strong>2.0%</strong>, max velocity <strong>2.2%</strong>, optimum delay <strong>2.5%</strong></li>
         <li>apogee <strong>3.1%</strong>, max acceleration <strong>3.2%</strong>, flight time <strong>3.3%</strong></li>
-        <li>deployment velocity <strong>6.0%</strong>, ground-hit velocity <strong>8.3%</strong></li>
+        <li>ground-hit velocity <strong>2.0%</strong>, deployment velocity <strong>6.0%</strong></li>
       </ul>
       <p>
-        <strong>Ground-hit velocity moved from 3.0% to 8.3%, and the engine did not get worse.</strong>{" "}
-        Loft used to measure it as the total speed over the ground, which folds in the sideways drift
-        the canopy is carrying — under an open parachute that horizontal component is simply the
-        wind. Every figure it is compared against is a <em>descent rate</em>, and so are the rules of
-        thumb it feeds and the per-section landing energy a waiver is judged on. On the openrocket
-        files the two errors ran opposite ways and partly cancelled, which is what made 3.0% look
-        good: one design reads 14.5% low on descent rate but only 3.0% low once the wind term is
-        added back. Measured on the nine stored simulations where the wind is strong enough that
-        they cannot cancel, the descent rate agrees to <strong>0.68%</strong> while the total speed
-        is out by <strong>25.3%</strong>. So 8.3% is the number that was always true, and the gap it
-        exposes is real: Loft&apos;s descent under a canopy disagrees with OpenRocket&apos;s by more
-        than the old figure ever admitted. Closing that gap is the next thing owed here.
+        <strong>
+          Ground-hit velocity went 3.0% &rarr; 8.3% &rarr; 2.0%, and not one of those moves was the
+          engine.
+        </strong>{" "}
+        All three were the same mistake found in three places: Loft&apos;s figure and the stored
+        figure it was scored against were not always the same physical quantity, and nothing recorded
+        which was which. Loft reports the <em>descent rate</em> &mdash; the vertical speed &mdash;
+        because wind moves the speed over the ground without making the canopy any smaller, and the
+        rules of thumb and the per-section landing energy a waiver is judged on are all descent
+        rates.
+      </p>
+      <ul>
+        <li>
+          <strong>3.0% was two errors cancelling.</strong> Loft measured the total speed over the
+          ground under a name that means the descent rate, and its own descent ran low; one design
+          reads 14.5% low on descent rate but only 3.0% low once the wind term is added back.
+          Reporting the honest figure took the census to 8.3%.
+        </li>
+        <li>
+          <strong>RockSim stores the total.</strong> Its <code>VelocityAtLanding</code>{" "}
+          is the magnitude of its own three components &mdash; verified on every stored simulation in the
+          corpus &mdash; so reading the vertical component instead moved the RockSim median from
+          25.7% to 21.9%.
+        </li>
+        <li>
+          <strong>And OpenRocket changed its own convention.</strong> Files written by 23.09 or
+          earlier store the air-relative speed, which under an open canopy is the descent rate; files
+          written by 24.12 or later store the ground-frame total, drift included. That is read from
+          OpenRocket&apos;s own source rather than inferred, and 64 of the corpus&apos;s 91 OpenRocket
+          simulations are on the newer side. Comparing each file against the quantity its own version
+          actually stored took the OpenRocket median from 7.8% to <strong>1.2%</strong>.
+        </li>
+      </ul>
+      <p>
+        So <strong>2.0%</strong>{" "}
+        is the first figure here that measures what it always claimed to:
+        how far Loft&apos;s descent is from the tool&apos;s, rather than how far a vertical speed is
+        from a total one. The remaining gap is Loft&apos;s own, and it is now the same order as the
+        rest of the census rather than three times its worst.
       </p>
       <p>
         Deployment velocity looks like the outlier and mostly isn&apos;t: it is an{" "}

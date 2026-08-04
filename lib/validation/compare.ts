@@ -47,13 +47,31 @@ const METRICS: MetricDef[] = [
 ];
 
 /** Compare a simulated summary against stored OpenRocket results. Only metrics present in
- *  the stored data (finite) are compared. */
-export function compareToStored(summary: FlightSummary, stored: StoredResults): ValidationReport {
+ *  the stored data (finite) are compared.
+ *
+ *  `groundHitVelocityFrame` says which QUANTITY the file's stored landing velocity is, because
+ *  OpenRocket changed its mind between releases and the file does not say — see
+ *  `StoredSimulation.groundHitVelocityFrame`. Loft reports the vertical descent rate; a file written
+ *  by 24.12 or later stores the ground-frame total, and comparing one against the other is wrong in a
+ *  single direction, because a total is never smaller than its own vertical component.
+ *
+ *  Absent, it compares against the vertical figure — the reading Loft has always used and the one
+ *  `COMPETITION.md` row 34 established empirically from stored numbers. That is the conservative
+ *  default: it is right for every file written before the change, and for a file whose creator string
+ *  is missing there is nothing better to go on than the behaviour that has been measured. */
+export function compareToStored(
+  summary: FlightSummary,
+  stored: StoredResults,
+  opts: { groundHitVelocityFrame?: "vertical" | "total" } = {},
+): ValidationReport {
   const comparisons: MetricComparison[] = [];
   for (const m of METRICS) {
     const storedVal = stored[m.key];
     if (storedVal === undefined || !Number.isFinite(storedVal)) continue;
-    const simVal = m.sim(summary);
+    const simVal =
+      m.key === "groundHitVelocity" && opts.groundHitVelocityFrame === "total"
+        ? summary.groundHitTotalVelocity
+        : m.sim(summary);
     const absError = simVal - storedVal;
     const pctError = storedVal !== 0 ? (absError / storedVal) * 100 : NaN;
     comparisons.push({

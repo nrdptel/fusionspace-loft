@@ -81,6 +81,32 @@ export interface StoredConditions {
 export interface StoredSimulation {
   name: string;
   status?: string;
+  /** WHICH QUANTITY `groundHitVelocity` above actually is, because the tool that wrote it changed
+   *  its mind and the file does not say.
+   *
+   *  OpenRocket interpolates the stored attribute out of `TYPE_VELOCITY_TOTAL` at the `GROUND_HIT`
+   *  event — logic that is byte-identical across every release — but what that series HOLDS during
+   *  descent flipped between 23.09 and 24.12:
+   *
+   *    - **<= 23.09** `AbstractEulerStepper.java:168` does
+   *      `data.setValue(TYPE_VELOCITY_TOTAL, airSpeed.length())` with
+   *      `airSpeed = getRocketVelocity().add(windSpeed)` — the AIR-relative speed. Under an open
+   *      canopy the rocket drifts with the air, so the horizontal term is ~0 and the figure is
+   *      effectively the vertical descent rate.
+   *    - **>= 24.12** that stepper contains no reference to the type at all (verified: zero
+   *      occurrences), and `SimulationStatus.java:643` sets it from `getRocketVelocity().length()` —
+   *      the GROUND-frame total, wind drift included. The same quantity RockSim stores.
+   *
+   *  Loft's own `groundHitVelocity` is the vertical descent rate, deliberately (wind moves the total
+   *  without making the canopy any smaller). So comparing every `.ork` against it was right for the
+   *  older era and wrong for the newer one, in a single direction — a total is never smaller than its
+   *  own vertical component. Measured on this corpus: 27 stored simulations were written by 23.09 or
+   *  earlier and 64 by 24.12 or later, so most of the OpenRocket census was on the wrong side of it.
+   *
+   *  Undefined where the creator string is missing or unparseable, which is honest rather than a
+   *  guess: `lib/validation/compare.ts` then falls back to the older reading, the one Loft has always
+   *  used and the one `COMPETITION.md` row 34 established empirically. */
+  groundHitVelocityFrame?: "vertical" | "total";
   conditions: StoredConditions;
   results: StoredResults;
   hasResults: boolean;
@@ -792,6 +818,28 @@ function parseMotorConfigs(rocketNode: XmlNode, ctx: WalkContext): {
   return { configs, defaultId };
 }
 
+/** The release at which OpenRocket's stored landing velocity changed meaning — see
+ *  `StoredResults.groundHitVelocityFrame`. Files written by this version or later store the
+ *  ground-frame total; earlier ones store the air-relative speed. */
+const ORK_GROUND_FRAME_SINCE: readonly [number, number] = [24, 12];
+
+/** Which convention a file's stored landing velocity follows, from its `creator` string.
+ *
+ *  Returns `undefined` rather than guessing when the string is absent or does not carry a
+ *  `YY.MM` version — a wrong era is worse than no era, because it would silently compare the two
+ *  different quantities while looking deliberate. Handles the suffixed forms the corpus actually
+ *  carries: `24.12.beta.01` and `26.xx.SNAPSHOT-3cc62e47d` (whose minor is not a number, and which
+ *  is still unambiguously later than 24.12 by its major). */
+export function orkGroundHitFrame(creator: string | undefined): "vertical" | "total" | undefined {
+  const m = /OpenRocket\s+(\d+)\.(\d+|xx)/i.exec(creator ?? "");
+  if (!m) return undefined;
+  const major = Number(m[1]);
+  const minor = m[2].toLowerCase() === "xx" ? 99 : Number(m[2]);
+  if (!Number.isFinite(major) || !Number.isFinite(minor)) return undefined;
+  const [gMajor, gMinor] = ORK_GROUND_FRAME_SINCE;
+  return major > gMajor || (major === gMajor && minor >= gMinor) ? "total" : "vertical";
+}
+
 function parseSimulations(root: XmlNode): StoredSimulation[] {
   const sims = child(root, "simulations");
   if (!sims) return [];
@@ -839,6 +887,9 @@ function parseSimulations(root: XmlNode): StoredSimulation[] {
     out.push({
       name: childText(sim, "name") || "Simulation",
       status: sim.attrs.status,
+      // Recorded here rather than derived later: the creator string is a fact about the FILE, and by
+      // the time a comparison runs the document is a Rocket and the string is gone.
+      groundHitVelocityFrame: orkGroundHitFrame(root.attrs.creator),
       conditions,
       results,
       hasResults,

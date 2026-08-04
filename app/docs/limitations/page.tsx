@@ -281,13 +281,18 @@ export default function Limitations() {
       <h3>The parachute drag coefficient is the least-sourced number in the flight</h3>
       <p>
         <strong>
-          Ground-hit velocity is the figure Loft agrees with least, and the single input that drives
-          it is not on any surface.
+          Ground-hit velocity was the figure Loft agreed with least, and almost none of the gap was
+          the descent model.
         </strong>{" "}
-        Measured across the real-design corpus on 2026-08-03, the median disagreement with each file&apos;s
-        own stored results is <strong>8.3% over 94 simulations</strong> for ground-hit velocity, against
-        3.1% for apogee — nearly three times the error, on the number an RSO and a waiver actually
-        check. A flyer cannot currently see the coefficient, change it, or find out where it came from.
+        Measured across the real-design corpus on 2026-08-03, the median disagreement with each
+        file&apos;s own stored results was <strong>8.3% over 94 simulations</strong>, against 3.1% for
+        apogee — nearly three times the error, on the number an RSO and a waiver actually check. It is
+        now <strong>2.0%</strong> over the same 94, and the engine did not change: what changed is
+        that Loft compares its descent rate against the quantity each file actually stored. RockSim
+        stores the total speed over the ground, and so does OpenRocket from release 24.12 onward,
+        while earlier OpenRocket files store the air-relative speed — which under an open canopy is
+        the descent rate. See <em>Accuracy</em> for the full account. The coefficient itself is
+        readable, attributed and editable on the design page.
       </p>
       <p>
         Where each figure comes from is now written down rather than implied. When a design file states
@@ -313,8 +318,10 @@ export default function Limitations() {
       <p>
         <strong>And the coefficient turns out not to be where the error lives.</strong> Splitting the
         corpus by whether each design&apos;s coefficient came from its own file or from a Loft
-        fallback gives the <em>same</em> median disagreement to a tenth of a percent — 8.3% either
-        way, across 52 file-stated and 40 fallback flights. Two things follow, and both are worth
+        fallback gave the <em>same</em> median disagreement to a tenth of a percent — 8.3% either
+        way, across 52 file-stated and 40 fallback flights. That split has since been re-measured
+        against the corrected comparison and still does not discriminate: 2.2% where the file states
+        a coefficient and 1.3% where Loft supplies one. Two things follow, and both are worth
         stating plainly rather than leaving as an implied promise to improve:
       </p>
       <ul>

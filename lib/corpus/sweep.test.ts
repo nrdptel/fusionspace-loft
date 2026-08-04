@@ -117,28 +117,37 @@ const PUBLISHED_MEDIAN_PCT: Record<string, number> = {
   // optimumDelay 2.7 -> 2.5, maxAltitude 3.2 -> 3.1. Tightened here in the same change as the
   // engine and the page, because a claim left at its old, looser figure is a gate that has stopped
   // gating.
-  // groundHitVelocity 3.0 -> 8.3, and it is the one figure here that got WORSE without the engine
-  // getting worse. It used to be measured on the total ground-frame speed, which folds in the
-  // horizontal drift the canopy is carrying; every stored figure it is compared against is the
-  // vertical descent rate — TRUE of the `.ork` files this note was written from, and it was NOT true
-  // of the `.rkt` ones until 2026-08-04. RockSim stores `<VelocityAtLanding>` as the TOTAL
-  // (hypot(X, Y, Z) to four decimals on 17 of 17 corpus simulations), so the RockSim half of this
-  // metric was vertical-against-total and could only ever read low. Reading `<YVelocityAtLanding>`
-  // instead moved the RockSim median 25.7% -> 21.9% with no engine change. On the openrocket files
-  // that error ran OPPOSITE to Loft's own
-  // descent-rate error and partly cancelled it — `pods--airframes and winglets` reads -14.5%
-  // vertical but -3.0% total — so 3.0% was two errors meeting in the middle. Measured on the nine
-  // stored sims where wind exceeds 4 m/s, where the two cannot cancel, the vertical figure agrees
-  // to a median 0.68% and the total is out by 25.27%. 8.3% is therefore the honest number and the
-  // gap it exposes is real: Loft's descent rate under a canopy disagrees with OpenRocket's by more
-  // than the old figure ever admitted. Raised here rather than slackened, and said on the page.
+  // **groundHitVelocity went 3.0 -> 8.3 -> 2.0, and not one of those moves was the engine.** All
+  // three were the same mistake found in three places: Loft's figure and the stored figure were not
+  // always the same physical quantity, and nothing recorded which was which.
+  //
+  //  - 3.0% was two errors cancelling. Loft reported the TOTAL ground speed under a name that means
+  //    the vertical descent rate, and its own descent ran low; on `pods--airframes and winglets`
+  //    that reads -14.5% vertical but -3.0% total. Reporting the vertical figure honestly took the
+  //    census to 8.3% and was the right move.
+  //  - 8.3% was still not comparing like with like on two of the three sources. RockSim stores
+  //    `<VelocityAtLanding>` as the TOTAL — verified as hypot(X, Y, Z) on 17 of 17 corpus
+  //    simulations — so reading `<YVelocityAtLanding>` instead moved the RockSim median
+  //    25.7% -> 21.9% (2026-08-04).
+  //  - And OpenRocket CHANGED ITS OWN CONVENTION at 24.12. Verified from its source, not inferred:
+  //    <= 23.09 `AbstractEulerStepper.java:168` writes `TYPE_VELOCITY_TOTAL` from
+  //    `airSpeed.length()` (air-relative, so ~the vertical rate under a canopy); >= 24.12 that
+  //    stepper has zero references to the type and `SimulationStatus.java:643` writes it from
+  //    `getRocketVelocity().length()` (the ground-frame total). 64 of the corpus's 91 OpenRocket
+  //    stored simulations are on the newer side. Comparing per era took the openrocket median
+  //    7.8% -> 1.2% and the whole metric 8.3% -> 2.0%, again with no engine change.
+  //
+  // So the number below is now what it always claimed to be — how far Loft's descent is from the
+  // tool's, rather than how far a vertical speed is from a total one. Tightened here in the same
+  // change as the adapter and the page, because a claim left at its old, looser figure is a gate
+  // that has stopped gating.
   timeToApogee: 1.5,
   launchRodVelocity: 1.9,
   maxMach: 2.0,
   maxVelocity: 2.2,
   optimumDelay: 2.5,
   maxAltitude: 3.1,
-  groundHitVelocity: 8.3,
+  groundHitVelocity: 2.0,
   flightTime: 3.3,
   maxAcceleration: 3.2,
   deploymentVelocity: 6.0,

@@ -228,7 +228,9 @@ export function runFlight(rocket: Rocket, opts: RunOptions = {}): FlightRun {
   // so its stored comparison would be misleading — skip it there too.
   const validation =
     !opts.ballistic && hasPropulsion && allMotorsResolved && opts.validateAgainst && opts.validateAgainst.hasResults
-      ? compareToStored(result.summary, opts.validateAgainst.results)
+      ? compareToStored(result.summary, opts.validateAgainst.results, {
+          groundHitVelocityFrame: opts.validateAgainst.groundHitVelocityFrame,
+        })
       : undefined;
   return {
     result,

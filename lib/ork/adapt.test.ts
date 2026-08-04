@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { adaptOrkXml } from "./adapt";
+import { adaptOrkXml, orkGroundHitFrame } from "./adapt";
 import { freeformChordwiseCp } from "../model/planform";
 import { importOrk } from "./import";
 import { flattenRocket, referenceRadius } from "../model/geometry";
@@ -744,5 +744,66 @@ describe("stored per-step flight data", () => {
     const branch = `<databranch name="Main" types="Time,Altitude,Total velocity">
       <datapoint>0,0,0</datapoint><datapoint>1,50,40</datapoint></databranch>`;
     expect(adaptOrkXml(withBranches(branch)).simulations[0].flightData).toBeUndefined();
+  });
+});
+
+describe("which quantity a stored landing velocity actually is", () => {
+  /** R10 increment 1. OpenRocket interpolates its stored `groundhitvelocity` out of
+   *  `TYPE_VELOCITY_TOTAL` at the GROUND_HIT event — logic that is byte-identical across releases —
+   *  but what that series HOLDS during descent changed at 24.12. Verified from source rather than
+   *  inferred from numbers:
+   *
+   *    <= 23.09  `AbstractEulerStepper.java:168` — `setValue(TYPE_VELOCITY_TOTAL, airSpeed.length())`
+   *              with `airSpeed = getRocketVelocity().add(windSpeed)` — AIR-relative, so under an
+   *              open canopy (where the rocket drifts with the air) it is ~the vertical descent rate.
+   *    >= 24.12  that stepper contains zero references to the type, and
+   *              `SimulationStatus.java:643` — `setValue(TYPE_VELOCITY_TOTAL,
+   *              getRocketVelocity().length())` — the GROUND-frame total, drift included.
+   *
+   *  Loft reports the vertical rate, so the era decides which of Loft's two figures the file should
+   *  be scored against. Getting the boundary wrong is worse than not splitting at all, which is why
+   *  this pins the versions the corpus actually carries rather than a couple of tidy examples. */
+  it("reads the era off the creator string, including the forms the corpus really carries", () => {
+    // Air-relative era — every major version the corpus holds below the boundary.
+    for (const v of ["OpenRocket 13.05", "OpenRocket 15.03", "OpenRocket 22.02", "OpenRocket 22.02.beta.05", "OpenRocket 23.09"]) {
+      expect(orkGroundHitFrame(v), `${v} should read as the air-relative era`).toBe("vertical");
+    }
+    // Ground-frame era — including a beta and the snapshot whose MINOR is not a number at all.
+    for (const v of ["OpenRocket 24.12", "OpenRocket 24.12.beta.01", "OpenRocket 25.01", "OpenRocket 26.xx.SNAPSHOT-3cc62e47d"]) {
+      expect(orkGroundHitFrame(v), `${v} should read as the ground-frame era`).toBe("total");
+    }
+    // The boundary itself, from both sides — an off-by-one here silently mis-scores a whole era.
+    expect(orkGroundHitFrame("OpenRocket 24.11")).toBe("vertical");
+    expect(orkGroundHitFrame("OpenRocket 24.12")).toBe("total");
+
+    // **Undefined rather than a guess.** A wrong era is worse than no era: it would compare two
+    // different quantities while looking deliberate, where `undefined` falls back to the reading
+    // Loft has always used and that COMPETITION.md row 34 established empirically.
+    for (const v of [undefined, "", "RockSim 9", "OpenRocket", "Some other tool 24.12"]) {
+      expect(orkGroundHitFrame(v), `"${v}" should not be assigned an era`).toBeUndefined();
+    }
+  });
+
+  it("carries the era onto every stored simulation that has a landing velocity", () => {
+    const design = (creator: string) =>
+      `<openrocket version="1.9" creator="${creator}"><rocket><name>era</name><subcomponents><stage><name>S</name><subcomponents>
+        <nosecone><length>0.15</length><aftradius>0.027</aftradius><shape>ogive</shape><thickness>0.002</thickness></nosecone>
+        <bodytube><length>0.6</length><radius>0.027</radius><thickness>0.001</thickness></bodytube>
+      </subcomponents></stage></subcomponents></rocket>
+      <simulations><simulation status="uptodate"><name>S1</name><conditions><launchrodlength>1</launchrodlength></conditions>
+      <flightdata maxaltitude="300" groundhitvelocity="6.2" /></simulation></simulations></openrocket>`;
+
+    const older = adaptOrkXml(design("OpenRocket 23.09"));
+    expect(older.simulations[0].results.groundHitVelocity).toBeCloseTo(6.2, 6);
+    expect(older.simulations[0].groundHitVelocityFrame).toBe("vertical");
+
+    const newer = adaptOrkXml(design("OpenRocket 24.12"));
+    expect(newer.simulations[0].results.groundHitVelocity).toBeCloseTo(6.2, 6);
+    expect(newer.simulations[0].groundHitVelocityFrame).toBe("total");
+
+    // The VALUE is untouched either way — this records what the number means, it does not convert it.
+    expect(newer.simulations[0].results.groundHitVelocity).toBe(
+      older.simulations[0].results.groundHitVelocity,
+    );
   });
 });
