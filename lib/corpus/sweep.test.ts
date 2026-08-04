@@ -141,14 +141,26 @@ const PUBLISHED_MEDIAN_PCT: Record<string, number> = {
   // tool's, rather than how far a vertical speed is from a total one. Tightened here in the same
   // change as the adapter and the page, because a claim left at its old, looser figure is a gate
   // that has stopped gating.
+  //
+  // **And then the census stopped pooling two different flights.** A descent under a canopy and a
+  // descent with nothing out are not the same measurement, and until 2026-08-04 they shared a row:
+  // `FullScaleModelTH.rkt` alone contributes 11 plugged runs (`[L1940X-P]`, 83-162 m/s) against 4
+  // canopy ones (8.8-9.2 m/s). Splitting on what the writing tool itself marks — see
+  // `StoredSimulation.recoveryDeployed` — took `groundHitVelocity` 2.0 -> 1.3 over 82 runs and put
+  // the 12 ballistic ones on their own line at 14.9, where they can be read rather than averaged
+  // away. That second figure is the honest bad news this milestone was allowed to surface: Loft's
+  // no-recovery descent is its weakest published number, and it is now visible instead of diluted.
+  // Same split, same reason, on `flightTime`: 3.3 -> 3.1 and 4.8.
   timeToApogee: 1.5,
   launchRodVelocity: 1.9,
   maxMach: 2.0,
   maxVelocity: 2.2,
   optimumDelay: 2.5,
   maxAltitude: 3.1,
-  groundHitVelocity: 2.0,
-  flightTime: 3.3,
+  groundHitVelocity: 1.3,
+  "groundHitVelocity/ballistic": 14.9,
+  flightTime: 3.1,
+  "flightTime/ballistic": 4.8,
   maxAcceleration: 3.2,
   deploymentVelocity: 6.0,
 };
@@ -157,6 +169,28 @@ const PUBLISHED_MEDIAN_PCT: Record<string, number> = {
  *  enough that adding one design to the corpus doesn't fail the suite, tight enough that a real
  *  regression in the engine does. */
 const CENSUS_SLACK_PCT = 0.75;
+
+/** Which census row a comparison belongs in. Everything is itself except the descent metrics on a
+ *  run the writing tool marks as NOT-DEPLOYED, which get their own row.
+ *
+ *  A canopy descent and a lawn dart are different flights, and a median over both is a number about
+ *  neither. It is not a small effect here: `FullScaleModelTH.rkt` stores 15 runs of one design, and
+ *  11 of them are plugged (`[L1940X-P]`) — so on the RockSim side the ballistic population OUTNUMBERS
+ *  the canopy one nearly three to one, and four of the corpus's five worst ground-hit cases are that
+ *  file. See `StoredSimulation.recoveryDeployed` for how the tool's own marking is read.
+ *
+ *  Both formats state it — RockSim per recovery device, OpenRocket as a `recoverydevicedeployment`
+ *  event in the flight log it has always written and Loft had never opened. A run whose file states
+ *  neither stays on the main line rather than being assumed either way, and the case below prints
+ *  all three populations with their counts so "unstated" is visible as its own number rather than
+ *  hidden inside the published one.
+ *
+ *  `flightTime` is split for the same reason and it is the more obvious of the two — the plugged runs
+ *  fall 2,100 m with nothing out, so their whole flight is shorter than the canopy runs' descent
+ *  alone. */
+const BALLISTIC_SPLIT_METRICS = new Set(["groundHitVelocity", "flightTime"]);
+const censusKey = (key: string, sim: { recoveryDeployed?: boolean }) =>
+  sim.recoveryDeployed === false && BALLISTIC_SPLIT_METRICS.has(key) ? `${key}/ballistic` : key;
 
 interface Case {
   file: string;
@@ -1435,9 +1469,9 @@ suite("real-design corpus", () => {
         if (!run.hasPropulsion || !run.validation) continue;
         for (const c of run.validation.comparisons) {
           if (!Number.isFinite(c.pctError)) continue;
-          const list = errs.get(c.key) ?? [];
+          const list = errs.get(censusKey(c.key, sim)) ?? [];
           list.push(Math.abs(c.pctError));
-          errs.set(c.key, list);
+          errs.set(censusKey(c.key, sim), list);
         }
       }
     }
@@ -1462,6 +1496,164 @@ suite("real-design corpus", () => {
       }
     }
     expect(stale, "the Validation page's accuracy census no longer holds — remeasure and update it").toEqual([]);
+    // A claim nothing measured is a claim that cannot go stale, which is the same as no claim at
+    // all. The loop above skips a key it finds no rows for, so before 2026-08-04 a metric could
+    // stop being compared entirely — an adapter regression, a renamed key, a bucket that never
+    // fills — and this case would still pass green with the published figure untouched. It went in
+    // with the two `/ballistic` rows, which are exactly the kind of key that can quietly stop
+    // existing.
+    const unmeasured = Object.keys(PUBLISHED_MEDIAN_PCT).filter((k) => !measured.some((m) => m.key === k));
+    expect(unmeasured, "published on /docs/validation but measured by nothing here").toEqual([]);
+  }, 900_000);
+
+  /** **R10: the descent populations are counted separately, and neither is allowed to vanish.**
+   *
+   *  The census above splits `groundHitVelocity` and `flightTime` on whether the writing tool says a
+   *  recovery device came out. This case is what stops that split silently degenerating — the exact
+   *  failure R9's increment 3 had, where a coefficient-provenance split printed three rows of `n=0`
+   *  and read as "no design of that kind disagrees" instead of "the field this reads is undefined".
+   *
+   *  So it asserts the arithmetic of the split rather than a target: every comparable run lands in
+   *  exactly one population, both stated populations carry real cases, and the ballistic one is not
+   *  a rounding error. It PRINTS the medians because those are the finding — and because a run where
+   *  the ballistic median collapses toward the canopy one means Loft's plugged descent got better,
+   *  which is worth seeing rather than asserting a bound on. */
+  it("counts a plugged descent separately from a canopy one, and neither population vanishes", async () => {
+    const buckets = new Map<"deployed" | "ballistic" | "unstated", number[]>([
+      ["deployed", []],
+      ["ballistic", []],
+      ["unstated", []],
+    ]);
+    let comparable = 0;
+    for (const f of files) {
+      let doc;
+      try {
+        doc = await importDesign(new Uint8Array(readFileSync(f.path)));
+      } catch {
+        continue;
+      }
+      for (const sim of doc.simulations) {
+        let run;
+        try {
+          run = runFromDocument(doc, {
+            configId: sim.conditions.configId,
+            validateAgainst: doc.flownAsReduced ? undefined : sim,
+            overrides: overridesFromStored(sim),
+          });
+        } catch {
+          continue;
+        }
+        if (!run.hasPropulsion || !run.validation) continue;
+        const c = run.validation.comparisons.find((x) => x.key === "groundHitVelocity");
+        if (!c || !Number.isFinite(c.pctError)) continue;
+        comparable++;
+        const where =
+          sim.recoveryDeployed === true ? "deployed" : sim.recoveryDeployed === false ? "ballistic" : "unstated";
+        buckets.get(where)!.push(Math.abs(c.pctError));
+      }
+    }
+    const median = (xs: number[]) => {
+      if (!xs.length) return NaN;
+      const a = [...xs].sort((p, q) => p - q);
+      const m = a.length >> 1;
+      return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2;
+    };
+    console.log(
+      "ground-hit velocity by what the FILE says came out:\n" +
+        [...buckets.entries()]
+          .map(([k, v]) => `  ${k.padEnd(10)} n=${String(v.length).padStart(3)}  ${median(v).toFixed(1)}%`)
+          .join("\n"),
+    );
+
+    const deployed = buckets.get("deployed")!;
+    const ballistic = buckets.get("ballistic")!;
+    const unstated = buckets.get("unstated")!;
+    // Both STATED populations are real. Only `.rkt` files state it and the corpus carries four of
+    // them, so these floors are low on purpose — they are here to catch the field going undefined
+    // everywhere (adapter regression, corpus swap), not to encode today's exact counts.
+    expect(deployed.length, "no stored run is marked as having deployed — is `recoveryDeployed` being read?").toBeGreaterThanOrEqual(4);
+    expect(ballistic.length, "no stored run is marked as NOT having deployed — the split has degenerated").toBeGreaterThanOrEqual(8);
+    // The third population is real too, and naming it is the honest part. It is small — 12 stored
+    // runs saved with summary results and no event log — but it is not empty, and the published
+    // `groundHitVelocity` row covers it alongside the stated canopy descents, so it must stay
+    // visible. A zero here would mean either every file suddenly states deployment or the "does not
+    // say" branch stopped being reachable, and both are worth a red test rather than a quiet
+    // widening of what the published figure is measured over.
+    expect(unstated.length, "nothing is unstated — has the `does not say` branch stopped being reachable?").toBeGreaterThan(0);
+    // Every comparable run lands in exactly ONE population. `comparable` is counted independently of
+    // the bucketing, so a fourth state added later with no bucket — or a mis-typed key silently
+    // creating one — goes red here instead of quietly shrinking a published median.
+    expect(deployed.length + ballistic.length + unstated.length, "a comparable run fell out of every population").toBe(
+      comparable,
+    );
+    expect(comparable, "the comparable set has collapsed — is the corpus complete?").toBeGreaterThan(50);
+  }, 900_000);
+
+  /** **R10: a file whose own tool disagrees with itself is NAMED, not averaged.**
+   *
+   *  The census compares Loft against a stored number on the assumption that the number is the tool's
+   *  answer for that flight. One file in this corpus breaks the assumption outright:
+   *  `FullScaleModelTH.rkt` stores eleven runs under the single name `[L1940X-P]`, sharing every
+   *  stated input, whose landing speeds fall into two clusters **1.94x apart** — four at
+   *  83.3-83.7 m/s and seven at 161.6-162.0. RockSim returns two answers for one rocket. No
+   *  deterministic solver can agree with both, so part of that population's disagreement is the
+   *  oracle's own spread rather than Loft's error, and a median over it silently attributes the whole
+   *  thing to Loft.
+   *
+   *  This does NOT drop the cases — `ROADMAP.md` R10's notes forbid that, and rightly: the corpus
+   *  gate is the most valuable check in the repo precisely because nothing is allowed to leave it to
+   *  make a number look better. It names them, so the published ballistic figure can say what it is
+   *  measured over.
+   *
+   *  Asserted two ways. The known case must still be FOUND, so the detector cannot quietly stop
+   *  detecting — an adapter that stopped reading `SimulationName`, or a corpus swap, would otherwise
+   *  read as "no file disagrees with itself". And no OTHER group may appear without being listed
+   *  here, so the next file with this problem arrives as a red test rather than as a worse median
+   *  nobody can explain. */
+  it("names every file whose own tool stores two answers for one flight", async () => {
+    /** A group is self-disagreeing past this ratio. 1.5x is far outside anything a solver's own
+     *  step-size or sampling jitter produces — the known case is 1.94x and the next-widest group in
+     *  the corpus is **1.004x**, so there is nothing marginal in between for this number to be tuned
+     *  against. The run prints that runner-up, so a corpus that grows a 1.4x group says so instead of
+     *  passing silently. */
+    const SELF_DISAGREEMENT_RATIO = 1.5;
+    /** Groups already known and accounted for on `/docs/limitations`. `file · name · runs · ratio`. */
+    const KNOWN = ["FullScaleModelTH.rkt · L1940X-P · 11 runs · 1.94x"];
+
+    const found: string[] = [];
+    let widestOther = 1;
+    for (const f of files) {
+      let doc;
+      try {
+        doc = await importDesign(new Uint8Array(readFileSync(f.path)));
+      } catch {
+        continue;
+      }
+      const groups = new Map<string, number[]>();
+      for (const sim of doc.simulations) {
+        const v = sim.results.groundHitVelocity;
+        if (!Number.isFinite(v) || !(v! > 0)) continue;
+        const list = groups.get(sim.name) ?? [];
+        list.push(v!);
+        groups.set(sim.name, list);
+      }
+      for (const [name, vs] of groups) {
+        if (vs.length < 2) continue;
+        const ratio = Math.max(...vs) / Math.min(...vs);
+        if (ratio >= SELF_DISAGREEMENT_RATIO) {
+          found.push(`${shortName(f.name)} · ${name} · ${vs.length} runs · ${ratio.toFixed(2)}x`);
+        } else if (ratio > widestOther) {
+          widestOther = ratio;
+        }
+      }
+    }
+    console.log(
+      `files whose own tool stores two answers for one flight (>= ${SELF_DISAGREEMENT_RATIO}x):\n` +
+        (found.length ? found.map((s) => `  ${s}`).join("\n") : "  none") +
+        `\n  widest group below the threshold: ${widestOther.toFixed(3)}x`,
+    );
+    // Both directions at once: the known case is still detected, and nothing new has appeared.
+    expect(found.sort(), "self-disagreeing stored groups — see /docs/limitations").toEqual([...KNOWN].sort());
   }, 900_000);
 
   /** **R9 increment 3: attribute the ground-hit-velocity error before moving any coefficient.**

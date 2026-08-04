@@ -287,12 +287,30 @@ export default function Limitations() {
         Measured across the real-design corpus on 2026-08-03, the median disagreement with each
         file&apos;s own stored results was <strong>8.3% over 94 simulations</strong>, against 3.1% for
         apogee — nearly three times the error, on the number an RSO and a waiver actually check. It is
-        now <strong>2.0%</strong> over the same 94, and the engine did not change: what changed is
-        that Loft compares its descent rate against the quantity each file actually stored. RockSim
+        now <strong>1.3%</strong> over the 82 of those 94 that came down under a canopy, and the
+        engine did not change: what changed is that Loft compares its descent rate against the
+        quantity each file actually stored, on the flights that quantity describes. RockSim
         stores the total speed over the ground, and so does OpenRocket from release 24.12 onward,
         while earlier OpenRocket files store the air-relative speed — which under an open canopy is
         the descent rate. See <em>Accuracy</em> for the full account. The coefficient itself is
         readable, attributed and editable on the design page.
+      </p>
+      <p>
+        <strong>The other 12 came down with nothing out, and they are the honest bad news.</strong>{" "}
+        One RockSim design in the corpus stores fifteen runs of the same rocket — four with its
+        parachutes out and eleven plugged, hitting the ground at 83–162 m/s — and it marks which is
+        which, per recovery device. Those ballistic runs disagree by <strong>14.9%</strong>, the
+        worst figure in the census, and they were being averaged into the canopy number until
+        2026-08-04. That is not a parachute problem at all: a rocket with nothing out is descending on
+        its <em>airframe&apos;s</em> drag at high speed and often at an attitude no 3-DOF solver
+        resolves. The writing tool does not agree with <em>itself</em> here: those eleven runs are
+        stored under one name, share every stated input, and their landing speeds fall into two
+        clusters 1.94× apart — four at 83.3–83.7 m/s and seven at 161.6–162.0 — so no single
+        deterministic answer can match both, and part of that 14.9% is the reference&apos;s own
+        spread rather than Loft&apos;s error. The corpus suite names that group rather than averaging
+        it away, and fails if a second one appears unlisted; for scale, the next-widest same-flight
+        group anywhere in the corpus disagrees with itself by 1.004×. Loft is not the tool to plan a
+        ballistic recovery with, and the number now says so instead of hiding inside a better one.
       </p>
       <p>
         Where each figure comes from is now written down rather than implied. When a design file states

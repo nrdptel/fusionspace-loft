@@ -671,10 +671,35 @@ function storedSim(res: XmlNode, index: number, designRailM?: number): StoredSim
 
   return {
     name: (childText(res, "SimulationName") || `Simulation ${index + 1}`).replace(/^\[|\]$/g, ""),
+    recoveryDeployed: recoveryDeployed(res),
     conditions,
     results,
     hasResults,
   };
+}
+
+/** Did a RECOVERY device come out on this stored run? See `StoredSimulation.recoveryDeployed` for
+ *  why the answer changes what the number beside it means.
+ *
+ *  Scoped to `<SimulationEvents>` deliberately. `<HasDeployed>` also appears inside
+ *  `<Booster1Staging>` and `<Booster2Staging>` — those are STAGE separation events, and on the
+ *  corpus's four-device design a file-wide read pools two staging flags in with three parachute
+ *  flags. Measured: it makes no difference to the ANSWER on any of the 17 stored runs here, because
+ *  the staging flags are 0 wherever the recovery flags are 0. It would make a difference on the first
+ *  file where a booster separates and nothing else does, which is a normal flight to fly and would
+ *  read as a canopy descent at 80 m/s.
+ *
+ *  The empty-event case is why `<FinalState>` is read at all: `rocksimTestRocket1.rkt` stores a run
+ *  with NO recovery events, which on its own is "the file records nothing" rather than "nothing
+ *  deployed". Its `<FinalState>` is 4, the value the other 11 ballistic runs carry, and it lands at
+ *  56.5 m/s from 445 m — a lawn dart. So a stated `FinalState` is taken as evidence the run was
+ *  actually flown, and an absent one leaves the answer undefined rather than guessing `false`. */
+function recoveryDeployed(res: XmlNode): boolean | undefined {
+  const events = child(res, "SimulationEvents");
+  const flags = events ? children(events, "SimulationEvent") : [];
+  if (flags.some((e) => childNum(e, "HasDeployed", 0) === 1)) return true;
+  if (flags.length > 0) return false;
+  return childText(res, "FinalState") !== undefined ? false : undefined;
 }
 
 /** A tube fin's wall, when the file didn't state one. RockSim's `<TubeFinSet>` commonly stores

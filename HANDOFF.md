@@ -4,43 +4,147 @@ Overwritten each session. What shipped, what is part-way, and what to pick up fi
 
 ## Read this first
 
-**Ten increments this run. Five reached production as PR #125 (merged, `b8a6c40`); six more are on
-the run's working branch behind PR #126.** (The branch name is the harness's, not this project's, so
-it is deliberately not written here — the zero-trace invariant forbids repeating it in a committed
-file. `git branch -r` names it, and PR #126 is the reachable handle.) Four Sev-1s were
-found, reproduced and fixed; **R9 SHIPPED**; **P6 is two increments in**; **R10 is written**, so
-neither track is dry.
+**Seven increments this run. Six reached production as PR #127 (merged, `38a7d40`); the seventh is on
+the run's working branch.** (The branch name is the harness's, not this project's, so it is
+deliberately not written here — the zero-trace invariant forbids repeating it in a committed file.
+`git branch -r` names it.) One Sev-1 was found and fixed; **R10 is four of its five Size items in**;
+**P6 is four increments in with one primitive left**; `COMPETITION.md` row 37 added and rows 34 and
+35 resolved. Neither track is dry.
 
-**Two Sev-1 entries remain OPEN in `BACKLOG.md`** and are named in *Pick up first* — the thrust plot
-describing only the first resolved motor on a multi-motor design, and a `/validate` unit toggle. Both
-are still marked UNREPRODUCED; reproduce before scoping, because this run refuted three claims that
-looked equally solid.
+**THE TRANSFERABLE LESSON, and this run hit it THREE times on one metric: a stored number is not a
+measurement until you know what flight it describes.** Ground-hit velocity has now moved
+3.0% → 8.3% → 2.0% → 1.3%, and **not one of those moves was the engine**. Every one was Loft
+comparing its number against a stored number that was a different physical quantity, with nothing
+recording which was which:
 
-**THE TRANSFERABLE LESSON: three of this run's own checks were green and pinned nothing.** Each was
-caught only by deliberately reinstating the defect and re-running. Do this every time, without
-exception, including when the change is obviously correct.
+- **3.0% was two errors cancelling** — Loft measured the total ground speed under a name meaning the
+  vertical rate, and its own descent ran low. Reporting honestly made it *worse*, and that was right.
+- **8.3% was two formats disagreeing about the frame.** RockSim stores the total; OpenRocket stores
+  the air-relative speed up to 23.09 and the ground-frame total from 24.12 — **the same tool changed
+  its own convention and the file does not say.** Read from OpenRocket's source, not inferred.
+- **2.0% was two different flights in one median.** One RockSim design stores 15 runs: four under
+  canopy at ~9 m/s and eleven plugged at 83–162 m/s. Both formats record which is which — RockSim per
+  device, OpenRocket as an event in the flight log — and Loft read neither.
 
-- An e2e asserted the apogee had not moved after a refused edit. On a solver throw the run is not
-  replaced *either* way, so it passed against the defect too — the numbers were stale, not wrong,
-  which is exactly what made the bug invisible.
-- A unit case swept a parameter range where **7 of 7** points were extrapolated, so it passed
-  identically against a flag hard-coded `true`. A case with no negative control does not
-  discriminate however green it is.
-- A cold-walk probe reported the new Cd field MISSING on a phone. It was a race in the probe — the
-  field is there at 154x44 px. **A finding from your own script is a claim too.**
+**The corollary, which cost real time twice this run: what a format "does not store" is a claim about
+the file, and it belongs in a probe, not in a comment.** "Only `.rkt` files state deployment" was
+written into a type comment, a census comment and a docs paragraph before anything checked. It was
+wrong: 77 of the corpus's 91 `.ork` flights record a `recoverydevicedeployment` event. The importer
+had simply never opened `<databranch>`.
 
-**The pre-push review agent found six real defects in work that was already fully green**, including
-two surfaces the first Sev-1 fix had missed by its own standard. It is worth its cost every time; the
-gate being green is precisely when it earns its keep.
+**A primitive can own BEHAVIOUR, and that is where the real defects are.** `Panel` (P6 increment 4)
+matters less for the header row it de-duplicates than for the four-part `useReturnFocus` contract
+three call sites each wired by hand. A panel that closes and drops focus onto the document body is
+invisible to every check in this repo. When extracting, ask what the call sites were *doing*, not
+only what they were spelling.
 
-**A check can be wrong in a way that punishes the milestone.** `DESIGN.md` §9's caption-vs-body count
-goes the wrong way whenever a hand-rolled control becomes a primitive, because the `text-sm` moves
-out of the file where the grep can see it — converting twelve `<select>`s took `LoftApp` from 17/16
-to 17/9 with no rendered pixel changing size. §9 already recorded this for the SUITE total and
-stopped one level short. Both the check and the file carry the general rule now: **count what a file
-RENDERS, not what it spells.** Expect to hit this again on `EmptyState`, `Panel` and `Figure`.
+**Ratchet counts moving DOWN is adoption working.** `Panel` took `Card` 12→11, `Button` 14→12 and
+`ClosePanel` 3→0 with no rendered pixel changing. `DESIGN.md` §9 already records this under *count
+what a file RENDERS, not what it spells*; each number now carries the reason beside it. Expect the
+same on `Figure`.
 
-## This run — ten increments, four Sev-1s, one milestone closed
+## This run — seven increments, one Sev-1, two milestones nearly closed
+
+| # | SHA | what | verified by |
+|---|---|---|---|
+| 1 | `f95c786` | **P6 inc 3** — `EmptyState`/`ErrorState`; `DataTable` adopts one, so it is the empty state of all seven tables | driving the built export (a truncated `.ork` renders a real error card); a check that no named data surface returns `null` |
+| 2 | `3131662` | **SEV-1** — the thrust plot and its caption described the FIRST resolved motor, not the vehicle | e2e on a two-motor fixture asserting 246.5 N·s and class H, proved able to fail by reinstating the first-resolution read |
+| 3 | `cd2a06b` | **R10 (1)** — each `.ork` compared against the quantity its own version stored | census **8.3% → 2.0%**, openrocket 7.8% → 1.2%, no engine change; 2 cases over the 24.12 boundary |
+| 4 | `111dc6a` | The run's fan-out harvest filed into `BACKLOG.md` — 9 findings, each with its measurement and whether a refuter confirmed it | — |
+| 5 | `10853b4` | The roadmap's baton, which three earlier commits had left behind | — |
+| 6 | `6823c8c` | **P6 inc 4** — `Panel`, the first primitive here that owns behaviour rather than a treatment | adoption ratchet at 3 + a source count of zero hand-wired `useReturnFocus`, proved able to fail |
+| — | `38a7d40` | **merged to `main` as #127** — the six above reached production | both CI jobs green; frontend log names `imports every design file (35 present)` |
+| 7 | `PENDING` | **R10 (2)(3)(4)** — the census stops pooling a lawn dart with a parachute, on both formats | 4 + 3 adapter cases; a census case asserting both populations are real and add up; a detector that NAMES the self-disagreeing file, both proved able to fail |
+
+**Reached production: 6 of 7.**
+
+## The one lesson this run would send back
+
+**Write the negative control before you believe the check.** Every new assertion this run was proved
+able to fail by reinstating the defect: the thrust e2e (restore the first-resolution read), the
+focus-return count (put `useReturnFocus` back into `MonteCarlo`), the population split (make
+`recoveryDeployed` return undefined), the unmeasured-claim guard (add a published key nothing
+measures). That last one exists *because* of this habit: the census skipped a metric it found no rows
+for, so **a published claim could stop being measured entirely and the gate would stay green**. Two
+new `/ballistic` keys are exactly the kind that can quietly stop existing.
+
+## The done-check, answered out loud
+
+**What can a flyer DO that they could not do before this run?**
+
+1. **Read a thrust curve for the vehicle they are flying**, not for whichever motor resolved first —
+   on a staged or airstarted design the plot was showing as little as 56% of the impulse under a
+   heading that named nothing, and the caption's certification class read a letter low.
+2. **Take the published accuracy figures at face value**, because each now says which convention it
+   is in and which population it is over. Ground-hit velocity is 1.3% over 82 non-ballistic runs and
+   14.9% over the 12 ballistic ones, both on the page.
+3. **See an empty table say what would fill it** rather than a panel that is simply not there.
+
+**What is measurably better?**
+
+- Unit suite **1,076 → 1,086**; e2e **229 → 230**; corpus cases **24 → 27**.
+- Ground-hit velocity **8.3% → 1.3%** and flight time **3.3% → 3.1%**, with **no engine change** and
+  no tolerance widened; the one-directional bias nobody could explain went with it (−8.2% median
+  signed error over 86-of-92 "slower than stored" → −1.0% over 66 of 92).
+- Four §5 primitives that did not exist now do and are adopted: `Extrapolated` (5), `Select` (4),
+  `EmptyState` (1, reaching all 7 tables), `ErrorState` (1), `Panel` (3). Each carries its own
+  ratchet, so the next hand-rolled copy fails the suite instead of waiting for an audit.
+- `DESIGN.md` §9 counts unmoved except where adoption moved them: rounded-lg 0, off-scale spacing 0,
+  off-scale type 0, inverted files 0.
+
+**What is NOT better, stated rather than implied.** The ballistic descent figure is **14.9%** — the
+worst number Loft publishes — and this run only made it visible, not smaller. `Figure` is still
+hand-rolled at nine call sites in four treatments. The 44 px touch contract is still keyed on
+`pointer-coarse:` alone with no fallback, and the repo has already measured a phone reporting
+`pointer: fine` rendering those controls at 26 px.
+
+## Pick up first
+
+1. **P6 increment 5 — `Figure`, and it closes the milestone.** Nine call sites, four disagreeing
+   treatments: `ResultsView`'s local `Plot` (4, `Card` + `h3 text-sm … text-zinc-700`),
+   `MonteCarlo` (2, the same `h3` string), `DragCrossCheck` (2, a `<p>` where a heading belongs, one
+   shade off at `text-zinc-600`, with an aside), and `ParameterSweep` (1, with an `Extrapolated`
+   above and a caption below). §5 wants title, legend, axis units, empty and extrapolated states.
+   Then answer P6's own live question: `Section` and `Chip` are at 0 call sites and the milestone's
+   notes say they either gain them or are deleted from `ui.tsx` and from §5.
+2. **R10 Size item (5)** — re-measure and publish across the remaining eight metrics. Ground-hit
+   velocity and flight time are done. `deploymentVelocity` at 6.0% is the obvious next: the page
+   already argues it is ill-conditioned rather than wrong, which is a claim of exactly the kind this
+   milestone has now twice found to be half the story.
+3. **The `TOUCH_TARGET` fallback**, filed in `BACKLOG.md` and CONFIRMED by a refuter.
+   `lib/ui-tokens.ts:28` is `pointer-coarse:min-h-11` with no `any-pointer: coarse`, no `hover: none`
+   and no `maxTouchPoints` fallback, across 35 call sites in 10 components plus the diagram's JS hit
+   radius — and all five phone specs force `hasTouch: true`, so the fine-pointer phone is untested.
+   **Changing the media query is a `DESIGN.md` §8 change and must be made there first, with the
+   reason**, because `any-pointer: coarse` would also apply the floor to a touchscreen laptop, which
+   §8 currently declines.
+4. **`Readout`'s own `text-[11px]`** (`components/ui.tsx`, the label and sub-line) — §3 scopes that
+   token to axis ticks and diagram annotations, and this is the design system's own primitive
+   breaking it, on the treatment a flyer reads every number through. Plus 11 more call sites in
+   `LoftApp`.
+
+## The arc so far
+
+| milestone | state |
+|---|---|
+| R1 — address components by identity | SHIPPED 2026-07-30 |
+| R2 — delete a component, and undo it | SHIPPED 2026-07-30 |
+| R3 — add a component | SHIPPED 2026-07-30 |
+| R4 — reorder and restack | SHIPPED 2026-07-31 |
+| R5 — author a staged rocket | SHIPPED 2026-08-01 |
+| R6 — a built design leaves Loft intact | SHIPPED 2026-08-02 |
+| R7 — per-set fin drag | SHIPPED 2026-08-02, one *done when* clause undelivered with the reason measured |
+| R8 — component and material catalogues | SHIPPED 2026-08-03 |
+| R9 — the descent Loft cannot defend | SHIPPED 2026-08-04 |
+| **R10 — the corpus comparison Loft can defend** | **IN PROGRESS** — Size items (1)–(4) shipped 2026-08-04. Only (5) remains: re-measure and publish across the other eight metrics |
+| P1 — one design system, adopted | SHIPPED 2026-08-02 |
+| P2 — workspaces as routes | SHIPPED 2026-08-02 |
+| P3 — a stranger's first five minutes | SHIPPED 2026-08-02 |
+| P4 — a touch-native builder | SHIPPED 2026-08-03 |
+| P5 — ready for the public | SHIPPED 2026-08-03 |
+| **P6 — the primitives the design system declares** | **IN PROGRESS** — increments 1–4 shipped 2026-08-04 (`Readout`, `Select`, `EmptyState`/`ErrorState`, `Panel`) plus `Extrapolated`. `Figure` remains, and the `Section`/`Chip` question |
+
+## The run before this one — ten increments, four Sev-1s, R9 closed (2026-08-04)
 
 | # | SHA | what | verified by |
 |---|---|---|---|
@@ -84,7 +188,7 @@ verbatim with the sibling repo and a change to one is meant to be a change to bo
 This session's GitHub scope was `nrdptel/fusionspace-loft` and `nrdptel/loft-fixtures` only, so the
 §9 edit landed here alone. Filed in `BACKLOG.md` with the two blocks to port.
 
-## The run before this one — nine increments, all now on `main`
+## This session — sixth run (2026-08-03) — nine increments, all now on `main`
 
 | # | SHA | what | verified by |
 |---|---|---|---|
@@ -135,85 +239,6 @@ for thrust-to-weight and for rail exit, so recovery is the one side of the same 
 - **Do not run the gate while review agents are running.** They create and delete probe test files
   inside the repo, so `npm test` reported 55 files, then 54, then 53 across three runs of the same
   commit. Every count taken during a review is unreliable. Run the gate after they finish.
-
-## The done-check, answered out loud
-
-**What can a flyer DO that they could not before this run?**
-
-1. **See that a motor is missing instead of reading a confident number computed without it.** Liftoff
-   mass, static margin, CG loaded, burnout mass and the diagram's CG/CP marks are all withheld when a
-   configuration's motors do not all resolve, with a reason in place of each.
-2. **Apply the motor the sweep recommends, in one tap**, instead of memorising a designation and
-   scrolling 1,841 px to a sixteen-option select on another workspace.
-3. **Choose a real commercial parachute** — 151 of them — and see the landing speed move by a factor
-   of 8.4 across the catalogue, with the drag coefficient left where their own file put it.
-4. **Select any part of the airframe on a phone**, on a diagram whose hit shape used to be an
-   eleven-pixel-tall silhouette.
-5. **Author a coupler and a centring ring**, at 1.86 calibers and 3.18 mm — the sizes real ones are.
-6. **Trust that a flight is not being reported off a motor that cannot fit the mount**, and be told
-   which motor their designation nearly named and by how much the diameter is wrong.
-7. **Download a design and reopen it on its own launch setup** rather than on Loft's defaults —
-   drift from pad round-trips 629.7 m instead of collapsing to 0.
-8. **Scroll past the design diagram on a phone without silently resizing the rocket.**
-
-**What is measurably better?**
-
-- Unit suite **1021 → 1043**; e2e **215 → 220**; corpus tests **22 → 24**, still 0 findings across 35
-  real design files, with the accuracy gate untouched and no tolerance widened.
-- **Four Sev-1s closed** (two found by this run's own cold walks, two by the pre-push reviews), and a
-  fifth re-measured and **refuted** rather than acted on.
-- The corpus median coupler fell **12.97 g → 3.54 g** once a 5% wall floor stopped overriding designs
-  that state their own wall — a median 1.93x mass inflation removed, up to 12.85x.
-- The centring ring fell from a **134 g median slug (1.74 kg at worst) to 1.53 g**, and is bored on
-  100% of designs where it was solid on 27 of 35.
-- `swapOptions` now offers a 76 mm design **9 motors instead of 2**, because the catalogue's 75 and
-  76 mm entries are one physical class.
-- `DESIGN.md` §9 counts unmoved throughout: rounded-lg 0, card treatments 3, off-scale spacing 0,
-  off-scale type 0, inverted files 0, adoption 17/27.
-
-**What is NOT better, stated rather than left implied.** R8 is not done — the coupler and the centring
-ring can be authored but not yet PICKED from the catalogue, which is the milestone's last clause and
-now increment 8. The fin set and the mass object still have no 44 px diagram target. One Sev-1 remains
-open (the validation CSVs' units), plus nine smaller cold-walk findings. And **none of this is on
-`main`**, so a flyer can do none of it yet.
-
-## The one lesson this run would send back
-
-**The pre-push agent review found nineteen real defects in code that had already passed the whole
-gate — three of them Sev-1 — and the most valuable ones were about the run's own HONESTY, not its
-logic.** Two are worth carrying forward as a checklist:
-
-- **A comment claiming an ordering prevents a defect is worth testing, because it may be what causes
-  it.** The parachute applier's own note said its ordering stopped a pick from sending a deployment to
-  a canopy nobody named. Putting the pick first is exactly what made another canopy the largest.
-- **"Measured" is a claim like any other.** A note said "Public Missiles' three agree to within 4%".
-  Public Missiles publishes a weight on TWELVE canopies, running 0.99x to 1.69x; the three quoted were
-  the three closest. Recomputing over all 21 supported the rule more strongly than the wrong number
-  did. Run the probe over the whole set, and put the distribution in the note, not the best case.
-- **Two of this run's own new assertions were VACUOUS** and both looked fine: a disabled `<button>`
-  still has `role=button`, so counting them proves nothing about enablement; and
-  `getByRole("columnheader", {name: /^Length/})` matches nothing on ANY kind, because `DataTable`
-  renders headers as buttons carrying `aria-label="Sort by …"` and Playwright returns that first.
-  **Pair every negative assertion with a positive one over the same read**, so a broken selector
-  fails instead of passing.
-
-## The arc so far
-
-| milestone | state |
-|---|---|
-| R1 — address components by identity | SHIPPED 2026-07-30 |
-| R2 — delete a component, and undo it | SHIPPED 2026-07-30 |
-| R3 — add a component | SHIPPED 2026-07-30 |
-| R4 — reorder and restack | SHIPPED 2026-07-31 |
-| R5 — author a staged rocket | SHIPPED 2026-08-01 |
-| R6 — a built design leaves Loft intact | SHIPPED 2026-08-02 |
-| R7 — per-set fin drag | SHIPPED 2026-08-02, one *done when* clause undelivered with the reason measured |
-| P1 — one design system, adopted | SHIPPED 2026-08-02 |
-| P2 — workspaces as routes | SHIPPED 2026-08-02 |
-| P3 — a stranger's first five minutes | SHIPPED 2026-08-02 |
-| **R8 — component and material catalogues** | **IN PROGRESS** — increments 1–6 of 4–7. THREE of the five *done when* kinds are pickable (body tube, nose cone, parachute); coupler and centring ring remain, and those two really are a new build path — the parachute was not, which is why it went first |
-| **P4 — a touch-native builder** | **IN PROGRESS** — increments 1–4 of 4–6. Both §8 counts are 0 AND the check can now see the selection-gated surface; *pick a motor* applies from the sweep in one tap. Increment 5 is the diagram's own touch targets |
-| P5 | NOT STARTED |
 
 ## This session — fifth run (2026-08-02)
 

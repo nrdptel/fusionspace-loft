@@ -107,6 +107,33 @@ export interface StoredSimulation {
    *  guess: `lib/validation/compare.ts` then falls back to the older reading, the one Loft has always
    *  used and the one `COMPETITION.md` row 34 established empirically. */
   groundHitVelocityFrame?: "vertical" | "total";
+  /** Whether the writing tool says a recovery device actually deployed on THIS run.
+   *
+   *  A descent under a canopy and a descent with nothing out are different flights, and pooling them
+   *  makes a census of "how close is Loft's landing speed" meaningless in both directions. Measured
+   *  on this corpus: `FullScaleModelTH.rkt` stores 15 runs of one design — 4 with three devices out,
+   *  landing at 8.8–9.2 m/s, and 11 plugged (`[L1940X-P]`) landing at 83–162 m/s. Eleven lawn darts
+   *  were being averaged in with four canopy descents.
+   *
+   *  RockSim states it per device, as `<HasDeployed>` inside the `<SimulationEvents>` of each stored
+   *  run. Scoping to that element is load-bearing: the same tag appears in `<Booster1Staging>` and
+   *  `<Booster2Staging>`, which are STAGING events, and a file-wide grep pools those in.
+   *
+   *  `<FinalState>` corroborates it on 17 of 17 stored simulations in the corpus — 0 or 1 wherever a
+   *  device deployed, 4 wherever none did — and is used only to tell "the file ran this and nothing
+   *  came out" from "the file records no events at all". It is deliberately NOT the primary signal:
+   *  it is an undocumented enum whose values would be guesswork, where `HasDeployed` says exactly
+   *  what it says.
+   *
+   *  OpenRocket states it too, and the first version of this comment said it did not — an assumption
+   *  that survived because the `.ork` importer reads `<flightdata>`'s summary ATTRIBUTES and had
+   *  never looked inside its `<databranch>`. It keeps a per-step event timeline in there, and 77 of
+   *  this corpus's 91 stored flights carry a `recoverydevicedeployment` event.
+   *
+   *  Undefined means that file states nothing — an `.ork` saved with summary results and no event
+   *  log (14 here), or a `.rkt` with neither events nor a final state. The census counts those as
+   *  their own population rather than assuming a canopy. */
+  recoveryDeployed?: boolean;
   conditions: StoredConditions;
   results: StoredResults;
   hasResults: boolean;
@@ -840,6 +867,31 @@ export function orkGroundHitFrame(creator: string | undefined): "vertical" | "to
   return major > gMajor || (major === gMajor && minor >= gMinor) ? "total" : "vertical";
 }
 
+/** Whether OpenRocket's own event log says a recovery device came out on this stored run.
+ *
+ *  An `.ork` keeps a per-step flight log as one `<databranch>` per stage, and interleaved with the
+ *  data points is a timeline of `<event type="…">` elements — `ignition`, `burnout`, `apogee`,
+ *  `recoverydevicedeployment`, `tumble`, `groundhit`. So the format has always said this; nothing
+ *  read it. Measured on this corpus: **77 of the 91 stored flights record a deployment, and not one
+ *  records events WITHOUT one.** The other 14 store the summary attributes with no event log at all,
+ *  and those stay undefined rather than being assumed either way.
+ *
+ *  The `.rkt` half of this lives in `lib/rkt/adapt.ts`, where RockSim states it per device instead.
+ *  Neither is inferred from Loft's own flight — that would be circular, and a run where Loft and the
+ *  file disagree about whether recovery deployed is a far larger error than the landing speed the
+ *  split exists to compare. */
+function orkRecoveryDeployed(fd: XmlNode | undefined): boolean | undefined {
+  if (!fd) return undefined;
+  let sawEvent = false;
+  for (const branch of children(fd, "databranch")) {
+    for (const ev of children(branch, "event")) {
+      sawEvent = true;
+      if (ev.attrs.type === "recoverydevicedeployment") return true;
+    }
+  }
+  return sawEvent ? false : undefined;
+}
+
 function parseSimulations(root: XmlNode): StoredSimulation[] {
   const sims = child(root, "simulations");
   if (!sims) return [];
@@ -890,6 +942,7 @@ function parseSimulations(root: XmlNode): StoredSimulation[] {
       // Recorded here rather than derived later: the creator string is a fact about the FILE, and by
       // the time a comparison runs the document is a Rocket and the string is gone.
       groundHitVelocityFrame: orkGroundHitFrame(root.attrs.creator),
+      recoveryDeployed: orkRecoveryDeployed(fd),
       conditions,
       results,
       hasResults,

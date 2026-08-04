@@ -2189,12 +2189,15 @@ that would still meet the *done when*.
 
 ## R10 — The corpus comparison Loft can actually defend
 
-**Status: IN PROGRESS** — **Size item (1) shipped 2026-08-04**, and the publish step of (5) was taken
-with it for this one metric. Pinned by `lib/ork/adapt.test.ts` (`the OpenRocket ground-hit frame`,
-both sides of the 24.12 boundary plus every version string the corpus actually carries) and by the
-census's own `PUBLISHED_MEDIAN_PCT` gate, moved to 2.0 in the same commit. **The commit message
-calls this "increments 1 and 2" — read it as Size item (1); the numbering there is wrong and this
-line is the one to trust.**
+**Status: IN PROGRESS** — **Size items (1) through (4) shipped 2026-08-04**, each publishing as it
+landed; only (5) remains. Pinned by `lib/ork/adapt.test.ts` (`the OpenRocket ground-hit frame`, both
+sides of the 24.12 boundary plus every version string the corpus actually carries), by four cases in
+`lib/rkt/adapt.test.ts` covering the deployment read, by the census cases
+`counts a plugged descent separately from a canopy one, and neither population vanishes` and
+`names every file whose own tool stores two answers for one flight`, and by the census's own
+`PUBLISHED_MEDIAN_PCT` gate — which now also fails on a published claim nothing measures. **The first
+commit's message calls its work "increments 1 and 2" — read it as Size item (1); the numbering there
+is wrong and this line is the one to trust.**
 
 *Size item (1) — SHIPPED 2026-08-04. The `.ork` convention, settled from source, and every file
 compared against the quantity its own version stored.*
@@ -2221,10 +2224,54 @@ slower than stored" at a signed −8.2% median became 66 of 92 at −1.0%. Worst
 third-best. `/docs/validation`, `/docs/limitations` and row 34 all moved in the same commit — row 34
 from inference to citation.
 
-**What remains**, in the Size order below: (2) read `HasDeployed`/`FinalState` in the `.rkt` adapter
-and carry them onto the stored simulation; (3) split the census's deployed and ballistic populations
-and print both; (4) name the self-disagreeing file rather than averaging it; (5) re-measure and
-publish across all ten metrics.
+*Size items (2) and (3) — SHIPPED 2026-08-04. The census stops pooling a lawn dart with a parachute.*
+
+RockSim states deployment per device, as `<HasDeployed>` inside each stored run's
+`<SimulationEvents>`. Scoping to that element is load-bearing: the same tag appears in
+`<Booster1Staging>`/`<Booster2Staging>`, which are STAGING events, so a file-wide read would report a
+booster separating with nothing else out as a canopy descent. `<FinalState>` is read only to tell
+"the file ran this and nothing came out" from "the file records no events at all" — it corroborates
+on 17 of 17 and is deliberately not the primary signal, being an undocumented enum where
+`HasDeployed` says exactly what it says.
+
+**And OpenRocket states it too, which the first version of this increment got wrong.** The claim
+"only `.rkt` files say" was written into a type comment, a census comment and a docs paragraph before
+anything checked — and it was wrong for the same structural reason the whole milestone keeps
+finding: the `.ork` importer reads `<flightdata>`'s summary ATTRIBUTES and had never opened its
+`<databranch>`, which carries a per-step event timeline including
+`<event type="recoverydevicedeployment"/>`. **77 of the corpus's 91 stored `.ork` flights record
+one**, and not one records events without one. The remaining 14 are summary-only saves and stay
+undefined.
+
+Measured: `FullScaleModelTH.rkt` stores 15 runs of one design — 4 `[L1940X-0]` with three devices
+out landing at 8.8–9.2 m/s, and **11 `[L1940X-P]` plugged, landing at 83–162 m/s**. The census was
+averaging them together.
+
+Split on the tool's own marking, `groundHitVelocity` goes **2.0% → 1.3% over 82 non-ballistic runs**,
+with the 12 ballistic ones on their own published line at **14.9%** — now the worst figure in the
+census rather than diluted into the best. Same split on `flightTime`: 3.3% → 3.1%, and 4.8%
+ballistic. Of those 82, **70 are stated canopy descents and 12 state nothing either way**, and the
+third population is named on the page rather than folded in silently.
+
+*Size item (4) — SHIPPED 2026-08-04. The self-disagreeing file is named, by a detector rather than by
+a comment.*
+
+Those 11 plugged runs are stored under one name, share every stated input, and split into four at
+83.3–83.7 m/s and seven at 161.6–162.0 — RockSim itself returns two answers for one rocket, so part
+of the 14.9% ballistic figure is the reference's own spread rather than Loft's error. The census case
+`names every file whose own tool stores two answers for one flight` groups each file's stored runs by
+name and flags any group spanning ≥1.5×. It asserts in both directions: the known group must still be
+found, and no second one may appear unlisted. Nothing is dropped — R10's notes forbid removing a case
+to improve a median, and the gate is only worth having because of that.
+
+The threshold has room rather than being tuned: the known group is 1.94× and **the next-widest group
+anywhere in the corpus is 1.004×**, which the run prints so a corpus that grows a 1.4× group says so.
+
+**What remains:** (5) re-measure and publish across the remaining metrics. Ground-hit velocity and
+flight time are done; the other eight have not been re-examined for a convention or population
+problem of their own, and `deploymentVelocity` at 6.0% is the obvious next candidate — the page
+already argues it is ill-conditioned rather than wrong, which is a claim of exactly the kind this
+milestone has now twice found to be half the story.
 
 **Why this and not the after-list's R10.** The after-list names "Toward 6-DOF" next, and explicitly
 says to decompose it "only when the fundamentals justify it, and only against published, citable
