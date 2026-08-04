@@ -36,7 +36,7 @@ import { mToFt, ftToM, mpsToFtps, ftpsToMps, mphToMps, KMH_PER_MPS, kgToLb } fro
 import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
 import { impulseClass } from "@/lib/motors/eng";
-import { overallLength } from "@/lib/model/geometry";
+import { flattenRocket, overallLength } from "@/lib/model/geometry";
 import { dryMassProperties, statedMassHolder } from "@/lib/sim/mass";
 import type { Rocket } from "@/lib/model/types";
 import { noseBallastStation, configChoices } from "@/lib/sim/run";
@@ -413,6 +413,25 @@ export default function ResultsView({
   // itself as stale while they waited. Comparing two candidates cost two complete re-sweeps.
   const sweepKey = designKey({ loadId, simIndex, configId: run.config.id, ballastKg, recoveryCdScale, geometry });
   const shownRocket = editing ? applyGeometryEdits(doc.rocket, geometry) : doc.rocket;
+  /** The five descent figures are only as good as the canopy coefficient behind them, and on a file
+   *  that states none that coefficient is Loft's rather than the designer's — which R9 closes the
+   *  loop on here. `DESIGN.md` §5 requires the `Extrapolated` treatment "wherever a number leaves
+   *  the envelope its method was validated over", and a descent computed from a supplied constant
+   *  has left it in the plainest way: nothing about this design was measured to produce that figure.
+   *
+   *  Only when the coefficient is a FALLBACK. A canopy whose Cd the file states, or that the flyer
+   *  typed, is the designer's own claim and is not Loft's to caveat — the whole point of
+   *  `Parachute.cdFrom` is that those cases are distinguishable, and marking all of them would make
+   *  the flag mean nothing. Measured across the corpus: 40 of 92 flights are flown on a fallback,
+   *  so this is a caveat a flyer meets often enough to be worth being accurate about. */
+  const descentFromDefault = shownRocket
+    ? flattenRocket(shownRocket)
+        .map((p) => p.component)
+        .some((c) => (c.kind === "parachute" || c.kind === "streamer") && c.cdFrom === "default")
+    : false;
+  const descentWhy = descentFromDefault
+    ? "the canopy's drag coefficient is Loft's fallback, not a figure this design states — the descent figures below follow it, so treat them as rough and try the range on /design"
+    : undefined;
   /** Asked of the EDITED rocket, not the pristine one. R5 made a stage something a flyer can author, so
    *  `doc.rocket.stages.length` is the count of the stages the FILE came with and a booster added in the
    *  editor never moves it. Every tool below this line is gated on it, and the cross-check is the one
@@ -546,9 +565,15 @@ export default function ResultsView({
             label="Descent rate"
             q={d.speed(s.descentRate, units)}
             sub={s.drogueDescentRate !== undefined ? "under main" : undefined}
+            extrapolated={descentWhy}
           />
           {s.drogueDescentRate !== undefined && (
-            <Readout label="Drogue descent" q={d.speed(s.drogueDescentRate, units)} sub="under drogue" />
+            <Readout
+              label="Drogue descent"
+              q={d.speed(s.drogueDescentRate, units)}
+              sub="under drogue"
+              extrapolated={descentWhy}
+            />
           )}
           {/* Withheld on the same test as the two below, and it was not until 2026-08-02. Drift is
               `simulate`'s exit position taken unconditionally, so a flight still descending at the
@@ -568,6 +593,7 @@ export default function ResultsView({
             q={d.speed(s.groundHitVelocity, units)}
             sub="descent rate at impact"
             withheld={s.landed ? undefined : "no landing inside the time cap"}
+            extrapolated={descentWhy}
           />
           {/* The speed over the ground is a different question from the descent rate, and under
               wind it is a materially different number — up to twice it on a light canopy. It is
@@ -578,6 +604,7 @@ export default function ResultsView({
               label="Arrival speed"
               q={d.speed(s.groundHitTotalVelocity, units)}
               sub="over the ground, drift included"
+              extrapolated={descentWhy}
             />
           )}
           <Readout
@@ -585,6 +612,7 @@ export default function ResultsView({
             q={d.energy(s.landingEnergy, units)}
             sub="whole vehicle, from descent rate"
             withheld={s.landed ? undefined : "no landing inside the time cap"}
+            extrapolated={descentWhy}
           />
           <Readout label="Optimum delay" q={d.seconds(s.optimumDelay)} sub="burnout → apogee" extrapolated={extrapolatedWhy} />
           <Readout label="Flight time" q={d.seconds(s.flightTime)} />
