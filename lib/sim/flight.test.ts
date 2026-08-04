@@ -1003,3 +1003,51 @@ describe("runFromDocument forwards what it is given", () => {
     expect(runFromDocument(doc, { validateAgainst: undefined }).validation).toBeDefined();
   });
 });
+
+describe("a fin count Barrowman's method does not describe", () => {
+  /** SEV-1. Every static margin Loft publishes comes from Barrowman's centre-of-pressure method,
+   *  which assumes three or more fins in a symmetric ring. Below that the vehicle is not
+   *  axisymmetric and the method has no term for what it becomes — so the figure is outside the
+   *  assumptions that produce it, not merely uncertain.
+   *
+   *  What made it a Sev-1 rather than a nicety: the one-fin case was the ONLY configuration on this
+   *  fixture that returned an empty warning list. Every other count, including the design's own,
+   *  raises at least the over-stable caution — so the single design whose stability number was least
+   *  trustworthy was the only one Loft reported perfectly clean. */
+  it("warns on one and two fins, and stays quiet from three up", async () => {
+    const doc = await load("demo-single-deploy.ork");
+    const sim = doc.simulations[0];
+    const fly = (finCount: number) =>
+      runFlight(doc.rocket, {
+        configId: sim?.conditions.configId,
+        overrides: sim ? overridesFromStored(sim) : undefined,
+        geometry: { finCount },
+      });
+
+    for (const n of [1, 2]) {
+      const run = fly(n);
+      const codes = run.result.warnings.map((w) => w.code);
+      expect(codes, `${n} fin(s) raised no caveat on a margin the method cannot produce`).toContain(
+        "fin-count-assumption",
+      );
+      // It is a warning, not a caution: the figure it qualifies is the go/no-go readout.
+      const w = run.result.warnings.find((x) => x.code === "fin-count-assumption")!;
+      expect(w.severity).toBe("warning");
+      // And it names the set, so a design with several is actionable.
+      expect(w.message.length).toBeGreaterThan(40);
+    }
+
+    // The negative control, and the reason the case can discriminate at all: from three fins up the
+    // method applies and the caveat must not fire, or it is noise a flyer learns to ignore.
+    for (const n of [3, 4, 6]) {
+      const codes = fly(n).result.warnings.map((w) => w.code);
+      expect(codes, `${n} fins tripped a caveat meant for an asymmetric design`).not.toContain(
+        "fin-count-assumption",
+      );
+    }
+
+    // The original defect, stated as the thing that must never come back: the one-fin flight had an
+    // EMPTY warning list while reporting a comfortable-looking 1.639 cal.
+    expect(fly(1).result.warnings.length, "a one-finned rocket reported perfectly clean").toBeGreaterThan(0);
+  });
+});

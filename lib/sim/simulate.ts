@@ -16,8 +16,9 @@
  *     uses the summed deployed drag areas. Descent drift is the canopy drifting with wind.
  */
 
-import type { Rocket, MotorConfiguration, RocketComponent } from "../model/types";
+import type { Rocket, MotorConfiguration, RocketComponent, TrapezoidFinSet } from "../model/types";
 import {
+  flattenRocket,
   leadingFaceDiameter,
   mouldLineSteps,
   STEP_NOTICE_M,
@@ -990,7 +991,24 @@ export function simulate(input: SimulateInput): FlightResult {
     }
   }
 
+  // Fin sets carrying fewer than three fins, by name. Barrowman's centre-of-pressure method — the
+  // one every static margin on every Loft surface comes from — assumes three or more fins in a
+  // symmetric ring; below that the vehicle is not axisymmetric and the method has no term for what
+  // it becomes. Collected here because `buildWarnings` is handed a flat context rather than the
+  // rocket, and because a NAME is what makes the caveat actionable on a design with several sets.
+  const underSymmetricFinSets = flattenRocket(rocket)
+    .map((p) => p.component)
+    .filter(
+      (c): c is TrapezoidFinSet =>
+        (c.kind === "trapezoidfinset" || c.kind === "ellipticalfinset" || c.kind === "freeformfinset") &&
+        typeof (c as TrapezoidFinSet).finCount === "number" &&
+        (c as TrapezoidFinSet).finCount > 0 &&
+        (c as TrapezoidFinSet).finCount < 3,
+    )
+    .map((c) => ({ name: c.name, finCount: c.finCount }));
+
   buildWarnings(warnings, {
+    underSymmetricFinSets,
     staticMarginCal,
     upperStageMarginCal,
     upperStageName: worstUpperStageName,
@@ -1264,6 +1282,10 @@ function subtreeMaxRecoveryCdA(components: RocketComponent[]): number {
 function buildWarnings(
   out: FlightWarning[],
   ctx: {
+    /** Fin sets carrying fewer than three fins, by name — the designs whose static margin is
+     *  produced by a method that does not describe them. Optional so a caller that predates it
+     *  (and every test that builds this context by hand) is not forced to answer. */
+    underSymmetricFinSets?: { name: string; finCount: number }[];
     staticMarginCal: number;
     /** Lowest upper-stage margin (cal) after a separation; undefined if single-stage. */
     upperStageMarginCal?: number;
@@ -1505,6 +1527,34 @@ function buildWarnings(
   const marginCaveat = marginIsFlown
     ? ""
     : " A motor in this configuration did not resolve, so it is missing from the build and the real margin is lower still.";
+  // **A margin computed by a method the design does not satisfy, and until 2026-08-04 nothing said
+  // so.** Barrowman's centre-of-pressure method assumes three or more fins in a symmetric ring —
+  // it is a slender-body, axisymmetric result — and every static margin Loft publishes comes from
+  // it. With one or two fins the vehicle is not axisymmetric and the method has no term for the
+  // side force and roll it actually develops, so the number is not merely uncertain, it is outside
+  // the assumptions that produce it.
+  //
+  // Measured on the 38 mm sample, and this is why it ranks as a Sev-1 rather than a nicety: one fin
+  // returns a static margin of 1.639 cal and an **empty warning list** — every other fin count,
+  // including the design's own, raises at least the over-stable caution. So the single
+  // configuration whose stability figure is least trustworthy was the only one Loft reported
+  // perfectly clean, on the readout a flyer uses for a go/no-go.
+  //
+  // Stated as a bound on the METHOD rather than as a verdict on the design. One- and two-fin
+  // rockets are flown deliberately, and Loft does not tell anyone whether to fly; what it owes is
+  // that the number it is showing them was produced by a method that does not describe their
+  // rocket.
+  for (const f of ctx.underSymmetricFinSets ?? []) {
+    out.push({
+      code: "fin-count-assumption",
+      message:
+        `${f.name} has ${f.finCount === 1 ? "a single fin" : "two fins"}. Loft's centre-of-pressure ` +
+        `method assumes three or more fins in a symmetric ring, so the static margin above is ` +
+        `outside the assumptions it is computed from and should not be read as this rocket's real ` +
+        `stability. Verify it independently before flying.`,
+      severity: "warning",
+    });
+  }
   if (ctx.staticMarginCal < 1.0) {
     out.push({
       code: "low-stability",
