@@ -15,8 +15,7 @@ import type { CsvCell } from "@/lib/csv";
 import LineChart from "./LineChart";
 import DownloadCsv, { CopyTable } from "./DownloadCsv";
 import type { UnitSystem } from "@/lib/display";
-import { Button, Card, ClosePanel, Extrapolated, useReturnFocus } from "./ui";
-import { cx, TOUCH_TARGET } from "@/lib/ui-tokens";
+import { Button, Card, ClosePanel, Extrapolated, Select, useReturnFocus } from "./ui";
 
 const round = (n: number, dp: number) => (Number.isFinite(n) ? Math.round(n * 10 ** dp) / 10 ** dp : "");
 
@@ -357,41 +356,35 @@ export default function ParameterSweep({
               <span className="block text-[11px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
                 Variable
               </span>
-              <select
+              <Select
                 aria-label="Sweep variable"
                 value={axisKey}
                 onChange={(e) => setAxisKey(e.target.value as SweepAxis)}
-                className={cx(
-                  "mt-1 rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100",
-                  TOUCH_TARGET,
-                )}
+                className="mt-1"
               >
                 {axes.map((a) => (
                   <option key={a.axis} value={a.axis}>
                     {a.label}
                   </option>
                 ))}
-              </select>
+              </Select>
             </label>
             <label className="block">
               <span className="block text-[11px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
                 Y-axis
               </span>
-              <select
+              <Select
                 aria-label="Sweep metric"
                 value={metricKey}
                 onChange={(e) => setMetricKey(e.target.value as MetricDef["key"])}
-                className={cx(
-                  "mt-1 rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100",
-                  TOUCH_TARGET,
-                )}
+                className="mt-1"
               >
                 {metrics.map((m) => (
                   <option key={m.key} value={m.key}>
                     {m.label}
                   </option>
                 ))}
-              </select>
+              </Select>
             </label>
           </div>
 

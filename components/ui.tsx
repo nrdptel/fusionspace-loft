@@ -460,6 +460,44 @@ export function Readout({
   );
 }
 
+/** `DESIGN.md` §5's `Select` — the one dropdown treatment in the app.
+ *
+ *  **Twelve `<select>` elements hand-rolled FIVE class strings before this existed**, across
+ *  `LoftApp` (7), `ResultsView` (2), `ParameterSweep` (2) and `PartPicker` (1). Four of the five were
+ *  the same control written slightly differently; the fifth was a genuine defect, and it is the
+ *  reason this is worth more than tidiness: `ResultsView`'s two unit pickers carried no
+ *  `TOUCH_TARGET` at all, so on a phone they rendered below §8's 44 px minimum on the workspace
+ *  whose whole point is being usable at the pad. A treatment copied by hand is a treatment that
+ *  drifts, and the drift lands where nobody re-measures.
+ *
+ *  It renders the `<select>` and nothing else — deliberately. Several call sites wrap it in their
+ *  own `<label>` with a visible `<span>`, and the e2e suite reaches those by `getByLabel`, so a
+ *  primitive that invented its own label markup would have moved the accessible name of every one
+ *  of them. Options stay as children, so each site's existing `<option>` block — several of which
+ *  compute their text from the design — moves across verbatim.
+ *
+ *  `className` is for LAYOUT only (`w-full`, `flex-1`, `mt-1`): the border, padding, type size,
+ *  focus ring and touch minimum belong to the primitive, and a site that needs one of those
+ *  different is a change to this component or to `DESIGN.md`, not a class at the call site. */
+export function Select({
+  className,
+  children,
+  ...rest
+}: React.SelectHTMLAttributes<HTMLSelectElement>) {
+  return (
+    <select
+      className={cx(
+        "rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100",
+        TOUCH_TARGET,
+        className,
+      )}
+      {...rest}
+    >
+      {children}
+    </select>
+  );
+}
+
 /** Hand focus to the control that REPLACES the one that just vanished.
  *
  *  Closing a panel unmounts the Close button while it is the focused element, and a removed element

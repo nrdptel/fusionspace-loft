@@ -225,6 +225,13 @@ const PRIMITIVE_ADOPTERS: Record<string, number> = {
    *  delta rows (5, a before -> after -> change shape the API does not yet express). Raising this
    *  number is the milestone; lowering it is a regression. */
   Readout: 1,
+  /** §5's `Select`. Four adopters, covering all twelve `<select>` elements in the app.
+   *
+   *  Those twelve hand-rolled FIVE class strings before this existed, and the fifth was a real
+   *  defect rather than untidiness: `ResultsView`'s two unit pickers carried no `TOUCH_TARGET` at
+   *  all, so they rendered under §8's 44 px minimum on a phone. That is what a copied treatment
+   *  costs — the copy drifts, and it drifts where nobody re-measures. */
+  Select: 4,
 };
 
 describe("DESIGN.md §9 — the design system is binding, and this is what checks it", () => {
@@ -311,11 +318,25 @@ describe("DESIGN.md §9 — the design system is binding, and this is what check
     // which ARE the subject of a Monte-Carlo; the mould-line step notice and the stated-mass notice,
     // both of which exist to stop a number being misread; and the cross-check's mean drag gap.
     // Nothing that is a unit, a provenance line, a chart legend or a footnote moved.
+    // **A primitive counts as body default, and without that this check punishes the very direction
+    // P6 exists to push.** Every control primitive renders `text-sm` — `Select`, `NumberField`,
+    // `Readout`, `Button` — so converting a hand-rolled control REMOVES a `text-sm` from the call
+    // site and adds nothing back that a source grep can see. Measured when `Select` landed:
+    // `LoftApp` went from 17/16 to 17/9 without one rendered pixel changing size, and read as a
+    // file that had suddenly gone all-captions. Counting the primitive's own usage restores what the
+    // extraction moved, and it does not blunt the guard: a file full of raw captions and no controls
+    // still trips, which is the case the check was written for (Debrief's 212-to-82).
+    //
+    // Listed explicitly rather than matched as "any capitalised JSX tag", so a new primitive has to
+    // be added here deliberately and cannot silently buy a file its way out of an inversion.
+    const BODY_DEFAULT_PRIMITIVES = /<(Select|NumberField|Readout|Button|Segmented)\b/g;
     const inverted = components
       .map((f) => ({
         path: f.path,
         xs: f.text.match(/text-xs/g)?.length ?? 0,
-        sm: f.text.match(/text-sm/g)?.length ?? 0,
+        sm:
+          (f.text.match(/text-sm/g)?.length ?? 0) +
+          (f.path === "components/ui.tsx" ? 0 : f.text.match(BODY_DEFAULT_PRIMITIVES)?.length ?? 0),
       }))
       .filter((f) => f.xs > f.sm);
     expect(
@@ -360,6 +381,32 @@ describe("DESIGN.md §9 — the design system is binding, and this is what check
       }).length;
     }
     expect(counted, "adoption per primitive (see PRIMITIVE_ADOPTERS)").toEqual(PRIMITIVE_ADOPTERS);
+  });
+
+  it("hand-rolls exactly 0 <select> elements — every dropdown is the primitive", () => {
+    // `DESIGN.md` §5: one treatment per thing. Twelve `<select>` elements across four files spelled
+    // five different class strings, and one of those five had lost its touch minimum entirely — the
+    // failure mode is never that a copy looks wrong on the day it is made, it is that nobody
+    // re-measures the copy.
+    //
+    // Counted on the SOURCE rather than by adoption, because adoption cannot see a thirteenth
+    // `<select>` added tomorrow beside the primitive. `components/ui.tsx` is excluded: it holds the
+    // one that every other file is meant to reach.
+    //
+    // Comments are stripped first. Two files discuss `<select>` in prose — `LoftApp` explaining why
+    // a change event does not fire, and `MotorSweep` on scrolling a sixteen-option list — and a
+    // grep that counted those would report 14 and make the next session hunt two that do not exist.
+    const raw = components
+      .filter((f) => f.path !== "components/ui.tsx")
+      .flatMap((f) => {
+        const stripped = f.text
+          .replace(/\/\*[\s\S]*?\*\//g, "")
+          .split("\n")
+          .filter((l) => !/^\s*(\/\/|\*)/.test(l))
+          .join("\n");
+        return [...stripped.matchAll(/<select[\s>]/g)].map(() => f.path);
+      });
+    expect(raw, `hand-rolled <select> elements:\n  ${raw.join("\n  ")}`).toEqual([]);
   });
 
   it("uses no type size that is off the six-size scale", () => {

@@ -4,7 +4,7 @@ import { join, resolve } from "node:path";
 import { importDesign, importOrk } from "./import";
 import { exportOrk, serializeRocketXml } from "./export";
 import { newDesign } from "../model/starter";
-import { applyGeometryEdits, removalRefusal } from "../model/edit";
+import { applyGeometryEdits, removalRefusal, primaryParachute } from "../model/edit";
 import { runFlight } from "../sim/run";
 import { combine, structurePointMasses } from "../sim/mass";
 import { planformFromPoints } from "../model/planform";
@@ -799,5 +799,29 @@ describe("exportOrk — the launch setup survives the round trip", () => {
     const xml = new TextDecoder().decode(bytes);
     expect(xml.includes("<simulations>")).toBe(false);
     expect((await importOrk(bytes)).simulations).toEqual([]);
+  });
+});
+
+describe("a coefficient the flyer typed survives the round trip", () => {
+  /** R9 increment 5's *done when* requires the edit to flow through "the `.ork` round trip R6
+   *  pinned". The VALUE must survive exactly; the provenance must not claim to, and the difference
+   *  is the point — once Loft writes `<cd>` into the file, the file really does state it, and
+   *  anyone opening that `.ork` in OpenRocket sees it stated. So it comes back as the file's. */
+  it("carries the value through, and re-attributes it honestly", async () => {
+    const rocket = applyGeometryEdits(newDesign().rocket, { parachuteCd: 1.37 });
+    const before = primaryParachute(rocket)!;
+    expect(before.cd).toBeCloseTo(1.37, 6);
+    expect(before.cdFrom).toBe("flyer");
+
+    const reopened = await importOrk(new Uint8Array(await exportOrk({ ...newDesign(), rocket })));
+    const after = primaryParachute(reopened.rocket)!;
+    expect(after.cd, "the flyer's coefficient did not survive the export").toBeCloseTo(1.37, 6);
+    // Not still "flyer": the claim "your own figure" would be false to anyone who reopens this file
+    // on another machine, and the honest reading is that the file now states it.
+    expect(after.cdFrom).toBe("file");
+    // And the descent it produces is the same descent, which is what the round trip is really for.
+    const a = runFlight(rocket, {}).result.summary.groundHitVelocity;
+    const b = runFlight(reopened.rocket, {}).result.summary.groundHitVelocity;
+    expect(b).toBeCloseTo(a, 3);
   });
 });

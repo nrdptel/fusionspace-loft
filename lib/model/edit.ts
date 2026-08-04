@@ -772,6 +772,17 @@ export interface GeometryEdits {
    *  flowing into the flight (descent rate, landing speed, deployment) and the export. Undefined
    *  leaves the parachute as-is; ignored on a design with no parachute. */
   mainParachuteDiameter?: number;
+  /** The aimed canopy's drag coefficient, as a what-if.
+   *
+   *  **The one input in the recovery chain a flyer could not reach**, and the one that sets descent
+   *  rate, arrival speed and landing energy — the pair an RSO and a waiver actually check. It is
+   *  also the honest way to explore the uncertainty: a real canopy's coefficient is only known to
+   *  about +/-10-20%, so trying the range is a more truthful use of this field than trusting any
+   *  single figure, whether the file stated it or Loft supplied it.
+   *
+   *  Bounded by the applier rather than trusted: a coefficient of zero is a canopy that is not
+   *  there, and a negative one is thrust. */
+  parachuteCd?: number;
   /** Number of motors the mount holds (≥ 1). Flown as this many identical coaxial motors — N× the
    *  thrust and motor mass — so it answers "what would clustering buy?" A cluster is set on every
    *  motor mount in the design (a from-scratch or single-stage design has one); 1 flies a single
@@ -910,6 +921,7 @@ export function hasGeometryEdits(e: GeometryEdits): boolean {
     (e.mainDeployAltitude !== undefined && e.mainDeployAltitude > 0 &&
       e.drogueDiameter !== undefined && e.drogueDiameter > 0) ||
     (e.mainParachuteDiameter !== undefined && e.mainParachuteDiameter > 0) ||
+    (e.parachuteCd !== undefined && e.parachuteCd > 0) ||
     (e.motorClusterCount !== undefined && e.motorClusterCount >= 1) ||
     (e.payloadMassKg !== undefined && e.payloadMassKg > 0)
   );
@@ -1111,7 +1123,13 @@ export const AIM_SLOTS: Readonly<Record<string, AimSlot>> = {
     // this same aim, so a pick that outlived its aim would migrate onto whatever the primary-chute
     // fallback found next — which is the defect `withCatalogTube` shipped and had to fix. Listing it
     // here makes the pick clear exactly when the diameter and deploy fields aimed at that part do.
-    targets: ["mainParachuteDiameter", "mainDeployAltitude", "drogueDiameter", "catalogParachute"],
+    targets: [
+      "mainParachuteDiameter",
+      "mainDeployAltitude",
+      "drogueDiameter",
+      "catalogParachute",
+      "parachuteCd",
+    ],
   },
 };
 
@@ -2330,6 +2348,30 @@ function applyDualDeploy(
  *  its `diameter`), so a RockSim chute stored as an area resizes correctly too. Any explicit `area`
  *  is cleared so the new diameter drives the descent. Skips silently when there's no parachute or
  *  the diameter isn't positive, leaving the design as-is. */
+/** Set the aimed canopy's drag coefficient.
+ *
+ *  The provenance moves with it: a coefficient a flyer typed is neither the file's figure nor a
+ *  fallback Loft supplied, and leaving `cdFrom` alone would have left the surface reporting "the
+ *  design file's own figure" beside a number the file never contained. That is the exact class of
+ *  wrongness `cdFrom` was added to prevent, arriving from the other direction.
+ *
+ *  Mass is untouched, unlike the resize beside it. A canopy's coefficient is a property of its shape
+ *  and porosity, not of how much fabric is in it — two canopies of the same diameter and different
+ *  Cd weigh the same. */
+function withParachuteCd(rocket: Rocket, cd: number, selectedId?: string): Rocket {
+  const main = primaryParachute(rocket, selectedId);
+  if (!main || !(cd > 0)) return rocket;
+  const transform = (list: RocketComponent[]): RocketComponent[] =>
+    list.map((c) => {
+      const children = transform(c.children);
+      if (c.id === main.id) {
+        return { ...(c as Parachute), cd, cdFrom: "flyer" as const, children };
+      }
+      return children === c.children ? c : { ...c, children };
+    });
+  return { ...rocket, stages: rocket.stages.map((s) => ({ ...s, components: transform(s.components) })) };
+}
+
 function withMainParachuteDiameter(rocket: Rocket, diameter: number, selectedId?: string): Rocket {
   const main = primaryParachute(rocket, selectedId);
   if (!main || !(diameter > 0)) return rocket;
@@ -3457,7 +3499,10 @@ function applyDimensionEdits(rocket: Rocket, edits: GeometryEdits): Rocket {
   // back to a rule at all.
   const chutePick = usableCatalogParachute(edits.catalogParachute) ? edits.catalogParachute : undefined;
   const chuteTargetId =
-    chutePick || edits.mainParachuteDiameter !== undefined || edits.mainDeployAltitude !== undefined
+    chutePick ||
+    edits.mainParachuteDiameter !== undefined ||
+    edits.mainDeployAltitude !== undefined ||
+    edits.parachuteCd !== undefined
       ? primaryParachute(rocket, edits.parachuteId)?.id
       : undefined;
   // Recovery PICK: a real commercial canopy, applied BEFORE the resize below, because the two compose
@@ -3477,6 +3522,13 @@ function applyDimensionEdits(rocket: Rocket, edits: GeometryEdits): Rocket {
   // Recovery resize: set that same canopy to a target diameter.
   if (edits.mainParachuteDiameter !== undefined && edits.mainParachuteDiameter > 0) {
     out = withMainParachuteDiameter(out, edits.mainParachuteDiameter, chuteTargetId);
+  }
+  // Recovery coefficient: the canopy's own Cd, on that same aimed canopy. AFTER the pick and the
+  // resize, and the order is load-bearing in the same way theirs is: neither of those touches `cd`,
+  // so applying it last means a coefficient a flyer typed survives a pick made afterwards rather
+  // than being silently discarded by it.
+  if (edits.parachuteCd !== undefined && edits.parachuteCd > 0) {
+    out = withParachuteCd(out, edits.parachuteCd, chuteTargetId);
   }
   // Recovery add: convert to dual-deploy (main at altitude + a drogue at apogee), on that same canopy.
   if (edits.mainDeployAltitude !== undefined && edits.drogueDiameter !== undefined) {

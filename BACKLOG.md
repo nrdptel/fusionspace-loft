@@ -29,7 +29,8 @@ genuinely unreachable because `ResultsView` never mounts without a successful fl
 says CONFIRMED carries the command and the numbers the refuter could not talk it out of.
 
 - **A design with NO recovery device at all trips neither the ballistic-descent warning nor the
-  hard-landing one. SEV-1, CONFIRMED 2026-08-04.** `lib/sim/simulate.ts:1007-1008`:
+  hard-landing one. SEV-1 — FIXED 2026-08-04** (a distinct `no-recovery` code; 4 of the 35 corpus
+  designs carry no recovery device, three arriving at 43, 209 and 217 m/s). **Confirmed 2026-08-04.** `lib/sim/simulate.ts:1007-1008`:
   `recoveryExpected: recovery.length > 0` gates the ballistic-descent caution at `:1315`, and
   `anyRecoveryOpened` gates hard-landing at `:1353`. With zero devices **both gates are false**, so a
   lawn dart raises nothing. `ResultsView.tsx:584/:567` then publish Landing energy and Ground-hit
@@ -40,8 +41,9 @@ says CONFIRMED carries the command and the numbers the refuter could not talk it
   returns nothing: there is no such code among the solver's 20. The two numbers a flyer clears a
   field and a waiver on, published with full confidence, while the same engine calls 7.7 m/s "firm".
 
-- **A solver throw leaves the previous flight's numbers on screen beside the new design. SEV-1,
-  CONFIRMED 2026-08-04.** `components/LoftApp.tsx:903-905`: the catch sets `error` but **not**
+- **A solver throw leaves the previous flight's numbers on screen beside the new design. SEV-1 —
+  FIXED 2026-08-04** (`applyWhatIfState` flies first and commits only on success). **Confirmed
+  2026-08-04.** `components/LoftApp.tsx:903-905`: the catch sets `error` but **not**
   `setRun(null)` — contrast the load path at `:646-647`, which does both. `setEdits(next.edits)` at
   `:974` has already committed, and `ResultsView` renders behind `{run && …}` at `:1984` with
   `geometry={geometryOf(edits)}` live. Reproduced: type 2001 into Body diameter (mm) on the 38 mm
@@ -58,12 +60,54 @@ says CONFIRMED carries the command and the numbers the refuter could not talk it
   of 992.8 m / 4.07 cal. `motorsComplete` stays true throughout and no warning mentions the diameter:
   the tube shrinks around an 18 mm motor that keeps its size.
 
-- **One fin, and the warning list comes back EMPTY. CONFIRMED 2026-08-04.**
+- **One fin, and the warning list comes back EMPTY. SEV-1 — FIXED 2026-08-04** (a
+  `fin-count-assumption` warning naming the fin set; fires on 1 and 2 fins, silent from 3 up).
+  **Confirmed 2026-08-04.**
   `components/LoftApp.tsx:2411` accepts `min={1}` while the Barrowman CP method assumes three or more
   symmetric fins. Measured on the same sample: `finCount: 1` → apogee **1,272.1 m**, static margin
   **1.639 cal**, `warnings: []` — not one caution, on the readout a flyer uses for a go/no-go. Two
   fins → 3.506 cal with only the over-stable note. Every other count carries at least that note, so
   the one-finned case is the *only* configuration that reports perfectly clean.
+
+- **The `/design` editor is a 4.79-screen scroll on a phone before you reach the recovery controls.**
+  Measured 2026-08-04 on the built export at 390x664, on a coarse pointer: the canopy-Cd field sits
+  at **3,180 px = 4.79 screens**, against the two `DESIGN.md` §8 allows to a route's primary answer.
+  The depth e2e passes because it measures each route's PRIMARY anchor and this is not one — so the
+  contract is met as written while the editor is still a very long page. This is the PRODUCT SHAPE
+  invariant's own argument arriving from the touch side: `/design` is several jobs (airframe, fins,
+  recovery, mass & finish) stacked on one scroll, and splitting them is what §8 would actually be
+  asking for if it measured more than one anchor per route. Not a regression — the field itself
+  measures 154x44 px and meets the hit-target minimum exactly.
+
+- **`DESIGN.md` §9's inversion check changed here and NOT in the sibling repo.** Filed 2026-08-04.
+  The design-system invariant says both repos carry an identical copy and a change to one is a change
+  to both in the same run. This session's GitHub scope is `nrdptel/fusionspace-loft` and
+  `nrdptel/loft-fixtures` only, so the sibling could not be reached. The change is the per-file
+  caption-vs-body count crediting the body-default primitives a file uses — it matters to any repo
+  running a design-system milestone, and Debrief's own 212-to-82 inversion is the case §9 cites. An
+  owner action: attach the sibling, or port the two edited blocks by hand.
+
+- **The corpus census pools RockSim's BALLISTIC stored runs with its canopy descents, and 11 of 17
+  rows are the ballistic ones.** Filed 2026-08-04, measured. `lib/corpus/sweep.test.ts` filters only
+  on `hasPropulsion && validation`, so nothing excludes a stored simulation whose recovery never
+  opened — RockSim marks them itself with `<HasDeployed>0</HasDeployed>` and `<FinalState>4</FinalState>`
+  and Loft reads neither tag. On `FullScaleModelTH.rkt`, 11 of its 15 stored sims are plugged-motor
+  lawn darts. Worse, that file **self-disagrees**: 83.3–83.7 m/s on four of them and 161.6–162.0 m/s
+  on the other seven, for the same design, motor and wind — a 1.94x spread no model can satisfy.
+  Splitting deployed from ballistic rows before comparing is the next real measurement on the
+  descent metric, and it is a corpus-methodology change rather than an engine one.
+
+- **`lib/model/edit.test.ts` has NINE `tsc --noEmit` errors, not the three previously recorded.**
+  Re-measured 2026-08-04. All in that one file, all invisible to `npm run build` because Next
+  type-checks the app graph and not the test files, so the gate stays green over them. The count
+  moved because the file grew, not because anything was fixed.
+
+- **The RocketPy cross-check's Δ column cannot reveal a shared assumption, and now says so — but the
+  underlying limit stands.** Filed 2026-08-04. `components/RocketpyCrossCheck.tsx` feeds RocketPy
+  Loft's own Cd(Mach), so above M0.8 both columns ride the same extrapolated curve: they agree
+  BECAUSE they share the estimate. The panel carries an `Extrapolated` marker saying this now, which
+  is honesty rather than a fix. A genuinely independent transonic oracle is the real answer and is a
+  milestone-sized piece of work.
 
 **Filed 2026-08-03 (second run of the day) from a six-lens opening fan-out and a three-lens pre-push
 review.** One of its findings — a picked coupler silently cut down when its host shrank, under the

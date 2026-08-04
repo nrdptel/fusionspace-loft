@@ -3,7 +3,7 @@
 import { useEffect, useId, useMemo, useState } from "react";
 
 import DataTable, { type Column } from "./DataTable";
-import { Button, Card } from "./ui";
+import { Button, Card, Select } from "./ui";
 import { TOUCH_TARGET, cx } from "@/lib/ui-tokens";
 import { mToIn } from "@/lib/units";
 import { fmtEditable } from "@/lib/display";
@@ -693,14 +693,14 @@ export default function PartPicker({
                     value={text}
                     onChange={(e) => setText(e.target.value)}
                     placeholder={copy.placeholder}
-                    className={cx(control, TOUCH_TARGET)}
+                    className="mt-1 w-full"
                   />
                 </label>
                 <label className="block" htmlFor={makerId}>
                   <span className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
                     Vendor
                   </span>
-                  <select
+                  <Select
                     id={makerId}
                     value={maker}
                     onChange={(e) => setMaker(e.target.value)}
@@ -712,7 +712,7 @@ export default function PartPicker({
                         {m}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 </label>
                 {/* The caliber filter compares a part's OUTER DIAMETER to the airframe's, which is
                     a question about fit — and a canopy does not fit anything, it hangs below it. 0

@@ -1946,7 +1946,34 @@ same internal Rocket model an imported one does, or the solver ends up with two 
 
 ## R9 — The descent Loft cannot defend, and the flyer cannot reach
 
-**Status: IN PROGRESS** — increments 1, 2 and 3 shipped 2026-08-03, increment 6 on 2026-08-04.
+**Status: SHIPPED 2026-08-04** — every clause of the amended *done when* is met and pinned, and one
+clause of the ORIGINAL wording is refuted rather than delivered (see increment 4). Increments 1, 2
+and 3 shipped 2026-08-03; 4, 5, 6 and 7 on 2026-08-04.
+
+**What a flyer can do that they could not:** see the drag coefficient their descent is computed from,
+learn whose figure it is, change it, and re-fly on it — and be told when the figures below it rest on
+a coefficient nobody stated. **What is measurably better:** the RockSim ground-hit median fell
+**25.7% → 21.9%** with no engine change, because the census had been comparing a vertical speed
+against a total one.
+
+Pinned by: `lib/sim/recovery-defaults.test.ts` (six cases — the descent-drag constant, every adapter
+fallback's source, and the Loft-authored coefficient, all asserted on the SOURCE so the literals
+cannot come back); `lib/rkt/adapt.test.ts` (the vertical component is read as a magnitude and is
+explicitly asserted NOT to be the total; the fallback fires only when the component is absent);
+`lib/model/edit.test.ts` (the edit sets the coefficient, records the flyer's provenance, leaves mass
+alone, refuses zero and negative, and moves the arrival speed in the right direction);
+`lib/ork/export.test.ts` (the value survives the round trip and the attribution changes honestly);
+and two e2e cases that read the coefficient off `/design` and change it.
+
+*Increment 7 — SHIPPED. The census re-measured and published, and it did not move where the
+milestone was originally scoped to move it.* `groundHitVelocity` is **8.3% over 94 stored
+simulations**, unchanged. That is the honest outcome and this file said in advance it would be
+acceptable: the milestone's premise — that the parachute coefficient was the lever — was disproved by
+its own increment 3, and what it delivered instead is honesty (the coefficient visible, attributed,
+editable, and its dependents marked) plus a real 3.8-point accuracy gain confined to the `.rkt`
+subset. `/docs/limitations` carries both figures and the reason.
+
+
 **Increment 3 disproved the milestone's own premise and the remaining increments are re-aimed** —
 read its entry before building 4 onward, and note the *done when* is amended there. **Increment 6
 then found the RockSim half of the error was not physics at all** — read its entry before assuming
@@ -2157,6 +2184,67 @@ not been attributed, and "improve the descent" without knowing whether the error
 coefficient, the body drag, the wind model or the stored figures themselves is how a tolerance gets
 widened to fit. This milestone is allowed to end with the coefficient unchanged and honestly labelled;
 that would still meet the *done when*.
+
+---
+
+## R10 — The corpus comparison Loft can actually defend
+
+**Status:** NOT STARTED
+
+**Why this and not the after-list's R10.** The after-list names "Toward 6-DOF" next, and explicitly
+says to decompose it "only when the fundamentals justify it, and only against published, citable
+sources". They do not yet. R9 spent four increments on the accuracy census's worst metric and found
+that **a large part of the disagreement was never Loft's physics at all** — it was what Loft was
+comparing itself against. That is a fundamentals problem, and it sits directly under 6-DOF: adding
+rotational dynamics while the oracle is misread would produce a number nobody could interpret.
+
+**What R9 measured, and left.** Three findings, each with a command behind it:
+
+- **RockSim's `<VelocityAtLanding>` is the TOTAL ground-frame speed** and Loft reports the vertical
+  descent rate. Verified as hypot of its own three component tags on **17 of 17** stored simulations.
+  Fixed in R9 increment 6, worth 25.7% → 21.9%. **The same question is now open on the `.ork` side**:
+  `COMPETITION.md` row 34 establishes OpenRocket's convention by INFERENCE from stored numbers, not
+  from a published statement, and a probe this run read OpenRocket 23.09's `AbstractEulerStepper`
+  overwriting `TYPE_VELOCITY_TOTAL` with the AIR-relative speed while `unstable` sets it from
+  `getRocketVelocity()` — the ground-frame total. If that reading holds, **the convention CHANGED
+  between OpenRocket versions**, and a corpus file's `creator` string decides which figure Loft is
+  being scored against. Marked `UNVERIFIED`; verifying it is increment 1.
+- **11 of the 17 `.rkt` comparison rows are one design's plugged-motor BALLISTIC runs**, pooled with
+  canopy descents. RockSim marks them itself — `<HasDeployed>0</HasDeployed>`, `<FinalState>4</FinalState>` —
+  and Loft's adapter reads neither tag. `lib/corpus/sweep.test.ts` filters only on
+  `hasPropulsion && validation`.
+- **That same file self-disagrees by 1.94x**: 83.3–83.7 m/s on four stored runs and 161.6–162.0 m/s
+  on seven, for the same design, motor and wind. No coefficient or drag model can satisfy both, and
+  four of the corpus's five worst cases are it.
+
+**Outcome.** The accuracy census compares like with like, and every figure it publishes says which
+convention it is in and which population it is over. A number in `/docs/validation` stops being "how
+close Loft is" in the abstract and becomes a claim a reader can check.
+
+**Done when** every stored figure the census compares against is read in Loft's own convention or
+excluded with a reason; a stored simulation the source tool marks as not-deployed is not pooled with
+canopy descents (the census reports both populations, separately, rather than dropping either); a
+file whose own tool disagrees with itself is named as such rather than averaged into a median; the
+`.ork` convention question is settled from OpenRocket's source with a version, and
+`COMPETITION.md` row 34 upgraded from inference to citation or corrected; and the published census
+figures are re-measured against all of that, with `/docs/validation` and `PUBLISHED_MEDIAN_PCT`
+moved in the same commit.
+
+**Pinned by** the corpus census itself — which already fails CI past `CENSUS_SLACK_PCT` — plus a case
+asserting the deployed and ballistic populations are counted separately and both are non-trivially
+populated, so the split cannot silently degenerate the way R9 increment 3's did.
+
+**Size.** 4–6 increments, and take them in this order because each is cheap and none depends on the
+next: (1) settle the `.ork` convention from OpenRocket's source, by version, and write it into row 34;
+(2) read `HasDeployed`/`FinalState` in the `.rkt` adapter and carry them onto the stored simulation;
+(3) split the census's populations and print both; (4) name the self-disagreeing file rather than
+averaging it; (5) re-measure and publish.
+
+**Notes.** `COMPETITION.md` rows 33, 34 and 35. **This milestone is allowed to make the published
+number WORSE**, and if it does, that is the result: R9's own increment already moved this metric
+3.0% → 8.3% by removing two errors that were cancelling, and said so on the page. What it must not do
+is widen a tolerance or drop a case to make a median look better — the corpus gating CI is the single
+most valuable check this repo has for unattended physics work.
 
 ---
 
@@ -3404,8 +3492,29 @@ rather than by the audit: a treatment written inline is invisible to a check tha
 nothing in `lib/design-system.test.ts` could see it. Both primitives now carry a per-primitive
 ratchet, which is what stops the next one being found the same way.
 
-**Next: `Select` (12 hand-rolled `<select>` elements in 5 class strings), then
-`EmptyState`/`ErrorState`, then `Panel` and `Figure`.** The `Readout` queue behind increment 1 is
+*Increment 2 — SHIPPED 2026-08-04. `Select`, and every dropdown in the app goes through it.*
+
+Twelve `<select>` elements across four files, five class strings, and the fifth was a defect rather
+than untidiness: `ResultsView`'s two unit pickers carried no `TOUCH_TARGET`, so they rendered under
+§8's 44 px minimum on a phone. Pinned two ways — a per-primitive adoption ratchet at four files, and
+a source count asserting zero hand-rolled `<select>` elements remain outside `ui.tsx`, because
+adoption alone cannot see a thirteenth one added tomorrow beside the primitive.
+
+**It also forced a fix to the compliance check itself, and the next increment will thank it.**
+Converting those controls took `LoftApp` from 17/16 to 17/9 on the caption-vs-body ratio without one
+rendered pixel changing size, because a primitive's `text-sm` moves out of the call site where the
+grep can see it. `DESIGN.md` §9 already recorded this distortion for the SUITE total and concluded
+"count the inverted files"; that conclusion was right and incomplete, since a file's own count moves
+the same way. The check credits the body-default primitives a file uses now, from an explicit list,
+and §9 carries the rule underneath: **a check that counts a file's own class strings will always
+penalise adoption, so it has to count what the file RENDERS.** Verified it keeps its teeth — every
+other component still passes on raw counts alone.
+
+**Next: `EmptyState`/`ErrorState`, then `Panel` and `Figure`.** `MassBreakdown.tsx:47` is the
+confirmed live case: `if (points.length === 0) return null` short-circuits before a `DataTable` whose
+`empty` copy is written and unreachable, so the panel vanishes rather than saying why. (The
+`GeometryInspector` sibling of it was investigated and REFUTED — `ResultsView` never mounts without a
+successful flight, so that branch is genuinely unreachable.) The `Readout` queue behind increment 1 is
 measured and waiting: `Field` (14 sites in the same file, a pre-formatted-string value),
 `MonteCarlo`'s `StatCard`/`WithheldCard`/`RadiusCard` (6, differing only in what fills `sub`), and
 the what-if delta rows (5, a before → after → change shape the API does not yet express).

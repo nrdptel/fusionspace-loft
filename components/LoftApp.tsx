@@ -6,7 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import ImportPanel from "./ImportPanel";
 import ResultsView from "./ResultsView";
 import { workspaceFromPath, workspacePath, type Workspace } from "@/lib/workspaces";
-import { Button, Card, NumberField, Segmented } from "./ui";
+import { Button, Card, NumberField, Segmented, Select } from "./ui";
 import { importDesign, sourceTool, type OrkDocument } from "@/lib/ork/import";
 import { newDesign } from "@/lib/model/starter";
 import { exportOrk } from "@/lib/ork/export";
@@ -128,6 +128,15 @@ import * as d from "@/lib/display";
 import type { UnitSystem } from "@/lib/display";
 
 /** Friendly labels for the surface-finish picker (smoothest → roughest). */
+/** The free-text-input treatment, until a `TextField` primitive owns it.
+ *
+ *  Named rather than inlined so the next conversion can find it. This exact string was silently
+ *  shared with the file's `<select>` elements, and converting those to the `Select` primitive
+ *  stripped it off this field along with them — the phone suite's hit-target scan caught the result
+ *  at 218x24 px against §8's 44 px minimum, which is what that scan is for. */
+const TREAT_INPUT =
+  "rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100";
+
 const FINISH_LABELS: Record<SurfaceFinish, string> = {
   mirror: "Mirror",
   polished: "Polished",
@@ -226,6 +235,7 @@ interface Edits {
   mainDeployAltitude?: number; // builder edit: dual-deploy — main deploys at this altitude AGL (m)
   drogueDiameter?: number; // builder edit: dual-deploy — drogue diameter (m) added at apogee
   mainParachuteDiameter?: number; // builder edit: resize the main (largest) parachute (m)
+  parachuteCd?: number; // builder edit: the aimed canopy's drag coefficient
   motorClusterCount?: number; // builder edit: how many motors the mount holds (cluster)
   payloadMassKg?: number; // builder edit: add a payload/av-bay point mass (kg)
   payloadStation?: number; // builder edit: where the added payload sits (m from nose; blank = mid-body)
@@ -2179,11 +2189,11 @@ function ConfigPicker({
   return (
     <Card as="label" className="flex flex-wrap items-center gap-2">
       <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Motor configuration</span>
-      <select
+      <Select
         aria-label="Motor configuration"
         value={selected}
         onChange={(e) => onSelect(Number(e.target.value))}
-        className={`min-w-0 flex-1 rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 ${TOUCH_TARGET}`}
+        className="min-w-0 flex-1"
       >
         {/* No `title`: it used to carry the run's raw name, which is now part of the visible label
             wherever it distinguishes anything — leaving it made eleven options with different text
@@ -2194,7 +2204,7 @@ function ConfigPicker({
             {labels[i]}
           </option>
         ))}
-      </select>
+      </Select>
       <span className="w-full text-xs text-zinc-500 dark:text-zinc-400 sm:w-auto">
         {choices.length} configurations in this design — the apogee shown is {tool}&apos;s stored value.
         {/* An option marked outdated or not run still belongs in the list — it is a reference point —
@@ -2236,6 +2246,10 @@ function cdOriginPhrase(from: CdProvenance | undefined): string {
       return "Loft's fallback, because the file states none";
     case "loft":
       return "Loft's own, for a canopy authored here";
+    case "flyer":
+      return "your own figure";
+    case "flyer":
+      return "your own figure, typed here";
     default:
       return "origin not recorded";
   }
@@ -2375,7 +2389,7 @@ function DesignEditor({
                       <span className="block text-[11px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
                         Swap motor
                       </span>
-                      <select
+                      <Select
                         aria-label="Swap motor"
                         value={edits.motorSwap ? `${edits.motorSwap.manufacturer ?? ""}|${edits.motorSwap.designation}` : ""}
                         onChange={(e) => {
@@ -2387,7 +2401,7 @@ function DesignEditor({
                               : undefined,
                           });
                         }}
-                        className={`mt-1 w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 ${TOUCH_TARGET}`}
+                        className="mt-1 w-full"
                       >
                         <option value="">Design motor ({swap.designMotor})</option>
                         {Object.entries(
@@ -2404,7 +2418,7 @@ function DesignEditor({
                             ))}
                           </optgroup>
                         ))}
-                      </select>
+                      </Select>
                     </label>
                   )}
                   {designDims.motorClusterCount !== undefined && (
@@ -2540,13 +2554,13 @@ function DesignEditor({
                       <span className="block text-[11px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
                         Fin edge
                       </span>
-                      <select
+                      <Select
                         aria-label="Fin edge cross-section"
                         value={edits.finCrossSection ?? ""}
                         onChange={(e) =>
                           onEdit({ finCrossSection: e.target.value ? (e.target.value as FinCrossSection) : undefined })
                         }
-                        className={`mt-1 w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 ${TOUCH_TARGET}`}
+                        className="mt-1 w-full"
                       >
                         <option value="">As designed ({FIN_CROSS_SECTION_LABELS[designDims.finCrossSection]})</option>
                         {FIN_CROSS_SECTIONS.map((s) => (
@@ -2554,7 +2568,7 @@ function DesignEditor({
                             {FIN_CROSS_SECTION_LABELS[s]}
                           </option>
                         ))}
-                      </select>
+                      </Select>
                     </label>
                   )}
                   {designDims.finCrossSection !== undefined && (
@@ -2562,11 +2576,11 @@ function DesignEditor({
                       <span className="block text-[11px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
                         Fin material
                       </span>
-                      <select
+                      <Select
                         aria-label="Fin material"
                         value={edits.finMaterial ?? ""}
                         onChange={(e) => onEdit({ finMaterial: e.target.value || undefined })}
-                        className={`mt-1 w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 ${TOUCH_TARGET}`}
+                        className="mt-1 w-full"
                       >
                         <option value="">
                           As designed{designDims.finMaterial ? ` (${designDims.finMaterial})` : ""}
@@ -2576,7 +2590,7 @@ function DesignEditor({
                             {m.label}
                           </option>
                         ))}
-                      </select>
+                      </Select>
                     </label>
                   )}
                 </div>
@@ -2631,11 +2645,11 @@ function DesignEditor({
                       <span className="block text-[11px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
                         Nose shape
                       </span>
-                      <select
+                      <Select
                         aria-label="Nose shape"
                         value={edits.noseShape ?? ""}
                         onChange={(e) => onEdit({ noseShape: e.target.value ? (e.target.value as NoseShape) : undefined })}
-                        className={`mt-1 w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 ${TOUCH_TARGET}`}
+                        className="mt-1 w-full"
                       >
                         <option value="">As designed ({NOSE_SHAPE_LABELS[designDims.noseShape]})</option>
                         {NOSE_SHAPES.map((s) => (
@@ -2643,7 +2657,7 @@ function DesignEditor({
                             {NOSE_SHAPE_LABELS[s]}
                           </option>
                         ))}
-                      </select>
+                      </Select>
                     </label>
                   )}
                   {designDims.bodyLength !== undefined && (
@@ -2921,34 +2935,55 @@ function DesignEditor({
                   could not see it, could not tell whose number it was, and (still, until increment
                   5) cannot change it.
 
-                  Rendered as a note rather than as a `Readout` card or a disabled `NumberField`,
-                  which is a `DESIGN.md` §5 judgement rather than a shortcut: the fieldset already
-                  states its unreachable-canopy note in exactly this treatment, a `Readout` card
-                  among four `NumberField`s would read as a different KIND of thing, and a disabled
-                  number box advertises an edit that does not exist yet. `DESIGN.md` §6 requires a
-                  reference value to name its source, which is the sentence rather than the number.
+                  A `NumberField` like its four neighbours, because it is now an edit like theirs —
+                  it shipped one increment earlier as a read-only note, which was the honest shape
+                  while a disabled box would have advertised an edit that did not exist. The
+                  provenance stays a sentence beneath it: `DESIGN.md` §6 requires a reference value
+                  to name its source, and a source is not a number a field can hold.
 
-                  The origin has three real values and not the four R9's *done when* names. A
+                  The origin has four values and not the four R9's *done when* names — a different
+                  four. Typing one is an origin (`"your own figure"`); a catalogue pick is not. A
                   catalogue pick cannot be one: 0 of the 151 catalogued canopies publish a
                   coefficient, so a pick leaves this field exactly as it found it — which
                   `PartPicker` already tells the flyer in words. Saying "catalogue part" here would
                   be inventing a provenance the data cannot support. */}
               {designDims.mainParachuteCd !== undefined && (
-                <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
-                  Drag coefficient{" "}
-                  <span className="font-mono tabular-nums text-zinc-700 dark:text-zinc-300">
-                    {d.fmt(designDims.mainParachuteCd, 2)}
-                  </span>{" "}
-                  — {cdOriginPhrase(designDims.mainParachuteCdFrom)}. It sets the descent rate,
-                  arrival speed and landing energy above.{" "}
-                  <Link
-                    href="/docs/limitations"
-                    className="text-indigo-600 underline underline-offset-2 dark:text-indigo-400"
-                  >
-                    What backs each figure
-                  </Link>
-                  .
-                </p>
+                <>
+                  <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    <NumberField
+                      label="Canopy Cd"
+                      value={edits.parachuteCd ?? ""}
+                      placeholder={d.fmtEditable(designDims.mainParachuteCd, 2)}
+                      min={0.1}
+                      max={3}
+                      step={0.05}
+                      hint="Drag coefficient of the canopy — it sets descent rate, arrival speed and landing energy."
+                      onChange={(v) => {
+                        const n = v === "" ? undefined : Number(v);
+                        onEdit({ parachuteCd: n !== undefined && n > 0 ? n : undefined });
+                      }}
+                    />
+                  </div>
+                  <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
+                    Flying{" "}
+                    <span className="font-mono tabular-nums text-zinc-700 dark:text-zinc-300">
+                      {d.fmt(edits.parachuteCd ?? designDims.mainParachuteCd, 2)}
+                    </span>{" "}
+                    —{" "}
+                    {cdOriginPhrase(
+                      edits.parachuteCd !== undefined ? "flyer" : designDims.mainParachuteCdFrom,
+                    )}
+                    . A real canopy&apos;s coefficient is only known to about &plusmn;10&ndash;20%, so
+                    trying the range says more than any single figure.{" "}
+                    <Link
+                      href="/docs/limitations"
+                      className="text-indigo-600 underline underline-offset-2 dark:text-indigo-400"
+                    >
+                      What backs each figure
+                    </Link>
+                    .
+                  </p>
+                </>
               )}
 
               {/* The third kind the catalogue can offer, and the first that is not airframe. It edits
@@ -3096,11 +3131,11 @@ function DesignEditor({
                     <span className="block text-[11px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
                       Surface finish
                     </span>
-                    <select
+                    <Select
                       aria-label="Surface finish"
                       value={edits.finish ?? ""}
                       onChange={(e) => onEdit({ finish: e.target.value ? (e.target.value as SurfaceFinish) : undefined })}
-                      className={`mt-1 w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 ${TOUCH_TARGET}`}
+                      className="mt-1 w-full"
                     >
                       <option value="">As designed ({FINISH_LABELS[designDims.finish]})</option>
                       {SURFACE_FINISHES.map((f) => (
@@ -3108,7 +3143,7 @@ function DesignEditor({
                           {FINISH_LABELS[f]}
                         </option>
                       ))}
-                    </select>
+                    </Select>
                   </label>
                 )}
                 {designDims.bodyDiameter !== undefined && (
@@ -3116,11 +3151,11 @@ function DesignEditor({
                     <span className="block text-[11px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
                       Airframe material
                     </span>
-                    <select
+                    <Select
                       aria-label="Airframe material"
                       value={edits.airframeMaterial ?? ""}
                       onChange={(e) => onEdit({ airframeMaterial: e.target.value || undefined })}
-                      className={`mt-1 w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 ${TOUCH_TARGET}`}
+                      className="mt-1 w-full"
                     >
                       <option value="">
                         As designed{designDims.airframeMaterial ? ` (${designDims.airframeMaterial})` : ""}
@@ -3130,7 +3165,7 @@ function DesignEditor({
                           {m.label}
                         </option>
                       ))}
-                    </select>
+                    </Select>
                   </label>
                 )}
               </div>
@@ -3341,7 +3376,11 @@ function ConditionsControls({
               onChange={(e) => setPlace(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && findWeather()}
               placeholder="Launch site, e.g. Lucerne Valley, CA"
-              className={`min-w-0 flex-1 rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-800 outline-none focus:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 ${TOUCH_TARGET}`}
+              // NOT a `Select`, so it keeps its own treatment — a free-text field, and the primitive
+              // that would own this is a `TextField` P6 has not built yet. Spelled out here rather
+              // than shared with the dropdowns, because the two are different controls that happen
+              // to look alike today.
+              className={`min-w-0 flex-1 ${TREAT_INPUT} ${TOUCH_TARGET}`}
             />
             <Button variant="primary" onClick={findWeather} disabled={wxBusy || busy}>
               {wxBusy ? "Fetching…" : "Fetch"}
