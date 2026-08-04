@@ -312,10 +312,12 @@ export function Chip({ label, value }: { label: string; value: string }) {
         {label}
       </div>
       {/* `text-sm`, not `text-xs`. §3 is explicit that caption size is for the text AROUND a value —
-          "its unit, its provenance, its caveat — never the value" — and this is the value. The
-          inversion check in `lib/design-system.test.ts` is the count that surfaced it: adding one
-          legitimate caveat caption to this file tipped it, and the honest fix was the pre-existing
-          violation underneath rather than another point of budget. */}
+          "its unit, its provenance, its caveat — never the value" — and this is the value.
+          Surfaced by the inversion check in `lib/design-system.test.ts` when a legitimate caveat
+          caption tipped this file's ratio; correcting the real violation was the honest way past it
+          rather than another point of budget. Worth being plain that it changes no rendered pixel:
+          `Chip` has zero call sites, which the same file records as `Chip: 0`. It is the spec being
+          made true before P6 decides whether this primitive gains adopters or is deleted. */}
       <div className="font-mono text-sm tabular-nums text-zinc-700 dark:text-zinc-300">
         {value}
       </div>
@@ -355,9 +357,22 @@ export function Extrapolated({
 }) {
   return (
     <>
+      {/* The reason is named ONCE, and which mechanism names it depends on whether it is visible.
+          Standing on its own line the sentence below is real text, so an `aria-label` here made a
+          screen reader read the whole thing twice — once as the badge's name and again as the
+          paragraph. Inline inside a metric tile the sentence is `display: none` to a fine pointer,
+          so there the label is the only thing carrying it and it stays.
+
+          (`abbr` has no implicit role, which makes `aria-label` discouraged on it; axe returns
+          *incomplete* rather than a violation because the element has text, so the suite's own audit
+          cannot see it either way. Kept for the inline case because dropping it there would leave a
+          desktop screen-reader user the bare word "extrapolated" with no reason at all, and a
+          visually-hidden sibling is not an option: the flight card's readouts are read with
+          `innerText`, which returns `sr-only` text and would fold this sentence's digits into the
+          number being parsed.) */}
       <abbr
         title={reason}
-        aria-label={`Extrapolated — ${reason}`}
+        aria-label={inline ? `Extrapolated — ${reason}` : undefined}
         className={cx(
           "block w-fit cursor-help rounded-md bg-amber-500/10 px-2 py-1 font-sans text-[11px] font-medium uppercase tracking-wide text-amber-700 no-underline dark:text-amber-400",
           inline ? "mt-1" : "",
@@ -369,7 +384,9 @@ export function Extrapolated({
       <div
         className={cx(
           "text-xs font-sans font-normal text-zinc-600 dark:text-zinc-400",
-          // On a pointer device the `abbr` already carries it; writing it out twice would be noise.
+          // Written out where there is no hover to reveal the `title`. Kept `hidden` rather than
+          // `sr-only` on a fine pointer for the `innerText` reason above — the inline marker renders
+          // inside the value element the flight card's tests read the number out of.
           inline ? "hidden pointer-coarse:block" : "mt-1",
         )}
       >

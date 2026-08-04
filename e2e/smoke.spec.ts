@@ -997,8 +997,16 @@ test.describe("Loft", () => {
     // flight went transonic or not. The marker rides the numbers the extrapolation actually drives.
     const marks = page.getByText("extrapolated", { exact: true });
     expect(await marks.count(), "no number is marked as extrapolated on a transonic flight").toBeGreaterThan(0);
-    // It carries the reason and the range, not just a label — §5 asks for both.
-    await expect(marks.first()).toHaveAttribute("title", /M\d|envelope|subsonic/i);
+    // It carries the reason and the range, not just a label — §5 asks for both. Scoped to the
+    // `Extrapolated` badge rather than to whichever mark happens to be first in the document: the
+    // design-summary strip above now carries one too, and that one deliberately has no `title`,
+    // because a `title` is unreachable on a coarse pointer and the strip renders on all four routes
+    // (the phone suite's hover-only ratchet counts exactly that). Its reason travels by accessible
+    // name; the `abbr` is the mark whose contract is the hover.
+    await expect(page.locator("abbr", { hasText: /^extrapolated$/ }).first()).toHaveAttribute(
+      "title",
+      /M\d|envelope|subsonic/i,
+    );
     // A dual-deploy flight reports two descent rates: the fast phase under the drogue and the slower
     // final descent under the main — a single-deploy flight shows only the one.
     const results = page.getByLabel("Results");
@@ -1591,18 +1599,27 @@ test.describe("Loft", () => {
       "the sweep flew a candidate past M0.8 and said nothing about the envelope",
     ).toBeVisible();
 
-    // And the marking is per row: the accessible name of an extrapolated row carries the reason, so
-    // a screen reader meets it on the row rather than only in the summary above. The fastest row is
-    // the one that earns it — this sample's top candidates are what cross the envelope.
-    const flagged = panel.locator("tbody tr", { hasText: /./ }).filter({
+    // And the marking is per row, on the row that EARNS it. Asserting only "some row is flagged"
+    // would stay green if the flag attached to the wrong candidate, which is the failure that
+    // matters here: a flyer picks one row out of this table. The sweep is sorted apogee-descending
+    // and the fastest candidates are the ones that cross M0.8, so the flag has to be on the top row
+    // and off the bottom one — that pair is the assertion.
+    const flaggedRows = panel.locator("tbody tr").filter({
       has: page.getByText(/outside the drag model's validated subsonic envelope/),
     });
-    await expect
-      .poll(async () => flagged.count(), { timeout: 15_000 })
-      .toBeGreaterThan(0);
-    // Not every row — a caveat that applied to all of them would be telling the flyer nothing about
-    // which motor to pick, which is the whole job of this table.
-    expect(await flagged.count()).toBeLessThan(await rows.count());
+    await expect.poll(async () => flaggedRows.count(), { timeout: 15_000 }).toBeGreaterThan(0);
+    const n = await rows.count();
+    // Not every row — a caveat that applied to all of them would say nothing about which motor to
+    // pick, which is the whole job of this table.
+    expect(await flaggedRows.count()).toBeLessThan(n);
+    await expect(
+      rows.first().getByText(/outside the drag model's validated subsonic envelope/),
+      "the highest-flying candidate is the one that crosses M0.8, and it is not the row marked",
+    ).toHaveCount(1);
+    await expect(
+      rows.nth(n - 1).getByText(/outside the drag model's validated subsonic envelope/),
+      "the slowest candidate stays inside the envelope and must not be marked",
+    ).toHaveCount(0);
   });
 
   test("motor sweep exports the comparison as a CSV", async ({ page }) => {

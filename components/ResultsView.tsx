@@ -3,6 +3,7 @@
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { Button, Card, Extrapolated, type CardTone } from "./ui";
+import { transonicReason } from "@/lib/sim/envelope";
 import { cx } from "@/lib/ui-tokens";
 import WorkspaceNav from "./WorkspaceNav";
 import { WORKSPACES, type Workspace } from "@/lib/workspaces";
@@ -302,9 +303,7 @@ export default function ResultsView({
    *  validated over; the drag model's is subsonic, and above about M0.8 it is a bounded parametric
    *  estimate rather than a solution. Worded to match the `transonic` caution the solver already
    *  raises, so the marker and the card cannot drift apart. */
-  const extrapolatedWhy = r.extrapolatedTransonic
-    ? `this flight reaches M${d.fmt(s.maxMach, 2)}, outside the drag model's validated subsonic envelope (M ≤ 0.8) — treat it as rough`
-    : undefined;
+  const extrapolatedWhy = transonicReason(r.extrapolatedTransonic, s.maxMach);
   const markers = eventMarkers(r);
   // Which workspace is open — the route, handed down. The panels below all stay mounted and the
   // route only decides which one is visible, which is deliberate rather than incidental: a
@@ -1220,6 +1219,9 @@ function RocketSummary({
   const r = run.result;
   const length = overallLength(rocket);
   const dia = r.stability.refRadius * 2;
+  // Same sentence the flight card uses, from the same module, so the strip and the card one screen
+  // apart cannot come to disagree about the same flight.
+  const extrapolatedWhy = transonicReason(r.extrapolatedTransonic, r.summary.maxMach);
   const [detailOpen, setDetailOpen] = useState(false);
   return (
     <Card as="section">
@@ -1305,7 +1307,21 @@ function RocketSummary({
         {/* Apogee leads the strip so a design edit's headline flight effect is visible from any
             workspace — the editors live on Design, but this summary sits above the tabs. Only with
             propulsion: a design whose motor didn't resolve has no meaningful apogee. */}
-        {run.hasPropulsion && <Field term="Apogee" value={d.q(d.altitude(r.summary.apogee, units))} />}
+        {/* Marked when the flight left the drag model's envelope, through `Field`'s own hint slot
+            rather than the `Extrapolated` block used elsewhere. This strip is the shared chrome all
+            four routes sit under, and a permanent reason line here is paid for on every one of them
+            — it is what took `/sweep` back past the two screens §8 allows once before. The badge
+            carries the reason to a pointer, a keyboard and a screen reader; the block treatment
+            stands where the number is the surface's whole subject. Without this the same apogee read
+            plain up here and "extrapolated" on the card below, one screen apart. */}
+        {run.hasPropulsion && (
+          <Field
+            term="Apogee"
+            value={d.q(d.altitude(r.summary.apogee, units))}
+            hint={extrapolatedWhy ? "extrapolated" : undefined}
+            hintWhy={extrapolatedWhy}
+          />
+        )}
         {/* **The motor is not "dead mass" when it fails to resolve — it is ABSENT.** `lib/sim/setup.ts`
             skips an unmatched instance entirely, so it contributes neither mass nor CG, and the two
             figures below are then measuring a rocket with nothing in the tube. Apogee has always been
@@ -1656,6 +1672,12 @@ function Field({
         {value}
         {hint && (
           <span
+            // Deliberately NO `title`. Adding one to reach parity with the `Extrapolated` badge's
+            // hover affordance took the phone suite's hover-only-state count from 0 to 5 — a `title`
+            // is unreachable on a coarse pointer, and this badge renders in the shared chrome on all
+            // four routes, so it is five states a flyer at the pad cannot get at. The reason travels
+            // by accessible name here; the written-out sentence lives on the flight card's own
+            // marker, which is on the same route and is where a phone actually reads it.
             aria-label={hintWhy ? `${hint} — ${hintWhy}` : hint}
             className="ml-1 text-xs uppercase text-amber-700 no-underline dark:text-amber-400"
           >

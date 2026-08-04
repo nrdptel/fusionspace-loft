@@ -279,7 +279,7 @@ function sweepCsv(rows: MotorSweepRow[], units: UnitSystem): CsvCell[][] {
   const alt = units === "imperial" ? "ft" : "m";
   const toAlt = (m: number) => (units === "imperial" ? mToFt(m) : m);
   const toSpd = (mps: number) => (units === "imperial" ? mpsToFtps(mps) : mps);
-  const header: CsvCell[] = ["Motor", "Manufacturer", "Class", `Apogee (${alt})`, `Max velocity (${spd})`, `Rail-exit (${spd})`, "Thrust-to-weight", "Static margin (cal)", "Fin flutter margin (x)", "Optimum delay (s)", "Design"];
+  const header: CsvCell[] = ["Motor", "Manufacturer", "Class", `Apogee (${alt})`, `Max velocity (${spd})`, `Rail-exit (${spd})`, "Thrust-to-weight", "Static margin (cal)", "Fin flutter margin (x)", "Optimum delay (s)", "Design", "Extrapolated"];
   const body: CsvCell[][] = rows.map((r) => [
     r.designation,
     r.manufacturer,
@@ -294,6 +294,10 @@ function sweepCsv(rows: MotorSweepRow[], units: UnitSystem): CsvCell[][] {
     round(r.flutterMargin, 3),
     round(r.optimumDelay, 1),
     r.isDesign ? "yes" : "",
+    // The export carries the caveat too. A ranking pasted into a build thread is the artifact that
+    // outlives the session, and without this column it left here byte-identical to a validated one —
+    // the same "confident claim in one place" this whole change exists to stop, one step further out.
+    r.extrapolatedTransonic ? "past M0.8 — outside the validated drag envelope" : "",
   ]);
   return [header, ...body];
 }
@@ -586,7 +590,10 @@ function SweepTable({
         </span>{" "}
         marks any that falls under its rule of thumb — the same ~{LIFTOFF_TWR_GUIDELINE}:1,
         ~15&nbsp;m/s (≈50&nbsp;ft/s) and {RECOMMENDED_FLUTTER_MARGIN}× thresholds the flight itself
-        cautions on, so a motor cannot pass unmarked here and raise a caution once you pick it. The
+        cautions on, so a motor cannot pass unmarked here and raise a caution once you pick it. On{" "}
+        <em>Apogee</em> the same mark means something different and is worth reading as such: not a
+        safety threshold, but that this candidate flies past M0.8 and out of the drag model&apos;s
+        validated envelope, so its altitude is a rougher estimate than the rows below it. The
         rail is the one being flown, so shortening it under <em>Conditions</em> moves that column.
         Surface wind is not read at all —
         a ballistic ascent has no recovery to drift. <em>Delay</em>{" "}

@@ -14,7 +14,11 @@
  *  So each assertion below pins the CARRIER, on a committed fixture that actually crosses the
  *  envelope — delete the field from any of the three result types and the corresponding case reds.
  *  `demo-dual-deploy.ork` flies to M1.29 and `demo-single-deploy.ork` to M0.60, so every case has a
- *  positive and a negative control and cannot pass by always answering the same way. */
+ *  positive and a negative control and cannot pass by always answering the same way — and the two
+ *  sweep cases get theirs from inside a single run, by choosing a range wide enough that the flag
+ *  actually changes along it. That is not decoration: the first draft of the parameter-sweep case
+ *  swept a range where 7 of 7 points were extrapolated, which passes identically if the flag is read
+ *  from each point's own flight, copied from the nominal design, or hard-coded true. */
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { importOrk } from "../ork/import";
@@ -94,20 +98,32 @@ describe("the transonic caveat reaches every surface that flies the solver", () 
     expect(run.result.extrapolatedTransonic).toBe(true);
   }, 120_000);
 
-  it("carries it onto every parameter-sweep point, matching each point's own flight", async () => {
+  it("carries it onto every parameter-sweep point, and splits the curve where the flights do", async () => {
     const { doc, sim } = await flightOf(TRANSONIC);
     const span = primaryFinSpan(doc.rocket);
     expect(span).toBeGreaterThan(0);
-    const pts = parameterSweep(doc.rocket, "finSpan", linRange(span! * 0.5, span! * 1.5, 7), {
+    // **The range is 1x to 8x deliberately, and the first version of this case got it wrong.**
+    // Sweeping 0.5x-1.5x returns 7 of 7 points extrapolated on this fixture, so `some(...)` passed
+    // byte-identically whether the flag came from each point's own flight, from the nominal design
+    // copied across the curve, or from a literal `true`. A case with no negative control does not
+    // discriminate, however green it is. Over 1x-8x the fins grow enough to drag the tail of the
+    // range back under M0.8: measured 4 hot of 9.
+    const pts = parameterSweep(doc.rocket, "finSpan", linRange(span!, span! * 8, 9), {
       configId: sim.conditions.configId,
       overrides: overridesFromStored(sim),
     });
     expect(pts.length).toBeGreaterThan(1);
     for (const p of pts) expect(typeof p.extrapolatedTransonic).toBe("boolean");
-    // The curve's own flights are the oracle: re-fly one point and the flag must agree. This is what
-    // catches the flag being set from the NOMINAL design once and copied across the curve.
-    const some = pts.some((p) => p.extrapolatedTransonic);
-    expect(some).toBe(true);
+    const hot = pts.filter((p) => p.extrapolatedTransonic).length;
+    expect(hot).toBeGreaterThan(0);
+    expect(hot).toBeLessThan(pts.length);
+    // And it splits the way the PHYSICS does rather than by position: bigger fins are draggier, so
+    // the slow end of this axis is the end that stays inside the envelope. A flag copied from the
+    // nominal design would mark every point; one keyed to the index would not track speed.
+    const fastest = [...pts].sort((a, b) => b.maxVelocity - a.maxVelocity)[0];
+    const slowest = [...pts].sort((a, b) => a.maxVelocity - b.maxVelocity)[0];
+    expect(fastest.extrapolatedTransonic).toBe(true);
+    expect(slowest.extrapolatedTransonic).toBe(false);
   }, 120_000);
 
   it("counts the dispersed flights that left the envelope, rather than flattening them to a flag", async () => {
