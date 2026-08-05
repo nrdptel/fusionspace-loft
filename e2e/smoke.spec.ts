@@ -2955,6 +2955,29 @@ test.describe("Loft", () => {
     await expect(panel.getByRole("img", { name: /Apogee distribution histogram/i })).toBeVisible();
     await expect(panel.getByRole("img", { name: /Landing scatter/i })).toBeVisible();
 
+    // §3: `font-semibold` and the accent colour are for "the one number a surface exists to show",
+    // and that means ONE. Until these cards adopted `Readout` all four were semibold, so the grid
+    // had no lead number and the same apogee read differently here and on the flight card one route
+    // away. Counted on the rendered page rather than in the source, because the property being held
+    // is "how many accented values a flyer sees", which a source count cannot answer once a
+    // primitive owns the treatment.
+    await expect(panel.locator(".text-indigo-600")).toHaveCount(1);
+    await expect(
+      panel.getByText("Apogee", { exact: true }).locator("xpath=following-sibling::div[1]"),
+    ).toHaveClass(/text-indigo-600/);
+
+    // Each dispersed median carries its own 5–95% band, at `text-sm` rather than caption size:
+    // a band a flyer sizes a recovery area from is decision-grade, which is the distinction that
+    // earned `Readout` a second slot. The unit is printed once for the pair, not twice.
+    for (const label of ["Apogee", "Max speed", "Landing speed"]) {
+      const band = panel.getByText(label, { exact: true }).locator("xpath=following-sibling::div[2]");
+      await expect(band).toHaveClass(/text-sm/);
+      // Two ends, ONE unit, then the note — "881 – 1,111 m (5–95%)", not "881 m – 1,111 m". The
+      // anchors matter: they are what makes a second unit a failure rather than a substring that
+      // happens to still match.
+      expect(await band.innerText()).toMatch(/^[\d,.]+ – [\d,.]+[^\s(]*\(5–95%\)$/);
+    }
+
     // The landing-energy band (the field/waiver recovery-adequacy figure) reports a median and a
     // worst-case in energy units.
     const energy = panel.locator("p").filter({ hasText: "Landing energy:" });

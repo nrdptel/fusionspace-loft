@@ -512,19 +512,48 @@ export function Extrapolated({
  *  occasions that shaped it. What was wrong was only that sixteen readouts on one page could reach
  *  it and the rest of the app could not, so every other surface hand-rolled the same treatment.
  *
- *  The DOM is unchanged, class for class, because the e2e suite locates several of these readouts by
- *  walking a label's following sibling — this is an extraction, not a repaint. */
+ *  **The label div is immediately followed by the value div, and that ordering is a contract**: the
+ *  e2e suite locates several readouts by `following-sibling::div[1]` off the label, so anything added
+ *  here goes BELOW the value, never between it and the label. The extraction itself changed no class;
+ *  what has changed since is recorded at each prop. */
 export function Readout({
   label,
   q,
   sub,
+  figure,
+  tone,
   accent,
   withheld,
   extrapolated,
 }: {
   label: string;
   q: Quantity;
+  /** The text AROUND the value — its provenance, its qualifier, the phase it was taken at. `text-xs`,
+   *  because §3 puts the text around a decision-grade value one size below it. A SECOND number goes
+   *  in `figure`, not here. */
   sub?: string;
+  /** A second decision-grade figure beneath the value — a percentile band, a companion statistic.
+   *  `text-sm`, the floor §3 sets for anything a flyer reads to make a decision, and mono so its
+   *  digits line up with the value above it.
+   *
+   *  **This slot exists because `sub` could not be both sizes, and that was the last thing blocking
+   *  P6.** `MonteCarlo` put a 5-95% dispersion band in its own equivalent of `sub` at `text-sm`, and
+   *  a recovery band IS a figure a flyer sizes a recovery area from — §3's own rule makes it
+   *  `text-sm` and makes a caption `text-xs`, so one slot could not serve both without breaking one
+   *  of them. Splitting the slot is what the six real call sites asked for rather than what was
+   *  convenient: three want a band (`q` … `to`), one wants a labelled companion (`lead` + `q`), and
+   *  two want neither and take `withheld` instead.
+   *
+   *  `to` renders the pair as a range under ONE unit — "1,234 – 1,456 m", not "1,234 m – 1,456 m" —
+   *  because the two ends of a band are one quantity, and repeating its unit reads as two. `lead`
+   *  and `note` stay sans: they are words about the figure, not part of it. */
+  figure?: { lead?: string; q: Quantity; to?: Quantity; note?: string };
+  /** The card surface, for a readout that sits INSIDE another container. The dispersion panel's
+   *  cards are `sunken` so they read as contents of the panel rather than as siblings of it. */
+  tone?: CardTone;
+  /** §3: `font-semibold` and the accent colour are for "the one number a surface exists to show" —
+   *  ONE per surface. A grid where every card is semibold has no lead number, which is the state
+   *  the dispersion panel was in before it adopted this primitive. */
   accent?: boolean;
   /** Why this figure is not being shown. When set, the value is replaced by an em dash and this
    *  reason takes the place of `sub` — the house rule is "withheld rather than shown as zeros", and
@@ -548,13 +577,16 @@ export function Readout({
   //
   // `text-xs` and not `text-sm`, deliberately: §3 makes `text-sm` the floor for anything a flyer
   // reads to make a DECISION and `text-xs` the size for the text around such a value. The label
-  // names the value; the sub-line qualifies it. **The one case that argues otherwise is filed rather
-  // than guessed at**: `MonteCarlo`'s three card variants put a 5-95% band in this slot at `text-sm`,
-  // and a recovery band IS a decision-grade figure. One `sub` slot cannot be both sizes, so the
-  // conversion of those six sites needs an API decision — see `ROADMAP.md` under P6.
+  // names the value; the sub-line qualifies it. **The case that argued otherwise is answered by
+  // `figure` rather than by widening this slot** — see that prop's own note.
+  //
+  // `font-medium` on the label because §3's weight rule says so — "`font-medium` for labels and
+  // headings" — and because the sites converting onto this primitive already spelled it that way.
+  // Adopting a primitive must not cost a call site its compliance with the file the primitive
+  // exists to enforce.
   return (
-    <Card>
-      <div className="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">{label}</div>
+    <Card tone={tone}>
+      <div className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">{label}</div>
       {withheld ? (
         <div className="mt-1 font-mono text-xl tabular-nums text-zinc-400 dark:text-zinc-500" aria-label={`${label} withheld: ${withheld}`}>
           —
@@ -570,6 +602,20 @@ export function Readout({
               `components/ui.tsx`'s, not this file's: it was written here first and four other
               surfaces then flew the same extrapolated solver with no marker at all. */}
           {extrapolated && <Extrapolated reason={extrapolated} inline />}
+        </div>
+      )}
+      {/* The decision-grade line sits directly under the value and above any caption, because it is
+          the closer of the two to being part of the number. A withheld value has neither: there is
+          no band around a figure that does not exist, and the reason takes the caption line. */}
+      {!withheld && figure && (
+        <div className="mt-0.5 font-mono text-sm tabular-nums text-zinc-500 dark:text-zinc-400">
+          {figure.lead && <span className="font-sans">{figure.lead} </span>}
+          {figure.q.value}
+          {figure.to && <> – {figure.to.value}</>}
+          <span className="ml-1 text-xs font-normal">{figure.q.unit}</span>
+          {figure.note && (
+            <span className="ml-1 font-sans text-xs text-zinc-400 dark:text-zinc-500">{figure.note}</span>
+          )}
         </div>
       )}
       {(withheld ?? sub) && (

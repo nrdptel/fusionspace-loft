@@ -111,12 +111,16 @@ const BUDGET = {
    *  **A ratchet, not a target, and it starts at the honest number rather than at zero**: this is
    *  a size with a real use, so it will never be 0, and the point is that it may not GROW while the
    *  known offenders are converted. Measured 2026-08-04, by file:
-   *  `LoftApp` 11 (5 legends + 6 field labels), `RocketDiagram` 8, `MonteCarlo` 6, `LineChart` 6,
+   *  `LoftApp` 11 (5 legends + 6 field labels), `RocketDiagram` 8, `MonteCarlo` 3, `LineChart` 6,
    *  `FlightViz` 5, `ui` 3, `ResultsView` 3, `ParameterSweep` 2, `RocketpyCrossCheck` 1,
    *  `DataTable` 1. It went 48 → 46 in the commit that added it, when `Readout`'s own label and
    *  sub-line moved to `text-xs` — the design system's primitive had been breaking the design
-   *  system, on the treatment a flyer reads every number through. */
-  axisTickSize: 46,
+   *  system, on the treatment a flyer reads every number through. **46 → 43 when `MonteCarlo`'s
+   *  three local card variants were deleted onto `Readout`**: their card titles were the last three
+   *  labels in that file at this size, and the three that remain there are the histogram's own axis
+   *  text, which is the token's job. Adoption is how this number comes down — a label that moves
+   *  into a primitive stops being spelled at the call site. */
+  axisTickSize: 43,
   /** `<button>` elements that hand-roll their own geometry instead of taking it from `buttonClass`.
    *
    *  **This is the count P1's *done when* is about, and until 2026-08-01 nothing asserted it.** The
@@ -265,14 +269,18 @@ const PRIMITIVE_ADOPTERS: Record<string, number> = {
   /** §5's `Readout` — the labelled-value-with-unit treatment, and the one a flyer reads every number
    *  through.
    *
-   *  One adopter is not the finished condition, it is the first: this is `ResultsView`'s own `Stat`
-   *  lifted into the vocabulary, so the sixteen readouts on that page now share a primitive with
-   *  whatever adopts it next. The measured queue behind it, from the audit that opened this
-   *  milestone: `Field` (14 sites in the same file, a pre-formatted-string value), `MonteCarlo`'s
-   *  `StatCard`/`WithheldCard`/`RadiusCard` (6, differing only in what fills `sub`), and the what-if
-   *  delta rows (5, a before -> after -> change shape the API does not yet express). Raising this
-   *  number is the milestone; lowering it is a regression. */
-  Readout: 1,
+   *  Two adopters. `ResultsView`'s sixteen readouts came first — this is that file's own `Stat`
+   *  lifted into the vocabulary — and `MonteCarlo`'s six followed once the API could express what
+   *  they were doing.
+   *
+   *  **The queue this milestone measured, and where each shape stands.** `MonteCarlo`'s
+   *  `StatCard`/`WithheldCard`/`RadiusCard` (6) are converted: the three variants differed only in
+   *  what went under the median, so `figure` (a second decision-grade number) now sits beside `sub`
+   *  (a caption) and `withheld` (a reason), and the three local components are deleted.
+   *  `ResultsView`'s `Field` (14) and its what-if delta rows (5) are a different DENSITY rather than
+   *  a different treatment — a `<dl>` strip at `text-sm`, not a card at `text-xl` — and are the
+   *  remaining clause. Raising this number is the milestone; lowering it is a regression. */
+  Readout: 2,
   /** §5's `Select`. Four adopters, covering all twelve `<select>` elements in the app.
    *
    *  Those twelve hand-rolled FIVE class strings before this existed, and the fifth was a real

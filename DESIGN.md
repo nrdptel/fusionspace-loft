@@ -199,6 +199,13 @@ hand-rolls it instead is not done.
   fixable once rather than per table.
 - **`Readout`** — a labelled value with its unit, provenance and optional caveat. The unit is never
   baked into the label string; it comes from the units context so a unit switch reaches every value.
+  **Below the value it has two slots, and which one a caller wants is decided by §3 rather than by
+  taste**: a *caption* (`text-xs` — the value's provenance, its phase, its withheld reason) and a
+  *figure* (`text-sm`, mono — a SECOND number the flyer reads to make a decision, such as a
+  percentile band or a companion statistic). One slot could not be both sizes, and trying to make it
+  both is what held this primitive at one adopter: the dispersion panel puts a 5–95% band under
+  every median, and a band a flyer sizes a recovery area from is decision-grade by §3's own rule,
+  while "liftoff" or "burnout → apogee" is not. Added 2026-08-05, from the six real call sites.
 - **`Figure`** — a chart with its title, legend, axis units, and its own empty and extrapolated
   states.
 
