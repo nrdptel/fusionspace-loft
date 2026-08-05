@@ -2189,7 +2189,11 @@ that would still meet the *done when*.
 
 ## R10 — The corpus comparison Loft can actually defend
 
-**Status: IN PROGRESS** — **Size items (1) through (4) shipped 2026-08-04**, each publishing as it
+**Status: IN PROGRESS** — Size items (1)–(4) shipped 2026-08-04 and three of item (5)'s four parts
+shipped 2026-08-05 (`optimumDelay`, `deploymentVelocity`, and the published per-metric populations).
+**Only `maxAcceleration` remains**, and it is measured and scoped below. Original note follows.
+
+**Size items (1) through (4) shipped 2026-08-04**, each publishing as it
 landed; only (5) remains. Pinned by `lib/ork/adapt.test.ts` (`the OpenRocket ground-hit frame`, both
 sides of the 24.12 boundary plus every version string the corpus actually carries), by four cases in
 `lib/rkt/adapt.test.ts` covering the deployment read, by the census cases
