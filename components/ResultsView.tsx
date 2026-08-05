@@ -1420,11 +1420,11 @@ function RocketSummary({
             stands where the number is the surface's whole subject. Without this the same apogee read
             plain up here and "extrapolated" on the card below, one screen apart. */}
         {run.hasPropulsion && (
-          <Field
-            term="Apogee"
-            value={d.q(d.altitude(r.summary.apogee, units))}
-            hint={extrapolatedWhy ? "extrapolated" : undefined}
-            hintWhy={extrapolatedWhy}
+          <Readout
+            variant="row"
+            label="Apogee"
+            q={d.altitude(r.summary.apogee, units)}
+            extrapolated={extrapolatedWhy}
           />
         )}
         {/* **The motor is not "dead mass" when it fails to resolve — it is ABSENT.** `lib/sim/setup.ts`
@@ -1453,20 +1453,26 @@ function RocketSummary({
             (`MassBreakdown` and the parts panel) the moment any ballast was set. One withheld cell
             with a true reason beats a label that is right in one of three states. */}
         {run.motorsComplete ? (
-          <Field term="Liftoff mass" value={d.q(d.mass(r.liftoffMass, units))} />
+          <Readout variant="row" label="Liftoff mass" q={d.mass(r.liftoffMass, units)} />
         ) : (
-          <Field term="Liftoff mass" value="—" sub={MOTOR_GAP_SHORT(run)} />
+          <Readout variant="row" label="Liftoff mass" q={{ value: "—", unit: "" }} withheld={MOTOR_GAP_SHORT(run)} />
         )}
         {run.motorsComplete ? (
-          <Field
-            term="Static margin"
-            value={d.q(d.calibers(r.staticMarginCal))}
-            hint={r.staticMarginCal < 1 ? "low" : r.staticMarginCal > 3 ? "high" : undefined}
-            hintWhy={
+          <Readout
+            variant="row"
+            label="Static margin"
+            q={d.calibers(r.staticMarginCal)}
+            flag={
               r.staticMarginCal < 1
-                ? "under 1 caliber: the centre of pressure is close enough to the centre of gravity that the rocket may not hold a straight course off the rail"
+                ? {
+                    text: "low",
+                    why: "under 1 caliber: the centre of pressure is close enough to the centre of gravity that the rocket may not hold a straight course off the rail",
+                  }
                 : r.staticMarginCal > 3
-                  ? "over 3 calibers: strongly over-stable, so the rocket weathercocks hard into wind and loses altitude and downrange predictability"
+                  ? {
+                      text: "high",
+                      why: "over 3 calibers: strongly over-stable, so the rocket weathercocks hard into wind and loses altitude and downrange predictability",
+                    }
                   : undefined
             }
           />
@@ -1474,7 +1480,7 @@ function RocketSummary({
           // Withheld rather than blank, with the reason ON the cell. It cannot lean on the notice
           // above — that renders only when NOTHING resolved, so on a partial cluster there would be
           // no sentence anywhere. `MOTOR_GAP_SHORT` says which of the two states this is.
-          <Field term="Static margin" value="—" sub={MOTOR_GAP_SHORT(run)} />
+          <Readout variant="row" label="Static margin" q={{ value: "—", unit: "" }} withheld={MOTOR_GAP_SHORT(run)} />
         )}
 
       </dl>
@@ -1513,31 +1519,40 @@ function RocketSummary({
             a state the flight never entered — and the cell two rows up already says "Dry mass". Two
             identical numbers under different labels is worse than one withheld. */}
         {run.motorsComplete ? (
-          <Field term="Burnout mass" value={d.q(d.mass(r.burnoutMass, units))} />
+          <Readout variant="row" label="Burnout mass" q={d.mass(r.burnoutMass, units)} />
         ) : (
           // "no motor burned" is only true when NONE resolved. On a partial cluster the flight has a
           // real burnout — the Flight panel publishes a burnout velocity from the same run — so that
           // reason would be a false claim beside a withheld number, which is worse than a blank.
-          <Field term="Burnout mass" value={"—"} sub={MOTOR_GAP_SHORT(run)} />
+          <Readout variant="row" label="Burnout mass" q={{ value: "—", unit: "" }} withheld={MOTOR_GAP_SHORT(run)} />
         )}
-        <Field term="Length" value={d.q(d.lengthMm(length, units))} />
-        <Field term="Max diameter" value={d.q(d.lengthMm(dia, units))} />
+        <Readout variant="row" label="Length" q={d.lengthMm(length, units)} />
+        <Readout variant="row" label="Max diameter" q={d.lengthMm(dia, units)} />
         {/* The loaded CG is what the withheld margin is computed FROM, so publishing it while
             withholding the margin would hand over the same claim one step earlier. CP is geometry
             and stays. */}
         {run.motorsComplete ? (
-          <Field term="CG (loaded)" value={d.q(d.lengthMm(r.cgLoaded, units))} />
+          <Readout variant="row" label="CG (loaded)" q={d.lengthMm(r.cgLoaded, units)} />
         ) : (
-          <Field term="CG (loaded)" value="—" sub={MOTOR_GAP_SHORT(run)} />
+          <Readout variant="row" label="CG (loaded)" q={{ value: "—", unit: "" }} withheld={MOTOR_GAP_SHORT(run)} />
         )}
-        <Field term="CP" value={d.q(d.lengthMm(r.stability.cp, units))} />
-        <Field term="CNα" value={d.fmt(r.stability.cnAlpha, 2) + " /rad"} />
+        <Readout variant="row" label="CP" q={d.lengthMm(r.stability.cp, units)} />
+        {/* Split rather than carried across as one string: §5 says the unit is never baked into the
+            value, and this was the one site in the strip that did. */}
+        <Readout variant="row" label="CNα" q={{ value: d.fmt(r.stability.cnAlpha, 2), unit: "/rad" }} />
         {r.flutter && (
-          <Field
-            term="Fin flutter (est.)"
-            value={d.q(d.speed(r.flutter.worst.flutterVelocity, units))}
-            hint={r.flutter.worst.margin < RECOMMENDED_FLUTTER_MARGIN ? "thin" : undefined}
-            hintWhy={`the estimated flutter speed is under ${RECOMMENDED_FLUTTER_MARGIN}× the fastest this fin set flies, the margin the method's own spread calls for`}
+          <Readout
+            variant="row"
+            label="Fin flutter (est.)"
+            q={d.speed(r.flutter.worst.flutterVelocity, units)}
+            flag={
+              r.flutter.worst.margin < RECOMMENDED_FLUTTER_MARGIN
+                ? {
+                    text: "thin",
+                    why: `the estimated flutter speed is under ${RECOMMENDED_FLUTTER_MARGIN}× the fastest this fin set flies, the margin the method's own spread calls for`,
+                  }
+                : undefined
+            }
             sub={`${d.flutterMargin(r.flutter.worst.margin)} margin`}
           />
         )}
@@ -1755,54 +1770,6 @@ function BoosterDescentNote({ run, units }: { run: FlightRun; units: UnitSystem 
   );
 }
 
-function Field({
-  term,
-  value,
-  hint,
-  hintWhy,
-  sub,
-}: {
-  term: string;
-  value: string;
-  hint?: string;
-  /** What the flag means and why it matters — a badge reading "HIGH" beside a number is a verdict
-   *  with no reasoning attached, which is the one thing this tool is not supposed to hand out. */
-  hintWhy?: string;
-  sub?: string;
-}) {
-  return (
-    <div>
-      <dt className="text-[11px] uppercase tracking-wide text-zinc-500 dark:text-zinc-400">{term}</dt>
-      <dd className="font-mono text-sm tabular-nums text-zinc-800 dark:text-zinc-200">
-        {value}
-        {hint && (
-          <span
-            // Deliberately NO `title`. Adding one to reach parity with the `Extrapolated` badge's
-            // hover affordance took the phone suite's hover-only-state count from 0 to 5 — a `title`
-            // is unreachable on a coarse pointer, and this badge renders in the shared chrome on all
-            // four routes, so it is five states a flyer at the pad cannot get at. The reason travels
-            // by accessible name here; the written-out sentence lives on the flight card's own
-            // marker, which is on the same route and is where a phone actually reads it.
-            aria-label={hintWhy ? `${hint} — ${hintWhy}` : hint}
-            className="ml-1 text-xs uppercase text-amber-700 no-underline dark:text-amber-400"
-          >
-            {hint}
-          </span>
-        )}
-        {/* NOT written out on a coarse pointer, and the reason is a measurement rather than a
-            preference. `Field` renders inside the design-summary strip, which is the shared chrome
-            every workspace route sits under — so a permanent reasoning line here is paid for on all
-            four routes at once, and it took the phone chrome past the 1060 px ratchet and `/sweep`
-            back over the two screens §8 allows. Both halves of §8 are contracts, so the answer is
-            not to spend one on the other: the flag's reasoning is already written in full, in
-            words, by `StabilityTrimHint` and `FlutterFixHint` below the fold, which render exactly
-            when a flag is raised. The `title` is a pointer-only convenience on top of that, not the
-            only route to it. */}
-        {sub && <div className="text-xs tabular-nums text-zinc-500 dark:text-zinc-400">{sub}</div>}
-      </dd>
-    </div>
-  );
-}
 
 
 /** A compact "what-if vs design" readout: after the flyer applies a design what-if (nose ballast

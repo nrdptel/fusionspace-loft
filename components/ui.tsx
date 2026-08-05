@@ -534,7 +534,8 @@ export function Readout({
   withheld,
   extrapolated,
   caution,
-  frame = "card",
+  flag,
+  variant = "tile",
 }: {
   label: string;
   q: Quantity;
@@ -586,15 +587,34 @@ export function Readout({
    *  about what 5% was or why it mattered. Typing the prop as a string rather than a boolean is what
    *  makes that impossible to reintroduce. */
   caution?: string;
-  /** Whether this readout brings its own `Card`. Default yes.
+  /** The DENSITY this labelled value is rendered at. The treatment — the uppercase label, the mono
+   *  tabular value, the unit in its own span, the withheld em dash, the caveat — is the same in all
+   *  three; what changes is the container and the size of the number.
    *
-   *  **`bare` is for a readout that already sits inside a container**, where a card would nest one
-   *  inside another. The treatment — the label, the mono value, the unit in its own span, every
-   *  state — is the same either way; the frame is the call site's context, not part of what a
-   *  labelled value IS. Extracted for the exceedance readout in the dispersion panel's own input
-   *  card, which was the last labelled value in that file still hand-rolled after the four stat
-   *  cards converted, and which a card-only primitive could not have reached. */
-  frame?: "card" | "bare";
+   *  | variant | container | value | used by |
+   *  |---|---|---|---|
+   *  | `tile` | its own `Card` | `text-xl` | the flight card's 16 metrics, the dispersion grid's 4 |
+   *  | `bare` | none — it already sits in one | `text-xl` | the waiver-exceedance readout inside the dispersion panel's input card |
+   *  | `row` | none, and it renders `<dt>`/`<dd>` | `text-sm` | the design-summary strip, 14 fields of dense shared chrome |
+   *
+   *  **`row` is why P6's last clause took three increments rather than one.** The measured queue of
+   *  "hand-rolled labelled values" was never one treatment written many ways — it was one treatment
+   *  at two densities, and a card-shaped primitive could not reach the dense half without repainting
+   *  the shared chrome into 14 cards. §3 sanctions both sizes: `text-xl` is "an analyzer's big
+   *  readout", `text-sm` is "the body default — every label, value, control and table cell".
+   *
+   *  `<dt>`/`<dd>` is not cosmetic in `row`: the strip is a real `<dl>`, and 19 of the e2e suite's
+   *  21 `following-sibling::dd` locators walk off these labels. A `row` that rendered divs would be
+   *  a repaint of the DOM contract as well as of the markup. */
+  variant?: "tile" | "bare" | "row";
+  /** A short flag beside the value, with the reason it means something. `row` only — a tile has room
+   *  for `Extrapolated`'s full treatment and uses it.
+   *
+   *  **The reason is required, for the rule `MAINTAINING.md` states**: "a badge reading HIGH beside a
+   *  number is a verdict with no reasoning attached, which is the one thing this tool is not supposed
+   *  to hand out." Three real uses — `low` and `high` on the static margin, and `extrapolated` on
+   *  apogee — and all three were already spelling this pair by hand. */
+  flag?: { text: string; why: string };
 }) {
   // **`text-xs`, not `text-[11px]`, on both the label and the sub-line.** §3 scopes that token to
   // "axis ticks and diagram annotations only" and this is neither: it is the eyebrow naming a value
@@ -621,7 +641,50 @@ export function Readout({
     : accent
       ? "text-xl font-semibold text-indigo-600 dark:text-indigo-400"
       : "text-xl text-zinc-900 dark:text-zinc-100";
-  const Frame = frame === "bare" ? BareFrame : Card;
+  // The dense row is a different ELEMENT set as well as a different size — see `variant`. Split here
+  // rather than threaded through the tile branch below, because almost nothing is shared once the
+  // container, the tags and the value size all change: pretending otherwise would have produced one
+  // component with a ternary on every line.
+  if (variant === "row") {
+    return (
+      <div>
+        <dt className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">{label}</dt>
+        <dd className="font-mono text-sm tabular-nums text-zinc-800 dark:text-zinc-200">
+          {withheld ? (
+            <span aria-label={`${label} withheld: ${withheld}`}>&mdash;</span>
+          ) : (
+            <>
+              {q.value}
+              {q.unit && <span className="ml-1 text-xs font-normal text-zinc-500 dark:text-zinc-400">{q.unit}</span>}
+            </>
+          )}
+          {/* **The marker here is a plain span with an accessible name, NOT the `Extrapolated`
+              primitive, and that is a measurement rather than an inconsistency.** `Extrapolated`
+              renders an `<abbr title>` plus a reason line that a coarse pointer unhides. Both are
+              wrong in this density: a `title` is unreachable on touch and this strip renders in the
+              shared chrome on all four routes, so adopting it took the phone suite's hover-only-state
+              count from 0 to 5 — and the written-out line took the chrome past its 1060 px ratchet
+              and `/sweep` back over the two screens §8 allows. Both halves of §8 are contracts and
+              neither is spent on the other. The reason travels by accessible name, and in full words
+              by the hint components below the fold, which render exactly when a flag is raised. */}
+          {(flag ?? (extrapolated ? { text: "extrapolated", why: extrapolated } : undefined)) && (
+            <span
+              aria-label={((f) => `${f!.text} — ${f!.why}`)(
+                flag ?? { text: "extrapolated", why: extrapolated! },
+              )}
+              className="ml-1 text-xs uppercase text-amber-700 no-underline dark:text-amber-400"
+            >
+              {(flag ?? { text: "extrapolated" }).text}
+            </span>
+          )}
+          {(withheld ?? sub) && (
+            <div className="text-xs tabular-nums text-zinc-500 dark:text-zinc-400">{withheld ?? sub}</div>
+          )}
+        </dd>
+      </div>
+    );
+  }
+  const Frame = variant === "bare" ? BareFrame : Card;
   return (
     <Frame tone={tone}>
       <div className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">{label}</div>

@@ -543,7 +543,7 @@ function Report({
           <div className="pb-1">
             <Readout
               label="Chance over ceiling"
-              frame="bare"
+              variant="bare"
               q={{ value: formatChance(exceed), unit: "" }}
               caution={
                 exceed > 0.05

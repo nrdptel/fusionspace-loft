@@ -112,17 +112,19 @@ const BUDGET = {
    *  a size with a real use, so it will never be 0, and the point is that it may not GROW while the
    *  known offenders are converted. Measured 2026-08-04, by file:
    *  `LoftApp` 11 (5 legends + 6 field labels), `RocketDiagram` 8, `LineChart` 6, `FlightViz` 5,
-   *  `ui` 3, `ResultsView` 3, `MonteCarlo` 2, `ParameterSweep` 2, `RocketpyCrossCheck` 1,
+   *  `ui` 3, `MonteCarlo` 2, `ParameterSweep` 2, `ResultsView` 2, `RocketpyCrossCheck` 1,
    *  `DataTable` 1. It went 48 → 46 in the commit that added it, when `Readout`'s own label and
    *  sub-line moved to `text-xs` — the design system's primitive had been breaking the design
    *  system, on the treatment a flyer reads every number through. **46 → 42 as `MonteCarlo`'s five
    *  labelled values became `Readout`s**: three local card variants and then the waiver-exceedance
    *  readout inside the inputs card, which is the one a first pass left behind — it is not in the
    *  stat grid, so converting the grid made it the odd one out rather than fixing it. `MonteCarlo`'s
-   *  remaining 2 are the histogram's own min/max axis labels, which is the token's job. Adoption is
-   *  how this number comes down — a label that moves into a primitive stops being spelled at the
-   *  call site. */
-  axisTickSize: 42,
+   *  remaining 2 are the histogram's own min/max axis labels, which is the token's job. **42 → 41
+   *  when `ResultsView`'s local `Field` was deleted onto `Readout`'s `row` variant**: its `<dt>` was
+   *  the last label in the design-summary strip at this size, and 14 call sites went with it.
+   *  Adoption is how this number comes down — a label that moves into a primitive stops being
+   *  spelled at the call site. */
+  axisTickSize: 41,
   /** `<button>` elements that hand-roll their own geometry instead of taking it from `buttonClass`.
    *
    *  **This is the count P1's *done when* is about, and until 2026-08-01 nothing asserted it.** The
@@ -279,9 +281,13 @@ const PRIMITIVE_ADOPTERS: Record<string, number> = {
    *  `StatCard`/`WithheldCard`/`RadiusCard` (6) are converted: the three variants differed only in
    *  what went under the median, so `figure` (a second decision-grade number) now sits beside `sub`
    *  (a caption) and `withheld` (a reason), and the three local components are deleted.
-   *  `ResultsView`'s `Field` (14) and its what-if delta rows (5) are a different DENSITY rather than
-   *  a different treatment — a `<dl>` strip at `text-sm`, not a card at `text-xl` — and are the
-   *  remaining clause. Raising this number is the milestone; lowering it is a regression. */
+   *  `ResultsView`'s `Field` (14) is converted too, by the `row` variant — the queue was never one
+   *  treatment written many ways, it was one treatment at two DENSITIES, and a card-shaped primitive
+   *  could not reach the dense half without repainting the shared chrome into 14 cards. The what-if
+   *  delta rows (5) are the last shape: a before → after → change the API does not express, and the
+   *  only one of the four that is a different THING rather than a different size.
+   *
+   *  Raising this number is the milestone; lowering it is a regression. */
   Readout: 2,
   /** §5's `Select`. Four adopters, covering all twelve `<select>` elements in the app.
    *

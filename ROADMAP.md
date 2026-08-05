@@ -3595,7 +3595,23 @@ invariant: whatever ships here ships in both apps.
 
 ## P6 — The primitives the design system already declares
 
-**Status: IN PROGRESS** — increments 1–6 shipped 2026-08-04 (`Readout`, `Select`,
+**Status: SHIPPED 2026-08-05** — pinned by `lib/design-system.test.ts`'s per-primitive adoption
+ratchets (each an EXACT equality, so a hand-rolled copy and a silent regression both fail), by the
+`axisTickSize` ratchet at 41 with its per-file breakdown, by the source counts asserting zero
+hand-rolled `<select>` elements and zero components re-deriving `useReturnFocus`, and by the
+file-level check that a component rendering a chart imports `Figure`. Every §5 primitive exists, is
+adopted, and cannot be re-hand-rolled without the suite going red.
+
+**The last clause closed as one conversion and one refusal.** `ResultsView`'s `Field` (14 sites) is
+gone — the queue was never one treatment written many ways, it was one treatment at two DENSITIES,
+and a card-shaped primitive could not reach the dense half without repainting the shared chrome into
+fourteen cards. `Readout` gained `variant` for that. **The five what-if delta rows are REFUSED with a
+measured reason**: a before → after → change is three values and a comparison rather than a labelled
+value, `q` would have to become a triple, and five call sites in one component are its only possible
+user — which is the reasoning §5 already used to delete `Chip`. Both halves are recorded in §5 so the
+next audit does not re-open them.
+
+*Earlier status:* increments 1–6 shipped 2026-08-04 (`Readout`, `Select`,
 `EmptyState`/`ErrorState`, `Panel`, `Figure`, and the `Section`/`Chip` decision), plus `Extrapolated`,
 which arrived early as a Sev-1 fix rather than as planned P6 work. Every primitive §5 declares now
 exists and is adopted, each with a per-primitive ratchet in `lib/design-system.test.ts`, and the two

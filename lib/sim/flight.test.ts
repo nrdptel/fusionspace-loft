@@ -104,7 +104,6 @@ describe("a mount too small for the motor inside it", () => {
     }
     worst.sort((a, b) => a.headroomMm - b.headroomMm);
     expect(worst.length, "no mount bores were measured — the loop found nothing").toBeGreaterThan(5);
-    // eslint-disable-next-line no-console
     console.log(
       `tightest stated mount bores (mm of diameter, negative = motor wider than the stated bore):\n` +
         worst.slice(0, 4).map((w) => `  ${w.headroomMm.toFixed(2)}  ${w.name}`).join("\n"),
