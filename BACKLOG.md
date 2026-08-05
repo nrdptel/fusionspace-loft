@@ -145,13 +145,30 @@ says CONFIRMED carries the command and the numbers the refuter could not talk it
   redraws the new airframe; nothing marks the numbers stale. A confident apogee, margin and landing
   energy for a rocket that is not the one on screen.
 
-- **A body diameter smaller than the motor inside it flies to a confident 11.6 km. CONFIRMED
-  2026-08-04**, and this is the reproduction the entry below it (filed as SEV-1 and never measured)
-  was missing. `components/LoftApp.tsx:2597`. On the 38 mm sample, via the exact `runFlight` call
-  `compute()` makes: 10 mm → **1,437.5 m / 14.86 cal**; 5 mm → **3,297.2 m / 25.73 cal**; 1 mm →
-  **10,326.5 m / 115.77 cal**; 0.1 mm → **11,588.6 m / 470.2 m/s / 1,151.77 cal**, against a baseline
-  of 992.8 m / 4.07 cal. `motorsComplete` stays true throughout and no warning mentions the diameter:
-  the tube shrinks around an 18 mm motor that keeps its size.
+- ~~**A body diameter smaller than the motor inside it flies to a confident 11.6 km.**~~ **SEV-1 —
+  FIXED 2026-08-05.** Re-confirmed first on a second design before it was taken: `Dual parachute
+  deployment.ork` reads 579.0 m as designed and then 695.4 / 768.0 / 912.5 / 975.7 / **978.5 m** at
+  20, 10, 5, 1 and 0.1 mm — a **+69%** apogee — while the warning list gets SHORTER on the way down
+  (`mould-line-step` drops out below 1 mm, because a tube that thin no longer steps against
+  anything). It reads HIGH by construction: a thinner airframe is less frontal area and so less
+  drag, so the number is wrong in the flattering direction.
+
+  **Fixed at the solver, not at the field.** `lib/sim/setup.ts` now refuses a motor whose diameter
+  exceeds the clear bore of the mount it is loaded into (1 mm of slack, since a snug build is normal
+  and a stored dimension is not exact to the micron). That covers every route to the state — a
+  what-if, an edit that scales inner tubes with their host, a corrupt import — where a `min` on one
+  field would have covered one. The refusal joins the existing no-propulsion path, so every derived
+  figure is withheld and the panel says why, naming the AIRFRAME rather than the motor. The
+  substitute offer is suppressed on this refusal: every motor on that list is the same diameter, so
+  each would be refused on arrival, and a two-click recovery that cannot work is a loop with no exit.
+
+  **And it exposed a second, unrelated defect.** With the veto in place the corpus's booster-authoring
+  sweep went red: `applyGeometryEdits` gave EVERY kept motor mount the authored stage's single
+  `mountId`, so on `Airstart timing.ork` — whose aft tube carries a 54 mm centre and a 38 mm airstart
+  — the booster came out holding two components with the same id, and `setup.ts` resolved its K550W
+  instance to whichever the id map kept: a **Ø54 motor in a Ø38.7 mm bore**, on a stage Loft had just
+  authored. Only the first mount takes the entry's id now. Both fixes carry a test proved able to fail
+  by reverting them, plus an e2e that drives the field and checks the way back out.
 
 - **One fin, and the warning list comes back EMPTY. SEV-1 — FIXED 2026-08-04** (a
   `fin-count-assumption` warning naming the fin set; fires on 1 and 2 fins, silent from 3 up).
@@ -368,11 +385,15 @@ fixed in that increment rather than filed. The rest are below.
   `lib/sim/simulate.ts:1356` (hard landing), `:1312` (ballistic) and the rest render "18.1 m/s"
   directly above a stat grid showing the same quantity in ft/s.
 
-- **Airframe dimension fields are bounded only by `min={0}`.** Filed 2026-08-03.
-  `components/LoftApp.tsx:2514` and the fin/nose fields: a body diameter smaller than the motor inside
-  it is accepted and flown into a confident number, because the motor and mount keep their size. Fin
-  count accepts 1 and 2 with no caveat that the CP method assumes three or more symmetric fins.
-  `MAINTAINING.md`'s safety posture names this shape explicitly.
+- **Airframe dimension fields are bounded only by `min={0}`.** Filed 2026-08-03. **The two named
+  consequences are both fixed** — the fin-count one on 2026-08-04 (`fin-count-assumption`), and the
+  body-diameter one on 2026-08-05, at the SOLVER rather than at the field, so every route into the
+  state is covered rather than one. **The general statement is still true and still worth keeping**:
+  the fields themselves carry no design-derived lower bound, so the refusal arrives after the flight
+  is attempted rather than at the keystroke, and the next impossible dimension will be found the same
+  way — one at a time, by somebody driving the app. The cheaper shape, if it is ever taken, is a
+  bound on each field derived from what the design already contains. `MAINTAINING.md`'s safety
+  posture names this shape explicitly.
 
 - **Four indigo primary buttons render on `/sweep` at once** — Fetch, Run motor sweep, Run parameter
   sweep, Run dispersion — against `DESIGN.md` §5's "at most one per surface". Filed 2026-08-03 from the

@@ -3409,6 +3409,49 @@ test.describe("Loft", () => {
     await expect.poll(apogee).toBeLessThan(before);
   });
 
+  test("an airframe typed narrower than its own motor is refused, not flown", async ({ page }) => {
+    // **The Sev-1 this exists for.** The Body diameter field carried only an UPPER guard, so a tube
+    // shrunk below the motor inside it still flew — and it read HIGH, because a thinner airframe is
+    // less frontal area and therefore less drag. Measured on the corpus's `Dual parachute
+    // deployment.ork`: 579.0 m as designed, then 695.4 / 768.0 / 912.5 / 975.7 / 978.5 m at 20, 10,
+    // 5, 1 and 0.1 mm, every one reported as a flight — and the WARNING LIST GOT SHORTER on the way
+    // down, so the more impossible the design became, the more comfortable the page looked.
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+    await expect(page.getByRole("term").filter({ hasText: /^Apogee$/ })).toBeVisible();
+
+    await page.getByRole("link", { name: "Design" }).click();
+    const bodyDia = page.getByRole("spinbutton", { name: /Body diameter/ });
+    await expect(bodyDia).toBeVisible();
+    const designDia = parseFloat((await bodyDia.getAttribute("placeholder")) ?? "0");
+    expect(designDia).toBeGreaterThan(0);
+    await bodyDia.fill("1");
+
+    await page.getByRole("link", { name: "Flight" }).click();
+    const notice = page.getByRole("region", { name: "No flight simulated" });
+    await expect(notice).toBeVisible({ timeout: 15000 });
+    // Withheld, not flown: no apogee survives anywhere on the strip.
+    await expect(page.getByRole("term").filter({ hasText: /^Apogee$/ })).toBeHidden();
+
+    // And the refusal names the AIRFRAME, because that is what the flyer changed — "not found"
+    // would send them hunting the motor database for a curve that is sitting right there.
+    const line = notice.locator("li").first();
+    await expect(line).toContainText(/mm motor and this mount is/);
+    await expect(line).toContainText(/cannot go in/);
+    await expect(line).not.toContainText(/not found/);
+    // No substitute offer: every motor on that list is the same diameter, so each one would be
+    // refused on arrival — a two-click recovery that cannot work is a loop with no exit.
+    await expect(notice.getByText(/Fly it with a substitute/)).toBeHidden();
+
+    // **And there is a way back.** Clearing the field restores the design's own diameter and the
+    // flight returns — the refusal must not be a state a flyer walks into and cannot leave.
+    await page.getByRole("link", { name: "Design" }).click();
+    await bodyDia.fill("");
+    await page.getByRole("link", { name: "Flight" }).click();
+    await expect(page.getByRole("term").filter({ hasText: /^Apogee$/ })).toBeVisible({ timeout: 15000 });
+  });
+
   test("an edit the solver refuses leaves the design and its numbers agreeing", async ({ page }) => {
     // SEV-1. The what-if state was committed BEFORE the flight was attempted, so a solver throw set
     // the error and returned with `setEdits` already landed: the design panel redrew the new

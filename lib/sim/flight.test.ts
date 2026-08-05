@@ -18,6 +18,78 @@ async function load(name: string) {
   return importOrk(bytes);
 }
 
+describe("a mount too small for the motor inside it", () => {
+  it("refuses the flight instead of reporting a confident, flattering apogee", async () => {
+    // **The Sev-1 this exists for.** `vetoedForFit` above compares the file's STATED casing against
+    // the bundled curve and never looks at the mount, so any route that shrinks the mount's geometry
+    // flew a motor through an airframe narrower than itself. Measured 2026-08-05 on the corpus's
+    // `Dual parachute deployment.ork`: typing the body diameter down took apogee
+    // 579.0 -> 695.4 -> 768.0 -> 912.5 -> 975.7 -> 978.5 m at 20, 10, 5, 1 and 0.1 mm, every one
+    // reported as a flight, and the WARNING LIST GOT SHORTER on the way — a 38 mm motor inside a
+    // 0.1 mm airframe, at +69% and with fewer cautions than the real design.
+    //
+    // It reads HIGH, which is the part that makes it a safety problem rather than a curiosity: a
+    // thinner airframe is a smaller reference area and therefore less drag, so the number a flyer
+    // would act on is wrong in the flattering direction.
+    const doc = await load("demo-single-deploy.ork");
+    const asDesigned = runFromDocument(doc);
+    expect(asDesigned.hasPropulsion, "the fixture's own design must still fly").toBe(true);
+    expect(asDesigned.resolutions[0].vetoedBore, "nothing was vetoed on an untouched design").toBeUndefined();
+
+    const motorMm = Math.round(asDesigned.resolutions[0].match!.entry.curve.diameterMm);
+    // Every diameter from "snug" to "absurd". The important property is that NONE of them flies —
+    // an assertion on 0.1 mm alone would pass on a guard that only caught the degenerate case.
+    for (const mm of [motorMm - 4, motorMm / 2, 5, 1, 0.1]) {
+      const run = runFromDocument(doc, { geometry: { bodyDiameter: mm / 1000 } });
+      expect(run.hasPropulsion, `a ${motorMm} mm motor flew inside a ${mm} mm airframe`).toBe(false);
+      const veto = run.resolutions[0].vetoedBore;
+      expect(veto, `no bore refusal at ${mm} mm`).toBeDefined();
+      expect(veto!.motorMm).toBe(motorMm);
+      expect(veto!.boreMm).toBeLessThan(motorMm);
+      // The refusal has to name the motor it turned down, not just complain: the panel's sentence is
+      // built from these three fields and a blank one reads as a bug rather than as a refusal.
+      expect(veto!.designation.length).toBeGreaterThan(0);
+    }
+  }, 120_000);
+
+  it("fires ONLY on a mount that is genuinely too small, not on any edit to the airframe", async () => {
+    // The control this guard needs, and the first draft of it was wrong in a way worth recording:
+    // it set the body diameter to the motor's own and expected a flight. A body's stated diameter is
+    // its OUTER one, so a 29 mm airframe holding a 29 mm motor is exactly the impossible build this
+    // refuses — the test was asserting the defect. Corrected to the property that actually matters.
+    const doc = await load("demo-single-deploy.ork");
+    const motorMm = Math.round(runFromDocument(doc).resolutions[0].match!.entry.curve.diameterMm);
+
+    // Widening the airframe never refuses: the guard must not fire on "an edit happened". Scaled
+    // from the DESIGN's own diameter, not from the motor's — `applyGeometryEdits` scales the inner
+    // tubes with their host, so "1.2x the motor" is still a large shrink on a design whose airframe
+    // is comfortably wider than its mount, and the first draft of this loop failed for that reason
+    // rather than because the guard was wrong.
+    const designMm = primaryBodyDiameter(doc.rocket)! * 1000;
+    for (const scale of [1, 1.2, 2, 4]) {
+      const wide = runFromDocument(doc, { geometry: { bodyDiameter: (designMm * scale) / 1000 } });
+      expect(wide.hasPropulsion, `a ${(designMm * scale).toFixed(1)} mm airframe refused a ${motorMm} mm motor`).toBe(true);
+      expect(wide.resolutions[0].vetoedBore).toBeUndefined();
+    }
+
+    // And there is exactly ONE crossing, at a diameter no larger than the motor plus its own wall —
+    // a guard that started refusing well above that would be turning honest builds into withheld
+    // flights, which is the failure mode that matters more than the Sev-1 it prevents. Real snug
+    // builds are covered far more broadly by the corpus sweep, which flies all 35 designs.
+    let lastFlown = Infinity;
+    let firstRefused = 0;
+    for (let mm = Math.ceil(designMm); mm >= 1; mm -= 1) {
+      const run = runFromDocument(doc, { geometry: { bodyDiameter: mm / 1000 } });
+      if (run.hasPropulsion) lastFlown = mm;
+      else if (!firstRefused) firstRefused = mm;
+    }
+    expect(firstRefused, "nothing was ever refused on the way down").toBeGreaterThan(0);
+    expect(lastFlown, "the smallest flying airframe is narrower than its own motor").toBeGreaterThanOrEqual(motorMm);
+    expect(firstRefused, "the guard refuses airframes that comfortably hold their motor").toBeLessThan(designMm);
+    expect(lastFlown - firstRefused, "the refusal is not a single clean crossing").toBe(1);
+  }, 120_000);
+});
+
 describe("a motor that does not fit the mount", () => {
   it("is refused, and the panel is told WHY rather than told it was not found", async () => {
     // The Sev-1 a cold walk found: `H999ZZ` on a 29 mm casing matched `H999N` — a 38 mm motor — on a

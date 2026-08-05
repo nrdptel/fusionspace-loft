@@ -1131,7 +1131,13 @@ function NoPropulsionNotice({
   // Same-casing substitutes exist — the "Swap motor" picker in the design tools below can fly the
   // design on a bundled curve of the right diameter, turning a dead-end into a two-click recovery.
   // Gated at >1 to match that picker's own visibility, so the notice never points at an absent one.
-  const canSubstitute = !!swapOptions && swapOptions.length > 1;
+  // **Not offered when the mount itself is too small**, because the list is built from the DESIGN's
+  // stated casing and every motor on it is that same diameter — so each one is refused on arrival for
+  // the same reason. Offering a two-click recovery that cannot work sends the flyer round a loop with
+  // no exit in it, which reads as broken rather than as refused. The way out here is the airframe
+  // dimension they just changed, and the notice above names it.
+  const boreRefused = run.resolutions.some((res) => res.vetoedBore);
+  const canSubstitute = !boreRefused && !!swapOptions && swapOptions.length > 1;
   // The configuration picker only renders when the design stores more than one, so a design with a
   // single stored configuration has nothing to pick — offering that as the way out sends the flyer
   // hunting for a control that was never drawn. Gated the same way the picker itself is.
@@ -1163,7 +1169,7 @@ function NoPropulsionNotice({
             {/* "in the bundled database" alone is FALSE where the casing veto fired: the designation
                 does reach a bundled curve, and Loft turned it down because the motor is the wrong
                 diameter for the mount. Flying it anyway is the Sev-1 this replaced. */}
-            {unresolved.some((res) => res.vetoedFit) ? " that fits this mount" : ""} in the bundled
+            {unresolved.some((res) => res.vetoedFit || res.vetoedBore) ? " that fits this mount" : ""} in the bundled
             database, so there is no thrust to fly. Rather than show a misleading zero-altitude
             &ldquo;flight,&rdquo; the flight results, plots, and {tool} comparison are withheld.
           </p>
@@ -1177,9 +1183,15 @@ function NoPropulsionNotice({
                     the designation looks almost right. Naming the near-miss and both diameters
                     points at the two things it can actually be: a mistyped designation, or a stated
                     casing that disagrees with the motor the file means. */}
-                {res.vetoedFit
-                  ? ` — ${res.vetoedFit.designation} is the closest bundled name, and it is a ${res.vetoedFit.matchedMm} mm motor; this one is on a ${res.vetoedFit.statedMm} mm casing`
-                  : " — not found"}
+                {/* The bore refusal names the AIRFRAME, not the motor, because that is the thing
+                    the flyer changed. It fires on an edit rather than on a file — a body diameter
+                    typed below the motor inside it — so "not found" and "wrong casing" both point
+                    at the wrong end of the problem. */}
+                {res.vetoedBore
+                  ? ` — ${res.vetoedBore.designation} is a ${res.vetoedBore.motorMm} mm motor and this mount is ${res.vetoedBore.boreMm} mm across; it cannot go in`
+                  : res.vetoedFit
+                    ? ` — ${res.vetoedFit.designation} is the closest bundled name, and it is a ${res.vetoedFit.matchedMm} mm motor; this one is on a ${res.vetoedFit.statedMm} mm casing`
+                    : " — not found"}
               </li>
             ))}
           </ul>
@@ -1298,9 +1310,11 @@ function RocketSummary({
             aria-label={
               res.match
                 ? `Matched ${res.match.entry.designation} (${res.match.quality})${res.count > 1 ? ` — cluster of ${res.count}` : ""}`
-                : res.vetoedFit
-                  ? `No thrust curve of this mount's ${res.vetoedFit.statedMm} mm casing — the closest name, ${res.vetoedFit.designation}, is a ${res.vetoedFit.matchedMm} mm motor`
-                  : "No thrust curve found"
+                : res.vetoedBore
+                  ? `${res.vetoedBore.designation} is a ${res.vetoedBore.motorMm} mm motor and this mount is only ${res.vetoedBore.boreMm} mm across`
+                  : res.vetoedFit
+                    ? `No thrust curve of this mount's ${res.vetoedFit.statedMm} mm casing — the closest name, ${res.vetoedFit.designation}, is a ${res.vetoedFit.matchedMm} mm motor`
+                    : "No thrust curve found"
             }
           >
             {res.count > 1 ? `${res.count}× ` : ""}
@@ -1310,9 +1324,11 @@ function RocketSummary({
                 distinction too. "not found" on a motor that was found and turned down for its casing
                 sends a flyer hunting for a thrust curve that is already in the set. */}
             {!res.match
-              ? res.vetoedFit
-                ? " · wrong casing"
-                : " · not found"
+              ? res.vetoedBore
+                ? " · too big for the mount"
+                : res.vetoedFit
+                  ? " · wrong casing"
+                  : " · not found"
               : res.match.quality !== "exact"
                 ? " · approx"
                 : ""}

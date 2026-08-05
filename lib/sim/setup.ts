@@ -37,6 +37,17 @@ export interface MotorResolution {
    *  which is the wrong explanation for the right refusal: the flyer needs to know their designation
    *  is close to something real and that the something real is the wrong diameter. */
   vetoedFit?: { designation: string; statedMm: number; matchedMm: number };
+  /** The mount this motor is loaded into is physically too small to contain it.
+   *
+   *  **Distinct from `vetoedFit`, which never looks at the mount.** That one compares the file's
+   *  STATED casing against the bundled curve's diameter, so it catches a designation that names a
+   *  motor of another size — and it is blind to the mount's actual bore, which is the thing a design
+   *  edit can change. Measured 2026-08-05 on `Dual parachute deployment.ork`: typing the body
+   *  diameter down from its design value took apogee 579.0 -> 695.4 -> 768.0 -> 912.5 -> 975.7 ->
+   *  978.5 m at 20, 10, 5, 1 and 0.1 mm, every one reported as a flight, and the WARNING LIST GOT
+   *  SHORTER on the way (`mould-line-step` drops out below 1 mm) because a tube that thin no longer
+   *  steps against anything. A confident +69% apogee for a 38 mm motor inside a 0.1 mm airframe. */
+  vetoedBore?: { designation: string; motorMm: number; boreMm: number };
 }
 
 export interface Buildup {
@@ -66,6 +77,26 @@ function vetoedForFit(motor: {
   const matchedMm = Math.round(loose?.entry.curve.diameterMm ?? 0);
   if (!loose || matchedMm <= 0 || matchedMm === statedMm) return undefined;
   return { designation: loose.entry.designation, statedMm, matchedMm };
+}
+
+/** The clear bore of a motor mount, in metres — the largest motor it could physically contain.
+ *
+ *  An inner tube states its own bore. A body tube acting as the mount (a minimum-diameter build)
+ *  states an outer radius and a wall, so the bore is what is left inside it; a tube with no stated
+ *  wall is taken at its outer radius, which is the generous reading and the right one — refusing a
+ *  motor because the file omitted a wall thickness would turn a data gap into a withheld flight.
+ *
+ *  Undefined where the mount is neither, or is not in the model at all: no bore stated is not the
+ *  same as a bore of zero, and the caller must not refuse on it. */
+function mountBore(component: RocketComponent | undefined): number | undefined {
+  if (!component) return undefined;
+  if (component.kind === "innertube") return component.innerRadius;
+  if (component.kind === "bodytube") {
+    return component.thickness && component.thickness > 0
+      ? component.outerRadius - component.thickness
+      : component.outerRadius;
+  }
+  return undefined;
 }
 
 /** Map each component id to the index of the stage that contains it (list order, nose→tail). */
@@ -146,7 +177,7 @@ export function buildRocketDynamics(rocket: Rocket, config: MotorConfiguration):
   const stageBurnDuration = new Array(nStages).fill(0);
 
   for (const inst of config.instances) {
-    const match = resolveMotor(inst.motor);
+    let match = resolveMotor(inst.motor);
     const mount = byId.get(inst.mountId);
     const mm = mount?.component && "motorMount" in mount.component ? mount.component.motorMount : undefined;
     // A clustered mount flies N identical motors. Modelled as N coaxial motors: N× thrust and
@@ -157,6 +188,33 @@ export function buildRocketDynamics(rocket: Rocket, config: MotorConfiguration):
     // Only asked when there is nothing to fly, and only to say WHY. `resolveMotor` deliberately
     // returns a plain null rather than a rejection object — the veto's whole point is that the motor
     // is not available — so the second call is what turns "not found" into the true sentence.
+    // **A motor has to fit the mount it is actually in, not just the casing the file claims.**
+    // `vetoedForFit` below compares the stated casing against the bundled curve and never looks at
+    // the mount, so any route that changes the mount's geometry — a body-diameter what-if, an edit
+    // that scales inner tubes with their host, a corrupt import — flew a motor through an airframe
+    // narrower than itself and reported the result as a flight. It reads HIGH, because a thinner
+    // airframe is a smaller reference area and therefore less drag, so the number is not merely
+    // wrong but wrong in the flattering direction.
+    //
+    // Refused rather than clamped: there is no nearest legal airframe to pull a 0.1 mm tube to, and
+    // the flyer's intent is unknowable. Refusing routes it into the no-propulsion path this file
+    // already has, which withholds every derived figure and says why — the same treatment a motor
+    // that is not in the database gets. A millimetre of slack, because a snug bore is a normal
+    // build and a stored dimension is not exact to the micron.
+    const BORE_SLACK_M = 0.001;
+    const bore = mountBore(mount?.component);
+    const motorRadius = match ? match.entry.curve.diameterMm / 2000 : 0;
+    const tooTight = match && bore !== undefined && bore > 0 && motorRadius > bore + BORE_SLACK_M;
+    const boreVeto = tooTight
+      ? {
+          designation: match!.entry.designation,
+          motorMm: Math.round(match!.entry.curve.diameterMm),
+          // One decimal, not zero: the whole point is a mount that has been shrunk, and a 0.1 mm
+          // bore rounding to "0 mm" reads as a missing number rather than as the absurd one it is.
+          boreMm: Math.round(bore! * 2000 * 10) / 10,
+        }
+      : undefined;
+    if (boreVeto) match = null;
     const vetoed = match ? undefined : vetoedForFit(inst.motor);
     resolutions.push({
       mountId: inst.mountId,
@@ -164,7 +222,7 @@ export function buildRocketDynamics(rocket: Rocket, config: MotorConfiguration):
       manufacturer: inst.motor.manufacturer,
       match,
       count,
-      ...(vetoed ? { vetoedFit: vetoed } : {}),
+      ...(boreVeto ? { vetoedBore: boreVeto } : vetoed ? { vetoedFit: vetoed } : {}),
     });
     if (!match) continue;
     const stageIndex = stageOf.get(inst.mountId) ?? 0;
