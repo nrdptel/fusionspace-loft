@@ -127,8 +127,13 @@ reached a flyer**, because #132 is open.
 - **Do not run subagents while the e2e suite is running.** Measured this run on a 4-core box: two
   shards each reported one failure that passed in isolation, and a re-run under load reported **23
   passed** with a "did not run" list — the same signature `MAINTAINING.md` records for concurrent
-  shards and for a stale `serve`, arriving by a third route. The suite is stable at 117 + 116 with
+  shards and for a stale `serve`, arriving by a third route. The suite is stable at 117 + 117 with
   nothing else on the machine.
+- **`e2e/rocketpy-selfhosted.spec.ts:254` ("names the connection when the run fails with no signal")
+  failed once in a shard and passed in isolation and on a clean re-run**, with nothing else on the
+  box. It drives the Pyodide worker, which is 40 MB and timing-sensitive, so it is the most likely
+  spec in the suite to go flaky under load. Worth watching rather than acting on: one failure in
+  five full runs this session.
 - `tsc --noEmit` is red on `main` with **9** errors, all in `lib/model/edit.test.ts`, invisible to
   `npm run build` because the build does not type-check test files. Unchanged from the last two runs.
 
