@@ -2955,12 +2955,13 @@ test.describe("Loft", () => {
     await expect(panel.getByRole("img", { name: /Apogee distribution histogram/i })).toBeVisible();
     await expect(panel.getByRole("img", { name: /Landing scatter/i })).toBeVisible();
 
-    // §3: `font-semibold` and the accent colour are for "the one number a surface exists to show",
-    // and that means ONE. Until these cards adopted `Readout` all four were semibold, so the grid
-    // had no lead number and the same apogee read differently here and on the flight card one route
-    // away. Counted on the rendered page rather than in the source, because the property being held
-    // is "how many accented values a flyer sees", which a source count cannot answer once a
-    // primitive owns the treatment.
+    // §3: the accent is for "the one number a surface exists to show", and that means ONE. Until
+    // these cards adopted `Readout` all four were `font-semibold`, so the grid had no lead number
+    // and the same apogee read differently here and on the flight card one route away. Counted on
+    // the rendered page rather than in the source, because the property being held is "how many
+    // accented values a flyer sees", which a source count cannot answer once a primitive owns the
+    // treatment. (The warn treatment is a separate axis and deliberately not counted here — see the
+    // waiver-ceiling assertion at the end of this test.)
     await expect(panel.locator(".text-indigo-600")).toHaveCount(1);
     await expect(
       panel.getByText("Apogee", { exact: true }).locator("xpath=following-sibling::div[1]"),
@@ -3002,6 +3003,17 @@ test.describe("Loft", () => {
     await panel.getByLabel(/Waiver ceiling/).fill("100");
     await expect(panel.getByText("Chance over ceiling")).toBeVisible();
     await expect(panel.getByText("100%", { exact: true })).toBeVisible();
+
+    // And the warn treatment carries its REASON, rather than being a colour a flyer has to
+    // interpret. This readout turned amber above 5% for its whole life and never said what 5% was
+    // or why it mattered — "a badge reading HIGH beside a number is a verdict with no reasoning
+    // attached", which is the one thing this tool does not hand out. `Readout`'s `caution` slot
+    // takes a string, not a boolean, so the colour cannot come back without it.
+    const exceedance = panel.getByText("Chance over ceiling").locator("xpath=following-sibling::div[1]");
+    await expect(exceedance).toHaveClass(/text-amber-700/);
+    await expect(
+      panel.getByText("Chance over ceiling").locator("xpath=following-sibling::div[2]"),
+    ).toContainText("1 flight in 20");
   });
 
   test("resizing the fins rebuilds the design and changes the stability margin", async ({ page }) => {

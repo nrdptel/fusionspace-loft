@@ -111,16 +111,18 @@ const BUDGET = {
    *  **A ratchet, not a target, and it starts at the honest number rather than at zero**: this is
    *  a size with a real use, so it will never be 0, and the point is that it may not GROW while the
    *  known offenders are converted. Measured 2026-08-04, by file:
-   *  `LoftApp` 11 (5 legends + 6 field labels), `RocketDiagram` 8, `MonteCarlo` 3, `LineChart` 6,
-   *  `FlightViz` 5, `ui` 3, `ResultsView` 3, `ParameterSweep` 2, `RocketpyCrossCheck` 1,
+   *  `LoftApp` 11 (5 legends + 6 field labels), `RocketDiagram` 8, `LineChart` 6, `FlightViz` 5,
+   *  `ui` 3, `ResultsView` 3, `MonteCarlo` 2, `ParameterSweep` 2, `RocketpyCrossCheck` 1,
    *  `DataTable` 1. It went 48 → 46 in the commit that added it, when `Readout`'s own label and
    *  sub-line moved to `text-xs` — the design system's primitive had been breaking the design
-   *  system, on the treatment a flyer reads every number through. **46 → 43 when `MonteCarlo`'s
-   *  three local card variants were deleted onto `Readout`**: their card titles were the last three
-   *  labels in that file at this size, and the three that remain there are the histogram's own axis
-   *  text, which is the token's job. Adoption is how this number comes down — a label that moves
-   *  into a primitive stops being spelled at the call site. */
-  axisTickSize: 43,
+   *  system, on the treatment a flyer reads every number through. **46 → 42 as `MonteCarlo`'s five
+   *  labelled values became `Readout`s**: three local card variants and then the waiver-exceedance
+   *  readout inside the inputs card, which is the one a first pass left behind — it is not in the
+   *  stat grid, so converting the grid made it the odd one out rather than fixing it. `MonteCarlo`'s
+   *  remaining 2 are the histogram's own min/max axis labels, which is the token's job. Adoption is
+   *  how this number comes down — a label that moves into a primitive stops being spelled at the
+   *  call site. */
+  axisTickSize: 42,
   /** `<button>` elements that hand-roll their own geometry instead of taking it from `buttonClass`.
    *
    *  **This is the count P1's *done when* is about, and until 2026-08-01 nothing asserted it.** The

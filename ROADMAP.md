@@ -3560,25 +3560,67 @@ which arrived early as a Sev-1 fix rather than as planned P6 work. Every primiti
 exists and is adopted, each with a per-primitive ratchet in `lib/design-system.test.ts`, and the two
 zero-adopter primitives are answered rather than inherited.
 
-**ONE *done when* clause is still open, and it is the milestone's own first increment.** "`Readout` is
-the only labelled-value treatment" is not true yet: increment 1 converted `ResultsView`'s sixteen and
-the measured queue behind it is untouched — `LoftApp`'s `Field` (14 sites, a pre-formatted-string
-value), `MonteCarlo`'s `StatCard`/`WithheldCard`/`RadiusCard` (6, differing only in what fills `sub`),
-and the what-if delta rows (5, a before → after → change shape the API does not yet express). That is
-25 sites in three shapes. **Do not mark this milestone SHIPPED until that count is 0 or the remainder
-is refused with a measured reason.**
+**ONE *done when* clause is still open, and increments 8 and 9 closed the half of it that was
+blocked.** "`Readout` is the only labelled-value treatment" is not true yet. The queue, re-measured
+2026-08-05 — and note the file name, because the previous three entries said `LoftApp` and the sites
+are in `ResultsView`:
+
+| shape | sites | state |
+|---|---|---|
+| `MonteCarlo`'s `StatCard` / `WithheldCard` / `RadiusCard` | 6 | **converted, increment 8** |
+| `MonteCarlo`'s waiver-exceedance readout | 1 | **converted, increment 9** |
+| `ResultsView`'s `Field` — a `<dl>` strip at `text-sm`, not a card at `text-xl` | 14 | open |
+| `ResultsView`'s what-if delta rows — before → after → change | 5 | open |
+
+**Do not mark this milestone SHIPPED until that count is 0 or the remainder is refused with a
+measured reason.** The two open shapes are one question, and increment 9 has already answered half of
+it: they are a different DENSITY of the same treatment, not a different treatment. `frame="bare"`
+gave `Readout` the container axis; the remaining axis is the value SIZE — `text-sm` in a dense strip
+against `text-xl` in a tile — and it should be taken the same way, on the smallest real call site
+first.
 
 **Increment 7 took the prerequisite and found the blocker.** `Readout`'s own label and sub-line were
 at `text-[11px]`, a size §3 scopes to "axis ticks and diagram annotations only" — the design system's
 primitive breaking the design system, on the treatment a flyer reads every number through. Both moved
 to `text-xs`, and a new `axisTickSize` ratchet holds the app-wide count of that token at its measured
-**46** with the per-file breakdown beside it, so the remaining offenders cannot be joined by another
-while they wait. **But converting `MonteCarlo`'s six cards would now make them worse**: they put a
+**46** with the per-file breakdown beside it (now **42**), so the remaining offenders cannot be joined
+by another while they wait. **But converting `MonteCarlo`'s six cards would now make them worse**:
+they put a
 5–95% band in the `sub` slot at `text-sm`, and a recovery band IS a decision-grade figure, which §3
 puts at `text-sm` and the text AROUND a value one size down. **One `sub` slot cannot be both sizes.**
 That is the API decision the next run owes — probably a second slot, or a `sub` that takes a node
 rather than a string, and either way it should be decided from the six real call sites rather than
 invented.
+
+*Increments 8 and 9 — SHIPPED 2026-08-05. The blocker answered, and the dispersion panel's five
+labelled values are all `Readout`s.*
+
+**The slot was split rather than widened, and the six call sites decided it.** `sub` stays the
+caption at `text-xs`; a new `figure` slot is a SECOND decision-grade number at `text-sm`, mono — a
+percentile band (`q` … `to`, one unit for the pair) or a labelled companion (`lead` + `q`). Three of
+the six wanted a band, one a companion, and two wanted neither and took `withheld`, which the
+primitive already had. `StatCard`, `WithheldCard` and `RadiusCard` are deleted; the only part with
+logic in it, the band, survives as a four-line helper. `DESIGN.md` §5 carries the rule that decides
+which slot a caller wants, since choosing between them is a §3 question rather than a taste one.
+
+**Two divergences closed on the way, both toward the file.** The three card titles were `text-[11px]`
+(§3: axis ticks and diagram annotations only), and all four cards were `font-semibold`, which §3
+reserves for "the one number a surface exists to show" — four lead numbers is no lead number, and a
+flyer moving between this panel and the flight card met the same apogee weighted two ways. `Readout`'s
+own label gained `font-medium` for the same reason in reverse: §3's weight rule asks for it and the
+converting sites already spelled it, so adopting the primitive must not cost a call site its
+compliance with the file the primitive exists to enforce.
+
+**Increment 9 exists because increment 8 made the panel WORSE in one place, and a pre-push review
+caught it.** The panel has a fifth labelled value — the waiver-ceiling exceedance — which is not in
+the stat grid but inside the inputs card. Converting the grid left it the only `text-[11px]` label
+and the only sans-serif number among five, and the new e2e guard could not see it because it counts
+the accent colour and that readout's warn treatment is amber. **A conversion that improves four of
+five sites can leave the fifth further from the system than it started**, which is an argument for
+finishing a surface rather than a shape. `Readout` gained `frame="bare"` for a readout that already
+sits inside a container, and `caution` — which takes the REASON as a string rather than a boolean,
+because that value had turned amber above 5% for its whole life without ever saying what 5% was.
+`text-[11px]` 46 → 42; `MonteCarlo`'s remaining two are the histogram's own axis labels.
 
 *Increment 1 — SHIPPED. `Readout` exists and `ResultsView`'s sixteen readouts go through it.*
 

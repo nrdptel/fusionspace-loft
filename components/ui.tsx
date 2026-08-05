@@ -502,6 +502,14 @@ export function Extrapolated({
   );
 }
 
+/** The no-card frame for a `Readout` that already sits inside a container. It takes and ignores
+ *  `tone`, so the two frames are interchangeable at the call site rather than each needing their own
+ *  branch — a surface is either sunken or it is not, and a bare readout inherits whatever it sits
+ *  in. */
+function BareFrame({ children }: { tone?: CardTone; children: React.ReactNode }) {
+  return <div>{children}</div>;
+}
+
 /** `DESIGN.md` §5's `Readout` — "a labelled value with its unit, provenance and optional caveat; the
  *  unit is never baked into the label string".
  *
@@ -525,6 +533,8 @@ export function Readout({
   accent,
   withheld,
   extrapolated,
+  caution,
+  frame = "card",
 }: {
   label: string;
   q: Quantity;
@@ -566,6 +576,25 @@ export function Readout({
    *  byte-identical to a subsonic one, with the caveat surfacing only as a separate card further up
    *  the page. A flyer reading the number does not necessarily read the card. */
   extrapolated?: string;
+  /** A threshold this value has crossed, and WHY that matters — rendered as the warn colour on the
+   *  value plus the reason on the caption line.
+   *
+   *  **The reason is not optional, and that is the point.** `MAINTAINING.md` names "a badge reading
+   *  HIGH beside a number" as a verdict with no reasoning attached, and a value that silently turns
+   *  amber past a threshold is the same thing with fewer words. The one site this was extracted from
+   *  — the dispersion panel's waiver-ceiling exceedance — turned amber above 5% and said nothing
+   *  about what 5% was or why it mattered. Typing the prop as a string rather than a boolean is what
+   *  makes that impossible to reintroduce. */
+  caution?: string;
+  /** Whether this readout brings its own `Card`. Default yes.
+   *
+   *  **`bare` is for a readout that already sits inside a container**, where a card would nest one
+   *  inside another. The treatment — the label, the mono value, the unit in its own span, every
+   *  state — is the same either way; the frame is the call site's context, not part of what a
+   *  labelled value IS. Extracted for the exceedance readout in the dispersion panel's own input
+   *  card, which was the last labelled value in that file still hand-rolled after the four stat
+   *  cards converted, and which a card-only primitive could not have reached. */
+  frame?: "card" | "bare";
 }) {
   // **`text-xs`, not `text-[11px]`, on both the label and the sub-line.** §3 scopes that token to
   // "axis ticks and diagram annotations only" and this is neither: it is the eyebrow naming a value
@@ -584,15 +613,24 @@ export function Readout({
   // headings" — and because the sites converting onto this primitive already spelled it that way.
   // Adopting a primitive must not cost a call site its compliance with the file the primitive
   // exists to enforce.
+  // `caution` and `accent` are mutually exclusive in effect, and caution wins: the accent marks the
+  // number a surface exists to show, and a threshold that has been crossed is the more urgent fact
+  // about it. No call site asks for both today; if one ever does, this is the answer it gets.
+  const valueTone = caution
+    ? "text-xl font-semibold text-amber-700 dark:text-amber-300"
+    : accent
+      ? "text-xl font-semibold text-indigo-600 dark:text-indigo-400"
+      : "text-xl text-zinc-900 dark:text-zinc-100";
+  const Frame = frame === "bare" ? BareFrame : Card;
   return (
-    <Card tone={tone}>
+    <Frame tone={tone}>
       <div className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">{label}</div>
       {withheld ? (
         <div className="mt-1 font-mono text-xl tabular-nums text-zinc-400 dark:text-zinc-500" aria-label={`${label} withheld: ${withheld}`}>
           —
         </div>
       ) : (
-        <div className={"mt-1 font-mono tabular-nums " + (accent ? "text-xl font-semibold text-indigo-600 dark:text-indigo-400" : "text-xl text-zinc-900 dark:text-zinc-100")}>
+        <div className={"mt-1 font-mono tabular-nums " + valueTone}>
           {q.value}
           <span className="ml-1 text-xs font-normal text-zinc-500 dark:text-zinc-400">{q.unit}</span>
           {/* Inside the value's own line, not a sibling of it — hence `inline`. The readouts are
@@ -618,10 +656,10 @@ export function Readout({
           )}
         </div>
       )}
-      {(withheld ?? sub) && (
-        <div className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">{withheld ?? sub}</div>
+      {(withheld ?? caution ?? sub) && (
+        <div className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">{withheld ?? caution ?? sub}</div>
       )}
-    </Card>
+    </Frame>
   );
 }
 

@@ -532,19 +532,25 @@ function Report({
             hint="Altitude limit to check"
           />
         </div>
+        {/* The fifth labelled value in this panel, and the last one it hand-rolled. It sits INSIDE
+            the inputs card rather than in the grid, so it takes `frame="bare"` — a card here would
+            nest one inside another.
+
+            Its amber above 5% used to be the whole message: a colour, with nothing saying what 5%
+            was or why a flyer should care. `caution` makes the reason mandatory, which is the rule
+            `MAINTAINING.md` states about a badge reading "HIGH" beside a number. */}
         {Number.isFinite(exceed) && (
           <div className="pb-1">
-            <div className="text-[11px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-              Chance over ceiling
-            </div>
-            <div
-              className={
-                "mt-0.5 text-xl font-semibold tabular-nums " +
-                (exceed > 0.05 ? "text-amber-700 dark:text-amber-300" : "text-zinc-900 dark:text-zinc-100")
+            <Readout
+              label="Chance over ceiling"
+              frame="bare"
+              q={{ value: formatChance(exceed), unit: "" }}
+              caution={
+                exceed > 0.05
+                  ? `more than 1 flight in 20 goes over the ceiling entered — check the waiver before flying this motor`
+                  : undefined
               }
-            >
-              {formatChance(exceed)}
-            </div>
+            />
           </div>
         )}
       </Card>
