@@ -145,6 +145,17 @@ says CONFIRMED carries the command and the numbers the refuter could not talk it
   redraws the new airframe; nothing marks the numbers stale. A confident apogee, margin and landing
   energy for a rocket that is not the one on screen.
 
+- **The diagram's body-diameter grip oscillates across the bore-refusal threshold.** Filed
+  2026-08-05 from a pre-push review, UNREPRODUCED by hand. `components/RocketDiagram.tsx:1254`:
+  crossing the threshold mid-drag inserts the full-width "No flight simulated" panel ABOVE the
+  diagram (`ResultsView.tsx:487` sits outside every `hidden` region, so it renders on Design too),
+  shifting the SVG down while the pointer is captured. `apply()` re-reads `getScreenCTM()` each
+  frame but `grabOffset` was frozen at pointerdown, so the same pointer position maps to a much
+  larger diameter, the veto clears, the panel unmounts, and the next frame maps back below the
+  threshold. Not a wrong number and not a one-way door — releasing and typing works — but it is a
+  control that fights the flyer at exactly the boundary they are exploring. The fix is probably to
+  reserve the notice's height, or to render it below the diagram on the Design workspace.
+
 - ~~**The `/validate` and cross-check exports carry numbers whose meaning flips with a control on
   another page.**~~ **SEV-1 — FIXED 2026-08-05**, CONFIRMED by a refuter first. Measured: `Apogee`
   exported **50.6** in metric and **166.01049868766404** in imperial, both under a header reading

@@ -402,13 +402,19 @@ function Comparison({ loft, rp, units }: { loft: LoftBallistic; rp: RocketpyFlig
             key: "delta",
             label: "Δ",
             cell: (r) => <span className="text-zinc-500 dark:text-zinc-400">{r.delta.text}</span>,
-            csvLabel: "\u0394 (%)",
-            // `delta.text` is display text: it carries a true minus sign (U+2212) and a trailing "%",
-            // and neither survives a spreadsheet's number parser. The sign is what matters most here
-            // — a cross-check column read as text sorts "\u221215" above "+3".
+            // **NOT `\u0394 (%)`, and the first draft of this was.** Five of the six rows are a
+            // percentage and the static-margin row is an absolute caliber difference
+            // (`d.changeAbsolute(..., "cal")`), so a percent header would publish "+0.90 cal" as
+            // 0.9%, on the very row a flyer reads to decide whether two engines agree about
+            // stability. The unit stays in the cell here, because it is not the same unit down the
+            // column — which is exactly the case the metric-name trick above cannot cover.
             csv: (r) => {
-              const n = Number(r.delta.text.replace(/\u2212/g, "-").replace(/[^0-9.+-]/g, ""));
-              return Number.isFinite(n) ? n : "";
+              // The screen withholds an undefined change as an em dash. Stripping non-numerics
+              // turns that into "", and `Number("")` is 0 — so a delta nobody could compute would
+              // export as EXACT AGREEMENT between two solvers, which is the strongest claim this
+              // table can make and the one it has least right to.
+              const raw = r.delta.text.replace(/\u2212/g, "-");
+              return /\d/.test(raw) ? raw : "";
             },
           },
         ]}

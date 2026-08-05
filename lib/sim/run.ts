@@ -209,7 +209,16 @@ export function runFlight(rocket: Rocket, opts: RunOptions = {}): FlightRun {
     const freeCoast = simulate({ ...input, recovery: [] });
     result.summary.optimumDelay = freeCoast.summary.optimumDelay;
   }
-  const hasPropulsion = resolutions.some((r) => r.match !== null);
+  // **A bore refusal withholds the WHOLE flight, where a missing thrust curve does not, and the
+  // difference is what each one says about the vehicle.** A motor the database does not carry is a
+  // hole in Loft: the rocket is real, and flying it on the motors that did resolve is a reduced but
+  // meaningful answer. A motor that cannot fit the mount holding it says the vehicle itself cannot be
+  // built — and on a design with two mounts of different headroom, a narrowing that refuses one and
+  // not the other left `some(match)` true and published a confident apogee for exactly that. That is
+  // the Sev-1 this veto exists for, at partial scale, and it is the shape a per-instance check plus a
+  // per-vehicle predicate will always produce.
+  const boreRefused = resolutions.some((r) => r.vetoedBore !== undefined);
+  const hasPropulsion = !boreRefused && resolutions.some((r) => r.match !== null);
   // A motor the bundled database doesn't carry is a hole in LOFT, not a disagreement with the
   // design tool. The flight still runs — on the motors that did resolve, with the rest **left out of
   // the build entirely** — and it is warned about loudly, but comparing it to results the file

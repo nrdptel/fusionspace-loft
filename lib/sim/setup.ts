@@ -199,16 +199,24 @@ export function buildRocketDynamics(rocket: Rocket, config: MotorConfiguration):
     // Refused rather than clamped: there is no nearest legal airframe to pull a 0.1 mm tube to, and
     // the flyer's intent is unknowable. Refusing routes it into the no-propulsion path this file
     // already has, which withholds every derived figure and says why — the same treatment a motor
-    // that is not in the database gets. A millimetre of slack, because a snug bore is a normal
-    // build and a stored dimension is not exact to the micron.
-    const BORE_SLACK_M = 0.001;
+    // that is not in the database gets.
+    //
+    // A millimetre of slack ON THE DIAMETER, because a snug bore is a normal build and a stored
+    // dimension is not exact to the micron. **Compared in diameters rather than radii on purpose**:
+    // the first version added the millimetre to a RADIUS, so the rule everything around it stated —
+    // this comment, the ledger entry, the decision note — was half the rule actually enforced, and a
+    // motor 2 mm fatter than its mount still flew. A tolerance the reader has to double in their head
+    // is a tolerance nobody can check. Measured: `demo-single-deploy.ork` states a 28.0 mm bore
+    // around a 29 mm H128W, so a real file sits exactly 1.0 mm inside this and needs all of it.
+    const BORE_SLACK_MM = 1;
     const bore = mountBore(mount?.component);
-    const motorRadius = match ? match.entry.curve.diameterMm / 2000 : 0;
-    const tooTight = match && bore !== undefined && bore > 0 && motorRadius > bore + BORE_SLACK_M;
+    const motorMmExact = match ? match.entry.curve.diameterMm : 0;
+    const tooTight =
+      match && bore !== undefined && bore > 0 && motorMmExact > bore * 2000 + BORE_SLACK_MM;
     const boreVeto = tooTight
       ? {
           designation: match!.entry.designation,
-          motorMm: Math.round(match!.entry.curve.diameterMm),
+          motorMm: Math.round(motorMmExact),
           // One decimal, not zero: the whole point is a mount that has been shrunk, and a 0.1 mm
           // bore rounding to "0 mm" reads as a missing number rather than as the absurd one it is.
           boreMm: Math.round(bore! * 2000 * 10) / 10,

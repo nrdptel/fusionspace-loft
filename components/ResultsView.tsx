@@ -442,10 +442,18 @@ export default function ResultsView({
    *  against 0.0941 kg, both motors burning together from t=0 on a vehicle that never sheds a stage —
    *  a wrong number on the one surface whose whole job is to say whether Loft's number can be trusted. */
   const staged = (shownRocket.stages?.length ?? 1) > 1;
+  // **Every motor a bore refusal makes unflyable, and that is every motor this list can offer.**
+  // `swapOptions` is built from the DESIGN's stated casing, so on an airframe narrowed below its
+  // own motor each candidate is refused on arrival — `motorSweep` drops them all at
+  // `!run.hasPropulsion` and the panel ends on "none could be flown". The notice below used to point
+  // at it as "the exception ... the fastest way to see what this airframe would do", which is a loop
+  // with no exit dressed as a recovery. The exception is real for a motor the DATABASE lacks; it is
+  // not real for an airframe that cannot hold one.
+  const boreRefused = run.resolutions.some((res) => res.vetoedBore);
   // The motor sweep flies the bundled candidates itself rather than the design's own configuration,
   // so it is the one sweep that still works when no motor resolved — and on that design it is
   // the most useful one there is.
-  const canSweepMotors = !staged && !!swapOptions && swapOptions.length > 1;
+  const canSweepMotors = !staged && !boreRefused && !!swapOptions && swapOptions.length > 1;
   // A design can state its weight as a whole-assembly override, and a part added INSIDE that
   // assembly then weighs nothing — the override IS the design's statement about the total, so the
   // model is right to hold it. What was wrong is that nothing said so. Measured on a design weighed
@@ -905,7 +913,9 @@ export default function ResultsView({
           reason={`These tools re-fly the design hundreds of times, and this one has no thrust curve to fly on — see the notice above.${
             canSweepMotors
               ? " The motor sweep below is the exception: it flies the bundled substitutes themselves, so it works here and is the fastest way to see what this airframe would do on each of them."
-              : " Swap in a bundled motor under Design and they become available."
+              : boreRefused
+                ? " Widen the airframe on Design until it can hold its motor, and they become available."
+                : " Swap in a bundled motor under Design and they become available."
           }`}
         />
       )}
@@ -1210,6 +1220,24 @@ function NoPropulsionNotice({
           the exact curve.
         </p>
       )}
+      {/* **The way out, named as a control on a page.** A bore refusal is not about the motor
+          database at all, so the paragraph below — which blames the bundled subset and tells the
+          flyer to check the designation — is the wrong instruction on this branch. It is suppressed
+          and replaced with the one that works. Naming the field and the workspace, not just the two
+          diameters: a flyer who typed a number into a box needs to be told which box. */}
+      {boreRefused ? (
+        <p className="mt-3 text-sm">
+          <strong>Nothing is wrong with the motor.</strong> The airframe is narrower than the motor
+          it is meant to hold, so no bundled curve of this casing would fit either — which is why
+          there is no substitute to offer. Widen <em>Body diameter</em>{" "}on the{" "}
+          <Link href="/design" className="underline underline-offset-2">
+            Design
+          </Link>{" "}
+          workspace until it clears the figure above, or clear the field to go back to the
+          design&apos;s own diameter. The rocket geometry below is computed independently and remains
+          valid; stability is not, because a motor that cannot be loaded is left out of the build.
+        </p>
+      ) : (
       <p className="mt-3 text-sm">
         The bundled database is a curated subset of ThrustCurve.org, not the full catalogue — see
         the{" "}
@@ -1227,6 +1255,7 @@ function NoPropulsionNotice({
         entirely rather than carried as dead weight, so the centre of gravity sits forward of where
         it would fly and the static margin is withheld rather than reported over-stable.
       </p>
+      )}
     </Panel>
   );
 }

@@ -52,6 +52,49 @@ describe("a mount too small for the motor inside it", () => {
     }
   }, 120_000);
 
+  it("withholds the WHOLE flight, not just the motor it refused", async () => {
+    // **The Sev-1 at partial scale, and a pre-push review is what found it.** The veto is per
+    // instance and `hasPropulsion` was `some(match)`, so a design with two mounts of different
+    // headroom could refuse one and keep flying on the other — publishing a confident apogee for a
+    // vehicle that cannot be built, which is the exact defect the veto exists to stop.
+    //
+    // A missing thrust curve and an impossible mount are deliberately treated differently: the first
+    // is a hole in Loft and the reduced flight is still a meaningful answer, the second says the
+    // ROCKET cannot exist. Asserted here on a two-mount design, because a one-mount design cannot
+    // tell the two rules apart.
+    const doc = await load("demo-single-deploy.ork");
+    const two = structuredClone(doc.rocket);
+    const flat = flattenRocket(two);
+    const mount = flat.find((p) => "motorMount" in p.component && p.component.motorMount)!.component;
+    const host = flat.find((p) => p.component.children.includes(mount))!.component;
+    // A second mount with room to spare — wide enough that it survives a narrowing the first does not.
+    const roomy = structuredClone(mount) as typeof mount & { innerRadius: number; outerRadius: number };
+    roomy.id = `${mount.id}-roomy`;
+    roomy.name = "roomy mount";
+    roomy.innerRadius = 0.05;
+    roomy.outerRadius = 0.052;
+    host.children = [...host.children, roomy];
+    const cfg = two.configurations[0];
+    two.configurations = [
+      { ...cfg, instances: [...cfg.instances, { ...cfg.instances[0], mountId: roomy.id }] },
+    ];
+
+    const both = runFlight(two, { configId: two.configurations[0].id });
+    expect(both.hasPropulsion, "the two-mount control must fly before it is narrowed").toBe(true);
+
+    // Narrow just enough that the tight mount is refused and the roomy one is not.
+    const narrowed = runFlight(two, {
+      configId: two.configurations[0].id,
+      geometry: { bodyDiameter: primaryBodyDiameter(two)! * 0.9 },
+    });
+    const refused = narrowed.resolutions.filter((r) => r.vetoedBore);
+    const kept = narrowed.resolutions.filter((r) => r.match);
+    expect(refused.length, "the control does not exercise a PARTIAL refusal").toBeGreaterThan(0);
+    expect(kept.length, "the control does not exercise a partial refusal — every mount was refused").toBeGreaterThan(0);
+    // And the flight is withheld anyway.
+    expect(narrowed.hasPropulsion, "a flight was published for a vehicle that cannot be built").toBe(false);
+  }, 120_000);
+
   it("fires ONLY on a mount that is genuinely too small, not on any edit to the airframe", async () => {
     // The control this guard needs, and the first draft of it was wrong in a way worth recording:
     // it set the body diameter to the motor's own and expected a flight. A body's stated diameter is
