@@ -208,6 +208,19 @@ export interface FlightSummary {
    *  `StoredSimulation.optimumDelayBasis`. */
   optimumDelayAsFlown: number;
   deploymentVelocity: number;
+  /** The speed at the LAST recovery deployment, where `deploymentVelocity` above is the fastest of
+   *  them all.
+   *
+   *  **Both are right, for different questions, and only one of them matches what OpenRocket stores.**
+   *  Loft reports the maximum because that is the opening shock that sizes a shock cord, and it is
+   *  what the `early-deployment` warning fires on — a safety figure that must not become the smaller
+   *  of two numbers. OpenRocket's `deploymentvelocity` attribute is last-write-wins over its own
+   *  event list: verified against the stored flight log on all 21 multi-deploy simulations in this
+   *  corpus, where LAST matches 21 of 21 and MAX only 19. On a dual-deploy design whose apogee device
+   *  opens faster than its main — `03.Three-stage.ork` opens at 12.292 m/s at t=21.49 and stores
+   *  7.227 for the t=210.22 main — comparing Loft's max against that stored figure is a +70% error
+   *  with no physics in it at all. So the census scores this one and the flyer reads the other. */
+  lastDeploymentVelocity: number;
   driftDistance: number;
   /** Landing point relative to the pad (m): downrange (+x) and crossrange (+y) components of the
    *  drift, so a set of flights (e.g. a Monte-Carlo) can be plotted as a 2D scatter. Their
@@ -590,6 +603,9 @@ export function simulate(input: SimulateInput): FlightResult {
   let burnoutV = 0;
   let burnoutAlt = 0;
   let deploymentV = 0;
+  // The LAST opening, not the fastest — see `FlightSummary.lastDeploymentVelocity`. Assigned rather
+  // than maxed, so a later, slower deployment replaces an earlier fast one.
+  let lastDeploymentV = 0;
   let extrapolated = false;
   let prevSpeed = 0;
   let liftedOff = false;
@@ -870,6 +886,7 @@ export function simulate(input: SimulateInput): FlightResult {
         // the maximum (not the first) captures the shock that actually matters — and lets the
         // fast-deployment warning fire on a hard main deployment it otherwise missed.
         deploymentV = Math.max(deploymentV, speed);
+        lastDeploymentV = speed;
         events.push({
           type: "deploy",
           time: state.t,
@@ -1130,6 +1147,7 @@ export function simulate(input: SimulateInput): FlightResult {
       optimumDelay,
       optimumDelayAsFlown: optimumDelay,
       deploymentVelocity: deploymentV,
+      lastDeploymentVelocity: lastDeploymentV,
       driftDistance,
       landingX: state.pos.x,
       landingY: state.pos.y,

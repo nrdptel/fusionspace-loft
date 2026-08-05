@@ -2289,7 +2289,20 @@ docs page argues.**
    by a factor of eighteen*. Pinned by `lib/corpus/sweep.test.ts`'s
    `scores every stored optimum delay against the flight its own file describes`, proved able to fail
    by reverting the adapter (red at 1107.2%, naming the file).
-2. **`deploymentVelocity` — NOT STARTED, and it is the next increment.** Three separate problems
+2. **`deploymentVelocity` — SHIPPED 2026-08-05.** All three problems taken. OpenRocket's stored
+   figure is the speed at the LAST device to open, where Loft reports the FASTEST — the opening shock
+   a flyer sizes hardware against, and deliberately not the smaller of the two, since it also feeds
+   the `early-deployment` warning. `deploymentVelocityEvent` scores each against the event its own
+   file describes: **openrocket 6.0% → 5.6%**. RockSim's figure, in the misspelled
+   `VelocityAtDeplyment`, is read for the first time — so the metric stops being an OpenRocket-only
+   number standing in a cross-tool census, at **6.0% over 76 rows → 6.2% over 81**. The published
+   median rose and the measurement got better, which is the direction this milestone's notes
+   explicitly allow. And the not-deployed population is split off: one stored run is a charge firing
+   with nothing out at ~234 m/s against Loft's correct nothing, which is not the same quantity.
+   Pinned by three cases in `lib/validation/compare.test.ts` asserting both events on one summary,
+   and by the census's own page-population check, which caught the n change the moment it happened.
+
+   *Superseded plan, kept because the measurement in it is what made the increment cheap:* Three separate problems
    under one 6.0%: OpenRocket stores the velocity at the LAST deployment event (77/77 exact) where
    `lib/sim/simulate.ts` takes `Math.max` across every device — `Chute release.ork::Simulation 3`
    reads stored 14.34 against Loft's max 19.46 and Loft's last 14.00; RockSim stores it too, as the

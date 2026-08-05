@@ -186,8 +186,8 @@ export default async function Validation() {
       <p>
         <strong>Each figure names the population it is measured over, and they are not the same.</strong>{" "}
         Only four of the ten reach all 97: a metric is compared where a file stores it, and the
-        formats do not store the same set. Max Mach and deployment velocity are{" "}
-        <em>OpenRocket-only</em>{" "}— neither RockSim nor RASAero writes them — so reading either as a
+        formats do not store the same set. Max Mach is{" "}
+        <em>OpenRocket-only</em>{" "}— neither RockSim nor RASAero writes it — so reading it as a
         corpus-wide figure would credit Loft with an agreement two of the three tools were never
         asked about. This page used to print one &ldquo;97&rdquo; above the whole list.
       </p>
@@ -195,7 +195,7 @@ export default async function Validation() {
         <li>time to apogee <strong>1.5%</strong>{" "}(97), rail-exit velocity <strong>1.9%</strong>{" "}(94)</li>
         <li>max Mach <strong>2.0%</strong>{" "}(77, OpenRocket only), max velocity <strong>2.2%</strong>{" "}(97), optimum delay <strong>2.5%</strong>{" "}(84)</li>
         <li>apogee <strong>3.1%</strong>{" "}(97), max acceleration <strong>3.2%</strong>{" "}(94), flight time <strong>3.1%</strong>{" "}(82)</li>
-        <li>ground-hit velocity <strong>1.3%</strong>{" "}(82), deployment velocity <strong>6.0%</strong>{" "}(76, OpenRocket only)</li>
+        <li>ground-hit velocity <strong>1.3%</strong>{" "}(82), deployment velocity <strong>6.2%</strong>{" "}(81)</li>
       </ul>
       <p>
         <strong>Two of those are over flights that came down under a canopy.</strong>{" "}
@@ -300,6 +300,24 @@ export default async function Validation() {
         which is what a median is for, and why it was the wrong instrument to catch this. The suite
         now asserts the <em>worst</em> optimum-delay row as well as the median, because a row
         comparing two different flights is a different defect from a metric that is simply off.
+      </p>
+      <p>
+        <strong>Deployment velocity went 6.0% to 6.2%, and that is the honest direction.</strong>{" "}
+        It was an OpenRocket-only figure standing in a cross-tool census: RockSim stores a deployment
+        velocity too, in a tag it misspells as <code>VelocityAtDeplyment</code>, and Loft read none of
+        it. Six more comparisons joined, and they disagree by more than the OpenRocket ones, so the
+        published median rose while the measurement got better. Separately, OpenRocket&apos;s stored
+        figure is the speed at the <em>last</em> device to open, where Loft reports the{" "}
+        <em>fastest</em> &mdash; the opening shock a flyer sizes a shock cord against, which is
+        deliberately not the smaller of the two. Comparing each against the event the file describes
+        takes the OpenRocket median from 6.0% to <strong>5.6%</strong>.
+      </p>
+      <p>
+        One stored run is a charge firing with nothing out &mdash; RockSim records about 234 m/s for
+        it, where the same design&apos;s canopy runs store 10 to 33 &mdash; and Loft reports no
+        deployment at all, correctly. It is counted on its own line rather than averaged in, the same
+        treatment the ballistic descents get, because a &ldquo;deployment velocity&rdquo; for a flight
+        with nothing deployed is not the same quantity.
       </p>
       <p>
         These figures are asserted, not just written down: the corpus suite recomputes the census on

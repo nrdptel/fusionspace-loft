@@ -653,6 +653,14 @@ function storedSim(res: XmlNode, index: number, designRailM?: number): StoredSim
   // a design whose canopy opens at burnout is compared free-coast against a flight that never
   // coasted: 16.16 s against a stored 1.34 s, on four rows of one file.
   set("optimumDelay", "OptimalDelay");
+  // **RockSim DOES store a deployment velocity, in a tag it misspells.** `VelocityAtDeplyment` —
+  // the same class of typo as `XVelcoityAtLanding` beside it — carries a real figure on 6 of the 17
+  // stored simulations in this corpus (33.4284, 10.207, and four at ~234.4). Nothing read it, so
+  // the published 6.0% deployment-velocity median was an OpenRocket-only figure standing in a
+  // cross-tool census. The per-device `DeployedAt_Velocity` is 0 on every run here and is not a
+  // substitute. No `deploymentVelocityEvent` is set: this is one figure per run with no event list
+  // to place it against, so it is compared against Loft's reported maximum.
+  set("deploymentVelocity", "VelocityAtDeplyment");
 
   const conditions: StoredConditions = { configId: `sim${index}` };
   const alt = childNum(res, "LaunchAltitude", NaN);

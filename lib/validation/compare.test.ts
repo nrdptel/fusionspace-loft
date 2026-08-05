@@ -23,6 +23,8 @@ const summary: FlightSummary = {
   // the reported figure with a recovery-free coast and this one is what actually happened.
   optimumDelayAsFlown: 2,
   deploymentVelocity: 3,
+  // Deliberately different, so the two events below cannot pass by accident.
+  lastDeploymentVelocity: 1,
   driftDistance: 40,
   landingX: 40,
   landingY: 0,
@@ -46,6 +48,27 @@ describe("compareToStored", () => {
   it("ignores metrics absent from the stored data", () => {
     const report = compareToStored(summary, { maxAltitude: 1000 });
     expect(report.count).toBe(1);
+  });
+
+  // OpenRocket's stored deployment velocity is the LAST opening; Loft REPORTS the fastest, which is
+  // the opening shock a flyer sizes hardware against. Both directions asserted on one summary.
+  describe("the deployment velocity is compared against the event the file describes", () => {
+    const dep = (event?: "max" | "last") =>
+      compareToStored(summary, { deploymentVelocity: 3 }, event ? { deploymentVelocityEvent: event } : {})
+        .comparisons.find((c) => c.key === "deploymentVelocity")!;
+
+    it("scores the reported maximum by default — the only reading a silent format allows", () => {
+      expect(dep().simulated).toBe(3);
+    });
+
+    it("scores the LAST opening for a file that stores that one — OpenRocket's", () => {
+      expect(dep("last").simulated).toBe(1);
+      expect(dep("last").pctError).toBeCloseTo(-66.6667, 3);
+    });
+
+    it("treats an explicit max as the default rather than as a third case", () => {
+      expect(dep("max").simulated).toBe(dep().simulated);
+    });
   });
 
   // The two formats store the optimum delay for two different flights, and the comparison has to

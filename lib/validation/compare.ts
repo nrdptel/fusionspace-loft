@@ -70,6 +70,15 @@ export function compareToStored(
      *  before apogee is a different flight entirely. Absent, it compares free-coast: the reading
      *  Loft has always used, and the right one for the format supplying most of the corpus. */
     optimumDelayBasis?: "free-coast" | "as-flown";
+    /** Which of a flight's deployments the stored `deploymentVelocity` describes.
+     *
+     *  OpenRocket's attribute is last-write-wins over its own event list — LAST matches the stored
+     *  flight log on 21 of 21 multi-deploy simulations in this corpus, MAX on only 19 — while Loft
+     *  REPORTS the maximum, deliberately, because that is the opening shock a flyer sizes hardware
+     *  against. On a design whose apogee device opens faster than its main the two differ by 70%
+     *  with no physics in it. Absent, it compares the reported maximum: the reading Loft has always
+     *  used, and the only one available for a format that does not say. */
+    deploymentVelocityEvent?: "max" | "last";
   } = {},
 ): ValidationReport {
   const comparisons: MetricComparison[] = [];
@@ -81,7 +90,9 @@ export function compareToStored(
         ? summary.groundHitTotalVelocity
         : m.key === "optimumDelay" && opts.optimumDelayBasis === "as-flown"
           ? summary.optimumDelayAsFlown
-          : m.sim(summary);
+          : m.key === "deploymentVelocity" && opts.deploymentVelocityEvent === "last"
+            ? summary.lastDeploymentVelocity
+            : m.sim(summary);
     const absError = simVal - storedVal;
     const pctError = storedVal !== 0 ? (absError / storedVal) * 100 : NaN;
     comparisons.push({

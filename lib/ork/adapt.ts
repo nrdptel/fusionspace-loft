@@ -129,6 +129,11 @@ export interface StoredSimulation {
    *  Undefined means free-coast — the reading Loft has always used, and the correct one for the
    *  format that supplies most of the corpus. */
   optimumDelayBasis?: "free-coast" | "as-flown";
+  /** Which deployment the stored `deploymentVelocity` describes — see
+   *  `compareToStored`'s `deploymentVelocityEvent`. OpenRocket writes the LAST one; RockSim's
+   *  `VelocityAtDeplyment` is a single figure per run with no event list to place it against, so it
+   *  is left undefined there and compared against Loft's reported maximum. */
+  deploymentVelocityEvent?: "max" | "last";
   /** Whether the writing tool says a recovery device actually deployed on THIS run.
    *
    *  A descent under a canopy and a descent with nothing out are different flights, and pooling them
@@ -964,6 +969,7 @@ function parseSimulations(root: XmlNode): StoredSimulation[] {
       // Recorded here rather than derived later: the creator string is a fact about the FILE, and by
       // the time a comparison runs the document is a Rocket and the string is gone.
       groundHitVelocityFrame: orkGroundHitFrame(root.attrs.creator),
+      deploymentVelocityEvent: "last",
       recoveryDeployed: orkRecoveryDeployed(fd),
       conditions,
       results,

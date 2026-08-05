@@ -162,7 +162,7 @@ const PUBLISHED_MEDIAN_PCT: Record<string, number> = {
   flightTime: 3.1,
   "flightTime/ballistic": 4.8,
   maxAcceleration: 3.2,
-  deploymentVelocity: 6.0,
+  deploymentVelocity: 6.2,
 };
 
 /** How far a metric may drift past its published figure before the page counts as stale. Wide
@@ -188,7 +188,12 @@ const CENSUS_SLACK_PCT = 0.75;
  *  `flightTime` is split for the same reason and it is the more obvious of the two — the plugged runs
  *  fall 2,100 m with nothing out, so their whole flight is shorter than the canopy runs' descent
  *  alone. */
-const BALLISTIC_SPLIT_METRICS = new Set(["groundHitVelocity", "flightTime"]);
+/** `deploymentVelocity` joined the split on 2026-08-05, for the same reason and a wider spread than
+ *  either of the other two. A run the writing tool marks as not-deployed still stores a figure under
+ *  this name — RockSim writes ~234 m/s for `FullScaleModelTH`'s plugged runs, where its canopy runs
+ *  store 10 to 33 — because the charge fires whether or not anything comes out. Pooling a 234 m/s
+ *  "deployment" with a 10 m/s one is a median about neither, exactly as it was for the descent. */
+const BALLISTIC_SPLIT_METRICS = new Set(["groundHitVelocity", "flightTime", "deploymentVelocity"]);
 const censusKey = (key: string, sim: { recoveryDeployed?: boolean }) =>
   sim.recoveryDeployed === false && BALLISTIC_SPLIT_METRICS.has(key) ? `${key}/ballistic` : key;
 

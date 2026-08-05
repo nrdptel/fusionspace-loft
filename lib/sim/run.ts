@@ -240,6 +240,7 @@ export function runFlight(rocket: Rocket, opts: RunOptions = {}): FlightRun {
       ? compareToStored(result.summary, opts.validateAgainst.results, {
           groundHitVelocityFrame: opts.validateAgainst.groundHitVelocityFrame,
           optimumDelayBasis: opts.validateAgainst.optimumDelayBasis,
+          deploymentVelocityEvent: opts.validateAgainst.deploymentVelocityEvent,
         })
       : undefined;
   return {
