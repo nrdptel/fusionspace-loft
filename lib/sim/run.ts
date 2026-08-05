@@ -230,6 +230,7 @@ export function runFlight(rocket: Rocket, opts: RunOptions = {}): FlightRun {
     !opts.ballistic && hasPropulsion && allMotorsResolved && opts.validateAgainst && opts.validateAgainst.hasResults
       ? compareToStored(result.summary, opts.validateAgainst.results, {
           groundHitVelocityFrame: opts.validateAgainst.groundHitVelocityFrame,
+          optimumDelayBasis: opts.validateAgainst.optimumDelayBasis,
         })
       : undefined;
   return {

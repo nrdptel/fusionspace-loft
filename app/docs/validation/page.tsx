@@ -266,6 +266,29 @@ export default async function Validation() {
         deployment cases are elsewhere and are listed as known issues in the suite.
       </p>
       <p>
+        <strong>Optimum delay is where two formats mean different things by the same word.</strong>{" "}
+        OpenRocket stores the <em>free-coast</em> delay &mdash; the time from burnout to the apogee
+        the rocket would have reached with nothing out &mdash; which is the number a flyer buys a
+        motor against, and the one Loft reports. RockSim stores the delay of the run it actually
+        flew: <code>TimeToApogee</code> minus <code>TimeToBurnout</code>, exact on every stored
+        simulation in every RockSim file in the corpus. On a design whose canopy opens at burnout
+        those are not the same flight. One corpus design stores four such runs at{" "}
+        <strong>1.34 s</strong>, against Loft&apos;s free coast of about <strong>16 s</strong>{" "}
+        &mdash; four census rows reading <strong>+1107%</strong> for a delay model that was not
+        wrong. Comparing each file against its own convention takes those rows to{" "}
+        <strong>&minus;21%</strong> and the worst optimum-delay disagreement anywhere in the corpus
+        from 1107% to <strong>59%</strong>.
+      </p>
+      <p>
+        <strong>
+          The published median did not move, and that is worth saying rather than hiding.
+        </strong>{" "}
+        Four rows out of 84 changed by a factor of eighteen and the median stayed at 2.5% &mdash;
+        which is what a median is for, and why it was the wrong instrument to catch this. The suite
+        now asserts the <em>worst</em> optimum-delay row as well as the median, because a row
+        comparing two different flights is a different defect from a metric that is simply off.
+      </p>
+      <p>
         These figures are asserted, not just written down: the corpus suite recomputes the census on
         every run and fails if any metric drifts past what this page claims, so a change to the
         engine either keeps the numbers true or forces them to be updated. It is one-directional —

@@ -646,6 +646,12 @@ function storedSim(res: XmlNode, index: number, designRailM?: number): StoredSim
     set("groundHitVelocity", "VelocityAtLanding");
   })();
   set("launchRodVelocity", "VelocityAtLaunchGuideEnd");
+  // **`<OptimalDelay>` is this run's own `TimeToApogee − TimeToBurnout`, not a free coast**, so the
+  // simulation carries `optimumDelayBasis: "as-flown"` below and the comparison scores Loft's
+  // as-flown figure against it. Verified as an identity on every stored simulation in the corpus's
+  // four RockSim designs — see `StoredSimulation.optimumDelayBasis` for the arithmetic. Without it,
+  // a design whose canopy opens at burnout is compared free-coast against a flight that never
+  // coasted: 16.16 s against a stored 1.34 s, on four rows of one file.
   set("optimumDelay", "OptimalDelay");
 
   const conditions: StoredConditions = { configId: `sim${index}` };
@@ -672,6 +678,7 @@ function storedSim(res: XmlNode, index: number, designRailM?: number): StoredSim
   return {
     name: (childText(res, "SimulationName") || `Simulation ${index + 1}`).replace(/^\[|\]$/g, ""),
     recoveryDeployed: recoveryDeployed(res),
+    optimumDelayBasis: "as-flown",
     conditions,
     results,
     hasResults,

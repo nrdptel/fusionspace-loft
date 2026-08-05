@@ -2267,11 +2267,52 @@ to improve a median, and the gate is only worth having because of that.
 The threshold has room rather than being tuned: the known group is 1.94× and **the next-widest group
 anywhere in the corpus is 1.004×**, which the run prints so a corpus that grows a 1.4× group says so.
 
-**What remains:** (5) re-measure and publish across the remaining metrics. Ground-hit velocity and
-flight time are done; the other eight have not been re-examined for a convention or population
-problem of their own, and `deploymentVelocity` at 6.0% is the obvious next candidate — the page
-already argues it is ill-conditioned rather than wrong, which is a claim of exactly the kind this
-milestone has now twice found to be half the story.
+*Size item (5) — IN PROGRESS. The remaining eight metrics re-examined, and the first correction
+shipped 2026-08-05.*
+
+**All eight were probed, and the answer is not evenly spread.** Five are Loft's physics and should
+stop being candidates: `maxMach` (OpenRocket's `maxmach` is the max of its own Mach column, 77/77,
+on the same air-relative basis Loft uses), `maxVelocity` (no `.ork` sim in the corpus peaks in total
+velocity after apogee, 0/77, so the 24.12 frame change cannot reach it), `maxAltitude` and
+`timeToApogee` (clean reads — stored equals the log's own max and event time, 77/77 and 74/77, the
+three misses being one 0.05 s output step), and `launchRodVelocity` (OpenRocket's figure equals BOTH
+the total and the vertical at the `launchrod` event, the rod being vertical). Writing that down is
+half the value of the item: it stops the next session re-litigating settled numbers.
+
+**Three carry a real defect, and they are ranked by what a probe measured rather than by what the
+docs page argues.**
+
+1. **`optimumDelay` — SHIPPED 2026-08-05.** Two formats mean different flights by the same word. See
+   `COMPETITION.md` row 38 for the arithmetic. Worst row **+1107% → −21%**, corpus-worst
+   **1107% → 59%**, published median unmoved at 2.5% — and that last fact is why the pinning check is
+   a `worst`-row assertion rather than a median: *a median cannot see four rows in eighty-four move
+   by a factor of eighteen*. Pinned by `lib/corpus/sweep.test.ts`'s
+   `scores every stored optimum delay against the flight its own file describes`, proved able to fail
+   by reverting the adapter (red at 1107.2%, naming the file).
+2. **`deploymentVelocity` — NOT STARTED, and it is the next increment.** Three separate problems
+   under one 6.0%: OpenRocket stores the velocity at the LAST deployment event (77/77 exact) where
+   `lib/sim/simulate.ts` takes `Math.max` across every device — `Chute release.ork::Simulation 3`
+   reads stored 14.34 against Loft's max 19.46 and Loft's last 14.00; RockSim stores it too, as the
+   misspelled `<VelocityAtDeplyment>` plus a per-device `<DeployedAt_Velocity>`, and
+   `lib/rkt/adapt.ts` reads neither, so the published 6.0% is an **OpenRocket-only** figure standing
+   in a cross-tool census; and the deployed/ballistic population split is not applied to this metric,
+   though its stored values span 0.601 to 225.35 m/s. **Loft's own reported figure must not change**
+   — it is deliberately the worst-case opening shock and feeds the `early-deployment` warning; it is
+   the COMPARISON that has to be made like-for-like, the same way `optimumDelayBasis` just was.
+3. **`maxAcceleration` — NOT STARTED.** All of the 3.2% lives in the 17 `.rkt` rows (median 8.8%,
+   every one HIGH), and `FullScaleModelTH.rkt` stores a byte-identical `<MaxAcceleration>` of 125.291
+   across all fifteen runs with different winds and two rail lengths. A stored value that never
+   varies is a sampled or rounded peak rather than a per-run measurement, so part of that 8.8% is the
+   oracle's own resolution and should be said rather than carried. Loft's own window is already right
+   for `.ork` — stored `maxacceleration` equals the max before the first deployment on 77/77, which
+   is exactly Loft's `!anyDeployed` freeze.
+
+**And one thing the page itself gets wrong, which belongs to this item's *done when*.**
+`/docs/validation` publishes "**97 stored simulations**" once and then lists ten medians under it,
+but their real populations range **76 to 97**: `deploymentVelocity` 76 and `maxMach` 77 are
+OpenRocket-only, `optimumDelay` 84, `maxAcceleration` and `launchRodVelocity` 94, and only four
+metrics reach 97. A reader takes 6.0% as a corpus-wide figure when it is measured on one tool's
+files — the same dilution the ballistic split shipped to end.
 
 **Why this and not the after-list's R10.** The after-list names "Toward 6-DOF" next, and explicitly
 says to decompose it "only when the fundamentals justify it, and only against published, citable

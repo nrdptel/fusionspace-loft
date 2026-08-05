@@ -1506,6 +1506,65 @@ suite("real-design corpus", () => {
     expect(unmeasured, "published on /docs/validation but measured by nothing here").toEqual([]);
   }, 900_000);
 
+  /** **R10: no stored optimum delay is scored against a flight that never happened.**
+   *
+   *  The two formats mean different things by the same word, and Loft applied one rule to both:
+   *
+   *    - OpenRocket's `optimumdelay` is the FREE-COAST delay — `timeToOptimumAltitude` minus the
+   *      last burnout, exact on 73 of 73 stored simulations here, where apogee-minus-burnout matches
+   *      only 56. `lib/sim/run.ts` substitutes a recovery-free coast whenever a device opened before
+   *      apogee, which is right for a flyer and right for this format.
+   *    - RockSim's `<OptimalDelay>` is that run's OWN `TimeToApogee - TimeToBurnout`, exact on every
+   *      stored simulation in all four corpus RockSim designs. `FullScaleModelTH.rkt`'s four
+   *      `[L1940X-0]` runs open their canopy at burnout, so RockSim's apogee is 3.65 s and its
+   *      stored delay 1.34 s, against Loft's free coast of ~16 s.
+   *
+   *  **A median could not see this and the census gate therefore could not either.** Four rows of 84
+   *  moved from +1107% to -21% and the published 2.5% did not shift by a decimal, which is exactly
+   *  what a median is for and exactly why it is the wrong instrument here. This asserts the WORST
+   *  row instead: a bound that the old rule breaks by a factor of eighteen.
+   *
+   *  The bound is deliberately loose — 60% against a worst case of 59% would be tuning, so it sits
+   *  at 200%, which still fails an order of magnitude before the defect returns. What is being held
+   *  is "no row is comparing two different flights", not a target for the metric itself. */
+  it("scores every stored optimum delay against the flight its own file describes", async () => {
+    const rows: { file: string; sim: string; pct: number }[] = [];
+    for (const f of files) {
+      let doc;
+      try {
+        doc = await importDesign(new Uint8Array(readFileSync(f.path)));
+      } catch {
+        continue;
+      }
+      for (const sim of doc.simulations) {
+        let run;
+        try {
+          run = runFromDocument(doc, {
+            configId: sim.conditions.configId,
+            validateAgainst: doc.flownAsReduced ? undefined : sim,
+            overrides: overridesFromStored(sim),
+          });
+        } catch {
+          continue;
+        }
+        if (!run.hasPropulsion || !run.validation) continue;
+        const c = run.validation.comparisons.find((x) => x.key === "optimumDelay");
+        if (!c || !Number.isFinite(c.pctError)) continue;
+        rows.push({ file: f.name, sim: sim.name, pct: c.pctError });
+      }
+    }
+    // The corpus must actually be supplying these rows — a metric that stops being compared at all
+    // would otherwise pass this by having nothing to fail on, which is the failure the census's own
+    // `unmeasured` guard exists for.
+    expect(rows.length, "no optimum-delay comparisons found — is the corpus complete?").toBeGreaterThan(50);
+    const worst = rows.reduce((a, b) => (Math.abs(b.pct) > Math.abs(a.pct) ? b : a));
+    expect(
+      Math.abs(worst.pct),
+      `worst optimum-delay row: ${worst.file} :: ${worst.sim} at ${worst.pct.toFixed(1)}% — ` +
+        `a row this far out means Loft's figure and the stored one describe different flights, not that the delay model is off`,
+    ).toBeLessThan(200);
+  }, 900_000);
+
   /** **R10: the descent populations are counted separately, and neither is allowed to vanish.**
    *
    *  The census above splits `groundHitVelocity` and `flightTime` on whether the writing tool says a

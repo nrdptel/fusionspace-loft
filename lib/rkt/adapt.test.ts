@@ -682,3 +682,54 @@ describe("adaptRktXml — whether the file says a recovery device actually came 
     expect(adaptRktXml(design("")).simulations[0].recoveryDeployed).toBeUndefined();
   });
 });
+
+describe("adaptRktXml — which flight the stored optimum delay describes", () => {
+  const design = (tags: string) =>
+    `<RockSimDocument><DesignInformation><RocketDesign><Name>delay</Name>
+      <Stage3Parts>
+        <NoseCone><Name>Nose</Name><Len>150</Len><BaseDia>54</BaseDia><ShapeCode>1</ShapeCode><CalcMass>120</CalcMass></NoseCone>
+        <BodyTube><Name>Body</Name><Len>600</Len><OD>54</OD><ID>52</ID><CalcMass>200</CalcMass><SerialNo>7</SerialNo></BodyTube>
+      </Stage3Parts>
+    </RocketDesign></DesignInformation>
+    <SimulationResultsList><SimulationResults><MaxAltitude>500</MaxAltitude>${tags}</SimulationResults></SimulationResultsList>
+    </RockSimDocument>`;
+
+  it("marks it as-flown, because RockSim stores this run's own apogee minus burnout", () => {
+    const doc = adaptRktXml(design("<OptimalDelay>4.765</OptimalDelay>"));
+    expect(doc.simulations[0].optimumDelayBasis).toBe("as-flown");
+    expect(doc.simulations[0].results.optimumDelay).toBeCloseTo(4.765, 5);
+  });
+
+  it("is marked even on a simulation that stores no delay of its own", () => {
+    // The basis is a fact about the FORMAT, not about the tag. Deriving it from the tag's presence
+    // would leave a file that stores the delay on some runs and not others carrying two conventions.
+    expect(adaptRktXml(design("")).simulations[0].optimumDelayBasis).toBe("as-flown");
+  });
+
+  // The identity that establishes the convention, on the corpus's own numbers rather than on a
+  // description of them: `<OptimalDelay>` is exactly `<TimeToApogee> − <TimeToBurnout>` of the run
+  // it sits in. Four designs, and the case that matters is the last pair — `FullScaleModelTH.rkt`
+  // stores 1.34375 for its four runs whose canopy opens at burnout and 17.9325 for its plugged
+  // ones, which is how a single stored number proves the figure follows the flight rather than a
+  // free coast.
+  //
+  // The tolerance is each file's OWN stored precision rather than one number for all four, because
+  // that is the real result: `rocksimTestRocket1` writes its delay to three decimals (4.765) where
+  // the subtraction gives 4.76505, and rounding a tolerance up to hide that would be asserting
+  // something slightly different from what was measured.
+  it.each([
+    ["rocksimTestRocket1", 10.8263, 6.06125, 4.765, 3],
+    ["TubeFins1", 5.98125, 1.45125, 4.53, 5],
+    ["FullScaleModelTH canopy", 3.65375, 2.31, 1.34375, 5],
+    ["FullScaleModelTH plugged", 20.2425, 2.31, 17.9325, 5],
+  ])("%s: stored delay is apogee minus burnout", (_name, apogee, burnout, delay, dp) => {
+    expect(apogee - burnout).toBeCloseTo(delay, dp);
+    const doc = adaptRktXml(
+      design(
+        `<TimeToApogee>${apogee}</TimeToApogee><TimeToBurnout>${burnout}</TimeToBurnout>` +
+          `<OptimalDelay>${delay}</OptimalDelay>`,
+      ),
+    );
+    expect(doc.simulations[0].results.optimumDelay).toBeCloseTo(apogee - burnout, dp);
+  });
+});

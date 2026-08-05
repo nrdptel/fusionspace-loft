@@ -196,6 +196,17 @@ export interface FlightSummary {
   groundHitTotalVelocity: number;
   /** Optimum ejection delay for apogee deployment (s from burnout). */
   optimumDelay: number;
+  /** The same figure, but always from the flight AS FLOWN — never replaced by the recovery-free
+   *  coast that `lib/sim/run.ts` substitutes when a device opened before apogee.
+   *
+   *  **This exists for the census, not for the flyer**, and the two want different numbers. A flyer
+   *  asking "what delay should I buy" wants the coast the rocket WOULD have had, which is why the
+   *  substitution is there. But `.rkt` files store `TimeToApogee − TimeToBurnout` of the run they
+   *  actually flew — exact on all four corpus RockSim designs, including the one that stores both a
+   *  1.34 s value for its four canopy runs and a 17.93 s one for its eleven plugged ones — so
+   *  comparing the substituted figure against it compares two different flights. See
+   *  `StoredSimulation.optimumDelayBasis`. */
+  optimumDelayAsFlown: number;
   deploymentVelocity: number;
   driftDistance: number;
   /** Landing point relative to the pad (m): downrange (+x) and crossrange (+y) components of the
@@ -1102,6 +1113,7 @@ export function simulate(input: SimulateInput): FlightResult {
       groundHitTotalVelocity,
       landed,
       optimumDelay,
+      optimumDelayAsFlown: optimumDelay,
       deploymentVelocity: deploymentV,
       driftDistance,
       landingX: state.pos.x,

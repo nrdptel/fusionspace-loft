@@ -62,7 +62,15 @@ const METRICS: MetricDef[] = [
 export function compareToStored(
   summary: FlightSummary,
   stored: StoredResults,
-  opts: { groundHitVelocityFrame?: "vertical" | "total" } = {},
+  opts: {
+    groundHitVelocityFrame?: "vertical" | "total";
+    /** Which FLIGHT the stored optimum delay describes — see `StoredSimulation.optimumDelayBasis`.
+     *  OpenRocket stores the free-coast figure, which is what Loft reports; RockSim stores the
+     *  as-flown apogee-minus-burnout of the run it sits in, which on a design whose canopy opens
+     *  before apogee is a different flight entirely. Absent, it compares free-coast: the reading
+     *  Loft has always used, and the right one for the format supplying most of the corpus. */
+    optimumDelayBasis?: "free-coast" | "as-flown";
+  } = {},
 ): ValidationReport {
   const comparisons: MetricComparison[] = [];
   for (const m of METRICS) {
@@ -71,7 +79,9 @@ export function compareToStored(
     const simVal =
       m.key === "groundHitVelocity" && opts.groundHitVelocityFrame === "total"
         ? summary.groundHitTotalVelocity
-        : m.sim(summary);
+        : m.key === "optimumDelay" && opts.optimumDelayBasis === "as-flown"
+          ? summary.optimumDelayAsFlown
+          : m.sim(summary);
     const absError = simVal - storedVal;
     const pctError = storedVal !== 0 ? (absError / storedVal) * 100 : NaN;
     comparisons.push({
