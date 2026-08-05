@@ -3913,6 +3913,29 @@ Unattended runs do not stop to ask (see *Unattended operation* in `MAINTAINING.m
 that would otherwise have been a question goes here, with the option rejected, so it can be reversed
 cheaply instead of re-derived. Newest first.
 
+- **2026-08-05 — narrowing an airframe below the motor inside it is REFUSED, not clamped, and that
+  makes "narrow the body diameter" unavailable on five of the six committed fixtures.** The Sev-1 was
+  a body tube typed thinner than its own motor flying to a confident +69% apogee. The fix refuses the
+  motor, which routes the whole flight into the existing no-propulsion path.
+
+  **The measurement that makes this a decision rather than a detail:** a real design's motor mount is
+  sized to its motor, so on `demo-single-deploy.ork` the bore is 28.0 mm around a 29 mm H128W — the
+  file already sits inside the millimetre of slack the veto allows — and `applyGeometryEdits` scales
+  inner tubes with their host. So ANY narrowing of that airframe, even 5%, takes the mount below the
+  motor. Five of six fixtures behave that way; only `demo-quirks.ork` has 10% of headroom.
+
+  **Rejected: clamping the mount at the motor's diameter instead of refusing.** That keeps the
+  what-if usable and it is what a flyer probably means — but it silently flies a vehicle whose
+  airframe and mount no longer relate, and reports the number as if the design were the one on
+  screen. `MAINTAINING.md`'s safety posture asks for a refusal or a bound over a confident number
+  from an input that cannot mean anything, and a refusal that names both diameters teaches the flyer
+  what is actually in the way. **Also rejected: not scaling inner tubes with the body**, which would
+  restore the what-if but is a physics change dressed as a UI fix, and would make a widened airframe
+  keep a mount too small for the motor it is meant to accept.
+
+  Cheap to reverse in either direction: the veto is one condition in `lib/sim/setup.ts` and the slack
+  is one constant beside it.
+
 - **2026-08-03 — the next R milestone is R9 *the descent Loft cannot defend*, not the after-list's
   "multi-solver cross-check as a first-class view".** The after-list names the cross-check next, and
   reordering a queue the owner set is a call I took rather than asked about. The reason is measured:

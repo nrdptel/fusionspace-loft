@@ -521,11 +521,31 @@ describe("geometry edits (builder)", () => {
     expect(wider.result.liftoffMass).toBeGreaterThan(base.result.liftoffMass);
     expect(wider.result.staticMarginCal).toBeLessThan(base.result.staticMarginCal);
 
-    // A narrower tube does the opposite — higher, lighter, more stable in calibers.
-    const narrower = runFlight(doc.rocket, { configId: cfg, overrides: ov, geometry: { bodyDiameter: d0 * 0.75 } });
-    expect(narrower.result.stability.refRadius * 2).toBeCloseTo(d0 * 0.75, 6);
-    expect(narrower.result.summary.apogee).toBeGreaterThan(base.result.summary.apogee);
-    expect(narrower.result.staticMarginCal).toBeGreaterThan(base.result.staticMarginCal);
+    // A narrower tube does the opposite — higher, lighter, more stable in calibers. **Asserted on a
+    // different fixture, and the reason is a measurement rather than convenience.** This one used
+    // `demo-single-deploy` at 0.75x, and that design cannot be narrowed AT ALL: its mount bore is
+    // 28.0 mm around a 29 mm H128W, so the file already sits inside the millimetre of slack the
+    // mount-bore veto allows, and shrinking the airframe takes the mount with it. Five of the six
+    // committed fixtures are that shape — a motor mount sized to its motor is what a real design IS
+    // — so the physics claim has to be made where there is headroom to make it.
+    // `demo-quirks.ork` has 10%: a 66 mm airframe on a motor small enough to leave room.
+    const roomy = await load("demo-quirks.ork");
+    const roomyCfg = roomy.simulations[0].conditions.configId;
+    const roomyOv = overridesFromStored(roomy.simulations[0]);
+    const roomyBase = runFlight(roomy.rocket, { configId: roomyCfg, overrides: roomyOv });
+    const rd0 = primaryBodyDiameter(roomy.rocket)!;
+    const narrower = runFlight(roomy.rocket, { configId: roomyCfg, overrides: roomyOv, geometry: { bodyDiameter: rd0 * 0.9 } });
+    expect(narrower.resolutions.every((r) => r.match), "the narrowed design must still hold its motor").toBe(true);
+    expect(narrower.result.stability.refRadius * 2).toBeCloseTo(rd0 * 0.9, 6);
+    expect(narrower.result.summary.apogee).toBeGreaterThan(roomyBase.result.summary.apogee);
+    expect(narrower.result.staticMarginCal).toBeGreaterThan(roomyBase.result.staticMarginCal);
+
+    // And the half that used to live here is now a REFUSAL rather than a flight, which is the point
+    // of the veto: narrowing this design's airframe below its own motor is not a what-if with a
+    // smaller answer, it is a rocket that cannot be built.
+    const tooTight = runFlight(doc.rocket, { configId: cfg, overrides: ov, geometry: { bodyDiameter: d0 * 0.75 } });
+    expect(tooTight.hasPropulsion).toBe(false);
+    expect(tooTight.resolutions[0].vetoedBore?.motorMm).toBe(29);
 
     // A zero/empty diameter edit changes nothing.
     const same = runFlight(doc.rocket, { configId: cfg, overrides: ov, geometry: { bodyDiameter: 0 } });
