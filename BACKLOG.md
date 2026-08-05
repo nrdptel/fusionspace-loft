@@ -185,6 +185,19 @@ says CONFIRMED carries the command and the numbers the refuter could not talk it
   imperial export contains a metric column, an SI column and an imperial column side by side.
   `DataTable`'s new `csvLabel` is the mechanism; these two are the remaining call sites.
 
+- **A crude phone-walk selector counted 8 controls under 44 px on `/flight` at 390 px, where the
+  repo's own scoped ratchet is green. UNREPRODUCED, and filed as a question rather than a defect.**
+  Noticed 2026-08-05 during the closing cold walk on `efe2fbc`, with `devices["Pixel 7"]` and
+  `hasTouch: true`. The selector was
+  `button, a, select, input, [role=button]` filtered on `getBoundingClientRect().height < 44`, which
+  is deliberately cruder than `e2e/touch.spec.ts`'s — it counts elements that may sit inside a taller
+  tap target, which §8's contract allows. **So the 8 are most likely outside the ratchet's scope by
+  design, and the one-probe question for the next session is which**: if any of them is a real
+  standalone target, the ratchet's scope is too narrow; if none is, this entry closes and the
+  selector difference is worth a sentence in `touch.spec.ts` so the next walk does not re-file it.
+  Do not treat the number as a breach until that is answered — the scoped check is the authority and
+  it passes.
+
 - **The diagram's body-diameter grip oscillates across the bore-refusal threshold.** Filed
   2026-08-05 from a pre-push review, UNREPRODUCED by hand. `components/RocketDiagram.tsx:1254`:
   crossing the threshold mid-drag inserts the full-width "No flight simulated" panel ABOVE the
