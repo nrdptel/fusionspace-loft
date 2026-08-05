@@ -4,49 +4,58 @@ Overwritten each session. What shipped, what is part-way, and what to pick up fi
 
 ## Read this first
 
-**Eleven increments this run, all on one pull request — #132 — which is OPEN and not yet merged at
-the time of writing.** Nothing from this run has reached production; check #132's state before
-assuming otherwise. #131 (a handoff correction inherited from the previous run) was merged at session
-start and is on `main`.
+**Fifteen increments this run, in two merged pull requests — #132 (`eae5c95`) and #133 (`d3d4de6`).
+All fifteen are on `main` and SERVED**: production was fetched afterwards and carries the per-metric
+census populations, the optimum-delay paragraph and the corrected RocketPy claim. #131, inherited
+open from the previous run, was merged at session start.
 
-**Two Sev-1s, both found by the opening fan-out and both CONFIRMED by an adversarial refuter before
-they were taken.** R10 Size item (5) is opened and two of its three real defects are shipped. P6's
-blocking API decision is made and the milestone has 19 sites left.
+**Two Sev-1s and a third smaller one, all found by the opening fan-out and all CONFIRMED by an
+adversarial refuter before they were taken. R10 Size item (5) is three-quarters done and P6 is
+SHIPPED.**
 
-**THE TRANSFERABLE LESSON, and it cost this run two whole gate cycles: a fix is not finished until
-every surface that could reach the state has been walked.** The mount-bore veto was written, gated
-green, and committed — and a four-lens pre-push review then found it incomplete in five ways,
-including **the Sev-1 itself at partial scale**: the veto was per-motor while the withholding was
-per-vehicle, so a design with two mounts of different headroom could refuse one, keep flying on the
-other, and publish a confident apogee for a rocket that cannot be built. A green gate could not see
-any of it. **The review is worth more than the gate on a change that adds a REFUSAL**, because a
-refusal's failure mode is the surfaces that do not know about it.
+**THE TRANSFERABLE LESSON, and it cost this run two whole gate cycles: a fix that adds a REFUSAL is
+not finished until every surface that can reach the refused state has been walked.** The mount-bore
+veto was written, gated green and committed — and a four-lens pre-push review then found it
+incomplete in five ways, including **the Sev-1 itself at partial scale**: the veto was per-motor
+while the withholding was per-vehicle, so a design with two mounts of different headroom could refuse
+one, keep flying on the other, and publish a confident apogee for a rocket that cannot be built. A
+green gate could not see any of it. A refusal's failure mode IS the surfaces that do not know about
+it, so the review is worth more than the gate on that class of change.
 
-**And the second lesson is that this repo had already written down the thing that bit it.**
+**The second lesson is that this repo had already written down the thing that bit it.**
 `CONTRIBUTING.md` has carried "never pipe a gate step into `tail`, `head` or `grep` — the pipeline's
 exit code is the pipe's" since 2026-08-03, naming `check-text-gaps.mjs` and lost JSX spaces
-specifically. This run built its gate as `npm run build 2>&1 | tail -2` anyway, shipped
-`<em>free-coast</em> delay` as "free-coastdelay", and found out from CI after nine commits were
-already on a pull request. The note now says to run the build to a file and grep it rather than to
-remember. **Run the gate with `$?` checked, per step.**
+specifically. This run built its gate as `npm run build 2>&1 | tail -2` anyway and found out from CI
+after nine commits were on a pull request. The note now says to run the build to a file and grep it
+rather than to remember, and every gate step after that was run as
+`npm run <step> > log 2>&1; echo $?`. **Do that from the first increment.**
 
-## This run — eleven increments
+**A third, about tolerances.** The bore veto's constant was got wrong twice — first compared in radii
+while every sentence about it said diameters, then tightened to 1 mm and made four committed fixtures
+unflyable. It is 3 mm now, measured across **132 real motor instances**, and a check asserts the
+margin AND prints it. **A tolerance without its measurement written beside it is a number the next
+session changes on instinct.**
 
-| # | SHA | what | verified by |
-|---|---|---|---|
-| 1 | `42c6599` | **P6 inc 8** — `Readout` gains `figure` (a second decision-grade number) beside `sub`; `MonteCarlo`'s three card variants deleted onto it | driving the built export; two e2e assertions, both proved able to fail |
-| 2 | `ea2bce0` | **P6 inc 9** — the panel's FIFTH labelled value, which inc 8 left behind and made worse; `frame="bare"` and `caution` | the built export; `text-[11px]` 46 → 42 |
-| 3 | `9d2237b` | **R10 (5a)** — optimum delay scored against the flight its own file describes | worst row **+1107% → −21%**, corpus-worst **1107% → 59%**; a `worst`-row corpus check, red at 1107.2% when reverted |
-| 4 | `383f09a` | **SEV-1** — a motor that cannot physically be in its mount is refused, not flown | +69% apogee gone; corpus 28 tests; e2e drives the field and the way back |
-| 5 | `2c97263` | **SEV-1** — exports whose numbers flip meaning with a control on another page | an e2e exporting in BOTH unit systems, red on the bare label |
-| 6 | `cbe7bd9` | A pre-existing case that was asserting the defect, moved to a fixture with headroom | the decision recorded in `ROADMAP.md` |
-| 7 | `2e1cc52` | The review's five findings — including the Sev-1 at partial scale | a two-mount case, red when `some(match)` is restored |
-| 8 | `a6b7120` | The bore tolerance set from **132 measured motor instances** rather than a round number | a check that asserts the margin AND prints it |
-| 9 | `97f00f2` | The e2e reaches the way out by the link that exists to offer it | — |
-| 10 | `b85dd6c` | **R10 (5c)** — every published median names its own population; two false doc claims corrected | the census reads the page's source; red when 97 is put back on a 76-row metric |
-| 11 | `0c8118d` | The JSX space CI caught, and why the local gate did not | build exit 0, gaps detector 0 |
+## This run — fifteen increments, all merged
 
-**Reached production: 0 of 11.** All eleven are on #132.
+| # | SHA | what |
+|---|---|---|
+| 1–2 | `42c6599` `ea2bce0` | **P6 inc 8–9** — `Readout` gains `figure`, `tone`, `caution`, `bare`; the dispersion panel's five labelled values all become readouts |
+| 3 | `9d2237b` | **R10 (5a)** — optimum delay scored against the flight its own file describes; worst row **+1107% → −21%** |
+| 4 | `383f09a` | **SEV-1** — a motor that cannot physically be in its mount is refused, not flown (+69% apogee) |
+| 5 | `2c97263` | **SEV-1** — exports whose numbers flip meaning with a control on another page |
+| 6 | `cbe7bd9` | A pre-existing case that was asserting the defect, moved to a fixture with headroom |
+| 7 | `2e1cc52` | The review's five findings, including the Sev-1 at partial scale |
+| 8 | `a6b7120` | The bore tolerance set from 132 measured motor instances |
+| 9 | `97f00f2` | The e2e reaches the way out by the link that exists to offer it |
+| 10 | `b85dd6c` | **R10 (5c)** — every published median names its own population; two false doc claims corrected |
+| 11 | `0c8118d` | The JSX space CI caught, and why the local gate did not |
+| 12 | `244874c` | **SEV-1-shaped** — every landing figure withheld when nothing landed, and WHICH way it failed |
+| 13 | `7be29a1` | The handoff |
+| 14 | `b2ec64a` | **P6 SHIPPED** — one treatment at two densities, and one measured refusal |
+| 15 | `ccc4830` | **R10 (5b)** — deployment velocity read the way each file wrote it |
+
+**Reached production: 15 of 15.**
 
 ## The done-check, answered out loud
 
@@ -73,24 +82,29 @@ remember. **Run the gate with `$?` checked, per step.**
 - Two false sentences removed from published pages, one of which was hiding a feature: the validation
   page told flyers RocketPy "doesn't run in your browser" while `/validate` boots it under Pyodide.
 
-**What is NOT better.** The ballistic descent figure is still **14.9%**, untouched. `deploymentVelocity`
-at 6.0% is fully scoped and NOT started — it is the next R increment. And **nothing this run has
-reached a flyer**, because #132 is open.
+**What is NOT better, stated rather than implied.** The ballistic descent figure is still **14.9%**,
+untouched — the worst number Loft publishes. `deploymentVelocity` went **6.0% → 6.2%**, which is the
+honest direction (it stopped being an OpenRocket-only figure in a cross-tool census) but it is still
+a number that went up. `maxAcceleration` is scoped and NOT started. And the two remaining broken CSV
+exports were filed rather than fixed.
 
 ## Pick up first
 
-1. **Merge #132 if it is still open.** Everything below assumes it is in.
-2. **R10 (5b) — `deploymentVelocity`, fully scoped and measured, three separate problems under one
-   6.0%.** (a) OpenRocket stores the velocity at the **LAST** deployment event (77/77 exact) where
-   `lib/sim/simulate.ts:850` takes `Math.max` across every device — `Chute release.ork::Simulation 3`
-   reads stored 14.34 against Loft's max 19.46 and Loft's last 14.00. (b) RockSim stores it too, as
-   the misspelled `VelocityAtDeplyment` plus a per-device `DeployedAt_Velocity`, and `lib/rkt/adapt.ts`
-   reads neither — so the published 6.0% is an **OpenRocket-only** figure in a cross-tool census.
-   (c) The deployed/ballistic split is not applied to it, though its stored values span 0.601 to
-   225.35 m/s. **Loft's own reported figure must NOT change** — it is deliberately the worst-case
-   opening shock and feeds the `early-deployment` warning. It is the COMPARISON that needs the
-   `optimumDelayBasis` treatment.
-3. **P6's last 19 sites, and half the answer is already built.** `ResultsView`'s `Field` (14) and its
+**Both tracks have an open milestone with one item left, so neither is dry.**
+
+1. **R10's last scoped item — `maxAcceleration`.** All of the 3.2% lives in the 17 `.rkt` rows
+   (median **8.8%**, every one HIGH), and `FullScaleModelTH.rkt` stores a byte-identical
+   `<MaxAcceleration>` of **125.291** across all fifteen runs — different winds, two rail lengths —
+   against Loft's 136.35. **A stored value that never varies is a sampled or rounded peak, not a
+   per-run measurement**, so part of that 8.8% is the oracle's own resolution and should be said
+   rather than carried. Loft's own window is already right for `.ork`: stored `maxacceleration`
+   equals the max before the first deployment on 77/77, which is exactly Loft's `!anyDeployed`
+   freeze. That is measured; what is not is what the `.rkt` figure actually means.
+2. **The P-track is dry and needs extending** — P6 shipped, and `ROADMAP.md`'s after-list names
+   "P6 — instrument what flyers actually hit" next, which is now misnumbered. Renaming it P7 and
+   decomposing it is one increment's work and IS the work when a track is dry. Note the after-list's
+   P7 ("the suite as one product") is blocked on the sibling repo being attachable.
+3. **Superseded — this is done.** The 19 `Readout` sites, and the density answer behind them. `ResultsView`'s `Field` (14) and its
    what-if delta rows (5) are a different DENSITY of the same treatment, not a different treatment —
    a `<dl>` strip at `text-sm` against a tile at `text-xl`. `frame="bare"` gave `Readout` the
    container axis this run; the remaining axis is the value SIZE. **Note the file: they are in
@@ -113,9 +127,10 @@ reached a flyer**, because #132 is open.
 |---|---|
 | R1–R8 | SHIPPED 2026-07-30 → 2026-08-03 |
 | R9 — the descent Loft cannot defend | SHIPPED 2026-08-04 |
-| **R10 — the corpus comparison Loft can defend** | **IN PROGRESS** — Size (1)–(4) shipped 2026-08-04; (5) opened 2026-08-05 with `optimumDelay` and the published populations done, `deploymentVelocity` and `maxAcceleration` remaining |
+| **R10 — the corpus comparison Loft can defend** | **IN PROGRESS** — Size (1)–(4) shipped 2026-08-04; (5) is three of four done 2026-08-05 (`optimumDelay`, `deploymentVelocity`, the published populations). Only `maxAcceleration` remains |
 | P1–P5 | SHIPPED 2026-08-02 → 2026-08-03 |
-| **P6 — the primitives the design system declares** | **IN PROGRESS** — increments 1–9 shipped; one clause open, the `Readout` queue at 19 sites in two shapes |
+| **P6 — the primitives the design system declares** | **SHIPPED 2026-08-05** — pinned by the per-primitive adoption ratchets, the `axisTickSize` ratchet at 41, and the source counts. The last clause closed as one conversion (14 sites, by density) and one measured refusal (5 delta rows) |
+| **P-track after P6** | **DRY.** The after-list's next entry is misnumbered P6 and needs renaming to P7 and decomposing — one increment's work, and it IS the work when a track is dry |
 
 ## Environment, re-measured 2026-08-05
 
