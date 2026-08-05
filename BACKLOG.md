@@ -145,6 +145,23 @@ says CONFIRMED carries the command and the numbers the refuter could not talk it
   redraws the new airframe; nothing marks the numbers stale. A confident apogee, margin and landing
   energy for a rocket that is not the one on screen.
 
+- ~~**The `/validate` and cross-check exports carry numbers whose meaning flips with a control on
+  another page.**~~ **SEV-1 — FIXED 2026-08-05**, CONFIRMED by a refuter first. Measured: `Apogee`
+  exported **50.6** in metric and **166.01049868766404** in imperial, both under a header reading
+  `Stored`, both as `<tool>-validation.csv`. Two of those in a folder are indistinguishable, and the
+  twelve-digit one claims precision the model does not have — a conversion artefact published as a
+  measurement. `\u0394` was a bare number with no `%`. The RocketPy cross-check had the mirror-image
+  problem: its cells were DISPLAY strings — `d.q()` output like `1,234 ft`, with a thousands
+  separator that forces RFC-4180 quoting and a U+2212 minus in the delta — so a spreadsheet read the
+  whole column as text and sorted "\u221215" above "+3".
+
+  Fixed by putting the unit where a CSV can carry it. It is per ROW on both tables (each metric has
+  its own), so it rides on the metric name — `Apogee (m)` — which is the shape the dispersion export
+  already used in its header. Values are plain numbers at the precision the cell shows; `\u0394` is
+  named `\u0394 (%)` and exported as ASCII. `DataTable` gained `csvLabel` for the general case: a screen
+  header and an export header legitimately differ whenever the screen puts the unit in the cell.
+  Pinned by an e2e that exports in BOTH unit systems and asserts the files say which they are.
+
 - ~~**A body diameter smaller than the motor inside it flies to a confident 11.6 km.**~~ **SEV-1 —
   FIXED 2026-08-05.** Re-confirmed first on a second design before it was taken: `Dual parachute
   deployment.ork` reads 579.0 m as designed and then 695.4 / 768.0 / 912.5 / 975.7 / **978.5 m** at

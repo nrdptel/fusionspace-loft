@@ -42,6 +42,17 @@ export interface Column<R> {
   /** What this column contributes to a copy or a CSV export. Omit and the column is left out of
    *  both, which is correct for a column that is purely presentational. */
   csv?: (row: R) => CsvCell;
+  /** The header this column carries in an export, when that legitimately differs from the one on
+   *  screen.
+   *
+   *  **It differs whenever the screen puts the unit in the CELL.** A rendered cell can show
+   *  "994 m" and stay a number to the eye; a CSV cell cannot be both a number a spreadsheet will
+   *  sum and a string carrying its unit, so the unit has to move into the header — which is what
+   *  every hand-built export in this app already does (`Apogee (ft)`). Measured 2026-08-05: the
+   *  cross-check and validation exports shipped bare floats under headers reading `Stored` and
+   *  `Loft`, whose VALUE flips with the unit toggle, under one filename, with no unit anywhere in
+   *  the file. Defaults to `label`, so a column that needs nothing says nothing. */
+  csvLabel?: string;
 }
 
 /** The one table.
@@ -143,7 +154,7 @@ export default function DataTable<R>({
   // `csv` are left out of both the header and the body, so the two cannot fall out of step.
   const csvCols = columns.filter((c) => c.csv);
   const csvRows: CsvCell[][] = useMemo(
-    () => [csvCols.map((c) => c.label), ...sorted.map((r) => csvCols.map((c) => c.csv!(r)))],
+    () => [csvCols.map((c) => c.csvLabel ?? c.label), ...sorted.map((r) => csvCols.map((c) => c.csv!(r)))],
     [sorted, csvCols],
   );
 

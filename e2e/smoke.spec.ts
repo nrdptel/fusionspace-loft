@@ -1680,6 +1680,55 @@ test.describe("Loft", () => {
     expect(csv).toContain("H128W");
   });
 
+  test("the validation export says what its numbers are, in both unit systems", async ({ page }) => {
+    // **A CSV whose numbers change meaning with a control on another page, under one filename, with
+    // no unit in the file.** Measured 2026-08-05: `Apogee` exported 50.6 in metric and
+    // 166.01049868766404 in imperial, both under a header reading `Stored`, both as
+    // `<tool>-validation.csv`. A flyer with two of those in a folder cannot tell them apart, and the
+    // twelve-digit one claims precision the model does not have. `\u0394` was a bare number with no `%`.
+    await page.goto("/");
+    await page
+      .getByLabel(/^Choose an OpenRocket/)
+      .setInputFiles(resolve(process.cwd(), "e2e/fixtures/logged-sample.ork"));
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    // The stored-tool comparison lives on the Cross-check workspace, beside the second solver.
+    await page.getByRole("link", { name: "Cross-check" }).click();
+    await page.waitForURL(/\/validate\/?$/);
+
+    const grab = async () => {
+      const [download] = await Promise.all([
+        page.waitForEvent("download"),
+        page.getByRole("button", { name: /Download CSV/ }).first().click(),
+      ]);
+      return readFileSync(await download.path(), "utf8");
+    };
+
+    const metric = await grab();
+    const header = metric.split(/\r?\n/)[0];
+    // Δ is named as a percentage rather than left as a bare column of numbers.
+    expect(header).toContain("\u0394 (%)");
+    // Every metric row carries its own unit — it is per row here, so it cannot live in a header.
+    const apogee = metric.split(/\r?\n/).find((l) => l.startsWith("Apogee"))!;
+    expect(apogee).toMatch(/^Apogee \(m\),/);
+    // And the numbers are numbers, at the precision the page shows — not raw conversion floats.
+    for (const cell of apogee.split(",").slice(1)) {
+      expect(cell).toMatch(/^-?\d+(\.\d)?$/);
+    }
+
+    // Switch the whole app to imperial and export again: the same file must now SAY it is imperial.
+    await page.getByRole("link", { name: "Flight" }).click();
+    await page.getByRole("group", { name: /unit/i }).first().getByRole("button", { name: "Imperial", exact: true }).click();
+    await page.getByRole("link", { name: "Cross-check" }).click();
+    await page.waitForURL(/\/validate\/?$/);
+    const imperial = await grab();
+    const apogeeFt = imperial.split(/\r?\n/).find((l) => l.startsWith("Apogee"))!;
+    expect(apogeeFt).toMatch(/^Apogee \(ft\),/);
+    expect(apogeeFt).not.toBe(apogee);
+    for (const cell of apogeeFt.split(",").slice(1)) {
+      expect(cell).toMatch(/^-?\d+(\.\d)?$/);
+    }
+  });
+
   test("the motor comparison sorts by any column, and the export follows it", async ({ page }) => {
     // "Which motor gets me to my target?" is only the first question this table answers. Which one
     // clears the rail fastest, which leaves the most flutter margin, which needs the shortest delay
