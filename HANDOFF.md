@@ -4,177 +4,140 @@ Overwritten each session. What shipped, what is part-way, and what to pick up fi
 
 ## Read this first
 
-**Twelve increments this run, in four merged pull requests — #127 (`38a7d40`), #128 (`f43f0c7`),
-#129 (`947ba2d`) and #130 (`a949c79`). All twelve are on `main`**, and the working branch is back at
-`main` with a clean tree.
-(The branch name is the harness's, not this project's, so it is deliberately not written here — the
-zero-trace invariant forbids repeating it in a committed file. `git branch -r` names it.) One Sev-1
-found and fixed. **R10 is four of its five Size items in; P6 is six increments in with one clause
-left.** `COMPETITION.md` row 37 added, rows 34 and 35 resolved. Neither track is dry.
+**Eleven increments this run, all on one pull request — #132 — which is OPEN and not yet merged at
+the time of writing.** Nothing from this run has reached production; check #132's state before
+assuming otherwise. #131 (a handoff correction inherited from the previous run) was merged at session
+start and is on `main`.
 
-**THE TRANSFERABLE LESSON, and this run hit it three times on one metric: a stored number is not a
-measurement until you know what flight it describes.** Ground-hit velocity moved
-3.0% → 8.3% → 2.0% → 1.3%, and **not one of those moves was the engine.** Every one was Loft
-comparing its number against a stored number that was a different physical quantity:
+**Two Sev-1s, both found by the opening fan-out and both CONFIRMED by an adversarial refuter before
+they were taken.** R10 Size item (5) is opened and two of its three real defects are shipped. P6's
+blocking API decision is made and the milestone has 19 sites left.
 
-- **3.0% was two errors cancelling** — Loft measured the total ground speed under a name meaning the
-  vertical rate, and its own descent ran low. Reporting honestly made it *worse*, and that was right.
-- **8.3% was two formats disagreeing about the frame.** RockSim stores the total; OpenRocket stores
-  the air-relative speed up to 23.09 and the ground-frame total from 24.12 — **the same tool changed
-  its own convention and the file does not say.** Read from OpenRocket's source, not inferred.
-- **2.0% was two different flights in one median.** One RockSim design stores 15 runs: four under
-  canopy at ~9 m/s and eleven plugged at 83–162 m/s. Both formats record which is which, and Loft
-  read neither.
+**THE TRANSFERABLE LESSON, and it cost this run two whole gate cycles: a fix is not finished until
+every surface that could reach the state has been walked.** The mount-bore veto was written, gated
+green, and committed — and a four-lens pre-push review then found it incomplete in five ways,
+including **the Sev-1 itself at partial scale**: the veto was per-motor while the withholding was
+per-vehicle, so a design with two mounts of different headroom could refuse one, keep flying on the
+other, and publish a confident apogee for a rocket that cannot be built. A green gate could not see
+any of it. **The review is worth more than the gate on a change that adds a REFUSAL**, because a
+refusal's failure mode is the surfaces that do not know about it.
 
-**The corollary, which cost real time twice: what a format "does not store" is a claim about the
-file, and it belongs in a probe, not in a comment.** *"Only `.rkt` files state deployment"* went into
-a type comment, a census comment and a docs paragraph before anything checked. It was wrong — 77 of
-the corpus's 91 `.ork` flights record a `recoverydevicedeployment` event. The importer had simply
-never opened `<databranch>`.
+**And the second lesson is that this repo had already written down the thing that bit it.**
+`CONTRIBUTING.md` has carried "never pipe a gate step into `tail`, `head` or `grep` — the pipeline's
+exit code is the pipe's" since 2026-08-03, naming `check-text-gaps.mjs` and lost JSX spaces
+specifically. This run built its gate as `npm run build 2>&1 | tail -2` anyway, shipped
+`<em>free-coast</em> delay` as "free-coastdelay", and found out from CI after nine commits were
+already on a pull request. The note now says to run the build to a file and grep it rather than to
+remember. **Run the gate with `$?` checked, per step.**
 
-**A primitive with zero call sites is a proposal, not a spec, and it drifts.** `Section` had sat
-unadopted for five runs and its own implementation was why: it imposed `mt-8` on itself and `mt-4` on
-its children, rhythm the routes already own, so adopting it would have doubled every gap. **A
-primitive that cannot be adopted without a repaint does not get adopted; it gets copied.** It had also
-already drifted — it spelled its heading with explicit zinc colours where all ten rendered headings
-in the app used `tracking-tight`. The app's spelling won.
-
-**Extraction is about behaviour as much as treatment.** `Panel` matters less for the header row it
-de-duplicates than for the four-part `useReturnFocus` contract three call sites each wired by hand. A
-panel that closes and drops focus onto the document body is invisible to every check in this repo —
-and the cold walk over the built export is what confirmed it now works. Ask what the call sites were
-*doing*, not only what they were spelling.
-
-**Ratchet counts moving DOWN is adoption working.** `Card` 12→10, `Button` 14→12, `ClosePanel` 3→0,
-`Extrapolated` 6→4 — all absorbed by primitives, with no rendered pixel changing. §9 records the rule
-under *count what a file RENDERS, not what it spells*; each number now carries its reason.
-
-**And walk the built export, not the diff.** Two defects this run were invisible to a green gate and
-obvious to a walk: the `Figure` wrapper's extra div (which two e2e traversals then caught), and ten
-`<figure>` elements rendering for four plots because `LineChart` was already one.
-
-## This run — twelve increments, one Sev-1
+## This run — eleven increments
 
 | # | SHA | what | verified by |
 |---|---|---|---|
-| 1 | `f95c786` | **P6 inc 3** — `EmptyState`/`ErrorState`; `DataTable` adopts one, so it is the empty state of all seven tables | driving the built export; a check that no named data surface returns `null` |
-| 2 | `3131662` | **SEV-1** — the thrust plot and its caption described the FIRST resolved motor, not the vehicle | e2e on a two-motor fixture asserting 246.5 N·s and class H, proved able to fail |
-| 3 | `cd2a06b` | **R10 (1)** — each `.ork` compared against the quantity its own version stored | census **8.3% → 2.0%**, openrocket 7.8% → 1.2%, no engine change |
-| 4 | `111dc6a` | The run's fan-out harvest filed into `BACKLOG.md` — 9 findings with their measurements | — |
-| 5 | `10853b4` | The roadmap's baton, which three earlier commits had left behind | — |
-| 6 | `6823c8c` | **P6 inc 4** — `Panel`, the first primitive here that owns behaviour | adoption ratchet + a source count of zero hand-wired `useReturnFocus`, proved able to fail |
-| — | `38a7d40` | **merged as #127** | both CI jobs green |
-| 7 | `51d4469` | **R10 (2)(3)(4)** — the census stops pooling a lawn dart with a parachute, on both formats | 7 adapter cases; a population-split case; a detector naming the self-disagreeing file; all proved able to fail |
-| — | `f43f0c7` | **merged as #128** — production now serves 1.3% and 14.9% on `/docs/validation` | both CI jobs green |
-| 8 | `a1738fe` | **P6 inc 5** — `Figure`; every chart in the app is framed by it | ratchet + a file-level chart-frame check, both proved able to fail |
-| 9 | `66d5a41` | **P6 inc 6** — `Section` gains its call sites, `Panel` 3 → 7 adopters, `Chip` deleted | ratchets; §5 rewritten with the reasoning |
-| 10 | `0da45c6` | A chart is a `<figure>` exactly once — ten were rendering for four plots | a cold walk over the built export that counts them |
-| 11 | `3504db1` | **P6 inc 7** — `Readout` stops rendering its own label and sub at a size §3 scopes to axis ticks, and a new ratchet holds that token at 46 | the phone depth ratchet, which a label going 11 px to 12 px was the one check at risk from |
-| — | `947ba2d` | **merged as #129** — increments 8-11 reached production | both CI jobs green |
-| 12 | `b460c70` | The catalogue's Search box takes the class string its neighbours share | **290x24 px before, 290x44 px after**, measured both ways on the built export; pinned by a phone e2e on the rendered box |
-| — | `a949c79` | **merged as #130** | both CI jobs green |
+| 1 | `42c6599` | **P6 inc 8** — `Readout` gains `figure` (a second decision-grade number) beside `sub`; `MonteCarlo`'s three card variants deleted onto it | driving the built export; two e2e assertions, both proved able to fail |
+| 2 | `ea2bce0` | **P6 inc 9** — the panel's FIFTH labelled value, which inc 8 left behind and made worse; `frame="bare"` and `caution` | the built export; `text-[11px]` 46 → 42 |
+| 3 | `9d2237b` | **R10 (5a)** — optimum delay scored against the flight its own file describes | worst row **+1107% → −21%**, corpus-worst **1107% → 59%**; a `worst`-row corpus check, red at 1107.2% when reverted |
+| 4 | `383f09a` | **SEV-1** — a motor that cannot physically be in its mount is refused, not flown | +69% apogee gone; corpus 28 tests; e2e drives the field and the way back |
+| 5 | `2c97263` | **SEV-1** — exports whose numbers flip meaning with a control on another page | an e2e exporting in BOTH unit systems, red on the bare label |
+| 6 | `cbe7bd9` | A pre-existing case that was asserting the defect, moved to a fixture with headroom | the decision recorded in `ROADMAP.md` |
+| 7 | `2e1cc52` | The review's five findings — including the Sev-1 at partial scale | a two-mount case, red when `some(match)` is restored |
+| 8 | `a6b7120` | The bore tolerance set from **132 measured motor instances** rather than a round number | a check that asserts the margin AND prints it |
+| 9 | `97f00f2` | The e2e reaches the way out by the link that exists to offer it | — |
+| 10 | `b85dd6c` | **R10 (5c)** — every published median names its own population; two false doc claims corrected | the census reads the page's source; red when 97 is put back on a 76-row metric |
+| 11 | `0c8118d` | The JSX space CI caught, and why the local gate did not | build exit 0, gaps detector 0 |
 
-**Reached production: 12 of 12.** Nothing is left on a branch.
-
-## The one lesson this run would send back
-
-**Write the negative control before you believe the check.** Every new assertion was proved able to
-fail by reinstating the defect: the thrust e2e, the focus-return count, the population split, the
-`Figure` ratchet, the chart-frame check. One of them exists *because* of that habit — the census
-skipped any metric it found no rows for, so **a published claim could stop being measured entirely
-and the gate would stay green**. The two new `/ballistic` keys are exactly the kind that can quietly
-stop existing, so a guard now fails on a published claim nothing measures.
-
-The same reasoning caught a second class of dead check: `uiAdopters` sat at 17 against a real 18, and
-because it is a `toBeGreaterThanOrEqual` a **stale floor cannot fail** — it just stops ratcheting.
-Every one-directional number in `lib/design-system.test.ts` deserves its generating command written
-beside it. One now has it; the rest do not.
+**Reached production: 0 of 11.** All eleven are on #132.
 
 ## The done-check, answered out loud
 
-**What can a flyer DO that they could not do before this run?**
+**What can a flyer DO that they could not before?**
 
-1. **Read a thrust curve for the vehicle they are flying**, not for whichever motor resolved first —
-   on a staged or airstarted design the plot showed as little as 56% of the impulse under a heading
-   that named nothing, and the caption's certification class read a letter low. A class letter is
-   what a flyer takes to an RSO.
-2. **Take the published accuracy figures at face value**, because each now says which convention it
-   is in and which population it is over: 1.3% over 82 non-ballistic runs, 14.9% over the 12
-   ballistic ones, both on the page, with the file whose own tool disagrees with itself named.
-3. **See an empty table say what would fill it** rather than a panel that is simply not there.
+1. **Trust that a number on screen came from a rocket that could exist.** An airframe typed narrower
+   than its own motor used to fly to a confident **+69%** apogee — and *higher*, because a thinner
+   tube is less drag, so it was wrong in the flattering direction — with a *shorter* warning list the
+   more impossible it got. It is refused now, and the refusal names the airframe and links to the
+   field.
+2. **Open an exported CSV and know what its numbers are.** `Apogee` exported 50.6 in metric and
+   166.01049868766404 in imperial, under one header and one filename. Each row now carries its unit
+   and its own precision.
+3. **Read the accuracy census as a claim they can check**, because each of the ten figures names the
+   population it is measured over — 76 to 97, not one "97" — and the two OpenRocket-only ones say so.
 
 **What is measurably better?**
 
-- Unit suite **1,076 → 1,089**; e2e **229 → 230**; corpus cases **24 → 27**, still 0 findings across
-  35 real design files.
-- Ground-hit velocity **8.3% → 1.3%** and flight time **3.3% → 3.1%**, with **no engine change** and
-  no tolerance widened; the one-directional bias nobody could explain went with it (−8.2% median
-  signed error over 86-of-92 "slower than stored" → −1.0% over 66 of 92).
-- **Every primitive `DESIGN.md` §5 declares now exists and is adopted**, and the two that had sat at
-  zero for five runs are answered: `Extrapolated` 5, `Select` 4, `EmptyState` 1 (reaching all 7
-  tables), `ErrorState` 1, `Panel` 7, `Figure` 4, `Section` 1 — and `Chip` deleted with its reasoning
-  written into §5 so it is not re-added from memory. Each carries a ratchet.
-- §9 counts: rounded-lg **0**, card treatments **3** (the recorded floor), off-scale spacing **0**,
-  off-scale type **0**, inverted files **0**, ui adopters **18 of 27**, hand-rolled `<select>` **0**.
+- Unit **1,089 → 1,106**; e2e **231 → 233**; corpus cases **27 → 28**, still 0 findings across 35
+  real design files, census medians unmoved.
+- Worst optimum-delay row in the corpus **1107% → 59%**, with no engine change.
+- `text-[11px]` **46 → 42**; `Readout` adopters 1 → 2. §9 otherwise unmoved: rounded-lg 0, card
+  treatments 3, off-scale spacing 0, off-scale type 0, inverted files 0, hand-rolled dropdowns 0.
+- Two false sentences removed from published pages, one of which was hiding a feature: the validation
+  page told flyers RocketPy "doesn't run in your browser" while `/validate` boots it under Pyodide.
 
-**What is NOT better, stated rather than implied.** The ballistic descent figure is **14.9%** — the
-worst number Loft publishes — and this run made it visible, not smaller. **P6 is not shipped**: its
-own first clause, "`Readout` is the only labelled-value treatment", is untrue at 25 sites. The 44 px
-touch contract is still keyed on `pointer-coarse:` alone, and the repo has already measured a phone
-reporting `pointer: fine` rendering those controls at 26 px.
+**What is NOT better.** The ballistic descent figure is still **14.9%**, untouched. `deploymentVelocity`
+at 6.0% is fully scoped and NOT started — it is the next R increment. And **nothing this run has
+reached a flyer**, because #132 is open.
 
 ## Pick up first
 
-1. **P6's last clause — the `Readout` queue, 25 sites in three shapes.** `LoftApp`'s `Field` (14, a
-   pre-formatted-string value), `MonteCarlo`'s `StatCard`/`WithheldCard`/`RadiusCard` (6, differing
-   only in what fills `sub`), and the what-if delta rows (5, a before → after → change shape the API
-   does not yet express — that third one needs an API decision rather than a conversion). Do not mark
-   P6 SHIPPED until that count is 0 or the remainder is refused with a measured reason.
-2. **R10 Size item (5)** — re-measure and publish across the remaining eight metrics. Ground-hit
-   velocity and flight time are done. `deploymentVelocity` at 6.0% is the obvious next: the page
-   already argues it is ill-conditioned rather than wrong, which is a claim of exactly the kind this
-   milestone has now three times found to be half the story.
-3. **The `TOUCH_TARGET` fallback**, filed in `BACKLOG.md` and CONFIRMED by a refuter.
-   `lib/ui-tokens.ts:28` is `pointer-coarse:min-h-11` with no `any-pointer: coarse`, no `hover: none`
-   and no `maxTouchPoints` fallback, across 35 call sites in 10 components plus the diagram's JS hit
-   radius — and all five phone specs force `hasTouch: true`, so the fine-pointer phone is untested.
-   **Changing the media query is a `DESIGN.md` §8 change and must be made there first, with the
-   reason**, because `any-pointer: coarse` would also apply the floor to a touchscreen laptop, which
-   §8 currently declines.
-4. **The remaining `text-[11px]`, now ratcheted at 46 with a per-file breakdown.** `Readout`'s own
-   pair is fixed; `LoftApp`'s 11 (five `<legend>`, six field labels) and `DataTable`'s table header
-   are the offenders left. `RocketDiagram` 8, `LineChart` 6 and `FlightViz` 5 are the token's real
-   job and should stay. **This size was invisible to every check** until `axisTickSize` existed,
-   because it is ON the six-size scale — worth remembering when adding a compliance count: the
-   dangerous violations are the ones the existing checks pass by design.
-5. **Three controls that forget between visits**, all measured and filed: the unit choice is scoped
-   to the design rather than the flyer and `reset()` clears it; the launch-site field is a bare
-   `useState("")` with no `autoComplete`, `name`, `datalist`, recents or persistence; and today's
-   weather and the design/today scenario are in no saved session at all. "Controls that forget" is a
-   named tell in `MAINTAINING.md`.
+1. **Merge #132 if it is still open.** Everything below assumes it is in.
+2. **R10 (5b) — `deploymentVelocity`, fully scoped and measured, three separate problems under one
+   6.0%.** (a) OpenRocket stores the velocity at the **LAST** deployment event (77/77 exact) where
+   `lib/sim/simulate.ts:850` takes `Math.max` across every device — `Chute release.ork::Simulation 3`
+   reads stored 14.34 against Loft's max 19.46 and Loft's last 14.00. (b) RockSim stores it too, as
+   the misspelled `VelocityAtDeplyment` plus a per-device `DeployedAt_Velocity`, and `lib/rkt/adapt.ts`
+   reads neither — so the published 6.0% is an **OpenRocket-only** figure in a cross-tool census.
+   (c) The deployed/ballistic split is not applied to it, though its stored values span 0.601 to
+   225.35 m/s. **Loft's own reported figure must NOT change** — it is deliberately the worst-case
+   opening shock and feeds the `early-deployment` warning. It is the COMPARISON that needs the
+   `optimumDelayBasis` treatment.
+3. **P6's last 19 sites, and half the answer is already built.** `ResultsView`'s `Field` (14) and its
+   what-if delta rows (5) are a different DENSITY of the same treatment, not a different treatment —
+   a `<dl>` strip at `text-sm` against a tile at `text-xl`. `frame="bare"` gave `Readout` the
+   container axis this run; the remaining axis is the value SIZE. **Note the file: they are in
+   `ResultsView.tsx`, not `LoftApp.tsx` as three previous handoffs said.** 19 of the 21
+   `following-sibling::dd` locators in the e2e suite walk off `Field` labels, and the sites are
+   `<dt>`/`<dd>` children of a `<dl>` — so the primitive has to render those elements or the
+   conversion is a repaint.
+4. **`Flight time` is rendered unconditionally while its three neighbours withhold on `!landed`.**
+   `components/ResultsView.tsx:620` against `:587`, `:597`, `:616`. Measured this run on
+   `demo-single-deploy.ork` with a 25 m main: `landed=false` and **flightTime 1.3 s** is published —
+   and 1.3 s is not the 1,200 s time cap either, it is the step budget running out, so the
+   neighbours' shared wording ("no landing inside the time cap") is wrong for that case too. Two
+   non-landing outcomes, one string.
+5. **Two CSV exports still carry the defect the other two lost** — flight phases and the parts table.
+   Both measured and filed in `BACKLOG.md`; `DataTable`'s new `csvLabel` is the mechanism.
 
 ## The arc so far
 
 | milestone | state |
 |---|---|
-| R1 — address components by identity | SHIPPED 2026-07-30 |
-| R2 — delete a component, and undo it | SHIPPED 2026-07-30 |
-| R3 — add a component | SHIPPED 2026-07-30 |
-| R4 — reorder and restack | SHIPPED 2026-07-31 |
-| R5 — author a staged rocket | SHIPPED 2026-08-01 |
-| R6 — a built design leaves Loft intact | SHIPPED 2026-08-02 |
-| R7 — per-set fin drag | SHIPPED 2026-08-02, one *done when* clause undelivered with the reason measured |
-| R8 — component and material catalogues | SHIPPED 2026-08-03 |
+| R1–R8 | SHIPPED 2026-07-30 → 2026-08-03 |
 | R9 — the descent Loft cannot defend | SHIPPED 2026-08-04 |
-| **R10 — the corpus comparison Loft can defend** | **IN PROGRESS** — Size items (1)–(4) shipped 2026-08-04. Only (5) remains: re-measure and publish across the other eight metrics |
-| P1 — one design system, adopted | SHIPPED 2026-08-02 |
-| P2 — workspaces as routes | SHIPPED 2026-08-02 |
-| P3 — a stranger's first five minutes | SHIPPED 2026-08-02 |
-| P4 — a touch-native builder | SHIPPED 2026-08-03 |
-| P5 — ready for the public | SHIPPED 2026-08-03 |
-| **P6 — the primitives the design system declares** | **IN PROGRESS** — increments 1–6 shipped 2026-08-04. Every §5 primitive exists and is adopted; ONE clause open, the `Readout` queue at 25 sites |
+| **R10 — the corpus comparison Loft can defend** | **IN PROGRESS** — Size (1)–(4) shipped 2026-08-04; (5) opened 2026-08-05 with `optimumDelay` and the published populations done, `deploymentVelocity` and `maxAcceleration` remaining |
+| P1–P5 | SHIPPED 2026-08-02 → 2026-08-03 |
+| **P6 — the primitives the design system declares** | **IN PROGRESS** — increments 1–9 shipped; one clause open, the `Readout` queue at 19 sites in two shapes |
 
-## The run before this one — ten increments, four Sev-1s, R9 closed (2026-08-04)
+## Environment, re-measured 2026-08-05
+
+- `node_modules` absent at session start (~90 s). The managed Playwright browser **chromium-1228 was
+  absent again** — `/opt/pw-browsers` had 1194 — and `npx playwright install chromium` fixed it in
+  about a minute. **Both are paid for every session until they are in the environment's setup script,
+  which is the owner's fix.** This is the third consecutive run to report it.
+- The fixtures repo WAS attached. The suite names `imports every design file (35 present)`.
+- **Do not run subagents while the e2e suite is running.** Measured this run on a 4-core box: two
+  shards each reported one failure that passed in isolation, and a re-run under load reported **23
+  passed** with a "did not run" list — the same signature `MAINTAINING.md` records for concurrent
+  shards and for a stale `serve`, arriving by a third route. The suite is stable at 117 + 116 with
+  nothing else on the machine.
+- `tsc --noEmit` is red on `main` with **9** errors, all in `lib/model/edit.test.ts`, invisible to
+  `npm run build` because the build does not type-check test files. Unchanged from the last two runs.
+
+**One invariant could not be honoured, and it is the owner's to close.** `DESIGN.md` is shared
+verbatim with the sibling repo and a change to one is meant to be a change to both in the same run.
+This session's GitHub scope was `nrdptel/fusionspace-loft` and `nrdptel/loft-fixtures` only, so the
+§5 change — `Readout`'s two slots under the value — landed here alone. Third run in a row.
+
+## Two runs ago — ten increments, four Sev-1s, R9 closed (2026-08-04)
 
 | # | SHA | what | verified by |
 |---|---|---|---|

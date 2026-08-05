@@ -231,6 +231,17 @@ export interface FlightSummary {
    *  a recovery setup is judged on. Surfaces must withhold them rather than render the zeros: a
    *  flyer enlarging a canopy watched the landing energy fall to 0 J and read it as success. */
   landed: boolean;
+  /** WHY the flight did not reach the ground, when it did not — and the two answers are different
+   *  facts a flyer should be told apart.
+   *
+   *  `time-cap` is a rocket still descending after 1,200 s of simulated flight, which is a real
+   *  prediction about a very slow descent. `step-budget` is the integrator running out of steps,
+   *  which is Loft failing rather than the rocket floating: measured on `demo-single-deploy.ork`
+   *  with a 25 m main, the run stops at **1.3 s** because an enormous canopy drives the adaptive
+   *  step to nothing. Four readouts shared one string — "no landing inside the time cap" — and it is
+   *  simply untrue of the second case, on a surface whose whole job is saying why a figure is
+   *  missing. */
+  notLandedReason?: "time-cap" | "step-budget";
 }
 
 export interface FlightResult {
@@ -925,6 +936,9 @@ export function simulate(input: SimulateInput): FlightResult {
   // arrive at that speed over the ground, and an oblique 20 mph arrival zippers airframes that a
   // vertical 5 m/s one does not. It is a different question, so it is a different number rather
   // than the same one silently redefined.
+  // Which of the two non-landing outcomes this was. `state.t` is the only thing that can tell them
+  // apart after the loop: the cap is a time bound and the step budget is not.
+  const notLandedReason = landed ? undefined : state.t >= MAX_TIME ? ("time-cap" as const) : ("step-budget" as const);
   const groundHitVelocity = landed ? Math.abs(state.vel.z) : 0;
   const groundHitTotalVelocity = landed ? mag(state.vel) : 0;
   const driftDistance = Math.hypot(state.pos.x, state.pos.y);
@@ -1112,6 +1126,7 @@ export function simulate(input: SimulateInput): FlightResult {
       groundHitVelocity,
       groundHitTotalVelocity,
       landed,
+      ...(notLandedReason ? { notLandedReason } : {}),
       optimumDelay,
       optimumDelayAsFlown: optimumDelay,
       deploymentVelocity: deploymentV,

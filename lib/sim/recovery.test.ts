@@ -133,3 +133,34 @@ describe("a design with no recovery device at all", () => {
     expect(codes).not.toContain("ballistic-descent");
   });
 });
+
+describe("a flight that never reaches the ground says WHICH way it failed to", () => {
+  const load = async (name: string) =>
+    (await import("../ork/import")).importOrk(
+      new Uint8Array(readFileSync(resolve(process.cwd(), "fixtures", name))),
+    );
+
+  it("distinguishes the time cap from the solver running out of steps", async () => {
+    // **Two different facts that shared one sentence.** A rocket still descending at 1,200 s is a
+    // real prediction about a very slow descent; an integrator out of steps is Loft failing rather
+    // than the rocket floating. Four readouts told a flyer "no landing inside the time cap" for
+    // both, which points at a canopy size when the honest answer is that the number is unusable.
+    const doc = await load("demo-single-deploy.ork");
+    const cfg = doc.simulations[0].conditions.configId;
+    const { runFlight } = await import("./run");
+
+    const normal = runFlight(doc.rocket, { configId: cfg });
+    expect(normal.result.summary.landed, "the fixture must land as designed").toBe(true);
+    expect(normal.result.summary.notLandedReason, "a landed flight carries no reason").toBeUndefined();
+
+    // A canopy far beyond anything buildable: the adaptive step collapses and the run stops early.
+    // Measured 2026-08-05 at 1.3 s of simulated flight, which is the number the panel published as
+    // "Flight time" while its three neighbours correctly withheld.
+    const huge = runFlight(doc.rocket, { configId: cfg, geometry: { mainParachuteDiameter: 25 } });
+    expect(huge.result.summary.landed).toBe(false);
+    expect(huge.result.summary.notLandedReason).toBe("step-budget");
+    // And the flight time it carries is NOT the cap — which is exactly why the shared wording was
+    // wrong. If this ever becomes 1200, the two cases have merged and the distinction is moot.
+    expect(huge.result.summary.flightTime).toBeLessThan(60);
+  });
+});

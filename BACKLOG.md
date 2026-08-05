@@ -145,6 +145,19 @@ says CONFIRMED carries the command and the numbers the refuter could not talk it
   redraws the new airframe; nothing marks the numbers stale. A confident apogee, margin and landing
   energy for a rocket that is not the one on screen.
 
+- ~~**`Flight time` is published for a flight that never reached the ground, beside three
+  neighbours that withhold.**~~ **FIXED 2026-08-05.** `components/ResultsView.tsx` rendered it
+  unconditionally while `Drift from pad`, `Ground-hit speed` and `Landing energy` all withheld on
+  `!landed` — three em dashes and a confident number on one panel for the same non-flight. Measured
+  on the 38 mm sample with an absurd main: **1.3 s**.
+
+  **And the reason the other three gave was wrong for that case.** They shared "no landing inside the
+  time cap", which describes a rocket still descending at the 1,200 s cap and not an integrator that
+  ran out of steps — which is what an enormous canopy causes, because the adaptive step collapses.
+  Two outcomes, one string, pointing a flyer at a canopy size when the honest answer is that the
+  figure is unusable. `FlightSummary.notLandedReason` now distinguishes them and one expression feeds
+  all four readouts, so they cannot drift apart again.
+
 - **Loft's published accuracy is agreement with another simulator's PREDICTION, never with a flown
   rocket — and the corpus already carries four flown results nothing compares against.** Filed
   2026-08-05 from the competitive probe. `corpus/manifest.csv` has `ground_truth_source` and

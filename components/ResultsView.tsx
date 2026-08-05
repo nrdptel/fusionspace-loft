@@ -432,6 +432,20 @@ export default function ResultsView({
   const descentWhy = descentFromDefault
     ? "the canopy's drag coefficient is Loft's fallback, not a figure this design states — the descent figures below follow it, so treat them as rough and try the range on /design"
     : undefined;
+  /** Why every landing figure is withheld, when they are — one string for the four readouts that
+   *  share the condition, so they cannot drift apart again.
+   *
+   *  **The two non-landing outcomes are different facts and used to share one sentence.** A rocket
+   *  still descending at the 1,200 s cap is a real prediction about a very slow descent. An
+   *  integrator that ran out of steps is Loft failing, not the rocket floating — measured on the
+   *  38 mm sample with a 25 m main, the run stops at 1.3 s because an enormous canopy drives the
+   *  adaptive step to nothing — and telling a flyer it "did not land inside the time cap" points
+   *  them at a canopy size when the answer is that the number should not be trusted at all. */
+  const notLandedWhy = s.landed
+    ? undefined
+    : s.notLandedReason === "step-budget"
+      ? "the solver could not integrate this descent — the canopy is large enough that the step size collapses, so no landing figure is available. Try a smaller recovery size."
+      : "still descending at the 1,200 s cap, so it has no landing figures — the recovery is large enough that this flight does not finish";
   /** Asked of the EDITED rocket, not the pristine one. R5 made a stage something a flyer can author, so
    *  `doc.rocket.stages.length` is the count of the stages the FILE came with and a booster added in the
    *  editor never moves it. Every tool below this line is gated on it, and the cross-check is the one
@@ -592,7 +606,7 @@ export default function ResultsView({
           <Readout
             label="Drift from pad"
             q={d.distance(s.driftDistance, units)}
-            withheld={s.landed ? undefined : "no landing inside the time cap"}
+            withheld={notLandedWhy}
           />
           {/* Both are 0 when the flight never reached the ground — a sentinel the solver carries,
               not a measurement, and these are the two numbers a recovery setup is judged on. Shown
@@ -602,7 +616,7 @@ export default function ResultsView({
             label="Ground-hit speed"
             q={d.speed(s.groundHitVelocity, units)}
             sub="descent rate at impact"
-            withheld={s.landed ? undefined : "no landing inside the time cap"}
+            withheld={notLandedWhy}
             extrapolated={descentWhy}
           />
           {/* The speed over the ground is a different question from the descent rate, and under
@@ -621,11 +635,16 @@ export default function ResultsView({
             label="Landing energy"
             q={d.energy(s.landingEnergy, units)}
             sub="whole vehicle, from descent rate"
-            withheld={s.landed ? undefined : "no landing inside the time cap"}
+            withheld={notLandedWhy}
             extrapolated={descentWhy}
           />
           <Readout label="Optimum delay" q={d.seconds(s.optimumDelay)} sub="burnout → apogee" extrapolated={extrapolatedWhy} />
-          <Readout label="Flight time" q={d.seconds(s.flightTime)} />
+          {/* **Withheld on the same test as its three neighbours, and it was not until 2026-08-05.**
+              A flight that never reached the ground has no flight TIME either — it has however long
+              the solver ran, which on a 25 m main is 1.3 s because the adaptive step collapses under
+              an enormous canopy. One panel published three em dashes and a confident 1.3 s for the
+              same non-flight. */}
+          <Readout label="Flight time" q={d.seconds(s.flightTime)} withheld={notLandedWhy} />
           <Readout label="Max dynamic pressure" q={d.dynamicPressure(s.maxDynamicPressure, units)} extrapolated={extrapolatedWhy} />
         </div>
         <RecoverySizingHint run={run} units={units} />

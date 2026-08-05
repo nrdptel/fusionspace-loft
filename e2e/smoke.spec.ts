@@ -1729,6 +1729,51 @@ test.describe("Loft", () => {
     }
   });
 
+  test("a flight that never reaches the ground withholds ALL its landing figures", async ({ page }) => {
+    // **Three em dashes and a confident number, on one panel, for the same non-flight.** `Flight
+    // time` rendered unconditionally while `Drift from pad`, `Ground-hit speed` and `Landing energy`
+    // all withheld on `!landed` — so a flyer met a 1.3 s "flight time" beside three figures that
+    // said they did not exist.
+    //
+    // And the reason they gave was wrong for this case. The three shared "no landing inside the time
+    // cap", which is true of a rocket still descending at 1,200 s and untrue of an integrator that
+    // ran out of steps — which is what an enormous canopy causes, at 1.3 s of simulated flight. Two
+    // outcomes, one string, pointing a flyer at a canopy size when the answer is that the number is
+    // not usable.
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+    await expect(page.getByText("Flight time", { exact: true })).toBeVisible();
+
+    await page.getByRole("link", { name: "Design" }).click();
+    await page.locator("summary", { hasText: /Parts ·/ }).click();
+    const canopy = page.locator("label").filter({ hasText: /Main chute Ø/ }).first().locator("input");
+    await canopy.fill("25000");
+    await canopy.blur();
+    await page.getByRole("link", { name: "Flight" }).click();
+
+    // All four, together — the property is that the panel does not disagree with itself.
+    for (const label of ["Flight time", "Drift from pad", "Ground-hit speed", "Landing energy"]) {
+      const value = page.getByText(label, { exact: true }).first().locator("xpath=following-sibling::div[1]");
+      await expect(value, `${label} still published a number for a flight that never landed`).toHaveText("—", {
+        timeout: 20000,
+      });
+    }
+    // And the reason names the solver rather than the time cap, because that is what happened.
+    const why = page.getByText("Flight time", { exact: true }).first().locator("xpath=following-sibling::div[2]");
+    await expect(why).toContainText(/could not integrate this descent/);
+    await expect(why).not.toContainText(/time cap/);
+
+    // The way back: clearing the field restores the design's canopy and every figure returns.
+    await page.getByRole("link", { name: "Design" }).click();
+    await canopy.fill("");
+    await canopy.blur();
+    await page.getByRole("link", { name: "Flight" }).click();
+    await expect(
+      page.getByText("Flight time", { exact: true }).first().locator("xpath=following-sibling::div[1]"),
+    ).not.toHaveText("—", { timeout: 20000 });
+  });
+
   test("the motor comparison sorts by any column, and the export follows it", async ({ page }) => {
     // "Which motor gets me to my target?" is only the first question this table answers. Which one
     // clears the rail fastest, which leaves the most flutter margin, which needs the shortest delay
