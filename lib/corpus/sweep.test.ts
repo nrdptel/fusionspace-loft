@@ -1504,6 +1504,44 @@ suite("real-design corpus", () => {
     // existing.
     const unmeasured = Object.keys(PUBLISHED_MEDIAN_PCT).filter((k) => !measured.some((m) => m.key === k));
     expect(unmeasured, "published on /docs/validation but measured by nothing here").toEqual([]);
+
+    // **And the POPULATION each figure is measured over is published, and matches.** The page used
+    // to print one "97 stored simulations" above all ten medians while their real populations ran
+    // 76 to 97 — a metric is compared where a file stores it, and the three formats do not store the
+    // same set, so max Mach (77) and deployment velocity (76) are OpenRocket-only. A reader took
+    // 6.0% as a corpus-wide figure when two of the three tools were never asked.
+    //
+    // Asserted against the page's own source, the way `lib/design-system.test.ts` asserts its counts,
+    // because the median gate above cannot see a population change at all: dropping every RockSim row
+    // from a metric could improve its median and this suite would applaud.
+    const page = readFileSync(resolve(process.cwd(), "app/docs/validation/page.tsx"), "utf-8");
+    const PAGE_LABEL: Record<string, string> = {
+      timeToApogee: "time to apogee",
+      launchRodVelocity: "rail-exit velocity",
+      maxMach: "max Mach",
+      maxVelocity: "max velocity",
+      optimumDelay: "optimum delay",
+      maxAltitude: "apogee",
+      maxAcceleration: "max acceleration",
+      flightTime: "flight time",
+      groundHitVelocity: "ground-hit velocity",
+      deploymentVelocity: "deployment velocity",
+    };
+    const wrongN: string[] = [];
+    for (const [key, label] of Object.entries(PAGE_LABEL)) {
+      const m = measured.find((x) => x.key === key);
+      if (!m) continue;
+      // The label, then its bolded percentage, then the population in brackets — allowing the
+      // "(77, OpenRocket only)" form the two single-format metrics carry.
+      const re = new RegExp(`${label}\\s*<strong>[^<]*</strong>[^(]*\\((\\d+)`);
+      const hit = re.exec(page);
+      if (!hit) {
+        wrongN.push(`${key}: /docs/validation states no population beside "${label}"`);
+      } else if (Number(hit[1]) !== m.n) {
+        wrongN.push(`${key}: page says n=${hit[1]}, measured n=${m.n}`);
+      }
+    }
+    expect(wrongN, "a published median names a population it is not measured over").toEqual([]);
   }, 900_000);
 
   /** **R10: no stored optimum delay is scored against a flight that never happened.**

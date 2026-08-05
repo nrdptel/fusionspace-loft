@@ -9,10 +9,15 @@ export const metadata: Metadata = {
     "How Loft's accuracy is measured: against first-principles physics, and against the OpenRocket results stored in a design.",
 };
 
-// The RocketPy cross-check, shown to users. RocketPy is Python and runs offline (not bundled, not
-// in the browser); its numbers are committed in fixtures/rocketpy-cross-check.json. The Loft column
-// here is computed live at build time from the same fixtures — flown ballistically to match the way
-// RocketPy flew them — so the gap on the page is always current with the engine.
+// The RocketPy REFERENCE set shown on this page: numbers committed in
+// fixtures/rocketpy-cross-check.json, with the Loft column computed live at build time from the same
+// fixtures — flown ballistically to match the way RocketPy flew them — so the gap on the page is
+// always current with the engine. This is a static page, so RocketPy itself is not run here.
+//
+// It IS run in the browser, on the flyer's own design, by `lib/validation/rocketpy-engine.ts` under
+// Pyodide on the Cross-check workspace. This comment used to say RocketPy is "not in the browser",
+// which was true when the reference table was the only cross-check and became false when the second
+// solver shipped — and the same sentence had reached the prose below it.
 async function rocketpyRuns() {
   const ref = loadRocketpyReference();
   const runs: {
@@ -173,17 +178,24 @@ export default async function Validation() {
 
       <h3>What the corpus says, metric by metric</h3>
       <p>
-        Across the corpus — 35 design files from OpenRocket, RockSim and RASAero, and the{" "}
-        <strong>97 stored simulations</strong>{" "}in them that Loft flies completely — this is the
-        median absolute disagreement with each file&apos;s own stored result. It includes the cases
-        the suite excuses as known issues, so it is the honest picture rather than the flattering
-        one:
+        Across the corpus — 35 design files from OpenRocket, RockSim and RASAero, carrying{" "}
+        <strong>97 stored simulations</strong>{" "}that Loft flies completely — this is the median
+        absolute disagreement with each file&apos;s own stored result. It includes the cases the
+        suite excuses as known issues, so it is the honest picture rather than the flattering one.
+      </p>
+      <p>
+        <strong>Each figure names the population it is measured over, and they are not the same.</strong>{" "}
+        Only four of the ten reach all 97: a metric is compared where a file stores it, and the
+        formats do not store the same set. Max Mach and deployment velocity are{" "}
+        <em>OpenRocket-only</em>{" "}— neither RockSim nor RASAero writes them — so reading either as a
+        corpus-wide figure would credit Loft with an agreement two of the three tools were never
+        asked about. This page used to print one &ldquo;97&rdquo; above the whole list.
       </p>
       <ul>
-        <li>time to apogee <strong>1.5%</strong>, rail-exit velocity <strong>1.9%</strong></li>
-        <li>max Mach <strong>2.0%</strong>, max velocity <strong>2.2%</strong>, optimum delay <strong>2.5%</strong></li>
-        <li>apogee <strong>3.1%</strong>, max acceleration <strong>3.2%</strong>, flight time <strong>3.1%</strong></li>
-        <li>ground-hit velocity <strong>1.3%</strong>, deployment velocity <strong>6.0%</strong></li>
+        <li>time to apogee <strong>1.5%</strong>{" "}(97), rail-exit velocity <strong>1.9%</strong>{" "}(94)</li>
+        <li>max Mach <strong>2.0%</strong>{" "}(77, OpenRocket only), max velocity <strong>2.2%</strong>{" "}(97), optimum delay <strong>2.5%</strong>{" "}(84)</li>
+        <li>apogee <strong>3.1%</strong>{" "}(97), max acceleration <strong>3.2%</strong>{" "}(94), flight time <strong>3.1%</strong>{" "}(82)</li>
+        <li>ground-hit velocity <strong>1.3%</strong>{" "}(82), deployment velocity <strong>6.0%</strong>{" "}(76, OpenRocket only)</li>
       </ul>
       <p>
         <strong>Two of those are over flights that came down under a canopy.</strong>{" "}
@@ -283,7 +295,8 @@ export default async function Validation() {
         <strong>
           The published median did not move, and that is worth saying rather than hiding.
         </strong>{" "}
-        Four rows out of 84 changed by a factor of eighteen and the median stayed at 2.5% &mdash;
+        Four of optimum delay&apos;s 84 rows changed by a factor of eighteen and the median stayed at
+        2.5% &mdash;
         which is what a median is for, and why it was the wrong instrument to catch this. The suite
         now asserts the <em>worst</em> optimum-delay row as well as the median, because a row
         comparing two different flights is a different defect from a metric that is simply off.
@@ -339,12 +352,24 @@ export default async function Validation() {
       </p>
       <p>
         The ascent comparison is ballistic — recovery and wind removed on both sides — so the coast
-        runs to the true apogee with nothing to confound the physics. RocketPy is written in Python and runs{" "}
-        <em>offline</em> (it isn&apos;t bundled and doesn&apos;t run in your browser); the figures
-        below are its committed output (v{rpRef.engineVersion}), while the Loft column is computed
+        runs to the true apogee with nothing to confound the physics. The figures below are
+        RocketPy&apos;s committed output (v{rpRef.engineVersion}), while the Loft column is computed
         live in this build — so the gap you see is always current with the engine. And unlike the
         author-estimated &ldquo;stored&rdquo; figures above, these RocketPy numbers are a genuine
         independent simulation.
+      </p>
+      <p>
+        <strong>And you can run RocketPy on your own design, in your own browser.</strong>{" "}
+        The{" "}
+        <Link href="/validate" className="underline underline-offset-2">
+          Cross-check workspace
+        </Link>{" "}
+        boots RocketPy under Pyodide and flies whatever you have imported, so the comparison below is
+        a fixed reference set and the one on your design is live. Nothing leaves the browser. It is a
+        large download the first time (about 40 MB of Python runtime) and takes a few seconds to
+        start, which is why it loads only when asked for. <em>This paragraph replaces one that said
+        RocketPy &ldquo;doesn&apos;t run in your browser&rdquo;</em> — true when the reference table
+        was the only cross-check here, and untrue since the second solver shipped.
       </p>
       {rpRuns.map((r) => (
         <div key={r.key}>

@@ -145,6 +145,33 @@ says CONFIRMED carries the command and the numbers the refuter could not talk it
   redraws the new airframe; nothing marks the numbers stale. A confident apogee, margin and landing
   energy for a rocket that is not the one on screen.
 
+- **Loft's published accuracy is agreement with another simulator's PREDICTION, never with a flown
+  rocket — and the corpus already carries four flown results nothing compares against.** Filed
+  2026-08-05 from the competitive probe. `corpus/manifest.csv` has `ground_truth_source` and
+  `stated_apogee` columns, and **nothing in `lib/`, `app/` or `scripts/` reads either**: the sweep
+  compares only against each file's embedded simulation. On
+  `openrocket__rocketryforum-azzie-glr-escape-velocity__EscapeVelocity.ork` the embedded OpenRocket
+  run predicts 879.4 m against a Stratologger-measured figure recorded in the manifest. Meanwhile
+  **RASAero II publishes a 41-flight measured-vs-predicted table** ("Average Error = 3.47%",
+  "80.6% of Flights Error < 10%") and **RocketPy's headline ~1% apogee is against three flown
+  university rockets** with four CI acceptance tests over altimeter CSVs. Loft's census is more
+  automated than either and is measured against a weaker oracle, and the page does not say so. This
+  is the strongest single candidate for the next validation milestone; four rows is not a study, but
+  it is the difference between "agrees with a predictor" and "has ever been checked against a
+  flight".
+
+- **Two CSV exports still carry the defect the validation and cross-check ones just lost.** Filed
+  2026-08-05 from a pre-push review. The app has nine export surfaces; five hand-built ones already
+  put the unit in the header, two were fixed this run, and two were not. **Flight phases**
+  (`components/ResultsView.tsx`, `<design>-flight-phases.csv`): `Altitude` and `Speed` export the raw
+  SI double under headers with no unit, while the on-screen cells run through `d.altitude(...)` /
+  `d.speed(...)` and DO flip with the toggle. **Parts** (`components/GeometryInspector.tsx`,
+  `<design>-parts.csv`) is internally inconsistent within one row: `Station` is always millimetres,
+  `Mass` always kilograms, both under unitless headers — while `Dimensions` exports the DISPLAY
+  string with units baked in and commas forcing RFC-4180 quoting, and that one DOES flip. So one
+  imperial export contains a metric column, an SI column and an imperial column side by side.
+  `DataTable`'s new `csvLabel` is the mechanism; these two are the remaining call sites.
+
 - **The diagram's body-diameter grip oscillates across the bore-refusal threshold.** Filed
   2026-08-05 from a pre-push review, UNREPRODUCED by hand. `components/RocketDiagram.tsx:1254`:
   crossing the threshold mid-drag inserts the full-width "No flight simulated" panel ABOVE the
