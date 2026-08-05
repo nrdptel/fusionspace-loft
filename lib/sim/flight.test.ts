@@ -52,6 +52,68 @@ describe("a mount too small for the motor inside it", () => {
     }
   }, 120_000);
 
+  it("refuses no real design, and prints how close the tightest one is", async () => {
+    // **The check that would have caught the tolerance being wrong before a gate did.** A guard like
+    // this one has two failure modes and only the loud one is obvious: it can miss the impossible
+    // design, and it can refuse the honest ones. The second is the more damaging — a corpus of real
+    // files turning into withheld flights — and it is invisible to every other case here, which all
+    // construct their own inputs.
+    //
+    // Measured 2026-08-05 across 132 motor instances in the 6 fixtures and the 35-design corpus: the
+    // tightest honest file states a bore 1.60 mm NARROWER than the motor it holds
+    // (`demo-dual-deploy.ork`, a K550W), then five at 1.00 mm, then 0.40 mm and better. A real `.ork`
+    // states a nominal mount rather than a machined one. The tolerance is 3 mm, so this asserts the
+    // margin and PRINTS it — a fixture added tomorrow at 2.8 mm should be visible as "nearly", not
+    // discovered when somebody tightens the constant.
+    const worst: { name: string; headroomMm: number }[] = [];
+    for (const name of [
+      "demo-single-deploy.ork",
+      "demo-dual-deploy.ork",
+      "demo-boattail.ork",
+      "demo-multi-config.ork",
+      "demo-payload-separation.ork",
+      "demo-quirks.ork",
+    ]) {
+      const doc = await load(name);
+      for (const cfg of doc.rocket.configurations) {
+        const run = runFlight(doc.rocket, { configId: cfg.id });
+        expect(
+          run.resolutions.filter((r) => r.vetoedBore),
+          `${name} (${cfg.id}) has a motor this veto refuses`,
+        ).toEqual([]);
+      }
+      const byId = new Map(flattenRocket(doc.rocket).map((p) => [p.component.id, p.component]));
+      for (const cfg of doc.rocket.configurations) {
+        for (const inst of cfg.instances) {
+          const run = runFlight(doc.rocket, { configId: cfg.id });
+          const res = run.resolutions.find((r) => r.mountId === inst.mountId);
+          const c = byId.get(inst.mountId);
+          if (!res?.match || !c) continue;
+          const bore =
+            c.kind === "innertube"
+              ? c.innerRadius
+              : c.kind === "bodytube"
+                ? (c.thickness ?? 0) > 0
+                  ? c.outerRadius - (c.thickness as number)
+                  : c.outerRadius
+                : undefined;
+          if (bore === undefined || bore <= 0) continue;
+          worst.push({ name, headroomMm: bore * 2000 - res.match.entry.curve.diameterMm });
+        }
+      }
+    }
+    worst.sort((a, b) => a.headroomMm - b.headroomMm);
+    expect(worst.length, "no mount bores were measured — the loop found nothing").toBeGreaterThan(5);
+    // eslint-disable-next-line no-console
+    console.log(
+      `tightest stated mount bores (mm of diameter, negative = motor wider than the stated bore):\n` +
+        worst.slice(0, 4).map((w) => `  ${w.headroomMm.toFixed(2)}  ${w.name}`).join("\n"),
+    );
+    // Slack is 3 mm; assert real files stay clear of it with room, so tightening the constant to the
+    // measurement is a deliberate act rather than something a new fixture does by accident.
+    expect(worst[0].headroomMm, "a fixture now sits within a millimetre of the refusal threshold").toBeGreaterThan(-2);
+  }, 120_000);
+
   it("withholds the WHOLE flight, not just the motor it refused", async () => {
     // **The Sev-1 at partial scale, and a pre-push review is what found it.** The veto is per
     // instance and `hasPropulsion` was `some(match)`, so a design with two mounts of different

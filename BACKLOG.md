@@ -182,8 +182,12 @@ says CONFIRMED carries the command and the numbers the refuter could not talk it
   drag, so the number is wrong in the flattering direction.
 
   **Fixed at the solver, not at the field.** `lib/sim/setup.ts` now refuses a motor whose diameter
-  exceeds the clear bore of the mount it is loaded into (1 mm of slack, since a snug build is normal
-  and a stored dimension is not exact to the micron). That covers every route to the state — a
+  exceeds the clear bore of the mount it is loaded into by more than **3 mm**, a tolerance measured
+  rather than chosen: across 132 motor instances in the 6 fixtures and the 35-design corpus, the
+  tightest honest file states a bore **1.60 mm narrower** than the motor it holds
+  (`demo-dual-deploy.ork`, a K550W), with five more at 1.00 mm. A real `.ork` states a nominal mount,
+  not a machined one. The first version used 1 mm and broke four committed fixtures; a check now
+  asserts the margin and prints it, so the next tightening is deliberate rather than discovered. That covers every route to the state — a
   what-if, an edit that scales inner tubes with their host, a corrupt import — where a `min` on one
   field would have covered one. The refusal joins the existing no-propulsion path, so every derived
   figure is withheld and the panel says why, naming the AIRFRAME rather than the motor. The

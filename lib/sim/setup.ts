@@ -201,14 +201,20 @@ export function buildRocketDynamics(rocket: Rocket, config: MotorConfiguration):
     // already has, which withholds every derived figure and says why — the same treatment a motor
     // that is not in the database gets.
     //
-    // A millimetre of slack ON THE DIAMETER, because a snug bore is a normal build and a stored
-    // dimension is not exact to the micron. **Compared in diameters rather than radii on purpose**:
-    // the first version added the millimetre to a RADIUS, so the rule everything around it stated —
-    // this comment, the ledger entry, the decision note — was half the rule actually enforced, and a
-    // motor 2 mm fatter than its mount still flew. A tolerance the reader has to double in their head
-    // is a tolerance nobody can check. Measured: `demo-single-deploy.ork` states a 28.0 mm bore
-    // around a 29 mm H128W, so a real file sits exactly 1.0 mm inside this and needs all of it.
-    const BORE_SLACK_MM = 1;
+    // **Three millimetres of slack ON THE DIAMETER, and the number is measured rather than chosen.**
+    // Across 132 motor instances in the 6 committed fixtures and the 35-design corpus, the tightest
+    // honest file states a bore 1.60 mm NARROWER than the motor it holds (`demo-dual-deploy.ork`, a
+    // K550W), with five more at 1.00 mm and the rest at 0.40 mm or better. A real .ork states a
+    // nominal mount, not a machined one, so a stated bore slightly under the motor is a modelling
+    // approximation and not an impossible rocket — and a tolerance that refuses those turns a whole
+    // corpus of honest designs into withheld flights, which is a worse failure than the one this
+    // guard prevents.
+    //
+    // Three is roughly twice the worst real case and far below any damage: the Sev-1 measured 20 mm
+    // and below on a 38 mm airframe. **Compared in diameters rather than radii on purpose** — the
+    // first version added its millimetre to a RADIUS, so the rule this comment stated was half the
+    // rule enforced, and a tolerance the reader has to double in their head is one nobody can check.
+    const BORE_SLACK_MM = 3;
     const bore = mountBore(mount?.component);
     const motorMmExact = match ? match.entry.curve.diameterMm : 0;
     const tooTight =

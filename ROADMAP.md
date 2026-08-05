@@ -3919,8 +3919,9 @@ cheaply instead of re-derived. Newest first.
   motor, which routes the whole flight into the existing no-propulsion path.
 
   **The measurement that makes this a decision rather than a detail:** a real design's motor mount is
-  sized to its motor, so on `demo-single-deploy.ork` the bore is 28.0 mm around a 29 mm H128W — the
-  file already sits inside the millimetre of slack the veto allows — and `applyGeometryEdits` scales
+  sized to its motor, so on `demo-single-deploy.ork` the bore is 28.0 mm around a 29 mm H128W — real files state a
+  nominal mount rather than a machined one, and the veto's 3 mm tolerance is measured from the
+  tightest of 132 real motor instances (1.60 mm on `demo-dual-deploy.ork`) — and `applyGeometryEdits` scales
   inner tubes with their host. So ANY narrowing of that airframe, even 5%, takes the mount below the
   motor. Five of six fixtures behave that way; only `demo-quirks.ork` has 10% of headroom.
 
@@ -3934,7 +3935,10 @@ cheaply instead of re-derived. Newest first.
   keep a mount too small for the motor it is meant to accept.
 
   Cheap to reverse in either direction: the veto is one condition in `lib/sim/setup.ts` and the slack
-  is one constant beside it.
+  is one constant beside it. **Both were got wrong once and the record is the point**: the first
+  version compared radii while every sentence about it said diameters, and the second tightened to
+  1 mm and made four committed fixtures unflyable. The constant now carries its measurement and a
+  check prints the margin.
 
 - **2026-08-03 — the next R milestone is R9 *the descent Loft cannot defend*, not the after-list's
   "multi-solver cross-check as a first-class view".** The after-list names the cross-check next, and
