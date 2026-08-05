@@ -3493,9 +3493,13 @@ test.describe("Loft", () => {
     // refused on arrival — a two-click recovery that cannot work is a loop with no exit.
     await expect(notice.getByText(/Fly it with a substitute/)).toBeHidden();
 
-    // **And there is a way back.** Clearing the field restores the design's own diameter and the
-    // flight returns — the refusal must not be a state a flyer walks into and cannot leave.
-    await page.getByRole("link", { name: "Design" }).click();
+    // **And there is a way back, reached from the notice itself.** The refusal names the field and
+    // links to the workspace holding it, so a flyer who lands here is not left to find their own way
+    // out. Navigating by that link rather than by the nav is deliberate: it is the affordance under
+    // test, and it is also why the nav locator is ambiguous on this branch — two "Design" links are
+    // on the page precisely because this one was added.
+    await notice.getByRole("link", { name: "Design" }).click();
+    await page.waitForURL(/\/design\/?$/);
     await bodyDia.fill("");
     await page.getByRole("link", { name: "Flight" }).click();
     await expect(page.getByRole("term").filter({ hasText: /^Apogee$/ })).toBeVisible({ timeout: 15000 });
