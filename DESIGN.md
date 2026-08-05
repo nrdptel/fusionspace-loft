@@ -199,6 +199,31 @@ hand-rolls it instead is not done.
   fixable once rather than per table.
 - **`Readout`** — a labelled value with its unit, provenance and optional caveat. The unit is never
   baked into the label string; it comes from the units context so a unit switch reaches every value.
+  **Below the value it has two slots, and which one a caller wants is decided by §3 rather than by
+  taste**: a *caption* (`text-xs` — the value's provenance, its phase, its withheld reason) and a
+  *figure* (`text-sm`, mono — a SECOND number the flyer reads to make a decision, such as a
+  percentile band or a companion statistic). One slot could not be both sizes, and trying to make it
+  both is what held this primitive at one adopter: the dispersion panel puts a 5–95% band under
+  every median, and a band a flyer sizes a recovery area from is decision-grade by §3's own rule,
+  while "liftoff" or "burnout → apogee" is not. Added 2026-08-05, from the six real call sites.
+
+  **It renders at two DENSITIES, and that is the other thing this vocabulary was missing.** A `tile`
+  is a card with a `text-xl` value — "an analyzer's big readout", §3's own phrase. A `row` is a
+  `<dt>`/`<dd>` pair with a `text-sm` value, for a dense strip of reference figures. §3 sanctions both
+  sizes and the app had real users of each; what it did not have was one component serving both, so
+  the dense half was hand-rolled and drifted. `bare` is the third case: a tile that already sits
+  inside a container and must not nest a card in one. **In `row` the out-of-envelope marker is a plain
+  flag with an accessible name rather than the `Extrapolated` treatment** — that one needs a `title`
+  and a written line, and this density renders in shared chrome where §8's hover-only and depth
+  contracts both forbid them.
+
+  **A before → after → change row is NOT a `Readout`, and the reason is the one that deleted `Chip`.**
+  The what-if comparison shows a design's figure, the what-if's figure and the signed change in one
+  cell. That is three values and a comparison, not a labelled value — `q` would have to become a
+  triple, and the change carries its own sign, unit and colour rules. Five call sites in one component
+  are the only possible user, and designing a vocabulary entry around its sole adopter is what this
+  file already declined to do once. If a second comparison surface arrives, those rows are the shape
+  to extract, and the entry should be written from both.
 - **`Figure`** — a chart with its title, legend, axis units, and its own empty and extrapolated
   states.
 

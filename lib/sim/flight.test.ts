@@ -18,6 +18,182 @@ async function load(name: string) {
   return importOrk(bytes);
 }
 
+describe("a mount too small for the motor inside it", () => {
+  it("refuses the flight instead of reporting a confident, flattering apogee", async () => {
+    // **The Sev-1 this exists for.** `vetoedForFit` above compares the file's STATED casing against
+    // the bundled curve and never looks at the mount, so any route that shrinks the mount's geometry
+    // flew a motor through an airframe narrower than itself. Measured 2026-08-05 on the corpus's
+    // `Dual parachute deployment.ork`: typing the body diameter down took apogee
+    // 579.0 -> 695.4 -> 768.0 -> 912.5 -> 975.7 -> 978.5 m at 20, 10, 5, 1 and 0.1 mm, every one
+    // reported as a flight, and the WARNING LIST GOT SHORTER on the way — a 38 mm motor inside a
+    // 0.1 mm airframe, at +69% and with fewer cautions than the real design.
+    //
+    // It reads HIGH, which is the part that makes it a safety problem rather than a curiosity: a
+    // thinner airframe is a smaller reference area and therefore less drag, so the number a flyer
+    // would act on is wrong in the flattering direction.
+    const doc = await load("demo-single-deploy.ork");
+    const asDesigned = runFromDocument(doc);
+    expect(asDesigned.hasPropulsion, "the fixture's own design must still fly").toBe(true);
+    expect(asDesigned.resolutions[0].vetoedBore, "nothing was vetoed on an untouched design").toBeUndefined();
+
+    const motorMm = Math.round(asDesigned.resolutions[0].match!.entry.curve.diameterMm);
+    // Every diameter from "snug" to "absurd". The important property is that NONE of them flies —
+    // an assertion on 0.1 mm alone would pass on a guard that only caught the degenerate case.
+    for (const mm of [motorMm - 4, motorMm / 2, 5, 1, 0.1]) {
+      const run = runFromDocument(doc, { geometry: { bodyDiameter: mm / 1000 } });
+      expect(run.hasPropulsion, `a ${motorMm} mm motor flew inside a ${mm} mm airframe`).toBe(false);
+      const veto = run.resolutions[0].vetoedBore;
+      expect(veto, `no bore refusal at ${mm} mm`).toBeDefined();
+      expect(veto!.motorMm).toBe(motorMm);
+      expect(veto!.boreMm).toBeLessThan(motorMm);
+      // The refusal has to name the motor it turned down, not just complain: the panel's sentence is
+      // built from these three fields and a blank one reads as a bug rather than as a refusal.
+      expect(veto!.designation.length).toBeGreaterThan(0);
+    }
+  }, 120_000);
+
+  it("refuses no real design, and prints how close the tightest one is", async () => {
+    // **The check that would have caught the tolerance being wrong before a gate did.** A guard like
+    // this one has two failure modes and only the loud one is obvious: it can miss the impossible
+    // design, and it can refuse the honest ones. The second is the more damaging — a corpus of real
+    // files turning into withheld flights — and it is invisible to every other case here, which all
+    // construct their own inputs.
+    //
+    // Measured 2026-08-05 across 132 motor instances in the 6 fixtures and the 35-design corpus: the
+    // tightest honest file states a bore 1.60 mm NARROWER than the motor it holds
+    // (`demo-dual-deploy.ork`, a K550W), then five at 1.00 mm, then 0.40 mm and better. A real `.ork`
+    // states a nominal mount rather than a machined one. The tolerance is 3 mm, so this asserts the
+    // margin and PRINTS it — a fixture added tomorrow at 2.8 mm should be visible as "nearly", not
+    // discovered when somebody tightens the constant.
+    const worst: { name: string; headroomMm: number }[] = [];
+    for (const name of [
+      "demo-single-deploy.ork",
+      "demo-dual-deploy.ork",
+      "demo-boattail.ork",
+      "demo-multi-config.ork",
+      "demo-payload-separation.ork",
+      "demo-quirks.ork",
+    ]) {
+      const doc = await load(name);
+      for (const cfg of doc.rocket.configurations) {
+        const run = runFlight(doc.rocket, { configId: cfg.id });
+        expect(
+          run.resolutions.filter((r) => r.vetoedBore),
+          `${name} (${cfg.id}) has a motor this veto refuses`,
+        ).toEqual([]);
+      }
+      const byId = new Map(flattenRocket(doc.rocket).map((p) => [p.component.id, p.component]));
+      for (const cfg of doc.rocket.configurations) {
+        for (const inst of cfg.instances) {
+          const run = runFlight(doc.rocket, { configId: cfg.id });
+          const res = run.resolutions.find((r) => r.mountId === inst.mountId);
+          const c = byId.get(inst.mountId);
+          if (!res?.match || !c) continue;
+          const bore =
+            c.kind === "innertube"
+              ? c.innerRadius
+              : c.kind === "bodytube"
+                ? (c.thickness ?? 0) > 0
+                  ? c.outerRadius - (c.thickness as number)
+                  : c.outerRadius
+                : undefined;
+          if (bore === undefined || bore <= 0) continue;
+          worst.push({ name, headroomMm: bore * 2000 - res.match.entry.curve.diameterMm });
+        }
+      }
+    }
+    worst.sort((a, b) => a.headroomMm - b.headroomMm);
+    expect(worst.length, "no mount bores were measured — the loop found nothing").toBeGreaterThan(5);
+    console.log(
+      `tightest stated mount bores (mm of diameter, negative = motor wider than the stated bore):\n` +
+        worst.slice(0, 4).map((w) => `  ${w.headroomMm.toFixed(2)}  ${w.name}`).join("\n"),
+    );
+    // Slack is 3 mm; assert real files stay clear of it with room, so tightening the constant to the
+    // measurement is a deliberate act rather than something a new fixture does by accident.
+    expect(worst[0].headroomMm, "a fixture now sits within a millimetre of the refusal threshold").toBeGreaterThan(-2);
+  }, 120_000);
+
+  it("withholds the WHOLE flight, not just the motor it refused", async () => {
+    // **The Sev-1 at partial scale, and a pre-push review is what found it.** The veto is per
+    // instance and `hasPropulsion` was `some(match)`, so a design with two mounts of different
+    // headroom could refuse one and keep flying on the other — publishing a confident apogee for a
+    // vehicle that cannot be built, which is the exact defect the veto exists to stop.
+    //
+    // A missing thrust curve and an impossible mount are deliberately treated differently: the first
+    // is a hole in Loft and the reduced flight is still a meaningful answer, the second says the
+    // ROCKET cannot exist. Asserted here on a two-mount design, because a one-mount design cannot
+    // tell the two rules apart.
+    const doc = await load("demo-single-deploy.ork");
+    const two = structuredClone(doc.rocket);
+    const flat = flattenRocket(two);
+    const mount = flat.find((p) => "motorMount" in p.component && p.component.motorMount)!.component;
+    const host = flat.find((p) => p.component.children.includes(mount))!.component;
+    // A second mount with room to spare — wide enough that it survives a narrowing the first does not.
+    const roomy = structuredClone(mount) as typeof mount & { innerRadius: number; outerRadius: number };
+    roomy.id = `${mount.id}-roomy`;
+    roomy.name = "roomy mount";
+    roomy.innerRadius = 0.05;
+    roomy.outerRadius = 0.052;
+    host.children = [...host.children, roomy];
+    const cfg = two.configurations[0];
+    two.configurations = [
+      { ...cfg, instances: [...cfg.instances, { ...cfg.instances[0], mountId: roomy.id }] },
+    ];
+
+    const both = runFlight(two, { configId: two.configurations[0].id });
+    expect(both.hasPropulsion, "the two-mount control must fly before it is narrowed").toBe(true);
+
+    // Narrow just enough that the tight mount is refused and the roomy one is not.
+    const narrowed = runFlight(two, {
+      configId: two.configurations[0].id,
+      geometry: { bodyDiameter: primaryBodyDiameter(two)! * 0.9 },
+    });
+    const refused = narrowed.resolutions.filter((r) => r.vetoedBore);
+    const kept = narrowed.resolutions.filter((r) => r.match);
+    expect(refused.length, "the control does not exercise a PARTIAL refusal").toBeGreaterThan(0);
+    expect(kept.length, "the control does not exercise a partial refusal — every mount was refused").toBeGreaterThan(0);
+    // And the flight is withheld anyway.
+    expect(narrowed.hasPropulsion, "a flight was published for a vehicle that cannot be built").toBe(false);
+  }, 120_000);
+
+  it("fires ONLY on a mount that is genuinely too small, not on any edit to the airframe", async () => {
+    // The control this guard needs, and the first draft of it was wrong in a way worth recording:
+    // it set the body diameter to the motor's own and expected a flight. A body's stated diameter is
+    // its OUTER one, so a 29 mm airframe holding a 29 mm motor is exactly the impossible build this
+    // refuses — the test was asserting the defect. Corrected to the property that actually matters.
+    const doc = await load("demo-single-deploy.ork");
+    const motorMm = Math.round(runFromDocument(doc).resolutions[0].match!.entry.curve.diameterMm);
+
+    // Widening the airframe never refuses: the guard must not fire on "an edit happened". Scaled
+    // from the DESIGN's own diameter, not from the motor's — `applyGeometryEdits` scales the inner
+    // tubes with their host, so "1.2x the motor" is still a large shrink on a design whose airframe
+    // is comfortably wider than its mount, and the first draft of this loop failed for that reason
+    // rather than because the guard was wrong.
+    const designMm = primaryBodyDiameter(doc.rocket)! * 1000;
+    for (const scale of [1, 1.2, 2, 4]) {
+      const wide = runFromDocument(doc, { geometry: { bodyDiameter: (designMm * scale) / 1000 } });
+      expect(wide.hasPropulsion, `a ${(designMm * scale).toFixed(1)} mm airframe refused a ${motorMm} mm motor`).toBe(true);
+      expect(wide.resolutions[0].vetoedBore).toBeUndefined();
+    }
+
+    // And there is exactly ONE crossing, at a diameter no larger than the motor plus its own wall —
+    // a guard that started refusing well above that would be turning honest builds into withheld
+    // flights, which is the failure mode that matters more than the Sev-1 it prevents. Real snug
+    // builds are covered far more broadly by the corpus sweep, which flies all 35 designs.
+    let lastFlown = Infinity;
+    let firstRefused = 0;
+    for (let mm = Math.ceil(designMm); mm >= 1; mm -= 1) {
+      const run = runFromDocument(doc, { geometry: { bodyDiameter: mm / 1000 } });
+      if (run.hasPropulsion) lastFlown = mm;
+      else if (!firstRefused) firstRefused = mm;
+    }
+    expect(firstRefused, "nothing was ever refused on the way down").toBeGreaterThan(0);
+    expect(lastFlown, "the smallest flying airframe is narrower than its own motor").toBeGreaterThanOrEqual(motorMm);
+    expect(firstRefused, "the guard refuses airframes that comfortably hold their motor").toBeLessThan(designMm);
+    expect(lastFlown - firstRefused, "the refusal is not a single clean crossing").toBe(1);
+  }, 120_000);
+});
+
 describe("a motor that does not fit the mount", () => {
   it("is refused, and the panel is told WHY rather than told it was not found", async () => {
     // The Sev-1 a cold walk found: `H999ZZ` on a 29 mm casing matched `H999N` — a 38 mm motor — on a
@@ -449,11 +625,31 @@ describe("geometry edits (builder)", () => {
     expect(wider.result.liftoffMass).toBeGreaterThan(base.result.liftoffMass);
     expect(wider.result.staticMarginCal).toBeLessThan(base.result.staticMarginCal);
 
-    // A narrower tube does the opposite — higher, lighter, more stable in calibers.
-    const narrower = runFlight(doc.rocket, { configId: cfg, overrides: ov, geometry: { bodyDiameter: d0 * 0.75 } });
-    expect(narrower.result.stability.refRadius * 2).toBeCloseTo(d0 * 0.75, 6);
-    expect(narrower.result.summary.apogee).toBeGreaterThan(base.result.summary.apogee);
-    expect(narrower.result.staticMarginCal).toBeGreaterThan(base.result.staticMarginCal);
+    // A narrower tube does the opposite — higher, lighter, more stable in calibers. **Asserted on a
+    // different fixture, and the reason is a measurement rather than convenience.** This one used
+    // `demo-single-deploy` at 0.75x, and that design cannot be narrowed AT ALL: its mount bore is
+    // 28.0 mm around a 29 mm H128W, so the file already sits inside the millimetre of slack the
+    // mount-bore veto allows, and shrinking the airframe takes the mount with it. Five of the six
+    // committed fixtures are that shape — a motor mount sized to its motor is what a real design IS
+    // — so the physics claim has to be made where there is headroom to make it.
+    // `demo-quirks.ork` has 10%: a 66 mm airframe on a motor small enough to leave room.
+    const roomy = await load("demo-quirks.ork");
+    const roomyCfg = roomy.simulations[0].conditions.configId;
+    const roomyOv = overridesFromStored(roomy.simulations[0]);
+    const roomyBase = runFlight(roomy.rocket, { configId: roomyCfg, overrides: roomyOv });
+    const rd0 = primaryBodyDiameter(roomy.rocket)!;
+    const narrower = runFlight(roomy.rocket, { configId: roomyCfg, overrides: roomyOv, geometry: { bodyDiameter: rd0 * 0.9 } });
+    expect(narrower.resolutions.every((r) => r.match), "the narrowed design must still hold its motor").toBe(true);
+    expect(narrower.result.stability.refRadius * 2).toBeCloseTo(rd0 * 0.9, 6);
+    expect(narrower.result.summary.apogee).toBeGreaterThan(roomyBase.result.summary.apogee);
+    expect(narrower.result.staticMarginCal).toBeGreaterThan(roomyBase.result.staticMarginCal);
+
+    // And the half that used to live here is now a REFUSAL rather than a flight, which is the point
+    // of the veto: narrowing this design's airframe below its own motor is not a what-if with a
+    // smaller answer, it is a rocket that cannot be built.
+    const tooTight = runFlight(doc.rocket, { configId: cfg, overrides: ov, geometry: { bodyDiameter: d0 * 0.75 } });
+    expect(tooTight.hasPropulsion).toBe(false);
+    expect(tooTight.resolutions[0].vetoedBore?.motorMm).toBe(29);
 
     // A zero/empty diameter edit changes nothing.
     const same = runFlight(doc.rocket, { configId: cfg, overrides: ov, geometry: { bodyDiameter: 0 } });

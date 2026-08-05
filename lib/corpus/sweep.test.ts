@@ -1504,6 +1504,103 @@ suite("real-design corpus", () => {
     // existing.
     const unmeasured = Object.keys(PUBLISHED_MEDIAN_PCT).filter((k) => !measured.some((m) => m.key === k));
     expect(unmeasured, "published on /docs/validation but measured by nothing here").toEqual([]);
+
+    // **And the POPULATION each figure is measured over is published, and matches.** The page used
+    // to print one "97 stored simulations" above all ten medians while their real populations ran
+    // 76 to 97 — a metric is compared where a file stores it, and the three formats do not store the
+    // same set, so max Mach (77) and deployment velocity (76) are OpenRocket-only. A reader took
+    // 6.0% as a corpus-wide figure when two of the three tools were never asked.
+    //
+    // Asserted against the page's own source, the way `lib/design-system.test.ts` asserts its counts,
+    // because the median gate above cannot see a population change at all: dropping every RockSim row
+    // from a metric could improve its median and this suite would applaud.
+    const page = readFileSync(resolve(process.cwd(), "app/docs/validation/page.tsx"), "utf-8");
+    const PAGE_LABEL: Record<string, string> = {
+      timeToApogee: "time to apogee",
+      launchRodVelocity: "rail-exit velocity",
+      maxMach: "max Mach",
+      maxVelocity: "max velocity",
+      optimumDelay: "optimum delay",
+      maxAltitude: "apogee",
+      maxAcceleration: "max acceleration",
+      flightTime: "flight time",
+      groundHitVelocity: "ground-hit velocity",
+      deploymentVelocity: "deployment velocity",
+    };
+    const wrongN: string[] = [];
+    for (const [key, label] of Object.entries(PAGE_LABEL)) {
+      const m = measured.find((x) => x.key === key);
+      if (!m) continue;
+      // The label, then its bolded percentage, then the population in brackets — allowing the
+      // "(77, OpenRocket only)" form the two single-format metrics carry.
+      const re = new RegExp(`${label}\\s*<strong>[^<]*</strong>[^(]*\\((\\d+)`);
+      const hit = re.exec(page);
+      if (!hit) {
+        wrongN.push(`${key}: /docs/validation states no population beside "${label}"`);
+      } else if (Number(hit[1]) !== m.n) {
+        wrongN.push(`${key}: page says n=${hit[1]}, measured n=${m.n}`);
+      }
+    }
+    expect(wrongN, "a published median names a population it is not measured over").toEqual([]);
+  }, 900_000);
+
+  /** **R10: no stored optimum delay is scored against a flight that never happened.**
+   *
+   *  The two formats mean different things by the same word, and Loft applied one rule to both:
+   *
+   *    - OpenRocket's `optimumdelay` is the FREE-COAST delay — `timeToOptimumAltitude` minus the
+   *      last burnout, exact on 73 of 73 stored simulations here, where apogee-minus-burnout matches
+   *      only 56. `lib/sim/run.ts` substitutes a recovery-free coast whenever a device opened before
+   *      apogee, which is right for a flyer and right for this format.
+   *    - RockSim's `<OptimalDelay>` is that run's OWN `TimeToApogee - TimeToBurnout`, exact on every
+   *      stored simulation in all four corpus RockSim designs. `FullScaleModelTH.rkt`'s four
+   *      `[L1940X-0]` runs open their canopy at burnout, so RockSim's apogee is 3.65 s and its
+   *      stored delay 1.34 s, against Loft's free coast of ~16 s.
+   *
+   *  **A median could not see this and the census gate therefore could not either.** Four rows of 84
+   *  moved from +1107% to -21% and the published 2.5% did not shift by a decimal, which is exactly
+   *  what a median is for and exactly why it is the wrong instrument here. This asserts the WORST
+   *  row instead: a bound that the old rule breaks by a factor of eighteen.
+   *
+   *  The bound is deliberately loose — 60% against a worst case of 59% would be tuning, so it sits
+   *  at 200%, which still fails an order of magnitude before the defect returns. What is being held
+   *  is "no row is comparing two different flights", not a target for the metric itself. */
+  it("scores every stored optimum delay against the flight its own file describes", async () => {
+    const rows: { file: string; sim: string; pct: number }[] = [];
+    for (const f of files) {
+      let doc;
+      try {
+        doc = await importDesign(new Uint8Array(readFileSync(f.path)));
+      } catch {
+        continue;
+      }
+      for (const sim of doc.simulations) {
+        let run;
+        try {
+          run = runFromDocument(doc, {
+            configId: sim.conditions.configId,
+            validateAgainst: doc.flownAsReduced ? undefined : sim,
+            overrides: overridesFromStored(sim),
+          });
+        } catch {
+          continue;
+        }
+        if (!run.hasPropulsion || !run.validation) continue;
+        const c = run.validation.comparisons.find((x) => x.key === "optimumDelay");
+        if (!c || !Number.isFinite(c.pctError)) continue;
+        rows.push({ file: f.name, sim: sim.name, pct: c.pctError });
+      }
+    }
+    // The corpus must actually be supplying these rows — a metric that stops being compared at all
+    // would otherwise pass this by having nothing to fail on, which is the failure the census's own
+    // `unmeasured` guard exists for.
+    expect(rows.length, "no optimum-delay comparisons found — is the corpus complete?").toBeGreaterThan(50);
+    const worst = rows.reduce((a, b) => (Math.abs(b.pct) > Math.abs(a.pct) ? b : a));
+    expect(
+      Math.abs(worst.pct),
+      `worst optimum-delay row: ${worst.file} :: ${worst.sim} at ${worst.pct.toFixed(1)}% — ` +
+        `a row this far out means Loft's figure and the stored one describe different flights, not that the delay model is off`,
+    ).toBeLessThan(200);
   }, 900_000);
 
   /** **R10: the descent populations are counted separately, and neither is allowed to vanish.**

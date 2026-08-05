@@ -2803,6 +2803,51 @@ describe("authoring a booster stage", () => {
     return { doc, edits, seedId, mountId, staged: applyGeometryEdits(doc.rocket, edits) };
   };
 
+  it("gives every part it mints its own id, even when the seed tube carries two mounts", () => {
+    // **A design's aft tube can hold more than one motor mount**, and `Airstart timing.ork` in the
+    // corpus does: a 54 mm centre and a 38 mm airstart, side by side. Every kept mount used to take
+    // the entry's single `mountId`, so the booster came out holding two components indistinguishable
+    // by the only handle anything outside the tree has — and `lib/sim/setup.ts` resolved the
+    // booster's K550W instance to whichever of the pair its id map kept. A 54 mm motor loaded into a
+    // 38.7 mm bore, on a stage Loft had just authored, flown as a normal flight.
+    //
+    // Built here rather than read from the corpus so the case is pinned in the committed suite,
+    // where CI can see it: the corpus is not fetched for every job.
+    const base = newDesign();
+    const aft = base.rocket.stages[0].components.filter((c) => c.kind === "bodytube").at(-1)!;
+    const mount = aft.children.find((c) => "motorMount" in c && c.motorMount !== undefined)!;
+    const twoMount = structuredClone(base.rocket);
+    const twoAft = twoMount.stages[0].components.filter((c) => c.kind === "bodytube").at(-1)!;
+    twoAft.children = [
+      ...twoAft.children,
+      { ...structuredClone(mount), id: `${mount.id}-second`, name: "second mount" },
+    ];
+
+    const seedId = newPartId(twoMount, [], "stage:1");
+    const mountId = newPartId(twoMount, [{ id: seedId } as never], "mount:1");
+    const staged = applyGeometryEdits(twoMount, { addedStages: [{ seedId, mountId, name: "Booster" }] });
+
+    const ids: string[] = [];
+    const walk = (comps: typeof staged.stages[0]["components"]): void => {
+      for (const c of comps) {
+        ids.push(c.id);
+        if (c.children.length) walk(c.children);
+      }
+    };
+    staged.stages.forEach((st) => walk(st.components));
+    const duplicated = ids.filter((id, i) => ids.indexOf(id) !== i);
+    expect(duplicated, "the authored stage minted two parts with the same id").toEqual([]);
+
+    // And the booster really did carry both mounts across — a fix that silently dropped the second
+    // one would also produce no duplicates, and would be a different bug wearing this test's pass.
+    const boosterMounts = staged.stages[1].components[0].children.filter(
+      (c) => "motorMount" in c && c.motorMount !== undefined,
+    );
+    expect(boosterMounts).toHaveLength(2);
+    expect(boosterMounts[0].id).toBe(mountId);
+    expect(boosterMounts[1].id).not.toBe(mountId);
+  });
+
   it("appends a stage seeded from the design's own aft airframe", () => {
     const { doc, staged } = withBooster();
     expect(doc.rocket.stages).toHaveLength(1);

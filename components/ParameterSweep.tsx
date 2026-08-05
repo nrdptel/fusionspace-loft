@@ -490,7 +490,22 @@ function SweepChart({
                 whitespace, so `{STEPS} flights` on one line and `the range` on the next shipped as
                 "25flights across the range". The space has to survive the transform, not the source. */}
             {conditionsPhrase(conditions, { wind: false })}, {STEPS}{" "}
-            flights across the range; the marker is the design&apos;s own value (no added ballast for
+            flights across the range
+            {/* **The count is a request, not a result, and saying so is the point.** `parameterSweep`
+                drops any point the solver refuses — a narrowed airframe that can no longer hold its
+                motor is the common case since the mount-bore veto, and a real design's mount is sized
+                to its motor, so the lower half of a Body-diameter sweep can vanish entirely. The
+                chart then plots a curve that starts at the design's own value with nothing saying the
+                rest was asked for and could not be flown, which is a caption claiming flights that
+                never happened. */}
+            {points.length < STEPS ? (
+              <>
+                {" "}
+                &mdash; <strong>{points.length} of them could be flown</strong>, and the rest are a
+                rocket that cannot be built (most often an airframe narrower than its own motor)
+              </>
+            ) : null}
+            ; the marker is the design&apos;s own value (no added ballast for
             that axis). Each variable shifts the centre of pressure and the mass its own way — read
             these as estimates to verify, not a go/no-go.
           </>

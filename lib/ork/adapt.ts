@@ -107,6 +107,28 @@ export interface StoredSimulation {
    *  guess: `lib/validation/compare.ts` then falls back to the older reading, the one Loft has always
    *  used and the one `COMPETITION.md` row 34 established empirically. */
   groundHitVelocityFrame?: "vertical" | "total";
+  /** WHICH FLIGHT the stored `optimumDelay` describes — the same class of question as the frame
+   *  above, on a metric where the two formats genuinely disagree.
+   *
+   *    - **OpenRocket stores the FREE-COAST delay.** Its `optimumdelay` attribute is the flight
+   *      log's `timeToOptimumAltitude` minus the last burnout event — exact on 73 of 73 stored
+   *      simulations in this corpus, where "apogee − burnout" matches only 56 of 73. Optimum
+   *      altitude is the altitude the vehicle would have reached without a canopy, so an early
+   *      deployment does not drag the figure down with it.
+   *    - **RockSim stores the AS-FLOWN delay.** `<OptimalDelay>` is exactly
+   *      `<TimeToApogee> − <TimeToBurnout>` of the run it sits in: 4.765 = 10.8263 − 6.06125,
+   *      4.53 = 5.98125 − 1.45125, 1.34375 = 3.65375 − 2.31, 17.9325 = 20.2425 − 2.31. Every stored
+   *      RockSim simulation in the corpus, to five decimal places.
+   *
+   *  `lib/sim/run.ts` substitutes a recovery-free coast whenever a device opened before apogee,
+   *  which is right for a flyer and right for OpenRocket, and wrong here: `FullScaleModelTH.rkt`'s
+   *  four `[L1940X-0]` runs open at burnout, so RockSim's own apogee is 3.65 s and its stored delay
+   *  1.34 s, against Loft's free coast of 16.16 s. Four census rows comparing two different flights,
+   *  which is the third time this milestone has found that shape.
+   *
+   *  Undefined means free-coast — the reading Loft has always used, and the correct one for the
+   *  format that supplies most of the corpus. */
+  optimumDelayBasis?: "free-coast" | "as-flown";
   /** Whether the writing tool says a recovery device actually deployed on THIS run.
    *
    *  A descent under a canopy and a descent with nothing out are different flights, and pooling them

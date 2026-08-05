@@ -19,10 +19,10 @@ import type { GeometryEdits } from "@/lib/model/edit";
 import { usePersistedNumber, useSettled } from "@/lib/session";
 import { mToFt, ftToM, mpsToFtps, mpsToMph, mphToMps } from "@/lib/units";
 import type { CsvCell } from "@/lib/csv";
-import { Card, Extrapolated, Figure, NumberField, Panel } from "./ui";
+import { Card, Extrapolated, Figure, NumberField, Panel, Readout } from "./ui";
 import DownloadCsv, { CopyTable } from "./DownloadCsv";
 import * as d from "@/lib/display";
-import type { UnitSystem } from "@/lib/display";
+import type { Quantity, UnitSystem } from "@/lib/display";
 
 const round = (n: number, dp: number) => (Number.isFinite(n) ? Math.round(n * 10 ** dp) / 10 ** dp : "");
 
@@ -422,15 +422,23 @@ function Report({
         </div>
       )}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard
-          title="Apogee"
-          stat={result.apogee}
-          fmt={(v) => d.q(d.altitude(v, units))}
+        {/* Apogee alone carries the accent, matching the flight card one route away, where it is
+            also the accented figure. Before this grid adopted `Readout` all four cards rendered
+            `font-semibold`, which §3 reserves for "the one number a surface exists to show" — four
+            lead numbers is no lead number, and a flyer moving between the two surfaces met the same
+            quantity weighted differently on each. */}
+        <Readout
+          label="Apogee"
+          tone="sunken"
+          accent
+          q={d.altitude(result.apogee.p50, units)}
+          figure={band(result.apogee, (v) => d.altitude(v, units))}
         />
-        <StatCard
-          title="Max speed"
-          stat={result.maxVelocity}
-          fmt={(v) => d.q(d.speed(v, units))}
+        <Readout
+          label="Max speed"
+          tone="sunken"
+          q={d.speed(result.maxVelocity.p50, units)}
+          figure={band(result.maxVelocity, (v) => d.speed(v, units))}
         />
         {/* Withheld, not zeroed, when nothing reached the ground. `landingSpeed` and
             `landingEnergy` are 0 sentinels on a flight still airborne at the time cap, and
@@ -439,15 +447,18 @@ function Report({
             with a reason. Two surfaces disagreeing about whether a number exists is worse than
             either alone. */}
         {result.landedN > 0 ? (
-          <StatCard
-            title="Landing speed"
-            stat={result.landingSpeed}
-            fmt={(v) => d.q(d.speed(v, units))}
+          <Readout
+            label="Landing speed"
+            tone="sunken"
+            q={d.speed(result.landingSpeed.p50, units)}
+            figure={band(result.landingSpeed, (v) => d.speed(v, units))}
           />
         ) : (
-          <WithheldCard
-            title="Landing speed"
-            why="no dispersed flight reached the ground inside the time cap — reduce the recovery size, or check the deployment altitude and event"
+          <Readout
+            label="Landing speed"
+            tone="sunken"
+            q={d.speed(0, units)}
+            withheld="no dispersed flight reached the ground inside the time cap — reduce the recovery size, or check the deployment altitude and event"
           />
         )}
         {/* Withheld on the same population as the card beside it. Drift is taken from the
@@ -455,11 +466,18 @@ function Report({
             got to — a plausible smaller number rather than an obvious zero, understating the
             recovery area on the one figure that exists to size it. */}
         {result.landedN > 0 ? (
-          <RadiusCard radius={result.landingRadiusP95} drift={result.driftDistance} units={units} />
+          <Readout
+            label="Recovery radius (95%)"
+            tone="sunken"
+            q={d.distance(result.landingRadiusP95, units)}
+            figure={{ lead: "median drift", q: d.distance(result.driftDistance.p50, units) }}
+          />
         ) : (
-          <WithheldCard
-            title="Recovery radius (95%)"
-            why="no dispersed flight reached the ground inside the time cap, so none has a landing point to draw a radius around — reduce the recovery size, or check the deployment altitude and event"
+          <Readout
+            label="Recovery radius (95%)"
+            tone="sunken"
+            q={d.distance(0, units)}
+            withheld="no dispersed flight reached the ground inside the time cap, so none has a landing point to draw a radius around — reduce the recovery size, or check the deployment altitude and event"
           />
         )}
       </div>
@@ -514,19 +532,25 @@ function Report({
             hint="Altitude limit to check"
           />
         </div>
+        {/* The fifth labelled value in this panel, and the last one it hand-rolled. It sits INSIDE
+            the inputs card rather than in the grid, so it takes `frame="bare"` — a card here would
+            nest one inside another.
+
+            Its amber above 5% used to be the whole message: a colour, with nothing saying what 5%
+            was or why a flyer should care. `caution` makes the reason mandatory, which is the rule
+            `MAINTAINING.md` states about a badge reading "HIGH" beside a number. */}
         {Number.isFinite(exceed) && (
           <div className="pb-1">
-            <div className="text-[11px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-              Chance over ceiling
-            </div>
-            <div
-              className={
-                "mt-0.5 text-xl font-semibold tabular-nums " +
-                (exceed > 0.05 ? "text-amber-700 dark:text-amber-300" : "text-zinc-900 dark:text-zinc-100")
+            <Readout
+              label="Chance over ceiling"
+              variant="bare"
+              q={{ value: formatChance(exceed), unit: "" }}
+              caution={
+                exceed > 0.05
+                  ? `more than 1 flight in 20 goes over the ceiling entered — check the waiver before flying this motor`
+                  : undefined
               }
-            >
-              {formatChance(exceed)}
-            </div>
+            />
           </div>
         )}
       </Card>
@@ -585,46 +609,17 @@ function Report({
   );
 }
 
-/** A stat that cannot be computed, saying why and what would restore it. `DESIGN.md` §6: "a
- *  withheld value says why, and what would restore it. A blank cell is a bug." */
-function WithheldCard({ title, why }: { title: string; why: string }) {
-  return (
-    <Card tone="sunken">
-      <div className="text-[11px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">{title}</div>
-      <div className="mt-1 text-xl font-semibold tabular-nums text-zinc-400 dark:text-zinc-500" aria-label={`${title} withheld: ${why}`}>
-        —
-      </div>
-      <div className="mt-0.5 text-sm text-zinc-500 dark:text-zinc-400">{why}</div>
-    </Card>
-  );
-}
-
-function StatCard({ title, stat, fmt }: { title: string; stat: Stat; fmt: (v: number) => string }) {
-  return (
-    <Card tone="sunken">
-      <div className="text-[11px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">{title}</div>
-      <div className="mt-1 text-xl font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">{fmt(stat.p50)}</div>
-      <div className="mt-0.5 text-sm tabular-nums text-zinc-500 dark:text-zinc-400">
-        {fmt(stat.p5)} – {fmt(stat.p95)} <span className="text-zinc-400 dark:text-zinc-500">(5–95%)</span>
-      </div>
-    </Card>
-  );
-}
-
-function RadiusCard({ radius, drift, units }: { radius: number; drift: Stat; units: UnitSystem }) {
-  return (
-    <Card tone="sunken">
-      <div className="text-[11px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-        Recovery radius (95%)
-      </div>
-      <div className="mt-1 text-xl font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">
-        {d.q(d.distance(radius, units))}
-      </div>
-      <div className="mt-0.5 text-sm tabular-nums text-zinc-500 dark:text-zinc-400">
-        median drift {d.q(d.distance(drift.p50, units))}
-      </div>
-    </Card>
-  );
+/** The 5–95% band of a dispersed statistic, in `Readout`'s `figure` slot.
+ *
+ *  **Three local card variants used to own this**, differing only in what went under the median —
+ *  a band, a companion figure, or a withheld reason. That is one treatment written three ways, and
+ *  it is what P6's last open clause was about. The band is the only part with any logic in it, so it
+ *  is the only part that survived the conversion; the rest was spelling.
+ *
+ *  `toQuantity` rather than a formatted string, because `Readout` renders the unit in its own span
+ *  from the units context — §5's rule that a unit is never baked into the value it labels. */
+function band(stat: Stat, toQuantity: (v: number) => Quantity) {
+  return { q: toQuantity(stat.p5), to: toQuantity(stat.p95), note: "(5–95%)" };
 }
 
 /** A small SVG histogram of a sample set, with the median and 5–95% band marked. Theme-aware via

@@ -502,6 +502,14 @@ export function Extrapolated({
   );
 }
 
+/** The no-card frame for a `Readout` that already sits inside a container. It takes and ignores
+ *  `tone`, so the two frames are interchangeable at the call site rather than each needing their own
+ *  branch — a surface is either sunken or it is not, and a bare readout inherits whatever it sits
+ *  in. */
+function BareFrame({ children }: { tone?: CardTone; children: React.ReactNode }) {
+  return <div>{children}</div>;
+}
+
 /** `DESIGN.md` §5's `Readout` — "a labelled value with its unit, provenance and optional caveat; the
  *  unit is never baked into the label string".
  *
@@ -512,19 +520,51 @@ export function Extrapolated({
  *  occasions that shaped it. What was wrong was only that sixteen readouts on one page could reach
  *  it and the rest of the app could not, so every other surface hand-rolled the same treatment.
  *
- *  The DOM is unchanged, class for class, because the e2e suite locates several of these readouts by
- *  walking a label's following sibling — this is an extraction, not a repaint. */
+ *  **The label div is immediately followed by the value div, and that ordering is a contract**: the
+ *  e2e suite locates several readouts by `following-sibling::div[1]` off the label, so anything added
+ *  here goes BELOW the value, never between it and the label. The extraction itself changed no class;
+ *  what has changed since is recorded at each prop. */
 export function Readout({
   label,
   q,
   sub,
+  figure,
+  tone,
   accent,
   withheld,
   extrapolated,
+  caution,
+  flag,
+  variant = "tile",
 }: {
   label: string;
   q: Quantity;
+  /** The text AROUND the value — its provenance, its qualifier, the phase it was taken at. `text-xs`,
+   *  because §3 puts the text around a decision-grade value one size below it. A SECOND number goes
+   *  in `figure`, not here. */
   sub?: string;
+  /** A second decision-grade figure beneath the value — a percentile band, a companion statistic.
+   *  `text-sm`, the floor §3 sets for anything a flyer reads to make a decision, and mono so its
+   *  digits line up with the value above it.
+   *
+   *  **This slot exists because `sub` could not be both sizes, and that was the last thing blocking
+   *  P6.** `MonteCarlo` put a 5-95% dispersion band in its own equivalent of `sub` at `text-sm`, and
+   *  a recovery band IS a figure a flyer sizes a recovery area from — §3's own rule makes it
+   *  `text-sm` and makes a caption `text-xs`, so one slot could not serve both without breaking one
+   *  of them. Splitting the slot is what the six real call sites asked for rather than what was
+   *  convenient: three want a band (`q` … `to`), one wants a labelled companion (`lead` + `q`), and
+   *  two want neither and take `withheld` instead.
+   *
+   *  `to` renders the pair as a range under ONE unit — "1,234 – 1,456 m", not "1,234 m – 1,456 m" —
+   *  because the two ends of a band are one quantity, and repeating its unit reads as two. `lead`
+   *  and `note` stay sans: they are words about the figure, not part of it. */
+  figure?: { lead?: string; q: Quantity; to?: Quantity; note?: string };
+  /** The card surface, for a readout that sits INSIDE another container. The dispersion panel's
+   *  cards are `sunken` so they read as contents of the panel rather than as siblings of it. */
+  tone?: CardTone;
+  /** §3: `font-semibold` and the accent colour are for "the one number a surface exists to show" —
+   *  ONE per surface. A grid where every card is semibold has no lead number, which is the state
+   *  the dispersion panel was in before it adopted this primitive. */
   accent?: boolean;
   /** Why this figure is not being shown. When set, the value is replaced by an em dash and this
    *  reason takes the place of `sub` — the house rule is "withheld rather than shown as zeros", and
@@ -537,6 +577,44 @@ export function Readout({
    *  byte-identical to a subsonic one, with the caveat surfacing only as a separate card further up
    *  the page. A flyer reading the number does not necessarily read the card. */
   extrapolated?: string;
+  /** A threshold this value has crossed, and WHY that matters — rendered as the warn colour on the
+   *  value plus the reason on the caption line.
+   *
+   *  **The reason is not optional, and that is the point.** `MAINTAINING.md` names "a badge reading
+   *  HIGH beside a number" as a verdict with no reasoning attached, and a value that silently turns
+   *  amber past a threshold is the same thing with fewer words. The one site this was extracted from
+   *  — the dispersion panel's waiver-ceiling exceedance — turned amber above 5% and said nothing
+   *  about what 5% was or why it mattered. Typing the prop as a string rather than a boolean is what
+   *  makes that impossible to reintroduce. */
+  caution?: string;
+  /** The DENSITY this labelled value is rendered at. The treatment — the uppercase label, the mono
+   *  tabular value, the unit in its own span, the withheld em dash, the caveat — is the same in all
+   *  three; what changes is the container and the size of the number.
+   *
+   *  | variant | container | value | used by |
+   *  |---|---|---|---|
+   *  | `tile` | its own `Card` | `text-xl` | the flight card's 16 metrics, the dispersion grid's 4 |
+   *  | `bare` | none — it already sits in one | `text-xl` | the waiver-exceedance readout inside the dispersion panel's input card |
+   *  | `row` | none, and it renders `<dt>`/`<dd>` | `text-sm` | the design-summary strip, 14 fields of dense shared chrome |
+   *
+   *  **`row` is why P6's last clause took three increments rather than one.** The measured queue of
+   *  "hand-rolled labelled values" was never one treatment written many ways — it was one treatment
+   *  at two densities, and a card-shaped primitive could not reach the dense half without repainting
+   *  the shared chrome into 14 cards. §3 sanctions both sizes: `text-xl` is "an analyzer's big
+   *  readout", `text-sm` is "the body default — every label, value, control and table cell".
+   *
+   *  `<dt>`/`<dd>` is not cosmetic in `row`: the strip is a real `<dl>`, and 19 of the e2e suite's
+   *  21 `following-sibling::dd` locators walk off these labels. A `row` that rendered divs would be
+   *  a repaint of the DOM contract as well as of the markup. */
+  variant?: "tile" | "bare" | "row";
+  /** A short flag beside the value, with the reason it means something. `row` only — a tile has room
+   *  for `Extrapolated`'s full treatment and uses it.
+   *
+   *  **The reason is required, for the rule `MAINTAINING.md` states**: "a badge reading HIGH beside a
+   *  number is a verdict with no reasoning attached, which is the one thing this tool is not supposed
+   *  to hand out." Three real uses — `low` and `high` on the static margin, and `extrapolated` on
+   *  apogee — and all three were already spelling this pair by hand. */
+  flag?: { text: string; why: string };
 }) {
   // **`text-xs`, not `text-[11px]`, on both the label and the sub-line.** §3 scopes that token to
   // "axis ticks and diagram annotations only" and this is neither: it is the eyebrow naming a value
@@ -548,19 +626,74 @@ export function Readout({
   //
   // `text-xs` and not `text-sm`, deliberately: §3 makes `text-sm` the floor for anything a flyer
   // reads to make a DECISION and `text-xs` the size for the text around such a value. The label
-  // names the value; the sub-line qualifies it. **The one case that argues otherwise is filed rather
-  // than guessed at**: `MonteCarlo`'s three card variants put a 5-95% band in this slot at `text-sm`,
-  // and a recovery band IS a decision-grade figure. One `sub` slot cannot be both sizes, so the
-  // conversion of those six sites needs an API decision — see `ROADMAP.md` under P6.
+  // names the value; the sub-line qualifies it. **The case that argued otherwise is answered by
+  // `figure` rather than by widening this slot** — see that prop's own note.
+  //
+  // `font-medium` on the label because §3's weight rule says so — "`font-medium` for labels and
+  // headings" — and because the sites converting onto this primitive already spelled it that way.
+  // Adopting a primitive must not cost a call site its compliance with the file the primitive
+  // exists to enforce.
+  // `caution` and `accent` are mutually exclusive in effect, and caution wins: the accent marks the
+  // number a surface exists to show, and a threshold that has been crossed is the more urgent fact
+  // about it. No call site asks for both today; if one ever does, this is the answer it gets.
+  const valueTone = caution
+    ? "text-xl font-semibold text-amber-700 dark:text-amber-300"
+    : accent
+      ? "text-xl font-semibold text-indigo-600 dark:text-indigo-400"
+      : "text-xl text-zinc-900 dark:text-zinc-100";
+  // The dense row is a different ELEMENT set as well as a different size — see `variant`. Split here
+  // rather than threaded through the tile branch below, because almost nothing is shared once the
+  // container, the tags and the value size all change: pretending otherwise would have produced one
+  // component with a ternary on every line.
+  if (variant === "row") {
+    return (
+      <div>
+        <dt className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">{label}</dt>
+        <dd className="font-mono text-sm tabular-nums text-zinc-800 dark:text-zinc-200">
+          {withheld ? (
+            <span aria-label={`${label} withheld: ${withheld}`}>&mdash;</span>
+          ) : (
+            <>
+              {q.value}
+              {q.unit && <span className="ml-1 text-xs font-normal text-zinc-500 dark:text-zinc-400">{q.unit}</span>}
+            </>
+          )}
+          {/* **The marker here is a plain span with an accessible name, NOT the `Extrapolated`
+              primitive, and that is a measurement rather than an inconsistency.** `Extrapolated`
+              renders an `<abbr title>` plus a reason line that a coarse pointer unhides. Both are
+              wrong in this density: a `title` is unreachable on touch and this strip renders in the
+              shared chrome on all four routes, so adopting it took the phone suite's hover-only-state
+              count from 0 to 5 — and the written-out line took the chrome past its 1060 px ratchet
+              and `/sweep` back over the two screens §8 allows. Both halves of §8 are contracts and
+              neither is spent on the other. The reason travels by accessible name, and in full words
+              by the hint components below the fold, which render exactly when a flag is raised. */}
+          {(flag ?? (extrapolated ? { text: "extrapolated", why: extrapolated } : undefined)) && (
+            <span
+              aria-label={((f) => `${f!.text} — ${f!.why}`)(
+                flag ?? { text: "extrapolated", why: extrapolated! },
+              )}
+              className="ml-1 text-xs uppercase text-amber-700 no-underline dark:text-amber-400"
+            >
+              {(flag ?? { text: "extrapolated" }).text}
+            </span>
+          )}
+          {(withheld ?? sub) && (
+            <div className="text-xs tabular-nums text-zinc-500 dark:text-zinc-400">{withheld ?? sub}</div>
+          )}
+        </dd>
+      </div>
+    );
+  }
+  const Frame = variant === "bare" ? BareFrame : Card;
   return (
-    <Card>
-      <div className="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">{label}</div>
+    <Frame tone={tone}>
+      <div className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">{label}</div>
       {withheld ? (
         <div className="mt-1 font-mono text-xl tabular-nums text-zinc-400 dark:text-zinc-500" aria-label={`${label} withheld: ${withheld}`}>
           —
         </div>
       ) : (
-        <div className={"mt-1 font-mono tabular-nums " + (accent ? "text-xl font-semibold text-indigo-600 dark:text-indigo-400" : "text-xl text-zinc-900 dark:text-zinc-100")}>
+        <div className={"mt-1 font-mono tabular-nums " + valueTone}>
           {q.value}
           <span className="ml-1 text-xs font-normal text-zinc-500 dark:text-zinc-400">{q.unit}</span>
           {/* Inside the value's own line, not a sibling of it — hence `inline`. The readouts are
@@ -572,10 +705,24 @@ export function Readout({
           {extrapolated && <Extrapolated reason={extrapolated} inline />}
         </div>
       )}
-      {(withheld ?? sub) && (
-        <div className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">{withheld ?? sub}</div>
+      {/* The decision-grade line sits directly under the value and above any caption, because it is
+          the closer of the two to being part of the number. A withheld value has neither: there is
+          no band around a figure that does not exist, and the reason takes the caption line. */}
+      {!withheld && figure && (
+        <div className="mt-0.5 font-mono text-sm tabular-nums text-zinc-500 dark:text-zinc-400">
+          {figure.lead && <span className="font-sans">{figure.lead} </span>}
+          {figure.q.value}
+          {figure.to && <> – {figure.to.value}</>}
+          <span className="ml-1 text-xs font-normal">{figure.q.unit}</span>
+          {figure.note && (
+            <span className="ml-1 font-sans text-xs text-zinc-400 dark:text-zinc-500">{figure.note}</span>
+          )}
+        </div>
       )}
-    </Card>
+      {(withheld ?? caution ?? sub) && (
+        <div className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">{withheld ?? caution ?? sub}</div>
+      )}
+    </Frame>
   );
 }
 

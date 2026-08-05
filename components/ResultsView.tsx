@@ -432,6 +432,20 @@ export default function ResultsView({
   const descentWhy = descentFromDefault
     ? "the canopy's drag coefficient is Loft's fallback, not a figure this design states — the descent figures below follow it, so treat them as rough and try the range on /design"
     : undefined;
+  /** Why every landing figure is withheld, when they are — one string for the four readouts that
+   *  share the condition, so they cannot drift apart again.
+   *
+   *  **The two non-landing outcomes are different facts and used to share one sentence.** A rocket
+   *  still descending at the 1,200 s cap is a real prediction about a very slow descent. An
+   *  integrator that ran out of steps is Loft failing, not the rocket floating — measured on the
+   *  38 mm sample with a 25 m main, the run stops at 1.3 s because an enormous canopy drives the
+   *  adaptive step to nothing — and telling a flyer it "did not land inside the time cap" points
+   *  them at a canopy size when the answer is that the number should not be trusted at all. */
+  const notLandedWhy = s.landed
+    ? undefined
+    : s.notLandedReason === "step-budget"
+      ? "the solver could not integrate this descent — the canopy is large enough that the step size collapses, so no landing figure is available. Try a smaller recovery size."
+      : "still descending at the 1,200 s cap, so it has no landing figures — the recovery is large enough that this flight does not finish";
   /** Asked of the EDITED rocket, not the pristine one. R5 made a stage something a flyer can author, so
    *  `doc.rocket.stages.length` is the count of the stages the FILE came with and a booster added in the
    *  editor never moves it. Every tool below this line is gated on it, and the cross-check is the one
@@ -442,10 +456,18 @@ export default function ResultsView({
    *  against 0.0941 kg, both motors burning together from t=0 on a vehicle that never sheds a stage —
    *  a wrong number on the one surface whose whole job is to say whether Loft's number can be trusted. */
   const staged = (shownRocket.stages?.length ?? 1) > 1;
+  // **Every motor a bore refusal makes unflyable, and that is every motor this list can offer.**
+  // `swapOptions` is built from the DESIGN's stated casing, so on an airframe narrowed below its
+  // own motor each candidate is refused on arrival — `motorSweep` drops them all at
+  // `!run.hasPropulsion` and the panel ends on "none could be flown". The notice below used to point
+  // at it as "the exception ... the fastest way to see what this airframe would do", which is a loop
+  // with no exit dressed as a recovery. The exception is real for a motor the DATABASE lacks; it is
+  // not real for an airframe that cannot hold one.
+  const boreRefused = run.resolutions.some((res) => res.vetoedBore);
   // The motor sweep flies the bundled candidates itself rather than the design's own configuration,
   // so it is the one sweep that still works when no motor resolved — and on that design it is
   // the most useful one there is.
-  const canSweepMotors = !staged && !!swapOptions && swapOptions.length > 1;
+  const canSweepMotors = !staged && !boreRefused && !!swapOptions && swapOptions.length > 1;
   // A design can state its weight as a whole-assembly override, and a part added INSIDE that
   // assembly then weighs nothing — the override IS the design's statement about the total, so the
   // model is right to hold it. What was wrong is that nothing said so. Measured on a design weighed
@@ -584,7 +606,7 @@ export default function ResultsView({
           <Readout
             label="Drift from pad"
             q={d.distance(s.driftDistance, units)}
-            withheld={s.landed ? undefined : "no landing inside the time cap"}
+            withheld={notLandedWhy}
           />
           {/* Both are 0 when the flight never reached the ground — a sentinel the solver carries,
               not a measurement, and these are the two numbers a recovery setup is judged on. Shown
@@ -594,7 +616,7 @@ export default function ResultsView({
             label="Ground-hit speed"
             q={d.speed(s.groundHitVelocity, units)}
             sub="descent rate at impact"
-            withheld={s.landed ? undefined : "no landing inside the time cap"}
+            withheld={notLandedWhy}
             extrapolated={descentWhy}
           />
           {/* The speed over the ground is a different question from the descent rate, and under
@@ -613,11 +635,16 @@ export default function ResultsView({
             label="Landing energy"
             q={d.energy(s.landingEnergy, units)}
             sub="whole vehicle, from descent rate"
-            withheld={s.landed ? undefined : "no landing inside the time cap"}
+            withheld={notLandedWhy}
             extrapolated={descentWhy}
           />
           <Readout label="Optimum delay" q={d.seconds(s.optimumDelay)} sub="burnout → apogee" extrapolated={extrapolatedWhy} />
-          <Readout label="Flight time" q={d.seconds(s.flightTime)} />
+          {/* **Withheld on the same test as its three neighbours, and it was not until 2026-08-05.**
+              A flight that never reached the ground has no flight TIME either — it has however long
+              the solver ran, which on a 25 m main is 1.3 s because the adaptive step collapses under
+              an enormous canopy. One panel published three em dashes and a confident 1.3 s for the
+              same non-flight. */}
+          <Readout label="Flight time" q={d.seconds(s.flightTime)} withheld={notLandedWhy} />
           <Readout label="Max dynamic pressure" q={d.dynamicPressure(s.maxDynamicPressure, units)} extrapolated={extrapolatedWhy} />
         </div>
         <RecoverySizingHint run={run} units={units} />
@@ -905,7 +932,9 @@ export default function ResultsView({
           reason={`These tools re-fly the design hundreds of times, and this one has no thrust curve to fly on — see the notice above.${
             canSweepMotors
               ? " The motor sweep below is the exception: it flies the bundled substitutes themselves, so it works here and is the fastest way to see what this airframe would do on each of them."
-              : " Swap in a bundled motor under Design and they become available."
+              : boreRefused
+                ? " Widen the airframe on Design until it can hold its motor, and they become available."
+                : " Swap in a bundled motor under Design and they become available."
           }`}
         />
       )}
@@ -1131,7 +1160,13 @@ function NoPropulsionNotice({
   // Same-casing substitutes exist — the "Swap motor" picker in the design tools below can fly the
   // design on a bundled curve of the right diameter, turning a dead-end into a two-click recovery.
   // Gated at >1 to match that picker's own visibility, so the notice never points at an absent one.
-  const canSubstitute = !!swapOptions && swapOptions.length > 1;
+  // **Not offered when the mount itself is too small**, because the list is built from the DESIGN's
+  // stated casing and every motor on it is that same diameter — so each one is refused on arrival for
+  // the same reason. Offering a two-click recovery that cannot work sends the flyer round a loop with
+  // no exit in it, which reads as broken rather than as refused. The way out here is the airframe
+  // dimension they just changed, and the notice above names it.
+  const boreRefused = run.resolutions.some((res) => res.vetoedBore);
+  const canSubstitute = !boreRefused && !!swapOptions && swapOptions.length > 1;
   // The configuration picker only renders when the design stores more than one, so a design with a
   // single stored configuration has nothing to pick — offering that as the way out sends the flyer
   // hunting for a control that was never drawn. Gated the same way the picker itself is.
@@ -1163,7 +1198,7 @@ function NoPropulsionNotice({
             {/* "in the bundled database" alone is FALSE where the casing veto fired: the designation
                 does reach a bundled curve, and Loft turned it down because the motor is the wrong
                 diameter for the mount. Flying it anyway is the Sev-1 this replaced. */}
-            {unresolved.some((res) => res.vetoedFit) ? " that fits this mount" : ""} in the bundled
+            {unresolved.some((res) => res.vetoedFit || res.vetoedBore) ? " that fits this mount" : ""} in the bundled
             database, so there is no thrust to fly. Rather than show a misleading zero-altitude
             &ldquo;flight,&rdquo; the flight results, plots, and {tool} comparison are withheld.
           </p>
@@ -1177,9 +1212,15 @@ function NoPropulsionNotice({
                     the designation looks almost right. Naming the near-miss and both diameters
                     points at the two things it can actually be: a mistyped designation, or a stated
                     casing that disagrees with the motor the file means. */}
-                {res.vetoedFit
-                  ? ` — ${res.vetoedFit.designation} is the closest bundled name, and it is a ${res.vetoedFit.matchedMm} mm motor; this one is on a ${res.vetoedFit.statedMm} mm casing`
-                  : " — not found"}
+                {/* The bore refusal names the AIRFRAME, not the motor, because that is the thing
+                    the flyer changed. It fires on an edit rather than on a file — a body diameter
+                    typed below the motor inside it — so "not found" and "wrong casing" both point
+                    at the wrong end of the problem. */}
+                {res.vetoedBore
+                  ? ` — ${res.vetoedBore.designation} is a ${res.vetoedBore.motorMm} mm motor and this mount is ${res.vetoedBore.boreMm} mm across; it cannot go in`
+                  : res.vetoedFit
+                    ? ` — ${res.vetoedFit.designation} is the closest bundled name, and it is a ${res.vetoedFit.matchedMm} mm motor; this one is on a ${res.vetoedFit.statedMm} mm casing`
+                    : " — not found"}
               </li>
             ))}
           </ul>
@@ -1198,6 +1239,24 @@ function NoPropulsionNotice({
           the exact curve.
         </p>
       )}
+      {/* **The way out, named as a control on a page.** A bore refusal is not about the motor
+          database at all, so the paragraph below — which blames the bundled subset and tells the
+          flyer to check the designation — is the wrong instruction on this branch. It is suppressed
+          and replaced with the one that works. Naming the field and the workspace, not just the two
+          diameters: a flyer who typed a number into a box needs to be told which box. */}
+      {boreRefused ? (
+        <p className="mt-3 text-sm">
+          <strong>Nothing is wrong with the motor.</strong> The airframe is narrower than the motor
+          it is meant to hold, so no bundled curve of this casing would fit either — which is why
+          there is no substitute to offer. Widen <em>Body diameter</em>{" "}on the{" "}
+          <Link href="/design" className="underline underline-offset-2">
+            Design
+          </Link>{" "}
+          workspace until it clears the figure above, or clear the field to go back to the
+          design&apos;s own diameter. The rocket geometry below is computed independently and remains
+          valid; stability is not, because a motor that cannot be loaded is left out of the build.
+        </p>
+      ) : (
       <p className="mt-3 text-sm">
         The bundled database is a curated subset of ThrustCurve.org, not the full catalogue — see
         the{" "}
@@ -1215,6 +1274,7 @@ function NoPropulsionNotice({
         entirely rather than carried as dead weight, so the centre of gravity sits forward of where
         it would fly and the static margin is withheld rather than reported over-stable.
       </p>
+      )}
     </Panel>
   );
 }
@@ -1298,9 +1358,11 @@ function RocketSummary({
             aria-label={
               res.match
                 ? `Matched ${res.match.entry.designation} (${res.match.quality})${res.count > 1 ? ` — cluster of ${res.count}` : ""}`
-                : res.vetoedFit
-                  ? `No thrust curve of this mount's ${res.vetoedFit.statedMm} mm casing — the closest name, ${res.vetoedFit.designation}, is a ${res.vetoedFit.matchedMm} mm motor`
-                  : "No thrust curve found"
+                : res.vetoedBore
+                  ? `${res.vetoedBore.designation} is a ${res.vetoedBore.motorMm} mm motor and this mount is only ${res.vetoedBore.boreMm} mm across`
+                  : res.vetoedFit
+                    ? `No thrust curve of this mount's ${res.vetoedFit.statedMm} mm casing — the closest name, ${res.vetoedFit.designation}, is a ${res.vetoedFit.matchedMm} mm motor`
+                    : "No thrust curve found"
             }
           >
             {res.count > 1 ? `${res.count}× ` : ""}
@@ -1310,9 +1372,11 @@ function RocketSummary({
                 distinction too. "not found" on a motor that was found and turned down for its casing
                 sends a flyer hunting for a thrust curve that is already in the set. */}
             {!res.match
-              ? res.vetoedFit
-                ? " · wrong casing"
-                : " · not found"
+              ? res.vetoedBore
+                ? " · too big for the mount"
+                : res.vetoedFit
+                  ? " · wrong casing"
+                  : " · not found"
               : res.match.quality !== "exact"
                 ? " · approx"
                 : ""}
@@ -1356,11 +1420,11 @@ function RocketSummary({
             stands where the number is the surface's whole subject. Without this the same apogee read
             plain up here and "extrapolated" on the card below, one screen apart. */}
         {run.hasPropulsion && (
-          <Field
-            term="Apogee"
-            value={d.q(d.altitude(r.summary.apogee, units))}
-            hint={extrapolatedWhy ? "extrapolated" : undefined}
-            hintWhy={extrapolatedWhy}
+          <Readout
+            variant="row"
+            label="Apogee"
+            q={d.altitude(r.summary.apogee, units)}
+            extrapolated={extrapolatedWhy}
           />
         )}
         {/* **The motor is not "dead mass" when it fails to resolve — it is ABSENT.** `lib/sim/setup.ts`
@@ -1389,20 +1453,26 @@ function RocketSummary({
             (`MassBreakdown` and the parts panel) the moment any ballast was set. One withheld cell
             with a true reason beats a label that is right in one of three states. */}
         {run.motorsComplete ? (
-          <Field term="Liftoff mass" value={d.q(d.mass(r.liftoffMass, units))} />
+          <Readout variant="row" label="Liftoff mass" q={d.mass(r.liftoffMass, units)} />
         ) : (
-          <Field term="Liftoff mass" value="—" sub={MOTOR_GAP_SHORT(run)} />
+          <Readout variant="row" label="Liftoff mass" q={{ value: "—", unit: "" }} withheld={MOTOR_GAP_SHORT(run)} />
         )}
         {run.motorsComplete ? (
-          <Field
-            term="Static margin"
-            value={d.q(d.calibers(r.staticMarginCal))}
-            hint={r.staticMarginCal < 1 ? "low" : r.staticMarginCal > 3 ? "high" : undefined}
-            hintWhy={
+          <Readout
+            variant="row"
+            label="Static margin"
+            q={d.calibers(r.staticMarginCal)}
+            flag={
               r.staticMarginCal < 1
-                ? "under 1 caliber: the centre of pressure is close enough to the centre of gravity that the rocket may not hold a straight course off the rail"
+                ? {
+                    text: "low",
+                    why: "under 1 caliber: the centre of pressure is close enough to the centre of gravity that the rocket may not hold a straight course off the rail",
+                  }
                 : r.staticMarginCal > 3
-                  ? "over 3 calibers: strongly over-stable, so the rocket weathercocks hard into wind and loses altitude and downrange predictability"
+                  ? {
+                      text: "high",
+                      why: "over 3 calibers: strongly over-stable, so the rocket weathercocks hard into wind and loses altitude and downrange predictability",
+                    }
                   : undefined
             }
           />
@@ -1410,7 +1480,7 @@ function RocketSummary({
           // Withheld rather than blank, with the reason ON the cell. It cannot lean on the notice
           // above — that renders only when NOTHING resolved, so on a partial cluster there would be
           // no sentence anywhere. `MOTOR_GAP_SHORT` says which of the two states this is.
-          <Field term="Static margin" value="—" sub={MOTOR_GAP_SHORT(run)} />
+          <Readout variant="row" label="Static margin" q={{ value: "—", unit: "" }} withheld={MOTOR_GAP_SHORT(run)} />
         )}
 
       </dl>
@@ -1449,31 +1519,40 @@ function RocketSummary({
             a state the flight never entered — and the cell two rows up already says "Dry mass". Two
             identical numbers under different labels is worse than one withheld. */}
         {run.motorsComplete ? (
-          <Field term="Burnout mass" value={d.q(d.mass(r.burnoutMass, units))} />
+          <Readout variant="row" label="Burnout mass" q={d.mass(r.burnoutMass, units)} />
         ) : (
           // "no motor burned" is only true when NONE resolved. On a partial cluster the flight has a
           // real burnout — the Flight panel publishes a burnout velocity from the same run — so that
           // reason would be a false claim beside a withheld number, which is worse than a blank.
-          <Field term="Burnout mass" value={"—"} sub={MOTOR_GAP_SHORT(run)} />
+          <Readout variant="row" label="Burnout mass" q={{ value: "—", unit: "" }} withheld={MOTOR_GAP_SHORT(run)} />
         )}
-        <Field term="Length" value={d.q(d.lengthMm(length, units))} />
-        <Field term="Max diameter" value={d.q(d.lengthMm(dia, units))} />
+        <Readout variant="row" label="Length" q={d.lengthMm(length, units)} />
+        <Readout variant="row" label="Max diameter" q={d.lengthMm(dia, units)} />
         {/* The loaded CG is what the withheld margin is computed FROM, so publishing it while
             withholding the margin would hand over the same claim one step earlier. CP is geometry
             and stays. */}
         {run.motorsComplete ? (
-          <Field term="CG (loaded)" value={d.q(d.lengthMm(r.cgLoaded, units))} />
+          <Readout variant="row" label="CG (loaded)" q={d.lengthMm(r.cgLoaded, units)} />
         ) : (
-          <Field term="CG (loaded)" value="—" sub={MOTOR_GAP_SHORT(run)} />
+          <Readout variant="row" label="CG (loaded)" q={{ value: "—", unit: "" }} withheld={MOTOR_GAP_SHORT(run)} />
         )}
-        <Field term="CP" value={d.q(d.lengthMm(r.stability.cp, units))} />
-        <Field term="CNα" value={d.fmt(r.stability.cnAlpha, 2) + " /rad"} />
+        <Readout variant="row" label="CP" q={d.lengthMm(r.stability.cp, units)} />
+        {/* Split rather than carried across as one string: §5 says the unit is never baked into the
+            value, and this was the one site in the strip that did. */}
+        <Readout variant="row" label="CNα" q={{ value: d.fmt(r.stability.cnAlpha, 2), unit: "/rad" }} />
         {r.flutter && (
-          <Field
-            term="Fin flutter (est.)"
-            value={d.q(d.speed(r.flutter.worst.flutterVelocity, units))}
-            hint={r.flutter.worst.margin < RECOMMENDED_FLUTTER_MARGIN ? "thin" : undefined}
-            hintWhy={`the estimated flutter speed is under ${RECOMMENDED_FLUTTER_MARGIN}× the fastest this fin set flies, the margin the method's own spread calls for`}
+          <Readout
+            variant="row"
+            label="Fin flutter (est.)"
+            q={d.speed(r.flutter.worst.flutterVelocity, units)}
+            flag={
+              r.flutter.worst.margin < RECOMMENDED_FLUTTER_MARGIN
+                ? {
+                    text: "thin",
+                    why: `the estimated flutter speed is under ${RECOMMENDED_FLUTTER_MARGIN}× the fastest this fin set flies, the margin the method's own spread calls for`,
+                  }
+                : undefined
+            }
             sub={`${d.flutterMargin(r.flutter.worst.margin)} margin`}
           />
         )}
@@ -1691,54 +1770,6 @@ function BoosterDescentNote({ run, units }: { run: FlightRun; units: UnitSystem 
   );
 }
 
-function Field({
-  term,
-  value,
-  hint,
-  hintWhy,
-  sub,
-}: {
-  term: string;
-  value: string;
-  hint?: string;
-  /** What the flag means and why it matters — a badge reading "HIGH" beside a number is a verdict
-   *  with no reasoning attached, which is the one thing this tool is not supposed to hand out. */
-  hintWhy?: string;
-  sub?: string;
-}) {
-  return (
-    <div>
-      <dt className="text-[11px] uppercase tracking-wide text-zinc-500 dark:text-zinc-400">{term}</dt>
-      <dd className="font-mono text-sm tabular-nums text-zinc-800 dark:text-zinc-200">
-        {value}
-        {hint && (
-          <span
-            // Deliberately NO `title`. Adding one to reach parity with the `Extrapolated` badge's
-            // hover affordance took the phone suite's hover-only-state count from 0 to 5 — a `title`
-            // is unreachable on a coarse pointer, and this badge renders in the shared chrome on all
-            // four routes, so it is five states a flyer at the pad cannot get at. The reason travels
-            // by accessible name here; the written-out sentence lives on the flight card's own
-            // marker, which is on the same route and is where a phone actually reads it.
-            aria-label={hintWhy ? `${hint} — ${hintWhy}` : hint}
-            className="ml-1 text-xs uppercase text-amber-700 no-underline dark:text-amber-400"
-          >
-            {hint}
-          </span>
-        )}
-        {/* NOT written out on a coarse pointer, and the reason is a measurement rather than a
-            preference. `Field` renders inside the design-summary strip, which is the shared chrome
-            every workspace route sits under — so a permanent reasoning line here is paid for on all
-            four routes at once, and it took the phone chrome past the 1060 px ratchet and `/sweep`
-            back over the two screens §8 allows. Both halves of §8 are contracts, so the answer is
-            not to spend one on the other: the flag's reasoning is already written in full, in
-            words, by `StabilityTrimHint` and `FlutterFixHint` below the fold, which render exactly
-            when a flag is raised. The `title` is a pointer-only convenience on top of that, not the
-            only route to it. */}
-        {sub && <div className="text-xs tabular-nums text-zinc-500 dark:text-zinc-400">{sub}</div>}
-      </dd>
-    </div>
-  );
-}
 
 
 /** A compact "what-if vs design" readout: after the flyer applies a design what-if (nose ballast

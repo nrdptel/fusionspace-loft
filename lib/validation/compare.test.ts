@@ -18,6 +18,10 @@ const summary: FlightSummary = {
   groundHitVelocity: 5,
   groundHitTotalVelocity: 6,
   optimumDelay: 10,
+  // Deliberately different from `optimumDelay`, so the two bases below cannot pass by accident:
+  // this is the shape of a flight whose canopy opened before apogee, where `run.ts` has replaced
+  // the reported figure with a recovery-free coast and this one is what actually happened.
+  optimumDelayAsFlown: 2,
   deploymentVelocity: 3,
   driftDistance: 40,
   landingX: 40,
@@ -42,5 +46,28 @@ describe("compareToStored", () => {
   it("ignores metrics absent from the stored data", () => {
     const report = compareToStored(summary, { maxAltitude: 1000 });
     expect(report.count).toBe(1);
+  });
+
+  // The two formats store the optimum delay for two different flights, and the comparison has to
+  // pick the matching one. Asserted in BOTH directions on the same summary, because a selector that
+  // simply always read one field would pass a one-sided test.
+  describe("the optimum delay is compared against the flight the file describes", () => {
+    const delay = (basis?: "free-coast" | "as-flown") =>
+      compareToStored(summary, { optimumDelay: 10 }, basis ? { optimumDelayBasis: basis } : {})
+        .comparisons.find((c) => c.key === "optimumDelay")!;
+
+    it("scores the reported free-coast figure by default — OpenRocket's convention", () => {
+      expect(delay().simulated).toBe(10);
+      expect(delay().pctError).toBeCloseTo(0, 6);
+    });
+
+    it("scores the as-flown figure for a file that stores apogee minus burnout — RockSim's", () => {
+      expect(delay("as-flown").simulated).toBe(2);
+      expect(delay("as-flown").pctError).toBeCloseTo(-80, 6);
+    });
+
+    it("treats an explicit free-coast basis as the default rather than as a third case", () => {
+      expect(delay("free-coast").simulated).toBe(delay().simulated);
+    });
   });
 });

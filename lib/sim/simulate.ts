@@ -196,6 +196,17 @@ export interface FlightSummary {
   groundHitTotalVelocity: number;
   /** Optimum ejection delay for apogee deployment (s from burnout). */
   optimumDelay: number;
+  /** The same figure, but always from the flight AS FLOWN — never replaced by the recovery-free
+   *  coast that `lib/sim/run.ts` substitutes when a device opened before apogee.
+   *
+   *  **This exists for the census, not for the flyer**, and the two want different numbers. A flyer
+   *  asking "what delay should I buy" wants the coast the rocket WOULD have had, which is why the
+   *  substitution is there. But `.rkt` files store `TimeToApogee − TimeToBurnout` of the run they
+   *  actually flew — exact on all four corpus RockSim designs, including the one that stores both a
+   *  1.34 s value for its four canopy runs and a 17.93 s one for its eleven plugged ones — so
+   *  comparing the substituted figure against it compares two different flights. See
+   *  `StoredSimulation.optimumDelayBasis`. */
+  optimumDelayAsFlown: number;
   deploymentVelocity: number;
   driftDistance: number;
   /** Landing point relative to the pad (m): downrange (+x) and crossrange (+y) components of the
@@ -220,6 +231,17 @@ export interface FlightSummary {
    *  a recovery setup is judged on. Surfaces must withhold them rather than render the zeros: a
    *  flyer enlarging a canopy watched the landing energy fall to 0 J and read it as success. */
   landed: boolean;
+  /** WHY the flight did not reach the ground, when it did not — and the two answers are different
+   *  facts a flyer should be told apart.
+   *
+   *  `time-cap` is a rocket still descending after 1,200 s of simulated flight, which is a real
+   *  prediction about a very slow descent. `step-budget` is the integrator running out of steps,
+   *  which is Loft failing rather than the rocket floating: measured on `demo-single-deploy.ork`
+   *  with a 25 m main, the run stops at **1.3 s** because an enormous canopy drives the adaptive
+   *  step to nothing. Four readouts shared one string — "no landing inside the time cap" — and it is
+   *  simply untrue of the second case, on a surface whose whole job is saying why a figure is
+   *  missing. */
+  notLandedReason?: "time-cap" | "step-budget";
 }
 
 export interface FlightResult {
@@ -914,6 +936,9 @@ export function simulate(input: SimulateInput): FlightResult {
   // arrive at that speed over the ground, and an oblique 20 mph arrival zippers airframes that a
   // vertical 5 m/s one does not. It is a different question, so it is a different number rather
   // than the same one silently redefined.
+  // Which of the two non-landing outcomes this was. `state.t` is the only thing that can tell them
+  // apart after the loop: the cap is a time bound and the step budget is not.
+  const notLandedReason = landed ? undefined : state.t >= MAX_TIME ? ("time-cap" as const) : ("step-budget" as const);
   const groundHitVelocity = landed ? Math.abs(state.vel.z) : 0;
   const groundHitTotalVelocity = landed ? mag(state.vel) : 0;
   const driftDistance = Math.hypot(state.pos.x, state.pos.y);
@@ -1101,7 +1126,9 @@ export function simulate(input: SimulateInput): FlightResult {
       groundHitVelocity,
       groundHitTotalVelocity,
       landed,
+      ...(notLandedReason ? { notLandedReason } : {}),
       optimumDelay,
+      optimumDelayAsFlown: optimumDelay,
       deploymentVelocity: deploymentV,
       driftDistance,
       landingX: state.pos.x,

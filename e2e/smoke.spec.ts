@@ -1680,6 +1680,100 @@ test.describe("Loft", () => {
     expect(csv).toContain("H128W");
   });
 
+  test("the validation export says what its numbers are, in both unit systems", async ({ page }) => {
+    // **A CSV whose numbers change meaning with a control on another page, under one filename, with
+    // no unit in the file.** Measured 2026-08-05: `Apogee` exported 50.6 in metric and
+    // 166.01049868766404 in imperial, both under a header reading `Stored`, both as
+    // `<tool>-validation.csv`. A flyer with two of those in a folder cannot tell them apart, and the
+    // twelve-digit one claims precision the model does not have. `\u0394` was a bare number with no `%`.
+    await page.goto("/");
+    await page
+      .getByLabel(/^Choose an OpenRocket/)
+      .setInputFiles(resolve(process.cwd(), "e2e/fixtures/logged-sample.ork"));
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 15000 });
+    // The stored-tool comparison lives on the Cross-check workspace, beside the second solver.
+    await page.getByRole("link", { name: "Cross-check" }).click();
+    await page.waitForURL(/\/validate\/?$/);
+
+    const grab = async () => {
+      const [download] = await Promise.all([
+        page.waitForEvent("download"),
+        page.getByRole("button", { name: /Download CSV/ }).first().click(),
+      ]);
+      return readFileSync(await download.path(), "utf8");
+    };
+
+    const metric = await grab();
+    const header = metric.split(/\r?\n/)[0];
+    // Δ is named as a percentage rather than left as a bare column of numbers.
+    expect(header).toContain("\u0394 (%)");
+    // Every metric row carries its own unit — it is per row here, so it cannot live in a header.
+    const apogee = metric.split(/\r?\n/).find((l) => l.startsWith("Apogee"))!;
+    expect(apogee).toMatch(/^Apogee \(m\),/);
+    // And the numbers are numbers, at the precision the page shows — not raw conversion floats.
+    for (const cell of apogee.split(",").slice(1)) {
+      expect(cell).toMatch(/^-?\d+(\.\d)?$/);
+    }
+
+    // Switch the whole app to imperial and export again: the same file must now SAY it is imperial.
+    await page.getByRole("link", { name: "Flight" }).click();
+    await page.getByRole("group", { name: /unit/i }).first().getByRole("button", { name: "Imperial", exact: true }).click();
+    await page.getByRole("link", { name: "Cross-check" }).click();
+    await page.waitForURL(/\/validate\/?$/);
+    const imperial = await grab();
+    const apogeeFt = imperial.split(/\r?\n/).find((l) => l.startsWith("Apogee"))!;
+    expect(apogeeFt).toMatch(/^Apogee \(ft\),/);
+    expect(apogeeFt).not.toBe(apogee);
+    for (const cell of apogeeFt.split(",").slice(1)) {
+      expect(cell).toMatch(/^-?\d+(\.\d)?$/);
+    }
+  });
+
+  test("a flight that never reaches the ground withholds ALL its landing figures", async ({ page }) => {
+    // **Three em dashes and a confident number, on one panel, for the same non-flight.** `Flight
+    // time` rendered unconditionally while `Drift from pad`, `Ground-hit speed` and `Landing energy`
+    // all withheld on `!landed` — so a flyer met a 1.3 s "flight time" beside three figures that
+    // said they did not exist.
+    //
+    // And the reason they gave was wrong for this case. The three shared "no landing inside the time
+    // cap", which is true of a rocket still descending at 1,200 s and untrue of an integrator that
+    // ran out of steps — which is what an enormous canopy causes, at 1.3 s of simulated flight. Two
+    // outcomes, one string, pointing a flyer at a canopy size when the answer is that the number is
+    // not usable.
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+    await expect(page.getByText("Flight time", { exact: true })).toBeVisible();
+
+    await page.getByRole("link", { name: "Design" }).click();
+    await page.locator("summary", { hasText: /Parts ·/ }).click();
+    const canopy = page.locator("label").filter({ hasText: /Main chute Ø/ }).first().locator("input");
+    await canopy.fill("25000");
+    await canopy.blur();
+    await page.getByRole("link", { name: "Flight" }).click();
+
+    // All four, together — the property is that the panel does not disagree with itself.
+    for (const label of ["Flight time", "Drift from pad", "Ground-hit speed", "Landing energy"]) {
+      const value = page.getByText(label, { exact: true }).first().locator("xpath=following-sibling::div[1]");
+      await expect(value, `${label} still published a number for a flight that never landed`).toHaveText("—", {
+        timeout: 20000,
+      });
+    }
+    // And the reason names the solver rather than the time cap, because that is what happened.
+    const why = page.getByText("Flight time", { exact: true }).first().locator("xpath=following-sibling::div[2]");
+    await expect(why).toContainText(/could not integrate this descent/);
+    await expect(why).not.toContainText(/time cap/);
+
+    // The way back: clearing the field restores the design's canopy and every figure returns.
+    await page.getByRole("link", { name: "Design" }).click();
+    await canopy.fill("");
+    await canopy.blur();
+    await page.getByRole("link", { name: "Flight" }).click();
+    await expect(
+      page.getByText("Flight time", { exact: true }).first().locator("xpath=following-sibling::div[1]"),
+    ).not.toHaveText("—", { timeout: 20000 });
+  });
+
   test("the motor comparison sorts by any column, and the export follows it", async ({ page }) => {
     // "Which motor gets me to my target?" is only the first question this table answers. Which one
     // clears the rail fastest, which leaves the most flutter margin, which needs the shortest delay
@@ -2955,6 +3049,30 @@ test.describe("Loft", () => {
     await expect(panel.getByRole("img", { name: /Apogee distribution histogram/i })).toBeVisible();
     await expect(panel.getByRole("img", { name: /Landing scatter/i })).toBeVisible();
 
+    // §3: the accent is for "the one number a surface exists to show", and that means ONE. Until
+    // these cards adopted `Readout` all four were `font-semibold`, so the grid had no lead number
+    // and the same apogee read differently here and on the flight card one route away. Counted on
+    // the rendered page rather than in the source, because the property being held is "how many
+    // accented values a flyer sees", which a source count cannot answer once a primitive owns the
+    // treatment. (The warn treatment is a separate axis and deliberately not counted here — see the
+    // waiver-ceiling assertion at the end of this test.)
+    await expect(panel.locator(".text-indigo-600")).toHaveCount(1);
+    await expect(
+      panel.getByText("Apogee", { exact: true }).locator("xpath=following-sibling::div[1]"),
+    ).toHaveClass(/text-indigo-600/);
+
+    // Each dispersed median carries its own 5–95% band, at `text-sm` rather than caption size:
+    // a band a flyer sizes a recovery area from is decision-grade, which is the distinction that
+    // earned `Readout` a second slot. The unit is printed once for the pair, not twice.
+    for (const label of ["Apogee", "Max speed", "Landing speed"]) {
+      const band = panel.getByText(label, { exact: true }).locator("xpath=following-sibling::div[2]");
+      await expect(band).toHaveClass(/text-sm/);
+      // Two ends, ONE unit, then the note — "881 – 1,111 m (5–95%)", not "881 m – 1,111 m". The
+      // anchors matter: they are what makes a second unit a failure rather than a substring that
+      // happens to still match.
+      expect(await band.innerText()).toMatch(/^[\d,.]+ – [\d,.]+[^\s(]*\(5–95%\)$/);
+    }
+
     // The landing-energy band (the field/waiver recovery-adequacy figure) reports a median and a
     // worst-case in energy units.
     const energy = panel.locator("p").filter({ hasText: "Landing energy:" });
@@ -2979,6 +3097,17 @@ test.describe("Loft", () => {
     await panel.getByLabel(/Waiver ceiling/).fill("100");
     await expect(panel.getByText("Chance over ceiling")).toBeVisible();
     await expect(panel.getByText("100%", { exact: true })).toBeVisible();
+
+    // And the warn treatment carries its REASON, rather than being a colour a flyer has to
+    // interpret. This readout turned amber above 5% for its whole life and never said what 5% was
+    // or why it mattered — "a badge reading HIGH beside a number is a verdict with no reasoning
+    // attached", which is the one thing this tool does not hand out. `Readout`'s `caution` slot
+    // takes a string, not a boolean, so the colour cannot come back without it.
+    const exceedance = panel.getByText("Chance over ceiling").locator("xpath=following-sibling::div[1]");
+    await expect(exceedance).toHaveClass(/text-amber-700/);
+    await expect(
+      panel.getByText("Chance over ceiling").locator("xpath=following-sibling::div[2]"),
+    ).toContainText("1 flight in 20");
   });
 
   test("resizing the fins rebuilds the design and changes the stability margin", async ({ page }) => {
@@ -3372,6 +3501,53 @@ test.describe("Loft", () => {
 
     // A fatter airframe has a bigger frontal area (more drag) and more tube material, so it flies lower.
     await expect.poll(apogee).toBeLessThan(before);
+  });
+
+  test("an airframe typed narrower than its own motor is refused, not flown", async ({ page }) => {
+    // **The Sev-1 this exists for.** The Body diameter field carried only an UPPER guard, so a tube
+    // shrunk below the motor inside it still flew — and it read HIGH, because a thinner airframe is
+    // less frontal area and therefore less drag. Measured on the corpus's `Dual parachute
+    // deployment.ork`: 579.0 m as designed, then 695.4 / 768.0 / 912.5 / 975.7 / 978.5 m at 20, 10,
+    // 5, 1 and 0.1 mm, every one reported as a flight — and the WARNING LIST GOT SHORTER on the way
+    // down, so the more impossible the design became, the more comfortable the page looked.
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+    await expect(page.getByRole("term").filter({ hasText: /^Apogee$/ })).toBeVisible();
+
+    await page.getByRole("link", { name: "Design" }).click();
+    const bodyDia = page.getByRole("spinbutton", { name: /Body diameter/ });
+    await expect(bodyDia).toBeVisible();
+    const designDia = parseFloat((await bodyDia.getAttribute("placeholder")) ?? "0");
+    expect(designDia).toBeGreaterThan(0);
+    await bodyDia.fill("1");
+
+    await page.getByRole("link", { name: "Flight" }).click();
+    const notice = page.getByRole("region", { name: "No flight simulated" });
+    await expect(notice).toBeVisible({ timeout: 15000 });
+    // Withheld, not flown: no apogee survives anywhere on the strip.
+    await expect(page.getByRole("term").filter({ hasText: /^Apogee$/ })).toBeHidden();
+
+    // And the refusal names the AIRFRAME, because that is what the flyer changed — "not found"
+    // would send them hunting the motor database for a curve that is sitting right there.
+    const line = notice.locator("li").first();
+    await expect(line).toContainText(/mm motor and this mount is/);
+    await expect(line).toContainText(/cannot go in/);
+    await expect(line).not.toContainText(/not found/);
+    // No substitute offer: every motor on that list is the same diameter, so each one would be
+    // refused on arrival — a two-click recovery that cannot work is a loop with no exit.
+    await expect(notice.getByText(/Fly it with a substitute/)).toBeHidden();
+
+    // **And there is a way back, reached from the notice itself.** The refusal names the field and
+    // links to the workspace holding it, so a flyer who lands here is not left to find their own way
+    // out. Navigating by that link rather than by the nav is deliberate: it is the affordance under
+    // test, and it is also why the nav locator is ambiguous on this branch — two "Design" links are
+    // on the page precisely because this one was added.
+    await notice.getByRole("link", { name: "Design" }).click();
+    await page.waitForURL(/\/design\/?$/);
+    await bodyDia.fill("");
+    await page.getByRole("link", { name: "Flight" }).click();
+    await expect(page.getByRole("term").filter({ hasText: /^Apogee$/ })).toBeVisible({ timeout: 15000 });
   });
 
   test("an edit the solver refuses leaves the design and its numbers agreeing", async ({ page }) => {

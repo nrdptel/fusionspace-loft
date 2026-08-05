@@ -2267,11 +2267,52 @@ to improve a median, and the gate is only worth having because of that.
 The threshold has room rather than being tuned: the known group is 1.94× and **the next-widest group
 anywhere in the corpus is 1.004×**, which the run prints so a corpus that grows a 1.4× group says so.
 
-**What remains:** (5) re-measure and publish across the remaining metrics. Ground-hit velocity and
-flight time are done; the other eight have not been re-examined for a convention or population
-problem of their own, and `deploymentVelocity` at 6.0% is the obvious next candidate — the page
-already argues it is ill-conditioned rather than wrong, which is a claim of exactly the kind this
-milestone has now twice found to be half the story.
+*Size item (5) — IN PROGRESS. The remaining eight metrics re-examined, and the first correction
+shipped 2026-08-05.*
+
+**All eight were probed, and the answer is not evenly spread.** Five are Loft's physics and should
+stop being candidates: `maxMach` (OpenRocket's `maxmach` is the max of its own Mach column, 77/77,
+on the same air-relative basis Loft uses), `maxVelocity` (no `.ork` sim in the corpus peaks in total
+velocity after apogee, 0/77, so the 24.12 frame change cannot reach it), `maxAltitude` and
+`timeToApogee` (clean reads — stored equals the log's own max and event time, 77/77 and 74/77, the
+three misses being one 0.05 s output step), and `launchRodVelocity` (OpenRocket's figure equals BOTH
+the total and the vertical at the `launchrod` event, the rod being vertical). Writing that down is
+half the value of the item: it stops the next session re-litigating settled numbers.
+
+**Three carry a real defect, and they are ranked by what a probe measured rather than by what the
+docs page argues.**
+
+1. **`optimumDelay` — SHIPPED 2026-08-05.** Two formats mean different flights by the same word. See
+   `COMPETITION.md` row 38 for the arithmetic. Worst row **+1107% → −21%**, corpus-worst
+   **1107% → 59%**, published median unmoved at 2.5% — and that last fact is why the pinning check is
+   a `worst`-row assertion rather than a median: *a median cannot see four rows in eighty-four move
+   by a factor of eighteen*. Pinned by `lib/corpus/sweep.test.ts`'s
+   `scores every stored optimum delay against the flight its own file describes`, proved able to fail
+   by reverting the adapter (red at 1107.2%, naming the file).
+2. **`deploymentVelocity` — NOT STARTED, and it is the next increment.** Three separate problems
+   under one 6.0%: OpenRocket stores the velocity at the LAST deployment event (77/77 exact) where
+   `lib/sim/simulate.ts` takes `Math.max` across every device — `Chute release.ork::Simulation 3`
+   reads stored 14.34 against Loft's max 19.46 and Loft's last 14.00; RockSim stores it too, as the
+   misspelled `<VelocityAtDeplyment>` plus a per-device `<DeployedAt_Velocity>`, and
+   `lib/rkt/adapt.ts` reads neither, so the published 6.0% is an **OpenRocket-only** figure standing
+   in a cross-tool census; and the deployed/ballistic population split is not applied to this metric,
+   though its stored values span 0.601 to 225.35 m/s. **Loft's own reported figure must not change**
+   — it is deliberately the worst-case opening shock and feeds the `early-deployment` warning; it is
+   the COMPARISON that has to be made like-for-like, the same way `optimumDelayBasis` just was.
+3. **`maxAcceleration` — NOT STARTED.** All of the 3.2% lives in the 17 `.rkt` rows (median 8.8%,
+   every one HIGH), and `FullScaleModelTH.rkt` stores a byte-identical `<MaxAcceleration>` of 125.291
+   across all fifteen runs with different winds and two rail lengths. A stored value that never
+   varies is a sampled or rounded peak rather than a per-run measurement, so part of that 8.8% is the
+   oracle's own resolution and should be said rather than carried. Loft's own window is already right
+   for `.ork` — stored `maxacceleration` equals the max before the first deployment on 77/77, which
+   is exactly Loft's `!anyDeployed` freeze.
+
+**And one thing the page itself gets wrong, which belongs to this item's *done when*.**
+`/docs/validation` publishes "**97 stored simulations**" once and then lists ten medians under it,
+but their real populations range **76 to 97**: `deploymentVelocity` 76 and `maxMach` 77 are
+OpenRocket-only, `optimumDelay` 84, `maxAcceleration` and `launchRodVelocity` 94, and only four
+metrics reach 97. A reader takes 6.0% as a corpus-wide figure when it is measured on one tool's
+files — the same dilution the ballistic split shipped to end.
 
 **Why this and not the after-list's R10.** The after-list names "Toward 6-DOF" next, and explicitly
 says to decompose it "only when the fundamentals justify it, and only against published, citable
@@ -3554,31 +3595,89 @@ invariant: whatever ships here ships in both apps.
 
 ## P6 — The primitives the design system already declares
 
-**Status: IN PROGRESS** — increments 1–6 shipped 2026-08-04 (`Readout`, `Select`,
+**Status: SHIPPED 2026-08-05** — pinned by `lib/design-system.test.ts`'s per-primitive adoption
+ratchets (each an EXACT equality, so a hand-rolled copy and a silent regression both fail), by the
+`axisTickSize` ratchet at 41 with its per-file breakdown, by the source counts asserting zero
+hand-rolled `<select>` elements and zero components re-deriving `useReturnFocus`, and by the
+file-level check that a component rendering a chart imports `Figure`. Every §5 primitive exists, is
+adopted, and cannot be re-hand-rolled without the suite going red.
+
+**The last clause closed as one conversion and one refusal.** `ResultsView`'s `Field` (14 sites) is
+gone — the queue was never one treatment written many ways, it was one treatment at two DENSITIES,
+and a card-shaped primitive could not reach the dense half without repainting the shared chrome into
+fourteen cards. `Readout` gained `variant` for that. **The five what-if delta rows are REFUSED with a
+measured reason**: a before → after → change is three values and a comparison rather than a labelled
+value, `q` would have to become a triple, and five call sites in one component are its only possible
+user — which is the reasoning §5 already used to delete `Chip`. Both halves are recorded in §5 so the
+next audit does not re-open them.
+
+*Earlier status:* increments 1–6 shipped 2026-08-04 (`Readout`, `Select`,
 `EmptyState`/`ErrorState`, `Panel`, `Figure`, and the `Section`/`Chip` decision), plus `Extrapolated`,
 which arrived early as a Sev-1 fix rather than as planned P6 work. Every primitive §5 declares now
 exists and is adopted, each with a per-primitive ratchet in `lib/design-system.test.ts`, and the two
 zero-adopter primitives are answered rather than inherited.
 
-**ONE *done when* clause is still open, and it is the milestone's own first increment.** "`Readout` is
-the only labelled-value treatment" is not true yet: increment 1 converted `ResultsView`'s sixteen and
-the measured queue behind it is untouched — `LoftApp`'s `Field` (14 sites, a pre-formatted-string
-value), `MonteCarlo`'s `StatCard`/`WithheldCard`/`RadiusCard` (6, differing only in what fills `sub`),
-and the what-if delta rows (5, a before → after → change shape the API does not yet express). That is
-25 sites in three shapes. **Do not mark this milestone SHIPPED until that count is 0 or the remainder
-is refused with a measured reason.**
+**ONE *done when* clause is still open, and increments 8 and 9 closed the half of it that was
+blocked.** "`Readout` is the only labelled-value treatment" is not true yet. The queue, re-measured
+2026-08-05 — and note the file name, because the previous three entries said `LoftApp` and the sites
+are in `ResultsView`:
+
+| shape | sites | state |
+|---|---|---|
+| `MonteCarlo`'s `StatCard` / `WithheldCard` / `RadiusCard` | 6 | **converted, increment 8** |
+| `MonteCarlo`'s waiver-exceedance readout | 1 | **converted, increment 9** |
+| `ResultsView`'s `Field` — a `<dl>` strip at `text-sm`, not a card at `text-xl` | 14 | open |
+| `ResultsView`'s what-if delta rows — before → after → change | 5 | open |
+
+**Do not mark this milestone SHIPPED until that count is 0 or the remainder is refused with a
+measured reason.** The two open shapes are one question, and increment 9 has already answered half of
+it: they are a different DENSITY of the same treatment, not a different treatment. `frame="bare"`
+gave `Readout` the container axis; the remaining axis is the value SIZE — `text-sm` in a dense strip
+against `text-xl` in a tile — and it should be taken the same way, on the smallest real call site
+first.
 
 **Increment 7 took the prerequisite and found the blocker.** `Readout`'s own label and sub-line were
 at `text-[11px]`, a size §3 scopes to "axis ticks and diagram annotations only" — the design system's
 primitive breaking the design system, on the treatment a flyer reads every number through. Both moved
 to `text-xs`, and a new `axisTickSize` ratchet holds the app-wide count of that token at its measured
-**46** with the per-file breakdown beside it, so the remaining offenders cannot be joined by another
-while they wait. **But converting `MonteCarlo`'s six cards would now make them worse**: they put a
+**46** with the per-file breakdown beside it (now **42**), so the remaining offenders cannot be joined
+by another while they wait. **But converting `MonteCarlo`'s six cards would now make them worse**:
+they put a
 5–95% band in the `sub` slot at `text-sm`, and a recovery band IS a decision-grade figure, which §3
 puts at `text-sm` and the text AROUND a value one size down. **One `sub` slot cannot be both sizes.**
 That is the API decision the next run owes — probably a second slot, or a `sub` that takes a node
 rather than a string, and either way it should be decided from the six real call sites rather than
 invented.
+
+*Increments 8 and 9 — SHIPPED 2026-08-05. The blocker answered, and the dispersion panel's five
+labelled values are all `Readout`s.*
+
+**The slot was split rather than widened, and the six call sites decided it.** `sub` stays the
+caption at `text-xs`; a new `figure` slot is a SECOND decision-grade number at `text-sm`, mono — a
+percentile band (`q` … `to`, one unit for the pair) or a labelled companion (`lead` + `q`). Three of
+the six wanted a band, one a companion, and two wanted neither and took `withheld`, which the
+primitive already had. `StatCard`, `WithheldCard` and `RadiusCard` are deleted; the only part with
+logic in it, the band, survives as a four-line helper. `DESIGN.md` §5 carries the rule that decides
+which slot a caller wants, since choosing between them is a §3 question rather than a taste one.
+
+**Two divergences closed on the way, both toward the file.** The three card titles were `text-[11px]`
+(§3: axis ticks and diagram annotations only), and all four cards were `font-semibold`, which §3
+reserves for "the one number a surface exists to show" — four lead numbers is no lead number, and a
+flyer moving between this panel and the flight card met the same apogee weighted two ways. `Readout`'s
+own label gained `font-medium` for the same reason in reverse: §3's weight rule asks for it and the
+converting sites already spelled it, so adopting the primitive must not cost a call site its
+compliance with the file the primitive exists to enforce.
+
+**Increment 9 exists because increment 8 made the panel WORSE in one place, and a pre-push review
+caught it.** The panel has a fifth labelled value — the waiver-ceiling exceedance — which is not in
+the stat grid but inside the inputs card. Converting the grid left it the only `text-[11px]` label
+and the only sans-serif number among five, and the new e2e guard could not see it because it counts
+the accent colour and that readout's warn treatment is amber. **A conversion that improves four of
+five sites can leave the fifth further from the system than it started**, which is an argument for
+finishing a surface rather than a shape. `Readout` gained `frame="bare"` for a readout that already
+sits inside a container, and `caution` — which takes the REASON as a string rather than a boolean,
+because that value had turned amber above 5% for its whole life without ever saying what 5% was.
+`text-[11px]` 46 → 42; `MonteCarlo`'s remaining two are the histogram's own axis labels.
 
 *Increment 1 — SHIPPED. `Readout` exists and `ResultsView`'s sixteen readouts go through it.*
 
@@ -3829,6 +3928,33 @@ Beyond these, decompose from the North Star in `MAINTAINING.md` and from `COMPET
 Unattended runs do not stop to ask (see *Unattended operation* in `MAINTAINING.md`). Every decision
 that would otherwise have been a question goes here, with the option rejected, so it can be reversed
 cheaply instead of re-derived. Newest first.
+
+- **2026-08-05 — narrowing an airframe below the motor inside it is REFUSED, not clamped, and that
+  makes "narrow the body diameter" unavailable on five of the six committed fixtures.** The Sev-1 was
+  a body tube typed thinner than its own motor flying to a confident +69% apogee. The fix refuses the
+  motor, which routes the whole flight into the existing no-propulsion path.
+
+  **The measurement that makes this a decision rather than a detail:** a real design's motor mount is
+  sized to its motor, so on `demo-single-deploy.ork` the bore is 28.0 mm around a 29 mm H128W — real files state a
+  nominal mount rather than a machined one, and the veto's 3 mm tolerance is measured from the
+  tightest of 132 real motor instances (1.60 mm on `demo-dual-deploy.ork`) — and `applyGeometryEdits` scales
+  inner tubes with their host. So ANY narrowing of that airframe, even 5%, takes the mount below the
+  motor. Five of six fixtures behave that way; only `demo-quirks.ork` has 10% of headroom.
+
+  **Rejected: clamping the mount at the motor's diameter instead of refusing.** That keeps the
+  what-if usable and it is what a flyer probably means — but it silently flies a vehicle whose
+  airframe and mount no longer relate, and reports the number as if the design were the one on
+  screen. `MAINTAINING.md`'s safety posture asks for a refusal or a bound over a confident number
+  from an input that cannot mean anything, and a refusal that names both diameters teaches the flyer
+  what is actually in the way. **Also rejected: not scaling inner tubes with the body**, which would
+  restore the what-if but is a physics change dressed as a UI fix, and would make a widened airframe
+  keep a mount too small for the motor it is meant to accept.
+
+  Cheap to reverse in either direction: the veto is one condition in `lib/sim/setup.ts` and the slack
+  is one constant beside it. **Both were got wrong once and the record is the point**: the first
+  version compared radii while every sentence about it said diameters, and the second tightened to
+  1 mm and made four committed fixtures unflyable. The constant now carries its measurement and a
+  check prints the margin.
 
 - **2026-08-03 — the next R milestone is R9 *the descent Loft cannot defend*, not the after-list's
   "multi-solver cross-check as a first-class view".** The after-list names the cross-check next, and

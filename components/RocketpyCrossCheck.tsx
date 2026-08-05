@@ -341,6 +341,12 @@ function Failure({ message, offline }: { message: string; offline: boolean }) {
   );
 }
 
+/** A displayed quantity as a CSV number — the digits without the thousands separator or the unit. */
+function csvNumber(q: { value: string; unit: string }): number | string {
+  const n = Number(q.value.replace(/,/g, ""));
+  return Number.isFinite(n) ? n : "";
+}
+
 function Comparison({ loft, rp, units }: { loft: LoftBallistic; rp: RocketpyFlightResult; units: UnitSystem }) {
   const rows = [
     { label: "Apogee", loft: d.altitude(loft.apogee, units), rp: d.altitude(rp.apogee, units), delta: d.changePercent(rp.apogee, loft.apogee) },
@@ -383,15 +389,33 @@ function Comparison({ loft, rp, units }: { loft: LoftBallistic; rp: RocketpyFlig
             rowHeader: true,
             sortValue: (r) => r.label,
             cell: (r) => <span className="font-sans text-zinc-600 dark:text-zinc-300">{r.label}</span>,
-            csv: (r) => r.label,
+            // The unit, from the row's own quantity — see the value columns below.
+            csv: (r) => (r.rp.unit ? `${r.label} (${r.rp.unit})` : r.label),
           },
-          { key: "rp", label: "RocketPy", cell: (r) => d.q(r.rp), csv: (r) => d.q(r.rp) },
-          { key: "loft", label: "Loft", cell: (r) => d.q(r.loft), csv: (r) => d.q(r.loft) },
+          // **The screen shows "1,234 ft"; the export must not.** A CSV cell carrying a thousands
+          // separator and a unit is a string, not a number — it needs quoting, it will not sum, and
+          // a spreadsheet reads the whole column as text. The unit moves onto the metric name (it is
+          // per row here, so it cannot go in a column header) and the value stays a plain number.
+          { key: "rp", label: "RocketPy", cell: (r) => d.q(r.rp), csv: (r) => csvNumber(r.rp) },
+          { key: "loft", label: "Loft", cell: (r) => d.q(r.loft), csv: (r) => csvNumber(r.loft) },
           {
             key: "delta",
             label: "Δ",
             cell: (r) => <span className="text-zinc-500 dark:text-zinc-400">{r.delta.text}</span>,
-            csv: (r) => r.delta.text,
+            // **NOT `\u0394 (%)`, and the first draft of this was.** Five of the six rows are a
+            // percentage and the static-margin row is an absolute caliber difference
+            // (`d.changeAbsolute(..., "cal")`), so a percent header would publish "+0.90 cal" as
+            // 0.9%, on the very row a flyer reads to decide whether two engines agree about
+            // stability. The unit stays in the cell here, because it is not the same unit down the
+            // column — which is exactly the case the metric-name trick above cannot cover.
+            csv: (r) => {
+              // The screen withholds an undefined change as an em dash. Stripping non-numerics
+              // turns that into "", and `Number("")` is 0 — so a delta nobody could compute would
+              // export as EXACT AGREEMENT between two solvers, which is the strongest claim this
+              // table can make and the one it has least right to.
+              const raw = r.delta.text.replace(/\u2212/g, "-");
+              return /\d/.test(raw) ? raw : "";
+            },
           },
         ]}
       />

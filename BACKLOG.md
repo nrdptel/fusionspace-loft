@@ -145,13 +145,102 @@ says CONFIRMED carries the command and the numbers the refuter could not talk it
   redraws the new airframe; nothing marks the numbers stale. A confident apogee, margin and landing
   energy for a rocket that is not the one on screen.
 
-- **A body diameter smaller than the motor inside it flies to a confident 11.6 km. CONFIRMED
-  2026-08-04**, and this is the reproduction the entry below it (filed as SEV-1 and never measured)
-  was missing. `components/LoftApp.tsx:2597`. On the 38 mm sample, via the exact `runFlight` call
-  `compute()` makes: 10 mm → **1,437.5 m / 14.86 cal**; 5 mm → **3,297.2 m / 25.73 cal**; 1 mm →
-  **10,326.5 m / 115.77 cal**; 0.1 mm → **11,588.6 m / 470.2 m/s / 1,151.77 cal**, against a baseline
-  of 992.8 m / 4.07 cal. `motorsComplete` stays true throughout and no warning mentions the diameter:
-  the tube shrinks around an 18 mm motor that keeps its size.
+- ~~**`Flight time` is published for a flight that never reached the ground, beside three
+  neighbours that withhold.**~~ **FIXED 2026-08-05.** `components/ResultsView.tsx` rendered it
+  unconditionally while `Drift from pad`, `Ground-hit speed` and `Landing energy` all withheld on
+  `!landed` — three em dashes and a confident number on one panel for the same non-flight. Measured
+  on the 38 mm sample with an absurd main: **1.3 s**.
+
+  **And the reason the other three gave was wrong for that case.** They shared "no landing inside the
+  time cap", which describes a rocket still descending at the 1,200 s cap and not an integrator that
+  ran out of steps — which is what an enormous canopy causes, because the adaptive step collapses.
+  Two outcomes, one string, pointing a flyer at a canopy size when the honest answer is that the
+  figure is unusable. `FlightSummary.notLandedReason` now distinguishes them and one expression feeds
+  all four readouts, so they cannot drift apart again.
+
+- **Loft's published accuracy is agreement with another simulator's PREDICTION, never with a flown
+  rocket — and the corpus already carries four flown results nothing compares against.** Filed
+  2026-08-05 from the competitive probe. `corpus/manifest.csv` has `ground_truth_source` and
+  `stated_apogee` columns, and **nothing in `lib/`, `app/` or `scripts/` reads either**: the sweep
+  compares only against each file's embedded simulation. On
+  `openrocket__rocketryforum-azzie-glr-escape-velocity__EscapeVelocity.ork` the embedded OpenRocket
+  run predicts 879.4 m against a Stratologger-measured figure recorded in the manifest. Meanwhile
+  **RASAero II publishes a 41-flight measured-vs-predicted table** ("Average Error = 3.47%",
+  "80.6% of Flights Error < 10%") and **RocketPy's headline ~1% apogee is against three flown
+  university rockets** with four CI acceptance tests over altimeter CSVs. Loft's census is more
+  automated than either and is measured against a weaker oracle, and the page does not say so. This
+  is the strongest single candidate for the next validation milestone; four rows is not a study, but
+  it is the difference between "agrees with a predictor" and "has ever been checked against a
+  flight".
+
+- **Two CSV exports still carry the defect the validation and cross-check ones just lost.** Filed
+  2026-08-05 from a pre-push review. The app has nine export surfaces; five hand-built ones already
+  put the unit in the header, two were fixed this run, and two were not. **Flight phases**
+  (`components/ResultsView.tsx`, `<design>-flight-phases.csv`): `Altitude` and `Speed` export the raw
+  SI double under headers with no unit, while the on-screen cells run through `d.altitude(...)` /
+  `d.speed(...)` and DO flip with the toggle. **Parts** (`components/GeometryInspector.tsx`,
+  `<design>-parts.csv`) is internally inconsistent within one row: `Station` is always millimetres,
+  `Mass` always kilograms, both under unitless headers — while `Dimensions` exports the DISPLAY
+  string with units baked in and commas forcing RFC-4180 quoting, and that one DOES flip. So one
+  imperial export contains a metric column, an SI column and an imperial column side by side.
+  `DataTable`'s new `csvLabel` is the mechanism; these two are the remaining call sites.
+
+- **The diagram's body-diameter grip oscillates across the bore-refusal threshold.** Filed
+  2026-08-05 from a pre-push review, UNREPRODUCED by hand. `components/RocketDiagram.tsx:1254`:
+  crossing the threshold mid-drag inserts the full-width "No flight simulated" panel ABOVE the
+  diagram (`ResultsView.tsx:487` sits outside every `hidden` region, so it renders on Design too),
+  shifting the SVG down while the pointer is captured. `apply()` re-reads `getScreenCTM()` each
+  frame but `grabOffset` was frozen at pointerdown, so the same pointer position maps to a much
+  larger diameter, the veto clears, the panel unmounts, and the next frame maps back below the
+  threshold. Not a wrong number and not a one-way door — releasing and typing works — but it is a
+  control that fights the flyer at exactly the boundary they are exploring. The fix is probably to
+  reserve the notice's height, or to render it below the diagram on the Design workspace.
+
+- ~~**The `/validate` and cross-check exports carry numbers whose meaning flips with a control on
+  another page.**~~ **SEV-1 — FIXED 2026-08-05**, CONFIRMED by a refuter first. Measured: `Apogee`
+  exported **50.6** in metric and **166.01049868766404** in imperial, both under a header reading
+  `Stored`, both as `<tool>-validation.csv`. Two of those in a folder are indistinguishable, and the
+  twelve-digit one claims precision the model does not have — a conversion artefact published as a
+  measurement. `\u0394` was a bare number with no `%`. The RocketPy cross-check had the mirror-image
+  problem: its cells were DISPLAY strings — `d.q()` output like `1,234 ft`, with a thousands
+  separator that forces RFC-4180 quoting and a U+2212 minus in the delta — so a spreadsheet read the
+  whole column as text and sorted "\u221215" above "+3".
+
+  Fixed by putting the unit where a CSV can carry it. It is per ROW on both tables (each metric has
+  its own), so it rides on the metric name — `Apogee (m)` — which is the shape the dispersion export
+  already used in its header. Values are plain numbers at the precision the cell shows; `\u0394` is
+  named `\u0394 (%)` and exported as ASCII. `DataTable` gained `csvLabel` for the general case: a screen
+  header and an export header legitimately differ whenever the screen puts the unit in the cell.
+  Pinned by an e2e that exports in BOTH unit systems and asserts the files say which they are.
+
+- ~~**A body diameter smaller than the motor inside it flies to a confident 11.6 km.**~~ **SEV-1 —
+  FIXED 2026-08-05.** Re-confirmed first on a second design before it was taken: `Dual parachute
+  deployment.ork` reads 579.0 m as designed and then 695.4 / 768.0 / 912.5 / 975.7 / **978.5 m** at
+  20, 10, 5, 1 and 0.1 mm — a **+69%** apogee — while the warning list gets SHORTER on the way down
+  (`mould-line-step` drops out below 1 mm, because a tube that thin no longer steps against
+  anything). It reads HIGH by construction: a thinner airframe is less frontal area and so less
+  drag, so the number is wrong in the flattering direction.
+
+  **Fixed at the solver, not at the field.** `lib/sim/setup.ts` now refuses a motor whose diameter
+  exceeds the clear bore of the mount it is loaded into by more than **3 mm**, a tolerance measured
+  rather than chosen: across 132 motor instances in the 6 fixtures and the 35-design corpus, the
+  tightest honest file states a bore **1.60 mm narrower** than the motor it holds
+  (`demo-dual-deploy.ork`, a K550W), with five more at 1.00 mm. A real `.ork` states a nominal mount,
+  not a machined one. The first version used 1 mm and broke four committed fixtures; a check now
+  asserts the margin and prints it, so the next tightening is deliberate rather than discovered. That covers every route to the state — a
+  what-if, an edit that scales inner tubes with their host, a corrupt import — where a `min` on one
+  field would have covered one. The refusal joins the existing no-propulsion path, so every derived
+  figure is withheld and the panel says why, naming the AIRFRAME rather than the motor. The
+  substitute offer is suppressed on this refusal: every motor on that list is the same diameter, so
+  each would be refused on arrival, and a two-click recovery that cannot work is a loop with no exit.
+
+  **And it exposed a second, unrelated defect.** With the veto in place the corpus's booster-authoring
+  sweep went red: `applyGeometryEdits` gave EVERY kept motor mount the authored stage's single
+  `mountId`, so on `Airstart timing.ork` — whose aft tube carries a 54 mm centre and a 38 mm airstart
+  — the booster came out holding two components with the same id, and `setup.ts` resolved its K550W
+  instance to whichever the id map kept: a **Ø54 motor in a Ø38.7 mm bore**, on a stage Loft had just
+  authored. Only the first mount takes the entry's id now. Both fixes carry a test proved able to fail
+  by reverting them, plus an e2e that drives the field and checks the way back out.
 
 - **One fin, and the warning list comes back EMPTY. SEV-1 — FIXED 2026-08-04** (a
   `fin-count-assumption` warning naming the fin set; fires on 1 and 2 fins, silent from 3 up).
@@ -368,11 +457,15 @@ fixed in that increment rather than filed. The rest are below.
   `lib/sim/simulate.ts:1356` (hard landing), `:1312` (ballistic) and the rest render "18.1 m/s"
   directly above a stat grid showing the same quantity in ft/s.
 
-- **Airframe dimension fields are bounded only by `min={0}`.** Filed 2026-08-03.
-  `components/LoftApp.tsx:2514` and the fin/nose fields: a body diameter smaller than the motor inside
-  it is accepted and flown into a confident number, because the motor and mount keep their size. Fin
-  count accepts 1 and 2 with no caveat that the CP method assumes three or more symmetric fins.
-  `MAINTAINING.md`'s safety posture names this shape explicitly.
+- **Airframe dimension fields are bounded only by `min={0}`.** Filed 2026-08-03. **The two named
+  consequences are both fixed** — the fin-count one on 2026-08-04 (`fin-count-assumption`), and the
+  body-diameter one on 2026-08-05, at the SOLVER rather than at the field, so every route into the
+  state is covered rather than one. **The general statement is still true and still worth keeping**:
+  the fields themselves carry no design-derived lower bound, so the refusal arrives after the flight
+  is attempted rather than at the keystroke, and the next impossible dimension will be found the same
+  way — one at a time, by somebody driving the app. The cheaper shape, if it is ever taken, is a
+  bound on each field derived from what the design already contains. `MAINTAINING.md`'s safety
+  posture names this shape explicitly.
 
 - **Four indigo primary buttons render on `/sweep` at once** — Fetch, Run motor sweep, Run parameter
   sweep, Run dispersion — against `DESIGN.md` §5's "at most one per surface". Filed 2026-08-03 from the

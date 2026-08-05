@@ -634,7 +634,16 @@ function simulationsXml(sims: readonly StoredSimulation[], withResults: boolean)
             attr("groundhitvelocity", r.groundHitVelocity) +
             attr("launchrodvelocity", r.launchRodVelocity) +
             attr("deploymentvelocity", r.deploymentVelocity) +
-            attr("optimumdelay", r.optimumDelay) +
+            // **Omitted when the source file meant a different flight by it.** OpenRocket's
+            // `optimumdelay` is the FREE-COAST delay; RockSim's `<OptimalDelay>` is that run's own
+            // apogee minus burnout, which on a design whose canopy opens at burnout is a different
+            // number entirely (1.34 s against ~16 s on one corpus design). Writing a RockSim figure
+            // under OpenRocket's attribute name asserts a convention it does not have, and
+            // re-importing the exported file would resurrect the +1107% comparison R10 shipped to
+            // remove. Dropping it loses one stored figure on a re-import; keeping it would publish a
+            // wrong one, and this file's own rule is that a reference value carries the name of the
+            // tool that produced it or it does not travel.
+            (s.optimumDelayBasis === "as-flown" ? "" : attr("optimumdelay", r.optimumDelay)) +
             `/>\n`
           : "";
       return (

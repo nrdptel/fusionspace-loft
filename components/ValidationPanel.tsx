@@ -50,6 +50,14 @@ function convert(label: string, value: number, unit: string, units: UnitSystem):
   return { v: value, u: unit };
 }
 
+/** A converted figure as a CSV number: the value the cell shows, at the cell's own precision.
+ *  Dimensionless metrics (Mach, thrust-to-weight) get the extra decimal the cell gives them. */
+function csvNumber(q: { v: number; u: string }): number | string {
+  if (!Number.isFinite(q.v)) return "";
+  const dp = q.u === "" ? 2 : 1;
+  return Math.round(q.v * 10 ** dp) / 10 ** dp;
+}
+
 export default function ValidationPanel({
   report,
   units,
@@ -117,7 +125,14 @@ export default function ValidationPanel({
             label: "Metric",
             sortValue: (c) => c.label,
             cell: (c) => <span className="font-sans text-zinc-700 dark:text-zinc-300">{c.label}</span>,
-            csv: (c) => c.label,
+            // **The unit rides on the metric NAME in the export**, because it is per row here — each
+            // metric has its own — so it cannot go in a column header the way the dispersion export
+            // puts it. Without it the file was two numeric columns whose VALUE flips with the unit
+            // toggle, under one filename, with nothing in it saying which system it was saved in.
+            csv: (c) => {
+              const u = convert(c.label, c.stored, c.unit, units).u;
+              return u ? `${c.label} (${u})` : c.label;
+            },
           },
           {
             key: "stored",
@@ -132,7 +147,10 @@ export default function ValidationPanel({
                 </span>
               );
             },
-            csv: (c) => convert(c.label, c.stored, c.unit, units).v,
+            // Rounded to what the cell shows. The raw float is not more honest — it is a conversion
+            // artefact: a stored 50.59 m exported as 165.97769028871392 ft claims twelve digits of a
+            // number the model has three of, which is the false precision `DESIGN.md` §6 forbids.
+            csv: (c) => csvNumber(convert(c.label, c.stored, c.unit, units)),
           },
           {
             key: "loft",
@@ -147,7 +165,7 @@ export default function ValidationPanel({
                 </>
               );
             },
-            csv: (c) => convert(c.label, c.simulated, c.unit, units).v,
+            csv: (c) => csvNumber(convert(c.label, c.simulated, c.unit, units)),
           },
           {
             key: "delta",
@@ -168,7 +186,11 @@ export default function ValidationPanel({
                 {fmt(c.pctError, 0)}%
               </span>
             ),
-            csv: (c) => c.pctError,
+            csvLabel: "\u0394 (%)",
+            // Plain ASCII and rounded like the cell: the screen's "+12%" carries its sign and unit in
+            // the glyphs, and a bare 12.34567 under a header reading only "\u0394" is a number a reader
+            // has to guess the meaning of.
+            csv: (c) => (Number.isFinite(c.pctError) ? Math.round(c.pctError * 10) / 10 : ""),
           },
         ]}
       />

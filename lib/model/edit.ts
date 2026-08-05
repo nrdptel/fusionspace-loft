@@ -2695,15 +2695,28 @@ function buildStage(rocket: Rocket, entry: AddedStage): { stage: Stage; mountId:
   // here instead left the app minting an id the applier never used, so the instance named a mount that
   // did not exist and the stage never separated. Everything else is derived, because nothing refers to
   // it by name.
-  const children = keep.map((c, i) => ({
-    ...structuredClone(c),
-    id:
-      "motorMount" in c && c.motorMount !== undefined
+  // **Only the FIRST mount takes `entry.mountId`, and the rest are derived like any other child.**
+  // Giving every kept mount that one id was fine while every seed tube had exactly one — and
+  // `Airstart timing.ork` has two, a 54 mm centre and a 38 mm airstart, both children of the aft
+  // tube. Both clones came out carrying the same id, so the tree held two components indistinguishable
+  // by the only handle anything outside it has, and `lib/sim/setup.ts`'s id map resolved the booster's
+  // K550W instance to whichever of the pair it happened to keep. Measured: a Ø54 motor loaded into a
+  // Ø38.7 mm bore, on a stage Loft had just authored. It flew, because nothing checked; the mount-bore
+  // veto in `setup.ts` is what turned it into a visible failure.
+  let mountTaken = false;
+  const children = keep.map((c, i) => {
+    const isMount = "motorMount" in c && c.motorMount !== undefined;
+    const takesEntryId = isMount && !mountTaken;
+    if (takesEntryId) mountTaken = true;
+    return {
+      ...structuredClone(c),
+      id: takesEntryId
         ? entry.mountId
         : uniqueUuidFrom(`${entry.seedId}:child:${i}`, new Set([entry.seedId, entry.mountId])),
-    name: c.name,
-    children: [] as RocketComponent[],
-  }));
+      name: c.name,
+      children: [] as RocketComponent[],
+    };
+  });
   const seed: RocketComponent = {
     ...structuredClone(src),
     id: entry.seedId,

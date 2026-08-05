@@ -825,3 +825,46 @@ describe("a coefficient the flyer typed survives the round trip", () => {
     expect(b).toBeCloseTo(a, 3);
   });
 });
+
+describe("exportOrk — a stored figure whose convention this format cannot express", () => {
+  it("drops a RockSim optimum delay rather than re-attributing it to OpenRocket", async () => {
+    // **A round trip that would have resurrected a defect R10 shipped to remove.** OpenRocket's
+    // `optimumdelay` is the FREE-COAST delay; RockSim's `<OptimalDelay>` is that run's own apogee
+    // minus burnout. Loft's only export is `.ork`, so writing a RockSim figure under that attribute
+    // asserts a convention the number does not have — and re-importing the file compares Loft's
+    // free coast against an as-flown figure again, which on one corpus design is +1107%.
+    //
+    // Dropping it loses one stored figure on a re-import. Keeping it would publish a wrong one, and
+    // `DESIGN.md` §6 is explicit: a reference value carries the name of the tool that produced it,
+    // or it does not travel.
+    const doc = await load("demo-dual-deploy.ork");
+    const withDelay = {
+      ...doc,
+      simulations: doc.simulations.map((s) => ({
+        ...s,
+        hasResults: true,
+        results: { ...s.results, optimumDelay: 4.53, maxAltitude: s.results.maxAltitude ?? 500 },
+      })),
+    };
+
+    // An OpenRocket-convention file keeps it: this is the control, and without it the assertion
+    // below would pass on an exporter that had simply stopped writing the attribute at all.
+    const asOpenRocket = await importOrk(exportOrk(withDelay, { storedResultsDescribeThisRocket: true }));
+    expect(asOpenRocket.simulations[0].results.optimumDelay).toBeCloseTo(4.53, 6);
+
+    const asRockSim = {
+      ...withDelay,
+      simulations: withDelay.simulations.map((s) => ({ ...s, optimumDelayBasis: "as-flown" as const })),
+    };
+    const back = await importOrk(exportOrk(asRockSim, { storedResultsDescribeThisRocket: true }));
+    expect(
+      back.simulations[0].results.optimumDelay,
+      "a RockSim as-flown delay was written under OpenRocket's free-coast attribute",
+    ).toBeUndefined();
+    // Everything else still travels — the omission is one attribute, not the block.
+    expect(back.simulations[0].results.maxAltitude).toBeCloseTo(
+      withDelay.simulations[0].results.maxAltitude!,
+      6,
+    );
+  });
+});
