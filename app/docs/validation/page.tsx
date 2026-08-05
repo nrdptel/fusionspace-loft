@@ -279,7 +279,7 @@ export default async function Validation() {
       </p>
       <p>
         <strong>Optimum delay is where two formats mean different things by the same word.</strong>{" "}
-        OpenRocket stores the <em>free-coast</em> delay &mdash; the time from burnout to the apogee
+        OpenRocket stores the <em>free-coast</em>{" "}delay &mdash; the time from burnout to the apogee
         the rocket would have reached with nothing out &mdash; which is the number a flyer buys a
         motor against, and the one Loft reports. RockSim stores the delay of the run it actually
         flew: <code>TimeToApogee</code> minus <code>TimeToBurnout</code>, exact on every stored

@@ -119,6 +119,16 @@ and the chain carried on to a full green e2e run — the failure only surfaced i
 swallows it. If you want a short transcript, redirect each step to a file and read its `$?`, or set
 `set -o pipefail` first.
 
+**It happened again on 2026-08-05, to a session that had this paragraph available and did not read
+it**, in the same script and on the same class of defect: `<em>free-coast</em> delay` lost its space,
+`check-text-gaps.mjs` reported `served-markup gaps (detector 2, reliable): 1`, and a gate built as
+`npm run build 2>&1 | tail -2` cut the count off the top of the output while the pipe swallowed the
+exit code. Nine commits reached a pull request before CI said so. **The countermeasure that actually
+works is not "remember this"** — it is to run the build as `npm run build > build.log 2>&1; echo $?`
+and grep the log for `gaps (detector 2` afterwards, because detector 2 is the reliable one and its
+count is the single line worth reading. Two sessions have now lost time to this; the third should
+change the gate rather than the habit.
+
 **Kill any `serve` you started by hand before running the gate, and it will not look like a server
 problem when you do not.** `playwright.config.ts` sets `reuseExistingServer` outside CI, so a
 `serve` left over from `npm run screenshots` — or from a previous interrupted run — is silently
