@@ -2496,7 +2496,94 @@ would put a number on screen that no file asked for.
 
 ## R12 (from ON-6, ON-7, ON-5, ON-4) — The component tree the flyer sees, and edits
 
-**Status: IN PROGRESS** — increment 1 of 2–3 shipped 2026-08-08: **the design's tree is visible.**
+**Status: IN PROGRESS** — the first member's *done when* is MET as of increment 2, 2026-08-08.
+Selecting a component is now how you edit it.
+
+**Increment 2 — the property surface, aimed by the pick.** Picking a part on the diagram or in the
+tree offers a **Properties** control on that part, which opens a popover holding exactly the fields
+that describe *that component* — nothing else. Pinned by `e2e/smoke.spec.ts`'s *selecting a nested
+part opens ITS properties, and an edit there flies that part and not a sibling*, which drives the
+whole gesture on the dual-deploy sample: it picks a canopy nested under a body tube, asserts the
+surface holds that canopy's own fields, that **seven** whole-design controls are absent along with the
+wall's own pitch and its "pick another part" advice, and that focus landed on the first field rather
+than on Close; then edits the diameter inside the popover, leaves by `Escape`, confirms focus
+returned to the trigger, confirms the flight moved — and then reopens **the other canopy** and
+asserts its own as-designed diameter has not moved. Negative control: dropping the aim so the surface
+renders every field reports `Fin span` present on a parachute.
+
+**Six more the pre-push review caught over a green gate, and five were leaks of exactly the kind the
+surface exists to prevent.** The mask works by blanking fields that belong to another *aim* — so a
+field belonging to NO aim is invisible to it, and three whole-design controls (`Payload`,
+`Payload pos`, `Surface finish`) rendered inside a mass object's properties beside its two. The wall's
+own ninety-word pitch, which names four controls a property surface deliberately does not carry,
+rendered inside every one of them. So did the *"to work on another, pick it on the diagram"* advice,
+to a flyer who had just picked one. The nose catalogue picker lost its fit filter, because it reads
+the airframe caliber for context and the mask had blanked it. The trigger sat in a `<p>` while the
+panel it opens is a `Card` full of fieldsets — invalid nesting the browser repairs by closing the
+paragraph early, which moves the panel out of the wrapper the outside-press handler measures against.
+And the panel focused its **Close** button on open rather than the first field, because `Card` renders
+its actions row before its children — while the primitive's own docblock claimed the opposite. All
+six are fixed and the e2e case now asserts seven whole-design controls absent, the pitch absent, the
+advice absent, and focus on the first input.
+
+**Three more this increment got wrong first, all caught by driving it rather than by reading it.**
+The primitive bound `Escape` to the surface, so the way out stopped working the moment focus left it
+— a `blur()`, a control that removes itself, a stray click — which is the one-way door the component
+exists not to be; it is a document-level listener now. And the check's own sibling assertion compared
+the second canopy against the FIRST one's diameter and failed at 460 against 1220, which is not a
+defect but a dual-deploy design having a main and a drogue of different sizes. Both baselines are
+read before anything is edited now.
+
+And the third is about how a failure READS: renaming those canopy labels broke the check's own
+locator, and Playwright reports a locator that stops matching inside an open popover as a **test
+timeout**, not as "element not found". It looked exactly like contention on a four-core box, so the
+first fix was to raise the timeout — which made the same wrong diagnosis take twice as long. The
+lesson is in the test: read the call-log line, not the timeout.
+
+**And two the review found on the SURFACE rather than in the code, both of which a flyer would have
+met.** On the drogue's own property panel the field holding its 460 mm diameter was labelled *"Main
+chute Ø"* — a wrong label on a number a flyer sizes a recovery area with, correct on the wall (where
+one set of fields stands for the whole design) and wrong the moment the panel is headed with the
+part's name. The aimed labels drop the *"Main"*; *"Drogue Ø"* is removed from a per-part surface
+outright, because on a single-canopy design it AUTHORS a second canopy rather than describing the one
+in hand. And **picking a part dropped its own kind cell below WCAG AA**: the picked row paints
+`bg-indigo-50`, and `text-zinc-500` on that is **4.32:1** against 4.5, where the same cell reads
+4.83:1 at rest and passes. Every contrast case in the suite walked a surface in its RESTING state, so
+nothing could see it — on the gesture this milestone makes central. `zinc-600` reads 6.90:1 picked and
+7.72:1 at rest, and `e2e/contrast.spec.ts` gained a case that picks a row first, in both themes;
+its negative control reports the 4.32:1 by name.
+
+**And one more, which is the run's most useful finding and cost nothing because it was caught in
+time: the sibling repo already HAD this primitive.** Debrief shipped a `Popover` from its own owner
+note the same week, with a fuller contract — and Loft was one commit from inventing a second one,
+which is the *"assembled by many hands"* failure the whole design system exists to prevent. `DESIGN.md`
+§5's entry is now that repo's, adopted verbatim rather than rewritten, and Loft's implementation was
+rebuilt against it: `Card`'s own title/actions row, the body scrolling while the heading stays pinned,
+focus returned on an outside click only where it would otherwise be lost, `aria-haspopup="dialog"`,
+the visible words as the accessible name, viewport anchoring below `sm` (measured: 16 → 374 px on a
+390 px phone, no body overflow), and a typography reset for the panel — that last one because
+`text-transform` and `letter-spacing` inherit, and the sibling had already measured 764 words of
+accidental capitals with every text assertion in its suite passing. **Loft reached the document-level
+`Escape` independently, the same week, from the same symptom.** What still differs is API rather than
+contract, filed in `BACKLOG.md` against the shared-file reconciliation.
+
+**How it is built, because the shape is the point.** There is no second copy of the fields.
+`DesignEditor` gained an `only` mode that blanks every value belonging to another component and
+renders bare; the controls were already gated on `designDims.<field> !== undefined`, so most of the
+filtering fell out for free, and the handful that are whole-DESIGN rather than one part's — the motor
+swap, the surface finish and airframe material, the nose ballast, the recovery scale, the boattail,
+the payload — are gated on `only` explicitly. Which fields belong to which part is read from
+`AIM_SLOTS`, the registry that already answers it, plus the nose, which has no slot because a design
+has exactly one. **The 24-field flat patch is untouched and the wall of fields is still there**, which
+is `ON-4`'s sequencing: nothing shipped is removed until its replacement has proved itself.
+
+**What is NOT done, stated rather than implied.** Roughly two in five components still have no field
+that describes them — a coupler, a centring ring, an inner tube, a bulkhead, a launch lug — so they
+select and offer no Properties control at all, which is correct but is not "every component". The
+parts list is still collapsed by default. And there is no verb band beside the tree
+(`COMPETITION.md` row 40): add is still behind one body-tube guard.
+
+**Increment 1** shipped earlier the same day: **the design's tree is visible.**
 Pinned by `lib/corpus/sweep.test.ts`'s *carries every real design's tree structure through the
 flatten, not just its order* (569 parts across all 35 design files, 419 nested, three deep, every
 parent verified to exist, precede its child, sit exactly one level shallower and share its stage)

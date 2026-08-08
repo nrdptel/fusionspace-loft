@@ -45,6 +45,29 @@ npm install
 npm run dev   # http://localhost:3000
 ```
 
+### Attach the sibling repo before touching `DESIGN.md`
+
+`DESIGN.md` is shared **verbatim** with `nrdptel/fusionspace-debrief`, and §10 says a change to one is
+a change to both in the same run. That is not just a publishing step — it is how you find out what the
+other app has already decided. Two things happened on 2026-08-08 that make this a setup instruction
+rather than a design-document footnote:
+
+- a run measured the suite's Tip control across two of its three tools, concluded "make it amber",
+  amended §2 to allow it, added a check to hold the exception at one, and shipped it — and the sibling
+  turned out to have made that exact control amber once and deliberately changed it back, for the
+  reason §2 exists. The colour was reverted and §2 is stricter than it started;
+- the same run then began writing a `Popover` primitive that the sibling already had, with a fuller
+  contract, added the same week from the same kind of owner note.
+
+Neither is findable from inside one repo. It costs one tool call and one shallow clone:
+
+```bash
+# add_repo nrdptel/fusionspace-debrief, then:
+git clone --depth 1 https://github.com/nrdptel/fusionspace-debrief /workspace/fusionspace-debrief
+```
+
+Then diff the sections you are about to touch, in both directions, before deciding anything.
+
 ## The real-design corpus
 
 The committed fixtures are Loft's own, small and synthetic. The sharpest bug-finder is driving

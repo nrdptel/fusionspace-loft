@@ -12,6 +12,34 @@ this file, and deliberately does **not** cap craft or product work, because that
 track in `ROADMAP.md` with its own *done when*. Rough edges, missing affordances, and findings too
 big for one pass. Newest first.
 
+**Filed 2026-08-08, second run of the day, from having both app repos attached at once.**
+
+- **The two `Popover`s meet one contract through two APIs, and closing that is part of the shared
+  `DESIGN.md` reconciliation rather than a thing to do on its own.** Debrief shipped this primitive
+  first (its `ON-3`) and wrote §5's entry; Loft adopted the entry verbatim and built to it (its
+  `ON-5`). What differs is the surface area: Debrief's takes `description`, `align` and `width`,
+  builds its close control from an **`IconButton` Loft does not have**, and calls a
+  `useReturnFocus(open, close)` where Loft's is a two-value `useReturnFocus()` that three panels
+  already use. So converging the APIs means porting a primitive and changing a hook with existing
+  call sites — which is exactly the shape of the ~369-line `DESIGN.md` drift already filed below, and
+  belongs to the same milestone. **The contract is met in both**, and that is the part that protects a
+  flyer.
+
+  **Adopting the entry verbatim also imported two dangling references**, and they are the same drift
+  seen from the other end: it names `link` as the right button weight for a `?` trigger and cites
+  `ChipButton` as precedent, and Loft's §5 defines neither — it documents three button weights where
+  the sibling documents five. Left as-is deliberately rather than edited, because editing it would
+  re-diverge the one section that is now byte-identical; it is a symptom of the reconciliation below,
+  not a separate defect.
+
+- **Loft came within one commit of inventing this primitive twice, and the near miss is the entry.**
+  Nothing IN THIS REPO surfaces a sibling's vocabulary — the shared `DESIGN.md` would have, and did
+  not, because the entry was written on the sibling's side and this copy had not been synced since. `DESIGN.md` §10 now says to,
+  and `HANDOFF.md` says how (one `add_repo`, one shallow clone, about twenty seconds) — but it is a
+  session-start habit that does not yet exist, and the run that finally did it did so on its second
+  attempt at the same question. **If a future session wants one durable improvement here, it is a
+  line in `CONTRIBUTING.md`'s session-start list, not another paragraph in a design document.**
+
 **Filed 2026-08-08 by the first design-system audit this repo has ever run** — the audit
 `MAINTAINING.md` has asked for every long run and which had, until now, never happened. Each of these
 is a divergence from `DESIGN.md` that **every one of §9's checks reads as compliant**, which is the
