@@ -3777,6 +3777,13 @@ test.describe("Loft", () => {
     page,
   }) => {
     // Muted labels on the dark background are the easiest contrast trap; audit dark explicitly.
+    //
+    // **This covers the CLASS clause only, and the sibling case below covers the other one.** The
+    // `dark` variant has two (see the top of `app/globals.css`): an explicit choice, which sets
+    // `.dark`, and the OS preference, which sets nothing. `localStorage` here picks the first — and
+    // that turned out to be precisely the state in which the docs' hand-written rules were correct,
+    // so this audit was configured into the one dark state that hides the defect it exists to find.
+    // Keep both. Neither subsumes the other.
     await page.addInitScript(() => localStorage.setItem("loft.theme", "dark"));
     await page.goto("/");
     await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
@@ -3789,6 +3796,41 @@ test.describe("Loft", () => {
       (v) => v.impact === "serious" || v.impact === "critical",
     );
     expect(serious).toEqual([]);
+  });
+
+  test("has no serious accessibility violations with a dark OS and no theme chosen", async ({
+    browser,
+  }) => {
+    // The OTHER clause, and the DEFAULT one: theme "System" on a dark-OS device, which is what every
+    // first-time visitor is in. It needs its own context because the theme resolves once at load
+    // from `prefers-color-scheme` — `emulateMedia()` on a loaded page does not re-run it — and it
+    // must set no `loft.theme`, because storing one is what makes it the class clause instead.
+    const ctx = await browser.newContext({ colorScheme: "dark" });
+    const page = await ctx.newPage();
+    await page.goto("/");
+    await page.getByRole("button", { name: /38 mm single-deploy/ }).click();
+    await page.getByRole("heading", { name: "Flight", exact: true }).waitFor();
+
+    // CONTROL. Asserting `.dark` would be wrong — "System" sets no class — so assert that the page
+    // is genuinely rendering dark, or this audit silently becomes a second light-mode run.
+    const ground = await page.evaluate(() => {
+      const cv = document.createElement("canvas");
+      cv.width = cv.height = 1;
+      const g = cv.getContext("2d", { willReadFrequently: true })!;
+      g.fillStyle = "#ffffff";
+      g.fillRect(0, 0, 1, 1);
+      g.fillStyle = getComputedStyle(document.body).backgroundColor;
+      g.fillRect(0, 0, 1, 1);
+      const d = g.getImageData(0, 0, 1, 1).data;
+      return (d[0] + d[1] + d[2]) / 3;
+    });
+    expect(ground, "the page under audit is not actually rendering dark").toBeLessThan(60);
+
+    const results = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze();
+    expect(
+      results.violations.filter((v) => v.impact === "serious" || v.impact === "critical"),
+    ).toEqual([]);
+    await ctx.close();
   });
 
   test("works offline after an online visit — shell, sample import, and sim", async ({

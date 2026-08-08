@@ -184,7 +184,43 @@ The specific defect is the docs pages; the note is about the missing *check*, wh
 half. `DESIGN.md` §9 counts radius drift, off-scale spacing and caption-size text — it counts nothing
 about contrast, in either theme. A one-page fix leaves this note only half answered.
 
-VERDICT: *(pending — first run to read this file)*
+VERDICT: **2026-08-08 — REPRODUCED, and both halves shipped this run.** `→ DESIGN.md` (§9 gains a
+contrast rule and two commands) and `→ ROADMAP` as **P7**, which this increment opens.
+
+**The owner is exactly right, and the cause is one clause wide.** The `dark` variant in
+`app/globals.css` has TWO clauses — the `.dark` class an explicit choice sets, and
+`prefers-color-scheme` for a visitor who has chosen neither — and every `dark:` *utility* gets both.
+The eleven hand-written `.prose-loft` rules asked for the class alone. **"System" is the default
+theme and sets no class**, so every first-time visitor on a dark-OS device read all six docs routes
+in the LIGHT palette on the dark ground `html` paints. Measured on the built export: body prose
+**1.91:1**, `h2` and `strong` **1.12:1**, links 3.16:1, blockquotes 2.57:1, against WCAG AA's 4.5:1 —
+and against the 13.46:1 the same text gets the moment `.dark` is present. Formulas and inline code
+kept near-white backgrounds, so an equation rendered as a white card on a black page. Not "grey" by
+styling choice: the light palette, unconverted.
+
+Fixed with `light-dark()`, which resolves against the used `color-scheme` — already set per clause on
+the root — so one function answers both with no media query to forget. The bare light value stays as
+a preceding declaration, so a browser without `light-dark()` keeps today's behaviour exactly and
+nobody is made worse off.
+
+**The larger half — the missing check — is why this is a milestone and not a one-line fix.** Every
+§9 count was at target while this shipped, because all seven match class NAMES and a readability
+failure is a rendered COLOUR. That is the same blind spot §9 already records twice (the `.eqn` 8 px
+radius, the docs' off-scale font sizes); contrast is the third instance. Two checks now close it:
+`e2e/contrast.spec.ts` rasterises every text node on every docs route plus the flight workspace in
+all three theme states, and `lib/design-system.test.ts` refuses any hand-written rule that answers
+the class clause alone. Both were proved able to fail by a negative control — stripping the fix
+reproduces 1.12:1 and 3.16:1 by name.
+
+**One more hole found while fixing it, and closed in the same increment:** the suite's only
+dark-mode axe audit (`e2e/smoke.spec.ts`) set the theme through `localStorage`, i.e. the class
+clause — the one dark state in which the docs were already correct. The audit written to catch
+"muted labels on the dark background, the easiest contrast trap" was configured into the state that
+hides it. It now has a sibling case in an OS-dark context with no theme chosen.
+
+**Owner-facing caveat:** `DESIGN.md` is shared verbatim with the sibling repo and a change to one is
+a change to both in the same run. Only this repo and the fixtures repo are attached to this session,
+so the §9 addition has NOT been mirrored into Debrief — parked under *Awaiting the owner*.
 
 ---
 
