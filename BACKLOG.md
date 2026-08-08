@@ -36,6 +36,25 @@ this run; where a fan-out claimed something the corpus then refuted, the refutat
   NOT preempting a milestone — but it becomes reachable the moment an editor lets someone set a
   custom reference, so fix it with that feature rather than before it.
 
+- **The two copies of `DESIGN.md` have drifted by ~369 diff lines, and this is the first run that
+  could see it.** Measured 2026-08-08 with both repos attached: the sibling documents **five** button
+  weights where this file documents three (it has `link` and one more), and the two describe `Panel`
+  and `Section` differently — this copy carries the ten-call-site/three-dismissible measurement and
+  the "imposes no margins" history, the sibling carries neither. §9 itself says a file shared verbatim
+  between two repos "cannot be verified from inside one of them, so whichever session next has both
+  attached should diff them first, before trusting either copy." **That session was this one, and it
+  diffed but did not reconcile** — a 369-line merge of two evolved documents is a milestone, not a
+  slice, and doing it badly would break the one authority both apps build against. Sized at 2–3
+  increments, and it needs both repos attached, which is now known to be possible.
+
+- ~~**Tailwind regenerates any class named in the ledgers.**~~ **RESOLVED 2026-08-08** by adopting
+  `@source not "../**/*.md"` (and the test-file equivalents) from the sibling repo, which had carried
+  the fix since 2026-07-31. Shipped stylesheet **65,895 → 63,278 bytes**. The manual workaround —
+  write removed class names broken up, confirm with a clean rebuild — is retired in
+  `MAINTAINING.md`. Worth noting how it was found: Loft had documented the hazard and built a
+  workaround around it while the sibling had already eliminated it, and nothing surfaces that except
+  attaching both repos and diffing.
+
 - **The flight-path plot has no x tick labels in ANY state, so it autoscales invisibly.** Found while
   shipping R11 increment 2 and NOT fixed by it — the milestone's *done when* asked for "a labelled
   axis" on a degenerate range and got a caption and a sentence instead, which is recorded on R11

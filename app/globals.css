@@ -1,5 +1,35 @@
 @import "tailwindcss";
 
+/* Scan the CODE for class names, not the prose that describes it.
+ *
+ * Tailwind v4 detects sources automatically, which means it also reads this repo's ledgers and its
+ * design-system test — every file whose job is to NAME the utilities this system forbids. So writing
+ * a ban shipped the banned utility, and documenting a class that had just been removed regenerated
+ * it. `MAINTAINING.md` records that failure and instructs every session to write removed class names
+ * broken up in prose, and to confirm with a clean rebuild before believing a utility is gone. That
+ * is a workaround for a footgun; this is the fix, and it makes the workaround unnecessary.
+ *
+ * Measured 2026-08-08, on this repo, by controlled experiment: appending two utilities the app does
+ * not use to `ROADMAP.md` grew the built stylesheet from 65,895 to 66,254 bytes and both appeared in
+ * it. Excluding markdown and tests takes the stylesheet to the size recorded in the commit that
+ * added this block — dead rules that no component ever asked for.
+ *
+ * **Taken from the sibling repo, which solved this on 2026-07-31 and measured twenty-five dead rules
+ * in its own production stylesheet at the time.** `DESIGN.md` §10 makes the two apps one product;
+ * this is the half of that which travels in the other direction, and it is the reason to attach both
+ * repos to a session rather than one.
+ *
+ * `lib` stays scanned and has to: `lib/ui-tokens.ts` exports real class strings — the 44 px touch
+ * target among them — that components interpolate rather than spell.
+ *
+ * This comment deliberately does NOT spell the class names involved. `lib/design-system.test.ts`
+ * reads `app/**.css` as well as `.tsx`, on purpose, because a banned utility written in the
+ * stylesheet is the same drift as one written in a component — so naming them here would turn the
+ * check red, which is the point. */
+@source not "../**/*.md";
+@source not "../**/*.test.ts";
+@source not "../**/*.test.tsx";
+
 /* Dark mode = class override + OS fallback. `dark:` utilities apply when:
    (a) an ancestor has the `.dark` class (an explicit Dark choice, set by the
        inline script in layout.tsx / <ThemeToggle>), OR

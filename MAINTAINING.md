@@ -103,15 +103,29 @@ npm run fetch-fixtures          # the real-design corpus (needs FIXTURES_TOKEN)
   you sharded and give both counts.
 - **The clone may be shallow.** Check `git rev-parse --is-shallow-repository` before quoting any
   commit count or file history — on a shallow clone both are a window, not the record.
-- **Tailwind v4 scans the WHOLE project's raw text, including MARKDOWN — so documenting a class you
-  just deleted regenerates it.** Measured 2026-08-02. P4 increment 2 removed the last use of a
-  `group-hover:` opacity utility from every component, and the built stylesheet still shipped the
-  rule. Nothing in `app/`, `components/` or `lib/` mentioned it: the two files keeping it alive were
-  `ROADMAP.md` and `HANDOFF.md`, which quoted the literal while explaining that it had been removed.
-  `DESIGN.md` §9 already carries this warning for `app/globals.css` — "the grep cannot tell a mention
-  from a use" — and it is true one level further out than that note implies. **Write a removed class
-  broken up** (`` `group-hover:` `` + `` `opacity-100` ``) in any prose, comment or ledger entry, and
-  confirm with a clean `rm -rf out .next && npm run build` before believing the utility is gone.
+- **Tailwind v4 scanned the WHOLE project's raw text, including MARKDOWN — so documenting a class you
+  just deleted regenerated it. FIXED 2026-08-08; the workaround below is no longer needed here.**
+  Measured 2026-08-02: P4 increment 2 removed the last use of a `group-hover:` opacity utility from
+  every component and the built stylesheet still shipped the rule, kept alive by `ROADMAP.md` and
+  `HANDOFF.md` quoting the literal while explaining it had been removed. Re-measured 2026-08-08 by
+  controlled experiment — appending two unused utilities to `ROADMAP.md` grew the stylesheet 65,895
+  → 66,254 bytes and both appeared in it.
+
+  `app/globals.css` now carries `@source not "../**/*.md"` and the same for test files, **taken from
+  the sibling repo, which fixed this on 2026-07-31 and never told this one.** The shipped stylesheet
+  went 65,895 → **63,278 bytes**: 2,617 bytes of rules generated from prose that no component ever
+  asked for. So a ledger entry may now name a class plainly, and the old advice — write a removed
+  class broken up, then confirm with a clean rebuild — is obsolete for Loft.
+
+  **Two things it does NOT cover, and both still bite.** `lib/` stays scanned deliberately, because
+  `lib/ui-tokens.ts` exports real class strings that components interpolate. And `DESIGN.md` §9's
+  warning about `app/globals.css` — "the grep cannot tell a mention from a use" — is untouched and
+  still true: a class named in the stylesheet is still both a mention and a use.
+
+  **The transferable half is not the fix, it is how it was found.** Loft had documented this hazard
+  and built a manual workaround around it for six days while the sibling had already eliminated it.
+  Nothing surfaces that except attaching both repos and diffing. When a session has both, diff
+  `app/globals.css` and `DESIGN.md` before trusting either copy.
 - **`out/` and `.next/` are NOT cleaned between builds**, so a stale chunk can outlive the source that
   produced it and a "did my change land?" grep over `out/` will lie. `rm -rf out .next` before any
   build whose output you are about to measure.

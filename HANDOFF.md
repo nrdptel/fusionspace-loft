@@ -71,18 +71,25 @@ have been. Remove the probe line, do not restore the file.
 - The clone is **shallow**, so any commit count here is a window, not the record.
 - Commits are signed and the identity is `Neer Patel <135655563+nrdptel@users.noreply.github.com>`,
   set per-repo before the first commit. It arrives as the harness vendor's default; set it every run.
+- **The session-restore flake is real and was seen TWICE this run, on two different specs.** Both
+  times a route was asked for its own panel and timed out at ~30 s with "element(s) not found" —
+  `e2e/touch.spec.ts`'s pad-states walk once, and `e2e/depth.spec.ts`'s desktop spine once — and both
+  passed in isolation and on a clean re-run, with the phone twin of the second passing in the same
+  shard. **The signature is a 30 s TIMEOUT on a missing element, not an assertion about a number.**
+  An assertion failure naming a measurement is yours; a wait that expired is the restore racing the
+  navigation. Re-run before believing it, and do not run agents during e2e.
+
 - **4 cores, and the orchestration layer competes with the gate for them.** The opening fan-out ran
   17 agents at a concurrency of 2 and took ~50 minutes wall-clock; while it ran, a `npm test` that
   takes 185 s alone took over 8 minutes. `MAINTAINING.md` already says not to run subagents during
   e2e; the same is true of the unit suite on this box. Dispatch the fan-out, then do LOW-CPU work
   (reading, writing docs, scoping) until it lands — not gate cycles.
-- **Markdown IS scanned by Tailwind, confirmed by controlled experiment.** Appending two utilities
-  the app does not use — an amber border at the 300 step, and a wavy text decoration — to
-  `ROADMAP.md` grew the built stylesheet 65,895 → 66,254 bytes, and both appeared in it. The hazard
-  `MAINTAINING.md` records is real, and this bullet is deliberately written WITHOUT spelling either
-  class, because spelling them here would regenerate them and make the sentence false. Write class
-  names descriptively in prose, then confirm the built CSS is byte-identical before believing you
-  did — that check is what proved this run's ~200 lines of new ledger prose added nothing.
+- **Markdown WAS scanned by Tailwind, and is not any more.** Confirmed by controlled experiment
+  (appending two unused utilities to `ROADMAP.md` grew the stylesheet 65,895 → 66,254 bytes), then
+  fixed by adopting the sibling repo's `@source not "../**/*.md"` — which that repo has had since
+  2026-07-31. The shipped stylesheet went **65,895 → 63,278 bytes**, 2,617 bytes of dead rules
+  generated from prose. `MAINTAINING.md`'s workaround bullet is updated to say so. A ledger entry may
+  now name a class plainly; `lib/` is still scanned on purpose.
 
 ## This run — three increments so far
 
@@ -92,6 +99,48 @@ have been. Remove the probe line, do not restore the file.
 | 2 | `e396ba3` | **The triage** — twelve verdicts, eight milestones, R4 annotated rather than re-opened |
 | 3 | pending | **R11 SHIPPED** (from `ON-2`) — a scratch build that goes downrange and says whose assumption the wind is, plus a plot that explains a flight with no down-range instead of drawing one on its own axis |
 | 4 | pending | **The pre-push review's blocker** — the Monte-Carlo nominal was a hand-copy of the old wind default, so the dispersion flew 0 m/s beside a Flight card flying 2 |
+
+## The done-check, answered out loud
+
+**What can a flyer DO after this run that they could not before? (R-track)**
+
+1. **Read the documentation.** On a dark-OS device with no theme chosen — the default state — all six
+   docs routes served body prose at **1.91:1** and headings at **1.12:1**. Verified against
+   production's own bytes after the deploy: every prose colour now resolves to its dark value and the
+   worst ratio anywhere is **6.67:1**, against WCAG AA's 4.5. That is the owner's `ON-1`, fixed and
+   live.
+2. **See a scratch build go somewhere.** A from-scratch design flew 0.00 m downrange and plotted as a
+   vertical line on its own axis. It flies 411.3 m of drift now, on a 2 m/s default taken from the
+   corpus's own median, stated on screen as Loft's assumption rather than the flyer's setup — and
+   where the answer genuinely is a vertical line, the plot says so instead of inventing an axis.
+3. **See the design's structure.** The parts list showed a flat list; three quarters of a real
+   design's components sit at depth ≥ 1, so most of the topology was invisible. It renders the tree
+   now — indented in design order, with the host named in words in every order.
+
+**What is measurably better about using the tool? (P-track)**
+
+- Worst docs contrast in the default theme: **1.12:1 → 6.67:1**, measured on production.
+- Shipped stylesheet: **65,895 → 63,278 bytes** on the exclusion change alone — 2,617 bytes of rules
+  generated from ledger prose rather than from any component. It stands at **63,476** at the end of
+  the run; the 198 bytes back are R12's own new `text-xs` on the host line, i.e. a real utility a
+  real component asks for, which is the difference the exclusion exists to preserve.
+- Unit **1,110 → 1,114**; e2e **234 → 243**; corpus cases **28 → 30**.
+- `DESIGN.md` §9 gained its first check that reads a rendered COLOUR rather than a class name —
+  closing a blind spot the file itself had already recorded twice.
+- §9's counts are otherwise unmoved and at target: rounded-lg 0, card treatments 3 (the recorded
+  honest floor), off-scale spacing 0, off-scale type 0, inverted files 0, hand-rolled dropdowns 0
+  (three shell hits are prose comments, exactly as §9 anticipates), `text-[11px]` 41, 18 adopters.
+
+**What is NOT better, stated rather than implied.** R11's *"labelled axis"* clause is not met — the
+flight-path plot still has no tick labels on either axis and still fabricates a one-unit range, so
+the fix is a caption and a sentence rather than an axis; it is filed with the measurement. R12's
+parts list is still collapsed by default and selection still does not drive the property surface,
+which is the whole point of the milestone. And the ledger's historical Sev-1 labels were NOT
+re-audited this run: the ledger's own entry says that count "does not survive contact" and is a
+reading list rather than a Sev-1 count. What was checked is narrower and is written up — three
+Sev-1-shaped claims from the fan-out (round-trip id loss, drag-coefficient re-attribution, a +22.4%
+apogee move) did not reproduce on any real file, and two latent ones (`compare.ts`'s missing
+`landed` gate, the unwritten `<customreference>`) are real but unreachable today.
 
 ## The arc so far
 
@@ -130,14 +179,24 @@ are in that file); whether Loft's header should adopt the motor finder's two-row
 motor finder's own repo is not attached, only its live site — which is the one `ON-B1` needs answered
 to read the reference implementation rather than infer it from rendered output.
 
-**And the shared-`DESIGN.md` invariant, stated precisely, because two files disagreed about it before
-review caught them.** `DESIGN.md` is shared verbatim with the sibling and a change to one is a change
-to both in the same run. This session's GitHub scope was this repo and the fixtures repo, so the §9
-contrast rule landed here alone — that is the fact, and `OWNER-NOTES.md` records it under `ON-1`.
-**What is NEW is that `nrdptel/fusionspace-debrief` is listable and pushable from this session's
-tooling**, so it can be attached mid-run rather than filed as a gap for the fourth time. Mirroring
-the §9 contrast rule there — and measuring whether Debrief's own stylesheet carries the same
-class-only defect, which is likely — is the cheapest high-value work left on the P-track.
+**The shared-`DESIGN.md` invariant is HONOURED this run — the first time in four.** A change to that
+file is meant to be a change to both repos in the same run, and three previous runs reported it as a
+gap because the sibling was out of scope. It is not: `nrdptel/fusionspace-debrief` is listable and
+pushable, and **attaching it mid-run costs one tool call and one shallow clone**. The §9 contrast
+rule is merged there (that repo's PR #144). Do this whenever `DESIGN.md` moves.
+
+**Two things that only became visible with both repos attached, and neither was findable from inside
+one of them:**
+- **The sibling had already fixed a hazard this repo was working around.** Its stylesheet excludes
+  markdown from Tailwind's scan and has since 2026-07-31; Loft was still writing class names broken
+  up in prose to avoid regenerating them. Adopted here, 2,617 bytes of dead CSS removed.
+- **The two copies of `DESIGN.md` have drifted by ~369 diff lines** — five button weights there
+  against three here, and different descriptions of `Panel` and `Section`. Filed in `BACKLOG.md`,
+  sized at 2–3 increments. It needs both repos attached, which is now known to be cheap.
+
+**Measured while there: the sibling does NOT carry the dark-mode defect.** Zero `:where(.dark)` rules
+and zero hand-written colour declarations in its stylesheet — every colour comes through a utility
+that gets both clauses. So `ON-1` was Loft-only, and that is a measurement rather than an assumption.
 
 ## Two runs ago — ten increments, four Sev-1s, R9 closed (2026-08-04)
 
