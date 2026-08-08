@@ -89,6 +89,16 @@ inside it is `control`.
 **Never colour a number by whether it is large.** Colour carries a claim; a claim needs a basis. Green
 on a number a flyer would act on reads as endorsement, and the SAFETY invariant forbids a verdict.
 
+**These meanings are about VALUES AND STATES, and NO chrome takes a semantic ramp — not one control,
+not the Tip jar, not as an exception.** The rule is checked rather than intended
+(`lib/design-system.test.ts`, *"lets no chrome wear a semantic ramp"*), because it has already been
+broken once in this family and reverted for a reason worth keeping: Debrief's Ko-fi link used to be
+amber *"so it reads as a tip jar, distinct from the neutral theme control"*, and
+`components/KofiButton.tsx` there now records why that was wrong — every other amber in either tree is
+a real caveat, so **a flyer learns amber means "this number is qualified", and spending it on a tip
+jar in the persistent header devalues the one signal the safety posture leans on.** What distinguishes
+the control is its GLYPH, and a glyph costs the colour system nothing.
+
 ### Radius
 
 `rounded-md` for controls (buttons, inputs, chips). `rounded-xl` for containers (cards, panels,
@@ -480,6 +490,56 @@ offline posture, the MIT licence.
 **Divergence is a bug in whichever app diverged**, and the fix lands in both repos in the same run.
 Where the apps genuinely need different components — a rocket diagram, a flight chart — they still
 share tokens, scale, states and vocabulary.
+
+### The suite is THREE tools, and the reference is whichever one meets this file
+
+**Named here because until 2026-08-08 this section named none, and "shared and non-negotiable" with no
+reference resolves to whichever app a session happens to be sitting in.** The third tool is the Hobby
+Rocket Motor Finder (`motor.fusionspace.co`, `nrdptel/Hobby-Rocket-Motor-Finder`) — live, polished, and
+the one a flyer has most likely just come from. It is a reference, **not the authority**: where a
+shared control differs, the app that matches this file wins and the others move. Establish which that
+is by MEASURING all three, not by assuming the oldest is right.
+
+**The theme control — already identical, do not "align" it.** Verified from the motor finder's rendered
+markup: same tri-state cycle, same `System / Light / Dark` labels, the same `◐ ☀ ☾` icons, and the
+identical accessible name `Color theme: X. Click to change.` Only the storage key differs, correctly.
+A session reading `ON-B1` as a rewrite instruction would be undoing a match.
+
+**The Tip control — one Ko-fi link, and the colour question is SETTLED against the motor finder.**
+It renders an amber pill; Debrief and Loft render a neutral `secondary`. Amber is `warn` (§2), and
+Debrief's `components/KofiButton.tsx` carries the reasoning in full because it *used* to be amber and
+was deliberately changed: spending the caveat colour on a tip jar in the persistent header devalues
+the one signal the safety posture leans on. **Two of the three agree, and they are the two that meet
+§2** — so the motor finder is the app that should move on colour.
+
+What DOES converge is the **glyph and the wording**: a coffee cup on the same path, and the sentence
+*"Tip the project — buy me a coffee on Ko-fi"*. Loft carried a `♥` and a shorter accessible name until
+2026-08-08 and was the odd one out; it is not now.
+
+**The MECHANISM that sentence rides on does not converge, and that is a measurement rather than a
+preference.** Both siblings put it on a `title`. Loft puts it on `aria-label` alone, because
+`e2e/touch.spec.ts` counts any `title` whose text is not already on screen beside it as a state a
+flyer at the pad cannot reach, and holds that total at zero. Adding the `title` here took it to 1 and
+failed the suite — correctly: the visible label is "Tip", the tooltip is a sentence, and a phone gets
+no tooltip at all. So the rule for the family is **the accessible name carries the destination, and a
+`title` may only repeat what is already rendered.**
+
+**Geometry stays each app's own, and Loft's is the one to copy**: the motor finder renders
+`px-2.5 py-1 text-xs` with no `focus-visible` ring and no touch minimum — about 26 px against §8's
+44 px floor on `pointer: coarse`. Debrief's is `size="sm"`. Loft's is `buttonClass()`'s `md` with the
+ring and the floor. A check holds that line (`lib/design-system.test.ts`, *"keeps Loft's touch floor
+and focus ring on the suite's Tip control"*).
+
+**Still open and the owner's:** the header's SHAPE — two right-aligned rows on the motor finder with
+Tip last, a single row in Loft with Tip first. Parked in Loft's `OWNER-NOTES.md` under *Awaiting the
+owner*.
+
+**And the method, which is the transferable half.** The motor finder's repo is not attachable to these
+sessions, so its behaviour is verifiable from the live site and its implementation is not — say which
+of the two you did. **Debrief's is attachable, in one tool call, and this whole entry is what that
+bought:** a run that had only Loft and the live motor finder measured two tools, concluded amber, and
+was about to ship a semantic colour into the persistent header. Attach the sibling before deciding
+anything this section governs.
 
 ---
 
