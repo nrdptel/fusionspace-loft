@@ -79,27 +79,37 @@ milestone's favour and one against; both corrections are now in `ROADMAP.md` P8.
   trusting: a JSX text run that spans a line break loses its leading whitespace, so `<em>loaded</em>`
   followed by a newline shipped as `loadedcentre`. Baseline is 0; anything above that is yours.
 
-## This run
+## This run — two milestones, a Sev-1 across two surfaces, and three merges to `main`
 
-| # | what | how it was verified |
-|---|---|---|
-| 1 | **P9 SHIPPED (from `ON-B1`)** — the Tip control converges on the suite's coffee-cup glyph and its accessible name; the colour deliberately does not | four new `DESIGN.md` §10 checks in `lib/design-system.test.ts`, three with negative controls |
-| 2 | **The amber, written and reverted** — §2 gains no chrome exception after all, and the check asserts an EMPTY list | refuted by reading `components/KofiButton.tsx` in the sibling; stylesheet back to 63,476 bytes exactly |
-| 3 | **`DESIGN.md` mirrored into Debrief, in the same run** — §2 and §10, plus its Tip control's missing `aria-label` | Debrief PRs #147 and #148, both green on `frontend` and `e2e`, both merged; §2 and §10 diffed byte-identical between checkouts |
-| 4 | **SEV-1: the parameter sweep published a static margin the flight card was withholding** | reproduced before it was scoped (1.098 / 1.290 / 1.487 cal); pinned by `lib/sim/sweep.test.ts`, negative control leaks 1.0979687142572607 |
-| 5 | **SEV-1, second surface: the what-if comparison card did the same, and its signed CHANGE was wrong a second way** | found by the pre-push review; pinned by `lib/what-if-delta.test.tsx` (3 cases, 2 negative controls, one leaking `1.29 → 0.95 cal`) |
-| 6 | **A surface census for the figure** — every file that publishes a static margin, and how each is gated | `lib/margin-surfaces.test.ts`; it found three surfaces the fix had not enumerated, all already correct |
-| 7 | **The first design-system audit this repo has run**, filed | seven entries in `BACKLOG.md`, one of which the pre-push review then corrected |
-| 8 | **`COMPETITION.md` row 40** — OpenRocket's property dialog and the verbs beside its tree | published docs only, clean-room; settles one of row 39's two open questions |
+**Everything below is MERGED and live** (`66be2b9`, `e01f4cc`), plus three merged pull requests in
+the sibling repo (#147, #148, #150).
 
-## What the pre-push review caught that the whole gate could not
+| # | what | SHA | how it was verified |
+|---|---|---|---|
+| 1 | **P9 SHIPPED** (from `ON-B1`) — the Tip control converges on the suite's coffee-cup glyph and accessible name; the colour deliberately does not | `66be2b9` | four `DESIGN.md` §10 checks, three with negative controls |
+| 2 | **SEV-1: two surfaces published a static margin the flight card was withholding** — the parameter sweep and the what-if comparison card | `66be2b9` | reproduced before scoping (1.098 / 1.290 / 1.487 cal); three checks, four negative controls |
+| 3 | **The first design-system audit this repo has run**, filed; P8's own measurements corrected; `COMPETITION.md` row 40 | `66be2b9` | each P8 correction re-verified by hand, and one of them was wrong |
+| 4 | **R12's first *done when* MET** — selecting a component is how you edit it | `e01f4cc` | an e2e case that edits a nested canopy and asserts its sibling did not move; negative control |
+| 5 | **The `Popover` §5 was missing**, adopted from the sibling rather than invented | `e01f4cc` | driven on the built export across five part kinds; contrast case in both themes |
+| 6 | **`DESIGN.md` mirrored into Debrief three times, in the same run** — §2, §10 and §5 | — | PRs #147, #148, #150, all green, all merged; the changed sections diff byte-identical |
 
-**Eight findings, and two were blockers.** The gate — lint, 1,121 unit tests, a clean build and 243
-e2e cases — was green over every one of them.
+**Counts: unit 1,116 → 1,126; e2e 243 → 245; corpus 29 cases green over 35 design files. §9's counts
+are unmoved and at target. The shipped stylesheet is 63,476 → 64,129 bytes, all of it the popover.**
+
+
+## What the pre-push reviews caught that the whole gate could not
+
+**Two reviews, seventeen findings, three of them blockers, and the gate was green over every single
+one.** This is the single most valuable half-hour in the run, twice over. Run it on every push.
 
 1. **`WhatIfDelta` published the very margin the increment was fixing**, one card above the sweep. The
    Sev-1 fix was written against the surface a reproduction had pointed at, and a `grep` for the other
    surfaces was never run — the review's second lens ran it.
+0. **The second review found nine more on the property surface**, of which the sharpest were three
+   whole-design controls leaking into a mass object's properties, a panel headed *"Drogue parachute"*
+   labelling that drogue's own 460 mm as *"Main chute Ø"*, and a **WCAG failure that only exists once
+   a row is picked** — 4.32:1 against 4.5, invisible because every contrast case in the suite walks a
+   surface in its RESTING state.
 2. **A check that could not fail.** `expect(tokens).toMatch(/TOUCH_TARGET,/)` was run against the whole
    of `lib/ui-tokens.ts`, and that string occurs twice — so the "buttonClass keeps its 44 px floor"
    assertion stayed green with the floor deleted. Scoped to that function's body now, and the negative
@@ -110,6 +120,12 @@ e2e cases — was green over every one of them.
    command given answers 17 for the bare form alone, because "rounded" is an English word the docs
    pages use in prose. Corrected with what the census actually returns and why.
 5. **A line reference wrong inside a paragraph explicitly framed as hand-verified.**
+
+**And a third lens, aimed at the PROSE, earned its place too:** it found four passages describing
+work that had been reverted three hours earlier, a `BACKLOG.md` entry whose stated repro command did
+not reproduce, a docblock claiming something existed nowhere "in either app" when the sibling had it,
+and a wrong line reference inside a paragraph explicitly framed as hand-verified. Point a reviewer at
+the markdown, not only at the code.
 
 **And the review's own findings needed verifying.** One lens reported the docs claim and the code
 defect as separate items; one reported a formatting break that was real; the blocker was confirmed by
