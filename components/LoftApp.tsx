@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import ImportPanel from "./ImportPanel";
 import ResultsView from "./ResultsView";
 import { workspaceFromPath, workspacePath, type Workspace } from "@/lib/workspaces";
+import { KIND_LABEL } from "./GeometryInspector";
 import { Button, Card, ErrorState, NumberField, Segmented, Select } from "./ui";
 import { importDesign, sourceTool, type OrkDocument } from "@/lib/ork/import";
 import { newDesign } from "@/lib/model/starter";
@@ -21,6 +22,7 @@ import {
   unreachableBodyTubeCount,
   primaryParachutePart,
   unreachableParachuteCount,
+  AIM_SLOTS,
   aimEditsAt,
   moveTarget,
   moveSlots,
@@ -2145,6 +2147,42 @@ export default function LoftApp({ children }: { children?: React.ReactNode }) {
                 if (Object.keys(patch).length) applyEdit(patch, null);
               }}
               workspace={workspace ?? "flight"}
+              // **The property surface for whatever part is picked out — R12's "selecting a component
+              // is how you edit it".** It is the SAME `DesignEditor`, aimed: the fields, their units,
+              // their bounds and their refusals are one implementation, filtered down to the component
+              // in hand. A second copy of them is what every divergence in this file has been.
+              //
+              // The aim is read from the edit registry rather than from a table here — `aimEditsAt`
+              // answers "which slot does a pick on this id move", which is exactly "which fields
+              // describe it" — plus the nose, which has no slot because a design has one of them.
+              // A part no field describes returns null and gets no control at all.
+              propertiesFor={(id) => {
+                const tree = removableFrom ?? structureOf(doc.rocket, edits);
+                const part = flattenRocket(tree).find((x) => x.component.id === id)?.component;
+                if (!part) return null;
+                const slot = Object.keys(aimEditsAt(tree, id))[0];
+                const aim = slot ?? (part.kind === "nosecone" ? "nose" : undefined);
+                if (!aim) return null;
+                // The part's own name where it has one, its kind otherwise — the SAME table the
+                // parts panel's rows and its identify line read from, so the popover's heading names
+                // a part the way the surface the flyer just clicked on does.
+                const label = part.name || KIND_LABEL[part.kind] || part.kind;
+                return {
+                  title: label,
+                  label,
+                  body: (
+                    <DesignEditor
+                      units={units}
+                      edits={edits}
+                      onEdit={applyEdit}
+                      swap={swapInfo}
+                      designDims={designDims}
+                      tool={toolName}
+                      only={aim}
+                    />
+                  ),
+                };
+              }}
               designEditor={
                 <DesignEditor
                   units={units}
@@ -2256,16 +2294,70 @@ function cdOriginPhrase(from: CdProvenance | undefined): string {
   }
 }
 
+/** The editor's own chrome, or none of it.
+ *
+ *  Declared at module scope rather than chosen inline: a component created during render is a NEW
+ *  component type on every pass, so React unmounts and remounts its whole subtree and every field
+ *  inside it loses what was being typed. eslint refuses it outright, and it is right to — the first
+ *  draft of the property surface did exactly this.
+ *
+ *  `bare` is what a property surface wants: that surface brings its own card and its own heading
+ *  naming the part, so a second card would be raised-inside-raised (§2 forbids it) under a heading
+ *  about a heading. */
+function EditorFrame({ bare, children }: { bare?: boolean; children: React.ReactNode }) {
+  if (bare) return <>{children}</>;
+  return (
+    <Card tone="sunken">
+      <p className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+        Design what-if
+      </p>
+      {children}
+    </Card>
+  );
+}
+
+/** Which component's fields a property surface is showing — an `AIM_SLOTS` key, or `"nose"`.
+ *
+ *  The nose is the one kind the aim registry deliberately has no slot for, because a design has
+ *  exactly one and there is nothing to aim; `noseLength` and `noseShape` still describe it, so a
+ *  flyer who picks it has to be able to reach them. Everything else is derived from the registry
+ *  rather than listed again here — a second list of "which fields describe which part" is precisely
+ *  what `AIM_SLOTS`' own docblock says had already drifted four ways once. */
+export type EditorAim = string;
+
+/** The value fields each aim owns, derived from the registry plus the nose's three. */
+const AIM_FIELDS: Readonly<Record<string, readonly string[]>> = {
+  ...Object.fromEntries(Object.entries(AIM_SLOTS).map(([slot, def]) => [slot, def.targets])),
+  nose: ["noseLength", "noseShape", "catalogNoseCone"],
+};
+
+/** Every field any aim owns — the set a property surface filters DOWN from. */
+const AIMED_FIELDS: ReadonlySet<string> = new Set(Object.values(AIM_FIELDS).flat());
+
 function DesignEditor({
   units,
   edits,
   onEdit,
   swap,
-  designDims,
+  designDims: designDimsIn,
   tool,
+  only,
 }: {
   units: UnitSystem;
   edits: Edits;
+  /** Show only the fields that describe ONE component, and render bare rather than as the what-if
+   *  card — what a property surface opened from a picked part wants.
+   *
+   *  Implemented as a filter over `designDims` rather than as a second copy of the fields, because
+   *  every one of them already carries its own unit conversion, its bound, its refusal message and
+   *  the sentence naming which part it is holding. A second copy is the mechanism behind every
+   *  divergence this repo has had to unwind. Most of the filtering falls out for free: the controls
+   *  are already gated on `designDims.<field> !== undefined`, so blanking the other groups' values
+   *  hides them without touching a single control. The handful that are NOT gated that way — the
+   *  motor swap, the whole-airframe finish and material, the nose ballast, the recovery scale, the
+   *  boattail and the payload — are whole-DESIGN fields rather than one part's, and they are gated
+   *  on `only` explicitly below. */
+  only?: EditorAim;
   /** `applyEdit` — the optional second argument names the gesture for the undo control. Without it
    *  a multi-field patch falls back to "the design", which is right for a patch that has no single
    *  name and wrong for one that does. */
@@ -2314,6 +2406,17 @@ function DesignEditor({
     payloadStation?: number;
   };
 }) {
+  // Blank out every VALUE field that belongs to another component, and leave everything else — the
+  // metadata keys (`finSetPart`, `unreachableBodyTubes`, …) are what the notes inside each group use
+  // to name the part they are holding, and they belong to the group that survives.
+  const designDims = !only
+    ? designDimsIn
+    : (Object.fromEntries(
+        Object.entries(designDimsIn).map(([k, v]) => [
+          k,
+          AIMED_FIELDS.has(k) && !(AIM_FIELDS[only] ?? []).includes(k) ? undefined : v,
+        ]),
+      ) as typeof designDimsIn);
   const imperial = units === "imperial";
   // Every one of these renders a value the flyer can type, so each renders at ROUND-TRIP precision:
   // `d.fmtEditable` adds a decimal only where the field's nominal precision would misstate what is
@@ -2370,20 +2473,19 @@ function DesignEditor({
     m === undefined ? "" : d.fmtEditable(imperial ? m * 39.3701 : m * 1000, imperial ? 3 : 1);
 
   return (
-        <Card tone="sunken">
-          <p className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-            Design what-if
-          </p>
+        <EditorFrame bare={!!only}>
           {/* The what-if fields, grouped into labelled sections (a <fieldset> per subsystem) rather
               than one long wall — so a flyer can find the fin controls, the nose/body controls, or the
               recovery controls at a glance, and a screen reader announces each field's group. A group
               renders only when the design actually carries fields for it. */}
           <div className="mt-3 space-y-4">
-            {((swap && swap.options.length > 1) || designDims.motorClusterCount !== undefined) && (
+            {!only && ((swap && swap.options.length > 1) || designDims.motorClusterCount !== undefined) && (
               <fieldset className="min-w-0 border-0 p-0">
+                {!only && (
                 <legend className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
                   Motor
                 </legend>
+                )}
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                   {swap && swap.options.length > 1 && (
                     <label className="col-span-2 block">
@@ -2463,10 +2565,12 @@ function DesignEditor({
 
             {designDims.finSpan !== undefined && (
               <fieldset className="min-w-0 border-0 p-0">
+                {!only && (
                 <legend className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
                   {designDims.unreachableFinSets > 0 ? `Fins — ${finPhrase}` : "Fins"}
                 </legend>
-                {designDims.unreachableFinSets > 0 && (
+                )}
+                {!only && designDims.unreachableFinSets > 0 && (
                   // A staged or podded design carries sets that legitimately differ. These fields
                   // describe one of them at a time — say which, and say how to aim them at another,
                   // rather than letting one unlabelled control stand for all of them.
@@ -2600,12 +2704,19 @@ function DesignEditor({
 
             {(designDims.noseLength !== undefined ||
               designDims.noseShape !== undefined ||
-              designDims.bodyDiameter !== undefined) && (
+              designDims.bodyDiameter !== undefined ||
+              // The transition fields live inside this group, so a property surface aimed at a
+              // transition opens it with nothing else in it — without this clause the whole group
+              // is hidden and the transition has no fields at all.
+              designDims.transitionLength !== undefined ||
+              designDims.transitionAftDiameter !== undefined) && (
               <fieldset className="min-w-0 border-0 p-0">
+                {!only && (
                 <legend className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
                   Nose &amp; body
                 </legend>
-                {designDims.unreachableBodyTubes > 0 && (
+                )}
+                {!only && designDims.unreachableBodyTubes > 0 && (
                   // A staged, podded or coupler-split airframe is several tubes end to end — 23 of the
                   // 35 corpus designs are, as Loft imports them. Say which one the length field is
                   // holding, and say plainly that the caliber field is NOT one tube's: it scales the
@@ -2620,7 +2731,7 @@ function DesignEditor({
                     line stays faired.
                   </p>
                 )}
-                {designDims.unreachableTransitions > 0 && (
+                {!only && designDims.unreachableTransitions > 0 && (
                   // A design that steps caliber more than once — a payload shoulder and a tail cone —
                   // has several, and the fields hold exactly one of them.
                   <p className="mb-2 text-xs text-zinc-500 dark:text-zinc-400">
@@ -2704,7 +2815,10 @@ function DesignEditor({
                       positive
                     />
                   )}
-                  {designDims.bodyDiameter !== undefined && (
+                  {/* The boattail pair ADDS a part at the aft end of the airframe — it is not a
+                      property of the tube whose caliber gates it, so it stays out of a per-part
+                      surface. Same for the airframe material and the nose ballast below. */}
+                  {!only && designDims.bodyDiameter !== undefined && (
                     <NumberField
                       label={`Boattail length (${spanU})`}
                       value={toDispSpan(edits.boattailLength)}
@@ -2713,7 +2827,7 @@ function DesignEditor({
                     min={0}
                     />
                   )}
-                  {designDims.bodyDiameter !== undefined && (
+                  {!only && designDims.bodyDiameter !== undefined && (
                     <NumberField
                       label={`Boattail exit (${spanU})`}
                       value={toDispSpan(edits.boattailAftDiameter)}
@@ -2732,7 +2846,7 @@ function DesignEditor({
                   <PartPicker
                     kind="bodytube"
                     imperial={imperial}
-                    currentOuterDiameter={edits.bodyDiameter ?? designDims.bodyDiameter}
+                    currentOuterDiameter={edits.bodyDiameter ?? designDimsIn.bodyDiameter}
                     // The record itself is always passed, because since the pick began carrying a
                     // wall and a stock it changes the flight even with both dimension fields blank —
                     // so the clear path has to exist whenever it is set. What the MATCH governs is
@@ -2809,7 +2923,7 @@ function DesignEditor({
                     // The caliber to open on is the BODY's, not the nose's own base: a flyer looking
                     // for a cone wants the ones that fit the tube they are building on, which is
                     // exactly the fit OpenRocket filters its presets by.
-                    currentOuterDiameter={edits.bodyDiameter ?? designDims.bodyDiameter}
+                    currentOuterDiameter={edits.bodyDiameter ?? designDimsIn.bodyDiameter}
                     picked={edits.catalogNoseCone}
                     // Length and contour are the two the flyer can retype afterwards; the base, the
                     // shoulder and the wall have no fields of their own, so those cannot drift.
@@ -2872,11 +2986,16 @@ function DesignEditor({
               </fieldset>
             )}
 
+            {(!only || only === "parachuteId") && (
             <fieldset className="min-w-0 border-0 p-0">
+              {/* No legend inside a property surface: the surface's own heading already names the
+                  part, and a legend under it would be a heading about a heading. */}
+              {!only && (
               <legend className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
                 {designDims.unreachableParachutes > 0 ? `Recovery — ${chutePhrase}` : "Recovery"}
               </legend>
-              {designDims.unreachableParachutes > 0 && (
+              )}
+              {!only && designDims.unreachableParachutes > 0 && (
                 // Every dual-deploy design carries two canopies, and the fields used to resolve "the"
                 // parachute as the LARGEST — so on 17 of the 35 corpus designs the drogue could not be
                 // reached at all, and a flyer aiming to shrink it resized the main instead. That moves
@@ -2891,6 +3010,7 @@ function DesignEditor({
                 </p>
               )}
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                {!only && (
                 <NumberField
                   label="Recovery size (×)"
                   value={edits.recoveryCdScale ?? ""}
@@ -2904,14 +3024,30 @@ function DesignEditor({
                     onEdit({ recoveryCdScale: n !== undefined && n > 0 ? n : undefined });
                   }}
                 />
+                )}
+                {/* **Two labels that are right on the wall and wrong on a per-part surface, and one
+                    control that does not belong there at all.**
+
+                    The wall holds ONE set of recovery fields for the whole design, so "Main deploy
+                    alt" and "Main chute Ø" name which canopy they mean. A property surface is already
+                    headed with the part's name, and on the drogue's panel a field labelled "Main
+                    chute Ø" holding the drogue's own 460 mm is a wrong label on a number a flyer
+                    sizes a recovery area with. So the aimed labels drop the "Main". Caught by a
+                    pre-push review driving the drogue's panel; the field was always editing the right
+                    component.
+
+                    "Drogue Ø" goes further and is removed: on a design with one canopy it AUTHORS a
+                    second, which is a change to the recovery system rather than a property of the
+                    part in hand — the same reason the boattail and the payload are not here. */}
                 <NumberField
-                  label={`Main deploy alt (${lenU})`}
+                  label={only ? `Deploy altitude (${lenU})` : `Main deploy alt (${lenU})`}
                   value={toDispLen(edits.mainDeployAltitude)}
                   placeholder="apogee"
                   onChange={(v) => onEdit({ mainDeployAltitude: fromLen(v) })}
                 min={0}
                 positive
                 />
+                {!only && (
                 <NumberField
                   label={`Drogue Ø (${spanU})`}
                   value={toDispSpan(edits.drogueDiameter)}
@@ -2919,9 +3055,10 @@ function DesignEditor({
                   onChange={(v) => onEdit({ drogueDiameter: orNone(fromSpan(v)) })}
                 min={0}
                 />
+                )}
                 {designDims.mainParachuteDiameter !== undefined && (
                   <NumberField
-                    label={`Main chute Ø (${spanU})`}
+                    label={only ? `Diameter (${spanU})` : `Main chute Ø (${spanU})`}
                     value={toDispSpan(edits.mainParachuteDiameter)}
                     placeholder={toDispSpan(designDims.mainParachuteDiameter)}
                     onChange={(v) => onEdit({ mainParachuteDiameter: fromSpan(v) })}
@@ -3068,12 +3205,16 @@ function DesignEditor({
                 />
               )}
             </fieldset>
+            )}
 
+            {(!only || only === "massObjectId") && (
             <fieldset className="min-w-0 border-0 p-0">
+              {!only && (
               <legend className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
                 Mass &amp; finish
               </legend>
-              {designDims.unreachableMassObjects > 0 && (
+              )}
+              {!only && designDims.unreachableMassObjects > 0 && (
                 // 26 of the 35 corpus designs carry a mass object and 15 carry several — an av-bay, a
                 // tracker, a nose weight, shear pins. The fields hold exactly one of them.
                 <p className="mb-2 text-xs text-zinc-500 dark:text-zinc-400">
@@ -3102,6 +3243,7 @@ function DesignEditor({
                     min={0}
                   />
                 )}
+                {!only && (
                 <NumberField
                   label={`Nose ballast (${massU})`}
                   value={toDispMass(edits.ballastKg)}
@@ -3109,7 +3251,8 @@ function DesignEditor({
                   onChange={(v) => onEdit({ ballastKg: orNone(fromMass(v)) })}
                 min={0}
                 />
-                {designDims.payloadStation !== undefined && (
+                )}
+                {!only && designDims.payloadStation !== undefined && (
                   <NumberField
                     label={`Payload (${massU})`}
                     value={toDispMass(edits.payloadMassKg)}
@@ -3118,7 +3261,7 @@ function DesignEditor({
                   min={0}
                   />
                 )}
-                {designDims.payloadStation !== undefined && (
+                {!only && designDims.payloadStation !== undefined && (
                   <NumberField
                     label={`Payload pos (${spanU})`}
                     value={toDispSpan(edits.payloadStation)}
@@ -3127,7 +3270,7 @@ function DesignEditor({
                   min={0}
                   />
                 )}
-                {designDims.finish !== undefined && (
+                {!only && designDims.finish !== undefined && (
                   <label className="block">
                     <span className="block text-[11px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
                       Surface finish
@@ -3147,7 +3290,7 @@ function DesignEditor({
                     </Select>
                   </label>
                 )}
-                {designDims.bodyDiameter !== undefined && (
+                {!only && designDims.bodyDiameter !== undefined && (
                   <label className="block">
                     <span className="block text-[11px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
                       Airframe material
@@ -3171,7 +3314,12 @@ function DesignEditor({
                 )}
               </div>
             </fieldset>
+            )}
           </div>
+          {/* The wall's own pitch, and it belongs to the wall: it names the motor swap, the ballast,
+              the boattail and the payload — four controls a per-part surface deliberately does not
+              carry — so inside one it would be ninety words describing fields that are not there. */}
+          {!only && (
           <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
             Fly a different motor, add nose weight, resize the fins, nose, or body, add a boattail
             (set both a length and an exit narrower than the body), add a payload / av-bay mass (a
@@ -3184,7 +3332,8 @@ function DesignEditor({
             this design already flies — that casing demonstrably fits, which a mount&apos;s stated
             bore does not establish for every motor that would go in it.
           </p>
-        </Card>
+          )}
+        </EditorFrame>
   );
 }
 
