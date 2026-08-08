@@ -12,6 +12,63 @@ this file, and deliberately does **not** cap craft or product work, because that
 track in `ROADMAP.md` with its own *done when*. Rough edges, missing affordances, and findings too
 big for one pass. Newest first.
 
+**Filed 2026-08-08 while triaging the first `OWNER-NOTES.md` batch.** Everything below was measured
+this run; where a fan-out claimed something the corpus then refuted, the refutation is the entry.
+
+- **The `.ork` round trip is RIGHT and barely CHECKED, and a fan-out mistook the second for the
+  first.** `lib/model/id.test.ts` exercises exactly two designs (`newDesign()` and
+  `fixtures/demo-quirks.ork`) and asserts only component IDS — nothing about geometry, provenance or
+  any flown number. Driven by hand over all **27 corpus `.ork` files** on 2026-08-08, export →
+  re-import changes component ids on **0**, flips recovery-device drag-coefficient provenance on
+  **0**, and moves flown apogee on **0**; the only drift is `num()`'s 6-decimal quantisation (a
+  reference radius of 0.01240 returning 0.01239), which moves nothing a flyer reads. **So this is a
+  coverage gap, not a defect** — the fix is to widen `lib/corpus/sweep.test.ts` with a round-trip
+  case over every `.ork`, asserting ids, `cdFrom` and apogee, so the behaviour that is true today
+  cannot silently stop being. Sized at one increment.
+
+- **`<customreference>` is never written by the exporter, and it is unreachable on every real file.**
+  `lib/ork/export.ts` writes `<referencetype>` without `<customreference>`, while `lib/ork/adapt.ts`
+  reads `referenceRadius` from it — so a design declaring `referenceType: "custom"` would come back
+  with an undefined radius and fall through to `maxBodyRadius`. **Measured: 0 of 27 corpus `.ork`
+  designs use `referenceType: "custom"`**, and Loft's own starter uses `maximum`, so no flyer can
+  currently reach it. A fan-out reported this as a +22.4% apogee Sev-1; that figure came from
+  injecting a custom radius into the starter, not from any real design. Real, latent, and correctly
+  NOT preempting a milestone — but it becomes reachable the moment an editor lets someone set a
+  custom reference, so fix it with that feature rather than before it.
+
+- **§9's greps scan `components app` and never `lib/` — and `lib/ui-tokens.ts` is where the class
+  strings every primitive renders actually live.** So the file with the most leverage over the app's
+  appearance is outside every compliance count, by construction. It already has a violation:
+  `navItemClass` spells `px-3.5`, off §4's `1 2 3 4 6 8 12` scale and off the two sanctioned
+  half-steps. This is the same shape as the three blind spots §9 already records (the stylesheet's
+  radius, the stylesheet's font sizes, and contrast) — a check that cannot see a place will report
+  zero for it forever. **Fix: add `lib/ui-tokens.ts` to the §9 grep roots and to
+  `lib/design-system.test.ts`'s source list, in both repos**, then clear whatever it turns up. One
+  increment, and it is worth more than its size because it widens what every future count can see.
+
+- **The card-variant regression has NOT recurred, and the same mechanism has moved onto four other
+  treatments.** Measured 2026-08-08: all seven §9 counts are at target and match the executable
+  ratchets exactly. What has grown instead sits in places the greps cannot match:
+  - **No `TextField` primitive.** The text-input treatment is spelled four times across three files;
+    three are byte-identical and the fourth has already drifted (a `py-1` where the others have
+    `py-1.5`, plus extra classes). This is precisely how the twelve card variants started.
+  - **No `Spinner` primitive.** The loading state is hand-rolled five times in two geometries.
+  - **Four token-shaped pills in three geometries**, while §5's `Chip` note still asserts the app
+    contains *"exactly one"* — two of the four are byte-identical copies of each other. The note is
+    now false and should be corrected in the same change that extracts the primitive.
+  - **`Tabs` has zero call sites** anywhere in `components/`, `app/` or `e2e/` — superseded by
+    `WorkspaceNav`. §5 already deleted `Chip` for having none; `Tabs` is in the same position and
+    should be decided rather than left.
+  - **9 of 9 `Figure` call sites pass no `empty`**, so every chart falls through to the primitive's
+    default *"Nothing to plot yet."* — copy that names neither what would fill the surface nor the
+    action that fills it, which §5 forbids by name.
+
+- **`.gitignore`'s throwaway-probe globs do not cover `.mts`.** It carries `*-tmp.mjs`, `*-tmp.*.ts`
+  and `*-tmp.ts`, so a probe named `foo-tmp.mts` — a natural choice for an ESM TypeScript probe, and
+  the one this run reached for first — is NOT ignored and would be committed by a `git add -A`.
+  `MAINTAINING.md` already says "check the glob covers the exact name you chose"; the cheaper fix is
+  to make the glob cover the obvious names. One line.
+
 **Filed 2026-08-03 from a six-lens opening fan-out** (phone walk, desktop tenth-use walk, design-system
 audit, competitive probe, milestone scout, Sev-1 number screen). Two of its findings became increments
 the same run — the touch scan's blind spots, and the export carrying stored results out of a design

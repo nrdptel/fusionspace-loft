@@ -15,8 +15,12 @@ still read as one long scrolling page with twelve different card treatments on i
 never the bottleneck. **What a flyer can do** and **what the tool feels like to use** are different
 work, and a queue containing only the first can only ever ship the first.
 
-- **R-track — capability.** What a flyer can DO that they could not before. R1–R3 shipped; **R4 is IN
-  PROGRESS** (increment 1 of 3 shipped 2026-07-31).
+- **R-track — capability.** What a flyer can DO that they could not before. R1–R9 shipped; **R10 is
+  IN PROGRESS** (only `maxAcceleration` remains of its Size item 5); R11 and R12 are queued behind
+  it, both born from `OWNER-NOTES.md`. *(This line read "R1–R3 shipped; R4 is IN PROGRESS" until
+  2026-08-08, six milestones after it stopped being true. It is the queue's own state line — update
+  it in the same commit as the status line it summarises, or it becomes the most misleading sentence
+  in the file.)*
 - **P-track — product and craft.** What makes it a tool a stranger picks up, trusts, and keeps using:
   shape, design system, first run, form factor, documentation, discoverability.
 
@@ -392,6 +396,15 @@ with its tsc or build exit checked.
 
 **Done when** a flyer can drag a component along the airframe and drop it between two others, the
 station arithmetic of everything aft follows, and the diagram never shows a part overlapping another.
+
+> **2026-08-08 — the INTERACTION this milestone shipped has since been withdrawn by the owner
+> (`OWNER-NOTES.md` `ON-4`: *"no one is actually designing a rocket by dragging parts"*). The
+> milestone is NOT re-opened and this text is NOT rewritten** — it is the accurate record of what was
+> built and pinned, and `MAINTAINING.md` forbids re-opening a shipped milestone. The withdrawal is
+> carried forward by **R12**, whose select-and-edit tree is the replacement. Until that tree can do
+> the same job, nothing here is removed: the capability stays reachable, which is what
+> SHIPPED-MEANS-REACHABLE and *"a state a flyer can enter with no way back"* both argue for. What
+> changed is that drag is no longer EXTENDED, not that it is deleted.
 
 **Increment 3 was a Sev-1 the drag itself created reach to.** Loft takes forebody pressure and wave
 drag from whichever component is a nose cone wherever it sits, and has no term at all for a blunt
@@ -2396,6 +2409,89 @@ most valuable check this repo has for unattended physics work.
 
 ---
 
+## R11 (from ON-2) — A scratch build flies a flight that goes somewhere
+
+**Status: NOT STARTED.**
+
+**Outcome.** A flyer who starts from scratch sees a trajectory, not a vertical line — and wherever
+the answer genuinely IS a vertical line, the plot says why instead of leaving them to conclude the
+tool is broken.
+
+**Reproduced 2026-08-08, and it is a DEFAULTS problem, not a solver or plotting defect.** The
+distinction mattered enough that the note asked for it to be settled first. Downrange is integrated
+correctly — `lib/sim/simulate.ts` writes `x: Math.hypot(state.pos.x, state.pos.y)` into every sample,
+and `FlightViz` plots it as the x-axis. But `defaultConditions()` in `lib/sim/setup.ts` ships
+`rodAngleFromVertical: 0` **and** `windSpeed: 0`, and in a 3-DOF solver with no weathercocking those
+are the only two sources of horizontal motion. So all 506 trajectory samples carry `x === 0` exactly,
+and the plot is a true vertical line drawn on top of its own axis. Measured on the starter design:
+
+| conditions | downrange at apogee | at landing |
+|---|---|---|
+| shipped defaults | **0.00 m** | **0.00 m** |
+| wind 2 m/s (OpenRocket's own default) | 11.70 m | **411.3 m** |
+| rod 5°, no wind | — | 155.6 m |
+
+**A design that DECLARES its conditions is unaffected** — the importer carries them through, and the
+placeholders already say when a value is the engine's default rather than the file's. This is only
+the from-scratch path, which is exactly the path a stranger takes.
+
+**Done when** a from-scratch design flies with a defaulted wind that is stated on screen as a default
+rather than as the flyer's own setup; the trajectory plot refuses to imply a downrange it does not
+have (a degenerate range gets a labelled axis and a sentence, not a bare line); and the number chosen
+is cited rather than picked. **The citation is the load-bearing part** — the corpus is the source:
+across 91 stored OpenRocket simulations the median declared wind is 2 m/s with only 1 of 91 at zero,
+while rod angle really is 0 in 85 of 91. So change the wind default and leave the rod plumb.
+
+**Size.** 2 increments. (1) the default, its citation, and every surface that states what is being
+flown; (2) the degenerate-plot case, which is the half that still matters on a genuinely calm day.
+
+**Notes.** SAFETY posture applies directly: a defaulted wind is an assumption, not the flyer's
+setup, and every surface that prints a drift or a landing figure has to say which it is. Send an
+agent to enumerate those surfaces rather than trusting memory — a caveat on the plot and a confident
+number in the CSV is the failure this repo has shipped before. **Do not** reach for a non-zero rod
+angle to manufacture drift: the corpus says flyers really do set it to zero, and inventing a lean
+would put a number on screen that no file asked for.
+
+---
+
+## R12 (from ON-6, ON-7, ON-5, ON-4) — The component tree the flyer sees, and edits
+
+**Status: NOT STARTED.** This is the note batch's largest item and the one all four editor-shape
+notes converge on. Treat it as a milestone FAMILY: the *done when* below is the first member, and the
+rest are decomposed as it lands rather than guessed at now.
+
+**Outcome.** A flyer builds and edits a rocket through a component tree they can see — parts nested
+under their hosts, the way the design actually is — with a property dialog per component, instead of
+a flat wall of number fields addressing "the" nose and "the" body tube.
+
+**The model is already there, and that is the single most important measurement for scoping this.**
+`lib/model/types.ts` gives every component `children: RocketComponent[]` and a `Placement` relative
+to its parent, and the file's own header says it is "shaped like OpenRocket's component tree … so a
+design editor can be layered on top later without reshaping the model." So ON-6's nesting — a
+payload or a mass or a chute *under* a coupler or tube — is a **UI** milestone, not a model rewrite.
+What is missing is a surface that shows the tree and a selection concept to drive it.
+
+**Done when** (first member) a flyer can see every component of the loaded design as a nested tree,
+select one from either the tree or the drawing, and have that selection drive a single property
+surface that edits *that* component by id — with the 24-field flat patch still working underneath and
+untouched. Pinned by an e2e case that selects a nested part (a mass object under a body tube) from
+the tree, edits one of its dimensions, and asserts the flight re-runs on the edited part and not on a
+sibling.
+
+**Size.** 5–6 increments across the family, of which the first member is 2–3.
+
+**Notes.** `ON-4` withdrew **drag** as the authoring gesture and did not withdraw **directness** —
+select-and-edit is the interaction. The sequencing the owner chose is in that note and holds: stop
+extending drag now; do not remove what has shipped until the tree and dialogs can do the same job.
+`DESIGN.md` §8's "Drag has an arrow-key equivalent and an undo" is a constraint on any drag that
+exists, not a requirement that drag exist. **`ON-5`'s popover needs a `DESIGN.md` §5 primitive that
+does not exist today, and the sibling repo's own `ON-3` asks for the same pattern from the other
+direction — so it is designed once, in that file, in both repos, and never invented twice.** And the
+trap `ON-4` names is real: `ROADMAP.md` uses "drag" in the AERODYNAMIC sense throughout — wave drag,
+forebody pressure drag — so a find-and-replace over the word corrupts the methods documentation.
+
+---
+
 ## P1 — One design system, adopted
 
 **Status: DONE — 2026-08-02.** Every §9 count is at its target or its recorded honest floor, all six
@@ -3902,6 +3998,241 @@ than inherit: either they gain their call sites or they are deleted from the fil
 
 ---
 
+## P7 (from ON-1) — Readable in every theme a visitor can actually be in
+
+**Status: SHIPPED 2026-08-08** — pinned by `e2e/contrast.spec.ts` (four cases: all six docs routes in
+light, in chosen-Dark, and on a dark OS with nothing chosen, plus all four workspaces in that last
+state) and by `lib/design-system.test.ts`'s *lets no hand-written rule answer only the class half of
+the dark variant*. Both were proved able to fail by a negative control that reproduces the original
+1.12:1 and 3.16:1 by name.
+
+**Outcome.** Text is readable in every theme state a visitor can reach — including the default one,
+which is the one that was broken.
+
+**What it was.** The `dark` variant has two clauses; a `dark:` utility gets both, a hand-written
+stylesheet rule gets only the one it asks for. All eleven `.prose-loft` rules asked for the `.dark`
+class, and "System" — the default — sets no class. Every first-time visitor on a dark-OS device read
+all six docs routes in the light palette on a dark ground: body prose **1.91:1**, `h2` and `strong`
+**1.12:1**, links 3.16:1, blockquotes 2.57:1, against WCAG AA's 4.5:1.
+
+**Done when** — all met: every docs route and every workspace clears WCAG AA in all three theme
+states; the fix is expressed so the OS clause cannot be forgotten again (`light-dark()`, which
+resolves against the used `color-scheme` the root already sets per clause); `DESIGN.md` §9 carries
+contrast as a rule with its two commands, because seven class-name greps could not see this and never
+will; and the suite's dark-mode accessibility audit no longer runs only in the class state.
+
+**Size.** 1 increment, which is what it took.
+
+**The gap this leaves, and it is the next session's.** `DESIGN.md` is shared verbatim with the
+sibling repo and a change to one is a change to both in the same run. Whether Debrief's own
+stylesheet carries the same class-only defect is measured in that repo, not inferred from this one.
+
+---
+
+## P8 (from ON-3) — The phone stands the rocket up
+
+**Status: NOT STARTED.**
+
+**Outcome.** On a phone held upright, the airframe is drawn upright — nose at top — at a scale that
+makes it legible as a rocket instead of a hairline.
+
+**Measured 2026-08-08, and the numbers decide the scope.** Nothing has to be un-picked first: there
+is no orientation switch anywhere, no `matchMedia("(orientation: portrait)")`, no CSS rotation. At a
+390 px viewport the diagram column measures 324 px, and for the bundled `38 mm single-deploy` sample
+the airframe renders **296 px long and 11.8 px tall** — 3.86:1 in a box, a to-scale rocket too thin
+to read as one. Dual-deploy is 10.3 px; the from-scratch starter is 19.0 px.
+
+**Four measurements that must survive contact with the implementation**, each of which kills an
+obvious wrong turn:
+
+1. **Rotating buys 1.62×, not an order of magnitude.** A vertical airframe cannot use the 324 px
+   cross-axis — the widest bundled design is 104–121 px tip-to-tip at any usable scale — so the scale
+   comes from a HEIGHT budget. At 500 px of a 664 px screen, single-deploy goes 11.8 → 19.2 px.
+   **None of them reaches §8's 44 px.** So this is a legibility and affordance fix and must not be
+   sold as a hit-target fix; the 44 px contract stays satisfied by the tap columns exactly as today.
+2. **Key it on `(orientation: portrait)` AND coarse, never coarse alone.** `e2e/touch-landscape.spec.ts`
+   runs Pixel 7 landscape at 863×360, where the horizontal drawing gets ~831 px of column and a
+   vertical one would get at most ~340 px of height — strictly worse than today. That suite's own
+   test name is already *"the pointer decides the hit target, not the viewport width"*.
+3. **`FinHandle`'s `axis` prop means SCREEN axis, not model axis.** Six of eight grips pass `"x"`
+   (station-valued) and two pass `"y"` (radius-valued), and `aria-orientation` and the resize cursor
+   derive from the same prop. Rotating without re-basing it on the MODEL axis silently inverts every
+   grip — a drag toward the nose lengthening the fin root, and a screen reader announcing the
+   opposite of the gesture. That is a wrong control, not a cosmetic one.
+4. **The 44 px tap assert flips from trivially-passing to failing.** `e2e/touch.spec.ts` asserts no
+   tap column is under 44 px, which holds today only because columns are full-diagram-height and
+   part-length wide. On the cross axis the band's height becomes the part's length, and that spec
+   already records **56 of 150 body parts across the corpus under 44 px** along it, the narrowest at
+   0.8 px. The column-building code has to be re-derived in the same change, not after it.
+
+**Done when** a phone in portrait draws the airframe vertically with the nose at top, at a scale set
+by a named height budget; every grip is re-based on the model axis so no control inverts; the tap
+columns are rebuilt on the cross axis and the 44 px assert still passes for a real reason; landscape
+is unchanged and has a case saying so; and `DESIGN.md` §8 — which today says nothing whatever about
+orientation — carries the rule, in both repos.
+
+**Size.** 3–4 increments.
+
+**Notes.** Nose at TOP is settled by existing convention rather than taste: `MassBreakdown`'s *CG from
+nose*, `GeometryInspector`'s station sort and its "at X from the nose" readout, and the parts table's
+design order all read nose-first. Nose at bottom would contradict all four. **The height budget is a
+genuinely new concept** — `useMeasuredWidth` is the only measurement hook in the codebase and it
+measures width only — so name the constant in the milestone rather than discovering it mid-increment,
+and remember it cannot be `100vh`-derived without a hydration mismatch. The coarse-pointer fin chip
+row survives rotation and must stay: at 1.62× the fin-corner spacings are still 34/34/11 px at best
+and still coincident on two of four samples. And vertical is not free on journey depth — everything
+below the drawing moves down by roughly 420 px on `/design`, a route that already records a 1,841 px
+journey — so the milestone needs its own budget clause.
+
+---
+
+## P9 (from ON-B1) — One suite, one set of chrome
+
+**Status: NOT STARTED.**
+
+**Outcome.** The theme control and the Tip control read as the same controls a flyer already used on
+`motor.fusionspace.co`, because the suite has a live reference implementation and neither of these
+repos has ever been measured against it.
+
+**Measured 2026-08-08 from the live site's rendered output.** The motor finder's repo is not attached
+to this environment, so the behaviour is verified and the implementation is inferred — say so again in
+whatever run builds this, and do not guess at source.
+
+- **The theme control's BEHAVIOUR already matches**: same tri-state cycle, same `System / Light /
+  Dark` labels, same `◐ ☀ ☾` icons, same `Color theme: X. Click to change.` accessible name. Only the
+  storage key differs, correctly. **Nothing in `ThemeToggle`'s logic needs touching**, which rules
+  out the rewrite this note could easily have been read as asking for.
+- **The Tip control is the real divergence**: an amber pill with a coffee-cup glyph there, a neutral
+  grey secondary button with a `♥` here. Same word, same destination, different colour and icon.
+- The theme button also differs in fill (solid there, transparent here) and size (~26 px vs ~34 px).
+
+**"Match the live site" LITERALLY is the wrong answer, and this is the clause to hold the milestone
+to.** Copying the motor finder's chrome verbatim would shrink Loft's header controls below its own
+44 px touch floor, drop the `focus-visible` ring Loft's button token adds, and revert a measured
+decision recorded in `SiteHeader.tsx`. So: align colour, icon and tooltip posture toward the senior
+sibling; keep Loft's touch floor and focus ring; and where Loft is the one meeting a contract, the
+motor finder is what should move.
+
+**Done when** `DESIGN.md` §10 names the motor finder as the reference implementation and specifies
+the Tip and theme controls concretely enough to converge on (it names neither today); Loft's Tip
+control matches that specification; and a check asserts the touch floor and focus ring survived the
+alignment, so the next run cannot regress them chasing a pixel.
+
+**Size.** 2 increments.
+
+**Notes.** The header's SHAPE also differs — two right-aligned rows there, one row here, Tip last vs
+first — and that is a product call parked in `OWNER-NOTES.md` under *Awaiting the owner* rather than
+decided here. Build the token alignment without it.
+
+---
+
+## P10 (from ON-B2) — The repo page is a surface, and it goes stale like one
+
+**Status: NOT STARTED.**
+
+**Outcome.** Someone arriving from a forum link reads a landing page that describes the tool that
+exists today.
+
+**Measured 2026-08-08.** `README.md` was last touched 28 commits and ~1,726 insertions ago and now
+carries claims the repo disproves: it advertises `.ork` import ALONE while the file input accepts
+`.rkt` and `.CDX1` (so a RockSim or RASAero flyer concludes Loft cannot open their file and leaves);
+it calls RockSim and RocketPy *"future"* adapters when both shipped; it omits the parts catalogue,
+building from scratch, staging, `.ork` export, sweeps, the 300-flight Monte-Carlo and the RocketPy
+cross-check; and it says "two bundled examples" where there are four.
+
+**The durable half is the mechanism, and a milestone that only rewrites prose does not deliver it.**
+No gate step reads README content — `check-links.mjs` resolves relative links and never a claim — and
+`README.md` is in no session-start list, so it goes stale silently every run. That is what ON-B2 is
+actually about.
+
+**Done when** the README describes what ships today, and the claims that can be mechanically tied to
+code are ASSERTED against it: the accepted import extensions against `ImportPanel`'s accept list, the
+route list against the exported routes, and the sample count against `public/samples/`. A false
+README claim then fails the build instead of waiting for an owner to notice.
+
+**Size.** 2 increments.
+
+**Notes.** The other half — repository description, website link and topics — is a GitHub SETTING, not
+a file, and no tool available to a session can edit it. It is parked in `OWNER-NOTES.md` under
+*Awaiting the owner* with paste-ready values. Do not report ON-B2 as closed while that half is open.
+
+---
+
+## P11 (from ON-8) — Docs a flyer can navigate, not just read
+
+**Status: NOT STARTED.**
+
+**Outcome.** The six docs routes can be scanned, linked into, and returned to — instead of read
+start-to-finish or not at all.
+
+**Measured 2026-08-08 on the built export**, after a first reading wrote this off by eye and the
+numbers overturned it: **29,204 words, zero figures, zero code blocks, four tables all on one page,
+and one linkable heading in eighty-nine.** `/docs/limitations` carries 11,157 words under three `h2`
+— one section break per ~3,700 words — including a single **2,800-word** run of unbroken paragraphs.
+`/docs/methods` is the mirror failure: 7,926 words under 14 `h2` and no `h3` at all. The nav is five
+route links with no table of contents, no in-page anchors, no next/prev and no search.
+
+**`DESIGN.md` has to change FIRST, and that is not a formality.** §11 explicitly puts *"physics and
+method presentation (the methods and limitations pages)"* out of scope — 19,083 of those 29,204 words
+— and the file has no measure, line-length or prose-chunking clause anywhere. §4's *"density is the
+point… when in doubt, tighten"* currently reads as an argument against this work. So amend §11, add
+a long-form clause, in both repos, and only then convert.
+
+**Done when** every heading on every docs route carries an anchor and the route offers a contents
+list; no unbroken prose run exceeds the budget the new `DESIGN.md` clause sets; and those two are
+COUNTED on the built export by a check, the way §9's other counts are — longest run,
+headings-per-thousand-words, and anchor coverage.
+
+**Size.** 3–4 increments.
+
+**Notes.** This is presentation, not content: the physics prose is good and the milestone must not
+become a rewrite of it. Note also that the four rendered tables are raw `<table>` elements against
+§5's *"every table is `DataTable`"* — real, but a separate finding, and `DataTable` is a client
+component while these are static routes, so converting them is a decision rather than a conversion.
+
+---
+
+## P12 (from ON-9) — Samples that show what the tool can actually do
+
+**Status: NOT STARTED.**
+
+**Outcome.** A flyer who arrives without a design file of their own can see the capabilities Loft
+actually has.
+
+**Measured 2026-08-08.** `public/samples/` ships four files but only **three airframes** —
+`demo-multi-config.ork` differs from `demo-single-deploy.ork` by ids, a motor configuration and a
+stored simulation, and by not one line of geometry. Against what the adapter and model support,
+**nine capabilities have zero sample coverage**: transitions/boattails, multi-stage, motor clusters,
+tube fins, freeform fins, streamers and shock cords, couplers and bulkheads, mass overrides, and
+per-configuration recovery. RASAero `.CDX1` is the sharpest: an advertised import format with a
+640-line adapter and no example anywhere in the repo, not even as a fixture.
+
+**Start with the two designs that already exist.** `fixtures/demo-boattail.ork` (boattail, elliptical
+fins, already carrying a RocketPy cross-check reference) and `fixtures/demo-payload-separation.ork`
+(two-stage, separation event, chute on lower-stage separation) are built, loadable, and generated
+from committed source — they are simply absent from `gen-fixtures.mjs`'s `SAMPLES` set. That closes
+two gaps for the cost of a set literal and the surfaces that list samples.
+
+**And fix the thing the coverage question uncovered: every bundled sample is OVER-STABLE** — 3.06,
+3.84, 4.07 and 4.51 cal against `OVER_STABLE_CAL = 3` — so every one-tap example a stranger opens
+greets them with a caution. Adding a fourth over-stable design would make that worse.
+
+**Done when** every sample listed above is reachable from the import screen; at least one sample is
+inside the stable band so a stranger's first flight is not a caution; a `.CDX1` example exists; and a
+check asserts every file in `SAMPLES` is actually served, actually imports, and that the sample count
+stated in the docs matches the set — the counts at `/docs/limitations` and `/docs/validation` are
+already stale, which is how this milestone earns its pin.
+
+**Size.** 3 increments.
+
+**Notes.** The corpus cannot supply these: 35 real files, 24 of them GPLv3, 3 MIT and 11 with no
+explicit licence, against Loft's MIT — so redistribution is out and synthesizing is the answer, which
+is what the note argued. Synthesized is also better: a file built to exercise one capability
+deliberately beats one that covers it by luck. A demo design is a design, not a flight; any stored
+result a Loft-authored file carries names Loft as its source.
+
+---
+
 ## After R6 and P5 — extend this file yourself, in this order
 
 **Do not ask which of these to do, and do not fall back to the defect ledger because the list above
@@ -3953,6 +4284,37 @@ Beyond these, decompose from the North Star in `MAINTAINING.md` and from `COMPET
 Unattended runs do not stop to ask (see *Unattended operation* in `MAINTAINING.md`). Every decision
 that would otherwise have been a question goes here, with the option rejected, so it can be reversed
 cheaply instead of re-derived. Newest first.
+
+- **2026-08-08 — R4 is left SHIPPED and un-rewritten, and the drag withdrawal is carried by R12
+  instead.** `ON-4` withdrew drag as the authoring gesture, and the note says the roadmap "carries an
+  ACTIVE milestone whose *done when* is drag" that the triaging run must re-scope. Measured: that
+  milestone is R4, and R4 shipped 2026-07-31. `MAINTAINING.md`'s *"never re-open a milestone marked
+  shipped"* therefore applies, so R4 is annotated rather than rewritten and the withdrawal lives in
+  R12's notes. **Rejected:** editing R4's *done when* to say "tree" — it would have made a shipped,
+  pinned milestone describe work nobody did, and left 484 drop slots asserted by a corpus test that
+  no longer matched any stated goal.
+
+- **2026-08-08 — drag is not removed this run, and the eight shipped grips stay.** `ON-4` names two;
+  there are eight, all `role="slider"` with arrow-key equivalents, so none is a `DESIGN.md` §8 breach
+  and each is a working capability today. The owner's own sequencing ("do not remove until the tree
+  can do the same job") is followed literally. **Rejected:** removing the two the note names, which
+  would have been an arbitrary two-eighths and would have left a flyer worse off with nothing in
+  place of it.
+
+- **2026-08-08 — `ON-10` is REJECTED as a new canonical format, and narrowed to a fidelity
+  measurement.** A `loft.json` would be a format only Loft reads, while `.ork` export already exists,
+  already round-trips through the real serializer (pinned by `lib/model/id.test.ts`), and opens in
+  OpenRocket. **Rejected:** building the new format anyway to satisfy the note literally — it would
+  double the surface on which a field can silently fail to survive, for strictly less flyer value.
+  What survives is a `COMPETITION.md` row on which model fields `.ork` cannot carry.
+
+- **2026-08-08 — the docs' dark-mode fix is `light-dark()` rather than a duplicated media block.**
+  The alternative was to repeat every dark declaration inside `@media (prefers-color-scheme: dark)`,
+  which is what the `dark` variant does for utilities. **Rejected** because it doubles eleven rules
+  and the duplication is exactly the thing that goes stale; `light-dark()` resolves against the used
+  `color-scheme`, which the root already sets per clause. The bare light value is kept as a preceding
+  declaration so a browser without `light-dark()` is not made worse off, and the `:where(.dark)`
+  rules stay as that browser's explicit-choice path.
 
 - **2026-08-05 — narrowing an airframe below the motor inside it is REFUSED, not clamped, and that
   makes "narrow the body diameter" unavailable on five of the six committed fixtures.** The Sev-1 was
