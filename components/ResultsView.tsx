@@ -188,6 +188,7 @@ export default function ResultsView({
   onEditGeometry,
   onUseMotor,
   onSelectPart,
+  propertiesFor,
   onRemovePart,
   onAddAfter,
   onMovePart,
@@ -259,6 +260,10 @@ export default function ResultsView({
   /** Told which part the flyer picked in the parts table or on the diagram, so the editor's fields
    *  describe and edit that part. Which fields a pick re-aims is the edit model's call. */
   onSelectPart?: (id: string) => void;
+  /** Handed straight to the design panel — the property surface for the picked part. Threaded rather
+   *  than built here for the same reason `onSelectPart` is: the fields belong where the edit bag
+   *  lives, and this component neither owns nor inspects them. */
+  propertiesFor?: (id: string) => { title: string; label: string; body: React.ReactNode } | null;
   /** Remove a component from the design — the structural half of editing. */
   onRemovePart?: (id: string) => void;
   /** Author a part behind the picked one. Given only where editing is offered, like `onRemovePart`. */
@@ -856,6 +861,7 @@ export default function ResultsView({
           motors={shownMotors}
           onEdit={onEditGeometry}
           onSelectPart={onSelectPart}
+          propertiesFor={propertiesFor}
           onRemove={onRemovePart}
           onAddAfter={onAddAfter}
           onMove={onMovePart}

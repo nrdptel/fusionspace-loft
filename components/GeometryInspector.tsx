@@ -13,7 +13,7 @@ import type { CatalogPart } from "@/lib/components/db";
 import RocketDiagram from "./RocketDiagram";
 import DataTable, { type Column } from "./DataTable";
 import PartPicker from "./PartPicker";
-import { Button, Card } from "./ui";
+import { Button, Card, Popover } from "./ui";
 
 type PartRow = { p: ReturnType<typeof flattenRocket>[number]; i: number };
 
@@ -96,7 +96,16 @@ const PART_COLUMNS = (
       // ambiguous and fragile. Eighteen e2e locators counted body tubes by matching the words "Body
       // tube" anywhere in the row, and the host line broke every one of them at once. A kind is a
       // fact about the model rather than a string on screen, so it is the right thing to select on.
-      <span data-kind={p.component.kind} className="text-zinc-500 dark:text-zinc-400">
+      //
+      // `zinc-600`, not `zinc-500`, and the difference is a WCAG failure rather than a shade. §2 puts
+      // a label at `secondary` anyway, but the number is what settles it: this cell sits on
+      // `bg-indigo-50` the moment its row is PICKED, and `#71717b` on `#eef2ff` is 4.32:1 against
+      // AA's 4.5 — so selecting a part, which is now the central gesture of the design workspace,
+      // dropped its own kind cell below the floor. On white it was 4.83 and passing, which is why
+      // nothing caught it: §9's contrast check walks the docs routes and the workspaces in their
+      // RESTING state, and no check picks a row first. `zinc-600` reads 6.90:1 selected, 7.72:1 at
+      // rest.
+      <span data-kind={p.component.kind} className="text-zinc-600 dark:text-zinc-400">
         {KIND_LABEL[p.component.kind] ?? p.component.kind}
         {/* **The host in words — the half that actually carries the structure.** The indent on the
             name only works in design order and reads as punctuation to a screen reader; this names
@@ -171,7 +180,10 @@ const PART_COLUMNS = (
  *  on the numeric ones, because that is the question being asked when you sort them. */
 type PartSort = "design" | "name" | "type" | "station" | "mass";
 
-const KIND_LABEL: Record<string, string> = {
+/** Exported so the property surface's heading names a part exactly as the parts table and the
+ *  identify line do. Two tables of the same nouns is how a panel's label and its own note drift
+ *  apart, and this one is already the app's single copy. */
+export const KIND_LABEL: Record<string, string> = {
   nosecone: "Nose cone",
   bodytube: "Body tube",
   transition: "Transition",
@@ -253,6 +265,7 @@ export default function GeometryInspector({
   added,
   onPickPart,
   onClearPick,
+  propertiesFor,
 }: {
   rocket: Rocket;
   units: UnitSystem;
@@ -324,6 +337,19 @@ export default function GeometryInspector({
    *  is judged against. The panel judging for itself let the two disagree: it read the fully-edited model,
    *  which contains parts a dimension edit ADDED and the removal mechanism cannot take. */
   refuseRemoval?: (id: string) => string | null;
+  /** The property surface for the picked part — the fields that describe THAT component, or null
+   *  where nothing describes it.
+   *
+   *  A render prop rather than a component, because the fields live where the edit bag lives: every
+   *  one of them carries its own unit conversion, its bound, its refusal message and the sentence
+   *  naming which part it is holding, and moving them here would mean a second copy of all four.
+   *  This panel owns the SELECTION (see `selectedId` below) and the app owns the FIELDS, which is the
+   *  same split `onSelectPart` already draws.
+   *
+   *  Driven by `selectedId` rather than by `aims`, deliberately: the aim-following effect below syncs
+   *  the pick FROM the aims, so feeding a surface off the aims closes a loop through this component.
+   *  `selectedId` is upstream of both. */
+  propertiesFor?: (id: string) => { title: string; label: string; body: React.ReactNode } | null;
   /** Every component id the edit model is currently aimed at, keyed by its aim slot. Passed back in so
    *  the pick shown here and the parts the fields describe cannot drift apart — a restored session
    *  arrives with an aim and no pick, and "Reset to as-designed" clears the aims without clearing the
@@ -627,6 +653,44 @@ export default function GeometryInspector({
             editor below, because "this one, gone" is a statement about the thing you are pointing at —
             and it is the only destructive control on this panel, so it stays where its subject is
             visible. A refusal replaces it with the reason. */}
+        {/* **The property surface for the picked part, and the point of the whole selection.** It sits
+            at the head of the picked-part controls — above the removal, the reorder and the authoring
+            — because "what is this part" comes before "do something to it", and because it is the one
+            of them a flyer reaches for repeatedly rather than once.
+
+            It is a popover rather than a jump to the wall of fields below (`ON-5`, `ON-7`): the fields
+            are the same fields, aimed at this component by id, but they arrive WHERE the flyer is
+            looking instead of a screen away, and they arrive without the twenty-odd fields describing
+            other parts. Nothing is removed from the wall — the sequencing `ON-4` set is that a
+            replacement proves itself before anything it replaces goes away.
+
+            A part no field describes — a coupler, a launch lug, a bulkhead — returns null and gets no
+            control, rather than a button that opens an empty surface. */}
+        {selectedId && (() => {
+          const props = propertiesFor?.(selectedId);
+          if (!props) return null;
+          // A `<div>`, not a `<p>`: the open panel is a `Card` full of fieldsets and headings, and
+          // block content inside a paragraph is invalid nesting the browser silently repairs by
+          // closing the `<p>` early — which would move the panel out of the wrapper the outside-press
+          // handler measures against.
+          return (
+            <div className="mt-2">
+              {/* No `aria-label` on the trigger: it shows words, and an `aria-label` REPLACES them
+                  in the accessible name (§5, WCAG 2.5.3 *Label in Name*) — a button reading
+                  "Properties" named "Edit the properties of the main parachute" stops answering to
+                  voice control. The panel's own name carries which part, which is where a screen
+                  reader hears it anyway, and there is only ever one of these on screen because there
+                  is only ever one picked part. */}
+              <Popover
+                trigger="Properties"
+                title={props.title}
+                what={`the properties of ${props.label}`}
+              >
+                {props.body}
+              </Popover>
+            </div>
+          );
+        })()}
         {onRemove && selectedId && (
           <p className="mt-1 text-sm">
             {refuseRemoval?.(selectedId) ? (

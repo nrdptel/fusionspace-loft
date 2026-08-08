@@ -7170,4 +7170,151 @@ test.describe("choosing a real commercial part", () => {
       /centre of gravity ahead of centre of pressure/,
     );
   });
+  test("selecting a nested part opens ITS properties, and an edit there flies that part and not a sibling", async ({ page }) => {
+    // Six popover opens, two design edits and three re-flies of a dual-deploy design — the same
+    // reason six other tests in this file raise theirs.
+    //
+    // **A note on how a failure here reads, because it misled this test's own author for two shard
+    // runs.** When a locator inside the popover stops matching, Playwright reports a TEST TIMEOUT
+    // ("Test timeout of 60000ms exceeded" on `locator.getAttribute`), not "element not found" — so
+    // it looks exactly like contention on a four-core box, and raising the timeout just makes the
+    // same wrong diagnosis take twice as long. It was a renamed label. **Read the call log line, not
+    // the timeout.**
+    test.setTimeout(120_000);
+    // **R12's *done when*, as a check rather than an opinion.** The milestone is not met when a tree
+    // renders beside the wall of fields — it is met when selecting a component is HOW you edit it.
+    // So this drives the whole gesture: pick a part that is NESTED under another, open the surface
+    // the pick offers, edit a dimension there, and confirm the flight moved on that component and
+    // that a sibling of the same kind did not.
+    await page.goto("/");
+    await page.getByRole("button", { name: /54 mm dual-deploy/ }).click();
+    await page.getByRole("link", { name: "Design", exact: true }).click();
+    // The disclosure KEEPS its open state across a workspace switch, so this is conditional rather
+    // than a second unconditional click — which closed it again and cost the first draft of this
+    // test a confusing "row not found".
+    const openParts = async () => {
+      const table = page.locator("table").filter({ hasText: "Dimensions" });
+      const summary = page.locator("summary", { hasText: /Parts ·/ });
+      // Wait for the panel to exist before deciding anything about it: after a workspace switch the
+      // route renders before the design panel does, so an immediate `isVisible` on the table answers
+      // false, the click lands on nothing, and the failure reads as a missing row.
+      await expect(summary).toBeVisible();
+      if (!(await table.isVisible().catch(() => false))) await summary.click();
+      await expect(table).toBeVisible();
+    };
+    await openParts();
+
+    // A dual-deploy design carries TWO canopies, which is what makes this a by-id test rather than a
+    // by-role one: the old flat fields resolved "the" parachute as the largest, so on 17 of the 35
+    // corpus designs the drogue could not be reached at all and a flyer aiming to shrink it resized
+    // the main instead. The rows are nested under their host tube — the indent and the "in <host>"
+    // wording are increment 1's — so picking one is picking a part at depth.
+    const partsTable = page.locator("table").filter({ hasText: "Dimensions" });
+    const canopies = partsTable.locator("tr").filter({ hasText: /Parachute/ });
+    await expect(canopies, "this design must carry two canopies for the test to mean anything").toHaveCount(2);
+
+    const openProps = async (row: import("@playwright/test").Locator) => {
+      await row.click();
+      const trigger = page.getByRole("button", { name: "Properties", exact: true });
+      await expect(trigger).toBeVisible();
+      const named = await trigger.textContent();
+      await trigger.click();
+      const dialog = page.getByRole("dialog");
+      await expect(dialog).toBeVisible();
+      return { dialog, named };
+    };
+
+    // **Both canopies' as-designed sizes are read BEFORE anything is edited.** The first draft of
+    // this compared the second canopy against the FIRST one's original diameter and failed at 460
+    // against 1220 — which is not a defect, it is a dual-deploy design having a main and a drogue of
+    // genuinely different sizes. The claim is that the untouched one does not MOVE, so its own
+    // starting value is what it has to be measured against.
+    const diameterOf = async (row: import("@playwright/test").Locator) => {
+      const { dialog } = await openProps(row);
+      // "Diameter", not "Main chute Ø": on a per-part surface the label drops the "Main", because
+      // the panel is already headed with the part's name and "Main chute Ø" over the DROGUE's own
+      // 460 mm was a wrong label on a number a flyer sizes a recovery area with.
+      const field = dialog.locator("label").filter({ hasText: /Diameter/ }).first().locator("input");
+      const v = parseFloat((await field.getAttribute("placeholder")) ?? "0");
+      await page.keyboard.press("Escape");
+      await expect(page.getByRole("dialog")).toHaveCount(0);
+      await row.click(); // release the pick, so the next row's click is a pick and not a toggle
+      return v;
+    };
+    const firstName = ((await canopies.nth(0).textContent()) ?? "").replace(/\s+/g, " ").trim();
+    const otherName = ((await canopies.nth(1).textContent()) ?? "").replace(/\s+/g, " ").trim();
+    expect(otherName, "the two rows resolved to the same part — the test is not exercising two").not.toBe(firstName);
+    const beforeFirst = await diameterOf(canopies.nth(0));
+    const beforeOther = await diameterOf(canopies.nth(1));
+    expect(beforeFirst, "the field must open on the part's own size").toBeGreaterThan(0);
+    expect(beforeOther).toBeGreaterThan(0);
+    expect(
+      beforeFirst,
+      "the two canopies are the same size, so this design cannot show an edit landing on one of them",
+    ).not.toBeCloseTo(beforeOther, 0);
+
+    // Now open the FIRST one in design order — not the largest, which is what the flat fields would
+    // have reached for — and edit it there.
+    const { dialog, named } = await openProps(canopies.nth(0));
+    // The trigger shows words, so those words ARE its accessible name (§5, WCAG 2.5.3): an
+    // `aria-label` would replace them and stop it answering to voice control. Which part is named by
+    // the PANEL, which is asserted below.
+    expect((named ?? "").trim()).toBe("Properties");
+    await expect(dialog).toHaveAttribute("aria-label", /\S/);
+    // The surface holds THAT part's fields and no others: a canopy has a diameter, a deploy altitude
+    // and a drag coefficient; it has no fin span and no nose shape.
+    await expect(dialog.getByLabel(/Diameter/i)).toBeVisible();
+    // And the wall's own wording is NOT what a per-part surface uses.
+    await expect(dialog.locator("label").filter({ hasText: /Main chute/ })).toHaveCount(0);
+    await expect(dialog.locator("label").filter({ hasText: /Drogue/ })).toHaveCount(0);
+    await expect(dialog.locator("label").filter({ hasText: /Fin span/ })).toHaveCount(0);
+    await expect(dialog.locator("label").filter({ hasText: /Nose length/ })).toHaveCount(0);
+    // And no WHOLE-DESIGN control: those describe the airframe, not the part in hand. **Every one of
+    // these is a leak the first version of this surface actually had** — the mask works by blanking
+    // fields that belong to another AIM, and a whole-design field belongs to no aim, so it is
+    // invisible to the mask and has to be gated by hand. A pre-push review found three of them
+    // (Payload, Payload pos, Surface finish) after the first two were already asserted here.
+    for (const leak of [/Nose ballast/, /Recovery size/, /Payload/, /Surface finish/, /Airframe material/, /Boattail/, /Swap motor/]) {
+      await expect(dialog.locator("label").filter({ hasText: leak }), `${leak} is not a property of this part`).toHaveCount(0);
+    }
+    // Nor the wall's own pitch, which names four controls this surface does not carry.
+    await expect(dialog.getByText(/Fly a different motor, add nose weight/)).toHaveCount(0);
+    // Nor the "to edit another, pick it on the diagram" advice — the flyer has just picked one, and
+    // this panel's heading says which.
+    await expect(dialog.getByText(/to work on another, pick it/)).toHaveCount(0);
+
+    // Focus landed on the first FIELD, not on the Close button. `Card` renders its actions row before
+    // its children, so the naive "first focusable in the panel" is always Close.
+    await expect(dialog.locator("input").first()).toBeFocused();
+
+    const dia = dialog.locator("label").filter({ hasText: /Diameter/ }).first().locator("input");
+    await dia.fill(String(Math.round(beforeFirst * 0.6)));
+    await dia.blur();
+
+    // The keyboard can always get back out — the one thing that makes this a popover rather than a
+    // trap — and closing returns focus to the trigger. Note the `blur()` above put focus on the body,
+    // which is exactly the state that broke the first version of the primitive: Escape was bound to
+    // the surface, so it stopped working the moment focus left it.
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Properties", exact: true })).toBeFocused();
+
+    // The flight moved.
+    await page.getByRole("link", { name: "Flight", exact: true }).click();
+    await expect.poll(async () => {
+      const t = (await page.getByRole("main").textContent()) ?? "";
+      const m = t.match(/([\d.]+)\s*m\/s/);
+      return m ? parseFloat(m[1]) : NaN;
+    }, { timeout: 25000 }).toBeGreaterThan(0);
+
+    // **And the sibling did not move, which is the whole claim.** Its own as-designed diameter is
+    // still what its field opens on — the edit landed on a component by id, not on a role.
+    await page.getByRole("link", { name: "Design", exact: true }).click();
+    await openParts();
+    const afterOther = await diameterOf(partsTable.locator("tr").filter({ hasText: /Parachute/ }).nth(1));
+    expect(
+      afterOther,
+      "editing one canopy changed the other — the fields are still addressing a ROLE, not an id",
+    ).toBeCloseTo(beforeOther, 0);
+  });
 });

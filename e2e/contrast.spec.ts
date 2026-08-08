@@ -230,4 +230,43 @@ test.describe("readable in the theme the visitor is actually in", () => {
     }
     await ctx.close();
   });
+  test("the design workspace stays readable with a part PICKED, in light and in dark", async ({ browser }) => {
+    // **Every contrast case in this file walks a surface in its RESTING state, and that is a hole
+    // this milestone drove straight through.** Picking a part paints its row `bg-indigo-50`, and the
+    // row's kind cell was `text-zinc-500` — 4.32:1 on that ground against AA's 4.5, where the same
+    // cell reads 4.83:1 on white and passes. So the defect existed only in a state no check entered,
+    // on the gesture the design workspace is now built around: R12 makes selecting a part how you
+    // edit it, so a flyer is in this state whenever they are working.
+    //
+    // Both themes, because the highlight has a light and a dark value and only one of them was
+    // measured when this was found.
+    for (const colorScheme of ["light", "dark"] as const) {
+      const ctx = await browser.newContext({ colorScheme });
+      const page = await ctx.newPage();
+      await page.goto("/");
+      await page.getByRole("button", { name: /54 mm dual-deploy/ }).click();
+      await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+      await page.getByRole("link", { name: "Design" }).click();
+      await page.waitForURL(/\/design\/?$/);
+
+      const table = page.locator("table").filter({ hasText: "Dimensions" });
+      if (!(await table.isVisible().catch(() => false))) {
+        await page.locator("summary", { hasText: /Parts ·/ }).click();
+      }
+      await expect(table).toBeVisible();
+      const row = page.getByRole("row").filter({ hasText: /Body tube/ }).first();
+      await row.click();
+      // The control: the row really is picked, so this is auditing the highlighted state and not the
+      // resting one all over again.
+      await expect(row).toHaveAttribute("aria-selected", "true");
+
+      const { sampled, bad } = await faintText(page, "main");
+      expect(sampled, `${colorScheme}: the walk examined nothing`).toBeGreaterThan(40);
+      expect(
+        bad.length,
+        `${colorScheme}, a part picked — text below WCAG AA:\n${report(bad)}`,
+      ).toBe(0);
+      await ctx.close();
+    }
+  });
 });
