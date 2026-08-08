@@ -6,6 +6,7 @@ cannot go stale. Everything concrete lives in the repo:
 
 | file | holds |
 |---|---|
+| `OWNER-NOTES.md` | **the owner's inbox** — rough direction, dropped between runs. Read FIRST; usually empty. |
 | `ROADMAP.md` | **the queue** — two tracks, R (capability) and P (product & craft). A run ships from both. |
 | `DESIGN.md` | **how it must look and behave** — tokens, scale, component vocabulary, states, product shape. Binding. |
 | `COMPETITION.md` | **the tracked gap** against OpenRocket, RocketPy, RASAero, RockSim. Feeds the roadmap. |
@@ -161,11 +162,21 @@ passes away, reached through a long series of small, shippable increments, never
    build a rocket from scratch in Loft — components, materials, motors, recovery — the way
    OpenRocket's editor does, then fly it in the same sim. These things matter as much as the
    capability itself:
-   - **A genuine graphical UI, not a wall of number fields.** The flyer shapes the rocket by direct
-     manipulation — a live, to-scale view of the airframe they can select, drag, add to, and reshape,
-     with the numbers, stability, and simulation updating as they go. Parameter inputs are a scaffold
-     to build behind and then grow past; the destination is a visual editor a hobbyist actually
-     enjoys using.
+   - **A genuine graphical UI, not a wall of number fields.** The flyer builds the rocket through a
+     **component tree and property dialogs** — the way OpenRocket's editor does — beside a live,
+     to-scale view of the airframe they can **select** on, with the numbers, stability, and
+     simulation updating as they go. Selecting a component, on the view or in the tree, opens its
+     properties; nothing is shaped by dragging it. Parameter inputs are a scaffold to build behind
+     and then grow past; the destination is a visual editor a hobbyist actually enjoys using.
+
+     **Drag was withdrawn as the authoring interaction by the owner on 2026-08-08** — `OWNER-NOTES.md`
+     `ON-4`, *"no one is actually designing a rocket by dragging parts"* — and this paragraph is the
+     amended text, not a description of what the app does today. What was withdrawn is **drag**, not
+     **directness**: a live view you select on, and edits that land immediately, are still the
+     destination. Two things follow, spelled out because each is an easy wrong turn from here. Do not
+     re-derive drag from the craft bar's tells or from a roadmap milestone written before that date;
+     and do not read this as licence to rip out shipped drag before the tree exists to replace it —
+     the sequencing is in `ON-4`.
    - **Build and edit are the same surface.** Whatever a flyer imports — .ork, .rkt, RocketPy,
      RASAero, SpaceCAD — lands in the same editable model, so they can open a file, change it in the
      UI, and re-fly it. There is no separate "builder" and "viewer": authoring a new design and
@@ -212,7 +223,9 @@ no signal and gloves on. Design for the tenth use, then make the first one obvio
   hierarchy across surfaces
 - controls that forget (a unit choice, a motor selection, a view or sort order that resets)
 - tables/inputs you cannot sort, filter, copy out of, or drive from the keyboard
-- direct-manipulation that isn't (drag handles that jump, no keyboard path, no undo)
+- an edit you cannot reach from the keyboard, or undo once you have made it — and any part of the
+  diagram that still asks to be dragged, which `ON-4` withdrew (select-and-edit is the interaction;
+  see North Star #2)
 - missing empty / loading / error / offline / extrapolated states, or ones that say nothing
 - an input that accepts a value it cannot physically mean, and reports a confident number from it
 - a state a flyer can enter with no way back out
@@ -255,7 +268,14 @@ something out that the repo could have told you, write it down before you finish
 ## Session start — the first fifteen minutes
 Do these in order, before scoping increment 1. None is optional; most run concurrently.
 
-1. **Read the repo's own memory.** `ROADMAP.md` **first** — it holds the two-track queue, and the next
+1. **Read the repo's own memory.** `OWNER-NOTES.md` **before anything else** — it is the owner's
+   inbox, it is where "unless the owner named one" actually happens, and an open note can reorder the
+   queue you are about to read. It is usually empty, and an empty `## Open` section changes nothing;
+   reading it costs seconds and scoping a run against a stale queue costs the run. Every open note
+   gets a written verdict THIS run — the verdict, not the work — under the triage contract in that
+   file.
+
+   Then `ROADMAP.md` — it holds the two-track queue, and the next
    unstarted milestone on EACH track is this run's goal unless the owner named one. Then `DESIGN.md`
    (the authority on how anything you build must look and behave — read it before you write a
    component, not after), `HANDOFF.md`, `COMPETITION.md`, `BACKLOG.md`, `CONTRIBUTING.md`, and
@@ -406,6 +426,15 @@ names something else, those two milestones are what the run ships, and increment
 Start with the smaller so something lands early. If there is time for only one, take the P-track
 milestone.
 
+**"Unless the owner names something else" now has a place to happen: `OWNER-NOTES.md`.** An open note
+there is the owner naming something, and it takes precedence over your own pick of the next
+milestone — it reorders the queue rather than sitting beside it. It does **not** suspend the
+invariants, the gate, or the done-check; the grammar is exactly `· FOCUS:`'s. Two rules keep this from
+degrading into an ad-hoc second queue, and both are in that file: a note becomes a *milestone* with a
+*done when* and a pinning check like any other, and every open note gets a written verdict in the
+first run that reads it even when the work itself is scheduled for later. Triage is minutes. Silence
+is the failure.
+
 This used to be a priority list with correctness first, craft second, and feature depth third. That
 list could never reach third place, and the repo proves it: a run of eighteen merged commits shipped
 nine correctness and craft fixes and **zero new capability**, and `BACKLOG.md` grew to fifty-five
@@ -440,6 +469,11 @@ The distinction that matters is **queued versus unqueued**, not capability versu
 milestone is queued work with a *done when* and a pinning check, exactly like an R-track one. An
 entry you plucked from the defect ledger is not, however tempting — that is what the quota protects
 against, because a real corpus and a real UI generate defects faster than anyone clears them.
+
+**Work that came from an `OWNER-NOTES.md` note is queued work, whatever it looks like.** A note that
+reads like a bug report is still the owner setting the queue, and running it through the ledger would
+subject the one input that is not self-generated to a quota built to throttle self-generated ones. It
+is the opposite case. Triage it to a milestone and ship it as milestone work.
 
 **Do not manufacture correctness work.** If a sweep over real files turns up no finding, say so with
 the output. A speculative guard that fires on zero real files is worse than nothing, and
@@ -495,6 +529,9 @@ The owner opens a session with one line:
   the invariants, the gate, or the done-check.
 - `· TRACK: P` or `· TRACK: R` — spend the whole run on one track instead of alternating. Use it to
   correct an imbalance deliberately; absent it, alternate.
+- `· NOTES` — spend the run clearing `OWNER-NOTES.md` rather than alternating tracks. Rarely needed:
+  open notes already take precedence, so this only says *how much* of the run they get. Use it after a
+  large drop.
 - Nothing said — exactly one increment, verified and shipped.
 
 **The standing unattended prompt is `AUTOPILOT: <budget>` and nothing more.** It deliberately names
@@ -587,6 +624,13 @@ ALL of the following and reported what each produced:
    nothing in this list asked. Now both halves ask.
 7. **Update `ROADMAP.md`** — mark what shipped against each milestone's *done when*, on both tracks,
    and record the gap. That gap is the next session's first increment.
+8. **Confirm every open note in `OWNER-NOTES.md` carries a verdict dated this run, and say how many.**
+   Zero open notes is the normal answer and takes one line — say it anyway, so an empty inbox is
+   visibly empty rather than possibly unread. A note still reading `(pending)` at the end of the run
+   that first saw it is the one failure this whole mechanism exists to prevent: the owner gets nothing
+   back, cannot tell whether they were heard, and files the same note again. Writing a verdict costs
+   minutes and is never the thing the budget ran out on. `REJECTED` with a reason and `BLOCKED` naming
+   the invariant both count; silence does not.
 
 Then ship the highest-leverage item from what steps 2–5 produced. Only if all of them yield literally
 nothing may the run end early, and the report must show what each returned.
@@ -626,6 +670,15 @@ until the end.** That is the intended mode. It has one hard consequence: **the p
 state, so the repo must carry all of it.** A prompt that names a milestone is wrong within a day,
 because the milestone ships and the prompt keeps asking for it. The prompt says "the next unstarted
 milestone in `ROADMAP.md`"; `ROADMAP.md` says which that is. Keep it that way.
+
+**The owner is asynchronous, not absent — and `OWNER-NOTES.md` is the channel in both directions.**
+They may walk the live site between runs and drop rough direction there; you answer on the verdict
+line, in that file, where the answer survives. None of this changes *"never stop to ask"* — you still
+never block, never wait, and never end a run holding a question. It changes only where the question
+goes. An owner-level decision that does not block you goes in `## Awaiting the owner` in that file
+rather than only in the report and `HANDOFF.md`, because both of those are rewritten every session and
+a question parked in either is gone within a day. Park it, take the most defensible option, say which
+you took, and keep shipping.
 
 **Never stop to ask.** No `AskUserQuestion` for a design fork, an ordering call, a naming choice, a
 sizing surprise, or a milestone that turns out wrong. There is nobody there, and a run that ends
