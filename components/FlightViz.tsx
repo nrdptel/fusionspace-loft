@@ -40,6 +40,37 @@ export default function FlightViz({ result, units }: { result: FlightResult; uni
   const ys = traj.map((p) => conv(p.altitude));
   const xMax = Math.max(...xs, 1);
   const yMax = Math.max(...ys, 1);
+
+  // **A flight with no horizontal extent, said rather than drawn.** `x` is `hypot(pos.x, pos.y)`, so
+  // it is never negative and the range IS its maximum. Left alone this is the shape the owner
+  // reported: `Math.max(..., 1)` above invents a one-metre range that does not exist, the path is
+  // drawn ON the axis line, and the caption underneath still reads "down-range", promising a
+  // dimension the picture does not have. A flyer reads that as the tool being broken rather than as
+  // the flight being vertical, which is what it is.
+  //
+  // Measured in METRES off the model rather than in display units, so the threshold means the same
+  // thing in both unit systems — half a metre of range over a whole flight is not a trajectory, it
+  // is arithmetic noise. Reachable on a real file, not only on the from-scratch build: one of the
+  // corpus's 91 stored simulations declares exactly zero wind.
+  //
+  // **Two things this deliberately does NOT do, both caught by review before it shipped.**
+  //
+  // It does not state a CAUSE. The obvious wording — "the rail is plumb and the wind is zero" — is a
+  // claim about inputs this component never receives, and it is false in a reachable case: a rocket
+  // that never leaves the rail has x ≡ 0 for every sample no matter what the wind is, because the
+  // solver cancels off-rail acceleration until rail exit. That note would have told a flyer whose
+  // file states 3 m/s to go and set a wind, on a design whose real problem is a thrust-to-weight
+  // below 1. A prediction tool stating a false physical cause is worse than the vertical line it
+  // replaced. So the sentence states what is OBSERVED and names the two inputs a down-range comes
+  // from, without asserting their values.
+  //
+  // And it fires only on a flight that actually flew. `liftoff` is in the event list precisely when
+  // the vehicle left the rail, so a no-liftoff run — where the vertical line is a symptom of
+  // something the existing warning already explains — says nothing here rather than adding a second,
+  // shallower explanation beside the real one.
+  const rangeM = Math.max(...traj.map((p) => p.x));
+  const leftTheRail = result.events.some((e) => e.type === "liftoff");
+  const degenerate = leftTheRail && rangeM < 0.5;
   // Keep aspect honest-ish but fit the box; independent scales are labeled.
   const px = (x: number) => padL + (x / xMax) * (W - padL - padR);
   const py = (y: number) => H - padB - (y / yMax) * (H - padT - padB);
@@ -100,12 +131,26 @@ export default function FlightViz({ result, units }: { result: FlightResult; uni
         ))}
 
         <text x={(W + padL) / 2} y={H - 2} textAnchor="middle" className="fill-zinc-500 text-[11px]">
-          down-range ({unit}) — apogee not to scale with range
+          {degenerate ? `down-range (${unit}) — none on these conditions` : `down-range (${unit}) — apogee not to scale with range`}
         </text>
         <text x={12} y={(H - padB + padT) / 2} textAnchor="middle" transform={`rotate(-90 12 ${(H - padB + padT) / 2})`} className="fill-zinc-500 text-[11px]">
           altitude ({unit})
         </text>
       </svg>
+      {degenerate && (
+        // **Decision-grade, so it takes the body default rather than the annotation size.** §3 puts a
+        // sentence whose purpose is to change what the flyer does NEXT at `text-sm`, and this one
+        // does exactly that: it turns "the plot is broken" into "add a wind". Secondary rather than
+        // amber deliberately — nothing here is an estimate outside its envelope or a caveat on a
+        // number. The flight is correct; it simply has no horizontal extent, and saying so is an
+        // explanation, not a warning. Colouring it as one would be the flag-that-cries-wolf the
+        // SAFETY posture warns about.
+        <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+          This flight has no down-range — every point of the path is directly above the pad, so you
+          are seeing the whole trajectory edge-on. Down-range comes from the surface wind and the
+          rail angle; both are under Conditions.
+        </p>
+      )}
       <figcaption className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-zinc-500 dark:text-zinc-400">
         <Legend color="#ef4444" label="boost" />
         <Legend color="#6366f1" label="coast" />

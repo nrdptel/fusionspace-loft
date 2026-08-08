@@ -515,13 +515,47 @@ export interface ConditionOverrides {
   windProfile?: LaunchConditions["windProfile"];
 }
 
-/** Sensible defaults for launch conditions (standard day, near-vertical 1 m rail, light wind). */
+/** Sensible defaults for launch conditions: standard day, plumb 1 m rail, 2 m/s of wind.
+ *
+ *  **These are reached by any design that states nothing** — in practice the from-scratch build,
+ *  which carries no stored simulation at all. An imported design supplies its own conditions through
+ *  `overridesFromStored`, which returns each field as `undefined` when the tag is absent, so
+ *  `makeConditions` falls through to the values here PER FIELD rather than all-or-nothing.
+ *
+ *  **So a file that stores results but omits a wind tag WOULD be scored against the value below, and
+ *  nothing in the code prevents that.** What prevents it today is the corpus, which is a fact about
+ *  the fixtures and not a guard: all **91 stored simulations across the 27 corpus `.ork` files
+ *  declare a wind**, as does every committed fixture and bundled sample, so the accuracy census does
+ *  not read this constant. Stated plainly rather than as a guarantee, because the next importer or
+ *  the next wild file makes it live — silently, inside an accuracy claim. If a fixture ever arrives
+ *  without a wind tag, the census is the thing to re-measure first.
+ *
+ *  **`windSpeed` was 0, and 0 is why a scratch build plotted as a vertical line.** This is a 3-DOF
+ *  solver with no weathercocking, so rail lean and wind are the only two sources of horizontal
+ *  motion; with both at zero every trajectory sample carries x = 0 exactly and the flight path is
+ *  drawn on top of its own axis. A flyer starting from scratch read that as the tool being broken,
+ *  which is what it looks like. Measured on the starter: 0.00 m downrange at apogee and at landing,
+ *  against 11.70 m and 411.3 m at 2 m/s.
+ *
+ *  **2 m/s is the corpus's own median, not a guess.** Of those 91 stored simulations, 90 declare a
+ *  non-zero wind and exactly one declares zero; the median is 2 m/s (min 1.998, max 8.94), and every
+ *  fixture this repo authored already uses 2 or 3. It is also OpenRocket's own default, so a design
+ *  moved between the two tools starts from the same assumption.
+ *
+ *  **The rail stays plumb, deliberately.** Rod angle is 0 in 85 of those 91, so flyers really do set
+ *  it that way; leaning it to manufacture drift would put a number on screen that no file asked for.
+ *
+ *  A defaulted value is an ASSUMPTION and never the flyer's own setup. `ConditionsControls` already
+ *  keeps that distinction — `flownConditions.defaulted` marks every field the design does not
+ *  specify, and the field says so rather than advertising the number as theirs. Anything added here
+ *  has to stay inside that mechanism, or the SAFETY posture is broken by a default that lies about
+ *  its provenance. */
 export function defaultConditions(): LaunchConditions {
   return {
     rodLength: 1.0,
     rodAngleFromVertical: 0,
     rodAzimuth: 0,
-    windSpeed: 0,
+    windSpeed: 2,
     windTo: 0,
     launchAltitude: 0,
     atmosphere: new Atmosphere(),

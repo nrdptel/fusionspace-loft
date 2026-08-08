@@ -51,7 +51,12 @@ const AA_LARGE = 3;
  *  the threshold its size earns. Runs in the page; everything it needs is inlined because it is
  *  serialised across the boundary. */
 async function faintText(page: import("@playwright/test").Page, scope: string) {
-  return page.evaluate((sel) => {
+  // The thresholds are PASSED IN rather than closed over, because the walker is serialised into the
+  // page and cannot reach a module-level constant. They were written as bare literals inside it at
+  // first, which left the two named constants above unreferenced — invisible to `npm run build`,
+  // which does not type-check `e2e/`, and caught by `tsc --noEmit`. Run that too before pushing a
+  // spec: the build's `noUnusedLocals` does not cover this directory.
+  return page.evaluate(([sel, aaBody, aaLarge]: [string, number, number]) => {
     const cv = document.createElement("canvas");
     cv.width = cv.height = 1;
     const g = cv.getContext("2d", { willReadFrequently: true })!;
@@ -106,7 +111,7 @@ async function faintText(page: import("@playwright/test").Page, scope: string) {
       sampled++;
       const px = parseFloat(cs.fontSize);
       const bold = (parseInt(cs.fontWeight, 10) || 400) >= 700;
-      const need = px >= 24 || (bold && px >= 18.66) ? 3 : 4.5;
+      const need = px >= 24 || (bold && px >= 18.66) ? aaLarge : aaBody;
       const base = backdrop(el);
       const lb = lum(base);
       const lf = lum(rgbOver(cs.color, `rgb(${base[0]},${base[1]},${base[2]})`));
@@ -115,7 +120,7 @@ async function faintText(page: import("@playwright/test").Page, scope: string) {
       if (ratio < need) bad.push({ text: text.slice(0, 40), ratio: +ratio.toFixed(2), need, color: cs.color });
     }
     return { sampled, bad };
-  }, scope);
+  }, [scope, AA_BODY, AA_LARGE] as [string, number, number]);
 }
 
 const report = (bad: { text: string; ratio: number; need: number; color: string }[]) =>

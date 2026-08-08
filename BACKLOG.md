@@ -36,6 +36,53 @@ this run; where a fan-out claimed something the corpus then refuted, the refutat
   NOT preempting a milestone — but it becomes reachable the moment an editor lets someone set a
   custom reference, so fix it with that feature rather than before it.
 
+- **The flight-path plot has no x tick labels in ANY state, so it autoscales invisibly.** Found while
+  shipping R11 increment 2 and NOT fixed by it — the milestone's *done when* asked for "a labelled
+  axis" on a degenerate range and got a caption and a sentence instead, which is recorded on R11
+  rather than glossed. `components/FlightViz.tsx` draws the axis lines and the two axis NAMES and no
+  numbers, and `xMax = Math.max(...xs, 1)` fabricates a one-unit range when there is none. Two
+  consequences: a 0.6 m down-range and a 600 m down-range are pixel-identical, and the fabricated
+  fallback is seeded in DISPLAY units (1 m metric, 1 ft imperial) while the degenerate threshold is
+  in metres — so between 0.5 m and 1 ft the two disagree, and a metric and an imperial flyer are told
+  different things about the same flight. **Fix: real tick labels on both axes**, which subsumes all
+  of it. The altitude axis has the same gap and nobody has noticed because altitude is large.
+
+- **No CSV export says which launch conditions its numbers were flown under, and R11 made that
+  matter more.** Every on-screen surface that publishes a drift-derived figure carries the notice
+  naming a defaulted condition — verified 2026-08-08 by driving a from-scratch build through all
+  four workspaces, where the "Loft read no … surface wind … so those are its own default" line is
+  present on Flight, Design, Sweep and Cross-check. **The exports are not.** The Monte-Carlo CSV
+  emits `Drift distance`, `Landing downrange`, `Landing crossrange` and a recovery radius with units
+  in every header (a prior fix) but no statement of the nominal wind, rail angle or rail length
+  behind them. Pre-existing — but at the old `windSpeed: 0` default the drift column was zeros, and
+  it is now a real recovery-walk distance resting on an assumption Loft made. **Fix: a conditions
+  preamble on every CSV that carries a flown number, saying which fields came from the design and
+  which are Loft's defaults.** One increment, and it closes the same "caveat on one surface,
+  confident number in an export" shape the ledger already lists twice.
+
+- **`lib/validation/compare.ts` has no `landed` gate, and it is LATENT rather than reachable — I
+  checked before filing it as a Sev-1, and it is not one.** The file compares `flightTime` and
+  `groundHitVelocity` unconditionally, and `groundHitVelocity` is the `0` sentinel a flight that
+  never reached the ground carries — so in principle `ValidationPanel` would publish "Loft 0.0 m/s,
+  Δ −100%" and fold −100% into its headline MAPE, for the two figures `ResultsView` withholds with a
+  stated reason. **Why it cannot currently happen:** reaching a non-landing flight takes an edit (the
+  known case is a what-if canopy scaled to 43.8 kg on a 0.80 kg rocket), and `components/LoftApp.tsx` passes
+  `validateAgainst: edited || document.flownAsReduced ? undefined : stored`, so an edited design has
+  no stored comparison at all. (`lib/sim/run.ts` only consumes that option — an earlier draft of this
+  entry cited the wrong file, which a pre-push review caught.) And unedited, all 91 corpus stored simulations land. **Fix it anyway** — the gate is one
+  condition, the mitigation is a coincidence of two unrelated rules, and this repo has shipped the
+  "caveat on one surface, confident claim on another" defect repeatedly. One increment, alongside the
+  next thing that touches `compare.ts`.
+
+- **`ValidationPanel` carries no transonic caveat while four sibling surfaces do.** It publishes
+  Loft's apogee, max velocity and max Mach against the design tool's stored figures plus a headline
+  "mean abs. error", with no extrapolation marker — where the summary strip, the flight card,
+  `DragCrossCheck` (rendered directly below it) and `RocketpyCrossCheck` all mark the same flight.
+  **NOT reachability-checked by me**, unlike the entry above: it needs a design that goes transonic
+  AND carries stored results, which the corpus certainly has. Treat as a strong hypothesis and
+  re-measure before scoping — but note it is the exact shape of defect this repo keeps shipping, and
+  the surface it is on is the accuracy panel.
+
 - **§9's greps scan `components app` and never `lib/` — and `lib/ui-tokens.ts` is where the class
   strings every primitive renders actually live.** So the file with the most leverage over the app's
   appearance is outside every compliance count, by construction. It already has a violation:

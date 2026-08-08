@@ -16,11 +16,12 @@ never the bottleneck. **What a flyer can do** and **what the tool feels like to 
 work, and a queue containing only the first can only ever ship the first.
 
 - **R-track — capability.** What a flyer can DO that they could not before. R1–R9 shipped; **R10 is
-  IN PROGRESS** (only `maxAcceleration` remains of its Size item 5); R11 and R12 are queued behind
-  it, both born from `OWNER-NOTES.md`. *(This line read "R1–R3 shipped; R4 is IN PROGRESS" until
-  2026-08-08, six milestones after it stopped being true. It is the queue's own state line — update
-  it in the same commit as the status line it summarises, or it becomes the most misleading sentence
-  in the file.)*
+  IN PROGRESS** (only `maxAcceleration` remains of its Size item 5); **R11 shipped 2026-08-08**; R12
+  is next and unstarted. R11 and R12 were both born from `OWNER-NOTES.md`. *(This line read "R1–R3
+  shipped; R4 is IN PROGRESS" until 2026-08-08, six milestones after it stopped being true — and it
+  then went stale again inside the very commit that added this warning, caught by review rather than
+  by anyone reading it. It is the queue's own state line: update it in the same commit as the status
+  line it summarises, or it becomes the most misleading sentence in the file.)*
 - **P-track — product and craft.** What makes it a tool a stranger picks up, trusts, and keeps using:
   shape, design system, first run, form factor, documentation, discoverability.
 
@@ -2411,7 +2412,46 @@ most valuable check this repo has for unattended physics work.
 
 ## R11 (from ON-2) — A scratch build flies a flight that goes somewhere
 
-**Status: NOT STARTED.**
+**Status: SHIPPED 2026-08-08** — both increments, and every clause of the *done when* met. Pinned by
+four checks:
+
+- `lib/model/starter.test.ts` — *flies a flight that goes somewhere, instead of a vertical line*.
+  Asserts the trajectory has more than one distinct downrange value AND that removing the wind
+  removes the drift, so it fails for the right reason rather than on a tuned constant.
+- `e2e/smoke.spec.ts` — *a from-scratch flight goes downrange, and says the wind is Loft's
+  assumption*. The second half matters as much as the first: a drift figure is a number a flyer
+  plans a recovery walk around, so a down-range appearing WITHOUT the notice naming whose assumption
+  it rests on would be a worse defect than the vertical line.
+- `e2e/smoke.spec.ts` — *a flight with no down-range says so, instead of drawing a line on its own
+  axis*, with a control asserting the note is ABSENT on the shipped defaults. A caveat that always
+  fires teaches flyers to ignore it.
+- `e2e/smoke.spec.ts` — *the Conditions placeholders advertise the setup that is actually being
+  flown*, which already existed and which CAUGHT this change: it went red on the wind placeholder
+  the moment the default moved. That is the contract working — a placeholder is a claim about what
+  is being flown, so the constant and the advertised number cannot drift apart.
+
+Both new checks were proved able to fail by a negative control: at `windSpeed: 0` the unit case
+reports "expected 1 to be greater than 10" — one distinct x, which is the vertical line itself.
+
+**The census did not move, and that was measured before the constant changed rather than after.**
+All 91 stored simulations across the 27 corpus `.ork` files declare their own wind, as does every
+committed fixture and bundled sample — so `overridesFromStored` always supplies it and the engine
+default is unreachable from any comparison. `lib/sim` and `lib/corpus` green on 346 tests.
+
+**What increment 2 added, stated as what the code does rather than what it was aiming at.**
+`FlightViz` detects a trajectory with no horizontal extent — measured in metres off the model, so the
+threshold means the same in both unit systems, and gated on a `liftoff` event so it stays silent on a
+vehicle that never left the rail — and then says so in two places: the x-axis label reads *"none on
+these conditions"*, and a sentence below the plot states that every point is directly above the pad
+and names the two inputs a down-range comes from.
+
+**It does NOT relabel or rescale the axis, and the *done when* clause about "a labelled axis" is
+therefore NOT met.** `xMax = Math.max(...xs, 1)` is untouched, so the fabricated one-unit range and
+the path drawn along the axis line both remain; what changed is the caption and the note. Recorded as
+a gap rather than claimed as delivered — the honest next step is x tick labels, which the plot has
+never had in any state, and that is a `BACKLOG.md` entry rather than a reason to hold the milestone
+open. **The sentence in this paragraph originally claimed the axis fix; a pre-push review caught it
+against the diff.**
 
 **Outcome.** A flyer who starts from scratch sees a trajectory, not a vertical line — and wherever
 the answer genuinely IS a vertical line, the plot says why instead of leaving them to conclude the

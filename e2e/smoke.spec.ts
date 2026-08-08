@@ -773,6 +773,111 @@ test.describe("Loft", () => {
     await expectNoComparison(page);
   });
 
+  test("a from-scratch flight goes downrange, and says the wind is Loft's assumption", async ({ page }) => {
+    // **R11, driven in the app rather than in the solver.** The owner reported the scratch build's
+    // trajectory as "just a vertical line meaning it does not go downrange at all". It was: the
+    // engine defaulted to a plumb rail AND zero wind, which in a 3-DOF solver are the only two
+    // sources of horizontal motion, so the path was drawn on top of its own axis.
+    //
+    // Two assertions, and the second matters as much as the first. A drift figure is a number a
+    // flyer plans a recovery walk around, and this one comes from an assumption Loft made rather
+    // than from anything in their design — so a downrange that appears WITHOUT the notice naming it
+    // would be a worse defect than the vertical line, not a fix.
+    await page.goto("/");
+    await page.getByRole("button", { name: "Start a new design" }).click();
+    await expect(page.getByRole("link", { name: "Design" })).toBeVisible({ timeout: 30_000 });
+    await page.getByRole("link", { name: "Flight" }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+
+    const drift = page
+      .getByLabel("Results")
+      .getByText("Drift from pad", { exact: true })
+      .locator("xpath=following-sibling::div[1]");
+    const shown = (await drift.innerText()).trim();
+    expect(parseFloat(shown.replace(/[^\d.]/g, "")), `a from-scratch build lands on the pad: "${shown}"`).toBeGreaterThan(1);
+
+    const conditions = page.locator("details").filter({ hasText: /^Conditions/ }).first();
+    if (!(await conditions.evaluate((el: HTMLDetailsElement) => el.open))) {
+      await conditions.locator("summary").first().click();
+    }
+    await expect(
+      conditions.getByText(/read no .*surface wind.* from this design, so those are its own default/),
+      "the drift above rests on a wind Loft assumed, and nothing on screen says so",
+    ).toBeVisible();
+  });
+
+  test("a flight with no down-range says so, instead of drawing a line on its own axis", async ({ page }) => {
+    // **R11 increment 2.** Increment 1 gave the from-scratch build a 2 m/s default so it stopped
+    // being vertical by accident. This is the case that remains, and it is now RARER, which makes it
+    // more confusing rather than less: a flyer who sets the wind to zero deliberately — on a genuinely
+    // calm day, or to isolate a variable — gets the same vertical line, with no explanation.
+    //
+    // The plot cannot simply be trusted to speak for itself. `xMax = Math.max(..., 1)` invents a
+    // one-metre range that does not exist, so the path is drawn ON the altitude axis while the label
+    // underneath still promises a down-range dimension.
+    await page.goto("/");
+    await page.getByRole("button", { name: /Start a new design/ }).click();
+    await expect(page.getByRole("link", { name: "Design" })).toBeVisible({ timeout: 30_000 });
+    await page.getByRole("link", { name: "Flight" }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+
+    const note = page.getByText(/This flight has no down-range/);
+    // CONTROL: on the shipped defaults there IS a down-range, so the note must be absent. Without
+    // this the test passes against a note rendered unconditionally, which would be a worse defect
+    // than the one it is guarding — a caveat that always fires teaches flyers to ignore it.
+    await expect(note, "the note fires on a flight that does go downrange").toHaveCount(0);
+
+    await page.getByText(/^Conditions ·/).first().click();
+    const wind = page.locator("input").and(page.getByLabel(/Surface wind/)).first();
+    await wind.fill("0");
+    await wind.blur();
+
+    await expect(note).toBeVisible();
+    // The AXIS LABEL swaps too, and it is half the change — the sentence below the plot and the
+    // caption under the axis are separate elements, so asserting the sentence twice (which an
+    // earlier version of this test did, in two regexes matching the same single `<p>`) left this
+    // unchecked.
+    await expect(page.locator("text=none on these conditions")).toBeVisible();
+    // And the note states only what it can SEE. This absence assertion is the guard against the
+    // version review rejected: a rocket that never leaves the rail ALSO has x = 0 at every sample,
+    // whatever the wind is, so "the wind is zero" would be a confident false cause on a design whose
+    // own file states 3 m/s — and it would send the flyer to the wind field instead of to a
+    // thrust-to-weight below 1.
+    await expect(page.getByText(/the wind is zero/)).toHaveCount(0);
+  });
+
+  test("a barely-flying design is never told its wind is the problem", async ({ page }) => {
+    // **The case the note used to get WRONG, driven end to end, and it is reachable in three clicks.**
+    // The bundled dual-deploy sample stores a 3 m/s wind. Ballasting its nose to 50 kg leaves a
+    // thrust-to-weight of 1.5:1 and a 4.5 m/s rail exit: it does clear the rail, so the down-range
+    // note legitimately fires — but over a flight that short a 3 m/s wind moves a 50 kg vehicle less
+    // than half a metre, so the range really is nil.
+    //
+    // The first version of the note inferred a CAUSE from that geometry and asserted "the rail is
+    // plumb and the wind is zero", which is flatly contradicted by the file's own 3 m/s and would
+    // have sent the flyer to the wind field instead of to the thrust-to-weight warning already on
+    // screen. This test pins the correction: the note may appear, but it may never claim a wind that
+    // the design contradicts, and the real problem must be the thing stated loudest.
+    await page.goto("/");
+    await page.getByRole("button", { name: /54 mm dual-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 30_000 });
+
+    await page.getByRole("link", { name: "Design" }).click();
+    const ballast = page.locator("input").and(page.getByLabel(/Nose ballast/)).first();
+    await ballast.fill("50000");
+    await ballast.blur();
+    await page.getByRole("link", { name: "Flight" }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible();
+
+    // The design states 3 m/s. Nothing on this page may say otherwise.
+    await expect(
+      page.getByText(/the wind is zero/),
+      "the plot asserts a zero wind on a design whose own file stores 3 m/s",
+    ).toHaveCount(0);
+    // And the flight's actual problem is stated, so the flyer is pointed at thrust rather than air.
+    await expect(page.getByText(/thrust-to-weight ratio is/).first()).toBeVisible();
+  });
+
   test("exports the current design as a downloadable .ork", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: "Start a new design" }).click();
@@ -1990,6 +2095,12 @@ test.describe("Loft", () => {
     // at all. A from-scratch build therefore showed rail 1.0, wind 0.0, elev 0.0 under a caption
     // saying they were the flyer's own setup. Rail length is the one that bites — real designs
     // declare up to 3.048 m against that 1.0 default, and rail-exit velocity is computed from it.
+    //
+    // **The wind default became 2 m/s on 2026-08-08 and this notice is what keeps it honest.** At 0
+    // it was invisible: a default of nothing looks like no assumption. A default of 2 m/s moves the
+    // landing point by 411 m on the starter, so the sentence below is now carrying a number a flyer
+    // would plan a recovery walk around — which is exactly why it names the field rather than
+    // letting the greyed value pass as theirs.
     await page.goto("/");
     await page.getByRole("button", { name: /Start a new design/ }).click();
     await expect(page.getByRole("link", { name: "Design" })).toBeVisible({ timeout: 30_000 });
@@ -2664,8 +2775,12 @@ test.describe("Loft", () => {
     // if the flyer types the advertised 1.2 — a 1.6x gap on the launch-safety number the app's own
     // ~15 m/s rule of thumb is checked against.
     await page.goto("/");
-    // A from-scratch design stores no simulations, so the ENGINE's defaults are what fly: 1 m rail,
-    // no wind. That is the number the field must advertise, not a literal that matches neither.
+    // A from-scratch design stores no simulations, so the ENGINE's defaults are what fly: a 1 m rail
+    // and 2 m/s of wind. That is the number the field must advertise, not a literal that matches
+    // neither. **The wind was 0.0 here until 2026-08-08** and this assertion is the reason the change
+    // could be made safely: the placeholder is a CLAIM about what is being flown, so a default that
+    // moved without this line moving would have advertised a wind the solver was not using. It is
+    // the same contract the rail length has, and it is why the constant lives in one place.
     await page.getByRole("button", { name: /Start a new design/ }).click();
     await expect(page.getByRole("link", { name: "Design" })).toHaveAttribute("aria-current", "page");
     const conditions = page.getByText(/^Conditions ·/).first();
@@ -2673,7 +2788,7 @@ test.describe("Loft", () => {
 
     const field = (re: RegExp) => page.locator("input").and(page.getByLabel(re)).first();
     await expect(field(/Rail length/)).toHaveAttribute("placeholder", "1.0");
-    await expect(field(/Surface wind/)).toHaveAttribute("placeholder", "0.0");
+    await expect(field(/Surface wind/)).toHaveAttribute("placeholder", "2.0");
 
     // And — the case that actually guards the fix — a design that STORES its own conditions. Without
     // this the test passes with the resolver replaced by defaultConditions(), i.e. with the reported
