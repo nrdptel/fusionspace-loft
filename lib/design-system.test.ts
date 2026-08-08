@@ -350,6 +350,22 @@ const PRIMITIVE_ADOPTERS: Record<string, number> = {
    *  hoisting them would make every chart declare its axes twice. §5 lists them as things a figure
    *  must HAVE, not as things this wrapper must render. */
   Figure: 4,
+  /** §5's `Popover` — "a surface overlaid on the page, anchored to the control that opened it".
+   *
+   *  **One adopter, and it shipped WITH that adopter rather than before it.** That is the rule this
+   *  file learned from `Chip`, which declared a shape, found zero call sites for its whole life and
+   *  was deleted: a primitive with no user is a proposal. The user here is the picked part's
+   *  Properties surface on `/design` — R12, from `ON-5`.
+   *
+   *  Like `Panel` it carries BEHAVIOUR rather than a treatment: the focus trap, the Escape handler,
+   *  the outside-press close and the focus return are a five-part contract, and every one of them is
+   *  the difference between a popover and a one-way door. **None of it existed in THIS repo before
+   *  — measured 2026-08-08, the tree contained zero `role="dialog"`, zero `aria-modal`, zero focus
+   *  traps and no `Escape` handler of any kind.** The sibling repo is the opposite case and is the
+   *  reason §5's entry is written the way it is: it had already shipped this primitive, and Loft's
+   *  was built to its entry rather than to a fresh idea. A second overlay surface in either app
+   *  imports the local one rather than re-deriving the contract. */
+  Popover: 1,
 };
 
 describe("DESIGN.md §9 — the design system is binding, and this is what checks it", () => {

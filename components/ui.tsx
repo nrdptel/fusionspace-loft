@@ -80,6 +80,7 @@ export function Card({
   actions,
   className,
   children,
+  ref,
   ...rest
 }: {
   as?: "div" | "section" | "aside" | "details" | "p" | "li" | "label";
@@ -90,9 +91,15 @@ export function Card({
   title?: React.ReactNode;
   /** Controls that belong to the title row rather than to the body. */
   actions?: React.ReactNode;
+  /** Declared explicitly because `HTMLAttributes` does not carry it. React 19 passes `ref` to a
+   *  function component as an ordinary prop, so no forwarding wrapper is needed — but the type has to
+   *  say so, and `Popover` needs a handle on the card it renders to answer "did this click land
+   *  inside the panel". The sibling repo's `Card` has taken one since its own popover shipped. */
+  ref?: React.Ref<HTMLElement>;
 } & React.HTMLAttributes<HTMLElement>) {
   return (
     <Tag
+      ref={ref as React.Ref<never>}
       className={cx(
         "rounded-xl border",
         CARD_TONES[tone],
@@ -961,6 +968,200 @@ export function ClosePanel({
     <Button variant="secondary" onClick={onClose} aria-label={`Close ${what}`}>
       Close
     </Button>
+  );
+}
+
+/** Every focusable descendant of `root`, in tab order, skipping anything not rendered.
+ *
+ *  Deliberately a query rather than a library: the set of focusable elements this app actually
+ *  produces is small and closed — the primitives in this file plus native inputs — and a dependency
+ *  for one component is a dependency the bundle carries on every route. `offsetParent` is the
+ *  cheapest "is it visible" test that works for `display: none` and detached subtrees alike. */
+function focusableWithin(root: HTMLElement | null): HTMLElement[] {
+  if (!root) return [];
+  const sel =
+    'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+  return Array.from(root.querySelectorAll<HTMLElement>(sel)).filter((el) => el.offsetParent !== null);
+}
+
+/** An explanation or a small set of controls, shown OVER the surface rather than in it —
+ *  `DESIGN.md` §5, whose entry is the contract and is shared verbatim with the sibling repo.
+ *
+ *  **The sibling already had this word, and Loft did not know.** Both apps' owners asked for the same
+ *  pattern on the same day (`ON-5` here, `ON-3` there), and the entry in `DESIGN.md` is that repo's,
+ *  adopted rather than rewritten — a primitive invented twice is the "assembled by many hands"
+ *  failure the design system exists to prevent, and this one came within a commit of happening.
+ *  Loft's version meets the contract; its API is narrower, and closing that gap is the shared-file
+ *  reconciliation filed in `BACKLOG.md`.
+ *
+ *  Every clause below is a defect somebody already shipped, in one app or the other:
+ *  - **`Escape` is bound to the DOCUMENT.** Bound to the surface it only fires while focus is inside
+ *    it, and focus leaves — a `blur()`, a control that removes itself, a stray click. The way out
+ *    then stops working while the surface is still open, which is the one-way door this component
+ *    exists not to be. Loft's e2e case for the first adopter caught exactly that.
+ *  - **Both exits leave focus somewhere real.** Focus moves INTO the panel on open, so the panel owes
+ *    focus a home when it goes. `Escape` returns it to the trigger; an outside click returns it only
+ *    when focus would otherwise be lost, because a click that landed on something focusable is where
+ *    the reader meant to go.
+ *  - **The trigger's visible words ARE its accessible name.** An `aria-label` REPLACES them, so a
+ *    button reading "Properties" named "Edit the properties of the main parachute" fails WCAG 2.5.3
+ *    *Label in Name* and stops answering to voice control. The panel's own name carries the subject.
+ *  - **The heading stays put and the BODY scrolls.** Capping the whole card instead scrolls the close
+ *    control off the top on a phone, which is the way out disappearing.
+ *  - **`Card`'s own title/actions row**, never a hand-rolled one — a popover is not a licence for a
+ *    thirteenth card treatment, and writing that row out inside the primitive whose job is to prevent
+ *    exactly that is the same failure one level down.
+ *  - **`aria-haspopup="dialog"`**: `aria-expanded` alone is the DISCLOSURE pattern's attribute, and a
+ *    screen reader announcing "collapsed" for a dialog names the wrong widget.
+ *  - **The panel resets inherited typography.** `text-transform` and `letter-spacing` inherit, so a
+ *    popover opened from inside an uppercase caption renders its whole body in capitals — measured in
+ *    the sibling at 764 words of ALL CAPS, invisible to every text assertion in its suite because
+ *    `innerText` is identical either way. Loft's first adopter does not currently sit under one —
+ *    measured, its ancestors resolve to `text-transform: none` — so here the reset is precautionary,
+ *    kept because the cost is one class and the sibling has already paid for finding out.
+ *  - **`aria-modal` is deliberately NOT set.** It claims the rest of the page is inert and nothing
+ *    makes that true, so it would be a lie told to exactly the users least able to check it. Earning
+ *    it means marking the app root `inert`; that belongs to whichever milestone wants a genuinely
+ *    modal dialog.
+ *
+ *  Positioning is CSS, not measurement: no layout effect, nothing to disagree with the server's HTML.
+ *  Below `sm` the panel is anchored to the VIEWPORT rather than to its trigger, because a panel
+ *  right-anchored to a control near the edge runs off the side and takes its own labels with it. */
+export function Popover({
+  trigger,
+  title,
+  what,
+  className,
+  children,
+}: {
+  /** The trigger's visible label — and its accessible name. See the note above before adding an
+   *  `aria-label`: on a trigger that shows words it replaces them. */
+  trigger: React.ReactNode;
+  /** The panel's heading, and its accessible name. Required: a panel that does not say what it is has
+   *  failed at the one job it has, and `Card`'s `justify-between` row would put the close control at
+   *  the left edge with nothing opposite it. */
+  title: string;
+  /** What the Close button closes, for its accessible name. */
+  what: string;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  const [triggerRef, returnFocusToTrigger] = useReturnFocus();
+  const panelRef = useRef<HTMLDivElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const panelId = useId();
+
+  const close = () => {
+    setOpen(false);
+    returnFocusToTrigger();
+  };
+
+  // Focus the first thing in the BODY on open — deliberately not the panel, because a flyer opening
+  // a property surface is going to type into it and landing on the heading costs them a Tab every
+  // time.
+  //
+  // **The body rather than the panel, and that is a correction a review caught.** `Card` renders its
+  // `actions` row before `children`, so the first focusable in the whole panel is always the Close
+  // button: every open landed on "Close" while this comment claimed it landed on the first field.
+  // Falling back to the panel keeps the trap somewhere to hold when the body has nothing focusable.
+  useEffect(() => {
+    if (!open) return;
+    const items = focusableWithin(bodyRef.current);
+    (items[0] ?? panelRef.current)?.focus();
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: PointerEvent) => {
+      const target = e.target as Node | null;
+      if (!target) return;
+      if (panelRef.current?.contains(target) || triggerRef.current?.contains(target)) return;
+      setOpen(false);
+      // Only where the click would otherwise strand focus on `<body>` — which is the bug
+      // `useReturnFocus` exists to prevent. After the click has settled, so `activeElement` is
+      // whatever the browser gave it.
+      requestAnimationFrame(() => {
+        const el = document.activeElement;
+        if (!el || el === document.body) triggerRef.current?.focus();
+      });
+    };
+    // `capture`, so a handler inside the page that stops propagation cannot leave this stranded open.
+    document.addEventListener("pointerdown", onDown, true);
+    return () => document.removeEventListener("pointerdown", onDown, true);
+  }, [open, triggerRef]);
+
+  useEffect(() => {
+    if (!open) return;
+    // Bubble phase, and NOT `stopPropagation`: in capture this would run ahead of the panel's own
+    // content — a native `<select>` open inside it takes Escape first and should — and swallowing the
+    // key would take it from every ancestor on a surface that is not this one.
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") close();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key !== "Tab") return;
+    const items = focusableWithin(panelRef.current);
+    if (!items.length) {
+      e.preventDefault();
+      return;
+    }
+    const first = items[0];
+    const last = items[items.length - 1];
+    const active = document.activeElement;
+    if (e.shiftKey && (active === first || !panelRef.current?.contains(active))) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && active === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  };
+
+  return (
+    <span className={cx("relative inline-flex print:hidden", className)}>
+      <Button
+        ref={triggerRef}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        aria-controls={open ? panelId : undefined}
+        onClick={() => (open ? close() : setOpen(true))}
+      >
+        {trigger}
+      </Button>
+      {open && (
+        <Card
+          id={panelId}
+          ref={panelRef as React.Ref<HTMLElement>}
+          role="dialog"
+          aria-label={title}
+          tabIndex={-1}
+          onKeyDown={onKeyDown}
+          title={title}
+          actions={<ClosePanel onClose={close} what={what} />}
+          className={cx(
+            "absolute top-full z-30 mt-2 text-left normal-case tracking-normal outline-none",
+            // Anchored to the VIEWPORT below `sm` and to the trigger above it. Both edges are named
+            // explicitly rather than through `inset-x-*` plus an override: `left-0` and `inset-x-4`
+            // both set `left` at equal specificity, so which wins is source order in the generated
+            // stylesheet, and measured on a 390 px phone the panel came out at x=0 with only the
+            // right gutter applied.
+            "max-sm:fixed max-sm:left-4 max-sm:right-4 max-sm:top-auto max-sm:bottom-4",
+            "sm:left-0 sm:w-[min(42rem,calc(100vw-2rem))]",
+          )}
+        >
+          {/* The BODY scrolls; the heading and the close control above it do not. */}
+          <div ref={bodyRef} className="max-h-[60vh] overflow-y-auto">
+            {children}
+          </div>
+        </Card>
+      )}
+    </span>
   );
 }
 
