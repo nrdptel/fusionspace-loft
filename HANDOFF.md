@@ -100,6 +100,48 @@ have been. Remove the probe line, do not restore the file.
 | 3 | pending | **R11 SHIPPED** (from `ON-2`) — a scratch build that goes downrange and says whose assumption the wind is, plus a plot that explains a flight with no down-range instead of drawing one on its own axis |
 | 4 | pending | **The pre-push review's blocker** — the Monte-Carlo nominal was a hand-copy of the old wind default, so the dispersion flew 0 m/s beside a Flight card flying 2 |
 
+## The done-check, answered out loud
+
+**What can a flyer DO after this run that they could not before? (R-track)**
+
+1. **Read the documentation.** On a dark-OS device with no theme chosen — the default state — all six
+   docs routes served body prose at **1.91:1** and headings at **1.12:1**. Verified against
+   production's own bytes after the deploy: every prose colour now resolves to its dark value and the
+   worst ratio anywhere is **6.67:1**, against WCAG AA's 4.5. That is the owner's `ON-1`, fixed and
+   live.
+2. **See a scratch build go somewhere.** A from-scratch design flew 0.00 m downrange and plotted as a
+   vertical line on its own axis. It flies 411.3 m of drift now, on a 2 m/s default taken from the
+   corpus's own median, stated on screen as Loft's assumption rather than the flyer's setup — and
+   where the answer genuinely is a vertical line, the plot says so instead of inventing an axis.
+3. **See the design's structure.** The parts list showed a flat list; three quarters of a real
+   design's components sit at depth ≥ 1, so most of the topology was invisible. It renders the tree
+   now — indented in design order, with the host named in words in every order.
+
+**What is measurably better about using the tool? (P-track)**
+
+- Worst docs contrast in the default theme: **1.12:1 → 6.67:1**, measured on production.
+- Shipped stylesheet: **65,895 → 63,278 bytes** on the exclusion change alone — 2,617 bytes of rules
+  generated from ledger prose rather than from any component. It stands at **63,476** at the end of
+  the run; the 198 bytes back are R12's own new `text-xs` on the host line, i.e. a real utility a
+  real component asks for, which is the difference the exclusion exists to preserve.
+- Unit **1,110 → 1,114**; e2e **234 → 243**; corpus cases **28 → 30**.
+- `DESIGN.md` §9 gained its first check that reads a rendered COLOUR rather than a class name —
+  closing a blind spot the file itself had already recorded twice.
+- §9's counts are otherwise unmoved and at target: rounded-lg 0, card treatments 3 (the recorded
+  honest floor), off-scale spacing 0, off-scale type 0, inverted files 0, hand-rolled dropdowns 0
+  (three shell hits are prose comments, exactly as §9 anticipates), `text-[11px]` 41, 18 adopters.
+
+**What is NOT better, stated rather than implied.** R11's *"labelled axis"* clause is not met — the
+flight-path plot still has no tick labels on either axis and still fabricates a one-unit range, so
+the fix is a caption and a sentence rather than an axis; it is filed with the measurement. R12's
+parts list is still collapsed by default and selection still does not drive the property surface,
+which is the whole point of the milestone. And the ledger's historical Sev-1 labels were NOT
+re-audited this run: the ledger's own entry says that count "does not survive contact" and is a
+reading list rather than a Sev-1 count. What was checked is narrower and is written up — three
+Sev-1-shaped claims from the fan-out (round-trip id loss, drag-coefficient re-attribution, a +22.4%
+apogee move) did not reproduce on any real file, and two latent ones (`compare.ts`'s missing
+`landed` gate, the unwritten `<customreference>`) are real but unreachable today.
+
 ## The arc so far
 
 | milestone | state |
