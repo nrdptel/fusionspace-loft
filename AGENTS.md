@@ -9,6 +9,7 @@ Then, in this order:
 
 | file | holds |
 |---|---|
+| `OWNER-NOTES.md` | **the owner's inbox** — rough direction dropped between runs, and the one input that outranks the queue. Usually empty; read it anyway, and give every open note a verdict. |
 | `ROADMAP.md` | **the queue.** Two tracks — R (capability) and P (product & craft). A run ships the next unstarted milestone from **each**, alternating. |
 | `DESIGN.md` | **binding** design system: tokens, type and spacing scale, component vocabulary, the five required states, product shape, touch contract. Read before writing a component. |
 | `COMPETITION.md` | the tracked gap against OpenRocket, RocketPy, RASAero and RockSim. One row added or resolved per run. |

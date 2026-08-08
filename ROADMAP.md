@@ -33,6 +33,14 @@ unstarted milestone", never a number — because the same prompt is run for a we
 a prompt naming R1 is wrong the day R1 ships. So the `Status:` lines below are the baton. Update them
 in the same commit as the work, never in a later one.
 
+**One input reorders this queue: `OWNER-NOTES.md`.** It is the owner's inbox — rough direction dropped
+between runs — and it is read before this file at session start, because a note can change what the
+next milestone is. It is usually empty, in which case nothing here changes. When it is not, a triaged
+note becomes a milestone **in this file, in the normal shape** — outcome, *done when*, size, notes,
+pinning check — and cites its origin in the heading: `R12 (from ON-6)`. Keep that tag. It is how a run
+six weeks from now can tell which milestones came from the owner walking the live site and which the
+queue generated itself, and the two are worth different things when something has to be cut.
+
 **Status vocabulary**, and nothing else: `NOT STARTED` · `IN PROGRESS` · `SHIPPED <date> — <pinning
 check>`. A milestone may only be marked `SHIPPED` once an automated check exists that fails if the
 capability regresses; name that check on the status line. This is what stops one run believing a
