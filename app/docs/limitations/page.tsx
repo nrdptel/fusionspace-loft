@@ -376,6 +376,33 @@ export default function Limitations() {
         as that rather than as this.
       </p>
       <p>
+        <strong>
+          A configuration missing one of its motors gets no static margin — on any surface, including
+          the parameter sweep.
+        </strong>{" "}
+        A design can carry more than one motor mount, and Loft only ships the thrust curves it ships:
+        a cluster with one designation Loft has no curve for still <em>flies</em>, because the reduced
+        ascent is a meaningful answer and the flight card says which motor is missing. Its static
+        margin is not, because the margin is measured from the <em>loaded</em>{" "}
+        centre of gravity and
+        that CG is short a motor&apos;s mass — measured on a bundled sample with its motor made
+        unresolvable, the margin reads 5.92&nbsp;cal against a true 4.07, a 46% error in the
+        reassuring direction. The flight summary has withheld it on that test for some time. Until
+        2026-08-08 the <strong>parameter sweep</strong>{" "}
+        did not: it plotted and exported a whole curve
+        of the same quantity directly below the cell that was withholding it — measured at
+        1.10 / 1.29 / 1.49&nbsp;cal on a two-mount design, values straddling the one-caliber line fins
+        are sized against. Nor did the <strong>what-if comparison card</strong>, which published the
+        design&apos;s margin, the what-if&apos;s, and the signed change between them — and which is
+        wrong in a second way the sweep is not: the two flights resolve their motors independently, so
+        a motor swap onto a bundled motor gives a trustworthy current margin against an untrustworthy
+        baseline, and the reported <em>change</em> is then a stability move nobody made. Both surfaces
+        now withhold the figure and say why. The other things they show — apogee, the velocities, the
+        flutter margin — are unaffected, because those are the reduced flight Loft does stand behind.
+        Resolving every motor, by swapping in a bundled one under Design, brings the margin back
+        everywhere at once.
+      </p>
+      <p>
         <strong>A flight that never reaches the ground reports no landing figures.</strong> The
         simulation runs to a 1,200&nbsp;s cap, and a canopy large enough to descend slower than that
         allows for hits the cap still in the air. The solver carries a ground-hit speed and a landing

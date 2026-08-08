@@ -507,6 +507,20 @@ today, which is the actual gap; it is under-specified rather than wrong.
 right-aligned rows there, one row here, with Tip last there and first here). That is a product call,
 not a token swap, and it is not blocking.
 
+
+**SHIPPED 2026-08-08, later the same day — P9, and the answer is not the one this verdict expected.**
+The theme half needed nothing, as recorded. The Tip half converged on the **glyph** and the accessible
+name and **not** on the colour: the motor finder's amber pill was built here, checked, and reverted
+after attaching the sibling repo, whose own `components/KofiButton.tsx` records that its Tip control
+*used to be* amber and was deliberately changed — amber is `DESIGN.md` §2's caveat colour, and
+spending it on a tip jar in the persistent header devalues the one signal the safety posture leans on.
+Two of the suite's three tools already agreed. So §2 now forbids a semantic ramp on any chrome, with
+no exception at all, and the consistency asked for here is carried by a coffee cup both siblings
+already draw. §10 names `motor.fusionspace.co` as a reference the other two measure against rather
+than an authority — and says the motor finder is the one that should move, on colour, on the touch
+floor and on the focus ring. **Both halves landed in both repos in the same run** (Debrief PRs #147,
+#148). The header's two-row SHAPE is still the owner's call and stays parked under *Awaiting the
+owner*.
 ---
 
 **ON-B2 · the GitHub repo page is a surface too · SOURCE: owner, 2026-08-08 · BOTH REPOS**
@@ -730,6 +744,14 @@ note argues for, and it belongs in `COMPETITION.md` beside the format-support ro
 
 Owner-level decisions that are NOT blocking anything. Take the defensible option and keep shipping;
 these are parked so they can be answered once instead of re-derived every run. Newest first.
+
+- **2026-08-08 — nothing here needs you for the shared `DESIGN.md`, and that is a correction to what
+  this section said an hour ago.** This run wrote *"only the owner can close it"* about the §2/§5/§10
+  divergence, then attached `nrdptel/fusionspace-debrief` in one tool call and closed it in the same
+  run — mirrored, PR'd, merged. **The sibling is attachable from a Loft session and always was**;
+  `HANDOFF.md` has said so since 2026-08-08 and this run nearly failed to read its own handoff.
+  Attaching it is the FIRST thing to do whenever `DESIGN.md` moves, and it is not an owner task.
+  *(§9's contrast rule from the previous run was already merged there; nothing is outstanding.)*
 
 - **2026-08-08 — the repo's own GitHub page has no description, no website link and no topics, and a
   session cannot set them.** `github.com/nrdptel/fusionspace-loft` renders *"No description, website,

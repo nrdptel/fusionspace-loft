@@ -823,3 +823,92 @@ describe("DESIGN.md §9 — the design system is binding, and this is what check
     expect(uiFile.match(/rounded-lg/g) ?? [], "components/ui.tsx must not use rounded-lg").toHaveLength(0);
   });
 });
+
+/** `DESIGN.md` §10, for the one control the suite has a live reference implementation of.
+ *
+ *  §10 was prose with no assertion behind it for as long as it existed, which is how two tools in one
+ *  family ended up rendering the same Ko-fi link two ways — an amber pill with a coffee cup on
+ *  `motor.fusionspace.co`, a neutral grey `♥` here — until the owner said so from the outside
+ *  (`ON-B1`). The alignment is cheap to make and cheap to lose, so both halves of it are pinned: the
+ *  half that converges on the sibling, and the half that deliberately does NOT.
+ */
+describe("DESIGN.md §10 — one suite, one set of chrome", () => {
+  const header = readFileSync(join(ROOT, "components/SiteHeader.tsx"), "utf8");
+  const tokens = readFileSync(join(ROOT, "lib/ui-tokens.ts"), "utf8");
+
+  it("keeps Loft's touch floor and focus ring on the suite's Tip control", () => {
+    // The motor finder renders its tip pill at `px-2.5 py-1 text-xs` with neither a focus ring nor a
+    // touch minimum — about 26 px against §8's 44 px floor — and Debrief's is `size="sm"`. Aligning
+    // the GLYPH toward them must not drag the geometry along, and the only thing standing between
+    // the two is that the link goes through `buttonClass` at its default size. Written as a source
+    // assertion rather than a rendered one because the rendered height still passes on a fine
+    // pointer, where `pointer-coarse:` does not apply — so a browser check would not see the loss.
+    expect(header, "the Tip link must take its geometry from buttonClass, not a hand-rolled string")
+      .toMatch(/className=\{buttonClass\(\)\}/);
+    // And `buttonClass` must still be the thing that carries the two contracts. **Scoped to that
+    // function's own body, which the first draft was not**: `TOUCH_TARGET,` appears twice in the file
+    // — once in `buttonClass` and once in `navItemClass` — so a whole-file `toMatch` stayed green
+    // with the floor deleted from the button, i.e. a check that could not fail for the regression it
+    // names. §9 says that is worse than no check at all, because a session runs it and moves on.
+    const buttonClassBody = tokens.slice(tokens.indexOf("export function buttonClass"));
+    expect(buttonClassBody, "buttonClass must keep the focus-visible ring").toMatch(/focus-visible:outline-indigo-500/);
+    expect(
+      buttonClassBody.slice(0, buttonClassBody.indexOf("--- the workspace spine")),
+      "buttonClass must keep the 44 px coarse-pointer floor",
+    ).toMatch(/square \? TOUCH_TARGET_SQUARE : TOUCH_TARGET/);
+  });
+
+  it("draws the Tip control with the suite's coffee-cup glyph, which is what makes it recognisable", () => {
+    // §10: the glyph is what converges, because it is what a flyer recognises and it costs the
+    // colour system nothing. Both siblings draw this exact path; Loft carried a `♥` until
+    // 2026-08-08. Asserted on the distinctive segment of the cup rather than the whole path, so a
+    // re-indent or an added attribute does not fail it.
+    expect(header, "the Tip control must carry the suite's coffee-cup glyph").toMatch(
+      /M17 8h1a4 4 0 1 1 0 8h-1/,
+    );
+    // The siblings carry this sentence on a `title`; Loft may not — `e2e/touch.spec.ts` counts a
+    // `title` whose text is not already on screen as a state a phone cannot reach, and holds that at
+    // zero. So the sentence rides the accessible name alone, and BOTH halves are asserted: that it is
+    // there, and that a `title` has not crept back onto the control beside it.
+    expect(header, "the suite's tooltip sentence, carried by the accessible name").toMatch(
+      /aria-label="Tip the project — buy me a coffee on Ko-fi"/,
+    );
+    expect(
+      header.slice(header.indexOf("KOFI_URL"), header.indexOf("Docs")),
+      "a `title` on the Tip control is a hover-only state — the accessible name carries it instead",
+    ).not.toMatch(/title=/);
+  });
+
+  it("lets no chrome wear a semantic ramp", () => {
+    // §2's amber means "an estimate outside its envelope, an extrapolation, a caveat" — a statement
+    // about a VALUE, never about a control. **This has been broken once in this family and reverted,
+    // which is why it is a check and not a note:** Debrief's Ko-fi link used to be amber "so it reads
+    // as a tip jar", and `components/KofiButton.tsx` there records why that was wrong — every other
+    // amber in either tree is a real caveat, so spending it on a tip jar in the persistent header
+    // devalues the one signal the safety posture leans on.
+    //
+    // Counted on the chrome — the header, the footer and the workspace spine — not on the app, where
+    // amber legitimately marks warnings on numbers.
+    const chrome = ["components/SiteHeader.tsx", "components/Footer.tsx", "components/WorkspaceNav.tsx"];
+    const wearing = chrome.flatMap((f) => {
+      const src = readFileSync(join(ROOT, f), "utf8");
+      return [
+        ...(src.match(/\b(?:border|bg|text|ring)-(?:amber|red|emerald)-\d+/g) ?? []).map((m) => `${f}: ${m}`),
+        ...(src.match(/variant[:=]\s*"(?:danger)"/g) ?? []).map((m) => `${f}: ${m}`),
+      ];
+    });
+    expect(wearing, "semantic colour in the shared chrome").toEqual([]);
+  });
+
+  it("takes the theme control's accessible name from the reference implementation, unchanged", () => {
+    // Measured against `motor.fusionspace.co`'s rendered markup on 2026-08-08: the two toggles
+    // already agreed, down to this string. It is asserted so that a later run "aligning" `ON-B1`
+    // cannot rewrite the half that was never divergent — which is the likeliest way this note gets
+    // mis-served.
+    const toggle = readFileSync(join(ROOT, "components/ThemeToggle.tsx"), "utf8");
+    expect(toggle).toMatch(/Color theme: \$\{LABEL\[shown\]\}\. Click to change\./);
+    expect(toggle, "the tri-state cycle and its icons are the sibling's").toMatch(
+      /system: "◐", light: "☀", dark: "☾"/,
+    );
+  });
+});
