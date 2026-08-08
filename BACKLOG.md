@@ -12,6 +12,67 @@ this file, and deliberately does **not** cap craft or product work, because that
 track in `ROADMAP.md` with its own *done when*. Rough edges, missing affordances, and findings too
 big for one pass. Newest first.
 
+**Filed 2026-08-08 by the first design-system audit this repo has ever run** — the audit
+`MAINTAINING.md` has asked for every long run and which had, until now, never happened. Each of these
+is a divergence from `DESIGN.md` that **every one of §9's checks reads as compliant**, which is the
+point: the block matches the class names somebody thought to name.
+
+- **Off-system radius: 7 real occurrences, and §9's radius grep can see none of them.** §2 sanctions
+  `md`, `xl` and `full` only; §9 hunts the single literal `rounded-lg`, which is at 0. Live today,
+  each verified by opening the line rather than by counting grep hits: **`rounded-sm` ×4**
+  (`components/DragCrossCheck.tsx` ×2, `components/FlightViz.tsx`, `components/LineChart.tsx`), a
+  **bare `rounded` ×2** as an actual class string (`components/MotorSweep.tsx:324`, a `<span>` pill;
+  `components/RocketpyCrossCheck.tsx:335`, a `<pre>`), and **`rounded-[2px]` ×1**
+  (`components/RocketDiagram.tsx:1043`).
+
+  **The naive census does NOT reproduce that 7, and the gap is the interesting part** — this entry
+  said it did until a pre-push review checked. `(?<![\w-])rounded(?:-\[[^\]]*\]|-[a-z0-9-]+)?(?![\w-])`
+  over `components` + `app` answers **17** for the bare form alone, because "rounded" is an ordinary
+  English word and the docs pages use it in prose ("a rounded 8 m/s would misstate what's counted"),
+  plus a `rounded: "Rounded"` map key and a `.rounded-fin` CSS class name in the methods page. It
+  also surfaces four DIRECTIONAL variants — `rounded-b-md`, `rounded-l-md`, `rounded-l-none`,
+  `rounded-r-none` — which are the `md` radius applied to some corners and are arguably in-system;
+  §2 does not say, and saying is part of the fix. So the check this wants is not a wider grep: it is
+  a grep restricted to `className` strings, with the directional question settled in §2 first. One
+  increment, and it belongs to a P-track milestone rather than here once somebody schedules it.
+
+- **`lib/design-system.test.ts`'s adoption regexes carry a hard-coded double quote — the exact defect
+  §9 says "any grep added here must be" free of.** `:468` and `:485` spell `from "(?:\./ui|@/components/ui)"`.
+  Loft is double-quoted so both answer correctly HERE; the sibling is single-quoted, so a check
+  copied across answers 0 whether adoption is 0% or 100%. §9 records this same bug being fixed twice
+  already, once pointing each way. Repro:
+  `node -e 'console.log(/from "(?:\.\/ui)"/.test(String.raw\`from './ui'\`))'` → false. Two characters.
+
+- **§9's own type grep is now the STALE side of the pair it is supposed to be identical to.** The
+  shell block matches `text-(xs|sm|base|lg|xl|[0-9]xl)` and therefore cannot see an arbitrary size at
+  all, while `lib/design-system.test.ts:639` matches `text-[10px]` and friends. The two are required
+  not to drift; today the markdown is the weaker copy, which is the direction that lets a session run
+  the block, see the target, and move on.
+
+- **Three of §5's five required states have no primitive, and the two missing ones are the two nobody
+  notices.** `components/ui.tsx` ships `EmptyState`, `ErrorState` and `Extrapolated`; there is **no
+  loading and no offline primitive** (`grep -niE 'spinner|skeleton|loading|offline' components/ui.tsx`
+  → 0). `Figure` takes `empty` and `extrapolated` only, across 9 call sites; `DataTable` requires
+  `empty` and offers no error/loading/offline, across 7. So "every data surface implements all five"
+  is currently unbuildable from the vocabulary it names.
+
+- **`ErrorState` has exactly ONE call site in the whole app** (`components/LoftApp.tsx:1807`), against
+  7 `DataTable`s and 9 `Figure`s, and `components/RocketpyCrossCheck.tsx:313`'s `Failure` hand-rolls
+  the same `Card tone="danger"` shape beside it. That one is already recorded on `P6` as deliberately
+  deferred; the count is what makes it actionable.
+
+- **One raw `<table>` survives outside the primitive** — `app/docs/validation/page.tsx:397`, the
+  RocketPy-vs-Loft cross-check rows. Not sortable, not copyable, no sticky header, no CSV, against
+  §5's *"every table is `DataTable`"*. `P11`'s notes already record the four docs tables as a decision
+  rather than a conversion (`DataTable` is a client component, these are static routes) — this is the
+  fourth, and the one carrying numbers a flyer would compare.
+
+- **`Select`'s control treatment is hand-copied at four sites.** `components/ui.tsx:756`'s
+  `rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm …` appears verbatim at
+  `components/LoftApp.tsx:138` and `components/PartPicker.tsx:603`, and as a `py-1` variant at
+  `components/LoftApp.tsx:1848`. §9's dropdown grep counts `<select>` elements, so four copies of the
+  string it was written to eliminate pass it.
+
 **Filed 2026-08-08 while triaging the first `OWNER-NOTES.md` batch.** Everything below was measured
 this run; where a fan-out claimed something the corpus then refuted, the refutation is the entry.
 

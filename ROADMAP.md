@@ -4096,7 +4096,38 @@ stylesheet carries the same class-only defect is measured in that repo, not infe
 
 ## P8 (from ON-3) — The phone stands the rocket up
 
-**Status: NOT STARTED.**
+**Status: NOT STARTED. Four corrections to this milestone's own measurements, made 2026-08-08 and
+each verified by hand rather than taken from the agent that reported it** — a milestone spec is not
+evidence, and three of these would have cost the run that built it.
+
+1. **There are NINE `FinHandle` call sites, not eight.** `grep -c '<FinHandle' components/RocketDiagram.tsx`
+   answers 10; the tenth is `<FinHandlePicker` at `:1024`. The nine are at `:826, :844, :862, :880,
+   :898, :925, :953, :976, :996`. **And no call site passes `axis="x"` at all** — it is the prop's
+   default, declared `axis = "x"` at `:1166` — so `grep 'axis='` finds exactly two hits (`:901` and
+   `:999`, both `axis="y"`) and a session reading that concludes seven grips do not need re-basing.
+   That trap is worse than the miscount. *(A first draft of this paragraph cited `:1165` for the
+   default and was corrected by opening the line — which is the whole point of the framing above.)*
+2. **`axis` has THREE consumers, not two.** The resize cursor (`:1307`), `aria-orientation` (`:1311`)
+   and the arrow-glyph path drawn on the grip (`:1375`). A rotation that re-bases the value mapping
+   and forgets the glyph draws an arrow pointing across the gesture.
+3. **The pointer→value mapping is written TWICE and is not shared** — once in `apply` (`:1253`, the
+   drag frame) and once in `onPointerDown` (`:1345`, the grab offset). Re-basing one and not the other
+   is a grip that jumps on grab, which is exactly the tell `ON-4` complained about.
+4. **The depth-budget clause below is WRONG, and it is the one that would have shaped the increment.**
+   It says vertical is not free on journey depth because everything below the drawing moves down by
+   ~420 px on `/design`. `e2e/depth.spec.ts:71-74` anchors `/design` on the drawing ITSELF
+   (`#panel-design svg[aria-label*='Scale side-view']`), which sits at the TOP of the panel — so
+   pushing the content below it down moves nothing that spec measures, on either form factor. The only
+   ratchet that could fire is the shared-chrome cap (`:165`, DESKTOP 820 / PHONE 1060) measured on
+   `nav[aria-label='Workspace']`, which sits ABOVE the panel and cannot move either. **So there is no
+   depth budget to buy here** — the milestone should stop reserving one and spend the increment on the
+   grips instead.
+
+Two further measurements the milestone does not carry and the implementation needs: `e2e/touch.spec.ts:238`
+hard-codes `toHaveCount(3)` on `g[role="slider"]` for a coarse pointer, so any change to which grips
+a phone shows fails there by design; and there are **two separate tap-column builders**, not one —
+body-part columns computed inline in JSX (`:604-627`, with no `TAP_MIN` floor) and fin/mass columns
+from the `tapColumns` array (`:668-690`). Clause 4 of the *done when* has to re-derive both.
 
 **Outcome.** On a phone held upright, the airframe is drawn upright — nose at top — at a scale that
 makes it legible as a rocket instead of a hairline.
@@ -4153,7 +4184,72 @@ journey — so the milestone needs its own budget clause.
 
 ## P9 (from ON-B1) — One suite, one set of chrome
 
-**Status: NOT STARTED.**
+**Status: SHIPPED 2026-08-08** — in one increment, not the two estimated, because the theme half
+turned out to need nothing. Every clause of the *done when* is met and each is pinned by a check in
+`lib/design-system.test.ts`'s new §10 block:
+
+- *keeps Loft's touch floor and focus ring on the suite's Tip control* — asserts the link's geometry
+  still comes from `buttonClass()` rather than a hand-rolled string, and that `buttonClass` itself
+  still carries the ring and the 44 px floor. **Both halves are scoped to that function's own body,
+  and the first draft was not:** `TOUCH_TARGET,` occurs twice in `lib/ui-tokens.ts` — once here and
+  once in `navItemClass` — so a whole-file match stayed green with the floor deleted from the button.
+  A check that cannot fail for the regression it names is worse than none; found by the pre-push
+  review, not by running it.
+- *draws the Tip control with the suite's coffee-cup glyph* — the thing that actually makes the
+  control recognisable, asserted on the distinctive segment of the cup path plus the accessible name,
+  together with the ABSENCE of a `title` on it (see below).
+- *lets no chrome wear a semantic ramp* — across header, footer and spine, asserting an EMPTY list.
+  Negative control: a `text-amber-600` in `Footer.tsx` reports it by file and class.
+- *takes the theme control's accessible name from the reference implementation, unchanged* — the half
+  that was never divergent, asserted so a later run cannot "align" it into a rewrite.
+
+**What shipped, measured rather than described.** The Tip link now draws the suite's coffee-cup glyph
+in place of the `♥` it carried, and the siblings' own sentence — *"Tip the project — buy me a coffee on
+Ko-fi"* — as its accessible name. It keeps `px-3 py-1.5 text-sm`, `pointer-coarse:min-h-11` and the
+`focus-visible` indigo ring, none of which the motor finder has.
+
+**The `title` both siblings carry was tried here and the touch suite refused it — a second reversal
+inside the same increment, and a second one the repo caught rather than a reviewer.**
+`e2e/touch.spec.ts`'s *"counts the states a flyer at the pad cannot reach"* counts any `title` whose
+text is not already rendered beside it and holds the total at `HOVER_ONLY_FLOOR = 0`; this one took it
+to **1**. Correctly: the visible label is "Tip", the tooltip is a sentence, and a phone gets no
+tooltip. So the wording converges and the mechanism does not — `aria-label` alone — and §10 now states
+that as a family rule with the measurement behind it. **Worth noting how it was caught: the first
+re-run after removing the `title` still failed, because the e2e suite serves the built `out/` and the
+rebuild had not happened yet.** A source fix that "does not take" is that, more often than it is
+wrong.
+
+**The colour did NOT change, and reversing that decision mid-increment is the most useful thing this
+milestone did.** The first version of this increment shipped the motor finder's amber pill: `ON-B1`
+asks for consistency, §2 reserves amber for *"an estimate outside its envelope, an extrapolation, a
+caveat"*, the note outranks `DESIGN.md` under `OWNER-NOTES.md`'s precedence rule, so §2 was amended
+with a bounded one-control exception and a check to hold it there. It was measured against **two**
+tools — Loft and the live motor finder — because the third was not attached.
+
+Then the sibling was attached, and `components/KofiButton.tsx` in Debrief turned out to carry the
+answer in a docblock: **that control used to be amber and was deliberately changed**, because *"every
+other amber in the tree is a real caveat… a flyer learns amber means 'this number is qualified';
+spending it on a tip jar in the persistent header devalues the one signal the safety posture leans
+on. The coffee cup is what distinguishes it, and a glyph costs the colour system nothing."* Two of the
+three tools already agreed, and they are the two that meet §2. So the consistency the owner asked for
+is delivered by the **glyph**, the amber was reverted, and §2 now carries *no* chrome exception at all
+— a stronger rule than the one it started the run with, and the check asserts an EMPTY list rather
+than a one-item allowance.
+
+**The transferable lesson, and it is about method rather than about colour:** a suite question
+measured across two of three tools produced a confident, documented, checked answer that was wrong.
+`HANDOFF.md` had already recorded that the sibling is attachable in one tool call. §10 now says to
+attach it before deciding anything that section governs.
+
+**Cost: zero bytes.** The amber version grew the shipped stylesheet 63,476 → 67,124 (+3,648, measured
+by building both sides with `out/` and `.next/` removed — six new ramp shades' theme variables and
+twenty rules, of which the four `dark:…hover:` variants each emit a `@media (hover:hover)`, an
+`@supports (color-mix)` and a `prefers-color-scheme` copy). Reverting the colour gives all of it back:
+the glyph is an inline SVG and the geometry was already there.
+
+**Mirrored into the sibling in the same run, which is what §10 requires and what four consecutive runs
+reported as impossible.** `nrdptel/fusionspace-debrief` was attached mid-run, §2 and §10 landed there
+verbatim, and its Tip control gained the same `aria-label` beside its `title`.
 
 **Outcome.** The theme control and the Tip control read as the same controls a flyer already used on
 `motor.fusionspace.co`, because the suite has a live reference implementation and neither of these
@@ -4364,6 +4460,28 @@ Beyond these, decompose from the North Star in `MAINTAINING.md` and from `COMPET
 Unattended runs do not stop to ask (see *Unattended operation* in `MAINTAINING.md`). Every decision
 that would otherwise have been a question goes here, with the option rejected, so it can be reversed
 cheaply instead of re-derived. Newest first.
+
+- **2026-08-08 — R12's property surface stays LIVE-COMMIT, not transactional.** `COMPETITION.md` row
+  39 left this open and row 40 now settles it: OpenRocket's component dialog is transactional — it has
+  a Cancel, and a preference for confirming a discard — and Loft's fieldsets commit on every keystroke
+  and re-fly the design as you type. **Taken:** keep live-commit. The live re-fly is the thing Loft has
+  that the desktop tools do not, and `lib/model/history.test.ts`'s whole-design undo already answers
+  "I did not mean that". **Rejected:** a per-component Cancel, which would need a second,
+  component-scoped history that could disagree with the global one — two undo stacks over one model is
+  a state a flyer can get lost in, which is the failure mode ranked first in `MAINTAINING.md`.
+
+- **2026-08-08 — NO chrome takes a semantic ramp, including the Tip control, and this entry replaces
+  one written three hours earlier that said the opposite.** `ON-B1` asks Loft's Tip control to match
+  the motor finder's, which is an amber pill; §2 reserves amber for a caveat on a VALUE. The first
+  decision was "the note outranks `DESIGN.md`, so amend §2 with one bounded exception and check that
+  it stays one" — defensible, and taken with only two of the suite's three tools measured. **Attaching
+  the sibling refuted it in one read:** Debrief's `components/KofiButton.tsx` records that its own Tip
+  control *used* to be amber and was deliberately changed, for exactly the reason §2 exists. **Taken:**
+  the glyph converges, the colour does not, and §2 gains no exception. **Rejected:** the amber, and
+  with it the "bounded exception" mechanism — a rule with one sanctioned violation is a rule that
+  argues about the second one. **The reversal cost nothing and is the point:** +3,648 bytes of
+  stylesheet went back to zero, and the owner's actual ask — a control a flyer recognises from the
+  other tool — is delivered by a coffee cup that both siblings already draw.
 
 - **2026-08-08 — R4 is left SHIPPED and un-rewritten, and the drag withdrawal is carried by R12
   instead.** `ON-4` withdrew drag as the authoring gesture, and the note says the roadmap "carries an

@@ -4,63 +4,119 @@ Overwritten each session. What shipped, what is part-way, and what to pick up fi
 
 ## Read this first
 
-**This was the first run to find anything in `OWNER-NOTES.md`, and that reordered everything.**
-Twelve notes, all `(pending)`, dropped by the owner on 2026-08-08 after walking the live site. The
-triage contract says every open note gets a written verdict in the run that first reads it — the
-verdict, not the work. **Twelve written, zero pending**, each reproduced before it was scoped, and
-eight milestones added to `ROADMAP.md` from them: R11, R12, P7 (shipped), P8, P9, P10, P11, P12.
+**Attach the sibling repo before you decide anything the design system governs. It is one tool call,
+and this run nearly shipped a documented, checked, wrong answer without it.**
 
-**The owner's first note was a real defect on the live site, and it had shipped on every docs route
-since those routes existed.** The `dark` variant has two clauses — the `.dark` class an explicit
-choice sets, and `prefers-color-scheme` for a visitor who has chosen neither — and every `dark:`
-UTILITY gets both. The eleven hand-written `.prose-loft` rules asked for the class alone, and
-"System" is the DEFAULT theme, setting no class. So every first-time visitor on a dark-OS device read
-the docs in the LIGHT palette on a dark ground: body prose **1.91:1**, `h2` and `strong` **1.12:1**,
-against WCAG AA's 4.5:1.
+`ON-B1` asks Loft's Tip control to match the motor finder's, which renders an amber pill. Amber is
+`DESIGN.md` §2's `warn` — a caveat on a value a flyer acts on. The note outranks `DESIGN.md` under the
+precedence rule in `OWNER-NOTES.md`, so the defensible move was to amend §2 with one bounded
+exception, add a check to hold it at one, and ship the amber. That was done: token, component,
+§2/§5/§10 amendments, three new checks with negative controls, +3,648 bytes of stylesheet, a decision
+entry recording the alternative rejected. It was measured across **two of the suite's three tools**,
+because the third was not attached.
 
-**THE TRANSFERABLE LESSON: three separate runs' worth of compliance counts were green while that
-shipped, because all seven §9 checks match class NAMES and readability is a rendered COLOUR.** §9's
-own prose already warned about this blind spot twice — the equation block's 8 px radius, and the
-docs' off-scale font sizes — and contrast was the third instance. A grep over class names cannot see
-a stylesheet value, and it never will. `DESIGN.md` §9 now carries contrast as a rule with two
-commands behind it, and both are ratcheted into the suite.
+Attaching `nrdptel/fusionspace-debrief` refuted it in one file read. `components/KofiButton.tsx` there
+carries the answer in a docblock: **that control used to be amber and was deliberately changed**,
+because *"every other amber in the tree is a real caveat… a flyer learns amber means 'this number is
+qualified'; spending it on a tip jar in the persistent header devalues the one signal the safety
+posture leans on. The coffee cup is what distinguishes it, and a glyph costs the colour system
+nothing."* Two of three tools already agreed, and they are the two that meet §2.
 
-**The second lesson is about the fan-out, and it cuts the other way from the usual warning.** Three
-of its most confident findings did not survive contact with the corpus. It reported that the `.ork`
-round trip changes component ids on 20 of 35 designs, re-attributes Loft's own drag coefficient to
-the designer on 14, and moves apogee by **+22.4%** on one save/reopen. Driven over all 27 corpus
-`.ork` files by hand: **0, 0 and 0.** The +22.4% came from injecting a custom reference radius into
-the starter — no corpus design uses `referenceType: "custom"` at all. Two later agents then reported
-the *already-fixed* dark-mode defect as live, having read the fix's own commit message and test
-comments, which state the pre-fix numbers in the past tense. **Reproduce before you scope, and be
-specific about what a "measured" claim was measured ON.**
+So the amber was reverted, §2 now carries **no** chrome exception at all — a stronger rule than the
+one the run started with — and the consistency the owner asked for is delivered by the **glyph**,
+which both siblings already draw. **The whole reversal cost zero shipped bytes.**
 
-**A third, and it is the one to carry forward: changing a DEFAULT means finding every place that
-default was written down twice — and the pre-push review is what found it, not the gate.** Moving
-`defaultConditions().windSpeed` from 0 to 2 m/s left `lib/sim/montecarlo.ts`'s `nomWind = base.windSpeed ?? 0`
-behind, a hand-copy of the old value. Because every Monte-Carlo sample writes an explicit `windSpeed`
-into its own overrides, it never falls through to `makeConditions`, so nothing downstream could
-correct it: **the Flight card reported a 411.28 m drift while the dispersion beside it reported a
-median of 0.00 m** — one design, two surfaces, and the number a flyer sizes a recovery area with.
-Lint, 1,112 unit tests and 239 e2e cases were all green over it, because every one of them either
-supplied explicit conditions or asserted a shape rather than an agreement. `flownOverrides` in
-`components/LoftApp.tsx` exists to prevent exactly this and its docblock records the same defect
-arriving from the other direction. **Derive a default, never re-spell it**, and when you change one,
-grep for its literal before you push.
+**Three things follow, and they are the transferable half:**
 
-**A fourth, from the same review: an explanation that names a CAUSE is a claim, and it needs the same
-grounding as a number.** The first version of the no-down-range note read "the rail is plumb and the
-wind is zero" — inferred from geometry the component never receives. A rocket that never leaves the
-rail also has x ≡ 0 at every sample whatever the wind is, so that sentence would have told a flyer
-whose file states 3 m/s to go and set a wind, on a design whose real problem is a thrust-to-weight
-below 1. It says what it can SEE now, and fires only after a `liftoff` event.
+1. **`DESIGN.md` §10 now says to attach the sibling before deciding anything it governs**, and this
+   is the first run in five in which a `DESIGN.md` change actually landed in both repos in the same
+   run, as the invariant has always required. Debrief PR #147.
+2. **The previous handoff already said the sibling was attachable in one tool call.** This run read
+   that sentence late. Read `## Read this first` in full before scoping, not after.
+3. **`OWNER-NOTES.md` contained a claim written by this run — "only the owner can close it" — that
+   this run then disproved three hours later.** It is corrected in place. Do not park something under
+   *Awaiting the owner* until you have checked you cannot do it yourself.
 
-**A fifth, and it cost me my own uncommitted work: never `git checkout <file>` to clean up a probe.**
-I appended a scan probe to `ROADMAP.md`, then reverted it with `git checkout ROADMAP.md` — which also
-discarded four milestones I had written and not yet committed. Recovered from context; it need not
-have been. Remove the probe line, do not restore the file.
+**The Sev-1 this run found and fixed, because it is the shape that keeps recurring here: two surfaces
+disagreeing about whether a number can be published at all.** `hasPropulsion` (some motor matched) and
+`motorsComplete` (all of them did) are different predicates. The flight summary withholds static
+margin under `!motorsComplete`, with the measurement beside it — 4.065 → 5.921 cal, +46%, on a design
+whose motor was made unresolvable. `lib/sim/sweep.ts` published it under `hasPropulsion` alone, so the
+parameter sweep plotted and CSV-exported a whole curve of the quantity the cell directly above was
+withholding. **Reproduced before it was scoped** on `demo-single-deploy.ork` given a second mount with
+a designation the bundled data does not carry: 1.098 / 1.290 / 1.487 cal, values straddling the
+one-caliber line fins are sized against.
 
-## The environment, measured 2026-08-08
+**And the fan-out that found it also produced three confidently wrong claims, so the reproduce-first
+rule earned its place again.** The Sev-1 screen's own repro hint did not reproduce — the first probe
+came back `motorsComplete: true` because `MotorInstance` carries its designation on `.motor`, not at
+the top level. Two more agent claims about P8's geometry were checked by hand and one was wrong in the
+milestone's favour and one against; both corrections are now in `ROADMAP.md` P8.
+
+## The environment, measured 2026-08-08 (second run of the day)
+
+- `node_modules` was present at session start. **The managed Playwright browser chromium-1228 was
+  absent again** — `/opt/pw-browsers` had 1194 — and `npx playwright install chromium` fixed it in
+  about a minute. **Fifth consecutive run to report this.** It is paid for again every session until
+  it is in the environment's setup script, which is the owner's fix and nobody else's.
+- The fixtures repo WAS attached. The corpus suite names `imports every design file (35 present)` and
+  29 corpus cases are green, so every "0 findings" below came from a sweep that examined something.
+- **`nrdptel/fusionspace-debrief` is attachable mid-run and it is not expensive**: `add_repo`, then
+  one `git clone --depth 1` into `/workspace/fusionspace-debrief`, about twenty seconds. Do it on any
+  run that touches `DESIGN.md`.
+- The clone is **shallow**, so any commit count here is a window, not the record.
+- Commits are signed and the identity is `Neer Patel <135655563+nrdptel@users.noreply.github.com>`,
+  set per-repo before the first commit **in both repos**. It arrives as the harness vendor's default.
+- **The harness appended an attribution footer to the pull request body, again.** Read every PR body
+  back after posting and strip it. It happened on Debrief PR #147 this run and was stripped.
+- **`cd`-ing into the sibling checkout resets the shell's working directory afterwards.** Several
+  commands then ran from `/home/user` and `vitest` failed with `ENOENT: scandir '/home/user/components'`,
+  which looks exactly like a broken test and is not. Prefix repo commands with their own `cd`.
+- **4 cores, and the orchestration layer competes with the gate.** A 7-agent fan-out took ~36 minutes
+  wall-clock; while it ran, a `npm test` that takes 185 s alone took **346 s**. Dispatch the fan-out,
+  then do LOW-CPU work until it lands — not gate cycles.
+- **The build's own `check-text-gaps` caught two real defects in this run's prose** and is worth
+  trusting: a JSX text run that spans a line break loses its leading whitespace, so `<em>loaded</em>`
+  followed by a newline shipped as `loadedcentre`. Baseline is 0; anything above that is yours.
+
+## This run
+
+| # | what | how it was verified |
+|---|---|---|
+| 1 | **P9 SHIPPED (from `ON-B1`)** — the Tip control converges on the suite's coffee-cup glyph and its accessible name; the colour deliberately does not | four new `DESIGN.md` §10 checks in `lib/design-system.test.ts`, three with negative controls |
+| 2 | **The amber, written and reverted** — §2 gains no chrome exception after all, and the check asserts an EMPTY list | refuted by reading `components/KofiButton.tsx` in the sibling; stylesheet back to 63,476 bytes exactly |
+| 3 | **`DESIGN.md` mirrored into Debrief, in the same run** — §2 and §10, plus its Tip control's missing `aria-label` | Debrief PRs #147 and #148, both green on `frontend` and `e2e`, both merged; §2 and §10 diffed byte-identical between checkouts |
+| 4 | **SEV-1: the parameter sweep published a static margin the flight card was withholding** | reproduced before it was scoped (1.098 / 1.290 / 1.487 cal); pinned by `lib/sim/sweep.test.ts`, negative control leaks 1.0979687142572607 |
+| 5 | **SEV-1, second surface: the what-if comparison card did the same, and its signed CHANGE was wrong a second way** | found by the pre-push review; pinned by `lib/what-if-delta.test.tsx` (3 cases, 2 negative controls, one leaking `1.29 → 0.95 cal`) |
+| 6 | **A surface census for the figure** — every file that publishes a static margin, and how each is gated | `lib/margin-surfaces.test.ts`; it found three surfaces the fix had not enumerated, all already correct |
+| 7 | **The first design-system audit this repo has run**, filed | seven entries in `BACKLOG.md`, one of which the pre-push review then corrected |
+| 8 | **`COMPETITION.md` row 40** — OpenRocket's property dialog and the verbs beside its tree | published docs only, clean-room; settles one of row 39's two open questions |
+
+## What the pre-push review caught that the whole gate could not
+
+**Eight findings, and two were blockers.** The gate — lint, 1,121 unit tests, a clean build and 243
+e2e cases — was green over every one of them.
+
+1. **`WhatIfDelta` published the very margin the increment was fixing**, one card above the sweep. The
+   Sev-1 fix was written against the surface a reproduction had pointed at, and a `grep` for the other
+   surfaces was never run — the review's second lens ran it.
+2. **A check that could not fail.** `expect(tokens).toMatch(/TOUCH_TARGET,/)` was run against the whole
+   of `lib/ui-tokens.ts`, and that string occurs twice — so the "buttonClass keeps its 44 px floor"
+   assertion stayed green with the floor deleted. Scoped to that function's body now, and the negative
+   control fires.
+3. **Four passages of prose describing work that had been reverted three hours earlier** — `ROADMAP.md`
+   still named a `buttonClass({ variant: "support" })` that no longer exists.
+4. **A `BACKLOG.md` entry whose stated repro did not reproduce.** "Off-system radius ×7" is right; the
+   command given answers 17 for the bare form alone, because "rounded" is an English word the docs
+   pages use in prose. Corrected with what the census actually returns and why.
+5. **A line reference wrong inside a paragraph explicitly framed as hand-verified.**
+
+**And the review's own findings needed verifying.** One lens reported the docs claim and the code
+defect as separate items; one reported a formatting break that was real; the blocker was confirmed by
+opening the file, not by trusting the report.
+## The previous run (2026-08-08, earlier the same day)
+
+### The environment, as the previous run measured it
 
 - `node_modules` absent at session start (~90 s). **The managed Playwright browser chromium-1228 was
   absent again** — `/opt/pw-browsers` had 1194 — and `npx playwright install chromium` fixed it in
@@ -91,7 +147,7 @@ have been. Remove the probe line, do not restore the file.
   generated from prose. `MAINTAINING.md`'s workaround bullet is updated to say so. A ledger entry may
   now name a class plainly; `lib/` is still scanned on purpose.
 
-## This run — eight increments, ALL merged to `main`
+### That run — eight increments, all merged
 
 | # | SHA | what |
 |---|---|---|
@@ -104,7 +160,7 @@ have been. Remove the probe line, do not restore the file.
 | 7 | `d67d85b` | The done-check, and what production actually serves |
 | 8 | `4df4d45` | **P10 increment 1** — the README says what Loft imports, and two of its claims now fail the build when they stop being true |
 
-## The done-check, answered out loud
+### Its done-check
 
 **What can a flyer DO after this run that they could not before? (R-track)**
 
@@ -146,7 +202,7 @@ Sev-1-shaped claims from the fan-out (round-trip id loss, drag-coefficient re-at
 apogee move) did not reproduce on any real file, and two latent ones (`compare.ts`'s missing
 `landed` gate, the unwritten `<customreference>`) are real but unreachable today.
 
-## The arc so far
+### Its arc table (superseded by the one above)
 
 | milestone | state |
 |---|---|
@@ -160,7 +216,7 @@ apogee move) did not reproduce on any real file, and two latent ones (`compare.t
 | **P7 — readable in every theme** (from `ON-1`) | **SHIPPED 2026-08-08** |
 | **P8–P12** (from `ON-3`, `ON-B1`, `ON-B2`, `ON-8`, `ON-9`) | **NOT STARTED**, all decomposed with *done when*s and pinning checks. The P-track is no longer dry |
 
-## Pick up first
+### What it said to pick up first
 
 1. **R12 — the component tree.** All four editor-shape notes converge on it, and the decisive
    measurement is already taken: **the model ALREADY carries the tree** (`children` on every
@@ -175,7 +231,7 @@ apogee move) did not reproduce on any real file, and two latent ones (`compare.t
    announces.
 3. **R10's last item, `maxAcceleration`**, is still open and still scoped in `ROADMAP.md`.
 
-## What is waiting on the owner
+### What it said was waiting on the owner
 
 **Three** entries in `OWNER-NOTES.md` under *Awaiting the owner*, all cheap and none blocking: the
 repo's GitHub description/website/topics are empty and a session cannot set them (paste-ready values
