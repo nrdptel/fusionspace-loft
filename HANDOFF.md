@@ -91,14 +91,18 @@ have been. Remove the probe line, do not restore the file.
   generated from prose. `MAINTAINING.md`'s workaround bullet is updated to say so. A ledger entry may
   now name a class plainly; `lib/` is still scanned on purpose.
 
-## This run — three increments so far
+## This run — eight increments, ALL merged to `main`
 
 | # | SHA | what |
 |---|---|---|
-| 1 | `6a752ac` | **P7 SHIPPED** (from `ON-1`) — the docs, readable in the theme the visitor is actually in, plus the two checks that were missing |
-| 2 | `e396ba3` | **The triage** — twelve verdicts, eight milestones, R4 annotated rather than re-opened |
-| 3 | pending | **R11 SHIPPED** (from `ON-2`) — a scratch build that goes downrange and says whose assumption the wind is, plus a plot that explains a flight with no down-range instead of drawing one on its own axis |
-| 4 | pending | **The pre-push review's blocker** — the Monte-Carlo nominal was a hand-copy of the old wind default, so the dispersion flew 0 m/s beside a Flight card flying 2 |
+| 1 | `8a8ab23` | **P7 SHIPPED** (from `ON-1`) — the docs, readable in the theme the visitor is actually in, plus the two checks that were missing |
+| 2 | `8a8ab23` | **The triage** — twelve verdicts, eight milestones, R4 annotated rather than re-opened |
+| 3 | `8a8ab23` | **R11 SHIPPED** (from `ON-2`) — a scratch build that goes downrange and says whose assumption the wind is, plus a plot that explains a flight with no down-range instead of drawing one on its own axis |
+| 4 | `8a8ab23` | **The pre-push review's blocker** — the Monte-Carlo nominal was a hand-copy of the old wind default, so the dispersion flew 0 m/s beside a Flight card flying 2 |
+| 5 | `d67d85b` | **Scan the code, not the prose** — taken from the sibling; 2,617 bytes of dead CSS the ledgers were generating |
+| 6 | `d67d85b` | **R12 increment 1** — the design's tree is visible; `flattenRocket` carries depth, parent and stage |
+| 7 | `d67d85b` | The done-check, and what production actually serves |
+| 8 | `4df4d45` | **P10 increment 1** — the README says what Loft imports, and two of its claims now fail the build when they stop being true |
 
 ## The done-check, answered out loud
 
