@@ -221,18 +221,43 @@ VERDICT: *(pending)*
 > I don't like the dragging of anything on the model, no one is actually designing a rocket by
 > dragging parts.
 
-**CONFLICT — this overrules `MAINTAINING.md`, and the manual must be amended in the same run that
-triages it.** North Star #2 currently reads *"a live, to-scale view of the airframe they can select,
-drag, add to, and reshape"* and the craft bar lists *"direct-manipulation that isn't (drag handles
-that jump, no keyboard path, no undo)"* as a tell. Under *precedence* above the note wins: the owner
-wrote that clause and is withdrawing it. Amend both passages, cite `ON-4`, and do not let a later run
-re-derive drag from a manual nobody updated.
+**CONFLICT WITH `MAINTAINING.md` — RESOLVED 2026-08-08, WITH THE OWNER, IN THE CONVERSATION THAT
+FILED THIS NOTE.** North Star #2 read *"a live, to-scale view of the airframe they can select, drag,
+add to, and reshape"*, and the craft bar listed *"drag handles that jump"* as a tell. Both are amended
+and both cite this note. **Do not re-open either.**
 
-Note what is being withdrawn and what is not: the objection is to **drag as the authoring
-interaction**, not to a live to-scale view, and not to selecting a component on the diagram. Read it
-with ON-5 through ON-7 — the owner is describing a different editor, not a plainer one.
+**The scope the owner chose, asked and answered directly — "click to select, no drag":** the to-scale
+view stays interactive but nothing is shaped on it. Clicking a component selects it and opens its
+property popover (`ON-5`); authoring happens in the tree and its dialogs (`ON-6`, `ON-7`).
+*"Direct manipulation"* in the North Star now means **select-and-edit**, not drag-to-shape. Two
+alternatives were put and rejected: making the view a read-only picture (rejected — `ON-5` wants to
+click the model itself), and demoting drag to a minor path for coarse moves (rejected — the objection
+is to drag existing as an authoring gesture, not to it being the only one).
 
-VERDICT: *(pending)*
+**Blast radius, measured 2026-08-08 — this is bigger than the two amended paragraphs, and the rest is
+NOT yet resolved:**
+
+- `ROADMAP.md` carries an **active milestone whose *done when* is drag**: *"a flyer can drag a
+  component along the airframe and drop it between two others"*, pinned by 484 drop slots. It was
+  written before this note and now contradicts it. Re-scoping it to the tree is the triaging run's
+  first job on this cluster, and it is queue work, not a defect.
+- **Drag has already SHIPPED** in two places — a tube's length draggable on the diagram, and a mass
+  object's station draggable along it — implemented in `components/RocketDiagram.tsx`.
+- `DESIGN.md` §8 says *"Drag has an arrow-key equivalent and an undo."* That is a **constraint on any
+  drag that exists**, not a requirement that drag exist, so it stands as written. Read it that way
+  rather than as a mandate.
+
+**Sequencing — the defensible default, taken so the triaging run does not have to guess, and cheap
+for the owner to overrule: stop EXTENDING drag now; do not REMOVE what has shipped until the tree and
+dialogs can do the same job.** Removing a working capability before its replacement exists leaves a
+flyer worse off than they are today, which is what SHIPPED-MEANS-REACHABLE and *"a state a flyer can
+enter with no way back"* both argue against. Withdrawal is a destination, not a demolition order.
+
+**A trap for whoever works this: `ROADMAP.md` uses the word "drag" in the AERODYNAMIC sense too** —
+wave drag, forebody pressure drag, the missing drag term for a bare radius step. Those are physics and
+have nothing to do with this note. A find-and-replace over "drag" corrupts the methods documentation.
+
+VERDICT: *(pending — the manual conflict is settled; the work itself is still to be scoped)*
 
 ---
 

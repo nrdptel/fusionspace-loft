@@ -162,11 +162,21 @@ passes away, reached through a long series of small, shippable increments, never
    build a rocket from scratch in Loft — components, materials, motors, recovery — the way
    OpenRocket's editor does, then fly it in the same sim. These things matter as much as the
    capability itself:
-   - **A genuine graphical UI, not a wall of number fields.** The flyer shapes the rocket by direct
-     manipulation — a live, to-scale view of the airframe they can select, drag, add to, and reshape,
-     with the numbers, stability, and simulation updating as they go. Parameter inputs are a scaffold
-     to build behind and then grow past; the destination is a visual editor a hobbyist actually
-     enjoys using.
+   - **A genuine graphical UI, not a wall of number fields.** The flyer builds the rocket through a
+     **component tree and property dialogs** — the way OpenRocket's editor does — beside a live,
+     to-scale view of the airframe they can **select** on, with the numbers, stability, and
+     simulation updating as they go. Selecting a component, on the view or in the tree, opens its
+     properties; nothing is shaped by dragging it. Parameter inputs are a scaffold to build behind
+     and then grow past; the destination is a visual editor a hobbyist actually enjoys using.
+
+     **Drag was withdrawn as the authoring interaction by the owner on 2026-08-08** — `OWNER-NOTES.md`
+     `ON-4`, *"no one is actually designing a rocket by dragging parts"* — and this paragraph is the
+     amended text, not a description of what the app does today. What was withdrawn is **drag**, not
+     **directness**: a live view you select on, and edits that land immediately, are still the
+     destination. Two things follow, spelled out because each is an easy wrong turn from here. Do not
+     re-derive drag from the craft bar's tells or from a roadmap milestone written before that date;
+     and do not read this as licence to rip out shipped drag before the tree exists to replace it —
+     the sequencing is in `ON-4`.
    - **Build and edit are the same surface.** Whatever a flyer imports — .ork, .rkt, RocketPy,
      RASAero, SpaceCAD — lands in the same editable model, so they can open a file, change it in the
      UI, and re-fly it. There is no separate "builder" and "viewer": authoring a new design and
@@ -213,7 +223,9 @@ no signal and gloves on. Design for the tenth use, then make the first one obvio
   hierarchy across surfaces
 - controls that forget (a unit choice, a motor selection, a view or sort order that resets)
 - tables/inputs you cannot sort, filter, copy out of, or drive from the keyboard
-- direct-manipulation that isn't (drag handles that jump, no keyboard path, no undo)
+- an edit you cannot reach from the keyboard, or undo once you have made it — and any part of the
+  diagram that still asks to be dragged, which `ON-4` withdrew (select-and-edit is the interaction;
+  see North Star #2)
 - missing empty / loading / error / offline / extrapolated states, or ones that say nothing
 - an input that accepts a value it cannot physically mean, and reports a confident number from it
 - a state a flyer can enter with no way back out
