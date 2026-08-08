@@ -2314,6 +2314,62 @@ test.describe("Loft", () => {
     await expect(table.getByText(/⌀/).first()).toBeVisible();
   });
 
+  test("the parts list shows the design's tree, not a flat list of parts", async ({ page }) => {
+    // **R12's first requirement, and the owner's own words**: "there is a tree of parts from top to
+    // bottom in which components such as a payload or a mass or a parachute can be under a coupler
+    // or tube." The design has always been a tree — every component carries `children` — and
+    // `flattenRocket` walked it depth-first and threw the depth away, so every surface built on it
+    // could only render a list. Measured across the 27 corpus `.ork` files: 347 of 459 components
+    // sit at depth >= 1, so three quarters of a real design's structure was invisible.
+    //
+    // The relationship is asserted through the WORDS, not the indent. The indent is a visual
+    // shorthand that only holds in design order and that a screen reader announces as punctuation;
+    // "in <host>" survives every sort order and is what reaches assistive tech and the CSV.
+    await page.goto("/");
+    await page.getByRole("button", { name: /54 mm dual-deploy/ }).click();
+    await expect(page.getByRole("heading", { name: "Flight", exact: true })).toBeVisible({ timeout: 30_000 });
+    await page.getByRole("link", { name: "Design" }).click();
+    await page.locator("summary", { hasText: /Parts ·/ }).click();
+
+    const table = page.locator("table", { has: page.getByText("Station") });
+    // The main parachute is INSIDE the payload bay in this design, and the row says so by name.
+    const chute = table.locator("tr", { hasText: "Main parachute" }).first();
+    await expect(chute).toContainText(/in Payload \/ main bay/);
+
+    // **THE CONTROL, and it took two attempts to make it one.** This design has two body tubes, and
+    // the drogue lives in the OTHER one. A child that names its own host must therefore produce two
+    // different answers — which is the one thing a constant cannot do.
+    //
+    // The first attempt asserted only that some row contained "Payload / main bay"; the chute's own
+    // "in …" line contains exactly that, so it passed trivially. The second scoped that to a real
+    // body-tube row — and still passed when `hostName` was replaced with a constant returning
+    // "Payload / main bay", because that string IS a real tube's name. Both were measured by
+    // stubbing the lookup and watching the test stay green. Two children, two hosts, is the version
+    // that goes red.
+    const drogue = table.locator("tr", { hasText: "Drogue parachute" }).first();
+    await expect(drogue, "both chutes name the same host — the lookup is not reading the tree").toContainText(
+      /in Booster \/ motor bay/,
+    );
+    // And both named hosts are real body-tube rows of this table, not strings invented for a child.
+    for (const host of ["Payload / main bay", "Booster / motor bay"]) {
+      await expect(
+        table.locator("tr").filter({ has: page.locator('[data-kind="bodytube"]') }).filter({ hasText: host }),
+        `"${host}" is named as a host but is not a body-tube row of this table`,
+      ).toHaveCount(1);
+    }
+
+    // And a stage-level part names no host — otherwise "in …" would be furniture on every row.
+    //
+    // Asserted on the TYPE cell rather than the whole row, because "in" is also the imperial length
+    // unit and the mass cell says "in <assembly>" for a subsumed part: a row-wide negative match
+    // would fail on a unit toggle for a reason that has nothing to do with the tree.
+    const noseType = table
+      .locator("tr")
+      .filter({ has: page.locator('[data-kind="nosecone"]') })
+      .locator('[data-kind="nosecone"]');
+    await expect(noseType).not.toContainText(/\bin /);
+  });
+
   test("picking a part on the diagram says what it is and finds it in the parts list", async ({ page }) => {
     // Hover alone can't answer "what is this?" — the pointer has to leave the shape before you can
     // read anything, and the only place that said so was behind a closed disclosure.
@@ -3119,7 +3175,7 @@ test.describe("Loft", () => {
     await page.getByRole("link", { name: "Design" }).click();
     await page.locator("summary", { hasText: /Parts ·/ }).click();
     const partsTable = page.locator("table").filter({ hasText: "Dimensions" });
-    const tubes = partsTable.locator("tr").filter({ hasText: /Body tube/ });
+    const tubes = partsTable.locator("tr").filter({ has: page.locator('[data-kind="bodytube"]') });
     await expect(tubes).toHaveCount(1);
     await tubes.first().click();
     await page.getByRole("button", { name: /Add a tube behind this/ }).click();
@@ -4074,7 +4130,7 @@ test.describe("Loft", () => {
     await page.getByRole("link", { name: "Design" }).click();
     await page.locator("summary", { hasText: /Parts ·/ }).click();
 
-    const tubeRows = page.locator("tr").filter({ hasText: /Body tube/ });
+    const tubeRows = page.locator("tr").filter({ has: page.locator('[data-kind="bodytube"]') });
     await expect(tubeRows).toHaveCount(2);
     const lengthsOf = async () =>
       (await tubeRows.allTextContents()).map((t) => t.replace(/\s+/g, " ").match(/L ([\d,]+) mm/)?.[1] ?? "?");
@@ -4123,7 +4179,7 @@ test.describe("Loft", () => {
     const finRows = partsTable.locator("tr").filter({ hasText: /Trapezoidal fins/ });
     await expect(finRows).toHaveCount(1);
 
-    await partsTable.locator("tr").filter({ hasText: /Body tube/ }).first().click();
+    await partsTable.locator("tr").filter({ has: page.locator('[data-kind="bodytube"]') }).first().click();
     await page.getByRole("button", { name: /Add fins to this tube/ }).click();
 
     // Two rings now, and the second matches the first — the same dimensions, in the same row text.
@@ -4206,7 +4262,7 @@ test.describe("Loft", () => {
     await page.getByRole("link", { name: "Design" }).click();
     await page.locator("summary", { hasText: /Parts ·/ }).click();
     const partsTable = page.locator("table").filter({ hasText: "Dimensions" });
-    const tubes = partsTable.locator("tr").filter({ hasText: /Body tube/ });
+    const tubes = partsTable.locator("tr").filter({ has: page.locator('[data-kind="bodytube"]') });
     await expect(tubes).toHaveCount(1);
     const dryBefore = await dry();
 
@@ -4268,7 +4324,7 @@ test.describe("Loft", () => {
     const cones = partsTable.locator("tr").filter({ hasText: /Transition/ });
     await expect(cones).toHaveCount(0);
 
-    await partsTable.locator("tr").filter({ hasText: /Body tube/ }).first().click();
+    await partsTable.locator("tr").filter({ has: page.locator('[data-kind="bodytube"]') }).first().click();
     await page.getByRole("button", { name: /Add a transition behind this/ }).click();
     await expect(cones).toHaveCount(1);
     // The dimension line says it contracts: a fore diameter larger than the exit.
@@ -4328,7 +4384,7 @@ test.describe("Loft", () => {
     const rows = partsTable.locator("tr").filter({ hasText: /Mass object/ });
     await expect(rows).toHaveCount(1);
 
-    await partsTable.locator("tr").filter({ hasText: /Body tube/ }).first().click();
+    await partsTable.locator("tr").filter({ has: page.locator('[data-kind="bodytube"]') }).first().click();
     await page.getByRole("button", { name: /Add a mass inside this/ }).click();
     await expect(rows).toHaveCount(2);
 
@@ -4408,7 +4464,7 @@ test.describe("Loft", () => {
       return { at, len };
     };
 
-    const tubeRow = partsTable.locator("tr").filter({ hasText: /Body tube/ }).first();
+    const tubeRow = partsTable.locator("tr").filter({ has: page.locator('[data-kind="bodytube"]') }).first();
     await tubeRow.click();
     await page.getByRole("button", { name: /^Add a coupler inside this/ }).click();
     // **The host has to be picked again between the two adds, and that is a deliberate change rather
@@ -4477,7 +4533,7 @@ test.describe("Loft", () => {
       return cells.join(" | ");
     };
 
-    await partsTable.locator("tr").filter({ hasText: /Body tube/ }).first().click();
+    await partsTable.locator("tr").filter({ has: page.locator('[data-kind="bodytube"]') }).first().click();
     await page.getByRole("button", { name: /^Add a coupler inside this/ }).click();
     const derived = await dimsOf();
 
@@ -4580,7 +4636,7 @@ test.describe("Loft", () => {
     await page.locator("summary", { hasText: /Parts ·/ }).click();
 
     const partsTable = page.locator("table").filter({ hasText: "Dimensions" });
-    const tubes = partsTable.locator("tr").filter({ hasText: /Body tube/ });
+    const tubes = partsTable.locator("tr").filter({ has: page.locator('[data-kind="bodytube"]') });
     await expect(tubes).toHaveCount(2);
     // Scoped to the sentence only the PARTS PANEL says. The flight now carries its own caution about
     // the same geometry — at airframe scope, for the design as a whole — so a locator that matched
@@ -4672,7 +4728,7 @@ test.describe("Loft", () => {
     await page.getByRole("link", { name: "Design" }).click();
     await page.locator("summary", { hasText: /Parts ·/ }).click();
     const partsTable = page.locator("table").filter({ hasText: "Dimensions" });
-    const tubes = partsTable.locator("tr").filter({ hasText: /Body tube/ });
+    const tubes = partsTable.locator("tr").filter({ has: page.locator('[data-kind="bodytube"]') });
     await expect(tubes).toHaveCount(1);
 
     await tubes.first().click();
@@ -4942,7 +4998,7 @@ test.describe("Loft", () => {
     expect(orderBefore.length).toBeGreaterThan(3);
 
     // Pick the aft-most body tube and walk it one place toward the nose.
-    const tubes = partsTable.locator("tr").filter({ hasText: /Body tube/ });
+    const tubes = partsTable.locator("tr").filter({ has: page.locator('[data-kind="bodytube"]') });
     await expect(tubes).toHaveCount(2);
     await tubes.last().click();
     const toNose = page.getByRole("button", { name: /Move toward the nose/ });
@@ -5062,7 +5118,7 @@ test.describe("Loft", () => {
 
     // Pick the FORWARD tube deliberately, and read which part the body fields say they are holding.
     const partsTable = page.locator("table").filter({ hasText: "Dimensions" });
-    const tubes = partsTable.locator("tr").filter({ hasText: /Body tube/ });
+    const tubes = partsTable.locator("tr").filter({ has: page.locator('[data-kind="bodytube"]') });
     await tubes.first().click();
     // Scoped to the input: the diagram's own grips carry the same accessible names as the fields, so a
     // bare `getByLabel` matches two elements. This is the suite's idiom for that collision.
@@ -5506,7 +5562,7 @@ test.describe("Loft", () => {
     await page.locator("summary", { hasText: /Parts ·/ }).click();
 
     const partsTable = page.locator("table").filter({ hasText: "Dimensions" });
-    const tubes = partsTable.locator("tr").filter({ hasText: /Body tube/ });
+    const tubes = partsTable.locator("tr").filter({ has: page.locator('[data-kind="bodytube"]') });
     const rows = () => partsTable.locator("tbody tr").count();
     const partsBefore = await rows();
     await expect(tubes).toHaveCount(1);
@@ -5585,7 +5641,7 @@ test.describe("Loft", () => {
       .locator("table")
       .filter({ hasText: "Dimensions" })
       .locator("tr")
-      .filter({ hasText: /Body tube/ });
+      .filter({ has: page.locator('[data-kind="bodytube"]') });
     await expect(tubeRows).toHaveCount(1); // the sample is a single-tube airframe
     await tubeRows.first().click();
 
@@ -5653,7 +5709,7 @@ test.describe("Loft", () => {
     await page.getByRole("link", { name: "Design" }).click();
     await page.locator("summary", { hasText: /Parts ·/ }).click();
 
-    const tubeRows = page.locator("tr").filter({ hasText: /Body tube/ });
+    const tubeRows = page.locator("tr").filter({ has: page.locator('[data-kind="bodytube"]') });
     const lengthsOf = async () =>
       (await tubeRows.allTextContents()).map((t) => t.replace(/\s+/g, " ").match(/L ([\d,]+) mm/)?.[1] ?? "?");
     const before = await lengthsOf();
@@ -5674,7 +5730,7 @@ test.describe("Loft", () => {
     await page.getByRole("link", { name: "Design" }).click();
     await page.locator("summary", { hasText: /Parts ·/ }).click();
 
-    const rows2 = page.locator("tr").filter({ hasText: /Body tube/ });
+    const rows2 = page.locator("tr").filter({ has: page.locator('[data-kind="bodytube"]') });
     const lengths2 = (await rows2.allTextContents()).map(
       (t) => t.replace(/\s+/g, " ").match(/L ([\d,]+) mm/)?.[1] ?? "?",
     );
@@ -5717,7 +5773,7 @@ test.describe("Loft", () => {
     await expect.poll(async () => (await spanOf())[1], { timeout: 15000 }).toBe("77");
 
     // Read a different part. The edit must not follow the pick.
-    await page.locator("tr").filter({ hasText: /Body tube/ }).first().click();
+    await page.locator("tr").filter({ has: page.locator('[data-kind="bodytube"]') }).first().click();
     await page.waitForTimeout(600);
     const after = await spanOf();
     expect(after[1], "the edited set keeps its edit").toBe("77");
@@ -6801,7 +6857,11 @@ test.describe("authoring a motor mount", () => {
     const parts = page.locator("table").filter({ hasText: "Dimensions" });
     await page.locator("summary").filter({ hasText: /Parts/ }).first().click();
     // Pick the aft BODY tube — the mount lives on an inner tube inside it, so this one has none.
-    await parts.locator("tbody tr").filter({ hasText: /Body tube/ }).last().click();
+    await parts
+      .locator("tbody tr")
+      .filter({ has: page.locator('[data-kind="bodytube"]') })
+      .last()
+      .click();
 
     const add = page.getByRole("button", { name: /Add a motor mount to this tube/ });
     await expect(add, "the gesture is offered on a tube with no mount").toBeVisible();

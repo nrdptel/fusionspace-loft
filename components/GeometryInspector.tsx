@@ -32,6 +32,21 @@ const PART_COLUMNS = (
   units: UnitSystem,
   masses: ReturnType<typeof massByComponent>,
   massCell: (id: string) => { text: string; muted: boolean },
+  /** Whether the rows are in the design's own nose-to-tail order. **Nesting is only meaningful in
+   *  that order**: sorted by mass or by name a child can appear above its host, so an indent would
+   *  claim a relationship the row order contradicts. Sorted views render flat, which is honest. */
+  treeOrder: boolean,
+  /** A component id → the host's own NAME, or `undefined` where the design never gave it one.
+   *
+   *  **Undefined is a deliberate answer, not a gap.** Falling back to the kind produced "in Body
+   *  tube" on every nested row of a design whose tubes are unnamed — which tells a flyer nothing the
+   *  indent and the row above it do not already say, and which is actively ambiguous on a design
+   *  with three of them. The words earn their place exactly when the host has a distinguishing name
+   *  ("in Payload / main bay"), which is also exactly when the indent alone is ambiguous. */
+  hostName: (id: string) => string | undefined,
+  /** The same lookup, falling back to the host's KIND — used only by the CSV, which has no indent
+   *  and so cannot afford the silence the screen can. */
+  hostLabel: (id: string) => string | undefined,
 ): Column<PartRow>[] => [
   {
     key: "name",
@@ -39,7 +54,32 @@ const PART_COLUMNS = (
     rowHeader: true,
     sortValue: ({ p }) => (p.component.name || kindLabel(p.component)).toLowerCase(),
     cell: ({ p }) => (
-      <span className="font-sans text-zinc-700 dark:text-zinc-200">
+      // **The design is a tree and this table drew it as a list.** Measured across the 27 corpus
+      // `.ork` files: 347 of 459 components sit at depth >= 1, and the tree runs four deep — a
+      // coupler inside a body tube, a chute inside that coupler, a shock cord beside it, all
+      // rendered as siblings of the nose cone. The owner named this directly: "there is a tree of
+      // parts from top to bottom in which components such as a payload or a mass or a parachute can
+      // be under a coupler or tube."
+      //
+      // The row stays a table row rather than becoming nested markup, because `DataTable` owns its
+      // sort, its keyboard navigation and its copy-out, and a tree of `<ul>`s would lose all three.
+      // The guide character is `aria-hidden`: an indent a screen reader announces as a dash tells a
+      // blind flyer less than nothing, so the relationship travels in the "in <host>" line instead.
+      //
+      // **The indent is PADDING, and the first version got that wrong in a way no test could see.**
+      // It emitted a run of spaces, which HTML collapses — so every depth rendered the same elbow at
+      // zero indentation, a decoration shaped like a tree. Two independent reviewers caught it; the
+      // suite could not, because the test asserts the words. An inline element honours
+      // `padding-inline-start`, so the cell stays a cell and the depth is real.
+      <span
+        className="font-sans text-zinc-700 dark:text-zinc-200"
+        style={treeOrder && p.depth > 0 ? { paddingInlineStart: `${(p.depth - 1) * 0.9}rem` } : undefined}
+      >
+        {treeOrder && p.depth > 0 && (
+          <span aria-hidden className="select-none text-zinc-300 dark:text-zinc-600">
+            └{" "}
+          </span>
+        )}
         {p.component.name || KIND_LABEL[p.component.kind] || p.component.kind}
       </span>
     ),
@@ -50,11 +90,38 @@ const PART_COLUMNS = (
     label: "Type",
     sortValue: ({ p }) => kindLabel(p.component).toLowerCase(),
     cell: ({ p }) => (
-      <span className="text-zinc-500 dark:text-zinc-400">
+      // `data-kind` carries the component's KIND, which its label cannot. The label is the design's
+      // own name where it has one — a body tube may be called "Booster airframe" — and the nested
+      // line below adds the host's name to this same cell, so any text match over the row is both
+      // ambiguous and fragile. Eighteen e2e locators counted body tubes by matching the words "Body
+      // tube" anywhere in the row, and the host line broke every one of them at once. A kind is a
+      // fact about the model rather than a string on screen, so it is the right thing to select on.
+      <span data-kind={p.component.kind} className="text-zinc-500 dark:text-zinc-400">
         {KIND_LABEL[p.component.kind] ?? p.component.kind}
+        {/* **The host in words — the half that actually carries the structure.** The indent on the
+            name only works in design order and reads as punctuation to a screen reader; this names
+            the part it sits inside, so it survives every sort order, reaches assistive tech, and
+            goes out in the CSV.
+
+            Subordinated by SIZE, not by colour, and that is a correction rather than a preference:
+            the first version set a zinc-400/zinc-500 pair that is on no §2 text role at all, and
+            this run's own contrast walk failed it at 3.67:1 against WCAG AA's 4.5. Inheriting the
+            cell's colour and dropping one size is what §3 prescribes for the text around a value,
+            and it removes the colour decision entirely. */}
+        {p.parentId !== undefined && hostName(p.parentId) && (
+          <span className="block text-xs">in {hostName(p.parentId)}</span>
+        )}
       </span>
     ),
-    csv: ({ p }) => KIND_LABEL[p.component.kind] ?? p.component.kind,
+    // **The export falls back to the KIND where the screen does not, and the indent is the reason.**
+    // On screen a part inside an unnamed tube is already visibly under it, so repeating "in Body
+    // tube" is noise. A CSV has no indent: without the fallback, a part nested three deep exported
+    // byte-identical to a stage-level one and the tree could not be reconstructed from the file at
+    // all.
+    csv: ({ p }) => {
+      const host = p.parentId === undefined ? undefined : hostLabel(p.parentId);
+      return (KIND_LABEL[p.component.kind] ?? p.component.kind) + (host ? ` (in ${host})` : "");
+    },
   },
   {
     key: "station",
@@ -445,6 +512,23 @@ export default function GeometryInspector({
     !!pickTarget?.entry.pick &&
     pickTarget.hostLength !== undefined &&
     pickTarget.entry.pick.length > pickTarget.hostLength;
+
+  // A part's host, by the host's OWN name, so "in Payload coupler" and the row reading "Payload
+  // coupler" are the same string. Undefined where the design never named the host — see the prop's
+  // docblock: the kind fallback said "in Body tube" on every nested row of an unnamed design, which
+  // adds nothing the indent does not, and is ambiguous where there are three of them.
+  // **One Map, built once — not an O(n) `find` called three times per row on every render.** The
+  // first version was exactly that, and `hoveredId` changes on every pointer move across the diagram
+  // while the collapsed `<details>` keeps all rows mounted: on a 569-part design that is hundreds of
+  // thousands of id comparisons per mousemove, for a string that never changes between them.
+  const byId = new Map(parts.map((q) => [q.component.id, q.component] as const));
+  /** The host's own NAME, or undefined where the design never gave it one — for the screen. */
+  const hostName = (id: string): string | undefined => byId.get(id)?.name || undefined;
+  /** The same, falling back to the kind — for the CSV, which has no indent to lean on. */
+  const hostLabel = (id: string): string | undefined => {
+    const c = byId.get(id);
+    return c ? c.name || KIND_LABEL[c.kind] || c.kind : undefined;
+  };
 
   // The table's rows in the chosen order. Sorting is stable against the design order, so parts that
   // tie on a column still read nose-to-tail rather than shuffling.
@@ -871,7 +955,7 @@ export default function GeometryInspector({
           </summary>
           <DataTable
             className="mt-2"
-            columns={PART_COLUMNS(units, masses, massCell)}
+            columns={PART_COLUMNS(units, masses, massCell, sort === "design", hostName, hostLabel)}
             rows={rows}
             rowKey={({ p }, i) => `${p.component.id}-${i}`}
             caption="Every part the importer read, with its station and mass"

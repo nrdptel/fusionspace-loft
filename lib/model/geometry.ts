@@ -18,6 +18,25 @@ export interface Positioned {
   length: number;
   /** Outer radius at this component's location (m), for interference/reference use. */
   bodyRadius: number;
+  /** How deep this component sits in its stage's tree — 0 for a part attached to the stage
+   *  itself, 1 for something inside it, and so on.
+   *
+   *  **The walk below has always been depth-first and has always thrown the depth away**, so every
+   *  surface built on it could only show a flat list. That is most of what makes the parts table a
+   *  list of parts rather than a picture of the design: measured across the 27 corpus `.ork` files,
+   *  **347 of 459 components sit at depth ≥ 1** and the tree runs four deep. A coupler inside a body
+   *  tube, a chute inside that coupler and a shock cord beside it all rendered as four siblings of
+   *  the nose cone. */
+  depth: number;
+  /** The id of the component this one is placed against, or `undefined` for a stage-level part.
+   *  Carried so a surface can group children under their host without re-walking the tree — and so
+   *  it can do it correctly, which an indentation level alone cannot: two parts at the same depth
+   *  under different hosts are not siblings. */
+  parentId?: string;
+  /** Which stage this component belongs to, 0-based from the nose. A staged design is several
+   *  trees stacked, not one, and a surface that draws it as one is wrong about the topology even
+   *  when it happens to look right. */
+  stageIndex: number;
 }
 
 /** The axial length a component occupies (m) — the span used both to stack it and to
@@ -104,14 +123,17 @@ export function flattenRocket(rocket: Rocket): Positioned[] {
     components: RocketComponent[],
     parentFore: number,
     parentLength: number,
+    depth: number,
+    parentId: string | undefined,
+    stageIndex: number,
   ): number => {
     let cursor = parentFore; // aft end of the previous sibling (start = parent fore)
     for (const c of components) {
       const len = axialLength(c);
       const xFore = resolveChildFore(c, parentFore, parentLength, cursor);
-      out.push({ component: c, xFore, length: len, bodyRadius: outerRadius(c) });
+      out.push({ component: c, xFore, length: len, bodyRadius: outerRadius(c), depth, parentId, stageIndex });
       cursor = xFore + len;
-      if (c.children.length > 0) walk(c.children, xFore, len);
+      if (c.children.length > 0) walk(c.children, xFore, len, depth + 1, c.id, stageIndex);
     }
     return cursor;
   };
@@ -121,9 +143,9 @@ export function flattenRocket(rocket: Rocket): Positioned[] {
   // stages would overlap at x=0 — total mass and reference area (and so apogee) survive that, but
   // the centre of gravity, centre of pressure, and stability margin would be badly wrong.
   let stageFore = 0;
-  for (const stage of rocket.stages) {
-    stageFore = walk(stage.components, stageFore, 0);
-  }
+  rocket.stages.forEach((stage, stageIndex) => {
+    stageFore = walk(stage.components, stageFore, 0, 0, undefined, stageIndex);
+  });
   return out;
 }
 

@@ -268,6 +268,70 @@ suite("real-design corpus", () => {
     expect(failures, "design files that failed to import").toEqual([]);
   }, 300_000);
 
+  it("carries every real design's tree structure through the flatten, not just its order", async () => {
+    // **`flattenRocket` walked depth-first and threw the depth away**, so every surface built on it
+    // could only ever show a flat list — which is most of why the parts table reads as a list of
+    // parts rather than a picture of the design. R12's first requirement is a tree the flyer can
+    // SEE, and it cannot be built from a projection that does not carry one.
+    //
+    // Driven over the real corpus rather than a fixture because the shapes that matter are the ones
+    // nobody would think to synthesize: a coupler inside a tube with a chute inside the coupler, a
+    // mass object under a nose, a stage whose parts nest four deep.
+    //
+    // What is asserted is INTERNAL CONSISTENCY, not a golden number, so it holds as the corpus is
+    // re-cut: every non-root part names a parent that (a) exists, (b) appears BEFORE it — the walk
+    // is depth-first, so a child can never precede its host — (c) is exactly one level shallower,
+    // and (d) is in the same stage. Then a control, because a sweep that examined nothing reports
+    // no violations and prints exactly like a pass.
+    let parts = 0;
+    let nested = 0;
+    let maxDepth = 0;
+    const stageCounts = new Set<number>();
+    const bad: string[] = [];
+
+    for (const f of files) {
+      const doc = await importDesign(new Uint8Array(readFileSync(f.path)));
+      const flat = flattenRocket(doc.rocket);
+      const seen = new Map<string, { depth: number; stageIndex: number }>();
+      for (const p of flat) {
+        parts++;
+        maxDepth = Math.max(maxDepth, p.depth);
+        stageCounts.add(p.stageIndex);
+        const where = `${shortName(f.name)} · "${p.component.name}" (${p.component.kind})`;
+        if (p.depth === 0) {
+          if (p.parentId !== undefined) bad.push(`${where}: depth 0 but names a parent`);
+        } else {
+          nested++;
+          const parent = p.parentId === undefined ? undefined : seen.get(p.parentId);
+          if (!parent) bad.push(`${where}: depth ${p.depth} with no parent seen before it`);
+          else {
+            if (parent.depth !== p.depth - 1) bad.push(`${where}: depth ${p.depth} under a parent at ${parent.depth}`);
+            if (parent.stageIndex !== p.stageIndex) bad.push(`${where}: stage ${p.stageIndex} under a parent in stage ${parent.stageIndex}`);
+          }
+        }
+        seen.set(p.component.id, { depth: p.depth, stageIndex: p.stageIndex });
+      }
+      // The flatten must still describe the whole design, not a pruned version of it.
+      const total = doc.rocket.stages.reduce((n, s) => {
+        const count = (cs: RocketComponent[]): number => cs.reduce((k, c) => k + 1 + count(c.children), 0);
+        return n + count(s.components);
+      }, 0);
+      if (total !== flat.length) bad.push(`${shortName(f.name)}: flattened ${flat.length} of ${total} components`);
+    }
+
+    console.log(
+      `component trees across ${files.length} design files: ${parts} parts, ${nested} nested ` +
+        `(${((100 * nested) / Math.max(1, parts)).toFixed(1)}%), deepest ${maxDepth}, ` +
+        `${stageCounts.size} distinct stage index(es)`,
+    );
+    expect(bad, "components whose place in the tree does not survive the flatten").toEqual([]);
+    // CONTROLS. A corpus with no nesting at all would pass every assertion above while proving
+    // nothing, and a depth that never exceeds 1 would not exercise the recursion.
+    expect(parts, "the sweep examined no components").toBeGreaterThan(100);
+    expect(nested, "no component in the entire corpus is nested — the walk is not carrying depth").toBeGreaterThan(50);
+    expect(maxDepth, "the corpus never nests more than one level deep").toBeGreaterThan(1);
+  }, 300_000);
+
   it("never lets a removal leave a design with no mass, and says so when it moves none", async () => {
     // R2's delete surface, held to its *done when* — "delete it, see stability, dry mass and apogee
     // move" — across every real design rather than the two committed fixtures. It runs here, in the

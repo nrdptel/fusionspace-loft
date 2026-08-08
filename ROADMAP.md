@@ -2496,9 +2496,34 @@ would put a number on screen that no file asked for.
 
 ## R12 (from ON-6, ON-7, ON-5, ON-4) — The component tree the flyer sees, and edits
 
-**Status: NOT STARTED.** This is the note batch's largest item and the one all four editor-shape
-notes converge on. Treat it as a milestone FAMILY: the *done when* below is the first member, and the
-rest are decomposed as it lands rather than guessed at now.
+**Status: IN PROGRESS** — increment 1 of 2–3 shipped 2026-08-08: **the design's tree is visible.**
+Pinned by `lib/corpus/sweep.test.ts`'s *carries every real design's tree structure through the
+flatten, not just its order* (569 parts across all 35 design files, 419 nested, three deep, every
+parent verified to exist, precede its child, sit exactly one level shallower and share its stage)
+and by `e2e/smoke.spec.ts`'s *the parts list shows the design's tree, not a flat list of parts* —
+which asserts the relationship through the WORDS and then checks the named host is a real row of the
+same table, so it cannot pass against a hard-coded label. Negative control: removing the host line
+reports `Expected /in Payload \/ main bay/, Received "└ Main parachute…"`.
+
+**What was actually wrong was one line in the walk.** `flattenRocket` has always been depth-first and
+has always discarded the depth, so every surface built on it could only render a list — three
+quarters of a real design's structure was invisible for that reason alone, not through any UI
+decision. `Positioned` now carries `depth`, `parentId` and `stageIndex`, and the parts list renders
+the nesting: an indent in design order, and the host named in words in every order, which is the half
+that reaches a screen reader and the CSV.
+
+**Two things deliberately NOT done in this increment, each with its reason.**
+- **The list is still collapsed by default.** The audit is right that a closed `<details>` is a poor
+  home for the surface a flyer builds in — but opening it moves everything below it down by roughly
+  a screen on `/design`, a route that already records a 1,841 px journey against a two-screen
+  contract, and it touches 36 e2e call sites that open it by clicking. That is its own increment with
+  its own depth measurement, not a flag flip.
+- **Selection still does not flow from the tree.** Clicking a row already picks the part and lights
+  it on the diagram; what is missing is the property surface being AIMED by that pick, which is the
+  next increment and the one the *done when* below actually turns on.
+
+Treat this as a milestone FAMILY: the *done when* below is the first member, and the rest are
+decomposed as it lands rather than guessed at now.
 
 **Outcome.** A flyer builds and edits a rocket through a component tree they can see — parts nested
 under their hosts, the way the design actually is — with a property dialog per component, instead of

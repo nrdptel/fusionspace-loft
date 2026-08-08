@@ -71,6 +71,14 @@ have been. Remove the probe line, do not restore the file.
 - The clone is **shallow**, so any commit count here is a window, not the record.
 - Commits are signed and the identity is `Neer Patel <135655563+nrdptel@users.noreply.github.com>`,
   set per-repo before the first commit. It arrives as the harness vendor's default; set it every run.
+- **The session-restore flake is real and was seen TWICE this run, on two different specs.** Both
+  times a route was asked for its own panel and timed out at ~30 s with "element(s) not found" —
+  `e2e/touch.spec.ts`'s pad-states walk once, and `e2e/depth.spec.ts`'s desktop spine once — and both
+  passed in isolation and on a clean re-run, with the phone twin of the second passing in the same
+  shard. **The signature is a 30 s TIMEOUT on a missing element, not an assertion about a number.**
+  An assertion failure naming a measurement is yours; a wait that expired is the restore racing the
+  navigation. Re-run before believing it, and do not run agents during e2e.
+
 - **4 cores, and the orchestration layer competes with the gate for them.** The opening fan-out ran
   17 agents at a concurrency of 2 and took ~50 minutes wall-clock; while it ran, a `npm test` that
   takes 185 s alone took over 8 minutes. `MAINTAINING.md` already says not to run subagents during
@@ -129,14 +137,24 @@ are in that file); whether Loft's header should adopt the motor finder's two-row
 motor finder's own repo is not attached, only its live site — which is the one `ON-B1` needs answered
 to read the reference implementation rather than infer it from rendered output.
 
-**And the shared-`DESIGN.md` invariant, stated precisely, because two files disagreed about it before
-review caught them.** `DESIGN.md` is shared verbatim with the sibling and a change to one is a change
-to both in the same run. This session's GitHub scope was this repo and the fixtures repo, so the §9
-contrast rule landed here alone — that is the fact, and `OWNER-NOTES.md` records it under `ON-1`.
-**What is NEW is that `nrdptel/fusionspace-debrief` is listable and pushable from this session's
-tooling**, so it can be attached mid-run rather than filed as a gap for the fourth time. Mirroring
-the §9 contrast rule there — and measuring whether Debrief's own stylesheet carries the same
-class-only defect, which is likely — is the cheapest high-value work left on the P-track.
+**The shared-`DESIGN.md` invariant is HONOURED this run — the first time in four.** A change to that
+file is meant to be a change to both repos in the same run, and three previous runs reported it as a
+gap because the sibling was out of scope. It is not: `nrdptel/fusionspace-debrief` is listable and
+pushable, and **attaching it mid-run costs one tool call and one shallow clone**. The §9 contrast
+rule is merged there (that repo's PR #144). Do this whenever `DESIGN.md` moves.
+
+**Two things that only became visible with both repos attached, and neither was findable from inside
+one of them:**
+- **The sibling had already fixed a hazard this repo was working around.** Its stylesheet excludes
+  markdown from Tailwind's scan and has since 2026-07-31; Loft was still writing class names broken
+  up in prose to avoid regenerating them. Adopted here, 2,617 bytes of dead CSS removed.
+- **The two copies of `DESIGN.md` have drifted by ~369 diff lines** — five button weights there
+  against three here, and different descriptions of `Panel` and `Section`. Filed in `BACKLOG.md`,
+  sized at 2–3 increments. It needs both repos attached, which is now known to be cheap.
+
+**Measured while there: the sibling does NOT carry the dark-mode defect.** Zero `:where(.dark)` rules
+and zero hand-written colour declarations in its stylesheet — every colour comes through a utility
+that gets both clauses. So `ON-1` was Loft-only, and that is a measurement rather than an assumption.
 
 ## Two runs ago — ten increments, four Sev-1s, R9 closed (2026-08-04)
 
